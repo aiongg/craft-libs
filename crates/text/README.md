@@ -7,8 +7,9 @@ plain text and a language and return what layout needs before it shapes and plac
 | --- | --- | --- |
 | `hyphen` | `hyphen` (default) | Hyphenation points |
 | `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words |
+| `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
 
-Bidi and line breaking are planned as further modules.
+Line breaking is planned as a further module.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave
@@ -155,6 +156,45 @@ The features `thai`, `lao`, `khmer` and `burmese` split runs of that
 script into words with ICU4X's dictionary segmenter (`icu_segmenter`). Any one of them links the
 dictionaries for all four, about 1.8 MB; the default build has no ICU data. The data is under the
 Unicode License v3 (see NOTICE).
+## Bidi
+
+`craft_text::bidi` runs the Unicode Bidirectional Algorithm (UAX #9, through
+[unicode-bidi](https://crates.io/crates/unicode-bidi)) on document text. It works on plain text and
+needs no fonts; shaping, glyph mirroring and caret placement stay in each application.
+
+The pipeline is the one UAX #9 prescribes:
+
+1. `Paragraph::new(text, Direction::Rtl)` resolves embedding levels once for the logical
+   paragraph. `Direction::Auto` takes the direction from the first strong character.
+   `Paragraph::with_overrides` also forces byte ranges to one direction (as LRO/RLO would),
+   keeping offsets into the original text. A paragraph separator (`\n`, U+2029) in the text starts
+   a new paragraph with its own level: `paragraphs()` lists each one's byte range and level, and
+   `level()` is the first one's.
+2. The application shapes and breaks lines in logical order.
+3. Each line is reordered on its own: `Paragraph::visual_runs(line)` returns its runs of one level
+   (byte range and level) left to right as displayed, with rule L1 applied (trailing whitespace,
+   tabs and separators at the level of the paragraph they are in). Zero-width joiners and tag
+   characters keep the level of the character before them, so no run splits a grapheme cluster.
+   A run with an odd level displays its characters from end to start. Lines should not cross a
+   paragraph separator.
+
+Lines made of other units (clusters, glyphs, cells) use the free functions on level slices:
+`line_levels(chars, levels, para_level)` for rule L1 and `visual_order(levels)` for rule L2.
+`mirror(c)` returns the mirrored character for rule L4 (`(` for `)`), or `None` when the font has
+to supply a mirrored glyph.
+
+Offsets are bytes into the paragraph's `&str`: `Paragraph::levels()` holds one level per byte,
+as unicode-bidi resolves them, and line ranges and runs are byte ranges. This matches the shaper
+cluster offsets and line ranges the apps already keep, so no char-index table is needed;
+`char_levels()` gives one level per character for code that works on `char` slices. Levels are
+plain `u8` (even left to right, odd right to left), so unicode-bidi's types don't leak into
+callers.
+
+Text with nothing right to left in a left-to-right or `Auto` paragraph skips the algorithm.
+
+The module started from DeckCraft's `text::bidi` (levels, rule L1 and L2 over chars). The
+per-byte levels, the run-level reordering test cases and the hostile-input checks come from
+WordCraft's layout; overrides and mirroring follow DesignCraft's composer.
 
 ## Licenses
 

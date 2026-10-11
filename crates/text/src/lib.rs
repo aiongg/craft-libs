@@ -8,6 +8,8 @@
 //!   hypher patterns for 47 more languages.
 //! - [`segment`] (default): line-break opportunities (UAX #14 with kinsoku), and word breaks for
 //!   Thai, Lao, Khmer and Burmese with their language features.
+//! - [`bidi`] (default): bidirectional text (UAX #9): embedding levels, line reordering and
+//!   mirroring.
 //!
 //! Language features (`spanish`, `german`, …, `all-languages`) add data for that language and
 //! turn on the modules that use it.
@@ -16,3 +18,6 @@
 pub mod hyphen;
 #[cfg(feature = "segment")]
 pub mod segment;
+
+#[cfg(feature = "bidi")]
+pub mod bidi;

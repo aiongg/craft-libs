@@ -15,15 +15,22 @@ hypher = { version = "0.1.8", default-features = false, features = ["alloc"], op
 miniz_oxide = { version = "0.8", optional = true }
 unicode-linebreak = { version = "0.1.5", optional = true }
 icu_segmenter = { version = "2.3", default-features = false, features = ["compiled_data"], optional = true }
+unicode-bidi = { version = "0.3.18", optional = true }
+unicode-bidi-mirroring = { version = "0.4.0", optional = true }
+
+[dev-dependencies]
+unicode-segmentation = "1.13"
 
 [[example]]
 name = "hyphgen"
 required-features = ["generator"]
 
 [features]
-default = ["hyphen", "segment"]
+default = ["hyphen", "bidi", "segment"]
 # Hyphenation points; English (bundled dictionary and patterns) needs no further feature.
 hyphen = ["dep:hypher", "dep:miniz_oxide"]
+# Bidirectional text: embedding levels, line reordering and mirroring (UAX #9).
+bidi = ["dep:unicode-bidi", "dep:unicode-bidi-mirroring"]
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]
