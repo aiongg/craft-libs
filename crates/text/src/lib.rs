@@ -10,14 +10,16 @@
 //!   Thai, Lao, Khmer and Burmese with their language features.
 //! - [`bidi`] (default): bidirectional text (UAX #9): embedding levels, line reordering and
 //!   mirroring.
+//! - [`linebreak`] (default): line breaking on a font-independent box/glue/penalty model.
 //!
 //! Language features (`spanish`, `german`, …, `all-languages`) add data for that language and
 //! turn on the modules that use it.
 
-#[cfg(feature = "hyphen")]
-pub mod hyphen;
-#[cfg(feature = "segment")]
-pub mod segment;
-
 #[cfg(feature = "bidi")]
 pub mod bidi;
+#[cfg(feature = "hyphen")]
+pub mod hyphen;
+#[cfg(feature = "linebreak")]
+pub mod linebreak;
+#[cfg(feature = "segment")]
+pub mod segment;

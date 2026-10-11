@@ -8,8 +8,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | `hyphen` | `hyphen` (default) | Hyphenation points |
 | `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words |
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
-
-Line breaking is planned as a further module.
+| `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave
@@ -195,6 +194,84 @@ Text with nothing right to left in a left-to-right or `Auto` paragraph skips the
 The module started from DeckCraft's `text::bidi` (levels, rule L1 and L2 over chars). The
 per-byte levels, the run-level reordering test cases and the hostile-input checks come from
 WordCraft's layout; overrides and mirroring follow DesignCraft's composer.
+## Line breaking
+
+`craft_text::linebreak` breaks paragraphs into lines on Knuth and Plass's box/glue/penalty model.
+It knows nothing about fonts: the composer turns shaped glyphs into `Item`s, calls a breaker and
+places the glyphs of each returned `Line`. Widths are in the caller's units, and `width(k)` gives
+the measure of line `k`, so first-line indents and shaped frames work. The core comes from
+vectorcraft's every-line composer; tiered justification, emergency breaks, the hyphenation zone,
+greedy and balanced lines come from designcraft's breaker.
+
+- **Items.** Boxes, glue and penalties. Glue has a natural width and stretch and shrink in three
+  tiers (word space, letter space, glyph scale) that are used in that order, as in InDesign's
+  justification settings. Boxes may carry letter and glyph tiers too. Penalties have a cost and a
+  flag (hyphens); ±10 000 forbids or forces the break. `Item::fill()` before the final
+  `Item::forced()` leaves the last line unjustified. Optional fields, set on top of a constructor
+  (`Item { hang, ..Item::glue(w, st, sh) }`): `hang` (optical margin), `edge` (an `Edge` of
+  stretch and shrink gained at a line end or start, such as mojikumi), `hyphenation`,
+  `emergency`.
+- **Breakers.** `knuth_plass` runs one total-fit pass. `break_paragraph` runs passes at rising
+  tolerances, then falls back to `greedy`; the returned `Breaks` says in `method` which one
+  produced the lines. `greedy_with` resolves position-dependent widths (tabs). `balanced` evens
+  the lines (meant for ragged text) and sets `Breaks::balanced` when it did. `overlong` finds
+  words wider than the measure, where the composer adds `Item::emergency()` breaks.
+- **Params.** Demerits, fitness classes, tolerance, hyphen limit, tier costs, `uniform_from`,
+  and `Rag` for ragged text: rag stretch, short-last-line rating and hyphenation zone.
+  `uniform_from` is the first line index from which `width(k)` stays the same. The default 0 is
+  right for a constant measure; a caller with a first-line indent, drop cap or shaped frame sets
+  it to the first line of the constant tail, or its breaks may not be the best ones. Negative or
+  NaN demerits count as 0, and a NaN measure as 0.
+- **Lines.** Each `Line` gives its item range, natural width, adjustment ratio, the fraction of
+  each tier used and the width left over, so the composer can distribute the space.
+
+```rust
+use craft_text::linebreak::{Item, Params, Rag, break_paragraph};
+
+let space = Item::glue(0.5, 0.0, 0.0);
+let items = [Item::boxed(3.0), space, Item::boxed(3.0), space, Item::boxed(5.0), Item::fill(), Item::forced()];
+let ragged = Params { rag: Some(Rag::default()), ..Params::default() };
+let lines = break_paragraph(&items, &|_line| 8.0, &ragged, &[1.0, f64::INFINITY]).lines;
+```
+
+### Adopting
+
+- **vectorcraft** `composer::compose`: a box per glyph (`hang` = `start_credit(i)` for `i > 0`),
+  glue per space (justified: stretch 0.5 and shrink 0.2 of its width; ragged: none), a penalty per
+  `Breakpoint` (width = its hyphen, flagged when it has one, cost 50 justified or 25 ragged), and
+  `fill` + `forced` at the end unless Justify All. `Params`: `first_fitness: None`,
+  `max_badness: 10_000`, `fitness_demerits` 10 000 or 1 000, `fitness` bounds
+  `[-0.5, 0.5, 1.0]` or `[0.15, 0.4, 0.75]`, `uniform_from` as `layout.rs` computes it (the
+  first index from which `widths` stay at the last width); ragged adds
+  `Rag { stretch: 0, width_fraction: 1/6, short_last: 1/3, short_last_unit: 1/3 }`. Its two
+  `compose` calls become two `knuth_plass` calls (tolerance 1, then 4 or ∞); `None` still falls
+  back to the single-line composer.
+- **designcraft** `breaker::items` builds `linebreak::Item`s: `hang`, `edge` (mojikumi
+  end/start elasticity), `overflow` (`space_overflow`), `hyphenation` (`auto`), `emergency`.
+  Ragged text uses plain spaces and `Rag { stretch: ragged_stretch, width_fraction: 0,
+  hyphenation_zone: hyph_zone }` instead of glue/penalty/glue triples. `Spacing` maps to
+  `Params { hyphen_limit, overrun: FIT_EPS, uniform_from, .. }` with `uniform_from` the number
+  of drop-cap lines, else 1 with a first-line indent, else 0. Kinsoku priority 1 or 2 maps
+  to `stretch_weight` or `shrink_weight` 4; `TIER_COST` is `tier_cost`. `knuth_plass` becomes
+  `overlong` + emergency items + `break_paragraph(.., &[2.5, 12.0, f64::INFINITY])`; `greedy`
+  becomes `greedy_with` (tabs through `advance`; `Item::no_break()` where an emergency split is
+  not allowed); `balanced` becomes `balanced`. Mapping lines back to glyphs
+  (`breaks_from_positions`) stays in the app.
+- **effectcraft** `every_line`: a box per segment between line-break opportunities, glue for its
+  trailing whitespace, `Rag { width_fraction: 1.0, .. }`, `uniform_from: 1` (the first line's
+  measure differs when it is indented) and `break_paragraph(.., &[f64::INFINITY])`.
+
+Differences from the seeds:
+
+- vectorcraft: a Justify All last line is accepted at any ratio, like every line that ends at a
+  forced break.
+- designcraft: fill glue stretches infinitely instead of by 10 000 units. In ragged text a line
+  ending at a forced break keeps its neighbour's fitness class. Greedy counts every flagged break
+  toward the hyphen limit, and splits overlong words at the composer's emergency breaks instead
+  of scanning for kinsoku. Past 4096 active breaks a pass fails and `break_paragraph` falls back
+  to greedy, reported as `Method::Greedy`. Lines before `uniform_from` (first-line indent, drop
+  cap) are kept apart by line number, where designcraft treats every line alike.
+- effectcraft: lines are rated by Knuth's cubed ratio, not squared slack.
 
 ## Licenses
 

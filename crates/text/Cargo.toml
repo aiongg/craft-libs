@@ -26,11 +26,13 @@ name = "hyphgen"
 required-features = ["generator"]
 
 [features]
-default = ["hyphen", "bidi", "segment"]
+default = ["hyphen", "bidi", "segment", "linebreak"]
 # Hyphenation points; English (bundled dictionary and patterns) needs no further feature.
 hyphen = ["dep:hypher", "dep:miniz_oxide"]
 # Bidirectional text: embedding levels, line reordering and mirroring (UAX #9).
 bidi = ["dep:unicode-bidi", "dep:unicode-bidi-mirroring"]
+# Line breaking on a box/glue/penalty model (Knuth–Plass, greedy, balanced); no dependencies.
+linebreak = []
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]
