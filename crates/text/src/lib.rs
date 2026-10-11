@@ -1,0 +1,14 @@
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+//! Shared text processing for the Craft apps. It sits below the composer: layout code calls it on
+//! plain text and a language before it shapes and places glyphs.
+//!
+//! Modules, each behind the cargo feature of the same name:
+//! - [`hyphen`] (default): hyphenation points, with bundled US English data and optional
+//!   hypher patterns for 47 more languages.
+//!
+//! Language features (`spanish`, `german`, …, `all-languages`) add data for that language and
+//! turn on the modules that use it.
+
+#[cfg(feature = "hyphen")]
+pub mod hyphen;
