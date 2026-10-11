@@ -6,12 +6,13 @@ plain text and a language and return what layout needs before it shapes and plac
 | Module | Feature | Provides |
 | --- | --- | --- |
 | `hyphen` | `hyphen` (default) | Hyphenation points |
+| `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words |
 
-Segmentation, bidi and line breaking are planned as further modules beside `hyphen`.
+Bidi and line breaking are planned as further modules.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
-module that uses it, and turn on `hyphen`. Build with `default-features = false` to leave out all
-modules and data.
+module that uses it, and turn those modules on. Build with `default-features = false` to leave
+out all modules and data.
 
 ## Hyphenation
 
@@ -73,6 +74,87 @@ and the pattern trainer (`hyphen::patgen`); applications don't need it.
 curl -LO https://www.gutenberg.org/files/3204/files/mhyph.txt
 cargo run --release -p craft-text --features generator --example hyphgen -- mhyph.txt crates/text/assets/hyphen --validate
 ```
+
+## Segmentation
+
+`craft_text::segment` finds where a line may break. It takes plain text and returns byte offsets;
+measuring, choosing breaks and hanging punctuation stay in each application's composer.
+Consolidated from vectorcraft, wordcraft, deckcraft and designcraft.
+
+```rust
+use craft_text::segment::{Kinsoku, Options, line_breaks};
+
+let options = Options { kinsoku: Kinsoku::Soft, ..Options::default() };
+for b in line_breaks("日本語のテキスト。", &options) {
+    // A line may end before byte b.offset; it must if b.mandatory.
+}
+```
+
+`line_breaks` starts from UAX #14 (the `unicode-linebreak` crate) and adjusts it:
+
+- `Options::kinsoku` applies the Japanese and Chinese line-start and line-end rules (JLREQ,
+  CLREQ) at breaks next to an East Asian character. Text with no East Asian characters gets
+  UAX #14's breaks unchanged.
+  - `Hard` (default): UAX #14's breaks, minus those kinsoku forbids.
+  - `Soft`: as `Hard`, and 々, ー and small kana may start a line.
+  - `None`: UAX #14's breaks plus a break between any two East Asian characters.
+- `Options::korean_words` sets Korean word by word: no break between two Hangul letters or Han
+  ideographs. Off, Korean breaks between syllables as UAX #14 does.
+- Mandatory breaks (newlines and the end of the text) are always kept.
+
+`kinsoku_allows(before, after, mode)` is the same rule for composers that build their own
+opportunity lists.
+
+### Each app's kinsoku as a `Kinsoku` value
+
+| App | App setting | `Kinsoku` | Rules the app keeps |
+| --- | --- | --- | --- |
+| vectorcraft | Kinsoku set None, Hard, Soft | `None`, `Hard`, `Soft` | none |
+| wordcraft | `kinsoku` on, off | `Hard`, `None` | `word_wrap` off: Latin words break at any character |
+| designcraft | no set (the breaker's own rules); Hard Kinsoku | `Hard` | custom document tables, inseparable pairs, bunri-kinshi, rensuuji, roman word break |
+| designcraft | Soft, Simplified Chinese, Traditional Chinese, Korean Kinsoku | `Soft` | as above |
+| designcraft | Kinsoku set None | `None` | as above |
+
+Push-in and push-out priority and hanging punctuation decide how a line fits, not where it may
+break, and stay in the composer. deckcraft has no kinsoku of its own (see below).
+
+### Kinsoku sets for adopters
+
+The sets are vectorcraft's (`no_line_start`, `soft_line_start`, `no_line_end`), plus these from
+the other apps:
+
+- Can't start a line: 〞 (closing double prime quote), ゛ ゜ ﾞ ﾟ (spacing sound marks), ％ ￠
+  (postfixed abbreviations, JLREQ cl-13). From wordcraft.
+- Can't end a line: ＄ ￡ ￥ (prefixed abbreviations, JLREQ cl-12). From wordcraft.
+
+What changes for each app:
+
+- vectorcraft: the additions above. Breaks come from UAX #14 rather than "after any CJK
+  character", so `Hard` and `Soft` also keep every break UAX #14 forbids. Kinsoku no longer
+  applies between two non-East-Asian characters (a space before an en dash in Latin text may
+  break).
+- wordcraft: its kinsoku on is `Hard`, which also keeps the prolonged sound mark, small kana,
+  hyphens (‐ – 〜 ゠), ‼ ⁇ ⁈ ⁉ and the Latin closing marks next to East Asian text off the line
+  start, and « ‘ “ ( [ { off the line end. Its kinsoku off is `None`. Breaking Latin words
+  anywhere (`word_wrap` off) and the no-break-after-slash rule stay in wordcraft.
+- designcraft: its breaker's set is `Hard` without the additions above and without ’ ” 〛 〟 ｠
+  〜 ～ ゠ ‐ – ‼ ⁇ ⁈ ⁉ », ゕ ゖ, ㇰ–ㇿ and the half-width forms (can't start), « ‘ “ 〚 〝 ｟ ｢
+  (can't end). Its Soft set also lets ゝ ゞ ヽ ヾ 〻 start a line; here they stay forbidden, as in
+  InDesign's Soft set. Document kinsoku tables (`Kinsoku` in `doc/cjk.rs`) stay in designcraft.
+  `korean_char_breaks: false` is `korean_words: true`.
+- deckcraft: `Hard` is its UAX #14 breaks minus those kinsoku forbids. `None` adds breaks between
+  East Asian characters, so no mode returns plain UAX #14 for East Asian text.
+
+### Thai, Lao, Khmer and Burmese
+
+UAX #14 gives these scripts class SA and leaves breaking inside them to a dictionary. Without the
+script's language feature, `line_breaks` treats a run of them as one word: it never breaks inside
+the run, only at its edges where UAX #14 allows a break (after a space, for example). A long Thai
+sentence with no spaces is one unbreakable piece, so the composer needs an emergency break for it.
+The features `thai`, `lao`, `khmer` and `burmese` split runs of that
+script into words with ICU4X's dictionary segmenter (`icu_segmenter`). Any one of them links the
+dictionaries for all four, about 1.8 MB; the default build has no ICU data. The data is under the
+Unicode License v3 (see NOTICE).
 
 ## Licenses
 

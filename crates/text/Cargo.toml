@@ -13,20 +13,26 @@ workspace = true
 [dependencies]
 hypher = { version = "0.1.8", default-features = false, features = ["alloc"], optional = true }
 miniz_oxide = { version = "0.8", optional = true }
+unicode-linebreak = { version = "0.1.5", optional = true }
+icu_segmenter = { version = "2.3", default-features = false, features = ["compiled_data"], optional = true }
 
 [[example]]
 name = "hyphgen"
 required-features = ["generator"]
 
 [features]
-default = ["hyphen"]
+default = ["hyphen", "segment"]
 # Hyphenation points; English (bundled dictionary and patterns) needs no further feature.
 hyphen = ["dep:hypher", "dep:miniz_oxide"]
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]
+# Line-break opportunities (UAX #14 with kinsoku); Thai, Lao, Khmer and Burmese words need their
+# language feature.
+segment = ["dep:unicode-linebreak"]
 # Each feature below adds the data for one more language: for `hyphen`, hypher's patterns (see
-# NOTICE for their licenses).
+# NOTICE for their licenses); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
+# (one shared data set, Unicode License v3).
 all-languages = [
     "afrikaans",
     "albanian",
@@ -34,6 +40,7 @@ all-languages = [
     "belarusian",
     "bengali",
     "bulgarian",
+    "burmese",
     "catalan",
     "croatian",
     "czech",
@@ -52,7 +59,9 @@ all-languages = [
     "icelandic",
     "italian",
     "kannada",
+    "khmer",
     "kurmanji",
+    "lao",
     "latin",
     "lithuanian",
     "malayalam",
@@ -72,6 +81,7 @@ all-languages = [
     "swedish",
     "tamil",
     "telugu",
+    "thai",
     "turkish",
     "turkmen",
     "ukrainian",
@@ -123,3 +133,7 @@ telugu = ["hyphen", "hypher/telugu"]
 turkish = ["hyphen", "hypher/turkish"]
 turkmen = ["hyphen", "hypher/turkmen"]
 ukrainian = ["hyphen", "hypher/ukrainian"]
+burmese = ["segment", "dep:icu_segmenter"]
+khmer = ["segment", "dep:icu_segmenter"]
+lao = ["segment", "dep:icu_segmenter"]
+thai = ["segment", "dep:icu_segmenter"]
