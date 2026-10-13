@@ -73,6 +73,12 @@ PrintTicket and its driver-paper preference):
   Copyright (c) 2026 ArtCraft Team and the PdfCraft contributors.
   Licensed MIT OR Apache-2.0.
 
+The menu layout and native-menu driver in crates/menu are extracted from:
+- PhotoCraft, crates/ui-egui/src/native_menu.rs, revision 6f85054288a564f9fbbccb99268ffdb34e581584.
+  https://github.com/storytold/photocraft
+  Copyright (c) 2026 ArtCraft Team and the PhotoCraft contributors.
+  Licensed MIT OR Apache-2.0. PhotoCraft's menus, translations and command handling are not copied.
+
 The colour management module in crates/cms is extracted from:
 - PhotoCraft, crates/cms, revision b3222ee8e7e6bcb4799c37f904c595f20f9baf5e.
   https://github.com/storytold/photocraft
