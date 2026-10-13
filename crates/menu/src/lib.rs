@@ -7,7 +7,8 @@
 //! ([`MenuBar::tag_item`], [`MenuBar::tag_submenu`], [`MenuBar::tag_menu`]). [`mac_layout`]
 //! arranges them the way a Mac app's are, and [`NativeMenu`] hands the result to a platform
 //! [`Backend`] and brings its events back. This part is pure and platform-free, so it is tested
-//! everywhere and builds for the web; only a backend touches AppKit.
+//! everywhere and builds for the web; only the backend, `mac` (macOS only, built on muda), touches
+//! AppKit. Its `mac::install` builds the menu bar and returns the [`NativeMenu`].
 //!
 //! What the layout does:
 //! - an **app menu** named after the app: About (the item tagged [`ItemRole::About`]), Settings
@@ -36,12 +37,16 @@
 //!
 //! Per frame: [`NativeMenu::raw_input`] before egui reads the input (`eframe::App::raw_input_hook`),
 //! then [`NativeMenu::take_clicks`] and run the commands, then [`NativeMenu::sync_with`], which
-//! lays the menus out again only when the app's state changed.
+//! lays the menus out again only when the app's state changed. [`NativeMenu::raw_input`] also
+//! keeps a click or Escape that closes an open native menu away from egui.
 
 mod chord;
 mod driver;
 mod layout;
 mod model;
+
+#[cfg(target_os = "macos")]
+pub mod mac;
 
 pub use chord::Chord;
 pub use driver::{Backend, Event, NativeMenu, had_input};

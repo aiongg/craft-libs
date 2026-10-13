@@ -3,8 +3,8 @@
 A Craft app's menus as a macOS menu bar. The app supplies its menu tree and runs its commands;
 this crate lays the menus out the Mac way, drives a platform `Backend`, and turns the menu's key
 equivalents back into egui key presses. It depends on egui and
-[`craft-quit`](../quit/src/lib.rs), and on no app. This part is platform-free and also builds
-for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`.
+[`craft-quit`](../quit/src/lib.rs), and on no app. Everything but the macOS backend
+(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`.
 
 ## The menus
 
@@ -43,11 +43,33 @@ The labels the layout writes are English. To translate them, pass
 `LayoutOptions { app_name, label }`, where `label` maps an English label such as `"Quit {app}"`
 to the app's translation; the crate substitutes `{app}`.
 
+## macOS
+
+Install the menu bar once, on the main thread, in eframe's creator closure (so winit's default
+menu doesn't stay up). `None` means AppKit refused the menus: keep the in-window ones.
+
+```rust
+#[cfg(target_os = "macos")]
+let native_menu = craft_menu::mac::install(&cc.egui_ctx, &craft_menu::mac_layout(&menu_bar, &LayoutOptions::new("PhotoCraft")).bar);
+```
+
+The backend owns muda's menu event handler, of which there is one per process, so an app using
+craft-menu does not call `craft_quit::install_app_menu`; craft-menu's own Quit item already asks
+the window to close. Each menu event wakes egui, so a chosen item runs at once rather than with
+the next input event.
+
+While a menu is open, a click or Escape in the window closes it and does not reach egui (no
+canvas gesture, no tool action); pointer moves pass through. Menu updates wait until the menu
+closes.
+
 ## Per frame
 
 Key equivalents stay with egui: the backend reports them as `Event::Key`, and `raw_input` feeds
 each one to egui as the key press it was, so the app's own key handling (text fields, dialogs,
 tool-specific undo) runs as without a native menu.
+
+Each frame: `raw_input` before egui reads the input, then the ids from `take_clicks`, then
+`sync_with`.
 
 ```rust
 // eframe::App::raw_input_hook, before egui reads the input:

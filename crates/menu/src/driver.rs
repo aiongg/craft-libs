@@ -21,6 +21,12 @@ pub trait Backend {
     /// Events since the last call. Platform items (Hide, Services, Zoom, …) are handled by the
     /// backend and not reported.
     fn drain(&mut self) -> Vec<Event>;
+    /// Whether one of the native menus is open.
+    fn tracking(&self) -> bool {
+        false
+    }
+    /// Close the open native menu, if there is one.
+    fn cancel_tracking(&mut self) {}
 }
 
 /// The native menu bar, while the app uses one (its in-window menus are hidden then).
@@ -42,11 +48,22 @@ impl NativeMenu {
     /// Before egui sees this frame's input: key equivalents become the key presses they were,
     /// and clicks wait for [`NativeMenu::take_clicks`].
     ///
+    /// A click or Escape in the window closes an open native menu. AppKit can deliver it to the
+    /// window while the menu is still open (asynchronous menu presentation), so while the backend
+    /// reports one open, the click or Escape is taken out of the input: it closes the menu
+    /// without starting a canvas gesture or reaching the active tool. Pointer moves stay.
+    ///
     /// AppKit takes only the key-down: winit still delivers the key-up (it forwards key-ups while
     /// ⌘ is held). So a key equivalent adds just its press, ahead of its key-up when that is
     /// already queued. Adding a made-up release as well sends two key-ups; in PhotoCraft, which
     /// reads a ⌘V release without a press as an image paste, that made ⌘V paste three times.
     pub fn raw_input(&mut self, raw: &mut egui::RawInput) {
+        // The window's own input, before key equivalents are added to it.
+        if dismiss_input(raw, || self.backend.tracking()) {
+            // Also without a menu reported open: an asynchronously presented menu can still be
+            // on screen after it reports closing.
+            self.backend.cancel_tracking();
+        }
         for e in self.backend.drain() {
             match e {
                 Event::Key(chord) => {
@@ -101,6 +118,22 @@ impl NativeMenu {
         self.clashes = layout.clashes.clone();
         layout.clashes
     }
+}
+
+/// Whether `raw` has a press or Escape that closes an open menu. While `tracking` (a menu is
+/// open), those events are removed: they belong to the menu.
+pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() -> bool) -> bool {
+    if !raw
+        .events
+        .iter()
+        .any(|e| matches!(e, egui::Event::PointerButton { pressed: true, .. } | egui::Event::Key { key: egui::Key::Escape, pressed: true, .. }))
+    {
+        return false;
+    }
+    if tracking() {
+        raw.events.retain(|e| !matches!(e, egui::Event::PointerButton { .. } | egui::Event::Key { key: egui::Key::Escape, .. }));
+    }
+    true
 }
 
 /// A key press or click this frame. It may have changed state an app's menu hash doesn't list,

@@ -11,5 +11,12 @@ repository.workspace = true
 craft-quit = { workspace = true, features = ["egui"] }
 egui = { workspace = true }
 
+# Already in the apps' Cargo.lock: muda through craft-quit's `menu` feature, objc2 and objc2-app-kit
+# through eframe.
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.21.2", default-features = false }
+objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder"] }
+
 [lints]
 workspace = true

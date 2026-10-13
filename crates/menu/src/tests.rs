@@ -247,9 +247,12 @@ fn chords_parse_and_become_egui_key_presses() {
     }
 }
 
+#[derive(Default)]
 struct Fake {
     synced: Rc<RefCell<Vec<MenuBar>>>,
     events: Rc<RefCell<Vec<Event>>>,
+    tracking: Rc<Cell<bool>>,
+    cancels: Rc<Cell<usize>>,
 }
 
 impl Backend for Fake {
@@ -259,6 +262,13 @@ impl Backend for Fake {
     fn drain(&mut self) -> Vec<Event> {
         std::mem::take(&mut self.events.borrow_mut())
     }
+    fn tracking(&self) -> bool {
+        self.tracking.get()
+    }
+    fn cancel_tracking(&mut self) {
+        self.cancels.set(self.cancels.get() + 1);
+        self.tracking.set(false);
+    }
 }
 
 /// AppKit takes a key equivalent's key-down but winit still delivers the key-up: the menu adds
@@ -266,7 +276,7 @@ impl Backend for Fake {
 #[test]
 fn key_equivalents_become_one_key_press() {
     let events = Rc::new(RefCell::new(Vec::new()));
-    let mut menu = NativeMenu::new(Box::new(Fake { synced: Default::default(), events: events.clone() }));
+    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
     let paste = Chord::parse("Cmd+V").unwrap();
     let release = egui::Event::Key { key: Key::V, physical_key: Some(Key::V), pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
     let press = paste.key_event(true).unwrap();
@@ -289,7 +299,7 @@ fn clicks_and_syncs() {
     let synced = Rc::new(RefCell::new(Vec::new()));
     let events =
         Rc::new(RefCell::new(vec![Event::Click(MINIMIZE.into()), Event::Click("edit.undo".into()), Event::Click(craft_quit::QUIT_MENU_ID.into())]));
-    let mut menu = NativeMenu::new(Box::new(Fake { synced: synced.clone(), events: events.clone() }));
+    let mut menu = NativeMenu::new(Box::new(Fake { synced: synced.clone(), events: events.clone(), ..Default::default() }));
     let mut raw = egui::RawInput::default();
     menu.raw_input(&mut raw);
     assert!(raw.events.is_empty());
@@ -317,4 +327,57 @@ fn clicks_and_syncs() {
     menu.raw_input(&mut egui::RawInput::default());
     menu.sync_with(2, build);
     assert_eq!((builds.get(), synced.borrow().len()), (3, 3), "an event re-syncs");
+}
+
+fn press() -> egui::Event {
+    egui::Event::PointerButton { pos: egui::pos2(300.0, 200.0), button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() }
+}
+
+#[test]
+fn outside_press_dismisses_without_starting_a_canvas_gesture() {
+    use crate::driver::dismiss_input;
+    let moved = egui::Event::PointerMoved(egui::pos2(300.0, 200.0));
+    let mut raw = egui::RawInput { events: vec![moved.clone(), press()], ..Default::default() };
+    assert!(dismiss_input(&mut raw, || true));
+    assert_eq!(raw.events, [moved]);
+    assert!(!dismiss_input(&mut raw, || true));
+    raw.events.push(press());
+    assert!(dismiss_input(&mut raw, || false));
+    assert_eq!(raw.events.len(), 2, "ordinary canvas presses still reach egui");
+}
+
+#[test]
+fn escape_dismisses_without_reaching_the_active_tool() {
+    let escape = |pressed| egui::Event::Key { key: Key::Escape, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
+    let mut raw = egui::RawInput { events: vec![escape(true), escape(false)], ..Default::default() };
+    assert!(crate::driver::dismiss_input(&mut raw, || true));
+    assert!(raw.events.is_empty());
+}
+
+#[test]
+fn moving_the_pointer_does_not_dismiss_a_tracking_menu() {
+    let mut raw = egui::RawInput { events: vec![egui::Event::PointerMoved(egui::pos2(300.0, 200.0))], ..Default::default() };
+    assert!(!crate::driver::dismiss_input(&mut raw, || true));
+    assert_eq!(raw.events.len(), 1);
+}
+
+/// `raw_input` closes an open menu on a click and keeps the click from egui; with no menu open
+/// the click reaches egui (the menu is still asked to close, in case one is on screen).
+#[test]
+fn a_click_closes_an_open_menu() {
+    let tracking = Rc::new(Cell::new(true));
+    let cancels = Rc::new(Cell::new(0));
+    let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), cancels: cancels.clone(), ..Default::default() }));
+    let mut raw = egui::RawInput { events: vec![press()], ..Default::default() };
+    menu.raw_input(&mut raw);
+    assert!(raw.events.is_empty());
+    assert_eq!((cancels.get(), tracking.get()), (1, false));
+
+    let mut raw = egui::RawInput { events: vec![press()], ..Default::default() };
+    menu.raw_input(&mut raw);
+    assert_eq!(raw.events, [press()]);
+    assert_eq!(cancels.get(), 2);
+
+    menu.raw_input(&mut egui::RawInput { events: vec![egui::Event::PointerMoved(egui::pos2(1.0, 1.0))], ..Default::default() });
+    assert_eq!(cancels.get(), 2, "a pointer move closes nothing");
 }
