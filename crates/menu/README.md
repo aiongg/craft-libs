@@ -2,7 +2,7 @@
 
 A Craft app's menus as a macOS menu bar. The app supplies its menu tree and runs its commands;
 this crate lays the menus out the Mac way, drives a platform `Backend`, and turns the menu's key
-equivalents back into egui key presses. It depends on egui and
+equivalents back into the input egui would have had without it. It depends on egui and
 [`craft-quit`](../quit/src/lib.rs), and on no app. Everything but the macOS backend
 (`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`.
 
@@ -24,24 +24,28 @@ bar.tag_menu("Help", MenuRole::Help);
 ```
 
 Items built directly use `Item::new(id, label)` with `.shortcut("Cmd+Shift+Z")`, `.enabled(..)`,
-`.checked(..)` and `.role(..)`. Shortcuts are written `Cmd+Shift+Z`; `Ctrl` is the Control key,
-not ⌘. Open documents in the Window menu are items with `ItemRole::Document`.
+`.checked(..)` and `.role(..)`; submenus use `Node::submenu(label, children)`, with `.role(..)`
+for a tagged one. Shortcuts are written `Cmd+Shift+Z`; `Ctrl` is the Control key, not ⌘. Open
+documents in the Window menu are items with `ItemRole::Document`. A click reports only the
+item's id, so a command that takes a parameter carries it in the id (`file.recent:3`).
 
 `mac_layout(&bar, &LayoutOptions::new("PhotoCraft"))` returns the Mac menu bar and the clashes
 it resolved:
 
-- **App menu:** About, Settings (⌘,), Language, Appearance, Services, Hide (⌘H), Hide Others,
-  Show All, Quit (⌘Q). The tagged items leave their old menus. Without a tagged Quit item the
-  layout adds one with `craft_quit::QUIT_MENU_ID`.
+- **App menu:** About, Settings (⌘,), Language, Appearance, Services, Hide (⌘H), Hide Others
+  (⌥⌘H), Show All, Quit (⌘Q). The tagged items leave their old menus. Without a tagged Quit item
+  the layout adds one with `craft_quit::QUIT_MENU_ID`. A menu the app tagged `MenuRole::App` is
+  merged in: its other items follow Appearance.
 - **Window:** Minimize, Zoom, the app's own Window items, Bring All to Front, then the open
   documents. A Window menu is added if the app has none. **File** gets Close Window (⌘W).
-- **Clashes:** when the app binds ⌘H, ⌘M, ⌘W, ⌘, or ⌘Q to a command, the command keeps it.
-  Hide and Minimize move to ⌃⌘H and ⌃⌘M, the others go without a shortcut, and each case is
-  reported as a `Clash`.
+- **Clashes:** when the app binds ⌘H, ⌥⌘H, ⌘M, ⌘W, ⌘, or ⌘Q to a command, the command keeps
+  it. Hide and Minimize move to ⌃⌘H and ⌃⌘M, the others go without a shortcut, and each case is
+  reported as a `Clash`. Shortcuts bound outside the menus (tool and canvas keys) count when the
+  app lists them: `LayoutOptions::new("PhotoCraft").extra_shortcuts(&[(shortcut, command_id), ..])`.
 
 The labels the layout writes are English. To translate them, pass
-`LayoutOptions { app_name, label }`, where `label` maps an English label such as `"Quit {app}"`
-to the app's translation; the crate substitutes `{app}`.
+`LayoutOptions { label, ..LayoutOptions::new(app_name) }`, where `label` maps an English label
+such as `"Quit {app}"` to the app's translation; the crate substitutes `{app}`.
 
 ## macOS
 
@@ -53,20 +57,26 @@ menu doesn't stay up). `None` means AppKit refused the menus: keep the in-window
 let native_menu = craft_menu::mac::install(&cc.egui_ctx, &craft_menu::mac_layout(&menu_bar, &LayoutOptions::new("PhotoCraft")).bar);
 ```
 
-The backend owns muda's menu event handler, of which there is one per process, so an app using
-craft-menu does not call `craft_quit::install_app_menu`; craft-menu's own Quit item already asks
+The backend owns muda's menu event handler. There is one per process and the first one set
+stays, so `mac::install` and `craft_quit::install_app_menu` are alternatives: an app calls one of
+them, once, and a second `mac::install` returns `None`. craft-menu's own Quit item already asks
 the window to close. Each menu event wakes egui, so a chosen item runs at once rather than with
 the next input event.
 
 While a menu is open, a click or Escape in the window closes it and does not reach egui (no
-canvas gesture, no tool action); pointer moves pass through. Menu updates wait until the menu
-closes.
+canvas gesture, no tool action); pointer moves pass through. Only one click is kept this way
+until the menu reports closed, so a menu wrongly reported open costs one click. Menu updates wait
+until the menu closes. A rebuild that fails keeps the menus as they were.
 
 ## Per frame
 
 Key equivalents stay with egui: the backend reports them as `Event::Key`, and `raw_input` feeds
-each one to egui as the key press it was, so the app's own key handling (text fields, dialogs,
-tool-specific undo) runs as without a native menu.
+each one to egui as egui-winit would have, so the app's own key handling (text fields, dialogs,
+tool-specific undo) runs as without a native menu. ⌘C, ⌘X and ⌘V become egui's Copy, Cut and
+Paste (`ClipboardKeys::Egui`, the default), so text fields copy and paste; an app that runs its
+clipboard commands from the keys itself sets `menu.clipboard_keys(ClipboardKeys::Raw)` to get
+key presses. A shortcut the layout assigned (⌘Q on the app's Quit item, ⌘, on Settings) comes
+back as a click instead, since the app's key handling doesn't bind it.
 
 Each frame: `raw_input` before egui reads the input, then the ids from `take_clicks`, then
 `sync_with`.

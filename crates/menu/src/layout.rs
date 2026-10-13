@@ -3,22 +3,32 @@
 use std::collections::HashMap;
 
 use crate::chord::Chord;
-use crate::model::{HIDE, Item, ItemRole, MINIMIZE, Menu, MenuBar, MenuRole, Node, Standard, is_document, tidy};
+use crate::model::{HIDE, HIDE_OTHERS, Item, ItemRole, MINIMIZE, Menu, MenuBar, MenuRole, Node, Standard, is_document, tidy};
 
-/// The app's name and its translations of the labels the layout writes itself.
+/// The app's name, its translations of the labels the layout writes itself, and its shortcuts
+/// that no menu item shows.
 pub struct LayoutOptions<'a> {
     /// Shown in the app menu's About, Hide and Quit items.
     pub app_name: &'a str,
     /// The app's translation of an English label the layout uses: `About {app}`, `Settings…`,
-    /// `Settings`, `Language`, `Appearance`, `Hide {app}`, `Quit {app}`, `Minimize`, `Window`, and
-    /// each [`Standard::english`]. `{app}` is replaced by [`LayoutOptions::app_name`] afterwards.
+    /// `Settings`, `Language`, `Appearance`, `Hide {app}`, `Hide Others`, `Quit {app}`, `Minimize`,
+    /// `Window`, and each [`Standard::english`]. `{app}` is replaced by [`LayoutOptions::app_name`]
+    /// afterwards.
     pub label: &'a dyn Fn(&'static str) -> String,
+    /// Shortcuts the app binds outside its menus (tool keys, canvas keys), as
+    /// `(shortcut, command id)`: the system items give way to them as to menu shortcuts.
+    pub extra_shortcuts: &'a [(String, String)],
 }
 
 impl<'a> LayoutOptions<'a> {
     /// English labels.
     pub fn new(app_name: &'a str) -> LayoutOptions<'a> {
-        LayoutOptions { app_name, label: &english }
+        LayoutOptions { app_name, label: &english, extra_shortcuts: &[] }
+    }
+
+    pub fn extra_shortcuts(mut self, shortcuts: &'a [(String, String)]) -> LayoutOptions<'a> {
+        self.extra_shortcuts = shortcuts;
+        self
     }
 
     fn text(&self, english: &'static str) -> String {
@@ -53,11 +63,20 @@ pub struct Layout {
 }
 
 /// Turn an app's menus, tagged with roles, into a Mac menu bar. See the crate docs.
+///
+/// A menu the app tagged [`MenuRole::App`] is merged into the app menu: its tagged items go where
+/// their roles put them, the rest after Settings, Language and Appearance.
 pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
     let mut bar = bar.clone();
     let mut clashes = Vec::new();
-    let bound: HashMap<String, String> =
-        bar.items().iter().filter_map(|it| Some((Chord::parse(it.shortcut.as_deref()?)?.portable(), it.id.clone()))).collect();
+    let mut bound: HashMap<String, String> = HashMap::new();
+    let menu_shortcuts = bar.items().into_iter().filter_map(|it| Some((it.shortcut.as_deref()?, it.id.as_str())));
+    let extra = options.extra_shortcuts.iter().map(|(sc, id)| (sc.as_str(), id.as_str()));
+    for (sc, id) in menu_shortcuts.chain(extra) {
+        if let Some(c) = Chord::parse(sc) {
+            bound.entry(c.portable()).or_insert_with(|| id.to_string());
+        }
+    }
     let taken = |sc: &str, own: Option<&str>| bound.get(sc).filter(|cmd| Some(cmd.as_str()) != own).cloned();
     let tagged = |role: ItemRole| {
         move |n: &Node| match n {
@@ -72,6 +91,10 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
     let language = take(&mut bar, tagged(ItemRole::Language));
     let quit = take(&mut bar, |n| matches!(n, Node::Item(it) if it.role == Some(ItemRole::Quit)));
     let appearance = appearance_node(&mut bar, options);
+    let own_app: Vec<Node> = match bar.menus.iter().position(|m| m.role == MenuRole::App) {
+        Some(i) => bar.menus.remove(i).children,
+        None => Vec::new(),
+    };
 
     let mut menu = Vec::new();
     if let Some(Node::Item(mut it)) = about {
@@ -90,11 +113,16 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
         menu.push(l);
     }
     menu.extend(appearance);
+    if !own_app.is_empty() {
+        menu.push(Node::Separator);
+        menu.extend(own_app);
+    }
     if !menu.is_empty() && menu.last() != Some(&Node::Separator) {
         menu.push(Node::Separator);
     }
     menu.extend([options.standard(Standard::Services), Node::Separator]);
     let mut hide = Item::new(HIDE, options.text("Hide {app}")).role(ItemRole::Hide);
+    hide.layout_shortcut = true;
     match taken("Cmd+H", None) {
         Some(command) => {
             let free = taken("Ctrl+Cmd+H", None).is_none();
@@ -107,10 +135,13 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
         None => hide.shortcut = Some("Cmd+H".into()),
     }
     menu.push(Node::Item(hide));
-    if let Some(command) = taken("Cmd+Alt+H", None) {
-        clashes.push(Clash { shortcut: "Cmd+Alt+H", system: "Hide Others", command, resolution: "AppKit's Hide Others keeps ⌥⌘H" });
+    let mut hide_others = Item::new(HIDE_OTHERS, options.text("Hide Others"));
+    hide_others.layout_shortcut = true;
+    match taken("Cmd+Alt+H", None) {
+        Some(command) => clashes.push(Clash { shortcut: "Cmd+Alt+H", system: "Hide Others", command, resolution: "Hide Others has no shortcut" }),
+        None => hide_others.shortcut = Some("Cmd+Alt+H".into()),
     }
-    menu.extend([options.standard(Standard::HideOthers), options.standard(Standard::ShowAll), Node::Separator]);
+    menu.extend([Node::Item(hide_others), options.standard(Standard::ShowAll), Node::Separator]);
     let mut quit = match quit {
         Some(Node::Item(it)) => it,
         _ => Item::new(craft_quit::QUIT_MENU_ID, "").role(ItemRole::Quit),
@@ -121,7 +152,11 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
             clashes.push(Clash { shortcut: "Cmd+Q", system: "Quit", command, resolution: "Quit has no shortcut" });
             quit.shortcut = None;
         }
-        None => quit.shortcut = Some("Cmd+Q".into()),
+        None => {
+            let own = quit.shortcut.as_deref().and_then(Chord::parse).map(|c| c.portable());
+            quit.layout_shortcut = own.as_deref() != Some("Cmd+Q");
+            quit.shortcut = Some("Cmd+Q".into());
+        }
     }
     menu.push(Node::Item(quit));
     bar.menus.insert(0, Menu::new(options.app_name, menu).role(MenuRole::App));
@@ -142,6 +177,7 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
     let minimize = match taken("Cmd+M", None) {
         Some(command) => {
             let mut it = Item::new(MINIMIZE, options.text("Minimize")).role(ItemRole::Minimize);
+            it.layout_shortcut = true;
             let free = taken("Ctrl+Cmd+M", None).is_none();
             if free {
                 it.shortcut = Some("Ctrl+Cmd+M".into());
@@ -178,6 +214,7 @@ fn settings_node(node: Node, comma_taken: Option<String>, options: &LayoutOption
     let give = |it: &mut Item| {
         if comma_taken.is_none() && it.shortcut.is_none() {
             it.shortcut = Some("Cmd+,".into());
+            it.layout_shortcut = true;
         }
     };
     match node {

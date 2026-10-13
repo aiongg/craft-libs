@@ -7,10 +7,27 @@ use crate::model::{MINIMIZE, MenuBar};
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    /// An item was chosen with the mouse (or the keyboard inside an open menu).
+    /// An item was chosen with the mouse (or the keyboard inside an open menu), or by a key
+    /// equivalent the app's key handling doesn't know ([`crate::Item::layout_shortcut`]). Only
+    /// the item's id: a parameter the command needs goes in the id.
     Click(String),
     /// A key equivalent was pressed: the shortcut, to be handled as the key press it was.
     Key(Chord),
+}
+
+/// How ⌘C, ⌘X and ⌘V reach egui when the native menu takes them as key equivalents (an Edit
+/// menu with Copy, Cut and Paste items).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClipboardKeys {
+    /// As egui-winit makes them without a native menu: ⌘C is [`egui::Event::Copy`], ⌘X
+    /// [`egui::Event::Cut`], and ⌘V a [`egui::ViewportCommand::RequestPaste`], which eframe answers
+    /// with an [`egui::Event::Paste`] of the clipboard's text in the next frame. Text fields copy,
+    /// cut and paste.
+    #[default]
+    Egui,
+    /// Key presses like any other key equivalent, for an app that runs its clipboard commands
+    /// from the keys itself.
+    Raw,
 }
 
 /// A platform's native menu bar.
@@ -38,11 +55,31 @@ pub struct NativeMenu {
     /// An event arrived (AppKit may have toggled a check item itself): re-sync.
     dirty: bool,
     clashes: Vec<Clash>,
+    clipboard: ClipboardKeys,
+    /// ⌘V arrived: [`NativeMenu::take_clicks`] asks eframe for the paste.
+    paste: bool,
+    /// Whether a click may be kept from egui as the one closing an open menu (see
+    /// [`NativeMenu::raw_input`]).
+    armed: bool,
 }
 
 impl NativeMenu {
     pub fn new(backend: Box<dyn Backend>) -> NativeMenu {
-        NativeMenu { backend, state: None, clicks: Vec::new(), dirty: true, clashes: Vec::new() }
+        NativeMenu {
+            backend,
+            state: None,
+            clicks: Vec::new(),
+            dirty: true,
+            clashes: Vec::new(),
+            clipboard: ClipboardKeys::default(),
+            paste: false,
+            armed: true,
+        }
+    }
+
+    pub fn clipboard_keys(mut self, keys: ClipboardKeys) -> NativeMenu {
+        self.clipboard = keys;
+        self
     }
 
     /// Before egui sees this frame's input: key equivalents become the key presses they were,
@@ -51,41 +88,65 @@ impl NativeMenu {
     /// A click or Escape in the window closes an open native menu. AppKit can deliver it to the
     /// window while the menu is still open (asynchronous menu presentation), so while the backend
     /// reports one open, the click or Escape is taken out of the input: it closes the menu
-    /// without starting a canvas gesture or reaching the active tool. Pointer moves stay.
+    /// without starting a canvas gesture or reaching the active tool. Pointer moves stay. Only
+    /// one such click is kept from egui until the backend reports no menu open again, so a
+    /// backend that wrongly keeps reporting one open costs one click, not every click.
     ///
     /// AppKit takes only the key-down: winit still delivers the key-up (it forwards key-ups while
     /// ⌘ is held). So a key equivalent adds just its press, ahead of its key-up when that is
     /// already queued. Adding a made-up release as well sends two key-ups; in PhotoCraft, which
     /// reads a ⌘V release without a press as an image paste, that made ⌘V paste three times.
+    /// ⌘C, ⌘X and ⌘V follow [`ClipboardKeys`].
     pub fn raw_input(&mut self, raw: &mut egui::RawInput) {
         // The window's own input, before key equivalents are added to it.
-        if dismiss_input(raw, || self.backend.tracking()) {
+        if let Some(kept) = dismiss_input(raw, || self.armed && self.backend.tracking()) {
+            if kept {
+                self.armed = false;
+            }
             // Also without a menu reported open: an asynchronously presented menu can still be
             // on screen after it reports closing.
             self.backend.cancel_tracking();
         }
+        if !self.armed && !self.backend.tracking() {
+            self.armed = true;
+        }
         for e in self.backend.drain() {
             match e {
-                Event::Key(chord) => {
-                    if let Some(press @ egui::Event::Key { key: pressed_key, .. }) = chord.key_event(true) {
-                        let at = raw
-                            .events
-                            .iter()
-                            .position(|e| matches!(e, egui::Event::Key { key, pressed: false, .. } if *key == pressed_key))
-                            .unwrap_or(raw.events.len());
-                        raw.events.insert(at, press);
-                    }
-                }
+                Event::Key(chord) => self.add_key(raw, &chord),
                 Event::Click(id) => self.clicks.push(id),
             }
             self.dirty = true;
         }
     }
 
+    fn add_key(&mut self, raw: &mut egui::RawInput, chord: &Chord) {
+        let Some(press @ egui::Event::Key { key: pressed_key, .. }) = chord.key_event(true) else { return };
+        let clipboard = self.clipboard == ClipboardKeys::Egui && chord.cmd && !(chord.ctrl || chord.alt || chord.shift);
+        let event = match pressed_key {
+            egui::Key::C if clipboard => egui::Event::Copy,
+            egui::Key::X if clipboard => egui::Event::Cut,
+            egui::Key::V if clipboard => {
+                self.paste = true;
+                return;
+            }
+            _ => press,
+        };
+        let at = raw
+            .events
+            .iter()
+            .position(|e| matches!(e, egui::Event::Key { key, pressed: false, .. } if *key == pressed_key))
+            .unwrap_or(raw.events.len());
+        raw.events.insert(at, event);
+    }
+
     /// The items clicked since the last call, for the app to run like in-window menu clicks.
     /// [`MINIMIZE`] (minimizes the window) and [`craft_quit::QUIT_MENU_ID`] (asks the window to
-    /// close, see [`craft_quit::on_menu_event`]) are run here and left out.
+    /// close, see [`craft_quit::on_menu_event`]) are run here and left out. A ⌘V from the menu
+    /// ([`ClipboardKeys::Egui`]) is asked of eframe here too.
     pub fn take_clicks(&mut self, ctx: &egui::Context) -> Vec<String> {
+        if std::mem::take(&mut self.paste) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+        }
         let mut out = Vec::new();
         for id in std::mem::take(&mut self.clicks) {
             if id == MINIMIZE {
@@ -120,20 +181,44 @@ impl NativeMenu {
     }
 }
 
-/// Whether `raw` has a press or Escape that closes an open menu. While `tracking` (a menu is
-/// open), those events are removed: they belong to the menu.
-pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() -> bool) -> bool {
+/// `Some` when `raw` has a press or Escape that closes an open menu: `Some(true)` when, with
+/// `tracking` (a menu is open), those events were removed, since they belong to the menu.
+pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() -> bool) -> Option<bool> {
     if !raw
         .events
         .iter()
         .any(|e| matches!(e, egui::Event::PointerButton { pressed: true, .. } | egui::Event::Key { key: egui::Key::Escape, pressed: true, .. }))
     {
-        return false;
+        return None;
     }
-    if tracking() {
+    let kept = tracking();
+    if kept {
         raw.events.retain(|e| !matches!(e, egui::Event::PointerButton { .. } | egui::Event::Key { key: egui::Key::Escape, .. }));
     }
-    true
+    Some(kept)
+}
+
+/// What a backend reports for an item chosen with `command`, `chord` (its shortcut) and
+/// `layout_shortcut` ([`crate::Item::layout_shortcut`]). `key` holds the modifiers held (⌘, ⌃, ⌥,
+/// ⇧) when a key-down chose it, `None` for a mouse click.
+///
+/// A key-down is the item's key equivalent, reported as the key press, unless it was ↩ or Space
+/// inside the open menu: the item's shortcut is not a key equivalent at all (a bare tool key), or
+/// needs ⌘ or ⌃ and neither is held. The key is the item's (AppKit matched on it); the modifiers
+/// are the ones held, since AppKit may match ⌘R to a ⇧⌘R item. Minimize, craft-quit's Quit and
+/// shortcuts the layout assigned are run by the driver or the app's click handling, not by its
+/// key handling, so they stay clicks.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn chosen_event(command: &str, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>) -> Event {
+    let runs_as_click = layout_shortcut || command == MINIMIZE || command == craft_quit::QUIT_MENU_ID;
+    let pressed = key
+        .zip(chord)
+        .filter(|([cmd, ctrl, ..], c)| !runs_as_click && c.native_ok() && (*cmd || *ctrl || !(c.cmd || c.ctrl)))
+        .map(|([cmd, ctrl, alt, shift], c)| Chord { cmd, ctrl, alt, shift, key: c.key.clone() });
+    match pressed {
+        Some(chord) => Event::Key(chord),
+        None => Event::Click(command.to_string()),
+    }
 }
 
 /// A key press or click this frame. It may have changed state an app's menu hash doesn't list,

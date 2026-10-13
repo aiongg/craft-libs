@@ -89,13 +89,14 @@ fn the_app_menu_is_laid_out_the_mac_way() {
     #[rustfmt::skip]
     let expected = [
         "help.about", "---", "[Settings]", "[Language]", "[Appearance]", "---",
-        "<Services>", "---", HIDE, "<HideOthers>", "<ShowAll>", "---", "file.exit",
+        "<Services>", "---", HIDE, HIDE_OTHERS, "<ShowAll>", "---", "file.exit",
     ];
     assert_eq!(ids(&app.children), expected);
     let quit = l.bar.find("file.exit").unwrap();
     assert_eq!((quit.label.as_str(), quit.shortcut.as_deref()), ("Quit Sample", Some("Cmd+Q")), "the app's own Quit");
     assert_eq!(l.bar.find("help.about").unwrap().label, "About Sample");
     assert_eq!(l.bar.find(HIDE).unwrap().shortcut.as_deref(), Some("Cmd+H"));
+    assert_eq!(l.bar.find(HIDE_OTHERS).unwrap().shortcut.as_deref(), Some("Cmd+Alt+H"));
     assert_eq!(l.bar.find("prefs.general").unwrap().shortcut.as_deref(), Some("Cmd+,"), "⌘, opens the first settings page");
     let Some(Node::Submenu { children, .. }) = app.children.iter().find(|n| matches!(n, Node::Submenu { label, .. } if label == "Appearance")) else {
         panic!("an Appearance submenu");
@@ -127,7 +128,7 @@ fn an_untagged_quit_is_craft_quits_and_labels_are_translated() {
         "Services" => "Dienste".into(),
         other => other.into(),
     };
-    let l = mac_layout(&bar, &LayoutOptions { app_name: "Sample", label: &german });
+    let l = mac_layout(&bar, &LayoutOptions { label: &german, ..LayoutOptions::new("Sample") });
     let quit = l.bar.find(craft_quit::QUIT_MENU_ID).unwrap();
     assert_eq!((quit.label.as_str(), quit.shortcut.as_deref(), quit.role), ("Sample beenden", Some("Cmd+Q"), Some(ItemRole::Quit)));
     assert!(ids(&titled(&l.bar, "File").children).contains(&"file.exit".to_string()), "File › Exit stays");
@@ -253,6 +254,8 @@ struct Fake {
     events: Rc<RefCell<Vec<Event>>>,
     tracking: Rc<Cell<bool>>,
     cancels: Rc<Cell<usize>>,
+    /// Keeps reporting a menu open after `cancel_tracking`.
+    stuck: bool,
 }
 
 impl Backend for Fake {
@@ -267,16 +270,19 @@ impl Backend for Fake {
     }
     fn cancel_tracking(&mut self) {
         self.cancels.set(self.cancels.get() + 1);
-        self.tracking.set(false);
+        if !self.stuck {
+            self.tracking.set(false);
+        }
     }
 }
 
 /// AppKit takes a key equivalent's key-down but winit still delivers the key-up: the menu adds
-/// only the press, before a key-up already queued, so the shortcut runs once.
+/// only the press, before a key-up already queued, so the shortcut runs once. (⌘V as a key, as
+/// an app taking the raw clipboard keys gets it.)
 #[test]
 fn key_equivalents_become_one_key_press() {
     let events = Rc::new(RefCell::new(Vec::new()));
-    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
+    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
     let paste = Chord::parse("Cmd+V").unwrap();
     let release = egui::Event::Key { key: Key::V, physical_key: Some(Key::V), pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
     let press = paste.key_event(true).unwrap();
@@ -338,11 +344,11 @@ fn outside_press_dismisses_without_starting_a_canvas_gesture() {
     use crate::driver::dismiss_input;
     let moved = egui::Event::PointerMoved(egui::pos2(300.0, 200.0));
     let mut raw = egui::RawInput { events: vec![moved.clone(), press()], ..Default::default() };
-    assert!(dismiss_input(&mut raw, || true));
+    assert_eq!(dismiss_input(&mut raw, || true), Some(true));
     assert_eq!(raw.events, [moved]);
-    assert!(!dismiss_input(&mut raw, || true));
+    assert_eq!(dismiss_input(&mut raw, || true), None);
     raw.events.push(press());
-    assert!(dismiss_input(&mut raw, || false));
+    assert_eq!(dismiss_input(&mut raw, || false), Some(false));
     assert_eq!(raw.events.len(), 2, "ordinary canvas presses still reach egui");
 }
 
@@ -350,14 +356,14 @@ fn outside_press_dismisses_without_starting_a_canvas_gesture() {
 fn escape_dismisses_without_reaching_the_active_tool() {
     let escape = |pressed| egui::Event::Key { key: Key::Escape, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
     let mut raw = egui::RawInput { events: vec![escape(true), escape(false)], ..Default::default() };
-    assert!(crate::driver::dismiss_input(&mut raw, || true));
+    assert_eq!(crate::driver::dismiss_input(&mut raw, || true), Some(true));
     assert!(raw.events.is_empty());
 }
 
 #[test]
 fn moving_the_pointer_does_not_dismiss_a_tracking_menu() {
     let mut raw = egui::RawInput { events: vec![egui::Event::PointerMoved(egui::pos2(300.0, 200.0))], ..Default::default() };
-    assert!(!crate::driver::dismiss_input(&mut raw, || true));
+    assert_eq!(crate::driver::dismiss_input(&mut raw, || true), None);
     assert_eq!(raw.events.len(), 1);
 }
 
@@ -380,4 +386,129 @@ fn a_click_closes_an_open_menu() {
 
     menu.raw_input(&mut egui::RawInput { events: vec![egui::Event::PointerMoved(egui::pos2(1.0, 1.0))], ..Default::default() });
     assert_eq!(cancels.get(), 2, "a pointer move closes nothing");
+}
+
+/// A backend that keeps reporting a menu open costs one window click, not all of them; once it
+/// reports the menu closed, the next open menu's closing click is kept from egui again.
+#[test]
+fn a_stuck_open_menu_keeps_only_one_click() {
+    let tracking = Rc::new(Cell::new(true));
+    let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), stuck: true, ..Default::default() }));
+    let mut raw = egui::RawInput { events: vec![press()], ..Default::default() };
+    menu.raw_input(&mut raw);
+    assert!(raw.events.is_empty(), "the click that closes the menu");
+    for _ in 0..3 {
+        let mut raw = egui::RawInput { events: vec![press()], ..Default::default() };
+        menu.raw_input(&mut raw);
+        assert_eq!(raw.events, [press()], "later clicks reach egui");
+    }
+    tracking.set(false);
+    menu.raw_input(&mut egui::RawInput::default());
+    tracking.set(true);
+    let mut raw = egui::RawInput { events: vec![press()], ..Default::default() };
+    menu.raw_input(&mut raw);
+    assert!(raw.events.is_empty());
+}
+
+fn key(key: Key, pressed: bool, modifiers: Modifiers) -> egui::Event {
+    egui::Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers }
+}
+
+/// AppKit takes ⌘C, ⌘X and ⌘V for the Edit menu, so egui-winit never makes its Copy, Cut and
+/// Paste events: the driver makes them, unless the app takes the raw keys.
+#[test]
+fn clipboard_key_equivalents_reach_text_fields() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
+    let chord = |s: &str| Event::Key(Chord::parse(s).unwrap());
+    events.borrow_mut().extend([chord("Cmd+C"), chord("Cmd+X"), chord("Cmd+Shift+V")]);
+    let release = key(Key::C, false, Modifiers::COMMAND);
+    let mut raw = egui::RawInput { events: vec![release.clone()], ..Default::default() };
+    menu.raw_input(&mut raw);
+    let shift_v = Chord::parse("Cmd+Shift+V").unwrap().key_event(true).unwrap();
+    assert_eq!(raw.events, [egui::Event::Copy, release, egui::Event::Cut, shift_v], "⌘⇧V is an app shortcut");
+
+    events.borrow_mut().push(chord("Cmd+V"));
+    let mut raw = egui::RawInput::default();
+    menu.raw_input(&mut raw);
+    assert!(raw.events.is_empty(), "the paste comes from eframe, with the clipboard's text");
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(raw, |ui| {
+        menu.take_clicks(ui.ctx());
+    });
+    out.textures_delta.clear();
+    let commands = out.viewport_output.remove(&egui::ViewportId::ROOT).map(|o| o.commands).unwrap_or_default();
+    assert!(commands.contains(&egui::ViewportCommand::RequestPaste));
+
+    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
+    events.borrow_mut().extend([chord("Cmd+C"), chord("Cmd+V")]);
+    let mut raw = egui::RawInput::default();
+    menu.raw_input(&mut raw);
+    let press = |s: &str| Chord::parse(s).unwrap().key_event(true).unwrap();
+    assert_eq!(raw.events, [press("Cmd+C"), press("Cmd+V")]);
+}
+
+/// The layout marks the shortcuts it gives (the app's key handling doesn't bind them), and a key
+/// equivalent on such an item comes back as a click.
+#[test]
+fn shortcuts_the_layout_assigns_come_back_as_clicks() {
+    use crate::driver::chosen_event;
+    let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample"));
+    let assigned = |id: &str| l.bar.find(id).unwrap().layout_shortcut;
+    assert!(assigned("file.exit") && assigned("prefs.general") && assigned(HIDE));
+    assert!(!assigned("edit.undo") && !assigned("prefs.keys"));
+    let mut bar = sample(false, true);
+    bar.menus[0].children.push(Item::new("file.quit", "Quit").shortcut("Cmd+Q").role(ItemRole::Quit).into());
+    bar.tag_item("file.exit", ItemRole::About);
+    assert!(!mac_layout(&bar, &LayoutOptions::new("Sample")).bar.find("file.quit").unwrap().layout_shortcut, "the app's own ⌘Q");
+
+    let cmd_q = Chord::parse("Cmd+Q").unwrap();
+    let held = Some([true, false, false, false]);
+    assert_eq!(chosen_event("file.exit", Some(&cmd_q), true, held), Event::Click("file.exit".into()));
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, held), Event::Key(cmd_q.clone()));
+    // ⇧ held on a ⌘R item: the key press that was made.
+    let shift_r = Chord::parse("Cmd+Shift+R").unwrap();
+    assert_eq!(chosen_event("view.reload", Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true])), Event::Key(shift_r));
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, None), Event::Click("file.quit".into()), "a mouse click");
+    assert_eq!(
+        chosen_event(MINIMIZE, Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false])),
+        Event::Click(MINIMIZE.into())
+    );
+    // ↩ inside the open menu: on a ⌘ item without ⌘ held, and on a bare tool key.
+    let enter = Some([false; 4]);
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, enter), Event::Click("file.quit".into()));
+    assert_eq!(chosen_event("tool.brush", Some(&Chord::parse("B").unwrap()), false, enter), Event::Click("tool.brush".into()));
+}
+
+/// Hide Others is the crate's own item: an app command on ⌥⌘H, in a menu or bound elsewhere,
+/// keeps the key, and shortcuts bound outside the menus clash like menu ones.
+#[test]
+fn hide_others_and_extra_shortcuts_give_way_to_the_app() {
+    let extra = [("Cmd+Alt+H".to_string(), "canvas.hideGuides".to_string()), ("Shift+Cmd+Q".to_string(), "canvas.other".to_string())];
+    let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample").extra_shortcuts(&extra));
+    assert_eq!(l.bar.find(HIDE_OTHERS).unwrap().shortcut, None);
+    assert_eq!(
+        l.clashes,
+        [Clash { shortcut: "Cmd+Alt+H", system: "Hide Others", command: "canvas.hideGuides".into(), resolution: "Hide Others has no shortcut" }]
+    );
+    let extra = [("Cmd+H".to_string(), "canvas.hand".to_string())];
+    let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample").extra_shortcuts(&extra));
+    assert_eq!(l.bar.find(HIDE).unwrap().shortcut.as_deref(), Some("Ctrl+Cmd+H"));
+}
+
+/// An app menu in the app's own tree merges into the layout's: no second app menu.
+#[test]
+fn an_apps_own_app_menu_is_merged() {
+    let mut bar = sample(false, true);
+    let own = vec![
+        Item::new("app.discord", "Join Our Discord").into(),
+        Node::submenu("Theme", vec![Item::new("theme.light", "Light").into()]).role(ItemRole::Appearance),
+    ];
+    bar.menus.insert(0, Menu::new("Sample", own).role(MenuRole::App));
+    bar.tag_item("theme.next", ItemRole::Document);
+    bar.menus.iter_mut().find(|m| m.title == "Window").unwrap().children.retain(|n| !matches!(n, Node::Submenu { .. }));
+    let l = mac_layout(&bar, &LayoutOptions::new("Sample"));
+    assert_eq!(l.bar.menus.iter().filter(|m| m.role == MenuRole::App).count(), 1);
+    let app = l.bar.menu(MenuRole::App).unwrap();
+    assert_eq!(ids(&app.children)[..7], ["help.about", "---", "[Settings]", "[Language]", "[Appearance]", "---", "app.discord"]);
 }

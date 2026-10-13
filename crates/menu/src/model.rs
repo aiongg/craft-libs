@@ -45,8 +45,9 @@ pub enum Node {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
-    /// The app's command id (`file.open`), or one of [`HIDE`], [`MINIMIZE`] and
-    /// [`craft_quit::QUIT_MENU_ID`].
+    /// The app's command id (`file.open`), or one of [`HIDE`], [`HIDE_OTHERS`], [`MINIMIZE`] and
+    /// [`craft_quit::QUIT_MENU_ID`]. A click reports only this id, so a command that takes a
+    /// parameter (a recent file, a theme) carries it in the id: `file.recent:3`.
     pub id: String,
     pub label: String,
     /// `Cmd+Shift+Z` form; `Ctrl` is the real Control key. See [`crate::Chord`].
@@ -55,6 +56,9 @@ pub struct Item {
     /// `Some` for check items.
     pub checked: Option<bool>,
     pub role: Option<ItemRole>,
+    /// The layout gave this item its shortcut (⌘Q on the app's Quit, ⌘, on Settings): the app's
+    /// key handling doesn't know it, so a backend reports the key equivalent as a click.
+    pub layout_shortcut: bool,
 }
 
 /// Items macOS expects in fixed places. The app tags its own About, Settings, Quit, Appearance,
@@ -82,7 +86,6 @@ pub enum ItemRole {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Standard {
     Services,
-    HideOthers,
     ShowAll,
     Minimize,
     Zoom,
@@ -95,7 +98,6 @@ impl Standard {
     pub fn english(self) -> &'static str {
         match self {
             Standard::Services => "Services",
-            Standard::HideOthers => "Hide Others",
             Standard::ShowAll => "Show All",
             Standard::Minimize => "Minimize",
             Standard::Zoom => "Zoom",
@@ -107,6 +109,8 @@ impl Standard {
 
 /// Hide the app: a custom item, because AppKit's own always takes ⌘H, which apps often bind.
 pub const HIDE: &str = "craft-menu.hide";
+/// Hide the other apps: a custom item, because AppKit's own always takes ⌥⌘H.
+pub const HIDE_OTHERS: &str = "craft-menu.hide-others";
 /// Minimize: a custom item, used when the app binds ⌘M (AppKit's own always takes ⌘M).
 /// [`crate::NativeMenu::take_clicks`] runs it.
 pub const MINIMIZE: &str = "craft-menu.minimize";
@@ -114,7 +118,7 @@ pub const MINIMIZE: &str = "craft-menu.minimize";
 impl Item {
     /// An enabled plain item with no shortcut.
     pub fn new(id: impl Into<String>, label: impl Into<String>) -> Item {
-        Item { id: id.into(), label: label.into(), shortcut: None, enabled: true, checked: None, role: None }
+        Item { id: id.into(), label: label.into(), shortcut: None, enabled: true, checked: None, role: None, layout_shortcut: false }
     }
 
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Item {
@@ -148,6 +152,16 @@ impl From<Item> for Node {
 impl Node {
     pub fn submenu(label: impl Into<String>, children: Vec<Node>) -> Node {
         Node::Submenu { label: label.into(), children, role: None }
+    }
+
+    /// Give an item or a submenu a role: `Node::submenu("Theme", pages).role(ItemRole::Appearance)`.
+    pub fn role(mut self, role: ItemRole) -> Node {
+        match &mut self {
+            Node::Item(it) => it.role = Some(role),
+            Node::Submenu { role: r, .. } => *r = Some(role),
+            Node::Separator | Node::Standard { .. } => {}
+        }
+        self
     }
 }
 
@@ -255,6 +269,7 @@ pub fn from_items(tops: &[&str], rows: &[Row]) -> MenuBar {
                         enabled: it.enabled,
                         checked: it.checked,
                         role: None,
+                        layout_shortcut: false,
                     }));
                 }
             } else if let Some(name) = it.path.get(depth) {
@@ -336,7 +351,7 @@ pub(crate) fn is_document(n: &Node) -> bool {
 fn hash_nodes(nodes: &[Node], h: &mut DefaultHasher) {
     for n in nodes {
         match n {
-            Node::Item(it) => ('i', &it.id, it.checked.is_some(), &it.shortcut, it.role).hash(h),
+            Node::Item(it) => ('i', &it.id, it.checked.is_some(), &it.shortcut, it.role, it.layout_shortcut).hash(h),
             Node::Separator => '-'.hash(h),
             Node::Submenu { label, children, role } => {
                 ('[', label, role).hash(h);

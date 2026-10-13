@@ -29,7 +29,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   checks, 3D LUTs and built-in profiles (sRGB, Display P3, synthetic coated CMYK and others).
 - [`craft-menu`](crates/menu/README.md): an app's menus as a macOS menu bar: the Mac layout
   (app menu, Window, Help, system-key clashes), a platform backend trait, and key equivalents
-  fed back to egui as key presses. Commands and their enabled state stay in each app.
+  fed back to egui as the input egui-winit would have made. Commands and their enabled state
+  stay in each app.
 - [`craft-print`](crates/print/README.md): PDF submission to CUPS and Windows, printer discovery,
   duplex/copies/colour and driver preferences. PDF generation stays in each app.
 
