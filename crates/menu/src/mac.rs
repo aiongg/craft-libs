@@ -12,7 +12,8 @@
 //!   equivalent goes back to egui as the key press that was made (the event's modifiers, not the
 //!   item's: AppKit may match ⌘R to a ⇧⌘R item), so the app's key rules still apply. A shortcut
 //!   the layout assigned ([`crate::Item::layout_shortcut`]) stays a click: the app's keys don't
-//!   know it.
+//!   know it. While a text field has the keys, a key equivalent is a click unless the field
+//!   handles it ([`NativeMenu::set_text_editing`]).
 //! - Hide ([`crate::HIDE`]) and Hide Others ([`crate::HIDE_OTHERS`]) are custom items calling
 //!   `NSApplication hide:` and `hideOtherApplications:`, because the predefined ones always take ⌘H
 //!   and ⌥⌘H.
@@ -93,6 +94,8 @@ struct MacMenu {
     window: Option<WindowMenu>,
     /// The latest menus, waiting for the open menu to close.
     pending: Option<MenuBar>,
+    /// A text field has the keys ([`NativeMenu::set_text_editing`]).
+    text_editing: bool,
 }
 
 impl MacMenu {
@@ -114,7 +117,7 @@ impl MacMenu {
             // item runs only with the next input event, 8 to 90 seconds later in measurements.
             repaint.request_repaint();
         }));
-        MacMenu { ctx: ctx.clone(), menu: None, entries: HashMap::new(), rx, structure: 0, window: None, pending: None }
+        MacMenu { ctx: ctx.clone(), menu: None, entries: HashMap::new(), rx, structure: 0, window: None, pending: None, text_editing: false }
     }
 
     /// Build the menu bar for `bar` and make it NSApp's. On an error or a panic in muda or AppKit
@@ -337,7 +340,7 @@ impl Backend for MacMenu {
                 }
                 continue;
             }
-            out.push(chosen_event(&e.command, e.chord.as_ref(), e.layout_shortcut, chosen.key));
+            out.push(chosen_event(&e.command, e.chord.as_ref(), e.layout_shortcut, chosen.key, self.text_editing));
         }
         // After the events: they were chosen from the menus as they were.
         if let Some(bar) = self.pending.take() {
@@ -358,6 +361,10 @@ impl Backend for MacMenu {
     /// window click from egui ([`NativeMenu::raw_input`]).
     fn tracking(&self) -> bool {
         MainThreadMarker::new().and_then(|mtm| NSApplication::sharedApplication(mtm).mainMenu()).is_some_and(|m| m.highlightedItem().is_some())
+    }
+
+    fn set_text_editing(&mut self, editing: bool) {
+        self.text_editing = editing;
     }
 
     fn cancel_tracking(&mut self) {

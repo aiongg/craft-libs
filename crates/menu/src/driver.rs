@@ -44,6 +44,9 @@ pub trait Backend {
     }
     /// Close the open native menu, if there is one.
     fn cancel_tracking(&mut self) {}
+    /// Whether a text field has the keys ([`NativeMenu::set_text_editing`]), for
+    /// the choice between reporting a key equivalent as a key press or a click.
+    fn set_text_editing(&mut self, _editing: bool) {}
 }
 
 /// The native menu bar, while the app uses one (its in-window menus are hidden then).
@@ -80,6 +83,15 @@ impl NativeMenu {
     pub fn clipboard_keys(mut self, keys: ClipboardKeys) -> NativeMenu {
         self.clipboard = keys;
         self
+    }
+
+    /// Whether a text field has the keys (in egui, `ctx.wants_keyboard_input()`). Call it every
+    /// frame, before the next [`NativeMenu::raw_input`]. While it is on, a key equivalent runs
+    /// its item as an [`Event::Click`], as a Mac app's menu commands run while typing, except
+    /// the text-editing keys the field handles itself: ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z and ⇧⌘Z stay key
+    /// presses (⌘C, ⌘X and ⌘V following [`ClipboardKeys`]).
+    pub fn set_text_editing(&mut self, editing: bool) {
+        self.backend.set_text_editing(editing);
     }
 
     /// Before egui sees this frame's input: key equivalents become the key presses they were,
@@ -200,25 +212,36 @@ pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() ->
 
 /// What a backend reports for an item chosen with `command`, `chord` (its shortcut) and
 /// `layout_shortcut` ([`crate::Item::layout_shortcut`]). `key` holds the modifiers held (⌘, ⌃, ⌥,
-/// ⇧) when a key-down chose it, `None` for a mouse click.
+/// ⇧) when a key-down chose it, `None` for a mouse click. `text_editing`: a text field has the
+/// keys ([`NativeMenu::set_text_editing`]).
 ///
 /// A key-down is the item's key equivalent, reported as the key press, unless it was ↩ or Space
 /// inside the open menu: the item's shortcut is not a key equivalent at all (a bare tool key), or
 /// needs ⌘ or ⌃ and neither is held. The key is the item's (AppKit matched on it); the modifiers
 /// are the ones held, since AppKit may match ⌘R to a ⇧⌘R item. Minimize, craft-quit's Quit and
 /// shortcuts the layout assigned are run by the driver or the app's click handling, not by its
-/// key handling, so they stay clicks.
+/// key handling, so they stay clicks. While text editing, the app's key handling leaves shortcuts
+/// to the field, so a key equivalent is a click too, except the field's own editing keys
+/// ([`text_editing_key`]).
 #[cfg(any(target_os = "macos", test))]
-pub(crate) fn chosen_event(command: &str, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>) -> Event {
+pub(crate) fn chosen_event(command: &str, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>, text_editing: bool) -> Event {
     let runs_as_click = layout_shortcut || command == MINIMIZE || command == craft_quit::QUIT_MENU_ID;
     let pressed = key
         .zip(chord)
         .filter(|([cmd, ctrl, ..], c)| !runs_as_click && c.native_ok() && (*cmd || *ctrl || !(c.cmd || c.ctrl)))
-        .map(|([cmd, ctrl, alt, shift], c)| Chord { cmd, ctrl, alt, shift, key: c.key.clone() });
+        .map(|([cmd, ctrl, alt, shift], c)| Chord { cmd, ctrl, alt, shift, key: c.key.clone() })
+        .filter(|c| !text_editing || text_editing_key(c));
     match pressed {
         Some(chord) => Event::Key(chord),
         None => Event::Click(command.to_string()),
     }
+}
+
+/// ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z or ⇧⌘Z: keys a text field handles itself.
+#[cfg(any(target_os = "macos", test))]
+fn text_editing_key(c: &Chord) -> bool {
+    let is = |k: &str| c.key.eq_ignore_ascii_case(k);
+    c.cmd && !c.ctrl && !c.alt && (if c.shift { is("Z") } else { ["C", "X", "V", "A", "Z"].iter().any(|k| is(k)) })
 }
 
 /// A key press or click this frame. It may have changed state an app's menu hash doesn't list,

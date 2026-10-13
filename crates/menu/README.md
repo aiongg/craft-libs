@@ -78,8 +78,14 @@ clipboard commands from the keys itself sets `menu.clipboard_keys(ClipboardKeys:
 key presses. A shortcut the layout assigned (⌘Q on the app's Quit item, ⌘, on Settings) comes
 back as a click instead, since the app's key handling doesn't bind it.
 
+While a text field has the keys, an app's key handling leaves shortcuts to the field, but a Mac
+app's menu commands (⌘S, ⌘N) run while typing. So the app reports each frame whether text has
+the keys (`set_text_editing`), and while it does, a key equivalent comes back as a click, except
+the keys the field handles itself: ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z and ⇧⌘Z stay key presses (⌘C, ⌘X and ⌘V
+as `ClipboardKeys` says).
+
 Each frame: `raw_input` before egui reads the input, then the ids from `take_clicks`, then
-`sync_with`.
+`sync_with`, then `set_text_editing` for the next frame's `raw_input`.
 
 ```rust
 // eframe::App::raw_input_hook, before egui reads the input:
@@ -96,6 +102,7 @@ if let Some(menu) = &mut self.native_menu {
     for c in menu.sync_with(state, || craft_menu::mac_layout(&self.menu_bar(), &LayoutOptions::new("PhotoCraft"))) {
         log::info!("menu: {} is {} on macOS and {} in the app; {}", c.shortcut, c.system, c.command, c.resolution);
     }
+    menu.set_text_editing(ctx.wants_keyboard_input());
 }
 ```
 

@@ -38,7 +38,10 @@
 //! ([`ClipboardKeys`]). The shortcut runs through the app's key handling as without a native
 //! menu. A click is [`Event::Click`], and [`NativeMenu::take_clicks`] returns its id for the app
 //! to run like an in-window menu click; so is a key equivalent the layout assigned (⌘Q on the
-//! app's Quit item, ⌘, on Settings), which the app's key handling doesn't know.
+//! app's Quit item, ⌘, on Settings), which the app's key handling doesn't know, and, while a text
+//! field has the keys ([`NativeMenu::set_text_editing`]), every key equivalent but the field's own
+//! ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z and ⇧⌘Z: an app's key handling skips shortcuts while text has the keys, and
+//! a Mac app's menu commands (⌘S, ⌘N) run while typing.
 //!
 //! muda has one menu event handler per process, and the first one set stays:
 //! `craft_quit::install_app_menu` and `mac::install` are alternatives, and an app calls one of
@@ -46,7 +49,9 @@
 //!
 //! Per frame: [`NativeMenu::raw_input`] before egui reads the input (`eframe::App::raw_input_hook`),
 //! then [`NativeMenu::take_clicks`] and run the commands, then [`NativeMenu::sync_with`], which
-//! lays the menus out again only when the app's state changed. [`NativeMenu::raw_input`] also
+//! lays the menus out again only when the app's state changed, and
+//! [`NativeMenu::set_text_editing`] with whether a text field has the keys, for the next
+//! [`NativeMenu::raw_input`]. [`NativeMenu::raw_input`] also
 //! keeps a click or Escape that closes an open native menu away from egui.
 
 mod chord;

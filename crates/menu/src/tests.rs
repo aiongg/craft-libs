@@ -256,6 +256,7 @@ struct Fake {
     cancels: Rc<Cell<usize>>,
     /// Keeps reporting a menu open after `cancel_tracking`.
     stuck: bool,
+    text_editing: Rc<Cell<bool>>,
 }
 
 impl Backend for Fake {
@@ -273,6 +274,9 @@ impl Backend for Fake {
         if !self.stuck {
             self.tracking.set(false);
         }
+    }
+    fn set_text_editing(&mut self, editing: bool) {
+        self.text_editing.set(editing);
     }
 }
 
@@ -464,20 +468,50 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
 
     let cmd_q = Chord::parse("Cmd+Q").unwrap();
     let held = Some([true, false, false, false]);
-    assert_eq!(chosen_event("file.exit", Some(&cmd_q), true, held), Event::Click("file.exit".into()));
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, held), Event::Key(cmd_q.clone()));
+    assert_eq!(chosen_event("file.exit", Some(&cmd_q), true, held, false), Event::Click("file.exit".into()));
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, held, false), Event::Key(cmd_q.clone()));
     // ⇧ held on a ⌘R item: the key press that was made.
     let shift_r = Chord::parse("Cmd+Shift+R").unwrap();
-    assert_eq!(chosen_event("view.reload", Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true])), Event::Key(shift_r));
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, None), Event::Click("file.quit".into()), "a mouse click");
     assert_eq!(
-        chosen_event(MINIMIZE, Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false])),
+        chosen_event("view.reload", Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true]), false),
+        Event::Key(shift_r)
+    );
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, None, false), Event::Click("file.quit".into()), "a mouse click");
+    assert_eq!(
+        chosen_event(MINIMIZE, Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false]), false),
         Event::Click(MINIMIZE.into())
     );
     // ↩ inside the open menu: on a ⌘ item without ⌘ held, and on a bare tool key.
     let enter = Some([false; 4]);
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, enter), Event::Click("file.quit".into()));
-    assert_eq!(chosen_event("tool.brush", Some(&Chord::parse("B").unwrap()), false, enter), Event::Click("tool.brush".into()));
+    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, enter, false), Event::Click("file.quit".into()));
+    assert_eq!(chosen_event("tool.brush", Some(&Chord::parse("B").unwrap()), false, enter, false), Event::Click("tool.brush".into()));
+}
+
+/// While a text field has the keys, a key equivalent runs its command as a click (⌘S saves while
+/// typing), except the editing keys the field handles itself.
+#[test]
+fn key_equivalents_run_commands_while_text_editing() {
+    use crate::driver::chosen_event;
+    let editing = Rc::new(Cell::new(false));
+    let mut menu = NativeMenu::new(Box::new(Fake { text_editing: editing.clone(), ..Default::default() }));
+    menu.set_text_editing(true);
+    assert!(editing.get(), "the backend has the flag for chosen_event");
+
+    let chosen = |shortcut: &str, held: [bool; 4], text_editing: bool| {
+        chosen_event("cmd", Some(&Chord::parse(shortcut).unwrap()), false, Some(held), text_editing)
+    };
+    let cmd = [true, false, false, false];
+    let shift_cmd = [true, false, false, true];
+    for (shortcut, held) in
+        [("Cmd+S", cmd), ("Cmd+N", cmd), ("Cmd+Shift+S", shift_cmd), ("Ctrl+Cmd+F", [true, true, false, false]), ("F5", [false; 4])]
+    {
+        assert_eq!(chosen(shortcut, held, true), Event::Click("cmd".into()), "{shortcut} while typing");
+        assert!(matches!(chosen(shortcut, held, false), Event::Key(_)), "{shortcut} with no text field");
+    }
+    for (shortcut, held) in [("Cmd+C", cmd), ("Cmd+X", cmd), ("Cmd+V", cmd), ("Cmd+A", cmd), ("Cmd+Z", cmd), ("Cmd+Shift+Z", shift_cmd)] {
+        assert_eq!(chosen(shortcut, held, true), Event::Key(Chord::parse(shortcut).unwrap()), "{shortcut} stays with the field");
+    }
+    assert_eq!(chosen("Cmd+A", shift_cmd, true), Event::Click("cmd".into()), "⇧⌘A is not select all");
 }
 
 /// Hide Others is the crate's own item: an app command on ⌥⌘H, in a menu or bound elsewhere,
