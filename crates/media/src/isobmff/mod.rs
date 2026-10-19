@@ -5,9 +5,12 @@
 //!   [`Mp4File::read_sample`].
 //! - **Mux:** [`Mp4Writer`] writes progressive MP4/MOV (optionally faststart);
 //!   [`FragmentedWriter`] writes fragmented MP4.
+//! - **Boxes:** [`boxes`] iterates the boxes in a byte slice and reads their payloads, for box
+//!   formats and boxes the demuxer does not model (`uuid` boxes, HEIF items, JPEG 2000, CR3).
 //!
 //! See the crate README for supported boxes and limitations.
 
+pub mod boxes;
 mod bytes;
 mod codec;
 mod demux;

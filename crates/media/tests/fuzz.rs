@@ -56,7 +56,29 @@ fn synthetic_files() -> Vec<Vec<u8>> {
     out
 }
 
+/// Walk every box as if it were a container, checking the iterator's offsets against `data`.
+fn walk_boxes(data: &[u8], range: std::ops::Range<usize>, depth: usize, budget: &mut usize, lenient: bool) {
+    let mut it = boxes::BoxIter::within(data, range.clone());
+    if lenient {
+        it = it.allow_truncated();
+    }
+    let mut next = range.start;
+    for b in it.by_ref() {
+        let Ok(b) = b else { break };
+        assert!(b.offset == next && b.end() <= range.end && b.payload_range().start >= b.offset + 8);
+        assert_eq!(data.get(b.payload_range()), Some(b.payload));
+        next = b.end();
+        if depth < 8 && *budget > 0 {
+            *budget -= 1;
+            walk_boxes(data, b.payload_range(), depth + 1, budget, lenient);
+        }
+    }
+    assert!(it.next().is_none() && it.offset() <= range.end);
+}
+
 fn exercise(data: &[u8]) -> bool {
+    walk_boxes(data, 0..data.len(), 0, &mut 2000, false);
+    walk_boxes(data, 0..data.len(), 0, &mut 200, true);
     let r = open(data);
     let ok = r.is_ok();
     if let Ok(f) = r {

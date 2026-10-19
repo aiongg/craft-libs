@@ -33,6 +33,8 @@ Every public item keeps its name, signature and behaviour for valid input, so Fi
 both crates into re-exports (`pub use craft_media::isobmff::*;`). The differences:
 
 - `bitstream::BitReader::read_ue_plus` (from DeckCraft's copy) is new.
+- `isobmff::boxes` is new: FilmCraft's private box iterator and byte reader, made public (see
+  [Box reader](#box-reader)).
 - `BitReader::peek`, `BitReader::read_bits` and `BitWriter::write_bits` accept widths above 32
   without a debug assertion: `peek` and `read_bits` return the low 32 bits of the field (use
   `read_bits_u64` for wide fields), and `write_bits` writes leading zero bits, at most 64 bits in
@@ -163,6 +165,37 @@ let bytes = w.finish_faststart()?.into_inner(); // or finish() for moov-at-end
   `flush_fragment()` then writes `moof` (`mfhd`, `traf` with default-base-is-moof `tfhd`, `tfdt` v1,
   `trun` with per-sample duration, size, flags and composition offset) followed by `mdat`.
 
+### Box reader
+
+`isobmff::boxes` gives direct access to the box format, for files and boxes the demuxer does not
+model: CR3 `uuid` boxes, HEIF `meta` items, JPEG 2000 (JP2, JPX, JPM, MJ2) boxes.
+
+```rust
+use craft_media::isobmff::boxes::{BoxIter, Reader};
+
+for b in BoxIter::new(&bytes) {
+    let b = b?;
+    if b.kind == b"uuid" && b.user_type == Some(CANON_UUID) {
+        for c in BoxIter::within(&bytes, b.payload_range()) { /* CMT1..CMT4, THMB */ }
+    }
+}
+```
+
+- `BoxIter::new(data)` yields the sibling boxes in `data`; `BoxIter::within(data, range)` yields
+  those in `data[range]` with offsets relative to `data`, so a walker keeps file offsets as it
+  descends. Each `BoxRef` has `kind`, `user_type` (the 16-byte extended type of a `uuid` box),
+  `offset`, `header_len`, `payload`, `payload_range()`, `range()` and `end()`.
+- 64-bit `largesize` and size 0 (runs to the end of the range) are handled. A malformed header or a
+  box larger than the range yields one `Err` and ends the iteration; `allow_truncated()` instead
+  yields that last box cut at the end of the range, with `truncated` set. A 32-bit zero terminator
+  (QuickTime) ends the iteration.
+- `BoxHeader::parse(buf)` reads one header (up to `BoxHeader::MAX_LEN` = 32 bytes), for scanning a
+  file through `ByteSource` without loading it.
+- `Reader` is the bounds-checked big-endian cursor the demuxer uses: `u8` to `u64`, `i16` to
+  `i64`, `f64`, `u24`, `fourcc`, `full_header` (version and flags), `bytes`, `skip`, `rest` and
+  `count` (an entry count checked against the bytes left, before allocating).
+- The iterator does not recurse. The caller bounds nesting depth and box count.
+
 ### Limitations
 - `presentation time = pts + edit_offset` only applies the leading empty edits and the first media
   edit. Multi-segment edit lists, dwell edits and non-unity rates are exposed raw. ffmpeg handles an edit
@@ -178,14 +211,16 @@ let bytes = w.finish_faststart()?.into_inner(); // or finish() for moov-at-end
 
 ## Tests
 
-- Unit tests cover the bit reader and writer, the box reader, hand-built `stbl` edge cases, codec
+- Unit tests cover the bit reader and writer, the box reader (64-bit, size-0, `uuid`, truncated and
+  hostile sizes), hand-built `stbl` edge cases, codec
   configuration round trips and allocation guards.
 - `tests/roundtrip.rs`: property tests that write random multi-track files (progressive and
   fragmented) and read them back.
 - `tests/oracle_demux.rs` and `tests/oracle_mux.rs` compare the demuxer and muxer with ffprobe and
   ffmpeg on generated fixtures in `target/fixtures/isobmff/` (`$CRAFT_MEDIA_FIXTURES_DIR`
   overrides it). Fixtures are never committed.
-- `tests/fuzz.rs`: deterministic mutation fuzzing; nothing may panic.
+- `tests/fuzz.rs`: deterministic mutation fuzzing; nothing may panic, and walking every box of a
+  mutated file as a container must keep each payload range inside its parent.
 
 ffmpeg and ffprobe are test oracles only, never linked. They are looked up in
 `$CRAFT_MEDIA_FFMPEG` / `$CRAFT_MEDIA_FFPROBE`, then `PATH`, then common install directories. When

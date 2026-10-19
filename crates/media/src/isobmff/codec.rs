@@ -255,7 +255,7 @@ impl AvcConfig {
     }
 
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "avcC");
+        let mut c = Cur::labeled(data, "avcC");
         let _version = c.u8()?;
         let profile = c.u8()?;
         let compatibility = c.u8()?;
@@ -331,7 +331,7 @@ pub struct HevcConfig {
 
 impl HevcConfig {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "hvcC");
+        let mut c = Cur::labeled(data, "hvcC");
         let _version = c.u8()?;
         let b = c.u8()?;
         let compat = c.u32()?;
@@ -441,7 +441,7 @@ pub struct Av1Config {
 
 impl Av1Config {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "av1C");
+        let mut c = Cur::labeled(data, "av1C");
         let m = c.u8()?;
         if m & 0x80 == 0 {
             return Err(Error::Invalid("av1C marker bit not set".into()));
@@ -499,7 +499,7 @@ pub struct VpcConfig {
 
 impl VpcConfig {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "vpcC");
+        let mut c = Cur::labeled(data, "vpcC");
         let (version, _) = c.full_header()?;
         if version == 0 {
             // Version 0 draft layout: profile, level, bitDepth(4)|colorSpace(4), chroma(4)|transfer(3)|range(1)
@@ -634,7 +634,7 @@ pub struct OpusConfig {
 
 impl OpusConfig {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "dOps");
+        let mut c = Cur::labeled(data, "dOps");
         let _version = c.u8()?;
         Ok(OpusConfig {
             output_channels: c.u8()?,
@@ -671,11 +671,11 @@ pub struct FlacConfig {
 
 impl FlacConfig {
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut c = Cur::new(data, "dfLa");
+        let mut c = Cur::labeled(data, "dfLa");
         c.full_header()?;
         let blocks = c.rest().to_vec();
         let mut cfg = FlacConfig { metadata_blocks: blocks.clone(), ..Default::default() };
-        let mut b = Cur::new(&blocks, "dfLa");
+        let mut b = Cur::labeled(&blocks, "dfLa");
         let hdr = b.u32()?;
         if (hdr >> 24) & 0x7F == 0 {
             let si = b.bytes(((hdr & 0xFF_FFFF) as usize).min(34))?;
@@ -756,7 +756,7 @@ pub struct ApvConfig {
 impl ApvConfig {
     /// Build from a raw `APVDecoderConfigurationRecord` (starting with `configurationVersion = 1`).
     pub fn from_record(record: Vec<u8>) -> Result<Self> {
-        let mut c = Cur::new(&record, "apvC");
+        let mut c = Cur::labeled(&record, "apvC");
         let version = c.u8()?;
         if version != 1 {
             return Err(Error::Invalid(format!("unsupported APVDecoderConfigurationRecord version {version}")));
@@ -797,7 +797,7 @@ impl ApvConfig {
         } else if !data.is_empty() && data[0] == 1 {
             Self::from_record(data.to_vec())
         } else {
-            let mut c = Cur::new(data, "apvC");
+            let mut c = Cur::labeled(data, "apvC");
             let (v, _) = c.full_header()?;
             if v != 0 {
                 return Err(Error::Invalid(format!("unsupported apvC FullBox version {v}")));
@@ -900,7 +900,7 @@ fn is_audio_fourcc(f: &[u8; 4]) -> bool {
 /// Parse one `stsd` entry. `handler` is the track handler type; `is_qt` selects QuickTime
 /// interpretation of the sound description version field.
 pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc, is_qt: bool) -> Result<SampleEntry> {
-    let mut c = Cur::new(payload, "sample entry");
+    let mut c = Cur::labeled(payload, "sample entry");
     c.skip(6)?;
     let data_reference_index = c.u16()?;
     let f = &format.0;
@@ -956,11 +956,11 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                 b"mdcv" => v.mastering_display = MasteringDisplay::parse(p),
                 b"clli" if p.len() >= 4 => v.content_light = Some((u16::from_be_bytes([p[0], p[1]]), u16::from_be_bytes([p[2], p[3]]))),
                 b"pasp" => {
-                    let mut c = Cur::new(p, "pasp");
+                    let mut c = Cur::labeled(p, "pasp");
                     v.pixel_aspect = Some((c.u32()?, c.u32()?));
                 }
                 b"clap" => {
-                    let mut c = Cur::new(p, "clap");
+                    let mut c = Cur::labeled(p, "clap");
                     v.clean_aperture = Some(CleanAperture {
                         width: (c.u32()?, c.u32()?),
                         height: (c.u32()?, c.u32()?),
@@ -969,10 +969,10 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                     });
                 }
                 b"fiel" => {
-                    let mut c = Cur::new(p, "fiel");
+                    let mut c = Cur::labeled(p, "fiel");
                     v.field_info = Some(FieldInfo { fields: c.u8()?, detail: c.u8()? });
                 }
-                b"gama" => v.gamma = Some(Cur::new(p, "gama").u32()?),
+                b"gama" => v.gamma = Some(Cur::labeled(p, "gama").u32()?),
                 b"btrt" => bitrate = Some(parse_btrt(p)?),
                 _ => {}
             }
@@ -1061,7 +1061,7 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                     sample_rate: a.sample_rate,
                 };
                 if let Some(p) = get(b"pcmC") {
-                    let mut c = Cur::new(p, "pcmC");
+                    let mut c = Cur::labeled(p, "pcmC");
                     c.full_header()?;
                     let flags = c.u8()?;
                     pcm.big_endian = flags & 1 == 0;
@@ -1115,12 +1115,12 @@ fn qt_pcm(f: &[u8; 4], a: &AudioParams) -> PcmConfig {
 }
 
 fn parse_btrt(p: &[u8]) -> Result<BitRate> {
-    let mut c = Cur::new(p, "btrt");
+    let mut c = Cur::labeled(p, "btrt");
     Ok(BitRate { buffer_size: c.u32()?, max_bitrate: c.u32()?, avg_bitrate: c.u32()? })
 }
 
 fn parse_colr(p: &[u8]) -> Result<ColorInfo> {
-    let mut c = Cur::new(p, "colr");
+    let mut c = Cur::labeled(p, "colr");
     let kind = c.fourcc()?;
     Ok(match &kind.0 {
         b"nclx" => {
@@ -1145,14 +1145,14 @@ fn descriptor(c: &mut Cur) -> Result<(u8, usize)> {
 }
 
 fn parse_esds(p: &[u8]) -> Result<CodecConfig> {
-    let mut c = Cur::new(p, "esds");
+    let mut c = Cur::labeled(p, "esds");
     c.full_header()?;
     let (tag, len) = descriptor(&mut c)?;
     if tag != 3 {
         return Err(Error::Invalid(format!("esds: expected ES_Descriptor, got tag {tag}")));
     }
     let es = c.bytes(len.min(c.remaining()))?;
-    let mut c = Cur::new(es, "ES_Descriptor");
+    let mut c = Cur::labeled(es, "ES_Descriptor");
     c.u16()?;
     let fl = c.u8()?;
     if fl & 0x80 != 0 {
@@ -1171,7 +1171,7 @@ fn parse_esds(p: &[u8]) -> Result<CodecConfig> {
         if tag != 4 {
             continue;
         }
-        let mut d = Cur::new(body, "DecoderConfigDescriptor");
+        let mut d = Cur::labeled(body, "DecoderConfigDescriptor");
         let oti = d.u8()?;
         let _stream_type = d.u8()?;
         let buffer_size = d.u24()?;

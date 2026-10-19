@@ -1,6 +1,6 @@
 //! Demuxer: parses box structure lazily (headers + `moov`/`moof` only) and builds per-track sample tables.
 
-use crate::isobmff::bytes::{Cur, FourCc, boxes, find, parse_box_header};
+use crate::isobmff::bytes::{BoxHeader, Cur, FourCc, boxes, find};
 use crate::isobmff::codec::{CodecConfig, SampleEntry, parse_sample_entry};
 use crate::isobmff::error::{Error, Result, invalid};
 use crate::isobmff::source::ByteSource;
@@ -241,7 +241,7 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
         let n = (len - offset).min(32) as usize;
         let mut hb = [0u8; 32];
         src.read_at(offset, &mut hb[..n])?;
-        let h = parse_box_header(&hb[..n])?;
+        let h = BoxHeader::parse(&hb[..n])?;
         let size = h.size.unwrap_or(len - offset);
         let end = offset.saturating_add(size).min(len);
         let body_len = end.saturating_sub(offset + h.header_len);
@@ -277,7 +277,7 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
         fragment_count: moofs.len(),
     };
     if let Some(f) = &ftyp {
-        let mut c = Cur::new(f, "ftyp");
+        let mut c = Cur::labeled(f, "ftyp");
         file.major_brand = c.fourcc()?;
         file.minor_version = c.u32().unwrap_or(0);
         while c.remaining() >= 4 {
@@ -292,7 +292,7 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
         match &b.kind.0 {
             b"cmov" => return Err(Error::Unsupported("compressed movie header (cmov)".into())),
             b"mvhd" => {
-                let mut c = Cur::new(b.payload, "mvhd");
+                let mut c = Cur::labeled(b.payload, "mvhd");
                 let (v, _) = c.full_header()?;
                 if v == 1 {
                     c.skip(16)?;
@@ -309,7 +309,7 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
                 file.fragmented = true;
                 for m in boxes(b.payload).map_while(|b| b.ok()) {
                     if m.kind == b"trex" {
-                        let mut c = Cur::new(m.payload, "trex");
+                        let mut c = Cur::labeled(m.payload, "trex");
                         c.full_header()?;
                         let id = c.u32()?;
                         trex.insert(id, Trex { description_index: c.u32()?, duration: c.u32()?, size: c.u32()?, flags: c.u32()? });
@@ -412,7 +412,7 @@ fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
         let b = b?;
         match &b.kind.0 {
             b"tkhd" => {
-                let mut c = Cur::new(b.payload, "tkhd");
+                let mut c = Cur::labeled(b.payload, "tkhd");
                 let (v, flags) = c.full_header()?;
                 t.enabled = flags & 1 != 0;
                 if v == 1 {
@@ -439,7 +439,7 @@ fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
             }
             b"edts" => {
                 if let Some(e) = find(b.payload, b"elst") {
-                    let mut c = Cur::new(e, "elst");
+                    let mut c = Cur::labeled(e, "elst");
                     let (v, _) = c.full_header()?;
                     let n = c.count(if v == 1 { 20 } else { 12 })?;
                     for _ in 0..n {
@@ -464,7 +464,7 @@ fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
         let b = b?;
         match &b.kind.0 {
             b"mdhd" => {
-                let mut c = Cur::new(b.payload, "mdhd");
+                let mut c = Cur::labeled(b.payload, "mdhd");
                 let (v, _) = c.full_header()?;
                 if v == 1 {
                     c.skip(16)?;
@@ -478,7 +478,7 @@ fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
                 t.language = parse_language(c.u16()?);
             }
             b"hdlr" => {
-                let mut c = Cur::new(b.payload, "hdlr");
+                let mut c = Cur::labeled(b.payload, "hdlr");
                 c.full_header()?;
                 let _pre = c.u32()?;
                 t.handler = c.fourcc()?;
@@ -566,7 +566,7 @@ fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64) -> Result<
     let mut sgpd: HashMap<FourCc, Vec<Vec<u8>>> = HashMap::new();
     for b in boxes(stbl) {
         let b = b?;
-        let mut c = Cur::new(b.payload, "stbl child");
+        let mut c = Cur::labeled(b.payload, "stbl child");
         match &b.kind.0 {
             b"stsd" => {
                 c.full_header()?;
@@ -798,7 +798,7 @@ fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u
             }
         }
         let tfhd = tfhd.ok_or_else(|| Error::Invalid("traf without tfhd".into()))?;
-        let mut c = Cur::new(tfhd, "tfhd");
+        let mut c = Cur::labeled(tfhd, "tfhd");
         let (_, fl) = c.full_header()?;
         let id = c.u32()?;
         let Some(ti) = tracks.iter().position(|t| t.id == id) else { continue };
@@ -815,14 +815,14 @@ fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u
         let def_size = if fl & 0x10 != 0 { c.u32()? } else { d.size };
         let def_flags = if fl & 0x20 != 0 { c.u32()? } else { d.flags };
         if let Some(p) = tfdt {
-            let mut c = Cur::new(p, "tfdt");
+            let mut c = Cur::labeled(p, "tfdt");
             let (v, _) = c.full_header()?;
             let t = if v == 1 { c.u64()? } else { c.u32()? as u64 };
             next_dts[ti] = t.min(i64::MAX as u64) as i64;
         }
         let mut data_pos = base;
         for tr in truns {
-            let mut c = Cur::new(tr, "trun");
+            let mut c = Cur::labeled(tr, "trun");
             let (v, tf) = c.full_header()?;
             let per = [0x100u32, 0x200, 0x400, 0x800].iter().filter(|&&f| tf & f != 0).count() * 4;
             let n = c.u32()? as usize;
@@ -889,7 +889,7 @@ fn parse_meta(p: &[u8], md: &mut Metadata) {
     let body = if p.len() >= 8 && &p[4..8] == b"hdlr" { p } else { p.get(4..).unwrap_or(&[]) };
     let mut keys: Vec<String> = Vec::new();
     if let Some(k) = find(body, b"keys") {
-        let mut c = Cur::new(k, "keys");
+        let mut c = Cur::labeled(k, "keys");
         if c.full_header().is_ok()
             && let Ok(n) = c.count(8)
         {
