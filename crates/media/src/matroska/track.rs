@@ -278,7 +278,8 @@ impl Track {
 
     /// Timebase ticks → nanoseconds.
     pub fn ticks_to_ns(&self, t: i64) -> i64 {
-        (t as i128 * self.timebase.0 as i128 * 1_000_000_000 / self.timebase.1 as i128) as i64
+        let ns = t as i128 * self.timebase.0 as i128 * 1_000_000_000 / self.timebase.1 as i128;
+        ns.clamp(i64::MIN as i128, i64::MAX as i128) as i64
     }
 
     /// Nanoseconds → timebase ticks (floor).

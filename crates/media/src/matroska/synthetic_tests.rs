@@ -216,6 +216,10 @@ fn synthetic_file() {
 
 /// One video track and one cluster at timestamp `ts` holding `content`.
 fn one_cluster(ts: u64, content: &[u8]) -> Vec<u8> {
+    one_cluster_scaled(1_000_000, ts, content)
+}
+
+fn one_cluster_scaled(scale: u64, ts: u64, content: &[u8]) -> Vec<u8> {
     let mut f = Vec::new();
     let mut h = Vec::new();
     el_str(&mut h, DOC_TYPE, "matroska");
@@ -223,7 +227,7 @@ fn one_cluster(ts: u64, content: &[u8]) -> Vec<u8> {
     write_id(&mut f, SEGMENT);
     write_unknown_size(&mut f, 8);
     let mut info = Vec::new();
-    el_uint(&mut info, TIMESTAMP_SCALE, 1_000_000);
+    el_uint(&mut info, TIMESTAMP_SCALE, scale);
     el(&mut f, INFO, &info);
     let mut v = Vec::new();
     el_uint(&mut v, TRACK_NUMBER, 1);
@@ -315,6 +319,22 @@ fn cue_position_past_the_file_falls_back_to_the_index() {
         assert_eq!(d.file().cues.len(), 1);
         assert_eq!(d.seek(0, 0).unwrap().pts, 1000);
     }
+}
+
+#[test]
+fn huge_timestamp_scale_is_ignored() {
+    // Three laced frames sharing the largest BlockDuration: with TimestampScale near 2^64 the
+    // per-lace split overflowed u128 and i128.
+    let mut g = Vec::new();
+    el(&mut g, BLOCK, &block(1, 0, 0x02, &[2, 1, 1, b'a', b'b', b'c']));
+    el_uint(&mut g, BLOCK_DURATION, u64::MAX);
+    let mut c = Vec::new();
+    el(&mut c, BLOCK_GROUP, &g);
+    let f = open_with(&one_cluster_scaled(u64::MAX, i64::MAX as u64, &c)[..], &OpenOptions::default()).unwrap();
+    assert_eq!(f.info.timestamp_scale, 1_000_000);
+    assert_eq!(f.tracks[0].samples.len(), 3);
+    let f = open_with(&one_cluster_scaled(1 << 32, 0, &c)[..], &OpenOptions::default()).unwrap();
+    assert_eq!(f.info.timestamp_scale, 1 << 32);
 }
 
 #[test]

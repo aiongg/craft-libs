@@ -393,6 +393,10 @@ fn block_addition<S: ByteSource + ?Sized>(io: &mut Io<'_, S>, start: u64, end: u
 
 /// Cluster timestamps are unsigned; a hostile value beyond `i64::MAX` saturates, so adding a
 /// block's relative timestamp cannot overflow.
+fn sat_i64(v: i128) -> i64 {
+    v.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+}
+
 fn cluster_timestamp(raw: u64) -> i64 {
     i64::try_from(raw).unwrap_or(i64::MAX)
 }
@@ -470,11 +474,13 @@ fn expand(b: &BlockRef, t: &Track, scale: u64, skip: u16, out: &mut impl Extend<
     };
     let scale_i = scale as i128;
     // round half away from zero
-    let to_ticks = |ns: i128| -> i64 { (if ns >= 0 { (ns + scale_i / 2) / scale_i } else { (ns - scale_i / 2) / scale_i }) as i64 };
+    let to_ticks = |ns: i128| -> i64 { sat_i64(if ns >= 0 { (ns + scale_i / 2) / scale_i } else { (ns - scale_i / 2) / scale_i }) };
     // CodecDelay is subtracted from every timestamp (RFC 9559 §5.1.4.1.25); in ticks it is rounded
     // once, so tick timestamps stay on the block grid.
     let delay_ns = t.codec_delay_ns as i128;
     let delay_ticks = to_ticks(delay_ns);
+    // `parse_info` caps the scale at 2^32, which keeps these products within i128; results
+    // outside i64 saturate.
     let base_ns = b.ts as i128 * scale_i;
     out.extend(b.frames.iter().enumerate().skip(skip as usize).map(|(i, &(offset, size))| {
         let (start, end) = match block_ns {
@@ -483,15 +489,15 @@ fn expand(b: &BlockRef, t: &Track, scale: u64, skip: u16, out: &mut impl Extend<
         };
         let pts_ns = base_ns + start - delay_ns;
         let pts = to_ticks(base_ns + start).saturating_sub(delay_ticks);
-        let duration = end.map_or(0, |e| (to_ticks(e) - to_ticks(start)).max(0) as u64);
+        let duration = end.map_or(0, |e| to_ticks(e).saturating_sub(to_ticks(start)).max(0) as u64);
         FrameRef {
             track: b.track,
             offset,
             size,
             pts,
-            pts_ns: pts_ns as i64,
+            pts_ns: sat_i64(pts_ns),
             duration,
-            duration_ns: end.map_or(0, |e| (e - start).max(0) as u64),
+            duration_ns: end.map_or(0, |e| u64::try_from((e - start).max(0)).unwrap_or(u64::MAX)),
             keyframe: b.keyframe,
             discardable: b.discardable,
             invisible: b.invisible,

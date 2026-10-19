@@ -8,11 +8,15 @@ use crate::matroska::track::{AudioInfo, Colour, ContentEncoding, MasteringMetada
 
 // A malformed Matroska file may contain arbitrarily deep ChapterAtom and SimpleTag chains.
 const MAX_META_DEPTH: usize = 64;
+/// Largest accepted `TimestampScale` (about 4.3 s per tick). It keeps tick to nanosecond
+/// arithmetic on 64-bit timestamps within `i128`.
+const MAX_TIMESTAMP_SCALE: u64 = 1 << 32;
 
 /// `Info` element.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentInfo {
-    /// Nanoseconds per timestamp tick (default 1 000 000 = 1 ms).
+    /// Nanoseconds per timestamp tick (default 1 000 000 = 1 ms). A file's value above 2^32 is
+    /// ignored.
     pub timestamp_scale: u64,
     /// `Duration` in timestamp ticks (float), if present.
     pub duration: Option<f64>,
@@ -176,7 +180,7 @@ pub(crate) fn parse_info(d: &[u8]) -> SegmentInfo {
         match e.id {
             TIMESTAMP_SCALE => {
                 let v = uint(e.data);
-                if v > 0 {
+                if v > 0 && v <= MAX_TIMESTAMP_SCALE {
                     info.timestamp_scale = v;
                 }
             }
