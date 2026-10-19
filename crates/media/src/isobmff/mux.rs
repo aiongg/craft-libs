@@ -487,15 +487,15 @@ fn write_udta(b: &mut BoxBuf, md: &[(String, String)]) {
     b.end(u);
 }
 
-fn validate_track(cfg: &TrackConfig) -> Result<Option<u32>> {
-    if cfg.timescale == 0 {
+fn validate_track(entry: &SampleEntry, timescale: u32) -> Result<Option<u32>> {
+    if timescale == 0 {
         return Err(Error::Mux("timescale must be non-zero".into()));
     }
-    if let CodecConfig::Pcm(p) = &cfg.entry.codec {
+    if let CodecConfig::Pcm(p) = &entry.codec {
         if p.bits == 0 || p.channels == 0 {
             return Err(Error::Mux("PCM needs bits and channels".into()));
         }
-        if (p.sample_rate - cfg.timescale as f64).abs() > 0.5 {
+        if (p.sample_rate - timescale as f64).abs() > 0.5 {
             return Err(Error::Mux("PCM track timescale must equal the sample rate".into()));
         }
         return Ok(Some(p.bytes_per_frame()));
@@ -533,7 +533,7 @@ impl<W: Write + Seek> Mp4Writer<W> {
 
     /// Add a track; returns its index (track ids are index + 1).
     pub fn add_track(&mut self, cfg: TrackConfig) -> Result<usize> {
-        let pcm = validate_track(&cfg)?;
+        let pcm = validate_track(&cfg.entry, cfg.timescale)?;
         let handler = handler_of(&cfg.entry);
         let mut t = Tables::new();
         t.const_size = pcm;
@@ -543,8 +543,12 @@ impl<W: Write + Seek> Mp4Writer<W> {
 
     /// Replace a track's sample entry before the file is finished (the `moov` is written last), for
     /// codecs whose configuration is only complete at the end, like the FLAC STREAMINFO in `dfLa`.
+    /// The new entry must keep the media type and, for PCM, the frame size.
     pub fn set_sample_entry(&mut self, track: usize, entry: SampleEntry) -> Result<()> {
-        let t = self.tracks.get_mut(track).ok_or_else(|| Error::Invalid(format!("no track {track}")))?;
+        let t = self.tracks.get_mut(track).ok_or(Error::NoSuchTrack(track))?;
+        if handler_of(&entry) != t.handler || validate_track(&entry, t.cfg.timescale)? != t.pcm_frame_bytes {
+            return Err(Error::Mux("replacement sample entry changes the track's media type or PCM layout".into()));
+        }
         t.cfg.entry = entry;
         Ok(())
     }
@@ -754,7 +758,7 @@ impl<W: Write> FragmentedWriter<W> {
         if self.init_written {
             return Err(Error::Mux("tracks must be added before the first fragment".into()));
         }
-        if validate_track(&cfg)?.is_some() {
+        if validate_track(&cfg.entry, cfg.timescale)?.is_some() {
             return Err(Error::Mux("PCM is not supported by the fragmented writer".into()));
         }
         let handler = handler_of(&cfg.entry);
@@ -945,6 +949,20 @@ mod tests {
                 assert!(f.moov_offset < t.samples[0].offset);
             }
         }
+    }
+
+    #[test]
+    fn set_sample_entry_keeps_track_layout() {
+        let mut w = Mp4Writer::new(Cursor::new(Vec::new()), WriterOptions::new(Brand::Mov)).unwrap();
+        let pcm = PcmConfig { bits: 16, float: false, big_endian: false, signed: true, channels: 2, sample_rate: 48000.0 };
+        let a = w.add_track(TrackConfig::new(SampleEntry::pcm(pcm), 48000)).unwrap();
+        let f = w.add_track(TrackConfig::new(SampleEntry::flac(&[0; 34]), 48000)).unwrap();
+        assert!(w.set_sample_entry(a, SampleEntry::pcm(PcmConfig { big_endian: true, ..pcm })).is_ok());
+        assert!(w.set_sample_entry(a, SampleEntry::pcm(PcmConfig { bits: 24, ..pcm })).is_err());
+        assert!(w.set_sample_entry(a, avc_entry()).is_err());
+        assert!(w.set_sample_entry(f, SampleEntry::flac(&[1; 34])).is_ok());
+        assert!(w.set_sample_entry(f, SampleEntry::pcm(pcm)).is_err());
+        assert!(matches!(w.set_sample_entry(5, avc_entry()), Err(Error::NoSuchTrack(5))));
     }
 
     #[test]
