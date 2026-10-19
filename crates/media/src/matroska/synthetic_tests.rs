@@ -296,6 +296,28 @@ fn hostile_cluster_timestamps_saturate() {
 }
 
 #[test]
+fn cue_position_past_the_file_falls_back_to_the_index() {
+    for pos in [1 << 40, u64::MAX - 1] {
+        let mut ctp = Vec::new();
+        el_uint(&mut ctp, CUE_TRACK, 1);
+        el_uint(&mut ctp, CUE_CLUSTER_POSITION, pos);
+        let mut cp = Vec::new();
+        el_uint(&mut cp, CUE_TIME, 0);
+        el(&mut cp, CUE_TRACK_POSITIONS, &ctp);
+        let mut cues = Vec::new();
+        el(&mut cues, CUE_POINT, &cp);
+        let mut bytes = one_block(1000, 0);
+        let at = bytes.windows(4).position(|w| w == CLUSTER.to_be_bytes()).unwrap();
+        let mut el_cues = Vec::new();
+        el(&mut el_cues, CUES, &cues);
+        bytes.splice(at..at, el_cues);
+        let mut d = Demuxer::with_options(&bytes[..], OpenOptions { index: false, verify_crc: false }).unwrap();
+        assert_eq!(d.file().cues.len(), 1);
+        assert_eq!(d.seek(0, 0).unwrap().pts, 1000);
+    }
+}
+
+#[test]
 fn duration_of_a_block_at_the_largest_timestamp_saturates() {
     for d in [80, u64::MAX] {
         let mut g = Vec::new();

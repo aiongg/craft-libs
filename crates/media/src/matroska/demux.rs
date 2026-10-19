@@ -1059,7 +1059,10 @@ impl<S: ByteSource> Demuxer<S> {
     }
 
     fn seek_via_cue(&mut self, track: usize, ticks: i64, cluster_position: u64) -> Result<Option<SeekPoint>> {
-        let abs = self.file.segment_data_start + cluster_position;
+        let Some(abs) = self.file.segment_data_start.checked_add(cluster_position) else {
+            self.file.warnings.push(format!("cue position {cluster_position} is past the segment end"));
+            return Ok(None);
+        };
         let mut io = Io::new(&self.src, &mut self.cache);
         let Some(h) = io.header(abs, self.file.segment_end)? else { return Ok(None) };
         if h.id != CLUSTER {
