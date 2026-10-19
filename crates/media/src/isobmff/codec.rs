@@ -922,7 +922,9 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
         }
         return Ok(SampleEntry { format, data_reference_index, codec: CodecConfig::Timecode(tc), video: None, audio: None, bitrate: None });
     }
-    let video_like = is_video_fourcc(f) || (handler == b"vide" && !is_audio_fourcc(f));
+    // `raw ` names both uncompressed video and 8-bit unsigned PCM; the handler decides.
+    let raw_audio = f == b"raw " && handler == b"soun";
+    let video_like = (is_video_fourcc(f) && !raw_audio) || (handler == b"vide" && !is_audio_fourcc(f));
     let audio_like = is_audio_fourcc(f) || (handler == b"soun" && !video_like);
     if video_like {
         let mut v = VideoParams::default();
@@ -1469,10 +1471,13 @@ impl SampleEntry {
         let (format, version, pcm) = match &self.codec {
             CodecConfig::Pcm(p) => {
                 if qt {
-                    if p.bits == 16 && !p.float {
+                    // Version 0 stores the rate as 16.16 fixed point; `raw ` is unsigned and
+                    // `twos`/`sowt` are signed. Everything else needs `lpcm` v2.
+                    let v0_rate = p.sample_rate < 65536.0;
+                    if v0_rate && p.bits == 16 && !p.float && p.signed {
                         (if p.big_endian { *b"twos" } else { *b"sowt" }, 0u16, Some(*p))
-                    } else if p.bits == 8 && !p.float {
-                        (*b"raw ", 0, Some(*p))
+                    } else if v0_rate && p.bits == 8 && !p.float {
+                        (if p.signed { *b"twos" } else { *b"raw " }, 0, Some(*p))
                     } else {
                         (*b"lpcm", 2, Some(*p))
                     }
@@ -1746,6 +1751,27 @@ mod tests {
             let e = SampleEntry::pcm(p);
             let back = roundtrip(&e, qt, b"soun");
             assert_eq!(back.codec, CodecConfig::Pcm(p), "{bits} {float} {be} {qt}");
+        }
+    }
+
+    #[test]
+    fn mov_pcm_keeps_high_rates_and_signedness() {
+        let pcm = |bits, signed, sample_rate| PcmConfig { bits, float: false, big_endian: true, signed, channels: 2, sample_rate };
+        for (p, format) in [
+            (pcm(16, true, 48000.0), b"twos"),
+            (pcm(16, true, 96000.0), b"lpcm"),
+            (pcm(16, false, 48000.0), b"lpcm"),
+            (pcm(8, false, 48000.0), b"raw "),
+            (pcm(8, true, 48000.0), b"twos"),
+            (pcm(8, false, 192000.0), b"lpcm"),
+        ] {
+            let mut b = BoxBuf::new();
+            SampleEntry::pcm(p).write(&mut b, true).unwrap();
+            let bx = crate::isobmff::bytes::boxes(&b.buf).next().unwrap().unwrap();
+            assert_eq!(&bx.kind.0, format, "{p:?}");
+            let back = roundtrip(&SampleEntry::pcm(p), true, b"soun");
+            assert_eq!(back.codec, CodecConfig::Pcm(p));
+            assert_eq!(back.audio.unwrap().sample_rate, p.sample_rate);
         }
     }
 
