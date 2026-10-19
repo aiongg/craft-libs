@@ -6,10 +6,27 @@ use crate::isobmff::error::{Error, Result, invalid};
 use crate::isobmff::source::ByteSource;
 use std::collections::HashMap;
 
-/// Hard cap on per-track sample count (after PCM chunk merging).
+/// Hard cap on the sample count of the whole file, all tracks and fragments (after PCM chunk merging).
 const MAX_SAMPLES: usize = 1 << 26;
 /// Hard cap on the size of an in-memory `moov`/`moof` box.
 const MAX_HEADER_BOX: u64 = 1 << 30;
+
+/// What is left of the file-wide limits while tracks and fragments are parsed.
+struct SampleBudget {
+    /// Samples (`MAX_SAMPLES` minus those already built).
+    samples: usize,
+    /// Bytes of file for samples whose count no table entry backs (constant-size `stsz`, `trun`
+    /// without per-sample fields). Each such sample claims at least one byte, so a file can't
+    /// describe more of them than it has bytes, however many tracks or fragments repeat the claim.
+    implied_bytes: u64,
+}
+
+impl SampleBudget {
+    fn take(&mut self, n: usize) -> Result<()> {
+        self.samples = self.samples.checked_sub(n).ok_or(Error::TooLarge("sample count"))?;
+        Ok(())
+    }
+}
 
 /// One sample (access unit) of a track, in the track's media timescale.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -322,15 +339,16 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
             _ => {}
         }
     }
+    let mut budget = SampleBudget { samples: MAX_SAMPLES, implied_bytes: len };
     for p in trak_payloads {
-        let t = parse_trak(p, &file, len)?;
+        let t = parse_trak(p, &file, len, &mut budget)?;
         file.tracks.push(t);
     }
     // Movie fragments.
     let mut next_dts: Vec<i64> =
         file.tracks.iter().map(|t| t.samples.last().map(|s| s.dts.saturating_add(i64::from(s.duration))).unwrap_or(0)).collect();
     for (moof_off, moof) in &moofs {
-        parse_moof(*moof_off, moof, &mut file.tracks, &trex, &mut next_dts, len)?;
+        parse_moof(*moof_off, moof, &mut file.tracks, &trex, &mut next_dts, &mut budget)?;
     }
     for t in &mut file.tracks {
         if file.fragmented && !moofs.is_empty() {
@@ -381,7 +399,7 @@ fn rescale(v: i128, from: u32, to: u32) -> i64 {
     (v * to as i128 / from as i128).clamp(i64::MIN as i128, i64::MAX as i128) as i64
 }
 
-fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
+fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64, budget: &mut SampleBudget) -> Result<Track> {
     let mut t = Track {
         id: 0,
         kind: TrackKind::Other,
@@ -515,7 +533,7 @@ fn parse_trak(p: &[u8], file: &Mp4File, file_len: u64) -> Result<Track> {
         }
     }
     if let Some(stbl) = minf.and_then(|m| find(m, b"stbl")) {
-        parse_stbl(stbl, &mut t, file.is_quicktime, file_len)?;
+        parse_stbl(stbl, &mut t, file.is_quicktime, file_len, budget)?;
     }
     Ok(t)
 }
@@ -554,7 +572,7 @@ impl SttsCursor<'_> {
     }
 }
 
-fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64) -> Result<()> {
+fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64, budget: &mut SampleBudget) -> Result<()> {
     let mut stts: Vec<(u32, u32)> = Vec::new();
     let mut ctts: Vec<(u32, u32)> = Vec::new();
     let mut stss: Option<Vec<u32>> = None;
@@ -710,7 +728,7 @@ fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64) -> Result<
                 frames * p.bytes_per_frame() as u64
             }
         };
-        if chunks.len() > MAX_SAMPLES {
+        if chunks.len() > budget.samples {
             return Err(Error::TooLarge("chunk count"));
         }
         samples.reserve(chunks.len());
@@ -740,7 +758,10 @@ fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64) -> Result<
             }
         }
     } else {
-        if sample_count > MAX_SAMPLES {
+        if const_size != 0 {
+            sample_count = sample_count.min((budget.implied_bytes / const_size as u64) as usize);
+        }
+        if sample_count > budget.samples {
             return Err(Error::TooLarge("sample count"));
         }
         samples.reserve(sample_count);
@@ -774,11 +795,15 @@ fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64) -> Result<
             }
         }
     }
+    if pcm.is_none() && const_size != 0 {
+        budget.implied_bytes -= samples.len() as u64 * const_size as u64;
+    }
+    budget.take(samples.len())?;
     t.samples = samples;
     Ok(())
 }
 
-fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u32, Trex>, next_dts: &mut [i64], file_len: u64) -> Result<()> {
+fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u32, Trex>, next_dts: &mut [i64], budget: &mut SampleBudget) -> Result<()> {
     // End of data of the previous traf, for the base-offset default of subsequent trafs.
     let mut prev_end: Option<u64> = None;
     for b in boxes(moof) {
@@ -829,12 +854,11 @@ fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u
             let n = c.u32()? as usize;
             if per > 0 {
                 c.check_count(n, per)?;
-            } else if (n as u64).saturating_mul(def_size.max(1) as u64) > file_len {
-                return Err(Error::TooLarge("trun sample count"));
+            } else {
+                let implied = (n as u64).saturating_mul(def_size.max(1) as u64);
+                budget.implied_bytes = budget.implied_bytes.checked_sub(implied).ok_or(Error::TooLarge("trun sample count"))?;
             }
-            if tracks[ti].samples.len() + n > MAX_SAMPLES {
-                return Err(Error::TooLarge("sample count"));
-            }
+            budget.take(n)?;
             if tf & 1 != 0 {
                 data_pos = base.wrapping_add_signed(c.i32()? as i64);
             }
@@ -1153,6 +1177,28 @@ mod tests {
         assert_eq!(t.sample_groups[0].descriptions, vec![vec![0xFF, 0xFF]]);
         assert!(f.read_sample(d.as_slice(), 0, 4).is_err());
         assert!(f.read_sample(d.as_slice(), 1, 0).is_err());
+    }
+
+    #[test]
+    fn constant_size_samples_share_one_file_budget() {
+        // One chunk of u32::MAX constant-size samples makes a track build one sample per file
+        // byte. Repeating the track must not repeat that allocation.
+        let mut d = handmade(Some((1, u32::MAX)));
+        let p = d.windows(4).position(|w| w == b"stsc").unwrap();
+        d[p + 16..p + 20].copy_from_slice(&u32::MAX.to_be_bytes());
+        let at = d.windows(4).position(|w| w == b"trak").unwrap() - 4;
+        let size = u32::from_be_bytes(d[at..at + 4].try_into().unwrap()) as usize;
+        let trak = d[at..at + size].to_vec();
+        for _ in 0..3 {
+            d.splice(at..at, trak.iter().copied());
+        }
+        let moov = d.windows(4).position(|w| w == b"moov").unwrap() - 4;
+        let moov_size = u32::from_be_bytes(d[moov..moov + 4].try_into().unwrap()) + 3 * size as u32;
+        d[moov..moov + 4].copy_from_slice(&moov_size.to_be_bytes());
+        let f = open(d.as_slice()).unwrap();
+        assert_eq!(f.tracks.len(), 4);
+        assert!(f.tracks[0].samples.len() > d.len() / 2);
+        assert!(f.tracks.iter().map(|t| t.samples.len()).sum::<usize>() <= d.len());
     }
 
     #[test]
