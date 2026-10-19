@@ -4,8 +4,8 @@
 //! Tool search order: `CRAFT_MEDIA_FFMPEG` / `CRAFT_MEDIA_FFPROBE` (an explicit path; a wrong
 //! path fails the test), then `PATH`, then well-known install directories. A missing tool prints
 //! `SKIPPED` and the test passes, unless `CRAFT_MEDIA_REQUIRE_ORACLES=1` is set.
-//! Fixtures are generated into `$CRAFT_MEDIA_FIXTURES_DIR` or `<workspace>/target/fixtures/isobmff`
-//! and never committed.
+//! Fixtures are generated into `$CRAFT_MEDIA_FIXTURES_DIR` or `<workspace>/target/fixtures`, one
+//! directory per container (`isobmff`, `matroska`), and never committed.
 #![allow(dead_code)]
 
 use serde_json::Value;
@@ -70,8 +70,8 @@ fn tool_or_skip(name: &str) -> Option<PathBuf> {
     let found = tool(name);
     if found.is_none() {
         let reason = format!("{name} not found (set {} or put {name} on PATH)", env_var(name));
-        assert!(!oracles_required(), "isobmff oracle: {reason}, and {REQUIRE_ENV}=1 forbids skipping oracle tests");
-        eprintln!("SKIPPED (isobmff oracle): {reason}");
+        assert!(!oracles_required(), "craft-media oracle: {reason}, and {REQUIRE_ENV}=1 forbids skipping oracle tests");
+        eprintln!("SKIPPED (craft-media oracle): {reason}");
     }
     found
 }
@@ -86,7 +86,13 @@ pub fn ffprobe() -> Option<PathBuf> {
     tool_or_skip("ffprobe")
 }
 
+/// Fixtures of the `isobmff` tests.
 pub fn fixture_dir() -> PathBuf {
+    fixture_subdir("isobmff")
+}
+
+/// `$CRAFT_MEDIA_FIXTURES_DIR/<name>` or `<workspace>/target/fixtures/<name>`, created if missing.
+pub fn fixture_subdir(name: &str) -> PathBuf {
     let d = match std::env::var_os("CRAFT_MEDIA_FIXTURES_DIR").filter(|v| !v.is_empty()) {
         Some(d) => PathBuf::from(d),
         None => {
@@ -95,7 +101,7 @@ pub fn fixture_dir() -> PathBuf {
             root.join("target").join("fixtures")
         }
     }
-    .join("isobmff");
+    .join(name);
     std::fs::create_dir_all(&d).unwrap();
     d
 }

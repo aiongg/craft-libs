@@ -1,9 +1,9 @@
 # craft-media
 
-Media containers and bit-level I/O for the Craft apps: an MSB-first bit reader and writer, and a
-clean-room ISO BMFF (MP4) and QuickTime (MOV) demuxer and muxer written from the public
-specifications. No `unsafe`, no panics on malformed input, and it builds for
-`wasm32-unknown-unknown`. The only dependency is `thiserror`.
+Media containers and bit-level I/O for the Craft apps: an MSB-first bit reader and writer, and
+clean-room ISO BMFF (MP4), QuickTime (MOV) and Matroska (MKV, WebM) demuxers and muxers written
+from the public specifications. No `unsafe`, no panics on malformed input, and it builds for
+`wasm32-unknown-unknown`. The only dependency is `thiserror` (for `isobmff`).
 
 ## Features
 
@@ -11,8 +11,17 @@ specifications. No `unsafe`, no panics on malformed input, and it builds for
 |---|---|---|
 | `bitstream` | `craft_media::bitstream` | none |
 | `isobmff` | `craft_media::isobmff` | `bitstream`, `thiserror` |
+| `matroska` | `craft_media::matroska` | none |
 
-`default = ["isobmff"]`, so both modules build. A crate that needs only bit I/O (a codec) uses:
+`default = ["isobmff"]`, so `bitstream` and `isobmff` build. `matroska` is opt-in: it is about as
+much code as `isobmff`, and most users of MP4/MOV (LightCraft, FigCraft, SoundCraft, EffectCraft)
+do not read Matroska. The features are independent; `matroska` does not need the other two.
+
+```toml
+craft-media = { git = "https://github.com/storytold/craft-libs", rev = "<commit>", features = ["matroska"] }
+```
+
+A crate that needs only bit I/O (a codec) uses:
 
 ```toml
 craft-media = { git = "https://github.com/storytold/craft-libs", rev = "<commit>", default-features = false, features = ["bitstream"] }
@@ -23,14 +32,15 @@ craft-media = { git = "https://github.com/storytold/craft-libs", rev = "<commit>
 - In scope: bit-level reading and writing, and container demuxing and muxing (boxes, sample
   tables, sample entries and codec configuration records).
 - Out of scope for now: codecs (H.264, HEVC, ProRes, AAC and others). They stay in the apps.
-  Matroska, Ogg and other containers can join later as their own features.
+  Ogg and other containers can join later as their own features.
 
 ## Origin and API
 
-The code comes from FilmCraft's `filmcraft-bitstream` and `filmcraft-isobmff` crates at
+The code comes from FilmCraft's `filmcraft-bitstream`, `filmcraft-isobmff` and
+`filmcraft-matroska` crates at
 [storytold/filmcraft@6c3948a](https://github.com/storytold/filmcraft/commit/6c3948a36c80e4996d924766ba7157eec4fca85e).
 Every public item keeps its name, signature and behaviour for valid input, so FilmCraft can turn
-both crates into re-exports (`pub use craft_media::isobmff::*;`). The differences:
+all three crates into re-exports (`pub use craft_media::isobmff::*;`). The differences:
 
 - `bitstream::BitReader::read_ue_plus` (from DeckCraft's copy) is new.
 - `isobmff::boxes` is new: FilmCraft's private box iterator and byte reader, made public (see
@@ -42,6 +52,15 @@ both crates into re-exports (`pub use craft_media::isobmff::*;`). The difference
 - `bitstream::length_prefixed_nals` returns `BitError::Eof` for a zero `length_size` on non-empty
   data and cannot overflow on a hostile length prefix.
 - `isobmff::PcmConfig::bytes_per_frame` saturates at `u32::MAX` for a hostile channel count.
+- `matroska`: a cluster timestamp above `i64::MAX` saturates at `i64::MAX` (FilmCraft wraps it to
+  a negative value), and adding a block's relative timestamp saturates instead of overflowing (a
+  debug-build panic in FilmCraft).
+- `matroska::MkvWriter` writes `MuxingApp` = `craft-media`, and `MuxOptions::default()` has
+  `writing_app` = `craft-media` (FilmCraft: `filmcraft-matroska` and `filmcraft`). Apps set
+  `writing_app` to their own name.
+- `matroska::ByteSource` stays a separate trait from `isobmff::ByteSource`, with the same shape.
+  FilmCraft implements both for one type, which a single shared trait would reject as conflicting
+  impls.
 
 ## `bitstream`
 
@@ -209,21 +228,139 @@ for b in BoxIter::new(&bytes) {
   `sgpd`/`sbgp` or `cslg` output, ISO-style `meta/ilst` metadata is not written, and the fragmented
   writer has no PCM, `sidx` or `mfra`.
 
+## `matroska`
+
+A clean-room Matroska (MKV) and WebM demuxer, plus a minimal muxer, written from RFC 8794 (EBML),
+RFC 9559 (Matroska), the Matroska codec mappings and the WebM container guidelines. No GPL or LGPL
+code (FFmpeg, libmatroska, mkvtoolnix) was consulted; FFmpeg is a test oracle only.
+
+### Demuxing
+
+```rust
+use craft_media::matroska::{Demuxer, TrackKind, open};
+
+// Sample tables in the same shape as isobmff (any ByteSource: &[u8], Vec<u8>, Arc<[u8]>, File, ...)
+let file = std::fs::File::open("clip.mkv")?;
+let mkv = open(&file)?;
+let v = mkv.track_of_kind(TrackKind::Video).unwrap();
+let k = mkv.keyframe_before(v, 2_000_000_000).unwrap();   // sample index
+let frame = mkv.read_sample(&file, v, k)?;
+
+// Streaming packets and seeking (from a ByteSource, any Read + Seek, or a byte slice)
+let mut d = Demuxer::from_reader(std::io::BufReader::new(std::fs::File::open("clip.webm")?))?;
+let sp = d.seek(v, 2_000_000_000)?;          // lands on the keyframe with pts <= 2 s
+while let Some(p) = d.next_packet()? {        // file order, all tracks
+    // p.track, p.pts (ticks), p.pts_ns, p.duration, p.keyframe, p.data
+}
+```
+
+- **Open** (`open`, `open_with(src, &OpenOptions { index, verify_crc })`): EBML header (DocType
+  `matroska` or `webm`), the first Segment, and its level-1 elements: SeekHead (followed for
+  elements after the clusters), Info, Tracks, Cues, Chapters, Tags, Attachments (listed with offset
+  and size; payloads are not read). With `index: true` (the default) every Cluster is scanned,
+  element and block headers only, to build per-track `Sample` tables (`offset`, `size`, `pts`,
+  `duration`, `keyframe`, cluster, block offset, lace index, `BlockAdditional` location) and
+  keyframe lists. With `index: false`, `open` stops at the first Cluster.
+- **Timestamps:** Matroska ticks are `TimestampScale` ns (usually 1 ms); `Track::timebase` is that
+  as a reduced fraction of a second. `pts` is in ticks, `pts_ns` in exact nanoseconds. `CodecDelay`
+  is subtracted (RFC 9559), as FFmpeg does, so Opus and Vorbis priming gives negative pts. Laced
+  frames get `block ts + i × (BlockDuration or DefaultDuration) / n`; when neither is known, later
+  laces repeat the block timestamp and have `duration == 0` (`Packet::lace` tells which).
+- **Keyframes:** the SimpleBlock keyframe flag; a BlockGroup is a keyframe when it has no
+  ReferenceBlock.
+- **Lacing:** Xiph, fixed-size and EBML. **Unknown sizes:** a Segment (live or streamed output) and
+  Clusters end at the next top-level element. **CRC-32:** optional verification of level-1
+  elements and clusters; mismatches go to `MkvFile::crc_errors` and are not fatal.
+- **Damage:** an undecodable or oversized element starts a byte scan for the next plausible level-1
+  element (a Cluster whose first child is Timestamp, or a sized metadata element); a truncated final
+  block is dropped. Problems are listed in `MkvFile::warnings`.
+- **Seeking** (`Demuxer::seek(track, time_ns)`): uses the sample index when present, otherwise Cues
+  (refined by scanning the cued cluster for the exact keyframe), otherwise builds the index by
+  scanning all clusters. `Demuxer::keyframe_index(track)` returns the keyframe list.
+- **Block additions:** `MkvFile::read_sample_addition` returns the `BlockAdditional` with
+  `BlockAddID` 1 of an unlaced block (in WebM, the VP8/VP9 alpha layer).
+- **Tracks:** number, UID, type, flags, `DefaultDuration`, name, language (and BCP 47), CodecID,
+  CodecPrivate, CodecName, `CodecDelay`, `SeekPreRoll`; `VideoInfo` (pixel and display size, crop,
+  interlacing, stereo, alpha mode, `pixel_aspect()`, `display_rotation()`), `Colour` (matrix,
+  range, transfer, primaries, subsampling and siting, MaxCLL/MaxFALL, SMPTE 2086 mastering
+  metadata); `AudioInfo` (rate, output rate, channels, bit depth); `ContentEncoding`s.
+- **Content encodings:** header stripping is undone in every packet and in `read_sample`. zlib,
+  bzlib and lzo compression and encryption are reported (`Track::frames_readable() == false`);
+  packets are then returned as stored and `read_sample` fails with `Unsupported`.
+- `matroska::ebml` (public) has the EBML primitives: variable-length integers, element headers,
+  typed values, CRC-32 and lacing. `matroska::element_ids` lists the element IDs.
+
+#### Codec mapping (`Codec`)
+
+| CodecID | `Codec` | Payload |
+|---|---|---|
+| `V_MPEG4/ISO/AVC` | `Avc` | avcC (CodecPrivate) |
+| `V_MPEGH/ISO/HEVC` | `Hevc` | hvcC |
+| `V_VP8`, `V_VP9` | `Vp8`, `Vp9` | VP9 CodecPrivate features |
+| `V_AV1` | `Av1` | av1C |
+| `V_APV` | `Apv` | apvC |
+| `V_PRORES` | `ProRes` | FourCC; frames get the 8-byte `size` + `icpf` header re-added |
+| `V_MJPEG`, `V_MS/VFW/FOURCC` (MJPG) | `Mjpeg` | |
+| `V_MS/VFW/FOURCC` (other) | `VfwFourcc` | BITMAPINFOHEADER |
+| `A_AAC`, legacy `A_AAC/MPEG{2,4}/...` | `Aac` | AudioSpecificConfig (synthesised for legacy IDs, SBR included) |
+| `A_OPUS` | `Opus` | OpusHead |
+| `A_VORBIS` | `Vorbis` | three headers split from the Xiph-laced CodecPrivate |
+| `A_FLAC` | `Flac` | `fLaC` + metadata blocks |
+| `A_PCM/INT/LIT`, `A_PCM/INT/BIG`, `A_PCM/FLOAT/IEEE` | `Pcm` | bit depth from Audio |
+| `A_AC3`, `A_EAC3`, `A_MPEG/L3`, `A_MPEG/L2`, `A_MPEG/L1` | `Ac3`, `Eac3`, `Mp3`, `Mp2`, `Mp1` | |
+| `S_TEXT/UTF8` | `SubRip` | |
+| `S_TEXT/WEBVTT`, `D_WEBVTT/*` (WebM) | `WebVtt` | WebM blocks keep `id\nsettings\npayload` |
+| `S_TEXT/ASS`, `S_TEXT/SSA` | `Ass` | script header |
+| anything else | `Other(id)` | `Track::codec_private` |
+
+`Codec::name()` matches FFmpeg's `codec_name` for these.
+
+### Muxing
+
+`MkvWriter::new(w: Write + Seek, Vec<TrackSpec>, MuxOptions)`, then `write_frame(track, pts_ns,
+keyframe, data, duration_ns)` per frame, then `finish()`. It writes the EBML header, Segment,
+SeekHead, Info (with Duration), Tracks, Clusters of SimpleBlocks (a new cluster at a video keyframe
+after `cluster_duration_ns`), BlockGroups for frames whose duration differs from the track's
+`default_duration_ns`, optional audio lacing (Xiph, EBML, fixed-size), and Cues (video keyframes,
+or the first frame of each track per cluster). `MuxOptions::doc_type` = `"webm"` writes WebM.
+CodecPrivate is fixed when the writer is created, so a codec whose configuration arrives with the
+first frame (AV1 from `rav1e`) creates the writer after that frame.
+
+### Limitations
+
+- Only the first Segment is read (no linked or chained segments, no ordered-chapter playback).
+- zlib, bzlib and lzo compressed and encrypted tracks are detected, but their frames are not
+  decoded. `EncryptedBlock` is ignored.
+- `TrackTimestampScale` (deprecated) is ignored.
+- Lace timestamps without any duration information repeat the block timestamp (FFmpeg derives them
+  from codec parsers).
+- Muxer: no CRC-32, Chapters, Tags, Attachments, content encodings or block additions.
+
 ## Tests
 
 - Unit tests cover the bit reader and writer, the box reader (64-bit, size-0, `uuid`, truncated and
-  hostile sizes), hand-built `stbl` edge cases, codec
-  configuration round trips and allocation guards.
+  hostile sizes), hand-built `stbl` edge cases, codec configuration round trips and allocation
+  guards. For Matroska: EBML integers, typed values, CRC-32, every lacing mode, codec mapping, a
+  hand-built file (unknown-size Segment and Clusters, header stripping, BlockGroups, block
+  additions, colour and mastering metadata, Chapters, Tags, Attachments, CRC-32, Cue-less seek,
+  hostile cluster timestamps) and mux-demux round trips.
 - `tests/roundtrip.rs`: property tests that write random multi-track files (progressive and
   fragmented) and read them back.
 - `tests/oracle_demux.rs` and `tests/oracle_mux.rs` compare the demuxer and muxer with ffprobe and
   ffmpeg on generated fixtures in `target/fixtures/isobmff/` (`$CRAFT_MEDIA_FIXTURES_DIR`
   overrides it). Fixtures are never committed.
-- `tests/fuzz.rs`: deterministic mutation fuzzing; nothing may panic, and walking every box of a
-  mutated file as a container must keep each payload range inside its parent.
+- `tests/oracle_matroska.rs` compares every packet (stream, size, keyframe flag, pts, duration),
+  codec names, time bases, dimensions and audio parameters with ffprobe on fixtures in
+  `target/fixtures/matroska/`: H.264+AAC, VP9+Opus WebM, FLAC, Vorbis, SRT+ASS, WebVTT WebM, Cues
+  at the front, a streamed file without Cues, HEVC with HDR colour, ProRes+PCM, MJPEG+AC-3, AV1.
+  Seeks must land on the latest keyframe at or before the target. The muxer's laced output is read
+  back by ffprobe. A damaged file must resync.
+- `tests/fuzz.rs` and `tests/fuzz_matroska.rs`: deterministic mutation fuzzing; nothing may panic.
+  `fuzz.rs` also walks every box of a mutated file as a container and checks that each payload
+  range stays inside its parent.
 
 ffmpeg and ffprobe are test oracles only, never linked. They are looked up in
 `$CRAFT_MEDIA_FFMPEG` / `$CRAFT_MEDIA_FFPROBE`, then `PATH`, then common install directories. When
 a tool is missing, the oracle tests print `SKIPPED` and pass; `CRAFT_MEDIA_REQUIRE_ORACLES=1` turns
 a skip into a failure. Generate every fixture ahead of time with
-`cargo test -p craft-media --test oracle_demux -- --ignored generate_fixtures`.
+`cargo test -p craft-media --all-features -- --ignored generate_fixtures`.
