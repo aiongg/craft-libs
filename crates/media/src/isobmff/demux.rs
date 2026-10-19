@@ -803,7 +803,14 @@ fn parse_stbl(stbl: &[u8], t: &mut Track, is_qt: bool, file_len: u64, budget: &m
     Ok(())
 }
 
-fn parse_moof(moof_off: u64, moof: &[u8], tracks: &mut [Track], trex: &HashMap<u32, Trex>, next_dts: &mut [i64], budget: &mut SampleBudget) -> Result<()> {
+fn parse_moof(
+    moof_off: u64,
+    moof: &[u8],
+    tracks: &mut [Track],
+    trex: &HashMap<u32, Trex>,
+    next_dts: &mut [i64],
+    budget: &mut SampleBudget,
+) -> Result<()> {
     // End of data of the previous traf, for the base-offset default of subsequent trafs.
     let mut prev_end: Option<u64> = None;
     for b in boxes(moof) {
