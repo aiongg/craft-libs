@@ -18,11 +18,20 @@ pub fn fixture_dir() -> PathBuf {
 const V: &[&str] = &["-f", "lavfi", "-i", "testsrc2=size=160x120:rate=25"];
 const A: &[&str] = &["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000"];
 
+/// Subtitle inputs shared by fixture generators on other threads, so an existing file is never
+/// truncated: it is left alone when current, else replaced by a rename.
 fn write_subs(dir: &Path) {
     let srt = "1\n00:00:00,200 --> 00:00:00,900\nHello\n\n2\n00:00:01,000 --> 00:00:01,500\nWorld <i>two</i>\n\n";
-    std::fs::write(dir.join("in.srt"), srt).unwrap();
     let vtt = "WEBVTT\n\n00:00:00.200 --> 00:00:00.900\nHello\n\n00:00:01.000 --> 00:00:01.500\nWorld\n\n";
-    std::fs::write(dir.join("in.vtt"), vtt).unwrap();
+    for (name, text) in [("in.srt", srt), ("in.vtt", vtt)] {
+        let path = dir.join(name);
+        if std::fs::read(&path).is_ok_and(|d| d == text.as_bytes()) {
+            continue;
+        }
+        let tmp = crate::common::temp_path(&path);
+        std::fs::write(&tmp, text).unwrap();
+        std::fs::rename(&tmp, &path).unwrap();
+    }
 }
 
 /// Every fixture `spec`/`fixture` knows (for `generate_fixtures`).
