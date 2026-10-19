@@ -260,7 +260,8 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
         if h.size.is_none() {
             break;
         }
-        offset = offset.saturating_add(size);
+        // A box that claims to run past the end of the file ends the scan.
+        offset = end;
     }
     let (moov_offset, moov) = moov.ok_or(Error::NoMoov)?;
     let mut file = Mp4File {
@@ -1152,6 +1153,17 @@ mod tests {
         assert_eq!(t.sample_groups[0].descriptions, vec![vec![0xFF, 0xFF]]);
         assert!(f.read_sample(d.as_slice(), 0, 4).is_err());
         assert!(f.read_sample(d.as_slice(), 1, 0).is_err());
+    }
+
+    #[test]
+    fn oversized_trailing_box_ends_the_scan() {
+        let mut d = handmade(None);
+        d.truncate(d.len() - 13);
+        d.extend_from_slice(&1u32.to_be_bytes());
+        d.extend_from_slice(b"free");
+        d.extend_from_slice(&u64::MAX.to_be_bytes());
+        d.extend_from_slice(&[0; 16]);
+        assert_eq!(open(d.as_slice()).unwrap().tracks[0].samples.len(), 4);
     }
 
     #[test]
