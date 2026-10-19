@@ -858,7 +858,7 @@ impl MkvFile {
         if let Some(d) = self.info.duration {
             return Some((d * self.info.timestamp_scale as f64).round() as u64);
         }
-        let end = self.tracks.iter().flat_map(|t| t.samples.iter().map(|s| s.pts + s.duration as i64)).max()?;
+        let end = self.tracks.iter().flat_map(|t| t.samples.iter().map(|s| s.pts.saturating_add(s.duration.min(i64::MAX as u64) as i64))).max()?;
         Some((end.max(0) as u64).saturating_mul(self.info.timestamp_scale))
     }
 

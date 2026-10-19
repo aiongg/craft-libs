@@ -294,3 +294,16 @@ fn hostile_cluster_timestamps_saturate() {
     assert_eq!(pts(&one_block(i64::MAX as u64, 1)), i64::MAX);
     assert_eq!(pts(&one_block(u64::MAX, -3)), i64::MAX - 3);
 }
+
+#[test]
+fn duration_of_a_block_at_the_largest_timestamp_saturates() {
+    for d in [80, u64::MAX] {
+        let mut g = Vec::new();
+        el(&mut g, BLOCK, &block(1, 0, 0, &[0]));
+        el_uint(&mut g, BLOCK_DURATION, d);
+        let mut c = Vec::new();
+        el(&mut c, BLOCK_GROUP, &g);
+        let f = open_with(&one_cluster(i64::MAX as u64, &c)[..], &OpenOptions::default()).unwrap();
+        assert_eq!(f.duration_ns(), Some(u64::MAX));
+    }
+}
