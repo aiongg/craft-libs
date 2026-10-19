@@ -362,5 +362,6 @@ first frame (AV1 from `rav1e`) creates the writer after that frame.
 ffmpeg and ffprobe are test oracles only, never linked. They are looked up in
 `$CRAFT_MEDIA_FFMPEG` / `$CRAFT_MEDIA_FFPROBE`, then `PATH`, then common install directories. When
 a tool is missing, the oracle tests print `SKIPPED` and pass; `CRAFT_MEDIA_REQUIRE_ORACLES=1` turns
-a skip into a failure. Generate every fixture ahead of time with
+a skip into a failure. CI (`.github/workflows/media.yml`) sets it and installs Ubuntu's ffmpeg.
+Generate every fixture ahead of time with
 `cargo test -p craft-media --all-features -- --ignored generate_fixtures`.
