@@ -39,7 +39,7 @@ craft-media = { git = "https://github.com/storytold/craft-libs", rev = "<commit>
 The code comes from FilmCraft's `filmcraft-bitstream`, `filmcraft-isobmff` and
 `filmcraft-matroska` crates at
 [storytold/filmcraft@6c3948a](https://github.com/storytold/filmcraft/commit/6c3948a36c80e4996d924766ba7157eec4fca85e).
-Every public item keeps its name, signature and behaviour for valid input, so FilmCraft can turn
+Every public item keeps its name, signature and behavior for valid input, so FilmCraft can turn
 all three crates into re-exports (`pub use craft_media::isobmff::*;`). The differences:
 
 - `bitstream::BitReader::read_ue_plus` (from DeckCraft's copy) is new.
@@ -222,7 +222,7 @@ for b in BoxIter::new(&bytes) {
 - Other data references (external `alis`/`url ` files), encrypted entries (`encv`/`enca`, `sinf`,
   `senc`), `cmov`, and QuickTime reference movies are not supported.
 - `sidx`/`mfra` are ignored, because the demuxer scans every top-level box. `stsd` entries with a
-  QuickTime colour table are not decoded.
+  QuickTime color table are not decoded.
 - Subtitle and text tracks (`tx3g`, `c608`, `wvtt`) and `mp4v` show up as `Unknown`.
 - Muxer: one `mdat`, no chunk-size or duration limits (the caller controls interleaving), no `sdtp`,
   `sgpd`/`sbgp` or `cslg` output, ISO-style `meta/ilst` metadata is not written, and the fragmented
@@ -281,7 +281,7 @@ while let Some(p) = d.next_packet()? {        // file order, all tracks
   `BlockAddID` 1 of an unlaced block (in WebM, the VP8/VP9 alpha layer).
 - **Tracks:** number, UID, type, flags, `DefaultDuration`, name, language (and BCP 47), CodecID,
   CodecPrivate, CodecName, `CodecDelay`, `SeekPreRoll`; `VideoInfo` (pixel and display size, crop,
-  interlacing, stereo, alpha mode, `pixel_aspect()`, `display_rotation()`), `Colour` (matrix,
+  interlacing, stereo, alpha mode, `pixel_aspect()`, `display_rotation()`), `Color` (matrix,
   range, transfer, primaries, subsampling and siting, MaxCLL/MaxFALL, SMPTE 2086 mastering
   metadata); `AudioInfo` (rate, output rate, channels, bit depth); `ContentEncoding`s.
 - **Content encodings:** header stripping is undone in every packet and in `read_sample`. zlib,
@@ -302,7 +302,7 @@ while let Some(p) = d.next_packet()? {        // file order, all tracks
 | `V_PRORES` | `ProRes` | FourCC; frames get the 8-byte `size` + `icpf` header re-added |
 | `V_MJPEG`, `V_MS/VFW/FOURCC` (MJPG) | `Mjpeg` | |
 | `V_MS/VFW/FOURCC` (other) | `VfwFourcc` | BITMAPINFOHEADER |
-| `A_AAC`, legacy `A_AAC/MPEG{2,4}/...` | `Aac` | AudioSpecificConfig (synthesised for legacy IDs, SBR included) |
+| `A_AAC`, legacy `A_AAC/MPEG{2,4}/...` | `Aac` | AudioSpecificConfig (synthesized for legacy IDs, SBR included) |
 | `A_OPUS` | `Opus` | OpusHead |
 | `A_VORBIS` | `Vorbis` | three headers split from the Xiph-laced CodecPrivate |
 | `A_FLAC` | `Flac` | `fLaC` + metadata blocks |
@@ -342,7 +342,7 @@ first frame (AV1 from `rav1e`) creates the writer after that frame.
   hostile sizes), hand-built `stbl` edge cases, codec configuration round trips and allocation
   guards. For Matroska: EBML integers, typed values, CRC-32, every lacing mode, codec mapping, a
   hand-built file (unknown-size Segment and Clusters, header stripping, BlockGroups, block
-  additions, colour and mastering metadata, Chapters, Tags, Attachments, CRC-32, Cue-less seek,
+  additions, color and mastering metadata, Chapters, Tags, Attachments, CRC-32, Cue-less seek,
   hostile cluster timestamps) and mux-demux round trips.
 - `tests/roundtrip.rs`: property tests that write random multi-track files (progressive and
   fragmented) and read them back.
@@ -352,7 +352,7 @@ first frame (AV1 from `rav1e`) creates the writer after that frame.
 - `tests/oracle_matroska.rs` compares every packet (stream, size, keyframe flag, pts, duration),
   codec names, time bases, dimensions and audio parameters with ffprobe on fixtures in
   `target/fixtures/matroska/`: H.264+AAC, VP9+Opus WebM, FLAC, Vorbis, SRT+ASS, WebVTT WebM, Cues
-  at the front, a streamed file without Cues, HEVC with HDR colour, ProRes+PCM, MJPEG+AC-3, AV1.
+  at the front, a streamed file without Cues, HEVC with HDR color, ProRes+PCM, MJPEG+AC-3, AV1.
   Seeks must land on the latest keyframe at or before the target. The muxer's laced output is read
   back by ffprobe. A damaged file must resync.
 - `tests/fuzz.rs` and `tests/fuzz_matroska.rs`: deterministic mutation fuzzing; nothing may panic.

@@ -26,7 +26,7 @@ pub enum Codec {
     /// `V_MS/VFW/FOURCC` with any other FourCC; `bitmap_info_header` is the whole `CodecPrivate`.
     VfwFourcc { fourcc: [u8; 4], bitmap_info_header: Vec<u8> },
     /// `A_AAC` (and the legacy `A_AAC/MPEG{2,4}/<profile>` IDs); `asc` is the
-    /// `AudioSpecificConfig` (synthesised for legacy IDs without `CodecPrivate`).
+    /// `AudioSpecificConfig` (synthesized for legacy IDs without `CodecPrivate`).
     Aac { asc: Vec<u8> },
     /// `A_OPUS`; `head` is the `OpusHead` identification header.
     Opus { head: Vec<u8> },
@@ -106,7 +106,7 @@ fn synth_asc(object_type: u8, rate: f64, out_rate: Option<f64>, channels: u64, s
     let ch = channels.min(7) as u8;
     let mut v = vec![(object_type << 3) | (ri >> 1), ((ri & 1) << 7) | (ch << 3)];
     if sbr {
-        // backward-compatible explicit signalling: sync 0x2b7, SBR object type 5, flag, ext rate index
+        // backward-compatible explicit signaling: sync 0x2b7, SBR object type 5, flag, ext rate index
         let ext = rate_index(out_rate.unwrap_or(rate * 2.0));
         v.push(0x56);
         v.push(0xE5);

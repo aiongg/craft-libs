@@ -45,7 +45,7 @@ pub struct MasteringMetadata {
 
 /// `Colour` element. Code points use ITU-T H.273 values (as Matroska does).
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Colour {
+pub struct Color {
     /// `MatrixCoefficients` (H.273; 2 = unspecified).
     pub matrix_coefficients: Option<u64>,
     pub bits_per_channel: Option<u64>,
@@ -68,7 +68,7 @@ pub struct Colour {
     pub mastering: Option<MasteringMetadata>,
 }
 
-impl Colour {
+impl Color {
     /// True if `Range` says full range.
     pub fn full_range(&self) -> bool {
         self.range == Some(2)
@@ -94,8 +94,8 @@ pub struct VideoInfo {
     /// `AlphaMode`: 1 if BlockAdditions carry alpha.
     pub alpha_mode: u64,
     /// `ColourSpace` FourCC (uncompressed video).
-    pub colour_space: Option<[u8; 4]>,
-    pub colour: Option<Colour>,
+    pub color_space: Option<[u8; 4]>,
+    pub color: Option<Color>,
     pub projection: Option<Projection>,
 }
 

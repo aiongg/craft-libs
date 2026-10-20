@@ -187,7 +187,7 @@ fn remux_prores_pcm24_with_timecode() {
     assert_same_streams(&src, &out);
     let st = streams(&out);
     assert!(st.iter().any(|s| s["tags"]["timecode"] == "01:00:00:00"), "timecode missing: {st:?}");
-    // PCM byte totals survive ffmpeg's repacketisation.
+    // PCM byte totals survive ffmpeg's repacketization.
     let g = open(std::fs::read(&out).unwrap()).unwrap();
     let a = f.track_of_kind(TrackKind::Audio).unwrap();
     let sum = |m: &Mp4File, i: usize| m.tracks[i].samples.iter().map(|s| s.size as u64).sum::<u64>();

@@ -64,7 +64,7 @@ fn synthetic() -> Vec<u8> {
     el_uint(&mut vid, PIXEL_HEIGHT, 1080);
     el_uint(&mut vid, DISPLAY_WIDTH, 1920);
     el_uint(&mut vid, DISPLAY_HEIGHT, 1080);
-    el(&mut vid, COLOUR, &col);
+    el(&mut vid, COLOR, &col);
     // rectangular, a quarter turn clockwise (portrait phone video)
     let mut proj = Vec::new();
     el_uint(&mut proj, PROJECTION_TYPE, 0);
@@ -161,7 +161,7 @@ fn synthetic_file() {
     assert_eq!(vi.pixel_aspect(), (4, 3));
     assert_eq!(vi.projection.as_ref().map(|p| p.roll), Some(-90.0));
     assert_eq!(vi.display_rotation(), Some(1));
-    let c = vi.colour.as_ref().unwrap();
+    let c = vi.color.as_ref().unwrap();
     assert!(c.full_range());
     assert_eq!(
         (c.matrix_coefficients, c.transfer_characteristics, c.primaries, c.max_cll, c.max_fall),
@@ -172,7 +172,7 @@ fn synthetic_file() {
     assert_eq!(m.white_point, (0.3127, 0.329));
     assert_eq!((m.luminance_max, m.luminance_min), (1000.0, 0.0001));
     assert_eq!(v.encodings, vec![ContentEncoding::HeaderStripping { bytes: vec![0, 0, 0, 1], scope: 1 }]);
-    // legacy AAC ID: ASC synthesised with explicit SBR signalling (LC, 24 kHz, stereo → 48 kHz)
+    // legacy AAC ID: ASC synthesized with explicit SBR signaling (LC, 24 kHz, stereo → 48 kHz)
     assert_eq!(f.tracks[1].codec, Codec::Aac { asc: vec![0x13, 0x10, 0x56, 0xE5, 0x98] });
     assert_eq!(f.tracks[1].language, "ger");
     assert_eq!(f.chapters[0].chapters[0].title(), Some("Intro"));

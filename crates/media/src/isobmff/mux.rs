@@ -6,7 +6,7 @@ use crate::isobmff::demux::Edit;
 use crate::isobmff::error::{Error, Result};
 use std::io::{Read, Seek, SeekFrom, Write};
 
-/// Output flavour: determines brands and some sample-entry encodings.
+/// Output flavor: determines brands and some sample-entry encodings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Brand {
     /// ISO MP4: `isom` major brand, compatible `isom iso2 avc1 mp41 mp42`.

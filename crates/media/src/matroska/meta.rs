@@ -4,7 +4,7 @@
 use crate::matroska::codec::map_codec;
 use crate::matroska::ebml::{Children, float, int, string, uint};
 use crate::matroska::ids::*;
-use crate::matroska::track::{AudioInfo, Colour, ContentEncoding, MasteringMetadata, Projection, Track, TrackKind, VideoInfo, gcd};
+use crate::matroska::track::{AudioInfo, Color, ContentEncoding, MasteringMetadata, Projection, Track, TrackKind, VideoInfo, gcd};
 
 // A malformed Matroska file may contain arbitrarily deep ChapterAtom and SimpleTag chains.
 const MAX_META_DEPTH: usize = 64;
@@ -341,8 +341,8 @@ pub(crate) fn parse_tags(d: &[u8], out: &mut Vec<Tag>) {
     }
 }
 
-fn parse_colour(d: &[u8]) -> Colour {
-    let mut c = Colour::default();
+fn parse_color(d: &[u8]) -> Color {
+    let mut c = Color::default();
     for e in Children::new(d) {
         let v = || Some(uint(e.data));
         match e.id {
@@ -403,8 +403,8 @@ fn parse_video(d: &[u8]) -> VideoInfo {
             FIELD_ORDER => v.field_order = Some(u),
             STEREO_MODE => v.stereo_mode = Some(u),
             ALPHA_MODE => v.alpha_mode = u,
-            COLOUR_SPACE => v.colour_space = e.data.try_into().ok(),
-            COLOUR => v.colour = Some(parse_colour(e.data)),
+            COLOR_SPACE => v.color_space = e.data.try_into().ok(),
+            COLOR => v.color = Some(parse_color(e.data)),
             PROJECTION => {
                 let mut p = Projection::default();
                 for x in Children::new(e.data) {
