@@ -542,14 +542,18 @@ pub(crate) fn parse_tracks(d: &[u8], timestamp_scale: u64) -> Vec<Track> {
             t.audio = Some(AudioInfo::default());
         }
         // CodecPrivate may itself be header-stripped (scope bit 2 = private data)
-        for enc in &t.encodings {
+        // Prepends in list order, built in one pass: a hostile entry can list millions.
+        let mut prefix = Vec::new();
+        for enc in t.encodings.iter().rev() {
             if let ContentEncoding::HeaderStripping { bytes, scope } = enc
                 && scope & 2 != 0
             {
-                let mut p = bytes.clone();
-                p.extend_from_slice(&t.codec_private);
-                t.codec_private = p;
+                prefix.extend_from_slice(bytes);
             }
+        }
+        if !prefix.is_empty() {
+            prefix.extend_from_slice(&t.codec_private);
+            t.codec_private = prefix;
         }
         t.codec = map_codec(&t.codec_id, &t.codec_private, t.audio.as_ref());
         out.push(t);
