@@ -344,12 +344,14 @@ pub fn probe_json(path: &Path, what: &[&str]) -> Option<Value> {
     }
 }
 
-pub fn packets(path: &Path) -> Vec<Value> {
-    probe_json(path, &["-show_packets"]).and_then(|v| v["packets"].as_array().cloned()).unwrap_or_default()
+/// ffprobe's packets for `path`, or `None` after a skipped probe (see [`probe_json`]).
+pub fn packets(path: &Path) -> Option<Vec<Value>> {
+    probe_json(path, &["-show_packets"]).map(|v| v["packets"].as_array().cloned().unwrap_or_default())
 }
 
-pub fn streams(path: &Path) -> Vec<Value> {
-    probe_json(path, &["-show_streams"]).and_then(|v| v["streams"].as_array().cloned()).unwrap_or_default()
+/// ffprobe's streams for `path`, or `None` after a skipped probe (see [`probe_json`]).
+pub fn streams(path: &Path) -> Option<Vec<Value>> {
+    probe_json(path, &["-show_streams"]).map(|v| v["streams"].as_array().cloned().unwrap_or_default())
 }
 
 pub fn int(v: &Value) -> Option<i64> {

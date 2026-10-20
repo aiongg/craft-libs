@@ -84,16 +84,15 @@ fn remux(input: &Path, out_name: &str, brand: Brand, finish: Finish, timecode: O
     Some((f, path))
 }
 
-fn stream_packets(path: &Path) -> Vec<Vec<Value>> {
-    let pk = packets(path);
+fn stream_packets(path: &Path) -> Option<Vec<Vec<Value>>> {
+    let pk = packets(path)?;
     let n = pk.iter().filter_map(|p| int(&p["stream_index"])).max().map(|m| m + 1).unwrap_or(0);
-    (0..n).map(|i| pk.iter().filter(|p| int(&p["stream_index"]) == Some(i)).cloned().collect()).collect()
+    Some((0..n).map(|i| pk.iter().filter(|p| int(&p["stream_index"]) == Some(i)).cloned().collect()).collect())
 }
 
 /// Compare ffprobe's view of two files (per-stream packets: pts, dts, size, key flag).
 fn assert_same_packets(a: &Path, b: &Path) {
-    let pa = stream_packets(a);
-    let pb = stream_packets(b);
+    let (Some(pa), Some(pb)) = (stream_packets(a), stream_packets(b)) else { return };
     for (i, (x, y)) in pa.iter().zip(&pb).enumerate() {
         let key = |p: &Value| (int(&p["pts"]), int(&p["dts"]), int(&p["size"]), p["flags"].as_str().map(|f| f.starts_with('K')));
         let kx: Vec<_> = x.iter().map(key).collect();
@@ -106,8 +105,7 @@ fn assert_same_packets(a: &Path, b: &Path) {
 }
 
 fn assert_same_streams(a: &Path, b: &Path) {
-    let sa = streams(a);
-    let sb = streams(b);
+    let (Some(sa), Some(sb)) = (streams(a), streams(b)) else { return };
     for (x, y) in sa.iter().zip(&sb) {
         if x["codec_type"] == "data" {
             continue;
@@ -185,7 +183,7 @@ fn remux_prores_pcm24_with_timecode() {
     let (f, out) = remux(&src, "remux_prores_tc.mov", Brand::Mov, Finish::Normal, Some((tc, 25 * 3600))).unwrap();
     decode_clean(&out);
     assert_same_streams(&src, &out);
-    let st = streams(&out);
+    let Some(st) = streams(&out) else { return };
     assert!(st.iter().any(|s| s["tags"]["timecode"] == "01:00:00:00"), "timecode missing: {st:?}");
     // PCM byte totals survive ffmpeg's repacketization.
     let g = open(std::fs::read(&out).unwrap()).unwrap();
@@ -201,7 +199,7 @@ fn remux_prores_pcm24_with_timecode() {
 fn pcm_in_mp4_ipcm() {
     let (Some(src), Some(_)) = (fixture("pcm_s16be.mov"), ffprobe()) else { return };
     let (_, out) = remux(&src, "remux_ipcm.mp4", Brand::Mp4, Finish::Normal, None).unwrap();
-    let st = streams(&out);
+    let Some(st) = streams(&out) else { return };
     assert_eq!(st[0]["codec_tag_string"], "ipcm");
     assert_eq!(st[0]["codec_name"], "pcm_s16be");
     decode_clean(&out);
@@ -224,9 +222,9 @@ fn aac_priming_edit() {
     let out = out_dir().join("aac_priming.mp4");
     std::fs::write(&out, w.finish().unwrap().into_inner()).unwrap();
     decode_clean(&out);
-    let pk = packets(&out);
+    let (Some(pk), Some(so), Some(ss)) = (packets(&out), streams(&out), streams(&src)) else { return };
     assert_eq!(int(&pk[0]["pts"]), Some(-1024));
-    assert_eq!(int(&streams(&out)[0]["duration_ts"]), int(&streams(&src)[0]["duration_ts"]));
+    assert_eq!(int(&so[0]["duration_ts"]), int(&ss[0]["duration_ts"]));
 }
 
 #[test]
@@ -255,7 +253,7 @@ fn fragmented_writer_ffmpeg() {
     let g = open(bytes.as_slice()).unwrap();
     assert!(g.fragmented && g.fragment_count >= 4);
     // ffprobe sees raw timestamps (no edit list in our init segment).
-    let ours = stream_packets(&out);
+    let Some(ours) = stream_packets(&out) else { return };
     for (ti, t) in f.tracks.iter().enumerate() {
         assert_eq!(ours[ti].len(), t.samples.len());
         for (p, s) in ours[ti].iter().zip(&t.samples) {

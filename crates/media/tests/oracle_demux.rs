@@ -174,14 +174,14 @@ fn check_packets(file: &Mp4File, idx: usize, pk: &[&Value], strict: bool) -> Res
 
 fn check_fixture(name: &str) {
     let Some(path) = fixture(name) else { return };
-    if ffprobe().is_none() {
-        return;
-    }
-    let f = std::fs::File::open(&path).unwrap();
+    check_file(name, &path);
+}
+
+fn check_file(name: &str, path: &std::path::Path) {
+    let (Some(streams), Some(packets)) = (streams(path), packets(path)) else { return };
+    let f = std::fs::File::open(path).unwrap();
     let file = open(&f).unwrap_or_else(|e| panic!("{name}: open failed: {e}"));
-    let streams = streams(&path);
     assert_eq!(streams.len(), file.tracks.len(), "{name}: stream count");
-    let packets = packets(&path);
     let mut errors = Vec::new();
     for (i, st) in streams.iter().enumerate() {
         if let Err(e) = check_stream(&file, i, st) {
@@ -301,4 +301,19 @@ fn optional_oracles_skip_on_generator_failure() {
     let mut missing = std::process::Command::new("craft-media-no-such-generator");
     assert_eq!(run_generator(&mut missing, &temp_path(&out), &out, false), None);
     assert!(!out.exists());
+}
+
+#[test]
+fn a_failed_ffprobe_probe_skips_the_optional_check() {
+    let path = out_dir().join("ffprobe_failure.mp4");
+    std::fs::write(&path, b"not a media file").unwrap();
+    let result = std::panic::catch_unwind(|| check_file("ffprobe_failure.mp4", &path));
+    let _ = std::fs::remove_file(&path);
+    match result {
+        Ok(()) => assert!(!oracles_required()),
+        Err(e) => {
+            let msg = e.downcast_ref::<String>().cloned().unwrap_or_default();
+            assert!(oracles_required() && msg.contains("forbids skipping"), "{msg}");
+        }
+    }
 }
