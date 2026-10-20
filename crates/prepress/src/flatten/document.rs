@@ -8,6 +8,9 @@
 //! - Page boxes: the page is the source's visible area (CropBox within MediaBox, rotated), written
 //!   as the MediaBox. TrimBox, BleedBox and ArtBox carry over, mapped onto it and clipped to it.
 //! - Metadata: title, author and creation date carry over; the producer is the caller's.
+//! - Version: [`FlattenDocumentOptions::version`] and [`FlattenDocumentOptions::pdfx_version`]
+//!   set the header, `pdf:PDFVersion` and the PDF/X version key. krilla has no PDF/X
+//!   validator, so a caller claiming PDF/X runs its own conformance checks.
 //! - Fonts: prepared per page ([`FontCache`](super::font::FontCache)); pages share a krilla font
 //!   only when the font bytes are equal ([`FontMap`]).
 //! - The source is opened once, and each output intent and printing condition parsed once.
@@ -24,6 +27,7 @@ use craft_pdf::syntax::object::dict::keys::{ART_BOX, BLEED_BOX, OUTPUT_INTENTS, 
 use craft_pdf::syntax::object::{Array, DateTime as PdfDate, Dict, Rect as PdfRect};
 use craft_pdf::syntax::page::Page;
 use craft_pdf::write::backend::SerializeSettings;
+use craft_pdf::write::backend::configure::PdfVersion;
 use craft_pdf::write::backend::geom::{Rect as KRect, Size, Transform};
 use craft_pdf::write::backend::metadata::DateTime;
 use craft_pdf::write::backend::page::PageSettings;
@@ -50,6 +54,12 @@ pub struct FlattenDocumentOptions {
     /// Written as `/Producer`.
     pub producer: String,
     pub unreadable: Unreadable,
+    /// The output's PDF version. Below 1.6, DeviceN spaces get no NChannel attributes; at 1.4,
+    /// krilla also enforces the 1.4 implementation limits (reals, array and dictionary sizes).
+    pub version: PdfVersion,
+    /// The PDF/X version claimed, such as `PDF/X-1a:2003`: `/GTS_PDFXVersion` in the
+    /// information dictionary and `pdfxid:GTS_PDFXVersion` in XMP. Not checked.
+    pub pdfx_version: Option<String>,
 }
 
 /// What [`flatten_document`] does with a page the PDF interpreter fails on.
@@ -135,7 +145,12 @@ pub fn flatten_document_with_progress(
     // The page being written, to name it when krilla panics.
     let current = Cell::new(None);
     let written = pdf_write::guard(|| {
-        let mut writer = Writer::new(first.settings.clone(), metadata(&doc, &opts.producer));
+        let settings = SerializeSettings {
+            configuration: pdf_write::configuration(opts.version, None)?,
+            pdfx_version: opts.pdfx_version.clone(),
+            ..first.settings.clone()
+        };
+        let mut writer = Writer::new(settings, metadata(&doc, &opts.producer));
         let mut fonts = FontMap::new();
         let mut source = None;
         let total = range.len();

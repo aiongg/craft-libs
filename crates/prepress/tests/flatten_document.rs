@@ -11,7 +11,10 @@ use std::time::Instant;
 
 use craft_pdf::syntax::object::dict::keys::{BLEED_BOX, DEST_OUTPUT_PROFILE, OUTPUT_CONDITION_IDENTIFIER, OUTPUT_INTENTS, TRIM_BOX};
 use craft_pdf::syntax::object::{Array, Dict, Rect as PdfRect, Stream, String as PdfString};
+use craft_pdf::write::backend;
 use craft_pdf::write::backend::color::cmyk;
+use craft_pdf::write::backend::color::device_n::{self, Colorant, DeviceNSpace, Process};
+use craft_pdf::write::backend::configure::PdfVersion;
 use craft_pdf::write::backend::geom::{PathBuilder, Point, Rect as KRect};
 use craft_pdf::write::backend::metadata::DateTime;
 use craft_pdf::write::backend::num::NormalizedF32;
@@ -279,4 +282,36 @@ fn the_source_output_intent_is_written_once() {
     let icc = intents[0].get::<Stream<'_>>(DEST_OUTPUT_PROFILE).unwrap().decoded().unwrap();
     assert_eq!(&*icc, craft_cms::builtin::COATED_CMYK_ICC);
     assert_eq!(count(&out, b"/DestOutputProfile"), 1);
+}
+
+/// PDF/X-1a output: the source's DeviceN fill (cyan and a spot, NChannel at 1.7) is written at
+/// 1.4 without the 1.6 NChannel attributes, and the PDF/X version goes to Info and XMP.
+#[test]
+fn pdf_x1a_output_is_pdf_14_without_nchannel() {
+    let gold = cmyk::Color::new(0, 51, 255, 26);
+    let space = DeviceNSpace::new(vec![Colorant::Process(Process::Cyan), Colorant::Spot { name: "Gold".to_owned(), alternate: gold }]).unwrap();
+    let color = device_n::Color::new(vec![255, 128], space).unwrap();
+    let mut writer = Writer::new(print::settings(PrintColor::fogra39(craft_cms::builtin::COATED_FOGRA39_ICC)).unwrap(), Metadata::default());
+    let mut page = writer.document_mut().start_page_with(PageSettings::from_wh(100.0, 100.0).unwrap());
+    let mut s = page.surface();
+    rect(&mut s, 10.0, 10.0, 60.0, 60.0, Fill { paint: backend::color::Color::from(color).into(), ..Default::default() });
+    s.push_opacity(NormalizedF32::new(0.5).unwrap());
+    rect(&mut s, 30.0, 30.0, 90.0, 90.0, fill(0, 0, 0, 255));
+    s.pop();
+    s.finish();
+    page.finish();
+    let source = writer.finish().unwrap();
+    assert!(count(&source, b"/NChannel") > 0);
+
+    let opts =
+        FlattenDocumentOptions { version: PdfVersion::Pdf14, pdfx_version: Some("PDF/X-1a:2003".to_owned()), ..opts() };
+    let (out, _) = flatten_document(&source, &opts).unwrap();
+    assert_opaque(&out);
+    assert!(out.starts_with(b"%PDF-1.4"));
+    assert_eq!(count(&out, b"NChannel"), 0);
+    assert_eq!(count(&out, b"/GTS_PDFXVersion(PDF/X-1a:2003)"), 1);
+    assert_eq!(count(&out, b"<pdfxid:GTS_PDFXVersion>PDF/X-1a:2003</pdfxid:GTS_PDFXVersion>"), 1);
+    assert_eq!(count(&out, b"<pdf:PDFVersion>1.4</pdf:PDFVersion>"), 1);
+    let gold_plate = separate(&out, 0);
+    assert!(tint(&gold_plate, "Gold", 20.0, 20.0) > 100);
 }
