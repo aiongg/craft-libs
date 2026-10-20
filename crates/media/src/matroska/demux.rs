@@ -1,6 +1,6 @@
 //! Matroska / WebM demuxer: EBML header, Segment walk, cluster scanning, packet reading, seeking.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use crate::matroska::ebml::{self, Children, Lacing, Size, parse_lacing, read_id, read_size};
 use crate::matroska::error::{Error, Result};
@@ -672,7 +672,7 @@ fn open_impl<S: ByteSource + ?Sized>(src: &S, opts: &OpenOptions, cache: &mut Ca
     if seg.overruns(len) {
         file.warnings.push("Segment extends past end of file (truncated)".into());
     }
-    let mut w = Walker { opts, parsed: HashSet::new(), blocks_seen: false, lookup: None, budget: FrameBudget::new(len) };
+    let mut w = Walker { opts, parsed: HashMap::new(), meta_left: len, blocks_seen: false, lookup: None, budget: FrameBudget::new(len) };
     w.walk(&mut io, &mut file)?;
     finish_tracks(&mut file);
     Ok(file)
@@ -680,7 +680,11 @@ fn open_impl<S: ByteSource + ?Sized>(src: &S, opts: &OpenOptions, cache: &mut Ca
 
 struct Walker<'o> {
     opts: &'o OpenOptions,
-    parsed: HashSet<u64>,
+    /// Start and end of each level-1 element read.
+    parsed: HashMap<u64, u64>,
+    /// Bytes level-1 elements may still read or scan. Distinct elements do not overlap, so a
+    /// valid file stays within its length; SeekHead entries pointing into one another do not.
+    meta_left: u64,
     blocks_seen: bool,
     /// Built at the first Cluster after Tracks is parsed.
     lookup: Option<TrackIndex>,
@@ -759,7 +763,7 @@ impl Walker<'_> {
                 continue;
             }
             let Some(abs) = file.segment_data_start.checked_add(e.position) else { continue };
-            if self.parsed.contains(&abs) || abs >= file.segment_end {
+            if self.parsed.contains_key(&abs) || abs >= file.segment_end {
                 continue;
             }
             match io.header(abs, file.segment_end)? {
@@ -784,13 +788,24 @@ impl Walker<'_> {
 
     /// Parse a level-1 metadata element; returns its end.
     fn level1<S: ByteSource + ?Sized>(&mut self, io: &mut Io<'_, S>, file: &mut MkvFile, h: &Hdr, limit: u64) -> Result<u64> {
-        let end = if h.size == Size::Unknown { io.unknown_end(h.data_start(), limit)? } else { h.end(limit) };
+        if let Some(&end) = self.parsed.get(&h.pos) {
+            return Ok(end);
+        }
+        let end = match h.size {
+            Size::Unknown => io.unknown_end(h.data_start(), limit.min(h.data_start().saturating_add(self.meta_left)))?,
+            Size::Known(_) => h.end(limit),
+        };
+        self.parsed.insert(h.pos, end);
         if h.overruns(limit) {
             file.warnings.push(format!("element 0x{:X} at {} truncated", h.id, h.pos));
         }
-        if !self.parsed.insert(h.pos) {
+        let n = end - h.data_start();
+        if n > self.meta_left || (h.size == Size::Unknown && n == self.meta_left && end < limit) {
+            self.meta_left = 0;
+            file.warnings.push(format!("element 0x{:X} at {} overlaps elements already read; skipped", h.id, h.pos));
             return Ok(end);
         }
+        self.meta_left -= n;
         if h.id == ATTACHMENTS {
             self.attachments(io, file, h.data_start(), end)?;
             return Ok(end);
