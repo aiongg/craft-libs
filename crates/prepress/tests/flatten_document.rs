@@ -303,8 +303,7 @@ fn pdf_x1a_output_is_pdf_14_without_nchannel() {
     let source = writer.finish().unwrap();
     assert!(count(&source, b"/NChannel") > 0);
 
-    let opts =
-        FlattenDocumentOptions { version: PdfVersion::Pdf14, pdfx_version: Some("PDF/X-1a:2003".to_owned()), ..opts() };
+    let opts = FlattenDocumentOptions { version: PdfVersion::Pdf14, pdfx_version: Some("PDF/X-1a:2003".to_owned()), ..opts() };
     let (out, _) = flatten_document(&source, &opts).unwrap();
     assert_opaque(&out);
     assert!(out.starts_with(b"%PDF-1.4"));
