@@ -2,8 +2,9 @@
 //! ffmpeg is used only as an external fixture generator and oracle (never linked).
 //!
 //! Tool search order: `CRAFT_MEDIA_FFMPEG` / `CRAFT_MEDIA_FFPROBE` (an explicit path; a wrong
-//! path fails the test), then `PATH`, then well-known install directories. A missing tool prints
-//! `SKIPPED` and the test passes, unless `CRAFT_MEDIA_REQUIRE_ORACLES=1` is set.
+//! path fails the test), then `PATH`, then well-known install directories. A missing tool, a
+//! failed fixture generator or a failed ffprobe run prints `SKIPPED` and the test passes, unless
+//! `CRAFT_MEDIA_REQUIRE_ORACLES=1` is set: then each of these fails the test.
 //! Fixtures are generated into `$CRAFT_MEDIA_FIXTURES_DIR` or `<workspace>/target/fixtures`, one
 //! directory per container (`isobmff`, `matroska`), and never committed.
 #![allow(dead_code)]
@@ -62,18 +63,40 @@ pub fn tool(name: &str) -> Option<PathBuf> {
     }
 }
 
-fn oracles_required() -> bool {
+pub fn oracles_required() -> bool {
     std::env::var(REQUIRE_ENV).is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
 }
 
+/// Give up on an oracle check: print `SKIPPED` and return `None`, or fail when oracles are
+/// required.
+pub fn skip<T>(reason: &str) -> Option<T> {
+    skip_with(oracles_required(), reason)
+}
+
+fn skip_with<T>(required: bool, reason: &str) -> Option<T> {
+    assert!(!required, "craft-media oracle: {reason}, and {REQUIRE_ENV}=1 forbids skipping oracle tests");
+    eprintln!("SKIPPED (craft-media oracle): {reason}");
+    None
+}
+
+/// Run a fixture generator writing `tmp`, then rename it to `out`. A generator that cannot start
+/// or fails skips (see [`skip`]); `required` is explicit so tests can set it without touching
+/// the process environment.
+pub fn run_generator(cmd: &mut Command, tmp: &Path, out: &Path, required: bool) -> Option<PathBuf> {
+    let reason = match cmd.output() {
+        Ok(o) if o.status.success() => match std::fs::rename(tmp, out) {
+            Ok(()) => return Some(out.to_path_buf()),
+            Err(e) => format!("could not move {} into place: {e}", tmp.display()),
+        },
+        Ok(o) => format!("generator failed for {} ({}): {}", out.display(), o.status, String::from_utf8_lossy(&o.stderr).trim()),
+        Err(e) => format!("could not start generator for {}: {e}", out.display()),
+    };
+    let _ = std::fs::remove_file(tmp);
+    skip_with(required, &format!("{reason} (encoder unavailable?)"))
+}
+
 fn tool_or_skip(name: &str) -> Option<PathBuf> {
-    let found = tool(name);
-    if found.is_none() {
-        let reason = format!("{name} not found (set {} or put {name} on PATH)", env_var(name));
-        assert!(!oracles_required(), "craft-media oracle: {reason}, and {REQUIRE_ENV}=1 forbids skipping oracle tests");
-        eprintln!("SKIPPED (craft-media oracle): {reason}");
-    }
-    found
+    tool(name).or_else(|| skip(&format!("{name} not found (set {} or put {name} on PATH)", env_var(name))))
 }
 
 /// ffmpeg, or `None` after printing `SKIPPED` (a failure with `CRAFT_MEDIA_REQUIRE_ORACLES=1`).
@@ -276,22 +299,15 @@ pub fn fixture_specs() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn run_ffmpeg(ff: &Path, args: &[&str], out: &Path) -> bool {
+fn run_ffmpeg(ff: &Path, args: &[&str], out: &Path) -> Option<PathBuf> {
     let tmp = temp_path(out);
-    let st = Command::new(ff).args(["-v", "error", "-y", "-nostdin"]).args(args).arg(&tmp).output();
-    match st {
-        Ok(o) if o.status.success() => std::fs::rename(&tmp, out).is_ok(),
-        Ok(o) => {
-            eprintln!("ffmpeg failed for {}: {}", out.display(), String::from_utf8_lossy(&o.stderr));
-            let _ = std::fs::remove_file(&tmp);
-            false
-        }
-        Err(_) => false,
-    }
+    let mut cmd = Command::new(ff);
+    cmd.args(["-v", "error", "-y", "-nostdin"]).args(args).arg(&tmp);
+    run_generator(&mut cmd, &tmp, out, oracles_required())
 }
 
-/// Path to a fixture, generating it with ffmpeg if needed. `None` if ffmpeg is missing or the
-/// encoder isn't available.
+/// Path to a fixture, generating it with ffmpeg if needed. `None` after printing `SKIPPED` if
+/// ffmpeg is missing or the encoder isn't available (a failure with `CRAFT_MEDIA_REQUIRE_ORACLES=1`).
 pub fn fixture(name: &str) -> Option<PathBuf> {
     let ff = ffmpeg()?;
     let path = fixture_dir().join(name);
@@ -300,11 +316,11 @@ pub fn fixture(name: &str) -> Option<PathBuf> {
     }
     if name == "editlist_cut.mp4" {
         let src = fixture("h264_bframes.mp4")?;
-        let s = src.to_str()?.to_string();
-        return run_ffmpeg(&ff, &["-ss", "0.5", "-i", &s, "-c", "copy"], &path).then_some(path);
+        let s = src.to_str().expect("fixture path is UTF-8").to_string();
+        return run_ffmpeg(&ff, &["-ss", "0.5", "-i", &s, "-c", "copy"], &path);
     }
-    let (_, args) = fixture_specs().into_iter().find(|(n, _)| *n == name)?;
-    run_ffmpeg(&ff, &args, &path).then_some(path)
+    let (_, args) = fixture_specs().into_iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("unknown fixture {name}"));
+    run_ffmpeg(&ff, &args, &path)
 }
 
 pub fn all_fixture_names() -> Vec<&'static str> {
@@ -313,13 +329,19 @@ pub fn all_fixture_names() -> Vec<&'static str> {
     v
 }
 
+/// ffprobe's JSON for `path`, or `None` after printing `SKIPPED` (a failure with
+/// `CRAFT_MEDIA_REQUIRE_ORACLES=1`).
 pub fn probe_json(path: &Path, what: &[&str]) -> Option<Value> {
-    let fp = tool("ffprobe")?;
-    let o = Command::new(fp).args(["-v", "error", "-of", "json"]).args(what).arg(path).output().ok()?;
-    if !o.status.success() {
-        return None;
+    let fp = ffprobe()?;
+    let o = match Command::new(fp).args(["-v", "error", "-of", "json"]).args(what).arg(path).output() {
+        Ok(o) if o.status.success() => o,
+        Ok(o) => return skip(&format!("ffprobe failed on {}: {}", path.display(), String::from_utf8_lossy(&o.stderr).trim())),
+        Err(e) => return skip(&format!("could not run ffprobe: {e}")),
+    };
+    match serde_json::from_slice(&o.stdout) {
+        Ok(v) => Some(v),
+        Err(e) => skip(&format!("ffprobe output for {} is not JSON: {e}", path.display())),
     }
-    serde_json::from_slice(&o.stdout).ok()
 }
 
 pub fn packets(path: &Path) -> Vec<Value> {
@@ -340,7 +362,7 @@ pub fn int(v: &Value) -> Option<i64> {
 
 /// Decode a file with ffmpeg to the null muxer; returns stderr (empty on success).
 pub fn ffmpeg_decode_errors(path: &Path) -> Option<String> {
-    let ff = tool("ffmpeg")?;
+    let ff = ffmpeg()?;
     let o = Command::new(ff).args(["-v", "error", "-nostdin", "-i"]).arg(path).args(["-f", "null", "-"]).output().ok()?;
     let mut s = String::from_utf8_lossy(&o.stderr).into_owned();
     if !o.status.success() {

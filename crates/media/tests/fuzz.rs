@@ -169,10 +169,7 @@ fn mutated_synthetic_files_never_panic() {
 #[test]
 fn mutated_ffmpeg_fixtures_never_panic() {
     for (i, name) in ["h264_bframes.mp4", "frag.mp4", "tmcd_2997df.mov", "prores.mov", "hevc.mp4", "aac.mp4"].iter().enumerate() {
-        let Some(p) = common::fixture(name) else {
-            eprintln!("skipping {name}: fixture unavailable");
-            continue;
-        };
+        let Some(p) = common::fixture(name) else { continue };
         let data = std::fs::read(p).unwrap();
         mutate_all(&data, 0xF00D + i as u64, 5000);
     }

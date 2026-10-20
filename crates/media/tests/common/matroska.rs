@@ -93,7 +93,8 @@ pub fn spec(name: &str) -> Option<Vec<String>> {
     })
 }
 
-/// Generate (once) and return the path of a fixture; `None` if generation failed (encoder missing).
+/// Generate (once) and return the path of a fixture; `None` after printing `SKIPPED` if
+/// generation failed (a failure with `CRAFT_MEDIA_REQUIRE_ORACLES=1`).
 pub fn fixture(ffmpeg: &Path, name: &str) -> Option<PathBuf> {
     let dir = fixture_dir();
     let out = dir.join(name);
@@ -102,31 +103,23 @@ pub fn fixture(ffmpeg: &Path, name: &str) -> Option<PathBuf> {
     }
     write_subs(&dir);
     let tmp = crate::common::temp_path(&out);
-    let ok = match spec(name) {
+    let mut c = Command::new(ffmpeg);
+    c.current_dir(&dir).args(["-y", "-v", "error"]);
+    match spec(name) {
         Some(args) => {
-            let mut c = Command::new(ffmpeg);
-            c.current_dir(&dir).args(["-y", "-v", "error"]).args(&args);
             let fmt = if name.ends_with(".webm") { "webm" } else { "matroska" };
-            c.args(["-f", fmt]).arg(&tmp);
-            c.status().map(|s| s.success()).unwrap_or(false)
+            c.args(&args).args(["-f", fmt]).arg(&tmp);
         }
         None => {
             // streamed to a pipe: unknown-size Segment, no Cues, no Duration
             let f = std::fs::File::create(&tmp).unwrap();
-            let mut c = Command::new(ffmpeg);
-            c.current_dir(&dir).args(["-y", "-v", "error"]).args(V).args(A);
+            c.args(V).args(A);
             c.args(["-t", "2", "-c:v", "libx264", "-bf", "2", "-g", "12", "-pix_fmt", "yuv420p", "-c:a", "aac", "-f", "matroska", "pipe:1"]);
             c.stdout(Stdio::from(f));
-            c.status().map(|s| s.success()).unwrap_or(false)
         }
-    };
-    if !ok {
-        let _ = std::fs::remove_file(&tmp);
-        eprintln!("could not generate {name} (encoder unavailable?); skipping");
-        return None;
     }
-    std::fs::rename(&tmp, &out).unwrap(); // atomic: concurrent generators race harmlessly
-    Some(out)
+    // the rename is atomic: concurrent generators race harmlessly
+    crate::common::run_generator(&mut c, &tmp, &out, crate::common::oracles_required())
 }
 
 pub fn ffprobe_json(ffprobe: &Path, path: &Path) -> Value {

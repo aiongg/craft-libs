@@ -173,10 +173,7 @@ fn check_packets(file: &Mp4File, idx: usize, pk: &[&Value], strict: bool) -> Res
 }
 
 fn check_fixture(name: &str) {
-    let Some(path) = fixture(name) else {
-        eprintln!("skipping {name}: ffmpeg or encoder unavailable");
-        return;
-    };
+    let Some(path) = fixture(name) else { return };
     if ffprobe().is_none() {
         return;
     }
@@ -281,4 +278,27 @@ fn generate_fixtures() {
         let out = [fixture_dir().join(name)];
         common::generate_and_report(&format!("isobmff/{name}"), &out, || fixture(name));
     }
+}
+
+/// A generator that exits with failure: this test binary given an option libtest rejects.
+fn failing_generator() -> std::process::Command {
+    let mut c = std::process::Command::new(std::env::current_exe().unwrap());
+    c.arg("--craft-media-no-such-option");
+    c
+}
+
+#[test]
+#[should_panic(expected = "forbids skipping")]
+fn required_oracles_fail_on_generator_failure() {
+    let out = fixture_dir().join("generator_failure_required.mp4");
+    let _ = run_generator(&mut failing_generator(), &temp_path(&out), &out, true);
+}
+
+#[test]
+fn optional_oracles_skip_on_generator_failure() {
+    let out = fixture_dir().join("generator_failure_optional.mp4");
+    assert_eq!(run_generator(&mut failing_generator(), &temp_path(&out), &out, false), None);
+    let mut missing = std::process::Command::new("craft-media-no-such-generator");
+    assert_eq!(run_generator(&mut missing, &temp_path(&out), &out, false), None);
+    assert!(!out.exists());
 }
