@@ -665,6 +665,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-keymap"
+version = "0.1.0"
+dependencies = [
+ "craft-i18n",
+ "craft-settings",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "image",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "craft-media"
 version = "0.1.0"
 dependencies = [
