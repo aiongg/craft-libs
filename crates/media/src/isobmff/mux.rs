@@ -159,14 +159,13 @@ fn too_many_samples() -> Error {
     Error::Mux("more than 2^32 - 1 samples in one track".into())
 }
 
-/// PCM chunk limits, near ffmpeg's: readers that take each PCM chunk as one sample (this crate's
+/// PCM chunk size limit, ffmpeg's: readers that take each PCM chunk as one sample (this crate's
 /// demuxer among them) get samples of bounded size.
 const PCM_CHUNK_BYTES: u64 = 1 << 20;
 
-/// Frames per PCM chunk: at most [`PCM_CHUNK_BYTES`] and half a second, at least one frame.
-fn pcm_chunk_frames(frame_bytes: u32, sample_rate: u32) -> u32 {
-    let by_size = PCM_CHUNK_BYTES / u64::from(frame_bytes.max(1));
-    by_size.min(u64::from(sample_rate / 2)).clamp(1, u64::from(u32::MAX)) as u32
+/// Frames per PCM chunk: at most [`PCM_CHUNK_BYTES`], at least one frame.
+fn pcm_chunk_frames(frame_bytes: u32) -> u32 {
+    (PCM_CHUNK_BYTES / u64::from(frame_bytes.max(1))).max(1) as u32
 }
 
 struct WTrack {
@@ -678,7 +677,7 @@ impl<W: Write + Seek> Mp4Writer<W> {
         t.comp_end = t.comp_end.max((t.media_duration as i64 + ct + count as i64 * dur as i64).max(0) as u64);
         t.media_duration += count * dur as u64;
         match tr.pcm_frame_bytes {
-            Some(fb) => t.push_chunks(offset, count, u64::from(fb), contiguous, pcm_chunk_frames(fb, tr.cfg.timescale)),
+            Some(fb) => t.push_chunks(offset, count, u64::from(fb), contiguous, pcm_chunk_frames(fb)),
             None => t.push_chunks(offset, count, s.data.len() as u64, contiguous, u32::MAX),
         }
         Ok(())

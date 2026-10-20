@@ -62,7 +62,7 @@ Output that differs on valid input:
 - The sample budget covers the whole file, so a multi-track file with more than 2²⁶ samples in
   total fails with `TooLarge` (ISO BMFF: all tracks and fragments; Matroska: all tracks, and at
   most 2¹⁶ TrackEntries). FilmCraft capped ISO BMFF per track and Matroska not at all.
-- MOV and MP4 PCM chunks end at 1 MiB or half a second, as ffmpeg writes them; FilmCraft wrote
+- MOV and MP4 PCM chunks end at 1 MiB, as ffmpeg writes them; FilmCraft wrote
   each contiguous run of one track as one chunk. The reader splits a PCM chunk above 16 MiB into
   samples of at most 16 MiB; FilmCraft made it one sample, cut at 4 GiB.
 - MOV PCM at 65,536 Hz and above, and unsigned 16-bit PCM, is written as `lpcm` (sound
@@ -211,7 +211,7 @@ let bytes = w.finish_faststart()?.into_inner(); // or finish() for moov-at-end
   QuickTime `hdlr`/Pascal names, and sets `wide` as the placeholder box.
 - Tables written: `stts`, `ctts` (v1 when an offset is negative), `stss` (omitted when every sample is
   sync), `stsc`, `stsz` (constant or table), `stco`/`co64`. Consecutive samples of one track share a chunk;
-  a PCM chunk ends at 1 MiB or half a second.
+  a PCM chunk ends at 1 MiB.
 - Sample entries come from `SampleEntry` (`avc`, `hevc`, `prores`, `jpeg`, `aac`, `pcm`, or any demuxed
   entry). Remuxing copies codec config, `colr`, `pasp`, `clap`, `fiel`, `gama` and `btrt`.
   PCM is written as `sowt`/`twos` (16-bit) or `raw ` (8-bit) or sound description v2 `lpcm` in MOV, and as
