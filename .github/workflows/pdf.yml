@@ -97,5 +97,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: craft-plate-test
-      - run: cargo clippy -p craft-plate-test -p craft-prepress --all-targets --locked -- -D warnings
-      - run: cargo test -p craft-plate-test -p craft-prepress --locked
+      - run: cargo clippy -p craft-plate-test -p craft-prepress --all-targets --all-features --locked -- -D warnings
+      - run: cargo test -p craft-plate-test -p craft-prepress --all-features --locked
