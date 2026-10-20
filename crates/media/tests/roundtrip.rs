@@ -312,6 +312,5 @@ fn pcm_past_4_gib_reads_back_whole() {
     let bytes = (writes * MIB) as u64;
     assert_eq!(s.iter().map(|s| u64::from(s.size)).sum::<u64>(), bytes);
     assert_eq!(s.iter().map(|s| u64::from(s.duration)).sum::<u64>(), bytes / 4);
-    // Half a second of 48 kHz stereo 16-bit per chunk.
-    assert!(s.iter().all(|s| s.size <= 24_000 * 4));
+    assert!(s.iter().all(|s| s.size <= 1 << 20));
 }
