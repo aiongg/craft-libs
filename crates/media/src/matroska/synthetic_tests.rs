@@ -66,7 +66,7 @@ fn synthetic() -> Vec<u8> {
     el_uint(&mut vid, PIXEL_HEIGHT, 1080);
     el_uint(&mut vid, DISPLAY_WIDTH, 1920);
     el_uint(&mut vid, DISPLAY_HEIGHT, 1080);
-    el(&mut vid, COLOR, &col);
+    el(&mut vid, COLOUR, &col);
     // rectangular, a quarter turn clockwise (portrait phone video)
     let mut proj = Vec::new();
     el_uint(&mut proj, PROJECTION_TYPE, 0);
