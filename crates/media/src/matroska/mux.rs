@@ -9,7 +9,8 @@ use crate::matroska::error::{Error, Result};
 use crate::matroska::ids::*;
 use crate::matroska::track::TrackKind;
 
-/// Lacing used for audio tracks.
+/// Lacing used for audio tracks. Only frames of a track with a DefaultDuration lace, and a lace
+/// ends where the timestamps stop advancing by that duration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LacingMode {
     None,
@@ -276,6 +277,7 @@ impl<W: Write + Seek> MkvWriter<W> {
         let is_video = spec.kind == TrackKind::Video;
         let lacing = spec.kind == TrackKind::Audio && self.opts.lacing != LacingMode::None;
         let explicit_dur = duration_ns.filter(|&d| Some(d) != spec.default_duration_ns);
+        let lace_duration = spec.default_duration_ns.filter(|_| lacing && explicit_dur.is_none());
         // new cluster?
         let start_new = match self.cluster_ts {
             None => true,
@@ -299,9 +301,17 @@ impl<W: Write + Seek> MkvWriter<W> {
                 self.cues.push((ts as u64, track as u64 + 1, pos));
             }
         }
-        if lacing && explicit_dur.is_none() {
-            let same = self.pending.as_ref().is_some_and(|p| p.track == track && p.frames.len() < self.opts.max_lace_frames);
-            if !same {
+        // A laced frame has no timestamp of its own: readers space the frames of a block by
+        // DefaultDuration. So only frames with that duration lace, and a frame joins the pending
+        // lace only when the tick it would get there is the tick it has.
+        if let Some(dd) = lace_duration {
+            let max = self.opts.max_lace_frames;
+            let joins = self.pending.as_ref().is_some_and(|p| {
+                let n = p.frames.len();
+                let implied = ((cts + p.ts) as i128 * scale as i128 + n as i128 * dd as i128 + scale as i128 / 2) / scale as i128;
+                p.track == track && n < max && implied == ts as i128
+            });
+            if !joins {
                 self.flush_pending();
             }
             match &mut self.pending {
@@ -535,5 +545,27 @@ mod tests {
     #[test]
     fn roundtrip_fixed() {
         roundtrip(LacingMode::FixedOrEbml);
+    }
+
+    /// Laced frames get their timestamps from the block's and DefaultDuration, so a gap in the
+    /// input must end the lace, and a track without DefaultDuration must not lace at all.
+    #[test]
+    fn lacing_keeps_timestamp_gaps() {
+        let mut a = TrackSpec::new(TrackKind::Audio, "A_PCM/INT/LIT");
+        a.audio = Some((48000.0, 1, Some(16)));
+        a.default_duration_ns = Some(10_000_000);
+        let mut b = TrackSpec::new(TrackKind::Audio, "A_PCM/INT/LIT");
+        b.audio = Some((48000.0, 1, Some(16)));
+        let opts = MuxOptions { lacing: LacingMode::Xiph, ..Default::default() };
+        let mut m = MkvWriter::new(Cursor::new(Vec::new()), vec![a, b], opts).unwrap();
+        for ms in [0i64, 100, 110, 120, 200] {
+            m.write_frame(0, ms * 1_000_000, true, &[ms as u8; 64], None).unwrap();
+        }
+        for ms in [300i64, 310] {
+            m.write_frame(1, ms * 1_000_000, true, &[ms as u8; 64], None).unwrap();
+        }
+        let bytes = m.finish().unwrap().into_inner();
+        let got: Vec<_> = Demuxer::from_slice(&bytes).unwrap().map(|p| p.unwrap()).map(|p| (p.track, p.pts, p.lace)).collect();
+        assert_eq!(got, [(0, 0, 0), (0, 100, 0), (0, 110, 1), (0, 120, 2), (0, 200, 0), (1, 300, 0), (1, 310, 0)]);
     }
 }

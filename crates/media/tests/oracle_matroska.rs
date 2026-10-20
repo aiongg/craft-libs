@@ -60,12 +60,14 @@ fn compare(ffprobe: &Path, path: &Path) -> (MkvFile, Vec<Packet>) {
             assert!((pts - p.pts).abs() <= p.lace as i64, "{ctx}: pts ffprobe {pts} vs {}", p.pts);
             pts_checked += 1;
         }
-        // ffmpeg 8 writes a shortened BlockDuration on the last block of a track cut by `-t`,
-        // and its demuxer reports the codec frame duration there instead.
+        // The last frame of a track cut by `-t` is shorter than a codec frame. ffmpeg 8 writes a
+        // shortened BlockDuration there and reports the codec frame duration; a remux by our
+        // writer stores DefaultDuration and ffprobe reports the shortened one. So the last frame's
+        // duration is not compared.
         let last_of_track = packets[i + 1..].iter().all(|q| q.track != p.track);
         if let Some(dur) = int(&f["duration"])
             && p.duration != 0
-            && !(last_of_track && (p.duration as i64) < dur)
+            && !last_of_track
         {
             assert!((dur - p.duration as i64).abs() <= 1, "{ctx}: duration ffprobe {dur} vs {}", p.duration);
             dur_checked += 1;
@@ -292,12 +294,14 @@ fn laced_remux() {
             let specs: Vec<TrackSpec> = file
                 .tracks
                 .iter()
-                .map(|t| {
+                .enumerate()
+                .map(|(ti, t)| {
                     let mut s = TrackSpec::new(t.kind, t.codec_id.clone());
                     s.codec_private = t.codec_private.clone();
+                    // audio without a DefaultDuration gets its mean packet spacing, so it can lace
                     s.default_duration_ns = t.default_duration_ns.or_else(|| {
-                        // give AAC a DefaultDuration so every lace gets a timestamp
-                        matches!(t.codec, Codec::Aac { .. }).then(|| (1024.0 * 1e9 / t.audio.as_ref().unwrap().sampling_frequency) as u64)
+                        let pts: Vec<i64> = packets.iter().filter(|p| p.track == ti).map(|p| p.pts_ns).collect();
+                        (t.kind == TrackKind::Audio && pts.len() > 1).then(|| ((pts[pts.len() - 1] - pts[0]) / (pts.len() as i64 - 1)) as u64)
                     });
                     s.video_size = t.video.as_ref().map(|v| (v.pixel_width, v.pixel_height));
                     s.audio = t.audio.as_ref().map(|a| (a.sampling_frequency, a.channels, a.bit_depth));
@@ -322,7 +326,7 @@ fn laced_remux() {
             assert_eq!(got.len(), packets.len());
             for (a, b) in got.iter().zip(&packets) {
                 assert_eq!(a.data, b.data, "{src} {mode:?}: payload");
-                assert_eq!(a.track, b.track);
+                assert_eq!((a.track, a.pts), (b.track, b.pts), "{src} {mode:?}: timestamp");
             }
             std::fs::remove_file(&outp).unwrap();
         }
