@@ -226,6 +226,7 @@ let set = ForeignSet {
         ForeignEntry::new(Some("File"), ["Save"]).with_key(read("Ctrl+Alt+S")).at_line(12),
         ForeignEntry::new(Some("File"), ["Frobnicate"]).with_key(read("Ctrl+F")).at_line(13),
     ],
+    truncated: 0,
 };
 let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], ..ImportOptions::default() };
 let planned = plan(&set, &keymap, &options);
@@ -242,7 +243,9 @@ assert_eq!((report.unmatched[0].item.as_str(), report.unmatched[0].line), ("File
   it `in_panel_menu()`. Tool entries match only tools.
 - Names are compared after `import::normalize_label`: case, `…`, `...`, `&`, colons and extra
   spaces aside, so the alias `Preferences: General…` matches `Edit > Preferences > General...`.
-  Aliases (`Bindable::with_alias`) count wherever labels do.
+  Aliases (`Bindable::with_alias`) count wherever labels do, and import paths
+  (`Bindable::with_import_path`, such as `["Tools", label]` for a tool) wherever menu paths do;
+  the dialog makes no areas or groups from import paths.
 - Panel menus: sources list panel-menu items with the panel's name in front (InDesign's Panel
   Menus area writes `Character: All Caps`; Illustrator and Photoshop sets have similar areas).
   The reader splits the name into segments and marks the entry `ForeignEntry::in_panel_menu()`.
@@ -270,6 +273,8 @@ assert_eq!((report.unmatched[0].item.as_str(), report.unmatched[0].line), ("File
   they are reported, never applied. Only the first 200 unmatched entries with keys get them, and
   only the first 200 characters of a name are compared. Keys in `ContextRule::Skip` contexts do
   not count: an unmatched entry with only such keys counts in `unmatched_without_shortcut`.
+- `truncated` counts what was cut at the caps (`MAX_IMPORT_ENTRIES` and the others), plus the
+  entries the app's reader dropped at its own limits, which it passes as `ForeignSet.truncated`.
 
 ## Editor
 
@@ -362,7 +367,9 @@ Outcomes:
 | `Summary { name, html, text }` | Shows, saves or prints the summary. |
 | `Remembered(answers)` | Keeps the user's import answers for the next import (`ImportOptions::remembered`). |
 
-The crate never opens a file dialog or touches the file system.
+The crate never opens a file dialog or touches the file system. When the app's own step fails
+while the dialog is open (a file it cannot read), `state.show_error(text)` shows the translated
+message under the table until the user dismisses it or the next action replaces it.
 
 Key dispatch while the dialog is open:
 
@@ -378,8 +385,9 @@ Words come from `ui::Text`. Apps on craft-i18n pass `I18nText`; others implement
 right-to-left languages, which mirror the layout. Chord text is never reordered. `ui::STRINGS`
 and `ui::PLURALS` list every string the dialog looks up, for the translation catalog.
 `Options` sets the conflict mode, double-press recording, area tabs, the on-screen keyboard,
-read-only rows for keys outside the catalog, the app's import and export formats, and an
-`accept` rule for which keys a command may get.
+read-only rows for keys outside the catalog, the app's import and export formats, an `accept`
+rule for which keys a command may get, and a `visible` rule for which catalog entries the table
+lists (hidden entries keep their keys and still count in conflicts).
 
 ## Features
 

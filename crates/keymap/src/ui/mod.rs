@@ -103,7 +103,8 @@ pub type OnWidget = Box<dyn Fn(&str, egui::Rect, &str)>;
 /// set fields on it, or with [`Options::with`].
 #[non_exhaustive]
 pub struct Options {
-    /// "Keyboard Shortcuts".
+    /// "Keyboard Shortcuts": the window title [`ShortcutsDialog::show`] draws, and the summary's
+    /// heading. [`ShortcutsDialog::ui`] draws no title; the host's container shows its own.
     pub title: &'static str,
     /// true; false shows the table read-only with Close and Summarize.
     pub editable: bool,
@@ -125,6 +126,10 @@ pub struct Options {
     pub area_tabs: bool,
     /// The app's own Show entries.
     pub areas: Vec<Area>,
+    /// `None`: every catalog entry is listed. Otherwise the table, its Show entries and search
+    /// list only the entries it returns true for; the others keep their bindings and still count
+    /// in conflicts.
+    pub visible: Option<fn(&Bindable) -> bool>,
     /// false: the on-screen keyboard pane.
     pub keyboard: bool,
     pub fixed: Vec<FixedRow>,
@@ -152,6 +157,7 @@ impl Default for Options {
             sort_by_label: false,
             area_tabs: false,
             areas: Vec::new(),
+            visible: None,
             keyboard: false,
             fixed: Vec::new(),
             import_formats: Vec::new(),
@@ -246,8 +252,8 @@ impl<'a> ShortcutsDialog<'a> {
         })
     }
 
-    /// The body only, for a host's own modal, preferences page or backstage. It fills the
-    /// available rectangle.
+    /// The body only, for a host's own modal, preferences page or backstage, which draws the
+    /// title. It fills the available rectangle.
     pub fn ui(self, ui: &mut egui::Ui, state: &mut DialogState) -> Option<Outcome> {
         self.with_env(|env| frame(ui, env, state))
     }
