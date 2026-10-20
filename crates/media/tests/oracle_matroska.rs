@@ -60,14 +60,14 @@ fn compare(ffprobe: &Path, path: &Path) -> (MkvFile, Vec<Packet>) {
             assert!((pts - p.pts).abs() <= p.lace as i64, "{ctx}: pts ffprobe {pts} vs {}", p.pts);
             pts_checked += 1;
         }
-        // The last frame of a track cut by `-t` is shorter than a codec frame. ffmpeg 8 writes a
-        // shortened BlockDuration there and reports the codec frame duration; a remux by our
-        // writer stores DefaultDuration and ffprobe reports the shortened one. So the last frame's
-        // duration is not compared.
+        // The last audio or video frame of a track cut by `-t` is shorter than a codec frame.
+        // ffmpeg 8 writes a shortened BlockDuration there and reports the codec frame duration; a
+        // remux by our writer stores DefaultDuration and ffprobe reports the shortened one. So
+        // that frame's duration is not compared. A subtitle's duration is its cue's, and is.
         let last_of_track = packets[i + 1..].iter().all(|q| q.track != p.track);
         if let Some(dur) = int(&f["duration"])
             && p.duration != 0
-            && !last_of_track
+            && (!last_of_track || file.tracks[p.track].kind == TrackKind::Subtitle)
         {
             assert!((dur - p.duration as i64).abs() <= 1, "{ctx}: duration ffprobe {dur} vs {}", p.duration);
             dur_checked += 1;
