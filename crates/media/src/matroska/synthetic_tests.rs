@@ -2,7 +2,9 @@
 //! header stripping, BlockGroups, Colour + mastering metadata, Chapters, Tags, Attachments, CRC-32.
 
 use crate::matroska::codec::Codec;
+use crate::matroska::demux::MAX_TRACKS;
 use crate::matroska::ebml::{self, write_id, write_unknown_size};
+use crate::matroska::error::Error;
 use crate::matroska::ids::*;
 use crate::matroska::mux::{el, el_float, el_str, el_uint};
 use crate::matroska::track::ContentEncoding;
@@ -348,4 +350,45 @@ fn duration_of_a_block_at_the_largest_timestamp_saturates() {
         let f = open_with(&one_cluster(i64::MAX as u64, &c)[..], &OpenOptions::default()).unwrap();
         assert_eq!(f.duration_ns(), Some(u64::MAX));
     }
+}
+
+#[test]
+fn empty_laced_frames_exhaust_the_frame_budget() {
+    // Each 7-byte SimpleBlock is a fixed-size lace of 256 empty frames.
+    let mut c = Vec::new();
+    for _ in 0..100 {
+        el(&mut c, SIMPLE_BLOCK, &block(1, 0, 0x04, &[0xFF]));
+    }
+    let r = open_with(&one_cluster(0, &c)[..], &OpenOptions::default());
+    assert!(matches!(r, Err(Error::TooLarge(_))), "{r:?}");
+    // Laces of one-byte frames are paid for by their bytes.
+    let mut c = Vec::new();
+    for _ in 0..4 {
+        let mut data = vec![0xFF];
+        data.extend_from_slice(&[0; 256]);
+        el(&mut c, SIMPLE_BLOCK, &block(1, 0, 0x04, &data));
+    }
+    let f = open_with(&one_cluster(0, &c)[..], &OpenOptions::default()).unwrap();
+    assert_eq!(f.tracks[0].samples.len(), 1024);
+}
+
+#[test]
+fn track_entries_past_the_cap_are_rejected() {
+    let file = |entries: usize| {
+        let mut f = Vec::new();
+        let mut h = Vec::new();
+        el_str(&mut h, DOC_TYPE, "matroska");
+        el(&mut f, EBML, &h);
+        write_id(&mut f, SEGMENT);
+        write_unknown_size(&mut f, 8);
+        let mut tr = Vec::new();
+        for _ in 0..entries {
+            el(&mut tr, TRACK_ENTRY, &[0xD7, 0x81, 0x02]);
+        }
+        el(&mut f, TRACKS, &tr);
+        f
+    };
+    assert_eq!(open_with(&file(3)[..], &OpenOptions::default()).unwrap().tracks.len(), 3);
+    let r = open_with(&file(MAX_TRACKS + 1)[..], &OpenOptions::default());
+    assert!(matches!(r, Err(Error::TooLarge(_))), "{r:?}");
 }

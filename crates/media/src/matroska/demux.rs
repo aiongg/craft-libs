@@ -1,6 +1,6 @@
 //! Matroska / WebM demuxer: EBML header, Segment walk, cluster scanning, packet reading, seeking.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::matroska::ebml::{self, Children, Lacing, Size, parse_lacing, read_id, read_size};
 use crate::matroska::error::{Error, Result};
@@ -12,6 +12,33 @@ use crate::matroska::track::{Sample, Track, TrackKind, gcd};
 const WIN: usize = 64 * 1024;
 /// Upper bound for level-1 metadata elements read into memory (Info, Tracks, Cues, Tags…).
 const MAX_META: u64 = 256 << 20;
+/// Cap on the frames indexed from one file, all tracks together.
+const MAX_FRAMES: usize = 1 << 26;
+/// Cap on the TrackEntries of a file. Each kept entry needs only 5 bytes of file but becomes a
+/// [`Track`] of several hundred bytes.
+pub(super) const MAX_TRACKS: usize = 1 << 16;
+
+/// What is left of the file-wide limits while clusters are scanned.
+struct FrameBudget {
+    /// Frames (`MAX_FRAMES` minus those already indexed).
+    frames: usize,
+    /// Bytes of file not yet claimed by a frame. Each frame claims its stored size and at least
+    /// one byte, because fixed-size lacing describes up to 256 empty frames in a 4-byte block.
+    bytes: u64,
+}
+
+impl FrameBudget {
+    fn new(file_len: u64) -> Self {
+        Self { frames: MAX_FRAMES, bytes: file_len }
+    }
+
+    fn take(&mut self, frames: &[(u64, u32)]) -> Result<()> {
+        self.frames = self.frames.checked_sub(frames.len()).ok_or(Error::TooLarge("frame count"))?;
+        let bytes = frames.iter().map(|&(_, n)| u64::from(n.max(1))).sum::<u64>();
+        self.bytes = self.bytes.checked_sub(bytes).ok_or(Error::TooLarge("frame count"))?;
+        Ok(())
+    }
+}
 
 /// Options for [`open_with`] / [`Demuxer::with_options`].
 #[derive(Clone, Debug)]
@@ -324,8 +351,15 @@ struct FrameRef {
     addition: Option<(u64, u32)>,
 }
 
-fn track_lookup(tracks: &[Track]) -> impl Fn(u64) -> Option<usize> + '_ {
-    move |n| tracks.iter().position(|t| t.number == n)
+/// Track number to track index. A duplicate number resolves to its first track.
+type TrackIndex = HashMap<u64, usize>;
+
+fn track_index(tracks: &[Track]) -> TrackIndex {
+    let mut m = HashMap::with_capacity(tracks.len());
+    for (i, t) in tracks.iter().enumerate() {
+        m.entry(t.number).or_insert(i);
+    }
+    m
 }
 
 /// A parsed block header: (track index, relative ts, flags, frames as (offset, size)).
@@ -337,7 +371,7 @@ fn parse_block<S: ByteSource + ?Sized>(
     io: &mut Io<'_, S>,
     data_start: u64,
     len: u64,
-    lookup: &dyn Fn(u64) -> Option<usize>,
+    lookup: &TrackIndex,
 ) -> Result<Option<BlockHeader>> {
     let head = io.peek(data_start, 16.min(len as usize))?;
     let Some((tn, tl, _)) = ebml::read_vint(head) else { return Ok(None) };
@@ -346,7 +380,7 @@ fn parse_block<S: ByteSource + ?Sized>(
     }
     let rel = i16::from_be_bytes([head[tl], head[tl + 1]]);
     let flags = head[tl + 2];
-    let Some(track) = lookup(tn) else { return Ok(None) };
+    let Some(&track) = lookup.get(&tn) else { return Ok(None) };
     let hdr = (tl + 3) as u64;
     let lacing = Lacing::from_flags(flags);
     let frames = if lacing == Lacing::None {
@@ -407,7 +441,7 @@ fn parse_block_elem<S: ByteSource + ?Sized>(
     h: &Hdr,
     end: u64,
     cluster_ts: i64,
-    lookup: &dyn Fn(u64) -> Option<usize>,
+    lookup: &TrackIndex,
 ) -> Result<Option<BlockRef>> {
     let ds = h.data_start();
     match h.id {
@@ -514,10 +548,10 @@ fn scan_cluster<S: ByteSource + ?Sized>(
     io: &mut Io<'_, S>,
     h: &Hdr,
     limit: u64,
-    tracks: &[Track],
+    lookup: &TrackIndex,
+    budget: &mut FrameBudget,
     warnings: &mut Vec<String>,
 ) -> Result<(ClusterInfo, Vec<BlockRef>)> {
-    let lookup = track_lookup(tracks);
     let ds = h.data_start();
     let known_end = match h.size {
         Size::Known(_) => Some(h.end(limit)),
@@ -549,7 +583,8 @@ fn scan_cluster<S: ByteSource + ?Sized>(
         match c.id {
             TIMESTAMP => ts = cluster_timestamp(ebml::uint(io.peek(c.data_start(), (ce - c.data_start()) as usize)?)),
             SIMPLE_BLOCK | BLOCK_GROUP => {
-                if let Some(b) = parse_block_elem(io, &c, ce, ts, &lookup)? {
+                if let Some(b) = parse_block_elem(io, &c, ce, ts, lookup)? {
+                    budget.take(&b.frames)?;
                     blocks.push(b);
                 }
             }
@@ -637,7 +672,7 @@ fn open_impl<S: ByteSource + ?Sized>(src: &S, opts: &OpenOptions, cache: &mut Ca
     if seg.overruns(len) {
         file.warnings.push("Segment extends past end of file (truncated)".into());
     }
-    let mut w = Walker { opts, parsed: HashSet::new(), blocks_seen: false };
+    let mut w = Walker { opts, parsed: HashSet::new(), blocks_seen: false, lookup: None, budget: FrameBudget::new(len) };
     w.walk(&mut io, &mut file)?;
     finish_tracks(&mut file);
     Ok(file)
@@ -647,6 +682,9 @@ struct Walker<'o> {
     opts: &'o OpenOptions,
     parsed: HashSet<u64>,
     blocks_seen: bool,
+    /// Built at the first Cluster after Tracks is parsed.
+    lookup: Option<TrackIndex>,
+    budget: FrameBudget,
 }
 
 impl Walker<'_> {
@@ -674,7 +712,8 @@ impl Walker<'_> {
                             break;
                         }
                     }
-                    let (ci, blocks) = scan_cluster(io, &h, seg_end, &file.tracks, &mut file.warnings)?;
+                    let lookup = self.lookup.get_or_insert_with(|| track_index(&file.tracks));
+                    let (ci, blocks) = scan_cluster(io, &h, seg_end, lookup, &mut self.budget, &mut file.warnings)?;
                     if self.opts.verify_crc && h.size != Size::Unknown {
                         let data = io.read_vec(h.data_start(), ci.end - h.data_start())?;
                         self.check_crc(file, h.pos, &data);
@@ -769,7 +808,11 @@ impl Walker<'_> {
             SEEK_HEAD => file.seek_head.extend(parse_seekhead(&data)),
             INFO => file.info = parse_info(&data),
             TRACKS if file.tracks.is_empty() => {
+                if Children::new(&data).filter(|e| e.id == TRACK_ENTRY).count() > MAX_TRACKS {
+                    return Err(Error::TooLarge("track count"));
+                }
                 file.tracks = parse_tracks(&data, file.info.timestamp_scale);
+                self.lookup = None;
             }
             CUES => parse_cues(&data, &mut file.cues),
             CHAPTERS => parse_chapters(&data, &mut file.chapters),
@@ -931,6 +974,7 @@ pub struct Demuxer<S> {
     file: MkvFile,
     opts: OpenOptions,
     cache: Cache,
+    lookup: TrackIndex,
     pos: u64,
     cluster: Option<InCluster>,
     pending: VecDeque<FrameRef>,
@@ -962,7 +1006,8 @@ impl<S: ByteSource> Demuxer<S> {
         let mut cache = Cache::default();
         let file = open_impl(&src, &opts, &mut cache)?;
         let pos = file.first_cluster.unwrap_or(file.segment_end);
-        Ok(Self { src, file, opts, cache, pos, cluster: None, pending: VecDeque::new(), skip_laces: None, done: false })
+        let lookup = track_index(&file.tracks);
+        Ok(Self { src, file, opts, cache, lookup, pos, cluster: None, pending: VecDeque::new(), skip_laces: None, done: false })
     }
 
     pub fn file(&self) -> &MkvFile {
@@ -989,6 +1034,7 @@ impl<S: ByteSource> Demuxer<S> {
         }
         let opts = OpenOptions { index: true, verify_crc: self.opts.verify_crc };
         self.file = open_impl(&self.src, &opts, &mut self.cache)?;
+        self.lookup = track_index(&self.file.tracks);
         Ok(())
     }
 
@@ -1076,7 +1122,8 @@ impl<S: ByteSource> Demuxer<S> {
             return Ok(None);
         }
         let mut warnings = Vec::new();
-        let (ci, blocks) = scan_cluster(&mut io, &h, self.file.segment_end, &self.file.tracks, &mut warnings)?;
+        let mut budget = FrameBudget::new(io.len);
+        let (ci, blocks) = scan_cluster(&mut io, &h, self.file.segment_end, &self.lookup, &mut budget, &mut warnings)?;
         let t = &self.file.tracks[track];
         let mut frames = Vec::new();
         for b in blocks.iter().filter(|b| b.track == track && b.keyframe) {
@@ -1139,7 +1186,7 @@ impl<S: ByteSource> Demuxer<S> {
         let seg_end = self.file.segment_end;
         let scale = self.file.info.timestamp_scale;
         let mut io = Io::new(&self.src, &mut self.cache);
-        let lookup = track_lookup(&self.file.tracks);
+        let lookup = &self.lookup;
         loop {
             if let Some(c) = self.cluster {
                 let lim = c.end.unwrap_or(seg_end);
@@ -1179,7 +1226,7 @@ impl<S: ByteSource> Demuxer<S> {
                         self.cluster = Some(InCluster { ts: v, end: c.end });
                     }
                     SIMPLE_BLOCK | BLOCK_GROUP => {
-                        if let Some(b) = parse_block_elem(&mut io, &h, he, c.ts, &lookup)? {
+                        if let Some(b) = parse_block_elem(&mut io, &h, he, c.ts, lookup)? {
                             let skip = match self.skip_laces.take() {
                                 Some((off, n)) if off == h.pos => n,
                                 _ => 0,
