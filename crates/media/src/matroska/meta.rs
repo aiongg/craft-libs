@@ -403,8 +403,8 @@ fn parse_video(d: &[u8]) -> VideoInfo {
             FIELD_ORDER => v.field_order = Some(u),
             STEREO_MODE => v.stereo_mode = Some(u),
             ALPHA_MODE => v.alpha_mode = u,
-            COLOR_SPACE => v.color_space = e.data.try_into().ok(),
-            COLOR => v.color = Some(parse_color(e.data)),
+            COLOUR_SPACE => v.color_space = e.data.try_into().ok(),
+            COLOUR => v.color = Some(parse_color(e.data)),
             PROJECTION => {
                 let mut p = Projection::default();
                 for x in Children::new(e.data) {
