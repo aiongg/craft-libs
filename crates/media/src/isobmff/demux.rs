@@ -347,8 +347,13 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
     // Movie fragments.
     let mut next_dts: Vec<i64> =
         file.tracks.iter().map(|t| t.samples.last().map(|s| s.dts.saturating_add(i64::from(s.duration))).unwrap_or(0)).collect();
+    // A duplicate track ID resolves to its first track.
+    let mut track_index = HashMap::new();
+    for (i, t) in file.tracks.iter().enumerate() {
+        track_index.entry(t.id).or_insert(i);
+    }
     for (moof_off, moof) in &moofs {
-        parse_moof(*moof_off, moof, &mut file.tracks, &trex, &mut next_dts, &mut budget)?;
+        parse_moof(*moof_off, moof, &mut file.tracks, &track_index, &trex, &mut next_dts, &mut budget)?;
     }
     for t in &mut file.tracks {
         if file.fragmented && !moofs.is_empty() {
@@ -807,6 +812,7 @@ fn parse_moof(
     moof_off: u64,
     moof: &[u8],
     tracks: &mut [Track],
+    track_index: &HashMap<u32, usize>,
     trex: &HashMap<u32, Trex>,
     next_dts: &mut [i64],
     budget: &mut SampleBudget,
@@ -834,7 +840,7 @@ fn parse_moof(
         let mut c = Cur::labeled(tfhd, "tfhd");
         let (_, fl) = c.full_header()?;
         let id = c.u32()?;
-        let Some(ti) = tracks.iter().position(|t| t.id == id) else { continue };
+        let Some(&ti) = track_index.get(&id) else { continue };
         let d = trex.get(&id).copied().unwrap_or_default();
         let base = if fl & 1 != 0 {
             c.u64()?
