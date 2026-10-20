@@ -367,12 +367,7 @@ type BlockHeader = (usize, i16, u8, Vec<(u64, u32)>);
 
 /// Parse the Block/SimpleBlock header at `data_start` (`len` bytes).
 /// Returns `None` for unknown tracks / damage.
-fn parse_block<S: ByteSource + ?Sized>(
-    io: &mut Io<'_, S>,
-    data_start: u64,
-    len: u64,
-    lookup: &TrackIndex,
-) -> Result<Option<BlockHeader>> {
+fn parse_block<S: ByteSource + ?Sized>(io: &mut Io<'_, S>, data_start: u64, len: u64, lookup: &TrackIndex) -> Result<Option<BlockHeader>> {
     let head = io.peek(data_start, 16.min(len as usize))?;
     let Some((tn, tl, _)) = ebml::read_vint(head) else { return Ok(None) };
     if head.len() < tl + 3 {
@@ -436,13 +431,7 @@ fn cluster_timestamp(raw: u64) -> i64 {
 }
 
 /// Parse one SimpleBlock or BlockGroup element.
-fn parse_block_elem<S: ByteSource + ?Sized>(
-    io: &mut Io<'_, S>,
-    h: &Hdr,
-    end: u64,
-    cluster_ts: i64,
-    lookup: &TrackIndex,
-) -> Result<Option<BlockRef>> {
+fn parse_block_elem<S: ByteSource + ?Sized>(io: &mut Io<'_, S>, h: &Hdr, end: u64, cluster_ts: i64, lookup: &TrackIndex) -> Result<Option<BlockRef>> {
     let ds = h.data_start();
     match h.id {
         SIMPLE_BLOCK => {

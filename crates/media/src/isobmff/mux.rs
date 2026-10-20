@@ -139,9 +139,7 @@ impl Tables {
     /// Records `count` samples written at `offset`, `sample_bytes` each, extending the last
     /// chunk when the write follows it. A chunk holds at most `max` samples.
     fn push_chunks(&mut self, mut offset: u64, mut count: u64, sample_bytes: u64, contiguous: bool, max: u32) {
-        if contiguous
-            && let Some(c) = self.chunks.last_mut()
-        {
+        if contiguous && let Some(c) = self.chunks.last_mut() {
             let n = count.min(u64::from(max.saturating_sub(c.1)));
             c.1 += n as u32;
             count -= n;
@@ -597,7 +595,10 @@ impl<W: Write + Seek> Mp4Writer<W> {
     /// The new entry must keep the codec and, for PCM, the frame size.
     pub fn set_sample_entry(&mut self, track: usize, entry: SampleEntry) -> Result<()> {
         let t = self.tracks.get_mut(track).ok_or(Error::NoSuchTrack(track))?;
-        if handler_of(&entry) != t.handler || !same_codec(&entry.codec, &t.cfg.entry.codec) || validate_track(&entry, t.cfg.timescale)? != t.pcm_frame_bytes {
+        if handler_of(&entry) != t.handler
+            || !same_codec(&entry.codec, &t.cfg.entry.codec)
+            || validate_track(&entry, t.cfg.timescale)? != t.pcm_frame_bytes
+        {
             return Err(Error::Mux("replacement sample entry changes the track's codec or PCM layout".into()));
         }
         t.cfg.entry = entry;
