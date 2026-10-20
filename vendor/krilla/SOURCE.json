@@ -157,7 +157,7 @@
     {
       "path": "src/graphics/device_n.rs",
       "upstream_sha256": null,
-      "sha256": "29b01e54699f47f02c15288a74eeae265f02f01c3d97a2612c23784b87eaa542"
+      "sha256": "02f4d1ad8d5e72ddcf633c8d9255632386bd73f19aacf84941746409e0823bed"
     },
     {
       "path": "src/graphics/graphic.rs",

@@ -20,6 +20,7 @@ itself omits those texts. Its examples and four CC0 ICC profiles are retained wi
 | `patches/08-print-output-intent.patch` | Print output intent and PDF/X markers | `chunk_container.rs`, `configure/{PDF_A1,PDF_A2,PDF_A4}.md`, `interchange/metadata.rs`, `lib.rs`, `serialize.rs` |
 | `patches/09-rendition-class.patch` | Master rendition in XMP | `chunk_container.rs` |
 | `patches/10-mesh-gradients.patch` | Mesh gradients | `content.rs`, `error.rs`, `graphics/{mask,paint,shading_function}.rs`, `serialize.rs`, `surface.rs` |
+| `patches/11-devicen-pdf-version.patch` | DeviceN attributes by PDF version | `graphics/device_n.rs` |
 
 Each patch applies with `patch -p1` from this directory, in numeric order, to the pristine
 crate. `SOURCE.json` records, for every retained file, the upstream hash (`upstream_sha256`)
@@ -172,7 +173,7 @@ written as CMYK, which knocks out or replaces the other plates.
 - From PDF 1.6, a space with spots gets an attributes dictionary whose `/Colorants` maps
   each spot to its Separation space. When spots and process inks mix, it is
   `/Subtype /NChannel` with `/Process << /ColorSpace alternate /Components [/Cyan /Magenta
-  /Yellow /Black] >>`.
+  /Yellow /Black] >>`. Patch 11 changes which of these each PDF version gets.
 - Validation: a spot's CMYK alternate counts as its Separation fallback, so one colorant
   name keeps one alternate across Separation and DeviceN spaces
   (`ValidationError::InconsistentSeparationFallback`). `/All` and `/None` are Separation-only
@@ -275,3 +276,24 @@ space's component count, so the document fails with `KrillaError::MixedMeshColor
 instead. The soft mask is written in gray from the opacities and is unaffected.
 
 Tests: `crates/pdf/tests/print_color.rs` (`mesh_*`, `rgb_mesh_*`) and the plate-test scene S17.
+
+## 11: DeviceN attributes by PDF version
+
+Patch 06 writes the DeviceN attributes dictionary only from PDF 1.6. A PDF/X-1a file is PDF
+1.3 or 1.4, so its spots then had no `/Colorants`, and a file written at 1.6 or later and
+relabeled 1.4 kept `/Subtype /NChannel` and `/Process`, which preflight tools flag in a 1.4
+file.
+
+ISO 32000-1, 8.6.6.5 (Table 71) marks the attributes dictionary and its `/Colorants` entry
+PDF 1.3, and `/Subtype`, `/Process` and `/MixingHints` PDF 1.6; the PDF Reference for 1.3 and
+1.4 lists `/Colorants` as the dictionary's only entry. The spec was checked from memory, not
+against the text.
+
+- Every version krilla writes (1.4 and later): a space with spots gets an attributes
+  dictionary with `/Colorants`, each spot mapped to its Separation space.
+- From PDF 1.6, a space that mixes spots and process inks also gets `/Subtype /NChannel` and
+  `/Process`, as patch 06 writes them.
+- A space of process inks only gets no attributes, as before.
+
+Tests: `crates/pdf/tests/print_color.rs` (`device_n_attributes_follow_the_pdf_version`) and
+`crates/prepress/tests/flatten_document.rs` (`pdf_x1a_output_is_pdf_14_without_nchannel`).

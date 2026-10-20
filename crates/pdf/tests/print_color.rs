@@ -579,6 +579,33 @@ fn device_n_mixing_spots_and_process_writes_nchannel_attributes() {
     }
 }
 
+/// NChannel's `/Subtype` and `/Process` are PDF 1.6: a 1.4 file (PDF/X-1a) gets only
+/// `/Colorants`, a 1.7 file the NChannel attributes.
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn device_n_attributes_follow_the_pdf_version() {
+    for version in [PdfVersion::Pdf14, PdfVersion::Pdf17] {
+        let settings = SerializeSettings {
+            configuration: craft_pdf::write::configuration(version, None).unwrap(),
+            compress_content_streams: false,
+            ..cmyk_settings()
+        };
+        let color = device_n(vec![Colorant::Process(Process::Cyan), spot("Gold", gold())], vec![255, 128]);
+        let bytes = device_n_sample(settings, vec![color]).unwrap();
+        let nchannel = version >= PdfVersion::Pdf16;
+        assert_eq!(bytes.windows(8).any(|w| w == b"NChannel"), nchannel, "{version:?}");
+        let mut found = 0;
+        device_n_spaces(&bytes, |_, _, _, attrs| {
+            found += 1;
+            let attrs = attrs.expect("attributes");
+            assert!(attrs.get::<Dict<'_>>(b"Colorants".as_slice()).unwrap().get::<Array<'_>>(b"Gold".as_slice()).is_some());
+            assert_eq!(attrs.contains_key(b"Subtype".as_slice()), nchannel, "{version:?}");
+            assert_eq!(attrs.contains_key(b"Process".as_slice()), nchannel, "{version:?}");
+        });
+        assert_eq!(found, 1);
+    }
+}
+
 /// A spot name keeps one alternate across Separation and DeviceN; PDF/A-2 rejects a second.
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
