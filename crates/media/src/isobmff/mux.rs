@@ -85,6 +85,18 @@ fn handler_of(e: &SampleEntry) -> Handler {
     }
 }
 
+/// The `CodecConfig` variant, and the fourcc of variants that cover several codecs.
+fn same_codec(a: &CodecConfig, b: &CodecConfig) -> bool {
+    use CodecConfig::*;
+    match (a, b) {
+        (ProRes { fourcc: x }, ProRes { fourcc: y })
+        | (Jpeg { fourcc: x }, Jpeg { fourcc: y })
+        | (Dnx { fourcc: x }, Dnx { fourcc: y })
+        | (Unknown { fourcc: x, .. }, Unknown { fourcc: y, .. }) => x == y,
+        _ => std::mem::discriminant(a) == std::mem::discriminant(b),
+    }
+}
+
 /// Accumulated sample tables for one track.
 #[derive(Clone, Debug, Default)]
 struct Tables {
@@ -582,11 +594,11 @@ impl<W: Write + Seek> Mp4Writer<W> {
 
     /// Replace a track's sample entry before the file is finished (the `moov` is written last), for
     /// codecs whose configuration is only complete at the end, like the FLAC STREAMINFO in `dfLa`.
-    /// The new entry must keep the media type and, for PCM, the frame size.
+    /// The new entry must keep the codec and, for PCM, the frame size.
     pub fn set_sample_entry(&mut self, track: usize, entry: SampleEntry) -> Result<()> {
         let t = self.tracks.get_mut(track).ok_or(Error::NoSuchTrack(track))?;
-        if handler_of(&entry) != t.handler || validate_track(&entry, t.cfg.timescale)? != t.pcm_frame_bytes {
-            return Err(Error::Mux("replacement sample entry changes the track's media type or PCM layout".into()));
+        if handler_of(&entry) != t.handler || !same_codec(&entry.codec, &t.cfg.entry.codec) || validate_track(&entry, t.cfg.timescale)? != t.pcm_frame_bytes {
+            return Err(Error::Mux("replacement sample entry changes the track's codec or PCM layout".into()));
         }
         t.cfg.entry = entry;
         Ok(())
@@ -1002,6 +1014,9 @@ mod tests {
         assert!(w.set_sample_entry(a, SampleEntry::pcm(PcmConfig { big_endian: true, ..pcm })).is_ok());
         assert!(w.set_sample_entry(a, SampleEntry::pcm(PcmConfig { bits: 24, ..pcm })).is_err());
         assert!(w.set_sample_entry(a, avc_entry()).is_err());
+        let v = w.add_track(TrackConfig::new(avc_entry(), 90_000)).unwrap();
+        assert!(w.set_sample_entry(v, avc_entry()).is_ok());
+        assert!(w.set_sample_entry(v, SampleEntry::jpeg(64, 64)).is_err());
         assert!(w.set_sample_entry(f, SampleEntry::flac(&[1; 34])).is_ok());
         assert!(w.set_sample_entry(f, SampleEntry::pcm(pcm)).is_err());
         assert!(matches!(w.set_sample_entry(5, avc_entry()), Err(Error::NoSuchTrack(5))));
