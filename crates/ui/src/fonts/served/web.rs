@@ -159,7 +159,12 @@ impl FontProvider for Loader {
 }
 
 async fn fetch_file(url: &str, integrity: &str) -> Result<Vec<u8>, String> {
-    let js = |e: JsValue| e.as_string().unwrap_or_else(|| format!("{e:?}"));
+    // An Error's message only: its Debug form carries the whole JS stack. The browser logs the
+    // cause (network, integrity) itself.
+    let js = |e: JsValue| match e.dyn_ref::<js_sys::Error>() {
+        Some(error) => String::from(error.message()),
+        None => e.as_string().unwrap_or_else(|| format!("{e:?}")),
+    };
     let window = web_sys::window().ok_or("no window")?;
     let init = web_sys::RequestInit::new();
     if !integrity.is_empty() {
