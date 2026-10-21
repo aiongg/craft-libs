@@ -405,6 +405,36 @@ system provider too; `fonts::system_font_provider(locale)` gives egui's provider
 `Stack::covers_language(language, with_system)` says whether the stack draws a language's scripts,
 for leaving a language out of the app's menu on a machine that can't show it.
 
+## Testing screens in each language
+
+The `testing` feature adds `testing::Screens`, for an app's screenshot tests of its key screens in
+Arabic, Japanese, Traditional Chinese (Taiwan), Korean, Thai and Vietnamese (`testing::LANGUAGES`).
+Each language gets an egui_kittest harness with the app's font stack installed for that UI language
+and system fonts off, so snapshots match on every machine and a character no face draws fails the
+test. Right-to-left languages lay the screen out from the right. The app's UI closure receives the
+`Locale` (language tag and direction) and picks its strings from it.
+
+```rust,ignore
+use craft_ui::testing::{KOREAN, Screens, compose};
+
+let screens = Screens::new("rename").size([320.0, 150.0]).fonts(|fonts| fonts.craft_faces(FACES));
+// Compares tests/snapshots/rename-ar.png, rename-ja.png, …; UPDATE_SNAPSHOTS=1 writes them.
+screens.snapshots(|ui, locale| rename_dialog(ui, locale));
+
+// IME smoke test: a scripted 2-Set Korean composition into the focused field.
+let mut harness = screens.harness_state("ko", |ui, locale, state: &mut Dialog| state.ui(ui, locale), Dialog::default());
+harness.get_by_role(egui::accesskit::Role::TextInput).focus();
+compose(&mut harness, &KOREAN);
+assert_eq!(harness.state().name, "한");
+```
+
+`compose` sends the preedit and commit events an input method sends (`KOREAN`, `JAPANESE`,
+`PINYIN`, `TELEX`), which egui's `TextEdit` and canvases reading `Event::Ime` both take. The module
+documentation has the recipe for a shortcut smoke test on a non-Latin layout through craft-keymap.
+`tests/screens.rs` is a complete example. egui's default proportional face has no Vietnamese
+letters such as ổ, so an app relying on it fails the `vi` screens until its own face covers them. The per-release manual checks are in
+[language-testing.md](../../docs/language-testing.md).
+
 ## Print settings and feedback
 
 `printing::State` holds the transient printer selection, copies, duplex and grayscale settings,
@@ -429,7 +459,8 @@ on WASM too; browser PDF printing remains an app-owned service.
 
 The crate uses egui 0.37 and Rust 1.95 or later. Its production dependency disables egui's default
 features, so egui's bundled fonts remain the application's choice. It has no default features; see
-[UI fonts](#ui-fonts) for `color_fonts` and `system_fonts`. See the
+[UI fonts](#ui-fonts) for `color_fonts` and `system_fonts`, and
+[Testing screens in each language](#testing-screens-in-each-language) for `testing`. See the
 [suite audit](../../docs/ui-components-audit.md) for candidates, policies and adoption order.
 
 Validation:
