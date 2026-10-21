@@ -48,6 +48,7 @@
 //! bytes, for the app to fetch the faces it needs at run time.
 
 mod cmap;
+pub mod coverage;
 mod embed;
 mod manifest;
 #[cfg(feature = "subset")]
@@ -132,6 +133,8 @@ pub struct ServedFace {
     /// Subresource Integrity value (`sha256-…`) from the manifest's hash; empty when the manifest
     /// has none.
     pub integrity: &'static str,
+    /// The characters the face maps, read from its `cmap` (see [`coverage`]).
+    pub coverage: &'static [u8],
 }
 
 impl ServedFace {
@@ -143,6 +146,11 @@ impl ServedFace {
     /// Whether any script tag matches `tag`: `Hant` matches `Hant` and `Hant-HK`.
     pub fn has_script(&self, tag: &str) -> bool {
         self.scripts.iter().any(|s| manifest::script_matches(s, tag))
+    }
+
+    /// Whether the face maps `c`.
+    pub fn covers(&self, c: char) -> bool {
+        coverage::contains(self.coverage, c)
     }
 }
 

@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use egui::epaint::text::{Blob, MissingGlyphPolicy};
 use egui::{FallbackRequest, FontInsert, FontProvider};
 
-use super::script_of_cluster;
 use crate::fonts::Stack;
 
 /// Seconds before a failed file is fetched again; each further failure doubles it, up to
@@ -168,8 +167,8 @@ impl Loader {
         {
             stack.install_faces(&self.ctx, Some(me as Arc<dyn FontProvider>));
         }
-        // The file that arrived may draw characters egui found no face for; after a failure, they
-        // go to the next face that could draw them now and to this one again at its retry time.
+        // The file that arrived draws characters egui found no face for; after a failure, they go
+        // to the next face that draws them now and to this one again at its retry time.
         forget_misses(&self.ctx);
         if let Some(delay) = retry {
             let me = self.me.clone();
@@ -188,20 +187,20 @@ impl Loader {
 }
 
 impl FontProvider for Loader {
-    /// Start fetching the first face that could draw the character and isn't fetched yet, and
-    /// find nothing for now: the face is installed when it arrives, and egui asks again. A face
-    /// that arrived without the character, or failed, leaves it to the next one.
+    /// Start fetching the face that draws the character and find nothing for now: the face is
+    /// installed when it arrives, and egui asks again. Only faces whose files map the character
+    /// are candidates, the first one the family asks; a failed one leaves the character to the
+    /// next until its retry time. A character no served face maps fetches nothing.
     fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
-        let script = script_of_cluster(request.cluster)?;
         let now = self.fetcher.now();
         let state = self.lock();
         let mut next = None;
-        for face in state.stack.as_ref()?.downloads(request.family, script) {
-            if state.in_flight.contains(face.url) {
-                // It may have the character: wait for it.
+        for face in state.stack.as_ref()?.downloads(request.family, request.cluster) {
+            if state.in_flight.contains(face.url) || state.files.contains_key(face.url) {
+                // It draws the character once it arrives, or already does.
                 return None;
             }
-            if !state.files.contains_key(face.url) && state.due(face.url, now) {
+            if state.due(face.url, now) {
                 next = Some((face.url, face.integrity));
                 break;
             }

@@ -298,26 +298,33 @@ Call `install` again when the UI language changes.
 A web build serves the craft-fonts faces beside its wasm instead of embedding them, so the wasm
 stays small and an English interface never downloads Chinese. `craft-fonts-build`'s
 `Embed::serve` copies the faces into a directory and writes a table of `fonts::ServedFace`s (URL,
-size, Subresource Integrity hash, no bytes); `UiFonts::served_faces` takes it in place of
-`craft_faces`. The stack orders served faces exactly as embedded ones, and on the web
-`Stack::install` fetches them:
+size, Subresource Integrity hash and the characters the face maps, no bytes);
+`UiFonts::served_faces` takes it in place of `craft_faces`. Each face's characters are its
+`cmap`'s code point ranges, packed as LEB128 gaps and lengths: about 3 KB for a CJK interface face
+cut to an app's catalogs, a few hundred bytes for Noto Sans, the symbol faces or an emoji face. The
+stack orders served faces exactly as embedded ones, and on the web `Stack::install` fetches them:
 
 - the UI language's faces at once (`Stack::ui_downloads`: the best face for each of its scripts
   the app's faces lack, per family, so a semibold family brings the bold face);
-- any other face when egui finds no installed face for a character of its script
-  (`Stack::downloads_for`): Noto Sans for Latin, Greek and Cyrillic letters the app's faces lack
-  (Vietnamese ẫ), the symbol faces (Noto Sans Symbols, Symbols 2, Math) for keyboard keys, arrows
-  and other text symbols (⌘ ⌥ ⇧ ⎋ ⏎), the emoji faces for emoji;
+- for a character no installed face has, the one face that draws it (`Stack::downloads_for`):
+  the first face in the family's order whose file maps the character and whose scripts fit it.
+  Noto Sans draws Latin, Greek and Cyrillic letters the app's faces lack (Vietnamese ẫ), the
+  symbol faces (Noto Sans Symbols, Symbols 2, Math) keyboard keys, arrows and other text symbols
+  (⌘ ⌥ ⇧ ⎋ ⏎), the emoji faces emoji. A Han character takes the interface face of the UI
+  language's region first (Simplified, Traditional, Hong Kong, Japanese or Korean), then the
+  other offered languages' and the rest in manifest order;
 - a served emoji face (`Emoji::served`) the first time text needs an emoji.
 
-One face is fetched at a time. When it arrives without the character, the next face that could
-have it is fetched. A file that fails to download leaves its characters to the next face and is
-fetched again after 2 seconds, then after twice as long with each further failure, up to 10
-minutes. Each face is added when its file arrives, and the context repaints; text falls back to the
-faces after it until then. Fetched files stay in memory for later installs, such as a language switch,
-and the browser's HTTP cache keeps them across page loads. `fonts::loading(ctx)` is true while the
-UI language's files are on their way, for an app that would rather draw nothing than Latin
-fallbacks in its first frames.
+A character no served face maps, such as a rare Han character none of the cut interface faces
+has, fetches nothing: egui's web glyph rasterizer draws it with the browser's fonts, or it shows
+as a missing glyph. A file that
+fails to download leaves its characters to the next face that draws them and is fetched again
+after 2 seconds, then after twice as long with each further failure, up to 10 minutes. Each face is
+added when its file arrives, and the context repaints; text falls back to the faces after it until
+then. Fetched files stay in memory for later installs, such as a language switch, and the
+browser's HTTP cache keeps them across page loads. `fonts::loading(ctx)` is true while the UI
+language's files are on their way, for an app that would rather draw nothing than Latin fallbacks
+in its first frames.
 
 `build.rs`:
 

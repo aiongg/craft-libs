@@ -99,13 +99,16 @@ index, bytes }` literals; any struct with those fields and that name in scope wo
 ## Serving the faces (web builds)
 
 `Embed::serve(dir, url_prefix)` copies the selected faces into `dir` instead of embedding them,
-and writes a table of `ServedFace { family, style, scripts, index, url, size, integrity }`
+and writes a table of `ServedFace { family, style, scripts, index, url, size, integrity, coverage }`
 literals for the app to fetch at run time (craft-ui's `fonts::UiFonts::served_faces` does). Each
 font file and its licence keep their path under the checkout's `fonts/` directory, and `url` is
 `url_prefix` plus that path: `serve("web/fonts", "fonts/")` copies
 `fonts/noto-sans-arabic/NotoSansArabic.ttf` to `web/fonts/noto-sans-arabic/NotoSansArabic.ttf`, with
 the URL `fonts/noto-sans-arabic/NotoSansArabic.ttf`. Faces of one collection share a file and a
-URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value.
+URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value. `coverage` holds the
+code points the face's `cmap` maps, as the `coverage` module encodes them (sorted ranges as LEB128
+gaps and lengths; `coverage::contains` reads them), so an app fetches a face only for characters
+it has: about 3 KB for a CJK interface face cut to an app's catalogs, under 1 KB for a full one.
 
 An interface face cut by `subset_to` is served from its cut in `OUT_DIR`, with the start of the
 cut's SHA-256 in its name (`web/fonts/ui/NotoSansTCUI-Regular.1234abcd5678ef90.ttf`) and the cut's

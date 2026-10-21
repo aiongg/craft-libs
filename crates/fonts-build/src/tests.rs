@@ -175,7 +175,7 @@ fn serve_copies_the_selected_faces_and_writes_urls() {
     assert!(!table.contains("include_bytes!"), "{table}");
     assert!(
         table.contains(
-            "ServedFace { family: \"Sans JP\", style: \"Regular\", scripts: &[\"Jpan\", \"Latn\"], index: 0, url: \"fonts/sans-jp/SansJP-Regular.ttf\", size: 24, integrity: \"sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=\" }"
+            "ServedFace { family: \"Sans JP\", style: \"Regular\", scripts: &[\"Jpan\", \"Latn\"], index: 0, url: \"fonts/sans-jp/SansJP-Regular.ttf\", size: 24, integrity: \"sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=\", coverage: b\"\" }"
         ),
         "{table}"
     );
@@ -563,4 +563,26 @@ fn for_ui_serves_no_whole_cjk_face() {
     assert_eq!(r.result.unwrap(), ["Noto Sans Arabic Regular"]);
     assert_eq!(std::fs::read(served.join("2.ttf")).unwrap(), b"arabic");
     assert!(!served.join("0.ttf").exists() && !served.join("1.ttf").exists());
+}
+
+#[test]
+fn served_faces_carry_the_characters_their_cmap_maps() {
+    let font = tiny_font(&[(0x41, 0x5A, None), (0x4E00, 0x4E02, Some(&[5, 0, 7]))], &[(0x4E03, 0x4E03), (0x2_0000, 0x2_0001)]);
+    let coverage = crate::coverage::of_face(&font, 0).unwrap();
+    assert_eq!(Cmap::read(&font, 0).unwrap().ranges(), [(0x41, 0x5A), (0x4E00, 0x4E00), (0x4E02, 0x4E03), (0x2_0000, 0x2_0001)]);
+    let covered: Vec<char> =
+        "@AZ[一丁丂七丄\u{FFFF}\u{20000}\u{20001}\u{20002}".chars().filter(|&c| crate::coverage::contains(&coverage, c)).collect();
+    assert_eq!(covered, ['A', 'Z', '一', '丂', '七', '\u{20000}', '\u{20001}']);
+    assert!(!crate::coverage::contains(&[], 'A') && !crate::coverage::contains(&[0x80], 'A'));
+    assert_eq!(crate::coverage::encode(&[(0, 0x10_FFFF)]), [0, 0xFF, 0xFF, 0x43]);
+
+    let scratch = Scratch::new("serve-coverage");
+    let dir = checkout(&scratch, &[("Noto Sans", "Latn", "", font), ("Broken", "Latn", "", b"not a font".to_vec())]);
+    let r = run(Embed::new().serve(scratch.0.join("served"), "fonts/"), Some(&dir), None);
+    assert_eq!(r.result.as_ref().unwrap().len(), 2);
+    let table = &r.table;
+    // Gaps and lengths 0x41 0x19, 0x4DA5 0, 1 1, 0x1_B1FC 1 as LEB128.
+    assert!(table.contains(r#"coverage: b"A\x19\xa5\x9b\x01\x00\x01\x01\xfc\xe3\x06\x01" }"#), "{table}");
+    assert!(table.contains(r#"family: "Broken""#) && table.ends_with("coverage: b\"\" },\n]\n"), "{table}");
+    assert!(warnings(&r).iter().any(|w| w.contains("no character map in fonts/1.ttf")), "{:?}", warnings(&r));
 }
