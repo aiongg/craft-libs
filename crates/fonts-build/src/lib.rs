@@ -12,7 +12,7 @@
 //! - **`CRAFT_FONTS_REQUIRED=1`** (release builds; any other value is ignored): a missing or
 //!   unreadable checkout, no selected face, or a requested script without a face is an [`Error`].
 //!
-//! Add this crate both as a build-dependency (for [`embed`]) and as a dependency (for
+//! Add this crate both as a build-dependency (for [`Embed`]) and as a dependency (for
 //! [`EmbeddedFace`]). The build-dependency enables the `subset` feature for `Embed::subset_to`,
 //! which cuts the CJK interface faces to the translation catalogs' characters; the dependency
 //! leaves it off, so the subsetter is not part of the app. In `build.rs`'s `main`:
@@ -43,6 +43,10 @@
 //! The generated file is a slice expression of `EmbeddedFace { .. }` literals, so any struct with
 //! the same fields and that name in scope works too.
 //!
+//! An app's document fonts go in a table of their own that names its families,
+//! `Embed::documents(&["Noto Sans", "Shippori Mincho"])`: nothing is embedded for documents
+//! unless the app names it.
+//!
 //! Web builds can serve the faces beside the wasm instead: [`Embed::serve`] copies the selected
 //! files into a directory and writes a table of [`ServedFace`]s, which carry a URL in place of the
 //! bytes, for the app to fetch the faces it needs at run time.
@@ -58,10 +62,10 @@ mod subset;
 #[cfg(test)]
 mod tests;
 
-pub use embed::{Embed, Error, embed, target_is_wasm};
+pub use embed::{Embed, Error, target_is_wasm};
 pub use manifest::{CJK_SCRIPTS, ManifestEntry, ParseError, UI_ROLE, parse_manifest};
 
-/// A craft-fonts face embedded by [`embed`]: one line of `fonts/manifest.txt`.
+/// A craft-fonts face embedded by [`Embed`]: one line of `fonts/manifest.txt`.
 ///
 /// [`Embed::serve`] writes [`ServedFace`]s instead.
 #[derive(Clone, Copy)]
@@ -87,6 +91,11 @@ impl EmbeddedFace {
     /// Whether any script tag matches `tag`: `Hant` matches `Hant` and `Hant-HK`.
     pub fn has_script(&self, tag: &str) -> bool {
         self.scripts.iter().any(|s| manifest::script_matches(s, tag))
+    }
+
+    /// Whether the face has a CJK script tag ([`CJK_SCRIPTS`]).
+    pub fn is_cjk(&self) -> bool {
+        CJK_SCRIPTS.iter().any(|tag| self.has_script(tag))
     }
 
     /// CSS/OpenType weight implied by the style name (`Bold` → 700); 400 when it names none.
