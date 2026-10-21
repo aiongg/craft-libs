@@ -12,4 +12,6 @@ pub mod icons;
 pub mod layout;
 pub mod printing;
 pub mod tabs;
+#[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+pub mod testing;
 pub mod theme;
