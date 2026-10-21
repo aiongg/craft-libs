@@ -253,12 +253,204 @@ fn number_field_rounds_before_clamping() {
 }
 
 #[test]
-fn number_field_steps_with_arrow_keys() {
-    let mut h = field_harness("de", 1.5);
+fn steps_go_to_multiples_of_the_step() {
+    let (none, shift, cmd) = (Modifiers::NONE, Modifiers::SHIFT, Modifiers::COMMAND);
+    assert_eq!(stepped(5.1, 1.0, 6, none, 1.0), 6.0);
+    assert_eq!(stepped(5.1, 1.0, 6, none, -1.0), 5.0);
+    assert_eq!(stepped(5.0, 1.0, 6, none, -2.0), 3.0);
+    assert_eq!(stepped(5.4, 1.0, 6, shift, 1.0), 15.0, "Shift rounds to the step, then adds ten");
+    assert_eq!(round_half_away(stepped(1.23, 1.0, 2, cmd, 1.0), 2), 1.3, "a tenth with Ctrl/Cmd");
+    assert_eq!(stepped(5.1, 1.0, 0, cmd, 1.0), 6.0, "a count has no tenths");
+    assert_eq!(stepped(4.9999999, 1.0, 6, none, 1.0), 6.0, "within a millionth of a multiple is on it");
+}
+
+fn field_with(value: f64, add: impl FnMut(&mut Ui, &mut f64) -> Response + 'static) -> Harness<'static, f64> {
+    let mut add = add;
+    let mut h = Harness::builder().allow_missing_glyphs().build_ui_state(
+        move |ui, value: &mut f64| {
+            let label = ui.label("Gap");
+            add(ui, value).labelled_by(label.id);
+        },
+        value,
+    );
+    h.run();
+    h
+}
+
+#[test]
+fn number_field_steps_with_arrow_keys_and_the_wheel() {
+    let mut h = field_harness("de", 1.3);
     h.get_by_role(Role::TextInput).click();
     h.run();
     h.key_press(Key::ArrowUp);
     h.run();
+    assert_eq!(*h.state(), 1.5, "to the next multiple of 0,5");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("1,5"));
+    h.key_press(Key::ArrowUp);
+    h.run();
     assert_eq!(*h.state(), 2.0);
-    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("2"));
+    h.key_press_modifiers(Modifiers::SHIFT, Key::ArrowDown);
+    h.run();
+    assert_eq!(*h.state(), 0.0, "ten steps down, clamped");
+    h.get_by_role(Role::TextInput).type_text("4");
+    h.run();
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("4"), "the stepped text is selected, so typing replaces it");
+    let at = h.get_by_role(Role::TextInput).rect().center();
+    h.hover_at(at);
+    h.run();
+    let wheel = |y| egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, y),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Unknown,
+        modifiers: Modifiers::NONE,
+    };
+    h.event(wheel(2.0));
+    h.run();
+    assert_eq!(*h.state(), 5.0, "two notches of 0,5 up from the typed 4");
+}
+
+#[test]
+fn number_field_draws_a_recessed_box() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut h = field_with(1.0, move |ui, value| {
+        let frame = Recessed { height: 30.0, ..Recessed::from_style(ui.style()) };
+        ui.add(NumberField::new(value, &numbers).recessed(frame).desired_width(80.0))
+    });
+    let rect = h.get_by_role(Role::TextInput).rect();
+    assert!((rect.height() - 30.0).abs() < 0.5, "{rect:?}");
+    type_into_field(&mut h, "2.5");
+    assert_eq!(*h.state(), 2.5);
+}
+
+fn scrub_harness(value: f64) -> Harness<'static, f64> {
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut h = Harness::builder().build_ui_state(
+        move |ui, value: &mut f64| {
+            ui.horizontal(|ui| {
+                let label = ui.label("Gap");
+                ui.add(NumberField::new(value, &numbers).range(0.0..=100.0).scrub_label(&label));
+            });
+        },
+        value,
+    );
+    h.run();
+    h
+}
+
+#[test]
+fn dragging_the_label_scrubs_the_field() {
+    let mut h = scrub_harness(5.4);
+    let at = h.get_by_role(Role::Label).rect().center();
+    let drag = |h: &mut Harness<'_, f64>, by: &[f32]| {
+        h.hover_at(at);
+        h.run();
+        h.drag_at(at);
+        h.run();
+        for dx in by {
+            h.hover_at(at + egui::vec2(*dx, 0.0));
+            h.run();
+        }
+    };
+    drag(&mut h, &[20.0, 40.0]);
+    h.drop_at(at + egui::vec2(40.0, 0.0));
+    h.run();
+    assert_eq!(*h.state(), 25.0, "20 steps of 2 points from 5,4: the first to 6");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("25"));
+
+    drag(&mut h, &[20.0, -20.0]);
+    assert_eq!(*h.state(), 15.0);
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(*h.state(), 25.0, "Escape puts the value back");
+    h.drop_at(at);
+    h.run();
+
+    h.drag_at(at);
+    h.run();
+    h.drop_at(at);
+    h.run();
+    h.get_by_role(Role::TextInput).type_text("7");
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(*h.state(), 7.0, "a click on the label focuses the field with its text selected");
+}
+
+#[derive(Default)]
+struct Mixed {
+    value: f64,
+    mixed: bool,
+    changes: usize,
+}
+
+#[test]
+fn a_mixed_field_is_blank_until_a_number_is_entered() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut h = Harness::builder().build_ui_state(
+        move |ui, m: &mut Mixed| {
+            let label = ui.label("Gap");
+            let r = ui.add(NumberField::new(&mut m.value, &numbers).mixed(m.mixed).placeholder("Mixed")).labelled_by(label.id);
+            if r.changed() {
+                (m.changes, m.mixed) = (m.changes + 1, false);
+            }
+        },
+        Mixed { value: 3.0, mixed: true, changes: 0 },
+    );
+    h.run();
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some(""));
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.key_press(Key::ArrowUp);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!((h.state().value, h.state().changes), (3.0, 0), "blank commits and arrow keys change nothing");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some(""));
+    type_into_mixed(&mut h, "3");
+    assert_eq!((h.state().value, h.state().changes), (3.0, 1), "the value it had is still a change: it goes to every object");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("3"));
+}
+
+fn type_into_mixed(h: &mut Harness<'_, Mixed>, text: &str) {
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.get_by_role(Role::TextInput).type_text(text);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+}
+
+#[test]
+fn the_first_field_of_a_group_takes_the_focus() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut opened = false;
+    let mut h = Harness::builder().build_ui_state(
+        move |ui, values: &mut [f64; 2]| {
+            if !opened {
+                focus_first_field(ui.ctx(), true);
+                opened = true;
+            }
+            for (value, name) in values.iter_mut().zip(["Width", "Height"]) {
+                let label = ui.label(name);
+                ui.add(NumberField::new(value, &numbers)).labelled_by(label.id);
+            }
+        },
+        [12.5, 40.0],
+    );
+    h.run();
+    h.event(egui::Event::Text("7".to_owned()));
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(*h.state(), [7.0, 40.0], "the first field was focused with its text selected");
+}
+
+#[test]
+fn error_tooltips_come_from_the_catalog() {
+    let (i18n, _) = I18n::new(&[("fr", "\tNot a number\tPas un nombre\n", "")], &["fr"]);
+    let fr = i18n.from_code("fr").unwrap_or(Lang::EN);
+    let numbers = LocaleNumbers::from_tag("fr").with_catalog(&i18n, fr);
+    assert_eq!(numbers.describe(NumberError::Unexpected('x')), "Pas un nombre");
+    assert_eq!(numbers.describe(NumberError::TooLarge), "Number too large", "English where the row is missing");
 }
