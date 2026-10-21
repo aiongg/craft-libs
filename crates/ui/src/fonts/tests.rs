@@ -467,3 +467,77 @@ fn covers_language_checks_every_script_of_the_language() {
     assert!(stack.covers_language("zh-CN", false));
     assert!(!stack.covers_language("th", false));
 }
+
+/// The CJK faces as `Embed::for_ui()` embeds them, with Noto Sans CJK SC as the Simplified one.
+fn ui_subsets(others: &'static [u8]) -> [CraftFace; 5] {
+    [
+        CraftFace { family: "Noto Sans SC UI", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 },
+        CraftFace { family: "Noto Sans TC UI", style: "Regular", scripts: &["Hant", "Latn"], bytes: others, index: 0 },
+        CraftFace { family: "Noto Sans HK UI", style: "Regular", scripts: &["Hant-HK", "Latn"], bytes: others, index: 0 },
+        CraftFace { family: "Noto Sans KR UI", style: "Regular", scripts: &["Kore", "Latn"], bytes: others, index: 0 },
+        CraftFace { family: "BIZ UDPGothic UI", style: "Regular", scripts: &["Jpan", "Latn"], bytes: others, index: 0 },
+    ]
+}
+
+#[test]
+fn preferences_name_the_ui_subsets_too() {
+    let order = |faces: &[CraftFace], prefer: Option<&str>| {
+        let mut fonts = UiFonts::new(&I18nScripts).craft_faces(faces).ui_language("ja").system_fonts(SystemFonts::Off);
+        if let Some(family) = prefer {
+            fonts = fonts.prefer("Jpan", family);
+        }
+        let stack = fonts.stack();
+        stack.chain(&FontFamily::Proportional).iter().filter(|n| faces.iter().any(|f| f.name() == **n)).cloned().collect::<Vec<_>>()
+    };
+    let mincho = face("Shippori Mincho", "Regular", &["Jpan", "Latn"]);
+    let gothic_ui = ui_subsets(&[])[4];
+    // craft-fonts' preference for BIZ UDPGothic.
+    assert_eq!(order(&[mincho, gothic_ui], None), ["BIZ UDPGothic UI Regular", "Shippori Mincho Regular"]);
+    // The app's.
+    let mincho_ui = face("Shippori Mincho UI", "Regular", &["Jpan", "Latn"]);
+    assert_eq!(order(&[gothic_ui, mincho_ui], Some("Shippori Mincho")), ["Shippori Mincho UI Regular", "BIZ UDPGothic UI Regular"]);
+}
+
+#[test]
+fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
+    // Noto Sans stands in for subsets cut without 中 and 文; the system fonts have them.
+    const NOTO_SANS: &[u8] = include_bytes!("../../tests/fonts/NotoSans-test.ttf");
+    let asked = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let stack = |simplified: &'static [u8]| {
+        let mut faces = ui_subsets(NOTO_SANS);
+        faces[0].bytes = simplified;
+        let recorded = Arc::clone(&asked);
+        let system = move |request: &FallbackRequest<'_>| {
+            recorded.lock().map(|mut asked| asked.push(request.cluster.to_owned())).ok()?;
+            Some(FontInsert::new(
+                "system:Noto Sans CJK SC",
+                FontData::from_static(CJK),
+                vec![InsertFontFamily { family: request.family.clone(), priority: FontPriority::Lowest }],
+            ))
+        };
+        UiFonts::new(&I18nScripts)
+            .app_face("ui", FontData::from_static(NOTO_SANS), &[FontFamily::Proportional])
+            .craft_faces(&faces)
+            .languages(&["en", "zh-TW", "zh-CN", "ja", "ko"])
+            .ui_language("zh-TW")
+            .system_provider(Arc::new(system))
+            .stack()
+    };
+    let sample = [Sample { language: "zh-TW", key: "menu.language", text: "中文" }];
+    let missing = |stack: &Stack, with_system| -> Vec<char> {
+        missing_glyphs(stack, &FontFamily::Proportional, sample, with_system).iter().map(|m| m.character).collect()
+    };
+
+    let without = stack(NOTO_SANS);
+    // Other regions' subsets come before the system fonts, so they draw what they have.
+    assert_eq!(head(&without, &FontFamily::Proportional, 4), ["ui", "Noto Sans TC UI Regular", "Noto Sans HK UI Regular", "Noto Sans SC UI Regular"]);
+    assert_eq!(missing(&without, false), ['中', '文']);
+    assert_eq!(missing(&without, true), []);
+    // The face the system provider returns for 中 draws 文 too.
+    assert_eq!(*asked.lock().unwrap(), ["中"]);
+
+    asked.lock().unwrap().clear();
+    let with_simplified = stack(CJK);
+    assert_eq!(missing(&with_simplified, true), []);
+    assert!(asked.lock().unwrap().is_empty(), "the Simplified subset has them");
+}
