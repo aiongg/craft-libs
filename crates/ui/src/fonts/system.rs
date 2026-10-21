@@ -2,7 +2,8 @@
 //!
 //! Lookups that may not block (the UI thread's) find nothing until the index is built: egui
 //! draws with the faces it has, and every context that was turned away reloads its fonts when the
-//! index arrives, which forgets egui's cached misses and repaints.
+//! index arrives, which forgets egui's cached misses and repaints. If the build panics, every
+//! lookup finds nothing from then on and egui keeps the faces it has.
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
@@ -25,6 +26,7 @@ enum State<T> {
         contexts: Vec<egui::Context>,
     },
     Ready(Arc<Mutex<T>>),
+    Failed,
 }
 
 /// An index built at most once per process, on first use.
@@ -58,13 +60,15 @@ impl<T: FontIndex> Shared<T> {
         }
     }
 
-    /// The index, or `None` while it builds unless `wait`, which blocks until it is built.
+    /// The index, or `None` while it builds unless `wait`, which blocks until it is built, or
+    /// `None` if its build failed.
     fn get(&'static self, wait: bool) -> Option<Arc<Mutex<T>>> {
         self.start(None);
         let mut state = self.lock();
         loop {
             match &mut *state {
                 State::Ready(index) => return Some(Arc::clone(index)),
+                State::Failed => return None,
                 State::Building { turned_away, .. } if !wait => {
                     *turned_away = true;
                     return None;
@@ -75,8 +79,16 @@ impl<T: FontIndex> Shared<T> {
     }
 
     fn finish(&self) {
-        let index = Arc::new(Mutex::new((self.build)()));
-        let previous = std::mem::replace(&mut *self.lock(), State::Ready(index));
+        let built = std::panic::catch_unwind(self.build).map_err(|payload| {
+            let message = payload
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| payload.downcast_ref::<&str>().copied())
+                .unwrap_or("non-string panic payload");
+            eprintln!("craft-ui: building the system font index failed, so it adds no fonts: {message}");
+        });
+        let next = built.map_or(State::Failed, |index| State::Ready(Arc::new(Mutex::new(index))));
+        let previous = std::mem::replace(&mut *self.lock(), next);
         self.built.notify_all();
         // Outside the lock: the UI thread holds the context's fonts while it asks for the index.
         if let State::Building { turned_away: true, contexts } = previous {
@@ -179,5 +191,26 @@ mod tests {
         }
         assert!(other_locale.font_for(&request).is_some());
         assert_eq!(BUILDS.load(Ordering::Relaxed), 1, "every locale shares one index");
+    }
+
+    fn build_panics() -> Gated {
+        panic!("stand-in index build failure");
+    }
+
+    static PANICS: Shared<Gated> = Shared::new(build_panics);
+
+    #[test]
+    fn a_panicking_build_leaves_lookups_finding_nothing() {
+        let (sent, received) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let request = FallbackRequest { cluster: "ع", family: &FontFamily::Proportional };
+            let found = Lookup::new(&PANICS, (), true).font_for(&request).is_some();
+            let _ = sent.send(found);
+        });
+        let found = received.recv_timeout(Duration::from_secs(10));
+        assert_eq!(found, Ok(false), "a waiting lookup returns once the build has failed");
+        let request = FallbackRequest { cluster: "ع", family: &FontFamily::Proportional };
+        assert!(Lookup::new(&PANICS, (), false).font_for(&request).is_none());
+        assert!(Lookup::new(&PANICS, (), true).font_for(&request).is_none());
     }
 }
