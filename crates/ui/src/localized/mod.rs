@@ -3,8 +3,11 @@
 //!
 //! [`LocaleNumbers`] wraps a [`craft_i18n::Format`], which writes and reads the numbers.
 //! [`LocalizedDragValue`] puts them on an [`egui::DragValue`]; [`NumberField`] is a text field for
-//! apps that edit numbers in a [`egui::TextEdit`]. Text that isn't a number never changes the
-//! value: it is outlined in the error color with a tooltip saying why.
+//! apps that edit numbers in a [`egui::TextEdit`], with the apps' panel-field behaviour: a
+//! [`Recessed`] box, scrubbing by the label, stepping to multiples of the step, a blank field for
+//! [mixed](NumberField::mixed) values and [`focus_first_field`]. Text that isn't a number never
+//! changes the value: it is outlined in the error color with a tooltip saying why, from the
+//! catalog with [`LocaleNumbers::with_catalog`].
 
 use std::cell::Cell;
 use std::ops::RangeInclusive;
@@ -13,7 +16,12 @@ use std::sync::Arc;
 
 use craft_i18n::{Format, I18n, Lang, NumberError};
 use egui::emath::{Numeric, round_to_decimals};
-use egui::{AsIdSalt, DragValue, Id, IdSalt, Key, Modifiers, Response, Stroke, StrokeKind, TextEdit, Ui, Widget};
+use egui::response::Flags;
+use egui::text::{CCursor, CCursorRange};
+use egui::{
+    Align2, AsIdSalt, Color32, Context, CornerRadius, CursorIcon, DragValue, Event, Frame, Id, IdSalt, Key, Margin, Modifiers, MouseWheelUnit, Rect,
+    Response, Sense, Stroke, StrokeKind, Style, TextEdit, Ui, Vec2, Widget, vec2,
+};
 
 #[cfg(test)]
 mod tests;
@@ -21,6 +29,9 @@ mod tests;
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
 /// seconds.
 const REJECTED_FOR: f64 = 2.5;
+
+/// Points of horizontal drag on a [`NumberField`]'s label per step.
+const SCRUB_POINTS_PER_STEP: f32 = 2.0;
 
 type Messages = Arc<dyn Fn(&'static str) -> String + Send + Sync>;
 type Fallback<'a> = Box<dyn 'a + Fn(&str) -> Option<f64>>;
@@ -53,8 +64,15 @@ impl LocaleNumbers {
         LocaleNumbers::new(Arc::new(Format::from_tag(tag)))
     }
 
-    /// Translate the error tooltips: `translate` gets the English text ([`message`]) and returns
-    /// it in the interface language, e.g. `move |s| i18n.t(lang, s).to_owned()`.
+    /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English
+    /// text ([`message`]), English where a row is missing.
+    pub fn with_catalog(self, i18n: &I18n, lang: Lang) -> LocaleNumbers {
+        let rows: Vec<(&'static str, String)> = MESSAGES.iter().map(|&english| (english, i18n.t(lang, english).to_owned())).collect();
+        self.with_messages(move |english| rows.iter().find(|(key, _)| *key == english).map_or_else(|| english.to_owned(), |(_, row)| row.clone()))
+    }
+
+    /// Translate the error tooltips with an app's own lookup: `translate` gets the English text
+    /// ([`message`]) and returns it in the interface language.
     pub fn with_messages(mut self, translate: impl Fn(&'static str) -> String + Send + Sync + 'static) -> LocaleNumbers {
         self.messages = Some(Arc::new(translate));
         self
@@ -90,14 +108,18 @@ impl LocaleNumbers {
     }
 }
 
-/// The English text the widgets show for `error`; an app catalog key.
+/// Every text [`message`] returns: the catalog rows an app adds for [`LocaleNumbers::with_catalog`].
+pub const MESSAGES: [&str; 5] =
+    ["Enter a number", "Not a number", "Use one kind of digits", "Check the decimal and grouping marks", "Number too large"];
+
+/// The English text the widgets show for `error`; a catalog key.
 pub fn message(error: NumberError) -> &'static str {
     match error {
-        NumberError::Empty => "Enter a number",
-        NumberError::Unexpected(_) => "Not a number",
-        NumberError::MixedDigits => "Use one kind of digits",
-        NumberError::Separator => "Check the decimal and grouping marks",
-        NumberError::TooLarge => "Number too large",
+        NumberError::Empty => MESSAGES[0],
+        NumberError::Unexpected(_) => MESSAGES[1],
+        NumberError::MixedDigits => MESSAGES[2],
+        NumberError::Separator => MESSAGES[3],
+        NumberError::TooLarge => MESSAGES[4],
     }
 }
 
@@ -164,10 +186,8 @@ fn rejected_id(id: Id) -> Id {
 }
 
 /// Outlines `response` in the error color and, with `tell`, shows `text` beside it.
-fn mark_invalid(ui: &Ui, response: &Response, text: String, tell: bool) {
-    let visuals = ui.visuals();
-    let radius = visuals.widgets.inactive.corner_radius;
-    ui.painter().rect_stroke(response.rect, radius, Stroke::new(1.5, visuals.error_fg_color), StrokeKind::Inside);
+fn mark_invalid(ui: &Ui, response: &Response, radius: CornerRadius, text: String, tell: bool) {
+    ui.painter().rect_stroke(response.rect, radius, Stroke::new(1.5, ui.visuals().error_fg_color), StrokeKind::Inside);
     if tell {
         response.show_tooltip_text(text);
     }
@@ -292,7 +312,7 @@ impl Widget for LocalizedDragValue<'_> {
                 if let Some(until) = r.until {
                     ui.ctx().request_repaint_after_secs((until - now) as f32);
                 }
-                mark_invalid(ui, &response, numbers.describe(r.error), true);
+                mark_invalid(ui, &response, ui.visuals().widgets.inactive.corner_radius, numbers.describe(r.error), true);
                 ui.data_mut(|d| d.insert_temp(key, r));
             }
             None => ui.data_mut(|d| d.remove::<Rejected>(key)),
@@ -305,14 +325,74 @@ impl Widget for LocalizedDragValue<'_> {
 #[derive(Clone)]
 struct FieldState {
     text: String,
-    /// The value when `text` was stored; a different value means the app changed it, and the text
-    /// is dropped.
+    /// The value and mixed state when `text` was stored; a change means the app changed them, and
+    /// the text is dropped.
     value: f64,
+    mixed: bool,
     error: Option<NumberError>,
 }
 
+/// The sunken box of [`NumberField::recessed`], as the apps draw their own fields. Fill it from the
+/// app's tokens, or start from [`Recessed::from_style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Recessed {
+    pub fill: Color32,
+    pub stroke: Stroke,
+    /// The border while the field has the keyboard focus.
+    pub focus_stroke: Stroke,
+    pub corner_radius: CornerRadius,
+    /// The box's height; the text is centred in it.
+    pub height: f32,
+    /// Space between the box's edge and the text.
+    pub margin: Margin,
+}
+
+impl Recessed {
+    /// egui's text-edit fill, the noninteractive border, the selection stroke while focused, and
+    /// the interact height.
+    pub fn from_style(style: &Style) -> Recessed {
+        let visuals = &style.visuals;
+        Recessed {
+            fill: visuals.text_edit_bg_color(),
+            stroke: visuals.widgets.noninteractive.bg_stroke,
+            focus_stroke: visuals.selection.stroke,
+            corner_radius: visuals.widgets.inactive.corner_radius,
+            height: style.spacing.interact_size.y,
+            margin: Margin::symmetric(6, 0),
+        }
+    }
+}
+
+fn first_field_id() -> Id {
+    Id::unique("craft_ui::localized::focus_first_field")
+}
+
+/// While `on`, the next enabled [`NumberField`] drawn takes the keyboard focus with its text
+/// selected, so typing replaces the value and Enter applies it: a dialog opening on its first
+/// field. Raise it when the group opens; the field that takes it lowers it. A sizing pass (a new
+/// window's first frame) leaves it for the next pass.
+pub fn focus_first_field(ctx: &Context, on: bool) {
+    ctx.data_mut(|d| {
+        if on {
+            d.insert_temp(first_field_id(), true);
+        } else {
+            d.remove::<bool>(first_field_id());
+        }
+    });
+}
+
+/// A drag on a [`NumberField`]'s label in progress.
+#[derive(Clone, Copy)]
+struct Scrub {
+    /// The value before the first step, which Escape puts back.
+    start: Option<f64>,
+    /// Points dragged and not yet stepped.
+    pending: f32,
+}
+
 /// A single-line text field for a number, read on commit (Enter or focus leaving) with
-/// [`LocaleNumbers`]. Arrow up and down step the value.
+/// [`LocaleNumbers`]. Arrow up and down, and the mouse wheel over the focused field, step the
+/// value; a drag on its [`NumberField::scrub_label`] scrubs it.
 ///
 /// Text that isn't a number leaves the value unchanged and stays in the field, outlined, with the
 /// reason in a tooltip, until it is fixed or Escape restores the value. A number is rounded to the
@@ -321,10 +401,12 @@ struct FieldState {
 ///
 /// ```
 /// # egui::__run_test_ui(|ui| {
-/// use craft_ui::localized::{LocaleNumbers, NumberField, Unit};
+/// use craft_ui::localized::{LocaleNumbers, NumberField, Recessed, Unit};
 /// let numbers = LocaleNumbers::from_tag("fr");
 /// let mut gap = 12.0;
-/// ui.add(NumberField::new(&mut gap, &numbers).range(0.0..=100.0).step(0.5).unit(Unit::new("{n} mm")));
+/// let label = ui.label("Gap");
+/// let frame = Recessed::from_style(ui.style());
+/// ui.add(NumberField::new(&mut gap, &numbers).range(0.0..=100.0).step(0.5).unit(Unit::new("{n} mm")).recessed(frame).scrub_label(&label));
 /// # });
 /// ```
 #[must_use = "You should put this widget in a ui with `ui.add(widget);`"]
@@ -338,6 +420,10 @@ pub struct NumberField<'a> {
     fallback: Option<Fallback<'a>>,
     width: Option<f32>,
     id_salt: Option<IdSalt>,
+    mixed: bool,
+    placeholder: Option<String>,
+    recessed: Option<Recessed>,
+    label: Option<(Id, Rect)>,
 }
 
 impl<'a> NumberField<'a> {
@@ -358,6 +444,10 @@ impl<'a> NumberField<'a> {
             fallback: None,
             width: None,
             id_salt: None,
+            mixed: false,
+            placeholder: None,
+            recessed: None,
+            label: None,
         };
         if Num::INTEGRAL { field.decimals(0..=0).range(Num::MIN.to_f64()..=Num::MAX.to_f64()) } else { field }
     }
@@ -367,7 +457,10 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// The change per arrow key press; 0 turns stepping off. Default 1.
+    /// The change per arrow key press, wheel notch or scrub step; 0 turns stepping off. Default 1.
+    /// Shift steps ten, and Ctrl/Cmd a tenth where the decimals show it. A plain or Ctrl/Cmd step
+    /// goes to the next multiple of its size (by 1, `5,1` goes up to 6 and down to 5); a Shift step
+    /// rounds to a multiple of `step` first.
     pub fn step(mut self, step: f64) -> Self {
         self.step = step;
         self
@@ -400,36 +493,90 @@ impl<'a> NumberField<'a> {
         self.id_salt = Some(IdSalt::new(id_salt));
         self
     }
+
+    /// The value differs between the selected objects: the field is blank (showing the
+    /// [`NumberField::placeholder`]) and the value stays as it is until the user enters a number.
+    /// That number is `changed()` even when it equals the value, so the app sets it on every
+    /// object. Committing the field blank changes nothing, and the label doesn't scrub.
+    pub fn mixed(mut self, mixed: bool) -> Self {
+        self.mixed = mixed;
+        self
+    }
+
+    /// Text shown in the field while it is empty, as a [`NumberField::mixed`] field is.
+    pub fn placeholder(mut self, text: impl Into<String>) -> Self {
+        self.placeholder = Some(text.into());
+        self
+    }
+
+    /// Draw the field in a sunken box of `frame`'s fill, border and height.
+    pub fn recessed(mut self, frame: Recessed) -> Self {
+        self.recessed = Some(frame);
+        self
+    }
+
+    /// The field's label, drawn before it. It names the field for accessibility, and dragging it
+    /// sideways scrubs the value: a step every two points, with the arrow keys' Shift and Ctrl/Cmd
+    /// steps. A click on it focuses the field; Escape during the drag puts the value back. The
+    /// response reports the label's drag as its own (`drag_started`, `dragged`, `drag_stopped`),
+    /// so the app can make the whole drag one undo step.
+    pub fn scrub_label(mut self, label: &Response) -> Self {
+        self.label = Some((label.id, label.rect));
+        self
+    }
 }
 
 impl Widget for NumberField<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let NumberField { mut get_set, numbers, range, step, decimals, unit, fallback, width, id_salt } = self;
+        let NumberField { mut get_set, numbers, range, step, decimals, unit, fallback, width, id_salt, mixed, placeholder, recessed, label } = self;
         let id = id_salt.map_or_else(|| ui.next_auto_id(), |salt| ui.make_persistent_id(salt));
         let old = get_set(None);
-        let shown = numbers.format(old, decimals.clone());
+        let places = *decimals.end();
         let clamp = |v: f64| if range.start() <= range.end() { v.clamp(*range.start(), *range.end()) } else { v };
+        let settle = |v: f64| clamp(round_half_away(v, places));
+        let shown = if mixed { String::new() } else { numbers.format(old, decimals.clone()) };
 
-        let mut state = ui.data(|d| d.get_temp::<FieldState>(id)).filter(|s| s.value == old);
-        let focused = ui.memory(|m| m.has_focus(id));
+        let mut state = ui.data(|d| d.get_temp::<FieldState>(id)).filter(|s| s.value == old && s.mixed == mixed);
+        let mut select = false;
+        if ui.is_enabled() && !ui.is_sizing_pass() && ui.data_mut(|d| d.remove_temp::<bool>(first_field_id())).is_some() {
+            ui.memory_mut(|m| m.request_focus(id));
+            select = true;
+        }
         let mut value = old;
-        if focused && step != 0.0 {
-            let change = ui.input_mut(|i| {
-                i.count_and_consume_key(Modifiers::NONE, Key::ArrowUp) as f64 - i.count_and_consume_key(Modifiers::NONE, Key::ArrowDown) as f64
-            });
-            if change != 0.0 {
-                let base = state.as_ref().and_then(|s| read(&numbers, &unit, fallback.as_ref(), &s.text).ok()).unwrap_or(old);
-                value = clamp(round_half_away(base + step * change, *decimals.end()));
-                state = None;
+        // A number the user entered; in a mixed field it counts as a change even if it equals `old`.
+        let mut entered = false;
+        if step != 0.0 && ui.memory(|m| m.has_focus(id)) {
+            let over = ui.ctx().read_response(id).is_some_and(|r| r.contains_pointer());
+            let steps = take_steps(ui, id, over);
+            let typed = state.as_ref().map_or(shown.as_str(), |s| s.text.as_str());
+            if !steps.is_empty()
+                && let Ok(base) = read(&numbers, &unit, fallback.as_ref(), typed)
+            {
+                value = settle(steps.iter().fold(base, |v, &(modifiers, n)| stepped(v, step, places, modifiers, n)));
+                (entered, select, state) = (true, true, None);
             }
+        }
+        let mut scrubbed = None;
+        if let Some((_, rect)) = label.filter(|_| !mixed && step != 0.0) {
+            let (drag, to) = scrub(ui, id, rect, value, |v, modifiers, n| settle(stepped(v, step, places, modifiers, n)));
+            if let Some(to) = to {
+                (value, state) = (to, None);
+            }
+            scrubbed = Some(drag);
         }
         let mut text = match &state {
             Some(s) => s.text.clone(),
-            None if value == old => shown,
+            None if value == old && !entered => shown,
             None => numbers.format(value, decimals.clone()),
         };
+        if select {
+            select_all(ui.ctx(), id, &text);
+        }
 
         let mut edit = TextEdit::singleline(&mut text).id(id);
+        if let Some(placeholder) = placeholder {
+            edit = edit.hint_text(placeholder);
+        }
         if !unit.prefix.is_empty() {
             edit = edit.prefix(unit.prefix.clone());
         }
@@ -439,38 +586,59 @@ impl Widget for NumberField<'_> {
         if let Some(width) = width {
             edit = edit.desired_width(width);
         }
+        let radius = match recessed {
+            Some(frame) => {
+                let stroke = if ui.memory(|m| m.has_focus(id)) { frame.focus_stroke } else { frame.stroke };
+                let sunk = Frame::NONE.fill(frame.fill).stroke(stroke).corner_radius(frame.corner_radius).inner_margin(frame.margin);
+                edit = edit.frame(sunk).min_size(vec2(0.0, frame.height)).align(Align2::LEFT_CENTER);
+                frame.corner_radius
+            }
+            None => ui.visuals().widgets.inactive.corner_radius,
+        };
         let mut response = ui.add(edit);
+        // After the text edit, which gives up the focus on a click elsewhere.
+        if scrubbed.as_ref().is_some_and(Response::clicked) {
+            ui.memory_mut(|m| m.request_focus(id));
+            select_all(ui.ctx(), id, &text);
+        }
         let editing = response.has_focus();
 
         let escape = ui.input(|i| i.key_pressed(Key::Escape));
         let mut error = state.as_ref().and_then(|s| s.error);
-        if response.lost_focus() && escape {
+        if response.lost_focus() && (escape || mixed && unit.strip(&text).is_empty()) {
             state = None;
             error = None;
         } else if response.lost_focus() {
             match read(&numbers, &unit, fallback.as_ref(), &text) {
                 Ok(parsed) => {
-                    value = clamp(round_half_away(parsed, *decimals.end()));
+                    value = settle(parsed);
+                    entered = true;
                     state = None;
                     error = None;
                 }
                 Err(e) => {
                     error = Some(e);
-                    state = Some(FieldState { text: text.clone(), value, error });
+                    state = Some(FieldState { text: text.clone(), value, mixed, error });
                 }
             }
         } else if response.changed() {
             error = read(&numbers, &unit, fallback.as_ref(), &text).err().filter(|e| !incomplete(&text, *e));
-            state = Some(FieldState { text: text.clone(), value, error });
+            state = Some(FieldState { text: text.clone(), value, mixed, error });
         } else if response.has_focus() && state.is_none() {
-            state = Some(FieldState { text: text.clone(), value, error: None });
+            state = Some(FieldState { text: text.clone(), value, mixed, error: None });
         }
 
-        if value != old {
+        if value != old || mixed && entered {
             get_set(Some(value));
             response.mark_changed();
         } else {
-            response.flags.remove(egui::response::Flags::CHANGED);
+            response.flags.remove(Flags::CHANGED);
+        }
+        if let Some(drag) = scrubbed {
+            response.flags.insert(drag.flags & (Flags::DRAG_STARTED | Flags::DRAGGED | Flags::DRAG_STOPPED));
+        }
+        if let Some((label, _)) = label {
+            response = response.labelled_by(label);
         }
         let value = get_set(None);
         match state {
@@ -481,13 +649,126 @@ impl Widget for NumberField<'_> {
             None => ui.data_mut(|d| d.remove::<FieldState>(id)),
         }
         if let Some(error) = error {
-            mark_invalid(ui, &response, numbers.describe(error), editing);
+            mark_invalid(ui, &response, radius, numbers.describe(error), editing);
             if !editing {
                 response = response.on_hover_text(numbers.describe(error));
             }
         }
         response
     }
+}
+
+/// `value` moved `n` steps of `step` (down when `n` is negative) with `modifiers` held: ten steps
+/// with Shift, a tenth of one with Ctrl/Cmd when `decimals` show it. A plain or Ctrl/Cmd step
+/// goes to the next multiple of its size in its direction, then on by whole steps; a Shift step
+/// rounds to a multiple of `step` first.
+fn stepped(value: f64, step: f64, decimals: usize, modifiers: Modifiers, n: f64) -> f64 {
+    let fine = step / 10.0;
+    if modifiers.command && (round_half_away(fine, decimals) - fine).abs() <= fine.abs() * 1e-9 {
+        to_multiple(value, fine, n)
+    } else if modifiers.shift {
+        (value / step).round() * step + 10.0 * step * n
+    } else {
+        to_multiple(value, step, n)
+    }
+}
+
+/// `value` moved to the `n`th multiple of `size` past it: by 1, 5.1 goes up to 6 and down to 5,
+/// and 5 to 6 and 4. A value within a millionth of a step of a multiple counts as on it.
+fn to_multiple(value: f64, size: f64, n: f64) -> f64 {
+    let q = value / size;
+    let from = if n > 0.0 { (q + 1e-6).floor() } else { (q - 1e-6).ceil() };
+    (from + n) * size
+}
+
+/// The steps asked for this frame by the arrow keys in a focused field and, with `wheel`, by the
+/// mouse wheel over it, in order: their modifiers and how many steps up (down when negative).
+/// They are taken from the input, so the text edit doesn't move its cursor and the panel under the
+/// field doesn't scroll.
+fn take_steps(ui: &Ui, id: Id, wheel: bool) -> Vec<(Modifiers, f64)> {
+    // The wheel turns in notches: a line each, or `line` points of a trackpad. What is left of a
+    // notch carries over to the next turn.
+    let line = ui.ctx().options(|o| o.input_options.line_scroll_speed).max(1.0);
+    let notch_id = id.with("craft_ui::localized::notches");
+    let mut notches: f32 = if wheel { ui.data(|d| d.get_temp(notch_id)).unwrap_or(0.0) } else { 0.0 };
+    let mut steps = Vec::new();
+    ui.input_mut(|i| {
+        i.events.retain(|event| {
+            let (modifiers, n) = match event {
+                Event::Key { key: Key::ArrowUp, pressed: true, modifiers, .. } => (*modifiers, 1.0),
+                Event::Key { key: Key::ArrowDown, pressed: true, modifiers, .. } => (*modifiers, -1.0),
+                Event::MouseWheel { unit, delta, modifiers, .. } if wheel => {
+                    // Shift may turn the wheel sideways (macOS does).
+                    let turn = if modifiers.shift { delta.x + delta.y } else { delta.y };
+                    notches += match unit {
+                        MouseWheelUnit::Point => turn / line,
+                        MouseWheelUnit::Line | MouseWheelUnit::Page => turn,
+                    };
+                    let whole = notches.trunc();
+                    notches -= whole;
+                    (*modifiers, f64::from(whole))
+                }
+                _ => return true,
+            };
+            if n != 0.0 {
+                steps.push((modifiers, n));
+            }
+            false
+        });
+        if wheel {
+            i.smooth_scroll_delta = Vec2::ZERO;
+        }
+    });
+    if wheel {
+        ui.data_mut(|d| d.insert_temp(notch_id, notches));
+    }
+    steps
+}
+
+/// A drag this frame on `label`, the label of field `id`: its response, and the value it scrubs
+/// `value` to with `step` (value, modifiers, steps).
+fn scrub(ui: &Ui, id: Id, label: Rect, value: f64, step: impl Fn(f64, Modifiers, f64) -> f64) -> (Response, Option<f64>) {
+    // On top of the label, which may sense clicks itself (selectable text).
+    let drag = ui.interact(label, id.with("craft_ui::localized::scrub"), Sense::click_and_drag());
+    if drag.hovered() || drag.dragged() {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+    }
+    let key = drag.id;
+    if drag.drag_started() {
+        // Typing in the field ends, and its text is committed, before the first step.
+        ui.memory_mut(|m| m.surrender_focus(id));
+        // The drag starts once the pointer has moved a few points: those count too.
+        let moved = match (ui.input(|i| i.pointer.press_origin()), drag.interact_pointer_pos()) {
+            (Some(from), Some(to)) => to.x - from.x,
+            _ => drag.drag_delta().x,
+        };
+        ui.data_mut(|d| d.insert_temp(key, Scrub { start: None, pending: moved }));
+        return (drag, None);
+    }
+    let Some(mut s) = ui.data(|d| d.get_temp::<Scrub>(key)) else { return (drag, None) };
+    if !drag.dragged() {
+        ui.data_mut(|d| d.remove::<Scrub>(key));
+        // egui ends a drag on Escape: the value goes back.
+        let cancelled = drag.drag_stopped() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+        return (drag, s.start.filter(|_| cancelled));
+    }
+    s.pending += drag.drag_delta().x;
+    let n = (s.pending / SCRUB_POINTS_PER_STEP).trunc();
+    let mut to = None;
+    if n != 0.0 {
+        s.pending -= n * SCRUB_POINTS_PER_STEP;
+        s.start.get_or_insert(value);
+        to = Some(step(value, ui.input(|i| i.modifiers), f64::from(n)));
+    }
+    ui.data_mut(|d| d.insert_temp(key, s));
+    (drag, to)
+}
+
+/// Selects all of `text` in text edit `id`, so typing replaces it.
+fn select_all(ctx: &Context, id: Id, text: &str) {
+    let mut state = TextEdit::load_state(ctx, id).unwrap_or_default();
+    state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(text.chars().count()))));
+    state.store(ctx, id);
 }
 
 /// `value` rounded to `decimals` digits after the point, ties away from zero; never `-0`.
