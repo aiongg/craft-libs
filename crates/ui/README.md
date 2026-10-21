@@ -304,12 +304,17 @@ size, Subresource Integrity hash, no bytes); `UiFonts::served_faces` takes it in
 
 - the UI language's faces at once (`Stack::ui_downloads`: the best face for each of its scripts
   the app's faces lack, per family, so a semibold family brings the bold face);
-- any other face the first time egui finds no installed face for a character of its script
-  (`Stack::downloads_for`), once per family and script;
-- a served emoji face (`Emoji::served`) the first time text needs an emoji or symbol.
+- any other face when egui finds no installed face for a character of its script
+  (`Stack::downloads_for`): Noto Sans for Latin, Greek and Cyrillic letters the app's faces lack
+  (Vietnamese ẫ), the symbol faces (Noto Sans Symbols, Symbols 2, Math) for keyboard keys, arrows
+  and other text symbols (⌘ ⌥ ⇧ ⎋ ⏎), the emoji faces for emoji;
+- a served emoji face (`Emoji::served`) the first time text needs an emoji.
 
-Each face is added when its file arrives, and the context repaints; text falls back to the faces
-after it until then. Fetched files stay in memory for later installs, such as a language switch,
+One face is fetched at a time. When it arrives without the character, the next face that could
+have it is fetched. A file that fails to download leaves its characters to the next face and is
+fetched again after 2 seconds, then after twice as long with each further failure, up to 10
+minutes. Each face is added when its file arrives, and the context repaints; text falls back to the
+faces after it until then. Fetched files stay in memory for later installs, such as a language switch,
 and the browser's HTTP cache keeps them across page loads. `fonts::loading(ctx)` is true while the
 UI language's files are on their way, for an app that would rather draw nothing than Latin
 fallbacks in its first frames.
