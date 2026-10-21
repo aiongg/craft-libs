@@ -163,6 +163,23 @@ fn spanish_uses_the_bezos_patterns() {
     assert!(Lang::for_language("French").is_none(), "only languages built in");
 }
 
+/// An elided article or preposition keeps the breaks of the word after it, and no break falls
+/// next to the apostrophe.
+#[cfg(feature = "french")]
+#[test]
+fn french_elisions_keep_their_breaks() {
+    let fr = Lang::for_language("French").unwrap();
+    let h = |w: &str| {
+        let pts = hyphen_points_in(w, &Limits::default(), fr);
+        w.char_indices().map(|(i, c)| if pts.contains(&i) { format!("-{c}") } else { c.to_string() }).collect::<String>()
+    };
+    assert_eq!(h("organisation"), "or-ga-ni-sa-tion");
+    assert_eq!(h("l'organisation"), "l'or-ga-ni-sa-tion");
+    assert_eq!(h("L’organisation"), "L’or-ga-ni-sa-tion");
+    assert_eq!(h("d'information"), "d'in-for-ma-tion");
+    assert_eq!(h("aujourd'hui"), "au-jour-d'hui");
+}
+
 /// The fastest of three timings of `f`, after a warm-up.
 fn fastest(f: impl Fn()) -> f64 {
     f();

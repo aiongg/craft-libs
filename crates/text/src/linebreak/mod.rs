@@ -279,7 +279,9 @@ pub struct Line {
     pub width: f64,
     /// The line's measure.
     pub measure: f64,
-    /// Adjustment ratio as rated: positive stretches, negative shrinks, below −1 is overfull.
+    /// Adjustment ratio as rated: positive stretches, negative shrinks. Each tier adds
+    /// [`Params::tier_cost`] per unit used, so a line that fits may shrink below −1; an overfull
+    /// line has a negative [`excess`](Self::excess) instead.
     pub ratio: f64,
     /// Fraction of each tier's stretch (positive) or shrink (negative) the line uses.
     pub tiers: Tiers,

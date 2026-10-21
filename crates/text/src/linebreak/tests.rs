@@ -145,7 +145,7 @@ fn lines_fit_and_cover_the_paragraph() {
                 assert!(lines.len() > 10, "{name}");
                 assert_covers(&para.items, &lines);
                 for l in &lines {
-                    assert!(l.ratio >= -1.0 - 1e-9, "{name} ragged={ragged} {l:?}");
+                    assert!(l.excess >= -p.overrun, "{name} ragged={ragged} {l:?}");
                     if ragged {
                         assert!(l.width <= 180.0 + 1e-6, "{name} {l:?}");
                     }
