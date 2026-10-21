@@ -110,6 +110,25 @@ fn every_language_is_available() {
     }
 }
 
+/// A virama doesn't split a word: the limits count the whole word, and no point falls before a
+/// mark or next to a joiner.
+#[cfg(feature = "hindi")]
+#[test]
+fn indic_word_limits_span_viramas() {
+    let hi = Lang::for_language("hi").unwrap();
+    // न म स ् क ा र: unrestricted points before म, स and र; only स has two letters on each side.
+    assert_eq!(word_breaks_in("नमस्कार", hi).0, vec![3, 6, 18]);
+    assert_eq!(hyphen_points_in("नमस्कार", &Limits::default(), hi), vec![6]);
+    for w in ["नमस्कार", "हिन्दुस्तानी", "प्रौद्योगिकी", "विश्वविद्यालय", "क्ष\u{200D}त्रिय"]
+    {
+        for p in word_breaks_in(w, hi).0 {
+            let (before, after) = w.split_at(p);
+            let (Some(x), Some(y)) = (before.chars().next_back(), after.chars().next()) else { panic!("{w} at {p}") };
+            assert!(!is_mark(y) && !is_joiner(x) && !is_joiner(y), "{w} at {p}");
+        }
+    }
+}
+
 /// Slovak's patterns are GPL-2.0-or-later: only their own feature turns them on, never
 /// `all-languages`.
 #[test]
@@ -264,6 +283,9 @@ fn linear_limits_and_heuristic_match_the_reference() {
         "école",
         "Ålesund",
         "smørrebrød",
+        "cafe\u{301}-cre\u{300}me",
+        "e\u{301}tude",
+        "नमस्कार",
         "hopes",
         "hoped",
         "taed",

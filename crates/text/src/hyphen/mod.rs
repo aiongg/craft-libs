@@ -186,8 +186,21 @@ fn is_apostrophe(c: char) -> bool {
     matches!(c, '\'' | '’' | 'ʼ')
 }
 
+/// Letters, apostrophes, and the combining marks and joiners inside a word: a virama or a
+/// decomposed accent doesn't split it.
 fn is_word_char(c: char) -> bool {
-    c.is_alphabetic() || is_apostrophe(c)
+    c.is_alphabetic() || is_apostrophe(c) || is_mark(c) || is_joiner(c)
+}
+
+/// A combining mark (general category M): it belongs to the letter before it.
+fn is_mark(c: char) -> bool {
+    use unicode_general_category::{GeneralCategory, get_general_category};
+    matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
+}
+
+/// Zero-width joiner and non-joiner, which shape the letters on both sides.
+fn is_joiner(c: char) -> bool {
+    matches!(c, '\u{200C}' | '\u{200D}')
 }
 
 /// Unrestricted break points of one lowercase core (letters and `'` only, no leading/trailing `'`).
@@ -239,7 +252,7 @@ fn core_breaks(core: &[char], lang: Lang) -> (Vec<usize>, Source) {
 /// Unrestricted break points of `word` as byte offsets (a hyphen goes before the char that starts
 /// there), handling case, apostrophes (`don't`, `’s`), surrounding punctuation and compounds (each
 /// letter run is hyphenated separately). No break is ever placed next to an apostrophe or
-/// non-letter.
+/// non-letter, before a combining mark or next to a joiner; marks and joiners don't end a run.
 pub fn word_breaks(word: &str) -> (Vec<usize>, Source) {
     word_breaks_in(word, Lang::English)
 }
@@ -283,7 +296,12 @@ fn char_breaks(word: &str, lang: Lang) -> (Vec<usize>, Source) {
         if src == Source::None {
             src = s;
         }
-        out.extend(pts.into_iter().filter(|&p| p > 0 && p < core.len() && core[p - 1] != '\'' && core[p] != '\'').map(|p| a + p));
+        // Never before a mark or next to a joiner: that would split a shaping cluster.
+        let allowed = |p: usize| match (core.get(p.wrapping_sub(1)), core.get(p)) {
+            (Some(&x), Some(&y)) => x != '\'' && y != '\'' && !is_mark(y) && !is_joiner(x) && !is_joiner(y),
+            _ => false,
+        };
+        out.extend(pts.into_iter().filter(|&p| p > 0 && allowed(p)).map(|p| a + p));
         i = j;
     }
     (out, src)

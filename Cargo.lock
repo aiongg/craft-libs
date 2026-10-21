@@ -580,6 +580,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "unicode-bidi",
  "unicode-bidi-mirroring",
+ "unicode-general-category",
  "unicode-linebreak",
  "unicode-segmentation",
 ]

@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 hypher = { version = "0.1.8", default-features = false, features = ["alloc"], optional = true }
 miniz_oxide = { version = "0.8", optional = true }
+unicode-general-category = { version = "1.1", optional = true }
 unicode-linebreak = { version = "0.1.5", optional = true }
 unicode-segmentation = { version = "1.13", optional = true }
 icu_segmenter = { version = "2.3", default-features = false, features = ["compiled_data"], optional = true }
@@ -29,7 +30,7 @@ required-features = ["generator"]
 [features]
 default = ["hyphen", "bidi", "segment", "linebreak"]
 # Hyphenation points; English (bundled dictionary and patterns) needs no further feature.
-hyphen = ["dep:hypher", "dep:miniz_oxide"]
+hyphen = ["dep:hypher", "dep:miniz_oxide", "dep:unicode-general-category"]
 # Bidirectional text: embedding levels, line reordering and mirroring (UAX #9).
 bidi = ["dep:unicode-bidi", "dep:unicode-bidi-mirroring"]
 # Line breaking on a box/glue/penalty model (Knuth–Plass, greedy, balanced); no dependencies.
