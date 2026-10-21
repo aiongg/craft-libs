@@ -16,9 +16,10 @@
 //! the UI language's own face sets the row height and its marks aren't clipped. Han, kana and
 //! Hangul sit inside the em square and fit a Latin row, so in Chinese, Japanese and Korean UIs the
 //! Latin face stays first and Latin text keeps it; [`Stack::install`] still sizes widgets to the
-//! script face's rows. Monospace always keeps its Latin face first. On the suite's egui fork, craft
-//! faces and installed text faces used as fallbacks sit on the row's baseline and rows grow to fit
-//! them by themselves; emoji and symbol faces stay centred.
+//! script face's rows. Monospace, and every family declared [`Family::monospaced`], always keeps
+//! its Latin face first. On the suite's egui fork, craft faces and installed text faces used as
+//! fallbacks sit on the row's baseline and rows grow to fit them by themselves; emoji and symbol
+//! faces stay centred.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
 //! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them. For the interface they embed
@@ -163,22 +164,23 @@ pub struct Family {
     family: FontFamily,
     weight: u16,
     lead: Option<String>,
+    monospaced: bool,
 }
 
 impl Family {
     /// A named family, e.g. `Family::named("semibold").weight(600)`.
     pub fn named(name: &str) -> Self {
-        Self { family: FontFamily::Name(name.into()), weight: 400, lead: None }
+        Self { family: FontFamily::Name(name.into()), weight: 400, lead: None, monospaced: false }
     }
 
     /// egui's proportional family.
     pub fn proportional() -> Self {
-        Self { family: FontFamily::Proportional, weight: 400, lead: None }
+        Self { family: FontFamily::Proportional, weight: 400, lead: None, monospaced: false }
     }
 
     /// egui's monospace family, e.g. to set its weight.
     pub fn monospace() -> Self {
-        Self { family: FontFamily::Monospace, weight: 400, lead: None }
+        Self { family: FontFamily::Monospace, weight: 400, lead: None, monospaced: true }
     }
 
     /// The weight (`wght`) this family's faces draw at: bold craft faces are used from 600 up, and
@@ -192,6 +194,14 @@ impl Family {
     /// right-to-left runs an app shapes itself.
     pub fn script(mut self, script: &str) -> Self {
         self.lead = Some(script.to_owned());
+        self
+    }
+
+    /// Lay the family out as egui's monospace one, e.g. `Family::named("mono").monospaced()` for
+    /// an app's own code face: its app face stays first in every UI language, and a family without
+    /// app faces starts with egui's monospace faces.
+    pub fn monospaced(mut self) -> Self {
+        self.monospaced = true;
         self
     }
 }
@@ -370,7 +380,8 @@ impl<'a> UiFonts<'a> {
         };
         let defaults = FontDefinitions::default();
         for family in self.family_specs() {
-            let default_chain = defaults.families.get(&family.family).or_else(|| defaults.families.get(&FontFamily::Proportional));
+            let default_family = if family.monospaced { &FontFamily::Monospace } else { &family.family };
+            let default_chain = defaults.families.get(default_family).or_else(|| defaults.families.get(&FontFamily::Proportional));
             let egui_faces: Vec<Face> = default_chain
                 .into_iter()
                 .flatten()
@@ -404,7 +415,7 @@ impl<'a> UiFonts<'a> {
         let mut specs = vec![Family::proportional(), Family::monospace()];
         for family in self.app_faces.iter().flat_map(|f| &f.families) {
             if !specs.iter().any(|s| s.family == *family) {
-                specs.push(Family { family: family.clone(), weight: 400, lead: None });
+                specs.push(Family { family: family.clone(), weight: 400, lead: None, monospaced: false });
             }
         }
         for declared in &self.families {
@@ -423,7 +434,7 @@ impl<'a> UiFonts<'a> {
         let ui_scripts = expand(&self.scripts.scripts(&self.ui_language));
         let ui_han = self.han(&self.ui_language);
 
-        let app = self.app_faces_for(&family.family);
+        let app = self.app_faces_for(family);
         let own_faces = !app.is_empty();
         let (base, egui_tail) = if own_faces { (app, egui_faces) } else { (egui_faces, Vec::new()) };
         // egui's default faces cover the scripts app faces are assumed to.
@@ -453,7 +464,7 @@ impl<'a> UiFonts<'a> {
         others.extend(rest.into_iter().map(|(_, i)| i));
 
         let main_needs_lead = ui_scripts.first().is_some_and(|main| !covers(main) && !EM_SQUARE_SCRIPTS.contains(&main.as_str()));
-        let language_first = family.family != FontFamily::Monospace && main_needs_lead;
+        let language_first = !family.monospaced && main_needs_lead;
         let craft = |indices: Vec<usize>| indices.into_iter().map(|i| self.craft_face(i)).collect::<Vec<_>>();
         let script = language.first().map(|i| self.craft_face(*i));
         let base_face = base.first().cloned();
@@ -479,8 +490,9 @@ impl<'a> UiFonts<'a> {
         Chain { configured, after, base: base_face, script }
     }
 
-    /// The app faces heading `family`; a named family without its own takes the proportional ones.
-    fn app_faces_for(&self, family: &FontFamily) -> Vec<Face> {
+    /// The app faces heading `family`; a named family without its own takes the monospace ones
+    /// if it is [`Family::monospaced`], the proportional ones otherwise.
+    fn app_faces_for(&self, family: &Family) -> Vec<Face> {
         let faces = |family: &FontFamily| -> Vec<Face> {
             self.app_faces
                 .iter()
@@ -488,8 +500,9 @@ impl<'a> UiFonts<'a> {
                 .map(|face| Face { name: face.name.clone(), data: face.data.clone() })
                 .collect()
         };
-        match faces(family) {
-            own if !own.is_empty() || !matches!(family, FontFamily::Name(_)) => own,
+        match faces(&family.family) {
+            own if !own.is_empty() || !matches!(family.family, FontFamily::Name(_)) => own,
+            _ if family.monospaced => faces(&FontFamily::Monospace),
             _ => faces(&FontFamily::Proportional),
         }
     }
