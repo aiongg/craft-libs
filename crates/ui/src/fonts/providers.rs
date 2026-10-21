@@ -144,6 +144,16 @@ impl FaceList {
         self.faces.contains_key(name)
     }
 
+    /// The data of the face called `name`, with its tweak.
+    pub fn get(&self, name: &str) -> Option<&FontData> {
+        self.faces.get(name)
+    }
+
+    /// Every face in the list with its name, in name order.
+    pub fn faces(&self) -> impl Iterator<Item = (&str, &FontData)> {
+        self.faces.iter().map(|(name, data)| (name.as_str(), data))
+    }
+
     /// Remove the face called `name` and drop it from every chain.
     pub fn remove(&mut self, name: &str) {
         self.faces.remove(name);

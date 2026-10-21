@@ -253,6 +253,9 @@ app configures its own faces, a preferred face per script, extra named families 
 family, a family led by Arabic for the runs it shapes itself), emoji faces, and whether system
 fonts come before or after the craft faces for other scripts. `UiFonts::stack` returns a `Stack`
 whose chains the app can still edit (`insert`, `replace`, `remove`) before `Stack::install`.
+`Stack::after_system` (a `FaceList`) holds the faces asked after the system fonts, readable with
+`get` and `faces`; `Stack::flat_definitions` appends them to each chain, for a context that takes
+its fonts only through `set_fonts`.
 
 `fonts::I18nScripts` reads each language's scripts and Han forms from craft-i18n; an app with its
 own table implements `fonts::LanguageScripts` instead.

@@ -721,6 +721,25 @@ impl Stack {
         scripts.iter().filter_map(|s| coverage::script_sample(s)).flat_map(str::chars).all(|c| fonts.has_glyph(&font_id, c))
     }
 
+    /// The stack as one set of definitions, without providers: each family's chain followed by the
+    /// faces asked after the system fonts (emoji and egui's default faces), for a context or
+    /// [`Fonts`] that takes fonts only through `set_fonts`.
+    pub fn flat_definitions(&self) -> FontDefinitions {
+        let mut definitions = self.checked_definitions();
+        let FontDefinitions { font_data, families, .. } = &mut definitions;
+        for (family, chain) in families {
+            for name in self.after_system.chain(family) {
+                if let Some(data) = self.after_system.get(name)
+                    && !chain.contains(name)
+                {
+                    font_data.entry(name.clone()).or_insert_with(|| Arc::new(data.clone()));
+                    chain.push(name.clone());
+                }
+            }
+        }
+        definitions
+    }
+
     /// An epaint [`Fonts`] with this stack, for tests and measurement. `with_system` adds the
     /// system font provider.
     pub fn fonts(&self, with_system: bool) -> Fonts {

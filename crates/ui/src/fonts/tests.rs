@@ -244,6 +244,23 @@ fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
 }
 
 #[test]
+fn flat_definitions_end_each_chain_with_the_faces_after_the_system_fonts() {
+    let stack = test_fonts("en").emoji(Emoji { monochrome: Some(FontData::from_static(CJK)), ..Emoji::default() }).stack();
+    let after: Vec<String> = stack.after_system.chain(&FontFamily::Proportional).to_vec();
+    assert!(after.iter().any(|n| n == "egui-icons") && after.iter().any(|n| n == "emoji-monochrome"), "{after:?}");
+    let names: Vec<&str> = stack.after_system.faces().map(|(name, _)| name).collect();
+    assert!(after.iter().all(|n| names.contains(&n.as_str())), "{names:?}");
+    assert_eq!(stack.after_system.get("emoji-monochrome").map(|d| d.bytes().len()), Some(CJK.len()));
+
+    let flat = stack.flat_definitions();
+    let chain = &flat.families[&FontFamily::Proportional];
+    assert_eq!(chain[..stack.chain(&FontFamily::Proportional).len()], *stack.chain(&FontFamily::Proportional));
+    assert!(chain.ends_with(&after), "{chain:?}");
+    assert!(chain.iter().all(|n| flat.font_data.contains_key(n)));
+    assert!(flat.families[&FontFamily::Monospace].ends_with(stack.after_system.chain(&FontFamily::Monospace)));
+}
+
+#[test]
 fn face_list_prefers_a_face_with_the_whole_cluster() {
     let defaults = FontDefinitions::default();
     let mut faces = FaceList::default();
