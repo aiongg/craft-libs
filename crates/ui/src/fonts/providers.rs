@@ -27,7 +27,7 @@ pub fn set_weight(data: &mut FontData, weight: u16) -> bool {
     true
 }
 
-/// Wraps a font provider, usually egui's system font provider, so variable faces it finds draw
+/// Wraps a font provider, usually the system font provider, so variable faces it finds draw
 /// at each family's weight (regular, 400, unless set with [`Self::with_weight`]).
 pub struct RegularWeight {
     inner: Arc<dyn FontProvider>,
@@ -71,6 +71,45 @@ fn weighted(mut insert: FontInsert, weight: u16) -> FontInsert {
     insert
 }
 
+/// Wraps the system font provider so the text faces it finds sit on the row's baseline as
+/// fallbacks, as craft faces do. Emoji and symbol faces stay centred in the row.
+pub(super) struct OnBaseline(pub(super) Arc<dyn FontProvider>);
+
+impl FontProvider for OnBaseline {
+    fn fonts_for_family(&self, family: &FontFamily) -> Vec<FontInsert> {
+        self.0.fonts_for_family(family).into_iter().map(on_baseline).collect()
+    }
+
+    fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
+        self.0.font_for(request).map(on_baseline)
+    }
+}
+
+fn on_baseline(mut insert: FontInsert) -> FontInsert {
+    if is_text_face(&insert.name, &insert.data) {
+        #[allow(unused_imports, reason = "unused when egui has the inherent method")]
+        use super::SetBaselineFallback as _;
+        insert.data.tweak.set_baseline_fallback(true);
+    }
+    insert
+}
+
+/// Whether a face draws text rather than emoji or symbols: it has no colour glyphs, and neither
+/// its egui name nor its family name says emoji or symbols.
+pub(super) fn is_text_face(name: &str, data: &FontData) -> bool {
+    let pictorial = |name: &str| {
+        let name = name.to_lowercase();
+        ["emoji", "symbol"].iter().any(|word| name.contains(word))
+    };
+    if pictorial(name) {
+        return false;
+    }
+    let Ok(font) = skrifa::FontRef::from_index(data.bytes(), data.index) else { return true };
+    let colour = [b"COLR", b"CBDT", b"sbix", b"SVG "].iter().any(|tag| font.table_data(skrifa::Tag::new(tag)).is_some());
+    let family = font.localized_strings(skrifa::string::StringId::FAMILY_NAME).english_or_first().map(|s| s.to_string());
+    !colour && !family.is_some_and(|family| pictorial(&family))
+}
+
 /// Embedded faces asked in order, per family, for a character no earlier face or provider has.
 #[derive(Clone, Default)]
 pub struct FaceList {
@@ -108,6 +147,16 @@ impl FaceList {
     /// Whether the list has data for the face called `name`.
     pub fn contains(&self, name: &str) -> bool {
         self.faces.contains_key(name)
+    }
+
+    /// The data of the face called `name`, with its tweak.
+    pub fn get(&self, name: &str) -> Option<&FontData> {
+        self.faces.get(name)
+    }
+
+    /// Every face in the list with its name, in name order.
+    pub fn faces(&self) -> impl Iterator<Item = (&str, &FontData)> {
+        self.faces.iter().map(|(name, data)| (name.as_str(), data))
     }
 
     /// Remove the face called `name` and drop it from every chain.
@@ -155,4 +204,30 @@ impl FontProvider for Installed {
 /// Whether the face's character map has `c`.
 pub(super) fn has_char(data: &FontData, c: char) -> bool {
     skrifa::FontRef::from_index(data.bytes(), data.index).is_ok_and(|font| font.charmap().map(c).is_some())
+}
+
+/// The font providers last set by [`set_font_providers`], for [`reload_font_providers`].
+#[derive(Clone)]
+struct ContextProviders(Vec<Arc<dyn FontProvider>>);
+
+fn providers_id() -> egui::Id {
+    egui::Id::unique("craft_ui::fonts::providers")
+}
+
+/// Set `ctx`'s font providers and remember them for [`reload_font_providers`].
+pub(super) fn set_font_providers(ctx: &egui::Context, providers: Vec<Arc<dyn FontProvider>>) {
+    ctx.data_mut(|d| d.insert_temp(providers_id(), ContextProviders(providers.clone())));
+    ctx.set_font_providers(providers);
+}
+
+/// Set `ctx`'s providers again, so egui forgets the characters they had no font for and repaints.
+#[cfg_attr(
+    not(all(feature = "system_fonts", not(target_arch = "wasm32"))),
+    allow(dead_code, reason = "called when the shared system font index is built, and in its tests")
+)]
+pub(super) fn reload_font_providers(ctx: &egui::Context) {
+    let providers: Option<ContextProviders> = ctx.data(|d| d.get_temp(providers_id()));
+    if let Some(ContextProviders(providers)) = providers {
+        ctx.set_font_providers(providers);
+    }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily};
+use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily, TextStyle};
 
 const ARABIC: &[u8] = include_bytes!("../../tests/fonts/NotoSansArabic-test.ttf");
 const CJK: &[u8] = include_bytes!("../../tests/fonts/NotoSansCJKsc-test.otf");
@@ -184,6 +184,13 @@ fn test_fonts(ui_language: &str) -> UiFonts<'static> {
 }
 
 #[test]
+fn craft_faces_come_from_embedded_faces() {
+    let embedded = craft_fonts_build::EmbeddedFace { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], index: 2, bytes: ARABIC };
+    let face = CraftFace::from(embedded);
+    assert_eq!((face.name().as_str(), face.scripts, face.index, face.bytes.len()), ("Noto Sans Arabic Regular", &["Arab"][..], 2, ARABIC.len()));
+}
+
+#[test]
 fn coverage_names_language_string_and_character() {
     let stack = test_stack("en");
     let samples = [
@@ -206,6 +213,29 @@ fn coverage_names_language_string_and_character() {
 }
 
 #[test]
+fn a_latin_ui_takes_letters_its_face_lacks_from_a_latin_craft_face() {
+    const NOTO_SANS: &[u8] = include_bytes!("../../tests/fonts/NotoSans-test.ttf");
+    let cjk = CraftFace { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 };
+    let noto_sans = CraftFace { family: "Noto Sans", style: "Regular", scripts: &["Latn", "Cyrl", "Grek", "Deva"], bytes: NOTO_SANS, index: 0 };
+    let defaults = FontDefinitions::default();
+    let ubuntu = defaults.font_data.get("Ubuntu-Light").expect("egui default_fonts in dev-dependencies");
+    assert!(!providers::has_char(ubuntu, 'ổ') && !providers::has_char(ubuntu, 'ạ'));
+    let vietnamese = [Sample { language: "vi", key: "menu.file", text: "Tiếng Việt ổ ư ạ" }];
+    let stack = |faces: &[CraftFace]| {
+        UiFonts::new(&I18nScripts).craft_faces(faces).languages(&["en", "vi", "zh-CN"]).ui_language("vi").system_fonts(SystemFonts::Off).stack()
+    };
+
+    let without = stack(&[cjk]);
+    assert!(missing_glyphs(&without, &FontFamily::Proportional, vietnamese, false).iter().any(|m| m.character == 'ổ'));
+    let with = stack(&[cjk, noto_sans]);
+    assert_covers(&with, vietnamese);
+    // Noto Sans CJK has Vietnamese letters too, at CJK proportions: Noto Sans comes first.
+    let chain = with.chain(&FontFamily::Proportional);
+    let at = |name: &str| chain.iter().position(|n| n == name).unwrap_or(usize::MAX);
+    assert!(at("Ubuntu-Light") < at("Noto Sans Regular") && at("Noto Sans Regular") < at("Noto Sans CJK SC Regular"), "{chain:?}");
+}
+
+#[test]
 fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
     let arabic = [Sample { language: "ar", key: "menu.file", text: "ملف" }];
     let stack = || test_fonts("en").system_fonts(SystemFonts::BeforeCraft).stack();
@@ -221,6 +251,23 @@ fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
 }
 
 #[test]
+fn flat_definitions_end_each_chain_with_the_faces_after_the_system_fonts() {
+    let stack = test_fonts("en").emoji(Emoji { monochrome: Some(FontData::from_static(CJK)), ..Emoji::default() }).stack();
+    let after: Vec<String> = stack.after_system.chain(&FontFamily::Proportional).to_vec();
+    assert!(after.iter().any(|n| n == "egui-icons") && after.iter().any(|n| n == "emoji-monochrome"), "{after:?}");
+    let names: Vec<&str> = stack.after_system.faces().map(|(name, _)| name).collect();
+    assert!(after.iter().all(|n| names.contains(&n.as_str())), "{names:?}");
+    assert_eq!(stack.after_system.get("emoji-monochrome").map(|d| d.bytes().len()), Some(CJK.len()));
+
+    let flat = stack.flat_definitions();
+    let chain = &flat.families[&FontFamily::Proportional];
+    assert_eq!(chain[..stack.chain(&FontFamily::Proportional).len()], *stack.chain(&FontFamily::Proportional));
+    assert!(chain.ends_with(&after), "{chain:?}");
+    assert!(chain.iter().all(|n| flat.font_data.contains_key(n)));
+    assert!(flat.families[&FontFamily::Monospace].ends_with(stack.after_system.chain(&FontFamily::Monospace)));
+}
+
+#[test]
 fn face_list_prefers_a_face_with_the_whole_cluster() {
     let defaults = FontDefinitions::default();
     let mut faces = FaceList::default();
@@ -233,6 +280,27 @@ fn face_list_prefers_a_face_with_the_whole_cluster() {
     // Only Hack has U+0301 COMBINING ACUTE ACCENT, and neither has U+0302.
     assert_eq!(face("a\u{0301}").as_deref(), Some("Hack"));
     assert_eq!(face("a\u{0302}").as_deref(), Some("Ubuntu-Light"));
+}
+
+#[test]
+fn installed_text_faces_sit_on_the_baseline_but_emoji_and_symbols_do_not() {
+    fn patched(edits: &[(&[u8], &[u8])]) -> FontData {
+        let mut bytes = ARABIC.to_vec();
+        for (from, to) in edits {
+            let at = bytes.windows(from.len()).position(|w| w == *from).expect("in the test face");
+            bytes[at..at + to.len()].copy_from_slice(to);
+        }
+        FontData::from_owned(bytes)
+    }
+    let utf16 = |s: &str| s.encode_utf16().flat_map(u16::to_be_bytes).collect::<Vec<u8>>();
+    let name = "system-fallback";
+    assert!(providers::is_text_face(name, &FontData::from_static(ARABIC)));
+    // A face with colour glyphs: the table directory names a COLR table.
+    assert!(!providers::is_text_face(name, &patched(&[(b"post", b"COLR")])));
+    // By the face's own family name, "Noto Sans Symbol", whatever the provider calls it.
+    let (arabic, symbol) = (utf16("Arabic"), utf16("Symbol"));
+    assert!(!providers::is_text_face(name, &patched(&[(&arabic, &symbol)])));
+    assert!(!providers::is_text_face("system:Segoe UI Emoji:0:0", &FontData::from_static(ARABIC)));
 }
 
 #[test]
@@ -260,19 +328,46 @@ fn variable_faces_draw_at_regular_weight() {
 }
 
 #[test]
-fn widgets_grow_to_the_ui_language_row_height() {
+fn widgets_grow_by_how_much_taller_the_script_face_rows_are() {
     let mut style = Style::default();
+    style.spacing.button_padding.y = 5.0;
     let before = style.spacing.interact_size.y;
     test_stack("en").fit_interact_size(&mut style);
-    assert_eq!(style.spacing.interact_size.y, before, "Latin rows fit egui's default");
+    assert_eq!(style.spacing.interact_size.y, before, "Latin rows keep the theme's height, whatever its padding");
 
-    let stack = test_stack("ar");
-    stack.fit_interact_size(&mut style);
-    let mut fonts = stack.fonts(false);
     let body = style.text_styles.get(&TextStyle::Body).cloned().expect("body style");
-    let row = fonts.with_pixels_per_point(1.0).row_height(&body);
-    assert!(row + 2.0 * style.spacing.button_padding.y > before, "Arabic rows are taller");
-    assert!(style.spacing.interact_size.y >= row + 2.0 * style.spacing.button_padding.y);
+    let row = |stack: &Stack| stack.fonts(false).with_pixels_per_point(1.0).row_height(&body);
+    let arabic = test_stack("ar");
+    let extra = row(&arabic) - row(&test_stack("en"));
+    assert!(extra > 0.0, "Arabic rows are taller");
+    arabic.fit_interact_size(&mut style);
+    assert!((style.spacing.interact_size.y - (before + extra)).abs() < 0.01, "{} + {extra}", before);
+}
+
+#[test]
+fn the_fit_is_the_same_whether_the_theme_comes_before_or_after_install() {
+    let theme = |ctx: &egui::Context| {
+        ctx.all_styles_mut(|s| {
+            s.spacing.interact_size.y = 20.0;
+            s.spacing.button_padding.y = 5.0;
+        });
+    };
+    let pass = |ctx: &egui::Context| ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    let height = |ctx: &egui::Context| ctx.style_of(egui::Theme::Dark).spacing.interact_size.y;
+    for language in ["en", "ar"] {
+        let before = egui::Context::default();
+        theme(&before);
+        test_stack(language).install(&before);
+        let after = egui::Context::default();
+        test_stack(language).install(&after);
+        theme(&after);
+        pass(&after);
+        assert_eq!(height(&after), height(&before), "{language}");
+        assert_eq!(height(&after) == 20.0, language == "en", "{language}: {}", height(&after));
+        // Passes without a new theme leave the fit as it is.
+        pass(&after);
+        assert_eq!(height(&after), height(&before), "{language}");
+    }
 }
 
 #[test]
@@ -333,6 +428,16 @@ fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
 fn the_system_provider_is_shared_per_locale() {
     let (a, b) = (system_font_provider("ja"), system_font_provider("ja"));
     assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
+}
+
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
+fn every_locale_asks_one_index_of_the_installed_fonts() {
+    let request = FallbackRequest { cluster: "ب", family: &FontFamily::Proportional };
+    for locale in ["ja", "ar", "zh-CN"] {
+        system_font_provider(locale).and_then(|provider| provider.font_for(&request));
+    }
+    assert_eq!(system_index::BUILDS.load(std::sync::atomic::Ordering::Relaxed), 1);
 }
 
 #[test]
