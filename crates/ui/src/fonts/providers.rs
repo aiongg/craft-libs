@@ -71,6 +71,45 @@ fn weighted(mut insert: FontInsert, weight: u16) -> FontInsert {
     insert
 }
 
+/// Wraps the system font provider so the text faces it finds sit on the row's baseline as
+/// fallbacks, as craft faces do. Emoji and symbol faces stay centred in the row.
+pub(super) struct OnBaseline(pub(super) Arc<dyn FontProvider>);
+
+impl FontProvider for OnBaseline {
+    fn fonts_for_family(&self, family: &FontFamily) -> Vec<FontInsert> {
+        self.0.fonts_for_family(family).into_iter().map(on_baseline).collect()
+    }
+
+    fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
+        self.0.font_for(request).map(on_baseline)
+    }
+}
+
+fn on_baseline(mut insert: FontInsert) -> FontInsert {
+    if is_text_face(&insert.name, &insert.data) {
+        #[allow(unused_imports, reason = "unused when egui has the inherent method")]
+        use super::SetBaselineFallback as _;
+        insert.data.tweak.set_baseline_fallback(true);
+    }
+    insert
+}
+
+/// Whether a face draws text rather than emoji or symbols: it has no colour glyphs, and neither
+/// its egui name nor its family name says emoji or symbols.
+pub(super) fn is_text_face(name: &str, data: &FontData) -> bool {
+    let pictorial = |name: &str| {
+        let name = name.to_lowercase();
+        ["emoji", "symbol"].iter().any(|word| name.contains(word))
+    };
+    if pictorial(name) {
+        return false;
+    }
+    let Ok(font) = skrifa::FontRef::from_index(data.bytes(), data.index) else { return true };
+    let colour = [b"COLR", b"CBDT", b"sbix", b"SVG "].iter().any(|tag| font.table_data(skrifa::Tag::new(tag)).is_some());
+    let family = font.localized_strings(skrifa::string::StringId::FAMILY_NAME).english_or_first().map(|s| s.to_string());
+    !colour && !family.is_some_and(|family| pictorial(&family))
+}
+
 /// Embedded faces asked in order, per family, for a character no earlier face or provider has.
 #[derive(Clone, Default)]
 pub struct FaceList {

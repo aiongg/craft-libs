@@ -259,6 +259,27 @@ fn face_list_prefers_a_face_with_the_whole_cluster() {
 }
 
 #[test]
+fn installed_text_faces_sit_on_the_baseline_but_emoji_and_symbols_do_not() {
+    fn patched(edits: &[(&[u8], &[u8])]) -> FontData {
+        let mut bytes = ARABIC.to_vec();
+        for (from, to) in edits {
+            let at = bytes.windows(from.len()).position(|w| w == *from).expect("in the test face");
+            bytes[at..at + to.len()].copy_from_slice(to);
+        }
+        FontData::from_owned(bytes)
+    }
+    let utf16 = |s: &str| s.encode_utf16().flat_map(u16::to_be_bytes).collect::<Vec<u8>>();
+    let name = "system-fallback";
+    assert!(providers::is_text_face(name, &FontData::from_static(ARABIC)));
+    // A face with colour glyphs: the table directory names a COLR table.
+    assert!(!providers::is_text_face(name, &patched(&[(b"post", b"COLR")])));
+    // By the face's own family name, "Noto Sans Symbol", whatever the provider calls it.
+    let (arabic, symbol) = (utf16("Arabic"), utf16("Symbol"));
+    assert!(!providers::is_text_face(name, &patched(&[(&arabic, &symbol)])));
+    assert!(!providers::is_text_face("system:Segoe UI Emoji:0:0", &FontData::from_static(ARABIC)));
+}
+
+#[test]
 fn variable_faces_draw_at_regular_weight() {
     // The Arabic test face's default instance is Thin (100), like many variable system fonts.
     let thin = || FontData::from_static(ARABIC);

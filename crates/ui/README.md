@@ -238,13 +238,14 @@ face, centred in the row. The app's theme sets the minimum widget height for row
 face; when the UI language's script face has taller rows, `install` adds the difference to the
 theme's height, and takes it off again when a later install needs less. The theme's height and
 padding stay the app's: a theme applied after `install` is fitted at the start of the next pass,
-so the result doesn't depend on which comes first. On the suite's
-patched egui (`FontTweak::set_baseline_fallback`, which craft faces turn on), fallback glyphs sit
-on the row's baseline and rows grow to fit them by themselves; with crates.io egui they are
-centred and the widget fit above is what keeps them inside. Monospace
-keeps the app's or egui's mono face first. Han characters take the regional face the language
-needs: `zh-TW` gets the Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong
-Kong face first; `ja` the Japanese face; `ko` the Korean one.
+so the result doesn't depend on which comes first. On the suite's patched egui
+(`FontTweak::set_baseline_fallback`, which craft faces and installed text faces turn on), fallback
+glyphs sit on the row's baseline and rows grow to fit them by themselves; emoji and symbol faces
+(colour glyphs, or "Emoji" or "Symbol" in the name) stay centred. With crates.io egui all fallbacks
+are centred and the widget fit above is what keeps them inside. Monospace keeps the app's or egui's
+mono face first. Han characters take the regional face the language needs: `zh-TW` gets the
+Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong Kong face first; `ja` the
+Japanese face; `ko` the Korean one.
 
 The app keeps its font files: its `build.rs` embeds the craft-fonts faces it wants from
 `fonts/manifest.txt` as `fonts::CraftFace` values, and craft-ui never depends on craft-fonts. The
