@@ -251,12 +251,13 @@ The app keeps its font files: its `build.rs` embeds the craft-fonts faces it wan
 `fonts/manifest.txt` with `craft-fonts-build`, and craft-ui never depends on craft-fonts. A crate
 below the UI (an app's engine or font crate, without egui) holds the table as
 `craft_fonts_build::EmbeddedFace` values (storytold/craft-libs#213), and the UI converts each into
-a `fonts::CraftFace` with `From`. Apps embed with `Embed::for_ui()`, which takes the CJK faces as
-craft-fonts' UI subsets (`Noto Sans TC UI`, `BIZ UDPGothic UI`, about 4 MB for all five), cut to
-the characters the translation catalogs use. A character a subset lacks, such as one in a file
-name, comes from another region's subset that has it, then from the installed system fonts;
-`Embed::check_text` warns at build time when a catalog has such characters. Preferences name the
-full family (`BIZ UDPGothic`) and also apply to its UI subset.
+a `fonts::CraftFace` with `From`. Apps embed with `Embed::subset_to(catalogs)`, which takes the
+CJK faces as craft-fonts' interface faces (`Noto Sans TC UI`, BIZ UDPGothic Regular) and cuts them
+at build time to the characters the translation catalogs use (about 3 MB for all five with
+FilmCraft's catalogs). A character a cut face lacks, such as one in a file name, comes from
+another region's interface face that has it, then from the installed system fonts; the build
+warns when a catalog has characters no embedded face covers. Preferences name the full family
+(`Noto Sans TC`) and also apply to its interface face (`Noto Sans TC UI`).
 
 The app configures its own faces, a preferred face per script, extra named families (a semibold
 family, a family led by Arabic for the runs it shapes itself), emoji faces, and whether system
