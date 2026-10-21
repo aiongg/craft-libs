@@ -65,6 +65,31 @@ pub static CRAFT_FONTS: &[EmbeddedFace] = include!(concat!(env!("OUT_DIR"), "/cr
 present". The generated file is a slice expression of `EmbeddedFace { family, style, scripts,
 index, bytes }` literals; any struct with those fields and that name in scope works too.
 
+## Serving the faces (web builds)
+
+`Embed::serve(dir, url_prefix)` copies the selected faces into `dir` instead of embedding them,
+and writes a table of `ServedFace { family, style, scripts, index, url, size, integrity }`
+literals for the app to fetch at run time (craft-ui's `fonts::UiFonts::served_faces` does). Each
+font file and its licence keep their path under the checkout's `fonts/` directory, and `url` is
+`url_prefix` plus that path: `serve("web/fonts", "fonts/")` copies
+`fonts/noto-sans-arabic/NotoSansArabic.ttf` to `web/fonts/noto-sans-arabic/NotoSansArabic.ttf`, with
+the URL `fonts/noto-sans-arabic/NotoSansArabic.ttf`. Faces of one collection share a file and a
+URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value. A relative `dir` is
+under the package directory. Files already there with the right size are not copied again, a deleted
+one is copied again on the next build, and files of faces no longer selected stay.
+
+```rust
+let fonts = craft_fonts_build::Embed::new();
+let written = if craft_fonts_build::target_is_wasm() {
+    fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")
+} else {
+    fonts.write("craft_fonts.rs")
+};
+```
+
+The crate includes the table as `&[ServedFace]` on wasm and `&[EmbeddedFace]` elsewhere. craft-ui's
+README shows a whole eframe web app, Trunk copy included.
+
 ## The manifest
 
 One face per line, eight fields separated by `" | "`; craft-fonts' `docs/integration.md` defines

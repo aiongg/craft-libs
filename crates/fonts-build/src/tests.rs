@@ -139,3 +139,53 @@ fn embedded_face_helpers() {
     let weights: Vec<u16> = ["Regular", "Bold", "SemiBold", "Extra Light", "Black Italic", "Italic"].map(|s| face(s).weight()).into();
     assert_eq!(weights, [400, 700, 600, 200, 900, 400]);
 }
+
+#[test]
+fn serve_copies_the_selected_faces_and_writes_urls() {
+    let scratch = Scratch::new("serve");
+    let served = scratch.0.join("dist/fonts");
+    let env = Env { dir: Some(fixture().into()), required: Some("1".into()), out_dir: Some(scratch.0.clone().into()) };
+    let embed = Embed::new().scripts(&["Jpan", "Hant"]).filter(|f| f.style == "Regular").serve(&served, "fonts/");
+    let mut cargo = Vec::new();
+    let names: Vec<String> =
+        embed.run(&env, Path::new("craft_fonts.rs"), &mut cargo).unwrap().iter().map(|f| format!("{} {}", f.family, f.style)).collect();
+    assert_eq!(names, ["Sans JP Regular", "Sans CJK TC Regular", "Sans CJK HK Regular"]);
+
+    let read = |path: &str| std::fs::read(served.join(path)).unwrap();
+    assert_eq!(read("sans-jp/SansJP-Regular.ttf"), std::fs::read(fixture().join("fonts/sans-jp/SansJP-Regular.ttf")).unwrap());
+    assert_eq!(read("sans-cjk/SansCJK.ttc").len(), 28);
+    assert_eq!(read("sans-jp/OFL.txt"), b"Fixture licence text.\n");
+    assert!(!served.join("sans-jp/SansJP-Bold.ttf").exists() && !served.join("sans-arabic").exists());
+    // Cargo copies a deleted file again, and doesn't rerun for files it just copied.
+    assert!(cargo.contains(&format!("cargo::rerun-if-changed={}", served.join("sans-jp/SansJP-Regular.ttf").display())), "{cargo:?}");
+    assert!(cargo.contains(&format!("cargo::rerun-if-changed={}", served.join("sans-jp/OFL.txt").display())), "{cargo:?}");
+    let modified = |path: &Path| std::fs::metadata(path).unwrap().modified().unwrap();
+    assert_eq!(modified(&served.join("sans-jp/SansJP-Regular.ttf")), modified(&fixture().join("fonts/sans-jp/SansJP-Regular.ttf")));
+
+    let table = std::fs::read_to_string(scratch.0.join("craft_fonts.rs")).unwrap();
+    assert!(!table.contains("include_bytes!"), "{table}");
+    assert!(
+        table.contains(
+            "ServedFace { family: \"Sans JP\", style: \"Regular\", scripts: &[\"Jpan\", \"Latn\"], index: 0, url: \"fonts/sans-jp/SansJP-Regular.ttf\", size: 24, integrity: \"sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=\" }"
+        ),
+        "{table}"
+    );
+    // Both faces of the collection name the one served file.
+    assert_eq!(table.matches("url: \"fonts/sans-cjk/SansCJK.ttc\"").count(), 2, "{table}");
+
+    // Without a checkout the table is empty and nothing is copied.
+    let env = Env { dir: None, required: None, out_dir: Some(scratch.0.clone().into()) };
+    let empty = scratch.0.join("empty");
+    assert!(Embed::new().serve(&empty, "fonts/").run(&env, Path::new("craft_fonts.rs"), &mut cargo).unwrap().is_empty());
+    assert_eq!(std::fs::read_to_string(scratch.0.join("craft_fonts.rs")).unwrap().trim(), "&[]");
+    assert!(!empty.exists());
+}
+
+#[test]
+fn integrity_is_base64_of_the_hex_hash() {
+    use crate::embed::integrity;
+    assert_eq!(integrity("c9d08ef1fc69f15e87ce52bda8a9c24714e4125daf7e50a40edb1aa2be10dff1"), "sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=");
+    for bad in ["", "00", "zz08ef1fc69f15e87ce52bda8a9c24714e4125daf7e50a40edb1aa2be10dff1"] {
+        assert_eq!(integrity(bad), "", "{bad:?}");
+    }
+}
