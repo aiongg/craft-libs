@@ -142,13 +142,20 @@ pub fn knuth_plass(items: &[Item], width: &dyn Fn(usize) -> f64, p: &Params) -> 
             && let Some(a) = last_removed
             && let Some(n) = nodes.get(a)
         {
-            best.push(Candidate {
-                line: (n.line + 1).min(p.uniform_from),
-                fitness: 0,
-                hyphens: 0,
-                demerits: n.demerits + OVERFULL_DEMERITS,
-                from: a,
-            });
+            // An overfull line ending here would leave the next line empty up to a forced break:
+            // end it at that forced break instead.
+            let empty_next = !forced && s.items.get(s.next_start(b)).is_some_and(Item::is_forced);
+            if empty_next {
+                keep.push(a);
+            } else {
+                best.push(Candidate {
+                    line: (n.line + 1).min(p.uniform_from),
+                    fitness: 0,
+                    hyphens: 0,
+                    demerits: n.demerits + OVERFULL_DEMERITS,
+                    from: a,
+                });
+            }
         }
         std::mem::swap(&mut active, &mut keep);
         if item.is_some_and(|i| i.kind == Kind::Glue) {

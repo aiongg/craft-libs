@@ -448,3 +448,17 @@ fn lines_never_end_before_they_start() {
     assert!(lines.iter().all(|l| l.start <= l.end && l.end <= l.next), "{lines:?}");
     assert_covers(&items, &lines);
 }
+
+fn spans(lines: &[Line]) -> Vec<(usize, usize)> {
+    lines.iter().map(|l| (l.start, l.end)).collect()
+}
+
+/// A final word wider than the measure is one overfull line: the fill before the forced break
+/// doesn't end it and leave an empty line. Consecutive forced breaks still make an empty line.
+#[test]
+fn an_overlong_last_word_adds_no_empty_line() {
+    let fill = [Item::boxed(20.0), Item::fill(), Item::forced()];
+    assert_eq!(spans(&break_paragraph(&fill, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 2)]);
+    let forced = [Item::boxed(20.0), Item::forced(), Item::forced()];
+    assert_eq!(spans(&break_paragraph(&forced, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 1), (2, 2)]);
+}
