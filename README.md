@@ -33,6 +33,10 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-docpath`](crates/docpath/src/lib.rs): decides whether a path or `file:` URL stored in a
   document may be opened. Paths stored in documents are followed only when they are local or on the
   document's own network share; other network paths, device paths and non-file URLs are refused.
+- [`craft-font-catalog`](crates/font-catalog/README.md): the installed fonts on every platform
+  (font folders, fontconfig and Flatpak host folders, CoreText, DirectWrite, the font store),
+  lookup by family, style, localized, legacy, full and PostScript names, family loads shared
+  between threads, and rescans when fonts are installed or removed.
 - [`craft-i18n`](crates/i18n/README.md): translations over the embedded craft-i18n catalogs:
   lookup with fallback (`pt-br` → `pt` → English), plurals, language names, the system locale and
   a pseudo locale. The catalogs stay a fully optional build input; apps keep `tl!` and their
