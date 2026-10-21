@@ -1,5 +1,5 @@
 use super::*;
-use egui::{Context, Event, ImeEvent, Key, Modifiers, PointerButton, RawInput, Rect, pos2, vec2};
+use egui::{Context, Event, IMEPurpose, ImeEvent, Key, Modifiers, PointerButton, RawInput, Rect, output::IMEOutput, pos2, vec2};
 
 fn preedit(text: &str, active: Option<std::ops::Range<usize>>) -> Event {
     Event::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: active })
@@ -39,6 +39,7 @@ fn type_passes(composer: &mut Composer, passes: &[(f64, Vec<Event>)]) -> (String
                     keys.push(Key::Backspace);
                 }
                 Edit::Key { key, .. } => keys.push(key),
+                Edit::LineBreak { .. } => keys.push(Key::Enter),
                 _ => {}
             }
         }
@@ -171,6 +172,11 @@ fn a_bare_line_break_commit_keeps_the_marked_text() {
     let (doc, keys) = type_passes(&mut c, &[(0.0, vec![preedit("かな", None)]), (0.1, vec![commit("\n"), key(Key::Enter)])]);
     assert_eq!(doc, "かな");
     assert!(keys.is_empty());
+    assert!(c.interrupted(), "the platform's input context may still hold the marked text");
+    // Interrupting the IME can commit the same text again.
+    let p = c.process(&[commit("かな")], 0.15);
+    assert!(inserts(&p.edits).is_empty());
+    assert!(!c.interrupted());
 }
 
 #[test]
@@ -223,17 +229,20 @@ fn commits_without_a_composition_leave_the_next_keys_to_the_user() {
 }
 
 #[test]
-fn a_line_break_with_nothing_composing_is_enter() {
-    let enter = |modifiers| Edit::Key { key: Key::Enter, modifiers, repeat: false };
+fn a_line_break_with_nothing_composing_is_enter_once() {
+    let line_break = |modifiers| Edit::LineBreak { modifiers };
+    let enter = Edit::Key { key: Key::Enter, modifiers: Modifiers::NONE, repeat: false };
     let mut c = Composer::new();
-    assert_eq!(c.process(&[commit("\n")], 0.0).edits, [enter(Modifiers::NONE)]);
-    assert_eq!(c.process(&[text("\n")], 1.0).edits, [enter(Modifiers::NONE)]);
-    // The key and its text, in either order, are one Enter.
-    assert_eq!(c.process(&[key(Key::Enter), text("\r")], 2.0).edits, [enter(Modifiers::NONE)]);
-    assert_eq!(c.process(&[commit("\n"), key(Key::Enter), text("\n")], 3.0).edits, [enter(Modifiers::NONE)]);
+    assert_eq!(c.process(&[commit("\n")], 0.0).edits, [line_break(Modifiers::NONE)]);
+    assert_eq!(c.process(&[text("\n")], 1.0).edits, [line_break(Modifiers::NONE)]);
+    // The key and its text, in either order, are one Enter: the key when it came first.
+    let p = c.process(&[key(Key::Enter), text("\r")], 2.0);
+    assert_eq!(p.edits, [enter]);
+    assert_eq!(p.events, [key(Key::Enter), text("\r")], "the pressed Enter stays in the input");
+    assert_eq!(c.process(&[commit("\n"), key(Key::Enter), text("\n")], 3.0).edits, [line_break(Modifiers::NONE)]);
     // Shift+Enter stays Shift+Enter.
     let p = c.process(&[Event::ModifiersChanged(Modifiers::SHIFT), commit("\r")], 4.0);
-    assert_eq!(p.edits, [enter(Modifiers::SHIFT)]);
+    assert_eq!(p.edits, [line_break(Modifiers::SHIFT)]);
 }
 
 #[test]
@@ -278,12 +287,61 @@ fn shortcut_chords_dont_type_but_altgr_does() {
 }
 
 #[test]
-fn clipboard_waits_for_the_composition() {
+fn clipboard_and_surrounding_deletes_are_the_apps_to_apply() {
+    let delete = |before_chars, after_chars| Event::Ime(ImeEvent::DeleteSurrounding { before_chars, after_chars });
     let mut c = Composer::new();
-    let p = c.process(&[preedit("ni", None), Event::Paste("x".into()), Event::Copy], 0.0);
-    assert!(!p.edits.iter().any(|e| matches!(e, Edit::Paste(_) | Edit::Copy)));
-    let p = c.process(&[preedit("", None), Event::Paste("x".into())], 0.1);
-    assert!(p.edits.contains(&Edit::Paste("x".into())));
+    // While composing, they are the IME's: no edits, and gone from the input.
+    let p = c.process(&[preedit("ni", None), Event::Paste("x".into()), Event::Copy, Event::Cut, delete(1, 0)], 0.0);
+    assert_eq!(p.edits, [Edit::Preedit { text: "ni".into(), active: None }]);
+    assert!(p.events.is_empty());
+    // After it, in order with the text. The clipboard events stay in the input too.
+    let events = [preedit("", None), Event::Copy, text("a"), Event::Cut, Event::Paste("x".into()), delete(2, 1)];
+    let p = c.process(&events, 0.1);
+    assert_eq!(
+        p.edits,
+        [
+            Edit::Preedit { text: String::new(), active: None },
+            Edit::Copy,
+            Edit::Insert("a".into()),
+            Edit::Cut,
+            Edit::Paste("x".into()),
+            Edit::DeleteSurrounding { before_chars: 2, after_chars: 1 },
+        ]
+    );
+    assert_eq!(p.events, [Event::Copy, text("a"), Event::Cut, Event::Paste("x".into())]);
+}
+
+#[test]
+fn the_app_ends_a_composition_keeping_or_discarding_the_marked_text() {
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    run(&ctx, 0.0, vec![preedit("かな", None)], |ctx| {
+        c.update(ctx, true);
+    });
+    let mut kept = None;
+    let out = run(&ctx, 0.1, vec![], |ctx| {
+        // A command run before the composer's update ends the editing.
+        kept = c.end(ctx);
+        c.update(ctx, true);
+    });
+    assert_eq!(kept.as_deref(), Some("かな"));
+    assert!(c.interrupted());
+    assert!(out.platform_output.ime.is_some_and(|i| i.should_interrupt_composition));
+
+    // An editor that already keeps the marked text discards the composer's.
+    run(&ctx, 0.2, vec![preedit("ね", None)], |ctx| {
+        c.update(ctx, true);
+    });
+    assert!(!c.interrupted());
+    let out = run(&ctx, 0.3, vec![], |ctx| {
+        c.update(ctx, true);
+        c.discard(ctx);
+    });
+    assert!(!c.is_composing() && c.interrupted());
+    assert!(out.platform_output.ime.is_some_and(|i| i.should_interrupt_composition));
+    let mut edits = Vec::new();
+    run(&ctx, 0.35, vec![commit("ね")], |ctx| edits = c.update(ctx, true));
+    assert!(inserts(&edits).is_empty(), "the IME's late commit is dropped");
 }
 
 fn run(ctx: &Context, time: f64, events: Vec<Event>, f: impl FnMut(&Context)) -> egui::FullOutput {
@@ -324,6 +382,50 @@ fn the_ime_is_on_at_the_caret_only_while_editing() {
     let out = run(&ctx, 0.3, vec![], |ctx| edits = c.update(ctx, false));
     assert_eq!(edits, [Edit::Preedit { text: String::new(), active: None }, Edit::Insert("か".into())]);
     assert!(out.platform_output.ime.is_none());
+    assert!(c.interrupted(), "the IME may still hold the marked text it dropped");
+}
+
+#[test]
+fn editing_that_ends_mid_pass_turns_the_ime_off_in_that_pass() {
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    let caret = Rect::from_min_size(pos2(100.0, 50.0), vec2(0.0, 16.0));
+    run(&ctx, 0.0, vec![preedit("に", None)], |ctx| {
+        c.update(ctx, true);
+        c.set_caret(ctx, caret);
+    });
+    let mut edits = Vec::new();
+    let mut interrupted = false;
+    let out = run(&ctx, 0.1, vec![click()], |ctx| {
+        edits = c.update(ctx, true);
+        // The click closed the editor.
+        edits.extend(c.update(ctx, false));
+        interrupted = c.interrupted();
+        c.set_caret(ctx, caret);
+    });
+    assert_eq!(inserts(&edits), ["に"]);
+    assert!(interrupted, "the second update keeps the first one's interrupt");
+    assert!(out.platform_output.ime.is_none());
+    // A pass in which the composer wrote nothing leaves another widget's IME output alone.
+    let other = IMEOutput { purpose: IMEPurpose::Normal, rect: caret, cursor_rect: caret, should_interrupt_composition: false };
+    let out = run(&ctx, 0.2, vec![], |ctx| {
+        ctx.output_mut(|o| o.ime = Some(other));
+        c.update(ctx, false);
+    });
+    assert_eq!(out.platform_output.ime, Some(other));
+}
+
+#[test]
+fn a_bare_line_break_commit_interrupts_the_ime() {
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    run(&ctx, 0.0, vec![preedit("かな", None)], |ctx| {
+        c.update(ctx, true);
+    });
+    let mut edits = Vec::new();
+    let out = run(&ctx, 0.1, vec![commit("\n")], |ctx| edits = c.update(ctx, true));
+    assert_eq!(inserts(&edits), ["かな"]);
+    assert!(out.platform_output.ime.is_some_and(|i| i.should_interrupt_composition));
 }
 
 #[test]

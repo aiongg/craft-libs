@@ -24,17 +24,27 @@ pub enum Edit {
     /// Text to insert at the caret: typed, committed by the IME, or marked text kept as typed.
     Insert(String),
     /// A key press for the editor (caret movement, Backspace, Enter, Escape, shortcuts). Keys the
-    /// IME is using never appear here. A line break sent as text or committed with nothing
-    /// composing arrives as Enter, so the editor handles new lines (or submitting) in one place.
+    /// IME is using never appear here. The key's event also stays in the input for the app's
+    /// other keyboard handling: an app handles each key from one of the two.
     Key {
         key: Key,
         modifiers: Modifiers,
         repeat: bool,
     },
+    /// A line break sent as text or committed with nothing composing (an on-screen keyboard's
+    /// Return, an IME's bare commit of `"\n"`). No Enter key press comes with it: the editor
+    /// handles it as Enter. The line break a pressed Enter also types is dropped, so each Enter
+    /// arrives once, as [`Edit::Key`] or as this.
+    LineBreak {
+        modifiers: Modifiers,
+    },
+    /// The clipboard events, in order with the text, held back while the IME composes. The app
+    /// applies them; the event also stays in the input, so it handles each from one of the two.
     Paste(String),
     Copy,
     Cut,
-    /// Delete chars around the caret (the web text agent's corrections, mobile Backspace).
+    /// Delete chars around the caret (the web text agent's corrections, mobile Backspace). The app
+    /// applies it; its event is removed from the input. Never sent while composing.
     DeleteSurrounding {
         before_chars: usize,
         after_chars: usize,
@@ -76,6 +86,11 @@ pub struct Composer {
     caret: Option<Rect>,
     purpose: IMEPurpose,
     interrupt: bool,
+    /// The composer ended a composition the IME may still hold, for [`Self::interrupted`].
+    interrupted: bool,
+    /// The pass [`Self::interrupted`] is for, and the pass of the composer's last IME output.
+    pass: Option<u64>,
+    output_pass: Option<u64>,
     on: bool,
 }
 
@@ -105,9 +120,15 @@ impl Composer {
     ///
     /// When `editing` is false, or an egui text field has the keyboard, marked text is kept as
     /// typed (an empty [`Edit::Preedit`], then an [`Edit::Insert`]) and the IME turns off.
+    /// When the editing ends later in a pass (a command closes the editor), call it again with
+    /// `editing` false: the IME turns off in that pass, not the next.
     pub fn update(&mut self, ctx: &Context, editing: bool) -> Vec<Edit> {
+        let pass = self.start_pass(ctx);
         if !editing || ctx.text_edit_focused() {
             self.on = false;
+            if self.output_pass == Some(pass) && !ctx.text_edit_focused() {
+                ctx.output_mut(|o| o.ime = None);
+            }
             let time = ctx.input(|i| i.time);
             let kept = self.end_at(time);
             // Turning the IME off drops its marked text; there is nothing to interrupt.
@@ -118,7 +139,7 @@ impl Composer {
         let (events, time, modifiers) = ctx.input(|i| (i.events.clone(), i.time, i.modifiers));
         // Modifiers can change while the composer isn't updated (another view has the keyboard).
         self.modifiers = modifiers;
-        let processed = self.process(&events, time);
+        let processed = self.process_pass(&events, time);
         if processed.events.len() != events.len() {
             ctx.input_mut(|i| i.events = processed.events);
         }
@@ -139,10 +160,23 @@ impl Composer {
         }
     }
 
-    /// Keeps marked text as typed and tells the IME to drop its copy, for an app ending its
-    /// text editing itself (a tool change, a command, Escape handled by the app). Returns the
-    /// text to insert in place of the marked text before the editor closes.
+    /// Whether the composer ended a composition the platform IME may still hold, in this pass
+    /// (since the last [`Self::process`] for apps that call it directly): it kept the marked text as typed
+    /// (a click, the editing ending, [`Self::end`], [`Self::discard`]) or a bare line break
+    /// confirmed it. A host that talks to the platform IME itself (macOS `discardMarkedText`)
+    /// tells it to drop its marked text then; egui's `should_interrupt_composition` is already
+    /// set while the IME is on.
+    pub fn interrupted(&self) -> bool {
+        self.interrupted
+    }
+
+    /// Ends the composition from the app, keeping the marked text as typed, for an app ending
+    /// its text editing itself (a tool change, a command). Returns that text for the app to
+    /// insert before the editor closes. The IME is told to drop its copy, and its late commit
+    /// of the same text is dropped.
+    #[must_use = "insert the marked text, or call `discard` when the editor already keeps it"]
     pub fn end(&mut self, ctx: &Context) -> Option<String> {
+        self.start_pass(ctx);
         let time = ctx.input(|i| i.time);
         let kept = self.end_at(time);
         if kept.is_some() && self.on {
@@ -151,9 +185,23 @@ impl Composer {
         kept
     }
 
+    /// Ends the composition from the app without handing back the marked text: the edit was
+    /// cancelled, or the editor shows marked text inline and kept it when it stopped composing
+    /// on its own. Otherwise as [`Self::end`].
+    pub fn discard(&mut self, ctx: &Context) {
+        let _ = self.end(ctx);
+    }
+
     /// The state machine behind [`Self::update`], for apps that read events elsewhere and for
     /// tests. `time` is the pass's input time in seconds.
     pub fn process(&mut self, events: &[Event], time: f64) -> Processed {
+        self.interrupted = false;
+        self.process_pass(events, time)
+    }
+
+    /// [`Self::process`] for [`Self::update`], which starts [`Self::interrupted`] per pass, so
+    /// an [`Self::end`] before it in the same pass still counts.
+    fn process_pass(&mut self, events: &[Event], time: f64) -> Processed {
         let mut out = Processed::default();
         self.last_commit = None;
         if self.kept.as_ref().is_some_and(|(_, at)| time - at > KEPT_SECS) {
@@ -251,11 +299,12 @@ impl Composer {
                 edits.push(Edit::Preedit { text: text.clone(), active: self.active.clone() });
             }
             // A bare line break confirms the composition (Enter with some IMEs): the marked text
-            // stays as typed, not a new line.
+            // stays as typed, not a new line. The platform's input context can still hold the
+            // marked text (macOS), so it is kept as for a click.
             ImeEvent::Commit(text) if is_line_break(text) => {
                 if let Some(kept) = self.take_preedit(time, edits) {
                     self.guard = Some((Guard::Ended { committed: true }, time));
-                    edits.push(Edit::Insert(kept));
+                    edits.push(Edit::Insert(self.keep(kept, time)));
                 } else if self.awaits_commit(time) {
                     self.guard = Some((Guard::Ended { committed: true }, time));
                 } else {
@@ -316,7 +365,7 @@ impl Composer {
         }
         self.kept = None;
         self.guard = Some((Guard::Key(Key::Enter), time));
-        edits.push(Edit::Key { key: Key::Enter, modifiers: self.modifiers, repeat: false });
+        edits.push(Edit::LineBreak { modifiers: self.modifiers });
     }
 
     fn take_preedit(&mut self, time: f64, edits: &mut Vec<Edit>) -> Option<String> {
@@ -336,13 +385,30 @@ impl Composer {
         }
         let text = std::mem::take(&mut self.preedit);
         self.active = None;
+        Some(self.keep(text, time))
+    }
+
+    /// Starts [`Self::interrupted`] afresh in a new pass. Returns the pass number.
+    fn start_pass(&mut self, ctx: &Context) -> u64 {
+        let pass = ctx.cumulative_pass_nr();
+        if self.pass.replace(pass) != Some(pass) {
+            self.interrupted = false;
+        }
+        pass
+    }
+
+    /// Marked text the composer ended itself: the IME is interrupted, and a late commit of the
+    /// same text is dropped.
+    fn keep(&mut self, text: String, time: f64) -> String {
         self.interrupt = true;
+        self.interrupted = true;
         self.kept = Some((text.clone(), time));
-        Some(text)
+        text
     }
 
     fn write_output(&mut self, ctx: &Context) {
         let interrupt = std::mem::take(&mut self.interrupt);
+        self.output_pass = Some(ctx.cumulative_pass_nr());
         let rect = self.caret.unwrap_or(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1.0, 1.0)));
         // egui-winit turns the IME on only in passes that set `ime`.
         ctx.output_mut(|o| {
