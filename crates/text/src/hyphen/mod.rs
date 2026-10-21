@@ -210,9 +210,8 @@ fn core_breaks(core: &[char], lang: Lang) -> (Vec<usize>, Source) {
         return (vec![], Source::None);
     }
     if let Lang::Patterns(PatternLang(l)) = lang {
-        if core.contains(&'\'') {
-            return (vec![], Source::None);
-        }
+        // The whole core, apostrophes included: French, Italian and Catalan patterns encode
+        // elisions (`l'or-ga-ni-sa-tion`, `del-l'am-mi-ni-stra-zio-ne`).
         let s: String = core.iter().collect();
         let mut out = Vec::new();
         let mut at = 0;
