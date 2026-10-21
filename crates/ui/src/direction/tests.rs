@@ -186,11 +186,22 @@ fn every_unmirrored_kind_is_listed_once() {
     }
 }
 
-#[cfg(feature = "patched-egui")]
+/// `Style::right_to_left` as egui's `Debug` output shows it: `None` on crates.io egui, which has
+/// no such field, so the test builds against both.
+fn style_rtl(ctx: &Context, theme: egui::Theme) -> Option<bool> {
+    let debug = format!("{:?}", ctx.style_of(theme));
+    debug.contains("right_to_left").then(|| debug.contains("right_to_left: true"))
+}
+
 #[test]
-fn apply_mirrors_egui_chrome() {
+fn apply_mirrors_egui_chrome_where_egui_can() {
     let ctx = context(Direction::Rtl);
-    assert!(ctx.global_style().right_to_left);
+    let patched = style_rtl(&ctx, egui::Theme::Dark).is_some();
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        assert_eq!(style_rtl(&ctx, theme), patched.then_some(true), "{theme:?}");
+    }
     apply(&ctx, Direction::Ltr);
-    assert!(!ctx.global_style().right_to_left);
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        assert_eq!(style_rtl(&ctx, theme), patched.then_some(false), "{theme:?}");
+    }
 }

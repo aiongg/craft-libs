@@ -40,10 +40,9 @@ jobs:
           key: craft-ui
       - run: cargo fmt --check
       - run: cargo clippy -p craft-ui --all-targets --locked -- -D warnings
-      # Not --all-features: patched-egui needs the suite's egui fork patched in.
-      - run: cargo clippy -p craft-ui --all-targets --features serde --locked -- -D warnings
+      - run: cargo clippy -p craft-ui --all-targets --all-features --locked -- -D warnings
       - run: cargo test -p craft-ui --locked
-      - run: cargo test -p craft-ui --features serde --locked
+      - run: cargo test -p craft-ui --all-features --locked
   wasm:
     timeout-minutes: 15
     name: UI WASM
@@ -56,4 +55,4 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: craft-ui-wasm
-      - run: cargo check -p craft-ui --features serde --locked --target wasm32-unknown-unknown
+      - run: cargo check -p craft-ui --all-features --locked --target wasm32-unknown-unknown
