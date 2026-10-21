@@ -616,6 +616,20 @@ name = "craft-docpath"
 version = "0.1.0"
 
 [[package]]
+name = "craft-fonts-build"
+version = "0.1.0"
+dependencies = [
+ "craft-fonts-build-consumer",
+]
+
+[[package]]
+name = "craft-fonts-build-consumer"
+version = "0.1.0"
+dependencies = [
+ "craft-fonts-build",
+]
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 dependencies = [
@@ -688,16 +702,18 @@ dependencies = [
 name = "craft-ui"
 version = "0.1.0"
 dependencies = [
+ "craft-fonts-build",
  "craft-i18n",
  "egui",
  "egui_extras",
  "egui_kittest",
- "egui_system_font_provider",
  "epaint",
+ "fontique",
  "image",
  "serde",
  "serde_json",
  "skrifa 0.44.0",
+ "unicode-script",
 ]
 
 [[package]]
@@ -1053,21 +1069,6 @@ dependencies = [
  "tempfile",
  "toml",
  "wgpu",
-]
-
-[[package]]
-name = "egui_system_font_provider"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f2a2fdfe3c05dd9f691d2b1388b2312d6dce1af502f217c22136d22d9bd76f6"
-dependencies = [
- "epaint",
- "fontique",
- "log",
- "poll-promise",
- "skrifa 0.44.0",
- "sys-locale",
- "unicode-script",
 ]
 
 [[package]]
@@ -3087,16 +3088,6 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide 0.8.9",
-]
-
-[[package]]
-name = "poll-promise"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f6a58fecbf9da8965bcdb20ce4fd29788d1acee68ddbb64f0ba1b81bccdb7df"
-dependencies = [
- "document-features",
- "static_assertions",
 ]
 
 [[package]]

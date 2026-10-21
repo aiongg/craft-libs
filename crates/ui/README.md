@@ -234,38 +234,50 @@ script's face goes first. egui takes a row's height from a family's first face, 
 own face sets the row height and its marks aren't clipped. Han, kana and Hangul sit inside the em
 square and fit a Latin row, so Chinese, Japanese and Korean UIs keep the Latin face first: Latin
 text draws in the app's face in every language, and CJK characters fall back to the language's
-face, centred in the row. In every language `install` sets the minimum widget height to fit a row
-of the UI language's script face, and sets it back when a later install needs less. On the suite's
-patched egui (`FontTweak::set_baseline_fallback`, which craft faces turn on), fallback glyphs sit
-on the row's baseline and rows grow to fit them by themselves; with crates.io egui they are
-centred and the widget fit above is what keeps them inside. Monospace
-keeps the app's or egui's mono face first. Han characters take the regional face the language
-needs: `zh-TW` gets the Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong
-Kong face first; `ja` the Japanese face; `ko` the Korean one.
+face, centred in the row. The app's theme sets the minimum widget height for rows of its own
+face; when the UI language's script face has taller rows, `install` adds the difference to the
+theme's height, and takes it off again when a later install needs less. The theme's height and
+padding stay the app's: a theme applied after `install` is fitted at the start of the next pass,
+so the result doesn't depend on which comes first. On the suite's patched egui
+(`FontTweak::set_baseline_fallback`, which craft faces and installed text faces turn on), fallback
+glyphs sit on the row's baseline and rows grow to fit them by themselves; emoji and symbol faces
+(colour glyphs, or "Emoji" or "Symbol" in the name) stay centred. With crates.io egui all fallbacks
+are centred and the widget fit above is what keeps them inside. Monospace keeps the app's or egui's
+mono face first. Han characters take the regional face the language needs: `zh-TW` gets the
+Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong Kong face first; `ja` the
+Japanese face; `ko` the Korean one.
 
 The app keeps its font files: its `build.rs` embeds the craft-fonts faces it wants from
-`fonts/manifest.txt` as `fonts::CraftFace` values, and craft-ui never depends on craft-fonts. The
+`fonts/manifest.txt` with `craft-fonts-build`, and craft-ui never depends on craft-fonts. A crate
+below the UI (an app's engine or font crate, without egui) holds the table as
+`craft_fonts_build::EmbeddedFace` values (storytold/craft-libs#213), and the UI converts each into
+a `fonts::CraftFace` with `From`. The
 app configures its own faces, a preferred face per script, extra named families (a semibold
 family, a family led by Arabic for the runs it shapes itself), emoji faces, and whether system
 fonts come before or after the craft faces for other scripts. `UiFonts::stack` returns a `Stack`
 whose chains the app can still edit (`insert`, `replace`, `remove`) before `Stack::install`.
+`Stack::after_system` (a `FaceList`) holds the faces asked after the system fonts, readable with
+`get` and `faces`; `Stack::flat_definitions` appends them to each chain, for a context that takes
+its fonts only through `set_fonts`.
 
 `fonts::I18nScripts` reads each language's scripts and Han forms from craft-i18n; an app with its
 own table implements `fonts::LanguageScripts` instead.
 
 ```rust
+use craft_fonts_build::EmbeddedFace;
 use craft_ui::fonts::{CraftFace, Family, I18nScripts, UiFonts};
 use egui::{FontData, FontFamily};
 
-include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs")); // pub static CRAFT_FONTS: &[CraftFace]
+pub static CRAFT_FONTS: &[EmbeddedFace] = include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
 
 fn install_fonts(ctx: &egui::Context, ui_language: &str) {
+    let craft_faces: Vec<CraftFace> = CRAFT_FONTS.iter().copied().map(CraftFace::from).collect();
     UiFonts::new(&I18nScripts)
         .app_face("ui", FontData::from_static(UI_FONT), &[FontFamily::Proportional])
         .app_face("ui-semibold", FontData::from_static(UI_SEMIBOLD), &[FontFamily::Name("semibold".into())])
         .app_face("mono", FontData::from_static(MONO_FONT), &[FontFamily::Monospace])
         .family(Family::named("semibold").weight(600))
-        .craft_faces(CRAFT_FONTS)
+        .craft_faces(&craft_faces)
         .languages(OFFERED_LANGUAGES)
         .ui_language(ui_language)
         .install(ctx);
@@ -276,8 +288,11 @@ Call `install` again when the UI language changes.
 
 Two features, both off by default, change what every craft-ui user draws, so the app turns them on:
 
-- `system_fonts` (desktop): the stack asks egui's system font provider, at regular weight, and
-  `install` replaces the context's font providers, including the one eframe adds. Without it,
+- `system_fonts` (desktop): the stack asks the installed fonts, at regular weight, and `install`
+  replaces the context's font providers, including the one eframe adds. One index of the
+  installed fonts serves every UI language, so a language switch doesn't scan them again.
+  `install` starts building it on a background thread; until it is ready, text draws with the
+  stack's own faces, and the context repaints when it arrives. Without it,
   `install` keeps the providers the context has (eframe's `system_fonts`, for one) and asks the
   stack's own faces after them. `UiFonts::system_provider` supplies a provider either way, and
   `SystemFonts::Off` drops system fonts.
