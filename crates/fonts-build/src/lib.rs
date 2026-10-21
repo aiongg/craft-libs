@@ -157,6 +157,11 @@ impl ServedFace {
         self.scripts.iter().any(|s| manifest::script_matches(s, tag))
     }
 
+    /// Whether the face has a CJK script tag ([`CJK_SCRIPTS`]).
+    pub fn is_cjk(&self) -> bool {
+        CJK_SCRIPTS.iter().any(|tag| self.has_script(tag))
+    }
+
     /// Whether the face maps `c`.
     pub fn covers(&self, c: char) -> bool {
         coverage::contains(self.coverage, c)

@@ -567,7 +567,7 @@ mod subset {
         let file = format!("{}.{}.ttf", 0, &sha256[..16]);
         assert_eq!(std::fs::read(served.join(&file)).unwrap(), cut);
         assert!(!served.join("0.ttf").exists());
-        let line = format!("url: \"fonts/{file}\", size: {}, integrity: {:?} }}", cut.len(), crate::embed::integrity(&sha256));
+        let line = format!("url: \"fonts/{file}\", size: {}, integrity: {:?}, coverage: ", cut.len(), crate::embed::integrity(&sha256));
         assert!(r.table.contains(&line), "{}\n{line}", r.table);
     }
 
