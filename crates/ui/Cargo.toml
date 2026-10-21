@@ -11,6 +11,7 @@ description = "Reusable egui controls and icon catalogs for Craft frontends"
 workspace = true
 
 [dependencies]
+craft-i18n = { workspace = true }
 egui = { workspace = true }
 serde = { version = "1", features = ["derive"], optional = true }
 
