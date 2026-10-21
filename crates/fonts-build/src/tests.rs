@@ -147,6 +147,32 @@ fn embedded_face_helpers() {
     assert!(face("Regular").has_script("Hant") && face("Regular").has_script("Hant-HK") && !face("Regular").has_script("Han"));
     let weights: Vec<u16> = ["Regular", "Bold", "SemiBold", "Extra Light", "Black Italic", "Italic"].map(|s| face(s).weight()).into();
     assert_eq!(weights, [400, 700, 600, 200, 900, 400]);
+    assert!(face("Regular").is_cjk());
+    assert!(!EmbeddedFace { scripts: &["Arab"], ..face("Regular") }.is_cjk());
+}
+
+#[test]
+fn documents_embeds_only_the_named_families() {
+    let r = run(Embed::documents(&["Sans JP", "Sans Thai"]), Some(&fixture()), Some("1"));
+    assert_eq!(r.result.unwrap(), ["Sans JP Regular", "Sans JP Bold", "Sans Thai Regular"]);
+    let r = run(Embed::documents(&["Sans JP", "Sans Thai"]).filter(|f| f.style == "Bold"), Some(&fixture()), Some("1"));
+    assert_eq!(r.result.unwrap(), ["Sans JP Bold"]);
+    let r = run(Embed::documents(&[]), Some(&fixture()), None);
+    assert_eq!(r.result.unwrap(), Vec::<String>::new());
+
+    let r = run(Embed::documents(&["Sans JP", "Sans Jp", "Serif"]), Some(&fixture()), Some("1"));
+    let Err(Error::UnknownFamilies { families, .. }) = &r.result else { panic!("{:?}", r.result) };
+    assert_eq!(families, &["Sans Jp", "Serif"]);
+    let message = r.result.unwrap_err().to_string();
+    assert!(
+        message.contains("has no family Sans Jp, Serif") && message.ends_with("Sans JP, Sans Arabic, Sans CJK TC, Sans CJK HK, Sans Thai"),
+        "{message}"
+    );
+    assert_eq!(r.table.trim(), "&[]");
+    // Not required: a warning and an empty table, as for any checkout that can't be used.
+    let r = run(Embed::documents(&["Serif"]), Some(&fixture()), None);
+    assert!(r.result.as_ref().unwrap().is_empty());
+    assert!(warnings(&r).iter().any(|w| w.contains("building without craft-fonts") && w.contains("no family Serif")), "{:?}", r.cargo);
 }
 
 #[test]
@@ -175,7 +201,7 @@ fn serve_copies_the_selected_faces_and_writes_urls() {
     assert!(!table.contains("include_bytes!"), "{table}");
     assert!(
         table.contains(
-            "ServedFace { family: \"Sans JP\", style: \"Regular\", scripts: &[\"Jpan\", \"Latn\"], index: 0, url: \"fonts/sans-jp/SansJP-Regular.ttf\", size: 24, integrity: \"sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=\" }"
+            "ServedFace { family: \"Sans JP\", style: \"Regular\", scripts: &[\"Jpan\", \"Latn\"], index: 0, url: \"fonts/sans-jp/SansJP-Regular.ttf\", size: 24, integrity: \"sha256-ydCO8fxp8V6HzlK9qKnCRxTkEl2vflCkDtsaor4Q3/E=\", coverage: b\"\" }"
         ),
         "{table}"
     );
@@ -349,10 +375,13 @@ fn for_ui_embeds_cjk_faces_only_as_cut_interface_faces() {
     let Err(Error::MissingScripts { scripts, .. }) = r.result else { panic!("{:?}", r.result) };
     assert_eq!(scripts, ["Hant"]);
     assert_eq!(r.table.trim(), "&[]");
-    // Without `for_ui` every face is embedded whole, as document text needs.
+    // Without `for_ui` the interface faces' sources are left out, unless a document table names them.
     let r = run(Embed::new().scripts(&["Hant"]), Some(&dir), Some("1"));
-    assert_eq!(r.result.as_ref().unwrap(), &["Noto Sans TC Regular", "Noto Sans TC UI Regular", "Noto Sans HK UI Regular"]);
+    assert_eq!(r.result.as_ref().unwrap(), &["Noto Sans TC Regular"]);
     assert_eq!(warnings(&r), Vec::<String>::new());
+    let r = run(Embed::documents(&["Noto Sans TC UI", "Noto Sans TC"]), Some(&dir), Some("1"));
+    assert_eq!(r.result.as_ref().unwrap(), &["Noto Sans TC Regular", "Noto Sans TC UI Regular"]);
+    assert!(r.table.contains("fonts/1.ttf"), "{}", r.table);
 }
 
 #[test]
@@ -391,6 +420,19 @@ fn check_text_warns_about_characters_no_face_covers() {
     let r = run(Embed::new().check_text(paths.clone()), None, None);
     assert_eq!(warnings(&r), Vec::<String>::new());
     assert!(r.cargo.contains(&format!("cargo::rerun-if-changed={}", paths[0].display())));
+
+    // Faces another table embeds count as covering their characters.
+    let r = run(Embed::new().scripts(&["Arab"]).embedded_elsewhere(&["Noto Sans SC"]).check_text(paths[..3].to_vec()), Some(&dir), None);
+    assert_eq!(warnings(&r), Vec::<String>::new());
+    let r = run(
+        Embed::new().scripts(&["Arab"]).embedded_elsewhere(&["Noto Sans TC", "Noto Sans Math"]).check_text(paths[..2].to_vec()),
+        Some(&dir),
+        None,
+    );
+    let w = warnings(&r);
+    assert_eq!(w.len(), 2, "{w:#?}");
+    assert!(w[0].contains("embedded_elsewhere names Noto Sans Math, which") && w[0].ends_with("manifest.txt lacks"), "{}", w[0]);
+    assert!(w[1].contains("zh-TW.ftl has 2 characters no embedded face covers (万。)"), "{}", w[1]);
 
     // The fixture's "fonts" are text, so they cover nothing.
     let r = run(Embed::new().scripts(&["Arab"]).check_text([&paths[1]]), Some(&fixture()), None);
@@ -515,7 +557,7 @@ mod subset {
         let file = format!("{}.{}.ttf", 0, &sha256[..16]);
         assert_eq!(std::fs::read(served.join(&file)).unwrap(), cut);
         assert!(!served.join("0.ttf").exists());
-        let line = format!("url: \"fonts/{file}\", size: {}, integrity: {:?} }}", cut.len(), crate::embed::integrity(&sha256));
+        let line = format!("url: \"fonts/{file}\", size: {}, integrity: {:?}, coverage: ", cut.len(), crate::embed::integrity(&sha256));
         assert!(r.table.contains(&line), "{}\n{line}", r.table);
     }
 
@@ -563,4 +605,26 @@ fn for_ui_serves_no_whole_cjk_face() {
     assert_eq!(r.result.unwrap(), ["Noto Sans Arabic Regular"]);
     assert_eq!(std::fs::read(served.join("2.ttf")).unwrap(), b"arabic");
     assert!(!served.join("0.ttf").exists() && !served.join("1.ttf").exists());
+}
+
+#[test]
+fn served_faces_carry_the_characters_their_cmap_maps() {
+    let font = tiny_font(&[(0x41, 0x5A, None), (0x4E00, 0x4E02, Some(&[5, 0, 7]))], &[(0x4E03, 0x4E03), (0x2_0000, 0x2_0001)]);
+    let coverage = crate::coverage::of_face(&font, 0).unwrap();
+    assert_eq!(Cmap::read(&font, 0).unwrap().ranges(), [(0x41, 0x5A), (0x4E00, 0x4E00), (0x4E02, 0x4E03), (0x2_0000, 0x2_0001)]);
+    let covered: Vec<char> =
+        "@AZ[一丁丂七丄\u{FFFF}\u{20000}\u{20001}\u{20002}".chars().filter(|&c| crate::coverage::contains(&coverage, c)).collect();
+    assert_eq!(covered, ['A', 'Z', '一', '丂', '七', '\u{20000}', '\u{20001}']);
+    assert!(!crate::coverage::contains(&[], 'A') && !crate::coverage::contains(&[0x80], 'A'));
+    assert_eq!(crate::coverage::encode(&[(0, 0x10_FFFF)]), [0, 0xFF, 0xFF, 0x43]);
+
+    let scratch = Scratch::new("serve-coverage");
+    let dir = checkout(&scratch, &[("Noto Sans", "Latn", "", font), ("Broken", "Latn", "", b"not a font".to_vec())]);
+    let r = run(Embed::new().serve(scratch.0.join("served"), "fonts/"), Some(&dir), None);
+    assert_eq!(r.result.as_ref().unwrap().len(), 2);
+    let table = &r.table;
+    // Gaps and lengths 0x41 0x19, 0x4DA5 0, 1 1, 0x1_B1FC 1 as LEB128.
+    assert!(table.contains(r#"coverage: b"A\x19\xa5\x9b\x01\x00\x01\x01\xfc\xe3\x06\x01" }"#), "{table}");
+    assert!(table.contains(r#"family: "Broken""#) && table.ends_with("coverage: b\"\" },\n]\n"), "{table}");
+    assert!(warnings(&r).iter().any(|w| w.contains("no character map in fonts/1.ttf")), "{:?}", warnings(&r));
 }

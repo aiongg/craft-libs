@@ -28,6 +28,6 @@ fn served_table_names_urls_instead_of_bytes() {
         ]
     );
     assert_eq!(CRAFT_FONTS_SERVED[2].index, 3);
-    assert!(CRAFT_FONTS_SERVED[2].has_script("Hant"));
+    assert!(CRAFT_FONTS_SERVED[2].has_script("Hant") && CRAFT_FONTS_SERVED[2].is_cjk());
     assert!(CRAFT_FONTS_SERVED[0].integrity.starts_with("sha256-"));
 }

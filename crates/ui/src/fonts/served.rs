@@ -39,12 +39,20 @@ pub struct ServedFace {
     /// Subresource Integrity value (`sha256-…`) the browser checks the file against; empty for
     /// none.
     pub integrity: &'static str,
+    /// The characters the face maps, in `craft_fonts_build::coverage`'s encoding. A character no
+    /// served face maps fetches nothing.
+    pub coverage: &'static [u8],
 }
 
 impl ServedFace {
     /// The egui font name, e.g. `"Noto Sans Arabic Regular"`.
     pub fn name(&self) -> String {
         format!("{} {}", self.family, self.style)
+    }
+
+    /// Whether the face maps `c`.
+    pub fn covers(&self, c: char) -> bool {
+        craft_fonts_build::coverage::contains(self.coverage, c)
     }
 
     /// The face as the stack orders it, without bytes.
@@ -66,18 +74,24 @@ impl Stack {
         self.ui_downloads.iter().filter_map(|name| self.served_face(name)).collect()
     }
 
-    /// The served faces that could draw `c` in `family`, in the order the family asks them: those
-    /// tagged with `c`'s script (see [`script_of`]). Letters of Latin, Greek and Cyrillic take
-    /// faces such as Noto Sans, not the CJK faces, which carry those scripts at CJK proportions.
-    /// Keyboard keys, arrows and other symbols take the symbol faces (`Zsym`), mathematical
-    /// notation the math faces (`Zmth`) and then the symbol faces, and emoji the emoji faces.
-    /// Empty for characters of no particular script.
+    /// The served faces that draw `c` in `family`, in the order the family asks them: those
+    /// whose file maps `c` ([`ServedFace::covers`]) and that are tagged with `c`'s script (see
+    /// [`script_of`]). The family's order puts the UI language's faces first, so a Han character
+    /// takes the face of the UI language's region (Simplified, Traditional, Hong Kong, Japanese or
+    /// Korean forms), then the other offered languages' and the rest in manifest order. Letters
+    /// of Latin, Greek and Cyrillic take faces such as Noto Sans, not the CJK faces, which carry
+    /// those scripts at CJK proportions. Keyboard keys, arrows and other symbols take the symbol
+    /// faces (`Zsym`), mathematical notation the math faces (`Zmth`) and then the symbol faces,
+    /// and emoji the emoji faces. Empty for characters of no particular script and for
+    /// characters no served face maps.
     pub fn downloads_for(&self, family: &FontFamily, c: char) -> Vec<&ServedFace> {
-        script_of(c).map_or_else(Vec::new, |script| self.downloads(family, script))
+        self.downloads(family, c.encode_utf8(&mut [0; 4]))
     }
 
-    /// [`Self::downloads_for`] by script tag.
-    pub(super) fn downloads(&self, family: &FontFamily, script: &str) -> Vec<&ServedFace> {
+    /// [`Self::downloads_for`] the first character of a cluster, whose variation selector
+    /// chooses between emoji and symbol faces (see [`script_of_cluster`]).
+    pub(super) fn downloads(&self, family: &FontFamily, cluster: &str) -> Vec<&ServedFace> {
+        let (Some(c), Some(script)) = (cluster.chars().next(), script_of_cluster(cluster)) else { return Vec::new() };
         let wanted = if script == MATH { [MATH, SYMBOLS].as_slice() } else { std::slice::from_ref(&script) };
         let alphabet = matches!(script, "Latn" | "Grek" | "Cyrl");
         let configured = self.definitions.families.get(family).or_else(|| self.definitions.families.get(&FontFamily::Proportional));
@@ -87,6 +101,7 @@ impl Stack {
                 if let Some(face) = self.served_face(name)
                     && face.craft_face().covers(want)
                     && !(alphabet && face.craft_face().covers("Hani"))
+                    && face.covers(c)
                     && !faces.contains(&face)
                 {
                     faces.push(face);
@@ -306,7 +321,6 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
 
 /// [`script_of`] the cluster's first character, with an emoji or text variation selector
 /// (U+FE0F, U+FE0E) choosing between [`EMOJI`] and [`SYMBOLS`].
-#[cfg(any(test, target_arch = "wasm32"))]
 pub(super) fn script_of_cluster(cluster: &str) -> Option<&'static str> {
     let script = script_of(cluster.chars().next()?)?;
     Some(if cluster.contains('\u{FE0F}') {

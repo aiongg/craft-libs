@@ -505,8 +505,21 @@ fn covers_language_checks_every_script_of_the_language() {
     assert!(!stack.covers_language("th", false));
 }
 
+/// Coverage of every character, for faces whose tests are about scripts.
+const ALL: &[u8] = &[0, 0xFF, 0xFF, 0x43];
+
 const fn served(family: &'static str, style: &'static str, scripts: &'static [&'static str], url: &'static str, index: u32) -> ServedFace {
-    ServedFace { family, style, scripts, index, url, size: 1, integrity: "" }
+    ServedFace { family, style, scripts, index, url, size: 1, integrity: "", coverage: ALL }
+}
+
+fn coverage_of(font: &[u8]) -> &'static [u8] {
+    Box::leak(craft_fonts_build::coverage::of_face(font, 0).expect("a font").into_boxed_slice())
+}
+
+fn coverage_of_chars(chars: &str) -> &'static [u8] {
+    let mut ranges: Vec<(u32, u32)> = chars.chars().map(|c| (u32::from(c), u32::from(c))).collect();
+    ranges.sort_unstable();
+    Box::leak(craft_fonts_build::coverage::encode(&ranges).into_boxed_slice())
 }
 
 /// craft-fonts' faces as a web build serves them; the CJK collection's faces share one file.
@@ -804,17 +817,27 @@ impl FakeFetch {
 }
 
 const NOTO_SANS_URL: &str = "fonts/noto-sans/NotoSans.ttf";
-const SYMBOLS_URL: &str = "fonts/noto-sans-symbols/NotoSansSymbols.ttf";
 const SYMBOLS_2_URL: &str = "fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf";
 const MATH_URL: &str = "fonts/noto-sans-math/NotoSansMath-Regular.ttf";
 
 /// An English UI on the web whose faces lack Vietnamese ổ and the keyboard keys, with `fetch`
 /// fetching its served faces; and whether the context draws a character, as a pass would ask.
 fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool) {
+    let mut faces = SERVED_SYMBOLS.to_vec();
+    faces[0].coverage = coverage_of(NOTO_SANS_LATIN);
+    faces[2].coverage = coverage_of(SYMBOLS);
+    faces[3].coverage = coverage_of(SYMBOLS_2);
+    // Arrows and technical symbols, ⌥ and ⇥ among them; never served.
+    faces[4].coverage = craft_fonts_build::coverage::encode(&[(0x2190, 0x21FF), (0x2300, 0x23FF)]).leak();
+    web_context_with("en", &faces, fetch)
+}
+
+/// A web context in `ui_language` with these served faces, fetched by `fetch`; and whether the
+/// context draws a character, as a pass would ask.
+fn web_context_with(ui_language: &str, faces: &[ServedFace], fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool + use<>) {
     let ctx = egui::Context::default();
-    let stack = web_fonts("en", SERVED_SYMBOLS).stack();
+    let stack = web_fonts(ui_language, faces).stack();
     served::loader::install(&ctx, stack, Arc::clone(fetch) as Arc<dyn served::loader::Fetcher>);
-    assert!(fetch.requested().is_empty(), "English needs no served face up front");
     let draws = {
         let ctx = ctx.clone();
         move |c: char| {
@@ -826,30 +849,79 @@ fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool)
 }
 
 #[test]
-fn missing_characters_fetch_one_face_after_another_until_one_draws_them() {
+fn a_missing_character_fetches_only_the_face_that_draws_it() {
     let fetch = Arc::new(FakeFetch::default());
     let (_ctx, draws) = web_context(&fetch);
+    assert!(fetch.requested().is_empty(), "English needs no served face up front");
 
     assert!(!draws('ổ'));
     assert_eq!(fetch.requested(), [NOTO_SANS_URL]);
-    // While a face is on its way, characters it may have wait for it.
+    // While a face is on its way, characters it draws wait for it.
     assert!(!draws('ạ'));
     assert!(fetch.requested().is_empty());
     fetch.answer(NOTO_SANS_URL, Ok(NOTO_SANS_LATIN));
-    assert!(draws('ổ'));
+    assert!(draws('ổ') && draws('ạ'));
 
-    // ⌥ isn't in the first symbol face: the second one is fetched once the first arrives.
-    assert!(!draws('⌥'));
-    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
-    fetch.answer(SYMBOLS_URL, Ok(SYMBOLS));
+    // ⌥ is in the second symbol face only: the first is never fetched for it.
     assert!(!draws('⌥'));
     assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
     fetch.answer(SYMBOLS_2_URL, Ok(SYMBOLS_2));
-    assert!(draws('⌥') && draws('⌫') && draws('⌃') && draws('⎋'));
+    assert!(draws('⌥') && draws('⌫'));
+    assert!(fetch.requested().is_empty());
 
-    // Another Latin letter the fetched face lacks moves on to the next Latin face: there is none.
+    // A letter no served face has fetches nothing.
     assert!(!draws('ẫ'));
     assert!(fetch.requested().is_empty(), "the emoji face is never a candidate for letters or keys");
+}
+
+#[test]
+fn a_han_character_fetches_the_one_interface_face_that_has_it() {
+    let cut = |family: &'static str, scripts: &'static [&'static str], url: &'static str, chars: &str| ServedFace {
+        coverage: coverage_of_chars(chars),
+        ..served(family, "Regular", scripts, url, 0)
+    };
+    let faces = [
+        cut("Noto Sans SC UI", &["Hans", "Latn"], "fonts/ui/SC.ttf", "中文日本语ổ"),
+        cut("Noto Sans TC UI", &["Hant", "Latn"], "fonts/ui/TC.ttf", "中文日本語體ổ"),
+        cut("Noto Sans HK UI", &["Hant-HK", "Latn"], "fonts/ui/HK.ttf", "中文日本語ổ"),
+        cut("Noto Sans KR UI", &["Kore", "Latn"], "fonts/ui/KR.ttf", "中文日本語한ổ"),
+        cut("BIZ UDPGothic", &["Jpan", "Latn"], "fonts/ui/JP.ttf", "中文日本語のổ"),
+        ServedFace { coverage: coverage_of(NOTO_SANS_LATIN), ..SERVED_SYMBOLS[0] },
+    ];
+    let fetch = Arc::new(FakeFetch::default());
+    let (_ctx, draws) = web_context_with("zh-Hans", &faces, &fetch);
+    assert_eq!(fetch.requested(), ["fonts/ui/SC.ttf"], "the UI language's face, at once");
+    fetch.answer("fonts/ui/SC.ttf", Ok(CJK));
+
+    // 體 is in the Traditional face only.
+    assert!(!draws('體'));
+    assert_eq!(fetch.requested(), ["fonts/ui/TC.ttf"]);
+    fetch.answer("fonts/ui/TC.ttf", Ok(CJK));
+    assert!(!draws('體'), "the test file lacks it");
+    assert!(fetch.requested().is_empty(), "a fetched face is not fetched again, and no other face has it");
+    // A rare character no face has fetches nothing: tofu or the browser draws it.
+    assert!(!draws('龘'));
+    assert!(fetch.requested().is_empty());
+    // Every cut has ổ, but Latin letters come from Noto Sans.
+    assert!(!draws('ổ'));
+    assert_eq!(fetch.requested(), [NOTO_SANS_URL]);
+
+    // Among faces that have a character, the UI language's region comes first.
+    let both =
+        [cut("Noto Sans TC UI", &["Hant", "Latn"], "fonts/ui/TC.ttf", "體"), cut("Noto Sans HK UI", &["Hant-HK", "Latn"], "fonts/ui/HK.ttf", "體")];
+    for (language, want) in [("zh-Hant", "Noto Sans TC UI Regular"), ("zh-HK", "Noto Sans HK UI Regular"), ("zh-Hans", "Noto Sans TC UI Regular")] {
+        assert_eq!(names(web_fonts(language, &both).stack().downloads_for(&FontFamily::Proportional, '體'))[0], want, "{language}");
+    }
+    let regular = FontFamily::Proportional;
+    for (language, want) in [
+        ("zh-Hans", "Noto Sans SC UI Regular"),
+        ("zh-Hant", "Noto Sans TC UI Regular"),
+        ("zh-HK", "Noto Sans HK UI Regular"),
+        ("ja", "BIZ UDPGothic Regular"),
+        ("ko", "Noto Sans KR UI Regular"),
+    ] {
+        assert_eq!(names(web_fonts(language, &faces).stack().downloads_for(&regular, '中'))[0], want, "{language}");
+    }
 }
 
 #[test]
@@ -858,12 +930,9 @@ fn a_failed_download_moves_on_and_is_retried_later() {
     let (_ctx, draws) = web_context(&fetch);
 
     assert!(!draws('⌥'));
-    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
-    fetch.answer(SYMBOLS_URL, Err("HTTP 503"));
-    // The next face that could draw it is fetched at once.
-    assert!(!draws('⌥'));
     assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
     fetch.answer(SYMBOLS_2_URL, Err("HTTP 503"));
+    // The next face that draws it is fetched at once.
     assert!(!draws('⌥'));
     assert_eq!(fetch.requested(), [MATH_URL]);
     fetch.answer(MATH_URL, Err("HTTP 503"));
@@ -881,9 +950,6 @@ fn a_failed_download_moves_on_and_is_retried_later() {
     assert!(!draws('⌥'));
     assert!(fetch.requested().is_empty());
     fetch.wait(1.0);
-    assert!(!draws('⌥'));
-    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
-    fetch.answer(SYMBOLS_URL, Ok(SYMBOLS));
     assert!(!draws('⌥'));
     assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
     fetch.answer(SYMBOLS_2_URL, Ok(SYMBOLS_2));

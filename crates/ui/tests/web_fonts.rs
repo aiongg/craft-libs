@@ -1,6 +1,6 @@
-//! Served faces in a browser: a character no installed face has fetches the face for it, a face
-//! that lacks the character or fails to download leaves it to the next one, and a failed face is
-//! fetched again later.
+//! Served faces in a browser: a character no installed face has fetches the one served face that
+//! has it, a character no served face has fetches nothing, and a failed face is fetched again
+//! later.
 //!
 //! Start `tests/web/serve_fonts.py` (127.0.0.1:8137; another address through
 //! `CRAFT_UI_FONT_SERVER` when building), then run
@@ -26,8 +26,12 @@ fn url(path: &str) -> &'static str {
     Box::leak(format!("{server}{path}").into_boxed_str())
 }
 
-fn face(family: &'static str, scripts: &'static [&'static str], path: &str) -> ServedFace {
-    ServedFace { family, style: "Regular", scripts, index: 0, url: url(path), size: 0, integrity: "" }
+fn face(family: &'static str, scripts: &'static [&'static str], path: &str, coverage: Vec<u8>) -> ServedFace {
+    ServedFace { family, style: "Regular", scripts, index: 0, url: url(path), size: 0, integrity: "", coverage: coverage.leak() }
+}
+
+fn coverage_of(font: &[u8]) -> Vec<u8> {
+    craft_fonts_build::coverage::of_face(font, 0).expect("a font")
 }
 
 async fn sleep(millis: i32) {
@@ -62,15 +66,16 @@ async fn requested() -> Vec<String> {
 }
 
 #[wasm_bindgen_test]
-async fn served_faces_load_in_turn_and_a_failed_one_is_retried() {
+async fn a_missing_character_fetches_the_face_that_has_it_and_a_failed_one_is_retried() {
+    let encode = craft_fonts_build::coverage::encode;
     let served = [
-        face("Noto Sans", &["Latn", "Cyrl", "Grek", "Deva"], "/fonts/NotoSans-test.ttf"),
-        face("Noto Color Emoji", &["Zsye"], "/missing/NotoColorEmoji.ttf"),
+        face("Noto Sans", &["Latn", "Cyrl", "Grek", "Deva"], "/fonts/NotoSans-test.ttf", coverage_of(include_bytes!("fonts/NotoSans-test.ttf"))),
+        face("Noto Color Emoji", &["Zsye"], "/missing/NotoColorEmoji.ttf", encode(&[(0x1F300, 0x1FAFF)])),
         // ⌃ ⎋, and ⌥ ⌫ ⏎: the keyboard keys are split between the two symbol faces.
-        face("Noto Sans Symbols", &["Zsym"], "/fonts/NotoSansSymbols-test.ttf"),
+        face("Noto Sans Symbols", &["Zsym"], "/fonts/NotoSansSymbols-test.ttf", coverage_of(include_bytes!("fonts/NotoSansSymbols-test.ttf"))),
         // Fails the first time.
-        face("Noto Sans Symbols 2", &["Zsym"], "/flaky/NotoSansSymbols2-test.ttf"),
-        face("Noto Sans Math", &["Zmth", "Zsym"], "/missing/NotoSansMath-Regular.ttf"),
+        face("Noto Sans Symbols 2", &["Zsym"], "/flaky/NotoSansSymbols2-test.ttf", coverage_of(include_bytes!("fonts/NotoSansSymbols2-test.ttf"))),
+        face("Noto Sans Math", &["Zmth", "Zsym"], "/missing/NotoSansMath-Regular.ttf", encode(&[(0x2200, 0x22FF)])),
     ];
     let defaults = FontDefinitions::default();
     let ubuntu = (**defaults.font_data.get("Ubuntu-Light").expect("egui default_fonts")).clone();
@@ -85,18 +90,14 @@ async fn served_faces_load_in_turn_and_a_failed_one_is_retried() {
 
     assert!(draws_within(&ctx, 'ổ', 5.0).await, "Vietnamese from Noto Sans");
     assert!(draws_within(&ctx, '⌃', 5.0).await, "a key from Noto Sans Symbols");
-    // Symbols lacks ⌥; Symbols 2 fails, then Math; Symbols 2 is retried after two seconds.
+    // Only Symbols 2 has ⌥: it fails, and is fetched again after two seconds.
     assert!(draws_within(&ctx, '⌥', 10.0).await, "a key from Noto Sans Symbols 2 after a failure");
     assert!(draws_within(&ctx, '⌫', 1.0).await);
+    // No face has ẫ.
+    assert!(!draws_within(&ctx, 'ẫ', 1.0).await);
     assert_eq!(
         requested().await,
-        [
-            "/fonts/NotoSans-test.ttf",
-            "/fonts/NotoSansSymbols-test.ttf",
-            "/flaky/NotoSansSymbols2-test.ttf",
-            "/missing/NotoSansMath-Regular.ttf",
-            "/flaky/NotoSansSymbols2-test.ttf",
-        ],
-        "the emoji face is never asked for letters or keys",
+        ["/fonts/NotoSans-test.ttf", "/fonts/NotoSansSymbols-test.ttf", "/flaky/NotoSansSymbols2-test.ttf", "/flaky/NotoSansSymbols2-test.ttf"],
+        "each character fetches only the face that has it",
     );
 }
