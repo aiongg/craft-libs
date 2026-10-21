@@ -12,6 +12,7 @@ pub mod fonts;
 pub mod icons;
 pub mod ime;
 pub mod layout;
+pub mod localized;
 pub mod printing;
 pub mod tabs;
 pub mod theme;
