@@ -17,7 +17,8 @@
 //! Hangul sit inside the em square and fit a Latin row, so in Chinese, Japanese and Korean UIs the
 //! Latin face stays first and Latin text keeps it; [`Stack::install`] still sizes widgets to the
 //! script face's rows. Monospace always keeps its Latin face first. On the suite's egui fork, craft
-//! faces used as fallbacks sit on the row's baseline and rows grow to fit them by themselves.
+//! faces and installed text faces used as fallbacks sit on the row's baseline and rows grow to fit
+//! them by themselves; emoji and symbol faces stay centred.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces as [`CraftFace`]s.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
@@ -772,7 +773,9 @@ impl Stack {
         (self.system_lookup(true), None)
     }
 
+    /// `provider` at each family's weight, its text faces on the row's baseline.
     fn regular_weight(&self, provider: Arc<dyn FontProvider>) -> Arc<dyn FontProvider> {
+        let provider: Arc<dyn FontProvider> = Arc::new(providers::OnBaseline(provider));
         Arc::new(self.weights.iter().fold(RegularWeight::new(provider), |p, (f, w)| p.with_weight(f.clone(), *w)))
     }
 
