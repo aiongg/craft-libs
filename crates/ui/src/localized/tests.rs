@@ -131,6 +131,19 @@ fn drag_value_keeps_the_apps_text_around_the_number() {
 }
 
 #[test]
+fn drag_value_takes_range_speed_and_no_grouping_after_wrapping() {
+    let numbers = LocaleNumbers::from_tag("en-US");
+    let mut h = drag_harness_with(1920.0, move |ui, value| {
+        LocalizedDragValue::new(DragValue::new(value), &numbers).range(1..=4096).speed(1.0).ungrouped().unit(Unit::new("{n} px")).ui(ui)
+    });
+    let shown = h.get_by_role(Role::SpinButton).value().unwrap_or_default();
+    assert!(shown.starts_with("1920"), "{shown:?}");
+    type_into_drag(&mut h, "10,000");
+    assert_eq!(*h.state(), 4096.0, "grouped text reads back and is clamped to the range");
+    assert_eq!(LocaleNumbers::from_tag("de").ungrouped().format(1234567.5, 0..=1), "1234567,5");
+}
+
+#[test]
 fn drag_value_marks_text_it_cannot_read() {
     let mut h = drag_harness("de", 1.5);
     h.get_by_role(Role::SpinButton).click();
