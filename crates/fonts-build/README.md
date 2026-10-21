@@ -82,7 +82,8 @@ under the package directory. Files already there with the right size are not cop
 one is copied again on the next build, and files of faces no longer selected stay.
 
 ```rust
-let fonts = craft_fonts_build::Embed::new();
+// CJK faces as their UI subsets (see below).
+let fonts = craft_fonts_build::Embed::new().for_ui();
 let written = if craft_fonts_build::target_is_wasm() {
     fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")
 } else {

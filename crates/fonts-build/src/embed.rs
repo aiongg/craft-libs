@@ -65,8 +65,8 @@ impl Embed {
 
     /// Embed faces for an app's interface: CJK faces only as their UI subsets (`role` `ui` in the
     /// manifest), which hold the characters the translation catalogs use. Other faces are kept.
-    /// Combines with [`Embed::scripts`] and [`Embed::filter`]; with `CRAFT_FONTS_REQUIRED=1`, a
-    /// UI subset satisfies its script tags.
+    /// Combines with [`Embed::scripts`], [`Embed::filter`] and [`Embed::serve`]; with
+    /// `CRAFT_FONTS_REQUIRED=1`, a UI subset satisfies its script tags.
     pub fn for_ui(mut self) -> Self {
         self.ui = true;
         self

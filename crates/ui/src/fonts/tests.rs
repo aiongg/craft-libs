@@ -657,3 +657,17 @@ fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
     assert_eq!(missing(&with_simplified, true), []);
     assert!(asked.lock().unwrap().is_empty(), "the Simplified subset has them");
 }
+
+#[test]
+fn a_web_build_downloads_the_ui_subset_for_its_language() {
+    let subsets = [
+        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.otf", 0),
+        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.otf", 0),
+        served("BIZ UDPGothic UI", "Regular", &["Jpan", "Latn"], "fonts/ui/BIZUDPGothicUI-Regular.ttf", 0),
+        served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
+    ];
+    // The subsets are Regular only: the semibold family takes that face too.
+    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic UI Regular")] {
+        assert_eq!(names(web_fonts(language, &subsets).stack().ui_downloads()), [want], "{language}");
+    }
+}

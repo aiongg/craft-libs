@@ -391,3 +391,15 @@ fn check_text_warns_about_characters_no_face_covers() {
     assert!(w[0].contains("cannot read the character map of Sans Arabic Regular"), "{w:#?}");
     assert!(w[1].contains("ar.ftl has 1 character no selected face covers (一)"), "{w:#?}");
 }
+
+#[test]
+fn for_ui_serves_the_ui_subsets() {
+    let scratch = Scratch::new("for-ui-serve");
+    let dir = checkout(&scratch, &[("Noto Sans TC", "Hant,Latn", "", b"full".to_vec()), ("Noto Sans TC UI", "Hant,Latn", "ui", b"subset".to_vec())]);
+    let served = scratch.0.join("served");
+    let r = run(Embed::new().for_ui().scripts(&["Hant"]).serve(&served, "fonts/"), Some(&dir), Some("1"));
+    assert_eq!(r.result.unwrap(), ["Noto Sans TC UI Regular"]);
+    assert!(r.table.contains("ServedFace { family: \"Noto Sans TC UI\""), "{}", r.table);
+    assert_eq!(std::fs::read(served.join("1.ttf")).unwrap(), b"subset");
+    assert!(!served.join("0.ttf").exists());
+}

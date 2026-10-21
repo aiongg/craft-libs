@@ -318,7 +318,8 @@ fallbacks in its first frames.
 ```rust
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
-    let fonts = craft_fonts_build::Embed::new();
+    // CJK faces as craft-fonts' UI subsets, about 4 MB for all five.
+    let fonts = craft_fonts_build::Embed::new().for_ui();
     let written = if craft_fonts_build::target_is_wasm() {
         // Served by the page as `fonts/`; see Trunk.toml.
         fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")
