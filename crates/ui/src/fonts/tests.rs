@@ -1,5 +1,5 @@
 use super::*;
-use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily};
+use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily, TextStyle};
 
 const ARABIC: &[u8] = include_bytes!("../../tests/fonts/NotoSansArabic-test.ttf");
 const CJK: &[u8] = include_bytes!("../../tests/fonts/NotoSansCJKsc-test.otf");
@@ -283,19 +283,46 @@ fn variable_faces_draw_at_regular_weight() {
 }
 
 #[test]
-fn widgets_grow_to_the_ui_language_row_height() {
+fn widgets_grow_by_how_much_taller_the_script_face_rows_are() {
     let mut style = Style::default();
+    style.spacing.button_padding.y = 5.0;
     let before = style.spacing.interact_size.y;
     test_stack("en").fit_interact_size(&mut style);
-    assert_eq!(style.spacing.interact_size.y, before, "Latin rows fit egui's default");
+    assert_eq!(style.spacing.interact_size.y, before, "Latin rows keep the theme's height, whatever its padding");
 
-    let stack = test_stack("ar");
-    stack.fit_interact_size(&mut style);
-    let mut fonts = stack.fonts(false);
     let body = style.text_styles.get(&TextStyle::Body).cloned().expect("body style");
-    let row = fonts.with_pixels_per_point(1.0).row_height(&body);
-    assert!(row + 2.0 * style.spacing.button_padding.y > before, "Arabic rows are taller");
-    assert!(style.spacing.interact_size.y >= row + 2.0 * style.spacing.button_padding.y);
+    let row = |stack: &Stack| stack.fonts(false).with_pixels_per_point(1.0).row_height(&body);
+    let arabic = test_stack("ar");
+    let extra = row(&arabic) - row(&test_stack("en"));
+    assert!(extra > 0.0, "Arabic rows are taller");
+    arabic.fit_interact_size(&mut style);
+    assert!((style.spacing.interact_size.y - (before + extra)).abs() < 0.01, "{} + {extra}", before);
+}
+
+#[test]
+fn the_fit_is_the_same_whether_the_theme_comes_before_or_after_install() {
+    let theme = |ctx: &egui::Context| {
+        ctx.all_styles_mut(|s| {
+            s.spacing.interact_size.y = 20.0;
+            s.spacing.button_padding.y = 5.0;
+        });
+    };
+    let pass = |ctx: &egui::Context| ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    let height = |ctx: &egui::Context| ctx.style_of(egui::Theme::Dark).spacing.interact_size.y;
+    for language in ["en", "ar"] {
+        let before = egui::Context::default();
+        theme(&before);
+        test_stack(language).install(&before);
+        let after = egui::Context::default();
+        test_stack(language).install(&after);
+        theme(&after);
+        pass(&after);
+        assert_eq!(height(&after), height(&before), "{language}");
+        assert_eq!(height(&after) == 20.0, language == "en", "{language}: {}", height(&after));
+        // Passes without a new theme leave the fit as it is.
+        pass(&after);
+        assert_eq!(height(&after), height(&before), "{language}");
+    }
 }
 
 #[test]

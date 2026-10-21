@@ -24,6 +24,7 @@
 //! before [`Stack::install`].
 
 mod coverage;
+mod fit;
 mod providers;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg_attr(not(feature = "system_fonts"), allow(dead_code, reason = "used by the system font index, and its tests"))]
@@ -36,7 +37,7 @@ mod tests;
 use std::sync::Arc;
 
 use egui::epaint::text::{Fonts, TextOptions};
-use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style, TextStyle};
+use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style};
 
 pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, missing_glyphs};
 use providers::Installed;
@@ -350,6 +351,7 @@ impl<'a> UiFonts<'a> {
                 .map(|language| (language.clone(), expand(&self.scripts.scripts(language))))
                 .collect(),
             weights: Vec::new(),
+            base_face: None,
             script_face: None,
         };
         let defaults = FontDefinitions::default();
@@ -370,6 +372,7 @@ impl<'a> UiFonts<'a> {
             let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
             let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
             if family.family == FontFamily::Proportional {
+                stack.base_face = chain.base.map(|face| face.weighted(family.weight).name);
                 stack.script_face = chain.script.map(|face| face.weighted(family.weight).name);
             }
             dedup(&mut configured);
@@ -439,6 +442,7 @@ impl<'a> UiFonts<'a> {
         let language_first = family.family != FontFamily::Monospace && main_needs_lead;
         let craft = |indices: Vec<usize>| indices.into_iter().map(|i| self.craft_face(i)).collect::<Vec<_>>();
         let script = language.first().map(|i| self.craft_face(*i));
+        let base_face = base.first().cloned();
 
         let mut configured = craft(lead);
         if language_first {
@@ -458,7 +462,7 @@ impl<'a> UiFonts<'a> {
         let emoji = [("emoji-color", &self.emoji.color), ("emoji-web", &self.emoji.web), ("emoji-monochrome", &self.emoji.monochrome)];
         after.extend(emoji.into_iter().filter_map(|(name, data)| Some(Face { name: name.to_owned(), data: data.clone()? })));
         after.extend(egui_tail);
-        Chain { configured, after, script }
+        Chain { configured, after, base: base_face, script }
     }
 
     /// The app faces heading `family`; a named family without its own takes the proportional ones.
@@ -582,6 +586,8 @@ struct Chain {
     configured: Vec<Face>,
     /// Faces asked after the system fonts.
     after: Vec<Face>,
+    /// The app's first face for the family, or egui's when the app has none.
+    base: Option<Face>,
     /// The UI language's face for its main script, when the family's first faces lack it.
     script: Option<Face>,
 }
@@ -611,14 +617,21 @@ pub struct Stack {
     /// The scripts of the UI language and every offered language.
     language_scripts: Vec<(String, Vec<String>)>,
     weights: Vec<(FontFamily, u16)>,
+    /// The proportional family's first app face (or egui's), whose rows the app's theme fits.
+    base_face: Option<String>,
     /// The UI language's main script face, whose rows widgets fit even when it isn't first.
     script_face: Option<String>,
 }
 
 impl Stack {
     /// Install the faces and providers in `ctx`, and fit the minimum widget height to a row of
-    /// text. Call it again when the UI language changes; widgets shrink back to the style's own
-    /// height for a language with shorter rows.
+    /// text. Call it again when the UI language changes.
+    ///
+    /// The app's theme sets the widget height for rows of the app's face. When the UI language's
+    /// script face has taller rows, the context's styles get that much more height
+    /// ([`Self::fit_interact_size`]), whether the app sets its theme before or after installing:
+    /// a style the app sets later is fitted at the start of the next pass. A language with rows
+    /// no taller than the app's face leaves the theme's height as it is.
     ///
     /// The stack's system font provider (the `system_fonts` feature on desktop, or
     /// [`UiFonts::system_provider`]) replaces the context's font providers, such as the one
@@ -646,24 +659,7 @@ impl Stack {
         if let Some(start) = start_index {
             start(ctx);
         }
-        for theme in [egui::Theme::Dark, egui::Theme::Light] {
-            let id = egui::Id::unique(("craft_ui::fonts::fitted", theme));
-            let previous: Option<(f32, f32)> = ctx.data(|d| d.get_temp(id));
-            let mut fitted = (0.0, 0.0);
-            ctx.style_mut_of(theme, |style| {
-                let height = &mut style.spacing.interact_size.y;
-                // Undo the previous language's fit unless the app changed the height since.
-                if let Some((base, set)) = previous
-                    && *height == set
-                {
-                    *height = base;
-                }
-                let base = *height;
-                self.fit_interact_size(style);
-                fitted = (base, style.spacing.interact_size.y);
-            });
-            ctx.data_mut(|d| d.insert_temp(id, fitted));
-        }
+        fit::install(ctx, self.row_faces());
     }
 
     /// Each family's weight, for wrapping another provider in [`RegularWeight`].
@@ -702,12 +698,11 @@ impl Stack {
         self.after_system.remove(name);
     }
 
-    /// Raise `egui`'s minimum interactive height in `style` to fit a row of this stack's body and
-    /// button text, in the family's first face and in the UI language's script face. [`Self::install`] does this for the context's styles; call it again for a
-    /// style set later.
+    /// Add to `style`'s minimum interactive height how much taller a row of the UI language's
+    /// script face is than a row of the app's face, at the style's body and button sizes.
+    /// [`Self::install`] does this for the context's styles; this is for a style used elsewhere.
     pub fn fit_interact_size(&self, style: &mut Style) {
-        let rows = self.row_heights(style);
-        fit_interact_size(style, &rows);
+        style.spacing.interact_size.y += fit::extra_height(self.row_faces().as_ref(), style);
     }
 
     /// Whether the proportional family can draw `language`'s scripts, e.g. to leave a language out
@@ -731,19 +726,10 @@ impl Stack {
         Fonts::new(TextOptions::default(), self.checked_definitions()).with_font_providers(self.providers(with_system))
     }
 
-    fn row_heights(&self, style: &Style) -> Vec<f32> {
-        let mut definitions = self.checked_definitions();
-        let script = FontFamily::Name("craft-ui script face".into());
-        let script_face = self.script_face.as_ref().filter(|name| definitions.font_data.contains_key(*name));
-        if let Some(name) = script_face {
-            definitions.families.insert(script.clone(), vec![name.clone()]);
-        }
-        let mut fonts = Fonts::new(TextOptions::default(), definitions).with_font_providers(self.providers(false));
-        let mut view = fonts.with_pixels_per_point(1.0);
-        let font_ids: Vec<FontId> = [TextStyle::Body, TextStyle::Button].iter().filter_map(|s| style.text_styles.get(s)).cloned().collect();
-        let script_rows: Vec<FontId> =
-            script_face.map(|_| font_ids.iter().map(|id| FontId::new(id.size, script.clone())).collect()).unwrap_or_default();
-        font_ids.iter().chain(&script_rows).map(|font_id| view.row_height(font_id)).collect()
+    /// The app's face and the UI language's script face, when the stack has both.
+    fn row_faces(&self) -> Option<fit::RowFaces> {
+        let data = |name: &Option<String>| self.definitions.font_data.get(name.as_ref()?).cloned();
+        Some(fit::RowFaces::new(data(&self.base_face)?, data(&self.script_face)?))
     }
 
     fn checked_definitions(&self) -> FontDefinitions {
@@ -793,14 +779,6 @@ impl Stack {
     fn add_configured(&mut self, face: Face) -> String {
         self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| Arc::new(face.data));
         face.name
-    }
-}
-
-fn fit_interact_size(style: &mut Style, rows: &[f32]) {
-    let row = rows.iter().copied().fold(0.0_f32, f32::max);
-    let minimum = row + 2.0 * style.spacing.button_padding.y;
-    if minimum.is_finite() && style.spacing.interact_size.y < minimum {
-        style.spacing.interact_size.y = minimum;
     }
 }
 
