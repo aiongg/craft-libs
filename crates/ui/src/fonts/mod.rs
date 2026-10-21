@@ -340,6 +340,10 @@ impl<'a> UiFonts<'a> {
             system: self.system,
             system_provider: self.system_provider.clone(),
             ui_language: self.ui_language.clone(),
+            language_scripts: std::iter::once(&self.ui_language)
+                .chain(&self.languages)
+                .map(|language| (language.clone(), expand(&self.scripts.scripts(language))))
+                .collect(),
             weights: Vec::new(),
             script_face: None,
         };
@@ -588,6 +592,8 @@ pub struct Stack {
     system: SystemFonts,
     system_provider: Option<Arc<dyn FontProvider>>,
     ui_language: String,
+    /// The scripts of the UI language and every offered language.
+    language_scripts: Vec<(String, Vec<String>)>,
     weights: Vec<(FontFamily, u16)>,
     /// The UI language's main script face, whose rows widgets fit even when it isn't first.
     script_face: Option<String>,
@@ -683,6 +689,21 @@ impl Stack {
     pub fn fit_interact_size(&self, style: &mut Style) {
         let rows = self.row_heights(style);
         fit_interact_size(style, &rows);
+    }
+
+    /// Whether the proportional family can draw `language`'s scripts, e.g. to leave a language out
+    /// of the app's menu on a machine that can't show it. `with_system` also asks the system font
+    /// provider. The scripts come from the stack's [`LanguageScripts`] for the UI language and
+    /// [`UiFonts::languages`], and from craft-i18n for any other language. Each script is checked
+    /// with a few of its common letters.
+    pub fn covers_language(&self, language: &str, with_system: bool) -> bool {
+        let scripts = match self.language_scripts.iter().find(|(l, _)| l == language) {
+            Some((_, scripts)) => scripts.clone(),
+            None => expand(&I18nScripts.scripts(language)),
+        };
+        let mut fonts = self.fonts(with_system);
+        let font_id = FontId::new(14.0, FontFamily::Proportional);
+        scripts.iter().filter_map(|s| coverage::script_sample(s)).flat_map(str::chars).all(|c| fonts.has_glyph(&font_id, c))
     }
 
     /// An epaint [`Fonts`] with this stack, for tests and measurement. `with_system` adds the
