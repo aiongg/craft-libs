@@ -34,6 +34,7 @@ type LastRead = Rc<Cell<Option<(bool, Result<f64, NumberError>)>>>;
 pub struct LocaleNumbers {
     format: Arc<Format>,
     messages: Option<Messages>,
+    grouping: bool,
 }
 
 impl std::fmt::Debug for LocaleNumbers {
@@ -44,7 +45,7 @@ impl std::fmt::Debug for LocaleNumbers {
 
 impl LocaleNumbers {
     pub fn new(format: Arc<Format>) -> LocaleNumbers {
-        LocaleNumbers { format, messages: None }
+        LocaleNumbers { format, messages: None, grouping: true }
     }
 
     /// The numbers of a locale tag (`de-CH`, `ar-EG`) with its own digits.
@@ -59,6 +60,13 @@ impl LocaleNumbers {
         self
     }
 
+    /// Write numbers without grouping separators, for pixel sizes and years: `1920`, not `1,920`.
+    /// Grouped text still reads back.
+    pub fn ungrouped(mut self) -> LocaleNumbers {
+        self.grouping = false;
+        self
+    }
+
     /// `value` with between `decimals.start()` and `decimals.end()` digits after the decimal mark,
     /// trailing zeros dropped down to the minimum: `1,5`, `١٬٢٣٤٫٥`.
     pub fn format(&self, value: f64, decimals: RangeInclusive<usize>) -> String {
@@ -67,7 +75,7 @@ impl LocaleNumbers {
         let decimals = (min..max).find(|&d| round_to_decimals(value, d) == full).unwrap_or(max);
         // `-0.001` shown with two decimals is `0,00`, not `-0,00`.
         let value = if round_to_decimals(value, decimals) == 0.0 { 0.0 } else { value };
-        self.format.number(value, decimals)
+        if self.grouping { self.format.number(value, decimals) } else { self.format.number_ungrouped(value, decimals) }
     }
 
     /// The number in `text`, as [`Format::parse`] reads it: what [`LocaleNumbers::format`] writes,
@@ -200,6 +208,24 @@ impl<'a> LocalizedDragValue<'a> {
     /// The unit around the number, outside a prefix and suffix set on the drag value.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = unit;
+        self
+    }
+
+    /// [`DragValue::range`] of the wrapped drag value.
+    pub fn range<Num: Numeric>(mut self, range: RangeInclusive<Num>) -> Self {
+        self.drag = self.drag.range(range);
+        self
+    }
+
+    /// [`DragValue::speed`] of the wrapped drag value.
+    pub fn speed(mut self, speed: impl Into<f64>) -> Self {
+        self.drag = self.drag.speed(speed);
+        self
+    }
+
+    /// Show the number without grouping separators ([`LocaleNumbers::ungrouped`]).
+    pub fn ungrouped(mut self) -> Self {
+        self.numbers.grouping = false;
         self
     }
 
