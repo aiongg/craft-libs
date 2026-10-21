@@ -1,14 +1,25 @@
 //! Word breaks inside Thai, Lao, Khmer and Burmese runs. UAX #14 gives these scripts class SA
-//! ("complex context") and leaves breaking inside them to a dictionary; ICU4X's dictionary
-//! segmenter supplies it. Only runs of the scripts whose language feature is on are segmented.
+//! ("complex context") and leaves breaking inside them to a dictionary; ICU4X's segmenter supplies
+//! it, with its dictionaries or, with the `lstm` feature, its LSTM models. Only runs of the scripts
+//! whose language feature is on are segmented.
 
-use icu_segmenter::LineSegmenter;
 use icu_segmenter::options::LineBreakOptions;
+use icu_segmenter::{LineSegmenter, LineSegmenterBorrowed};
 use unicode_linebreak::{BreakClass, break_property};
+
+/// Builds ICU4X's line segmenter with one model for the complex scripts. The models are static
+/// data; building the segmenter only looks them up.
+pub(super) type Model = fn(LineBreakOptions<'static>) -> LineSegmenterBorrowed<'static>;
+
+/// The model `line_breaks` uses: the LSTM models with the `lstm` feature, else the dictionaries.
+#[cfg(feature = "lstm")]
+pub(super) const MODEL: Model = LineSegmenter::new_lstm;
+#[cfg(not(feature = "lstm"))]
+pub(super) const MODEL: Model = LineSegmenter::new_dictionary;
 
 /// Byte offsets inside `text` where a run of an enabled script may break between words, in order.
 /// Run starts and ends are left to UAX #14.
-pub(super) fn word_breaks(text: &str) -> Vec<usize> {
+pub(super) fn word_breaks(text: &str, model: Model) -> Vec<usize> {
     let mut out = Vec::new();
     let mut segmenter = None;
     let mut run_start = None;
@@ -19,8 +30,7 @@ pub(super) fn word_breaks(text: &str) -> Vec<usize> {
             (Some(start), false) => {
                 run_start = None;
                 let Some(run) = text.get(start..i) else { continue };
-                // The dictionaries are static data; building the segmenter only looks them up.
-                let seg = *segmenter.get_or_insert_with(|| LineSegmenter::new_dictionary(LineBreakOptions::default()));
+                let seg = *segmenter.get_or_insert_with(|| model(LineBreakOptions::default()));
                 out.extend(seg.segment_str(run).filter(|&o| o > 0 && o < run.len()).map(|o| start + o));
             }
             _ => {}

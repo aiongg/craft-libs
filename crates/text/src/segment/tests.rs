@@ -135,16 +135,108 @@ fn thai_without_its_feature_breaks_as_uax14() {
     assert_eq!(pieces("ภาษาไทยภาษาไทย ไทย", &Options::default()), ["ภาษาไทยภาษาไทย ", "ไทย"]);
 }
 
+/// Each model available in this build, for the complex-script tests.
+#[cfg(any(feature = "thai", feature = "lao", feature = "khmer", feature = "burmese"))]
+fn models() -> Vec<(&'static str, complex::Model)> {
+    use icu_segmenter::LineSegmenter;
+    #[allow(unused_mut)]
+    let mut models: Vec<(&str, complex::Model)> = vec![("dictionary", LineSegmenter::new_dictionary)];
+    #[cfg(feature = "lstm")]
+    models.push(("lstm", LineSegmenter::new_lstm));
+    models
+}
+
+/// Breaks every model puts in `words.concat()` fall between two of `words`, and there are at least
+/// `min` of them. `words` splits compounds where a model may break them.
+#[cfg(any(feature = "thai", feature = "lao", feature = "khmer", feature = "burmese"))]
+fn assert_word_breaks(words: &[&str], min: usize) {
+    let text = words.concat();
+    let bounds: Vec<usize> = words
+        .iter()
+        .scan(0, |end, w| {
+            *end += w.len();
+            Some(*end)
+        })
+        .collect();
+    for (name, model) in models() {
+        let breaks = breaks_with_words(&text, &Options::default(), complex::word_breaks(&text, model));
+        let inside: Vec<usize> = breaks.iter().map(|b| b.offset).filter(|&o| o < text.len()).collect();
+        let shown: Vec<&str> = std::iter::once(0)
+            .chain(inside.iter().copied())
+            .zip(inside.iter().copied().chain([text.len()]))
+            .filter_map(|(a, b)| text.get(a..b))
+            .collect();
+        assert!(inside.iter().all(|o| bounds.contains(o)), "{name}: {shown:?}");
+        assert!(inside.len() >= min, "{name}: {shown:?}");
+    }
+}
+
 #[cfg(feature = "thai")]
 #[test]
 fn thai_breaks_between_words() {
-    let text = "Thai: ภาษาไทยภาษาไทย.";
-    assert_eq!(pieces(text, &Options::default()), ["Thai: ", "ภาษา", "ไทย", "ภาษา", "ไทย."]);
+    assert_word_breaks(&["Thai: ", "ภาษา", "ไทย", "เป็น", "ภาษา", "ราชการ", "ของ", "ประเทศ", "ไทย."], 6);
+}
+
+#[cfg(feature = "lao")]
+#[test]
+fn lao_breaks_between_words() {
+    assert_word_breaks(&["ພາສາ", "ລາວ", "ເປັນ", "ພາສາ", "ລາດ", "ຊະ", "ການ", "ຂອງ", "ປະເທດ", "ລາວ"], 5);
 }
 
 #[cfg(feature = "khmer")]
 #[test]
 fn khmer_breaks_between_words() {
-    let text = "សេចក្ដីប្រកាសជាសកលស្ដីពីសិទ្ធិមនុស្ស";
-    assert_eq!(pieces(text, &Options::default()), ["សេចក្ដីប្រកាស", "ជាស", "កល", "ស្ដីពី", "សិទ្ធិមនុស្ស"]);
+    assert_word_breaks(&["ភាសា", "ខ្មែរ", "ជា", "ភាសា", "ផ្លូវ", "ការ", "នៃ", "ប្រទេស", "កម្ពុជា"], 5);
+}
+
+/// Burmese may break between any two syllables, and the LSTM model splits some words there
+/// (မြန်|မာ): the expected breaks are the syllable boundaries.
+#[cfg(feature = "burmese")]
+#[test]
+fn burmese_breaks_between_syllables() {
+    let syllables = ["မြန်", "မာ", "ဘာ", "သာ", "စ", "ကား", "သည်", "မြန်", "မာ", "နိုင်", "ငံ", "၏", "ရုံး", "သုံး", "ဘာ", "သာ", "စ", "ကား", "ဖြစ်", "သည်"];
+    assert_word_breaks(&syllables, 5);
+}
+
+/// Chinese full-width punctuation: no line starts with a closing mark, none ends with an opening
+/// one.
+#[test]
+fn chinese_kinsoku_keeps_punctuation_with_its_text() {
+    let text = "他说：“《红楼梦》是一部小说，（很长）。”";
+    let o = Options::for_language(Some("zh-Hans"));
+    let breaks = offsets(text, &o);
+    assert!(breaks.len() > 8, "{:?}", pieces(text, &o));
+    for b in breaks {
+        let (head, tail) = text.split_at(b);
+        let (Some(last), Some(first)) = (head.chars().next_back(), tail.chars().next()) else { continue };
+        assert!(!"：”》，）。".contains(first), "line starts with {first}: {:?}", pieces(text, &o));
+        assert!(!"“《（".contains(last), "line ends with {last}: {:?}", pieces(text, &o));
+    }
+}
+
+#[test]
+fn language_picks_korean_words() {
+    for tag in ["ko", "ko-KR", "KO_kr"] {
+        assert!(Options::for_language(Some(tag)).korean_words, "{tag}");
+    }
+    for tag in [Some("ja"), Some("kok"), Some("en-KO"), None] {
+        assert_eq!(Options::for_language(tag), Options::default(), "{tag:?}");
+    }
+}
+
+/// Emergency breaks fall between grapheme clusters: never inside an emoji ZWJ sequence, a flag, a
+/// skin-tone modifier or a letter with its combining marks.
+#[test]
+fn emergency_breaks_keep_grapheme_clusters_whole() {
+    let family = "👨\u{200D}👩\u{200D}👧\u{200D}👦";
+    let text = format!("ab{family}e\u{301}🇯🇵👍🏽");
+    let breaks = emergency_breaks(&text, 0..text.len());
+    let a = family.len() + 2;
+    let b = a + "e\u{301}".len();
+    let c = b + "🇯🇵".len();
+    assert_eq!(breaks, [1, 2, a, b, c]);
+    // Offsets are into `text`; a range off a char boundary has none.
+    assert_eq!(emergency_breaks(&text, 1..b), [2, a]);
+    assert!(emergency_breaks(&text, 3..b).is_empty());
+    assert!(emergency_breaks("", 0..0).is_empty());
 }

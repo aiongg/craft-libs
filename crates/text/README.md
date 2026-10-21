@@ -6,7 +6,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | Module | Feature | Provides |
 | --- | --- | --- |
 | `hyphen` | `hyphen` (default) | Hyphenation points |
-| `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words |
+| `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words; grapheme-cluster emergency breaks |
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 
@@ -102,6 +102,14 @@ for b in line_breaks("日本語のテキスト。", &options) {
   ideographs. Off, Korean breaks between syllables as UAX #14 does.
 - Mandatory breaks (newlines and the end of the text) are always kept.
 
+`Options::for_language(language)` gives the options for a paragraph's BCP 47 language tag, or for
+an unknown language (`None`): `korean_words` for Korean, the defaults otherwise.
+
+When no opportunity leaves a line short enough, `emergency_breaks(text, range)` gives the places
+to break the piece `text[range]` anyway: byte offsets into `text` between extended grapheme
+clusters (UAX #29, through `unicode-segmentation`). An emoji ZWJ sequence, a flag or a letter with
+its marks is never split.
+
 `kinsoku_allows(before, after, mode)` is the same rule for composers that build their own
 opportunity lists.
 
@@ -152,9 +160,19 @@ script's language feature, `line_breaks` treats a run of them as one word: it ne
 the run, only at its edges where UAX #14 allows a break (after a space, for example). A long Thai
 sentence with no spaces is one unbreakable piece, so the composer needs an emergency break for it.
 The features `thai`, `lao`, `khmer` and `burmese` split runs of that
-script into words with ICU4X's dictionary segmenter (`icu_segmenter`). Any one of them links the
-dictionaries for all four, about 1.8 MB; the default build has no ICU data. The data is under the
-Unicode License v3 (see NOTICE).
+script into words with ICU4X's segmenter (`icu_segmenter`). Any one of them links the data for all
+four; the default build has no ICU data. The data is under the Unicode License v3 (see NOTICE).
+
+The segmenter has two models, chosen by the `lstm` feature:
+
+| Model | Feature | Added to a wasm32 release build | Gzipped |
+| --- | --- | --- | --- |
+| Dictionaries (desktop default) | none | 1.86 MB | 0.89 MB |
+| LSTM models (for web) | `lstm` | 0.42 MB | 0.33 MB |
+
+Measured on a minimal `line_breaks` example, against the same example with `segment` alone. The
+LSTM models are slower to run and split a few words differently, mostly compounds broken between
+syllables (Lao ລາດ|ຊະການ, Burmese မြန်|မာ), which are still valid line breaks.
 ## Bidi
 
 `craft_text::bidi` runs the Unicode Bidirectional Algorithm (UAX #9, through

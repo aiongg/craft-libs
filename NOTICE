@@ -40,7 +40,7 @@ Hyphenation patterns for other languages, embedded through the hypher crate only
   AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
   DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-- Word-break dictionaries for Thai, Lao, Khmer and Burmese, embedded through the
+- Word-break dictionaries and LSTM models for Thai, Lao, Khmer and Burmese, embedded through the
   icu_segmenter_data crate only when craft-text's "thai", "lao", "khmer" or "burmese" feature is
   enabled (none are by default). From ICU4X, https://github.com/unicode-org/icu4x.
   Copyright (c) 2020-2024 Unicode, Inc. Unicode License v3 (SPDX: Unicode-3.0); portions adapted

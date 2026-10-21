@@ -14,6 +14,7 @@ workspace = true
 hypher = { version = "0.1.8", default-features = false, features = ["alloc"], optional = true }
 miniz_oxide = { version = "0.8", optional = true }
 unicode-linebreak = { version = "0.1.5", optional = true }
+unicode-segmentation = { version = "1.13", optional = true }
 icu_segmenter = { version = "2.3", default-features = false, features = ["compiled_data"], optional = true }
 unicode-bidi = { version = "0.3.18", optional = true }
 unicode-bidi-mirroring = { version = "0.4.0", optional = true }
@@ -36,9 +37,12 @@ linebreak = []
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]
-# Line-break opportunities (UAX #14 with kinsoku); Thai, Lao, Khmer and Burmese words need their
-# language feature.
-segment = ["dep:unicode-linebreak"]
+# Line-break opportunities (UAX #14 with kinsoku) and grapheme-cluster emergency breaks; Thai, Lao,
+# Khmer and Burmese words need their language feature.
+segment = ["dep:unicode-linebreak", "dep:unicode-segmentation"]
+# With `thai`, `lao`, `khmer` or `burmese`: find their words with ICU4X's LSTM models instead of its
+# dictionaries. Much smaller (for web builds), slower to run, and its words differ slightly.
+lstm = ["segment", "icu_segmenter?/lstm"]
 # Each feature below adds the data for one more language: for `hyphen`, hypher's patterns (see
 # NOTICE for their licenses); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
 # (one shared data set, Unicode License v3).
