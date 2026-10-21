@@ -3,6 +3,7 @@
 
 /// A writing system, by its ISO 15924 code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum Script {
     Arab,
     Armn,
@@ -90,6 +91,7 @@ pub enum Direction {
 /// KR). The same code point is drawn differently in each, so a font stack picks its Han face by
 /// this, not by script.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Han {
     /// Simplified Chinese, mainland China and Singapore (SC).
     Simplified,
@@ -105,14 +107,18 @@ pub enum Han {
 
 /// The scripts a language tag's interface text is written in (`ja` → Hani, Hira, Kana; `sr` →
 /// Cyrl; `sr-latn` → Latn), the main one first. Any case and glibc form (`sr_RS.UTF-8@latin`). A
-/// script subtag wins over the language's usual script. Latin product names and units appear in
-/// every language, so Latn is listed only where it is the language's own script. A language not
-/// in the table is taken to be written in Latin.
+/// script subtag wins, then a region that implies a script (`pa-PK` → Arab), then the language's
+/// usual script. Latin product names and units appear in every language, so Latn is listed only
+/// where it is the language's own script. A language not in the table is taken to be written in
+/// Latin.
 // ponytail: the languages a Craft app ships or could plausibly ship; add a row with the locale.
 pub fn scripts(tag: &str) -> &'static [Script] {
     use Script::*;
     let tag = Subtags::parse(tag);
     if let Some(s) = tag.script.as_deref().and_then(subtag_scripts) {
+        return s;
+    }
+    if let Some(s) = tag.region.as_deref().and_then(|region| region_script(&tag.language, region)).and_then(subtag_scripts) {
         return s;
     }
     match tag.language.as_str() {
@@ -156,26 +162,43 @@ pub fn direction(tag: &str) -> Direction {
 }
 
 /// The forms a language tag's Han characters take: `zh-CN`, `zh-SG`, `zh-Hans` and plain `zh` →
-/// Simplified; `zh-TW` and `zh-Hant` → Traditional; `zh-HK`, `zh-MO` and `zh-Hant-HK` → HongKong;
-/// `ja` → Japanese; `ko` → Korean. `None` for a language not written with Han, which leaves the
-/// choice to the font stack.
+/// Simplified; `zh-TW`, `zh-Hant` and the other regions CLDR writes in Traditional characters
+/// (`zh-US`, `zh-AU`) → Traditional; `zh-HK`, `zh-MO`, `zh-Hant-HK` and `yue` → HongKong; `ja` →
+/// Japanese; `ko` → Korean. `None` for a language not written with Han, which leaves the choice
+/// to the font stack.
 pub fn han(tag: &str) -> Option<Han> {
     let tag = Subtags::parse(tag);
     let hong_kong = matches!(tag.region.as_deref(), Some("hk" | "mo"));
-    match (tag.language.as_str(), tag.script.as_deref()) {
+    // `Hani` names Han without saying which forms, so the region still decides.
+    let script = tag.script.as_deref().filter(|s| *s != "hani");
+    let script = script.or_else(|| region_script(&tag.language, tag.region.as_deref()?));
+    match (tag.language.as_str(), script) {
         ("ja", _) => Some(Han::Japanese),
         ("ko", _) => Some(Han::Korean),
         ("zh" | "yue" | "wuu", Some("hans")) => Some(Han::Simplified),
-        ("zh" | "yue" | "wuu", Some("hant")) => Some(if hong_kong { Han::HongKong } else { Han::Traditional }),
+        ("yue", Some("hant")) => Some(if tag.region.as_deref() == Some("tw") { Han::Traditional } else { Han::HongKong }),
+        ("zh" | "wuu", Some("hant")) => Some(if hong_kong { Han::HongKong } else { Han::Traditional }),
         // Cantonese is written in Traditional characters with Hong Kong forms unless it says otherwise.
-        ("yue", _) => Some(if tag.region.as_deref() == Some("cn") { Han::Simplified } else { Han::HongKong }),
-        ("zh" | "wuu", _) => Some(match tag.region.as_deref() {
-            Some("tw") => Han::Traditional,
-            _ if hong_kong => Han::HongKong,
-            _ => Han::Simplified,
-        }),
+        ("yue", _) => Some(Han::HongKong),
+        ("zh" | "wuu", _) => Some(Han::Simplified),
         _ => None,
     }
+}
+
+/// The script subtag of a language in a region where CLDR's likely subtags give it a script
+/// other than its usual one: `pa-PK` → `arab` (`pa-Arab-PK`), `zh-TW` → `hant`.
+// ponytail: mn-CN → Mong is left out until vertical Mongolian layout is supported.
+pub(crate) fn region_script(language: &str, region: &str) -> Option<&'static str> {
+    Some(match (language, region) {
+        ("az", "iq" | "ir") | ("ha", "cm" | "sd") | ("kk", "af" | "cn" | "ir" | "mn") | ("ku", "iq" | "ir" | "lb") => "arab",
+        ("ky", "cn") | ("ms", "cc") | ("pa", "pk") | ("tg", "pk") | ("uz", "af") => "arab",
+        ("az", "ru") | ("ku", "am" | "az" | "ge" | "tm") | ("ug", "kz" | "mn") | ("uz", "cn") => "cyrl",
+        ("ky", "tr") | ("sr", "me" | "ro" | "tr") => "latn",
+        ("sd", "in") => "deva",
+        ("zh", "au" | "bn" | "gb" | "gf" | "hk" | "id" | "mo" | "pa" | "pf" | "ph" | "sr" | "th" | "tw" | "us" | "vn") => "hant",
+        ("yue", "cn") => "hans",
+        _ => return None,
+    })
 }
 
 /// The scripts a script subtag stands for, including the CLDR unions (`jpan`, `kore`). `None` for
@@ -319,8 +342,19 @@ mod tests {
             ("zh-hant-hk", Han::HongKong),
             ("zh-Hans-HK", Han::Simplified),
             ("zh-SG", Han::Simplified),
+            ("zh-US", Han::Traditional),
+            ("zh_AU.UTF-8", Han::Traditional),
+            ("zh-GB", Han::Traditional),
+            ("zh-Hans-US", Han::Simplified),
+            ("zh-MY", Han::Simplified),
+            ("yue-CN", Han::Simplified),
+            ("yue-HK", Han::HongKong),
             ("zh-Hans-SG", Han::Simplified),
             ("yue", Han::HongKong),
+            ("yue-Hant", Han::HongKong),
+            ("yue-Hant-TW", Han::Traditional),
+            ("zh-Hani-HK", Han::HongKong),
+            ("zh-Hani", Han::Simplified),
             ("yue-Hans", Han::Simplified),
             ("ja-JP", Han::Japanese),
             ("ko_KR.UTF-8", Han::Korean),
@@ -352,10 +386,42 @@ mod tests {
         assert_eq!(direction("he_IL.UTF-8"), Direction::Rtl);
     }
 
+    /// CLDR likely subtags: a region can switch a language to another script.
+    #[test]
+    fn region_implies_script() {
+        for (tag, want) in [
+            ("pa-PK", &[Arab][..]),
+            ("pa_PK.UTF-8", &[Arab]),
+            ("pa-IN", &[Guru]),
+            ("uz-AF", &[Arab]),
+            ("uz-UZ", &[Latn]),
+            ("uz-CN", &[Cyrl]),
+            ("az-IR", &[Arab]),
+            ("az-AZ", &[Latn]),
+            ("sd-IN", &[Deva]),
+            ("sd-PK", &[Arab]),
+            ("ks-IN", &[Arab]),
+            ("ms-CC", &[Arab]),
+            ("ms-BN", &[Latn]),
+            ("sr-ME", &[Latn]),
+            ("kk-CN", &[Arab]),
+            ("ug-KZ", &[Cyrl]),
+            ("pa-Guru-PK", &[Guru]),
+            ("sd-Arab-IN", &[Arab]),
+        ] {
+            assert_eq!(scripts(tag), want, "{tag}");
+        }
+        assert_eq!(direction("pa-PK"), Direction::Rtl);
+        assert_eq!(direction("uz-AF"), Direction::Rtl);
+        assert_eq!(direction("az-IR"), Direction::Rtl);
+        assert_eq!(direction("sd-IN"), Direction::Ltr);
+        assert_eq!(direction("ug-KZ"), Direction::Ltr);
+    }
+
     /// The usual scripts tag matching relies on agree with the table.
     #[test]
     fn agrees_with_usual_script() {
-        for language in ["be", "mn", "sr", "zh", "az", "bs", "ha", "uz", "ks", "sd", "pa"] {
+        for language in ["be", "kk", "ky", "mn", "sr", "tg", "zh", "az", "bs", "ha", "ku", "ms", "uz", "ks", "sd", "ug", "pa"] {
             let usual = crate::usual_script(language).and_then(subtag_scripts);
             assert_eq!(usual, Some(scripts(language)), "{language}");
         }
