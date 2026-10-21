@@ -1,7 +1,13 @@
 use super::*;
 use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily, TextStyle};
+use std::sync::Mutex;
 
 const ARABIC: &[u8] = include_bytes!("../../tests/fonts/NotoSansArabic-test.ttf");
+/// Noto Sans with Vietnamese ổ but not ẫ.
+const NOTO_SANS_LATIN: &[u8] = include_bytes!("../../tests/fonts/NotoSans-test.ttf");
+/// Noto Sans Symbols' ⌃ ⎋ and Noto Sans Symbols 2's ⌥ ⌫ ⏎: the keyboard keys are split between them.
+const SYMBOLS: &[u8] = include_bytes!("../../tests/fonts/NotoSansSymbols-test.ttf");
+const SYMBOLS_2: &[u8] = include_bytes!("../../tests/fonts/NotoSansSymbols2-test.ttf");
 const CJK: &[u8] = include_bytes!("../../tests/fonts/NotoSansCJKsc-test.otf");
 
 const OFFERED: &[&str] = &["en", "ar", "ja", "zh-CN", "zh-TW", "zh-HK", "ko", "th", "ka", "ru"];
@@ -573,14 +579,16 @@ fn a_missing_character_downloads_the_face_for_its_script() {
     // Han follows the offered languages: Japanese before Chinese.
     assert_eq!(names(stack.downloads_for(&regular, '日'))[..2], ["BIZ UDPGothic Regular", "Noto Sans CJK SC Regular"]);
     assert_eq!(names(stack.downloads_for(&FontFamily::Name("semibold".into()), 'あ'))[0], "BIZ UDPGothic Bold");
-    for c in ['a', 'ж', 'λ', '1', '🔍'] {
+    // The CJK faces' Latin doesn't stand in for a Latin face.
+    for c in ['a', 'ж', 'λ', '1', 'ổ', '🔍', '⌘'] {
         assert!(stack.downloads_for(&regular, c).is_empty(), "{c}");
     }
     let twemoji = served("Twemoji", "Regular", &[], "fonts/Twemoji.ttf", 0);
     let stack = web_fonts("en", SERVED).emoji(Emoji { served: Some(twemoji), ..Emoji::default() }).stack();
-    for c in ['🔍', '☰', '⊞'] {
+    for c in ['🔍', '⌚', '✅', '⭐'] {
         assert_eq!(names(stack.downloads_for(&regular, c)), ["Twemoji Regular"], "{c}");
     }
+    assert!(stack.downloads_for(&regular, '⌘').is_empty(), "a symbol, not an emoji");
     assert!(stack.ui_downloads().is_empty());
 
     assert_eq!(served::script_of('\u{0600}'), Some("Arab"));
@@ -702,4 +710,193 @@ fn a_web_build_downloads_the_interface_face_for_its_language() {
     for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic Regular")] {
         assert_eq!(names(web_fonts(language, &faces).stack().ui_downloads()), [want], "{language}");
     }
+}
+
+/// craft-fonts' faces for Latin, Greek and Cyrillic, symbols and emoji, as a web build serves them.
+const SERVED_SYMBOLS: &[ServedFace] = &[
+    served("Noto Sans", "Regular", &["Latn", "Cyrl", "Grek", "Deva"], "fonts/noto-sans/NotoSans.ttf", 0),
+    served("Noto Color Emoji", "Regular", &["Zsye"], "fonts/noto-color-emoji/NotoColorEmoji.ttf", 0),
+    served("Noto Sans Symbols", "Regular", &["Zsym"], "fonts/noto-sans-symbols/NotoSansSymbols.ttf", 0),
+    served("Noto Sans Symbols 2", "Regular", &["Zsym"], "fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf", 0),
+    served("Noto Sans Math", "Regular", &["Zmth", "Zsym"], "fonts/noto-sans-math/NotoSansMath-Regular.ttf", 0),
+];
+
+#[test]
+fn letters_symbols_and_emoji_download_their_own_kind_of_face() {
+    let stack = web_fonts("en", &[SERVED, SERVED_SYMBOLS].concat()).stack();
+    let regular = FontFamily::Proportional;
+    let first = |c: char| names(stack.downloads_for(&regular, c)).first().cloned().unwrap_or_default();
+    for c in ['ổ', 'ẫ', 'ạ', 'ư', 'λ', 'ῶ', 'ж', 'ӂ', 'ǅ', '₫'] {
+        assert_eq!(names(stack.downloads_for(&regular, c)), ["Noto Sans Regular"], "{c}");
+    }
+    let symbols = ["Noto Sans Symbols Regular", "Noto Sans Symbols 2 Regular", "Noto Sans Math Regular"];
+    for c in ['⌘', '⌥', '⇧', '⌃', '⎋', '⏎', '⌫', '⇥', '↩', '⌦', '⇪', '⏏', '☰', '✓', '♠', '🁣', '♔'] {
+        assert_eq!(names(stack.downloads_for(&regular, c)), symbols, "{c}");
+    }
+    for c in ['⊞', '∀', '⟨', '𝔸'] {
+        assert_eq!(first(c), "Noto Sans Math Regular", "{c}");
+    }
+    for c in ['🔍', '😀', '⌚', '☕', '✅', '⭐', '🃏'] {
+        assert_eq!(names(stack.downloads_for(&regular, c)), ["Noto Color Emoji Regular"], "{c}");
+    }
+    // A variation selector chooses between the two.
+    assert_eq!(served::script_of_cluster("↩\u{FE0F}"), Some("Zsye"));
+    assert_eq!(served::script_of_cluster("⌚\u{FE0E}"), Some("Zsym"));
+    assert_eq!(served::script_of_cluster("1\u{FE0F}\u{20E3}"), Some("Zsye"));
+    assert_eq!(served::script_of_cluster("↩"), Some("Zsym"));
+}
+
+/// Fetches nothing until the test answers, on a clock the test moves.
+#[derive(Default)]
+struct FakeFetch {
+    pending: Mutex<Vec<(&'static str, served::loader::Done)>>,
+    requested: Mutex<Vec<&'static str>>,
+    now: Mutex<f64>,
+    timers: Mutex<Vec<(f64, served::loader::Wake)>>,
+}
+
+impl served::loader::Fetcher for FakeFetch {
+    fn fetch(&self, url: &'static str, _integrity: &'static str, done: served::loader::Done) {
+        self.requested.lock().unwrap().push(url);
+        self.pending.lock().unwrap().push((url, done));
+    }
+
+    fn now(&self) -> f64 {
+        *self.now.lock().unwrap()
+    }
+
+    fn after(&self, seconds: f64, wake: served::loader::Wake) {
+        let at = self.now() + seconds;
+        self.timers.lock().unwrap().push((at, wake));
+    }
+}
+
+impl FakeFetch {
+    /// The URLs requested since the last call.
+    fn requested(&self) -> Vec<&'static str> {
+        std::mem::take(&mut *self.requested.lock().unwrap())
+    }
+
+    fn answer(&self, url: &str, result: Result<&[u8], &str>) {
+        let mut pending = self.pending.lock().unwrap();
+        let i = pending.iter().position(|(u, _)| *u == url).unwrap_or_else(|| panic!("{url} is not being fetched"));
+        let (_, done) = pending.remove(i);
+        drop(pending);
+        done(result.map(<[u8]>::to_vec).map_err(str::to_owned));
+    }
+
+    fn wait(&self, seconds: f64) {
+        let now = {
+            let mut now = self.now.lock().unwrap();
+            *now += seconds;
+            *now
+        };
+        let due: Vec<_> = {
+            let mut timers = self.timers.lock().unwrap();
+            let (due, later) = std::mem::take(&mut *timers).into_iter().partition(|(at, _)| *at <= now);
+            *timers = later;
+            due
+        };
+        for (_, wake) in due {
+            wake();
+        }
+    }
+}
+
+const NOTO_SANS_URL: &str = "fonts/noto-sans/NotoSans.ttf";
+const SYMBOLS_URL: &str = "fonts/noto-sans-symbols/NotoSansSymbols.ttf";
+const SYMBOLS_2_URL: &str = "fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf";
+const MATH_URL: &str = "fonts/noto-sans-math/NotoSansMath-Regular.ttf";
+
+/// An English UI on the web whose faces lack Vietnamese ổ and the keyboard keys, with `fetch`
+/// fetching its served faces; and whether the context draws a character, as a pass would ask.
+fn web_context(fetch: &Arc<FakeFetch>) -> (egui::Context, impl Fn(char) -> bool) {
+    let ctx = egui::Context::default();
+    let stack = web_fonts("en", SERVED_SYMBOLS).stack();
+    served::loader::install(&ctx, stack, Arc::clone(fetch) as Arc<dyn served::loader::Fetcher>);
+    assert!(fetch.requested().is_empty(), "English needs no served face up front");
+    let draws = {
+        let ctx = ctx.clone();
+        move |c: char| {
+            ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+            ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), c))
+        }
+    };
+    (ctx, draws)
+}
+
+#[test]
+fn missing_characters_fetch_one_face_after_another_until_one_draws_them() {
+    let fetch = Arc::new(FakeFetch::default());
+    let (_ctx, draws) = web_context(&fetch);
+
+    assert!(!draws('ổ'));
+    assert_eq!(fetch.requested(), [NOTO_SANS_URL]);
+    // While a face is on its way, characters it may have wait for it.
+    assert!(!draws('ạ'));
+    assert!(fetch.requested().is_empty());
+    fetch.answer(NOTO_SANS_URL, Ok(NOTO_SANS_LATIN));
+    assert!(draws('ổ'));
+
+    // ⌥ isn't in the first symbol face: the second one is fetched once the first arrives.
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
+    fetch.answer(SYMBOLS_URL, Ok(SYMBOLS));
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
+    fetch.answer(SYMBOLS_2_URL, Ok(SYMBOLS_2));
+    assert!(draws('⌥') && draws('⌫') && draws('⌃') && draws('⎋'));
+
+    // Another Latin letter the fetched face lacks moves on to the next Latin face: there is none.
+    assert!(!draws('ẫ'));
+    assert!(fetch.requested().is_empty(), "the emoji face is never a candidate for letters or keys");
+}
+
+#[test]
+fn a_failed_download_moves_on_and_is_retried_later() {
+    let fetch = Arc::new(FakeFetch::default());
+    let (_ctx, draws) = web_context(&fetch);
+
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
+    fetch.answer(SYMBOLS_URL, Err("HTTP 503"));
+    // The next face that could draw it is fetched at once.
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
+    fetch.answer(SYMBOLS_2_URL, Err("HTTP 503"));
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [MATH_URL]);
+    fetch.answer(MATH_URL, Err("HTTP 503"));
+    assert!(!draws('⌥'));
+    assert!(fetch.requested().is_empty(), "failed faces wait for their retry time");
+
+    // Failures of one script don't stop another's face.
+    assert!(!draws('ổ'));
+    assert_eq!(fetch.requested(), [NOTO_SANS_URL]);
+    fetch.answer(NOTO_SANS_URL, Ok(NOTO_SANS_LATIN));
+    assert!(draws('ổ'));
+
+    // At their retry time the failed faces are fetched again, in order.
+    fetch.wait(1.0);
+    assert!(!draws('⌥'));
+    assert!(fetch.requested().is_empty());
+    fetch.wait(1.0);
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_URL]);
+    fetch.answer(SYMBOLS_URL, Ok(SYMBOLS));
+    assert!(!draws('⌥'));
+    assert_eq!(fetch.requested(), [SYMBOLS_2_URL]);
+    fetch.answer(SYMBOLS_2_URL, Ok(SYMBOLS_2));
+    assert!(draws('⌥'));
+
+    // A face that fails again waits twice as long.
+    assert!(!draws('⇥'));
+    assert_eq!(fetch.requested(), [MATH_URL]);
+    fetch.answer(MATH_URL, Err("HTTP 503"));
+    fetch.wait(3.0);
+    assert!(!draws('⇥'));
+    assert!(fetch.requested().is_empty());
+    fetch.wait(1.0);
+    assert!(!draws('⇥'));
+    assert_eq!(fetch.requested(), [MATH_URL]);
 }
