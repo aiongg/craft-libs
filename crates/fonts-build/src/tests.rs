@@ -553,6 +553,36 @@ mod subset {
         }
     }
 
+    #[test]
+    fn subset_to_serves_the_cut_under_its_hash() {
+        let scratch = Scratch::new("subset-serve");
+        let dir = checkout(&scratch, &[("Noto Sans TC UI", "Hant,Latn", "ui", tiny("Tiny-glyf.ttf"))]);
+        let catalog = scratch.0.join("zh-TW.tsv");
+        std::fs::write(&catalog, "Open\t一\n").unwrap();
+        let served = scratch.0.join("served");
+        let r = run(Embed::new().subset_to([&catalog]).serve(&served, "fonts/"), Some(&dir), Some("1"));
+        assert_eq!(r.result.as_ref().unwrap(), &["Noto Sans TC UI Regular"]);
+        let cut = std::fs::read(cut_file(&r, "Noto Sans TC UI")).unwrap();
+        let sha256 = crate::sha256::hex(&cut);
+        let file = format!("{}.{}.ttf", 0, &sha256[..16]);
+        assert_eq!(std::fs::read(served.join(&file)).unwrap(), cut);
+        assert!(!served.join("0.ttf").exists());
+        let line = format!("url: \"fonts/{file}\", size: {}, integrity: {:?} }}", cut.len(), crate::embed::integrity(&sha256));
+        assert!(r.table.contains(&line), "{}\n{line}", r.table);
+    }
+
+    #[test]
+    fn sha256_matches_the_standard_vectors() {
+        use crate::sha256::hex;
+        assert_eq!(hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
+        );
+        assert_eq!(hex(&vec![b'a'; 1_000_000]), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+    }
+
     /// With `CRAFT_FONTS_DIR` set to a craft-fonts checkout, cut its BIZ UDPGothic Regular.
     #[test]
     fn cuts_biz_udpgothic() {
@@ -617,4 +647,22 @@ fn integrity_is_base64_of_the_hex_hash() {
     for bad in ["", "00", "zz08ef1fc69f15e87ce52bda8a9c24714e4125daf7e50a40edb1aa2be10dff1"] {
         assert_eq!(integrity(bad), "", "{bad:?}");
     }
+}
+
+#[test]
+fn for_ui_serves_no_whole_cjk_face() {
+    let scratch = Scratch::new("for-ui-serve");
+    let dir = checkout(
+        &scratch,
+        &[
+            ("Noto Sans TC", "Hant,Latn", "", b"full".to_vec()),
+            ("Noto Sans TC UI", "Hant,Latn", "ui", b"source".to_vec()),
+            ("Noto Sans Arabic", "Arab", "", b"arabic".to_vec()),
+        ],
+    );
+    let served = scratch.0.join("served");
+    let r = run(Embed::new().for_ui().serve(&served, "fonts/"), Some(&dir), None);
+    assert_eq!(r.result.unwrap(), ["Noto Sans Arabic Regular"]);
+    assert_eq!(std::fs::read(served.join("2.ttf")).unwrap(), b"arabic");
+    assert!(!served.join("0.ttf").exists() && !served.join("1.ttf").exists());
 }

@@ -322,7 +322,9 @@ fallbacks in its first frames.
 ```rust
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
-    let fonts = craft_fonts_build::Embed::new();
+    // CJK faces as craft-fonts' interface faces, cut to the app's catalogs (`catalogs` as in
+    // craft-fonts-build's README; `subset` feature on the build-dependency).
+    let fonts = craft_fonts_build::Embed::new().subset_to(catalogs("myapp"));
     let written = if craft_fonts_build::target_is_wasm() {
         // Served by the page as `fonts/`; see Trunk.toml.
         fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")

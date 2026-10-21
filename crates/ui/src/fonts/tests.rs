@@ -742,3 +742,17 @@ fn a_fetched_file_reaches_every_face_and_family_that_uses_it() {
         assert!(stack.definitions.font_data.contains_key(name), "{name}");
     }
 }
+
+#[test]
+fn a_web_build_downloads_the_interface_face_for_its_language() {
+    let faces = [
+        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.0123456789abcdef.ttf", 0),
+        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.0123456789abcdef.ttf", 0),
+        served("BIZ UDPGothic", "Regular", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Regular.0123456789abcdef.ttf", 0),
+        served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
+    ];
+    // The interface faces are Regular only: the semibold family takes that face too.
+    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic Regular")] {
+        assert_eq!(names(web_fonts(language, &faces).stack().ui_downloads()), [want], "{language}");
+    }
+}

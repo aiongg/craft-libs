@@ -170,12 +170,18 @@ font file and its licence keep their path under the checkout's `fonts/` director
 `url_prefix` plus that path: `serve("web/fonts", "fonts/")` copies
 `fonts/noto-sans-arabic/NotoSansArabic.ttf` to `web/fonts/noto-sans-arabic/NotoSansArabic.ttf`, with
 the URL `fonts/noto-sans-arabic/NotoSansArabic.ttf`. Faces of one collection share a file and a
-URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value. A relative `dir` is
-under the package directory. Files already there with the right size are not copied again, a deleted
-one is copied again on the next build, and files of faces no longer selected stay.
+URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value.
+
+An interface face cut by `subset_to` is served from its cut in `OUT_DIR`, with the start of the
+cut's SHA-256 in its name (`web/fonts/ui/NotoSansTCUI-Regular.1234abcd5678ef90.ttf`) and the cut's
+own `integrity`, so changed catalogs give a new URL rather than a cached copy that fails its check.
+A relative `dir` is under the package directory. Files already there with the right size are not
+copied again, a deleted one is copied again on the next build, and files of faces no longer
+selected, and earlier cuts, stay.
 
 ```rust
-let fonts = craft_fonts_build::Embed::new();
+// CJK faces only as the interface faces, cut to the app's catalogs (see below).
+let fonts = craft_fonts_build::Embed::new().subset_to(catalogs("filmcraft"));
 let written = if craft_fonts_build::target_is_wasm() {
     fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")
 } else {

@@ -25,9 +25,9 @@
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
 //! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them, or, for a web build, copies them
 //! beside the wasm and lists them as [`ServedFace`]s, which the stack orders the same way and
-//! fetches when they are needed (see [`UiFonts::served_faces`]). For the interface they embed with
-//! `Embed::subset_to(catalogs)`, which takes the CJK faces as craft-fonts' interface faces
-//! (`Noto Sans TC UI`, BIZ UDPGothic Regular) and cuts them at build time to the characters the
+//! fetches when they are needed (see [`UiFonts::served_faces`]). For the interface they take
+//! `Embed::subset_to(catalogs)`, which embeds or serves the CJK faces as craft-fonts' interface
+//! faces (`Noto Sans TC UI`, BIZ UDPGothic Regular), cut at build time to the characters the
 //! translation catalogs use. A character a cut face lacks, such as one in a file name, comes from
 //! the next face that has it: another region's interface face, then the installed system fonts.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
