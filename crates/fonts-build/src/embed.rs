@@ -214,12 +214,12 @@ impl Serve {
             let size = std::fs::metadata(path).map_err(|source| Error::Read { path: path.clone(), source })?.len();
             if !copied.contains(&entry.file.as_str()) {
                 copied.push(&entry.file);
-                copy_file(path, &self.dir.join(served))?;
+                copy_file(path, &self.dir.join(served), cargo)?;
                 let licence = checkout.join(&entry.licence_file);
                 if entry.licence_file.is_empty() || !licence.is_file() {
                     cargo.push(format!("cargo::warning=craft-fonts: no licence file beside {}", entry.file));
                 } else {
-                    copy_file(&licence, &self.dir.join(served_path(&entry.licence_file)))?;
+                    copy_file(&licence, &self.dir.join(served_path(&entry.licence_file)), cargo)?;
                 }
             }
             let scripts: Vec<String> = entry.scripts.iter().map(|s| format!("{s:?}")).collect();
@@ -244,7 +244,10 @@ fn served_path(file: &str) -> &str {
     file.strip_prefix("fonts/").unwrap_or(file)
 }
 
-fn copy_file(from: &Path, to: &Path) -> Result<(), Error> {
+/// Copy `from` unless `to` already has its size. The copy keeps `from`'s modification time and is
+/// watched, so the build copies it again once it is deleted, without running every build.
+fn copy_file(from: &Path, to: &Path, cargo: &mut Vec<String>) -> Result<(), Error> {
+    cargo.push(format!("cargo::rerun-if-changed={}", to.display()));
     let write_error = |source| Error::Write { path: to.to_path_buf(), source };
     let size = |path: &Path| std::fs::metadata(path).ok().map(|m| m.len());
     if size(to).is_some() && size(to) == size(from) {
@@ -253,7 +256,10 @@ fn copy_file(from: &Path, to: &Path) -> Result<(), Error> {
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent).map_err(write_error)?;
     }
-    std::fs::copy(from, to).map(drop).map_err(write_error)
+    std::fs::copy(from, to).map_err(write_error)?;
+    // Cargo reruns a build script whose watched files are newer than its last run.
+    let modified = std::fs::metadata(from).and_then(|m| m.modified()).map_err(|source| Error::Read { path: from.to_path_buf(), source })?;
+    std::fs::File::options().write(true).open(to).and_then(|f| f.set_modified(modified)).map_err(write_error)
 }
 
 /// The Subresource Integrity value (`sha256-<base64>`) of a hex SHA-256, or `""` for a value that
