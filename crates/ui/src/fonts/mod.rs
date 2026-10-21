@@ -223,6 +223,7 @@ struct AppFace {
 pub struct UiFonts<'a> {
     scripts: &'a dyn LanguageScripts,
     app_faces: Vec<AppFace>,
+    egui_faces: Vec<(String, Vec<FontFamily>)>,
     app_scripts: Vec<String>,
     craft_faces: Vec<CraftFace>,
     languages: Vec<String>,
@@ -239,6 +240,7 @@ impl<'a> UiFonts<'a> {
         Self {
             scripts,
             app_faces: Vec::new(),
+            egui_faces: Vec::new(),
             app_scripts: APP_SCRIPTS.iter().map(|s| (*s).to_owned()).collect(),
             craft_faces: Vec::new(),
             languages: Vec::new(),
@@ -254,6 +256,15 @@ impl<'a> UiFonts<'a> {
     /// One of the app's own faces, heading `families` in the order the app adds them.
     pub fn app_face(mut self, name: &str, data: FontData, families: &[FontFamily]) -> Self {
         self.app_faces.push(AppFace { name: name.to_owned(), data, families: families.to_vec() });
+        self
+    }
+
+    /// One of egui's default faces (`Hack`, `Ubuntu-Light`, `NotoEmoji-Regular`,
+    /// `emoji-icon-font`) at the end of `families`' configured faces, ahead of installed system
+    /// fonts, e.g. Hack in the proportional family for symbols the app's face lacks (⇧, ▸). It
+    /// needs egui's `default_fonts` feature; a name egui doesn't ship is ignored.
+    pub fn egui_face(mut self, name: &str, families: &[FontFamily]) -> Self {
+        self.egui_faces.push((name.to_owned(), families.to_vec()));
         self
     }
 
@@ -340,7 +351,13 @@ impl<'a> UiFonts<'a> {
                 .flatten()
                 .filter_map(|name| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() }))
                 .collect();
-            let chain = self.chain(&family, egui_faces);
+            let mut chain = self.chain(&family, egui_faces);
+            chain.configured.extend(
+                self.egui_faces
+                    .iter()
+                    .filter(|(_, families)| families.contains(&family.family))
+                    .filter_map(|(name, _)| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() })),
+            );
             let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
             let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
             if family.family == FontFamily::Proportional {
