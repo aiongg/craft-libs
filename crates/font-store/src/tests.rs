@@ -643,9 +643,17 @@ mod store {
         assert_eq!(entries(&dir.join("testvar")), ["LICENSE.txt", "TestVar[wght].ttf"]);
         assert_eq!(store.installed().iter().map(|f| f.family.as_str()).collect::<Vec<_>>(), ["Test Sans", "Test Var"]);
 
+        // One style out, then the last one takes its family with it.
+        store.remove_files(GOOGLE_FONTS, "Test Sans", &["TestSans-Bold.ttf".into()]).unwrap();
+        assert!(!dir.join("testsans/TestSans-Bold.ttf").exists());
+        assert_eq!(store.installed_family(GOOGLE_FONTS, "Test Sans").unwrap().files.len(), 2);
+        store.remove_files(GOOGLE_FONTS, "Test Var", &["TestVar[wght].ttf".into()]).unwrap();
+        assert!(!dir.join("testvar").exists());
+        assert!(store.installed_family(GOOGLE_FONTS, "Test Var").is_none());
+
         store.remove_family(GOOGLE_FONTS, "test sans").unwrap();
         assert!(!dir.join("testsans").exists());
-        assert_eq!(store.installed().len(), 1);
+        assert!(store.installed().is_empty());
         assert!(catalog.by_postscript_name("TestSans-Bold").is_none());
         assert!(matches!(store.remove_family(GOOGLE_FONTS, "Test Sans"), Err(Error::NotInstalled(_))));
         assert!(entries(&dir.join(".staging")).is_empty());

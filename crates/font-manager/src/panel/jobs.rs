@@ -27,9 +27,20 @@ pub enum Kind {
 }
 
 pub struct Running {
+    /// The family's source; empty for a removal, which goes by the installed files.
+    pub source: String,
     pub family: String,
     pub kind: Kind,
+    /// One file's index path or store path, when the job is for one style.
+    pub file: Option<String>,
     pub progress: Progress,
+}
+
+impl Running {
+    /// How far along, when the size is known.
+    pub fn fraction(&self) -> Option<f32> {
+        (self.progress.total > 0).then(|| (self.progress.done as f32 / self.progress.total as f32).clamp(0.0, 1.0))
+    }
 }
 
 pub enum Finished {
@@ -46,6 +57,8 @@ enum Msg {
 pub enum Request {
     /// A family of the index, by position.
     Install(Arc<Index>, usize),
+    /// One file of a family of the index, by its path in the index.
+    InstallFile(Arc<Index>, usize, String),
     Remove(RemoveRequest),
     /// A family of the index, by position.
     Preview(Arc<Index>, usize),
@@ -80,27 +93,32 @@ impl Jobs {
         Jobs { worker, tx, rx, next: 0, running: BTreeMap::new() }
     }
 
-    pub fn running(&self) -> impl Iterator<Item = &Running> {
-        self.running.values()
-    }
-
-    pub fn is_running(&self, family: &str) -> bool {
-        self.running.values().any(|r| r.family.eq_ignore_ascii_case(family))
+    /// The job running for `family` of `source` (any source when empty), if any.
+    pub fn of(&self, source: &str, family: &str) -> Option<&Running> {
+        self.running.values().find(|r| r.family.eq_ignore_ascii_case(family) && (source.is_empty() || r.source.is_empty() || r.source == source))
     }
 
     /// Runs `request` through `installer`, then rescans `catalog` after an install or removal.
     pub fn start(&mut self, ctx: &egui::Context, installer: Arc<dyn Installer>, catalog: Arc<Catalog>, request: Request) {
         let id = self.next;
         self.next += 1;
-        let (family, kind, total) = match &request {
+        let (source, family, kind, file, total) = match &request {
             Request::Install(index, i) | Request::Preview(index, i) => {
                 let Some(f) = index.families().get(*i) else { return };
                 let kind = if matches!(request, Request::Install(..)) { Kind::Install } else { Kind::Preview };
-                (f.family.clone(), kind, f.size())
+                (f.source.clone(), f.family.clone(), kind, None, f.size())
             }
-            Request::Remove(r) => (r.family.clone(), Kind::Remove, 0),
+            Request::InstallFile(index, i, path) => {
+                let Some(f) = index.families().get(*i) else { return };
+                let size = f.files.iter().find(|x| &x.path == path).map_or(0, |x| x.size);
+                (f.source.clone(), f.family.clone(), Kind::Install, Some(path.clone()), size)
+            }
+            Request::Remove(r) => {
+                let file = if r.whole { None } else { r.files.first().map(|p| p.display().to_string()) };
+                (String::new(), r.family.clone(), Kind::Remove, file, 0)
+            }
         };
-        self.running.insert(id, Running { family, kind, progress: Progress { done: 0, total } });
+        self.running.insert(id, Running { source, family, kind, file, progress: Progress { done: 0, total } });
         let tx = self.tx.clone();
         let ctx = ctx.clone();
         let task: Task = Box::new(move || {
@@ -112,6 +130,9 @@ impl Jobs {
             let result = match request {
                 Request::Install(index, i) => {
                     family(&index, i).and_then(|f| installer.install(&index, &f, &mut progress)).map(|()| Finished::Installed)
+                }
+                Request::InstallFile(index, i, path) => {
+                    family(&index, i).and_then(|f| installer.install_file(&index, &f, &path, &mut progress)).map(|()| Finished::Installed)
                 }
                 Request::Remove(r) => installer.remove(&r).map(|()| Finished::Removed),
                 Request::Preview(index, i) => family(&index, i).and_then(|f| installer.download(&index, &f, &mut progress)).map(Finished::Previewed),

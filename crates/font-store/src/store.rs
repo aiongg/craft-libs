@@ -622,6 +622,44 @@ impl FontStore {
         result
     }
 
+    /// Removes some files of an installed family (one style, say), by their names in its folder.
+    /// Taking out the last one removes the family.
+    pub fn remove_files(&self, source: &str, name: &str, files: &[String]) -> Result<(), Error> {
+        let result = {
+            let _lock = self.lock()?;
+            let mut manifest = self.read_manifest();
+            let pos = manifest.families.iter().position(|f| f.is(source, name)).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
+            let Some(entry) = manifest.families.get_mut(pos) else { return Err(Error::NotInstalled(name.to_string())) };
+            entry.files.retain(|f| !files.contains(&f.name));
+            let folder = self.dir.join(&entry.dir);
+            let stage = Stage::new(&self.dir)?;
+            let moving: Vec<(PathBuf, PathBuf)> = if entry.files.is_empty() {
+                manifest.families.remove(pos);
+                vec![(folder, stage.dir.join("removed"))]
+            } else {
+                files.iter().map(|f| (folder.join(f), stage.dir.join(f))).collect()
+            };
+            let mut moved = Vec::new();
+            for (from, to) in &moving {
+                if from.exists() {
+                    std::fs::rename(from, to).map_err(io(format!("removing {}", from.display())))?;
+                    moved.push((from, to));
+                }
+            }
+            match self.write_manifest(&manifest) {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    for (from, to) in moved {
+                        let _ = std::fs::rename(to, from);
+                    }
+                    Err(e)
+                }
+            }
+        };
+        self.rescan();
+        result
+    }
+
     /// Checks every installed file against the manifest: present, the right size and sha256,
     /// and a font.
     pub fn verify(&self) -> Vec<Problem> {

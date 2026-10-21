@@ -1,25 +1,26 @@
-//! The panel: installed fonts, the Google Fonts catalogue, and the details of the selected family.
+//! The panel's state, what the host calls, and the frame: the tabs and search across the top,
+//! the filters at the reading start, the family cards, and the details sheet over them.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::craft_font_catalog::{FontEnv, Limits, Os};
 use crate::filter::{Query, Search};
-use crate::index::{Category, Index, categories, script_name};
+use crate::index::{Category, Family, Index, categories};
 use crate::installed::{InstalledFamily, group};
 use crate::store::{Installer, RemoveRequest, StoreError};
 use crate::{Catalog, FaceInfo, Source};
 use craft_i18n::Folder;
 use craft_ui::direction;
 use craft_ui::fonts::{CraftFace, I18nScripts, UiFonts};
-use egui::{
-    Align, CentralPanel, Color32, ComboBox, Context, FontId, Id, Label, Layout, Modal, Panel, ProgressBar, RichText, ScrollArea, Slider, TextEdit,
-    Ui, vec2,
-};
+use egui::{CentralPanel, Context, Frame, Margin, Panel, Ui};
 
-use crate::panel::faces::{FaceFonts, Owner, Shown};
-use crate::panel::i18n::{self, I18N, LANGUAGES, fmt, tl, tn};
+use crate::panel::faces::FaceFonts;
+use crate::panel::i18n::{self, I18N, LANGUAGES, fmt, tl};
 use crate::panel::jobs::{Finished, Jobs, Kind, Request, Runner};
+use crate::panel::look::{Look, Palette};
+use crate::panel::samples;
+use crate::panel::widgets::{self, Skin};
 
 /// Installs the standalone app's interface fonts in `ctx` and sets the interface direction: craft-ui's
 /// font stack for the panel's interface language, with `craft_faces` (craft-fonts' faces the app
@@ -34,18 +35,35 @@ pub fn install_interface_fonts(ctx: &Context, craft_faces: &[CraftFace]) {
 /// Preview downloads: at most this much per file, and this many faces in a session.
 const PREVIEW_LIMITS: Limits = Limits { max_file_bytes: 64 << 20, max_faces_per_file: 512, max_added_faces: 20_000 };
 
+/// How often the download consent is read again from the store's settings file, which another
+/// Craft app can change.
+const CONSENT_RECHECK_SECS: f64 = 3.0;
+
+/// What a sample shows when the user hasn't typed one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Preset {
+    /// A sentence in the language filtered by, or in the family's own script.
+    #[default]
+    Sentence,
+    Alphabet,
+    Numerals,
+}
+
 /// What the app keeps between runs.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// The sample text; empty for the default sentence.
+    /// The sample text; empty for the preset.
     pub sample: String,
+    pub preset: Preset,
     pub size: f32,
+    /// The user closed the note that downloads are off.
+    pub hide_download_note: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { sample: String::new(), size: 28.0 }
+        Settings { sample: String::new(), preset: Preset::Sentence, size: 36.0, hide_download_note: false }
     }
 }
 
@@ -54,6 +72,28 @@ pub enum Tab {
     Installed,
     Catalogue,
 }
+
+/// Which catalogue families show by install state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(crate) enum Show {
+    #[default]
+    All,
+    Installed,
+    NotInstalled,
+}
+
+/// Which installed families show by where they come from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Origin {
+    #[default]
+    All,
+    System,
+    Store,
+}
+
+/// What the Installed tab's list was worked out for: the search, the source and the catalog's
+/// generation.
+type InstalledFilter = (String, Origin, Option<u64>);
 
 /// What the app is built from; tests pass their own catalog, store and index.
 pub struct Options {
@@ -64,47 +104,112 @@ pub struct Options {
     pub runner: Runner,
 }
 
-/// A download waiting for the user's consent.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Pending {
+/// A download, waiting for the user's consent or to be tried again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Pending {
     Install(usize),
+    /// One file of a family, by its path in the index.
+    InstallFile(usize, String),
     Preview(usize),
 }
 
-struct Catalogue {
-    index: Arc<Index>,
-    search: Search,
+impl Pending {
+    pub(crate) fn family(&self) -> usize {
+        match self {
+            Pending::Install(i) | Pending::InstallFile(i, _) | Pending::Preview(i) => *i,
+        }
+    }
+}
+
+/// The family the details sheet shows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Detail {
+    /// A family of the index, by position.
+    Family(usize),
+    /// An installed family, by name and source.
+    Installed(String, Source),
+}
+
+/// Why the last job for a family failed, and what Retry runs.
+#[derive(Clone, Debug)]
+pub(crate) struct Failure {
+    pub kind: Kind,
+    pub error: String,
+    pub retry: Option<Pending>,
+}
+
+pub(crate) struct Catalogue {
+    pub index: Arc<Index>,
+    pub search: Search,
 }
 
 pub struct FontsPanel {
-    settings: Settings,
-    tab: Tab,
-    catalog: Arc<Catalog>,
-    installer: Arc<dyn Installer>,
-    catalogue: Result<Catalogue, String>,
-    query: Query,
-    results: Vec<usize>,
-    results_for: Option<Query>,
-    language_text: String,
-    installed: Vec<InstalledFamily>,
+    pub(crate) settings: Settings,
+    pub(crate) tab: Tab,
+    pub(crate) look: Look,
+    pub(crate) skin: Skin,
+    /// The panel shows its own download switch; off when the host has one in its settings.
+    pub(crate) downloads_switch: bool,
+    pub(crate) catalog: Arc<Catalog>,
+    pub(crate) installer: Arc<dyn Installer>,
+    pub(crate) catalogue: Result<Catalogue, String>,
+    pub(crate) query: Query,
+    pub(crate) show: Show,
+    pub(crate) results: Vec<usize>,
+    results_for: Option<(Query, Show, Option<String>, Option<u64>)>,
+    /// Only this source's families (a source ID).
+    pub(crate) source: Option<String>,
+    /// Families per source, in [`Index::sources`] order, for the other filters as set.
+    pub(crate) source_counts: Vec<usize>,
+    /// The indexes being downloaded again (the sources' Update).
+    sources_job: Option<std::sync::mpsc::Receiver<Result<Index, StoreError>>>,
+    /// What the Sources settings show: the URL being typed, and the last problem.
+    pub(crate) source_url: String,
+    pub(crate) source_message: Option<(bool, String)>,
+    /// Families per category (all first) and per install state, for the other filters as set.
+    pub(crate) category_counts: [usize; 6],
+    pub(crate) show_counts: [usize; 3],
+    pub(crate) language_text: String,
+    pub(crate) installed: Vec<InstalledFamily>,
     /// Installed faces by lower-case family name, every source together.
-    installed_by_name: HashMap<String, Vec<FaceInfo>>,
+    pub(crate) installed_by_name: HashMap<String, Vec<FaceInfo>>,
     installed_generation: Option<u64>,
-    installed_text: String,
-    selected_installed: Option<(String, Source)>,
-    selected_family: Option<usize>,
+    pub(crate) installed_text: String,
+    pub(crate) origin: Origin,
+    /// [`FontsPanel::installed_shown`] and what it was worked out for.
+    installed_shown: (Vec<usize>, Option<InstalledFilter>),
+    pub(crate) detail: Option<Detail>,
     /// Downloaded preview files, never installed.
-    previews: Arc<Catalog>,
-    previewed: HashMap<String, Vec<FaceInfo>>,
-    faces: FaceFonts,
-    jobs: Jobs,
-    asking: Option<Pending>,
-    message: Option<(bool, String)>,
+    pub(crate) previews: Arc<Catalog>,
+    pub(crate) previewed: HashMap<String, Vec<FaceInfo>>,
+    pub(crate) faces: FaceFonts,
+    pub(crate) jobs: Jobs,
+    pub(crate) asking: Option<Pending>,
+    /// By lower-case family name.
+    pub(crate) failed: HashMap<String, Failure>,
+    /// A problem that belongs to no family (the download setting couldn't be saved).
+    pub(crate) notice: Option<String>,
     focused: bool,
-    folder: Folder,
+    pub(crate) folder: Folder,
+    /// The download consent as last read, and when.
+    consent: Option<(bool, f64)>,
+    /// The card that has (or is to get) the keyboard focus, by row.
+    pub(crate) focus_row: Option<usize>,
+    /// Bring the focused row into view on the next frame.
+    pub(crate) scroll_to_focus: bool,
+    /// Give the focus row the keyboard focus on the next frame.
+    pub(crate) move_focus: bool,
+    /// Focus the search field on the next frame.
+    pub(crate) focus_search: bool,
 }
 
-fn category_name(c: Category) -> &'static str {
+/// A family's key in the panel's state: families of the same name can come from two sources.
+/// A removal goes by name alone (`source` empty).
+pub(crate) fn family_key(source: &str, family: &str) -> String {
+    format!("{source}\n{}", family.to_lowercase())
+}
+
+pub(crate) fn category_name(c: Category) -> &'static str {
     match c {
         Category::SansSerif => tl!("Sans serif"),
         Category::Serif => tl!("Serif"),
@@ -114,7 +219,7 @@ fn category_name(c: Category) -> &'static str {
     }
 }
 
-fn source_name(s: Source) -> &'static str {
+pub(crate) fn source_name(s: Source) -> &'static str {
     match s {
         Source::Store => tl!("Font store"),
         _ => tl!("System"),
@@ -122,43 +227,151 @@ fn source_name(s: Source) -> &'static str {
 }
 
 /// The face closest to an upright regular.
-fn regular(faces: &[FaceInfo]) -> Option<&FaceInfo> {
+pub(crate) fn regular(faces: &[FaceInfo]) -> Option<&FaceInfo> {
     faces.iter().min_by_key(|f| (f.italic, ((f.weight - 400.0).abs() * 10.0) as i64, ((f.width - 100.0).abs() * 10.0) as i64))
 }
 
-fn style_name(face: &FaceInfo) -> &str {
+pub(crate) fn style_name(face: &FaceInfo) -> &str {
     if face.style.is_empty() { tl!("Regular") } else { &face.style }
+}
+
+/// How many styles a family of the index has: each static file one, a variable file one per
+/// hundred of weight its `wght` axis covers.
+pub(crate) fn style_count(family: &Family) -> usize {
+    family
+        .files
+        .iter()
+        .map(|f| match f.axes.iter().find(|a| a.tag == "wght") {
+            Some(a) => ((a.min / 100.0).ceil() as usize..=(a.max / 100.0).floor() as usize).count().max(1),
+            None => 1,
+        })
+        .sum()
+}
+
+pub(crate) fn category_label(family: &Family) -> String {
+    categories(family).map(category_name).collect::<Vec<_>>().join(", ")
 }
 
 impl FontsPanel {
     pub fn new(options: Options, settings: Settings) -> FontsPanel {
         let catalogue = options.index.map(|index| Catalogue { search: Search::new(&index), index: Arc::new(index) });
         let previews = Arc::new(Catalog::new(FontEnv { os: Os::None, ..FontEnv::default() }).with_font_service(false));
+        let look = Look::default();
         FontsPanel {
             settings,
-            tab: Tab::Installed,
+            tab: Tab::Catalogue,
+            skin: Skin { p: Palette::from_visuals(&egui::Visuals::dark()), look: look.clone() },
+            look,
+            downloads_switch: true,
             catalog: options.catalog,
             installer: options.installer,
             catalogue,
             query: Query::default(),
+            show: Show::All,
             results: Vec::new(),
             results_for: None,
+            source: None,
+            source_counts: Vec::new(),
+            sources_job: None,
+            source_url: String::new(),
+            source_message: None,
+            category_counts: [0; 6],
+            show_counts: [0; 3],
             language_text: String::new(),
             installed: Vec::new(),
             installed_by_name: HashMap::new(),
             installed_generation: None,
             installed_text: String::new(),
-            selected_installed: None,
-            selected_family: None,
+            origin: Origin::All,
+            installed_shown: (Vec::new(), None),
+            detail: None,
             previews,
             previewed: HashMap::new(),
             faces: FaceFonts::default(),
             jobs: Jobs::new(options.runner),
             asking: None,
-            message: None,
+            failed: HashMap::new(),
+            notice: None,
             focused: true,
             folder: Folder::new("en"),
+            consent: None,
+            focus_row: None,
+            scroll_to_focus: false,
+            move_focus: false,
+            focus_search: false,
         }
+    }
+
+    /// Shows `index` (after the host fetched the sources, say). The details sheet closes, as
+    /// family positions change.
+    pub fn set_index(&mut self, index: Result<Index, String>) {
+        self.catalogue = index.map(|index| Catalogue { search: Search::new(&index), index: Arc::new(index) });
+        self.results_for = None;
+        self.detail = None;
+        self.asking = None;
+        self.focus_row = None;
+        if let Ok(c) = &self.catalogue
+            && self.source.as_ref().is_some_and(|s| c.index.source(s).is_none())
+        {
+            self.source = None;
+        }
+    }
+
+    /// Reads the indexes again without a request: after a source was added or removed.
+    pub(crate) fn reload_index(&mut self) {
+        let index = self.installer.indexes().map_err(|e| e.0);
+        self.set_index(index);
+    }
+
+    /// Downloads every source's index again on a worker thread, when downloads are allowed.
+    pub(crate) fn fetch_sources(&mut self, ctx: &Context) {
+        if self.sources_job.is_some() || !self.downloads_allowed() {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let installer = Arc::clone(&self.installer);
+        let ctx = ctx.clone();
+        let spawned = std::thread::Builder::new().name("font-sources".into()).spawn(move || {
+            let _ = tx.send(installer.fetch_indexes());
+            ctx.request_repaint();
+        });
+        match spawned {
+            Ok(_) => self.sources_job = Some(rx),
+            Err(e) => self.source_message = Some((true, e.to_string())),
+        }
+    }
+
+    /// Whether the sources' indexes are being downloaded again.
+    pub fn fetching_sources(&self) -> bool {
+        self.sources_job.is_some()
+    }
+
+    pub(crate) fn poll_sources(&mut self) {
+        let Some(rx) = &self.sources_job else { return };
+        match rx.try_recv() {
+            Ok(Ok(index)) => {
+                self.sources_job = None;
+                self.source_message = None;
+                self.set_index(Ok(index));
+            }
+            Ok(Err(e)) => {
+                self.sources_job = None;
+                self.source_message = Some((true, e.0));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.sources_job = None,
+        }
+    }
+
+    /// Draws with the host's colours and font families.
+    pub fn set_look(&mut self, look: Look) {
+        self.look = look;
+    }
+
+    /// Whether the panel shows its own "Allow downloads" switch. A host with the switch in its
+    /// own settings turns it off; the panel still offers to allow downloads where one is needed.
+    pub fn show_downloads_switch(&mut self, show: bool) {
+        self.downloads_switch = show;
     }
 
     /// The panel's own settings, for the host to save.
@@ -174,6 +387,11 @@ impl FontsPanel {
         self.tab
     }
 
+    pub fn set_tab(&mut self, tab: Tab) {
+        self.tab = tab;
+        self.focus_row = None;
+    }
+
     /// The installed families, as the Installed tab lists them.
     pub fn installed(&self) -> &[InstalledFamily] {
         &self.installed
@@ -185,43 +403,101 @@ impl FontsPanel {
         self.results.iter().filter_map(|&i| c.index.families().get(i)).map(|f| f.family.clone()).collect()
     }
 
+    /// The family the details sheet shows.
+    pub fn details_family(&self) -> Option<String> {
+        match &self.detail {
+            Some(Detail::Family(i)) => self.catalogue.as_ref().ok()?.index.families().get(*i).map(|f| f.family.clone()),
+            Some(Detail::Installed(name, _)) => Some(name.clone()),
+            None => None,
+        }
+    }
+
     /// Shows the interface in `language` (a tag such as `de` or `pt-BR`), the host's interface
     /// language, when its catalog is embedded; English otherwise.
     pub fn set_language(&mut self, language: &str) {
         i18n::set_current(I18N.match_tag(language).unwrap_or(craft_i18n::Lang::EN));
     }
 
+    /// Has the user allowed downloads from Google Fonts? A suite-wide setting of the font store,
+    /// off until they turn it on or confirm an install or preview.
+    pub fn downloads_allowed(&self) -> bool {
+        self.installer.downloads_allowed()
+    }
+
+    /// Turns downloads on or off, as the user's own action (a host's settings page, say). A
+    /// failure also shows in the panel.
+    pub fn set_downloads_allowed(&mut self, allowed: bool) -> Result<(), StoreError> {
+        let result = self.installer.allow_downloads(allowed);
+        self.consent = None;
+        self.notice = result.as_ref().err().map(|e| fmt("The download setting couldn't be saved: {error}", &[("error", &e.0)]));
+        result
+    }
+
+    /// The consent, read from the store at most every few seconds.
+    pub(crate) fn allowed(&mut self, now: f64) -> bool {
+        match self.consent {
+            Some((allowed, at)) if (0.0..CONSENT_RECHECK_SECS).contains(&(now - at)) => allowed,
+            _ => {
+                let allowed = self.installer.downloads_allowed();
+                self.consent = Some((allowed, now));
+                allowed
+            }
+        }
+    }
+
     /// Draws the panel into `ui`, which it fills.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        self.skin = Skin { p: self.look.palette(&ctx), look: self.look.clone() };
         self.faces.begin_frame(&ctx);
         self.poll_jobs();
         let focused = ctx.input(|i| i.focused);
-        if focused && !self.focused && self.catalog.is_ready() {
-            self.catalog.rescan_if_changed();
+        if focused && !self.focused {
+            if self.catalog.is_ready() {
+                self.catalog.rescan_if_changed();
+            }
+            self.consent = None;
         }
         self.focused = focused;
         self.refresh_installed();
         self.refresh_results();
+        self.keys(&ctx);
 
-        Panel::top("craft-fonts.header").show(ui, |ui| self.header(ui));
-        Panel::top("craft-fonts.controls").show(ui, |ui| self.controls(ui));
-        Panel::bottom("craft-fonts.status").show(ui, |ui| self.status(ui));
-        direction::end_panel(ui, "craft-fonts.details").resizable(true).default_size(420.0).min_size(320.0).show(ui, |ui| self.details(ui));
-        CentralPanel::default_margins().show(ui, |ui| self.list(ui));
+        let area = ui.max_rect();
+        let p = self.skin.p;
+        let rtl = direction::is_rtl(ui);
+        let sides = |start: i8, end: i8| if rtl { (end, start) } else { (start, end) };
+        let top = Frame::new().fill(p.bg).inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 14 });
+        Panel::top("craft-fonts.top").frame(top).resizable(false).show(ui, |ui| self.top_bar(ui));
+        let width = if area.width() < 860.0 { 212.0 } else { 248.0 };
+        let (left, right) = sides(20, 18);
+        let filters = Frame::new().fill(p.bg).inner_margin(Margin { left, right, top: 18, bottom: 12 });
+        direction::start_panel(ui, "craft-fonts.filters").frame(filters).resizable(false).exact_size(width).show(ui, |ui| self.sidebar(ui));
+        let main = Frame::new().fill(p.bg).inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 0 });
+        CentralPanel::default().frame(main).show(ui, |ui| self.main(ui));
+        self.details(&ctx, area);
         self.consent(&ctx);
+    }
+
+    fn keys(&mut self, ctx: &Context) {
+        let (find, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, egui::Key::F), i.key_pressed(egui::Key::Escape)));
+        if find {
+            self.focus_search = true;
+        }
+        if escape && self.asking.is_none() && self.detail.is_some() {
+            self.detail = None;
+        }
     }
 
     fn poll_jobs(&mut self) {
         for (job, result) in self.jobs.poll() {
-            let family = job.family.as_str();
-            self.message = Some(match result {
-                Ok(Finished::Installed) => (false, fmt("{family} is installed.", &[("family", family)])),
-                Ok(Finished::Removed) => {
-                    self.selected_installed = None;
-                    (false, fmt("{family} is removed.", &[("family", family)]))
+            let key = family_key(&job.source, &job.family);
+            match result {
+                Ok(Finished::Installed | Finished::Removed) => {
+                    self.failed.remove(&key);
                 }
                 Ok(Finished::Previewed(files)) => {
+                    self.failed.remove(&key);
                     let mut faces = Vec::new();
                     for file in files {
                         match self.previews.add_bytes(file.bytes, Source::User, &PREVIEW_LIMITS) {
@@ -229,19 +505,24 @@ impl FontsPanel {
                             Err(e) => log::warn!("preview of {}: {e}", file.path),
                         }
                     }
-                    self.previewed.insert(family.to_lowercase(), faces);
-                    continue;
+                    self.previewed.insert(key, faces);
                 }
-                Err(e) => (
-                    true,
-                    match job.kind {
-                        Kind::Install => fmt("{family} couldn't be installed: {error}", &[("family", family), ("error", &e.0)]),
-                        Kind::Remove => fmt("{family} couldn't be removed: {error}", &[("family", family), ("error", &e.0)]),
-                        Kind::Preview => fmt("{family} couldn't be downloaded for a preview: {error}", &[("family", family), ("error", &e.0)]),
-                    },
-                ),
-            });
+                Err(e) => {
+                    let position =
+                        self.catalogue.as_ref().ok().and_then(|c| {
+                            c.index.families().iter().position(|f| f.source == job.source && f.family.eq_ignore_ascii_case(&job.family))
+                        });
+                    let retry = position.and_then(|i| match job.kind {
+                        Kind::Install => Some(job.file.clone().map_or(Pending::Install(i), |path| Pending::InstallFile(i, path))),
+                        Kind::Preview => Some(Pending::Preview(i)),
+                        Kind::Remove => None,
+                    });
+                    log::warn!("{} ({:?}): {e}", job.family, job.kind);
+                    self.failed.insert(key, Failure { kind: job.kind, error: e.0, retry });
+                }
+            }
         }
+        self.poll_sources();
     }
 
     fn refresh_installed(&mut self) {
@@ -263,368 +544,93 @@ impl FontsPanel {
 
     fn refresh_results(&mut self) {
         let Ok(c) = &self.catalogue else { return };
-        if self.results_for.as_ref() != Some(&self.query) {
-            self.results = c.search.families(&c.index, &self.query);
-            self.results_for = Some(self.query.clone());
+        let key = (self.query.clone(), self.show, self.source.clone(), self.installed_generation);
+        if self.results_for.as_ref() == Some(&key) {
+            return;
         }
-    }
-
-    fn sample_text(&self) -> String {
-        if self.settings.sample.trim().is_empty() {
-            tl!("The quick brown fox jumps over the lazy dog").to_owned()
-        } else {
-            self.settings.sample.clone()
-        }
-    }
-
-    /// Has the user allowed downloads from Google Fonts? A suite-wide setting of the font store,
-    /// off until they turn it on or confirm an install or preview.
-    pub fn downloads_allowed(&self) -> bool {
-        self.installer.downloads_allowed()
-    }
-
-    /// Turns downloads on or off, as the user's own action (a host's settings page, say). A
-    /// failure is also shown in the panel's status line.
-    pub fn set_downloads_allowed(&mut self, allowed: bool) -> Result<(), StoreError> {
-        let result = self.installer.allow_downloads(allowed);
-        if let Err(e) = &result {
-            self.message = Some((true, fmt("The download setting couldn't be saved: {error}", &[("error", &e.0)])));
-        }
-        result
-    }
-
-    fn header(&mut self, ui: &mut Ui) {
-        ui.add_space(4.0);
-        direction::horizontal(ui, |ui| {
-            ui.selectable_value(&mut self.tab, Tab::Installed, tl!("Installed"));
-            ui.selectable_value(&mut self.tab, Tab::Catalogue, tl!("Catalogue"));
-        });
-        direction::horizontal(ui, |ui| {
-            let mut allowed = self.downloads_allowed();
-            if ui.checkbox(&mut allowed, tl!("Allow downloads")).changed() {
-                let _ = self.set_downloads_allowed(allowed);
-            }
-            ui.weak(tl!("Fonts download from Google Fonts' GitHub repository through jsDelivr, only when you install or preview one."));
-        });
-        ui.add_space(2.0);
-    }
-
-    fn controls(&mut self, ui: &mut Ui) {
-        ui.add_space(2.0);
-        ui.horizontal_wrapped(|ui| {
-            let label = ui.label(tl!("Search"));
-            let text = match self.tab {
-                Tab::Installed => &mut self.installed_text,
-                Tab::Catalogue => &mut self.query.text,
-            };
-            ui.add(TextEdit::singleline(text).desired_width(180.0).hint_text(tl!("Family name"))).labelled_by(label.id);
-            if self.tab == Tab::Catalogue
-                && let Ok(c) = &self.catalogue
+        let from = |i: usize, source: &Option<String>| source.as_ref().is_none_or(|s| c.index.families().get(i).is_some_and(|f| &f.source == s));
+        let installed = |i: usize| c.index.families().get(i).is_some_and(|f| self.installed_by_name.contains_key(&f.family.to_lowercase()));
+        let shows = |show: Show, i: usize| match show {
+            Show::All => true,
+            Show::Installed => installed(i),
+            Show::NotInstalled => !installed(i),
+        };
+        let any_category = Query { category: None, ..self.query.clone() };
+        let mut by_category = [0usize; 6];
+        let mut by_state = [0usize; 3];
+        let mut by_source: Vec<usize> = vec![0; c.index.sources().len()];
+        for i in c.search.families(&c.index, &any_category) {
+            let Some(f) = c.index.families().get(i) else { continue };
+            let in_category = self.query.category.is_none_or(|q| categories(f).any(|fc| fc == q));
+            if in_category
+                && shows(self.show, i)
+                && let Some(n) = c.index.sources().iter().position(|s| s.id == f.source).and_then(|n| by_source.get_mut(n))
             {
-                filters(ui, &mut self.query, &mut self.language_text, &c.index, &c.search);
+                *n += 1;
             }
-            ui.separator();
-            let label = ui.label(tl!("Sample text"));
-            let hint = tl!("The quick brown fox jumps over the lazy dog");
-            ui.add(TextEdit::singleline(&mut self.settings.sample).desired_width(220.0).hint_text(hint)).labelled_by(label.id);
-            ui.add(Slider::new(&mut self.settings.size, 8.0..=120.0).text(tl!("Size")));
-        });
-        ui.add_space(2.0);
-    }
-}
-
-fn filters(ui: &mut Ui, query: &mut Query, language_text: &mut String, index: &Index, search: &Search) {
-    {
-        let any = tl!("Any category");
-        ComboBox::from_label(tl!("Category")).selected_text(query.category.map_or(any, category_name)).show_ui(ui, |ui| {
-            ui.selectable_value(&mut query.category, None, any);
-            for c in Category::ALL {
-                ui.selectable_value(&mut query.category, Some(c), category_name(c));
+            if !from(i, &self.source) {
+                continue;
             }
-        });
-
-        let language_label = |i: usize| {
-            index.languages().get(i).map_or_else(String::new, |l| match l.autonym.as_deref() {
-                Some(autonym) if autonym != l.name => format!("{} · {autonym}", l.name),
-                _ => l.name.clone(),
-            })
-        };
-        let selected = query.language.map_or_else(|| tl!("Any language").to_owned(), language_label);
-        ComboBox::from_label(tl!("Language")).selected_text(selected).height(420.0).width(260.0).show_ui(ui, |ui| {
-            let label = ui.label(tl!("Find a language"));
-            let field = ui.add(TextEdit::singleline(language_text).hint_text(tl!("Name in English or in the language"))).labelled_by(label.id);
-            if field.gained_focus() || ui.memory(|m| m.focused().is_none()) {
-                field.request_focus();
-            }
-            ui.selectable_value(&mut query.language, None, tl!("Any language"));
-            let matches = search.languages(language_text);
-            const SHOWN: usize = 300;
-            for &i in matches.iter().take(SHOWN) {
-                ui.selectable_value(&mut query.language, Some(i), language_label(i));
-            }
-            if matches.len() > SHOWN {
-                ui.weak(tn((matches.len() - SHOWN) as u64, "{n} more; type to narrow the list", "{n} more; type to narrow the list"));
-            }
-        });
-
-        let any = tl!("Any script");
-        let selected = query.script.as_deref().and_then(|s| script_name(index, s)).unwrap_or(any);
-        ComboBox::from_label(tl!("Script")).selected_text(selected).height(420.0).show_ui(ui, |ui| {
-            ui.selectable_value(&mut query.script, None, any);
-            for &i in search.scripts() {
-                if let Some(s) = index.scripts().get(i) {
-                    ui.selectable_value(&mut query.script, Some(s.id.clone()), &s.name);
+            if shows(self.show, i) {
+                by_category[0] += 1;
+                for fc in categories(f) {
+                    if let Some(pos) = Category::ALL.iter().position(|x| *x == fc) {
+                        by_category[pos + 1] += 1;
+                    }
                 }
             }
-        });
-    }
-}
-
-impl FontsPanel {
-    fn status(&mut self, ui: &mut Ui) {
-        ui.add_space(2.0);
-        for job in self.jobs.running() {
-            direction::horizontal(ui, |ui| {
-                let what = match job.kind {
-                    Kind::Install => fmt("Installing {family}", &[("family", &job.family)]),
-                    Kind::Remove => fmt("Removing {family}", &[("family", &job.family)]),
-                    Kind::Preview => fmt("Downloading {family} for a preview", &[("family", &job.family)]),
-                };
-                ui.label(what);
-                if job.progress.total > 0 {
-                    let done = job.progress.done as f32 / job.progress.total as f32;
-                    ui.add(ProgressBar::new(done).desired_width(200.0).show_percentage());
-                } else {
-                    ui.spinner();
-                }
-            });
-        }
-        match &self.message {
-            Some((true, text)) => {
-                ui.colored_label(ui.visuals().error_fg_color, text);
-            }
-            Some((false, text)) => {
-                ui.label(text);
-            }
-            None if self.jobs.running().next().is_none() => {
-                let count = tn(self.installed.len() as u64, "{n} installed family", "{n} installed families");
-                ui.weak(count);
-            }
-            None => {}
-        }
-        ui.add_space(2.0);
-    }
-
-    /// `text` in `face`, on one line or wrapped, or a note where the face can't be drawn.
-    fn sample(&mut self, ui: &mut Ui, owner: Owner, face: &FaceInfo, text: &str, wrap: bool) {
-        let catalog = match owner {
-            Owner::Installed => Arc::clone(&self.catalog),
-            Owner::Preview => Arc::clone(&self.previews),
-        };
-        let size = self.settings.size;
-        match self.faces.family(ui.ctx(), &catalog, owner, face) {
-            Shown::Ready(family) => {
-                let label = Label::new(RichText::new(text).font(FontId::new(size, family)));
-                ui.add(if wrap { label.wrap() } else { label.truncate() });
-            }
-            Shown::Loading => {
-                ui.allocate_space(vec2(ui.available_width(), size * 1.2));
-            }
-            Shown::Unavailable => {
-                ui.weak(tl!("This font can't be shown."));
+            if in_category {
+                by_state[0] += 1;
+                by_state[if installed(i) { 1 } else { 2 }] += 1;
             }
         }
+        self.category_counts = by_category;
+        self.show_counts = by_state;
+        self.source_counts = by_source;
+        self.results = c.search.families(&c.index, &self.query).into_iter().filter(|&i| shows(self.show, i) && from(i, &self.source)).collect();
+        self.results_for = Some(key);
     }
 
-    fn row_height(&self, ui: &Ui) -> f32 {
-        ui.text_style_height(&egui::TextStyle::Body) + self.settings.size * 1.35 + 12.0
+    /// The installed families the Installed tab shows, by position in [`FontsPanel::installed`].
+    pub(crate) fn installed_shown(&mut self) -> Vec<usize> {
+        let key = (self.installed_text.clone(), self.origin, self.installed_generation);
+        if self.installed_shown.1.as_ref() != Some(&key) {
+            let text = self.folder.key(self.installed_text.trim());
+            let shown = (0..self.installed.len())
+                .filter(|&i| {
+                    let Some(f) = self.installed.get(i) else { return false };
+                    let origin = match self.origin {
+                        Origin::All => true,
+                        Origin::System => f.source != Source::Store,
+                        Origin::Store => f.source == Source::Store,
+                    };
+                    origin && (text.is_empty() || self.folder.key(&f.name).contains(&text))
+                })
+                .collect();
+            self.installed_shown = (shown, Some(key));
+        }
+        self.installed_shown.0.clone()
     }
 
-    fn list(&mut self, ui: &mut Ui) {
-        match self.tab {
-            Tab::Installed => self.installed_list(ui),
-            Tab::Catalogue => self.catalogue_list(ui),
+    /// The sample for a family with `scripts`: what the user typed, else the preset.
+    pub(crate) fn sample_for<'a>(&self, scripts: impl IntoIterator<Item = &'a str>) -> String {
+        if !self.settings.sample.trim().is_empty() {
+            return self.settings.sample.clone();
         }
-    }
-
-    fn installed_list(&mut self, ui: &mut Ui) {
-        if !self.catalog.is_ready() {
-            direction::horizontal(ui, |ui| {
-                ui.spinner();
-                ui.label(tl!("Looking for installed fonts…"));
-            });
-            ui.ctx().request_repaint();
-            return;
-        }
-        let text = self.folder.key(self.installed_text.trim());
-        let shown: Vec<usize> =
-            (0..self.installed.len()).filter(|&i| text.is_empty() || self.folder.key(&self.installed[i].name).contains(&text)).collect();
-        if shown.is_empty() {
-            ui.weak(tl!("No installed fonts match."));
-            return;
-        }
-        let sample = self.sample_text();
-        let row = self.row_height(ui);
-        ScrollArea::vertical().auto_shrink(false).show_rows(ui, row, shown.len(), |ui, range| {
-            for &i in shown.get(range).unwrap_or_default() {
-                let Some(family) = self.installed.get(i).cloned() else { continue };
-                ui.allocate_ui_with_layout(vec2(ui.available_width(), row), Layout::top_down(Align::Min), |ui| {
-                    ui.set_min_height(row);
-                    direction::horizontal(ui, |ui| {
-                        let key = (family.name.clone(), family.source);
-                        let selected = self.selected_installed.as_ref() == Some(&key);
-                        if ui.selectable_label(selected, RichText::new(&family.name).strong()).clicked() {
-                            self.selected_installed = Some(key);
-                        }
-                        let styles = tn(family.faces.len() as u64, "{n} style", "{n} styles");
-                        ui.weak(format!("{} · {styles}", source_name(family.source)));
-                    });
-                    if let Some(face) = regular(&family.faces) {
-                        self.sample(ui, Owner::Installed, face, &sample, false);
-                    }
-                });
+        match self.settings.preset {
+            Preset::Alphabet => samples::ALPHABET.to_owned(),
+            Preset::Numerals => samples::NUMERALS.to_owned(),
+            Preset::Sentence => {
+                let language = self.catalogue.as_ref().ok().zip(self.query.language).and_then(|(c, l)| c.index.languages().get(l));
+                language.and_then(|l| samples::for_language(&l.id)).unwrap_or_else(|| samples::for_scripts(scripts)).to_owned()
             }
-        });
-    }
-
-    fn catalogue_list(&mut self, ui: &mut Ui) {
-        let index = match &self.catalogue {
-            Ok(c) => Arc::clone(&c.index),
-            Err(e) => {
-                ui.colored_label(ui.visuals().error_fg_color, fmt("The Google Fonts index can't be read: {error}", &[("error", e)]));
-                return;
-            }
-        };
-        if self.results.is_empty() {
-            ui.weak(tl!("No fonts match."));
-            return;
-        }
-        let sample = self.sample_text();
-        let row = self.row_height(ui);
-        let results = self.results.clone();
-        ScrollArea::vertical().auto_shrink(false).show_rows(ui, row, results.len(), |ui, range| {
-            for &i in results.get(range).unwrap_or_default() {
-                let Some(family) = index.families().get(i) else { continue };
-                let key = family.family.to_lowercase();
-                ui.allocate_ui_with_layout(vec2(ui.available_width(), row), Layout::top_down(Align::Min), |ui| {
-                    ui.set_min_height(row);
-                    let installed = self.installed_by_name.get(&key).and_then(|f| regular(f)).cloned();
-                    let previewed = self.previewed.get(&key).and_then(|f| regular(f)).cloned();
-                    direction::horizontal(ui, |ui| {
-                        let selected = self.selected_family == Some(i);
-                        if ui.selectable_label(selected, RichText::new(&family.family).strong()).clicked() {
-                            self.selected_family = Some(i);
-                        }
-                        let categories: Vec<&str> = categories(family).map(category_name).collect();
-                        let styles = tn(family.files.len() as u64, "{n} file", "{n} files");
-                        ui.weak(format!("{} · {styles}", categories.join(", ")));
-                        if installed.is_some() {
-                            ui.label(RichText::new(tl!("Installed")).color(Color32::from_rgb(0x3a, 0xa0, 0x5a)));
-                        }
-                    });
-                    match (installed, previewed) {
-                        (Some(face), _) => self.sample(ui, Owner::Installed, &face, &sample, false),
-                        (None, Some(face)) => self.sample(ui, Owner::Preview, &face, &sample, false),
-                        (None, None) => {
-                            ui.weak(tl!("Not installed. Select it to preview."));
-                        }
-                    }
-                });
-            }
-        });
-    }
-
-    fn details(&mut self, ui: &mut Ui) {
-        ui.add_space(6.0);
-        match self.tab {
-            Tab::Installed => self.installed_details(ui),
-            Tab::Catalogue => self.catalogue_details(ui),
-        }
-    }
-
-    fn styles(&mut self, ui: &mut Ui, owner: Owner, faces: &[FaceInfo]) {
-        let sample = self.sample_text();
-        ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-            for face in faces {
-                ui.weak(style_name(face));
-                self.sample(ui, owner, face, &sample, true);
-                ui.add_space(6.0);
-            }
-        });
-    }
-
-    fn installed_details(&mut self, ui: &mut Ui) {
-        let Some((name, source)) = self.selected_installed.clone() else {
-            ui.weak(tl!("Select a family to see its styles."));
-            return;
-        };
-        let Some(family) = self.installed.iter().find(|f| f.name == name && f.source == source).cloned() else {
-            ui.weak(tl!("Select a family to see its styles."));
-            return;
-        };
-        ui.heading(&family.name);
-        ui.label(format!("{} · {}", source_name(family.source), tn(family.faces.len() as u64, "{n} style", "{n} styles")));
-        let busy = self.jobs.is_running(&family.name);
-        let remove = ui.add_enabled(family.removable() && !busy, egui::Button::new(tl!("Remove")));
-        let remove = if family.removable() {
-            remove
-        } else {
-            remove.on_disabled_hover_text(tl!("System fonts are removed with your system's own font tools."))
-        };
-        if remove.clicked() {
-            let mut files: Vec<_> = family.faces.iter().filter_map(|f| f.path.clone()).collect();
-            files.sort();
-            files.dedup();
-            let request = RemoveRequest { family: family.name.clone(), files };
-            self.jobs.start(ui.ctx(), Arc::clone(&self.installer), Arc::clone(&self.catalog), Request::Remove(request));
-        }
-        ui.separator();
-        self.styles(ui, Owner::Installed, &family.faces);
-    }
-
-    fn catalogue_details(&mut self, ui: &mut Ui) {
-        let Ok(c) = &self.catalogue else { return };
-        let index = Arc::clone(&c.index);
-        let Some(i) = self.selected_family else {
-            ui.weak(tl!("Select a family to see its styles."));
-            return;
-        };
-        let Some(family) = index.families().get(i) else { return };
-        let key = family.family.to_lowercase();
-        ui.heading(&family.family);
-        if !family.designer.is_empty() {
-            ui.label(fmt("By {designer}", &[("designer", &family.designer)]));
-        }
-        let categories: Vec<&str> = categories(family).map(category_name).collect();
-        ui.weak(format!("{} · {} · {}", categories.join(", "), family.license, tn(family.languages.len() as u64, "{n} language", "{n} languages")));
-        let scripts: Vec<&str> = family.scripts.iter().map(|s| script_name(&index, s).unwrap_or(s)).collect();
-        ui.add(Label::new(RichText::new(scripts.join(", ")).weak()).wrap());
-        let size = i18n::size(family.size());
-        let installed = self.installed_by_name.get(&key).cloned();
-        let busy = self.jobs.is_running(&family.family);
-        direction::horizontal(ui, |ui| {
-            if installed.is_some() {
-                ui.label(tl!("Installed"));
-            } else if ui.add_enabled(!busy, egui::Button::new(tl!("Install"))).clicked() {
-                self.ask(ui.ctx(), Pending::Install(i));
-            }
-            ui.weak(fmt("{size} download", &[("size", &size)]));
-        });
-        ui.separator();
-        if let Some(faces) = installed {
-            self.styles(ui, Owner::Installed, &faces);
-        } else if let Some(faces) = self.previewed.get(&key).cloned() {
-            self.styles(ui, Owner::Preview, &faces);
-        } else if busy {
-            ui.spinner();
-        } else if ui.button(tl!("Preview downloads this font")).clicked() {
-            self.ask(ui.ctx(), Pending::Preview(i));
         }
     }
 
     /// Runs `pending` if downloads are allowed, or asks first.
-    fn ask(&mut self, ctx: &Context, pending: Pending) {
-        if self.downloads_allowed() {
+    pub(crate) fn ask(&mut self, ctx: &Context, pending: Pending) {
+        let now = ctx.input(|i| i.time);
+        if self.allowed(now) {
             self.download(ctx, pending);
         } else {
             self.asking = Some(pending);
@@ -637,34 +643,58 @@ impl FontsPanel {
         }
         let Ok(c) = &self.catalogue else { return };
         let index = Arc::clone(&c.index);
+        if let Some(f) = index.families().get(pending.family()) {
+            self.failed.remove(&family_key(&f.source, &f.family));
+        }
         let request = match pending {
             Pending::Install(i) => Request::Install(index, i),
+            Pending::InstallFile(i, path) => Request::InstallFile(index, i, path),
             Pending::Preview(i) => Request::Preview(index, i),
         };
-        self.message = None;
         self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), request);
     }
 
+    /// Removes store files: a whole family, or the files of some of its styles.
+    pub(crate) fn remove(&mut self, ctx: &Context, family: &str, faces: &[FaceInfo], whole: bool) {
+        let mut files: Vec<_> = faces.iter().filter(|f| f.source == Source::Store).filter_map(|f| f.path.clone()).collect();
+        files.sort();
+        files.dedup();
+        if files.is_empty() {
+            return;
+        }
+        self.failed.remove(&family_key("", family));
+        let request = RemoveRequest { family: family.to_owned(), files, whole };
+        self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), Request::Remove(request));
+    }
+
     fn consent(&mut self, ctx: &Context) {
-        let Some(pending) = self.asking else { return };
+        let Some(pending) = self.asking.clone() else { return };
         let Ok(c) = &self.catalogue else { return };
-        let (Pending::Install(i) | Pending::Preview(i)) = pending;
-        let Some(family) = c.index.families().get(i) else { return };
+        let Some(family) = c.index.families().get(pending.family()) else { return };
+        let size = match &pending {
+            Pending::InstallFile(_, path) => family.files.iter().find(|f| &f.path == path).map_or(0, |f| f.size),
+            _ => family.size(),
+        };
         let text = fmt(
             "Craft Font Manager downloads {family} ({size}) from Google Fonts' GitHub repository through jsDelivr, and checks every file before using it.",
-            &[("family", &family.family), ("size", &i18n::size(family.size()))],
+            &[("family", &family.family), ("size", &i18n::size(size))],
         );
+        let s = self.skin.clone();
         let mut allow = false;
         let mut cancel = false;
-        let response = Modal::new(Id::unique("craft-font-manager.consent")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.heading(tl!("Download from Google Fonts?"));
-            ui.label(text);
-            ui.weak(tl!("Downloads stay allowed until you turn them off."));
+        let frame =
+            Frame::new().fill(s.p.bg).stroke(egui::Stroke::new(1.0, s.p.line_strong)).corner_radius(s.look.corner).inner_margin(Margin::same(24));
+        let response = egui::Modal::new(egui::Id::unique("craft-font-manager.consent")).frame(frame).show(ctx, |ui| {
+            ui.set_max_width(440.0);
+            ui.spacing_mut().item_spacing.y = 10.0;
+            let title = egui::RichText::new(tl!("Download from Google Fonts?")).size(22.0).family(s.look.display.clone()).color(s.p.ink_strong);
+            ui.add(egui::Label::new(title).wrap());
+            ui.add(egui::Label::new(egui::RichText::new(text).color(s.p.ink)).wrap());
+            ui.add(egui::Label::new(egui::RichText::new(tl!("Downloads stay allowed until you turn them off.")).color(s.p.muted)).wrap());
             ui.add_space(8.0);
             direction::horizontal(ui, |ui| {
-                allow = ui.button(tl!("Download")).clicked();
-                cancel = ui.button(tl!("Cancel")).clicked();
+                allow = widgets::button(ui, &s, tl!("Download"), widgets::Kind::Primary, s.h(), 0.0).clicked();
+                cancel = widgets::button(ui, &s, tl!("Cancel"), widgets::Kind::Secondary, s.h(), 0.0).clicked();
             });
         });
         if allow {
@@ -675,5 +705,9 @@ impl FontsPanel {
         } else if cancel || response.should_close() {
             self.asking = None;
         }
+    }
+
+    pub(crate) fn index(&self) -> Option<Arc<Index>> {
+        self.catalogue.as_ref().ok().map(|c| Arc::clone(&c.index))
     }
 }

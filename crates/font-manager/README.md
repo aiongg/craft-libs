@@ -15,17 +15,33 @@ Fonts tab; the standalone app
 
 ## The panel
 
-- **Installed**: system and font store fonts by family, with where each comes from, its styles and
-  a sample line drawn in the face itself. Font store families can be removed; system fonts are
-  removed with the system's own tools.
-- **Catalogue**: the families of every source. Search by name, filter by category, language and
-  script, and set the sample text and size. Installed families show their styles at once; for the
-  others, **Preview** downloads the family for the session without installing it.
-- **Install and remove** with progress, through the `Installer` on a worker thread.
+The layout follows Adobe Fonts' and Google Fonts' browse pages.
 
-`FontsPanel` fills the `Ui` it is given and has no window, menu, theme or interface fonts of its
-own. The faces it draws samples in are egui font families of its own, added a few per frame and
-taken out again past 64, without touching the host's fonts.
+- **Across the top**: Browse and Installed, with their counts, and one search field.
+- **Filters** at the reading start, each under its label: category, language (searchable by its
+  English name or its own, "Japanese · 日本語"), script, source, and installed or not; each option
+  with its count.
+- **Family cards**, one per row: the name, style count, category and source on one line with the
+  card's state at its end (Install and Preview, Installed, a progress bar while downloading,
+  Couldn't install with Retry, "Not curated" for a source the user added), and a large sample in
+  the face below. The list is virtual: only the cards on screen are laid out, and their faces load
+  as they come into view. The arrow keys step through the cards and Enter opens one.
+- **Sample toolbar**: a preset (a sentence in the language filtered by, or in the family's own
+  script when it has no Latin; the alphabet; numerals), the sample text, and the size.
+- **Details sheet** over the list: every style in its own face with Install or Remove for each,
+  Install all and Remove all, the source, designer, licence, scripts and languages, and what a
+  preview downloads.
+- **Installed**: system and font store fonts as the same cards, filtered by source. Only font
+  store families can be removed; system fonts are removed with the system's own tools.
+- **Sources** (`sources_ui`, for a host's settings page): the built-in sources, the index URLs the
+  user added, marked not curated and flagged when the file at their address changed since it was
+  added, adding one, and Update sources.
+
+`FontsPanel` fills the `Ui` it is given and has no window, menu or interface fonts of its own; the
+host's `Look` gives it the host's colours and font families. The faces it draws samples in are egui
+font families of its own, added a few per frame and taken out again past 64, without touching the
+host's fonts. Right-to-left interfaces mirror through `craft_ui::direction`; sample text keeps its
+own direction.
 
 ```rust
 let catalog = Arc::clone(Catalog::global());
@@ -34,7 +50,8 @@ let installer: Arc<dyn Installer> = match SuiteStore::for_user(Arc::clone(&catal
     Some(store) => Arc::new(store),
     None => Arc::new(NoStore),
 };
-let options = Options { catalog, installer, index: index::bundled().map_err(|e| e.to_string()), runner: Runner::Thread };
+let index = installer.indexes().map_err(|e| e.to_string());
+let options = Options { catalog, installer, index, runner: Runner::Thread };
 let mut panel = FontsPanel::new(options, Settings::default());
 // each frame
 panel.ui(ui);
@@ -42,8 +59,12 @@ panel.ui(ui);
 
 | Call | Use |
 |---|---|
-| `settings()`, `settings_mut()` | What the host saves: the sample text and size (`serde`) |
+| `set_look(look)` | The host's palettes (dark and light) and font families, and whether labels are set in capitals |
+| `settings()`, `settings_mut()` | What the host saves: the sample text, preset and size, and whether the downloads note was closed (`serde`) |
 | `downloads_allowed()`, `set_downloads_allowed(on)` | The download consent, for a host's settings page. It is the font store's own setting, shared by every Craft app |
+| `show_downloads_switch(false)` | For a host with the switch in its own settings |
+| `sources_ui(ui)` | The font sources, for a host's settings page |
+| `set_index(index)` | The indexes, after the host fetched them |
 | `set_language(tag)` | The interface language, the host's own; English when its catalog isn't embedded |
 | `install_interface_fonts(ctx, craft_faces)` | For a host without interface fonts of its own (the standalone app): craft-ui's font stack for the panel's language, craft-fonts' faces the app embeds with craft-fonts-build, and the interface direction |
 
@@ -57,15 +78,18 @@ adds is an index at an https URL; its families are never curated.
 
 ## Strings
 
-Every interface string goes through craft-i18n with the English text as the key. The interface is
-English until the panel's catalog rows exist in craft-i18n.
+Every interface string goes through craft-i18n with the English text as the key. The panel embeds
+its own Japanese and Arabic catalogs (`src/panel/catalogs/`) until its rows are part of
+craft-i18n; style and weight names, licence names and product names stay in English.
 
 ## Testing
 
 ```sh
 cargo test -p craft-font-manager --all-features
-CRAFT_FONT_MANAGER_SNAPSHOTS=<dir> cargo test -p craft-font-manager --features egui --test flows screenshot -- --test-threads=1
+CRAFT_FONT_MANAGER_SNAPSHOTS=<dir> cargo test -p craft-font-manager --features egui --test flows screenshots -- --test-threads=1
 ```
 
 `tests/flows.rs` drives the panel with `egui_kittest` against a small index, a font folder made per
-test and `FakeStore`. They install egui's Hack and Ubuntu Light faces into temporary folders.
+test and `FakeStore`. They install egui's Hack and Ubuntu Light faces into temporary folders. With
+`CRAFT_FONT_MANAGER_GOOGLE_FONTS=<google/fonts checkout>`, the fake store also "downloads" the
+index's files from the checkout, so screenshots show real previews.

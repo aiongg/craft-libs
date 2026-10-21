@@ -20,4 +20,4 @@ mod panel;
 pub use craft_font_catalog;
 pub use craft_font_catalog::{Catalog, FaceInfo, FontEnv, Source};
 #[cfg(feature = "egui")]
-pub use panel::{FontsPanel, Options, Runner, Settings, Tab, install_interface_fonts};
+pub use panel::{FontsPanel, Look, Options, Palette, Preset, Runner, Settings, Tab, install_interface_fonts};
