@@ -80,7 +80,7 @@ pub struct Composer {
     guard: Option<(Guard, f64)>,
     /// Marked text the composer kept itself, and when, for [`KEPT_SECS`].
     kept: Option<(String, f64)>,
-    /// This pass's last commit since the last typed text, to drop the same text typed again.
+    /// The commit whose echo may still come in this pass, for [`Self::is_echo`].
     last_commit: Option<String>,
     modifiers: Modifiers,
     caret: Option<Rect>,
@@ -227,15 +227,16 @@ impl Composer {
                             false
                         } else {
                             self.kept = None;
+                            // Text after this key is the key's own.
+                            self.last_commit = None;
                             out.edits.push(Edit::Key { key: *key, modifiers: *modifiers, repeat: *repeat });
                             true
                         }
                     }
                 }
                 Event::Text(text) => {
-                    // The key that produced a commit can arrive as text too (Apple Korean's Space).
-                    let duplicate = self.last_commit.take().is_some_and(|c| c == *text);
-                    if self.is_composing() || duplicate || is_shortcut_chord(self.modifiers) {
+                    let echo = self.is_echo(text);
+                    if self.is_composing() || echo || is_shortcut_chord(self.modifiers) {
                         false
                     } else if is_line_break(text) {
                         self.line_break(time, follows_enter, &mut out.edits);
@@ -339,6 +340,17 @@ impl Composer {
             #[expect(deprecated)]
             ImeEvent::Enabled | ImeEvent::Disabled => {}
         }
+    }
+
+    /// Whether `text` repeats the commit just made, as the text of the key that typed it.
+    ///
+    /// macOS on winit 0.30 without the fix for rust-windowing/winit#4478 does this for Apple
+    /// Korean's Space with no syllable: `Commit(" ")`, then that Space as `KeyboardInput`, which
+    /// egui-winit turns into `Key(Space)`, `Text(" ")`, all in one pass. The key is guarded as
+    /// the IME's, so only the first text after the commit, with no key handed to the editor in
+    /// between, can be its echo. Text in a later pass is typed.
+    fn is_echo(&mut self, text: &str) -> bool {
+        self.last_commit.take().is_some_and(|c| c == text)
     }
 
     /// Whether `key` is the one the platform forwards after a composition ended or a bare

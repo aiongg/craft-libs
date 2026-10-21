@@ -54,7 +54,8 @@
 //! - Empty preedits outside a composition (Wayland sends them on every state change) are ignored.
 //! - A click while composing keeps the marked text as typed and tells the IME to drop its copy;
 //!   a late commit of the same text is dropped. Giving up the keyboard does the same.
-//! - Text that repeats the commit just made (Apple Korean's Space) is typed once.
+//! - Text that repeats the commit just made, as the text of the key the IME took (Apple Korean's
+//!   Space), is typed once. A key the editor gets in between, or a new pass, ends that.
 //! - Cmd/Ctrl chords don't type their letter if the host sends it; Alt and AltGr still type.
 //! - The candidate window is placed at the caret, clamped into the window.
 //!
