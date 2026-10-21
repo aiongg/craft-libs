@@ -11,11 +11,14 @@ description = "Reusable egui controls and icon catalogs for Craft frontends"
 workspace = true
 
 [dependencies]
+craft-i18n = { workspace = true }
 egui = { workspace = true }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [features]
 serde = ["dep:serde"]
+# `direction::apply` sets `Style::right_to_left`, which only the suite's egui fork has.
+patched-egui = []
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }

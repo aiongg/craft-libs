@@ -7,6 +7,7 @@
 
 pub mod buttons;
 pub mod capture;
+pub mod direction;
 pub mod docking;
 pub mod icons;
 pub mod layout;
