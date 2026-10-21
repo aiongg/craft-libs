@@ -584,19 +584,20 @@ fn a_fetched_file_reaches_every_face_and_family_that_uses_it() {
     }
 }
 
-/// The CJK faces as `Embed::for_ui()` embeds them, with Noto Sans CJK SC as the Simplified one.
-fn ui_subsets(others: &'static [u8]) -> [CraftFace; 5] {
+/// The CJK interface faces as `Embed::subset_to` embeds them, with Noto Sans CJK SC as the
+/// Simplified one.
+fn ui_faces(others: &'static [u8]) -> [CraftFace; 5] {
     [
         CraftFace { family: "Noto Sans SC UI", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 },
         CraftFace { family: "Noto Sans TC UI", style: "Regular", scripts: &["Hant", "Latn"], bytes: others, index: 0 },
         CraftFace { family: "Noto Sans HK UI", style: "Regular", scripts: &["Hant-HK", "Latn"], bytes: others, index: 0 },
         CraftFace { family: "Noto Sans KR UI", style: "Regular", scripts: &["Kore", "Latn"], bytes: others, index: 0 },
-        CraftFace { family: "BIZ UDPGothic UI", style: "Regular", scripts: &["Jpan", "Latn"], bytes: others, index: 0 },
+        CraftFace { family: "BIZ UDPGothic", style: "Regular", scripts: &["Jpan", "Latn"], bytes: others, index: 0 },
     ]
 }
 
 #[test]
-fn preferences_name_the_ui_subsets_too() {
+fn preferences_name_the_interface_faces_too() {
     let order = |faces: &[CraftFace], prefer: Option<&str>| {
         let mut fonts = UiFonts::new(&I18nScripts).craft_faces(faces).ui_language("ja").system_fonts(SystemFonts::Off);
         if let Some(family) = prefer {
@@ -606,21 +607,21 @@ fn preferences_name_the_ui_subsets_too() {
         stack.chain(&FontFamily::Proportional).iter().filter(|n| faces.iter().any(|f| f.name() == **n)).cloned().collect::<Vec<_>>()
     };
     let mincho = face("Shippori Mincho", "Regular", &["Jpan", "Latn"]);
-    let gothic_ui = ui_subsets(&[])[4];
+    let gothic = ui_faces(&[])[4];
     // craft-fonts' preference for BIZ UDPGothic.
-    assert_eq!(order(&[mincho, gothic_ui], None), ["BIZ UDPGothic UI Regular", "Shippori Mincho Regular"]);
+    assert_eq!(order(&[mincho, gothic], None), ["BIZ UDPGothic Regular", "Shippori Mincho Regular"]);
     // The app's.
     let mincho_ui = face("Shippori Mincho UI", "Regular", &["Jpan", "Latn"]);
-    assert_eq!(order(&[gothic_ui, mincho_ui], Some("Shippori Mincho")), ["Shippori Mincho UI Regular", "BIZ UDPGothic UI Regular"]);
+    assert_eq!(order(&[gothic, mincho_ui], Some("Shippori Mincho")), ["Shippori Mincho UI Regular", "BIZ UDPGothic Regular"]);
 }
 
 #[test]
-fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
-    // Noto Sans stands in for subsets cut without 中 and 文; the system fonts have them.
+fn a_taiwanese_ui_takes_characters_no_interface_face_has_from_the_system_fonts() {
+    // Noto Sans stands in for faces cut without 中 and 文; the system fonts have them.
     const NOTO_SANS: &[u8] = include_bytes!("../../tests/fonts/NotoSans-test.ttf");
     let asked = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let stack = |simplified: &'static [u8]| {
-        let mut faces = ui_subsets(NOTO_SANS);
+        let mut faces = ui_faces(NOTO_SANS);
         faces[0].bytes = simplified;
         let recorded = Arc::clone(&asked);
         let system = move |request: &FallbackRequest<'_>| {
@@ -645,7 +646,7 @@ fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
     };
 
     let without = stack(NOTO_SANS);
-    // Other regions' subsets come before the system fonts, so they draw what they have.
+    // Other regions' interface faces come before the system fonts, so they draw what they have.
     assert_eq!(head(&without, &FontFamily::Proportional, 4), ["ui", "Noto Sans TC UI Regular", "Noto Sans HK UI Regular", "Noto Sans SC UI Regular"]);
     assert_eq!(missing(&without, false), ['中', '文']);
     assert_eq!(missing(&without, true), Vec::<char>::new());
@@ -655,19 +656,19 @@ fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
     asked.lock().unwrap().clear();
     let with_simplified = stack(CJK);
     assert_eq!(missing(&with_simplified, true), Vec::<char>::new());
-    assert!(asked.lock().unwrap().is_empty(), "the Simplified subset has them");
+    assert!(asked.lock().unwrap().is_empty(), "the Simplified interface face has them");
 }
 
 #[test]
-fn a_web_build_downloads_the_ui_subset_for_its_language() {
-    let subsets = [
-        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.otf", 0),
-        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.otf", 0),
-        served("BIZ UDPGothic UI", "Regular", &["Jpan", "Latn"], "fonts/ui/BIZUDPGothicUI-Regular.ttf", 0),
+fn a_web_build_downloads_the_interface_face_for_its_language() {
+    let faces = [
+        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.0123456789abcdef.ttf", 0),
+        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.0123456789abcdef.ttf", 0),
+        served("BIZ UDPGothic", "Regular", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Regular.0123456789abcdef.ttf", 0),
         served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
     ];
-    // The subsets are Regular only: the semibold family takes that face too.
-    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic UI Regular")] {
-        assert_eq!(names(web_fonts(language, &subsets).stack().ui_downloads()), [want], "{language}");
+    // The interface faces are Regular only: the semibold family takes that face too.
+    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic Regular")] {
+        assert_eq!(names(web_fonts(language, &faces).stack().ui_downloads()), [want], "{language}");
     }
 }
