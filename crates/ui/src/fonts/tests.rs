@@ -153,6 +153,25 @@ fn named_families_take_their_weight_and_lead_script() {
 }
 
 #[test]
+fn monospaced_named_families_keep_their_latin_face_first() {
+    // Georgian's own face leads the text families; the monospaced ones keep their app face.
+    let (code, console, plain) = (FontFamily::Name("code".into()), FontFamily::Name("console".into()), FontFamily::Name("plain".into()));
+    let stack = fonts("ka")
+        .app_face("code-face", FontData::from_static(&[]), std::slice::from_ref(&code))
+        .family(Family::named("code").monospaced())
+        .family(Family::named("console").monospaced())
+        .family(Family::named("plain"))
+        .stack();
+    assert_eq!(head(&stack, &code, 2), ["code-face", "Noto Sans Georgian Regular"]);
+    assert_eq!(head(&stack, &console, 2), ["mono", "Noto Sans Georgian Regular"], "the monospace app faces");
+    assert_eq!(head(&stack, &plain, 2), ["Noto Sans Georgian Regular", "ui"]);
+
+    let egui_mono = FontDefinitions::default().families[&FontFamily::Monospace][0].clone();
+    let stack = fonts_without_faces("ka").family(Family::named("console").monospaced()).stack();
+    assert_eq!(head(&stack, &console, 1), [egui_mono], "egui's mono face");
+}
+
+#[test]
 fn system_fonts_before_craft_moves_other_scripts_after_them() {
     let emoji = Emoji { color: Some(FontData::from_static(&[])), web: None, monochrome: Some(FontData::from_static(&[])) };
     let stack = fonts("ja").system_fonts(SystemFonts::BeforeCraft).emoji(emoji).stack();
