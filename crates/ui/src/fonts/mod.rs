@@ -16,7 +16,8 @@
 //! the UI language's own face sets the row height and its marks aren't clipped. Han, kana and
 //! Hangul sit inside the em square and fit a Latin row, so in Chinese, Japanese and Korean UIs the
 //! Latin face stays first and Latin text keeps it; [`Stack::install`] still sizes widgets to the
-//! script face's rows. Monospace always keeps its Latin face first.
+//! script face's rows. Monospace always keeps its Latin face first. On the suite's egui fork, craft
+//! faces used as fallbacks sit on the row's baseline and rows grow to fit them by themselves.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces as [`CraftFace`]s.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
@@ -32,7 +33,7 @@ use std::sync::Arc;
 use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style, TextStyle};
 
-pub use coverage::{Missing, Sample, assert_covers, missing_glyphs};
+pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, missing_glyphs};
 use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
 
@@ -58,7 +59,9 @@ impl CraftFace {
     }
 
     fn data(&self) -> FontData {
-        FontData { index: self.index, ..FontData::from_static(self.bytes) }
+        let mut data = FontData { index: self.index, ..FontData::from_static(self.bytes) };
+        data.tweak.set_baseline_fallback(true);
+        data
     }
 
     fn region(&self) -> Option<Han> {
@@ -97,6 +100,17 @@ impl CraftFace {
 }
 
 pub use craft_i18n::Han;
+
+/// The suite's egui fork has `FontTweak::set_baseline_fallback`, which puts a fallback face's
+/// glyphs on the primary face's baseline and grows the row to fit them; crates.io egui has
+/// neither. A method call picks an inherent method over a trait method of the same name, so
+/// craft faces reach the fork's method there and this no-op everywhere else, without a feature.
+#[allow(dead_code, reason = "unused when egui has the inherent method")]
+trait SetBaselineFallback {
+    fn set_baseline_fallback(&mut self, _baseline: bool) {}
+}
+
+impl SetBaselineFallback for egui::FontTweak {}
 
 /// The scripts a language is written in, by language tag. [`I18nScripts`] answers from
 /// craft-i18n; an app with its own table implements this instead.
@@ -143,6 +157,11 @@ impl Family {
         Self { family: FontFamily::Proportional, weight: 400, lead: None }
     }
 
+    /// egui's monospace family, e.g. to set its weight.
+    pub fn monospace() -> Self {
+        Self { family: FontFamily::Monospace, weight: 400, lead: None }
+    }
+
     /// The weight (`wght`) this family's faces draw at: bold craft faces are used from 600 up, and
     /// variable faces are set to this weight.
     pub fn weight(mut self, weight: u16) -> Self {
@@ -159,6 +178,9 @@ impl Family {
 }
 
 /// Emoji faces the app embeds, asked in this order after the system fonts.
+///
+/// egui 0.37's default faces have only a few monochrome emoji and lack symbols such as ⊞ ☰ 🔍.
+/// On the web there are no system fonts, so emoji draw as boxes unless one of these is set.
 #[derive(Clone, Default)]
 pub struct Emoji {
     /// A colour emoji font, e.g. Noto Color Emoji (COLRv1) on desktop.
@@ -336,7 +358,7 @@ impl<'a> UiFonts<'a> {
 
     /// Proportional and Monospace, every family an app face names, then the declared families.
     fn family_specs(&self) -> Vec<Family> {
-        let mut specs = vec![Family::proportional(), Family { family: FontFamily::Monospace, weight: 400, lead: None }];
+        let mut specs = vec![Family::proportional(), Family::monospace()];
         for family in self.app_faces.iter().flat_map(|f| &f.families) {
             if !specs.iter().any(|s| s.family == *family) {
                 specs.push(Family { family: family.clone(), weight: 400, lead: None });
@@ -686,7 +708,7 @@ impl Stack {
         if !with_system || self.system == SystemFonts::Off {
             return Some(None);
         }
-        let system = self.system_provider.clone().or_else(|| default_system_provider(&self.ui_language))?;
+        let system = self.system_provider.clone().or_else(|| system_font_provider(&self.ui_language))?;
         Some(Some(Arc::new(self.weights.iter().fold(RegularWeight::new(system), |p, (f, w)| p.with_weight(f.clone(), *w)))))
     }
 
@@ -704,12 +726,28 @@ fn fit_interact_size(style: &mut Style, rows: &[f32]) {
     }
 }
 
+/// egui's system font provider for `locale`, shared by every stack and check that asks for the
+/// same locale. `None` without the `system_fonts` feature and on the web.
+///
+/// To ask whether installed fonts can draw a language, pass it to
+/// [`UiFonts::system_provider`] and check with [`assert_covers_with_system`] or
+/// [`Stack::fonts`]`(true)`.
 #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
-fn default_system_provider(ui_language: &str) -> Option<Arc<dyn FontProvider>> {
-    Some(Arc::new(egui_system_font_provider::SystemFontProvider::new().with_locale(Some(ui_language))))
+pub fn system_font_provider(locale: &str) -> Option<Arc<dyn FontProvider>> {
+    use std::collections::BTreeMap;
+    use std::sync::{Mutex, OnceLock, PoisonError};
+    // Each provider scans the installed fonts once; a language switch shouldn't scan again.
+    static PROVIDERS: OnceLock<Mutex<BTreeMap<String, Arc<dyn FontProvider>>>> = OnceLock::new();
+    let mut providers = PROVIDERS.get_or_init(Mutex::default).lock().unwrap_or_else(PoisonError::into_inner);
+    let provider = providers
+        .entry(locale.to_owned())
+        .or_insert_with(|| Arc::new(egui_system_font_provider::SystemFontProvider::new().with_locale(Some(locale))));
+    Some(Arc::clone(provider))
 }
 
+/// egui's system font provider for `locale`, shared by every stack and check that asks for the
+/// same locale. `None` without the `system_fonts` feature and on the web.
 #[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
-fn default_system_provider(_ui_language: &str) -> Option<Arc<dyn FontProvider>> {
+pub fn system_font_provider(_locale: &str) -> Option<Arc<dyn FontProvider>> {
     None
 }

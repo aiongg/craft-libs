@@ -142,7 +142,9 @@ fn named_families_take_their_weight_and_lead_script() {
         .app_face("ui-semibold", FontData::from_static(&[]), &[FontFamily::Name("semibold".into())])
         .family(Family::named("semibold").weight(600))
         .family(Family::named("arabic").script("Arab"))
+        .family(Family::monospace().weight(500))
         .stack();
+    assert!(stack.weights().contains(&(FontFamily::Monospace, 500)));
     let semibold = FontFamily::Name("semibold".into());
     assert_eq!(head(&stack, &semibold, 3), ["ui-semibold", "BIZ UDPGothic Bold", "BIZ UDPGothic Regular"]);
     // A family without an app face of its own falls back to the proportional faces.
@@ -186,7 +188,7 @@ fn coverage_names_language_string_and_character() {
         Sample { language: "ja", key: "menu.file", text: "日本語のファイル" },
         Sample { language: "ka", key: "menu.file", text: "ფაილი" },
     ];
-    let missing = missing_glyphs(&stack, &FontFamily::Proportional, samples);
+    let missing = missing_glyphs(&stack, &FontFamily::Proportional, samples, false);
     let chars: Vec<char> = missing.iter().map(|m| m.character).collect();
     assert_eq!(chars, ['ფ', 'ა', 'ი', 'ლ']);
     assert!(missing.iter().all(|m| m.language == "ka" && m.key == "menu.file"));
@@ -290,4 +292,11 @@ fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
     if cfg!(not(all(feature = "system_fonts", not(target_arch = "wasm32")))) {
         assert!(draws_arabic(SystemFonts::AfterCraft), "the host's provider stays");
     }
+}
+
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
+fn the_system_provider_is_shared_per_locale() {
+    let (a, b) = (system_font_provider("ja"), system_font_provider("ja"));
+    assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
 }

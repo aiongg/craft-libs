@@ -235,7 +235,10 @@ own face sets the row height and its marks aren't clipped. Han, kana and Hangul 
 square and fit a Latin row, so Chinese, Japanese and Korean UIs keep the Latin face first: Latin
 text draws in the app's face in every language, and CJK characters fall back to the language's
 face, centred in the row. In every language `install` sets the minimum widget height to fit a row
-of the UI language's script face, and sets it back when a later install needs less. Monospace
+of the UI language's script face, and sets it back when a later install needs less. On the suite's
+patched egui (`FontTweak::set_baseline_fallback`, which craft faces turn on), fallback glyphs sit
+on the row's baseline and rows grow to fit them by themselves; with crates.io egui they are
+centred and the widget fit above is what keeps them inside. Monospace
 keeps the app's or egui's mono face first. Han characters take the regional face the language
 needs: `zh-TW` gets the Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong
 Kong face first; `ja` the Japanese face; `ko` the Korean one.
@@ -280,10 +283,16 @@ Two features, both off by default, change what every craft-ui user draws, so the
   `SystemFonts::Off` drops system fonts.
 - `color_fonts`: colour glyphs (COLR, sbix, CBDT), for colour emoji.
 
+egui 0.37's default faces have only a few monochrome emoji and lack symbols such as ⊞ ☰ 🔍. On
+the web there are no system fonts, so emoji draw as boxes unless the app sets an `Emoji` face.
+
 Each app tests its coverage with `fonts::assert_covers`: it checks every shipped translation and a
 sample of content scripts against the stack without system fonts, and fails naming the language,
 message key and character that has no glyph. Build the stack with `.system_fonts(SystemFonts::Off)`
-in that test, and run it with `CRAFT_FONTS_DIR` set so it sees the faces a release embeds.
+in that test, and run it with `CRAFT_FONTS_DIR` set so it sees the faces a release embeds. For
+languages the app leaves to installed fonts, `fonts::assert_covers_with_system` asks the stack's
+system provider too; `fonts::system_font_provider(locale)` gives egui's provider (with
+`system_fonts`), shared per locale, for `UiFonts::system_provider` or such a check.
 
 ## Print settings and feedback
 
