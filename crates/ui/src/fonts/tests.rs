@@ -390,12 +390,55 @@ fn the_fit_is_the_same_whether_the_theme_comes_before_or_after_install() {
 }
 
 #[test]
-fn widgets_fit_the_cjk_face_that_follows_the_latin_one() {
+fn cjk_uis_keep_the_rows_and_widgets_of_a_latin_ui() {
+    let latin_only = || {
+        let ubuntu = FontDefinitions::default().font_data.get("Ubuntu-Light").map(|d| (**d).clone()).expect("egui default_fonts");
+        UiFonts::new(&I18nScripts).app_face("ui", ubuntu, &[FontFamily::Proportional]).system_fonts(SystemFonts::Off).stack()
+    };
+    let interact = |stack: &Stack| {
+        let ctx = egui::Context::default();
+        stack.install(&ctx);
+        ctx.style_of(egui::Theme::Dark).spacing.interact_size.y
+    };
+    let latin = latin_only();
+    for language in ["ja", "ko", "zh-CN", "en"] {
+        let stack = test_stack(language);
+        assert_eq!(stack.chain(&FontFamily::Proportional).first().map(String::as_str), Some("ui"), "{language}");
+        assert_eq!(interact(&stack), interact(&latin), "{language}");
+        for (size, ppp) in [(14.0, 1.0), (13.0, 1.5), (40.0, 2.0)] {
+            let font = FontId::proportional(size);
+            let layout = |stack: &Stack, text: &str| {
+                stack.fonts(false).with_pixels_per_point(ppp).layout_no_wrap(text.to_owned(), font.clone(), egui::Color32::WHITE)
+            };
+            let label = layout(&stack, "Ab漢한中");
+            let row = egui::Rect::from_x_y_ranges(label.rect.x_range(), layout(&latin, "Ab").rect.y_range());
+            assert_eq!(label.rect.height(), row.height(), "{language} at {size} pt");
+            // Rasterised glyphs reach at most a pixel past their outlines.
+            assert!(row.expand(1.0 / ppp).contains_rect(label.mesh_bounds), "{language} at {size} pt: {:?} in {row:?}", label.mesh_bounds);
+        }
+    }
+}
+
+#[test]
+fn cjk_glyphs_sit_on_the_latin_baseline() {
     let stack = test_stack("ja");
-    assert_eq!(stack.chain(&FontFamily::Proportional).first().map(String::as_str), Some("ui"));
+    let face = stack.definitions.font_data.get("Noto Sans CJK SC Regular").expect("CJK face");
+    let (above, below) = fit::ink_extent(face, "中");
+    let size = 40.0;
+    let layout =
+        |text: &str| stack.fonts(false).with_pixels_per_point(1.0).layout_no_wrap(text.to_owned(), FontId::proportional(size), egui::Color32::WHITE);
+    let baseline = layout("A").rows[0].glyphs[0].pos.y;
+    let ink = layout("中").mesh_bounds;
+    let scaled = face.tweak.scale * size;
+    assert!((ink.max.y - (baseline + below * scaled)).abs() <= 1.0, "bottom {} vs baseline {baseline} + {}", ink.max.y, below * scaled);
+    assert!((ink.min.y - (baseline - above * scaled)).abs() <= 1.0, "top {} vs baseline {baseline} - {}", ink.min.y, above * scaled);
+}
+
+#[test]
+fn cjk_rows_grow_only_when_the_app_asks() {
     let mut style = Style::default();
     let before = style.spacing.interact_size.y;
-    stack.fit_interact_size(&mut style);
+    test_fonts("ja").cjk_rows(CjkRows::Grow).stack().fit_interact_size(&mut style);
     assert!(style.spacing.interact_size.y > before, "CJK rows are taller than the Latin face's");
 }
 
