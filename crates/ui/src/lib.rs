@@ -10,6 +10,7 @@ pub mod direction;
 pub mod docking;
 pub mod fonts;
 pub mod icons;
+pub mod ime;
 pub mod layout;
 pub mod printing;
 pub mod tabs;
