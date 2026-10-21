@@ -1,6 +1,6 @@
 [package]
 name = "craft-font-manager"
-description = "Craft Font Manager as a library: search and filters over the Google Fonts index, installed fonts by family, the font store interface, and the egui panel the launcher and the standalone app show."
+description = "Craft Font Manager as a library: search and filters over the font indexes (Google Fonts, Noto, user-added sources), installed fonts by family, the font store interface, and the egui panel the launcher and the standalone app show."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,7 +15,7 @@ egui = ["dep:egui", "dep:craft-ui", "dep:serde", "dep:log"]
 [dependencies]
 craft-font-catalog = { workspace = true }
 craft-i18n = { workspace = true }
-# The pinned Google Fonts index compiled in, for browsing offline.
+# The pinned built-in indexes compiled in, for browsing offline.
 craft-font-store = { workspace = true, features = ["bundled-index"] }
 # egui's default faces lead the interface font stack.
 egui = { workspace = true, features = ["default_fonts"], optional = true }

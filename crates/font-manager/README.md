@@ -1,15 +1,16 @@
 # craft-font-manager
 
-Craft Font Manager as a library: every font the suite's apps can use, and the Google Fonts
-collection to add to them. ArtCraft Launcher shows it as its Fonts tab; the standalone app
+Craft Font Manager as a library: every font the suite's apps can use, and the font collections to
+add to them: Google Fonts, Noto, and index URLs the user adds. ArtCraft Launcher shows it as its
+Fonts tab; the standalone app
 ([aiongg/craft-font-manager](https://github.com/aiongg/craft-font-manager)) shows it as its window.
 
 | Part | Feature | What it does |
 |---|---|---|
 | `filter` | always | Search over the index: family names ignoring case and accents, category, language (English name, autonym or id) and script |
-| `index` | always | The pinned Google Fonts index compiled into [`craft-font-store`](../font-store/README.md) (`bundled`), and its categories |
+| `index` | always | The pinned built-in indexes (Google Fonts and Noto) compiled into [`craft-font-store`](../font-store/README.md) (`bundled`), each family's source (`source_label`: its name and whether it is curated), and the categories |
 | `installed` | always | The installed fonts [`craft-font-catalog`](../font-catalog/README.md) sees, grouped by family and source |
-| `store` | always | `Installer`, what the interface needs from the font store: the download consent, install, remove, and downloads for a preview. `SuiteStore` is craft-font-store's store, `FakeStore` a stand-in for tests, `NoStore` one for when the store folder is unknown |
+| `store` | always | `Installer`, what the interface needs from the font store: the download consent, install, remove, downloads for a preview, the indexes (`indexes`, `fetch_indexes`) and the sources the user added (`user_sources`, `add_user_source`, `remove_user_source`). `SuiteStore` is craft-font-store's store, `FakeStore` a stand-in for tests, `NoStore` one for when the store folder is unknown |
 | `FontsPanel` | `egui` | The whole interface as one egui panel |
 
 ## The panel
@@ -17,7 +18,7 @@ collection to add to them. ArtCraft Launcher shows it as its Fonts tab; the stan
 - **Installed**: system and font store fonts by family, with where each comes from, its styles and
   a sample line drawn in the face itself. Font store families can be removed; system fonts are
   removed with the system's own tools.
-- **Catalogue**: the Google Fonts collection. Search by name, filter by category, language and
+- **Catalogue**: the families of every source. Search by name, filter by category, language and
   script, and set the sample text and size. Installed families show their styles at once; for the
   others, **Preview** downloads the family for the session without installing it.
 - **Install and remove** with progress, through the `Installer` on a worker thread.
@@ -49,9 +50,10 @@ panel.ui(ui);
 ## Network use
 
 Nothing is downloaded until the user allows it. Downloads are off by default; the first Install or
-Preview asks first. Files come from google/fonts at the index's pinned commit through jsDelivr (raw
-GitHub as the fallback), and each is checked against the index's size and sha256 before use.
-Previews stay in memory and are never installed.
+Preview asks first. Files come from each source's repositories at the commit or tag its index
+records, through jsDelivr (raw GitHub as the fallback), and each is checked against the index's
+size and sha256 before use. Previews stay in memory and are never installed. A source the user
+adds is an index at an https URL; its families are never curated.
 
 ## Strings
 
