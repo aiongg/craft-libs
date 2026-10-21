@@ -223,6 +223,7 @@ struct AppFace {
 pub struct UiFonts<'a> {
     scripts: &'a dyn LanguageScripts,
     app_faces: Vec<AppFace>,
+    egui_faces: Vec<(String, Vec<FontFamily>)>,
     app_scripts: Vec<String>,
     craft_faces: Vec<CraftFace>,
     languages: Vec<String>,
@@ -239,6 +240,7 @@ impl<'a> UiFonts<'a> {
         Self {
             scripts,
             app_faces: Vec::new(),
+            egui_faces: Vec::new(),
             app_scripts: APP_SCRIPTS.iter().map(|s| (*s).to_owned()).collect(),
             craft_faces: Vec::new(),
             languages: Vec::new(),
@@ -254,6 +256,15 @@ impl<'a> UiFonts<'a> {
     /// One of the app's own faces, heading `families` in the order the app adds them.
     pub fn app_face(mut self, name: &str, data: FontData, families: &[FontFamily]) -> Self {
         self.app_faces.push(AppFace { name: name.to_owned(), data, families: families.to_vec() });
+        self
+    }
+
+    /// One of egui's default faces (`Hack`, `Ubuntu-Light`, `NotoEmoji-Regular`,
+    /// `emoji-icon-font`) at the end of `families`' configured faces, ahead of installed system
+    /// fonts, e.g. Hack in the proportional family for symbols the app's face lacks (⇧, ▸). It
+    /// needs egui's `default_fonts` feature; a name egui doesn't ship is ignored.
+    pub fn egui_face(mut self, name: &str, families: &[FontFamily]) -> Self {
+        self.egui_faces.push((name.to_owned(), families.to_vec()));
         self
     }
 
@@ -329,6 +340,10 @@ impl<'a> UiFonts<'a> {
             system: self.system,
             system_provider: self.system_provider.clone(),
             ui_language: self.ui_language.clone(),
+            language_scripts: std::iter::once(&self.ui_language)
+                .chain(&self.languages)
+                .map(|language| (language.clone(), expand(&self.scripts.scripts(language))))
+                .collect(),
             weights: Vec::new(),
             script_face: None,
         };
@@ -340,7 +355,13 @@ impl<'a> UiFonts<'a> {
                 .flatten()
                 .filter_map(|name| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() }))
                 .collect();
-            let chain = self.chain(&family, egui_faces);
+            let mut chain = self.chain(&family, egui_faces);
+            chain.configured.extend(
+                self.egui_faces
+                    .iter()
+                    .filter(|(_, families)| families.contains(&family.family))
+                    .filter_map(|(name, _)| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() })),
+            );
             let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
             let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
             if family.family == FontFamily::Proportional {
@@ -571,6 +592,8 @@ pub struct Stack {
     system: SystemFonts,
     system_provider: Option<Arc<dyn FontProvider>>,
     ui_language: String,
+    /// The scripts of the UI language and every offered language.
+    language_scripts: Vec<(String, Vec<String>)>,
     weights: Vec<(FontFamily, u16)>,
     /// The UI language's main script face, whose rows widgets fit even when it isn't first.
     script_face: Option<String>,
@@ -666,6 +689,21 @@ impl Stack {
     pub fn fit_interact_size(&self, style: &mut Style) {
         let rows = self.row_heights(style);
         fit_interact_size(style, &rows);
+    }
+
+    /// Whether the proportional family can draw `language`'s scripts, e.g. to leave a language out
+    /// of the app's menu on a machine that can't show it. `with_system` also asks the system font
+    /// provider. The scripts come from the stack's [`LanguageScripts`] for the UI language and
+    /// [`UiFonts::languages`], and from craft-i18n for any other language. Each script is checked
+    /// with a few of its common letters.
+    pub fn covers_language(&self, language: &str, with_system: bool) -> bool {
+        let scripts = match self.language_scripts.iter().find(|(l, _)| l == language) {
+            Some((_, scripts)) => scripts.clone(),
+            None => expand(&I18nScripts.scripts(language)),
+        };
+        let mut fonts = self.fonts(with_system);
+        let font_id = FontId::new(14.0, FontFamily::Proportional);
+        scripts.iter().filter_map(|s| coverage::script_sample(s)).flat_map(str::chars).all(|c| fonts.has_glyph(&font_id, c))
     }
 
     /// An epaint [`Fonts`] with this stack, for tests and measurement. `with_system` adds the

@@ -79,6 +79,45 @@ fn fail_on(missing: &[Missing]) {
     }
 }
 
+/// A few common letters of an ISO 15924 script, for [`Stack::covers_language`]. `None` for a
+/// script without a sample, which counts as covered.
+pub(super) fn script_sample(script: &str) -> Option<&'static str> {
+    Some(match script {
+        "Arab" => "عربي",
+        "Armn" => "Հայերեն",
+        "Beng" => "বাংলা",
+        "Bopo" => "ㄅㄆㄇ",
+        "Cyrl" => "Кирилица",
+        "Deva" => "हिन्दी",
+        "Ethi" => "አማርኛ",
+        "Geor" => "ქართული",
+        "Grek" => "Ελληνικά",
+        "Gujr" => "ગુજરાતી",
+        "Guru" => "ਪੰਜਾਬੀ",
+        "Hang" => "한국어",
+        "Hani" => "日本中文",
+        "Hebr" => "עברית",
+        "Hira" => "の",
+        "Kana" => "ファイル",
+        "Khmr" => "ខ្មែរ",
+        "Knda" => "ಕನ್ನಡ",
+        "Laoo" => "ລາວ",
+        "Latn" => "Latin",
+        "Mlym" => "മലയാളം",
+        "Mong" => "ᠮᠣᠩᠭᠣᠯ",
+        "Mymr" => "မြန်မာ",
+        "Orya" => "ଓଡ଼ିଆ",
+        "Sinh" => "සිංහල",
+        "Syrc" => "ܣܘܪܝܝܐ",
+        "Taml" => "தமிழ்",
+        "Telu" => "తెలుగు",
+        "Thaa" => "ދިވެހި",
+        "Thai" => "ไทย",
+        "Tibt" => "བོད་ཡིག",
+        _ => return None,
+    })
+}
+
 /// Whether `c` shows a glyph: not whitespace, a control, a format character or another invisible
 /// mark.
 pub(super) fn draws(c: char) -> bool {
