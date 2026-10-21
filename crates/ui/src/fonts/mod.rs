@@ -414,6 +414,15 @@ impl<'a> UiFonts<'a> {
 
         let lead: Vec<usize> = expand(family.lead.as_slice()).iter().flat_map(|s| self.candidates(s, ui_han, weight)).collect();
         let language: Vec<usize> = ui_scripts.iter().filter(|s| !covers(s)).flat_map(|s| self.candidates(s, ui_han, weight)).collect();
+        // Letters of a covered script that the base faces lack, such as Vietnamese ổ and ạ in
+        // egui's Ubuntu-Light, come from that script's own faces before any other face with them.
+        // CJK faces carry Latin at CJK proportions, so they don't stand in.
+        let backup: Vec<usize> = ui_scripts
+            .iter()
+            .filter(|s| covers(s))
+            .flat_map(|s| self.candidates(s, ui_han, weight))
+            .filter(|&i| !self.craft_faces[i].covers("Hani"))
+            .collect();
         let mut others: Vec<usize> = Vec::new();
         for tag in self.languages.iter().filter(|l| **l != self.ui_language) {
             let han = self.han(tag);
@@ -435,8 +444,10 @@ impl<'a> UiFonts<'a> {
         if language_first {
             configured.extend(craft(language));
             configured.extend(base);
+            configured.extend(craft(backup));
         } else {
             configured.extend(base);
+            configured.extend(craft(backup));
             configured.extend(craft(language));
         }
         let mut after = Vec::new();

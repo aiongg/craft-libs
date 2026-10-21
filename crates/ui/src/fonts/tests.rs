@@ -206,6 +206,29 @@ fn coverage_names_language_string_and_character() {
 }
 
 #[test]
+fn a_latin_ui_takes_letters_its_face_lacks_from_a_latin_craft_face() {
+    const NOTO_SANS: &[u8] = include_bytes!("../../tests/fonts/NotoSans-test.ttf");
+    let cjk = CraftFace { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 };
+    let noto_sans = CraftFace { family: "Noto Sans", style: "Regular", scripts: &["Latn", "Cyrl", "Grek", "Deva"], bytes: NOTO_SANS, index: 0 };
+    let defaults = FontDefinitions::default();
+    let ubuntu = defaults.font_data.get("Ubuntu-Light").expect("egui default_fonts in dev-dependencies");
+    assert!(!providers::has_char(ubuntu, 'ổ') && !providers::has_char(ubuntu, 'ạ'));
+    let vietnamese = [Sample { language: "vi", key: "menu.file", text: "Tiếng Việt ổ ư ạ" }];
+    let stack = |faces: &[CraftFace]| {
+        UiFonts::new(&I18nScripts).craft_faces(faces).languages(&["en", "vi", "zh-CN"]).ui_language("vi").system_fonts(SystemFonts::Off).stack()
+    };
+
+    let without = stack(&[cjk]);
+    assert!(missing_glyphs(&without, &FontFamily::Proportional, vietnamese, false).iter().any(|m| m.character == 'ổ'));
+    let with = stack(&[cjk, noto_sans]);
+    assert_covers(&with, vietnamese);
+    // Noto Sans CJK has Vietnamese letters too, at CJK proportions: Noto Sans comes first.
+    let chain = with.chain(&FontFamily::Proportional);
+    let at = |name: &str| chain.iter().position(|n| n == name).unwrap_or(usize::MAX);
+    assert!(at("Ubuntu-Light") < at("Noto Sans Regular") && at("Noto Sans Regular") < at("Noto Sans CJK SC Regular"), "{chain:?}");
+}
+
+#[test]
 fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
     let arabic = [Sample { language: "ar", key: "menu.file", text: "ملف" }];
     let stack = || test_fonts("en").system_fonts(SystemFonts::BeforeCraft).stack();
