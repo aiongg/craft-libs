@@ -9,7 +9,9 @@ use crate::docking::{
     dock_model::{Place, node_at},
     resolve_drop,
     surface::TAB_PADDING,
+    zone_rect,
 };
+use crate::layout::SplitAxis;
 
 /// Ctrl (Windows, Linux) or Cmd (macOS) held: the drop floats and no target is offered.
 fn float_only(ctx: &Context) -> bool {
@@ -88,6 +90,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return valid(proposal);
         }
         let own = |t: &crate::docking::DropTarget<P>| t.tabs.iter().any(|(p, _)| drag.members.contains(p));
+        let pointer = self.seam_pointer(pointer);
         let target =
             self.targets.iter().rev().find(|t| crate::docking::targets::usable(t.rect) && t.rect.contains(pointer) && !(window && own(t)))?;
         if own(target) {
@@ -103,7 +106,45 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if window && matches!(proposal.placement, Placement::Split(_)) {
             return None;
         }
-        valid(proposal)
+        valid(self.split_preview(proposal))
+    }
+
+    /// The preview of a side split beside a frame that holds its parent's fixed size: the half
+    /// of the parent or of the other child that the new frame takes.
+    fn split_preview(&self, mut proposal: DropProposal<P>) -> DropProposal<P> {
+        let Placement::Split(zone) = proposal.placement else { return proposal };
+        let axis = match zone {
+            Zone::Center => return proposal,
+            Zone::Left | Zone::Right => SplitAxis::Horizontal,
+            Zone::Top | Zone::Bottom => SplitAxis::Vertical,
+        };
+        let Some(slot) = self.fixed_slots.iter().find(|slot| slot.axis == axis && slot.panels.contains(&proposal.anchor)) else { return proposal };
+        let opposite = match zone {
+            Zone::Left => Zone::Right,
+            Zone::Right => Zone::Left,
+            Zone::Top => Zone::Bottom,
+            _ => Zone::Top,
+        };
+        let before = matches!(zone, Zone::Left | Zone::Top);
+        let preview = if before == slot.first { zone_rect(slot.parent, zone) } else { zone_rect(slot.sibling, opposite) };
+        proposal.preview = preview.unwrap_or(proposal.preview);
+        proposal
+    }
+
+    /// A pointer in the gap between docked frames, outside every target, moves onto the edge of
+    /// the nearest frame that takes splits, so a seam splits beside that frame rather than floating.
+    pub(super) fn seam_pointer(&self, pointer: Pos2) -> Pos2 {
+        let usable = |rect: Rect| crate::docking::targets::usable(rect);
+        if self.targets.iter().any(|t| usable(t.rect) && t.rect.contains(pointer)) {
+            return pointer;
+        }
+        self.targets
+            .iter()
+            .filter(|t| t.allow_splits && usable(t.rect))
+            .map(|t| (t.rect.distance_to_pos(pointer), t.rect))
+            .filter(|(distance, _)| *distance <= self.style.gap)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map_or(pointer, |(_, rect)| rect.clamp(pointer))
     }
 
     /// Release of a group drag: join or split at the target, or float at the ghost with the
@@ -165,6 +206,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if let Some((action, line)) = self.dock_group_proposal(drag, pointer) {
             if action.is_some() {
                 self.paint_dock_line(ctx, line);
+                self.paint_float_hint(ctx, pointer);
             }
             return;
         }
@@ -175,6 +217,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
             if let Some(marker) = proposal.insertion {
                 painter.rect_filled(marker, 0.0, self.style.accent);
+            }
+            if drag.gesture != GroupGesture::Window {
+                self.paint_float_hint(ctx, pointer);
             }
         }
     }
@@ -224,13 +269,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 }
             } else if action.is_some() {
                 self.paint_dock_line(ctx, line);
+                self.paint_float_hint(ctx, pointer);
             }
             return;
         }
         let proposal = if float_only {
             None
         } else {
-            self.extra_proposal(std::slice::from_ref(&drag.panel), pointer, false).or_else(|| resolve_drop(&drag.panel, pointer, &self.targets))
+            self.extra_proposal(std::slice::from_ref(&drag.panel), pointer, false)
+                .or_else(|| resolve_drop(&drag.panel, self.seam_pointer(pointer), &self.targets).map(|p| self.split_preview(p)))
         };
         if released {
             cancel_drag::<P>(ctx, self.id);
@@ -265,6 +312,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
             if let Some(marker) = proposal.insertion {
                 painter.rect_filled(marker, 0.0, self.style.accent);
+            }
+            if !proposal.noop {
+                self.paint_float_hint(ctx, pointer);
             }
         } else if let Some(rect) = floating_rect {
             drop_preview(&painter, rect, self.style.accent, false);

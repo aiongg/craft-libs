@@ -16,7 +16,7 @@ fields; new fields can be added, so the struct has no literal form outside the c
 | Profile | Arrangement | Apps |
 |---|---|---|
 | `Profile::Dock` (default) | Docks on the window's start and end edges. A dock has columns; a column has stacked groups and can collapse to icons. Frames (tab groups and splits) fill the space between the docks. | Creative apps with a canvas and panel docks |
-| `Profile::Frame` | A split tree of tab frames. Frame menus offer Maximize Frame, Undock and Close Other Panels. Ctrl/Cmd + tab drag undocks. Drops on all four outer edges split at the root. | Apps whose whole window is frames |
+| `Profile::Frame` | A split tree of tab frames. Frame menus offer Maximize Frame, Undock and Close Other Panels. Ctrl/Cmd + drag undocks, and a hint under the pointer says so. Drops on all four outer edges split at the root. | Apps whose whole window is frames |
 
 Sides are logical: `Side::Start` is the left edge, or the right edge when
 `DockStyle::right_to_left` is set. egui has no app-wide direction, so the app sets it from its
@@ -68,6 +68,11 @@ layout.apply(Action::Move {
   `Placement::for_zone(layout, anchor, zone, right_to_left)` maps a left, right, top, bottom or
   center zone onto what the anchor's container takes: a split in the frame tree, a new column on
   that side or a new group above or below in a dock, a group above or below in a floating window.
+- A side split zone puts what moves in a new half-size split of the anchor's frame. A frame
+  that holds the fixed size of its parent split along the same axis, such as a tool strip, keeps
+  that size: on its outer side the new split wraps the parent, on its inner side it halves the
+  parent's other child. The new split has its own divider, and the drop preview shows the half
+  the new frame takes.
 - Other actions select, minimize, collapse to icons, resize splits, columns and groups, and move
   a floating window to its own OS window (`SetNative`, feature `native-windows`).
 
@@ -186,8 +191,15 @@ A flyout fits its content the same way, without the title bar.
   4 pt band above the title bar (`chrome::RESIZE_BAND`), so they take no moves and no clicks on
   the title bar's buttons. A resize keeps the opposite edges in place and stays within the size
   limits and the screen. A focused resize handle moves its edge 8 pt per arrow key.
+- Over a frame, the tab strip and the middle join its tabs, and the nearest side splits it. A
+  side zone is a quarter of the frame deep, at least 32 pt and at most half the frame, so a narrow
+  tool strip keeps both side targets. A drop in the gap between two frames splits beside the
+  nearer one.
 - Drop previews show the destination: an outline for tabs, a line for a new group, column or dock,
   a filled half for a split. Escape or losing window focus cancels a drag.
+- In the Frame profile, Ctrl (⌘ on macOS) held while dragging a tab, a drag bar or a grip that
+  calls `begin_drag` floats the drop wherever it lands. While a drag offers a docking target, a
+  hint under the pointer names the modifier: `float_hint_label`, where `{key}` becomes ⌘ or Ctrl.
 - Double-click a tab or drag bar to minimize a group to its strip.
 - Right-click a tab for its menu, or a drag bar for the group menu; Enter or Space on a focused
   drag bar opens it too. A left click on the drag bar only focuses it.
