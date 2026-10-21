@@ -3,10 +3,10 @@
 //! Layout of the folder ([`craft_font_catalog::font_store_dir`]):
 //!
 //! ```text
-//! settings.json        the consent setting
+//! settings.json        the consent setting and the sources the user added
 //! manifest.json        what is installed
-//! index.json           the last index fetched
-//! <family dir>/        google/fonts' folder name: the font files and the licence
+//! indexes/             the last indexes fetched: sources.json, one file per source
+//! <family dir>/        google/fonts' folder name, or <source>/<family>: the fonts and the licence
 //! .staging/            downloads being installed; nothing a font scan picks up
 //! .lock                held while the store changes
 //! ```
@@ -22,17 +22,21 @@ use craft_font_catalog::{Catalog, FontEnv, font_store_dir};
 use serde::{Deserialize, Serialize};
 
 use crate::http::{Cancel, Client, FetchError};
-use crate::index::{Face, Family, FontFile, Index, IndexError, MAX_INDEX_BYTES, Unavailable, safe_dir, safe_file_name};
+use crate::index::{Face, Family, FontFile, GOOGLE_FONTS, Index, IndexError, MAX_INDEX_BYTES, MAX_LICENSE_BYTES, SourceProblem, Unavailable};
 use crate::pin::IndexPin;
+use crate::source::{is_source_url, safe_dir, safe_file_name, slug};
+use crate::sources::{MAX_SOURCES_BYTES, SourceEntry, SourcesFile};
 use crate::verify::{VerifyError, is_font, sha256_hex, verify_font};
 
 const SETTINGS: &str = "settings.json";
 const MANIFEST: &str = "manifest.json";
-const INDEX_CACHE: &str = "index.json";
+const INDEX_CACHE: &str = "indexes";
+const SOURCES_CACHE: &str = "sources.json";
 const STAGING: &str = ".staging";
 const LOCK: &str = ".lock";
 const MAX_MANIFEST_BYTES: u64 = 16 << 20;
-const MAX_LICENSE_BYTES: u64 = 1 << 20;
+const MAX_SETTINGS_BYTES: u64 = 1 << 20;
+const MAX_USER_SOURCES: usize = 64;
 /// Staging folders older than this belong to an install that crashed.
 const STALE: Duration = Duration::from_secs(3600);
 
@@ -66,6 +70,9 @@ pub enum Error {
     /// An agent tried to turn the network on.
     #[error("only the user can turn on downloading fonts")]
     NotAllowed,
+    /// Not an https URL a source can be added from.
+    #[error("{0} is not an https URL")]
+    BadUrl(String),
     /// No exact match in the index.
     #[error(transparent)]
     Unavailable(#[from] Unavailable),
@@ -127,13 +134,13 @@ pub struct Progress {
 pub struct InstalledFile {
     /// The file's name in the family folder.
     pub name: String,
-    /// Its path in google/fonts.
+    /// Its path in its source's repository.
     pub path: String,
     /// Bytes.
     pub size: u64,
     /// sha256, lowercase hex.
     pub sha256: String,
-    /// The google/fonts commit of the index it was installed from.
+    /// The commit of the index it was installed from.
     pub commit: String,
     /// Its PostScript names.
     #[serde(default)]
@@ -145,6 +152,9 @@ pub struct InstalledFile {
 pub struct InstalledFamily {
     /// The family name.
     pub family: String,
+    /// The ID of the source it was installed from.
+    #[serde(default = "google_fonts")]
+    pub source: String,
     /// The folder in the store holding its files.
     pub dir: String,
     /// `OFL`, `APACHE2` or `UFL`.
@@ -161,10 +171,29 @@ struct Manifest {
     families: Vec<InstalledFamily>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+fn google_fonts() -> String {
+    GOOGLE_FONTS.into()
+}
+
+/// A source the user added: an index file at an https URL, never curated.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserSource {
+    /// The index file (format 1.x, JSON or gzipped JSON).
+    pub url: String,
+    /// When it was added, in seconds since 1970.
+    pub added_at: u64,
+    /// The sha256 of the file first fetched from it. A different file later shows as
+    /// [`crate::FontSource::changed`].
+    #[serde(default)]
+    pub last_sha256: Option<String>,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
 struct Settings {
     #[serde(default)]
     network: Network,
+    #[serde(default)]
+    user_sources: Vec<UserSource>,
 }
 
 /// Something [`FontStore::verify`] found wrong with an installed file.
@@ -239,10 +268,11 @@ impl FontStore {
 
     /// The user's setting; [`Network::Off`] when it was never set or can't be read.
     pub fn network(&self) -> Network {
-        read_limited(&self.dir.join(SETTINGS), 64 << 10)
-            .and_then(|b| serde_json::from_slice::<Settings>(&b).ok())
-            .map(|s| s.network)
-            .unwrap_or_default()
+        self.settings().network
+    }
+
+    fn settings(&self) -> Settings {
+        read_limited(&self.dir.join(SETTINGS), MAX_SETTINGS_BYTES).and_then(|b| serde_json::from_slice::<Settings>(&b).ok()).unwrap_or_default()
     }
 
     /// Turns downloading on: call it only from the user's own action (a setting, an Install
@@ -251,17 +281,59 @@ impl FontStore {
         if self.caller != Caller::User {
             return Err(Error::NotAllowed);
         }
-        self.write_settings(Network::On)
+        self.change_settings(|s| s.network = Network::On)
     }
 
     /// Turns downloading off. Anyone may.
     pub fn disable_network(&self) -> Result<(), Error> {
-        self.write_settings(Network::Off)
+        self.change_settings(|s| s.network = Network::Off)
     }
 
-    fn write_settings(&self, network: Network) -> Result<(), Error> {
-        let bytes = serde_json::to_vec_pretty(&Settings { network }).map_err(|e| io("saving the setting")(std::io::Error::other(e)))?;
+    fn change_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<(), Error> {
+        let _lock = self.lock()?;
+        let mut settings = self.settings();
+        change(&mut settings);
+        let bytes = serde_json::to_vec_pretty(&settings).map_err(|e| io("saving the setting")(std::io::Error::other(e)))?;
         self.write_file(SETTINGS, &bytes)
+    }
+
+    // ----- sources the user added
+
+    /// The sources the user added, in the order added.
+    pub fn user_sources(&self) -> Vec<UserSource> {
+        self.settings().user_sources
+    }
+
+    /// Adds an index file at `url` as a source, from the user's own action; the next
+    /// [`FontStore::fetch_indexes`] downloads it. Its families are never curated.
+    /// [`Error::NotAllowed`] for an agent.
+    pub fn add_user_source(&self, url: &str) -> Result<(), Error> {
+        if self.caller != Caller::User {
+            return Err(Error::NotAllowed);
+        }
+        let url = url.trim();
+        if !is_source_url(url) {
+            return Err(Error::BadUrl(url.chars().take(200).collect()));
+        }
+        let added_at = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        self.change_settings(|s| {
+            if !s.user_sources.iter().any(|u| u.url == url) && s.user_sources.len() < MAX_USER_SOURCES {
+                s.user_sources.push(UserSource { url: url.to_string(), added_at, last_sha256: None });
+            }
+        })
+    }
+
+    /// Removes a source the user added, and its cached index. Families installed from it stay
+    /// installed.
+    pub fn remove_user_source(&self, url: &str) -> Result<(), Error> {
+        self.change_settings(|s| s.user_sources.retain(|u| u.url != url))?;
+        let _ = std::fs::remove_file(self.user_cache(url));
+        Ok(())
+    }
+
+    fn user_cache(&self, url: &str) -> PathBuf {
+        let key: String = sha256_hex(url.as_bytes()).chars().take(16).collect();
+        self.dir.join(INDEX_CACHE).join(format!("user-{key}"))
     }
 
     fn require_network(&self) -> Result<(), Error> {
@@ -270,20 +342,116 @@ impl FontStore {
 
     // ----- index
 
-    /// The index saved by the last [`FontStore::fetch_index`], when it is `pin`'s.
-    pub fn cached_index(&self, pin: &IndexPin) -> Option<Index> {
-        let bytes = read_limited(&self.dir.join(INDEX_CACHE), MAX_INDEX_BYTES as u64)?;
-        (sha256_hex(&bytes) == pin.sha256).then(|| Index::from_json(&bytes).ok()).flatten()
+    /// The indexes saved by the last [`FontStore::fetch_indexes`], when its `sources.json` is
+    /// `pin`'s and every built-in index matches it, with the sources the user added.
+    pub fn cached_indexes(&self, pin: &IndexPin) -> Option<Index> {
+        let cache = self.dir.join(INDEX_CACHE);
+        let bytes = read_limited(&cache.join(SOURCES_CACHE), MAX_SOURCES_BYTES as u64)?;
+        if sha256_hex(&bytes) != pin.sha256 {
+            return None;
+        }
+        let sources = SourcesFile::from_json(&bytes).ok()?;
+        let mut parts = Vec::new();
+        for entry in &sources.indexes {
+            let bytes = read_limited(&cache.join(builtin_cache_name(entry)), MAX_INDEX_BYTES as u64)?;
+            parts.push(entry.read(&bytes, entry.gz().is_some()).ok()?);
+        }
+        let (users, problems) = self.cached_user_indexes();
+        Some(Index::merge(parts.into_iter().chain(users)).with_problems(problems))
     }
 
-    /// Downloads the index `pin` names, checks its sha256 and saves it for
-    /// [`FontStore::cached_index`]. Needs the network on.
-    pub fn fetch_index(&self, pin: &IndexPin, cancel: &Cancel) -> Result<Index, Error> {
+    /// The indexes without a request: the built-in ones compiled in, with the sources the user
+    /// added as last fetched.
+    #[cfg(feature = "bundled-index")]
+    pub fn offline_indexes(&self) -> Index {
+        let (users, mut problems) = self.cached_user_indexes();
+        let builtin = Index::bundled().unwrap_or_else(|e| {
+            problems.insert(0, SourceProblem { source: "sources.json".into(), name: "Built-in sources".into(), error: e.to_string() });
+            Index::default()
+        });
+        Index::merge(std::iter::once(builtin).chain(users)).with_problems(problems)
+    }
+
+    fn cached_user_indexes(&self) -> (Vec<Index>, Vec<SourceProblem>) {
+        let mut indexes = Vec::new();
+        let mut problems = Vec::new();
+        for user in self.user_sources() {
+            let problem = |error: String| SourceProblem { source: user.url.clone(), name: user.url.clone(), error };
+            let Some(bytes) = read_limited(&self.user_cache(&user.url), MAX_INDEX_BYTES as u64) else {
+                problems.push(problem("not downloaded yet".into()));
+                continue;
+            };
+            match user_index(&bytes, &user) {
+                Ok(index) => indexes.push(index),
+                Err(e) => problems.push(problem(e.to_string())),
+            }
+        }
+        (indexes, problems)
+    }
+
+    /// Downloads `sources.json` as `pin` names it, every index it lists and every source the user
+    /// added, checks them and saves them for [`FontStore::cached_indexes`]. Needs the network on.
+    ///
+    /// An index that fails leaves the others usable: it is reported in [`Index::problems`]. Only
+    /// a `sources.json` that can't be had fails the whole call.
+    pub fn fetch_indexes(&self, pin: &IndexPin, cancel: &Cancel) -> Result<Index, Error> {
         self.require_network()?;
         let check = |bytes: &[u8]| if sha256_hex(bytes) == pin.sha256 { Ok(()) } else { Err(VerifyError::Sha256) };
-        let bytes = self.fetch(&pin.urls(), MAX_INDEX_BYTES as u64, "the font index", cancel, &mut |_| {}, &check)?;
-        let index = Index::from_json(&bytes)?;
-        self.write_file(INDEX_CACHE, &bytes)?;
+        let bytes = self.fetch(&pin.urls(), MAX_SOURCES_BYTES as u64, "sources.json", cancel, &mut |_| {}, &check)?;
+        let sources = SourcesFile::from_json(&bytes)?;
+        let cache = self.dir.join(INDEX_CACHE);
+        std::fs::create_dir_all(&cache).map_err(io("creating the index folder"))?;
+        let mut parts = Vec::new();
+        let mut problems = Vec::new();
+        for entry in &sources.indexes {
+            match self.fetch_builtin(pin, entry, cancel) {
+                Ok(index) => parts.push(index),
+                Err(Error::Cancelled) => return Err(Error::Cancelled),
+                Err(e) => problems.push(SourceProblem { source: entry.source.clone(), name: entry.name.clone(), error: e.to_string() }),
+            }
+        }
+        self.write_file(&format!("{INDEX_CACHE}/{SOURCES_CACHE}"), &bytes)?;
+        for user in self.user_sources() {
+            match self.fetch_user(&user, cancel) {
+                Ok(index) => parts.push(index),
+                Err(Error::Cancelled) => return Err(Error::Cancelled),
+                Err(e) => problems.push(SourceProblem { source: user.url.clone(), name: user.url.clone(), error: e.to_string() }),
+            }
+        }
+        Ok(Index::merge(parts).with_problems(problems))
+    }
+
+    fn fetch_builtin(&self, pin: &IndexPin, entry: &SourceEntry, cancel: &Cancel) -> Result<Index, Error> {
+        let (path, size, sha256) = entry.gz().unwrap_or((&entry.path, entry.size, &entry.sha256));
+        let check = |bytes: &[u8]| {
+            if bytes.len() as u64 != size {
+                Err(VerifyError::Size { expected: size, actual: bytes.len() as u64 })
+            } else if sha256_hex(bytes) != sha256 {
+                Err(VerifyError::Sha256)
+            } else {
+                Ok(())
+            }
+        };
+        let bytes = self.fetch(&pin.file_urls(path), size, &entry.name, cancel, &mut |_| {}, &check)?;
+        let index = entry.read(&bytes, entry.gz().is_some())?;
+        self.write_file(&format!("{INDEX_CACHE}/{}", builtin_cache_name(entry)), &bytes)?;
+        Ok(index)
+    }
+
+    fn fetch_user(&self, user: &UserSource, cancel: &Cancel) -> Result<Index, Error> {
+        let bytes = self.fetch(std::slice::from_ref(&user.url), MAX_INDEX_BYTES as u64, &user.url, cancel, &mut |_| {}, &|_| Ok(()))?;
+        let index = user_index(&bytes, user)?;
+        if let Some(name) = self.user_cache(&user.url).file_name().and_then(|n| n.to_str()) {
+            self.write_file(&format!("{INDEX_CACHE}/{name}"), &bytes)?;
+        }
+        if user.last_sha256.is_none() {
+            let sha = sha256_hex(&bytes);
+            self.change_settings(|s| {
+                if let Some(u) = s.user_sources.iter_mut().find(|u| u.url == user.url && u.last_sha256.is_none()) {
+                    u.last_sha256 = Some(sha);
+                }
+            })?;
+        }
         Ok(index)
     }
 
@@ -316,7 +484,7 @@ impl FontStore {
         cancel: &Cancel,
         progress: &mut dyn FnMut(Progress),
     ) -> Result<InstalledFamily, Error> {
-        let installed = self.installed_family(&family.family);
+        let installed = self.installed_family(&family.source, &family.family);
         let folder = self.dir.join(family.dir());
         let have = |f: &FontFile| installed.as_ref().is_some_and(|i| i.files.iter().any(|x| x.name == f.file_name() && x.sha256 == f.sha256));
         let wanted: Vec<&FontFile> = files.iter().copied().filter(|f| !have(f) || !folder.join(f.file_name()).is_file()).collect();
@@ -335,14 +503,20 @@ impl FontStore {
         for (i, file) in wanted.iter().enumerate() {
             let mut on_bytes = |n: u64| progress(Progress { file: i, files: wanted.len(), done: done_before + n, total });
             let check = |bytes: &[u8]| verify_font(file, bytes);
-            let bytes = self.fetch(&index.urls(&file.path), file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
+            let bytes = self.fetch(&index.file_urls(family, file), file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
             done_before += file.size;
             staged.push((file.file_name().to_string(), stage.write(file.file_name(), &bytes)?));
         }
-        if license_missing && let (Some(path), Some(name)) = (&family.license_path, family.license_file_name()) {
-            // The index has no sha256 for licences: the size cap is the only check.
-            let check = |_: &[u8]| Ok(());
-            let bytes = self.fetch(&index.urls(path), MAX_LICENSE_BYTES, name, cancel, &mut |_| {}, &check)?;
+        if license_missing && let Some(name) = family.license_file_name() {
+            // A format 1.0 index has no size or sha256 for the licence: the size cap is the only
+            // check.
+            let max = family.license_file.as_ref().map_or(MAX_LICENSE_BYTES, |f| f.size);
+            let check = |bytes: &[u8]| match &family.license_file {
+                Some(f) if bytes.len() as u64 != f.size => Err(VerifyError::Size { expected: f.size, actual: bytes.len() as u64 }),
+                Some(f) if sha256_hex(bytes) != f.sha256 => Err(VerifyError::Sha256),
+                _ => Ok(()),
+            };
+            let bytes = self.fetch(&index.license_urls(family), max, name, cancel, &mut |_| {}, &check)?;
             staged.push((name.to_string(), stage.write(name, &bytes)?));
         }
         if cancel.is_cancelled() {
@@ -408,25 +582,24 @@ impl FontStore {
         self.read_manifest().families
     }
 
-    /// The installed family of this name, ignoring case.
-    pub fn installed_family(&self, name: &str) -> Option<InstalledFamily> {
-        let lower = name.to_lowercase();
-        self.installed().into_iter().find(|f| f.family.to_lowercase() == lower)
+    /// The family of this name installed from `source`, ignoring case.
+    pub fn installed_family(&self, source: &str, name: &str) -> Option<InstalledFamily> {
+        self.installed().into_iter().find(|f| f.is(source, name))
     }
 
     /// Whether `file` is installed, with the index's sha256.
     pub fn is_installed(&self, family: &Family, file: &FontFile) -> bool {
-        self.installed_family(&family.family).is_some_and(|i| i.files.iter().any(|x| x.name == file.file_name() && x.sha256 == file.sha256))
+        self.installed_family(&family.source, &family.family)
+            .is_some_and(|i| i.files.iter().any(|x| x.name == file.file_name() && x.sha256 == file.sha256))
     }
 
-    /// Removes a family: its files, its licence and its manifest entry. Its folder disappears at
-    /// once and is deleted after.
-    pub fn remove_family(&self, name: &str) -> Result<(), Error> {
+    /// Removes the family of this name installed from `source`: its files, its licence and its
+    /// manifest entry. Its folder disappears at once and is deleted after.
+    pub fn remove_family(&self, source: &str, name: &str) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
             let mut manifest = self.read_manifest();
-            let lower = name.to_lowercase();
-            let pos = manifest.families.iter().position(|f| f.family.to_lowercase() == lower).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
+            let pos = manifest.families.iter().position(|f| f.is(source, name)).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
             let entry = manifest.families.remove(pos);
             let folder = self.dir.join(&entry.dir);
             let stage = Stage::new(&self.dir)?;
@@ -531,12 +704,12 @@ impl FontStore {
 
 /// The family's manifest entry after installing `files`, merged into `manifest`.
 fn merge_entry(manifest: &mut Manifest, index: &Index, family: &Family, files: &[&FontFile]) -> InstalledFamily {
-    let lower = family.family.to_lowercase();
-    let pos = match manifest.families.iter().position(|f| f.family.to_lowercase() == lower) {
+    let pos = match manifest.families.iter().position(|f| f.is(&family.source, &family.family)) {
         Some(p) => p,
         None => {
             manifest.families.push(InstalledFamily {
                 family: family.family.clone(),
+                source: family.source.clone(),
                 dir: family.dir().to_string(),
                 license: family.license.clone(),
                 license_file: None,
@@ -547,6 +720,7 @@ fn merge_entry(manifest: &mut Manifest, index: &Index, family: &Family, files: &
     };
     let Some(entry) = manifest.families.get_mut(pos) else { return InstalledFamily::empty() };
     entry.license.clone_from(&family.license);
+    let commit = index.source_of(family).map(|s| s.commit.clone()).unwrap_or_default();
     if let Some(name) = family.license_file_name() {
         entry.license_file = Some(name.to_string());
     }
@@ -557,20 +731,38 @@ fn merge_entry(manifest: &mut Manifest, index: &Index, family: &Family, files: &
             path: f.path.clone(),
             size: f.size,
             sha256: f.sha256.clone(),
-            commit: index.commit().to_string(),
+            commit: commit.clone(),
             postscript: f.postscript.clone(),
         });
     }
     entry.files.sort_by(|a, b| a.name.cmp(&b.name));
     let entry = entry.clone();
-    manifest.families.sort_by_key(|f| f.family.to_lowercase());
+    manifest.families.sort_by_key(|f| (f.family.to_lowercase(), f.source.clone()));
     entry
 }
 
 impl InstalledFamily {
     fn empty() -> Self {
-        Self { family: String::new(), dir: String::new(), license: String::new(), license_file: None, files: Vec::new() }
+        Self { family: String::new(), source: String::new(), dir: String::new(), license: String::new(), license_file: None, files: Vec::new() }
     }
+
+    /// Whether this is the family `name` (ignoring case) from `source`.
+    pub fn is(&self, source: &str, name: &str) -> bool {
+        self.source == source && self.family.to_lowercase() == name.to_lowercase()
+    }
+}
+
+fn builtin_cache_name(entry: &SourceEntry) -> String {
+    format!("{}{}", slug(&entry.source), if entry.gz().is_some() { ".json.gz" } else { ".json" })
+}
+
+/// A user-added source's index from the bytes fetched from it.
+fn user_index(bytes: &[u8], user: &UserSource) -> Result<Index, IndexError> {
+    let mut index = Index::from_user_bytes(bytes, &user.url)?;
+    if user.last_sha256.as_ref().is_some_and(|h| *h != sha256_hex(bytes)) {
+        index.mark_changed();
+    }
+    Ok(index)
 }
 
 fn read_limited(path: &Path, max: u64) -> Option<Vec<u8>> {

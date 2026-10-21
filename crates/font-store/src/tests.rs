@@ -84,9 +84,13 @@ fn index_of(v: &serde_json::Value) -> Result<Index, IndexError> {
 fn the_index_is_read_and_checked() {
     let f = fixture();
     let index = index_of(&f.index).unwrap();
-    assert_eq!((index.version(), index.commit(), index.families().len()), ("1.0", COMMIT, 4));
+    let source = &index.sources()[0];
+    assert_eq!((source.version.as_str(), source.commit.as_str(), index.families().len()), ("1.0", COMMIT, 4));
+    // A format 1.0 index is Google Fonts, curated, with URLs from its base URLs.
+    assert_eq!((source.id.as_str(), source.name.as_str(), source.curated), (GOOGLE_FONTS, "Google Fonts", true));
     let sans = index.family("test sans").unwrap();
     assert_eq!((sans.dir(), sans.license_file_name(), sans.designer.as_str()), ("testsans", Some("OFL.txt"), "Someone"));
+    assert_eq!((sans.source.as_str(), sans.is_curated()), (GOOGLE_FONTS, true));
     assert_eq!(sans.languages(&index).map(|l| l.id.as_str()).collect::<Vec<_>>(), ["en_Latn"]);
 
     let with = |edit: &dyn Fn(&mut serde_json::Value)| {
@@ -120,6 +124,9 @@ fn the_index_is_read_and_checked() {
         with(&|v| v["families"][2]["files"][0]["sha256"] = json!("00")),
         with(&|v| v["families"][2]["files"][0]["weight"] = json!(0)),
         with(&|v| v["families"][2]["license_path"] = json!("ofl/elsewhere/OFL.txt")),
+        with(&|v| v["families"][2]["license_path"] = json!("ofl/testsans/TestSans-Bold.ttf")),
+        with(&|v| v["families"][2]["source"] = json!("notofonts")),
+        with(&|v| v["base_url"] = json!("https://cdn.jsdelivr.net/gh/{repo}/")),
         with(&|v| v["families"][2]["languages"] = json!([5])),
         with(&|v| v["families"][3]["family"] = json!("TEST SANS")),
     ];
@@ -131,16 +138,38 @@ fn the_index_is_read_and_checked() {
 
 #[cfg(feature = "bundled-index")]
 #[test]
-fn the_bundled_index_is_the_pinned_one() {
-    use std::io::Read;
-    let gz = include_bytes!("../index/google-fonts-index.json.gz");
-    let mut json = Vec::new();
-    flate2::read::GzDecoder::new(&gz[..]).read_to_end(&mut json).unwrap();
-    assert_eq!(sha256_hex(&json), PINNED_INDEX.sha256);
+fn the_bundled_indexes_are_the_pinned_ones() {
+    assert_eq!(sha256_hex(include_bytes!("../index/sources.json")), PINNED_INDEX.sha256);
     let index = Index::bundled().unwrap();
-    assert!(index.families().len() > 1000);
+    let ids: Vec<&str> = index.sources().iter().map(|s| s.id.as_str()).collect();
+    assert_eq!(ids, [GOOGLE_FONTS, "notofonts"]);
+    assert!(index.sources().iter().all(|s| s.curated && s.warnings.is_empty()));
+    assert!(index.problems().is_empty());
+    assert!(index.families().len() > 2000);
     let face = index.find_face("Lato", "Bold Italic").unwrap();
-    assert_eq!(face.file.file_name(), "Lato-BoldItalic.ttf");
+    assert_eq!((face.file.file_name(), face.family.dir()), ("Lato-BoldItalic.ttf", "lato"));
+
+    // Noto's own families, in folders of their own.
+    let cjk = index.family("Noto Sans CJK JP").unwrap();
+    assert_eq!((cjk.source.as_str(), cjk.dir(), cjk.license_file_name()), ("notofonts", "notofonts/noto-sans-cjk-jp", Some("LICENSE")));
+    assert!(index.file_urls(cjk, &cjk.files[0])[0].starts_with("https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/Sans/OTF/Japanese/"));
+    // A family in both sources: Google Fonts first, Noto's with more styles after it.
+    let both: Vec<&str> = index.families_named("Noto Serif Myanmar").map(|f| f.source.as_str()).collect();
+    assert_eq!(both, [GOOGLE_FONTS, "notofonts"]);
+    let noto = index.family_from("notofonts", "Noto Serif Myanmar").unwrap();
+    assert_eq!(
+        index.license_urls(noto),
+        [
+            "https://cdn.jsdelivr.net/gh/notofonts/myanmar@NotoSerifMyanmar-v2.106/OFL.txt",
+            "https://raw.githubusercontent.com/notofonts/myanmar/NotoSerifMyanmar-v2.106/OFL.txt"
+        ]
+    );
+    // Languages are merged: every family's positions name a language of the merged list.
+    let ja = index.languages().iter().position(|l| l.id == "ja_Jpan").unwrap();
+    assert!(cjk.languages.contains(&ja));
+    let gujarati_ui = index.family_from("notofonts", "Noto Sans Gujarati UI").unwrap();
+    assert!(gujarati_ui.files.iter().any(|f| f.width != 100.0));
+    assert!(gujarati_ui.face("Bold").unwrap().has_normal_width());
 }
 
 #[test]
@@ -175,8 +204,9 @@ fn lookups_match_exactly_and_refuse_near_matches() {
     assert_eq!(parse_style("Extra Bold Italic"), Some((800, true)));
     assert_eq!(parse_style("semi-bold"), Some((600, false)));
     assert_eq!(parse_style("Condensed Bold"), None);
+    let var = index.family("Test Var").unwrap();
     assert_eq!(
-        index.urls("apache/testvar/TestVar[wght].ttf"),
+        index.file_urls(var, &var.files[0]),
         [
             format!("https://cdn.jsdelivr.net/gh/google/fonts@{COMMIT}/apache/testvar/TestVar%5Bwght%5D.ttf"),
             format!("https://raw.githubusercontent.com/google/fonts/{COMMIT}/apache/testvar/TestVar%5Bwght%5D.ttf"),
@@ -196,6 +226,183 @@ fn verification_checks_size_hash_and_font() {
     assert!(matches!(verify_font(file, &bytes[1..]), Err(VerifyError::Size { .. })));
     assert!(!is_font(b"not a font at all"));
     assert!(is_font(&bytes));
+}
+
+const NOTO_COMMIT: &str = "93fac8abebe6c7fed0c5b7d2456d8fa484fa146c";
+const VAR_PATH: &str = "fonts/NotoSerifTest/full/variable-ttf/NotoSerifTest[wdth,wght].ttf";
+const CJK_PATH: &str = "Sans/OTF/Japanese/NotoSansCJKtest-Regular.otf";
+const CONDENSED_PATH: &str = "fonts/TestSans/full/ttf/TestSans-CondensedBold.ttf";
+
+/// A format 1.1 index of another source, as craft-font-index's Noto index has it: URL templates
+/// with `{repo}` and `{ref}`, a family in another repository at a tag, licences with a sha256
+/// (one in a third repository), and a family Google Fonts also has, in a width it lacks.
+fn noto_fixture() -> Fixture {
+    let var = font("Noto Serif Test", "Regular", 400);
+    let cjk = font("Noto Sans CJK Test", "Regular", 400);
+    let condensed = font("Test Sans", "Condensed Bold", 700);
+    let ofl = b"Noto OFL".to_vec();
+    let cjk_licence = b"noto-cjk LICENSE".to_vec();
+    let lic = |path: &str, bytes: &[u8]| json!({"path": path, "size": bytes.len(), "sha256": sha256_hex(bytes)});
+    let mut var_entry = file_entry(
+        VAR_PATH,
+        &var,
+        "normal",
+        400,
+        json!([{"tag": "wght", "min": 100.0, "max": 900.0}, {"tag": "wdth", "min": 62.5, "max": 100.0}]),
+        &["NotoSerifTest-Regular", "NotoSerifTest-Bold"],
+    );
+    var_entry["a_later_field"] = json!(1);
+    let mut condensed_entry = file_entry(CONDENSED_PATH, &condensed, "normal", 700, json!([]), &["TestSans-CondensedBold"]);
+    condensed_entry["width"] = json!(75.0);
+    let mut serif_licence = lic("OFL.txt", &ofl);
+    serif_licence["repo"] = json!("notofonts/serif-test");
+    serif_licence["ref"] = json!("NotoSerifTest-v2.106");
+    let index = json!({
+        "schema": 1, "version": "1.1", "source": "notofonts", "commit": NOTO_COMMIT,
+        "source_info": {"id": "notofonts", "name": "Noto", "homepage": "https://notofonts.github.io", "curated": true,
+            "file_urls": ["https://cdn.jsdelivr.net/gh/{repo}@{ref}/{path}", "https://raw.githubusercontent.com/{repo}/{ref}/{path}"]},
+        "repo": "notofonts/notofonts.github.io", "ref": NOTO_COMMIT,
+        "languages": [
+            {"id": "en_Latn", "name": "English", "script": "Latn", "population": 1},
+            {"id": "ja_Jpan", "name": "Japanese", "autonym": "日本語", "script": "Jpan", "population": 1}],
+        "scripts": [{"id": "Jpan", "name": "Japanese"}, {"id": "Latn", "name": "Latin"}],
+        "families": [
+            {"family": "Noto Sans CJK Test", "source": "notofonts", "license": "OFL", "license_path": null,
+             "license_file": lic("LICENSE", &cjk_licence), "repo": "notofonts/noto-cjk", "ref": "Sans2.004",
+             "languages": [0, 1], "scripts": ["Jpan", "Latn"],
+             "files": [file_entry(CJK_PATH, &cjk, "normal", 400, json!([]), &["NotoSansCJKtest-Regular"])]},
+            {"family": "Noto Serif Test", "source": "notofonts", "license": "OFL", "license_path": null,
+             "license_file": serif_licence, "languages": [0], "files": [var_entry]},
+            {"family": "Test Sans", "source": "notofonts", "license": "OFL", "license_path": null,
+             "license_file": lic("OFL.txt", &ofl), "files": [condensed_entry]},
+        ]
+    });
+    let files = vec![
+        (format!("notofonts/noto-cjk/Sans2.004/{CJK_PATH}"), cjk),
+        ("notofonts/noto-cjk/Sans2.004/LICENSE".into(), cjk_licence),
+        (format!("notofonts/notofonts.github.io/{NOTO_COMMIT}/fonts/NotoSerifTest/full/variable-ttf/NotoSerifTest%5Bwdth%2Cwght%5D.ttf"), var),
+        ("notofonts/serif-test/NotoSerifTest-v2.106/OFL.txt".into(), ofl.clone()),
+        (format!("notofonts/notofonts.github.io/{NOTO_COMMIT}/{CONDENSED_PATH}"), condensed),
+        (format!("notofonts/notofonts.github.io/{NOTO_COMMIT}/OFL.txt"), ofl),
+    ];
+    Fixture { files, index }
+}
+
+#[test]
+fn a_noto_index_resolves_urls_per_family_and_entry() {
+    let index = index_of(&noto_fixture().index).unwrap();
+    let source = &index.sources()[0];
+    assert_eq!((source.id.as_str(), source.name.as_str(), source.curated, source.commit.as_str()), ("notofonts", "Noto", true, NOTO_COMMIT));
+    // The top-level repo and ref, with each path segment percent-encoded.
+    let var = index.family("Noto Serif Test").unwrap();
+    assert_eq!(
+        index.file_urls(var, &var.files[0]),
+        [
+            format!(
+                "https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io@{NOTO_COMMIT}/fonts/NotoSerifTest/full/variable-ttf/NotoSerifTest%5Bwdth%2Cwght%5D.ttf"
+            ),
+            format!(
+                "https://raw.githubusercontent.com/notofonts/notofonts.github.io/{NOTO_COMMIT}/fonts/NotoSerifTest/full/variable-ttf/NotoSerifTest%5Bwdth%2Cwght%5D.ttf"
+            ),
+        ]
+    );
+    // The licence's own repository and ref.
+    assert_eq!(index.license_urls(var)[1], "https://raw.githubusercontent.com/notofonts/serif-test/NotoSerifTest-v2.106/OFL.txt");
+    // The family's repository and ref, for its files and its licence.
+    let cjk = index.family("Noto Sans CJK Test").unwrap();
+    assert_eq!(index.file_urls(cjk, &cjk.files[0])[0], format!("https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/{CJK_PATH}"));
+    assert_eq!(index.license_urls(cjk)[0], "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@Sans2.004/LICENSE");
+    assert_eq!((cjk.dir(), cjk.license_file_name(), cjk.license_path.as_deref()), ("notofonts/noto-sans-cjk-test", Some("LICENSE"), None));
+    assert_eq!(var.files[0].width, 100.0);
+
+    let with = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = noto_fixture().index;
+        edit(&mut v);
+        index_of(&v)
+    };
+    let invalid = [
+        with(&|v| v["families"][1]["files"][0]["path"] = json!("../x.ttf")),
+        with(&|v| v["families"][1]["files"][0]["path"] = json!("/x.ttf")),
+        with(&|v| v["families"][1]["files"][0]["path"] = json!("a//b.ttf")),
+        with(&|v| v["families"][1]["files"][0]["path"] = json!("a/./b.ttf")),
+        with(&|v| v["families"][1]["files"][0]["path"] = json!("a\\b.ttf")),
+        with(&|v| v["families"][1]["ref"] = json!("a/../b")),
+        with(&|v| v["families"][1]["repo"] = json!("noslash")),
+        with(&|v| v["families"][0]["license_file"]["path"] = json!("Sans/OTF/Japanese/NotoSansCJKtest-Regular.otf")),
+        with(&|v| v["families"][0]["license_file"]["sha256"] = json!("00")),
+        with(&|v| v["families"][1]["files"][0]["width"] = json!(0.0)),
+        with(&|v| {
+            v.as_object_mut().unwrap().remove("repo");
+        }),
+        with(&|v| v["source_info"]["file_urls"] = json!(["http://cdn.jsdelivr.net/gh/{repo}@{ref}/{path}"])),
+        with(&|v| v["source_info"]["file_urls"] = json!(["https://cdn.jsdelivr.net/gh/{owner}/{path}"])),
+        with(&|v| v["source_info"]["file_urls"] = json!(["https://cdn.jsdelivr.net/gh/{repo}@{ref}/"])),
+        with(&|v| v["source_info"]["id"] = json!("other")),
+    ];
+    for (i, r) in invalid.into_iter().enumerate() {
+        assert!(matches!(r, Err(IndexError::Invalid(_))), "case {i}: {r:?}");
+    }
+    // Only licences that allow redistribution: other families are left out, with a warning.
+    let index = with(&|v| v["families"][1]["license"] = json!("Proprietary")).unwrap();
+    assert!(index.family("Noto Serif Test").is_none());
+    assert_eq!((index.families().len(), index.sources()[0].warnings.len()), (2, 1));
+}
+
+#[test]
+fn sources_merge_with_the_first_preferred() {
+    let index = Index::merge([index_of(&fixture().index).unwrap(), index_of(&noto_fixture().index).unwrap()]);
+    assert_eq!(index.sources().iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), [GOOGLE_FONTS, "notofonts"]);
+    let names: Vec<(&str, &str)> = index.families().iter().map(|f| (f.family.as_str(), f.source.as_str())).collect();
+    assert_eq!(
+        names,
+        [
+            ("Noto Sans CJK Test", "notofonts"),
+            ("Noto Serif Test", "notofonts"),
+            ("Shared One", GOOGLE_FONTS),
+            ("Shared Two", GOOGLE_FONTS),
+            ("Test Sans", GOOGLE_FONTS),
+            ("Test Sans", "notofonts"),
+            ("Test Var", GOOGLE_FONTS),
+        ]
+    );
+    // The first source's family for a name; a style only another source has comes from it.
+    assert_eq!(index.family("test sans").unwrap().source, GOOGLE_FONTS);
+    assert_eq!(index.find_face("Test Sans", "Bold").unwrap().family.source, GOOGLE_FONTS);
+    let condensed = index.find_face("Test Sans", "Condensed Bold").unwrap();
+    assert_eq!((condensed.family.source.as_str(), condensed.family.dir()), ("notofonts", "notofonts/test-sans"));
+    assert_eq!(index.find_postscript("TestSans-CondensedBold").unwrap().family.source, "notofonts");
+    assert!(matches!(index.find_face("Test Sans", "Light"), Err(Unavailable::NoStyle { .. })));
+    // Languages of both, by ID, and every family's positions point into them.
+    assert_eq!(index.languages().iter().map(|l| l.id.as_str()).collect::<Vec<_>>(), ["en_Latn", "ja_Jpan"]);
+    let cjk = index.family("Noto Sans CJK Test").unwrap();
+    assert_eq!(cjk.languages(&index).map(|l| l.id.as_str()).collect::<Vec<_>>(), ["en_Latn", "ja_Jpan"]);
+    assert_eq!(index.family("Shared One").unwrap().languages(&index).map(|l| l.id.as_str()).collect::<Vec<_>>(), ["en_Latn"]);
+    // URLs stay per source.
+    assert!(index.file_urls(cjk, &cjk.files[0])[0].contains("noto-cjk@Sans2.004"));
+    // A second source with the same ID is left out and reported.
+    let twice = Index::merge([index_of(&noto_fixture().index).unwrap(), index_of(&noto_fixture().index).unwrap()]);
+    assert_eq!((twice.sources().len(), twice.families().len(), twice.problems().len()), (1, 3, 1));
+}
+
+#[test]
+fn a_user_index_is_never_curated_and_cant_shadow_a_built_in_source() {
+    let mut v = noto_fixture().index;
+    v["source_info"]["file_urls"] = json!(["https://fonts.example.org/files/{path}"]);
+    v["families"][1]["license"] = json!("Proprietary");
+    let url = "https://fonts.example.org/index.json";
+    let index = Index::from_user_bytes(v.to_string().as_bytes(), url).unwrap();
+    let source = &index.sources()[0];
+    assert_eq!((source.id.as_str(), source.curated, source.user_url.as_deref()), ("user:fonts.example.org/notofonts", false, Some(url)));
+    assert_eq!(source.warnings.len(), 1);
+    let cjk = index.family("Noto Sans CJK Test").unwrap();
+    assert!(!cjk.is_curated());
+    assert_eq!(cjk.dir(), "user-fonts-example-org-notofonts/noto-sans-cjk-test");
+    assert_eq!(index.file_urls(cjk, &cjk.files[0]), [format!("https://fonts.example.org/files/{CJK_PATH}")]);
+    // Merged after a built-in source of the ID it claims, it is a separate source.
+    let merged = Index::merge([index_of(&noto_fixture().index).unwrap(), index]);
+    assert_eq!(merged.sources().len(), 2);
+    assert!(merged.family("Noto Sans CJK Test").unwrap().is_curated());
+    assert!(Index::from_user_bytes(v.to_string().as_bytes(), "http://fonts.example.org/index.json").is_err());
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -257,6 +464,16 @@ mod store {
             }
         }
 
+        /// A fixture whose files are keyed `<owner>/<name>/<ref>/<path>`, on both hosts.
+        fn serve_repos(&self, f: &Fixture) {
+            for (key, bytes) in &f.files {
+                let mut parts = key.splitn(4, '/');
+                let (owner, name, git_ref, path) = (parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap());
+                self.serve("cdn", &format!("gh/{owner}/{name}@{git_ref}/{path}"), Reply::Ok(bytes.clone()));
+                self.serve("raw", &format!("{owner}/{name}/{git_ref}/{path}"), Reply::Ok(bytes.clone()));
+            }
+        }
+
         fn requests(&self) -> Vec<String> {
             self.log.lock().unwrap().clone()
         }
@@ -268,6 +485,7 @@ mod store {
                 vec![
                     ("https://cdn.jsdelivr.net/".into(), format!("{}cdn/", self.base)),
                     ("https://raw.githubusercontent.com/".into(), format!("{}raw/", self.base)),
+                    ("https://fonts.example.org/".into(), format!("{}user/", self.base)),
                 ],
             )
         }
@@ -425,11 +643,11 @@ mod store {
         assert_eq!(entries(&dir.join("testvar")), ["LICENSE.txt", "TestVar[wght].ttf"]);
         assert_eq!(store.installed().iter().map(|f| f.family.as_str()).collect::<Vec<_>>(), ["Test Sans", "Test Var"]);
 
-        store.remove_family("test sans").unwrap();
+        store.remove_family(GOOGLE_FONTS, "test sans").unwrap();
         assert!(!dir.join("testsans").exists());
         assert_eq!(store.installed().len(), 1);
         assert!(catalog.by_postscript_name("TestSans-Bold").is_none());
-        assert!(matches!(store.remove_family("Test Sans"), Err(Error::NotInstalled(_))));
+        assert!(matches!(store.remove_family(GOOGLE_FONTS, "Test Sans"), Err(Error::NotInstalled(_))));
         assert!(entries(&dir.join(".staging")).is_empty());
         let _ = std::fs::remove_dir_all(dir);
         let _ = std::fs::remove_dir_all(root);
@@ -554,27 +772,207 @@ mod store {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        use flate2::write::GzEncoder;
+        let mut e = GzEncoder::new(Vec::new(), flate2::Compression::best());
+        e.write_all(bytes).unwrap();
+        e.finish().unwrap()
+    }
+
+    /// `sources.json` listing the Google Fonts fixture (gzipped) and the Noto fixture (plain
+    /// JSON), with the index bytes each path serves.
+    fn sources_fixture(noto_sha256: Option<&str>) -> (Vec<u8>, Vec<(String, Vec<u8>)>) {
+        let google = fixture().index.to_string().into_bytes();
+        let google_gz = gzip(&google);
+        let noto = noto_fixture().index.to_string().into_bytes();
+        let sources = json!({"schema": 1, "version": "1.1", "indexes": [
+            {"source": GOOGLE_FONTS, "name": "Google Fonts", "curated": true, "path": "indexes/google-fonts.json",
+             "size": google.len(), "sha256": sha256_hex(&google), "gz_path": "indexes/google-fonts.json.gz",
+             "gz_size": google_gz.len(), "gz_sha256": sha256_hex(&google_gz), "commit": COMMIT, "families": 4, "files": 6},
+            {"source": "notofonts", "name": "Noto", "curated": true, "path": "indexes/noto.json",
+             "size": noto.len(), "sha256": noto_sha256.map_or_else(|| sha256_hex(&noto), str::to_string), "commit": NOTO_COMMIT}
+        ]});
+        let files = vec![("indexes/google-fonts.json.gz".into(), google_gz), ("indexes/noto.json".into(), noto)];
+        (sources.to_string().into_bytes(), files)
+    }
+
+    fn pin_of(sources: &[u8]) -> IndexPin {
+        IndexPin { repo: "owner/index", commit: "abc", sha256: Box::leak(sha256_hex(sources).into_boxed_str()) }
+    }
+
+    fn serve_sources(server: &Server, sources: &[u8], files: &[(String, Vec<u8>)]) {
+        server.serve("cdn", "gh/owner/index@abc/sources.json", Reply::Status(500));
+        server.serve("raw", "owner/index/abc/sources.json", Reply::Ok(sources.to_vec()));
+        for (path, bytes) in files {
+            server.serve("cdn", &format!("gh/owner/index@abc/{path}"), Reply::Ok(bytes.clone()));
+        }
+    }
+
     #[test]
-    fn the_index_is_fetched_only_with_consent_and_checked() {
+    fn the_indexes_are_fetched_only_with_consent_and_checked() {
         let server = Server::start();
-        let f = fixture();
-        let json = f.index.to_string().into_bytes();
-        let pin = IndexPin { repo: "owner/index", commit: "abc", sha256: Box::leak(sha256_hex(&json).into_boxed_str()) };
-        server.serve("cdn", "gh/owner/index@abc/google-fonts-index.json", Reply::Status(500));
-        server.serve("raw", "owner/index/abc/google-fonts-index.json", Reply::Ok(json.clone()));
+        let (sources, files) = sources_fixture(None);
+        let pin = pin_of(&sources);
+        serve_sources(&server, &sources, &files);
         let dir = temp("index");
         let store = FontStore::new(dir.clone(), Caller::User).with_client(server.client());
-        assert!(store.cached_index(&pin).is_none());
-        assert!(matches!(store.fetch_index(&pin, &Cancel::new()), Err(Error::NetworkOff)));
+        assert!(store.cached_indexes(&pin).is_none());
+        assert!(matches!(store.fetch_indexes(&pin, &Cancel::new()), Err(Error::NetworkOff)));
         assert!(server.requests().is_empty());
 
         store.enable_network().unwrap();
-        assert_eq!(store.fetch_index(&pin, &Cancel::new()).unwrap().commit(), COMMIT);
-        assert_eq!(store.cached_index(&pin).unwrap().families().len(), 4);
+        let index = store.fetch_indexes(&pin, &Cancel::new()).unwrap();
+        assert!(index.problems().is_empty(), "{:?}", index.problems());
+        assert_eq!(index.sources().iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), [GOOGLE_FONTS, "notofonts"]);
+        assert_eq!(index.families().len(), 7);
+        assert_eq!(entries(&dir.join("indexes")), ["google-fonts.json.gz", "notofonts.json", "sources.json"]);
+        let cached = store.cached_indexes(&pin).unwrap();
+        assert_eq!((cached.families().len(), cached.sources().len()), (7, 2));
 
         let wrong = IndexPin { sha256: "0000000000000000000000000000000000000000000000000000000000000000", ..pin };
-        assert!(store.cached_index(&wrong).is_none());
-        assert!(matches!(store.fetch_index(&wrong, &Cancel::new()), Err(Error::Verify { error: VerifyError::Sha256, .. })));
+        assert!(store.cached_indexes(&wrong).is_none());
+        assert!(matches!(store.fetch_indexes(&wrong, &Cancel::new()), Err(Error::Verify { error: VerifyError::Sha256, .. })));
+
+        // A cached index that was changed is not used.
+        std::fs::write(dir.join("indexes/notofonts.json"), b"{}").unwrap();
+        assert!(store.cached_indexes(&pin).is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn an_index_with_the_wrong_sha256_fails_alone() {
+        let server = Server::start();
+        let (sources, files) = sources_fixture(Some("1111111111111111111111111111111111111111111111111111111111111111"));
+        let pin = pin_of(&sources);
+        serve_sources(&server, &sources, &files);
+        let dir = temp("one-bad-index");
+        let store = user_store(&server, &dir);
+        let index = store.fetch_indexes(&pin, &Cancel::new()).unwrap();
+        assert_eq!(index.sources().iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), [GOOGLE_FONTS]);
+        assert_eq!(index.problems().iter().map(|p| p.source.as_str()).collect::<Vec<_>>(), ["notofonts"]);
+        assert!(index.family("Test Var").is_some() && index.family("Noto Sans CJK Test").is_none());
+        // Both hosts were tried for it.
+        assert_eq!(server.requests().iter().filter(|r| r.ends_with("indexes/noto.json")).count(), 2);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_noto_family_installs_into_its_own_folder_after_a_jsdelivr_403() {
+        let server = Server::start();
+        let f = noto_fixture();
+        server.serve_repos(&f);
+        // jsDelivr refuses files over 20 MB with 403.
+        let cjk = format!("gh/notofonts/noto-cjk@Sans2.004/{CJK_PATH}");
+        server.serve("cdn", &cjk, Reply::Status(403));
+        let index = index_of(&f.index).unwrap();
+        let dir = temp("noto");
+        let store = user_store(&server, &dir);
+        let family = index.family("Noto Sans CJK Test").unwrap();
+        let installed = store.install_family(&index, family, &Cancel::new(), &mut none).unwrap();
+        assert_eq!(entries(&dir.join("notofonts/noto-sans-cjk-test")), ["LICENSE", "NotoSansCJKtest-Regular.otf"]);
+        assert_eq!((installed.source.as_str(), installed.dir.as_str()), ("notofonts", "notofonts/noto-sans-cjk-test"));
+        assert!(installed.files.iter().all(|x| x.commit == NOTO_COMMIT));
+        let requests = server.requests();
+        let at = requests.iter().position(|r| *r == format!("/cdn/{cjk}")).unwrap();
+        assert_eq!(requests[at + 1], format!("/raw/notofonts/noto-cjk/Sans2.004/{CJK_PATH}"));
+        assert!(store.verify().is_empty());
+
+        // The licence is checked against its sha256: a changed one fails the install.
+        let serif = index.family("Noto Serif Test").unwrap();
+        for (host, path) in
+            [("cdn", "gh/notofonts/serif-test@NotoSerifTest-v2.106/OFL.txt"), ("raw", "notofonts/serif-test/NotoSerifTest-v2.106/OFL.txt")]
+        {
+            server.serve(host, path, Reply::Ok(b"Noto OFX".to_vec()));
+        }
+        let r = store.install_family(&index, serif, &Cancel::new(), &mut none);
+        assert!(matches!(r, Err(Error::Verify { error: VerifyError::Sha256, .. })), "{r:?}");
+        assert!(!dir.join("notofonts/noto-serif-test").exists());
+        server.serve_repos(&f);
+        store.install_family(&index, serif, &Cancel::new(), &mut none).unwrap();
+        assert_eq!(entries(&dir.join("notofonts/noto-serif-test")), ["NotoSerifTest[wdth,wght].ttf", "OFL.txt"]);
+
+        // A family of the same name from Google Fonts is installed and removed separately.
+        let google = index_of(&fixture().index).unwrap();
+        let both = Index::merge([google, index]);
+        server.serve_fixture(&fixture());
+        store.install_family(&both, both.family_from(GOOGLE_FONTS, "Test Sans").unwrap(), &Cancel::new(), &mut none).unwrap();
+        store.install_family(&both, both.family_from("notofonts", "Test Sans").unwrap(), &Cancel::new(), &mut none).unwrap();
+        assert_eq!(entries(&dir.join("notofonts/test-sans")), ["OFL.txt", "TestSans-CondensedBold.ttf"]);
+        assert_eq!(store.installed().iter().filter(|f| f.family == "Test Sans").count(), 2);
+        store.remove_family("notofonts", "Test Sans").unwrap();
+        assert!(!dir.join("notofonts/test-sans").exists());
+        assert!(store.installed_family(GOOGLE_FONTS, "Test Sans").is_some() && dir.join("testsans").is_dir());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn user_sources_are_added_by_the_user_and_never_curated() {
+        let server = Server::start();
+        let (sources, files) = sources_fixture(None);
+        let pin = pin_of(&sources);
+        serve_sources(&server, &sources, &files);
+        let mut v = noto_fixture().index;
+        v["source_info"]["file_urls"] = json!(["https://fonts.example.org/files/{path}"]);
+        let url = "https://fonts.example.org/index.json.gz";
+        server.serve("user", "index.json.gz", Reply::Ok(gzip(v.to_string().as_bytes())));
+        let f = noto_fixture();
+        let cjk_bytes = f.files.iter().find(|(k, _)| k.ends_with(CJK_PATH)).unwrap().1.clone();
+        server.serve("user", &format!("files/{CJK_PATH}"), Reply::Ok(cjk_bytes));
+        server.serve("user", "files/LICENSE", Reply::Ok(b"noto-cjk LICENSE".to_vec()));
+
+        let dir = temp("user-source");
+        let store = user_store(&server, &dir);
+        let agent = FontStore::new(dir.clone(), Caller::Agent).with_client(server.client());
+        assert!(matches!(agent.add_user_source(url), Err(Error::NotAllowed)));
+        assert!(matches!(store.add_user_source("http://fonts.example.org/index.json"), Err(Error::BadUrl(_))));
+        store.add_user_source(url).unwrap();
+        store.add_user_source(url).unwrap();
+        assert_eq!(store.user_sources().len(), 1);
+        assert_eq!(store.network(), Network::On, "the setting is kept");
+
+        let index = store.fetch_indexes(&pin, &Cancel::new()).unwrap();
+        assert!(index.problems().is_empty(), "{:?}", index.problems());
+        let user = index.sources().last().unwrap();
+        assert_eq!((user.id.as_str(), user.curated, user.changed), ("user:fonts.example.org/notofonts", false, false));
+        let theirs: Vec<&Family> = index.families_named("Noto Sans CJK Test").collect();
+        assert_eq!(theirs.iter().map(|f| f.is_curated()).collect::<Vec<_>>(), [true, false]);
+        assert!(store.user_sources()[0].last_sha256.is_some());
+
+        // Installs from it are verified like any other.
+        let family = theirs[1];
+        let installed = store.install_family(&index, family, &Cancel::new(), &mut none).unwrap();
+        assert_eq!(installed.source, "user:fonts.example.org/notofonts");
+        assert!(dir.join("user-fonts-example-org-notofonts/noto-sans-cjk-test/LICENSE").is_file());
+
+        // A changed file shows as changed, from the network and from the cache.
+        v["families"][1]["designer"] = json!("Someone else");
+        server.serve("user", "index.json.gz", Reply::Ok(gzip(v.to_string().as_bytes())));
+        assert!(store.fetch_indexes(&pin, &Cancel::new()).unwrap().sources().last().unwrap().changed);
+        assert!(store.cached_indexes(&pin).unwrap().sources().last().unwrap().changed);
+
+        // Removing the source leaves its families installed.
+        store.remove_user_source(url).unwrap();
+        assert!(store.user_sources().is_empty());
+        assert_eq!(store.cached_indexes(&pin).unwrap().sources().len(), 2);
+        assert!(store.installed_family("user:fonts.example.org/notofonts", "Noto Sans CJK Test").is_some());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Fetches the pinned indexes from jsDelivr and GitHub and installs a Noto family whose
+    /// licence is in another repository. `cargo test -p craft-font-store -- --ignored`.
+    #[test]
+    #[ignore = "uses the network"]
+    fn the_pinned_indexes_and_a_noto_family_download() {
+        let dir = temp("network");
+        let store = FontStore::new(dir.clone(), Caller::User);
+        store.enable_network().unwrap();
+        let index = store.fetch_indexes(&PINNED_INDEX, &Cancel::new()).unwrap();
+        assert!(index.problems().is_empty(), "{:?}", index.problems());
+        assert_eq!(index.sources().len(), 2);
+        let family = index.family_from("notofonts", "Noto Serif Myanmar").unwrap();
+        store.install_family(&index, family, &Cancel::new(), &mut none).unwrap();
+        assert!(dir.join("notofonts/noto-serif-myanmar/OFL.txt").is_file());
+        assert!(store.verify().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

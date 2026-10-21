@@ -1,23 +1,24 @@
-//! The Google Fonts index (aiongg/google-fonts-index, format 1.x): reading, checks and exact
-//! lookup.
+//! Font indexes (aiongg/craft-font-index, format 1.x): the families of every source in one
+//! [`Index`], and exact lookup.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use serde::Deserialize;
+
+use crate::source::{Origin, fill, parse};
 
 /// The largest index read.
 pub const MAX_INDEX_BYTES: usize = 32 << 20;
 /// The largest font file an index may list.
 pub const MAX_FILE_BYTES: u64 = 256 << 20;
+/// The largest licence file an index may list.
+pub const MAX_LICENSE_BYTES: u64 = 1 << 20;
 /// The index format's major version this crate reads.
 pub const MAJOR_VERSION: u32 = 1;
-
-const MAX_STR: usize = 1024;
-const MAX_LIST: usize = 4096;
-const MAX_FAMILIES: usize = 50_000;
-const MAX_FILES: usize = 200_000;
-const MAX_DIR: usize = 64;
-const MAX_FILE_NAME: usize = 200;
+/// The source ID of Google Fonts, and of every format 1.0 index.
+pub const GOOGLE_FONTS: &str = "google/fonts";
+/// The licences that allow redistribution. Families under any other are left out.
+pub const LICENSES: [&str; 3] = ["OFL", "APACHE2", "UFL"];
 
 /// Why an index can't be used.
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +41,7 @@ pub enum IndexError {
     /// A gzipped index that doesn't decompress.
     #[error("the gzipped font index can't be read: {0}")]
     Gzip(String),
-    /// The bytes aren't the pinned index.
+    /// The bytes aren't the pinned ones.
     #[error("the font index doesn't have the sha256 this build expects")]
     Checksum,
 }
@@ -89,7 +90,7 @@ pub struct Axis {
 /// One font file of a family.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct FontFile {
-    /// Path in google/fonts, relative to the index's base URL: `<licence dir>/<family dir>/<file>`.
+    /// Path in the family's repository: the `{path}` of the source's URL templates.
     pub path: String,
     /// Bytes.
     pub size: u64,
@@ -100,16 +101,29 @@ pub struct FontFile {
     pub style: String,
     /// CSS weight; for a variable font, the default instance's.
     pub weight: u16,
+    /// CSS font-stretch percentage; for a variable font, the default instance's.
+    #[serde(default = "normal_width")]
+    pub width: f32,
     /// Variation axes; empty for a static font.
     #[serde(default)]
     pub axes: Vec<Axis>,
     /// PostScript names: the face's and, for a variable font, each named instance's.
     #[serde(default)]
     pub postscript: Vec<String>,
+    /// The repository holding the file, when not the family's.
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// The commit or tag of `repo`, when not the family's.
+    #[serde(default, rename = "ref")]
+    pub git_ref: Option<String>,
 }
 
 fn normal() -> String {
     "normal".into()
+}
+
+fn normal_width() -> f32 {
+    100.0
 }
 
 impl FontFile {
@@ -139,20 +153,52 @@ impl FontFile {
         let w = f32::from(weight);
         italic_ok && (self.weight == weight || self.axis("wght").is_some_and(|a| a.min <= w && w <= a.max))
     }
+
+    /// Whether the file has the normal width (100%), as its own or on its `wdth` axis.
+    pub fn has_normal_width(&self) -> bool {
+        self.width == 100.0 || self.axis("wdth").is_some_and(|a| a.min <= 100.0 && 100.0 <= a.max)
+    }
 }
 
-/// A font family of the index.
+/// A family's licence file.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct LicenseFile {
+    /// Path in its repository.
+    pub path: String,
+    /// Bytes.
+    pub size: u64,
+    /// 64 lowercase hex characters.
+    pub sha256: String,
+    /// The repository holding it, when not the family's.
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// The commit or tag of `repo`, when not the family's.
+    #[serde(default, rename = "ref")]
+    pub git_ref: Option<String>,
+}
+
+impl LicenseFile {
+    /// The file's name (`OFL.txt`, `LICENSE`).
+    pub fn file_name(&self) -> &str {
+        self.path.rsplit('/').next().unwrap_or(&self.path)
+    }
+}
+
+/// A font family of an index.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Family {
-    /// The family name, unique in the index ignoring case.
+    /// The family name, unique in its source ignoring case. Two sources can have the same name.
     pub family: String,
+    /// The ID of the family's source ([`FontSource::id`]).
+    #[serde(default)]
+    pub source: String,
     /// The designer; empty when not given.
     #[serde(default)]
     pub designer: String,
     /// `SANS_SERIF`, `SERIF`, `DISPLAY`, `HANDWRITING` or `MONOSPACE`.
     #[serde(default)]
     pub categories: Vec<String>,
-    /// google/fonts subsets (`latin`, `japanese`, ...).
+    /// google/fonts subsets (`latin`, `japanese`, ...); empty for other sources.
     #[serde(default)]
     pub subsets: Vec<String>,
     /// Positions in [`Index::languages`].
@@ -164,39 +210,57 @@ pub struct Family {
     /// `OFL`, `APACHE2` or `UFL`.
     #[serde(default)]
     pub license: String,
-    /// The licence file, relative to the base URL, in the same folder as the font files.
+    /// Format 1.0: the licence file in google/fonts, beside the font files.
     #[serde(default)]
     pub license_path: Option<String>,
+    /// The licence file, with its size and sha256.
+    #[serde(default)]
+    pub license_file: Option<LicenseFile>,
+    /// The repository holding the files, when not the source's.
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// The commit or tag of `repo`, when not the source's.
+    #[serde(default, rename = "ref")]
+    pub git_ref: Option<String>,
     /// The font files, sorted by path.
     pub files: Vec<FontFile>,
-    /// The family's folder in google/fonts, and in the font store.
     #[serde(skip)]
-    dir: String,
+    pub(crate) dir: String,
+    #[serde(skip)]
+    pub(crate) curated: bool,
 }
 
 impl Family {
-    /// The family's folder name (`notosansjp`): its folder in google/fonts and in the font store.
+    /// The family's folder in the font store: google/fonts' folder name (`notosansjp`), or
+    /// `<source>/<family>` (`notofonts/noto-sans-cjk-jp`) for other sources.
     pub fn dir(&self) -> &str {
         &self.dir
     }
 
-    /// The licence file's name (`OFL.txt`).
+    /// Whether the family's source is curated: a built-in source, not one the user added.
+    pub fn is_curated(&self) -> bool {
+        self.curated
+    }
+
+    /// The licence file's name (`OFL.txt`, `LICENSE`).
     pub fn license_file_name(&self) -> Option<&str> {
-        self.license_path.as_deref().and_then(|p| p.rsplit('/').next())
+        match &self.license_file {
+            Some(f) => Some(f.file_name()),
+            None => self.license_path.as_deref().and_then(|p| p.rsplit('/').next()),
+        }
     }
 
     /// The file with exactly this style: a style name (`Bold Italic`, `SemiBold`, `Regular`), a
-    /// CSS weight (`700`), or the part of a PostScript name after its `-` (`BoldItalic`). A
-    /// variable font has every weight its `wght` axis reaches. A static file is preferred over a
-    /// variable one. No nearer style is offered: a style the family doesn't have is
-    /// [`Unavailable::NoStyle`].
+    /// CSS weight (`700`), or the part of a PostScript name after its `-` (`BoldItalic`,
+    /// `CondensedBold`). A variable font has every weight its `wght` axis reaches. A static file
+    /// of normal width is preferred. No nearer style is offered: a style the family doesn't have
+    /// is [`Unavailable::NoStyle`].
     pub fn face(&self, style: &str) -> Result<&FontFile, Unavailable> {
         let no_style = || Unavailable::NoStyle { family: self.family.clone(), style: style.to_string() };
         if let Some((weight, italic)) = parse_style(style) {
-            let mut found = self.files.iter().filter(|f| f.has_weight(weight, italic));
-            let first = found.next();
-            let static_one = first.into_iter().chain(found).find(|f| !f.is_variable() && f.weight == weight && f.is_italic() == italic);
-            if let Some(f) = static_one.or(first) {
+            let found: Vec<&FontFile> = self.files.iter().filter(|f| f.has_weight(weight, italic) && f.has_normal_width()).collect();
+            let exact = found.iter().find(|f| !f.is_variable() && f.weight == weight && f.is_italic() == italic && f.width == 100.0);
+            if let Some(f) = exact.or(found.first()) {
                 return Ok(f);
             }
         }
@@ -288,108 +352,171 @@ pub struct Face<'a> {
     pub file: &'a FontFile,
 }
 
-#[derive(Deserialize)]
-struct Raw {
-    version: String,
-    #[serde(default)]
-    source: String,
-    commit: String,
-    base_url: String,
-    #[serde(default)]
-    fallback_base_url: Option<String>,
-    #[serde(default)]
-    languages: Vec<Language>,
-    #[serde(default)]
-    scripts: Vec<Script>,
-    families: Vec<Family>,
+/// A source of fonts: one index file.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FontSource {
+    /// The ID its families carry: `google/fonts`, `notofonts`, or `user:<host>/<id>` for a
+    /// source the user added.
+    pub id: String,
+    /// Display name (`Google Fonts`, `Noto`).
+    pub name: String,
+    /// The source's web page.
+    pub homepage: Option<String>,
+    /// A built-in source. A source the user added is never curated, whatever its file says.
+    pub curated: bool,
+    /// The index format version, `"MAJOR.MINOR"`.
+    pub version: String,
+    /// The commit the index was generated from.
+    pub commit: String,
+    /// The URL a user-added source was added from.
+    pub user_url: Option<String>,
+    /// A user-added source whose file differs from the one first fetched.
+    pub changed: bool,
+    /// Families left out of the index and why (a licence that doesn't allow redistribution).
+    pub warnings: Vec<String>,
+    /// How many families it has.
+    pub families: usize,
+    pub(crate) templates: Vec<String>,
+    pub(crate) repo: Option<String>,
+    pub(crate) git_ref: Option<String>,
 }
 
-/// A checked font index.
-#[derive(Clone, Debug)]
+impl FontSource {
+    /// The URL templates of its files, best first.
+    pub fn file_url_templates(&self) -> &[String] {
+        &self.templates
+    }
+}
+
+/// A source that couldn't be loaded. The other sources still are.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceProblem {
+    /// The source's ID, or its URL for a user-added source.
+    pub source: String,
+    /// Its display name, or its URL.
+    pub name: String,
+    /// What went wrong.
+    pub error: String,
+}
+
+pub(crate) type Part = (FontSource, Vec<Language>, Vec<Script>, Vec<Family>);
+
+/// The checked indexes of one or more sources. Families are sorted by name; families of the same
+/// name are in source order (built-in sources in `sources.json` order, then the user's), and
+/// lookups by name prefer the first.
+#[derive(Clone, Debug, Default)]
 pub struct Index {
-    version: String,
-    source: String,
-    commit: String,
-    base_url: String,
-    fallback_base_url: Option<String>,
+    sources: Vec<FontSource>,
+    problems: Vec<SourceProblem>,
     languages: Vec<Language>,
     scripts: Vec<Script>,
     families: Vec<Family>,
-    by_name: HashMap<String, usize>,
+    by_name: HashMap<String, Vec<usize>>,
     by_postscript: HashMap<String, Vec<(usize, usize)>>,
 }
 
 impl Index {
-    /// Reads an index from its JSON, checking every entry.
+    /// Reads one source's index from its JSON, checking every entry. Its `curated` flag is
+    /// kept; a format 1.0 index is Google Fonts and curated.
     pub fn from_json(bytes: &[u8]) -> Result<Self, IndexError> {
-        if bytes.len() > MAX_INDEX_BYTES {
-            return Err(IndexError::TooLarge { max: MAX_INDEX_BYTES });
-        }
-        let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|e| IndexError::Json(e.to_string()))?;
-        // The version first: a newer major version may change any other field.
-        let version = value.get("version").and_then(|v| v.as_str()).ok_or_else(|| IndexError::Version("(none)".into()))?;
-        check_version(version)?;
-        let raw: Raw = serde_json::from_value(value).map_err(|e| IndexError::Json(e.to_string()))?;
-        Self::check(raw)
+        parse(bytes, Origin::Trusted)
     }
 
     /// Reads an index from gzipped JSON.
-    #[cfg(feature = "gzip")]
     pub fn from_gzip(bytes: &[u8]) -> Result<Self, IndexError> {
-        use std::io::Read;
-        let mut json = Vec::new();
-        let limit = (MAX_INDEX_BYTES as u64).saturating_add(1);
-        flate2::read::GzDecoder::new(bytes).take(limit).read_to_end(&mut json).map_err(|e| IndexError::Gzip(e.to_string()))?;
-        Self::from_json(&json)
+        Self::from_json(&gunzip(bytes, MAX_INDEX_BYTES)?)
     }
 
-    /// Reads an index from JSON or, with the `gzip` feature, gzipped JSON.
+    /// Reads an index from JSON or gzipped JSON.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, IndexError> {
-        #[cfg(feature = "gzip")]
-        if bytes.starts_with(&[0x1f, 0x8b]) {
-            return Self::from_gzip(bytes);
-        }
-        Self::from_json(bytes)
+        if is_gzip(bytes) { Self::from_gzip(bytes) } else { Self::from_json(bytes) }
     }
 
-    /// The pinned index compiled into this build ([`crate::PINNED_INDEX`]).
+    /// Reads an index the user added from `url` (JSON or gzipped JSON): not curated, its source
+    /// ID `user:<host>/<id>`, so it can't stand in for a built-in source.
+    pub fn from_user_bytes(bytes: &[u8], url: &str) -> Result<Self, IndexError> {
+        let json = if is_gzip(bytes) { gunzip(bytes, MAX_INDEX_BYTES)? } else { bytes.to_vec() };
+        parse(&json, Origin::User { url })
+    }
+
+    /// The built-in sources compiled into this build ([`crate::PINNED_INDEX`]): `sources.json`
+    /// and every index it lists, each checked against its sha256.
     #[cfg(feature = "bundled-index")]
     pub fn bundled() -> Result<Self, IndexError> {
-        Self::from_gzip(include_bytes!("../index/google-fonts-index.json.gz"))
+        crate::sources::bundled()
     }
 
-    fn check(raw: Raw) -> Result<Self, IndexError> {
-        check_str("commit", &raw.commit)?;
-        if raw.commit.len() != 40 || !raw.commit.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return invalid(format!("commit `{}` is not 40 hex characters", raw.commit));
-        }
-        check_str("source", &raw.source)?;
-        check_base_url(&raw.base_url)?;
-        if let Some(u) = &raw.fallback_base_url {
-            check_base_url(u)?;
-        }
-        if raw.families.len() > MAX_FAMILIES || raw.languages.len() > MAX_FAMILIES * 4 || raw.scripts.len() > MAX_LIST {
-            return invalid("too many families, languages or scripts");
-        }
-        let mut families = raw.families;
-        let mut by_name = HashMap::new();
-        let mut dirs = HashSet::new();
-        let mut total = 0usize;
-        for (i, fam) in families.iter_mut().enumerate() {
-            check_family(fam, raw.languages.len())?;
-            total = total.saturating_add(fam.files.len());
-            if total > MAX_FILES {
-                return invalid("too many files");
-            }
-            if by_name.insert(fam.family.to_lowercase(), i).is_some() {
-                return invalid(format!("family `{}` is listed twice", fam.family));
-            }
-            if !dirs.insert(fam.dir.clone()) {
-                return invalid(format!("folder `{}` holds more than one family", fam.dir));
+    /// One index of every source in `parts`, in order. A source whose ID came earlier is left
+    /// out and reported in [`Index::problems`].
+    pub fn merge(parts: impl IntoIterator<Item = Index>) -> Self {
+        let mut list = Vec::new();
+        let mut problems = Vec::new();
+        for part in parts {
+            problems.extend(part.problems);
+            let mut families = part.families;
+            for source in part.sources {
+                let (mine, rest): (Vec<Family>, Vec<Family>) = families.into_iter().partition(|f| f.source == source.id);
+                families = rest;
+                list.push((source, part.languages.clone(), part.scripts.clone(), mine));
             }
         }
+        Self::assemble(list, problems)
+    }
+
+    /// The index with `problems` added, for sources that couldn't be loaded.
+    pub fn with_problems(mut self, problems: impl IntoIterator<Item = SourceProblem>) -> Self {
+        self.problems.extend(problems);
+        self
+    }
+
+    /// Marks every source as changed since the user added it.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn mark_changed(&mut self) {
+        for s in &mut self.sources {
+            s.changed = true;
+        }
+    }
+
+    pub(crate) fn assemble(parts: Vec<Part>, mut problems: Vec<SourceProblem>) -> Self {
+        let mut sources: Vec<FontSource> = Vec::new();
+        let mut languages: BTreeMap<String, Language> = BTreeMap::new();
+        let mut scripts: BTreeMap<String, Script> = BTreeMap::new();
+        let mut families: Vec<(Family, Vec<String>)> = Vec::new();
+        for (source, langs, scrs, fams) in parts {
+            if sources.iter().any(|s| s.id == source.id) {
+                problems.push(SourceProblem {
+                    source: source.user_url.clone().unwrap_or_else(|| source.id.clone()),
+                    name: source.name.clone(),
+                    error: format!("another source already has the ID {}", source.id),
+                });
+                continue;
+            }
+            for f in fams {
+                let ids = f.languages.iter().filter_map(|&i| langs.get(i)).map(|l| l.id.clone()).collect();
+                families.push((f, ids));
+            }
+            for l in langs {
+                languages.entry(l.id.clone()).or_insert(l);
+            }
+            for s in scrs {
+                scripts.entry(s.id.clone()).or_insert(s);
+            }
+            sources.push(source);
+        }
+        let position: HashMap<&str, usize> = languages.keys().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
+        let mut merged: Vec<Family> = families
+            .into_iter()
+            .map(|(mut f, ids)| {
+                f.languages = ids.iter().filter_map(|id| position.get(id.as_str()).copied()).collect();
+                f
+            })
+            .collect();
+        let order: HashMap<&str, usize> = sources.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
+        merged.sort_by_cached_key(|f| (f.family.to_lowercase(), order.get(f.source.as_str()).copied().unwrap_or(usize::MAX)));
+        let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
         let mut by_postscript: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
-        for (fi, fam) in families.iter().enumerate() {
+        for (fi, fam) in merged.iter().enumerate() {
+            by_name.entry(fam.family.to_lowercase()).or_default().push(fi);
             for (xi, file) in fam.files.iter().enumerate() {
                 for ps in &file.postscript {
                     let hits = by_postscript.entry(ps.clone()).or_default();
@@ -399,36 +526,38 @@ impl Index {
                 }
             }
         }
-        Ok(Index {
-            version: raw.version,
-            source: raw.source,
-            commit: raw.commit,
-            base_url: raw.base_url,
-            fallback_base_url: raw.fallback_base_url,
-            languages: raw.languages,
-            scripts: raw.scripts,
-            families,
+        Index {
+            sources,
+            problems,
+            languages: languages.into_values().collect(),
+            scripts: scripts.into_values().collect(),
+            families: merged,
             by_name,
             by_postscript,
-        })
+        }
     }
 
-    /// The format version, `"MAJOR.MINOR"`.
-    pub fn version(&self) -> &str {
-        &self.version
+    /// The sources, built-in ones first.
+    pub fn sources(&self) -> &[FontSource] {
+        &self.sources
     }
 
-    /// Where the fonts come from (`google/fonts`).
-    pub fn source(&self) -> &str {
-        &self.source
+    /// The source with this ID.
+    pub fn source(&self, id: &str) -> Option<&FontSource> {
+        self.sources.iter().find(|s| s.id == id)
     }
 
-    /// The google/fonts commit the index describes.
-    pub fn commit(&self) -> &str {
-        &self.commit
+    /// The source a family comes from.
+    pub fn source_of(&self, family: &Family) -> Option<&FontSource> {
+        self.source(&family.source)
     }
 
-    /// Every family, sorted by name.
+    /// The sources that couldn't be loaded, and why.
+    pub fn problems(&self) -> &[SourceProblem] {
+        &self.problems
+    }
+
+    /// Every family, sorted by name, then by source.
     pub fn families(&self) -> &[Family] {
         &self.families
     }
@@ -443,186 +572,96 @@ impl Index {
         &self.scripts
     }
 
-    /// The family of this name, ignoring case. Only the whole name matches.
+    /// The family of this name, ignoring case, from the first source that has it. Only the whole
+    /// name matches.
     pub fn family(&self, name: &str) -> Option<&Family> {
-        self.by_name.get(&name.to_lowercase()).and_then(|&i| self.families.get(i))
+        self.families_named(name).next()
     }
 
-    /// The exact face for a family and style ([`Family::face`]).
+    /// Every family of this name, ignoring case, in source order.
+    pub fn families_named(&self, name: &str) -> impl Iterator<Item = &Family> + '_ {
+        self.by_name.get(&name.to_lowercase()).into_iter().flatten().filter_map(|&i| self.families.get(i))
+    }
+
+    /// The family of this name from one source.
+    pub fn family_from(&self, source: &str, name: &str) -> Option<&Family> {
+        self.families_named(name).find(|f| f.source == source)
+    }
+
+    /// The exact face for a family and style ([`Family::face`]), from the first source whose
+    /// family of that name has the style.
     pub fn find_face(&self, family: &str, style: &str) -> Result<Face<'_>, Unavailable> {
-        let fam = self.family(family).ok_or_else(|| Unavailable::NoFamily(family.to_string()))?;
-        Ok(Face { family: fam, file: fam.face(style)? })
+        let mut first_error = None;
+        for fam in self.families_named(family) {
+            match fam.face(style) {
+                Ok(file) => return Ok(Face { family: fam, file }),
+                Err(e) => {
+                    first_error.get_or_insert(e);
+                }
+            }
+        }
+        Err(first_error.unwrap_or_else(|| Unavailable::NoFamily(family.to_string())))
     }
 
-    /// The face with this PostScript name, matched exactly (case included). When files of several
-    /// families have the name, it is [`Unavailable::Ambiguous`]: look it up in the document's
-    /// family with [`Family::face_by_postscript`].
+    /// The face with this PostScript name, matched exactly (case included), from the first
+    /// source that has it. When families of different names have it, it is
+    /// [`Unavailable::Ambiguous`]: look it up in the document's family with
+    /// [`Family::face_by_postscript`].
     pub fn find_postscript(&self, name: &str) -> Result<Face<'_>, Unavailable> {
         let hits = self.by_postscript.get(name).map(Vec::as_slice).unwrap_or_default();
-        let mut families: Vec<usize> = hits.iter().map(|&(f, _)| f).collect();
-        families.dedup();
-        match (families.as_slice(), hits.first()) {
-            ([_], Some(&(fi, xi))) => {
+        let mut names: Vec<&str> = Vec::new();
+        for &(fi, _) in hits {
+            if let Some(f) = self.families.get(fi)
+                && !names.iter().any(|n| n.to_lowercase() == f.family.to_lowercase())
+            {
+                names.push(&f.family);
+            }
+        }
+        match (names.len(), hits.first()) {
+            (1, Some(&(fi, xi))) => {
                 let family = self.families.get(fi).ok_or_else(|| Unavailable::NoPostScript(name.into()))?;
                 let file = family.files.get(xi).ok_or_else(|| Unavailable::NoPostScript(name.into()))?;
                 Ok(Face { family, file })
             }
-            ([], _) | (_, None) => Err(Unavailable::NoPostScript(name.into())),
-            (many, _) => Err(Unavailable::Ambiguous {
-                name: name.into(),
-                families: many.iter().filter_map(|&i| self.families.get(i)).map(|f| f.family.clone()).collect(),
-            }),
+            (0, _) | (_, None) => Err(Unavailable::NoPostScript(name.into())),
+            _ => Err(Unavailable::Ambiguous { name: name.into(), families: names.into_iter().map(str::to_string).collect() }),
         }
     }
 
-    /// The URLs of a path in google/fonts (a [`FontFile::path`] or a licence path): jsDelivr,
-    /// then raw GitHub.
-    pub fn urls(&self, path: &str) -> Vec<String> {
-        let encoded = encode_path(path);
-        std::iter::once(&self.base_url).chain(&self.fallback_base_url).map(|base| format!("{base}{encoded}")).collect()
+    /// The URLs of a font file of `family`, best first: the source's templates filled with the
+    /// file's path, repository and ref.
+    pub fn file_urls(&self, family: &Family, file: &FontFile) -> Vec<String> {
+        self.urls(family, &file.path, file.repo.as_deref(), file.git_ref.as_deref())
+    }
+
+    /// The URLs of `family`'s licence file, best first; empty when it has none.
+    pub fn license_urls(&self, family: &Family) -> Vec<String> {
+        match (&family.license_file, &family.license_path) {
+            (Some(f), _) => self.urls(family, &f.path, f.repo.as_deref(), f.git_ref.as_deref()),
+            (None, Some(path)) => self.urls(family, path, None, None),
+            (None, None) => Vec::new(),
+        }
+    }
+
+    fn urls(&self, family: &Family, path: &str, repo: Option<&str>, git_ref: Option<&str>) -> Vec<String> {
+        let Some(source) = self.source_of(family) else { return Vec::new() };
+        let repo = repo.or(family.repo.as_deref()).or(source.repo.as_deref());
+        let git_ref = git_ref.or(family.git_ref.as_deref()).or(source.git_ref.as_deref());
+        fill(&source.templates, path, repo, git_ref).unwrap_or_default()
     }
 }
 
-fn invalid<T>(msg: impl Into<String>) -> Result<T, IndexError> {
-    Err(IndexError::Invalid(msg.into()))
+pub(crate) fn is_gzip(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0x1f, 0x8b])
 }
 
-fn check_version(version: &str) -> Result<(), IndexError> {
-    let major = version.split_once('.').and_then(|(major, minor)| {
-        let major: u32 = major.parse().ok()?;
-        minor.parse::<u32>().ok()?;
-        Some(major)
-    });
-    if major == Some(MAJOR_VERSION) { Ok(()) } else { Err(IndexError::Version(version.chars().take(40).collect())) }
-}
-
-fn check_str(what: &str, s: &str) -> Result<(), IndexError> {
-    if s.len() > MAX_STR || s.chars().any(char::is_control) {
-        return invalid(format!("{what} is too long or has control characters"));
+/// Decompresses at most `max` bytes; more is an error, not a truncated index.
+pub(crate) fn gunzip(bytes: &[u8], max: usize) -> Result<Vec<u8>, IndexError> {
+    use std::io::Read;
+    let mut out = Vec::new();
+    flate2::read::GzDecoder::new(bytes).take((max as u64).saturating_add(1)).read_to_end(&mut out).map_err(|e| IndexError::Gzip(e.to_string()))?;
+    if out.len() > max {
+        return Err(IndexError::TooLarge { max });
     }
-    Ok(())
-}
-
-fn check_base_url(u: &str) -> Result<(), IndexError> {
-    let ok = u.len() <= MAX_STR
-        && u.len() > "https://".len()
-        && u.starts_with("https://")
-        && u.ends_with('/')
-        && !u.chars().any(|c| c.is_control() || c.is_whitespace() || c == '\\');
-    if ok { Ok(()) } else { invalid(format!("base URL `{}` is not an https folder URL", u.chars().take(80).collect::<String>())) }
-}
-
-/// A file name the store can write on every platform.
-pub(crate) fn safe_file_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= MAX_FILE_NAME
-        && !name.starts_with('.')
-        && !name.ends_with('.')
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-[],.+".contains(&b))
-}
-
-/// A family folder name: google/fonts' `[a-z0-9_-]+`.
-pub(crate) fn safe_dir(name: &str) -> bool {
-    !name.is_empty() && name.len() <= MAX_DIR && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
-}
-
-/// Splits `<licence dir>/<family dir>/<file>`, checking each part.
-fn split_path(path: &str) -> Result<(&str, &str), IndexError> {
-    let mut parts = path.split('/');
-    match (parts.next(), parts.next(), parts.next(), parts.next()) {
-        (Some(lic), Some(dir), Some(file), None) if ["ofl", "apache", "ufl"].contains(&lic) && safe_dir(dir) && safe_file_name(file) => {
-            Ok((dir, file))
-        }
-        _ => invalid(format!("`{}` is not <ofl|apache|ufl>/<folder>/<file>", path.chars().take(120).collect::<String>())),
-    }
-}
-
-fn is_sha256(s: &str) -> bool {
-    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
-fn check_family(fam: &mut Family, languages: usize) -> Result<(), IndexError> {
-    check_str("family name", &fam.family)?;
-    if fam.family.trim().is_empty() {
-        return invalid("a family has no name");
-    }
-    let name = fam.family.clone();
-    check_str("designer", &fam.designer)?;
-    check_str("license", &fam.license)?;
-    if fam.files.is_empty() {
-        return invalid(format!("`{name}` has no files"));
-    }
-    let lists = [fam.categories.len(), fam.subsets.len(), fam.languages.len(), fam.scripts.len(), fam.files.len()];
-    if lists.iter().any(|&n| n > MAX_LIST) {
-        return invalid(format!("`{name}` has too many entries"));
-    }
-    for s in fam.categories.iter().chain(&fam.subsets).chain(&fam.scripts) {
-        check_str("category, subset or script", s)?;
-    }
-    if fam.languages.iter().any(|&i| i >= languages) {
-        return invalid(format!("`{name}` names a language the index doesn't have"));
-    }
-    let mut dir: Option<String> = None;
-    let mut names = HashSet::new();
-    for f in &fam.files {
-        let (d, file) = split_path(&f.path)?;
-        let lower = file.to_ascii_lowercase();
-        if ![".ttf", ".otf", ".ttc", ".otc"].iter().any(|ext| lower.ends_with(ext)) {
-            return invalid(format!("`{}` is not a font file", f.path));
-        }
-        if !names.insert(lower) {
-            return invalid(format!("`{}` is listed twice", f.path));
-        }
-        match &dir {
-            None => dir = Some(d.to_string()),
-            Some(x) if x == d => {}
-            Some(_) => return invalid(format!("the files of `{name}` are in different folders")),
-        }
-        if !is_sha256(&f.sha256) {
-            return invalid(format!("`{}` has a bad sha256", f.path));
-        }
-        if f.size == 0 || f.size > MAX_FILE_BYTES {
-            return invalid(format!("`{}` has size {}", f.path, f.size));
-        }
-        if !(1..=1000).contains(&f.weight) {
-            return invalid(format!("`{}` has weight {}", f.path, f.weight));
-        }
-        check_str("style", &f.style)?;
-        if f.axes.len() > 64 || f.postscript.len() > MAX_LIST {
-            return invalid(format!("`{}` has too many axes or PostScript names", f.path));
-        }
-        for a in &f.axes {
-            if a.tag.len() != 4 || !a.tag.is_ascii() || !a.min.is_finite() || !a.max.is_finite() || a.min > a.max {
-                return invalid(format!("`{}` has a bad axis", f.path));
-            }
-        }
-        for ps in &f.postscript {
-            check_str("PostScript name", ps)?;
-            if ps.is_empty() {
-                return invalid(format!("`{}` has an empty PostScript name", f.path));
-            }
-        }
-    }
-    let dir = dir.unwrap_or_default();
-    if let Some(lp) = &fam.license_path {
-        let (d, file) = split_path(lp)?;
-        if d != dir || names.contains(&file.to_ascii_lowercase()) {
-            return invalid(format!("the licence of `{name}` is not beside its fonts"));
-        }
-    }
-    fam.dir = dir;
-    Ok(())
-}
-
-/// Percent-encodes a path for a URL, keeping `/` and the unreserved characters.
-fn encode_path(p: &str) -> String {
-    let mut out = String::with_capacity(p.len() + 8);
-    for b in p.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~' | b'/') {
-            out.push(char::from(b));
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
+    Ok(out)
 }
