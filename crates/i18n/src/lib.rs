@@ -3,20 +3,49 @@
 //! An app embeds the [craft-i18n](https://github.com/benandez/craft-i18n) catalogs at build time
 //! as an [`Embedded`] static, builds one [`I18n`] from it, and looks English source text up in a
 //! [`Lang`]. A missing translation is the English itself; nothing here fails.
+//!
+//! Counts ([`I18n::trn`]), file sizes and measures write their numbers as the formatting
+//! [`Region`] does ([`I18n::format`]): grouped (`1.234`, `12,34,567`) and in the region's digits
+//! (`١٬٢٣٤`). Text that goes into documents or file names should use [`I18n::trn_plain`], which
+//! writes `0`–`9` without grouping.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod catalog;
+mod format;
 mod region;
 mod scripts;
 mod size;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::{Mutex, OnceLock, PoisonError};
+/// The CLDR number and plural data for every CLDR locale, from `data/generate.sh`.
+mod data {
+    use std::sync::OnceLock;
 
-use intl_pluralrules::{PluralCategory, PluralRuleType, PluralRules};
-use unic_langid::LanguageIdentifier;
+    use icu_locale_fallback::LocaleFallbacker;
+    use icu_provider_adapters::fallback::LocaleFallbackProvider;
+    use icu_provider_blob::BlobDataProvider;
+
+    include!("../data/locales.rs");
+
+    /// The number and plural data, read once; `None` if the blob doesn't load.
+    pub(crate) fn provider() -> Option<&'static LocaleFallbackProvider<BlobDataProvider>> {
+        static PROVIDER: OnceLock<Option<LocaleFallbackProvider<BlobDataProvider>>> = OnceLock::new();
+        PROVIDER
+            .get_or_init(|| {
+                let blob = BlobDataProvider::try_new_from_static_blob(include_bytes!("../data/numbers.postcard")).ok()?;
+                Some(LocaleFallbackProvider::new(blob, LocaleFallbacker::new().static_to_owned()))
+            })
+            .as_ref()
+    }
+}
+
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
+
+use icu_locale_core::Locale as IcuLocale;
+use icu_plurals::{PluralCategory, PluralOperands, PluralRules};
 use unicode_bidi::{BidiClass, bidi_class};
 
+pub use format::{Digits, Format};
 pub use region::{HourCycle, Measurement, Paper, Region};
 pub use scripts::{Direction, Han, Script, direction, han, scripts};
 pub use size::{FileSize, SizeUnit};
@@ -60,6 +89,8 @@ pub struct I18n {
     pseudo: Mutex<BTreeMap<String, &'static str>>,
     /// [`I18n::system_lang`], read once.
     system: OnceLock<Lang>,
+    /// [`I18n::format`]; the system region's until [`I18n::set_format`].
+    format: RwLock<Option<Arc<Format>>>,
 }
 
 impl I18n {
@@ -110,7 +141,7 @@ impl I18n {
                 l.chain = chain;
             }
         }
-        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new() }, problems)
+        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new(), format: RwLock::default() }, problems)
     }
 
     /// The language with this code (any case): `en`, an offered locale, or in debug builds
@@ -166,29 +197,88 @@ impl I18n {
         self.find(lang, &[("@id", id), ("", label)]).unwrap_or(label)
     }
 
-    /// A count's wording in `lang`, `{n}` filled in, as a left-to-right isolate ([`ltr`]) when the
-    /// wording has a right-to-left letter. `one` and `other` are the English forms; they are also
-    /// the key of the `@plural` row, and the fallback.
+    /// A count's wording in `lang`, `{n}` filled in as [`I18n::format`] writes numbers (grouped and
+    /// in the region's digits), as a left-to-right isolate ([`ltr`]) when the wording has a
+    /// right-to-left letter. `one` and `other` are the English forms; they are also the key of the
+    /// `@plural` row, and the fallback.
     pub fn trn(&self, lang: Lang, n: u64, one: &str, other: &str) -> String {
+        let format = self.format();
+        let form = self.plural(lang, Some(PluralOperands::from(n)), n == 1, one, other);
+        Self::counted(lang, fmt(form, &[("n", &ltr(&format.integer(n)))]))
+    }
+
+    /// [`I18n::trn`] with `{n}` in `0`–`9` without grouping (`Copy 1234`) and no isolates
+    /// ([`fmt_plain`]), for text that goes into documents, file names or anything read back later.
+    pub fn trn_plain(&self, lang: Lang, n: u64, one: &str, other: &str) -> String {
+        let form = self.plural(lang, Some(PluralOperands::from(n)), n == 1, one, other);
+        Self::counted(lang, fmt_plain(form, &[("n", &n.to_string())]))
+    }
+
+    /// [`I18n::trn`] for a count with `decimals` digits after the decimal separator (`1.5 files`).
+    /// The plural form follows the digits shown, so `1.0` takes English `other`; infinities and NaN
+    /// (`∞`, `NaN`) take `other` too.
+    pub fn trn_decimal(&self, lang: Lang, n: f64, decimals: usize, one: &str, other: &str) -> String {
+        let format = self.format();
+        let Some(d) = format::to_decimal(n, decimals) else {
+            let form = self.plural(lang, None, false, one, other);
+            return Self::counted(lang, fmt(form, &[("n", &ltr(&format.number(n, decimals)))]));
+        };
+        let english_one = d.to_string() == "1";
+        let form = self.plural(lang, Some(PluralOperands::from(&d)), english_one, one, other);
+        Self::counted(lang, fmt(form, &[("n", &ltr(&format.write(&d)))]))
+    }
+
+    /// The plural form for a count in `lang`, `{n}` still in it. `operands` `None` is the `other`
+    /// category.
+    fn plural<'a>(&'a self, lang: Lang, operands: Option<PluralOperands>, english_one: bool, one: &'a str, other: &'a str) -> &'a str {
         let key = format!("{one}|{other}");
         let chain = self.locale(lang).map_or(&[][..], |l| l.chain.as_slice());
-        let text = chain
+        chain
             .iter()
             .find_map(|&i| {
                 let locale = self.locales.get(i)?;
                 let forms = locale.rows.get("@plural")?.get(&key)?;
                 let (rules, categories) = locale.plural.as_ref()?;
-                let category = rules.select(n).ok()?;
-                // A category whole numbers up to 1000 never reach (French `many`) takes the last form.
-                let index = categories.iter().position(|c| *c == category).unwrap_or(categories.len().saturating_sub(1));
+                let category = operands.map_or(PluralCategory::Other, |o| rules.category_for(o));
+                // A category whole numbers up to 1000 never reach has no form of its own. Russian
+                // and Ukrainian decimals (`other`) take the `few` form (`1,5 файла`); any other
+                // (French `many` for a million) takes the last.
+                let index = categories
+                    .iter()
+                    .position(|c| *c == category)
+                    .or_else(|| categories.iter().position(|c| *c == PluralCategory::Few))
+                    .unwrap_or(categories.len().saturating_sub(1));
                 forms.split('|').nth(index)
             })
-            .unwrap_or(if n == 1 { one } else { other });
-        let text = fmt(text, &[("n", &ltr(&n.to_string()))]);
+            .unwrap_or(if english_one { one } else { other })
+    }
+
+    /// A filled-in count, marked in the pseudo locale.
+    fn counted(lang: Lang, text: String) -> String {
         if lang == Lang::PSEUDO {
             return marked(&text);
         }
         text
+    }
+
+    /// How counts, file sizes and measures write numbers: [`Region::system`]'s format with the
+    /// locale's digits until [`I18n::set_format`], and again after [`I18n::reset_format`].
+    pub fn format(&self) -> Arc<Format> {
+        if let Some(f) = self.format.read().unwrap_or_else(PoisonError::into_inner).as_ref() {
+            return Arc::clone(f);
+        }
+        let mut slot = self.format.write().unwrap_or_else(PoisonError::into_inner);
+        Arc::clone(slot.get_or_insert_with(|| Arc::new(Format::new(&Region::system(), Digits::Locale))))
+    }
+
+    /// Write numbers as `format` does from now on: the user's region setting, or Latin digits.
+    pub fn set_format(&self, format: Format) {
+        *self.format.write().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(format));
+    }
+
+    /// Write numbers as the system region does again, undoing [`I18n::set_format`].
+    pub fn reset_format(&self) {
+        *self.format.write().unwrap_or_else(PoisonError::into_inner) = None;
     }
 
     /// The languages to offer: English first, then the offered locales by code. Never the
@@ -489,17 +579,22 @@ fn bare(code: &str) -> Locale {
 }
 
 /// `code`'s CLDR cardinal rules and the categories whole numbers 0..=1000 reach, in CLDR order
-/// (zero, one, two, few, many, other): one `@plural` form each. Regional and scripted codes fall
-/// back to the language's rules. CLDR's `pt` is Brazilian (0 is singular), so Portuguese other
-/// than `pt-br` takes `pt-PT`'s.
+/// (zero, one, two, few, many, other): one `@plural` form each. The rules are looked up by
+/// language alone: CLDR's parent of `sr-Latn` and `zh-Hant` is the root, whose only category is
+/// `other`. CLDR's `pt` is Brazilian (0 is singular), so Portuguese other than `pt-br` takes
+/// `pt-PT`'s. `None` for a language CLDR has no plural rules for.
 fn plural_rules(code: &str) -> Option<(PluralRules, Vec<PluralCategory>)> {
-    let code = if code == "pt" || (code.starts_with("pt-") && code != "pt-br") { "pt-pt" } else { code };
-    let id: LanguageIdentifier = code.parse().ok()?;
-    let language = LanguageIdentifier::from_parts(id.language, None, None, &[]);
-    let rules = PluralRules::create(id, PluralRuleType::CARDINAL).or_else(|_| PluralRules::create(language, PluralRuleType::CARDINAL)).ok()?;
+    let id = IcuLocale::try_from_str(code).ok()?.id;
+    let language = id.language.as_str();
+    if !data::PLURAL_LANGUAGES.contains(&language) {
+        return None;
+    }
+    let brazil = id.region.is_some_and(|r| r.as_str() == "BR");
+    let locale = IcuLocale::try_from_str(if language == "pt" && !brazil { "pt-PT" } else { language }).ok()?;
+    let rules = PluralRules::try_new_cardinal_with_buffer_provider(data::provider()?, (&locale).into()).ok()?;
     let mut categories = Vec::new();
     for n in 0..=1000_u32 {
-        let c = rules.select(n).ok()?;
+        let c = rules.category_for(n);
         if !categories.contains(&c) {
             categories.push(c);
         }
@@ -510,12 +605,12 @@ fn plural_rules(code: &str) -> Option<(PluralRules, Vec<PluralCategory>)> {
 
 fn rank(c: &PluralCategory) -> u8 {
     match c {
-        PluralCategory::ZERO => 0,
-        PluralCategory::ONE => 1,
-        PluralCategory::TWO => 2,
-        PluralCategory::FEW => 3,
-        PluralCategory::MANY => 4,
-        PluralCategory::OTHER => 5,
+        PluralCategory::Zero => 0,
+        PluralCategory::One => 1,
+        PluralCategory::Two => 2,
+        PluralCategory::Few => 3,
+        PluralCategory::Many => 4,
+        PluralCategory::Other => 5,
     }
 }
 
@@ -530,10 +625,12 @@ mod tests {
         ("de", "\tBad\n@nope\tA\tB\n\tUndo\tRückgängig\n", ""),
     ];
 
-    /// `embedded`, offering every locale in it.
+    /// `embedded`, offering every locale in it, with `en-US` numbers rather than the machine's.
     fn all(embedded: &'static Embedded) -> (I18n, Vec<String>) {
         let codes: Vec<&str> = embedded.iter().map(|(c, _, _)| *c).collect();
-        I18n::new(embedded, &codes)
+        let (i, problems) = I18n::new(embedded, &codes);
+        i.set_format(Format::from_tag("en-US"));
+        (i, problems)
     }
 
     fn i18n() -> I18n {
@@ -607,6 +704,7 @@ mod tests {
         ("ru", "@plural\t{n} file|{n} files\t{n} файл|{n} файла|{n} файлов\n", ""),
         ("ja", "@plural\t{n} file|{n} files\t{n} 個\n", ""),
         ("fa", "@plural\t{n} page|{n} pages\t{n} صفحه|{n} صفحه\n", ""),
+        ("ar", "@plural\t{n} file|{n} files\t{n} ملفات|{n} ملف واحد|{n} ملفان|{n} ملفات|{n} ملفًا|{n} ملف\n", ""),
     ];
 
     #[test]
@@ -679,7 +777,57 @@ mod tests {
     #[test]
     fn beyond_sweep() {
         let i = all(P).0;
-        assert_eq!(i.trn(lang(&i, "fr"), 1_000_000, "{n} page", "{n} pages"), "1000000 pages");
+        i.set_format(Format::from_tag("fr"));
+        assert_eq!(i.trn(lang(&i, "fr"), 1_000_000, "{n} page", "{n} pages"), "1\u{202f}000\u{202f}000 pages");
+    }
+
+    #[test]
+    fn counts_follow_the_region() {
+        let i = all(P).0;
+        i.set_format(Format::from_tag("ar-EG"));
+        // The region's digits, as a left-to-right isolate in right-to-left text.
+        assert_eq!(i.trn(lang(&i, "ar"), 1234, "{n} file", "{n} files"), "\u{2066}١٬٢٣٤\u{2069} ملفًا");
+        i.set_format(Format::new(&Region::from_tag("ar-EG"), Digits::Latin));
+        assert_eq!(strip_isolates(&i.trn(lang(&i, "ar"), 1234, "{n} file", "{n} files")), "1,234 ملفًا");
+        // An English interface with a German region.
+        i.set_format(Format::from_tag("de-DE"));
+        assert_eq!(i.trn(Lang::EN, 12_345, "{n} file", "{n} files"), "12.345 files");
+    }
+
+    #[test]
+    fn plain_counts_and_the_system_format() {
+        let i = all(P).0;
+        i.set_format(Format::from_tag("ar-EG"));
+        assert_eq!(i.trn_plain(lang(&i, "ar"), 1234, "{n} file", "{n} files"), "1234 ملفًا");
+        i.set_format(Format::from_tag("de-DE"));
+        assert_eq!(i.trn_plain(Lang::EN, 12_345, "copy {n}", "copy {n}"), "copy 12345");
+        i.reset_format();
+        assert_eq!(
+            i.trn(Lang::EN, 5, "{n} file", "{n} files"),
+            fmt("{n} files", &[("n", &Format::new(&Region::system(), Digits::Locale).integer(5))])
+        );
+    }
+
+    #[test]
+    fn decimal_counts() {
+        let i = all(P).0;
+        i.set_format(Format::from_tag("en"));
+        assert_eq!(i.trn_decimal(Lang::EN, 1.5, 1, "{n} file", "{n} files"), "1.5 files");
+        assert_eq!(i.trn_decimal(Lang::EN, 1.0, 1, "{n} file", "{n} files"), "1.0 files", "visible decimals are plural");
+        assert_eq!(i.trn_decimal(Lang::EN, 1.0, 0, "{n} file", "{n} files"), "1 file");
+        // Russian decimals are `other`, which integers never reach: the `few` form.
+        i.set_format(Format::from_tag("ru"));
+        let ru = lang(&i, "ru");
+        assert_eq!(i.trn_decimal(ru, 1.5, 1, "{n} file", "{n} files"), "1,5 файла");
+        assert_eq!(i.trn_decimal(ru, 21.0, 0, "{n} file", "{n} files"), "21 файл");
+        // Arabic decimals are `other`.
+        i.set_format(Format::from_tag("ar-EG"));
+        let ar = lang(&i, "ar");
+        assert_eq!(strip_isolates(&i.trn_decimal(ar, 2.5, 1, "{n} file", "{n} files")), "٢٫٥ ملف");
+        assert_eq!(strip_isolates(&i.trn_decimal(ar, 3.0, 0, "{n} file", "{n} files")), "٣ ملفات");
+        // Not a number: the translated `other` form.
+        assert_eq!(i.trn_decimal(ru, f64::NAN, 1, "{n} file", "{n} files"), "NaN файла");
+        assert_eq!(i.trn_decimal(Lang::EN, f64::INFINITY, 1, "{n} file", "{n} files"), "∞ files");
     }
 
     static L: &Embedded =
@@ -843,15 +991,31 @@ mod tests {
         assert_eq!(i.trn(lang(&i, "pt-br"), 0, "{n} file", "{n} files"), "0 arquivo");
     }
 
-    /// The same counts as craft-i18n's checker (`plural_form_counts`), which rejects a catalog
-    /// whose `@plural` rows list any other.
+    /// The counts craft-i18n's checker expects, which rejects a catalog whose `@plural` rows list
+    /// any other: every directory in craft-i18n's `locales/`, then languages it may add.
     #[test]
     fn plural_form_counts() {
-        for (locale, n) in
-            [("en", 2), ("fr", 2), ("ja", 1), ("vi", 1), ("ru", 3), ("pl", 3), ("cs", 3), ("sl", 4), ("ar", 6), ("pt", 2), ("pt-br", 2), ("tr", 2)]
-        {
+        #[rustfmt::skip]
+        let catalogs = [
+            ("ar", 6), ("bg", 2), ("cs", 3), ("da", 2), ("de", 2), ("el", 2), ("es", 2), ("et", 2),
+            ("fi", 2), ("fr", 2), ("hr", 3), ("hu", 2), ("id", 1), ("it", 2), ("ja", 1), ("ka", 2),
+            ("kk", 2), ("ko", 1), ("lt", 3), ("nl", 2), ("pl", 3), ("pt-br", 2), ("ru", 3), ("sl", 4),
+            ("sr", 3), ("sr-latn", 3), ("sv", 2), ("te", 2), ("tr", 2), ("uk", 3), ("vi", 1),
+            ("zh-hans", 1), ("zh-hant", 1),
+        ];
+        let more = [("en", 2), ("pt", 2), ("he", 3), ("ro", 3), ("nb", 2), ("ca", 2), ("sk", 3), ("th", 1), ("ms", 1), ("fa", 2), ("hi", 2)];
+        for (locale, n) in catalogs.into_iter().chain(more) {
             assert_eq!(plural_rules(locale).map(|(_, c)| c.len()), Some(n), "{locale}");
         }
+        assert!(plural_rules("tlh").is_none(), "no CLDR rules");
+    }
+
+    #[test]
+    fn serbian_latin_plurals() {
+        let i = all(&[("sr-latn", "@plural\t{n} file|{n} files\t{n} fajl|{n} fajla|{n} fajlova\n", "")]).0;
+        let sr = lang(&i, "sr-latn");
+        let files = |n| i.trn(sr, n, "{n} file", "{n} files");
+        assert_eq!((files(1), files(3), files(5)), ("1 fajl".into(), "3 fajla".into(), "5 fajlova".into()));
     }
 
     #[test]
