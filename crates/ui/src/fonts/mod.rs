@@ -23,7 +23,11 @@
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
 //! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them, or, for a web build, copies them
 //! beside the wasm and lists them as [`ServedFace`]s, which the stack orders the same way and
-//! fetches when they are needed (see [`UiFonts::served_faces`]).
+//! fetches when they are needed (see [`UiFonts::served_faces`]). For the interface they take
+//! `Embed::for_ui()`, which embeds or serves the CJK faces as craft-fonts' UI subsets (`Noto Sans
+//! TC UI`, `BIZ UDPGothic UI`), cut to the characters the translation catalogs use. A character a
+//! subset lacks, such as one in a file name, comes from the next face that has it: another
+//! region's subset, then the installed system fonts.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
 //! before [`Stack::install`].
 
@@ -235,7 +239,8 @@ const APP_SCRIPTS: &[&str] = &["Latn", "Cyrl", "Grek"];
 /// Scripts whose characters sit inside the em square, so they fit a row of a Latin face.
 const EM_SQUARE_SCRIPTS: &[&str] = &["Hani", "Hira", "Kana", "Hang", "Bopo"];
 
-/// craft-fonts' UI face for Japanese; its manifest also lists serif Japanese faces.
+/// craft-fonts' UI face for Japanese; its manifest also lists serif Japanese faces. A family here
+/// also names its UI subset (`BIZ UDPGothic UI`).
 const DEFAULT_PREFER: &[(&str, &str)] = &[("Jpan", "BIZ UDPGothic")];
 
 struct AppFace {
@@ -338,7 +343,8 @@ impl<'a> UiFonts<'a> {
     }
 
     /// Prefer the craft face of `family` for `script` (a face tag such as `Jpan`), ahead of other
-    /// faces for the same script and region. Earlier calls win over later ones.
+    /// faces for the same script and region. A family also names its UI subset (`Noto Sans TC`
+    /// names `Noto Sans TC UI`). Earlier calls win over later ones.
     pub fn prefer(mut self, script: &str, family: &str) -> Self {
         self.prefer.push((script.to_owned(), family.to_owned()));
         self
@@ -587,9 +593,11 @@ impl<'a> UiFonts<'a> {
     }
 }
 
-/// The first of `prefer`'s `(script tag, family)` entries that names `face`.
+/// The first of `prefer`'s `(script tag, family)` entries that names `face`, or the family whose
+/// UI subset `face` is (`Noto Sans TC` names `Noto Sans TC UI`).
 fn preference_of<'p>(mut prefer: impl Iterator<Item = (&'p str, &'p str)>, face: &CraftFace) -> Option<usize> {
-    prefer.position(|(tag, family)| face.scripts.contains(&tag) && face.family == family)
+    let full_family = face.family.strip_suffix(" UI").unwrap_or(face.family);
+    prefer.position(|(tag, family)| face.scripts.contains(&tag) && (face.family == family || full_family == family))
 }
 
 /// How well a face's Han region suits the one wanted: lower is better.
