@@ -49,6 +49,27 @@ pub enum Edit {
         before_chars: usize,
         after_chars: usize,
     },
+    /// Delete the text an input method replaces (macOS accent menus and dictation, Wayland input
+    /// methods), counted in UTF-8 bytes before and after the caret or selection, right before the
+    /// commit that replaces it. While composing, the counts start at the caret too: the marked
+    /// text isn't in the app's text. Delete only whole chars inside the counts;
+    /// [`surrounding_chars`] counts them. The app applies it; its event is removed from the
+    /// input. Only the suite's egui fork sends it.
+    DeleteSurroundingBytes {
+        before_bytes: usize,
+        after_bytes: usize,
+    },
+}
+
+/// For [`Edit::DeleteSurroundingBytes`]: how many chars of `before` (the text before the caret or
+/// selection) end inside its last `before_bytes` bytes, and how many of `after` (the text after
+/// it) lie inside its first `after_bytes` bytes. A char cut by a count stays, as in egui's
+/// `TextEdit`.
+pub fn surrounding_chars(before: &str, after: &str, before_bytes: usize, after_bytes: usize) -> (usize, usize) {
+    let from = before.len().saturating_sub(before_bytes);
+    let before_chars = before.char_indices().rev().take_while(|(i, _)| *i >= from).count();
+    let after_chars = after.char_indices().take_while(|(i, c)| i + c.len_utf8() <= after_bytes).count();
+    (before_chars, after_chars)
 }
 
 /// The marked text, for painting at the caret with an underline.
@@ -339,6 +360,12 @@ impl Composer {
             }
             #[expect(deprecated)]
             ImeEvent::Enabled | ImeEvent::Disabled => {}
+            #[allow(unreachable_patterns, reason = "crates.io egui has no other events")]
+            other => {
+                if let Some((before_bytes, after_bytes)) = delete_surrounding_bytes(other) {
+                    edits.push(Edit::DeleteSurroundingBytes { before_bytes, after_bytes });
+                }
+            }
         }
     }
 
@@ -454,6 +481,16 @@ impl Guard {
 /// Keys an IME uses to confirm, cancel or edit a composition.
 fn is_ime_key(key: Key) -> bool {
     matches!(key, Key::Enter | Key::Escape | Key::Backspace | Key::Delete | Key::Space)
+}
+
+/// The suite's egui fork has `ImeEvent::DeleteSurroundingBytes { before_bytes, after_bytes }`;
+/// crates.io egui doesn't. Reading it from the event's `Debug` output lets the same source build
+/// against both without a feature.
+fn delete_surrounding_bytes(ime: &ImeEvent) -> Option<(usize, usize)> {
+    let debug = format!("{ime:?}");
+    let fields = debug.strip_prefix("DeleteSurroundingBytes { before_bytes: ")?.strip_suffix(" }")?;
+    let (before, after) = fields.split_once(", after_bytes: ")?;
+    Some((before.parse().ok()?, after.parse().ok()?))
 }
 
 fn is_line_break(text: &str) -> bool {

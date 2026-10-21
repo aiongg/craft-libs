@@ -6,6 +6,7 @@
 //! ```no_run
 //! # fn insert(_: &str) {} fn press(_: egui::Key, _: egui::Modifiers) {}
 //! # fn paste(_: &str) {} fn copy() {} fn cut() {} fn delete_around(_: usize, _: usize) {}
+//! # fn delete_whole_chars_around(_: usize, _: usize) {}
 //! # fn caret_rect() -> egui::Rect { egui::Rect::ZERO }
 //! # let ctx = egui::Context::default(); let mut composer = craft_ui::ime::Composer::new();
 //! # let editing = true;
@@ -22,6 +23,8 @@
 //!         Edit::Copy => copy(),
 //!         Edit::Cut => cut(),
 //!         Edit::DeleteSurrounding { before_chars, after_chars } => delete_around(before_chars, after_chars),
+//!         // Whole chars inside the byte counts; `craft_ui::ime::surrounding_chars` counts them.
+//!         Edit::DeleteSurroundingBytes { before_bytes, after_bytes } => delete_whole_chars_around(before_bytes, after_bytes),
 //!     }
 //! }
 //! // After laying out the text, in screen points:
@@ -64,7 +67,7 @@
 
 mod composer;
 
-pub use composer::{Composer, Edit, Preedit, Processed};
+pub use composer::{Composer, Edit, Preedit, Processed, surrounding_chars};
 
 #[cfg(test)]
 mod tests;

@@ -323,6 +323,51 @@ fn clipboard_and_surrounding_deletes_are_the_apps_to_apply() {
     assert_eq!(p.events, [Event::Copy, text("a"), Event::Cut, Event::Paste("x".into())]);
 }
 
+/// The suite's egui fork's `ImeEvent::DeleteSurroundingBytes`, read from JSON; `None` on
+/// crates.io egui, which has no such event, so the test builds against both.
+fn delete_bytes(before_bytes: usize, after_bytes: usize) -> Option<Event> {
+    let known: Result<ImeEvent, _> = serde_json::from_str(r#"{"DeleteSurrounding":{"before_chars":1,"after_chars":0}}"#);
+    assert!(known.is_ok(), "egui's events read from JSON: {known:?}");
+    let json = format!(r#"{{"DeleteSurroundingBytes":{{"before_bytes":{before_bytes},"after_bytes":{after_bytes}}}}}"#);
+    serde_json::from_str(&json).ok().map(Event::Ime)
+}
+
+#[test]
+fn byte_deletes_come_before_the_commit_that_replaces_them() {
+    let (Some(delete_e), Some(delete_jamo)) = (delete_bytes(1, 0), delete_bytes(3, 2)) else {
+        return;
+    };
+    let mut c = Composer::new();
+    // macOS press-and-hold: "e" typed, then "é" from the accent menu replaces it.
+    c.process(&[text("e")], 0.0);
+    let p = c.process(&[delete_e, commit("é")], 1.0);
+    assert_eq!(p.edits, [Edit::DeleteSurroundingBytes { before_bytes: 1, after_bytes: 0 }, Edit::Insert("é".into())]);
+    assert!(p.events.is_empty());
+    // While composing too: the counts start at the caret, where the marked text is.
+    c.process(&[preedit("ㅎ", None)], 2.0);
+    let p = c.process(&[delete_jamo, commit("하")], 2.1);
+    assert_eq!(
+        p.edits,
+        [
+            Edit::DeleteSurroundingBytes { before_bytes: 3, after_bytes: 2 },
+            Edit::Preedit { text: String::new(), active: None },
+            Edit::Insert("하".into()),
+        ]
+    );
+}
+
+#[test]
+fn byte_counts_delete_only_whole_chars() {
+    // A combining acute is two bytes; "é" is two bytes, "🇧🇪" two four-byte chars.
+    assert_eq!(surrounding_chars("cafe\u{301}", "", 2, 0), (1, 0));
+    assert_eq!(surrounding_chars("aé", "", 1, 0), (0, 0));
+    assert_eq!(surrounding_chars("aé", "", 3, 0), (2, 0));
+    assert_eq!(surrounding_chars("x🇧🇪", "", 4, 0), (1, 0));
+    assert_eq!(surrounding_chars("", "éb", 0, 3), (0, 2));
+    assert_eq!(surrounding_chars("", "éb", 0, 1), (0, 0));
+    assert_eq!(surrounding_chars("ab", "cd", 9, 9), (2, 2));
+}
+
 #[test]
 fn the_app_ends_a_composition_keeping_or_discarding_the_marked_text() {
     let ctx = Context::default();
