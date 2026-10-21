@@ -432,6 +432,18 @@ fn the_system_provider_is_shared_per_locale() {
 
 #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
 #[test]
+fn c_and_posix_locales_prefer_no_language() {
+    use system_index::locale_language;
+    for locale in ["C", "POSIX", "C.UTF-8", "C.utf8", "POSIX@euro", ""] {
+        assert_eq!(locale_language(locale), None, "{locale}");
+    }
+    for (locale, tag) in [("zh_TW.UTF-8", "zh-TW"), ("sr_RS@latin", "sr-RS"), ("zh-Hant", "zh-Hant")] {
+        assert_eq!(locale_language(locale).map(|l| l.to_string()).as_deref(), Some(tag), "{locale}");
+    }
+}
+
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
 fn every_locale_asks_one_index_of_the_installed_fonts() {
     let request = FallbackRequest { cluster: "ب", family: &FontFamily::Proportional };
     for locale in ["ja", "ar", "zh-CN"] {
