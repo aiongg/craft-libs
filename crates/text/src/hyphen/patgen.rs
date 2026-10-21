@@ -116,7 +116,9 @@ pub fn train(words: &[(Vec<char>, Vec<usize>)], levels: &[Level], log: &mut dyn 
             let mut new: FxMap<u64, Box<[u8]>> = FxMap::default();
             let mut selected = 0usize;
             for (key, (g, b)) in counts {
-                if g > 0 && (g * lv.good_weight) as i64 - (b * lv.bad_weight) as i64 >= lv.threshold as i64 {
+                // Widened first: u32 × u32 fills a u64, and the difference needs a sign.
+                let score = i128::from(g) * i128::from(lv.good_weight) - i128::from(b) * i128::from(lv.bad_weight);
+                if g > 0 && score >= i128::from(lv.threshold) {
                     let dot = ((key >> 54) & 15) as usize;
                     let letters = key & !(15u64 << 54);
                     let e = new.entry(letters).or_insert_with(|| vec![0u8; len + 1].into_boxed_slice());
@@ -202,6 +204,15 @@ mod tests {
             }
         }
         (chars, br)
+    }
+
+    /// Weights near `u32::MAX` select the pattern instead of overflowing.
+    #[test]
+    fn large_weights_do_not_overflow() {
+        let words = vec![(vec!['a', 'b'], vec![1]); 2];
+        let levels = [Level { min_len: 1, max_len: 1, good_weight: 1 << 31, bad_weight: 1, threshold: 1 }];
+        let patterns = train(&words, &levels, &mut |_| {});
+        assert_eq!(patterns.points(&['a', 'b']), Some(vec![1]));
     }
 
     #[test]
