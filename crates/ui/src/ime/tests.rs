@@ -229,6 +229,18 @@ fn commits_without_a_composition_leave_the_next_keys_to_the_user() {
 }
 
 #[test]
+fn only_text_right_after_a_commit_is_its_echo() {
+    let typed = |passes: &[(f64, Vec<Event>)]| type_passes(&mut Composer::new(), passes).0;
+    // A key the editor gets after a commit types its own text.
+    assert_eq!(typed(&[(0.0, vec![commit("a"), key(Key::A), text("a")])]), "aa");
+    assert_eq!(typed(&[(0.0, vec![commit("a"), text("a")])]), "a");
+    assert_eq!(typed(&[(0.0, vec![commit("あ"), text("あ")])]), "あ");
+    // The echo comes in the commit's pass; text in a later pass is typed.
+    assert_eq!(typed(&[(0.0, vec![commit("a")]), (0.01, vec![text("a")])]), "aa");
+    assert_eq!(typed(&[(0.0, vec![key(Key::A), text("a")])]), "a");
+}
+
+#[test]
 fn a_line_break_with_nothing_composing_is_enter_once() {
     let line_break = |modifiers| Edit::LineBreak { modifiers };
     let enter = Edit::Key { key: Key::Enter, modifiers: Modifiers::NONE, repeat: false };
