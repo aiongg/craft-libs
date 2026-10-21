@@ -4,35 +4,6 @@ use egui::{FallbackRequest, FontInsert, FontPriority, InsertFontFamily};
 const ARABIC: &[u8] = include_bytes!("../../tests/fonts/NotoSansArabic-test.ttf");
 const CJK: &[u8] = include_bytes!("../../tests/fonts/NotoSansCJKsc-test.otf");
 
-/// The table craft-i18n's `scripts` module gives for these languages.
-struct TestScripts;
-
-impl LanguageScripts for TestScripts {
-    fn scripts(&self, language: &str) -> Vec<&'static str> {
-        match language {
-            "ar" => vec!["Arab"],
-            "ja" => vec!["Hani", "Hira", "Kana"],
-            "ko" => vec!["Hang", "Hani"],
-            "zh-CN" | "zh-TW" | "zh-HK" => vec!["Hani"],
-            "th" => vec!["Thai"],
-            "ka" => vec!["Geor"],
-            "ru" => vec!["Cyrl"],
-            _ => vec!["Latn"],
-        }
-    }
-
-    fn han(&self, language: &str) -> Option<Han> {
-        match language {
-            "ja" => Some(Han::Japanese),
-            "ko" => Some(Han::Korean),
-            "zh-CN" => Some(Han::Simplified),
-            "zh-TW" => Some(Han::Traditional),
-            "zh-HK" => Some(Han::HongKong),
-            _ => None,
-        }
-    }
-}
-
 const OFFERED: &[&str] = &["en", "ar", "ja", "zh-CN", "zh-TW", "zh-HK", "ko", "th", "ka", "ru"];
 
 const fn face(family: &'static str, style: &'static str, scripts: &'static [&'static str]) -> CraftFace {
@@ -54,7 +25,7 @@ const CRAFT: &[CraftFace] = &[
 ];
 
 fn fonts(ui_language: &str) -> UiFonts<'static> {
-    UiFonts::new(&TestScripts)
+    UiFonts::new(&I18nScripts)
         .app_face("ui", FontData::from_static(&[]), &[FontFamily::Proportional])
         .app_face("mono", FontData::from_static(&[]), &[FontFamily::Monospace])
         .craft_faces(CRAFT)
@@ -69,13 +40,16 @@ fn head(stack: &Stack, family: &FontFamily, n: usize) -> Vec<String> {
 
 #[test]
 fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
+    // CJK UIs keep the Latin face first: Han, kana and Hangul fit its rows.
     let cases: &[(&str, &[&str])] = &[
         ("ar", &["Noto Sans Arabic Regular", "ui"]),
-        ("ja", &["BIZ UDPGothic Regular", "Shippori Mincho Regular", "Noto Sans CJK SC Regular"]),
-        ("zh-TW", &["Noto Sans CJK TC Regular", "Noto Sans CJK HK Regular", "BIZ UDPGothic Regular"]),
-        ("zh-HK", &["Noto Sans CJK HK Regular", "Noto Sans CJK TC Regular", "BIZ UDPGothic Regular"]),
-        ("zh-CN", &["Noto Sans CJK SC Regular", "BIZ UDPGothic Regular"]),
-        ("ko", &["Noto Sans CJK KR Regular", "BIZ UDPGothic Regular"]),
+        ("ja", &["ui", "BIZ UDPGothic Regular", "Shippori Mincho Regular", "Noto Sans CJK SC Regular"]),
+        ("zh-TW", &["ui", "Noto Sans CJK TC Regular", "Noto Sans CJK HK Regular", "Noto Sans CJK SC Regular"]),
+        ("zh-HK", &["ui", "Noto Sans CJK HK Regular", "Noto Sans CJK TC Regular", "Noto Sans CJK SC Regular"]),
+        ("zh-CN", &["ui", "Noto Sans CJK SC Regular", "Noto Sans CJK TC Regular"]),
+        // craft-fonts' preference for BIZ UDPGothic orders Japanese faces only where they are
+        // the best region: for Korean they keep manifest order.
+        ("ko", &["ui", "Noto Sans CJK KR Regular", "Shippori Mincho Regular", "BIZ UDPGothic Regular"]),
         ("th", &["Noto Sans Thai Regular", "ui"]),
         ("ka", &["Noto Sans Georgian Regular", "ui"]),
         ("ru", &["ui", "Noto Sans Arabic Regular", "BIZ UDPGothic Regular"]),
@@ -87,6 +61,46 @@ fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
         // Monospace keeps the app's face first, so code and numbers stay aligned.
         assert_eq!(stack.chain(&FontFamily::Monospace).first().map(String::as_str), Some("mono"), "{language}");
     }
+}
+
+#[test]
+fn families_without_app_faces_start_with_egui_defaults() {
+    let defaults = FontDefinitions::default();
+    let first = |family: &FontFamily| defaults.families.get(family).and_then(|c| c.first()).cloned().expect("egui default_fonts in dev-dependencies");
+    let (egui_ui, egui_mono) = (first(&FontFamily::Proportional), first(&FontFamily::Monospace));
+    let only_ui = |language| fonts_without_faces(language).app_face("ui", FontData::from_static(&[]), &[FontFamily::Proportional]).stack();
+    let no_faces = |language| fonts_without_faces(language).stack();
+
+    let stack = only_ui("en");
+    assert_eq!(head(&stack, &FontFamily::Proportional, 2), ["ui", "Noto Sans Arabic Regular"]);
+    assert_eq!(head(&stack, &FontFamily::Monospace, 1), [egui_mono.as_str()], "egui's mono face, not a craft face");
+    let stack = only_ui("ar");
+    assert_eq!(head(&stack, &FontFamily::Proportional, 2), ["Noto Sans Arabic Regular", "ui"]);
+    assert_eq!(head(&stack, &FontFamily::Monospace, 1), [egui_mono.as_str()]);
+
+    // egui's defaults come right after the UI language's faces and before other scripts.
+    for (language, lead) in [("en", None), ("ar", Some("Noto Sans Arabic Regular"))] {
+        let stack = no_faces(language);
+        let chain = stack.chain(&FontFamily::Proportional);
+        let egui_at = chain.iter().position(|n| *n == egui_ui).expect("egui's face");
+        assert_eq!(chain.first().map(String::as_str), Some(lead.unwrap_or(&egui_ui)), "{language}");
+        let other = if lead.is_some() { "BIZ UDPGothic Regular" } else { "Noto Sans Arabic Regular" };
+        assert!(chain.iter().position(|n| n == other) > Some(egui_at), "{language}: {chain:?}");
+        assert_eq!(head(&stack, &FontFamily::Monospace, 1), [egui_mono.as_str()], "{language}");
+    }
+}
+
+fn fonts_without_faces(ui_language: &str) -> UiFonts<'static> {
+    UiFonts::new(&I18nScripts).craft_faces(CRAFT).languages(OFFERED).ui_language(ui_language).system_fonts(SystemFonts::Off)
+}
+
+#[test]
+fn craft_preference_orders_the_best_region_only() {
+    // With only Japanese faces, they are the best Han region a Taiwanese UI has.
+    let stack = UiFonts::new(&I18nScripts).craft_faces(&CRAFT[..3]).ui_language("zh-TW").system_fonts(SystemFonts::Off).stack();
+    let chain = stack.chain(&FontFamily::Proportional);
+    let at = |name: &str| chain.iter().position(|n| n == name);
+    assert!(at("BIZ UDPGothic Regular") < at("Shippori Mincho Regular"), "{chain:?}");
 }
 
 #[test]
@@ -104,10 +118,11 @@ fn every_shipped_face_is_in_every_stack() {
 #[test]
 fn app_can_prefer_add_replace_and_reorder_faces() {
     let stack = fonts("ja").prefer("Jpan", "Shippori Mincho").stack();
-    assert_eq!(head(&stack, &FontFamily::Proportional, 2), ["Shippori Mincho Regular", "BIZ UDPGothic Regular"]);
+    assert_eq!(head(&stack, &FontFamily::Proportional, 3), ["ui", "Shippori Mincho Regular", "BIZ UDPGothic Regular"]);
 
     // An app whose UI face covers Arabic keeps it first.
     let stack = fonts("ar").app_scripts(&["Latn", "Arab"]).stack();
+    assert!(stack.script_face.is_none(), "{:?}", stack.script_face);
     assert_eq!(head(&stack, &FontFamily::Proportional, 1), ["ui"]);
     assert!(stack.chain(&FontFamily::Proportional).contains(&"Noto Sans Arabic Regular".to_owned()));
 
@@ -129,12 +144,10 @@ fn named_families_take_their_weight_and_lead_script() {
         .family(Family::named("arabic").script("Arab"))
         .stack();
     let semibold = FontFamily::Name("semibold".into());
-    assert_eq!(head(&stack, &semibold, 2), ["BIZ UDPGothic Bold", "BIZ UDPGothic Regular"]);
-    assert!(stack.chain(&semibold).contains(&"ui-semibold".to_owned()));
+    assert_eq!(head(&stack, &semibold, 3), ["ui-semibold", "BIZ UDPGothic Bold", "BIZ UDPGothic Regular"]);
     // A family without an app face of its own falls back to the proportional faces.
     let arabic = FontFamily::Name("arabic".into());
-    assert_eq!(head(&stack, &arabic, 2), ["Noto Sans Arabic Regular", "BIZ UDPGothic Regular"]);
-    assert!(stack.chain(&arabic).contains(&"ui".to_owned()));
+    assert_eq!(head(&stack, &arabic, 3), ["Noto Sans Arabic Regular", "ui", "BIZ UDPGothic Regular"]);
 }
 
 #[test]
@@ -153,7 +166,7 @@ fn system_fonts_before_craft_moves_other_scripts_after_them() {
 fn test_stack(ui_language: &str) -> Stack {
     let defaults = FontDefinitions::default();
     let ubuntu = defaults.font_data.get("Ubuntu-Light").map(|d| (**d).clone()).expect("egui default_fonts in dev-dependencies");
-    UiFonts::new(&TestScripts)
+    UiFonts::new(&I18nScripts)
         .app_face("ui", ubuntu, &[FontFamily::Proportional])
         .craft_faces(&[
             CraftFace { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], bytes: ARABIC, index: 0 },
@@ -224,4 +237,57 @@ fn widgets_grow_to_the_ui_language_row_height() {
     let row = fonts.with_pixels_per_point(1.0).row_height(&body);
     assert!(row + 2.0 * style.spacing.button_padding.y > before, "Arabic rows are taller");
     assert!(style.spacing.interact_size.y >= row + 2.0 * style.spacing.button_padding.y);
+}
+
+#[test]
+fn widgets_fit_the_cjk_face_that_follows_the_latin_one() {
+    let stack = test_stack("ja");
+    assert_eq!(stack.chain(&FontFamily::Proportional).first().map(String::as_str), Some("ui"));
+    let mut style = Style::default();
+    let before = style.spacing.interact_size.y;
+    stack.fit_interact_size(&mut style);
+    assert!(style.spacing.interact_size.y > before, "CJK rows are taller than the Latin face's");
+}
+
+#[test]
+fn installing_another_language_refits_widgets() {
+    let ctx = egui::Context::default();
+    let before = ctx.style_of(egui::Theme::Dark).spacing.interact_size.y;
+    test_stack("ar").install(&ctx);
+    let arabic = ctx.style_of(egui::Theme::Dark).spacing.interact_size.y;
+    assert!(arabic > before);
+    test_stack("en").install(&ctx);
+    assert_eq!(ctx.style_of(egui::Theme::Dark).spacing.interact_size.y, before, "back to the style's own height");
+    assert_eq!(ctx.style_of(egui::Theme::Light).spacing.interact_size.y, before);
+    // A height the app set after installing stays.
+    ctx.all_styles_mut(|s| s.spacing.interact_size.y = 40.0);
+    test_stack("ar").install(&ctx);
+    test_stack("en").install(&ctx);
+    assert_eq!(ctx.style_of(egui::Theme::Dark).spacing.interact_size.y, 40.0);
+}
+
+#[test]
+fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
+    let arabic = |_: &FallbackRequest<'_>| {
+        Some(FontInsert::new(
+            "host:Arabic",
+            FontData::from_static(ARABIC),
+            vec![InsertFontFamily { family: FontFamily::Proportional, priority: FontPriority::Lowest }],
+        ))
+    };
+    let draws_arabic = |system: SystemFonts| {
+        let ctx = egui::Context::default();
+        ctx.add_font_provider(Arc::new(arabic));
+        let defaults = FontDefinitions::default();
+        let ubuntu = defaults.font_data.get("Ubuntu-Light").map(|d| (**d).clone()).expect("egui default_fonts");
+        let stack = UiFonts::new(&I18nScripts).app_face("ui", ubuntu, &[FontFamily::Proportional]).system_fonts(system).stack();
+        stack.install(&ctx);
+        stack.install(&ctx);
+        ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+        ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), 'ع'))
+    };
+    assert!(!draws_arabic(SystemFonts::Off), "Off asks no system fonts");
+    if cfg!(not(all(feature = "system_fonts", not(target_arch = "wasm32")))) {
+        assert!(draws_arabic(SystemFonts::AfterCraft), "the host's provider stays");
+    }
 }

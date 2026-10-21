@@ -3,17 +3,20 @@
 //! egui draws a character only if one of its installed faces has it. [`UiFonts`] builds the same
 //! fallback order for every app, so a label or file name in any shipped script draws in every app:
 //!
-//! 1. the app's own faces (UI face, semibold, mono);
+//! 1. the app's own faces for the family (UI face, semibold, mono), or egui's default faces for a
+//!    family the app has none for;
 //! 2. craft-fonts faces for the UI language;
 //! 3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
 //!    Arabic file names;
 //! 4. installed system fonts, through egui's font provider, at regular weight ([`RegularWeight`]);
-//! 5. emoji faces ([`Emoji`]) and egui's own default faces.
+//! 5. emoji faces ([`Emoji`]) and, behind the app's own faces, egui's default faces.
 //!
-//! When the app's faces don't cover the UI language's main script (Arabic, Japanese, Thai), that
-//! script's face goes first instead of the app's face. egui takes a row's height from the first
-//! face of a family, so the UI language's own face sets the row height and its marks aren't
-//! clipped.
+//! When the faces of step 1 don't cover the UI language's main script (Arabic, Thai, Georgian),
+//! that script's face goes first. egui takes a row's height from the first face of a family, so
+//! the UI language's own face sets the row height and its marks aren't clipped. Han, kana and
+//! Hangul sit inside the em square and fit a Latin row, so in Chinese, Japanese and Korean UIs the
+//! Latin face stays first and Latin text keeps it; [`Stack::install`] still sizes widgets to the
+//! script face's rows. Monospace always keeps its Latin face first.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces as [`CraftFace`]s.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
@@ -27,9 +30,10 @@ mod tests;
 use std::sync::Arc;
 
 use egui::epaint::text::{Fonts, TextOptions};
-use egui::{FontData, FontDefinitions, FontFamily, FontProvider, Style, TextStyle};
+use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style, TextStyle};
 
 pub use coverage::{Missing, Sample, assert_covers, missing_glyphs};
+use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
 
 /// A font file from craft-fonts that the app embeds, one per line of `fonts/manifest.txt`.
@@ -92,25 +96,10 @@ impl CraftFace {
     }
 }
 
-/// The regional forms a language's Han characters take.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Han {
-    /// Mainland China and Singapore (SC).
-    Simplified,
-    /// Taiwan (TC).
-    Traditional,
-    /// Hong Kong and Macau (HK).
-    HongKong,
-    /// Japanese kanji (JP).
-    Japanese,
-    /// Korean hanja (KR).
-    Korean,
-}
+pub use craft_i18n::Han;
 
-/// The scripts a language is written in, by language tag.
-///
-/// craft-i18n's `scripts` module answers both questions; an app adapts it in a few lines (see the
-/// crate README).
+/// The scripts a language is written in, by language tag. [`I18nScripts`] answers from
+/// craft-i18n; an app with its own table implements this instead.
 pub trait LanguageScripts {
     /// ISO 15924 codes of the language's interface text, main script first: `ja` → `Hani`, `Hira`,
     /// `Kana`; `ar` → `Arab`. The unions `Jpan`, `Kore`, `Hans` and `Hant` are accepted too.
@@ -118,6 +107,21 @@ pub trait LanguageScripts {
 
     /// The regional Han forms the language uses, `None` for a language not written with Han.
     fn han(&self, language: &str) -> Option<Han>;
+}
+
+/// [`LanguageScripts`] from craft-i18n's script table ([`craft_i18n::scripts`],
+/// [`craft_i18n::han`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct I18nScripts;
+
+impl LanguageScripts for I18nScripts {
+    fn scripts(&self, language: &str) -> Vec<&'static str> {
+        craft_i18n::scripts(language).iter().map(|s| s.code()).collect()
+    }
+
+    fn han(&self, language: &str) -> Option<Han> {
+        craft_i18n::han(language)
+    }
 }
 
 /// A font family the app uses, beyond what its own faces imply.
@@ -180,6 +184,9 @@ pub enum SystemFonts {
 /// Scripts the app's own UI faces cover unless [`UiFonts::app_scripts`] says otherwise.
 const APP_SCRIPTS: &[&str] = &["Latn", "Cyrl", "Grek"];
 
+/// Scripts whose characters sit inside the em square, so they fit a row of a Latin face.
+const EM_SQUARE_SCRIPTS: &[&str] = &["Hani", "Hira", "Kana", "Hang", "Bopo"];
+
 /// craft-fonts' UI face for Japanese; its manifest also lists serif Japanese faces.
 const DEFAULT_PREFER: &[(&str, &str)] = &[("Jpan", "BIZ UDPGothic")];
 
@@ -229,7 +236,8 @@ impl<'a> UiFonts<'a> {
     }
 
     /// The scripts the app's own faces cover (default `Latn`, `Cyrl`, `Grek`). A UI language whose
-    /// main script isn't among them gets its craft face ahead of the app's faces.
+    /// main script isn't among them gets its craft face ahead of the app's faces, unless the
+    /// script fits a Latin row (Han, kana, Hangul).
     pub fn app_scripts(mut self, scripts: &[&str]) -> Self {
         self.app_scripts = scripts.iter().map(|s| (*s).to_owned()).collect();
         self
@@ -300,32 +308,26 @@ impl<'a> UiFonts<'a> {
             system_provider: self.system_provider.clone(),
             ui_language: self.ui_language.clone(),
             weights: Vec::new(),
+            script_face: None,
         };
         let defaults = FontDefinitions::default();
         for family in self.family_specs() {
-            let (configured, after) = self.chain(&family);
-            let mut chain = Vec::new();
-            for face in configured {
-                chain.push(stack.add_configured(face.weighted(family.weight)));
-            }
-            let mut tail: Vec<String> = after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
             let default_chain = defaults.families.get(&family.family).or_else(|| defaults.families.get(&FontFamily::Proportional));
-            // A family with no face of its own takes egui's defaults as its primary faces, so its
-            // rows get real metrics.
-            let has_faces = !chain.is_empty();
-            for name in default_chain.into_iter().flatten() {
-                let Some(data) = defaults.font_data.get(name) else { continue };
-                let face = Face { name: name.clone(), data: (**data).clone() }.weighted(family.weight);
-                if !has_faces {
-                    chain.push(stack.add_configured(face));
-                } else {
-                    tail.push(stack.after_system.add(face));
-                }
+            let egui_faces: Vec<Face> = default_chain
+                .into_iter()
+                .flatten()
+                .filter_map(|name| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() }))
+                .collect();
+            let chain = self.chain(&family, egui_faces);
+            let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
+            let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
+            if family.family == FontFamily::Proportional {
+                stack.script_face = chain.script.map(|face| face.weighted(family.weight).name);
             }
-            dedup(&mut chain);
-            tail.retain(|name| !chain.contains(name));
+            dedup(&mut configured);
+            tail.retain(|name| !configured.contains(name));
             dedup(&mut tail);
-            stack.definitions.families.insert(family.family.clone(), chain);
+            stack.definitions.families.insert(family.family.clone(), configured);
             stack.after_system.set_chain(family.family.clone(), tail);
             stack.weights.push((family.family, family.weight));
         }
@@ -349,18 +351,25 @@ impl<'a> UiFonts<'a> {
         specs
     }
 
-    /// The configured chain and the faces asked after the system fonts, for one family.
-    fn chain(&self, family: &Family) -> (Vec<Face>, Vec<Face>) {
+    /// One family's faces. `egui_faces` are egui's defaults for it, which stand in for the app's
+    /// faces when the app has none for the family.
+    fn chain(&self, family: &Family, egui_faces: Vec<Face>) -> Chain {
         let weight = family.weight;
         let ui_scripts = expand(&self.scripts.scripts(&self.ui_language));
         let ui_han = self.han(&self.ui_language);
 
+        let app = self.app_faces_for(&family.family);
+        let own_faces = !app.is_empty();
+        let (base, egui_tail) = if own_faces { (app, egui_faces) } else { (egui_faces, Vec::new()) };
+        // egui's default faces cover the scripts app faces are assumed to.
+        let covers = |script: &str| if own_faces { self.app_covers(script) } else { APP_SCRIPTS.contains(&script) };
+
         let lead: Vec<usize> = expand(family.lead.as_slice()).iter().flat_map(|s| self.candidates(s, ui_han, weight)).collect();
-        let language: Vec<usize> = ui_scripts.iter().filter(|s| !self.app_covers(s)).flat_map(|s| self.candidates(s, ui_han, weight)).collect();
+        let language: Vec<usize> = ui_scripts.iter().filter(|s| !covers(s)).flat_map(|s| self.candidates(s, ui_han, weight)).collect();
         let mut others: Vec<usize> = Vec::new();
         for tag in self.languages.iter().filter(|l| **l != self.ui_language) {
             let han = self.han(tag);
-            for script in expand(&self.scripts.scripts(tag)).iter().filter(|s| !self.app_covers(s)) {
+            for script in expand(&self.scripts.scripts(tag)).iter().filter(|s| !covers(s)) {
                 others.extend(self.candidates(script, han, weight));
             }
         }
@@ -369,16 +378,17 @@ impl<'a> UiFonts<'a> {
         rest.sort();
         others.extend(rest.into_iter().map(|(_, i)| i));
 
-        let app = self.app_faces_for(&family.family);
-        let language_first = family.family != FontFamily::Monospace && ui_scripts.first().is_some_and(|main| !self.app_covers(main));
+        let main_needs_lead = ui_scripts.first().is_some_and(|main| !covers(main) && !EM_SQUARE_SCRIPTS.contains(&main.as_str()));
+        let language_first = family.family != FontFamily::Monospace && main_needs_lead;
         let craft = |indices: Vec<usize>| indices.into_iter().map(|i| self.craft_face(i)).collect::<Vec<_>>();
+        let script = language.first().map(|i| self.craft_face(*i));
 
         let mut configured = craft(lead);
         if language_first {
             configured.extend(craft(language));
-            configured.extend(app);
+            configured.extend(base);
         } else {
-            configured.extend(app);
+            configured.extend(base);
             configured.extend(craft(language));
         }
         let mut after = Vec::new();
@@ -388,7 +398,8 @@ impl<'a> UiFonts<'a> {
         }
         let emoji = [("emoji-color", &self.emoji.color), ("emoji-web", &self.emoji.web), ("emoji-monochrome", &self.emoji.monochrome)];
         after.extend(emoji.into_iter().filter_map(|(name, data)| Some(Face { name: name.to_owned(), data: data.clone()? })));
-        (configured, after)
+        after.extend(egui_tail);
+        Chain { configured, after, script }
     }
 
     /// The app faces heading `family`; a named family without its own takes the proportional ones.
@@ -407,13 +418,10 @@ impl<'a> UiFonts<'a> {
     }
 
     /// Craft faces for `script`, best first: the right Han region, then the app's preference,
-    /// then the right style, then manifest order.
+    /// then the right style, then manifest order. craft-fonts' own preference ([`DEFAULT_PREFER`])
+    /// orders only the faces of the best region found.
     fn candidates(&self, script: &str, han: Option<Han>, weight: u16) -> Vec<usize> {
-        let preference = |face: &CraftFace| {
-            let prefer = self.prefer.iter().map(|(s, f)| (s.as_str(), f.as_str())).chain(DEFAULT_PREFER.iter().copied());
-            prefer.enumerate().find(|(_, (tag, family))| face.scripts.contains(tag) && face.family == *family).map_or(usize::MAX, |(i, _)| i)
-        };
-        let mut ranked: Vec<(u8, usize, u8, usize)> = self
+        let found: Vec<(u8, u8, usize)> = self
             .craft_faces
             .iter()
             .enumerate()
@@ -421,7 +429,18 @@ impl<'a> UiFonts<'a> {
             .filter_map(|(i, face)| {
                 let style = face.style_rank(weight)?;
                 let region = if script == "Hani" { region_rank(face.region(), han) } else { 0 };
-                Some((region, preference(face), style, i))
+                Some((region, style, i))
+            })
+            .collect();
+        let best = found.iter().map(|(region, ..)| *region).min();
+        let mut ranked: Vec<(u8, usize, u8, usize)> = found
+            .into_iter()
+            .map(|(region, style, i)| {
+                let face = &self.craft_faces[i];
+                let app = preference_of(self.prefer.iter().map(|(s, f)| (s.as_str(), f.as_str())), face);
+                let default = || (Some(region) == best).then(|| preference_of(DEFAULT_PREFER.iter().copied(), face)).flatten();
+                let preference = app.or_else(|| default().map(|p| self.prefer.len() + p)).unwrap_or(usize::MAX);
+                (region, preference, style, i)
             })
             .collect();
         ranked.sort();
@@ -450,12 +469,19 @@ impl<'a> UiFonts<'a> {
     }
 }
 
+/// The first of `prefer`'s `(script tag, family)` entries that names `face`.
+fn preference_of<'p>(mut prefer: impl Iterator<Item = (&'p str, &'p str)>, face: &CraftFace) -> Option<usize> {
+    prefer.position(|(tag, family)| face.scripts.contains(&tag) && face.family == family)
+}
+
 /// How well a face's Han region suits the one wanted: lower is better.
 fn region_rank(face: Option<Han>, wanted: Option<Han>) -> u8 {
     match (face, wanted) {
         (_, None) => 0,
         (Some(f), Some(w)) if f == w => 0,
         (Some(Han::Traditional), Some(Han::HongKong)) | (Some(Han::HongKong), Some(Han::Traditional)) => 1,
+        // The other Chinese forms are closer than Japanese or Korean ones.
+        (Some(Han::Simplified), Some(Han::Traditional | Han::HongKong)) | (Some(Han::Traditional | Han::HongKong), Some(Han::Simplified)) => 2,
         (None, Some(_)) => 2,
         _ => 3,
     }
@@ -492,6 +518,15 @@ struct Face {
     data: FontData,
 }
 
+/// One family's faces, as [`UiFonts::chain`] orders them.
+struct Chain {
+    configured: Vec<Face>,
+    /// Faces asked after the system fonts.
+    after: Vec<Face>,
+    /// The UI language's face for its main script, when the family's first faces lack it.
+    script: Option<Face>,
+}
+
 impl Face {
     /// Set a variable face to `weight`. A face that isn't at regular weight gets its own name, so
     /// the regular and bold uses of one file don't collide in egui's face store.
@@ -515,15 +550,56 @@ pub struct Stack {
     system_provider: Option<Arc<dyn FontProvider>>,
     ui_language: String,
     weights: Vec<(FontFamily, u16)>,
+    /// The UI language's main script face, whose rows widgets fit even when it isn't first.
+    script_face: Option<String>,
 }
 
 impl Stack {
-    /// Install the faces and providers in `ctx`, replacing any font providers it had (such as the
-    /// one eframe adds), and raise the minimum widget height to fit a row of text.
+    /// Install the faces and providers in `ctx`, and fit the minimum widget height to a row of
+    /// text. Call it again when the UI language changes; widgets shrink back to the style's own
+    /// height for a language with shorter rows.
+    ///
+    /// The stack's system font provider (the `system_fonts` feature on desktop, or
+    /// [`UiFonts::system_provider`]) replaces the context's font providers, such as the one
+    /// eframe adds, as does [`SystemFonts::Off`]. Without one, the context keeps its providers and
+    /// the stack's faces are asked after them.
     pub fn install(&self, ctx: &egui::Context) {
         ctx.set_fonts(self.checked_definitions());
-        ctx.set_font_providers(self.providers(true));
-        ctx.all_styles_mut(|style| self.fit_interact_size(style));
+        let id = egui::Id::unique("craft_ui::fonts::installed");
+        let system = self.system_lookup(true);
+        let installed: Option<Arc<Installed>> = ctx.data(|d| d.get_temp(id));
+        let installed = installed.unwrap_or_else(|| {
+            let new = Arc::new(Installed::default());
+            ctx.data_mut(|d| d.insert_temp(id, Arc::clone(&new)));
+            if system.is_none() {
+                ctx.add_font_provider(Arc::clone(&new) as Arc<dyn FontProvider>);
+            }
+            new
+        });
+        installed.set(self.after_system.clone());
+        if let Some(system) = system {
+            let mut providers = system.into_iter().collect::<Vec<_>>();
+            providers.push(installed as Arc<dyn FontProvider>);
+            ctx.set_font_providers(providers);
+        }
+        for theme in [egui::Theme::Dark, egui::Theme::Light] {
+            let id = egui::Id::unique(("craft_ui::fonts::fitted", theme));
+            let previous: Option<(f32, f32)> = ctx.data(|d| d.get_temp(id));
+            let mut fitted = (0.0, 0.0);
+            ctx.style_mut_of(theme, |style| {
+                let height = &mut style.spacing.interact_size.y;
+                // Undo the previous language's fit unless the app changed the height since.
+                if let Some((base, set)) = previous
+                    && *height == set
+                {
+                    *height = base;
+                }
+                let base = *height;
+                self.fit_interact_size(style);
+                fitted = (base, style.spacing.interact_size.y);
+            });
+            ctx.data_mut(|d| d.insert_temp(id, fitted));
+        }
     }
 
     /// Each family's weight, for wrapping another provider in [`RegularWeight`].
@@ -558,7 +634,7 @@ impl Stack {
     }
 
     /// Raise `egui`'s minimum interactive height in `style` to fit a row of this stack's body and
-    /// button text. [`Self::install`] does this for the context's styles; call it again for a
+    /// button text, in the family's first face and in the UI language's script face. [`Self::install`] does this for the context's styles; call it again for a
     /// style set later.
     pub fn fit_interact_size(&self, style: &mut Style) {
         let rows = self.row_heights(style);
@@ -572,9 +648,18 @@ impl Stack {
     }
 
     fn row_heights(&self, style: &Style) -> Vec<f32> {
-        let mut fonts = self.fonts(false);
+        let mut definitions = self.checked_definitions();
+        let script = FontFamily::Name("craft-ui script face".into());
+        let script_face = self.script_face.as_ref().filter(|name| definitions.font_data.contains_key(*name));
+        if let Some(name) = script_face {
+            definitions.families.insert(script.clone(), vec![name.clone()]);
+        }
+        let mut fonts = Fonts::new(TextOptions::default(), definitions).with_font_providers(self.providers(false));
         let mut view = fonts.with_pixels_per_point(1.0);
-        [TextStyle::Body, TextStyle::Button].iter().filter_map(|s| style.text_styles.get(s)).map(|font_id| view.row_height(font_id)).collect()
+        let font_ids: Vec<FontId> = [TextStyle::Body, TextStyle::Button].iter().filter_map(|s| style.text_styles.get(s)).cloned().collect();
+        let script_rows: Vec<FontId> =
+            script_face.map(|_| font_ids.iter().map(|id| FontId::new(id.size, script.clone())).collect()).unwrap_or_default();
+        font_ids.iter().chain(&script_rows).map(|font_id| view.row_height(font_id)).collect()
     }
 
     fn checked_definitions(&self) -> FontDefinitions {
@@ -589,15 +674,20 @@ impl Stack {
     }
 
     fn providers(&self, with_system: bool) -> Vec<Arc<dyn FontProvider>> {
-        let mut providers: Vec<Arc<dyn FontProvider>> = Vec::new();
-        let system = (with_system && self.system != SystemFonts::Off)
-            .then(|| self.system_provider.clone().or_else(|| default_system_provider(&self.ui_language)))
-            .flatten();
-        if let Some(system) = system {
-            providers.push(Arc::new(self.weights.iter().fold(RegularWeight::new(system), |p, (f, w)| p.with_weight(f.clone(), *w))));
-        }
+        let mut providers: Vec<Arc<dyn FontProvider>> = self.system_lookup(with_system).into_iter().flatten().collect();
         providers.push(Arc::new(self.after_system.clone()));
         providers
+    }
+
+    /// The system font lookup that goes before the stack's own providers: `Some(None)` for none
+    /// ([`SystemFonts::Off`]), `None` when the stack has no provider of its own and leaves the
+    /// lookup to whatever the context has.
+    fn system_lookup(&self, with_system: bool) -> Option<Option<Arc<dyn FontProvider>>> {
+        if !with_system || self.system == SystemFonts::Off {
+            return Some(None);
+        }
+        let system = self.system_provider.clone().or_else(|| default_system_provider(&self.ui_language))?;
+        Some(Some(Arc::new(self.weights.iter().fold(RegularWeight::new(system), |p, (f, w)| p.with_weight(f.clone(), *w)))))
     }
 
     fn add_configured(&mut self, face: Face) -> String {

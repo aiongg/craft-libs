@@ -11,6 +11,7 @@ description = "Reusable egui controls and icon catalogs for Craft frontends"
 workspace = true
 
 [dependencies]
+craft-i18n = { workspace = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }
 serde = { version = "1", features = ["derive"], optional = true }
@@ -21,7 +22,7 @@ skrifa = { version = "0.44", default-features = false, features = ["std"] }
 egui_system_font_provider = { version = "0.37", optional = true }
 
 [features]
-default = ["color_fonts", "system_fonts"]
+default = []
 serde = ["dep:serde"]
 # Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.
 color_fonts = ["epaint/color_fonts"]

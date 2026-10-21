@@ -3,7 +3,7 @@
 //! The kittest harness panics on any character no installed face can draw, so these tests fail
 //! on a replacement box ("tofu") rather than passing a snapshot nobody looks at.
 
-use craft_ui::fonts::{CraftFace, Han, LanguageScripts, SystemFonts, UiFonts};
+use craft_ui::fonts::{CraftFace, I18nScripts, SystemFonts, UiFonts};
 use egui::{FontDefinitions, FontFamily};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
@@ -20,29 +20,13 @@ const CJK: CraftFace = CraftFace {
 
 const LABELS: [&str; 3] = ["Files", "日本語のファイル", "ملف عربي"];
 
-struct Scripts;
-
-impl LanguageScripts for Scripts {
-    fn scripts(&self, language: &str) -> Vec<&'static str> {
-        match language {
-            "ar" => vec!["Arab"],
-            "ja" => vec!["Hani", "Hira", "Kana"],
-            _ => vec!["Latn"],
-        }
-    }
-
-    fn han(&self, language: &str) -> Option<Han> {
-        (language == "ja").then_some(Han::Japanese)
-    }
-}
-
 fn harness(ui_language: &'static str, faces: &'static [CraftFace]) -> Harness<'static> {
     Harness::builder()
         .with_size([240.0, 120.0])
         .with_context_setup(move |ctx| {
             let defaults = FontDefinitions::default();
             let mut fonts =
-                UiFonts::new(&Scripts).craft_faces(faces).languages(&["en", "ar", "ja"]).ui_language(ui_language).system_fonts(SystemFonts::Off);
+                UiFonts::new(&I18nScripts).craft_faces(faces).languages(&["en", "ar", "ja"]).ui_language(ui_language).system_fonts(SystemFonts::Off);
             if let Some(ubuntu) = defaults.font_data.get("Ubuntu-Light") {
                 fonts = fonts.app_face("ui", (**ubuntu).clone(), &[FontFamily::Proportional]);
             }

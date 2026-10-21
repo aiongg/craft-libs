@@ -2,7 +2,7 @@
 //! the system font provider.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use egui::epaint::text::Tag;
 use egui::{FallbackRequest, FontData, FontFamily, FontInsert, FontPriority, FontProvider, InsertFontFamily};
@@ -109,6 +109,23 @@ impl FontProvider for FaceList {
             has_char(data, c).then_some((name, data))
         })?;
         Some(FontInsert::new(name, data.clone(), vec![InsertFontFamily { family: request.family.clone(), priority: FontPriority::Lowest }]))
+    }
+}
+
+/// A context's installed [`FaceList`], swapped in place when the stack is installed again, so the
+/// providers added before it keep their place.
+#[derive(Default)]
+pub(super) struct Installed(RwLock<FaceList>);
+
+impl Installed {
+    pub(super) fn set(&self, faces: FaceList) {
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = faces;
+    }
+}
+
+impl FontProvider for Installed {
+    fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
+        self.0.read().unwrap_or_else(PoisonError::into_inner).font_for(request)
     }
 }
 
