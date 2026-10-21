@@ -462,3 +462,15 @@ fn an_overlong_last_word_adds_no_empty_line() {
     let forced = [Item::boxed(20.0), Item::forced(), Item::forced()];
     assert_eq!(spans(&break_paragraph(&forced, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 1), (2, 2)]);
 }
+
+/// Overfull lines keep the hyphen limit too: with a limit of 1, no two consecutive lines end at a
+/// hyphen even when every line is overfull.
+#[test]
+fn overfull_lines_keep_the_hyphen_limit() {
+    let items =
+        [Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::forced()];
+    let p = Params { hyphen_limit: 1, ..Params::default() };
+    let lines = break_paragraph(&items, &|_| 5.0, &p, &[2.5, f64::INFINITY]).lines;
+    assert!(lines.windows(2).all(|w| !(w[0].flagged && w[1].flagged)), "{lines:?}");
+    assert_eq!(spans(&lines), [(0, 1), (2, 5)]);
+}

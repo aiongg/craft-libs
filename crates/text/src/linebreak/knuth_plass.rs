@@ -143,9 +143,11 @@ pub fn knuth_plass(items: &[Item], width: &dyn Fn(usize) -> f64, p: &Params) -> 
             && let Some(n) = nodes.get(a)
         {
             // An overfull line ending here would leave the next line empty up to a forced break:
-            // end it at that forced break instead.
+            // end it at that forced break instead. Nor may it pass the hyphen limit: it ends at a
+            // later break.
             let empty_next = !forced && s.items.get(s.next_start(b)).is_some_and(Item::is_forced);
-            if empty_next {
+            let too_many_hyphens = flagged && limit > 0 && n.hyphens >= limit;
+            if empty_next || too_many_hyphens {
                 keep.push(a);
             } else {
                 best.push(Candidate {
