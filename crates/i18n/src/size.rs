@@ -5,7 +5,7 @@
 //! spacing (`{n} Mo`, `{n} %`). They are looked up with [`I18n::get`], never the plain row: a
 //! plain `B` row means bold. A byte count in words is the `@plural` row `{n} byte|{n} bytes`.
 
-use crate::{I18n, Lang, fmt};
+use crate::{I18n, Lang, fmt, ltr};
 
 /// The context unit rows are in.
 const CONTEXT: &str = "unit";
@@ -176,7 +176,7 @@ impl I18n {
     }
 
     fn unit_text(&self, lang: Lang, template: &str, n: &str) -> String {
-        fmt(self.get(lang, CONTEXT, template).unwrap_or(template), &[("n", n)])
+        fmt(self.get(lang, CONTEXT, template).unwrap_or(template), &[("n", &ltr(n))])
     }
 }
 
@@ -252,5 +252,16 @@ mod tests {
         assert_eq!(i18n.file_size(Lang::EN, 1536, FileSize::BINARY), "١٫٥ KB");
         i18n.set_format(Format::from_tag("hi"));
         assert_eq!(i18n.file_size(Lang::EN, 1_234_567, FileSize::DECIMAL.largest(SizeUnit::Byte).byte_symbol()), "12,34,567 B");
+    }
+
+    #[test]
+    fn numbers_are_isolated_in_right_to_left_units() {
+        static AR: &Embedded = &[("ar", "unit\t{n} KB\t{n} ك.ب\n", "")];
+        let (i18n, problems) = I18n::new(AR, &["ar"]);
+        assert!(problems.is_empty(), "{problems:?}");
+        let ar = i18n.from_code("ar").unwrap();
+        i18n.set_format(Format::from_tag("ar-EG"));
+        assert_eq!(i18n.file_size(ar, 1536, FileSize::BINARY), "\u{2066}١٫٥\u{2069} ك.ب");
+        assert_eq!(i18n.file_size(Lang::EN, 1536, FileSize::BINARY), "١٫٥ KB", "no marks without a right-to-left letter");
     }
 }

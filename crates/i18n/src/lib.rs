@@ -7,7 +7,7 @@
 //! Counts ([`I18n::trn`]), file sizes and measures write their numbers as the formatting
 //! [`Region`] does ([`I18n::format`]): grouped (`1.234`, `12,34,567`) and in the region's digits
 //! (`١٬٢٣٤`). Text that goes into documents or file names should use [`I18n::trn_plain`], which
-//! writes `0`–`9` without grouping.
+//! writes `0`–`9` without grouping or isolates.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod catalog;

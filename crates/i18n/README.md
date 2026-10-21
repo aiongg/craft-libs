@@ -49,15 +49,15 @@ The app keeps its `tl!` macro, its language setting (`"auto"` → `I18N.system_l
   `{n}` filled), `get` (one context along the locale chain, so `pt-br` can return a `pt` row, but never the plain row
   or English: a key cap's name under `key`, or "is there a translation?"), and `fmt` for `{name}`
   placeholders, filled in one pass.
-- **Isolation:** when a message or a value inserted into it has a right-to-left letter (bidi
-  class R or AL), `fmt` wraps each inserted value in a first-strong isolate (FSI…PDI), and `trn`
-  wraps `{n}` in a left-to-right one (LRI…PDI), so a Latin file name in an Arabic sentence, or a
-  Hebrew name in an English one, can't reorder the words around it. Wrap numbers, paths and codes
-  in `ltr` before passing them; a value that already is one isolate goes in as it is, and a stray
-  PDI in a value can't close its isolate early. Text with no right-to-left letter comes out
-  without marks, as if `fmt` didn't isolate at all. egui draws the marks as nothing. For text
-  that leaves the interface (file names, logs, terminals, text parsed later), use `fmt_plain` or
-  `strip_isolates`.
+- **Isolation:** when a message or a value inserted into it has a right-to-left letter (bidi class R
+  or AL), `fmt` wraps each inserted value in a first-strong isolate (FSI…PDI), and `trn`,
+  `file_size` and `measure` wrap the number in a left-to-right one (LRI…PDI), so a Latin file name
+  in an Arabic sentence, or a Hebrew name in an English one, can't reorder the words around it. Wrap
+  numbers, paths and codes in `ltr` before passing them; a value that already is one isolate goes in
+  as it is, and a stray PDI in a value can't close its isolate early. Text with no right-to-left
+  letter comes out without marks, as if `fmt` didn't isolate at all. egui draws the marks as
+  nothing. For text that leaves the interface (file names, logs, terminals, text parsed later), use
+  `fmt_plain` or `strip_isolates`.
 - **Bad rows** (malformed, an unknown `@` context, a wrong plural form count, a row defined twice,
   of which the first is kept) and bad locales (`en`, `pseudo`, a code embedded twice in any case)
   are skipped and returned by `I18n::new` for the app to log; craft-i18n's CI rejects them before
@@ -103,15 +103,15 @@ The app keeps its `tl!` macro, its language setting (`"auto"` → `I18N.system_l
   is never used; bytes in words are the `@plural` row `{n} byte|{n} bytes`. Numbers are written
   by `I18n::format`.
 - **Numbers:** `Format` writes numbers for a `Region` on ICU4X's decimal formatter: `integer`
-  (`1.234.567`, Indian `12,34,567`), `number(value, decimals)` and `percent(ratio, decimals)`
-  (`50 %`, Turkish `%50`). It follows the region, not the interface language, with the locale's
-  digits (`١٬٢٣٤٫٥` in Egypt, `۱٬۲۳۴` in Iran) or, with `Digits::Latin`, `0`–`9`. With Latin
-  digits, a decimal or grouping separator the system sets (Windows' and macOS's own settings)
-  replaces the locale's. `I18n::format` is the format `trn`, `file_size` and `measure` use: the
-  system region's until `I18n::set_format` (the user's region setting or digit choice), and again
-  after `I18n::reset_format`. A count in `trn` is therefore grouped and in the region's digits
-  (`1.234 Dateien`, `١٬٢٣٤ ملفًا`); for names written into documents or files (`Copy 1234`), use
-  `trn_plain`, which writes `0`–`9` without grouping.
+  (`1.234.567`, Indian `12,34,567`), `number(value, decimals)` and `percent(ratio, decimals)` (`50
+  %`, Turkish `%50`). It follows the region, not the interface language, with the locale's digits
+  (`١٬٢٣٤٫٥` in Egypt, `۱٬۲۳۴` in Iran) or, with `Digits::Latin`, `0`–`9`. With Latin digits, a
+  decimal or grouping separator the system sets (Windows' and macOS's own settings) replaces the
+  locale's. `I18n::format` is the format `trn`, `file_size` and `measure` use: the system region's
+  until `I18n::set_format` (the user's region setting or digit choice), and again after
+  `I18n::reset_format`. A count in `trn` is therefore grouped and in the region's digits (`1.234
+  Dateien`, `١٬٢٣٤ ملفًا`); for names written into documents or files (`Copy 1234`), use
+  `trn_plain`, which writes `0`–`9` without grouping or isolates.
 - **CLDR data:** decimal symbols, digits and plural rules (`data/numbers.postcard`, about 10 KB) and
   percent patterns (`data/locales.rs`) cover every CLDR locale; `data/generate.sh` rebuilds both
   from CLDR. The ICU4X crates are pinned to one minor version (`~2.3`), the one the data is
