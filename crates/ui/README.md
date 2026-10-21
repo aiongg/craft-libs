@@ -234,8 +234,11 @@ script's face goes first. egui takes a row's height from a family's first face, 
 own face sets the row height and its marks aren't clipped. Han, kana and Hangul sit inside the em
 square and fit a Latin row, so Chinese, Japanese and Korean UIs keep the Latin face first: Latin
 text draws in the app's face in every language, and CJK characters fall back to the language's
-face, centred in the row. In every language `install` sets the minimum widget height to fit a row
-of the UI language's script face, and sets it back when a later install needs less. On the suite's
+face, centred in the row. The app's theme sets the minimum widget height for rows of its own
+face; when the UI language's script face has taller rows, `install` adds the difference to the
+theme's height, and takes it off again when a later install needs less. The theme's height and
+padding stay the app's: a theme applied after `install` is fitted at the start of the next pass,
+so the result doesn't depend on which comes first. On the suite's
 patched egui (`FontTweak::set_baseline_fallback`, which craft faces turn on), fallback glyphs sit
 on the row's baseline and rows grow to fit them by themselves; with crates.io egui they are
 centred and the widget fit above is what keeps them inside. Monospace
