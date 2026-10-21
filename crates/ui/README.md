@@ -285,6 +285,8 @@ Two features, both off by default, change what every craft-ui user draws, so the
 
 egui 0.37's default faces have only a few monochrome emoji and lack symbols such as ⊞ ☰ 🔍. On
 the web there are no system fonts, so emoji draw as boxes unless the app sets an `Emoji` face.
+`UiFonts::egui_face` puts one of egui's own faces into a family, e.g. Hack in the proportional
+family for ⇧ and ▸.
 
 Each app tests its coverage with `fonts::assert_covers`: it checks every shipped translation and a
 sample of content scripts against the stack without system fonts, and fails naming the language,
@@ -292,7 +294,9 @@ message key and character that has no glyph. Build the stack with `.system_fonts
 in that test, and run it with `CRAFT_FONTS_DIR` set so it sees the faces a release embeds. For
 languages the app leaves to installed fonts, `fonts::assert_covers_with_system` asks the stack's
 system provider too; `fonts::system_font_provider(locale)` gives egui's provider (with
-`system_fonts`), shared per locale, for `UiFonts::system_provider` or such a check.
+`system_fonts`), shared per locale, for `UiFonts::system_provider` or such a check. At run time,
+`Stack::covers_language(language, with_system)` says whether the stack draws a language's scripts,
+for leaving a language out of the app's menu on a machine that can't show it.
 
 ## Print settings and feedback
 
