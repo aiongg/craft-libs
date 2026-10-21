@@ -648,13 +648,13 @@ fn a_taiwanese_ui_takes_characters_no_ui_subset_has_from_the_system_fonts() {
     // Other regions' subsets come before the system fonts, so they draw what they have.
     assert_eq!(head(&without, &FontFamily::Proportional, 4), ["ui", "Noto Sans TC UI Regular", "Noto Sans HK UI Regular", "Noto Sans SC UI Regular"]);
     assert_eq!(missing(&without, false), ['中', '文']);
-    assert_eq!(missing(&without, true), []);
+    assert_eq!(missing(&without, true), Vec::<char>::new());
     // The face the system provider returns for 中 draws 文 too.
     assert_eq!(*asked.lock().unwrap(), ["中"]);
 
     asked.lock().unwrap().clear();
     let with_simplified = stack(CJK);
-    assert_eq!(missing(&with_simplified, true), []);
+    assert_eq!(missing(&with_simplified, true), Vec::<char>::new());
     assert!(asked.lock().unwrap().is_empty(), "the Simplified subset has them");
 }
 
