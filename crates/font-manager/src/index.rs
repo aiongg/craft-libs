@@ -1,11 +1,20 @@
-//! The Google Fonts index (aiongg/google-fonts-index), as craft-font-store reads it, and the
-//! categories the catalogue filters by.
+//! The font indexes (aiongg/craft-font-index: Google Fonts, Noto, and sources the user adds), as
+//! craft-font-store reads them, and the categories the catalogue filters by.
+//!
+//! [`Index::families`] holds every source's families, sorted by name; a family's source is
+//! [`Index::source_of`] (its name, and whether it is curated: [`Family::is_curated`] is false for
+//! a source the user added). [`Index::problems`] lists the sources that couldn't be loaded.
 
-pub use craft_font_store::{Family, FontFile, Index, IndexError, Language, Script};
+pub use craft_font_store::{Family, FontFile, FontSource, GOOGLE_FONTS, Index, IndexError, Language, Script, SourceProblem};
 
-/// The pinned index compiled into craft-font-store, read without a request.
+/// The pinned built-in indexes compiled into craft-font-store, read without a request.
 pub fn bundled() -> Result<Index, IndexError> {
     Index::bundled()
+}
+
+/// The display name of a family's source (`Google Fonts`, `Noto`), and whether it is curated.
+pub fn source_label<'a>(index: &'a Index, family: &'a Family) -> (&'a str, bool) {
+    index.source_of(family).map_or((family.source.as_str(), family.is_curated()), |s| (s.name.as_str(), s.curated))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -54,5 +63,8 @@ mod tests {
         let roboto = index.family("roboto").unwrap();
         assert_eq!(categories(roboto).collect::<Vec<_>>(), [Category::SansSerif]);
         assert_eq!(script_name(&index, "Arab"), Some("Arabic"));
+        assert_eq!(source_label(&index, roboto), ("Google Fonts", true));
+        let cjk = index.family("Noto Sans CJK JP").unwrap();
+        assert_eq!(source_label(&index, cjk), ("Noto", true));
     }
 }
