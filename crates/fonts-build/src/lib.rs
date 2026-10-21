@@ -37,6 +37,10 @@
 //!
 //! The generated file is a slice expression of `EmbeddedFace { .. }` literals, so any struct with
 //! the same fields and that name in scope works too.
+//!
+//! Web builds can serve the faces beside the wasm instead: [`Embed::serve`] copies the selected
+//! files into a directory and writes a table of [`ServedFace`]s, which carry a URL in place of the
+//! bytes, for the app to fetch the faces it needs at run time.
 
 mod embed;
 mod manifest;
@@ -47,6 +51,8 @@ pub use embed::{Embed, Error, embed, target_is_wasm};
 pub use manifest::{ManifestEntry, ParseError, parse_manifest};
 
 /// A craft-fonts face embedded by [`embed`]: one line of `fonts/manifest.txt`.
+///
+/// [`Embed::serve`] writes [`ServedFace`]s instead.
 #[derive(Clone, Copy)]
 pub struct EmbeddedFace {
     /// Family name, e.g. `"Noto Sans Arabic"`.
@@ -92,6 +98,41 @@ impl EmbeddedFace {
             ("book", 400),
         ];
         WEIGHTS.iter().find(|(name, _)| style.contains(name)).map_or(400, |(_, weight)| *weight)
+    }
+}
+
+/// A craft-fonts face that [`Embed::serve`] copied beside the app, to fetch at run time: one line
+/// of `fonts/manifest.txt`.
+#[derive(Clone, Copy, Debug)]
+pub struct ServedFace {
+    /// Family name, e.g. `"Noto Sans Arabic"`.
+    pub family: &'static str,
+    /// Style, e.g. `"Regular"` or `"Bold"`.
+    pub style: &'static str,
+    /// Script tags, as in [`EmbeddedFace::scripts`].
+    pub scripts: &'static [&'static str],
+    /// Face index in a font collection (`.ttc`); `0` for a single font. Faces of one collection
+    /// share a URL.
+    pub index: u32,
+    /// Where the file is served, relative to the page unless the prefix given to
+    /// [`Embed::serve`] makes it absolute.
+    pub url: &'static str,
+    /// File size in bytes.
+    pub size: u64,
+    /// Subresource Integrity value (`sha256-…`) from the manifest's hash; empty when the manifest
+    /// has none.
+    pub integrity: &'static str,
+}
+
+impl ServedFace {
+    /// `"<family> <style>"`, e.g. `"Noto Sans Arabic Regular"`.
+    pub fn name(&self) -> String {
+        format!("{} {}", self.family, self.style)
+    }
+
+    /// Whether any script tag matches `tag`: `Hant` matches `Hant` and `Hant-HK`.
+    pub fn has_script(&self, tag: &str) -> bool {
+        self.scripts.iter().any(|s| manifest::script_matches(s, tag))
     }
 }
 
