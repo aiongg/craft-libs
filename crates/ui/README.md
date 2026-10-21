@@ -5,9 +5,10 @@ embedded SVG catalogs; `buttons` paints accessible icon buttons; `tabs` handles 
 interaction; `layout` provides toolbar fitting, split geometry and resize handles; `theme` shares widget-state styling.
 `docking` supplies transactional panel moves and an optional docking surface.
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
+`fonts` installs the UI font stack, the same fallback order in every app.
 The current delivery covers nine creative apps (DesignCraft, VectorCraft, PhotoCraft, FilmCraft, EffectCraft, CADCraft, PDFCraft, LightCraft and SoundCraft); prior basic and office adapters are separate. The [suite audit](../../docs/ui-components-audit.md#adoption-and-acceptance)
-records their scope and acceptance limits. Assets, complete themes, localization and command handling
-remain in each application. No icons, fonts or application engines are bundled.
+records their scope and acceptance limits. Assets (font files included), complete themes, localization
+and command handling remain in each application. No icons, fonts or application engines are bundled.
 
 ## SVG catalogs
 
@@ -207,10 +208,85 @@ fn style_widgets(visuals: &mut egui::Visuals, palette: WidgetPalette, text: Colo
 }
 ```
 
-This is a mechanism for coloring widgets, not a shared theme schema. Fonts, complete palettes,
+This is a mechanism for coloring widgets, not a shared theme schema. Complete palettes,
 selection colors, shadows, spacing, context storage and preference serialization remain in each
-application. See the [eight-app comparison](../../docs/theme-infrastructure.md) for the exact
-common operation and the differences preserved by the adapters.
+application; fonts are installed by `fonts`, below. See the
+[eight-app comparison](../../docs/theme-infrastructure.md) for the exact common operation and the
+differences preserved by the adapters.
+
+## UI fonts
+
+egui draws a character only if one of its installed faces has it, so an app's labels, layer names
+and file names show boxes for any script its faces miss. `fonts::UiFonts` builds every app's UI
+font stack in the same order:
+
+1. the app's own faces (UI face, semibold, mono);
+2. craft-fonts faces for the UI language;
+3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
+   Arabic file names;
+4. installed system fonts, through egui's system font provider (the `system_fonts` feature,
+   desktop only), set to regular weight so variable fonts don't draw Thin;
+5. emoji faces (system emoji first, then the colour, web and monochrome faces the app embeds) and
+   egui's default faces.
+
+When the app's faces don't cover the UI language's main script (Arabic, Japanese, Thai,
+Georgian), that script's face goes first instead. egui takes a row's height from a family's first
+face, so the language's own face sets the row height, and `install` raises the minimum widget
+height to fit it. Monospace keeps the app's face first. Han characters take the regional face the
+language needs: `zh-TW` gets the Traditional (TC) face, then Hong Kong; `zh-HK` the reverse; `ja`
+the Japanese face; `ko` the Korean one.
+
+The app keeps its font files: its `build.rs` embeds the craft-fonts faces it wants from
+`fonts/manifest.txt` as `fonts::CraftFace` values, and craft-ui never depends on craft-fonts. The
+app configures its own faces, a preferred face per script, extra named families (a semibold
+family, a family led by Arabic for the runs it shapes itself), emoji faces, and whether system
+fonts come before or after the craft faces for other scripts. `UiFonts::stack` returns a `Stack`
+whose chains the app can still edit (`insert`, `replace`, `remove`) before `Stack::install`.
+
+```rust
+use craft_ui::fonts::{CraftFace, Family, Han, LanguageScripts, UiFonts};
+use egui::{FontData, FontFamily};
+
+include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs")); // pub static CRAFT_FONTS: &[CraftFace]
+
+struct Scripts;
+
+impl LanguageScripts for Scripts {
+    fn scripts(&self, tag: &str) -> Vec<&'static str> {
+        craft_i18n::scripts::scripts(tag).iter().map(|s| s.code()).collect()
+    }
+    fn han(&self, tag: &str) -> Option<Han> {
+        use craft_i18n::scripts::Han as H;
+        craft_i18n::scripts::han(tag).map(|h| match h {
+            H::Simplified => Han::Simplified,
+            H::Traditional => Han::Traditional,
+            H::HongKong => Han::HongKong,
+            H::Japanese => Han::Japanese,
+            H::Korean => Han::Korean,
+        })
+    }
+}
+
+fn install_fonts(ctx: &egui::Context, ui_language: &str) {
+    UiFonts::new(&Scripts)
+        .app_face("ui", FontData::from_static(UI_FONT), &[FontFamily::Proportional])
+        .app_face("ui-semibold", FontData::from_static(UI_SEMIBOLD), &[FontFamily::Name("semibold".into())])
+        .app_face("mono", FontData::from_static(MONO_FONT), &[FontFamily::Monospace])
+        .family(Family::named("semibold").weight(600))
+        .craft_faces(CRAFT_FONTS)
+        .languages(OFFERED_LANGUAGES)
+        .ui_language(ui_language)
+        .install(ctx);
+}
+```
+
+`install` replaces the context's font providers, including the system font provider eframe adds,
+with the stack's own. Call it again when the UI language changes.
+
+Each app tests its coverage with `fonts::assert_covers`: it checks every shipped translation and a
+sample of content scripts against the stack without system fonts, and fails naming the language,
+message key and character that has no glyph. Build the stack with `.system_fonts(SystemFonts::Off)`
+in that test, and run it with `CRAFT_FONTS_DIR` set so it sees the faces a release embeds.
 
 ## Print settings and feedback
 
@@ -235,7 +311,8 @@ on WASM too; browser PDF printing remains an app-owned service.
 ## Compatibility and checks
 
 The crate uses egui 0.37 and Rust 1.95 or later. Its production dependency disables egui's default
-features so fonts and rendering features remain the application's choice. See the
+features, so egui's bundled fonts remain the application's choice. Its own default features turn on
+colour glyphs (`color_fonts`, for colour emoji) and the system font provider (`system_fonts`). See the
 [suite audit](../../docs/ui-components-audit.md) for candidates, policies and adoption order.
 
 Validation:
