@@ -65,6 +65,8 @@ fn setup(name: &str, settings: Settings) -> (Harness<'static, FontsPanel>, Arc<F
     let app = FontsPanel::new(options, settings);
     let mut harness = Harness::builder()
         .with_size([1200.0, 760.0])
+        // Autonyms such as العربية need fonts beyond egui's; the tests don't depend on the host's.
+        .allow_missing_glyphs()
         .with_context_setup(|ctx| install_interface_fonts(ctx, &[]))
         .build_ui_state(|ui, app: &mut FontsPanel| app.ui(ui), app);
     harness.run_steps(4);
