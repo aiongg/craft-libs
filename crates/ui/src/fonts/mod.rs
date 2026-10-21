@@ -15,11 +15,12 @@
 //! that script's face goes first. egui takes a row's height from the first face of a family, so
 //! the UI language's own face sets the row height and its marks aren't clipped. Han, kana and
 //! Hangul sit inside the em square and fit a Latin row, so in Chinese, Japanese and Korean UIs the
-//! Latin face stays first and Latin text keeps it; [`Stack::install`] still sizes widgets to the
-//! script face's rows. Monospace, and every family declared [`Family::monospaced`], always keeps
-//! its Latin face first. On the suite's egui fork, craft faces and installed text faces used as
-//! fallbacks sit on the row's baseline and rows grow to fit them by themselves; emoji and symbol
-//! faces stay centred.
+//! Latin face stays first, and rows and widgets keep the same height as in a Latin UI: CJK faces
+//! sit on the first face's baseline, scaled down only if a glyph would leave the row
+//! ([`CjkRows::Fit`]). Monospace, and every family declared [`Family::monospaced`], always keeps
+//! its Latin face first. On the suite's egui fork, the other craft faces and installed text faces
+//! used as fallbacks sit on the row's baseline and rows grow to fit them by themselves; emoji and
+//! symbol faces stay centred.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
 //! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them, or, for a web build, copies them
@@ -231,6 +232,18 @@ pub struct Emoji {
     pub monochrome: Option<FontData>,
 }
 
+/// How rows treat the CJK faces that follow the app's face.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CjkRows {
+    /// Rows keep the height of the family's first face in every language, and widgets the theme's
+    /// height. CJK glyphs sit on that face's baseline, scaled down only if they would leave the row.
+    #[default]
+    Fit,
+    /// Rows and widgets take the CJK face's taller line in Chinese, Japanese and Korean UIs. Rows
+    /// grow only on the suite's egui fork; with crates.io egui only widgets do.
+    Grow,
+}
+
 /// Where installed system fonts come in the stack.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SystemFonts {
@@ -275,6 +288,7 @@ pub struct UiFonts<'a> {
     emoji: Emoji,
     system: SystemFonts,
     system_provider: Option<Arc<dyn FontProvider>>,
+    cjk_rows: CjkRows,
 }
 
 impl<'a> UiFonts<'a> {
@@ -293,6 +307,7 @@ impl<'a> UiFonts<'a> {
             emoji: Emoji::default(),
             system: SystemFonts::default(),
             system_provider: None,
+            cjk_rows: CjkRows::default(),
         }
     }
 
@@ -372,6 +387,13 @@ impl<'a> UiFonts<'a> {
         self
     }
 
+    /// Whether CJK faces after the app's face keep its row height ([`CjkRows::Fit`], the default)
+    /// or make rows and widgets taller.
+    pub fn cjk_rows(mut self, rows: CjkRows) -> Self {
+        self.cjk_rows = rows;
+        self
+    }
+
     pub fn system_fonts(mut self, system: SystemFonts) -> Self {
         self.system = system;
         self
@@ -408,14 +430,22 @@ impl<'a> UiFonts<'a> {
             script_face: None,
             served: Vec::new(),
             ui_downloads: Vec::new(),
+            cjk_rows: self.cjk_rows,
         };
         let defaults = FontDefinitions::default();
+        let cjk_names: Vec<String> = match self.cjk_rows {
+            CjkRows::Fit => self.craft_faces.iter().filter(|face| EM_SQUARE_SCRIPTS.iter().any(|s| face.covers(s))).map(CraftFace::name).collect(),
+            CjkRows::Grow => Vec::new(),
+        };
+        let mut cjk_faces: Vec<String> = Vec::new();
         for family in self.family_specs() {
             let default_family = if family.monospaced { &FontFamily::Monospace } else { &family.family };
             let default_chain = defaults.families.get(default_family).or_else(|| defaults.families.get(&FontFamily::Proportional));
             let egui_faces: Vec<Face> =
                 default_chain.into_iter().flatten().filter_map(|name| Some(Face::new(name, (**defaults.font_data.get(name)?).clone()))).collect();
             let mut chain = self.chain(&family, egui_faces);
+            let cjk = chain.configured.iter().chain(&chain.after).filter(|face| cjk_names.contains(&face.name));
+            cjk_faces.extend(cjk.map(|face| face.clone().weighted(family.weight).name));
             chain.configured.extend(
                 self.egui_faces
                     .iter()
@@ -440,6 +470,7 @@ impl<'a> UiFonts<'a> {
             stack.after_system.set_chain(family.family.clone(), tail);
             stack.weights.push((family.family, family.weight));
         }
+        stack.fit_into_rows(&cjk_faces);
         stack
     }
 
@@ -499,7 +530,8 @@ impl<'a> UiFonts<'a> {
         let main_needs_lead = ui_scripts.first().is_some_and(|main| !covers(main) && !EM_SQUARE_SCRIPTS.contains(&main.as_str()));
         let language_first = !family.monospaced && main_needs_lead;
         let craft = |indices: Vec<usize>| indices.into_iter().map(|i| self.craft_face(i)).collect::<Vec<_>>();
-        let script = language.first().map(|i| self.craft_face(*i));
+        // A face that only follows the app's face keeps the app's rows unless the app asks otherwise.
+        let script = (language_first || self.cjk_rows == CjkRows::Grow).then(|| language.first().map(|i| self.craft_face(*i))).flatten();
         // The best face for each of the UI language's scripts, the ones a web build fetches first.
         let ui_downloads = ui_scripts
             .iter()
@@ -666,7 +698,8 @@ struct Chain {
     after: Vec<Face>,
     /// The app's first face for the family, or egui's when the app has none.
     base: Option<Face>,
-    /// The UI language's face for its main script, when the family's first faces lack it.
+    /// The UI language's face for its main script, when the family's first faces lack it and the
+    /// face leads, or with [`CjkRows::Grow`].
     script: Option<Face>,
     /// Names of the served faces the UI language needs in this family.
     ui_downloads: Vec<String>,
@@ -704,10 +737,12 @@ pub struct Stack {
     weights: Vec<(FontFamily, u16)>,
     /// The proportional family's first app face (or egui's), whose rows the app's theme fits.
     base_face: Option<String>,
-    /// The UI language's main script face, whose rows widgets fit even when it isn't first.
+    /// The UI language's main script face when it leads the stack, or with [`CjkRows::Grow`];
+    /// widgets fit its rows.
     script_face: Option<String>,
     /// The served faces in the chains, by name; their data is added as it arrives.
     served: Vec<ServedFace>,
+    cjk_rows: CjkRows,
     /// Names of the served faces to fetch at install.
     ui_downloads: Vec<String>,
 }
@@ -717,10 +752,12 @@ impl Stack {
     /// text. Call it again when the UI language changes.
     ///
     /// The app's theme sets the widget height for rows of the app's face. When the UI language's
-    /// script face has taller rows, the context's styles get that much more height
-    /// ([`Self::fit_interact_size`]), whether the app sets its theme before or after installing:
-    /// a style the app sets later is fitted at the start of the next pass. A language with rows
-    /// no taller than the app's face leaves the theme's height as it is.
+    /// script face leads the stack (Arabic, Thai) and has taller rows, the context's styles get
+    /// that much more height ([`Self::fit_interact_size`]), whether the app sets its theme before
+    /// or after installing: a style the app sets later is fitted at the start of the next pass. A
+    /// language whose face follows the app's (Chinese, Japanese, Korean, unless
+    /// [`CjkRows::Grow`]) or has rows no taller than the app's face leaves the theme's height as
+    /// it is.
     ///
     /// The stack's system font provider (the `system_fonts` feature on desktop, or
     /// [`UiFonts::system_provider`]) replaces the context's font providers, such as the one
@@ -800,7 +837,8 @@ impl Stack {
     }
 
     /// Add to `style`'s minimum interactive height how much taller a row of the UI language's
-    /// script face is than a row of the app's face, at the style's body and button sizes.
+    /// script face is than a row of the app's face, at the style's body and button sizes, when
+    /// that face leads the stack or [`CjkRows::Grow`] is set.
     /// [`Self::install`] does this for the context's styles; this is for a style used elsewhere.
     pub fn fit_interact_size(&self, style: &mut Style) {
         style.spacing.interact_size.y += fit::extra_height(self.row_faces().as_ref(), style);
@@ -898,6 +936,26 @@ impl Stack {
     fn regular_weight(&self, provider: Arc<dyn FontProvider>) -> Arc<dyn FontProvider> {
         let provider: Arc<dyn FontProvider> = Arc::new(providers::OnBaseline(provider));
         Arc::new(self.weights.iter().fold(RegularWeight::new(provider), |p, (f, w)| p.with_weight(f.clone(), *w)))
+    }
+
+    /// Fit the CJK faces `names` into the rows of the proportional family's first face, except where
+    /// one of them leads a family.
+    fn fit_into_rows(&mut self, names: &[String]) {
+        let Some(primary) = self.chain(&FontFamily::Proportional).first().and_then(|name| self.definitions.font_data.get(name)).cloned() else {
+            return;
+        };
+        let leads = |name: &String| self.definitions.families.values().any(|chain| chain.first() == Some(name));
+        let names: Vec<&String> = names.iter().filter(|name| !leads(name)).collect();
+        for name in names {
+            if let Some(data) = self.definitions.font_data.get_mut(name.as_str()) {
+                fit::into_row(&primary, Arc::make_mut(data));
+            }
+            if let Some(data) = self.after_system.get(name) {
+                let mut data = data.clone();
+                fit::into_row(&primary, &mut data);
+                self.after_system.insert(name, data);
+            }
+        }
     }
 
     fn add_configured(&mut self, face: Face) -> String {
