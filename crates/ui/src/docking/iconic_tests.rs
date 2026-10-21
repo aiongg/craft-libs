@@ -165,13 +165,13 @@ fn auto_collapse_toggle_is_a_column_menu_event() {
     let layout = docked(&[&[1, 2]], true);
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, events: &mut Vec<DockEvent<u32>>| {
-            let out = DockArea::new(egui::Id::new("menu")).show_content(ui, &layout, &DockStyle::from_ui(ui), &mut Content);
+            let out = DockArea::new(egui::Id::unique("menu")).show_content(ui, &layout, &DockStyle::from_ui(ui), &mut Content);
             events.extend(out.events);
         },
         Vec::new(),
     );
     h.run_steps(2);
-    let bar = h.ctx.read_response(egui::Id::new("menu").with(("column-bar", Some(&1u32)))).unwrap().rect.center();
+    let bar = h.ctx.read_response(egui::Id::unique("menu").with(("column-bar", Some(&1u32)))).unwrap().rect.center();
     h.input_mut().events.extend([
         egui::Event::PointerMoved(bar),
         egui::Event::PointerButton { pos: bar, button: egui::PointerButton::Secondary, pressed: true, modifiers: egui::Modifiers::NONE },

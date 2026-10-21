@@ -182,7 +182,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     let response = ui.interact(collapse, self.id.with(("collapse", &entry.panel)), Sense::click());
                     self.register_interaction(ui.ctx(), response.id);
                     response.widget_info(|| {
-                        egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), entry.open, self.label_of(&entry.panel))
+                        egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), entry.open, self.label_of(&entry.panel))
                     });
                     ui.painter().with_clip_rect(collapse).text(
                         collapse.center(),
@@ -260,7 +260,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         ui.painter().rect_filled(rect, 0.0, self.style.background);
         let mut child =
-            ui.new_child(UiBuilder::new().id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
+            ui.new_child(UiBuilder::new().scope_id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
         self.content.body(&mut child, panel);
         let at = self.contents.get(panel).copied();

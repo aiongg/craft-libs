@@ -107,7 +107,7 @@ impl Driver {
             let mut style = DockStyle::from_ui(ui);
             style.right_to_left = rtl;
             ui.scope_builder(UiBuilder::new().max_rect(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 600.0))), |ui| {
-                output = DockArea::new(Id::new(AREA)).show_content(ui, layout, &style, content);
+                output = DockArea::new(Id::unique(AREA)).show_content(ui, layout, &style, content);
             });
         });
         full.textures_delta.clear();
@@ -126,11 +126,11 @@ impl Driver {
     }
 
     fn rect(&self, name: &str, panel: u32) -> Rect {
-        self.ctx.read_response(Id::new(AREA).with((name, Some(&panel)))).unwrap().rect
+        self.ctx.read_response(Id::unique(AREA).with((name, Some(&panel)))).unwrap().rect
     }
 
     fn tab(&self, panel: u32) -> Rect {
-        self.ctx.read_response(Id::new(AREA).with(("tab", &panel))).unwrap().rect
+        self.ctx.read_response(Id::unique(AREA).with(("tab", &panel))).unwrap().rect
     }
 
     fn hold(&mut self, from: Pos2, to: Pos2) -> DockOutput<u32> {
@@ -327,6 +327,7 @@ fn a_column_too_tall_for_the_window_scrolls() {
                 unit: egui::MouseWheelUnit::Point,
                 delta: vec2(0.0, -200.0),
                 phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Unknown,
                 modifiers: Modifiers::NONE,
             },
         ]);
@@ -381,7 +382,7 @@ fn column_drag_escape_focus_loss_pointer_exit_and_cancel_drag_leave_the_layout_u
             }
             "exit" => d.step(vec![Event::PointerGone]),
             _ => {
-                cancel_drag::<u32>(&d.ctx, Id::new(AREA));
+                cancel_drag::<u32>(&d.ctx, Id::unique(AREA));
                 d.step(vec![Event::PointerMoved(target + vec2(1.0, 0.0))])
             }
         };
@@ -389,7 +390,7 @@ fn column_drag_escape_focus_loss_pointer_exit_and_cancel_drag_leave_the_layout_u
         let out = d.step(vec![Event::PointerMoved(target), button(target, false)]);
         assert!(out.actions.is_empty() && out.group_drag.is_none(), "{case}: {out:?}");
         assert_eq!(d.layout, layout, "{case}");
-        assert!(!is_dragging::<u32>(&d.ctx, Id::new(AREA)), "{case}");
+        assert!(!is_dragging::<u32>(&d.ctx, Id::unique(AREA)), "{case}");
     }
 }
 

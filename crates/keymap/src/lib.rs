@@ -10,7 +10,8 @@
 //! chords each operating system takes, and a keymap reserves no chord unless the app opts in with
 //! [`Keymap::with_reserved`], e.g. `with_reserved(reserved::system(platform))`. [`import`] brings
 //! in other applications' shortcut sets. [`editor`] is the model of a shortcut editor: undo, a
-//! chord recorder, conflict queries and search. With the `egui` feature, the `egui` module
+//! chord recorder, conflict queries and search. [`layout`] decides which chord a key press means
+//! on the user's keyboard layout, for matching, recording and labels. With the `egui` feature, the `egui` module
 //! converts to and from egui keys, matches key presses against bindings and dispatches a frame's
 //! key events.
 //!
@@ -144,6 +145,7 @@ pub mod egui;
 pub mod import;
 pub mod keymap;
 pub mod profiles;
+pub mod layout;
 pub mod reserved;
 pub mod scope;
 #[cfg(feature = "ui")]
@@ -159,4 +161,5 @@ pub use keymap::{
     MAX_BINDINGS, MAX_COMMANDS, MAX_CONFLICTS, Overrides, Policy, Problem, TypingRule, text_editing_chords,
 };
 pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
+pub use layout::{KeyInput, Layout};
 pub use scope::{Active, MAX_SCOPE_NAME, Scope, ScopeKind, Scopes};

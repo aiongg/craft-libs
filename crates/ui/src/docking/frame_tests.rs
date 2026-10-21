@@ -32,8 +32,8 @@ impl DockContent<u32> for Film {
         self.bodies.insert(*panel, frame);
         if self.bare(panel) {
             let grip = Rect::from_min_size(frame.min, vec2(frame.width(), 8.0_f32.min(frame.height())));
-            if ui.interact(grip, Id::new(("grip", *panel)), Sense::drag()).drag_started() {
-                begin_drag(ui.ctx(), Id::new("dock-driver"), *panel, frame);
+            if ui.interact(grip, Id::unique(("grip", *panel)), Sense::drag()).drag_started() {
+                begin_drag(ui.ctx(), Id::unique("dock-driver"), *panel, frame);
             }
         }
         ui.allocate_rect(frame, Sense::hover());

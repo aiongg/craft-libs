@@ -130,7 +130,7 @@ impl Driver {
                 Hide::All => HidePanels::All,
                 Hide::Keep => HidePanels::Except(&keep),
             };
-            output = DockArea::new(Id::new(AREA)).maximized(maximized).hide_panels(hide).show_content(ui, layout, &style, content);
+            output = DockArea::new(Id::unique(AREA)).maximized(maximized).hide_panels(hide).show_content(ui, layout, &style, content);
         });
         let mut full = full;
         full.textures_delta.clear();
@@ -151,11 +151,11 @@ impl Driver {
     }
 
     fn title(&self, first: u32) -> Rect {
-        self.response(Id::new(AREA).with(("move-group", Some(&first)))).unwrap()
+        self.response(Id::unique(AREA).with(("move-group", Some(&first)))).unwrap()
     }
 
     fn tab(&self, panel: u32) -> Option<Rect> {
-        self.response(Id::new(AREA).with(("tab", &panel)))
+        self.response(Id::unique(AREA).with(("tab", &panel)))
     }
 
     fn hold(&mut self, from: egui::Pos2, to: egui::Pos2) -> DockOutput<u32> {
@@ -269,7 +269,7 @@ fn title_bar_drag_onto_dock_targets_docks_the_window() {
 fn floating_stack_seams_and_bands_insert_groups() {
     // A group dragged by its bar to another window's top band stacks above that group.
     let mut d = Driver::new(workspace(), Profile::Dock);
-    let bar = d.response(Id::new(AREA).with(("drag-bar", Some(&6u32)))).unwrap().center();
+    let bar = d.response(Id::unique(AREA).with(("drag-bar", Some(&6u32)))).unwrap().center();
     let out = d.drag(bar, pos2(660.0, 360.0));
     assert!(
         out.actions
@@ -294,7 +294,7 @@ fn floating_stack_seams_and_bands_insert_groups() {
 
     // The divider between two open groups resizes both.
     let mut d = Driver::new(workspace(), Profile::Dock);
-    let divider = d.response(DockArea::hit_id(Id::new(AREA), &Hit::Divider(Divider::Group(5u32)))).unwrap().center();
+    let divider = d.response(DockArea::hit_id(Id::unique(AREA), &Hit::Divider(Divider::Group(5u32)))).unwrap().center();
     d.drag(divider, divider + vec2(0.0, 40.0));
     let heights: Vec<_> = window_of(&d.layout, 5).unwrap().groups.iter().map(|g| g.height.unwrap()).collect();
     assert!((heights[0] - 179.5).abs() < 2.0 && (heights[1] - 99.5).abs() < 2.0, "{heights:?}");
@@ -312,7 +312,7 @@ fn title_bar_double_click_minimizes_every_group_and_close_box_closes_the_window(
     d.click(title);
     assert!(window_of(&d.layout, 5).unwrap().groups.iter().all(|g| !g.minimized));
 
-    let close = d.response(Id::new(AREA).with(("move-group", Some(&5u32))).with("close")).unwrap();
+    let close = d.response(Id::unique(AREA).with(("move-group", Some(&5u32))).with("close")).unwrap();
     assert_eq!(close.center().x, 530.0, "× sits 10 pt in from the right edge");
     let before = d.layout.clone();
     let out = d.click(close.center());
@@ -387,7 +387,7 @@ fn maximized_frame_fills_the_area_and_other_frames_do_not_render_or_take_input()
     d.step(vec![]);
     assert_eq!(d.tab(2).unwrap().left(), 0.0, "the maximized frame starts at the area's edge");
     assert!(d.tab(1).is_none());
-    assert!(d.response(Id::new(AREA).with(("move-group", Some(&5u32)))).is_none());
+    assert!(d.response(Id::unique(AREA).with(("move-group", Some(&5u32)))).is_none());
     let out = d.drag(window_title, window_title + vec2(30.0, 30.0));
     assert!(out.actions.iter().all(|a| !matches!(a, Action::MoveFloating { .. } | Action::MoveWindow { .. })), "{:?}", out.actions);
 
@@ -407,14 +407,14 @@ fn close_other_panels_keeps_only_the_chosen_tab() {
         |ui, (content, actions, events): &mut State| {
             let mut style = DockStyle::from_ui(ui);
             style.profile = Profile::Frame;
-            let out = DockArea::new(Id::new(AREA)).show_content(ui, &frames(), &style, content);
+            let out = DockArea::new(Id::unique(AREA)).show_content(ui, &frames(), &style, content);
             actions.extend(out.actions);
             events.extend(out.events);
         },
         (Content::default(), Vec::new(), Vec::new()),
     );
     h.run_steps(2);
-    let at = h.ctx.read_response(Id::new(AREA).with(("tab", &3u32))).unwrap().rect.center();
+    let at = h.ctx.read_response(Id::unique(AREA).with(("tab", &3u32))).unwrap().rect.center();
     let open_menu = |h: &mut Harness<'_, State>| {
         h.input_mut().events.extend([
             Event::PointerMoved(at),
@@ -477,7 +477,7 @@ fn a_canvas_that_accepts_splits_is_still_protected() {
     d.step(vec![]);
     assert_eq!(d.content.drawn, vec![0], "hiding every panel keeps the canvas");
     assert!(d.tab(0).is_none());
-    assert!(d.response(DockArea::<u32>::hit_id(Id::new(AREA), &Hit::DragBar(0))).is_none());
+    assert!(d.response(DockArea::<u32>::hit_id(Id::unique(AREA), &Hit::DragBar(0))).is_none());
 }
 
 #[test]
@@ -524,7 +524,7 @@ fn native_window_close_returns_the_group_to_its_in_window_rect() {
     d.content.native = true;
     d.layout = layout;
     let out = d.step(vec![]);
-    assert!(d.response(Id::new(AREA).with(("move-group", Some(&5u32)))).is_none(), "drawn in its own OS window");
+    assert!(d.response(Id::unique(AREA).with(("move-group", Some(&5u32)))).is_none(), "drawn in its own OS window");
     assert!(out.actions.contains(&Action::SetNative { panel: 5, rect: Some([1210.0, 905.0, 250.0, 300.0]) }), "{:?}", out.actions);
 
     close.set(true);
@@ -541,7 +541,7 @@ fn native_window_close_returns_the_group_to_its_in_window_rect() {
 fn chrome_frame_and_title_bar_work_without_a_dock_area() {
     use chrome::{ChromeStyle, FloatingFrame, TitleBar};
     let ctx = Context::default();
-    let id = Id::new("task-pane");
+    let id = Id::unique("task-pane");
     let rect = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
     let mut time = 0.0;
     let mut frame = |events: Vec<Event>| {
@@ -609,8 +609,8 @@ fn hidden_panels_leave_their_split_and_resizing_names_the_layout_path() {
     assert_eq!(d.tab(1).map(|r| r.left()), Some(0.0), "the hidden frame's space goes to the others");
     // Hits and widget ids name the split by its layout path, as `ResizeSplit` does.
     let hit = Hit::Divider(Divider::Split(vec![true]));
-    assert!(DockArea::<u32>::hit_rects(&d.ctx, Id::new(AREA)).iter().any(|(h, _)| *h == hit), "the hits name the layout path");
-    let divider = d.response(DockArea::<u32>::hit_id(Id::new(AREA), &hit)).unwrap().center();
+    assert!(DockArea::<u32>::hit_rects(&d.ctx, Id::unique(AREA)).iter().any(|(h, _)| *h == hit), "the hits name the layout path");
+    let divider = d.response(DockArea::<u32>::hit_id(Id::unique(AREA), &hit)).unwrap().center();
     let out = d.hold(divider, divider + vec2(0.0, 60.0));
     assert!(out.actions.iter().any(|a| matches!(a, Action::ResizeSplit { path, .. } if path == &vec![true])), "{:?}", out.actions);
     let Some(Node::Split { size: SplitSize::FixedFirst(200.0), second, .. }) = &d.layout.root else { panic!("{:?}", d.layout) };
@@ -637,7 +637,7 @@ fn a_hidden_floating_window_does_not_cover_dock_targets() {
 #[test]
 fn top_edges_resize_from_the_band_above_the_title_bar() {
     // W2 holds [8] at [560, 300, 200, 200]; each top handle keeps the opposite edges.
-    let area = Id::new(AREA);
+    let area = Id::unique(AREA);
     for (edge, by, expected) in [
         (ResizeEdge::Top, vec2(0.0, -40.0), [560.0, 260.0, 200.0, 240.0]),
         (ResizeEdge::TopLeft, vec2(-30.0, 20.0), [530.0, 320.0, 230.0, 180.0]),

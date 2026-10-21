@@ -59,7 +59,7 @@ impl App {
 
     fn frame(&mut self, ui: &mut Ui) {
         let states = self.states.clone();
-        let out = PaneHost::new("panes").rtl(self.rtl).policy(self.policy).show(ui, &self.open, |p| states.get(p).copied(), &mut Content);
+        let out = PaneHost::new(Id::unique("panes")).rtl(self.rtl).policy(self.policy).show(ui, &self.open, |p| states.get(p).copied(), &mut Content);
         egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
         for request in &out.requests {
             match request {
@@ -90,7 +90,7 @@ fn harness(app: App) -> Harness<'static, App> {
 }
 
 fn pane_id(pane: Pane) -> Id {
-    Id::new("panes").with(("pane", &pane))
+    Id::unique("panes").with(("pane", &pane))
 }
 
 fn rect(h: &Harness<'_, App>, id: Id) -> Option<Rect> {
@@ -323,7 +323,7 @@ fn a_body_wider_than_its_pane_is_clipped_and_the_document_starts_at_the_pane_edg
     }
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, document: &mut Rect| {
-            PaneHost::new("panes").show(ui, &[Pane::Nav, Pane::Comments], |_| None, &mut Wide);
+            PaneHost::new(Id::unique("panes")).show(ui, &[Pane::Nav, Pane::Comments], |_| None, &mut Wide);
             *document = ui.available_rect_before_wrap();
         },
         Rect::NOTHING,

@@ -363,19 +363,19 @@ fn frame(ctx: &Context, layout: &Layout<u32>, events: Vec<Event>, focused: bool)
     let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), events, focused, ..Default::default() };
     ctx.run_ui(input, |ui| {
         let style = DockStyle::from_ui(ui);
-        output = DockArea::new(Id::new("test-area")).show(
+        output = DockArea::new(Id::unique("test-area")).show(
             ui,
             layout,
             &style,
             |p| format!("Panel {p}"),
             |_| Permissions::default(),
             |ui, _| {
-                ids.push(ui.id());
+                ids.push(ui.scope_id());
                 ui.label("Actual panel content");
             },
         );
         let cursor = ctx.output(|o| o.cursor_icon);
-        ctx.data_mut(|d| d.insert_temp(Id::new("test-cursor"), cursor));
+        ctx.data_mut(|d| d.insert_temp(Id::unique("test-cursor"), cursor));
     })
     .textures_delta
     .clear();
@@ -401,7 +401,7 @@ fn cancelling_or_losing_focus_during_a_drag_does_not_move_panels() {
     let source = Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 200.0));
     let press = Event::PointerButton { pos: pos2(30.0, 30.0), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE };
     frame(&ctx, &layout, vec![Event::PointerMoved(pos2(30.0, 30.0)), press], true);
-    assert!(begin_drag(&ctx, Id::new("test-area"), 2u32, source));
+    assert!(begin_drag(&ctx, Id::unique("test-area"), 2u32, source));
     let (out, _) = frame(
         &ctx,
         &layout,
@@ -409,7 +409,7 @@ fn cancelling_or_losing_focus_during_a_drag_does_not_move_panels() {
         true,
     );
     assert!(out.actions.is_empty());
-    assert!(begin_drag(&ctx, Id::new("test-area"), 2u32, source));
+    assert!(begin_drag(&ctx, Id::unique("test-area"), 2u32, source));
     let (out, _) = frame(&ctx, &layout, Vec::new(), false);
     assert!(out.actions.is_empty());
     let (out, _) = frame(
@@ -441,8 +441,8 @@ fn actual_pointer_drag_docks_a_floating_panel_into_the_main_tab_strip() {
     for _ in 0..3 {
         step(&ctx, &mut layout, Vec::new());
     }
-    let source = ctx.read_response(Id::new("test-area").with(("tab", &5u32))).unwrap().rect.center();
-    let target = ctx.read_response(Id::new("test-area").with(("tab", &3u32))).unwrap().rect.center();
+    let source = ctx.read_response(Id::unique("test-area").with(("tab", &5u32))).unwrap().rect.center();
+    let target = ctx.read_response(Id::unique("test-area").with(("tab", &3u32))).unwrap().rect.center();
     step(&ctx, &mut layout, vec![Event::PointerMoved(source), pointer_button(source, true)]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(source + vec2(8.0, 0.0))]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(target)]);
@@ -466,7 +466,7 @@ fn tab_dragged_out_of_the_window_floats_where_it_left() {
     for _ in 0..3 {
         step(&ctx, &mut layout, Vec::new());
     }
-    let tab = ctx.read_response(Id::new("test-area").with(("tab", &3u32))).unwrap().rect.center();
+    let tab = ctx.read_response(Id::unique("test-area").with(("tab", &3u32))).unwrap().rect.center();
     let exit = pos2(4.0, 300.0);
     step(&ctx, &mut layout, vec![Event::PointerMoved(tab), pointer_button(tab, true)]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(tab + vec2(-8.0, 0.0))]);
@@ -502,7 +502,7 @@ fn panel_size_limits_clamp_geometry_without_overwriting_preferred_widths() {
         let mut rects = std::collections::BTreeMap::new();
         let mut out = DockOutput::default();
         ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 600.0))), ..Default::default() }, |ui| {
-            out = DockArea::new(Id::new("bounds")).show_with_limits(
+            out = DockArea::new(Id::unique("bounds")).show_with_limits(
                 ui,
                 &layout,
                 &DockStyle::from_ui(ui),
@@ -544,8 +544,8 @@ fn focused_floating_resize_grip_accepts_both_arrow_axes_and_releases_tab() {
     for _ in 0..3 {
         step(&ctx, &mut layout, Vec::new());
     }
-    let id = DockArea::hit_id(Id::new("test-area"), &Hit::Resize(5u32, ResizeEdge::BottomRight));
-    let layer = DockArea::floating_layer(Id::new("test-area"), &layout.floating[0]).unwrap();
+    let id = DockArea::hit_id(Id::unique("test-area"), &Hit::Resize(5u32, ResizeEdge::BottomRight));
+    let layer = DockArea::floating_layer(Id::unique("test-area"), &layout.floating[0]).unwrap();
     let [x, y, width, height] = layout.floating[0].rect;
     assert_eq!(ctx.memory(|m| m.area_rect(layer.id)), Some(Rect::from_min_size(pos2(x, y), vec2(width, height))));
     ctx.memory_mut(|memory| memory.request_focus(id));
@@ -573,7 +573,7 @@ fn stack_dividers_resize_adjacent_open_bodies_by_pointer_and_keyboard() {
     for _ in 0..3 {
         step(&ctx, &mut layout, Vec::new());
     }
-    let id = Id::new("test-area").with(("stack-resize", &1u32));
+    let id = Id::unique("test-area").with(("stack-resize", &1u32));
     let start = ctx.read_response(id).unwrap().rect.center();
     step(&ctx, &mut layout, vec![Event::PointerMoved(start), pointer_button(start, true)]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(start + vec2(0.0, 24.0))]);
@@ -612,7 +612,7 @@ fn split_inner_edge_remains_draggable_beside_a_scrollbar() {
         let mut output = DockOutput::default();
         let mut sidebar = Rect::NOTHING;
         ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), events, ..Default::default() }, |ui| {
-            output = DockArea::new(Id::new("scrolling-dock")).show(
+            output = DockArea::new(Id::unique("scrolling-dock")).show(
                 ui,
                 layout,
                 &DockStyle::from_ui(ui),
@@ -684,7 +684,7 @@ fn floating_only_surface_does_not_allocate_the_callers_document_region() {
     let layout = Layout { root: None, floating: vec![Floating::single(vec![1u32], 0, [30.0, 40.0, 200.0, 200.0])] };
     ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() }, |ui| {
         let before = ui.available_rect_before_wrap();
-        let out = DockArea::new(Id::new("float-only")).show(
+        let out = DockArea::new(Id::unique("float-only")).show(
             ui,
             &layout,
             &DockStyle::from_ui(ui),
@@ -720,7 +720,7 @@ fn floating_group_grip_moves_every_member_while_tab_drag_detaches_one() {
     for _ in 0..2 {
         step(&ctx, &mut layout, vec![]);
     }
-    let tab = ctx.read_response(Id::new("test-area").with(("tab", &5u32))).unwrap().rect.center();
+    let tab = ctx.read_response(Id::unique("test-area").with(("tab", &5u32))).unwrap().rect.center();
     step(&ctx, &mut layout, vec![Event::PointerMoved(tab), pointer_button(tab, true)]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(tab + vec2(8.0, 0.0))]);
     // Inside the source window the release is a no-op; outside it floats.
@@ -854,7 +854,7 @@ fn host_cancel_discards_group_drag_before_workspace_replacement() {
     let actions = step(&ctx, &mut layout, vec![Event::PointerMoved(moved)]);
     assert!(actions.iter().any(|action| matches!(action, Action::MoveFloating { .. })));
 
-    cancel_drag::<u32>(&ctx, Id::new("test-area"));
+    cancel_drag::<u32>(&ctx, Id::unique("test-area"));
     layout = sample();
     let replacement = layout.clone();
     let actions = step(&ctx, &mut layout, vec![Event::PointerMoved(moved + vec2(20.0, 10.0))]);
@@ -902,7 +902,7 @@ fn custom_frame(
     let mut out = DockOutput::default();
     ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), events, ..Default::default() }, |ui| {
         let style = DockStyle::from_ui(ui);
-        let mut area = DockArea::new(Id::new("test-area")).blocked_rects(blockers);
+        let mut area = DockArea::new(Id::unique("test-area")).blocked_rects(blockers);
         if raise {
             area = area.raise_panel(5);
         }
@@ -954,7 +954,7 @@ fn overlay_appearing_mid_drag_blocks_release_and_float_fallback() {
     let mut content = CustomContent { labels: vec![], headers: 0, menus: 0, bodies: 0 };
     let source = Rect::from_min_size(pos2(80.0, 70.0), vec2(300.0, 220.0));
     custom_frame(&ctx, &layout, &mut content, vec![Event::PointerMoved(pos2(130.0, 82.0)), pointer_button(pos2(130.0, 82.0), true)], &[], false);
-    assert!(begin_drag(&ctx, Id::new("test-area"), 5, source));
+    assert!(begin_drag(&ctx, Id::unique("test-area"), 5, source));
     let at = pos2(700.0, 400.0);
     let blocker = Rect::from_min_size(pos2(650.0, 350.0), vec2(100.0, 100.0));
     let out = custom_frame(&ctx, &layout, &mut content, vec![Event::PointerMoved(at), pointer_button(at, false)], &[blocker], false);
@@ -993,7 +993,7 @@ fn custom_headers_and_labels_render_at_small_and_large_scales() {
         let mut out = DockOutput::default();
         ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(120.0 * scale, 160.0))), ..Default::default() }, |ui| {
             let style = DockStyle::from_ui(ui);
-            out = DockArea::new(Id::new("scaled")).show_customized(
+            out = DockArea::new(Id::unique("scaled")).show_customized(
                 ui,
                 &layout,
                 &style,
@@ -1026,7 +1026,7 @@ fn protected_group_member_blocks_whole_group_gesture_and_host_drop() {
         let mut out = DockOutput::default();
         ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), events, ..Default::default() }, |ui| {
             let style = DockStyle::from_ui(ui);
-            out = DockArea::new(Id::new("test-area")).show(
+            out = DockArea::new(Id::unique("test-area")).show(
                 ui,
                 &layout,
                 &style,
@@ -1048,13 +1048,13 @@ fn protected_group_member_blocks_whole_group_gesture_and_host_drop() {
 fn chrome_focus_classifies_rendered_tab_but_excludes_body_text_field_and_invalid_layout() {
     let ctx = Context::default();
     let layout = sample();
-    let tab = Id::new("focus-area").with(("tab", 3u32));
-    let text = Id::new("body-text");
+    let tab = Id::unique("focus-area").with(("tab", 3u32));
+    let text = Id::unique("body-text");
     let mut value = String::new();
     let mut paint = |focus: Id| {
         let mut output =
             ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() }, |ui| {
-                DockArea::new(Id::new("focus-area")).show(
+                DockArea::new(Id::unique("focus-area")).show(
                     ui,
                     &layout,
                     &DockStyle::from_ui(ui),
@@ -1071,22 +1071,22 @@ fn chrome_focus_classifies_rendered_tab_but_excludes_body_text_field_and_invalid
         output.textures_delta.clear();
     };
     paint(tab);
-    assert!(DockArea::new(Id::new("focus-area")).chrome_has_focus(&ctx, &layout));
+    assert!(DockArea::new(Id::unique("focus-area")).chrome_has_focus(&ctx, &layout));
     paint(text);
-    assert!(!DockArea::new(Id::new("focus-area")).chrome_has_focus(&ctx, &layout));
+    assert!(!DockArea::new(Id::unique("focus-area")).chrome_has_focus(&ctx, &layout));
     paint(tab);
     let mut invalid = layout.clone();
     invalid.floating.push(Floating::single(vec![3], 0, [10.0, 10.0, 100.0, 100.0]));
-    assert!(!DockArea::new(Id::new("focus-area")).chrome_has_focus(&ctx, &invalid));
-    assert!(!DockArea::<u32>::new(Id::new("focus-area")).chrome_has_focus(&ctx, &Layout::default()));
-    ctx.memory_mut(|memory| memory.request_focus(Id::new("unrendered")));
-    assert!(!DockArea::new(Id::new("focus-area")).chrome_has_focus(&ctx, &layout));
+    assert!(!DockArea::new(Id::unique("focus-area")).chrome_has_focus(&ctx, &invalid));
+    assert!(!DockArea::<u32>::new(Id::unique("focus-area")).chrome_has_focus(&ctx, &Layout::default()));
+    ctx.memory_mut(|memory| memory.request_focus(Id::unique("unrendered")));
+    assert!(!DockArea::new(Id::unique("focus-area")).chrome_has_focus(&ctx, &layout));
 }
 
 #[test]
 fn chrome_focus_classifies_rendered_accordion_and_split_and_floating_resizers() {
     let ctx = Context::default();
-    let area = Id::new("focus-chrome-controls");
+    let area = Id::unique("focus-chrome-controls");
     let accordion = Layout {
         root: Some(Node::Stack {
             entries: vec![StackEntry { panel: 1u32, open: true, height: Some(150.0) }, StackEntry { panel: 2u32, open: true, height: Some(150.0) }],
@@ -1122,7 +1122,7 @@ fn chrome_focus_classifies_rendered_accordion_and_split_and_floating_resizers() 
 
 #[test]
 fn workspace_cancel_stops_owned_resize_controls_until_new_press() {
-    let area = Id::new("test-area");
+    let area = Id::unique("test-area");
     let fixtures = [
         (sample(), area.with(("split", Vec::<bool>::new())), vec2(24.0, 0.0)),
         (
@@ -1170,8 +1170,8 @@ fn workspace_cancel_stops_owned_resize_controls_until_new_press() {
 fn workspace_cancel_preserves_other_area_and_body_drag_ownership() {
     for body_drag in [false, true] {
         let ctx = Context::default();
-        let area = Id::new("cancel-area");
-        let other = Id::new("other-area");
+        let area = Id::unique("cancel-area");
+        let other = Id::unique("other-area");
         let layout = Layout {
             root: Some(Node::Split {
                 axis: SplitAxis::Horizontal,
@@ -1181,7 +1181,7 @@ fn workspace_cancel_preserves_other_area_and_body_drag_ownership() {
             }),
             floating: vec![],
         };
-        let body_id = Id::new("application-body-drag");
+        let body_id = Id::unique("application-body-drag");
         let mut value = 0.0;
         let mut run = |events: Vec<Event>| {
             let mut outputs = Vec::new();
@@ -1244,7 +1244,7 @@ fn popup_action_labels_use_custom_visual_text_and_logical_accessibility() {
     let layout = sample();
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         move |ui, content: &mut CustomContent| {
-            DockArea::new(Id::new("action-label-test")).show_customized(
+            DockArea::new(Id::unique("action-label-test")).show_customized(
                 ui,
                 &layout,
                 &DockStyle::from_ui(ui),
@@ -1257,7 +1257,7 @@ fn popup_action_labels_use_custom_visual_text_and_logical_accessibility() {
         CustomContent { labels: vec![], headers: 0, menus: 0, bodies: 0 },
     );
     h.run_steps(2);
-    let tab = Id::new("action-label-test").with(("tab", &6_u32));
+    let tab = Id::unique("action-label-test").with(("tab", &6_u32));
     let at = h.ctx.read_response(tab).unwrap().rect.center();
     h.input_mut().events.extend([
         Event::PointerMoved(at),
@@ -1292,7 +1292,7 @@ fn a_narrow_strip_shows_whole_tabs_and_lists_the_others_in_the_overflow_menu() {
             _ => false,
         }
     }
-    let area = Id::new("whole-tabs");
+    let area = Id::unique("whole-tabs");
     let layout = Layout { root: Some(tabs(&[1, 2, 3, 4, 5, 6], 5)), floating: vec![] };
     let mut h = Harness::builder().with_size(vec2(260.0, 240.0)).build_ui(move |ui| {
         DockArea::new(area).show(
@@ -1328,7 +1328,7 @@ fn only_an_active_tab_wider_than_the_strip_is_truncated_and_named_in_a_tooltip()
     let run = |events: Vec<Event>| {
         let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(150.0, 200.0))), events, ..Default::default() };
         let mut output = ctx.run_ui(input, |ui| {
-            DockArea::new(Id::new("truncate")).show(
+            DockArea::new(Id::unique("truncate")).show(
                 ui,
                 &layout,
                 &DockStyle::from_ui(ui),
@@ -1344,7 +1344,7 @@ fn only_an_active_tab_wider_than_the_strip_is_truncated_and_named_in_a_tooltip()
     };
     run(vec![]);
     let shapes = run(vec![]);
-    let tab = |p: u32| ctx.read_response(Id::new("truncate").with(("tab", &p))).map(|response| response.rect);
+    let tab = |p: u32| ctx.read_response(Id::unique("truncate").with(("tab", &p))).map(|response| response.rect);
     assert!(tab(2).is_none() && tab(3).is_none(), "the other tabs overflow instead of shrinking");
     let active = tab(1).unwrap();
     // The clip rect would hide an overflowing label; what is laid out must itself fit.
@@ -1373,7 +1373,7 @@ fn only_an_active_tab_wider_than_the_strip_is_truncated_and_named_in_a_tooltip()
 #[test]
 fn resize_cancellation_retains_ownership_across_other_host_rendering() {
     let ctx = Context::default();
-    let area = Id::new("test-area");
+    let area = Id::unique("test-area");
     let mut layout = sample();
     for _ in 0..3 {
         step(&ctx, &mut layout, vec![]);
@@ -1383,7 +1383,7 @@ fn resize_cancellation_retains_ownership_across_other_host_rendering() {
     step(&ctx, &mut layout, vec![Event::PointerMoved(start), pointer_button(start, true)]);
     step(&ctx, &mut layout, vec![Event::PointerMoved(start + vec2(20.0, 0.0))]);
     assert_eq!(ctx.dragged_id(), Some(id));
-    ctx.data_mut(|data| data.insert_temp(area.with("owned-interactions"), vec![Id::new("another-host-control")]));
+    ctx.data_mut(|data| data.insert_temp(area.with("owned-interactions"), vec![Id::unique("another-host-control")]));
     cancel_drag::<u32>(&ctx, area);
     assert!(ctx.dragged_id().is_none());
     let before = layout.clone();
@@ -1395,7 +1395,7 @@ fn resize_cancellation_retains_ownership_across_other_host_rendering() {
 fn collapsed_floating_height_cap_does_not_disable_keyboard_width_resizing() {
     let ctx = Context::default();
     let mut layout = Layout { root: None, floating: vec![Floating::single(vec![1u32], 0, [80.0, 70.0, 300.0, 26.0])] };
-    let id = Id::new("collapsed-resize").with(("floating", &1u32)).with("resize-right");
+    let id = Id::unique("collapsed-resize").with(("floating", &1u32)).with("resize-right");
     let mut frame = |events| {
         let mut actions = Vec::new();
         ctx.run_ui(
@@ -1403,7 +1403,7 @@ fn collapsed_floating_height_cap_does_not_disable_keyboard_width_resizing() {
             |ui| {
                 let mut style = DockStyle::from_ui(ui);
                 style.min_pane = 0.0;
-                actions = DockArea::new(Id::new("collapsed-resize"))
+                actions = DockArea::new(Id::unique("collapsed-resize"))
                     .show_with_limits(
                         ui,
                         &layout,
@@ -1459,7 +1459,7 @@ fn pointer_floating_resize_stops_at_edges_and_waits_for_cursor_to_return() {
         for _ in 0..3 {
             step(&ctx, &mut layout, vec![]);
         }
-        let id = Id::new("test-area").with(("floating", &5u32)).with(name);
+        let id = Id::unique("test-area").with(("floating", &5u32)).with(name);
         let start = ctx.read_response(id).unwrap().rect.center();
         let original = layout.floating[0].rect;
         let horizontal = name != "resize-bottom";
@@ -1532,7 +1532,7 @@ fn host_owned_noop_consumes_release_without_a_fallback_float() {
         }
     }
     let ctx = Context::default();
-    let area = Id::new("host-owned");
+    let area = Id::unique("host-owned");
     let layout = sample();
     let mut content = Content(0);
     let from = pos2(30.0, 20.0);
@@ -1641,7 +1641,7 @@ fn overflowing_strip_paints_a_single_ellipsis_symbol() {
     }
     let layout = Layout { root: Some(tabs(&[1, 2, 3, 4, 5, 6], 0)), floating: vec![] };
     let mut h = Harness::builder().with_size(vec2(150.0, 240.0)).build_ui(move |ui| {
-        DockArea::new(Id::new("overflow-symbol")).show(
+        DockArea::new(Id::unique("overflow-symbol")).show(
             ui,
             &layout,
             &DockStyle::from_ui(ui),

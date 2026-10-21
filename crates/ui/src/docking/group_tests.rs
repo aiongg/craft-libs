@@ -152,7 +152,7 @@ impl Driver {
             }
             tweak(&mut style);
             ui.scope_builder(UiBuilder::new().max_rect(area), |ui| {
-                output = DockArea::new(Id::new(AREA)).show_content(ui, layout, &style, content);
+                output = DockArea::new(Id::unique(AREA)).show_content(ui, layout, &style, content);
             });
         });
         full.textures_delta.clear();
@@ -171,11 +171,11 @@ impl Driver {
     }
 
     fn rect(&self, name: &str, panel: u32) -> Rect {
-        self.ctx.read_response(Id::new(AREA).with((name, Some(&panel)))).unwrap().rect
+        self.ctx.read_response(Id::unique(AREA).with((name, Some(&panel)))).unwrap().rect
     }
 
     fn tab(&self, panel: u32) -> Rect {
-        self.ctx.read_response(Id::new(AREA).with(("tab", &panel))).unwrap().rect
+        self.ctx.read_response(Id::unique(AREA).with(("tab", &panel))).unwrap().rect
     }
 
     /// Press at `from`, pass the drag threshold, move to `to`; returns the last move's output.
@@ -263,7 +263,7 @@ fn drag_bar_survives_a_strip_full_of_tabs() {
     assert!(bar.width() >= 40.0, "{bar:?}");
     assert_eq!(bar.right(), 300.0 - 24.0, "the bar ends at the header");
     assert_eq!(d.content.strip_width.get(), 300.0, "the header is sized for the whole strip");
-    assert!(d.ctx.read_response(Id::new(AREA).with(("overflow", &1u32))).is_some(), "tabs overflow before the bar narrows");
+    assert!(d.ctx.read_response(Id::unique(AREA).with(("overflow", &1u32))).is_some(), "tabs overflow before the bar narrows");
     let out = d.drag(bar.center(), pos2(500.0, 300.0));
     assert!(matches!(moved_group(&out.actions), Some(Target::Float { .. })), "{:?}", out.actions);
     assert_eq!(d.layout.floating[0].groups[0].panels.len(), 8);
@@ -354,7 +354,7 @@ fn group_drag_escape_focus_loss_pointer_exit_and_cancel_drag_leave_the_layout_un
             }
             "exit" => d.step(vec![Event::PointerGone]),
             _ => {
-                cancel_drag::<u32>(&d.ctx, Id::new(AREA));
+                cancel_drag::<u32>(&d.ctx, Id::unique(AREA));
                 d.step(vec![Event::PointerMoved(target + vec2(1.0, 0.0))])
             }
         };
@@ -362,7 +362,7 @@ fn group_drag_escape_focus_loss_pointer_exit_and_cancel_drag_leave_the_layout_un
         let out = d.step(vec![Event::PointerMoved(target), button(target, false)]);
         assert!(out.actions.is_empty() && out.group_drop.is_none() && out.group_drag.is_none(), "{case}: {out:?}");
         assert_eq!(d.layout, frames(), "{case}");
-        assert!(!is_dragging::<u32>(&d.ctx, Id::new(AREA)), "{case}");
+        assert!(!is_dragging::<u32>(&d.ctx, Id::unique(AREA)), "{case}");
     }
 }
 
@@ -504,14 +504,14 @@ fn lone_bare_or_protected_panels_draw_no_strip_and_no_bar() {
     let ctx = Context::default();
     for _ in 0..2 {
         ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() }, |ui| {
-            DockArea::new(Id::new(AREA)).show_content(ui, &frames(), &DockStyle::from_ui(ui), &mut Bare);
+            DockArea::new(Id::unique(AREA)).show_content(ui, &frames(), &DockStyle::from_ui(ui), &mut Bare);
         })
         .textures_delta
         .clear();
     }
-    assert!(ctx.read_response(Id::new(AREA).with(("drag-bar", Some(&1u32)))).is_none());
-    assert!(ctx.read_response(Id::new(AREA).with(("tab", &1u32))).is_none());
-    assert!(ctx.read_response(Id::new(AREA).with(("drag-bar", Some(&2u32)))).is_some());
+    assert!(ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&1u32)))).is_none());
+    assert!(ctx.read_response(Id::unique(AREA).with(("tab", &1u32))).is_none());
+    assert!(ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&2u32)))).is_some());
 }
 
 #[test]
@@ -519,13 +519,13 @@ fn drag_bar_menu_has_the_group_items_and_opens_from_the_keyboard() {
     use egui_kittest::{Harness, kittest::Queryable};
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, (content, actions): &mut (TestContent, Vec<Action<u32>>)| {
-            let out = DockArea::new(Id::new(AREA)).show_content(ui, &docked(), &DockStyle::from_ui(ui), content);
+            let out = DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &DockStyle::from_ui(ui), content);
             actions.extend(out.actions);
         },
         (TestContent { protected: vec![0], ..Default::default() }, Vec::new()),
     );
     h.run_steps(2);
-    let bar_id = Id::new(AREA).with(("drag-bar", Some(&2u32)));
+    let bar_id = Id::unique(AREA).with(("drag-bar", Some(&2u32)));
     let at = h.ctx.read_response(bar_id).unwrap().rect.center();
     h.input_mut().events.extend([
         Event::PointerMoved(at),
@@ -543,7 +543,7 @@ fn drag_bar_menu_has_the_group_items_and_opens_from_the_keyboard() {
 
     h.ctx.memory_mut(|memory| memory.request_focus(bar_id));
     h.run_steps(1);
-    assert!(DockArea::<u32>::new(Id::new(AREA)).chrome_has_focus(&h.ctx, &docked()));
+    assert!(DockArea::<u32>::new(Id::unique(AREA)).chrome_has_focus(&h.ctx, &docked()));
     h.input_mut().events.push(key(egui::Key::Enter));
     h.run_steps(2);
     assert!(egui::Popup::is_any_open(&h.ctx));
@@ -569,7 +569,7 @@ fn a_short_docked_panel_floats_at_its_content_height_up_to_its_floating_size() {
         let content = TestContent { body_height: Some(body), floating_size, ..Default::default() };
         let mut d = Driver::with(docked(), content, Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 600.0)));
         let strip = d.rect("drag-bar", 4).height();
-        let recorded = crate::docking::float_space::<u32>(&d.ctx, Id::new(AREA)).unwrap().panel(&4).unwrap();
+        let recorded = crate::docking::float_space::<u32>(&d.ctx, Id::unique(AREA)).unwrap().panel(&4).unwrap();
         let target = pos2(400.0, 300.0);
         d.hold(d.tab(4).center(), target);
         d.modifiers = Modifiers::COMMAND;
@@ -626,7 +626,7 @@ fn a_panel_that_fills_its_frame_floats_at_its_floating_size_or_320() {
 #[test]
 fn tab_focus_follows_only_the_users_input() {
     let mut d = Driver::new(docked());
-    let tab = Id::new(AREA).with(("tab", &4u32));
+    let tab = Id::unique(AREA).with(("tab", &4u32));
     // Keyboard focus as Tab gives it.
     d.ctx.memory_mut(|m| m.request_focus(tab));
     d.step(vec![]);
@@ -666,7 +666,7 @@ fn frame_tabs_follow_the_wheel_and_close_on_a_middle_click() {
         Some(Node::Split { second, .. }) => (**second).clone(),
         _ => panic!("{:?}", d.layout.root),
     };
-    let wheel = |unit, y| Event::MouseWheel { unit, delta: vec2(0.0, y), phase: egui::TouchPhase::Move, modifiers: Modifiers::NONE };
+    let wheel = |unit, y| Event::MouseWheel { unit, delta: vec2(0.0, y), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers: Modifiers::NONE };
     let middle = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Middle, pressed, modifiers: Modifiers::NONE };
 
     // Off by default in the Dock profile.

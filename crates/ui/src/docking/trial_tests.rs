@@ -91,7 +91,7 @@ fn galley_labels_stay_whole_and_only_an_over_wide_active_tab_ends_with_an_ellips
             let mut full = ctx.run_ui(input, |ui| {
                 let style = DockStyle::from_ui(ui);
                 ui.scope_builder(UiBuilder::new().max_rect(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 400.0))), |ui| {
-                    DockArea::new(Id::new(AREA)).show_content(ui, &layout, &style, &mut content);
+                    DockArea::new(Id::unique(AREA)).show_content(ui, &layout, &style, &mut content);
                 });
             });
             full.textures_delta.clear();
@@ -104,10 +104,10 @@ fn galley_labels_stay_whole_and_only_an_over_wide_active_tab_ends_with_an_ellips
                 _ => None,
             })
             .collect();
-        let shown: Vec<u32> = panels.into_iter().filter(|p| ctx.read_response(Id::new(AREA).with(("tab", p))).is_some()).collect();
+        let shown: Vec<u32> = panels.into_iter().filter(|p| ctx.read_response(Id::unique(AREA).with(("tab", p))).is_some()).collect();
         assert!(shown.contains(&4) && shown.len() < panels.len(), "{width}: {shown:?}");
         for panel in shown {
-            let tab = ctx.read_response(Id::new(AREA).with(("tab", &panel))).unwrap().rect;
+            let tab = ctx.read_response(Id::unique(AREA).with(("tab", &panel))).unwrap().rect;
             let Some((clip, text)) = texts.iter().find(|(_, t)| t.galley.text().ends_with(&format!(" {panel}")) && tab.contains(t.pos)) else {
                 panic!("no label in tab {panel}")
             };
@@ -164,7 +164,7 @@ fn double_click_on_a_tab_of_a_minimized_group_ends_expanded() {
 fn a_clicked_tab_shows_no_focus_outline_but_tab_key_focus_does() {
     let mut d = Driver::new(frames());
     let accent = d.ctx.global_style().visuals.selection.stroke.color;
-    let id = Id::new(AREA).with(("tab", &3u32));
+    let id = Id::unique(AREA).with(("tab", &3u32));
     let outline = d.tab(3).shrink(2.0);
     let outlined = |d: &Driver| rects(d).iter().any(|r| r.rect == outline && r.stroke.width > 0.0 && r.stroke.color == accent);
 
@@ -278,7 +278,7 @@ fn a_right_to_left_title_bar_puts_its_buttons_left_and_cuts_a_galley_title() {
             style.right_to_left = true;
             let chrome = chrome::ChromeStyle::from_dock(&style);
             let title = egui::WidgetText::Galley(ui.painter().layout_no_wrap("Paragraph Styles and More".into(), style.font.clone(), style.text));
-            let shown = chrome::TitleBar::new(Id::new("title"), "Move").title(title).menu("Menu").close("Close").show(ui, bar, &chrome);
+            let shown = chrome::TitleBar::new(Id::unique("title"), "Move").title(title).menu("Menu").close("Close").show(ui, bar, &chrome);
             rects = (shown.bar.rect, shown.menu.unwrap().rect, shown.close.unwrap().rect);
         });
         full.textures_delta.clear();
@@ -301,7 +301,7 @@ fn a_right_to_left_title_bar_puts_its_buttons_left_and_cuts_a_galley_title() {
 #[test]
 fn hidden_close_controls_leave_closing_to_the_host() {
     let layout = Layout { root: Some(tabs(&[1, 2], 0)), floating: vec![Floating::single(vec![5, 6], 0, [80.0, 70.0, 300.0, 220.0])] };
-    let close = Id::new(AREA).with(("move-group", Some(&5u32))).with("close");
+    let close = Id::unique(AREA).with(("move-group", Some(&5u32))).with("close");
     let mut d = Driver::new(layout);
     assert!(d.ctx.read_response(close).is_some());
     d.tweak = |style| {
@@ -337,14 +337,14 @@ fn the_column_button_and_the_column_menu_item_have_distinct_names() {
     use egui_kittest::{Harness, kittest::Queryable};
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, content: &mut TestContent| {
-            DockArea::new(Id::new(AREA)).show_content(ui, &docked(), &DockStyle::from_ui(ui), content);
+            DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &DockStyle::from_ui(ui), content);
         },
         TestContent { protected: vec![0], ..Default::default() },
     );
     h.run_steps(2);
     assert_eq!(h.query_all_by_label("Collapse column to icons").count(), 1);
     assert_eq!(h.query_all_by_label("Collapse to Icons").count(), 0);
-    let at = h.ctx.read_response(Id::new(AREA).with(("column-bar", Some(&2u32)))).unwrap().rect.center();
+    let at = h.ctx.read_response(Id::unique(AREA).with(("column-bar", Some(&2u32)))).unwrap().rect.center();
     h.input_mut().events.extend([
         Event::PointerMoved(at),
         Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE },

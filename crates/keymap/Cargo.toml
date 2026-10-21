@@ -18,10 +18,11 @@ craft-ui = { workspace = true, optional = true }
 craft-i18n = { workspace = true, optional = true }
 
 [dev-dependencies]
+# serde: for setting `RawInput` fields only the suite's egui fork has.
+egui = { workspace = true, features = ["default_fonts", "serde"] }
 craft-settings = { workspace = true }
 tempfile = "3"
-egui = { workspace = true, features = ["default_fonts"] }
-egui_kittest = "0.36"
+egui_kittest = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]

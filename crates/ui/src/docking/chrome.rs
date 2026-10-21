@@ -195,7 +195,7 @@ impl<'a> FloatingFrame<'a> {
                 egui::CursorIcon::ResizeNeSw
             };
             let response = ui.interact(handle, self.id.with(name), Sense::drag()).on_hover_cursor(cursor);
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), self.resize_label));
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), self.resize_label));
             let anchor_id = response.id.with("pointer-anchor");
             crate::layout::drag_focus(ui, &response);
             if response.drag_started()
@@ -353,7 +353,7 @@ impl<'a> TitleBar<'a> {
         let (close_rect, menu_rect) = (close_rect.map(mirror), menu_rect.map(mirror));
         let bar = ui.interact(bar_rect, self.id, Sense::click_and_drag());
         let bar = if self.movable { bar.on_hover_cursor(egui::CursorIcon::Grab) } else { bar };
-        bar.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), self.move_label));
+        bar.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), self.move_label));
         if let Some(title) = self.title {
             let galley = truncated(ui, title, (bar_rect.width() - 12.0).max(0.0), style.font.clone());
             let x = if style.right_to_left { bar_rect.right() - 6.0 - galley.size().x } else { bar_rect.left() + 6.0 };
@@ -364,7 +364,7 @@ impl<'a> TitleBar<'a> {
         }
         let button = |ui: &mut Ui, rect: Rect, name: &str, label: &str| {
             let response = ui.interact(rect, self.id.with(name), Sense::click());
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
             let color = if response.hovered() || response.has_focus() { style.text } else { style.weak_text };
             (response, Stroke::new(1.2, color))
         };
