@@ -23,8 +23,10 @@
 //! symbol faces stay centred.
 //!
 //! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
-//! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them. For the interface they embed
-//! with `Embed::subset_to(catalogs)`, which takes the CJK faces as craft-fonts' interface faces
+//! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them, or, for a web build, copies them
+//! beside the wasm and lists them as [`ServedFace`]s, which the stack orders the same way and
+//! fetches when they are needed (see [`UiFonts::served_faces`]). For the interface they embed with
+//! `Embed::subset_to(catalogs)`, which takes the CJK faces as craft-fonts' interface faces
 //! (`Noto Sans TC UI`, BIZ UDPGothic Regular) and cuts them at build time to the characters the
 //! translation catalogs use. A character a cut face lacks, such as one in a file name, comes from
 //! the next face that has it: another region's interface face, then the installed system fonts.
@@ -34,6 +36,7 @@
 mod coverage;
 mod fit;
 mod providers;
+mod served;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg_attr(not(feature = "system_fonts"), allow(dead_code, reason = "used by the system font index, and its tests"))]
 mod system;
@@ -50,6 +53,7 @@ use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style};
 pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, missing_glyphs};
 use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
+pub use served::{ServedFace, loading};
 
 /// A font file from craft-fonts that the app embeds, one per line of `fonts/manifest.txt`.
 #[derive(Clone, Copy, Debug)]
@@ -80,9 +84,7 @@ impl CraftFace {
     }
 
     fn data(&self) -> FontData {
-        let mut data = FontData { index: self.index, ..FontData::from_static(self.bytes) };
-        data.tweak.set_baseline_fallback(true);
-        data
+        baseline_fallback(FontData { index: self.index, ..FontData::from_static(self.bytes) })
     }
 
     fn region(&self) -> Option<Han> {
@@ -132,6 +134,12 @@ trait SetBaselineFallback {
 }
 
 impl SetBaselineFallback for egui::FontTweak {}
+
+/// A craft face's data, set to sit on the primary face's baseline where egui supports it.
+fn baseline_fallback(mut data: FontData) -> FontData {
+    data.tweak.set_baseline_fallback(true);
+    data
+}
 
 /// The scripts a language is written in, by language tag. [`I18nScripts`] answers from
 /// craft-i18n; an app with its own table implements this instead.
@@ -217,6 +225,9 @@ pub struct Emoji {
     pub color: Option<FontData>,
     /// A lighter colour emoji font for web builds, e.g. Twemoji.
     pub web: Option<FontData>,
+    /// A colour emoji font served beside the wasm, fetched the first time text needs an emoji or
+    /// symbol; asked after `web`. Ignored outside the web.
+    pub served: Option<ServedFace>,
     /// A monochrome emoji font, e.g. Noto Emoji; the last resort.
     pub monochrome: Option<FontData>,
 }
@@ -268,6 +279,8 @@ pub struct UiFonts<'a> {
     egui_faces: Vec<(String, Vec<FontFamily>)>,
     app_scripts: Vec<String>,
     craft_faces: Vec<CraftFace>,
+    /// For each of `craft_faces`, the served face it stands for, whose data is fetched later.
+    served: Vec<Option<ServedFace>>,
     languages: Vec<String>,
     ui_language: String,
     prefer: Vec<(String, String)>,
@@ -286,6 +299,7 @@ impl<'a> UiFonts<'a> {
             egui_faces: Vec::new(),
             app_scripts: APP_SCRIPTS.iter().map(|s| (*s).to_owned()).collect(),
             craft_faces: Vec::new(),
+            served: Vec::new(),
             languages: Vec::new(),
             ui_language: "en".to_owned(),
             prefer: Vec::new(),
@@ -323,6 +337,20 @@ impl<'a> UiFonts<'a> {
     /// The craft-fonts faces this build embedded; may be empty.
     pub fn craft_faces(mut self, faces: &[CraftFace]) -> Self {
         self.craft_faces.extend_from_slice(faces);
+        self.served.resize(self.craft_faces.len(), None);
+        self
+    }
+
+    /// The craft-fonts faces a web build serves beside its wasm (see `craft-fonts-build`'s
+    /// `Embed::serve`); may be empty. They take the places embedded faces would, and on the web
+    /// [`Stack::install`] fetches them: the UI language's faces at once ([`Stack::ui_downloads`]),
+    /// others the first time text needs a character of their script. Until a face arrives, text
+    /// falls back to the faces after it. Outside the web they are never fetched.
+    pub fn served_faces(mut self, faces: &[ServedFace]) -> Self {
+        for face in faces {
+            self.craft_faces.push(face.craft_face());
+            self.served.push(Some(*face));
+        }
         self
     }
 
@@ -399,6 +427,8 @@ impl<'a> UiFonts<'a> {
             weights: Vec::new(),
             base_face: None,
             script_face: None,
+            served: Vec::new(),
+            ui_downloads: Vec::new(),
         };
         let defaults = FontDefinitions::default();
         let cjk_names: Vec<String> = match self.cjk_rows {
@@ -409,11 +439,8 @@ impl<'a> UiFonts<'a> {
         for family in self.family_specs() {
             let default_family = if family.monospaced { &FontFamily::Monospace } else { &family.family };
             let default_chain = defaults.families.get(default_family).or_else(|| defaults.families.get(&FontFamily::Proportional));
-            let egui_faces: Vec<Face> = default_chain
-                .into_iter()
-                .flatten()
-                .filter_map(|name| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() }))
-                .collect();
+            let egui_faces: Vec<Face> =
+                default_chain.into_iter().flatten().filter_map(|name| Some(Face::new(name, (**defaults.font_data.get(name)?).clone()))).collect();
             let mut chain = self.chain(&family, egui_faces);
             let cjk = chain.configured.iter().chain(&chain.after).filter(|face| cjk_names.contains(&face.name));
             cjk_faces.extend(cjk.map(|face| face.clone().weighted(family.weight).name));
@@ -421,10 +448,15 @@ impl<'a> UiFonts<'a> {
                 self.egui_faces
                     .iter()
                     .filter(|(_, families)| families.contains(&family.family))
-                    .filter_map(|(name, _)| Some(Face { name: name.clone(), data: (**defaults.font_data.get(name)?).clone() })),
+                    .filter_map(|(name, _)| Some(Face::new(name, (**defaults.font_data.get(name)?).clone()))),
             );
             let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
-            let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.after_system.add(face.weighted(family.weight))).collect();
+            let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.add_after(face.weighted(family.weight))).collect();
+            for face in chain.ui_downloads {
+                if !stack.ui_downloads.contains(&face) {
+                    stack.ui_downloads.push(face);
+                }
+            }
             if family.family == FontFamily::Proportional {
                 stack.base_face = chain.base.map(|face| face.weighted(family.weight).name);
                 stack.script_face = chain.script.map(|face| face.weighted(family.weight).name);
@@ -498,6 +530,14 @@ impl<'a> UiFonts<'a> {
         let craft = |indices: Vec<usize>| indices.into_iter().map(|i| self.craft_face(i)).collect::<Vec<_>>();
         // A face that only follows the app's face keeps the app's rows unless the app asks otherwise.
         let script = (language_first || self.cjk_rows == CjkRows::Grow).then(|| language.first().map(|i| self.craft_face(*i))).flatten();
+        // The best face for each of the UI language's scripts, the ones a web build fetches first.
+        let ui_downloads = ui_scripts
+            .iter()
+            .filter(|s| !covers(s))
+            .filter_map(|s| self.candidates(s, ui_han, weight).first().map(|i| self.craft_face(*i)))
+            .filter(|face| face.served.is_some())
+            .map(|face| face.name)
+            .collect();
         let base_face = base.first().cloned();
 
         let mut configured = craft(lead);
@@ -515,21 +555,23 @@ impl<'a> UiFonts<'a> {
             SystemFonts::BeforeCraft => after.extend(craft(others)),
             SystemFonts::AfterCraft | SystemFonts::Off => configured.extend(craft(others)),
         }
-        let emoji = [("emoji-color", &self.emoji.color), ("emoji-web", &self.emoji.web), ("emoji-monochrome", &self.emoji.monochrome)];
-        after.extend(emoji.into_iter().filter_map(|(name, data)| Some(Face { name: name.to_owned(), data: data.clone()? })));
+        let emoji = |name: &str, data: &Option<FontData>| Some(Face::new(name, data.clone()?));
+        after.extend(emoji("emoji-color", &self.emoji.color));
+        after.extend(emoji("emoji-web", &self.emoji.web));
+        after.extend(self.emoji.served.map(|face| {
+            let face = ServedFace { scripts: &[served::EMOJI], ..face };
+            Face { served: Some(face), ..Face::new(&face.name(), FontData::from_static(&[])) }
+        }));
+        after.extend(emoji("emoji-monochrome", &self.emoji.monochrome));
         after.extend(egui_tail);
-        Chain { configured, after, base: base_face, script }
+        Chain { configured, after, base: base_face, script, ui_downloads }
     }
 
     /// The app faces heading `family`; a named family without its own takes the monospace ones
     /// if it is [`Family::monospaced`], the proportional ones otherwise.
     fn app_faces_for(&self, family: &Family) -> Vec<Face> {
         let faces = |family: &FontFamily| -> Vec<Face> {
-            self.app_faces
-                .iter()
-                .filter(|face| face.families.contains(family))
-                .map(|face| Face { name: face.name.clone(), data: face.data.clone() })
-                .collect()
+            self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone())).collect()
         };
         match faces(&family.family) {
             own if !own.is_empty() || !matches!(family.family, FontFamily::Name(_)) => own,
@@ -570,7 +612,11 @@ impl<'a> UiFonts<'a> {
 
     fn craft_face(&self, index: usize) -> Face {
         let face = self.craft_faces.get(index);
-        Face { name: face.map(CraftFace::name).unwrap_or_default(), data: face.map_or_else(|| FontData::from_static(&[]), CraftFace::data) }
+        Face {
+            name: face.map(CraftFace::name).unwrap_or_default(),
+            data: face.map_or_else(|| FontData::from_static(&[]), CraftFace::data),
+            served: self.served.get(index).copied().flatten(),
+        }
     }
 
     fn app_covers(&self, script: &str) -> bool {
@@ -639,6 +685,8 @@ fn dedup(names: &mut Vec<String>) {
 struct Face {
     name: String,
     data: FontData,
+    /// The served face this stands for; `data` is empty until it is fetched.
+    served: Option<ServedFace>,
 }
 
 /// One family's faces, as [`UiFonts::chain`] orders them.
@@ -651,9 +699,15 @@ struct Chain {
     /// The UI language's face for its main script, when the family's first faces lack it and the
     /// face leads, or with [`CjkRows::Grow`].
     script: Option<Face>,
+    /// Names of the served faces the UI language needs in this family.
+    ui_downloads: Vec<String>,
 }
 
 impl Face {
+    fn new(name: &str, data: FontData) -> Self {
+        Self { name: name.to_owned(), data, served: None }
+    }
+
     /// Set a variable face to `weight`. A face that isn't at regular weight gets its own name, so
     /// the regular and bold uses of one file don't collide in egui's face store.
     fn weighted(mut self, weight: u16) -> Self {
@@ -665,6 +719,7 @@ impl Face {
 }
 
 /// A built font stack: the configured faces and chains, and the providers asked after them.
+#[derive(Clone)]
 pub struct Stack {
     /// The configured faces and each family's chain. Edit it to add, replace or reorder faces
     /// before [`Self::install`]; a chain entry without font data is skipped.
@@ -683,6 +738,10 @@ pub struct Stack {
     /// The UI language's main script face when it leads the stack, or with [`CjkRows::Grow`];
     /// widgets fit its rows.
     script_face: Option<String>,
+    /// The served faces in the chains, by name; their data is added as it arrives.
+    served: Vec<ServedFace>,
+    /// Names of the served faces to fetch at install.
+    ui_downloads: Vec<String>,
 }
 
 impl Stack {
@@ -701,7 +760,19 @@ impl Stack {
     /// [`UiFonts::system_provider`]) replaces the context's font providers, such as the one
     /// eframe adds, as does [`SystemFonts::Off`]. Without one, the context keeps its providers and
     /// the stack's faces are asked after them.
+    ///
+    /// On the web, a stack with [`UiFonts::served_faces`] also fetches them (see there); the faces
+    /// already fetched for an earlier stack are added at once.
     pub fn install(&self, ctx: &egui::Context) {
+        #[cfg(target_arch = "wasm32")]
+        if !self.served.is_empty() {
+            return served::web::install(ctx, self.clone());
+        }
+        self.install_faces(ctx, None);
+    }
+
+    /// [`Self::install`] without fetching; `miss` is asked for characters no face has.
+    fn install_faces(&self, ctx: &egui::Context, miss: Option<Arc<dyn FontProvider>>) {
         ctx.set_fonts(self.checked_definitions());
         let id = egui::Id::unique("craft_ui::fonts::installed");
         let (system, start_index) = self.context_lookup();
@@ -714,7 +785,7 @@ impl Stack {
             }
             new
         });
-        installed.set(self.after_system.clone());
+        installed.set(self.after_system.clone(), miss);
         if let Some(system) = system {
             let mut providers = system.into_iter().collect::<Vec<_>>();
             providers.push(installed as Arc<dyn FontProvider>);
@@ -774,7 +845,8 @@ impl Stack {
     /// of the app's menu on a machine that can't show it. `with_system` also asks the system font
     /// provider. The scripts come from the stack's [`LanguageScripts`] for the UI language and
     /// [`UiFonts::languages`], and from craft-i18n for any other language. Each script is checked
-    /// with a few of its common letters.
+    /// with a few of its common letters. A served face counts for the scripts it is tagged with,
+    /// fetched or not, since it is fetched when text needs it.
     pub fn covers_language(&self, language: &str, with_system: bool) -> bool {
         let scripts = match self.language_scripts.iter().find(|(l, _)| l == language) {
             Some((_, scripts)) => scripts.clone(),
@@ -782,7 +854,8 @@ impl Stack {
         };
         let mut fonts = self.fonts(with_system);
         let font_id = FontId::new(14.0, FontFamily::Proportional);
-        scripts.iter().filter_map(|s| coverage::script_sample(s)).flat_map(str::chars).all(|c| fonts.has_glyph(&font_id, c))
+        let served = |script: &str| self.served.iter().any(|face| face.craft_face().covers(script));
+        scripts.iter().filter(|s| !served(s)).filter_map(|s| coverage::script_sample(s)).flat_map(str::chars).all(|c| fonts.has_glyph(&font_id, c))
     }
 
     /// The stack as one set of definitions, without providers: each family's chain followed by the
@@ -883,8 +956,23 @@ impl Stack {
     }
 
     fn add_configured(&mut self, face: Face) -> String {
-        self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| Arc::new(face.data));
+        if !self.add_served(&face) {
+            self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| Arc::new(face.data));
+        }
         face.name
+    }
+
+    fn add_after(&mut self, face: Face) -> String {
+        if self.add_served(&face) { face.name } else { self.after_system.add(face) }
+    }
+
+    /// Record a served face, whose data comes later; false for any other face.
+    fn add_served(&mut self, face: &Face) -> bool {
+        let Some(served) = face.served else { return false };
+        if !self.served.iter().any(|s| s.name() == face.name) {
+            self.served.push(served);
+        }
+        true
     }
 }
 

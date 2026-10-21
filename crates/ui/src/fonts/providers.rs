@@ -134,6 +134,11 @@ impl FaceList {
         face.name
     }
 
+    /// Each family's list, for renaming entries in place.
+    pub(super) fn chains_mut(&mut self) -> impl Iterator<Item = (&FontFamily, &mut Vec<String>)> {
+        self.chains.iter_mut()
+    }
+
     /// Add or replace a face's data.
     pub fn insert(&mut self, name: &str, data: FontData) {
         self.faces.insert(name.to_owned(), data);
@@ -178,19 +183,21 @@ impl FontProvider for FaceList {
 }
 
 /// A context's installed [`FaceList`], swapped in place when the stack is installed again, so the
-/// providers added before it keep their place.
+/// providers added before it keep their place, and the provider asked when the list misses too
+/// (on the web, the one that fetches served faces).
 #[derive(Default)]
-pub(super) struct Installed(RwLock<FaceList>);
+pub(super) struct Installed(RwLock<(FaceList, Option<Arc<dyn FontProvider>>)>);
 
 impl Installed {
-    pub(super) fn set(&self, faces: FaceList) {
-        *self.0.write().unwrap_or_else(PoisonError::into_inner) = faces;
+    pub(super) fn set(&self, faces: FaceList, miss: Option<Arc<dyn FontProvider>>) {
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = (faces, miss);
     }
 }
 
 impl FontProvider for Installed {
     fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
-        self.0.read().unwrap_or_else(PoisonError::into_inner).font_for(request)
+        let (faces, miss) = &*self.0.read().unwrap_or_else(PoisonError::into_inner);
+        faces.font_for(request).or_else(|| miss.as_ref()?.font_for(request))
     }
 }
 
