@@ -31,12 +31,14 @@ impl fmt::Display for Missing {
     }
 }
 
-/// Every character in `samples` that no face of `family` in `stack` has, without system fonts.
+/// Every character in `samples` that no face of `family` in `stack` has. `with_system` also asks
+/// the stack's system font provider (the `system_fonts` feature, or [`super::UiFonts::system_provider`]),
+/// for an app that relies on installed fonts for some languages.
 ///
 /// Whitespace, control characters and invisible format characters (joiners, direction marks,
 /// variation selectors) are skipped: they draw nothing.
-pub fn missing_glyphs<'a>(stack: &Stack, family: &FontFamily, samples: impl IntoIterator<Item = Sample<'a>>) -> Vec<Missing> {
-    let mut fonts = stack.fonts(false);
+pub fn missing_glyphs<'a>(stack: &Stack, family: &FontFamily, samples: impl IntoIterator<Item = Sample<'a>>, with_system: bool) -> Vec<Missing> {
+    let mut fonts = stack.fonts(with_system);
     let font_id = FontId::new(14.0, family.clone());
     let mut missing = Vec::new();
     for sample in samples {
@@ -58,9 +60,18 @@ pub fn missing_glyphs<'a>(stack: &Stack, family: &FontFamily, samples: impl Into
 
 /// Fail, naming each language, string and character, if the stack can't draw all of `samples`
 /// in the proportional family without system fonts. For an app's coverage test.
-#[allow(clippy::panic, reason = "a test assertion")]
 pub fn assert_covers<'a>(stack: &Stack, samples: impl IntoIterator<Item = Sample<'a>>) {
-    let missing = missing_glyphs(stack, &FontFamily::Proportional, samples);
+    fail_on(&missing_glyphs(stack, &FontFamily::Proportional, samples, false));
+}
+
+/// [`assert_covers`] with the stack's system font provider asked too. The result depends on the
+/// machine's fonts; use it for languages the app leaves to them.
+pub fn assert_covers_with_system<'a>(stack: &Stack, samples: impl IntoIterator<Item = Sample<'a>>) {
+    fail_on(&missing_glyphs(stack, &FontFamily::Proportional, samples, true));
+}
+
+#[allow(clippy::panic, reason = "a test assertion")]
+fn fail_on(missing: &[Missing]) {
     if !missing.is_empty() {
         let lines: Vec<String> = missing.iter().take(50).map(|m| format!("  {m}")).collect();
         let more = if missing.len() > lines.len() { format!("\n  … and {} more", missing.len() - lines.len()) } else { String::new() };
