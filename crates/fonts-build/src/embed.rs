@@ -482,7 +482,8 @@ impl Serve {
         for face in faces {
             let (entry, path) = (&face.entry, &face.path);
             let served = served_file(face);
-            let size = std::fs::metadata(path).map_err(|source| Error::Read { path: path.clone(), source })?.len();
+            let font = std::fs::read(path).map_err(|source| Error::Read { path: path.clone(), source })?;
+            let size = font.len();
             if !copied.contains(&served) {
                 copied.push(served.clone());
                 copy_file(path, &self.dir.join(&served), cargo)?;
@@ -493,21 +494,45 @@ impl Serve {
                     copy_file(&licence, &self.dir.join(served_path(&entry.licence_file)), cargo)?;
                 }
             }
+            let coverage = crate::coverage::of_face(&font, face.index).unwrap_or_else(|| {
+                cargo.push(format!("cargo::warning=craft-fonts: no character map in {}; the face is never fetched for a character", entry.file));
+                Vec::new()
+            });
             let scripts: Vec<String> = entry.scripts.iter().map(|s| format!("{s:?}")).collect();
             let _ = writeln!(
                 src,
-                "    ServedFace {{ family: {:?}, style: {:?}, scripts: &[{}], index: {}, url: {:?}, size: {size}, integrity: {:?} }},",
+                "    ServedFace {{ family: {:?}, style: {:?}, scripts: &[{}], index: {}, url: {:?}, size: {size}, integrity: {:?}, coverage: {} }},",
                 entry.family,
                 entry.style,
                 scripts.join(", "),
                 face.index,
                 format!("{}{served}", self.url_prefix),
                 integrity(&face.sha256),
+                byte_string(&coverage),
             );
         }
         src.push_str("]\n");
         Ok(src)
     }
+}
+
+/// A byte string literal, printable ASCII as itself.
+fn byte_string(bytes: &[u8]) -> String {
+    let mut out = String::from("b\"");
+    for &b in bytes {
+        match b {
+            b'"' | b'\\' => {
+                out.push('\\');
+                out.push(char::from(b));
+            }
+            0x20..=0x7E => out.push(char::from(b)),
+            _ => {
+                let _ = write!(out, "\\x{b:02x}");
+            }
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Where a face's file is served, under the served directory: its checkout path under `fonts/`.

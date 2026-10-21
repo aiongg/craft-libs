@@ -344,8 +344,9 @@ impl<'a> UiFonts<'a> {
     /// The craft-fonts faces a web build serves beside its wasm (see `craft-fonts-build`'s
     /// `Embed::serve`); may be empty. They take the places embedded faces would, and on the web
     /// [`Stack::install`] fetches them: the UI language's faces at once ([`Stack::ui_downloads`]),
-    /// others the first time text needs a character of their script. Until a face arrives, text
-    /// falls back to the faces after it. Outside the web they are never fetched.
+    /// others the first time text needs a character that their files map and the faces already
+    /// installed lack ([`Stack::downloads_for`]). Until a face arrives, text falls back to the
+    /// faces after it. Outside the web they are never fetched.
     pub fn served_faces(mut self, faces: &[ServedFace]) -> Self {
         for face in faces {
             self.craft_faces.push(face.craft_face());
