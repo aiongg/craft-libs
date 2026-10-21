@@ -203,6 +203,40 @@ fn vietnamese_telex_keeps_backspace_between_its_inserts() {
 }
 
 #[test]
+fn commits_without_a_composition_leave_the_next_keys_to_the_user() {
+    // IBus and fcitx send plain letters as commits.
+    let mut c = Composer::new();
+    let (doc, keys) = type_passes(&mut c, &[(0.0, vec![commit("a"), commit("b"), key(Key::Backspace)])]);
+    assert_eq!(doc, "a");
+    assert_eq!(keys, [Key::Backspace]);
+    for k in [Key::Enter, Key::Escape, Key::Delete, Key::Space] {
+        let (_, keys) = type_passes(&mut c, &[(1.0, vec![commit("x"), key(k)])]);
+        assert_eq!(keys, [k], "{k:?} after a bare commit is the user's");
+    }
+    // Telex through IBus without preedit: Backspace replaces the a.
+    let (doc, _) = type_passes(&mut c, &[(2.0, vec![commit("t"), commit("o"), commit("a"), key(Key::Backspace), commit("à")])]);
+    assert_eq!(doc, "toà");
+    // A bare commit of a space guards only the Space key that typed it.
+    let (doc, keys) = type_passes(&mut c, &[(3.0, vec![commit(" "), key(Key::Space), text(" ")]), (3.01, vec![commit(" "), key(Key::Backspace)])]);
+    assert_eq!(doc, " ");
+    assert_eq!(keys, [Key::Backspace]);
+}
+
+#[test]
+fn a_line_break_with_nothing_composing_is_enter() {
+    let enter = |modifiers| Edit::Key { key: Key::Enter, modifiers, repeat: false };
+    let mut c = Composer::new();
+    assert_eq!(c.process(&[commit("\n")], 0.0).edits, [enter(Modifiers::NONE)]);
+    assert_eq!(c.process(&[text("\n")], 1.0).edits, [enter(Modifiers::NONE)]);
+    // The key and its text, in either order, are one Enter.
+    assert_eq!(c.process(&[key(Key::Enter), text("\r")], 2.0).edits, [enter(Modifiers::NONE)]);
+    assert_eq!(c.process(&[commit("\n"), key(Key::Enter), text("\n")], 3.0).edits, [enter(Modifiers::NONE)]);
+    // Shift+Enter stays Shift+Enter.
+    let p = c.process(&[Event::ModifiersChanged(Modifiers::SHIFT), commit("\r")], 4.0);
+    assert_eq!(p.edits, [enter(Modifiers::SHIFT)]);
+}
+
+#[test]
 fn dead_keys_compose_or_arrive_as_text() {
     let mut c = Composer::new();
     // macOS: ⌥E marks the accent, the next key commits the letter.
@@ -290,6 +324,17 @@ fn the_ime_is_on_at_the_caret_only_while_editing() {
     let out = run(&ctx, 0.3, vec![], |ctx| edits = c.update(ctx, false));
     assert_eq!(edits, [Edit::Preedit { text: String::new(), active: None }, Edit::Insert("か".into())]);
     assert!(out.platform_output.ime.is_none());
+}
+
+#[test]
+fn update_starts_from_the_modifiers_held() {
+    // Cmd went down while another view had the keyboard; its ModifiersChanged went there.
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    run(&ctx, 0.0, vec![Event::ModifiersChanged(Modifiers::COMMAND)], |_| {});
+    let mut edits = Vec::new();
+    run(&ctx, 0.1, vec![text("s")], |ctx| edits = c.update(ctx, true));
+    assert!(edits.is_empty(), "Cmd+S doesn't type an s");
 }
 
 #[test]

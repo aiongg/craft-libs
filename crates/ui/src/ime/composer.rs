@@ -3,8 +3,9 @@ use std::ops::Range;
 use egui::{Context, Event, IMEPurpose, ImeEvent, Key, Modifiers, Rect, output::IMEOutput};
 
 /// Seconds after a composition ends in which the IME's own confirm, cancel and edit keys
-/// (Enter, Escape, Backspace, Delete, Space) are still taken as the IME's. Platforms that forward
-/// the confirming key do so in the same batch of events; a person's next Enter comes much later.
+/// (Enter, Escape, Backspace, Delete, Space) are still taken as the IME's, and after a bare
+/// commit in which the key that typed it is. Platforms that forward the key do so in the same
+/// batch of events; a person's next Enter comes much later.
 const GUARD_SECS: f64 = 0.05;
 
 /// Seconds after the composer kept marked text itself (a click away, the canvas giving up the
@@ -23,7 +24,8 @@ pub enum Edit {
     /// Text to insert at the caret: typed, committed by the IME, or marked text kept as typed.
     Insert(String),
     /// A key press for the editor (caret movement, Backspace, Enter, Escape, shortcuts). Keys the
-    /// IME is using never appear here.
+    /// IME is using never appear here. A line break sent as text or committed with nothing
+    /// composing arrives as Enter, so the editor handles new lines (or submitting) in one place.
     Key {
         key: Key,
         modifiers: Modifiers,
@@ -64,8 +66,8 @@ pub struct Processed {
 pub struct Composer {
     preedit: String,
     active: Option<Range<usize>>,
-    /// When the last composition ended, for [`GUARD_SECS`].
-    ended_at: Option<f64>,
+    /// The keys the platform may still forward, and since when, for [`GUARD_SECS`].
+    guard: Option<(Guard, f64)>,
     /// Marked text the composer kept itself, and when, for [`KEPT_SECS`].
     kept: Option<(String, f64)>,
     /// This pass's last commit since the last typed text, to drop the same text typed again.
@@ -113,7 +115,9 @@ impl Composer {
             return kept.map(|text| vec![Edit::Preedit { text: String::new(), active: None }, Edit::Insert(text)]).unwrap_or_default();
         }
         self.on = true;
-        let (events, time) = ctx.input(|i| (i.events.clone(), i.time));
+        let (events, time, modifiers) = ctx.input(|i| (i.events.clone(), i.time, i.modifiers));
+        // Modifiers can change while the composer isn't updated (another view has the keyboard).
+        self.modifiers = modifiers;
         let processed = self.process(&events, time);
         if processed.events.len() != events.len() {
             ctx.input_mut(|i| i.events = processed.events);
@@ -151,41 +155,46 @@ impl Composer {
     /// tests. `time` is the pass's input time in seconds.
     pub fn process(&mut self, events: &[Event], time: f64) -> Processed {
         let mut out = Processed::default();
-        // Ends of composition in this pass guard the IME's keys regardless of time.
-        let mut ended_this_pass = false;
         self.last_commit = None;
         if self.kept.as_ref().is_some_and(|(_, at)| time - at > KEPT_SECS) {
             self.kept = None;
         }
+        // The previous event was a pressed Enter: a line break right after it is that key's text.
+        let mut after_enter = false;
         for event in events {
+            let follows_enter = std::mem::take(&mut after_enter);
             let keep = match event {
                 Event::Ime(ime) => {
-                    self.ime(ime, time, &mut ended_this_pass, &mut out.edits);
+                    self.ime(ime, time, follows_enter, &mut out.edits);
                     false
                 }
                 Event::Key { key, pressed, repeat, modifiers, .. } => {
                     self.modifiers = *modifiers;
                     if !*pressed {
+                        after_enter = follows_enter;
                         true
-                    } else if self.is_composing() {
-                        false
-                    } else if is_ime_key(*key) && (ended_this_pass || self.ended_at.is_some_and(|at| time - at <= GUARD_SECS)) {
-                        // One forwarded key per composition end: a second Enter is the user's.
-                        self.ended_at = None;
-                        ended_this_pass = false;
-                        false
                     } else {
-                        self.kept = None;
-                        out.edits.push(Edit::Key { key: *key, modifiers: *modifiers, repeat: *repeat });
-                        true
+                        after_enter = *key == Key::Enter;
+                        if self.is_composing() || self.take_guard(*key, time) {
+                            false
+                        } else {
+                            self.kept = None;
+                            out.edits.push(Edit::Key { key: *key, modifiers: *modifiers, repeat: *repeat });
+                            true
+                        }
                     }
                 }
                 Event::Text(text) => {
                     // The key that produced a commit can arrive as text too (Apple Korean's Space).
                     let duplicate = self.last_commit.take().is_some_and(|c| c == *text);
-                    if self.is_composing() || duplicate || is_line_break(text) || is_shortcut_chord(self.modifiers) {
+                    if self.is_composing() || duplicate || is_shortcut_chord(self.modifiers) {
                         false
+                    } else if is_line_break(text) {
+                        self.line_break(time, follows_enter, &mut out.edits);
+                        true
                     } else {
+                        // Keys after typed text are the user's.
+                        self.guard = None;
                         self.kept = None;
                         out.edits.push(Edit::Insert(text.clone()));
                         true
@@ -206,6 +215,7 @@ impl Composer {
                 }
                 Event::ModifiersChanged(modifiers) => {
                     self.modifiers = *modifiers;
+                    after_enter = follows_enter;
                     true
                 }
                 Event::PointerButton { pressed: true, .. } => {
@@ -226,15 +236,12 @@ impl Composer {
         out
     }
 
-    fn ime(&mut self, ime: &ImeEvent, time: f64, ended_this_pass: &mut bool, edits: &mut Vec<Edit>) {
+    fn ime(&mut self, ime: &ImeEvent, time: f64, after_enter: bool, edits: &mut Vec<Edit>) {
         match ime {
             ImeEvent::Preedit { text, .. } if text.is_empty() => {
                 // Wayland input methods send empty preedits on every state change and after
                 // each commit; only one that ends a composition means anything.
-                if self.is_composing() {
-                    self.take_preedit(time, edits);
-                    *ended_this_pass = true;
-                }
+                self.take_preedit(time, edits);
             }
             ImeEvent::Preedit { text, active_range_chars } => {
                 self.kept = None;
@@ -247,8 +254,13 @@ impl Composer {
             // stays as typed, not a new line.
             ImeEvent::Commit(text) if is_line_break(text) => {
                 if let Some(kept) = self.take_preedit(time, edits) {
+                    self.guard = Some((Guard::Ended { committed: true }, time));
                     edits.push(Edit::Insert(kept));
-                    *ended_this_pass = true;
+                } else if self.awaits_commit(time) {
+                    self.guard = Some((Guard::Ended { committed: true }, time));
+                } else {
+                    self.last_commit = Some(text.clone());
+                    self.line_break(time, after_enter, edits);
                 }
             }
             ImeEvent::Commit(text) => {
@@ -256,15 +268,17 @@ impl Composer {
                 if self.kept.take().is_some_and(|(kept, _)| kept == *text) {
                     return;
                 }
+                if was_composing || self.awaits_commit(time) {
+                    self.guard = Some((Guard::Ended { committed: true }, time));
+                } else if !text.is_empty() {
+                    // A commit with no composition (IBus and fcitx typing plain letters, the
+                    // emoji picker, dictation, Apple Korean's Space with no syllable) is typed
+                    // text. Only Space can follow it as the key that typed it.
+                    self.guard = (text == " ").then_some((Guard::Key(Key::Space), time));
+                }
                 if text.is_empty() {
-                    *ended_this_pass |= was_composing;
                     return;
                 }
-                // A commit with no composition (the emoji picker, a dictated phrase, Korean
-                // Space with no syllable) is still typed text, and may be followed by the key
-                // that produced it.
-                *ended_this_pass = true;
-                self.ended_at = Some(time);
                 self.last_commit = Some(text.clone());
                 edits.push(Edit::Insert(text.clone()));
             }
@@ -278,12 +292,39 @@ impl Composer {
         }
     }
 
+    /// Whether `key` is the one the platform forwards after a composition ended or a bare
+    /// commit. One key per guard: a second Enter is the user's.
+    fn take_guard(&mut self, key: Key, time: f64) -> bool {
+        let guarded = self.guard.is_some_and(|(guard, at)| guard.covers(key) && time - at <= GUARD_SECS);
+        if guarded {
+            self.guard = None;
+        }
+        guarded
+    }
+
+    /// The composition just ended with an empty preedit and its commit hasn't arrived yet
+    /// (Wayland and Windows end it before committing).
+    fn awaits_commit(&self, time: f64) -> bool {
+        matches!(self.guard, Some((Guard::Ended { committed: false }, at)) if time - at <= GUARD_SECS)
+    }
+
+    /// A line break typed or committed with nothing composing is the Enter key, unless the Enter
+    /// that typed it came just before.
+    fn line_break(&mut self, time: f64, after_enter: bool, edits: &mut Vec<Edit>) {
+        if after_enter {
+            return;
+        }
+        self.kept = None;
+        self.guard = Some((Guard::Key(Key::Enter), time));
+        edits.push(Edit::Key { key: Key::Enter, modifiers: self.modifiers, repeat: false });
+    }
+
     fn take_preedit(&mut self, time: f64, edits: &mut Vec<Edit>) -> Option<String> {
         if !self.is_composing() {
             return None;
         }
         self.active = None;
-        self.ended_at = Some(time);
+        self.guard = Some((Guard::Ended { committed: false }, time));
         edits.push(Edit::Preedit { text: String::new(), active: None });
         Some(std::mem::take(&mut self.preedit))
     }
@@ -309,6 +350,26 @@ impl Composer {
             let interrupt = interrupt || o.ime.is_some_and(|ime| ime.should_interrupt_composition);
             o.ime = Some(IMEOutput { purpose: self.purpose, rect, cursor_rect: rect, should_interrupt_composition: interrupt });
         });
+    }
+}
+
+/// Keys the platform may forward after the text they produced, for [`GUARD_SECS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Guard {
+    /// A composition ended: the key that confirmed, cancelled or emptied it is the IME's.
+    /// `committed` once its commit, if any, has arrived.
+    Ended { committed: bool },
+    /// Text that arrived without a composition: only the key that typed it (Apple Korean's
+    /// Space after a commit of " ", the Enter behind a line break) is a duplicate.
+    Key(Key),
+}
+
+impl Guard {
+    fn covers(self, key: Key) -> bool {
+        match self {
+            Self::Ended { .. } => is_ime_key(key),
+            Self::Key(guarded) => key == guarded,
+        }
     }
 }
 

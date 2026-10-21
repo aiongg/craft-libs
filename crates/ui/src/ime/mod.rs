@@ -30,7 +30,11 @@
 //!   Backspace, Delete and Space that end a composition are its too, once: Enter that confirms a
 //!   word doesn't also start a line or submit, Backspace that empties the marked text doesn't
 //!   delete the character before it, and Escape that cancels doesn't leave the editor.
+//! - Text committed with no composition (IBus and fcitx send plain letters this way) leaves the
+//!   keys after it to the editor; only the Space that typed a committed space is dropped.
 //! - A bare line break committed by the IME confirms the marked text instead of breaking the line.
+//!   With nothing composing, a line break sent as text or committed arrives as [`Edit::Key`]
+//!   Enter, once.
 //! - Empty preedits outside a composition (Wayland sends them on every state change) are ignored.
 //! - A click while composing keeps the marked text as typed and tells the IME to drop its copy;
 //!   a late commit of the same text is dropped. Giving up the keyboard does the same.
