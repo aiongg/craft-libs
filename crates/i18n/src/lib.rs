@@ -11,6 +11,9 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod catalog;
+#[cfg(feature = "collate")]
+mod collate;
+mod fold;
 mod format;
 mod number;
 mod region;
@@ -46,6 +49,9 @@ use icu_locale_core::Locale as IcuLocale;
 use icu_plurals::{PluralCategory, PluralOperands, PluralRules};
 use unicode_bidi::{BidiClass, bidi_class};
 
+#[cfg(feature = "collate")]
+pub use collate::Collator;
+pub use fold::{Folded, Folder};
 pub use format::{Digits, Format};
 pub use number::{NumberError, parse_number};
 pub use region::{HourCycle, Measurement, Paper, Region};
