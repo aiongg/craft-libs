@@ -25,7 +25,7 @@ mod view;
 
 pub use state::DialogState;
 pub use style::DialogStyle;
-pub use text::{English, I18nText, PLURALS, STRINGS, Text, trigger_text};
+pub use text::{English, I18nText, PLURALS, STRINGS, Text, epaint_reorders_bidi, trigger_text};
 
 use state::Env;
 

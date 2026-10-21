@@ -3,14 +3,15 @@
 //! platform display, accessibility labels, small windows, sets, import review and the summary.
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
-use craft_keymap::ui::{ConflictMode, DialogState, English, FixedRow, Options, Outcome, ShortcutsDialog, Text};
+use craft_keymap::ui::{ConflictMode, DialogState, English, FixedRow, Options, Outcome, ShortcutsDialog, Text, epaint_reorders_bidi};
 use craft_keymap::{
     Bindable, Chord, CommandRef, ConflictKind, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, Kind, Overrides,
     Platform, Profiles, Scope, Scopes, Trigger,
 };
 use egui::accesskit::Role;
-use egui::{Event, Key as EguiKey, Modifiers, Vec2, vec2};
+use egui::{Event, Galley, Key as EguiKey, Modifiers, Shape, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 use ui_fixture::{Pseudo, fixture, with_long_label};
@@ -613,6 +614,79 @@ fn rtl_puts_the_detail_pane_left_and_keeps_chords() {
     assert!(table.min.x > 300.0, "table on the right: {table:?}");
     let chip = h.get_by_label("Save As…: ⇧⌘S").rect();
     assert!(chip.center().x < table.center().x, "shortcut column on the table's left: {chip:?} in {table:?}");
+}
+
+/// Hebrew for the strings and names the bidi test draws.
+struct Hebrew;
+impl Text for Hebrew {
+    fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
+        match source {
+            "Default: {chord}" => "ברירת מחדל: {chord}".into(),
+            _ => source.into(),
+        }
+    }
+    fn plural(&self, _n: u64, _one: &str, other: &str) -> String {
+        other.to_string()
+    }
+    fn command<'a>(&'a self, b: &'a Bindable) -> Cow<'a, str> {
+        self.segment(&b.label)
+    }
+    fn segment<'a>(&'a self, s: &'a str) -> Cow<'a, str> {
+        match s {
+            "Object" => "עצם".into(),
+            "Arrange" => "סידור".into(),
+            "Bring to Front" => "הבאה לחזית".into(),
+            "Save As…" => "שמירה בשם".into(),
+            _ => s.into(),
+        }
+    }
+    fn rtl(&self) -> bool {
+        true
+    }
+    /// What an app does: nothing when epaint reorders bidi text itself, otherwise its bidi
+    /// reordering, which for these strings (Hebrew, spaces and punctuation) reverses them.
+    fn visual(&self, s: &str) -> String {
+        if epaint_reorders_bidi() { s.to_string() } else { s.chars().rev().collect() }
+    }
+}
+
+/// The characters of the one drawn galley whose text contains each of `needles`, from left to right on
+/// screen, without bidi marks and isolates; `‹` is read as `›`, which the shaper draws mirrored
+/// in right-to-left text.
+fn drawn_left_to_right(h: &Harness<'_, Fx>, needles: &[&str]) -> String {
+    fn galleys(shape: &Shape, out: &mut Vec<Arc<Galley>>) {
+        match shape {
+            Shape::Vec(v) => v.iter().for_each(|s| galleys(s, out)),
+            Shape::Text(t) => out.push(Arc::clone(&t.galley)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for clipped in &h.output().shapes {
+        galleys(&clipped.shape, &mut all);
+    }
+    let found: Vec<_> = all.iter().filter(|g| needles.iter().all(|n| g.text().contains(n))).collect();
+    let [galley] = found[..] else { panic!("{} galleys with {needles:?}: {:?}", found.len(), found.iter().map(|g| g.text()).collect::<Vec<_>>()) };
+    assert_eq!(galley.rows.len(), 1, "one row: {:?}", galley.text());
+    let row = &galley.rows[0].row;
+    let mut glyphs: Vec<_> = row.glyphs.iter().filter(|g| !matches!(g.chr, '\u{200E}' | '\u{200F}' | '\u{2066}'..='\u{2069}')).collect();
+    glyphs.sort_by(|a, b| a.pos.x.total_cmp(&b.pos.x));
+    glyphs.iter().map(|g| if g.chr == '‹' { '›' } else { g.chr }).collect()
+}
+
+/// A Hebrew menu path and a chord message read right to left on screen on either egui: crates.io
+/// egui draws the dialog's display-order text as it comes, the suite's fork reorders the
+/// logical-order text itself.
+#[test]
+fn rtl_menu_path_and_chord_message_read_right_to_left() {
+    let mut fx = Fx::new(fixture(Platform::Mac));
+    fx.text = Box::new(Hebrew);
+    let mut h = open(fx);
+    click(&mut h, "הבאה לחזית");
+    assert_eq!(drawn_left_to_right(&h, &["object.front"]), "object.front · תיזחל האבה › רודיס › םצע");
+    click(&mut h, "שמירה בשם");
+    // Of the dialog's strings, only "ברירת מחדל: {chord}" has a "ד".
+    assert_eq!(drawn_left_to_right(&h, &["ד", "⇧⌘S"]), "⇧⌘S :לדחמ תרירב");
 }
 
 // ---- Sets ----

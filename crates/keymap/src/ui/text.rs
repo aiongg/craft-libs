@@ -3,6 +3,8 @@
 
 use std::borrow::Cow;
 
+use egui::epaint::text::Glyph;
+
 use crate::chord::{Key, Platform, Trigger};
 use crate::keymap::Bindable;
 
@@ -36,6 +38,13 @@ pub trait Text {
     }
     /// A label or message put into display order (the app's bidi reordering). Chord text is never
     /// passed here.
+    ///
+    /// Only crates.io egui needs this: it draws a string's characters left to right as they come.
+    /// The suite's egui fork applies the Unicode bidi algorithm itself ([`epaint_reorders_bidi`]),
+    /// so there apps return `s` unchanged, and the dialog keeps its text in logical order too: it
+    /// swaps no sides and reverses no paths. It only marks the text it composes: a right-to-left
+    /// mark sets the paragraph direction in a right-to-left interface, and a left-to-right isolate
+    /// keeps a chord in its order.
     fn visual(&self, s: &str) -> String {
         s.to_string()
     }
@@ -105,12 +114,67 @@ pub fn trigger_text(text: &dyn Text, trigger: &Trigger, platform: Platform) -> S
 }
 
 /// `s` in display order with `chord`, text inside it, left as it is: chord text never goes
-/// through [`Text::visual`]. Right to left, the parts before and after the chord change sides.
+/// through [`Text::visual`]. Right to left, the parts before and after the chord change sides,
+/// unless epaint reorders bidi text: then `s` keeps its order, starts with a right-to-left mark
+/// and has the chord in a left-to-right isolate, so that a chord like `⇧⌘S` or `Ctrl+-` keeps its
+/// order and its neutral symbols stay with it.
 pub(crate) fn visual_around(text: &dyn Text, s: &str, chord: &str) -> String {
     let Some(i) = s.find(chord).filter(|_| !chord.is_empty()) else { return text.visual(s) };
     let (before, rest) = s.split_at(i);
     let (before, after) = (text.visual(before), text.visual(&rest[chord.len()..]));
-    if text.rtl() { format!("{after}{chord}{before}") } else { format!("{before}{chord}{after}") }
+    match (text.rtl(), epaint_reorders_bidi()) {
+        (true, true) => format!("{RLM}{before}{LRI}{chord}{PDI}{after}"),
+        (true, false) => format!("{after}{chord}{before}"),
+        (false, _) => format!("{before}{chord}{after}"),
+    }
+}
+
+/// Right-to-left mark: starts text the dialog composes, so that its paragraph is right to left
+/// even when its first strong letter is Latin.
+pub(crate) const RLM: char = '\u{200F}';
+/// Left-to-right isolate, closed by [`PDI`].
+pub(crate) const LRI: char = '\u{2066}';
+/// Pop directional isolate.
+pub(crate) const PDI: char = '\u{2069}';
+
+/// Whether epaint lays out bidirectional text itself, as the suite's egui fork does: it shapes
+/// right-to-left runs and puts each row in visual order. Text for it stays in logical order, and
+/// [`Text::visual`] returns it unchanged. crates.io egui 0.37 draws characters left to right as
+/// they come.
+pub fn epaint_reorders_bidi() -> bool {
+    reorders(|g: &Glyph| g.is_rtl())
+}
+
+/// The fork has an inherent `Glyph::is_rtl`; crates.io epaint has no such method. A method call
+/// picks an inherent method over a trait method of the same name, so the closure in
+/// [`epaint_reorders_bidi`] returns `bool` on the fork and [`NoBidi`] elsewhere. The same source
+/// thus builds against both without a feature.
+#[allow(dead_code, reason = "unused when epaint has the inherent method")]
+trait IsRtl {
+    fn is_rtl(&self) -> NoBidi {
+        NoBidi
+    }
+}
+
+impl IsRtl for Glyph {}
+
+#[allow(dead_code, reason = "unused when epaint has the inherent method")]
+struct NoBidi;
+
+trait Reorders {
+    const REORDERS: bool;
+}
+
+impl Reorders for bool {
+    const REORDERS: bool = true;
+}
+
+impl Reorders for NoBidi {
+    const REORDERS: bool = false;
+}
+
+fn reorders<T: Reorders>(_is_rtl: fn(&Glyph) -> T) -> bool {
+    T::REORDERS
 }
 
 /// Plural forms the dialog looks up, as `one|other`, the key of craft-i18n's `@plural` rows.
@@ -341,6 +405,29 @@ mod tests {
         assert_eq!(trigger_text(&German, &Trigger::parse("F7 F7")?, Platform::Windows), "F7 F7");
         assert_eq!(trigger_text(&English, &Trigger::single(Chord::parse("⇧⌘Z")?), Platform::Mac), "⇧⌘Z");
         Ok(())
+    }
+
+    struct EnglishRtl;
+    impl Text for EnglishRtl {
+        fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
+            source.into()
+        }
+        fn plural(&self, _n: u64, _one: &str, other: &str) -> String {
+            other.to_string()
+        }
+        fn rtl(&self) -> bool {
+            true
+        }
+    }
+
+    /// Right to left, crates.io egui gets the sides swapped; the fork gets logical order, a
+    /// right-to-left paragraph and the chord isolated, so its leading `⇧⌘` stays left of the `S`.
+    #[test]
+    fn chord_text_right_to_left() {
+        let s = visual_around(&EnglishRtl, "⇧⌘S (Default)", "⇧⌘S");
+        let want = if epaint_reorders_bidi() { "\u{200F}\u{2066}⇧⌘S\u{2069} (Default)" } else { " (Default)⇧⌘S" };
+        assert_eq!(s, want);
+        assert_eq!(visual_around(&English, "⇧⌘S (Default)", "⇧⌘S"), "⇧⌘S (Default)");
     }
 
     /// Every `ui("…")` and `plural(n, "…", "…")` literal in the dialog's sources is listed.

@@ -27,7 +27,7 @@ use crate::ui::capture;
 use crate::ui::rows::{AreaId, Filter, FixedLine, Line, Row};
 use crate::ui::state::{Answer, DialogState, Env, Prompt, Recording, Target, binding_error};
 use crate::ui::style::{self, DialogStyle};
-use crate::ui::text::{trigger_text, visual_around};
+use crate::ui::text::{RLM, epaint_reorders_bidi, trigger_text, visual_around};
 
 #[path = "keyboard.rs"]
 pub(crate) mod keyboard;
@@ -104,8 +104,16 @@ impl Draw<'_, '_> {
 
     /// Parts in logical order, each already in display order, put into display order: reversed in
     /// a right-to-left interface, where the path separator ` › ` becomes ` ‹ `.
+    ///
+    /// When epaint reorders bidi text, the parts keep their order and epaint does the rest; right
+    /// to left, a right-to-left mark starts them so that their paragraph is right to left, and the
+    /// shaper mirrors ` › ` in right-to-left runs.
     fn ordered<T>(&self, mut parts: Vec<(String, T)>) -> Vec<(String, T)> {
-        if self.rtl() {
+        if self.rtl() && epaint_reorders_bidi() {
+            if let Some((s, _)) = parts.first_mut() {
+                s.insert(0, RLM);
+            }
+        } else if self.rtl() {
             parts.reverse();
             for (s, _) in &mut parts {
                 if s == PATH_SEP {
@@ -123,7 +131,8 @@ impl Draw<'_, '_> {
 
     /// Display-order `parts` on one line within `width`, cut with "…" when they do not fit: at
     /// the end, or at the start in a right-to-left interface, where the logical end of the text is
-    /// on the left. Returns the galley and whether it was cut.
+    /// on the left. When epaint reorders bidi text, the parts are in logical order and epaint puts
+    /// "…" at the visual end itself. Returns the galley and whether it was cut.
     fn one_line(&self, painter: &Painter, parts: &[(String, TextFormat)], width: f32) -> (Arc<Galley>, bool) {
         let width = width.max(0.0);
         let job = |skip: usize| {
@@ -148,7 +157,7 @@ impl Draw<'_, '_> {
         if full.size().x <= width + 0.5 {
             return (full, false);
         }
-        if !self.rtl() {
+        if !self.rtl() || epaint_reorders_bidi() {
             let mut cut = job(0);
             cut.wrap = TextWrapping::truncate_at_width(width);
             return (painter.layout_job(cut), true);
@@ -196,7 +205,8 @@ impl Draw<'_, '_> {
         }
     }
 
-    /// A menu path in display order: "File › Export", "Export ‹ File" right to left.
+    /// A menu path in display order: "File › Export", "Export ‹ File" right to left (see
+    /// [`ordered`](Self::ordered)).
     fn path_text(&self, path: &[String]) -> String {
         let mut parts = Vec::new();
         for (i, s) in path.iter().enumerate() {

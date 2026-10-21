@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use craft_keymap::ui::{PLURALS, STRINGS, Text};
+use craft_keymap::ui::{PLURALS, STRINGS, Text, epaint_reorders_bidi};
 use craft_keymap::{Bindable, Binding, Key, Keymap, Kind, Platform, Scope, Scopes};
 
 fn binding(text: &str) -> Binding {
@@ -142,9 +142,12 @@ impl Text for EnglishRtl {
         true
     }
 
-    /// The words stay in English order; spaces at either end change sides, as in a right-to-left
-    /// paragraph.
+    /// What an app does: nothing when epaint reorders bidi text itself. Otherwise the words stay
+    /// in English order and spaces at either end change sides, as in a right-to-left paragraph.
     fn visual(&self, s: &str) -> String {
+        if epaint_reorders_bidi() {
+            return s.to_string();
+        }
         let core = s.trim();
         if core.is_empty() {
             return s.to_string();
