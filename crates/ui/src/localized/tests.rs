@@ -14,13 +14,14 @@ fn formats_and_reads_the_regions_numbers() {
     assert_eq!(de.format(-0.001, 0..=2), "0");
     assert_eq!(de.parse("1,5"), Ok(1.5));
     assert_eq!(de.parse("1.234.567"), Ok(1234567.0));
-    assert!(de.parse("1.").is_err_and(|e| incomplete("1.", e)), "a grouping mark still to be followed by digits");
+    assert!(de.parse("1.234.").is_err_and(|e| incomplete("1.234.", e)), "a grouping mark still to be followed by digits");
+    assert_eq!(de.parse("1.5"), Ok(1.5), "a lone point that can't be grouping");
 
     let en = LocaleNumbers::from_tag("en-US");
     assert_eq!(en.format(1234567.25, 0..=2), "1,234,567.25");
     assert_eq!(en.parse("1,234,567.25"), Ok(1234567.25));
     assert_eq!(en.parse("１２，３４５．５"), Ok(12345.5), "full-width digits and marks");
-    assert_eq!(en.parse("1,5"), Err(NumberError::Separator));
+    assert_eq!(en.parse("1,5,5"), Err(NumberError::Separator));
 
     let ar = LocaleNumbers::from_tag("ar-EG");
     assert_eq!(ar.format(1234.5, 1..=1), "١٬٢٣٤٫٥");
@@ -36,12 +37,16 @@ fn formats_and_reads_the_regions_numbers() {
 
 #[test]
 fn a_region_reads_back_its_own_decimal_mark() {
-    // English with the decimal comma Germany's Windows settings give it.
-    let mut region = craft_i18n::Region::from_tag("en-DE");
-    region.decimal = ',';
+    // English in the US with a decimal comma and no grouping from the Windows settings.
+    let mut region = craft_i18n::Region::from_tag("en-US");
+    region.decimal = Some(',');
     let numbers = LocaleNumbers::new(Arc::new(Format::new(&region, craft_i18n::Digits::Locale)));
     let written = numbers.format(1234.5, 1..=1);
-    assert_eq!(numbers.parse(&written), Ok(1234.5), "{written}");
+    assert_eq!((written.as_str(), numbers.parse(&written)), ("1.234,5", Ok(1234.5)));
+    assert_eq!(numbers.parse("1.234"), Ok(1234.0), "the grouping moved to the point");
+    region.grouping = Some(None);
+    let numbers = LocaleNumbers::new(Arc::new(Format::new(&region, craft_i18n::Digits::Locale)));
+    assert_eq!(numbers.format(1234.5, 1..=1), "1234,5");
 }
 
 #[test]
@@ -59,11 +64,16 @@ fn units_wrap_and_strip() {
 
 fn drag_harness(tag: &str, value: f64) -> Harness<'static, f64> {
     let numbers = LocaleNumbers::from_tag(tag);
+    drag_harness_with(value, move |ui, value| LocalizedDragValue::new(DragValue::new(value).speed(0.1), &numbers).ui(ui))
+}
+
+fn drag_harness_with(value: f64, add: impl FnMut(&mut Ui, &mut f64) -> Response + 'static) -> Harness<'static, f64> {
+    let mut add = add;
     // The default fonts have no Arabic or Persian digits; the fonts module adds them in apps.
     let mut h = Harness::builder().allow_missing_glyphs().build_ui_state(
         move |ui, value: &mut f64| {
             let label = ui.label("Width");
-            ui.add(LocalizedDragValue::new(DragValue::new(value).speed(0.1), &numbers)).labelled_by(label.id);
+            add(ui, value).labelled_by(label.id);
         },
         value,
     );
@@ -96,6 +106,28 @@ fn drag_value_in_arabic_digits() {
     assert_eq!(h.get_by_role(Role::SpinButton).value().as_deref(), Some("١٫٥"));
     type_into_drag(&mut h, "٢٬٥٠٠٫٥");
     assert_eq!(*h.state(), 2500.5);
+}
+
+#[test]
+fn drag_value_keeps_the_apps_text_around_the_number() {
+    let numbers = LocaleNumbers::from_tag("de");
+    let mut h = drag_harness_with(0.0, move |ui, value| {
+        LocalizedDragValue::new(DragValue::new(value).prefix("x: ").suffix(" °"), &numbers)
+            .or_format(|v, _| (v == 0.0).then(|| "Auto".to_owned()))
+            .or_parse(|t| (t.trim() == "Auto").then_some(0.0))
+            .ui(ui)
+    });
+    assert_eq!(h.get_by_role(Role::SpinButton).value().as_deref(), Some("x: Auto °"));
+    type_into_drag(&mut h, "2,5");
+    assert_eq!(*h.state(), 2.5);
+    assert_eq!(h.get_by_role(Role::SpinButton).value().as_deref(), Some("x: 2,5 °"));
+
+    let numbers = LocaleNumbers::from_tag("de");
+    let h = drag_harness_with(1.5, move |ui, value| {
+        LocalizedDragValue::new(DragValue::new(value).prefix("x: ").suffix(" °"), &numbers).unit(Unit::new("{n} px")).ui(ui)
+    });
+    let shown = h.get_by_role(Role::SpinButton).value().unwrap_or_default();
+    assert!(shown.contains("x: 1,5 °") && shown.trim_end().ends_with("px"), "a unit goes outside them: {shown:?}");
 }
 
 #[test]
@@ -178,6 +210,33 @@ fn number_field_keeps_text_it_cannot_read() {
     assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("1,5,5"), "the text stays to be fixed");
     type_into_field(&mut h, "2,5");
     assert_eq!(*h.state(), 2.5);
+}
+
+#[test]
+fn number_field_rounds_before_clamping() {
+    let mut h = field_harness("de", 1.5);
+    type_into_field(&mut h, "9999,99999999");
+    assert_eq!(*h.state(), 10000.0, "rounded to six decimals, then clamped");
+    let numbers = LocaleNumbers::from_tag("de");
+    let mut h = Harness::builder().build_ui_state(
+        move |ui, value: &mut i32| {
+            let label = ui.label("Count");
+            ui.add(NumberField::new(value, &numbers).range(-10.0..=10.0)).labelled_by(label.id);
+        },
+        0,
+    );
+    h.run();
+    for (text, want) in [("2,7", 3), ("2,5", 3), ("-0,5", -1), ("-0,4", 0), ("9,6", 10), ("10,5", 10)] {
+        h.get_by_role(Role::TextInput).click();
+        h.run();
+        h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+        h.run();
+        h.get_by_role(Role::TextInput).type_text(text);
+        h.run();
+        h.key_press(Key::Enter);
+        h.run();
+        assert_eq!(*h.state(), want, "{text}");
+    }
 }
 
 #[test]

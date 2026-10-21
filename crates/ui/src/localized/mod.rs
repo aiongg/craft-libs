@@ -1,7 +1,7 @@
 //! Number widgets that write numbers the way the user's region does (its digits, decimal mark and
 //! grouping) and read back any digits with the region's separators.
 //!
-//! [`LocaleNumbers`] wraps a [`craft_i18n::Format`] and [`craft_i18n::parse_number`].
+//! [`LocaleNumbers`] wraps a [`craft_i18n::Format`], which writes and reads the numbers.
 //! [`LocalizedDragValue`] puts them on an [`egui::DragValue`]; [`NumberField`] is a text field for
 //! apps that edit numbers in a [`egui::TextEdit`]. Text that isn't a number never changes the
 //! value: it is outlined in the error color with a tooltip saying why.
@@ -11,7 +11,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use craft_i18n::{Format, I18n, Lang, NumberError, parse_number};
+use craft_i18n::{Format, I18n, Lang, NumberError};
 use egui::emath::{Numeric, round_to_decimals};
 use egui::{AsIdSalt, DragValue, Id, IdSalt, Key, Modifiers, Response, Stroke, StrokeKind, TextEdit, Ui, Widget};
 
@@ -24,6 +24,7 @@ const REJECTED_FOR: f64 = 2.5;
 
 type Messages = Arc<dyn Fn(&'static str) -> String + Send + Sync>;
 type Fallback<'a> = Box<dyn 'a + Fn(&str) -> Option<f64>>;
+type Formatter<'a> = Box<dyn 'a + Fn(f64, RangeInclusive<usize>) -> Option<String>>;
 /// The last text egui asked the parser to read: whether it is still being typed, and the result.
 type LastRead = Rc<Cell<Option<(bool, Result<f64, NumberError>)>>>;
 
@@ -32,33 +33,18 @@ type LastRead = Rc<Cell<Option<(bool, Result<f64, NumberError>)>>>;
 #[derive(Clone)]
 pub struct LocaleNumbers {
     format: Arc<Format>,
-    /// The tag [`parse_number`] reads with: one whose decimal mark is the one `format` writes, so
-    /// a region with separators other than its language's (English in Germany) reads back what it
-    /// writes.
-    parse_as: &'static str,
     messages: Option<Messages>,
 }
 
 impl std::fmt::Debug for LocaleNumbers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LocaleNumbers").field("format", &self.format).field("parse_as", &self.parse_as).finish_non_exhaustive()
+        f.debug_struct("LocaleNumbers").field("format", &self.format).finish_non_exhaustive()
     }
 }
 
 impl LocaleNumbers {
     pub fn new(format: Arc<Format>) -> LocaleNumbers {
-        let written = format.number(1.5, 1);
-        let parse_as = if written.contains(',') {
-            "de"
-        } else if written.contains('.') {
-            "en"
-        } else if written.contains('٫') {
-            // Arabic and Persian: `٫` is always decimal; a typed ASCII `.` is too.
-            "ar"
-        } else {
-            ""
-        };
-        LocaleNumbers { format, parse_as, messages: None }
+        LocaleNumbers { format, messages: None }
     }
 
     /// The numbers of a locale tag (`de-CH`, `ar-EG`) with its own digits.
@@ -84,9 +70,10 @@ impl LocaleNumbers {
         self.format.number(value, decimals)
     }
 
-    /// The number in `text`: any digits, this region's decimal mark and grouping, `٫` and `٬`.
+    /// The number in `text`, as [`Format::parse`] reads it: what [`LocaleNumbers::format`] writes,
+    /// in any digits.
     pub fn parse(&self, text: &str) -> Result<f64, NumberError> {
-        parse_number(text, self.parse_as)
+        self.format.parse(text)
     }
 
     fn describe(&self, error: NumberError) -> String {
@@ -178,8 +165,11 @@ fn mark_invalid(ui: &Ui, response: &Response, text: String, tell: bool) {
     }
 }
 
-/// An [`egui::DragValue`] that writes and reads numbers with [`LocaleNumbers`]. Set range, speed and
-/// decimals on the drag value; the unit and number format come from here.
+/// An [`egui::DragValue`] that writes and reads numbers with [`LocaleNumbers`]. Set range, speed,
+/// decimals and any prefix or suffix on the drag value; a [`Unit`] set here goes outside that
+/// prefix and suffix (egui adds to them and can't take them off), so set one or the other. The
+/// drag value's own `custom_formatter` and `custom_parser` are replaced: pass an app's formatter
+/// and parser to [`LocalizedDragValue::or_format`] and [`LocalizedDragValue::or_parse`] instead.
 ///
 /// Typed text that isn't a number is outlined while it is being edited. Committing it (Enter,
 /// clicking away) keeps the old value, as egui does, and the field stays outlined with the reason
@@ -198,16 +188,26 @@ pub struct LocalizedDragValue<'a> {
     drag: DragValue<'a>,
     numbers: LocaleNumbers,
     unit: Unit,
+    formatter: Option<Formatter<'a>>,
     fallback: Option<Fallback<'a>>,
 }
 
 impl<'a> LocalizedDragValue<'a> {
     pub fn new(drag: DragValue<'a>, numbers: &LocaleNumbers) -> Self {
-        LocalizedDragValue { drag, numbers: numbers.clone(), unit: Unit::default(), fallback: None }
+        LocalizedDragValue { drag, numbers: numbers.clone(), unit: Unit::default(), formatter: None, fallback: None }
     }
 
+    /// The unit around the number, outside a prefix and suffix set on the drag value.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = unit;
+        self
+    }
+
+    /// An app's own text for some values (a timecode, `Auto` for 0), tried before the locale's;
+    /// `None` writes the number as the locale does. Pair it with [`LocalizedDragValue::or_parse`]
+    /// so the text reads back.
+    pub fn or_format(mut self, formatter: impl 'a + Fn(f64, RangeInclusive<usize>) -> Option<String>) -> Self {
+        self.formatter = Some(Box::new(formatter));
         self
     }
 
@@ -221,12 +221,18 @@ impl<'a> LocalizedDragValue<'a> {
 
 impl Widget for LocalizedDragValue<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let LocalizedDragValue { drag, numbers, unit, fallback } = self;
+        let LocalizedDragValue { drag, numbers, unit, formatter, fallback } = self;
         let parsed: LastRead = Rc::new(Cell::new(None));
         let mut drag = drag.custom_formatter({
             let numbers = numbers.clone();
-            move |value, decimals| numbers.format(value, decimals)
+            move |value, decimals| formatter.as_ref().and_then(|f| f(value, decimals.clone())).unwrap_or_else(|| numbers.format(value, decimals))
         });
+        if !unit.prefix.is_empty() {
+            drag = drag.prefix(unit.prefix.clone());
+        }
+        if !unit.suffix.is_empty() {
+            drag = drag.suffix(unit.suffix.clone());
+        }
         drag = drag.custom_parser({
             let (numbers, unit, parsed) = (numbers.clone(), unit.clone(), Rc::clone(&parsed));
             move |text| {
@@ -236,12 +242,6 @@ impl Widget for LocalizedDragValue<'_> {
                 result.ok()
             }
         });
-        if !unit.prefix.is_empty() {
-            drag = drag.prefix(unit.prefix.clone());
-        }
-        if !unit.suffix.is_empty() {
-            drag = drag.suffix(unit.suffix.clone());
-        }
         let response = ui.add(drag);
 
         let key = rejected_id(response.id);
@@ -289,8 +289,9 @@ struct FieldState {
 /// [`LocaleNumbers`]. Arrow up and down step the value.
 ///
 /// Text that isn't a number leaves the value unchanged and stays in the field, outlined, with the
-/// reason in a tooltip, until it is fixed or Escape restores the value. A number outside the range
-/// is clamped. The response is `changed()` when the value changed.
+/// reason in a tooltip, until it is fixed or Escape restores the value. A number is rounded to the
+/// most decimals shown, half away from zero (`2,5` is 3 and `-0,5` is -1 in an integer field),
+/// then clamped to the range. The response is `changed()` when the value changed.
 ///
 /// ```
 /// # egui::__run_test_ui(|ui| {
@@ -392,7 +393,7 @@ impl Widget for NumberField<'_> {
             });
             if change != 0.0 {
                 let base = state.as_ref().and_then(|s| read(&numbers, &unit, fallback.as_ref(), &s.text).ok()).unwrap_or(old);
-                value = clamp(round_to_decimals(base + step * change, *decimals.end()));
+                value = clamp(round_half_away(base + step * change, *decimals.end()));
                 state = None;
             }
         }
@@ -423,7 +424,7 @@ impl Widget for NumberField<'_> {
         } else if response.lost_focus() {
             match read(&numbers, &unit, fallback.as_ref(), &text) {
                 Ok(parsed) => {
-                    value = clamp(parsed);
+                    value = clamp(round_half_away(parsed, *decimals.end()));
                     state = None;
                     error = None;
                 }
@@ -461,4 +462,11 @@ impl Widget for NumberField<'_> {
         }
         response
     }
+}
+
+/// `value` rounded to `decimals` digits after the point, ties away from zero; never `-0`.
+fn round_half_away(value: f64, decimals: usize) -> f64 {
+    let scale = 10_f64.powi(i32::try_from(decimals).unwrap_or(i32::MAX));
+    let rounded = if scale.is_finite() { (value * scale).round() / scale } else { value };
+    if rounded.is_finite() { rounded + 0.0 } else { value }
 }
