@@ -585,6 +585,11 @@ fn serve_copies_the_selected_faces_and_writes_urls() {
     assert_eq!(read("sans-cjk/SansCJK.ttc").len(), 28);
     assert_eq!(read("sans-jp/OFL.txt"), b"Fixture licence text.\n");
     assert!(!served.join("sans-jp/SansJP-Bold.ttf").exists() && !served.join("sans-arabic").exists());
+    // Cargo copies a deleted file again, and doesn't rerun for files it just copied.
+    assert!(cargo.contains(&format!("cargo::rerun-if-changed={}", served.join("sans-jp/SansJP-Regular.ttf").display())), "{cargo:?}");
+    assert!(cargo.contains(&format!("cargo::rerun-if-changed={}", served.join("sans-jp/OFL.txt").display())), "{cargo:?}");
+    let modified = |path: &Path| std::fs::metadata(path).unwrap().modified().unwrap();
+    assert_eq!(modified(&served.join("sans-jp/SansJP-Regular.ttf")), modified(&fixture().join("fonts/sans-jp/SansJP-Regular.ttf")));
 
     let table = std::fs::read_to_string(scratch.0.join("craft_fonts.rs")).unwrap();
     assert!(!table.contains("include_bytes!"), "{table}");

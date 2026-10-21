@@ -171,8 +171,8 @@ font file and its licence keep their path under the checkout's `fonts/` director
 `fonts/noto-sans-arabic/NotoSansArabic.ttf` to `web/fonts/noto-sans-arabic/NotoSansArabic.ttf`, with
 the URL `fonts/noto-sans-arabic/NotoSansArabic.ttf`. Faces of one collection share a file and a
 URL. `integrity` is the manifest's SHA-256 as a Subresource Integrity value. A relative `dir` is
-under the package directory. Files already there with the right size are not copied again, and
-files of faces no longer selected stay.
+under the package directory. Files already there with the right size are not copied again, a deleted
+one is copied again on the next build, and files of faces no longer selected stay.
 
 ```rust
 let fonts = craft_fonts_build::Embed::new();
