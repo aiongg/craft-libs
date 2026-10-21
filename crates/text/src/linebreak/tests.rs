@@ -429,3 +429,22 @@ fn invalid_params_are_clamped() {
     let zero = Params { fitness_demerits: 0.0, ..p };
     assert_eq!(break_paragraph(&para.items, &|_| 150.0, &negative, &PASSES), break_paragraph(&para.items, &|_| 150.0, &zero, &PASSES));
 }
+
+/// Two consecutive breaks: the line after the first starts past the second, which must not end a
+/// line `4..3` from there.
+#[test]
+fn lines_never_end_before_they_start() {
+    let items = [
+        Item::boxed(10.0),
+        Item::glue(1.0, 0.0, 0.0),
+        Item::penalty(0.0, -1000.0, false),
+        Item::penalty(0.0, -1000.0, false),
+        Item::boxed(10.0),
+        Item::fill(),
+        Item::forced(),
+    ];
+    let p = Params { rag: Some(Rag { width_fraction: 1.0, ..Rag::default() }), ..Params::default() };
+    let lines = break_paragraph(&items, &|_| 11.0, &p, &[2.5, f64::INFINITY]).lines;
+    assert!(lines.iter().all(|l| l.start <= l.end && l.end <= l.next), "{lines:?}");
+    assert_covers(&items, &lines);
+}

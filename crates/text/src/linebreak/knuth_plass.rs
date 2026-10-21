@@ -66,6 +66,12 @@ pub fn knuth_plass(items: &[Item], width: &dyn Fn(usize) -> f64, p: &Params) -> 
         let mut last_removed = None;
         for &a in &active {
             let Some(n) = nodes.get(a).copied() else { continue };
+            // The node's next line starts after `b` (the penalties between were discarded): no
+            // line ends here, but one may end at a later break.
+            if b < n.start {
+                keep.push(a);
+                continue;
+            }
             let measure = width(n.line);
             let f = s.measure(n.start, b, measure, p);
             // An overfull node is dropped even at a penalty with width (a hyphen), as in TeX,
