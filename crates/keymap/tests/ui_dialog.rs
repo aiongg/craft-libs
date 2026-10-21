@@ -65,7 +65,7 @@ impl Fx {
 }
 
 fn harness(fx: Fx, size: Vec2) -> Harness<'static, Fx> {
-    let mut h = Harness::builder().with_size(size).build_ui_state(
+    let mut h = Harness::builder().allow_missing_glyphs().with_size(size).build_ui_state(
         |ui, fx: &mut Fx| {
             let Fx { km, options, state, text, window, sets, outcomes, keys_left } = fx;
             let dialog = ShortcutsDialog::new(km, text.as_ref()).options(options);

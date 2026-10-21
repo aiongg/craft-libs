@@ -887,7 +887,7 @@ impl DockContent<u32> for CustomContent {
     fn group_header(&mut self, ui: &mut egui::Ui, _: &[u32], _: &u32, _: bool) {
         self.headers += 1;
         assert!(ui.max_rect().width() <= 40.0);
-        ui.label("⋮");
+        ui.label("...");
     }
 }
 
