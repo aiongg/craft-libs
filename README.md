@@ -33,6 +33,18 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-docpath`](crates/docpath/src/lib.rs): decides whether a path or `file:` URL stored in a
   document may be opened. Paths stored in documents are followed only when they are local or on the
   document's own network share; other network paths, device paths and non-file URLs are refused.
+- [`craft-font-catalog`](crates/font-catalog/README.md): the installed fonts on every platform
+  (font folders, fontconfig and Flatpak host folders, CoreText, DirectWrite, the font store),
+  lookup by family, style, localized, legacy, full and PostScript names, family loads shared
+  between threads, and rescans when fonts are installed or removed.
+- [`craft-font-manager`](crates/font-manager/README.md): Craft Font Manager as a library: search
+  and filters over the Google Fonts index, installed fonts by family, the font store interface,
+  and (`egui` feature) `FontsPanel`, the whole interface as one panel for the launcher's Fonts tab
+  and the standalone app.
+- [`craft-font-store`](crates/font-store/README.md): the suite's font store: the pinned Google
+  Fonts index, exact lookup by family and style or PostScript name, and installs from jsDelivr
+  (raw GitHub as fallback) checked by size, sha256 and parsing, with the licence, a manifest, and
+  removal. Off until the user turns downloading on; agents can't.
 - [`craft-fonts-build`](crates/fonts-build/README.md): embeds the optional craft-fonts faces
   from an app's `build.rs` (`CRAFT_FONTS_DIR`, `CRAFT_FONTS_REQUIRED`, script filters) as a table
   of `EmbeddedFace`s. No dependencies; the app picks the faces.
