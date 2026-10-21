@@ -274,6 +274,91 @@ fn install_fonts(ctx: &egui::Context, ui_language: &str) {
 
 Call `install` again when the UI language changes.
 
+### Web builds
+
+A web build serves the craft-fonts faces beside its wasm instead of embedding them, so the wasm
+stays small and an English interface never downloads Chinese. `craft-fonts-build`'s
+`Embed::serve` copies the faces into a directory and writes a table of `fonts::ServedFace`s (URL,
+size, Subresource Integrity hash, no bytes); `UiFonts::served_faces` takes it in place of
+`craft_faces`. The stack orders served faces exactly as embedded ones, and on the web
+`Stack::install` fetches them:
+
+- the UI language's faces at once (`Stack::ui_downloads`: the best face for each of its scripts
+  the app's faces lack, per family, so a semibold family brings the bold face);
+- any other face the first time egui finds no installed face for a character of its script
+  (`Stack::downloads_for`), once per family and script;
+- a served emoji face (`Emoji::served`) the first time text needs an emoji or symbol.
+
+Each face is added when its file arrives, and the context repaints; text falls back to the faces
+after it until then. Fetched files stay in memory for later installs, such as a language switch,
+and the browser's HTTP cache keeps them across page loads. `fonts::loading(ctx)` is true while the
+UI language's files are on their way, for an app that would rather draw nothing than Latin
+fallbacks in its first frames.
+
+`build.rs`:
+
+```rust
+fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    let fonts = craft_fonts_build::Embed::new();
+    let written = if craft_fonts_build::target_is_wasm() {
+        // Served by the page as `fonts/`; see Trunk.toml.
+        fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")
+    } else {
+        fonts.write("craft_fonts.rs")
+    };
+    if let Err(e) = written {
+        println!("cargo::error={e}");
+    }
+}
+```
+
+The app:
+
+```rust
+// The embedded table is written as `EmbeddedFace` literals, the served one as `ServedFace`s.
+use craft_ui::fonts::{CraftFace as EmbeddedFace, I18nScripts, ServedFace, UiFonts};
+
+#[cfg(not(target_arch = "wasm32"))]
+static CRAFT_FONTS: &[EmbeddedFace] = include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
+#[cfg(target_arch = "wasm32")]
+static CRAFT_FONTS: &[ServedFace] = include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
+
+fn install_fonts(ctx: &egui::Context, ui_language: &str) {
+    let fonts = UiFonts::new(&I18nScripts).app_face("ui", FontData::from_static(UI_FONT), &[FontFamily::Proportional]);
+    #[cfg(not(target_arch = "wasm32"))]
+    let fonts = fonts.craft_faces(CRAFT_FONTS);
+    #[cfg(target_arch = "wasm32")]
+    let fonts = fonts.served_faces(CRAFT_FONTS);
+    fonts.languages(OFFERED_LANGUAGES).ui_language(ui_language).install(ctx);
+}
+
+impl eframe::App for App {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if craft_ui::fonts::loading(ui.ctx()) {
+            return; // The fetch repaints when it arrives.
+        }
+        // …
+    }
+}
+```
+
+Call `install_fonts` from the `eframe::App` creator, so the fetches start before the first frame.
+The served directory has to reach the site next to the wasm; with Trunk, copy it in a hook
+(`Trunk.toml`):
+
+```toml
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["-c", "cp -R web/fonts \"$TRUNK_STAGING_DIR/fonts\""]
+```
+
+A relative `serve` directory is under the package whose `build.rs` runs it; a crate deeper in the
+workspace can pass `concat!(env!("CARGO_MANIFEST_DIR"), "/../../web/fonts")` instead. Keep the
+directory out of version control. A build filters faces for the web as for the desktop (`scripts`,
+`filter`), e.g. to leave out bold faces.
+
 Two features, both off by default, change what every craft-ui user draws, so the app turns them on:
 
 - `system_fonts` (desktop): the stack asks egui's system font provider, at regular weight, and

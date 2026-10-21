@@ -154,7 +154,7 @@ fn named_families_take_their_weight_and_lead_script() {
 
 #[test]
 fn system_fonts_before_craft_moves_other_scripts_after_them() {
-    let emoji = Emoji { color: Some(FontData::from_static(&[])), web: None, monochrome: Some(FontData::from_static(&[])) };
+    let emoji = Emoji { color: Some(FontData::from_static(&[])), monochrome: Some(FontData::from_static(&[])), ..Emoji::default() };
     let stack = fonts("ja").system_fonts(SystemFonts::BeforeCraft).emoji(emoji).stack();
     let configured = stack.chain(&FontFamily::Proportional);
     assert!(configured.contains(&"BIZ UDPGothic Regular".to_owned()));
@@ -361,4 +361,120 @@ fn covers_language_checks_every_script_of_the_language() {
     // Not offered: the scripts come from craft-i18n.
     assert!(stack.covers_language("zh-CN", false));
     assert!(!stack.covers_language("th", false));
+}
+
+const fn served(family: &'static str, style: &'static str, scripts: &'static [&'static str], url: &'static str, index: u32) -> ServedFace {
+    ServedFace { family, style, scripts, index, url, size: 1, integrity: "" }
+}
+
+/// craft-fonts' faces as a web build serves them; the CJK collection's faces share one file.
+const SERVED: &[ServedFace] = &[
+    served("BIZ UDPGothic", "Regular", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Regular.ttf", 0),
+    served("BIZ UDPGothic", "Bold", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Bold.ttf", 0),
+    served("Noto Sans CJK SC", "Regular", &["Hans", "Latn"], "fonts/noto-sans-cjk/NotoSansCJK.ttc", 2),
+    served("Noto Sans CJK TC", "Regular", &["Hant", "Latn"], "fonts/noto-sans-cjk/NotoSansCJK.ttc", 3),
+    served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
+    served("Noto Sans Thai", "Regular", &["Thai"], "fonts/noto-sans-thai/NotoSansThai.ttf", 0),
+];
+
+fn web_fonts(ui_language: &str, served: &[ServedFace]) -> UiFonts<'static> {
+    let defaults = FontDefinitions::default();
+    let egui_face = |name: &str| defaults.font_data.get(name).map(|d| (**d).clone()).expect("egui default_fonts in dev-dependencies");
+    UiFonts::new(&I18nScripts)
+        .app_face("ui", egui_face("Ubuntu-Light"), &[FontFamily::Proportional])
+        .app_face("mono", egui_face("Hack"), &[FontFamily::Monospace])
+        .family(Family::named("semibold").weight(600))
+        .served_faces(served)
+        .languages(OFFERED)
+        .ui_language(ui_language)
+        .system_fonts(SystemFonts::Off)
+}
+
+fn names(faces: Vec<&ServedFace>) -> Vec<String> {
+    faces.into_iter().map(ServedFace::name).collect()
+}
+
+#[test]
+fn served_faces_take_the_places_of_embedded_ones_without_data() {
+    let embedded: Vec<CraftFace> = SERVED.iter().map(ServedFace::craft_face).collect();
+    for language in ["en", "ar", "ja", "zh-TW", "th"] {
+        let web = web_fonts(language, SERVED).stack();
+        let desktop = web_fonts(language, &[]).craft_faces(&embedded).stack();
+        for family in [FontFamily::Proportional, FontFamily::Monospace, FontFamily::Name("semibold".into())] {
+            assert_eq!(web.chain(&family), desktop.chain(&family), "{language} {family:?}");
+        }
+        assert!(SERVED.iter().all(|face| !web.definitions.font_data.contains_key(&face.name())), "{language}");
+        assert_eq!(web.served().len(), SERVED.len());
+    }
+    // Served faces count before they are fetched: they are fetched when text needs them.
+    let stack = web_fonts("en", SERVED).stack();
+    assert!(stack.covers_language("ar", false) && stack.covers_language("ja", false));
+    assert!(!stack.covers_language("km", false));
+}
+
+#[test]
+fn the_ui_language_downloads_its_own_faces_first() {
+    let cases: &[(&str, &[&str])] = &[
+        ("en", &[]),
+        ("ru", &[]),
+        ("ar", &["Noto Sans Arabic Regular"]),
+        // The semibold family takes the bold face.
+        ("ja", &["BIZ UDPGothic Regular", "BIZ UDPGothic Bold"]),
+        ("zh-TW", &["Noto Sans CJK TC Regular"]),
+        ("zh-CN", &["Noto Sans CJK SC Regular"]),
+        ("th", &["Noto Sans Thai Regular"]),
+    ];
+    for (language, want) in cases {
+        assert_eq!(names(web_fonts(language, SERVED).stack().ui_downloads()), *want, "{language}");
+    }
+}
+
+#[test]
+fn a_missing_character_downloads_the_face_for_its_script() {
+    let stack = web_fonts("en", SERVED).stack();
+    let regular = FontFamily::Proportional;
+    assert_eq!(names(stack.downloads_for(&regular, 'ع')), ["Noto Sans Arabic Regular"]);
+    // Han follows the offered languages: Japanese before Chinese.
+    assert_eq!(names(stack.downloads_for(&regular, '日'))[..2], ["BIZ UDPGothic Regular", "Noto Sans CJK SC Regular"]);
+    assert_eq!(names(stack.downloads_for(&FontFamily::Name("semibold".into()), 'あ'))[0], "BIZ UDPGothic Bold");
+    for c in ['a', 'ж', 'λ', '1', '🔍'] {
+        assert!(stack.downloads_for(&regular, c).is_empty(), "{c}");
+    }
+    let twemoji = served("Twemoji", "Regular", &[], "fonts/Twemoji.ttf", 0);
+    let stack = web_fonts("en", SERVED).emoji(Emoji { served: Some(twemoji), ..Emoji::default() }).stack();
+    for c in ['🔍', '☰', '⊞'] {
+        assert_eq!(names(stack.downloads_for(&regular, c)), ["Twemoji Regular"], "{c}");
+    }
+    assert!(stack.ui_downloads().is_empty());
+
+    assert_eq!(served::script_of('\u{0600}'), Some("Arab"));
+    assert_eq!(served::script_of('\u{05FF}'), Some("Hebr"));
+    assert_eq!(served::script_of('한'), Some("Hang"));
+    assert_eq!(served::script_of('\u{2F800}'), Some("Hani"));
+    assert_eq!(served::script_of('\u{10FFFF}'), None);
+}
+
+#[test]
+fn a_fetched_file_reaches_every_face_and_family_that_uses_it() {
+    let mut stack = web_fonts("en", SERVED).stack();
+    let font_id = |family: FontFamily| FontId::new(14.0, family);
+    let semibold = FontFamily::Name("semibold".into());
+    assert!(!stack.fonts(false).has_glyph(&font_id(FontFamily::Proportional), 'ع'));
+
+    // The Arabic test face is variable, so the semibold family gets its own instance at 600.
+    let file: egui::epaint::text::Blob = Arc::new(ARABIC.to_vec());
+    stack.provide("fonts/noto-sans-arabic/NotoSansArabic.ttf", &file);
+    let mut fonts = stack.fonts(false);
+    assert!(fonts.has_glyph(&font_id(FontFamily::Proportional), 'ع'));
+    assert!(fonts.has_glyph(&font_id(semibold.clone()), 'ع'));
+    assert!(stack.chain(&FontFamily::Proportional).contains(&"Noto Sans Arabic Regular".to_owned()));
+    assert!(stack.chain(&semibold).contains(&"Noto Sans Arabic Regular @600".to_owned()));
+    assert!(!stack.definitions.font_data.contains_key("Noto Sans Thai Regular"));
+
+    // Both faces of a collection come from one file.
+    let file: egui::epaint::text::Blob = Arc::new(CJK.to_vec());
+    stack.provide("fonts/noto-sans-cjk/NotoSansCJK.ttc", &file);
+    for name in ["Noto Sans CJK SC Regular", "Noto Sans CJK TC Regular"] {
+        assert!(stack.definitions.font_data.contains_key(name), "{name}");
+    }
 }

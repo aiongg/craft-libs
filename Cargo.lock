@@ -693,9 +693,13 @@ dependencies = [
  "egui_system_font_provider",
  "epaint",
  "image",
+ "js-sys",
  "serde",
  "serde_json",
  "skrifa 0.44.0",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
