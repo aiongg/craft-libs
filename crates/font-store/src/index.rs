@@ -471,7 +471,7 @@ impl Index {
 
     /// Marks every source as changed since the user added it.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn mark_changed(&mut self) {
+    pub fn mark_changed(&mut self) {
         for s in &mut self.sources {
             s.changed = true;
         }

@@ -30,6 +30,8 @@ egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 # Real fonts for the fake font store to install: egui's own Hack and Ubuntu Light.
 epaint_default_fonts = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# The system's fonts for the Japanese and Arabic screenshots.
+egui_system_font_provider = "0.37"
 
 [[test]]
 name = "flows"

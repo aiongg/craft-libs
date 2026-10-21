@@ -5,12 +5,12 @@ use std::sync::LazyLock;
 
 use craft_i18n::{Embedded, FileSize, I18n, Lang};
 
-/// The embedded translation catalogs. The interface is English until the app's catalog rows
-/// exist in craft-i18n.
-static CATALOGS: &Embedded = &[];
+/// The embedded translation catalogs: the panel's own Japanese and Arabic rows, until its rows
+/// are part of craft-i18n.
+static CATALOGS: &Embedded = &[("ja", "", include_str!("catalogs/ja.tsv")), ("ar", "", include_str!("catalogs/ar.tsv"))];
 
 /// The interface languages offered, in menu order.
-pub const LANGUAGES: &[&str] = &["en"];
+pub const LANGUAGES: &[&str] = &["en", "ja", "ar"];
 
 pub static I18N: LazyLock<I18n> = LazyLock::new(|| {
     let (i18n, problems) = I18n::new(CATALOGS, LANGUAGES);
@@ -54,4 +54,58 @@ pub fn tn(n: u64, one: &str, other: &str) -> String {
 /// A download size, `1.5 MB`.
 pub fn size(bytes: u64) -> String {
     I18N.file_size(current(), bytes, FileSize::DECIMAL)
+}
+
+/// A count on its own, in the region's digits and grouping.
+pub fn number(n: u64) -> String {
+    I18N.format().integer(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every row reads, and every string the panel shows has a row in each catalog.
+    #[test]
+    fn catalogs_cover_the_interface() {
+        let (_, problems) = I18n::new(CATALOGS, LANGUAGES);
+        assert!(problems.is_empty(), "{problems:#?}");
+        // English-only by design: style and weight names, licence and product names.
+        let english = [
+            "Thin",
+            "ExtraLight",
+            "Light",
+            "Regular",
+            "Medium",
+            "SemiBold",
+            "Bold",
+            "ExtraBold",
+            "Black",
+            "Italic",
+            "Variable {from}–{to}",
+            "SIL Open Font License",
+            "Apache License 2.0",
+            "Ubuntu Font Licence",
+            "Google Fonts",
+            "{source}: {error}",
+        ];
+        let sources = [include_str!("app.rs"), include_str!("browse.rs"), include_str!("details.rs"), include_str!("sources.rs")];
+        let mut keys = Vec::new();
+        for source in sources {
+            for marker in ["tl!(\"", "fmt(\"", "fmt(\n            \""] {
+                for part in source.split(marker).skip(1) {
+                    if let Some(end) = part.find('"') {
+                        keys.push(part[..end].to_owned());
+                    }
+                }
+            }
+        }
+        keys.retain(|k| !english.contains(&k.as_str()));
+        assert!(keys.len() > 60, "{}", keys.len());
+        for lang in ["ja", "ar"] {
+            let lang = I18N.match_tag(lang).unwrap_or(Lang::EN);
+            let missing: Vec<_> = keys.iter().filter(|k| I18N.t(lang, k) == k.as_str()).collect();
+            assert!(missing.is_empty(), "{}: {missing:#?}", I18N.code(lang));
+        }
+    }
 }
