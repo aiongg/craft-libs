@@ -334,3 +334,19 @@ fn the_system_provider_is_shared_per_locale() {
     let (a, b) = (system_font_provider("ja"), system_font_provider("ja"));
     assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
 }
+
+#[test]
+fn egui_faces_join_the_families_the_app_names() {
+    let semibold = FontFamily::Name("semibold".into());
+    let stack = fonts("en")
+        .family(Family::named("semibold").weight(600))
+        .egui_face("Hack", &[FontFamily::Proportional, semibold.clone()])
+        .egui_face("no such face", &[FontFamily::Proportional])
+        .stack();
+    let proportional = stack.chain(&FontFamily::Proportional);
+    assert_eq!(proportional.last().map(String::as_str), Some("Hack"), "{proportional:?}");
+    assert!(stack.chain(&semibold).iter().any(|n| n == "Hack"));
+    assert!(!stack.chain(&FontFamily::Monospace).iter().any(|n| n == "Hack"), "only the families named");
+    assert!(stack.definitions.font_data.contains_key("Hack"));
+    assert!(!proportional.iter().any(|n| n == "no such face"));
+}
