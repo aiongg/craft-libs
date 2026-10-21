@@ -241,16 +241,19 @@ script's face goes first. egui takes a row's height from a family's first face, 
 own face sets the row height and its marks aren't clipped. Han, kana and Hangul sit inside the em
 square and fit a Latin row, so Chinese, Japanese and Korean UIs keep the Latin face first: Latin
 text draws in the app's face in every language, and CJK characters fall back to the language's
-face, centred in the row. The app's theme sets the minimum widget height for rows of its own
-face; when the UI language's script face has taller rows, `install` adds the difference to the
-theme's height, and takes it off again when a later install needs less. The theme's height and
-padding stay the app's: a theme applied after `install` is fitted at the start of the next pass,
-so the result doesn't depend on which comes first. On the suite's patched egui
-(`FontTweak::set_baseline_fallback`, which craft faces and installed text faces turn on), fallback
-glyphs sit on the row's baseline and rows grow to fit them by themselves; emoji and symbol faces
-(colour glyphs, or "Emoji" or "Symbol" in the name) stay centred. With crates.io egui all fallbacks
-are centred and the widget fit above is what keeps them inside. Monospace keeps the app's or egui's
-mono face first. Han characters take the regional face the language needs: `zh-TW` gets the
+face. Rows and widgets keep the same height in every one of these languages as in a Latin UI:
+CJK faces sit on the first face's baseline inside its row, scaled down only if a glyph would
+otherwise leave the row (Noto Sans CJK and BIZ UDPGothic at the same size don't need it), with
+crates.io egui and the suite's patched egui alike. `UiFonts::cjk_rows(CjkRows::Grow)` opts into
+the CJK face's taller line instead. The app's theme sets the minimum widget height for rows of its
+own face; when the UI language's script face leads the stack and has taller rows, `install` adds
+the difference to the theme's height, and takes it off again when a later install needs less. The
+theme's height and padding stay the app's: a theme applied after `install` is fitted at the start
+of the next pass, so the result doesn't depend on which comes first. On the suite's patched egui
+(`FontTweak::set_baseline_fallback`, which the other craft faces and installed text faces turn
+on), other fallback glyphs sit on the row's baseline and rows grow to fit them by themselves; emoji
+and symbol faces (colour glyphs, or "Emoji" or "Symbol" in the name) stay centred. With crates.io
+egui those fallbacks are centred. Monospace keeps the app's or egui's mono face first. Han characters take the regional face the language needs: `zh-TW` gets the
 Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong Kong face first; `ja` the
 Japanese face; `ko` the Korean one.
 

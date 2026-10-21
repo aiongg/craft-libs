@@ -11,7 +11,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use craft_font_catalog::Catalog;
-use craft_font_store::{Cancel, Client, FontStore, Network, verify_font};
+pub use craft_font_store::UserSource;
+use craft_font_store::{Cancel, Client, FontStore, Network, PINNED_INDEX, verify_font};
 
 use crate::index::{Family, Index};
 
@@ -68,7 +69,37 @@ pub trait Installer: Send + Sync {
 
     /// Downloads and verifies `family`'s files without installing them.
     fn download(&self, index: &Index, family: &Family, progress: &mut dyn FnMut(Progress)) -> Result<Vec<Downloaded>, StoreError>;
+
+    /// The indexes without a request: the built-in ones compiled in, and the sources the user
+    /// added as last fetched.
+    fn indexes(&self) -> Result<Index, StoreError> {
+        crate::index::bundled().map_err(err)
+    }
+
+    /// Downloads the indexes: the built-in ones at the pinned commit and the user's sources. A
+    /// source that fails is in [`Index::problems`]; the others load.
+    fn fetch_indexes(&self) -> Result<Index, StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
+    }
+
+    /// The index URLs the user added as sources. Their families are never curated.
+    fn user_sources(&self) -> Vec<UserSource> {
+        Vec::new()
+    }
+
+    /// Adds an index URL (https, `.json` or `.json.gz`) as a source, as the user's own action.
+    /// The next [`Installer::fetch_indexes`] downloads it.
+    fn add_user_source(&self, _url: &str) -> Result<(), StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
+    }
+
+    /// Removes a source the user added. Families installed from it stay installed.
+    fn remove_user_source(&self, _url: &str) -> Result<(), StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
+    }
 }
+
+const NO_FOLDER: &str = "there is no folder for the font store";
 
 /// craft-font-store's store, in the user's font store folder.
 pub struct SuiteStore {
@@ -83,15 +114,17 @@ impl SuiteStore {
         Some(SuiteStore { store, client: Client::default() })
     }
 
-    /// The store's name for the family holding `files`, which can differ from the name in the
-    /// fonts themselves.
-    fn installed_name(&self, request: &RemoveRequest) -> String {
+    /// The store's source and name for the family holding `files`, which can differ from the
+    /// name in the fonts themselves.
+    fn installed_name(&self, request: &RemoveRequest) -> Option<(String, String)> {
         let dir = self.store.dir();
-        self.store
-            .installed()
-            .into_iter()
+        let installed = self.store.installed();
+        let lower = request.family.to_lowercase();
+        installed
+            .iter()
             .find(|f| request.files.iter().any(|path| path.starts_with(dir.join(&f.dir))))
-            .map_or_else(|| request.family.clone(), |f| f.family)
+            .or_else(|| installed.iter().find(|f| f.family.to_lowercase() == lower))
+            .map(|f| (f.source.clone(), f.family.clone()))
     }
 }
 
@@ -110,7 +143,8 @@ impl Installer for SuiteStore {
     }
 
     fn remove(&self, request: &RemoveRequest) -> Result<(), StoreError> {
-        self.store.remove_family(&self.installed_name(request)).map_err(err)
+        let (source, name) = self.installed_name(request).ok_or_else(|| err(craft_font_store::Error::NotInstalled(request.family.clone())))?;
+        self.store.remove_family(&source, &name).map_err(err)
     }
 
     fn download(&self, index: &Index, family: &Family, progress: &mut dyn FnMut(Progress)) -> Result<Vec<Downloaded>, StoreError> {
@@ -123,7 +157,7 @@ impl Installer for SuiteStore {
         let mut out = Vec::new();
         for file in &family.files {
             let mut reasons = Vec::new();
-            for url in index.urls(&file.path) {
+            for url in index.file_urls(family, file) {
                 let mut on_bytes = |n: u64| progress(Progress { done: before.saturating_add(n), total });
                 match self.client.get(&url, file.size, &cancel, &mut on_bytes) {
                     Ok(bytes) => match verify_font(file, &bytes) {
@@ -144,6 +178,26 @@ impl Installer for SuiteStore {
         }
         Ok(out)
     }
+
+    fn indexes(&self) -> Result<Index, StoreError> {
+        Ok(self.store.offline_indexes())
+    }
+
+    fn fetch_indexes(&self) -> Result<Index, StoreError> {
+        self.store.fetch_indexes(&PINNED_INDEX, &Cancel::new()).map_err(err)
+    }
+
+    fn user_sources(&self) -> Vec<UserSource> {
+        self.store.user_sources()
+    }
+
+    fn add_user_source(&self, url: &str) -> Result<(), StoreError> {
+        self.store.add_user_source(url).map_err(err)
+    }
+
+    fn remove_user_source(&self, url: &str) -> Result<(), StoreError> {
+        self.store.remove_user_source(url).map_err(err)
+    }
 }
 
 /// The store when the system names no folder for it (no home folder): nothing installs.
@@ -155,19 +209,19 @@ impl Installer for NoStore {
     }
 
     fn allow_downloads(&self, _: bool) -> Result<(), StoreError> {
-        Err(StoreError("there is no folder for the font store".into()))
+        Err(StoreError(NO_FOLDER.into()))
     }
 
     fn install(&self, _: &Index, _: &Family, _: &mut dyn FnMut(Progress)) -> Result<(), StoreError> {
-        Err(StoreError("there is no folder for the font store".into()))
+        Err(StoreError(NO_FOLDER.into()))
     }
 
     fn remove(&self, _: &RemoveRequest) -> Result<(), StoreError> {
-        Err(StoreError("there is no folder for the font store".into()))
+        Err(StoreError(NO_FOLDER.into()))
     }
 
     fn download(&self, _: &Index, _: &Family, _: &mut dyn FnMut(Progress)) -> Result<Vec<Downloaded>, StoreError> {
-        Err(StoreError("there is no folder for the font store".into()))
+        Err(StoreError(NO_FOLDER.into()))
     }
 }
 

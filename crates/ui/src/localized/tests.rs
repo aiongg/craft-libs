@@ -253,6 +253,24 @@ fn number_field_rounds_before_clamping() {
 }
 
 #[test]
+fn number_field_keeps_a_value_it_shows_rounded_until_it_is_edited() {
+    let mut h = field_harness("en", 1.23456789);
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("1.234568"));
+    type_into_field(&mut h, "1.234568");
+    assert_eq!(*h.state(), 1.23456789, "the text it shows, typed back");
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.get_by_role(Role::TextInput).type_text("9");
+    h.run();
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(*h.state(), 1.23456789, "Escape");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("1.234568"));
+    type_into_field(&mut h, "1.2345678");
+    assert_eq!(*h.state(), 1.234568, "an edit is rounded to the decimals shown");
+}
+
+#[test]
 fn steps_go_to_multiples_of_the_step() {
     let (none, shift, cmd) = (Modifiers::NONE, Modifiers::SHIFT, Modifiers::COMMAND);
     assert_eq!(stepped(5.1, 1.0, 6, none, 1.0), 6.0);
@@ -375,6 +393,19 @@ fn dragging_the_label_scrubs_the_field() {
     h.key_press(Key::Enter);
     h.run();
     assert_eq!(*h.state(), 7.0, "a click on the label focuses the field with its text selected");
+}
+
+#[test]
+fn a_click_on_the_label_keeps_a_value_it_shows_rounded() {
+    let mut h = scrub_harness(1.23456789);
+    let at = h.get_by_role(Role::Label).rect().center();
+    h.drag_at(at);
+    h.run();
+    h.drop_at(at);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(*h.state(), 1.23456789);
 }
 
 #[derive(Default)]

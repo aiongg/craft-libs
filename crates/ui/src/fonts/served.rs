@@ -6,7 +6,7 @@ use std::sync::Arc;
 use egui::FontFamily;
 use egui::epaint::text::Blob;
 
-use super::{CraftFace, Stack, baseline_fallback, set_weight};
+use super::{CjkRows, CraftFace, EM_SQUARE_SCRIPTS, Stack, baseline_fallback, set_weight};
 
 #[cfg(any(test, target_arch = "wasm32"))]
 pub(super) mod loader;
@@ -138,9 +138,6 @@ impl Stack {
                     configured.push((new_name, data));
                 }
             }
-            for (name, data) in configured {
-                self.definitions.font_data.insert(name, Arc::new(data));
-            }
             let mut after = Vec::new();
             for (family, chain) in self.after_system.chains_mut() {
                 for entry in chain.iter_mut().filter(|entry| **entry == name) {
@@ -149,8 +146,16 @@ impl Stack {
                     after.push((new_name, data));
                 }
             }
+            let mut names: Vec<String> = configured.iter().map(|(name, _)| name.clone()).collect();
+            for (name, data) in configured {
+                self.definitions.font_data.insert(name, Arc::new(data));
+            }
+            names.extend(after.iter().map(|(name, _)| name.clone()));
             for (name, data) in after {
                 self.after_system.insert(&name, data);
+            }
+            if self.cjk_rows == CjkRows::Fit && EM_SQUARE_SCRIPTS.iter().any(|script| face.craft_face().covers(script)) {
+                self.fit_into_rows(&names);
             }
         }
     }

@@ -42,9 +42,10 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   and (`egui` feature) `FontsPanel`, the whole interface as one panel for the launcher's Fonts tab
   and the standalone app.
 - [`craft-font-store`](crates/font-store/README.md): the suite's font store: the pinned Google
-  Fonts index, exact lookup by family and style or PostScript name, and installs from jsDelivr
-  (raw GitHub as fallback) checked by size, sha256 and parsing, with the licence, a manifest, and
-  removal. Off until the user turns downloading on; agents can't.
+  Fonts and Noto indexes plus indexes the user adds (never curated), exact lookup by family and
+  style or PostScript name, and installs from each source's URLs (jsDelivr, then raw GitHub)
+  checked by size, sha256 and parsing, with the licence, a manifest, and removal. Off until the
+  user turns downloading on; agents can't.
 - [`craft-fonts-build`](crates/fonts-build/README.md): embeds the optional craft-fonts faces
   from an app's `build.rs` (`CRAFT_FONTS_DIR`, `CRAFT_FONTS_REQUIRED`, script filters) as a table
   of `EmbeddedFace`s. No dependencies; the app picks the faces.

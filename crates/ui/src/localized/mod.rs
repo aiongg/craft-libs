@@ -201,7 +201,8 @@ fn mark_invalid(ui: &Ui, response: &Response, radius: CornerRadius, text: String
 ///
 /// Typed text that isn't a number is outlined while it is being edited. Committing it (Enter,
 /// clicking away) keeps the old value, as egui does, and the field stays outlined with the reason
-/// for a moment. Escape reverts without a mark.
+/// for a moment. Escape reverts without a mark. Committing the text as the drag value shows it
+/// leaves the value as it is, with any decimals the drag value doesn't show.
 ///
 /// ```
 /// # egui::__run_test_ui(|ui| {
@@ -409,7 +410,8 @@ struct Scrub {
 /// Text that isn't a number leaves the value unchanged and stays in the field, outlined, with the
 /// reason in a tooltip, until it is fixed or Escape restores the value. A number is rounded to the
 /// most decimals shown, half away from zero (`2,5` is 3 and `-0,5` is -1 in an integer field),
-/// then clamped to the range. The response is `changed()` when the value changed.
+/// then clamped to the range. Committing the text as the field shows it leaves the value as it is,
+/// with any decimals the field doesn't show. The response is `changed()` when the value changed.
 ///
 /// ```
 /// # egui::__run_test_ui(|ui| {
