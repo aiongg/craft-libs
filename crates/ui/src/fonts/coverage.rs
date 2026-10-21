@@ -79,9 +79,14 @@ fn fail_on(missing: &[Missing]) {
     }
 }
 
-fn draws(c: char) -> bool {
+/// Whether `c` shows a glyph: not whitespace, a control, a format character or another invisible
+/// mark.
+pub(super) fn draws(c: char) -> bool {
     !(c.is_whitespace()
         || c.is_control()
-        || matches!(c, '\u{00AD}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}')
+        || matches!(
+            c,
+            '\u{00AD}' | '\u{034F}' | '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}'
+        )
         || matches!(c, '\u{FE00}'..='\u{FE0F}' | '\u{E0100}'..='\u{E01EF}'))
 }

@@ -644,15 +644,20 @@ impl Stack {
 
     /// Replace the data of the face called `name`, wherever it is used.
     pub fn replace(&mut self, name: &str, data: FontData) {
+        if self.after_system.contains(name) {
+            self.after_system.insert(name, data.clone());
+        }
         self.definitions.font_data.insert(name.to_owned(), Arc::new(data));
     }
 
-    /// Remove the face called `name` from every chain.
+    /// Remove the face called `name` from every chain, including those asked after the system
+    /// fonts.
     pub fn remove(&mut self, name: &str) {
         self.definitions.font_data.remove(name);
         for chain in self.definitions.families.values_mut() {
             chain.retain(|n| n != name);
         }
+        self.after_system.remove(name);
     }
 
     /// Raise `egui`'s minimum interactive height in `style` to fit a row of this stack's body and

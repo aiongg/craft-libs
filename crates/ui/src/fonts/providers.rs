@@ -99,15 +99,31 @@ impl FaceList {
     pub fn insert(&mut self, name: &str, data: FontData) {
         self.faces.insert(name.to_owned(), data);
     }
+
+    /// Whether the list has data for the face called `name`.
+    pub fn contains(&self, name: &str) -> bool {
+        self.faces.contains_key(name)
+    }
+
+    /// Remove the face called `name` and drop it from every chain.
+    pub fn remove(&mut self, name: &str) {
+        self.faces.remove(name);
+        for chain in self.chains.values_mut() {
+            chain.retain(|n| n != name);
+        }
+    }
 }
 
 impl FontProvider for FaceList {
+    /// The first face with the cluster's first character, preferring one that also has the
+    /// cluster's other visible characters: egui shapes the whole cluster with this face.
     fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
-        let c = request.cluster.chars().next()?;
-        let (name, data) = self.chain(request.family).iter().find_map(|name| {
-            let data = self.faces.get(name)?;
-            has_char(data, c).then_some((name, data))
-        })?;
+        let mut chars = request.cluster.chars();
+        let first = chars.next()?;
+        let rest: Vec<char> = chars.filter(|&c| super::coverage::draws(c)).collect();
+        let faces =
+            self.chain(request.family).iter().filter_map(|name| Some((name, self.faces.get(name)?))).filter(|(_, data)| has_char(data, first));
+        let (name, data) = faces.clone().find(|(_, data)| rest.iter().all(|&c| has_char(data, c))).or_else(|| faces.clone().next())?;
         Some(FontInsert::new(name, data.clone(), vec![InsertFontFamily { family: request.family.clone(), priority: FontPriority::Lowest }]))
     }
 }
