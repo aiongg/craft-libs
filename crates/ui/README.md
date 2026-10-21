@@ -248,7 +248,10 @@ Traditional (TC) face, then Hong Kong, then Simplified; `zh-HK` the Hong Kong fa
 Japanese face; `ko` the Korean one.
 
 The app keeps its font files: its `build.rs` embeds the craft-fonts faces it wants from
-`fonts/manifest.txt` as `fonts::CraftFace` values, and craft-ui never depends on craft-fonts. The
+`fonts/manifest.txt` with `craft-fonts-build`, and craft-ui never depends on craft-fonts. A crate
+below the UI (an app's engine or font crate, without egui) holds the table as
+`craft_fonts_build::EmbeddedFace` values (storytold/craft-libs#213), and the UI converts each into
+a `fonts::CraftFace` with `From`. The
 app configures its own faces, a preferred face per script, extra named families (a semibold
 family, a family led by Arabic for the runs it shapes itself), emoji faces, and whether system
 fonts come before or after the craft faces for other scripts. `UiFonts::stack` returns a `Stack`
@@ -261,18 +264,20 @@ its fonts only through `set_fonts`.
 own table implements `fonts::LanguageScripts` instead.
 
 ```rust
+use craft_fonts_build::EmbeddedFace;
 use craft_ui::fonts::{CraftFace, Family, I18nScripts, UiFonts};
 use egui::{FontData, FontFamily};
 
-include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs")); // pub static CRAFT_FONTS: &[CraftFace]
+pub static CRAFT_FONTS: &[EmbeddedFace] = include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
 
 fn install_fonts(ctx: &egui::Context, ui_language: &str) {
+    let craft_faces: Vec<CraftFace> = CRAFT_FONTS.iter().copied().map(CraftFace::from).collect();
     UiFonts::new(&I18nScripts)
         .app_face("ui", FontData::from_static(UI_FONT), &[FontFamily::Proportional])
         .app_face("ui-semibold", FontData::from_static(UI_SEMIBOLD), &[FontFamily::Name("semibold".into())])
         .app_face("mono", FontData::from_static(MONO_FONT), &[FontFamily::Monospace])
         .family(Family::named("semibold").weight(600))
-        .craft_faces(CRAFT_FONTS)
+        .craft_faces(&craft_faces)
         .languages(OFFERED_LANGUAGES)
         .ui_language(ui_language)
         .install(ctx);

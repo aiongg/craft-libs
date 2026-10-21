@@ -184,6 +184,13 @@ fn test_fonts(ui_language: &str) -> UiFonts<'static> {
 }
 
 #[test]
+fn craft_faces_come_from_embedded_faces() {
+    let embedded = craft_fonts_build::EmbeddedFace { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], index: 2, bytes: ARABIC };
+    let face = CraftFace::from(embedded);
+    assert_eq!((face.name().as_str(), face.scripts, face.index, face.bytes.len()), ("Noto Sans Arabic Regular", &["Arab"][..], 2, ARABIC.len()));
+}
+
+#[test]
 fn coverage_names_language_string_and_character() {
     let stack = test_stack("en");
     let samples = [
