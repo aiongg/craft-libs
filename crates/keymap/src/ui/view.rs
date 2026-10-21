@@ -27,7 +27,7 @@ use crate::ui::capture;
 use crate::ui::rows::{AreaId, Filter, FixedLine, Line, Row};
 use crate::ui::state::{Answer, DialogState, Env, Prompt, Recording, Target, binding_error};
 use crate::ui::style::{self, DialogStyle};
-use crate::ui::text::{RLM, epaint_reorders_bidi, trigger_text, visual_around};
+use crate::ui::text::{FSI, PDI, RLM, epaint_reorders_bidi, trigger_text, visual_around};
 
 #[path = "keyboard.rs"]
 pub(crate) mod keyboard;
@@ -105,11 +105,17 @@ impl Draw<'_, '_> {
     /// Parts in logical order, each already in display order, put into display order: reversed in
     /// a right-to-left interface, where the path separator ` › ` becomes ` ‹ `.
     ///
-    /// When epaint reorders bidi text, the parts keep their order and epaint does the rest; right
-    /// to left, a right-to-left mark starts them so that their paragraph is right to left, and the
-    /// shaper mirrors ` › ` in right-to-left runs.
+    /// When epaint reorders bidi text, the parts keep their order and epaint does the rest. Right
+    /// to left, a right-to-left mark starts them and each part but the path separator goes in a
+    /// first-strong isolate, so the parts follow one another from the right even when they are
+    /// Latin or a chord like `⌘-`; the shaper mirrors ` › ` between them.
     fn ordered<T>(&self, mut parts: Vec<(String, T)>) -> Vec<(String, T)> {
         if self.rtl() && epaint_reorders_bidi() {
+            for (s, _) in &mut parts {
+                if s != PATH_SEP {
+                    *s = format!("{FSI}{s}{PDI}");
+                }
+            }
             if let Some((s, _)) = parts.first_mut() {
                 s.insert(0, RLM);
             }

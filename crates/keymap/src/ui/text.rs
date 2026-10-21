@@ -43,8 +43,8 @@ pub trait Text {
     /// The suite's egui fork applies the Unicode bidi algorithm itself ([`epaint_reorders_bidi`]),
     /// so there apps return `s` unchanged, and the dialog keeps its text in logical order too: it
     /// swaps no sides and reverses no paths. It only marks the text it composes: a right-to-left
-    /// mark sets the paragraph direction in a right-to-left interface, and a left-to-right isolate
-    /// keeps a chord in its order.
+    /// mark sets the paragraph direction in a right-to-left interface, isolates keep the parts of
+    /// a menu path in interface order, and a left-to-right isolate keeps a chord in its order.
     fn visual(&self, s: &str) -> String {
         s.to_string()
     }
@@ -134,6 +134,8 @@ pub(crate) fn visual_around(text: &dyn Text, s: &str, chord: &str) -> String {
 pub(crate) const RLM: char = '\u{200F}';
 /// Left-to-right isolate, closed by [`PDI`].
 pub(crate) const LRI: char = '\u{2066}';
+/// First-strong isolate, closed by [`PDI`].
+pub(crate) const FSI: char = '\u{2068}';
 /// Pop directional isolate.
 pub(crate) const PDI: char = '\u{2069}';
 

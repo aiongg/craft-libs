@@ -616,8 +616,11 @@ fn rtl_puts_the_detail_pane_left_and_keeps_chords() {
     assert!(chip.center().x < table.center().x, "shortcut column on the table's left: {chip:?} in {table:?}");
 }
 
-/// Hebrew for the strings and names the bidi test draws.
-struct Hebrew;
+/// Hebrew for the strings and names the bidi test draws; with `latin_items`, "Arrange" and
+/// "Bring to Front" stay in English.
+struct Hebrew {
+    latin_items: bool,
+}
 impl Text for Hebrew {
     fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
         match source {
@@ -634,8 +637,8 @@ impl Text for Hebrew {
     fn segment<'a>(&'a self, s: &'a str) -> Cow<'a, str> {
         match s {
             "Object" => "עצם".into(),
-            "Arrange" => "סידור".into(),
-            "Bring to Front" => "הבאה לחזית".into(),
+            "Arrange" if !self.latin_items => "סידור".into(),
+            "Bring to Front" if !self.latin_items => "הבאה לחזית".into(),
             "Save As…" => "שמירה בשם".into(),
             _ => s.into(),
         }
@@ -644,9 +647,11 @@ impl Text for Hebrew {
         true
     }
     /// What an app does: nothing when epaint reorders bidi text itself, otherwise its bidi
-    /// reordering, which for these strings (Hebrew, spaces and punctuation) reverses them.
+    /// reordering. Each string here is either Hebrew with spaces and punctuation, which that
+    /// reverses, or English, which it leaves alone.
     fn visual(&self, s: &str) -> String {
-        if epaint_reorders_bidi() { s.to_string() } else { s.chars().rev().collect() }
+        let hebrew = s.chars().any(|c| ('\u{0590}'..='\u{05FF}').contains(&c));
+        if epaint_reorders_bidi() || !hebrew { s.to_string() } else { s.chars().rev().collect() }
     }
 }
 
@@ -676,17 +681,24 @@ fn drawn_left_to_right(h: &Harness<'_, Fx>, needles: &[&str]) -> String {
 
 /// A Hebrew menu path and a chord message read right to left on screen on either egui: crates.io
 /// egui draws the dialog's display-order text as it comes, the suite's fork reorders the
-/// logical-order text itself.
+/// logical-order text itself. Path parts follow one another from the right whatever their
+/// script: a Hebrew part before the Latin command id, and English parts next to each other.
 #[test]
 fn rtl_menu_path_and_chord_message_read_right_to_left() {
     let mut fx = Fx::new(fixture(Platform::Mac));
-    fx.text = Box::new(Hebrew);
+    fx.text = Box::new(Hebrew { latin_items: false });
     let mut h = open(fx);
     click(&mut h, "הבאה לחזית");
     assert_eq!(drawn_left_to_right(&h, &["object.front"]), "object.front · תיזחל האבה › רודיס › םצע");
     click(&mut h, "שמירה בשם");
     // Of the dialog's strings, only "ברירת מחדל: {chord}" has a "ד".
     assert_eq!(drawn_left_to_right(&h, &["ד", "⇧⌘S"]), "⇧⌘S :לדחמ תרירב");
+
+    let mut fx = Fx::new(fixture(Platform::Mac));
+    fx.text = Box::new(Hebrew { latin_items: true });
+    let mut h = open(fx);
+    click(&mut h, "Bring to Front");
+    assert_eq!(drawn_left_to_right(&h, &["object.front"]), "object.front · Bring to Front › Arrange › םצע");
 }
 
 // ---- Sets ----
