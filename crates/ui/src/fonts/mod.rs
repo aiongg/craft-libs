@@ -225,8 +225,8 @@ pub struct Emoji {
     pub color: Option<FontData>,
     /// A lighter colour emoji font for web builds, e.g. Twemoji.
     pub web: Option<FontData>,
-    /// A colour emoji font served beside the wasm, fetched the first time text needs an emoji or
-    /// symbol; asked after `web`. Ignored outside the web.
+    /// A colour emoji font served beside the wasm, fetched the first time text needs an emoji;
+    /// asked after `web`. Ignored outside the web.
     pub served: Option<ServedFace>,
     /// A monochrome emoji font, e.g. Noto Emoji; the last resort.
     pub monochrome: Option<FontData>,

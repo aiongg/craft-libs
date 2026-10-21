@@ -8,11 +8,17 @@ use egui::epaint::text::Blob;
 
 use super::{CraftFace, Stack, baseline_fallback, set_weight};
 
+#[cfg(any(test, target_arch = "wasm32"))]
+pub(super) mod loader;
 #[cfg(target_arch = "wasm32")]
 pub(super) mod web;
 
 /// The script tag served emoji faces get: ISO 15924 `Zsye`, emoji.
 pub(super) const EMOJI: &str = "Zsye";
+/// ISO 15924 `Zsym`, symbols drawn as text: arrows, keyboard keys, dingbats.
+pub(super) const SYMBOLS: &str = "Zsym";
+/// ISO 15924 `Zmth`, mathematical notation.
+pub(super) const MATH: &str = "Zmth";
 
 /// A craft-fonts face served beside the app, one per line of `fonts/manifest.txt`. The tables that
 /// `craft-fonts-build`'s `Embed::serve` writes are slices of these.
@@ -61,19 +67,30 @@ impl Stack {
     }
 
     /// The served faces that could draw `c` in `family`, in the order the family asks them: those
-    /// tagged with `c`'s script. Empty for scripts the app's own faces are expected to cover
-    /// (Latin, Greek, Cyrillic) and for characters of no particular script; for emoji and symbols,
-    /// the served emoji face.
+    /// tagged with `c`'s script (see [`script_of`]). Letters of Latin, Greek and Cyrillic take
+    /// faces such as Noto Sans, not the CJK faces, which carry those scripts at CJK proportions.
+    /// Keyboard keys, arrows and other symbols take the symbol faces (`Zsym`), mathematical
+    /// notation the math faces (`Zmth`) and then the symbol faces, and emoji the emoji faces.
+    /// Empty for characters of no particular script.
     pub fn downloads_for(&self, family: &FontFamily, c: char) -> Vec<&ServedFace> {
-        let Some(script) = script_of(c) else { return Vec::new() };
+        script_of(c).map_or_else(Vec::new, |script| self.downloads(family, script))
+    }
+
+    /// [`Self::downloads_for`] by script tag.
+    pub(super) fn downloads(&self, family: &FontFamily, script: &str) -> Vec<&ServedFace> {
+        let wanted = if script == MATH { [MATH, SYMBOLS].as_slice() } else { std::slice::from_ref(&script) };
+        let alphabet = matches!(script, "Latn" | "Grek" | "Cyrl");
         let configured = self.definitions.families.get(family).or_else(|| self.definitions.families.get(&FontFamily::Proportional));
         let mut faces: Vec<&ServedFace> = Vec::new();
-        for name in configured.into_iter().flatten().chain(self.after_system.chain(family)) {
-            if let Some(face) = self.served_face(name)
-                && face.craft_face().covers(script)
-                && !faces.contains(&face)
-            {
-                faces.push(face);
+        for want in wanted {
+            for name in configured.into_iter().flatten().chain(self.after_system.chain(family)) {
+                if let Some(face) = self.served_face(name)
+                    && face.craft_face().covers(want)
+                    && !(alphabet && face.craft_face().covers("Hani"))
+                    && !faces.contains(&face)
+                {
+                    faces.push(face);
+                }
             }
         }
         faces
@@ -142,12 +159,15 @@ pub fn loading(_ctx: &egui::Context) -> bool {
     false
 }
 
-/// The ISO 15924 script a served face must have to draw `c`, by Unicode block. `None` for Latin,
-/// Greek, Cyrillic and characters common to every script, which no served face is fetched for.
-/// Emoji and symbols map to [`EMOJI`].
+/// The ISO 15924 script a served face must have to draw `c`, by Unicode block. Symbols with an
+/// emoji presentation by default (Unicode's `Emoji_Presentation`) map to [`EMOJI`], other
+/// symbols, such as ⌘ ⌥ ⇧ ⌃ ⎋ ⏎ ⌫, to [`SYMBOLS`]. `None` for characters of no block listed.
 pub(super) fn script_of(c: char) -> Option<&'static str> {
     // Sorted by start; ranges don't overlap.
     const BLOCKS: &[(u32, u32, &str)] = &[
+        (0x0020, 0x036F, "Latn"),
+        (0x0370, 0x03FF, "Grek"),
+        (0x0400, 0x052F, "Cyrl"),
         (0x0530, 0x058F, "Armn"),
         (0x0590, 0x05FF, "Hebr"),
         (0x0600, 0x06FF, "Arab"),
@@ -176,10 +196,25 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
         (0x1780, 0x17FF, "Khmr"),
         (0x1800, 0x18AF, "Mong"),
         (0x19E0, 0x19FF, "Khmr"),
+        (0x1C80, 0x1C8F, "Cyrl"),
         (0x1C90, 0x1CBF, "Geor"),
-        (0x2190, 0x2BFF, EMOJI),
+        (0x1D00, 0x1EFF, "Latn"),
+        (0x1F00, 0x1FFF, "Grek"),
+        (0x2000, 0x20CF, "Latn"),
+        (0x2100, 0x214F, SYMBOLS),
+        (0x2150, 0x218F, "Latn"),
+        (0x2190, 0x21FF, SYMBOLS),
+        (0x2200, 0x22FF, MATH),
+        (0x2300, 0x27BF, SYMBOLS),
+        (0x27C0, 0x27EF, MATH),
+        (0x27F0, 0x297F, SYMBOLS),
+        (0x2980, 0x2AFF, MATH),
+        (0x2B00, 0x2BFF, SYMBOLS),
+        (0x2C60, 0x2C7F, "Latn"),
         (0x2D00, 0x2D2F, "Geor"),
         (0x2D80, 0x2DDF, "Ethi"),
+        (0x2DE0, 0x2DFF, "Cyrl"),
+        (0x2E00, 0x2E7F, "Latn"),
         (0x2E80, 0x303F, "Hani"),
         (0x3040, 0x309F, "Hira"),
         (0x30A0, 0x30FF, "Kana"),
@@ -189,11 +224,15 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
         (0x31C0, 0x31EF, "Hani"),
         (0x31F0, 0x31FF, "Kana"),
         (0x3200, 0x9FFF, "Hani"),
+        (0xA640, 0xA69F, "Cyrl"),
+        (0xA720, 0xA7FF, "Latn"),
         (0xA8E0, 0xA8FF, "Deva"),
         (0xA960, 0xA97F, "Hang"),
         (0xAB00, 0xAB2F, "Ethi"),
+        (0xAB30, 0xAB6F, "Latn"),
         (0xAC00, 0xD7FF, "Hang"),
         (0xF900, 0xFAFF, "Hani"),
+        (0xFB00, 0xFB06, "Latn"),
         (0xFB13, 0xFB17, "Armn"),
         (0xFB1D, 0xFB4F, "Hebr"),
         (0xFB50, 0xFDFF, "Arab"),
@@ -202,11 +241,86 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
         (0xFF00, 0xFF65, "Hani"),
         (0xFF66, 0xFF9F, "Kana"),
         (0xFFA0, 0xFFDC, "Hang"),
+        (0x1D400, 0x1D7FF, MATH),
         (0x1F000, 0x1FAFF, EMOJI),
+        (0x1FB00, 0x1FBFF, SYMBOLS),
         (0x20000, 0x3FFFF, "Hani"),
     ];
+    // The symbols among the BLOCKS' symbols that are emoji by default.
+    const EMOJI_PRESENTATION: &[(u32, u32)] = &[
+        (0x231A, 0x231B),
+        (0x23E9, 0x23EC),
+        (0x23F0, 0x23F0),
+        (0x23F3, 0x23F3),
+        (0x25FD, 0x25FE),
+        (0x2614, 0x2615),
+        (0x2648, 0x2653),
+        (0x267F, 0x267F),
+        (0x2693, 0x2693),
+        (0x26A1, 0x26A1),
+        (0x26AA, 0x26AB),
+        (0x26BD, 0x26BE),
+        (0x26C4, 0x26C5),
+        (0x26CE, 0x26CE),
+        (0x26D4, 0x26D4),
+        (0x26EA, 0x26EA),
+        (0x26F2, 0x26F3),
+        (0x26F5, 0x26F5),
+        (0x26FA, 0x26FA),
+        (0x26FD, 0x26FD),
+        (0x2705, 0x2705),
+        (0x270A, 0x270B),
+        (0x2728, 0x2728),
+        (0x274C, 0x274C),
+        (0x274E, 0x274E),
+        (0x2753, 0x2755),
+        (0x2757, 0x2757),
+        (0x2795, 0x2797),
+        (0x27B0, 0x27B0),
+        (0x27BF, 0x27BF),
+        (0x2B1B, 0x2B1C),
+        (0x2B50, 0x2B50),
+        (0x2B55, 0x2B55),
+    ];
+    // The emoji BLOCKS' characters that are symbols, drawn as text by default: mahjong, domino
+    // and playing card faces, enclosed letters, ornaments, geometric shapes, arrows, chess.
+    const TEXT_PRESENTATION: &[(u32, u32)] = &[
+        (0x1F000, 0x1F003),
+        (0x1F005, 0x1F0CE),
+        (0x1F0D0, 0x1F18D),
+        (0x1F18F, 0x1F190),
+        (0x1F19B, 0x1F1E5),
+        (0x1F650, 0x1F67F),
+        (0x1F780, 0x1F7DF),
+        (0x1F800, 0x1F8FF),
+        (0x1FA00, 0x1FA6F),
+    ];
     let c = u32::from(c);
-    let i = BLOCKS.partition_point(|(start, ..)| *start <= c);
-    let (_, end, script) = BLOCKS.get(i.checked_sub(1)?)?;
-    (c <= *end).then_some(*script)
+    let script = find(BLOCKS, c, |(start, end, _)| (*start, *end)).map(|(.., script)| *script)?;
+    Some(match script {
+        SYMBOLS if find(EMOJI_PRESENTATION, c, |r| *r).is_some() => EMOJI,
+        EMOJI if find(TEXT_PRESENTATION, c, |r| *r).is_some() => SYMBOLS,
+        script => script,
+    })
+}
+
+/// [`script_of`] the cluster's first character, with an emoji or text variation selector
+/// (U+FE0F, U+FE0E) choosing between [`EMOJI`] and [`SYMBOLS`].
+#[cfg(any(test, target_arch = "wasm32"))]
+pub(super) fn script_of_cluster(cluster: &str) -> Option<&'static str> {
+    let script = script_of(cluster.chars().next()?)?;
+    Some(if cluster.contains('\u{FE0F}') {
+        EMOJI
+    } else if script == EMOJI && cluster.contains('\u{FE0E}') {
+        SYMBOLS
+    } else {
+        script
+    })
+}
+
+/// The entry of `ranges` (sorted by start, not overlapping) that holds `c`.
+fn find<T>(ranges: &[T], c: u32, range: impl Fn(&T) -> (u32, u32)) -> Option<&T> {
+    let i = ranges.partition_point(|r| range(r).0 <= c);
+    let entry = ranges.get(i.checked_sub(1)?)?;
+    (c <= range(entry).1).then_some(entry)
 }
