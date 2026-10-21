@@ -25,9 +25,13 @@ crates/text/assets/hyphen/en-us.pat: CC0-1.0, trained from en-us.dic by DesignCr
 Hyphenation patterns for other languages, embedded through the hypher crate only when the
   matching craft-text feature is enabled (none are by default). They come from hyph-utf8,
   https://github.com/hyphenation/tex-hyphen, as packaged in https://github.com/typst/hypher
-  (patterns/). Each file is under the permissive license stated in its header (LPPL, MPL, MIT or
-  BSD-3-Clause); an application that enables a language ships that file's copyright and license
-  notice. The Spanish patterns (feature "spanish") are hyph-es.tex 5.0.
+  (patterns/). Each file is under the license stated in its header: LPPL, MIT, BSD-3-Clause, the
+  Unlicense, a notice permitting any use, or a choice of licenses that includes one of these. An
+  application that enables a language ships that file's copyright and license notice. The
+  exception is Slovak (hyph-sk.tex, Copyright (C) 1992 Jana Chlebíková), under the GNU General
+  Public License, version 2 or later (SPDX: GPL-2.0-or-later). It is compiled in only with the
+  feature "slovak-gpl", which "all-languages" does not include; an application that enables it
+  ships GPL-licensed data. The Spanish patterns (feature "spanish") are hyph-es.tex 5.0.
   Copyright (C) 1993, 1997 Javier Bezos, 2001-2019 Javier Bezos, CervanTeX. MIT License:
   Permission is hereby granted, free of charge, to any person obtaining a copy of this software
   and associated documentation files (the "Software"), to deal in the Software without

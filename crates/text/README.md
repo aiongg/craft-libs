@@ -39,7 +39,11 @@ list, for example for spelling checks.
 
 Other languages use the patterns compiled into [hypher](https://crates.io/crates/hypher) 0.1.8.
 Each has a cargo feature named as in hypher (`spanish`, `german`, `norwegian`, …); `all-languages`
-enables all 47. Patterns for languages whose feature is off are not compiled in.
+enables 46 of them. Patterns for languages whose feature is off are not compiled in.
+
+Slovak's patterns are under the GPL, version 2 or later, where every other language's are under a
+permissive license. Their feature is `slovak-gpl`, and `all-languages` leaves it out: a build that
+enables it ships GPL-licensed data.
 
 ```rust
 use craft_text::hyphen::{Lang, Limits, hyphen_points_in};

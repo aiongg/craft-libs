@@ -102,9 +102,23 @@ fn language_names_and_codes() {
 #[test]
 fn every_language_is_available() {
     for &(name, code) in LANGUAGES {
+        if code == *b"sk" && !cfg!(feature = "slovak-gpl") {
+            continue;
+        }
         assert!(hypher::Lang::from_iso(code).is_some(), "{name}");
         assert!(Lang::for_language(name).is_some(), "{name}");
     }
+}
+
+/// Slovak's patterns are GPL-2.0-or-later: only their own feature turns them on, never
+/// `all-languages`.
+#[test]
+fn all_languages_leaves_out_the_gpl_slovak_patterns() {
+    let manifest = include_str!("../../Cargo.toml");
+    let all = manifest.split("all-languages = [").nth(1).and_then(|s| s.split(']').next()).unwrap_or_default();
+    assert!(all.contains("\"spanish\""), "all-languages list not found");
+    assert!(!all.contains("slovak"), "{all}");
+    assert!(manifest.contains("\nslovak-gpl = [\"hyphen\", \"hypher/slovak\"]"));
 }
 
 #[cfg(feature = "spanish")]

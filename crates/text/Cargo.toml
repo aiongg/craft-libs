@@ -44,7 +44,7 @@ segment = ["dep:unicode-linebreak", "dep:unicode-segmentation"]
 # dictionaries. Much smaller (for web builds), slower to run, and its words differ slightly.
 lstm = ["segment", "icu_segmenter?/lstm"]
 # Each feature below adds the data for one more language: for `hyphen`, hypher's patterns (see
-# NOTICE for their licenses); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
+# NOTICE for their licenses; Slovak is `slovak-gpl`, outside `all-languages`); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
 # (one shared data set, Unicode License v3).
 all-languages = [
     "afrikaans",
@@ -88,7 +88,6 @@ all-languages = [
     "russian",
     "sanskrit",
     "serbian",
-    "slovak",
     "slovenian",
     "spanish",
     "swedish",
@@ -137,7 +136,9 @@ portuguese = ["hyphen", "hypher/portuguese"]
 russian = ["hyphen", "hypher/russian"]
 sanskrit = ["hyphen", "hypher/sanskrit"]
 serbian = ["hyphen", "hypher/serbian"]
-slovak = ["hyphen", "hypher/slovak"]
+# Slovak patterns are under the GPL, version 2 or later (hyph-sk.tex), unlike every other language
+# here, so `all-languages` leaves them out. A build that enables this ships GPL-licensed data.
+slovak-gpl = ["hyphen", "hypher/slovak"]
 slovenian = ["hyphen", "hypher/slovenian"]
 spanish = ["hyphen", "hypher/spanish"]
 swedish = ["hyphen", "hypher/swedish"]
