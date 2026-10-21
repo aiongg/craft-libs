@@ -276,8 +276,11 @@ Call `install` again when the UI language changes.
 
 Two features, both off by default, change what every craft-ui user draws, so the app turns them on:
 
-- `system_fonts` (desktop): the stack asks egui's system font provider, at regular weight, and
-  `install` replaces the context's font providers, including the one eframe adds. Without it,
+- `system_fonts` (desktop): the stack asks the installed fonts, at regular weight, and `install`
+  replaces the context's font providers, including the one eframe adds. One index of the
+  installed fonts serves every UI language, so a language switch doesn't scan them again.
+  `install` starts building it on a background thread; until it is ready, text draws with the
+  stack's own faces, and the context repaints when it arrives. Without it,
   `install` keeps the providers the context has (eframe's `system_fonts`, for one) and asks the
   stack's own faces after them. `UiFonts::system_provider` supplies a provider either way, and
   `SystemFonts::Off` drops system fonts.

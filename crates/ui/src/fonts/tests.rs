@@ -335,6 +335,16 @@ fn the_system_provider_is_shared_per_locale() {
     assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
 }
 
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
+fn every_locale_asks_one_index_of_the_installed_fonts() {
+    let request = FallbackRequest { cluster: "ب", family: &FontFamily::Proportional };
+    for locale in ["ja", "ar", "zh-CN"] {
+        system_font_provider(locale).and_then(|provider| provider.font_for(&request));
+    }
+    assert_eq!(system_index::BUILDS.load(std::sync::atomic::Ordering::Relaxed), 1);
+}
+
 #[test]
 fn egui_faces_join_the_families_the_app_names() {
     let semibold = FontFamily::Name("semibold".into());
