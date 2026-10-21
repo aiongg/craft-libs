@@ -32,7 +32,17 @@ fn build() -> Index {
 /// A provider over the shared index that prefers `locale`'s fonts. With `wait`, a lookup before the
 /// index is built blocks until it is; without, it finds nothing (see [`start`]).
 pub(super) fn provider(locale: &str, wait: bool) -> Arc<dyn FontProvider> {
-    Arc::new(Lookup::new(&INDEX, Language::parse(locale).ok(), wait))
+    Arc::new(Lookup::new(&INDEX, locale_language(locale), wait))
+}
+
+/// The language a locale prefers fonts for: a language tag (`zh-Hant`) or a POSIX locale
+/// (`zh_TW.UTF-8`). `C`, `POSIX` and anything else without a language prefer none.
+pub(super) fn locale_language(locale: &str) -> Option<Language> {
+    let tag = locale.split(['.', '@']).next().unwrap_or_default();
+    if matches!(tag, "C" | "POSIX") {
+        return None;
+    }
+    Language::parse(tag).ok()
 }
 
 /// Start building the index in the background. `ctx` reloads its fonts once it is built if a
