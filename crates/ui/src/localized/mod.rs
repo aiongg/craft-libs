@@ -9,7 +9,7 @@
 //! changes the value: it is outlined in the error color with a tooltip saying why, from the
 //! catalog with [`LocaleNumbers::with_catalog`].
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -269,9 +269,17 @@ impl Widget for LocalizedDragValue<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let LocalizedDragValue { drag, numbers, unit, formatter, fallback } = self;
         let parsed: LastRead = Rc::new(Cell::new(None));
+        // The value egui last had written and its text. egui reads the text back when the field
+        // loses focus, edited or not; the unedited text gives the value itself, not the value
+        // rounded to the decimals shown.
+        let shown: Rc<RefCell<Option<(f64, String)>>> = Rc::new(RefCell::new(None));
         let mut drag = drag.custom_formatter({
-            let numbers = numbers.clone();
-            move |value, decimals| formatter.as_ref().and_then(|f| f(value, decimals.clone())).unwrap_or_else(|| numbers.format(value, decimals))
+            let (numbers, shown) = (numbers.clone(), Rc::clone(&shown));
+            move |value, decimals| {
+                let text = formatter.as_ref().and_then(|f| f(value, decimals.clone())).unwrap_or_else(|| numbers.format(value, decimals));
+                *shown.borrow_mut() = Some((value, text.clone()));
+                text
+            }
         });
         if !unit.prefix.is_empty() {
             drag = drag.prefix(unit.prefix.clone());
@@ -281,8 +289,12 @@ impl Widget for LocalizedDragValue<'_> {
         }
         drag = drag.custom_parser({
             let (numbers, unit, parsed) = (numbers.clone(), unit.clone(), Rc::clone(&parsed));
+            let shown = Rc::clone(&shown);
             move |text| {
-                let result = read(&numbers, &unit, fallback.as_ref(), text);
+                let result = match &*shown.borrow() {
+                    Some((value, written)) if written == text => Ok(*value),
+                    _ => read(&numbers, &unit, fallback.as_ref(), text),
+                };
                 let still_typing = result.err().is_some_and(|error| incomplete(text, error));
                 parsed.set(Some((still_typing, result)));
                 result.ok()
@@ -542,18 +554,22 @@ impl Widget for NumberField<'_> {
             ui.memory_mut(|m| m.request_focus(id));
             select = true;
         }
+        // The shown text stands for `old` itself: reading it back would round the value to the
+        // shown decimals, so leaving an untouched field would change it.
+        let read_text = |text: &str| if !mixed && text == shown { Ok(old) } else { read(&numbers, &unit, fallback.as_ref(), text) };
         let mut value = old;
         // A number the user entered; in a mixed field it counts as a change even if it equals `old`.
         let mut entered = false;
         if step != 0.0 && ui.memory(|m| m.has_focus(id)) {
-            let over = ui.ctx().read_response(id).is_some_and(|r| r.contains_pointer());
-            let steps = take_steps(ui, id, over);
             let typed = state.as_ref().map_or(shown.as_str(), |s| s.text.as_str());
-            if !steps.is_empty()
-                && let Ok(base) = read(&numbers, &unit, fallback.as_ref(), typed)
-            {
-                value = settle(steps.iter().fold(base, |v, &(modifiers, n)| stepped(v, step, places, modifiers, n)));
-                (entered, select, state) = (true, true, None);
+            // Text that isn't a number takes no steps: the wheel scrolls the panel instead.
+            if let Ok(base) = read_text(typed) {
+                let over = ui.ctx().read_response(id).is_some_and(|r| r.contains_pointer());
+                let steps = take_steps(ui, id, over);
+                if !steps.is_empty() {
+                    value = settle(steps.iter().fold(base, |v, &(modifiers, n)| stepped(v, step, places, modifiers, n)));
+                    (entered, select, state) = (true, true, None);
+                }
             }
         }
         let mut scrubbed = None;
@@ -566,7 +582,7 @@ impl Widget for NumberField<'_> {
         }
         let mut text = match &state {
             Some(s) => s.text.clone(),
-            None if value == old && !entered => shown,
+            None if value == old && !entered => shown.clone(),
             None => numbers.format(value, decimals.clone()),
         };
         if select {
@@ -609,9 +625,9 @@ impl Widget for NumberField<'_> {
             state = None;
             error = None;
         } else if response.lost_focus() {
-            match read(&numbers, &unit, fallback.as_ref(), &text) {
+            match read_text(&text) {
                 Ok(parsed) => {
-                    value = settle(parsed);
+                    value = if !mixed && text == shown { parsed } else { settle(parsed) };
                     entered = true;
                     state = None;
                     error = None;

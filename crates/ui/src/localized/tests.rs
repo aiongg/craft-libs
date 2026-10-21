@@ -454,3 +454,110 @@ fn error_tooltips_come_from_the_catalog() {
     assert_eq!(numbers.describe(NumberError::Unexpected('x')), "Pas un nombre");
     assert_eq!(numbers.describe(NumberError::TooLarge), "Number too large", "English where the row is missing");
 }
+
+const PRECISE: f64 = 1.234_567_89;
+
+/// A harness with the widget `add` makes and a button after it to take the focus.
+fn with_other(add: impl Fn(&mut Ui, &mut f64) -> Response + 'static) -> Harness<'static, f64> {
+    let mut h = Harness::builder().allow_missing_glyphs().build_ui_state(
+        move |ui, value: &mut f64| {
+            let label = ui.label("Width");
+            add(ui, value).labelled_by(label.id);
+            let _ = ui.button("Other");
+        },
+        PRECISE,
+    );
+    h.run();
+    h
+}
+
+/// Focuses the widget of `role` and leaves it without an edit in each way the user can: a click
+/// elsewhere, Enter and Tab. The value must stay exactly as it was.
+fn leaving_untouched_keeps_the_value(role: Role, add: impl Fn(&mut Ui, &mut f64) -> Response + Clone + 'static) {
+    let mut changed = Vec::new();
+    for leave in ["click elsewhere", "Enter", "Tab"] {
+        let mut h = with_other(add.clone());
+        h.get_by_role(role).click();
+        h.run();
+        assert!(h.get_by_role(role).value().is_some_and(|v| v.contains("1,234568")), "shown rounded");
+        match leave {
+            "Enter" => h.key_press(Key::Enter),
+            "Tab" => h.key_press(Key::Tab),
+            _ => h.get_by_label("Other").click(),
+        }
+        h.run();
+        h.run();
+        assert!(!h.get_by_role(role).is_focused(), "{leave} leaves the field");
+        if h.state().to_bits() != PRECISE.to_bits() {
+            changed.push((leave, *h.state()));
+        }
+    }
+    assert!(changed.is_empty(), "{changed:?}");
+}
+
+#[test]
+fn leaving_an_unedited_number_field_keeps_its_value() {
+    let numbers = LocaleNumbers::from_tag("de");
+    let add = move |ui: &mut Ui, value: &mut f64| ui.add(NumberField::new(value, &numbers));
+    leaving_untouched_keeps_the_value(Role::TextInput, add.clone());
+
+    let mut h = with_other(add.clone());
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run();
+    h.get_by_role(Role::TextInput).type_text("2,5");
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    assert_eq!(*h.state(), 2.5, "an edit commits");
+
+    let mut h = with_other(add);
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.key_press(Key::ArrowUp);
+    h.run();
+    assert_eq!(*h.state(), 2.0, "a step commits");
+}
+
+#[test]
+fn leaving_an_unedited_drag_value_keeps_its_value() {
+    let numbers = LocaleNumbers::from_tag("de");
+    let add = move |ui: &mut Ui, value: &mut f64| ui.add(LocalizedDragValue::new(DragValue::new(value).speed(0.1).max_decimals(6), &numbers));
+    leaving_untouched_keeps_the_value(Role::SpinButton, add.clone());
+
+    let mut h = with_other(add.clone());
+    type_into_drag(&mut h, "2,5");
+    assert_eq!(*h.state(), 2.5, "an edit commits");
+
+    let mut h = with_other(add);
+    h.get_by_role(Role::SpinButton).click();
+    h.run();
+    h.key_press(Key::ArrowUp);
+    h.run();
+    assert_ne!(*h.state(), PRECISE, "a step commits");
+}
+
+#[test]
+fn the_wheel_scrolls_past_a_field_it_cannot_step() {
+    let numbers = LocaleNumbers::from_tag("de");
+    let mut h = with_other(move |ui, value| ui.add(NumberField::new(value, &numbers)));
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.get_by_role(Role::TextInput).type_text("1x");
+    h.run();
+    let at = h.get_by_role(Role::TextInput).rect().center();
+    h.hover_at(at);
+    h.run();
+    h.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 1.0),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Unknown,
+        modifiers: Modifiers::NONE,
+    });
+    let mut wheel_left = false;
+    h.step();
+    h.ctx.input(|i| wheel_left = i.events.iter().any(|e| matches!(e, egui::Event::MouseWheel { .. })));
+    assert!(wheel_left, "the wheel event stays for the panel under the field");
+}
