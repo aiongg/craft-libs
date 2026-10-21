@@ -45,10 +45,9 @@ use icu_locale_core::Locale as IcuLocale;
 use icu_plurals::{PluralCategory, PluralOperands, PluralRules};
 
 pub use format::{Digits, Format};
+pub use number::{NumberError, parse_number};
 pub use region::{HourCycle, Measurement, Paper, Region};
 pub use size::{FileSize, SizeUnit};
-
-pub use number::{NumberError, parse_number};
 
 /// The catalogs an app embeds, one entry per locale: (locale, shared catalog, the app's catalog).
 /// A missing catalog is `""`.
