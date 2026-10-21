@@ -166,6 +166,10 @@ fn system_fonts_before_craft_moves_other_scripts_after_them() {
 }
 
 fn test_stack(ui_language: &str) -> Stack {
+    test_fonts(ui_language).stack()
+}
+
+fn test_fonts(ui_language: &str) -> UiFonts<'static> {
     let defaults = FontDefinitions::default();
     let ubuntu = defaults.font_data.get("Ubuntu-Light").map(|d| (**d).clone()).expect("egui default_fonts in dev-dependencies");
     UiFonts::new(&I18nScripts)
@@ -177,14 +181,14 @@ fn test_stack(ui_language: &str) -> Stack {
         .languages(&["en", "ar", "ja", "ka"])
         .ui_language(ui_language)
         .system_fonts(SystemFonts::Off)
-        .stack()
 }
 
 #[test]
 fn coverage_names_language_string_and_character() {
     let stack = test_stack("en");
     let samples = [
-        Sample { language: "ar", key: "menu.file", text: "ملف عربي" },
+        // With U+061C ARABIC LETTER MARK and U+034F COMBINING GRAPHEME JOINER, which draw nothing.
+        Sample { language: "ar", key: "menu.file", text: "ملف\u{061C} عر\u{034F}بي" },
         Sample { language: "ja", key: "menu.file", text: "日本語のファイル" },
         Sample { language: "ka", key: "menu.file", text: "ფაილი" },
     ];
@@ -199,6 +203,36 @@ fn coverage_names_language_string_and_character() {
     assert!(message.contains("4 characters") && message.contains("ka menu.file: U+10E4"), "{message}");
 
     assert_covers(&stack, samples.into_iter().take(2));
+}
+
+#[test]
+fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
+    let arabic = [Sample { language: "ar", key: "menu.file", text: "ملف" }];
+    let stack = || test_fonts("en").system_fonts(SystemFonts::BeforeCraft).stack();
+    let draws_arabic = |stack: &Stack| missing_glyphs(stack, &FontFamily::Proportional, arabic, false).is_empty();
+    let mut removed = stack();
+    assert!(removed.after_system.contains("Noto Sans Arabic Regular"));
+    assert!(draws_arabic(&removed));
+    removed.remove("Noto Sans Arabic Regular");
+    assert!(!draws_arabic(&removed));
+    let mut replaced = stack();
+    replaced.replace("Noto Sans Arabic Regular", FontData::from_static(CJK));
+    assert!(!draws_arabic(&replaced));
+}
+
+#[test]
+fn face_list_prefers_a_face_with_the_whole_cluster() {
+    let defaults = FontDefinitions::default();
+    let mut faces = FaceList::default();
+    for name in ["Ubuntu-Light", "Hack"] {
+        faces.insert(name, (**defaults.font_data.get(name).expect("egui default_fonts in dev-dependencies")).clone());
+    }
+    faces.set_chain(FontFamily::Proportional, vec!["Ubuntu-Light".into(), "Hack".into()]);
+    let face = |cluster| faces.font_for(&FallbackRequest { cluster, family: &FontFamily::Proportional }).map(|insert| insert.name);
+    assert_eq!(face("a").as_deref(), Some("Ubuntu-Light"));
+    // Only Hack has U+0301 COMBINING ACUTE ACCENT, and neither has U+0302.
+    assert_eq!(face("a\u{0301}").as_deref(), Some("Hack"));
+    assert_eq!(face("a\u{0302}").as_deref(), Some("Ubuntu-Light"));
 }
 
 #[test]
