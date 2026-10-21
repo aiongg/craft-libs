@@ -12,10 +12,21 @@ workspace = true
 
 [dependencies]
 egui = { workspace = true }
+epaint = { version = "0.37", default-features = false }
 serde = { version = "1", features = ["derive"], optional = true }
+# Same version as epaint's, for reading a face's character map.
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+egui_system_font_provider = { version = "0.37", optional = true }
 
 [features]
+default = ["color_fonts", "system_fonts"]
 serde = ["dep:serde"]
+# Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.
+color_fonts = ["epaint/color_fonts"]
+# Find installed fonts for characters the app's faces lack (desktop only).
+system_fonts = ["dep:egui_system_font_provider"]
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }

@@ -1,0 +1,76 @@
+//! The coverage check each app runs over its shipped translations.
+
+use std::fmt;
+
+use egui::{FontFamily, FontId};
+
+use super::Stack;
+
+/// A string the UI shows: one translation, or a sample of content text.
+#[derive(Clone, Copy, Debug)]
+pub struct Sample<'a> {
+    /// The language tag the string belongs to.
+    pub language: &'a str,
+    /// The message key, or a name for a content sample.
+    pub key: &'a str,
+    pub text: &'a str,
+}
+
+/// A character the stack can't draw.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Missing {
+    pub language: String,
+    pub key: String,
+    pub text: String,
+    pub character: char,
+}
+
+impl fmt::Display for Missing {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}: U+{:04X} {:?} in {:?}", self.language, self.key, u32::from(self.character), self.character, self.text)
+    }
+}
+
+/// Every character in `samples` that no face of `family` in `stack` has, without system fonts.
+///
+/// Whitespace, control characters and invisible format characters (joiners, direction marks,
+/// variation selectors) are skipped: they draw nothing.
+pub fn missing_glyphs<'a>(stack: &Stack, family: &FontFamily, samples: impl IntoIterator<Item = Sample<'a>>) -> Vec<Missing> {
+    let mut fonts = stack.fonts(false);
+    let font_id = FontId::new(14.0, family.clone());
+    let mut missing = Vec::new();
+    for sample in samples {
+        let mut seen = Vec::new();
+        for c in sample.text.chars().filter(|c| draws(*c)) {
+            if !seen.contains(&c) && !fonts.has_glyph(&font_id, c) {
+                seen.push(c);
+                missing.push(Missing {
+                    language: sample.language.to_owned(),
+                    key: sample.key.to_owned(),
+                    text: sample.text.to_owned(),
+                    character: c,
+                });
+            }
+        }
+    }
+    missing
+}
+
+/// Fail, naming each language, string and character, if the stack can't draw all of `samples`
+/// in the proportional family without system fonts. For an app's coverage test.
+#[allow(clippy::panic, reason = "a test assertion")]
+pub fn assert_covers<'a>(stack: &Stack, samples: impl IntoIterator<Item = Sample<'a>>) {
+    let missing = missing_glyphs(stack, &FontFamily::Proportional, samples);
+    if !missing.is_empty() {
+        let lines: Vec<String> = missing.iter().take(50).map(|m| format!("  {m}")).collect();
+        let more = if missing.len() > lines.len() { format!("\n  … and {} more", missing.len() - lines.len()) } else { String::new() };
+        panic!("the UI fonts can't draw {} characters:\n{}{more}", missing.len(), lines.join("\n"));
+    }
+}
+
+fn draws(c: char) -> bool {
+    !(c.is_whitespace()
+        || c.is_control()
+        || matches!(c, '\u{00AD}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}')
+        || matches!(c, '\u{FE00}'..='\u{FE0F}' | '\u{E0100}'..='\u{E01EF}'))
+}

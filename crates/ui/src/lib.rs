@@ -8,6 +8,7 @@
 pub mod buttons;
 pub mod capture;
 pub mod docking;
+pub mod fonts;
 pub mod icons;
 pub mod layout;
 pub mod printing;
