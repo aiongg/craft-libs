@@ -12,6 +12,7 @@
 
 mod catalog;
 mod format;
+mod number;
 mod region;
 mod scripts;
 mod size;
@@ -46,6 +47,7 @@ use icu_plurals::{PluralCategory, PluralOperands, PluralRules};
 use unicode_bidi::{BidiClass, bidi_class};
 
 pub use format::{Digits, Format};
+pub use number::{NumberError, parse_number};
 pub use region::{HourCycle, Measurement, Paper, Region};
 pub use scripts::{Direction, Han, Script, direction, han, scripts};
 pub use size::{FileSize, SizeUnit};
