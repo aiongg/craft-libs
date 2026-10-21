@@ -350,3 +350,15 @@ fn egui_faces_join_the_families_the_app_names() {
     assert!(stack.definitions.font_data.contains_key("Hack"));
     assert!(!proportional.iter().any(|n| n == "no such face"));
 }
+
+#[test]
+fn covers_language_checks_every_script_of_the_language() {
+    let stack = test_stack("en");
+    for language in ["en", "ar", "ja"] {
+        assert!(stack.covers_language(language, false), "{language}");
+    }
+    assert!(!stack.covers_language("ka", false), "no Georgian face");
+    // Not offered: the scripts come from craft-i18n.
+    assert!(stack.covers_language("zh-CN", false));
+    assert!(!stack.covers_language("th", false));
+}
