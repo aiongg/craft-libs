@@ -23,9 +23,9 @@
 //! # egui's own chrome
 //!
 //! The suite's egui fork adds `Style::right_to_left`, which mirrors submenus, scroll bars,
-//! collapsing-header triangles and window title bars. With the `patched-egui` feature, [`apply`]
-//! sets it on every theme's style; without it, egui's own chrome stays left to right. Installing
-//! a whole new [`egui::Style`] resets the field, so call [`apply`] after changing theme.
+//! collapsing-header triangles and window title bars. When the app patches that fork in, [`apply`]
+//! sets it on every theme's style; with crates.io egui, egui's own chrome stays left to right.
+//! Installing a whole new [`egui::Style`] resets the field, so call [`apply`] after changing theme.
 
 use egui::{Align, Align2, AsIdSalt, Context, Id, InnerResponse, Key, Layout, Panel, Rect, RectAlign, Ui, pos2, vec2};
 
@@ -86,9 +86,19 @@ fn key() -> Id {
 /// Draw the interface on `ctx` in `dir` from the next layout on.
 pub fn apply(ctx: &Context, dir: Direction) {
     ctx.data_mut(|d| d.insert_temp(key(), dir));
-    #[cfg(feature = "patched-egui")]
-    ctx.all_styles_mut(|style| style.right_to_left = dir == Direction::Rtl);
+    ctx.all_styles_mut(|style| style.set_right_to_left(dir == Direction::Rtl));
 }
+
+/// The suite's egui fork has an inherent `Style::set_right_to_left`; crates.io egui has neither
+/// the method nor the field. A method call picks an inherent method over a trait method of the
+/// same name, so [`apply`] reaches egui's method on the fork and this no-op everywhere else. The
+/// same source thus builds against both without a feature.
+#[allow(dead_code, reason = "unused when egui has the inherent method")]
+trait SetRightToLeft {
+    fn set_right_to_left(&mut self, _right_to_left: bool) {}
+}
+
+impl SetRightToLeft for egui::Style {}
 
 /// Anything the interface direction can be read from.
 pub trait HasDirection {
