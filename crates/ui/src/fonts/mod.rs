@@ -19,7 +19,8 @@
 //! script face's rows. Monospace always keeps its Latin face first. On the suite's egui fork, craft
 //! faces used as fallbacks sit on the row's baseline and rows grow to fit them by themselves.
 //!
-//! Apps keep their font files: their `build.rs` embeds craft-fonts' faces as [`CraftFace`]s.
+//! Apps keep their font files: their `build.rs` embeds craft-fonts' faces with `craft-fonts-build`,
+//! as [`CraftFace`]s or as `EmbeddedFace`s that convert into them.
 //! [`UiFonts::stack`] returns a [`Stack`] the app can still edit (add, replace and reorder faces)
 //! before [`Stack::install`].
 
@@ -50,6 +51,13 @@ pub struct CraftFace {
     pub bytes: &'static [u8],
     /// Face index in a font collection (`.ttc`); `0` for a single font.
     pub index: u32,
+}
+
+impl From<craft_fonts_build::EmbeddedFace> for CraftFace {
+    fn from(face: craft_fonts_build::EmbeddedFace) -> Self {
+        let craft_fonts_build::EmbeddedFace { family, style, scripts, index, bytes } = face;
+        Self { family, style, scripts, bytes, index }
+    }
 }
 
 impl CraftFace {
