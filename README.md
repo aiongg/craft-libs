@@ -37,6 +37,10 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   (font folders, fontconfig and Flatpak host folders, CoreText, DirectWrite, the font store),
   lookup by family, style, localized, legacy, full and PostScript names, family loads shared
   between threads, and rescans when fonts are installed or removed.
+- [`craft-font-store`](crates/font-store/README.md): the suite's font store: the pinned Google
+  Fonts index, exact lookup by family and style or PostScript name, and installs from jsDelivr
+  (raw GitHub as fallback) checked by size, sha256 and parsing, with the licence, a manifest, and
+  removal. Off until the user turns downloading on; agents can't.
 - [`craft-i18n`](crates/i18n/README.md): translations over the embedded craft-i18n catalogs:
   lookup with fallback (`pt-br` → `pt` → English), plurals, language names, the system locale and
   a pseudo locale. The catalogs stay a fully optional build input; apps keep `tl!` and their
