@@ -8,7 +8,7 @@
 //! 2. craft-fonts faces for the UI language;
 //! 3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
 //!    Arabic file names;
-//! 4. installed system fonts, through egui's font provider, at regular weight ([`RegularWeight`]);
+//! 4. installed system fonts ([`system_font_provider`]), at regular weight ([`RegularWeight`]);
 //! 5. emoji faces ([`Emoji`]) and, behind the app's own faces, egui's default faces.
 //!
 //! When the faces of step 1 don't cover the UI language's main script (Arabic, Thai, Georgian),
@@ -25,6 +25,11 @@
 
 mod coverage;
 mod providers;
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(not(feature = "system_fonts"), allow(dead_code, reason = "used by the system font index, and its tests"))]
+mod system;
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+mod system_index;
 #[cfg(test)]
 mod tests;
 
@@ -318,7 +323,7 @@ impl<'a> UiFonts<'a> {
         self
     }
 
-    /// The provider to use for installed fonts instead of egui's system font provider (with the
+    /// The provider to use for installed fonts instead of [`system_font_provider`] (with the
     /// `system_fonts` feature, on desktop). It is wrapped in [`RegularWeight`].
     pub fn system_provider(mut self, provider: Arc<dyn FontProvider>) -> Self {
         self.system_provider = Some(provider);
@@ -611,7 +616,7 @@ impl Stack {
     pub fn install(&self, ctx: &egui::Context) {
         ctx.set_fonts(self.checked_definitions());
         let id = egui::Id::unique("craft_ui::fonts::installed");
-        let system = self.system_lookup(true);
+        let (system, start_index) = self.context_lookup();
         let installed: Option<Arc<Installed>> = ctx.data(|d| d.get_temp(id));
         let installed = installed.unwrap_or_else(|| {
             let new = Arc::new(Installed::default());
@@ -625,7 +630,10 @@ impl Stack {
         if let Some(system) = system {
             let mut providers = system.into_iter().collect::<Vec<_>>();
             providers.push(installed as Arc<dyn FontProvider>);
-            ctx.set_font_providers(providers);
+            providers::set_font_providers(ctx, providers);
+        }
+        if let Some(start) = start_index {
+            start(ctx);
         }
         for theme in [egui::Theme::Dark, egui::Theme::Light] {
             let id = egui::Id::unique(("craft_ui::fonts::fitted", theme));
@@ -752,7 +760,23 @@ impl Stack {
             return Some(None);
         }
         let system = self.system_provider.clone().or_else(|| system_font_provider(&self.ui_language))?;
-        Some(Some(Arc::new(self.weights.iter().fold(RegularWeight::new(system), |p, (f, w)| p.with_weight(f.clone(), *w)))))
+        Some(Some(self.regular_weight(system)))
+    }
+
+    /// [`Self::system_lookup`] for [`Self::install`]. The default system provider doesn't block
+    /// the UI thread; the returned function starts its index for the context.
+    fn context_lookup(&self) -> (Option<Option<Arc<dyn FontProvider>>>, Option<StartIndex>) {
+        if self.system_provider.is_none()
+            && self.system != SystemFonts::Off
+            && let Some((provider, start)) = installed_system_font_provider(&self.ui_language)
+        {
+            return (Some(Some(self.regular_weight(provider))), Some(start));
+        }
+        (self.system_lookup(true), None)
+    }
+
+    fn regular_weight(&self, provider: Arc<dyn FontProvider>) -> Arc<dyn FontProvider> {
+        Arc::new(self.weights.iter().fold(RegularWeight::new(provider), |p, (f, w)| p.with_weight(f.clone(), *w)))
     }
 
     fn add_configured(&mut self, face: Face) -> String {
@@ -769,8 +793,10 @@ fn fit_interact_size(style: &mut Style, rows: &[f32]) {
     }
 }
 
-/// egui's system font provider for `locale`, shared by every stack and check that asks for the
-/// same locale. `None` without the `system_fonts` feature and on the web.
+/// A system font provider that prefers `locale`'s fonts, shared by every stack and check that asks
+/// for the same locale. Every locale's provider asks one index of the installed fonts, built once
+/// on a background thread; a lookup before it is built waits for it. `None` without the
+/// `system_fonts` feature and on the web.
 ///
 /// To ask whether installed fonts can draw a language, pass it to
 /// [`UiFonts::system_provider`] and check with [`assert_covers_with_system`] or
@@ -779,18 +805,30 @@ fn fit_interact_size(style: &mut Style, rows: &[f32]) {
 pub fn system_font_provider(locale: &str) -> Option<Arc<dyn FontProvider>> {
     use std::collections::BTreeMap;
     use std::sync::{Mutex, OnceLock, PoisonError};
-    // Each provider scans the installed fonts once; a language switch shouldn't scan again.
     static PROVIDERS: OnceLock<Mutex<BTreeMap<String, Arc<dyn FontProvider>>>> = OnceLock::new();
     let mut providers = PROVIDERS.get_or_init(Mutex::default).lock().unwrap_or_else(PoisonError::into_inner);
-    let provider = providers
-        .entry(locale.to_owned())
-        .or_insert_with(|| Arc::new(egui_system_font_provider::SystemFontProvider::new().with_locale(Some(locale))));
-    Some(Arc::clone(provider))
+    Some(Arc::clone(providers.entry(locale.to_owned()).or_insert_with(|| system_index::provider(locale, true))))
 }
 
-/// egui's system font provider for `locale`, shared by every stack and check that asks for the
-/// same locale. `None` without the `system_fonts` feature and on the web.
+/// A system font provider that prefers `locale`'s fonts, shared by every stack and check that asks
+/// for the same locale. `None` without the `system_fonts` feature and on the web.
 #[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
 pub fn system_font_provider(_locale: &str) -> Option<Arc<dyn FontProvider>> {
+    None
+}
+
+/// Starts building the system font index for a context.
+type StartIndex = fn(&egui::Context);
+
+/// The system font provider [`Stack::install`] gives `ctx` when the app sets none. A lookup before
+/// the index is built finds nothing, so the UI thread doesn't wait; `ctx` reloads its fonts and
+/// repaints once it is.
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+fn installed_system_font_provider(locale: &str) -> Option<(Arc<dyn FontProvider>, StartIndex)> {
+    Some((system_index::provider(locale, false), system_index::start))
+}
+
+#[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
+fn installed_system_font_provider(_locale: &str) -> Option<(Arc<dyn FontProvider>, StartIndex)> {
     None
 }
