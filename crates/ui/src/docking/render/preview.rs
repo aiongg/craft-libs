@@ -1,17 +1,13 @@
-use std::{fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use egui::{Context, Key, Pos2, Rect, Ui, Vec2, pos2, vec2};
 
-use super::{Renderer, clamp_float, dock::group_action};
+use super::{DROP_MARGIN, Drawn, Renderer, clamp_float, dock::group_action};
 use crate::docking::chrome::drop_preview;
 use crate::docking::{
-    Action, Drag, DropProposal, DropRequest, GroupDrag, GroupGesture, Node, Placement, Target, Zone, cancel_drag,
-    dock_model::{Place, node_at},
-    resolve_drop,
-    surface::TAB_PADDING,
-    zone_rect,
+    Action, Drag, DropProposal, DropRequest, DropTarget, GroupDrag, GroupGesture, Layout, Node, Placement, Target, Zone, cancel_drag,
+    dock_model::Place, resolve_drop, surface::TAB_PADDING,
 };
-use crate::layout::SplitAxis;
 
 /// Ctrl (Windows, Linux) or Cmd (macOS) held: the drop floats and no target is offered.
 fn float_only(ctx: &Context) -> bool {
@@ -62,14 +58,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 }
                 return;
             }
-            // Leaving the window ends a group drag where it is, with no drop.
-            if !released || !(has_pointer || touch_ended) {
+            // Leaving the window ends a group drag where it is, with no drop, unless only a
+            // release outside the window floats.
+            let gone = !has_pointer && !touch_ended;
+            let floats_outside = !self.style.float_on_empty_drop && drag.gesture != GroupGesture::Window;
+            if !(released && !gone) && !(gone && floats_outside) {
                 return;
             }
             let Some(pointer) = pointer.filter(|p| !self.blockers.iter().any(|r| r.contains(*p))) else { return };
+            let outside = gone || !ctx.content_rect().contains(pointer);
             match drag.gesture {
                 GroupGesture::Window => self.drop_window(&drag, pointer, float_only),
-                GroupGesture::Group | GroupGesture::Column => self.drop_group(&drag, pointer, float_only),
+                GroupGesture::Group | GroupGesture::Column => self.drop_group(&drag, pointer, float_only || outside),
             }
         } else if let Some(pointer) = pointer.filter(|p| !self.blockers.iter().any(|r| r.contains(*p))) {
             self.output.group_drag = Some(drag.panel.clone());
@@ -90,7 +90,6 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return valid(proposal);
         }
         let own = |t: &crate::docking::DropTarget<P>| t.tabs.iter().any(|(p, _)| drag.members.contains(p));
-        let pointer = self.seam_pointer(pointer);
         let target =
             self.targets.iter().rev().find(|t| crate::docking::targets::usable(t.rect) && t.rect.contains(pointer) && !(window && own(t)))?;
         if own(target) {
@@ -102,49 +101,53 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 noop: true,
             });
         }
-        let proposal = resolve_drop(&drag.panel, pointer, std::slice::from_ref(target))?;
-        if window && matches!(proposal.placement, Placement::Split(_)) {
+        let proposal = self.resolve_roomy(&drag.panel, pointer, std::slice::from_ref(target), |to| group_action(drag, to))?;
+        // A window moving live splits only groups of other floating windows.
+        let into_window = matches!(self.place(&proposal.anchor), Some(Place::Floating { .. }));
+        if window && !into_window && matches!(proposal.placement, Placement::Split(_)) {
             return None;
         }
-        valid(self.split_preview(proposal))
+        valid(proposal)
     }
 
-    /// The preview of a side split beside a frame that holds its parent's fixed size: the half
-    /// of the parent or of the other child that the new frame takes.
-    fn split_preview(&self, mut proposal: DropProposal<P>) -> DropProposal<P> {
-        let Placement::Split(zone) = proposal.placement else { return proposal };
-        let axis = match zone {
-            Zone::Center => return proposal,
-            Zone::Left | Zone::Right => SplitAxis::Horizontal,
-            Zone::Top | Zone::Bottom => SplitAxis::Vertical,
-        };
-        let Some(slot) = self.fixed_slots.iter().find(|slot| slot.axis == axis && slot.panels.contains(&proposal.anchor)) else { return proposal };
-        let opposite = match zone {
-            Zone::Left => Zone::Right,
-            Zone::Right => Zone::Left,
-            Zone::Top => Zone::Bottom,
-            _ => Zone::Top,
-        };
-        let before = matches!(zone, Zone::Left | Zone::Top);
-        let preview = if before == slot.first { zone_rect(slot.parent, zone) } else { zone_rect(slot.sibling, opposite) };
-        proposal.preview = preview.unwrap_or(proposal.preview);
-        proposal
-    }
-
-    /// A pointer in the gap between docked frames, outside every target, moves onto the edge of
-    /// the nearest frame that takes splits, so a seam splits beside that frame rather than floating.
-    pub(super) fn seam_pointer(&self, pointer: Pos2) -> Pos2 {
-        let usable = |rect: Rect| crate::docking::targets::usable(rect);
-        if self.targets.iter().any(|t| usable(t.rect) && t.rect.contains(pointer)) {
-            return pointer;
+    /// [`resolve_drop`], where a split that would leave a group without room becomes a join
+    /// of the target group.
+    fn resolve_roomy(&self, panel: &P, pointer: Pos2, targets: &[DropTarget<P>], action: impl Fn(Target<P>) -> Action<P>) -> Option<DropProposal<P>> {
+        let proposal = resolve_drop(panel, pointer, targets)?;
+        if !matches!(proposal.placement, Placement::Split(zone) if zone != Zone::Center) {
+            return Some(proposal);
         }
-        self.targets
-            .iter()
-            .filter(|t| t.allow_splits && usable(t.rect))
-            .map(|t| (t.rect.distance_to_pos(pointer), t.rect))
-            .filter(|(distance, _)| *distance <= self.style.gap)
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-            .map_or(pointer, |(_, rect)| rect.clamp(pointer))
+        if self.leaves_room(action(Target::At { anchor: proposal.anchor.clone(), placement: proposal.placement.clone() })) {
+            return Some(proposal);
+        }
+        let target = targets.iter().rev().find(|t| crate::docking::targets::usable(t.rect) && t.rect.contains(pointer))?;
+        resolve_drop(panel, pointer, std::slice::from_ref(&DropTarget { allow_splits: false, ..target.clone() }))
+    }
+
+    /// Whether `action`, a drop that splits a group or the outer edge, leaves room: every group
+    /// it makes smaller stays [`DROP_MARGIN`] above its minimum, so each divider can still
+    /// travel both ways. An action the model rejects is left to the model's check.
+    pub(super) fn leaves_room(&self, action: Action<P>) -> bool {
+        let mut candidate = self.layout.clone();
+        if candidate.apply_with_permissions(action, |p| self.permissions(p)).is_err() {
+            return true;
+        }
+        let sizer = self.sizer();
+        let drawn = |layout: &Layout<P>| {
+            let mut out: Vec<Drawn<'_, P>> = Vec::new();
+            if let Some(root) = &layout.root {
+                sizer.groups(root, self.workspace, &mut out);
+            }
+            for window in layout.floating.iter().filter(|w| !w.minimized) {
+                sizer.groups(&window.root, self.window_body(window), &mut out);
+            }
+            out.into_iter().filter_map(|d| Some((lead(d.node)?.clone(), d.rect.size(), d.limits.min))).collect::<Vec<_>>()
+        };
+        let before: HashMap<P, Vec2> = drawn(self.layout).into_iter().map(|(panel, size, _)| (panel, size)).collect();
+        drawn(&candidate).into_iter().all(|(panel, size, min)| {
+            let room = size - min;
+            (room.x >= DROP_MARGIN && room.y >= DROP_MARGIN) || before.get(&panel).is_some_and(|old| size.x >= old.x - 0.5 && size.y >= old.y - 0.5)
+        })
     }
 
     /// Release of a group drag: join or split at the target, or float at the ghost with the
@@ -166,6 +169,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         if proposal.is_some() && !floating {
+            return;
+        }
+        if !float_only && !self.style.float_on_empty_drop {
             return;
         }
         // No target: hosts that still apply their own policy for a whole-group release get it.
@@ -200,7 +206,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 x += advance;
             }
         }
-        if float_only {
+        if float_only || (drag.gesture == GroupGesture::Window && !self.style.title_bar_docks) {
             return;
         }
         if let Some((action, line)) = self.dock_group_proposal(drag, pointer) {
@@ -212,7 +218,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         if let Some(proposal) = self.group_proposal(drag, pointer).filter(|p| !p.noop) {
             let split = matches!(proposal.placement, Placement::Split(zone) | Placement::Edge(zone) if zone != Zone::Center);
-            if crate::docking::targets::usable(proposal.preview) {
+            if crate::docking::targets::usable(proposal.preview) && !self.paint_zone(&painter, &proposal, pointer) {
                 drop_preview(&painter, proposal.preview.shrink(1.0), self.style.accent, split);
             }
             if let Some(marker) = proposal.insertion {
@@ -250,8 +256,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         let float_only = float_only(ctx) || drag.undock;
-        let floatable = self.permissions(&drag.panel).floatable
-            && (float_only || gone || !drag.source.contains(pointer) || self.layout.floating.iter().any(|g| g.contains(&drag.panel)));
+        let outside = gone || !ctx.content_rect().contains(pointer);
+        let empty_drop =
+            self.style.float_on_empty_drop && (!drag.source.contains(pointer) || self.layout.floating.iter().any(|g| g.contains(&drag.panel)));
+        let floatable = self.permissions(&drag.panel).floatable && (float_only || outside || empty_drop);
         let floating_rect = floatable.then(|| self.tab_float_rect(&drag, pointer));
         if self.host_drop(ctx, &drag.panel, pointer, false, released, floating_rect) {
             if released {
@@ -259,7 +267,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
             return;
         }
-        let dock = if float_only || gone { None } else { self.dock_tab_proposal(&drag.panel, pointer) };
+        let dock = if float_only || outside { None } else { self.dock_tab_proposal(&drag.panel, pointer) };
         if let Some((action, line)) = dock {
             if released {
                 cancel_drag::<P>(ctx, self.id);
@@ -276,15 +284,20 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let proposal = if float_only {
             None
         } else {
-            self.extra_proposal(std::slice::from_ref(&drag.panel), pointer, false)
-                .or_else(|| resolve_drop(&drag.panel, self.seam_pointer(pointer), &self.targets).map(|p| self.split_preview(p)))
+            self.extra_proposal(std::slice::from_ref(&drag.panel), pointer, false).or_else(|| {
+                let panel = &drag.panel;
+                self.resolve_roomy(panel, pointer, &self.targets, |to| match to {
+                    Target::At { anchor, placement } => Action::Move { panel: panel.clone(), anchor, placement },
+                    to => Action::MovePanel { panel: panel.clone(), to },
+                })
+            })
         };
         if released {
             cancel_drag::<P>(ctx, self.id);
-            if pointer.distance(drag.origin) < 2.0 || proposal.as_ref().is_some_and(|proposal| proposal.noop && !gone) {
+            if pointer.distance(drag.origin) < 2.0 || proposal.as_ref().is_some_and(|proposal| proposal.noop && !outside) {
                 return;
             }
-            let action = if let Some(proposal) = proposal.filter(|_| !gone) {
+            let action = if let Some(proposal) = proposal.filter(|_| !outside) {
                 Some(Action::Move { panel: drag.panel.clone(), anchor: proposal.anchor, placement: proposal.placement })
             } else if let Some(rect) = floating_rect {
                 Some(Action::Float { panel: drag.panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] })
@@ -307,7 +320,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             // Reordering inside the source strip shows only the insertion line.
             let same_group = proposal.insertion.is_some()
                 && self.targets.iter().any(|target| target.rect == proposal.preview && target.tabs.iter().any(|(panel, _)| panel == &drag.panel));
-            if !same_group && !proposal.noop && crate::docking::targets::usable(proposal.preview) {
+            if !same_group && !proposal.noop && crate::docking::targets::usable(proposal.preview) && !self.paint_zone(&painter, &proposal, pointer) {
                 drop_preview(&painter, proposal.preview.shrink(1.0), self.style.accent, true);
             }
             if let Some(marker) = proposal.insertion {
@@ -319,6 +332,29 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         } else if let Some(rect) = floating_rect {
             drop_preview(&painter, rect, self.style.accent, false);
         }
+    }
+
+    /// With [`crate::docking::DockStyle::side_edge_zones`], a drop on a group shows the zone
+    /// under the pointer (a side's trapezoid, or the center rectangle with the tab strip)
+    /// filled, and the rect the drop gives what moves outlined. False when it painted nothing.
+    fn paint_zone(&self, painter: &egui::Painter, proposal: &DropProposal<P>, pointer: Pos2) -> bool {
+        let zone = match proposal.placement {
+            Placement::Split(zone) => zone,
+            Placement::Tab { .. } => Zone::Center,
+            _ => return false,
+        };
+        let target = self.targets.iter().rev().find(|t| crate::docking::targets::usable(t.rect) && t.rect.contains(pointer));
+        let (Some(target), true) = (target, self.style.side_edge_zones) else { return false };
+        let Some(points) = crate::docking::targets::zone_shape(target.rect, zone) else { return false };
+        let fill = self.style.accent.gamma_multiply(0.25);
+        painter.add(egui::Shape::convex_polygon(points, fill, egui::Stroke::NONE));
+        if zone == Zone::Center
+            && let Some(strip) = target.tab_strip.map(|strip| strip.intersect(target.rect)).filter(|r| crate::docking::targets::usable(*r))
+        {
+            painter.rect_filled(strip, 0.0, fill);
+        }
+        drop_preview(painter, proposal.preview.shrink(1.0), self.style.accent, false);
+        true
     }
 
     /// The single drop preview layer, above every floating window.
@@ -396,7 +432,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// The active panel of the group at `place` when `members` are that whole group.
     fn group_active<'a>(&'a self, members: &[P], place: &Place) -> Option<&'a P> {
         let (panels, active) = match place {
-            Place::Node(path) => match self.layout.root.as_ref().and_then(|root| node_at(root, path)) {
+            Place::Node(_) | Place::Floating { .. } => match self.layout.node_of(place) {
                 Some(Node::Tabs { panels, active }) => (panels, *active),
                 _ => return None,
             },
@@ -451,5 +487,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
         }
         true
+    }
+}
+
+/// The panel that names a drawn group: its first panel; none for a dock or a split.
+fn lead<P>(node: &Node<P>) -> Option<&P> {
+    match node {
+        Node::Tabs { panels, .. } => panels.first(),
+        Node::Stack { entries } => entries.first().map(|e| &e.panel),
+        Node::Split { .. } | Node::Dock { .. } => None,
     }
 }

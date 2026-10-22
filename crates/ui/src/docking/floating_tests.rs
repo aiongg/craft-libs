@@ -1,4 +1,4 @@
-//! Floating windows (title bar, stacks, close), the frame profile (outer edge, Maximize,
+//! Floating windows (title bar, stacks, close), the split-tree settings (outer edge, Maximize,
 //! Ctrl/Cmd undock, frame menu items), hidden panels, native windows and the public chrome.
 
 use super::*;
@@ -38,7 +38,7 @@ fn workspace() -> Layout<u32> {
             second: Box::new(tabs(&[0], 0)),
         }),
         floating: vec![
-            Floating { groups: vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 1)], rect: [300.0, 80.0, 240.0, 300.0], native: None },
+            Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 1)], [300.0, 80.0, 240.0, 300.0]),
             Floating::single(vec![8], 0, [560.0, 300.0, 200.0, 200.0]),
         ],
     }
@@ -80,11 +80,28 @@ enum Hide {
     Keep,
 }
 
+/// The style of an editor whose layout is one split tree of tab groups, as FilmCraft sets it.
+pub(super) fn frame_style(style: &mut DockStyle) {
+    style.side_edge_zones = true;
+    style.new_dock_zones = false;
+    style.close_others_item = true;
+    style.maximize_item = true;
+    style.command_press_floats = true;
+    style.float_on_empty_drop = false;
+    style.title_bar_docks = false;
+    style.float_hint = true;
+    style.wheel_selects_tabs = true;
+    style.middle_click_closes_tabs = true;
+    style.float_label = "Undock Panel".into();
+    style.float_group_label = "Undock Panel Group".into();
+    style.close_group_label = "Close Panel Group".into();
+}
+
 struct Driver {
     ctx: Context,
     layout: Layout<u32>,
     content: Content,
-    profile: Profile,
+    split_tree: bool,
     maximized: Option<u32>,
     hide: Hide,
     modifiers: Modifiers,
@@ -92,12 +109,12 @@ struct Driver {
 }
 
 impl Driver {
-    fn new(layout: Layout<u32>, profile: Profile) -> Self {
+    fn new(layout: Layout<u32>, split_tree: bool) -> Self {
         let mut driver = Self {
             ctx: Context::default(),
             layout,
             content: Content::default(),
-            profile,
+            split_tree,
             maximized: None,
             hide: Hide::None,
             modifiers: Modifiers::NONE,
@@ -119,12 +136,14 @@ impl Driver {
             time: Some(self.time),
             ..Default::default()
         };
-        let (layout, content, profile, maximized, hide) = (&self.layout, &mut self.content, self.profile, self.maximized, self.hide);
+        let (layout, content, split_tree, maximized, hide) = (&self.layout, &mut self.content, self.split_tree, self.maximized, self.hide);
         let keep: Vec<u32> = content.keep.clone();
         let keep = move |p: &u32| keep.contains(p);
         let full = self.ctx.run_ui(input, |ui| {
             let mut style = DockStyle::from_ui(ui);
-            style.profile = profile;
+            if split_tree {
+                frame_style(&mut style);
+            }
             let hide = match hide {
                 Hide::None => HidePanels::None,
                 Hide::All => HidePanels::All,
@@ -194,13 +213,13 @@ fn window_of(layout: &Layout<u32>, panel: u32) -> Option<&Floating<u32>> {
 }
 
 fn groups_of(window: &Floating<u32>) -> Vec<Vec<u32>> {
-    window.groups.iter().map(|g| g.panels.clone()).collect()
+    window.groups().iter().map(|g| g.panels.clone()).collect()
 }
 
 #[test]
 fn title_bar_drag_moves_every_stacked_group_and_drops_into_a_dock_as_stacked_groups() {
     // The window follows the pointer with every group; Escape puts it back.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
     d.hold(title, title + vec2(40.0, 30.0));
     assert_eq!(d.layout.floating[0].rect, [340.0, 110.0, 240.0, 300.0]);
@@ -209,19 +228,19 @@ fn title_bar_drag_moves_every_stacked_group_and_drops_into_a_dock_as_stacked_gro
     d.step(vec![button(title + vec2(40.0, 30.0), false)]);
     assert_eq!(d.layout, workspace());
 
-    // Released over another window's lower band: its groups stack below that window's.
+    // Released over another window's lower band: its tree goes below that window's group,
+    // unless that leaves a group without room; then its panels join that group.
     let out = d.drag(title, pos2(660.0, 480.0));
     assert!(
-        out.actions
-            .contains(&Action::MoveWindow { panel: 5, to: Target::At { anchor: 8, placement: Placement::Group { below: true, height: None } } }),
+        out.actions.contains(&Action::MoveWindow { panel: 5, to: Target::At { anchor: 8, placement: Placement::Split(Zone::Center) } }),
         "{:?}",
         out.actions
     );
     assert_eq!(d.layout.floating.len(), 1);
-    assert_eq!(groups_of(&d.layout.floating[0]), vec![vec![8], vec![5], vec![6, 7]]);
+    assert_eq!(groups_of(&d.layout.floating[0]), vec![vec![8, 5, 6, 7]]);
 
     // Released over a docked group's strip: every panel joins it as tabs.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
     let strip = d.tab(4).unwrap().center();
     let out = d.drag(title, strip);
@@ -230,7 +249,7 @@ fn title_bar_drag_moves_every_stacked_group_and_drops_into_a_dock_as_stacked_gro
     assert_eq!(d.layout.place(&4), d.layout.place(&6));
 
     // Released over the canvas: the window stays where it was moved and hosts get the release.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
     let out = d.drag(title, pos2(500.0, 300.0));
     assert!(!out.actions.iter().any(|a| matches!(a, Action::MoveWindow { .. })), "{:?}", out.actions);
@@ -241,7 +260,7 @@ fn title_bar_drag_moves_every_stacked_group_and_drops_into_a_dock_as_stacked_gro
 #[test]
 fn title_bar_drag_onto_dock_targets_docks_the_window() {
     // Released on the seam between two docked groups: the window's group stacks between them.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(8).center();
     let seam = pos2(120.0, d.tab(4).unwrap().top());
     let out = d.drag(title, seam);
@@ -258,7 +277,7 @@ fn title_bar_drag_onto_dock_targets_docks_the_window() {
     assert_eq!(stacked, vec![vec![2, 3], vec![8], vec![4]]);
 
     // Released on the new-dock band along the right edge: the window becomes an end dock.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
     let out = d.drag(title, pos2(796.0, 300.0));
     assert!(out.actions.contains(&Action::MoveWindow { panel: 5, to: Target::NewDock { side: Side::End } }), "{:?}", out.actions);
@@ -266,55 +285,50 @@ fn title_bar_drag_onto_dock_targets_docks_the_window() {
 }
 
 #[test]
-fn floating_stack_seams_and_bands_insert_groups() {
-    // A group dragged by its bar to another window's top band stacks above that group.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+fn a_floating_window_is_a_tree_whose_groups_split_and_resize_like_frames() {
+    // A group dragged by its bar to another window's top band splits that window's group.
+    let mut d = Driver::new(workspace(), false);
     let bar = d.response(Id::unique(AREA).with(("drag-bar", Some(&6u32)))).unwrap().center();
     let out = d.drag(bar, pos2(660.0, 360.0));
     assert!(
-        out.actions
-            .contains(&Action::MoveGroup { panel: 6, to: Target::At { anchor: 8, placement: Placement::Group { below: false, height: None } } }),
+        out.actions.contains(&Action::MoveGroup { panel: 6, to: Target::At { anchor: 8, placement: Placement::Split(Zone::Top) } }),
         "{:?}",
         out.actions
     );
     assert_eq!(groups_of(window_of(&d.layout, 8).unwrap()), vec![vec![6, 7], vec![8]]);
     assert_eq!(groups_of(window_of(&d.layout, 5).unwrap()), vec![vec![5]]);
 
-    // A tab dropped on the seam between two stacked groups becomes a group between them.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    // The gap between two groups of a window is no target.
+    let mut d = Driver::new(workspace(), false);
     let tab = d.tab(8).unwrap().center();
-    let seam = pos2(420.0, 237.0);
-    let out = d.drag(tab, seam);
-    assert!(
-        out.actions.contains(&Action::Move { panel: 8, anchor: 5, placement: Placement::Group { below: true, height: None } }),
-        "{:?}",
-        out.actions
-    );
-    assert_eq!(groups_of(window_of(&d.layout, 5).unwrap()), vec![vec![5], vec![8], vec![6, 7]]);
+    let gap = pos2(420.0, d.tab(6).unwrap().top() - 2.0);
+    d.drag(tab, gap);
+    assert_eq!(d.layout, workspace());
 
-    // The divider between two open groups resizes both.
-    let mut d = Driver::new(workspace(), Profile::Dock);
-    let divider = d.response(DockArea::hit_id(Id::unique(AREA), &Hit::Divider(Divider::Group(5u32)))).unwrap().center();
+    // The divider between them resizes both.
+    let mut d = Driver::new(workspace(), false);
+    let divider = d.response(DockArea::hit_id(Id::unique(AREA), &Hit::Divider(Divider::WindowSplit(5u32, Vec::new())))).unwrap().center();
     d.drag(divider, divider + vec2(0.0, 40.0));
-    let heights: Vec<_> = window_of(&d.layout, 5).unwrap().groups.iter().map(|g| g.height.unwrap()).collect();
-    assert!((heights[0] - 179.5).abs() < 2.0 && (heights[1] - 99.5).abs() < 2.0, "{heights:?}");
+    let Node::Split { size: SplitSize::Ratio(ratio), .. } = window_of(&d.layout, 5).unwrap().root else { panic!("{:?}", d.layout) };
+    assert!(ratio > 0.6, "{ratio}");
 }
 
 #[test]
 fn title_bar_double_click_minimizes_every_group_and_close_box_closes_the_window() {
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
     d.click(title);
     d.click(title);
-    assert!(window_of(&d.layout, 5).unwrap().groups.iter().all(|g| g.minimized));
+    assert!(window_of(&d.layout, 5).unwrap().minimized);
     d.wait();
     d.click(title);
     d.click(title);
-    assert!(window_of(&d.layout, 5).unwrap().groups.iter().all(|g| !g.minimized));
+    assert!(!window_of(&d.layout, 5).unwrap().minimized);
 
     let close = d.response(Id::unique(AREA).with(("move-group", Some(&5u32))).with("close")).unwrap();
     assert_eq!(close.center().x, 530.0, "× sits 10 pt in from the right edge");
     let before = d.layout.clone();
+    d.wait();
     let out = d.click(close.center());
     assert_eq!(out.actions, vec![Action::CloseWindow { panel: 5 }]);
     assert_eq!(before.closed_by(&Action::CloseWindow { panel: 5 }), Ok(vec![5, 6, 7]));
@@ -334,7 +348,7 @@ fn closed_floating_window_reopens_each_panel_at_its_last_rect() {
 
 #[test]
 fn ctrl_drag_from_a_frame_strip_undocks_to_a_floating_window() {
-    let mut d = Driver::new(frames(), Profile::Frame);
+    let mut d = Driver::new(frames(), true);
     let tab = d.tab(3).unwrap().center();
     let other = d.tab(1).unwrap().center();
     d.modifiers = Modifiers::COMMAND;
@@ -345,23 +359,23 @@ fn ctrl_drag_from_a_frame_strip_undocks_to_a_floating_window() {
     assert!(window_of(&d.layout, 3).is_some());
 
     // Without the modifier the same drag joins the other frame.
-    let mut d = Driver::new(frames(), Profile::Frame);
+    let mut d = Driver::new(frames(), true);
     let out = d.drag(tab, other);
     assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 3, anchor: 1, .. }]), "{:?}", out.actions);
 }
 
 #[test]
 fn outer_edge_band_splits_at_the_root() {
-    // Frame profile: all four edges.
-    let mut d = Driver::new(frames(), Profile::Frame);
+    // With side edge zones: all four edges.
+    let mut d = Driver::new(frames(), true);
     let tab = d.tab(3).unwrap().center();
     let out = d.drag(tab, pos2(3.0, 300.0));
     assert!(out.actions.contains(&Action::Move { panel: 3, anchor: 1, placement: Placement::Edge(Zone::Left) }), "{:?}", out.actions);
     let Some(Node::Split { axis: SplitAxis::Horizontal, first, .. }) = &d.layout.root else { panic!("{:?}", d.layout) };
     assert_eq!(**first, tabs(&[3], 0));
 
-    // Dock profile: the bottom edge of the part between the docks, for a Timeline.
-    let mut d = Driver::new(Layout { floating: Vec::new(), ..workspace() }, Profile::Dock);
+    // The defaults: the bottom edge of the part between the docks, for a Timeline.
+    let mut d = Driver::new(Layout { floating: Vec::new(), ..workspace() }, false);
     let tab = d.tab(2).unwrap().center();
     let out = d.drag(tab, pos2(500.0, 597.0));
     assert!(out.actions.iter().any(|a| matches!(a, Action::Move { panel: 2, placement: Placement::Edge(Zone::Bottom), .. })), "{:?}", out.actions);
@@ -370,7 +384,7 @@ fn outer_edge_band_splits_at_the_root() {
     assert!(matches!(&**second, Node::Split { axis: SplitAxis::Vertical, second, .. } if **second == tabs(&[2], 0)));
 
     // Its left and right edges are the docks' (new columns and docks), not root splits.
-    let mut d = Driver::new(Layout { floating: Vec::new(), ..workspace() }, Profile::Dock);
+    let mut d = Driver::new(Layout { floating: Vec::new(), ..workspace() }, false);
     let tab = d.tab(4).unwrap().center();
     let out = d.drag(tab, pos2(246.0, 300.0));
     assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { placement: Placement::Edge(_), .. })), "{:?}", out.actions);
@@ -380,7 +394,7 @@ fn outer_edge_band_splits_at_the_root() {
 fn maximized_frame_fills_the_area_and_other_frames_do_not_render_or_take_input() {
     let mut layout = frames();
     layout.floating.push(Floating::single(vec![5], 0, [400.0, 300.0, 200.0, 150.0]));
-    let mut d = Driver::new(layout.clone(), Profile::Frame);
+    let mut d = Driver::new(layout.clone(), true);
     let window_title = d.title(5).center();
     d.maximized = Some(2);
     d.step(vec![]);
@@ -392,7 +406,7 @@ fn maximized_frame_fills_the_area_and_other_frames_do_not_render_or_take_input()
     assert!(out.actions.iter().all(|a| !matches!(a, Action::MoveFloating { .. } | Action::MoveWindow { .. })), "{:?}", out.actions);
 
     // A floating panel does not maximize.
-    let mut d = Driver::new(layout, Profile::Frame);
+    let mut d = Driver::new(layout, true);
     d.maximized = Some(5);
     d.step(vec![]);
     d.step(vec![]);
@@ -406,7 +420,7 @@ fn close_other_panels_keeps_only_the_chosen_tab() {
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, (content, actions, events): &mut State| {
             let mut style = DockStyle::from_ui(ui);
-            style.profile = Profile::Frame;
+            frame_style(&mut style);
             let out = DockArea::new(Id::unique(AREA)).show_content(ui, &frames(), &style, content);
             actions.extend(out.actions);
             events.extend(out.events);
@@ -444,7 +458,7 @@ fn close_other_panels_keeps_only_the_chosen_tab() {
 
 #[test]
 fn hide_panels_keeps_protected_panels_and_the_except_set() {
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     d.hide = Hide::All;
     d.step(vec![]);
     d.step(vec![]);
@@ -469,7 +483,7 @@ fn hide_panels_keeps_protected_panels_and_the_except_set() {
 
 #[test]
 fn a_canvas_that_accepts_splits_is_still_protected() {
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     d.content.beside = true;
     d.hide = Hide::All;
     d.step(vec![]);
@@ -484,7 +498,7 @@ fn a_canvas_that_accepts_splits_is_still_protected() {
 fn native_window_falls_back_in_window_when_viewports_are_embedded() {
     let mut layout = workspace();
     layout.floating[0].native = Some([1200.0, 900.0, 240.0, 300.0]);
-    let mut d = Driver::new(layout.clone(), Profile::Dock);
+    let mut d = Driver::new(layout.clone(), false);
     d.content.native = true;
     assert!(d.ctx.embed_viewports());
     let out = d.step(vec![]);
@@ -519,7 +533,7 @@ fn native_window_close_returns_the_group_to_its_in_window_rect() {
     });
     let mut layout = workspace();
     layout.floating[0].native = Some([1200.0, 900.0, 240.0, 300.0]);
-    let mut d = Driver::new(Layout::default(), Profile::Dock);
+    let mut d = Driver::new(Layout::default(), false);
     d.ctx.set_embed_viewports(false);
     d.content.native = true;
     d.layout = layout;
@@ -601,7 +615,7 @@ fn hidden_panels_leave_their_split_and_resizing_names_the_layout_path() {
         }),
         floating: Vec::new(),
     };
-    let mut d = Driver::new(layout, Profile::Frame);
+    let mut d = Driver::new(layout, true);
     d.hide = Hide::Keep;
     d.content.keep = vec![1, 2];
     d.step(vec![]);
@@ -622,7 +636,7 @@ fn a_hidden_floating_window_does_not_cover_dock_targets() {
     // Window 5 covers the column's seam at x 150..240 until it is hidden.
     let mut layout = workspace();
     layout.floating = vec![Floating::single(vec![5], 0, [150.0, 250.0, 200.0, 150.0]), Floating::single(vec![8], 0, [560.0, 300.0, 200.0, 200.0])];
-    let mut d = Driver::new(layout, Profile::Dock);
+    let mut d = Driver::new(layout, false);
     d.hide = Hide::Keep;
     d.content.keep = vec![2, 3, 4, 8];
     d.step(vec![]);
@@ -643,18 +657,62 @@ fn top_edges_resize_from_the_band_above_the_title_bar() {
         (ResizeEdge::TopLeft, vec2(-30.0, 20.0), [530.0, 320.0, 230.0, 180.0]),
         (ResizeEdge::TopRight, vec2(20.0, -10.0), [560.0, 290.0, 220.0, 210.0]),
     ] {
-        let mut d = Driver::new(workspace(), Profile::Dock);
+        let mut d = Driver::new(workspace(), false);
         let handle = d.response(DockArea::hit_id(area, &Hit::Resize(8u32, edge))).unwrap();
         assert_eq!(handle.bottom(), d.title(8).top(), "{edge:?} lies above the title bar");
         d.drag(handle.center(), handle.center() + by);
         assert_eq!(window_of(&d.layout, 8).unwrap().rect, expected, "{edge:?}");
     }
     // The title bar still moves the window, and arrow keys move the focused top edge.
-    let mut d = Driver::new(workspace(), Profile::Dock);
+    let mut d = Driver::new(workspace(), false);
     let title = d.title(8);
     d.drag(pos2(title.center().x, title.top() + 1.0), pos2(title.center().x - 50.0, title.top() + 1.0));
     assert_eq!(window_of(&d.layout, 8).unwrap().rect, [510.0, 300.0, 200.0, 200.0]);
     d.ctx.memory_mut(|m| m.request_focus(DockArea::hit_id(area, &Hit::Resize(8u32, ResizeEdge::Top))));
     d.step(vec![Event::Key { key: egui::Key::ArrowUp, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
     assert_eq!(window_of(&d.layout, 8).unwrap().rect, [510.0, 292.0, 200.0, 208.0]);
+}
+
+#[test]
+fn undock_panel_group_floats_one_group_of_a_floating_window() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let stacked = || Layout {
+        root: Some(tabs(&[1], 0)),
+        floating: vec![Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 0)], [300.0, 80.0, 300.0, 400.0])],
+    };
+    type State = (Content, Layout<u32>, Vec<Action<u32>>);
+    let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
+        |ui, (content, layout, actions): &mut State| {
+            let mut style = DockStyle::from_ui(ui);
+            frame_style(&mut style);
+            let out = DockArea::new(Id::unique(AREA)).show_content(ui, layout, &style, content);
+            actions.extend(out.actions);
+        },
+        (Content::default(), stacked(), Vec::new()),
+    );
+    h.run_steps(2);
+    let menu = |h: &mut Harness<'_, State>, panel: u32| {
+        let at = h.ctx.read_response(Id::unique(AREA).with(("tab", &panel))).unwrap().rect.center();
+        h.input_mut().events.extend([
+            Event::PointerMoved(at),
+            Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE },
+        ]);
+        h.run_steps(1);
+        h.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+        h.run_steps(2);
+    };
+    menu(&mut h, 6);
+    h.get_by_label("Undock Panel Group").click();
+    h.run_steps(2);
+    let actions = std::mem::take(&mut h.state_mut().2);
+    assert!(matches!(&actions[..], [Action::MoveGroup { panel: 6, to: Target::Float { rect: Some(_) } }]), "{actions:?}");
+    let mut layout = stacked();
+    layout.apply_all(actions, |_| Permissions::default()).unwrap();
+    assert_eq!(layout.floating.iter().map(groups_of).collect::<Vec<_>>(), vec![vec![vec![5]], vec![vec![6, 7]]]);
+
+    // A window's only group has nothing to undock from.
+    h.state_mut().1 = layout;
+    h.run_steps(2);
+    menu(&mut h, 5);
+    assert_eq!(h.query_all_by_label("Undock Panel Group").count(), 0);
 }

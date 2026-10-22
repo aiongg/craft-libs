@@ -7,16 +7,17 @@ gestures. The app owns panel contents, commands, document state and where layout
 Office apps that draw their own document with a few task panes beside it use
 [`craft_ui::panes`](ui-panes.md) instead.
 
-## Profiles
+## Arrangements
 
-`DockStyle::profile` picks one of two arrangements. Both use the same model and actions.
-An app builds its style with `DockStyle::from_ui`, `from_visuals` or `default` and then sets
-fields; new fields can be added, so the struct has no literal form outside the crate.
+One model serves every app. What differs between apps is the default layout and a few
+`DockStyle` settings. An app builds its style with `DockStyle::from_ui`, `from_visuals` or
+`default` and then sets fields; new fields can be added, so the struct has no literal form
+outside the crate.
 
-| Profile | Arrangement | Apps |
-|---|---|---|
-| `Profile::Dock` (default) | Docks on the window's start and end edges. A dock has columns; a column has stacked groups and can collapse to icons. Frames (tab groups and splits) fill the space between the docks. | Creative apps with a canvas and panel docks |
-| `Profile::Frame` | A split tree of tab frames. Frame menus offer Maximize Frame, Undock and Close Other Panels. Ctrl/Cmd + drag undocks, and a hint under the pointer says so. Drops on all four outer edges split at the root. | Apps whose whole window is frames |
+| Arrangement | Layout | Style settings | Apps |
+|---|---|---|---|
+| Docks beside a canvas (the defaults) | `Node::Dock`s on the window's start and end edges. A dock has columns; a column has stacked groups and can collapse to icons. Frames (tab groups and splits) fill the space between the docks. | `new_dock_zones` on | Creative apps with a canvas and panel docks |
+| A split tree of tab groups | `Split`s and `Tabs` only. | `side_edge_zones`, `maximize_item`, `close_others_item`, `command_press_floats`, `float_hint`, `wheel_selects_tabs`, `middle_click_closes_tabs` on, `new_dock_zones`, `float_on_empty_drop` and `title_bar_docks` off; menu labels such as "Undock Panel" set on `float_label`, `float_group_label` and `close_group_label` | Apps whose whole window is frames |
 
 Sides are logical: `Side::Start` is the left edge, or the right edge when
 `DockStyle::right_to_left` is set. egui has no app-wide direction, so the app sets it from its
@@ -32,12 +33,16 @@ their sides.
 | Node | Holds |
 |---|---|
 | `Tabs` | A tab group: panels and the active index. |
-| `Split` | Two children, horizontal or vertical, with a ratio or a fixed first or second size. |
+| `Split` | Two children, horizontal or vertical, with a ratio. A fixed first or second size from a saved layout is drawn at that size until the divider moves; a moved divider stores a ratio. |
 | `Stack` | Accordion entries, each open or closed, with an optional height. |
 | `Dock` | A side and its columns. A `Column` has `Group`s, a width, and `iconic`. |
 
-A `Floating` window has one or more stacked groups, a rect, and an optional native-window rect.
-`Floating::single` makes a window with one group; `panels()` and `contains()` read it.
+A `Floating` window holds a tree like the docked layout's (`root`: splits, tab groups and
+accordions, no docks), a rect, an optional native-window rect and `minimized`.
+`Floating::single` makes a window with one group and `Floating::new` one with a tree; `panels()`
+and `contains()` read it. Saved layouts keep loading: a window stored as one group (v1) or as a
+stack of groups loads as that group or as a vertical split of the stacked groups, sized by their
+heights.
 
 `P` is the app's panel id: stable, not localized, `Clone + Eq + Hash`. The renderer also needs
 `Debug + Send + Sync + 'static`. A panel occurs at most once in a layout.
@@ -67,14 +72,16 @@ layout.apply(Action::Move {
 - Containers take different placements: a dock column takes groups and columns, not splits.
   `Placement::for_zone(layout, anchor, zone, right_to_left)` maps a left, right, top, bottom or
   center zone onto what the anchor's container takes: a split in the frame tree, a new column on
-  that side or a new group above or below in a dock, a group above or below in a floating window.
-- A side split zone puts what moves in a new half-size split of the anchor's frame. A frame
-  that holds the fixed size of its parent split along the same axis, such as a tool strip, keeps
-  that size: on its outer side the new split wraps the parent, on its inner side it halves the
-  parent's other child. The new split has its own divider, and the drop preview shows the half
-  the new frame takes.
-- Other actions select, minimize, collapse to icons, resize splits, columns and groups, and move
-  a floating window to its own OS window (`SetNative`, feature `native-windows`).
+  that side or a new group above or below in a dock. A floating window takes splits as the
+  docked layout does; `Placement::Group` on a floating anchor splits its group above or below.
+- A side split zone puts what moves in a new half-size split of the anchor's frame, and no
+  other frame changes size. The new split has its own divider, and the drop preview shows the
+  half the new frame takes.
+- Other actions select, minimize, collapse to icons, resize splits (`ResizeSplit` in the docked
+  layout, `ResizeWindowSplit` in the floating window holding a panel), columns and groups, and
+  move a floating window to its own OS window (`SetNative`, feature `native-windows`).
+- A move between windows (docked to floating, floating to floating) is one action, checked as a
+  whole like any other.
 
 Every action checks the whole result before it commits. A bad target, a duplicate id, a stale
 split path or invalid geometry returns a `DockError` and leaves the layout unchanged. The source
@@ -112,19 +119,19 @@ its own command path, so pointer, keyboard and control commands share one path.
 `DockContent<P>` is the app's adapter. It draws each panel body and gives its label, icon,
 permissions, size limits, preferred floating size, panel menu and group header. The group header
 sits at the end of the tab strip; `group_header_width` gets the strip width, so a header that
-draws its own tabs can size them to the room left. `bare` hides the tab strip of a lone panel. An icon is an image (`icon`), or drawn in code by `paint_icon`, which
+draws its own tabs can size them to the room left. An icon is an image (`icon`), or drawn in code by `paint_icon`, which
 gets a painter, the icon rect and the tint color and returns true when it painted. Panel bodies keep a stable egui id when they move, so widget memory
 survives.
 
 `DockOutput` also has:
 
 - `focused`: the panel the user focused this frame: a clicked tab, a drop, or a press of any
-  pointer button in a panel body (bare and protected panels included) or in the group header,
+  pointer button in a panel body (protected panels included) or in the group header,
   which focuses the group's shown panel. Commands, `raise_panel` and
   workspace resets never set it; a host that tracks the last focused panel clears it when a reset
   or command hides, closes or moves that panel.
-- `events`: requests outside the layout, such as `DockEvent::ToggleMaximize` (Frame) and
-  `DockEvent::ToggleAutoCollapse` (Dock), and `DockEvent::FlyoutChanged { panel }` (Dock): the
+- `events`: requests outside the layout, such as `DockEvent::ToggleMaximize` (`maximize_item`) and
+  `DockEvent::ToggleAutoCollapse` and `DockEvent::FlyoutChanged { panel }` (docks): the
   flyout opened, switched or closed (`None`). It comes once per change, whatever made it: an
   icon, Escape, a press outside, a raised panel, `open_flyout` or `close_flyout`.
 - `error`: a rejected gesture.
@@ -186,26 +193,55 @@ A flyout fits its content the same way, without the title bar.
 ## Gestures
 
 - A tab drags one panel. A group's drag bar (the space beside its tabs) or its top border drags
-  the whole group. A column bar drags a column. A floating window's title bar drags the window.
+  the whole group. A column bar drags a column. A floating window's title bar drags the window;
+  with `title_bar_docks` a release over a target docks the whole window there, else it only
+  moves.
+- Inside a floating window, tabs and drag bars drag and dock as they do in the docked layout,
+  into any window. Its groups split, join and resize like frames, with dividers and four-way
+  handles (`Divider::WindowSplit` and `Divider::WindowIntersection`, named by the window's first
+  panel). Double-clicking the title bar minimizes the window to its title bar, or to the tab strip
+  of its only group; so does double-clicking that group's strip. The group menu's float item
+  floats one group of a window that has several. Closing the window closes its panels; each
+  reopens where it was while the window or its neighbour in it is open, else in a window at the
+  window's last rect.
 - A movable floating window resizes from every edge and corner. The top edge and corners are a
   4 pt band above the title bar (`chrome::RESIZE_BAND`), so they take no moves and no clicks on
   the title bar's buttons. A resize keeps the opposite edges in place and stays within the size
   limits and the screen. A focused resize handle moves its edge 8 pt per arrow key.
-- Over a frame, the tab strip and the middle join its tabs, and the nearest side splits it. A
-  side zone is a quarter of the frame deep, at least 32 pt and at most half the frame, so a narrow
-  tool strip keeps both side targets. A drop in the gap between two frames splits beside the
-  nearer one.
+- Over a frame, the tab strip and the middle join its tabs, and the nearest side splits it. The
+  side zones are trapezoids along the four edges, like a picture frame: a quarter of the frame
+  deep, at least 32 pt and at most half the frame. A split that would leave either half without
+  `DockStyle::min_pane` joins the frame's tabs instead. The gap between two frames is no target.
+- The outer edge band (`DockStyle::edge_band`) takes a drop as a new frame across the whole
+  window side: top and bottom, and left and right with `side_edge_zones`. It takes a quarter of
+  the window and is offered only when every frame keeps its minimum. Past the band, a frame's own
+  side zones apply.
+- A divider resizes only the frames that touch it; every other frame keeps its size. It stops
+  when a frame touching it reaches its minimum. Where a divider ends on another divider, a
+  four-way handle (`Divider::Intersection`) moves both.
+- Every frame has the same minimum, `DockStyle::min_pane` (plus its tab strip), unless its panels
+  ask for more through `PanelLimits::min`. Frames have no maximum unless every panel in them asks
+  for one through `PanelLimits::max`: a panel without a maximum lifts the maximum of the panels it
+  joins.
 - Drop previews show the destination: an outline for tabs, a line for a new group, column or dock,
-  a filled half for a split. Escape or losing window focus cancels a drag.
-- In the Frame profile, Ctrl (⌘ on macOS) held while dragging a tab, a drag bar or a grip that
-  calls `begin_drag` floats the drop wherever it lands. While a drag offers a docking target, a
-  hint under the pointer names the modifier: `float_hint_label`, where `{key}` becomes ⌘ or Ctrl.
+  a filled half for a split. With `side_edge_zones`, a drop on a group instead fills the zone
+  under the pointer (a side's trapezoid, or the center rectangle and the tab strip; `zone_shape`
+  gives the outline) and outlines the rect the drop gives what moves. Escape or losing window
+  focus cancels a drag.
+- With `float_on_empty_drop`, a release over no target floats what moves at the pointer, such
+  as a panel dropped on a protected canvas. Without it, that release cancels the drag and
+  nothing moves: the gap between two groups, a menu bar or a status bar is no target. A release
+  outside the app window floats in both cases.
+- Ctrl (⌘ on macOS) held at the drop floats it wherever it lands. With `command_press_floats`,
+  the key held when a tab drag of a frame starts is enough. With `float_hint`, a hint under the
+  pointer names the modifier while a drag offers a docking target: `float_hint_label`, where
+  `{key}` becomes ⌘ or Ctrl.
 - Double-click a tab or drag bar to minimize a group to its strip.
 - Right-click a tab for its menu, or a drag bar for the group menu; Enter or Space on a focused
   drag bar opens it too. A left click on the drag bar only focuses it.
-- In the Frame profile, the mouse wheel over a tab strip selects the next or previous tab, and a
-  middle click on a closable panel's tab closes it. `DockStyle::wheel_selects_tabs` and
-  `middle_click_closes_tabs` turn either on or off in any profile.
+- With `DockStyle::wheel_selects_tabs`, the mouse wheel over a tab strip selects the next or
+  previous tab. With `middle_click_closes_tabs`, a middle click on a closable panel's tab closes
+  it.
 - A column's »/« button collapses it to icons, one icon per panel with a separator between groups.
   Widen an iconic column to show panel names. Click an icon to open its group as a flyout on the
   canvas side. Drag an icon to move its panel, or an icon group's top edge (the separator line above it) to move the group.
