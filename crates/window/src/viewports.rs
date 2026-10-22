@@ -291,8 +291,7 @@ mod tests {
 
     /// One root frame showing `windows`; returns the events and which windows drew where.
     fn frame(ctx: &Context, driver: &mut Viewports, windows: &mut WindowList<&'static str>) -> (Vec<WindowEvent>, Vec<(WindowId, ViewportId)>) {
-        let mut input = RawInput::default();
-        input.viewports = INFOS.with(|i| i.borrow().clone());
+        let mut input = RawInput { viewports: INFOS.with(|i| i.borrow().clone()), ..RawInput::default() };
         input.viewports.entry(ViewportId::ROOT).or_default();
         let mut drawn = Vec::new();
         let mut events = Vec::new();
