@@ -1,6 +1,6 @@
 [package]
 name = "craft-window"
-description = "Decide who draws the window frame on Linux (the compositor or the app) and apply it, so every Craft app gets the same native titlebar and borders per desktop."
+description = "Decide who draws the window frame on Linux (the compositor or the app) and apply it, so every Craft app gets the same native titlebar and borders per desktop; and keep the window list, cascade placement and Window menu for apps with one window per document."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,7 @@ rust-version.workspace = true
 repository.workspace = true
 
 [features]
-# `apply`/`decorations`: decide decorations and set them on an `egui::ViewportBuilder`.
+# `decorate`: set the frame decision on an `egui::ViewportBuilder`; `Viewports`: one immediate viewport per window.
 egui = ["dep:egui"]
 
 [dependencies]

@@ -54,8 +54,56 @@ if let Some(layout) = choice.frame().layout() {
 An app that offers a "System title bar" preference checks `choice.overridden()` and its own setting,
 and can override the probe by setting the frame to `Frame::Desktop`.
 
-The `egui` feature adds [`decorate`]. Without it, the crate is pure decision logic (`Choice`,
-`Frame`, `Layout`) with no egui dependency.
+The `egui` feature adds [`decorate`] and `Viewports`. Without it, the crate is pure decision and
+bookkeeping logic with no egui dependency.
+
+## One window per document
+
+For apps that open each document in its own top-level window, the crate also keeps the shared
+window bookkeeping. The core has no egui dependency.
+
+| Type | What it does |
+| --- | --- |
+| `WindowList<T>` | Open windows with the app's per-window data `T`. Opening order (stable, for menus) and most-recent order; the first in most-recent order is the active window, which menu commands go to. `close` returns the data and, when the active window closed, the window to focus next. `find` returns the most recent window whose data matches, e.g. the window already showing a file. |
+| `WindowId` | A window's id: `Copy`, `Hash`, `Ord`, from one process-wide counter, so never reused while the app runs. Use it as the key for per-window state (UI state, pending dialogs). |
+| `cascade` | Places a new window one step (about a title bar, `CASCADE_STEP`) right of and below the most recent window. Each axis that would run off the bounds (monitor or work area) starts over at the bounds' edge. |
+| `WindowMenu` | The Window menu (macOS) or View › Switch Windows list: (id, title, dirty, active) per window, in opening order. Windows on the same document are titled `Name:1`, `Name:2`, numbered by opening order; a document with one window keeps its plain name. The app supplies each window's document key, name and dirty flag. |
+
+With the `egui` feature, `Viewports` shows the windows as egui immediate viewports:
+
+- Call `show` once per frame from the root viewport's UI. It runs the app's callback for each
+  window inside that window's viewport, so `ui.ctx()` input (close requests, IME) and commands
+  belong to that window. A window's viewport id is `child_viewport_id(id)`.
+- New windows get `decorate` (the frame decision above) and a cascade position from the most
+  recently focused window. On Wayland, where windows have no known position, the compositor places
+  them.
+- The root viewport stays the app's. `set_root(Some(id))` draws window `id` in it. When the root's
+  window closes while others stay open, `adopt` moves another window into the root viewport (its
+  position, size and focus); that window's id and data stay the same.
+- `show` returns `WindowEvent::Focused` and `WindowEvent::CloseRequested`. Focus also updates the
+  list's active window. Close and quit policy stay with the app: a child window closes when the app
+  removes it from the list, and for the root's window the app sends `ViewportCommand::CancelClose`
+  to the root in the same frame unless the app should quit.
+
+```rust,ignore
+use craft_window::{Document, Viewports, WindowEvent, WindowList, WindowMenu};
+
+let menu = WindowMenu::new(&windows, |_, w| Document { key: w.doc, name: name_of(w.doc), dirty: is_dirty(w.doc) });
+let base = egui::ViewportBuilder::default().with_inner_size([1000.0, 700.0]);
+for event in viewports.show(
+    ui,
+    &mut windows,
+    |id, _| base.clone().with_title(menu.title(id).unwrap_or_default()),
+    |ui, id, window| draw_window(ui, id, window),
+) {
+    if let WindowEvent::CloseRequested(id) = event {
+        // The app's policy: prompt for the document's last dirty window, then `windows.close(id)`,
+        // and `adopt` or `focus` the window `Closed::focus` names.
+    }
+}
+```
+
+Immediate viewports repaint every window when one repaints, so cache expensive per-window drawing.
 
 ## Notes
 
