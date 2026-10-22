@@ -13,7 +13,7 @@ pub(in crate::docking) enum GroupKind {
     Frame,
     /// A group in a dock column.
     Dock,
-    /// A group in the floating window drawn at `window`.
+    /// A `Tabs` node of the floating window drawn at `window`: side drops split it.
     Floating { window: Rect },
 }
 
@@ -40,7 +40,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let Some(selected) = panels.get(active) else { return };
         self.record_float(panels, rect.size(), rect.size());
         let policy = self.permissions(selected);
-        let splits = kind == GroupKind::Frame && policy.accepts_splits;
+        let splits = matches!(kind, GroupKind::Frame | GroupKind::Floating { .. }) && policy.accepts_splits;
         let rtl = self.style.right_to_left;
         if stripless(panels, &*self.content) {
             self.contents(ui, selected, rect);
@@ -134,7 +134,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // Registered last, so the band wins over the tabs below it.
         let border = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, (strip.top() + BORDER_BAND).min(strip.bottom()))));
         self.group_handle(ui, "drag-border", border, &owner, movable);
-        if self.style.wheel_selects_tabs() {
+        if self.style.wheel_selects_tabs {
             let tabs_area = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, strip.bottom())));
             self.wheel_tabs(ui, tabs_area, panels, active);
         }
@@ -175,7 +175,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !bar {
             return;
         }
-        if owner.kind != GroupKind::Frame && response.double_clicked() {
+        if self.minimizes(owner) && response.double_clicked() {
             self.output.actions.push(Action::SetMinimized { panel: owner.selected.clone(), minimized: !owner.minimized });
         }
         let active = response.has_focus() || response.hovered();
@@ -255,10 +255,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let closable = self.style.close_menu_items && all(&|p| p.closable);
         let movable = all(&|p| p.movable);
         let floatable = movable && all(&|p| p.floatable);
-        if closable && self.menu_action(ui, &self.close_group_label()) {
+        if closable && self.menu_action(ui, &self.style.close_group_label.clone()) {
             self.output.actions.push(Action::CloseGroup { panel: panel.clone() });
         }
-        if owner.kind != GroupKind::Frame {
+        if self.minimizes(owner) {
             let label = if owner.minimized { self.style.expand_label.clone() } else { self.style.minimize_label.clone() };
             if self.menu_action(ui, &label) {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !owner.minimized });
@@ -267,7 +267,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if owner.kind == GroupKind::Dock && self.menu_action(ui, &self.style.collapse_to_icons_label.clone()) {
             self.output.actions.push(Action::SetIconic { panel: panel.clone(), iconic: true });
         }
-        if floatable && !matches!(owner.kind, GroupKind::Floating { .. }) && self.menu_action(ui, &self.float_group_label()) {
+        let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
+        if floatable && !whole_window && self.menu_action(ui, &self.style.float_group_label.clone()) {
             let size = self.group_float_size(owner.panels, owner.rect.size());
             let rect = clamp_float(Rect::from_min_size(owner.rect.min + vec2(24.0, 24.0), size), self.float_bounds);
             self.output.actions.push(Action::MoveGroup {
@@ -353,7 +354,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     pub(super) fn tab(&mut self, ui: &mut Ui, panel: &P, rect: Rect, active: bool, group: Rect, owner: Option<&TabGroup<'_, P>>) {
-        let minimized = owner.filter(|owner| owner.kind != GroupKind::Frame).map(|owner| owner.minimized);
+        let minimized = owner.filter(|owner| self.minimizes(owner)).map(|owner| owner.minimized);
         let policy = self.permissions(panel);
         let label = self.label_of(panel);
         let color = if active { self.style.text } else { self.style.inactive_text };
@@ -395,7 +396,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !minimized });
             }
         }
-        if self.style.middle_click_closes_tabs() && policy.closable && response.clicked_by(egui::PointerButton::Middle) {
+        if self.style.middle_click_closes_tabs && policy.closable && response.clicked_by(egui::PointerButton::Middle) {
             self.output.actions.push(Action::Close { panel: panel.clone() });
         }
         if policy.movable && response.drag_started() && begin_drag(ui.ctx(), self.id, panel.clone(), group) {
@@ -404,7 +405,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         response.context_menu(|ui| {
             self.content.panel_menu(ui, panel);
             if policy.movable && policy.floatable {
-                let logical = self.float_label();
+                let logical = self.style.float_label.clone();
                 let text = self.content.action_label(ui, &logical, &self.style.font, self.style.text);
                 let response = ui.button(text);
                 response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), &logical));
