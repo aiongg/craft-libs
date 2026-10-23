@@ -11,6 +11,7 @@
 //! Every length, count and depth is bounded, and anything unreadable is an [`Error`], never a
 //! panic: the caller's PDF is input like any other.
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -781,15 +782,26 @@ impl Reader<'_> {
         None
     }
 
-    fn rect(&mut self, obj: Option<&Obj>) -> Option<[f64; 4]> {
-        let obj = self.resolve(obj?)?;
-        let items = obj.array()?;
-        let mut v = [0.0; 4];
-        for (slot, item) in v.iter_mut().zip(items) {
-            *slot = self.resolve(item)?.num()?;
+    /// Like [`resolve`](Self::resolve), but a direct object is borrowed, not copied. Inherited
+    /// page attributes are read once per page, so copying a large inline value would repeat that
+    /// work for every page outside the budget.
+    fn resolve_borrowed<'o>(&mut self, obj: &'o Obj) -> Option<Cow<'o, Obj>> {
+        match obj {
+            Obj::Ref(..) => self.resolve(obj).map(Cow::Owned),
+            direct => Some(Cow::Borrowed(direct)),
         }
+    }
+
+    fn rect(&mut self, obj: Option<&Obj>) -> Option<[f64; 4]> {
+        let obj = self.resolve_borrowed(obj?)?;
+        let items = obj.array()?;
+        // The shape is checked before reading any element.
         if items.len() != 4 {
             return None;
+        }
+        let mut v = [0.0; 4];
+        for (slot, item) in v.iter_mut().zip(items) {
+            *slot = self.resolve_borrowed(item)?.num()?;
         }
         let [x0, y0, x1, y1] = v;
         Some([x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1)])
@@ -806,6 +818,8 @@ pub(crate) struct Sheet {
     pub(crate) bounds: [f64; 4],
     /// `/Rotate`, 0, 90, 180 or 270.
     pub(crate) rotate: u32,
+    /// Annotation flags match the renderer's visible printing behavior.
+    print_annotations_safe: bool,
 }
 
 impl Sheet {
@@ -936,10 +950,25 @@ pub(crate) fn read(data: &[u8]) -> Result<Sheets<'_>, Error> {
             .map(|c| [c[0].max(media[0]), c[1].max(media[1]), c[2].min(media[2]), c[3].min(media[3])])
             .filter(|c| c[2] > c[0] && c[3] > c[1])
             .unwrap_or(media);
-        let rotate = here.rotate.as_ref().and_then(|r| reader.resolve(r)).and_then(|r| r.int()).unwrap_or(0).rem_euclid(360);
+        let rotate = here.rotate.as_ref().and_then(|r| reader.resolve_borrowed(r).and_then(|r| r.int())).unwrap_or(0).rem_euclid(360);
         // Not a multiple of 90 is invalid; such a page is shown unrotated.
         let rotate = if rotate % 90 == 0 { u32::try_from(rotate).unwrap_or(0) } else { 0 };
-        sheets.push(Sheet { obj, dict, bounds, rotate });
+        // Windows renders viewer visibility, not annotation print visibility. Only a plain
+        // visible printable annotation is safe; flatten other flags before native submission.
+        let print_annotations_safe = match get(&dict, b"Annots") {
+            None | Some(Obj::Null) => true,
+            Some(annotations) => match reader.resolve(annotations) {
+                Some(Obj::Null) => true,
+                Some(Obj::Array(items)) => items.iter().all(|item| {
+                    reader
+                        .resolve(item)
+                        .and_then(|a| a.dict().cloned())
+                        .is_some_and(|annotation| get(&annotation, b"F").and_then(|f| reader.resolve(f)).and_then(|f| f.int()) == Some(4))
+                }),
+                _ => false,
+            },
+        };
+        sheets.push(Sheet { obj, dict, bounds, rotate, print_annotations_safe });
     }
     if reader.budget.exhausted {
         return Err(unreadable("the parser memory budget was exceeded"));
@@ -1042,6 +1071,15 @@ pub(crate) fn plan(sheets: &[Sheet], paper: (f64, f64), fit: Fit) -> Result<Vec<
 const OLD_GEOMETRY: [&[u8]; 6] = [b"MediaBox", b"CropBox", b"BleedBox", b"TrimBox", b"ArtBox", b"Rotate"];
 
 impl Sheets<'_> {
+    /// Refuse annotation print/view visibility the Windows renderer cannot preserve.
+    pub(crate) fn check_print_annotations(&self) -> Result<(), Error> {
+        if self.sheets.iter().all(|s| s.print_annotations_safe) {
+            Ok(())
+        } else {
+            Err(Error::Spool("flatten annotation print visibility into page content before native Windows printing; nothing was sent".into()))
+        }
+    }
+
     /// The PDF with `edits` appended as an incremental update (ISO 32000-1, 7.5.6): the
     /// original bytes, then the new versions of the edited pages, the content streams a
     /// reframed page wraps its own in, and a cross-reference section of the same kind as the
@@ -1067,6 +1105,15 @@ impl Sheets<'_> {
             if let Some(frame) = &edit.frame {
                 if get(&self.trailer, b"Encrypt").is_some() {
                     return Err(refuse("it is encrypted"));
+                }
+                // Annotation appearances live outside /Contents. Transforming only content
+                // would leave them at the old coordinates; deleting them loses printed marks.
+                // Require callers to flatten before fitting until appearances can be reframed.
+                if let Some(annotations) = get(&dict, b"Annots")
+                    && !matches!(annotations, Obj::Null)
+                    && !matches!(annotations, Obj::Array(items) if items.is_empty())
+                {
+                    return Err(refuse("flatten page annotations before using shrink-to-fit"));
                 }
                 let [a, b, c, d, e, f] = frame.matrix;
                 let [x, y, w, h] = frame.clip;
