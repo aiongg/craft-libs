@@ -14,13 +14,21 @@ const WIN: usize = 64 * 1024;
 const MAX_META: u64 = 256 << 20;
 /// Cap on the frames indexed from one file, all tracks together.
 const MAX_FRAMES: usize = 1 << 26;
+/// Bytes of file each indexed frame needs beyond the first `MIN_FRAME_ALLOWANCE` frames. An
+/// indexed frame takes about 76 bytes of memory (its [`Sample`] and keyframe entry) and fixed
+/// lacing can describe one in no bytes at all, so without this a file could make the index
+/// about 76 times its own size. Real frames carry a block header or lace size and their data,
+/// well over 8 bytes each.
+const FILE_BYTES_PER_FRAME: u64 = 8;
+/// Frames any file may index, however short: about 80 MiB of index.
+const MIN_FRAME_ALLOWANCE: usize = 1 << 20;
 /// Cap on the TrackEntries of a file. Each kept entry needs only 5 bytes of file but becomes a
 /// [`Track`] of several hundred bytes.
 pub(super) const MAX_TRACKS: usize = 1 << 16;
 
 /// What is left of the file-wide limits while clusters are scanned.
 struct FrameBudget {
-    /// Frames (`MAX_FRAMES` minus those already indexed).
+    /// Frames (what the file's length allows, at most `MAX_FRAMES`, minus those already indexed).
     frames: usize,
     /// Bytes of file not yet claimed by a frame. Each frame claims its stored size and at least
     /// one byte, because fixed-size lacing describes up to 256 empty frames in a 4-byte block.
@@ -29,7 +37,8 @@ struct FrameBudget {
 
 impl FrameBudget {
     fn new(file_len: u64) -> Self {
-        Self { frames: MAX_FRAMES, bytes: file_len }
+        let by_len = usize::try_from(file_len / FILE_BYTES_PER_FRAME).unwrap_or(usize::MAX);
+        Self { frames: by_len.max(MIN_FRAME_ALLOWANCE).min(MAX_FRAMES), bytes: file_len }
     }
 
     fn take(&mut self, frames: &[(u64, u32)]) -> Result<()> {
@@ -1285,5 +1294,22 @@ impl<S: ByteSource> Iterator for Demuxer<S> {
                 Some(Err(e))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frames_indexed_scale_with_the_file_length() {
+        assert_eq!(FrameBudget::new(1000).frames, MIN_FRAME_ALLOWANCE);
+        // 64 MiB of file is enough bytes for 2^26 empty frames, but not enough index memory.
+        let mut b = FrameBudget::new(64 << 20);
+        assert_eq!(b.frames, 8 << 20);
+        let lace = [(0u64, 0u32); 256];
+        let taken = (0..1 << 18).take_while(|_| b.take(&lace).is_ok()).count();
+        assert_eq!(taken * lace.len(), 8 << 20);
+        assert_eq!(FrameBudget::new(u64::MAX).frames, MAX_FRAMES);
     }
 }

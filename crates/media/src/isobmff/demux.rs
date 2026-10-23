@@ -8,6 +8,13 @@ use std::collections::HashMap;
 
 /// Hard cap on the sample count of the whole file, all tracks and fragments (after PCM chunk merging).
 const MAX_SAMPLES: usize = 1 << 26;
+/// Bytes of file each sample needs beyond the first `MIN_SAMPLE_ALLOWANCE` samples. A [`Sample`]
+/// takes 40 bytes of memory and a constant-size `stsz` or a `trun` without per-sample fields
+/// describes one in a byte or none, so without this a file could make the sample tables about
+/// 40 times its own size. A table-backed sample has a 4-byte `stsz` or `trun` entry.
+const FILE_BYTES_PER_SAMPLE: u64 = 4;
+/// Samples any file may hold, however short: 40 MiB of sample tables.
+const MIN_SAMPLE_ALLOWANCE: usize = 1 << 20;
 /// Hard cap on the size of an in-memory `moov`/`moof` box.
 const MAX_HEADER_BOX: u64 = 1 << 30;
 /// Most text all metadata entries may hold together; entries past it are dropped. One `keys`
@@ -27,7 +34,7 @@ fn pcm_piece_frames(unit: u64, unit_bytes: u64) -> u64 {
 
 /// What is left of the file-wide limits while tracks and fragments are parsed.
 struct SampleBudget {
-    /// Samples (`MAX_SAMPLES` minus those already built).
+    /// Samples (what the file's length allows, at most `MAX_SAMPLES`, minus those already built).
     samples: usize,
     /// Bytes of file for samples whose count no table entry backs (constant-size `stsz`, `trun`
     /// without per-sample fields). Each such sample claims at least one byte, so a file can't
@@ -36,6 +43,11 @@ struct SampleBudget {
 }
 
 impl SampleBudget {
+    fn new(file_len: u64) -> Self {
+        let by_len = usize::try_from(file_len / FILE_BYTES_PER_SAMPLE).unwrap_or(usize::MAX);
+        Self { samples: by_len.max(MIN_SAMPLE_ALLOWANCE).min(MAX_SAMPLES), implied_bytes: file_len }
+    }
+
     fn take(&mut self, n: usize) -> Result<()> {
         self.samples = self.samples.checked_sub(n).ok_or(Error::TooLarge("sample count"))?;
         Ok(())
@@ -354,7 +366,7 @@ pub fn open<S: ByteSource>(src: S) -> Result<Mp4File> {
             _ => {}
         }
     }
-    let mut budget = SampleBudget { samples: MAX_SAMPLES, implied_bytes: len };
+    let mut budget = SampleBudget::new(len);
     for p in trak_payloads {
         let t = parse_trak(p, &file, len, &mut budget)?;
         file.tracks.push(t);
@@ -1391,6 +1403,16 @@ mod tests {
             buf[..end - start].copy_from_slice(&self.0[start..end]);
             Ok(())
         }
+    }
+
+    #[test]
+    fn samples_scale_with_the_file_length() {
+        assert_eq!(SampleBudget::new(1000).samples, MIN_SAMPLE_ALLOWANCE);
+        assert_eq!(SampleBudget::new(64 << 20).samples, 16 << 20);
+        assert_eq!(SampleBudget::new(u64::MAX).samples, MAX_SAMPLES);
+        // A constant-size stsz of one-byte samples claims as many as a 64 MiB file has bytes.
+        let d = handmade(Some((1, u32::MAX)));
+        assert!(matches!(open(Padded(d, 64 << 20)), Err(Error::TooLarge(_))));
     }
 
     #[test]
