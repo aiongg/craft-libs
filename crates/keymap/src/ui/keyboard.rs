@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{
-    Align, Button, Color32, CornerRadius, FontId, Layout, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, Role, pos2,
-    vec2,
+    Align, Button, Color32, CornerRadius, FontId, Layout, Rect, RichText, Role, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
 };
 
 use super::{Draw, fill};

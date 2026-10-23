@@ -15,8 +15,8 @@ use egui::Galley;
 use egui::accesskit::Live;
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{
-    Align, Button, Color32, ComboBox, EventFilter, Id, Key as EguiKey, Label, Layout, Modifiers, Painter, Rect, Response, RichText, ScrollArea,
-    Sense, Stroke, StrokeKind, TextEdit, TextStyle, Ui, UiBuilder, Vec2, WidgetInfo, WidgetText, Role, pos2, vec2,
+    Align, Button, Color32, ComboBox, EventFilter, Id, Key as EguiKey, Label, Layout, Modifiers, Painter, Rect, Response, RichText, Role, ScrollArea,
+    Sense, Stroke, StrokeKind, TextEdit, TextStyle, Ui, UiBuilder, Vec2, WidgetInfo, WidgetText, pos2, vec2,
 };
 
 use crate::chord::Trigger;

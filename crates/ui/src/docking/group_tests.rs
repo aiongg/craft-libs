@@ -666,7 +666,13 @@ fn frame_tabs_follow_the_wheel_and_close_on_a_middle_click() {
         Some(Node::Split { second, .. }) => (**second).clone(),
         _ => panic!("{:?}", d.layout.root),
     };
-    let wheel = |unit, y| Event::MouseWheel { unit, delta: vec2(0.0, y), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers: Modifiers::NONE };
+    let wheel = |unit, y| Event::MouseWheel {
+        unit,
+        delta: vec2(0.0, y),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Unknown,
+        modifiers: Modifiers::NONE,
+    };
     let middle = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Middle, pressed, modifiers: Modifiers::NONE };
 
     // Off by default.

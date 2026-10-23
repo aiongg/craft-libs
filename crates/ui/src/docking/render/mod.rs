@@ -195,9 +195,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     };
                     let response = ui.interact(collapse, self.id.with(("collapse", &entry.panel)), Sense::click());
                     self.register_interaction(ui.ctx(), response.id);
-                    response.widget_info(|| {
-                        egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), entry.open, self.label_of(&entry.panel))
-                    });
+                    response
+                        .widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), entry.open, self.label_of(&entry.panel)));
                     ui.painter().with_clip_rect(collapse).text(
                         collapse.center(),
                         egui::Align2::CENTER_CENTER,

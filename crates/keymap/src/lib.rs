@@ -144,8 +144,8 @@ pub mod editor;
 pub mod egui;
 pub mod import;
 pub mod keymap;
-pub mod profiles;
 pub mod layout;
+pub mod profiles;
 pub mod reserved;
 pub mod scope;
 #[cfg(feature = "ui")]
@@ -160,6 +160,6 @@ pub use keymap::{
     AssignError, Assigned, Bindable, Binding, BindingError, Conflict, ConflictKind, DropReason, Holder, Keymap, Kind, Lookup, MAX_BINDING_TEXT,
     MAX_BINDINGS, MAX_COMMANDS, MAX_CONFLICTS, Overrides, Policy, Problem, TypingRule, text_editing_chords,
 };
-pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
 pub use layout::{KeyInput, Layout};
+pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
 pub use scope::{Active, MAX_SCOPE_NAME, Scope, ScopeKind, Scopes};
