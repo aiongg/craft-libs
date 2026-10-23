@@ -550,7 +550,7 @@ impl Widget for NumberField<'_> {
         let settle = |v: f64| clamp(round_half_away(v, places));
         let shown = if mixed { String::new() } else { numbers.format(old, decimals.clone()) };
 
-        let mut state = ui.data(|d| d.get_temp::<FieldState>(id)).filter(|s| s.value == old && s.mixed == mixed);
+        let mut state = ui.data(|d| d.get_temp::<FieldState>(id)).filter(|s| s.value.to_bits() == old.to_bits() && s.mixed == mixed);
         let mut select = false;
         if ui.is_enabled() && !ui.is_sizing_pass() && ui.data_mut(|d| d.remove_temp::<bool>(first_field_id())).is_some() {
             ui.memory_mut(|m| m.request_focus(id));
@@ -584,7 +584,7 @@ impl Widget for NumberField<'_> {
         }
         let mut text = match &state {
             Some(s) => s.text.clone(),
-            None if value == old && !entered => shown.clone(),
+            None if value.to_bits() == old.to_bits() && !entered => shown.clone(),
             None => numbers.format(value, decimals.clone()),
         };
         if select {
@@ -646,7 +646,8 @@ impl Widget for NumberField<'_> {
             state = Some(FieldState { text: text.clone(), value, mixed, error: None });
         }
 
-        if value != old || mixed && entered {
+        // By bits, so a NaN value equals itself and isn't written back every frame.
+        if value.to_bits() != old.to_bits() || mixed && entered {
             get_set(Some(value));
             response.mark_changed();
         } else {

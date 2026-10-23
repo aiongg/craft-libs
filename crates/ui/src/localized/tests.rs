@@ -592,3 +592,33 @@ fn the_wheel_scrolls_past_a_field_it_cannot_step() {
     h.ctx.input(|i| wheel_left = i.events.iter().any(|e| matches!(e, egui::Event::MouseWheel { .. })));
     assert!(wheel_left, "the wheel event stays for the panel under the field");
 }
+
+#[test]
+fn a_nan_value_stays_put_and_takes_an_edit() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut h = Harness::builder().allow_missing_glyphs().build_ui_state(
+        move |ui, (value, changes): &mut (f64, usize)| {
+            let label = ui.label("Gap");
+            if ui.add(NumberField::new(value, &numbers)).labelled_by(label.id).changed() {
+                *changes += 1;
+            }
+        },
+        (f64::NAN, 0),
+    );
+    h.run();
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.run();
+    assert!(h.state().0.is_nan());
+    assert_eq!(h.state().1, 0, "an untouched NaN is not written back");
+
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run();
+    h.get_by_role(Role::TextInput).type_text("2.5");
+    h.run();
+    h.run();
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("2.5"), "typed text stays");
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(*h.state(), (2.5, 1));
+}
