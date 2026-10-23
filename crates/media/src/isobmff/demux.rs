@@ -45,7 +45,7 @@ struct SampleBudget {
 impl SampleBudget {
     fn new(file_len: u64) -> Self {
         let by_len = usize::try_from(file_len / FILE_BYTES_PER_SAMPLE).unwrap_or(usize::MAX);
-        Self { samples: by_len.max(MIN_SAMPLE_ALLOWANCE).min(MAX_SAMPLES), implied_bytes: file_len }
+        Self { samples: by_len.clamp(MIN_SAMPLE_ALLOWANCE, MAX_SAMPLES), implied_bytes: file_len }
     }
 
     fn take(&mut self, n: usize) -> Result<()> {

@@ -38,7 +38,7 @@ struct FrameBudget {
 impl FrameBudget {
     fn new(file_len: u64) -> Self {
         let by_len = usize::try_from(file_len / FILE_BYTES_PER_FRAME).unwrap_or(usize::MAX);
-        Self { frames: by_len.max(MIN_FRAME_ALLOWANCE).min(MAX_FRAMES), bytes: file_len }
+        Self { frames: by_len.clamp(MIN_FRAME_ALLOWANCE, MAX_FRAMES), bytes: file_len }
     }
 
     fn take(&mut self, frames: &[(u64, u32)]) -> Result<()> {
