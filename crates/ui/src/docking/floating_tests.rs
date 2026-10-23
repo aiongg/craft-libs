@@ -38,7 +38,7 @@ fn workspace() -> Layout<u32> {
             second: Box::new(tabs(&[0], 0)),
         }),
         floating: vec![
-            Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 1)], [300.0, 80.0, 240.0, 300.0]),
+            Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 1)], [300.0, 80.0, 240.0, 300.0]).unwrap(),
             Floating::single(vec![8], 0, [560.0, 300.0, 200.0, 200.0]),
         ],
     }
@@ -509,7 +509,7 @@ fn native_window_falls_back_in_window_when_viewports_are_embedded() {
 
 #[cfg(feature = "native-windows")]
 #[test]
-fn native_window_close_returns_the_group_to_its_in_window_rect() {
+fn native_window_close_closes_its_panels() {
     use std::{cell::Cell, rc::Rc};
     let close = Rc::new(Cell::new(false));
     let requested = close.clone();
@@ -537,18 +537,17 @@ fn native_window_close_returns_the_group_to_its_in_window_rect() {
     d.ctx.set_embed_viewports(false);
     d.content.native = true;
     d.layout = layout;
-    let out = d.step(vec![]);
+    d.step(vec![]);
     assert!(d.response(Id::unique(AREA).with(("move-group", Some(&5u32)))).is_none(), "drawn in its own OS window");
-    assert!(out.actions.contains(&Action::SetNative { panel: 5, rect: Some([1210.0, 905.0, 250.0, 300.0]) }), "{:?}", out.actions);
+    // Where the window system put its content, once a report that late is no longer the
+    // opening move landing.
+    let reported = (0..60).any(|_| d.step(vec![]).actions.contains(&Action::SetNative { panel: 5, rect: Some([1210.0, 935.0, 250.0, 300.0]) }));
+    assert!(reported, "{:?}", d.layout.floating[0].native);
 
     close.set(true);
     let out = d.step(vec![]);
-    assert!(out.actions.contains(&Action::SetNative { panel: 5, rect: None }), "{:?}", out.actions);
-    assert_eq!(d.layout.floating[0].native, None);
-    assert_eq!(d.layout.floating[0].rect, [300.0, 80.0, 240.0, 300.0]);
-    d.step(vec![]);
-    d.step(vec![]);
-    assert_eq!(d.title(5).min, pos2(300.0, 84.0));
+    assert!(out.actions.contains(&Action::CloseWindow { panel: 5 }), "{:?}", out.actions);
+    assert!(window_of(&d.layout, 5).is_none() && !d.layout.contains(&6) && !d.layout.contains(&7));
 }
 
 #[test]
@@ -678,7 +677,7 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
     use egui_kittest::{Harness, kittest::Queryable};
     let stacked = || Layout {
         root: Some(tabs(&[1], 0)),
-        floating: vec![Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 0)], [300.0, 80.0, 300.0, 400.0])],
+        floating: vec![Floating::stack(vec![Group::new(vec![5], 0), Group::new(vec![6, 7], 0)], [300.0, 80.0, 300.0, 400.0]).unwrap()],
     };
     type State = (Content, Layout<u32>, Vec<Action<u32>>);
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(

@@ -6,12 +6,22 @@ use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
 use super::{Action, DockContent, DockOutput, DockStyle, DropTarget, Layout, Node, PanelLimits, Permissions, dock_model::Place};
 
+#[cfg(feature = "native-windows")]
+mod cross;
 mod dock;
 mod floating;
 mod frame;
 mod iconic;
 #[cfg(feature = "native-windows")]
 mod native;
+#[cfg(all(test, feature = "native-windows"))]
+pub(in crate::docking) use {cross::DragPointer, native::WindowDrag, native::floats_shown};
+
+/// The viewport of the native window `window` of the dock area `area`.
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) fn native_viewport(area: Id, window: u64) -> egui::ViewportId {
+    native::viewport_id(area, window, 0)
+}
 
 pub(in crate::docking) use frame::{FrameState, view};
 
@@ -58,6 +68,12 @@ pub(super) struct Renderer<'a, P> {
     /// The floating window whose tree is being drawn: its first panel, which names it in
     /// ids and actions, and its rect. `None` while the docked layout draws.
     pub(super) tree: Option<(P, Rect)>,
+    /// [`crate::docking::DockArea::monitors`].
+    #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
+    pub(super) monitors: Vec<crate::docking::Monitor>,
+    /// The other OS windows a drag may cross into.
+    #[cfg(feature = "native-windows")]
+    pub(super) cross: cross::Cross<P>,
 }
 
 pub(super) struct DrawnDivider {
@@ -295,7 +311,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 None => self.id.with(("intersection", outer, inner_layout)),
                 Some((panel, _)) => self.id.with(("window-intersection", panel, outer, inner_layout)),
             };
-            let response = ui.interact(hit, id, Sense::drag());
+            // Pointer only: each of the two dividers it joins already takes keyboard focus.
+            let response = ui.interact(hit, id, Sense::DRAG);
             self.register_interaction(ui.ctx(), id);
             if response.hovered() || response.dragged() {
                 ui.ctx().set_cursor_icon(CursorIcon::Move);
