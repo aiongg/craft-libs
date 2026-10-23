@@ -36,11 +36,15 @@ pub struct BitReader<'a> {
     data: &'a [u8],
     /// Position in bits.
     pos: usize,
+    /// Bit position of the last set bit (the `rbsp_stop_one_bit`), found once so that
+    /// [`Self::more_rbsp_data`] does not rescan a long zero suffix on every call.
+    rbsp_stop: Option<usize>,
 }
 
 impl<'a> BitReader<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0 }
+        let rbsp_stop = data.iter().rposition(|&b| b != 0).map(|i| i.saturating_mul(8).saturating_add(7 - data[i].trailing_zeros() as usize));
+        Self { data, pos: 0, rbsp_stop }
     }
     pub fn data(&self) -> &'a [u8] {
         self.data
@@ -170,22 +174,7 @@ impl<'a> BitReader<'a> {
 
     /// H.264/HEVC `more_rbsp_data()`: true if there is data before the rbsp trailing bits.
     pub fn more_rbsp_data(&self) -> bool {
-        let total = self.data.len().saturating_mul(8);
-        if self.pos >= total {
-            return false;
-        }
-        // find last set bit (the rbsp_stop_one_bit)
-        let mut last = None;
-        for (i, &b) in self.data.iter().enumerate().rev() {
-            if b != 0 {
-                last = Some(i.saturating_mul(8).saturating_add(7 - b.trailing_zeros() as usize));
-                break;
-            }
-        }
-        match last {
-            Some(stop) => self.pos < stop,
-            None => false,
-        }
+        self.rbsp_stop.is_some_and(|stop| self.pos < stop)
     }
 }
 
@@ -474,6 +463,19 @@ mod tests {
         assert!(r.more_rbsp_data());
         r.read_bit().unwrap();
         assert!(!r.more_rbsp_data());
+    }
+
+    #[test]
+    fn more_rbsp_data_finds_the_stop_bit_before_a_zero_suffix() {
+        let mut d = vec![0b1010_0000];
+        d.resize(1 << 16, 0);
+        let mut r = BitReader::new(&d);
+        assert_eq!(r.rbsp_stop, Some(2));
+        assert!(r.more_rbsp_data());
+        r.skip(2).unwrap();
+        assert!(!r.more_rbsp_data());
+        assert_eq!(BitReader::new(&[0; 4]).rbsp_stop, None);
+        assert!(!BitReader::new(&[0; 4]).more_rbsp_data());
     }
 
     #[test]
