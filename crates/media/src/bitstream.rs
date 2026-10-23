@@ -13,6 +13,8 @@ pub enum BitError {
     Eof,
     /// An Exp-Golomb code longer than 32 leading zeros.
     InvalidExpGolomb,
+    /// An AVCC/HVCC NAL length prefix width outside 1 to 4 bytes.
+    InvalidNalLengthSize,
 }
 
 impl fmt::Display for BitError {
@@ -20,6 +22,7 @@ impl fmt::Display for BitError {
         match self {
             BitError::Eof => f.write_str("unexpected end of bitstream"),
             BitError::InvalidExpGolomb => f.write_str("invalid Exp-Golomb code"),
+            BitError::InvalidNalLengthSize => f.write_str("NAL length prefix must be 1 to 4 bytes"),
         }
     }
 }
@@ -335,15 +338,16 @@ pub fn annexb_nals(data: &[u8]) -> Vec<&[u8]> {
     out
 }
 
-/// Split a length-prefixed sample (AVCC/HVCC, `length_size` 1/2/4 bytes) into NAL units.
-/// A zero `length_size` cannot split non-empty data and returns [`BitError::Eof`].
+/// Split a length-prefixed sample (AVCC/HVCC, `length_size` 1 to 4 bytes) into NAL units.
+/// Any other `length_size` returns [`BitError::InvalidNalLengthSize`], even for empty data.
 pub fn length_prefixed_nals(data: &[u8], length_size: usize) -> Result<Vec<&[u8]>> {
+    if !(1..=4).contains(&length_size) {
+        return Err(BitError::InvalidNalLengthSize);
+    }
     let mut out = Vec::new();
     let mut i = 0;
     while i < data.len() {
-        // Compare against the remaining length so a hostile prefix cannot overflow `usize`
-        // (32-bit on wasm).
-        if length_size == 0 || length_size > data.len() - i {
+        if length_size > data.len() - i {
             return Err(BitError::Eof);
         }
         let mut len = 0usize;
@@ -490,13 +494,15 @@ mod tests {
     }
 
     #[test]
-    fn length_prefixed_rejects_zero_width_and_oversized_length() {
-        assert_eq!(length_prefixed_nals(&[], 0).unwrap(), Vec::<&[u8]>::new());
-        assert_eq!(length_prefixed_nals(&[1, 2, 3], 0), Err(BitError::Eof));
+    fn length_prefixed_rejects_invalid_width_and_oversized_length() {
+        for size in [0, 5, 8, usize::MAX] {
+            assert_eq!(length_prefixed_nals(&[], size), Err(BitError::InvalidNalLengthSize), "size {size}");
+            assert_eq!(length_prefixed_nals(&[0; 16], size), Err(BitError::InvalidNalLengthSize), "size {size}");
+        }
+        // `(lengthSizeMinusOne & 3) + 1` can be 3; such samples still split.
         assert_eq!(length_prefixed_nals(&[0, 0, 1, 7], 3).unwrap(), vec![&[7u8][..]]);
         assert_eq!(length_prefixed_nals(&[0xFF, 0xFF, 0xFF, 0xFF, 1], 4), Err(BitError::Eof));
         assert_eq!(length_prefixed_nals(&[0, 0, 0, 1, 9], 4).unwrap(), vec![&[9u8][..]]);
-        assert_eq!(length_prefixed_nals(&[0, 1], usize::MAX), Err(BitError::Eof));
     }
 
     #[test]
