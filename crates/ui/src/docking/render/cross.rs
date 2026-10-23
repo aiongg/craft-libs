@@ -24,6 +24,9 @@ use crate::docking::{Action, Drag, DropTarget, Floating, GroupDrag, GroupGesture
 pub(super) const POINTER: &str = "drag-pointer";
 /// Key of whether a target was offered last frame, for the source window's undock hint.
 const OFFERED: &str = "drag-offered";
+/// Key of an Escape that reached one of the application's windows other than the drag's
+/// owner. Keys go to the window with keyboard focus, which need not be the one dragging.
+const ESCAPE: &str = "drag-escape";
 
 /// The pointer of a drag, as the window that owns the drag last saw it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,6 +45,9 @@ pub(in crate::docking) struct DragPointer {
     pub command: bool,
     /// The window a bar drag moves. It follows the pointer and is never its own target.
     pub window: Option<u64>,
+    /// That drag began on the window's only tab or group: it docks whatever
+    /// [`crate::docking::DockStyle::title_bar_docks`] says.
+    pub docks: bool,
 }
 
 impl DragPointer {
@@ -89,8 +95,14 @@ pub(in crate::docking) struct Cross<P> {
     pub release: Option<(WindowDrag, DragPointer)>,
     /// Drawing for a window other than the drag's source: the undock hint is the source's.
     pub quiet: bool,
+    /// Resolving a native window's bar drag over the main window: frame edge zones count.
+    pub bar: bool,
     /// A target was offered while `quiet`.
     pub offered: Cell<bool>,
+    /// Where the native window drawing now was told to move its content this frame.
+    pub moved: Option<Pos2>,
+    /// Resolving a window move that docks whatever `title_bar_docks` says.
+    pub docks: bool,
 }
 
 impl<P> Default for Cross<P> {
@@ -104,30 +116,44 @@ impl<P> Default for Cross<P> {
             pointer: None,
             release: None,
             quiet: false,
+            bar: false,
             offered: Cell::new(false),
+            moved: None,
+            docks: false,
         }
     }
 }
 
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Write the pointer of the drag this window owns. `origin` is the window's desktop
-    /// origin for this frame's input.
-    pub(super) fn record_pointer(&mut self, ctx: &Context, owner: Option<u64>, origin: Option<Pos2>, window: Option<u64>) -> DragPointer {
+    /// origin for this frame's input; `window` the bar drag it is.
+    pub(super) fn record_pointer(&mut self, ctx: &Context, owner: Option<u64>, origin: Option<Pos2>, window: Option<&WindowDrag>) -> DragPointer {
         let key = self.id.with(POINTER);
         let kept = ctx.data(|d| d.get_temp::<DragPointer>(key)).filter(|p| p.owner == owner).and_then(|p| p.local);
+        let elsewhere = ctx.data_mut(|d| d.remove_temp::<bool>(self.id.with(ESCAPE))).unwrap_or(false);
         let pointer = ctx.input(|i| DragPointer {
             owner,
             origin,
             local: i.pointer.latest_pos().or(i.pointer.interact_pos()).filter(|p| p.is_finite()).or(kept),
             down: i.pointer.primary_down(),
             released: i.pointer.primary_released(),
-            escape: i.key_pressed(Key::Escape),
+            escape: elsewhere || i.key_pressed(Key::Escape),
             command: i.modifiers.command || i.modifiers.ctrl || i.modifiers.mac_cmd,
-            window,
+            window: window.map(|w| w.window),
+            docks: window.is_some_and(|w| w.docks),
         });
         ctx.data_mut(|d| d.insert_temp(key, pointer));
         self.cross.pointer = Some(pointer);
         pointer
+    }
+
+    /// In a window that does not own the drag a native window owns (`window`, `None` for the
+    /// main window): an Escape pressed here cancels the drag, and is no shortcut.
+    pub(super) fn escape_elsewhere(&self, ctx: &Context, window: Option<u64>) {
+        let owner = ctx.data(|d| d.get_temp::<DragPointer>(self.id.with(POINTER))).filter(|p| p.down).map(|p| p.owner);
+        if owner.is_some_and(|owner| owner.is_some() && owner != window) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+            ctx.data_mut(|d| d.insert_temp(self.id.with(ESCAPE), true));
+        }
     }
 
     /// Where the drag's pointer is. Without desktop positions only the owner's own window is
@@ -287,18 +313,22 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let Some(pointer) = self.cross.pointer.filter(|p| p.window.is_some() && !p.released) else { return };
         let Some(drag) = pointer.window.and_then(|w| self.window_group_drag(w)) else { return };
         if let Some(Dest::Main(local)) = self.destination(&pointer, None) {
-            self.cross.quiet = true;
+            (self.cross.quiet, self.cross.bar, self.cross.docks) = (true, true, pointer.docks);
             self.paint_group_drag(ui, &drag, local, pointer.command);
-            self.cross.quiet = false;
+            (self.cross.quiet, self.cross.bar, self.cross.docks) = (false, false, false);
         }
     }
 
     /// Release of a bar drag: over a target in another window the whole window docks or
     /// joins there. Over the desktop, or with Ctrl/Cmd held, it stays where it was moved.
     fn drop_native_window(&mut self, window: u64, pointer: &DragPointer) {
-        let Some(drag) = self.window_group_drag(window).filter(|_| !pointer.command && self.style.title_bar_docks) else { return };
+        let Some(drag) = self.window_group_drag(window).filter(|_| !pointer.command && (pointer.docks || self.style.title_bar_docks)) else { return };
         match self.destination(pointer, None) {
-            Some(Dest::Main(local)) => self.drop_window(&drag, local, false),
+            Some(Dest::Main(local)) => {
+                (self.cross.bar, self.cross.docks) = (true, pointer.docks);
+                self.drop_window(&drag, local, false);
+                (self.cross.bar, self.cross.docks) = (false, false);
+            }
             Some(Dest::Window(target, local)) => {
                 let action = self.within_window(target, true, |r| {
                     let proposal = r.group_proposal(&drag, local).filter(|p| !p.noop)?;
@@ -346,7 +376,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let ctx = ui.ctx();
         if let Some(window) = pointer.window {
             if let Some(drag) = self.window_group_drag(window) {
+                self.cross.docks = pointer.docks;
                 self.paint_group_drag(ui, &drag, local, pointer.command);
+                self.cross.docks = false;
             }
             return;
         }

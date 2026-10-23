@@ -115,7 +115,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
         #[cfg(feature = "native-windows")]
         if let Some(host) = &self.host {
             let mut host = host.borrow_mut();
-            (host.time, host.screen) = (self.time, self.screen);
+            (host.time, host.screen, host.modifiers) = (self.time, self.screen, self.modifiers);
+            host.frames += 1;
             input.viewports = host.infos();
             input.focused = host.focus == Some(egui::ViewportId::ROOT);
         }
@@ -142,7 +143,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
         full.textures_delta.clear();
         #[cfg(feature = "native-windows")]
         if let Some(host) = &self.host {
-            host.borrow_mut().apply(&full);
+            let mut host = host.borrow_mut();
+            host.apply(&full);
+            host.land();
         }
         self.shapes = full.shapes;
         output
@@ -347,9 +350,21 @@ pub struct NativeHost {
     pub focus: Option<egui::ViewportId>,
     /// Windows report no position, as on Wayland.
     pub no_position: bool,
+    /// From a native window's outer position to its content, as a title bar puts it. The
+    /// window opens with its outer position where it was asked to, and `OuterPosition` moves
+    /// that.
+    pub frame: egui::Vec2,
+    /// `OuterPosition` lands a frame late, at the end of the frame after the command. That
+    /// frame still reports the old place, and gets pointer events relative to it.
+    pub lag: bool,
     pub windows: std::collections::HashMap<egui::ViewportId, HostWindow>,
     /// Every command sent to a native window, in order.
     pub commands: Vec<(egui::ViewportId, egui::ViewportCommand)>,
+    /// Moves waiting to land under `lag`: window, content position, frame sent.
+    late: Vec<(egui::ViewportId, Pos2, usize)>,
+    frames: usize,
+    /// The driver's modifiers: the keyboard's, whichever window has focus.
+    modifiers: Modifiers,
     screen: Rect,
     time: f64,
 }
@@ -358,7 +373,8 @@ pub struct NativeHost {
 #[cfg(feature = "native-windows")]
 #[derive(Debug)]
 pub struct HostWindow {
-    /// Desktop rect of its content: where it opened, then moved by `OuterPosition`.
+    /// Desktop rect of its content: where it opened, then moved by `OuterPosition` and
+    /// `InnerSize`.
     pub rect: Rect,
     pub visible: bool,
     /// Frames it drew.
@@ -379,8 +395,13 @@ impl NativeHost {
             monitor_size: None,
             focus: Some(egui::ViewportId::ROOT),
             no_position: false,
+            frame: egui::Vec2::ZERO,
+            lag: false,
             windows: Default::default(),
             commands: Vec::new(),
+            late: Vec::new(),
+            frames: 0,
+            modifiers: Modifiers::NONE,
             screen: Rect::NOTHING,
             time: 0.0,
         }
@@ -390,7 +411,8 @@ impl NativeHost {
     fn infos(&self) -> egui::ViewportIdMap<egui::ViewportInfo> {
         let info = |id: egui::ViewportId, rect: Rect| egui::ViewportInfo {
             inner_rect: Some(rect),
-            outer_rect: (!self.no_position).then_some(rect),
+            outer_rect: (!self.no_position)
+                .then(|| if id == egui::ViewportId::ROOT { rect } else { Rect::from_min_max(rect.min - self.frame, rect.max) }),
             focused: Some(self.focus == Some(id)),
             monitor_size: self.monitor_size,
             ..Default::default()
@@ -407,11 +429,11 @@ impl NativeHost {
         let input = {
             let mut host = host.borrow_mut();
             let builder = &viewport.builder;
-            let rect = Rect::from_min_size(builder.position.unwrap_or_default(), builder.inner_size.unwrap_or(vec2(300.0, 200.0)));
+            let rect = Rect::from_min_size(builder.position.unwrap_or_default() + host.frame, builder.inner_size.unwrap_or(vec2(300.0, 200.0)));
             let visible = builder.visible.unwrap_or(true);
             host.windows.entry(id).or_insert_with(|| HostWindow { rect, visible, frames: 0, events: Vec::new(), close: false, shapes: Vec::new() });
             let mut viewports = host.infos();
-            let (time, focused) = (host.time, host.focus == Some(id));
+            let (time, focused, modifiers) = (host.time, host.focus == Some(id), host.modifiers);
             let Some(window) = host.windows.get_mut(&id) else { return };
             window.frames += 1;
             if std::mem::take(&mut window.close)
@@ -423,7 +445,7 @@ impl NativeHost {
                 viewport_id: id,
                 viewports,
                 screen_rect: Some(Rect::from_min_size(Pos2::ZERO, window.rect.size())),
-                events: std::mem::take(&mut window.events),
+                events: std::iter::once(Event::ModifiersChanged(modifiers)).chain(std::mem::take(&mut window.events)).collect(),
                 focused,
                 time: Some(time),
                 ..Default::default()
@@ -438,6 +460,18 @@ impl NativeHost {
         }
     }
 
+    /// End a frame: moves sent in an earlier one land.
+    fn land(&mut self) {
+        let frames = self.frames;
+        let (landed, late) = std::mem::take(&mut self.late).into_iter().partition::<Vec<_>, _>(|(.., sent)| *sent < frames);
+        self.late = late;
+        for (id, pos, _) in landed {
+            if let Some(window) = self.windows.get_mut(&id) {
+                window.rect = Rect::from_min_size(pos, window.rect.size());
+            }
+        }
+    }
+
     /// Carry out the commands a frame sent to native windows.
     fn apply(&mut self, full: &egui::FullOutput) {
         for (id, output) in &full.viewport_output {
@@ -448,7 +482,9 @@ impl NativeHost {
                 self.commands.push((*id, command.clone()));
                 let Some(window) = self.windows.get_mut(id) else { continue };
                 match command {
-                    egui::ViewportCommand::OuterPosition(pos) => window.rect = Rect::from_min_size(*pos, window.rect.size()),
+                    egui::ViewportCommand::OuterPosition(pos) if self.lag => self.late.push((*id, *pos + self.frame, self.frames)),
+                    egui::ViewportCommand::OuterPosition(pos) => window.rect = Rect::from_min_size(*pos + self.frame, window.rect.size()),
+                    egui::ViewportCommand::InnerSize(size) => window.rect = Rect::from_min_size(window.rect.min, *size),
                     egui::ViewportCommand::Visible(visible) => window.visible = *visible,
                     _ => {}
                 }
