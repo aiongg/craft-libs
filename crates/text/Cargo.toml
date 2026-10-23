@@ -45,7 +45,7 @@ segment = ["dep:unicode-linebreak", "dep:unicode-segmentation"]
 # dictionaries. Much smaller (for web builds), slower to run, and its words differ slightly.
 lstm = ["segment", "icu_segmenter?/lstm"]
 # Each feature below adds the data for one more language: for `hyphen`, hypher's patterns (see
-# NOTICE for their licenses; Slovak is `slovak-gpl`, outside `all-languages`); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
+# NOTICE for their licenses; Hungarian is MPL-1.1; Slovak is `slovak-gpl`, outside `all-languages`); for `segment`, ICU4X's word data for Thai, Lao, Khmer and Burmese
 # (one shared data set, Unicode License v3).
 all-languages = [
     "afrikaans",

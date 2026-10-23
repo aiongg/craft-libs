@@ -25,10 +25,17 @@ crates/text/assets/hyphen/en-us.pat: CC0-1.0, trained from en-us.dic by DesignCr
 Hyphenation patterns for other languages, embedded through the hypher crate only when the
   matching craft-text feature is enabled (none are by default). They come from hyph-utf8,
   https://github.com/hyphenation/tex-hyphen, as packaged in https://github.com/typst/hypher
-  (patterns/). Each file is under the license stated in its header: LPPL, MIT, BSD-3-Clause, the
-  Unlicense, a notice permitting any use, or a choice of licenses that includes one of these. An
-  application that enables a language ships that file's copyright and license notice. The
-  exception is Slovak (hyph-sk.tex, Copyright (C) 1992 Jana Chlebíková), under the GNU General
+  (patterns/). Each file is under the license stated in its header. Apart from the two files
+  below, that is LPPL, MIT, BSD-3-Clause, the Unlicense, a notice permitting any use, or a choice
+  of licenses that includes one of these. An application that enables a language ships that
+  file's copyright and license notice. Hungarian (hyph-hu.tex, Copyright (C) 2003 Bence Nagy,
+  feature "hungarian", included in "all-languages") is available under the Mozilla Public
+  License 1.1, the GNU GPL 2.0 or the GNU LGPL 2.1, at the recipient's option; craft-text uses it
+  unmodified under MPL-1.1 (https://www.mozilla.org/en-US/MPL/1.1/). An application that ships it
+  in an executable states that the file is under MPL-1.1 and where its source is available:
+  hyph-hu.tex in https://github.com/typst/hypher/tree/v0.1.8/patterns or
+  https://github.com/hyphenation/tex-hyphen. Slovak (hyph-sk.tex, Copyright (C) 1992 Jana
+  Chlebíková) is under the GNU General
   Public License, version 2 or later (SPDX: GPL-2.0-or-later). It is compiled in only with the
   feature "slovak-gpl", which "all-languages" does not include; an application that enables it
   ships GPL-licensed data. The Spanish patterns (feature "spanish") are hyph-es.tex 5.0.

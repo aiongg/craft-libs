@@ -41,9 +41,12 @@ Other languages use the patterns compiled into [hypher](https://crates.io/crates
 Each has a cargo feature named as in hypher (`spanish`, `german`, `norwegian`, …); `all-languages`
 enables 46 of them. Patterns for languages whose feature is off are not compiled in.
 
-Slovak's patterns are under the GPL, version 2 or later; the patterns of every other language are
-under a permissive license. Their feature is `slovak-gpl`, and `all-languages` leaves it out: a build that
-enables it ships GPL-licensed data.
+Slovak's patterns are under the GPL, version 2 or later. Their feature is `slovak-gpl`, and
+`all-languages` leaves it out: a build that enables it ships GPL-licensed data. Hungarian's
+patterns are under MPL-1.1 (or GPL-2.0 or LGPL-2.1): `hungarian` is in `all-languages`, and a
+build that enables it ships an MPL-1.1 file, whose license asks that its source be available to
+recipients (see [NOTICE](../../NOTICE)). The patterns of every other language are under a
+permissive license.
 
 ```rust
 use craft_text::hyphen::{Lang, Limits, hyphen_points_in};
@@ -298,7 +301,8 @@ Differences from the seeds:
 ## Licenses
 
 The word list is public domain; the trained patterns are CC0-1.0. hypher's patterns come from
-hyph-utf8 under their own permissive licenses (LPPL, MPL, MIT, BSD-3); see the repository's
+hyph-utf8 under their own licenses: LPPL, MIT, BSD-3-Clause and similar permissive terms, MPL-1.1
+for Hungarian and GPL-2.0-or-later for Slovak (`slovak-gpl` only); see the repository's
 [NOTICE](../../NOTICE) and [ATTRIBUTION.md](../../ATTRIBUTION.md).
 
 ## Checks
