@@ -239,15 +239,21 @@ fn dialog_screenshots() {
                     Words::Pseudo => Box::new(Pseudo::default()),
                 };
                 let fx = Fx { km, text, options, state: DialogState::new(), sets };
-                let mut h = Harness::builder().allow_missing_glyphs().with_size(case.size).with_pixels_per_point(scale).with_theme(theme).wgpu().build_ui_state(
-                    |ui, fx: &mut Fx| {
-                        egui::Frame::central_panel(ui.style()).show(ui, |ui| {
-                            let (d, state) = fx.dialog();
-                            d.ui(ui, state);
-                        });
-                    },
-                    fx,
-                );
+                let mut h = Harness::builder()
+                    .allow_missing_glyphs()
+                    .with_size(case.size)
+                    .with_pixels_per_point(scale)
+                    .with_theme(theme)
+                    .wgpu()
+                    .build_ui_state(
+                        |ui, fx: &mut Fx| {
+                            egui::Frame::central_panel(ui.style()).show(ui, |ui| {
+                                let (d, state) = fx.dialog();
+                                d.ui(ui, state);
+                            });
+                        },
+                        fx,
+                    );
                 h.ctx.set_fonts(fonts.clone());
                 h.run();
                 (case.act)(&mut h);

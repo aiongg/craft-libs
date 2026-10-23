@@ -434,9 +434,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                         }
                     });
                 });
-                response
-                    .response
-                    .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_panel_to_label));
+                response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_panel_to_label));
             }
             if policy.closable && self.style.close_menu_items {
                 let text = self.content.action_label(ui, &self.style.close_label, &self.style.font, self.style.text);
