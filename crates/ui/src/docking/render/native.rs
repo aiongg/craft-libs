@@ -698,6 +698,9 @@ fn block_input(ui: &mut Ui) {
     ui.input_mut(|i| {
         i.events.retain(kept);
         i.raw.events.retain(kept);
+        // File drops are fields of their own, not events.
+        i.raw.dropped_files.clear();
+        i.raw.hovered_files.clear();
         i.keys_down.clear();
         i.smooth_scroll_delta = Vec2::ZERO;
         i.pointer = Default::default();
