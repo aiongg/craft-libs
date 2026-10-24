@@ -17,8 +17,11 @@ mod native;
 #[cfg(all(test, feature = "native-windows"))]
 pub(in crate::docking) use {
     cross::DragPointer,
-    native::{APPKIT_CORNER, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands},
+    native::{APPKIT_CORNER, MACOS_CLOSE, Session, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
 };
+
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) use native::{InputHook, set_input_hook};
 
 /// The viewport of the native window `window` of the dock area `area`.
 #[cfg(feature = "native-windows")]
@@ -85,6 +88,9 @@ pub(super) struct Renderer<'a, P> {
     /// [`crate::docking::DockArea::input_blocked`].
     #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
     pub(super) input_blocked: bool,
+    /// [`crate::docking::DockArea::native_windows`].
+    #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
+    pub(super) native_windows: Option<bool>,
     /// The other OS windows a drag may cross into.
     #[cfg(feature = "native-windows")]
     pub(super) cross: cross::Cross<P>,
@@ -369,6 +375,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // Any button: a canvas pans with the middle button and opens menus with the secondary.
         if child.rect_contains_pointer(rect) && child.input(|i| i.pointer.any_pressed()) {
             self.output.focused = Some(panel.clone());
+        }
+        #[cfg(feature = "native-windows")]
+        if child.rect_contains_pointer(rect) {
+            self.cross.pointed = Some(panel.clone());
         }
     }
 }

@@ -38,9 +38,14 @@ pub struct DockStyle {
     pub float_group_label: String,
     /// Group menu item that moves the whole group into another group (submenu of targets).
     pub move_group_to_label: String,
-    /// Minimum width of the drag bar left of the group header. Tabs overflow before the bar
-    /// narrows.
+    /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
+    /// before the bar narrows; a strip narrower than the header plus this width narrows it.
     pub drag_bar_width: f32,
+    /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu: about
+    /// three characters and the "…" at [`Self::font`]'s size, plus the tab's 24 pt padding
+    /// (54 pt at the default 12 pt font). Tabs whose names are shorter keep their natural
+    /// width. Set it again after changing the font.
+    pub min_tab_width: f32,
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
     pub floating_background: Color32,
     pub floating_stroke: Stroke,
@@ -137,6 +142,7 @@ impl DockStyle {
     }
 
     pub fn from_visuals(visuals: &egui::Visuals) -> Self {
+        let font = FontId::proportional(12.0);
         Self {
             tab_height: 26.0,
             gap: 4.0,
@@ -148,7 +154,8 @@ impl DockStyle {
             inactive_text: visuals.weak_text_color(),
             border: visuals.widgets.noninteractive.bg_stroke,
             accent: visuals.selection.stroke.color,
-            font: FontId::proportional(12.0),
+            min_tab_width: font.size * 2.5 + TAB_PADDING,
+            font,
             float_label: "Float Panel".into(),
             close_label: "Close Panel".into(),
             move_panel_to_label: "Move Panel to Group".into(),
@@ -211,6 +218,7 @@ impl DockStyle {
             self.border.width,
             self.font.size,
             self.drag_bar_width,
+            self.min_tab_width,
             self.floating_stroke.width,
             self.title_height,
             self.edge_band,
@@ -256,6 +264,28 @@ pub struct DockOutput<P> {
     /// forwarded any. egui-winit turns Cmd/Ctrl+C, X and V into `Copy`, `Cut` and `Paste`
     /// without the key, so these tell them from the keyboard's own Copy, Cut and Paste keys.
     pub forwarded_modifiers: Option<egui::Modifiers>,
+    /// Files dragged over or dropped on floating windows in their own OS windows this frame,
+    /// one entry per window (feature `native-windows`). egui hands each OS window only its own
+    /// input, so the main window's `RawInput` never holds them.
+    pub window_files: Vec<WindowFiles<P>>,
+}
+
+/// Files dragged over or dropped on a native floating window in one frame.
+#[derive(Clone, Debug)]
+pub struct WindowFiles<P> {
+    /// [`super::Floating::id`] of the window.
+    pub window: u64,
+    /// The window's egui viewport.
+    pub viewport: egui::ViewportId,
+    /// The panel whose body is under the pointer, else the window's shown panel: the window
+    /// system may send no pointer moves while files are dragged in.
+    pub panel: P,
+    /// The pointer's last position in the window's coordinates, where egui has one.
+    pub pos: Option<Pos2>,
+    /// The window's `RawInput::hovered_files`.
+    pub hovered: Vec<egui::HoveredFile>,
+    /// The window's `RawInput::dropped_files`.
+    pub dropped: Vec<egui::DroppedFileHandle>,
 }
 
 impl<P> Default for DockOutput<P> {
@@ -269,6 +299,7 @@ impl<P> Default for DockOutput<P> {
             events: Vec::new(),
             forwarded_events: Vec::new(),
             forwarded_modifiers: None,
+            window_files: Vec::new(),
         }
     }
 }
@@ -504,6 +535,20 @@ impl DockHeights {
     }
 }
 
+/// How a floating window in its own OS window behaves (feature `native-windows`), see
+/// [`DockContent::window_kind`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WindowKind {
+    /// A tool palette: it stays above other windows and hides while none of the app's windows
+    /// has focus.
+    #[default]
+    Palette,
+    /// A window of its own, such as a viewer on a second display: normal window level, and it
+    /// stays shown while the app is in the background.
+    Normal,
+}
+
 #[derive(Clone)]
 pub(super) struct Drag<P> {
     pub(super) panel: P,
@@ -632,6 +677,11 @@ pub trait DockContent<P> {
     fn allow_native(&self, _panel: &P) -> bool {
         true
     }
+    /// How the panel's native floating window behaves (feature `native-windows`). A window
+    /// holding any [`WindowKind::Normal`] panel is a normal window; the rest are palettes.
+    fn window_kind(&self, _panel: &P) -> WindowKind {
+        WindowKind::Palette
+    }
     /// Host-owned drop resolution for targets the renderer cannot know about. Returning
     /// feedback consumes the gesture, including no-op targets; the renderer then emits no move.
     fn resolve_drag(&mut self, _ctx: &Context, _style: &DockStyle, _request: &DropRequest<'_, P>) -> Option<DropFeedback> {
@@ -717,6 +767,9 @@ impl<P, C: DockContent<P> + ?Sized> DockContent<P> for Overrides<'_, P, C> {
     fn allow_native(&self, panel: &P) -> bool {
         self.inner.allow_native(panel)
     }
+    fn window_kind(&self, panel: &P) -> WindowKind {
+        self.inner.window_kind(panel)
+    }
     fn resolve_drag(&mut self, ctx: &Context, style: &DockStyle, request: &DropRequest<'_, P>) -> Option<DropFeedback> {
         self.inner.resolve_drag(ctx, style, request)
     }
@@ -750,6 +803,9 @@ pub struct DockArea<'a, P = ()> {
     float_bounds: Option<Rect>,
     monitors: Vec<Monitor>,
     input_blocked: bool,
+    native_windows: Option<bool>,
+    #[cfg(feature = "native-windows")]
+    input_hook: Option<super::render::InputHook>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
@@ -765,6 +821,9 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             float_bounds: None,
             monitors: Vec::new(),
             input_blocked: false,
+            native_windows: None,
+            #[cfg(feature = "native-windows")]
+            input_hook: None,
         }
     }
 
@@ -781,12 +840,22 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// true while the application shows a modal dialog. egui's `Modal` blocks only the
     /// viewport it is shown in, so the OS windows of floating panels would otherwise still take
     /// clicks and keys. A blocked window is drawn under [`DockStyle::blocked_dim`]; its bar,
-    /// tabs, body and resize edges take no pointer, keys, text or scrolling, forward no events,
-    /// and offer no drop targets, and its OS close request is cancelled. Turning it on cancels
+    /// tabs, body and resize edges take no pointer, keys, text, scrolling or files, forward no
+    /// events, and offer no drop targets, and its OS close request is cancelled. Turning it on cancels
     /// any drag in progress. Floating windows drawn in the main window need nothing from this:
     /// the modal covers them.
     pub fn input_blocked(mut self, blocked: bool) -> Self {
         self.input_blocked = blocked;
+        self
+    }
+
+    /// Whether floating windows open in their own OS windows (feature `native-windows`), where
+    /// the backend has viewports. Off, they stay in the app window, and their native rects are
+    /// kept for a later run with it on. By default it is on, except on Wayland: the compositor
+    /// reports no window positions, so a native window could not dock again by drag or open
+    /// where it was.
+    pub fn native_windows(mut self, on: bool) -> Self {
+        self.native_windows = Some(on);
         self
     }
 
@@ -795,6 +864,19 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     #[cfg(feature = "native-windows")]
     pub fn window_viewport(id: Id, window: u64) -> egui::ViewportId {
         super::render::native_viewport(id, window)
+    }
+
+    /// Rewrite the input of each native window of this area before egui reads it (feature
+    /// `native-windows`), as `eframe::App::raw_input_hook` does for the main window only. Pass
+    /// it every frame; a frame without it runs none. The hook runs for every pass of each
+    /// window's frame, before any widget sees the input, so rewritten pointer events count as
+    /// sent. `RawInput::viewport_id` names the window (see [`Self::window_viewport`]). State
+    /// shared with the app's own `raw_input_hook`, which takes `&mut self`, goes in an
+    /// `Arc<Mutex<…>>`.
+    #[cfg(feature = "native-windows")]
+    pub fn native_input_hook(mut self, hook: impl FnMut(&Context, &mut egui::RawInput) + Send + 'static) -> Self {
+        self.input_hook = Some(Box::new(hook));
+        self
     }
 
     /// [D] Auto-Collapse Iconic Panels (default on): a flyout closes on Escape or a press
@@ -912,6 +994,8 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
 
     /// Render with every label, policy and size from `content`.
     pub fn show_content(self, ui: &mut Ui, layout: &Layout<P>, style: &DockStyle, content: &mut dyn DockContent<P>) -> DockOutput<P> {
+        #[cfg(feature = "native-windows")]
+        super::render::set_input_hook(ui.ctx(), self.id, self.input_hook);
         let rect = ui.available_rect_before_wrap();
         if let Err(error) = layout.validate() {
             cancel_drag::<P>(ui.ctx(), self.id);
@@ -961,6 +1045,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             tree: None,
             monitors: self.monitors,
             input_blocked: self.input_blocked,
+            native_windows: self.native_windows,
             #[cfg(feature = "native-windows")]
             cross: Default::default(),
         };
@@ -981,6 +1066,14 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         record_tab_focus(ui.ctx(), self.id, layout, !renderer.output.actions.is_empty());
         ui.ctx().data_mut(|d| d.insert_temp(float_space_key(self.id), renderer.float_space));
         ui.ctx().data_mut(|d| d.insert_temp(self.id.with("owned-interactions"), renderer.owned_interactions));
+        // egui runs a discarded pass again with the same hovered files (dropped ones are
+        // taken), so only the next pass reports them.
+        if ui.ctx().will_discard() {
+            renderer.output.window_files.retain_mut(|files| {
+                files.hovered.clear();
+                !files.dropped.is_empty()
+            });
+        }
         renderer.output
     }
 }
