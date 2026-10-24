@@ -386,6 +386,19 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
     background. They stack with the main window by focus, below every palette; a drag over a
     normal window that lies behind the main window targets the main window where the two
     overlap, and the normal window outside the main window.
+  - Like palettes, normal windows have no taskbar entry; they come forward with the app
+    instead. When one of the app's windows gains focus after none had it for the hide delay,
+    each normal window gets `WindowLevel::AlwaysOnTop` and then `WindowLevel::Normal`, one
+    window per frame, the back one first. They keep their order among themselves, nothing
+    takes focus, and a normal window the user activated is raised last, so it stays in front.
+    Raised while the main window has focus, they lie in front of it. On Windows the toggle
+    puts the window in front of every window that is not topmost, without activating it; on
+    X11 the window manager raises a window as it takes `_NET_WM_STATE_ABOVE`. egui 0.36
+    cannot make the main window a native window's owner, which on Windows would bring the
+    window forward with the main window, and `ViewportCommand::Focus` would take focus. On
+    macOS nothing is raised: activation from the Dock or the application switcher brings all
+    of the app's windows forward, and a click brings the clicked window alone, as with the
+    app's other windows.
 - **Bar.** Each window has a bar at the top, 18 points high, in the floating title bar's style:
   the title (the shown panel of its first group) and ×. Dragging the bar moves the window. On
   Wayland, where a window cannot be placed, the bar hands the move to the compositor. On

@@ -386,6 +386,57 @@ fn viewer_windows_stay_shown_at_normal_level() {
 }
 
 #[test]
+fn viewer_windows_come_forward_when_the_app_is_activated() {
+    use egui::{ViewportId, WindowLevel};
+    let mut layout = layout(false);
+    layout.floating = vec![
+        Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]),
+        Floating::single(vec![6], 0, [560.0, 80.0, 240.0, 300.0]),
+        Floating::single(vec![7], 0, [820.0, 80.0, 240.0, 300.0]),
+    ];
+    let mut d = driver(layout);
+    d.content.normal = vec![5, 7];
+    d.step(vec![]);
+    let [back, palette, front] = [5, 6, 7].map(|p| d.viewport(window(&d, p).id));
+    let focus = |d: &mut DockDriver<u32, Content>, window: Option<ViewportId>, frames: usize| {
+        d.host().focus = window;
+        for _ in 0..frames {
+            d.step(vec![]);
+        }
+    };
+    // Focus moving between the app's own windows, with a frame of none between two, raises
+    // nothing.
+    focus(&mut d, Some(back), 2);
+    focus(&mut d, None, 1);
+    focus(&mut d, Some(front), 2);
+    focus(&mut d, Some(ViewportId::ROOT), 2);
+    let levels = |d: &mut DockDriver<u32, Content>| -> Vec<(ViewportId, WindowLevel)> {
+        let mut host = d.host();
+        assert!(!host.commands.iter().any(|(_, c)| matches!(c, ViewportCommand::Focus)), "no window takes focus");
+        let levels = host.commands.iter().filter_map(|(v, c)| if let ViewportCommand::WindowLevel(l) = c { Some((*v, *l)) } else { None }).collect();
+        host.commands.clear();
+        levels
+    };
+    assert_eq!(levels(&mut d), []);
+    // Another application, then back through the main window: each viewer is raised once, the
+    // back one first, without focus; the palette only shows again.
+    let raised = |order: [ViewportId; 2]| -> Vec<(ViewportId, WindowLevel)> {
+        if cfg!(target_os = "macos") {
+            return Vec::new();
+        }
+        order.into_iter().flat_map(|v| [(v, WindowLevel::AlwaysOnTop), (v, WindowLevel::Normal)]).collect()
+    };
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(ViewportId::ROOT), 10);
+    assert_eq!(levels(&mut d), raised([back, front]));
+    assert!(d.host().windows[&palette].visible);
+    // Back through the back viewer: it is raised last, so it stays in front.
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(back), 10);
+    assert_eq!(levels(&mut d), raised([front, back]));
+}
+
+#[test]
 fn unused_keys_in_a_native_window_reach_the_app() {
     let mut d = driver(layout(true));
     let id = window(&d, 5).id;
