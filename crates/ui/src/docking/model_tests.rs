@@ -255,6 +255,60 @@ fn panels_closed_one_by_one_reopen_into_one_group() {
 }
 
 #[test]
+fn panels_closed_one_by_one_reopen_on_their_own_sides() {
+    let allow = |_: &u32| Permissions::default();
+    let orders = [[2, 3], [3, 2]];
+    let frames = Layout {
+        root: Some(hsplit(SplitSize::Ratio(0.3), tabs(&[1], 0), hsplit(SplitSize::Ratio(0.5), tabs(&[2], 0), tabs(&[3], 0)))),
+        floating: Vec::new(),
+    };
+    let columns = Layout {
+        root: Some(hsplit(
+            SplitSize::FixedSecond(480.0),
+            tabs(&[1], 0),
+            Node::Dock { side: Side::End, columns: vec![Column::new(vec![g(&[2], 0)], 240.0), Column::new(vec![g(&[3], 0)], 240.0)] },
+        )),
+        floating: Vec::new(),
+    };
+    for close in orders {
+        for reopen in orders {
+            let mut workspace = Workspace::new(frames.clone());
+            for (panel, visible) in close.iter().map(|p| (*p, false)).chain(reopen.iter().map(|p| (*p, true))) {
+                workspace.set_visible(panel, visible, None, allow).unwrap();
+            }
+            let order: Vec<u32> = workspace.layout.panels().into_iter().copied().collect();
+            assert_eq!(order, [1, 2, 3], "{close:?} {reopen:?}: {:?}", workspace.layout);
+            assert!(order.iter().all(|p| matches!(workspace.layout.place(p), Some(Place::Node(_)))));
+            assert_ne!(workspace.layout.place(&2), workspace.layout.place(&3), "{close:?} {reopen:?}");
+
+            let mut workspace = Workspace::new(columns.clone());
+            for (panel, visible) in close.iter().map(|p| (*p, false)).chain(reopen.iter().map(|p| (*p, true))) {
+                workspace.set_visible(panel, visible, None, allow).unwrap();
+            }
+            let groups: Vec<_> = dock(&workspace.layout, Side::End).iter().map(|c| panels_of(&c.groups)).collect();
+            assert_eq!(groups, [vec![vec![2]], vec![vec![3]]], "{close:?} {reopen:?}");
+        }
+    }
+    // A panel that sat at the edge beside a hidden one keeps that one's own location: 3 opens
+    // right of 1, not as a tab beside 2.
+    let mut workspace = Workspace::new(Layout { root: Some(tabs(&[1], 0)), floating: Vec::new() });
+    let at = |anchor: u32, placement: Placement<u32>| Location {
+        floating: None,
+        anchor: Some(anchor),
+        placement,
+        size: None,
+        stack: None,
+        sibling: Vec::new(),
+        group: None,
+    };
+    workspace.hidden = vec![(2, at(3, Placement::Edge(Zone::Right))), (3, at(1, Placement::Split(Zone::Right)))];
+    workspace.set_visible(2, true, None, allow).unwrap();
+    workspace.set_visible(3, true, None, allow).unwrap();
+    assert!(matches!(workspace.layout.place(&3), Some(Place::Node(_))));
+    assert_ne!(workspace.layout.place(&2), workspace.layout.place(&3), "{:?}", workspace.layout);
+}
+
+#[test]
 fn restore_into_a_column_group_seam_and_new_column_round_trips() {
     let column_a = Column::new(vec![g(&[2, 3], 1), Group { minimized: true, height: Some(150.0), ..g(&[4], 0) }, g(&[9], 0)], 180.0);
     let column_b = Column { iconic: true, iconic_width: Some(48.0), ..Column::new(vec![g(&[5], 0)], 120.0) };

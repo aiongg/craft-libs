@@ -171,8 +171,10 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
             .unwrap_or(Err(DockError::MissingTarget))?;
         for i in 1..=used {
             let (before, location) = &chain[i - 1];
-            if let Some((_, own)) = self.hidden.iter_mut().find(|(p, _)| p == &chain[i].0) {
-                *own = reversed(own, location, before);
+            if let Some((_, own)) = self.hidden.iter_mut().find(|(p, _)| p == &chain[i].0)
+                && let Some(location) = reversed(own, location, before)
+            {
+                *own = location;
             }
         }
         Ok(())
@@ -287,8 +289,8 @@ fn close_locations<P: Clone + Eq + Hash>(layout: &Layout<P>, closed: &[P]) -> Ve
 }
 
 /// The location of a hidden panel beside `panel`, whose `location` anchors on it: the same
-/// relation from the other side.
-fn reversed<P: Clone + Eq>(hidden: &Location<P>, location: &Location<P>, panel: &P) -> Location<P> {
+/// relation from the other side. `None` for an outer-edge frame, which only sat beside it.
+fn reversed<P: Clone + Eq>(hidden: &Location<P>, location: &Location<P>, panel: &P) -> Option<Location<P>> {
     let next = match &hidden.placement {
         Placement::Tab { before } => before.clone(),
         _ => None,
@@ -304,7 +306,7 @@ fn reversed<P: Clone + Eq>(hidden: &Location<P>, location: &Location<P>, panel: 
         Placement::Split(Zone::Bottom) => (Placement::Split(Zone::Top), location.size),
         Placement::Group { below, .. } => (Placement::Group { below: !below, height: None }, None),
         Placement::Column { after } => (Placement::Column { after: !after }, None),
-        Placement::Edge(_) => (Placement::Tab { before: None }, None),
+        Placement::Edge(_) => return None,
     };
-    Location { floating: None, anchor: Some(panel.clone()), placement, size, sibling: Vec::new(), ..hidden.clone() }
+    Some(Location { floating: None, anchor: Some(panel.clone()), placement, size, sibling: Vec::new(), ..hidden.clone() })
 }
