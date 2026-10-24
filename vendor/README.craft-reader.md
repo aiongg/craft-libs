@@ -66,8 +66,8 @@ Hostile-input bounds (CodeRabbit findings):
 - An xref-stream `/W` type field wider than one byte is read at its full width (big-endian)
   instead of only its first byte, and `/W[0]` over 8 bytes is refused like `/W[1]`.
   A dash array over 256 entries strokes solid.
-- An xref-stream subsection running past object number u32::MAX is refused instead of
-  overflowing the object number.
+- An xref-stream subsection running past object number `i32::MAX` is refused instead of
+  overflowing or turning negative.
 - A CID font's `/W2` run that starts past CID 65535 is skipped as in `/W`, instead of
   overflowing and discarding the whole table.
 
