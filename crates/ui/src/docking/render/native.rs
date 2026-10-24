@@ -355,7 +355,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn raise_next(&self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)]) {
         let key = self.id.with("native-raise");
         let Some(mut queue) = ctx.data_mut(|d| d.remove_temp::<Vec<u64>>(key)) else { return };
-        let viewport = |id: u64| natives.iter().find(|(w, ..)| w.id == id).map(|(.., v)| *v);
+        // A window that became a palette since activation keeps its `AlwaysOnTop` level.
+        let viewport = |id: u64| natives.iter().find(|(w, ..)| w.id == id && self.normal_window(w)).map(|(.., v)| *v);
         queue.retain(|id| viewport(*id).is_some());
         if queue.is_empty() {
             return;

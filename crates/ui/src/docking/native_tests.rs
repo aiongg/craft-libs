@@ -434,6 +434,15 @@ fn viewer_windows_come_forward_when_the_app_is_activated() {
     focus(&mut d, None, 20);
     focus(&mut d, Some(back), 10);
     assert_eq!(levels(&mut d), raised([front, back]));
+    // A queued viewer that turns into a palette before its turn is not raised: the raise
+    // would leave it at the normal level.
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(ViewportId::ROOT), 1);
+    d.content.normal = vec![7];
+    focus(&mut d, Some(ViewportId::ROOT), 10);
+    let mut front_only = raised([front, back]);
+    front_only.truncate(front_only.len() / 2);
+    assert_eq!(levels(&mut d), front_only);
 }
 
 #[test]
