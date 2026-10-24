@@ -909,10 +909,15 @@ dependencies = [
  "epaint",
  "fontique",
  "image",
+ "js-sys",
  "serde",
  "serde_json",
  "skrifa 0.44.0",
  "unicode-script",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
 ]
 
 [[package]]
