@@ -79,7 +79,7 @@ impl DockContent<u32> for GalleyLabels {
 }
 
 #[test]
-fn galley_labels_stay_whole_and_only_an_over_wide_active_tab_ends_with_an_ellipsis_inside_it() {
+fn galley_labels_in_shrunk_tabs_end_with_an_ellipsis_inside_the_tab_active_or_not() {
     let panels = [1, 2, 3, 4, 5, 6];
     let layout = Layout { root: Some(tabs(&panels, 3)), floating: Vec::new() };
     for width in [320.0, 90.0] {
@@ -111,8 +111,7 @@ fn galley_labels_stay_whole_and_only_an_over_wide_active_tab_ends_with_an_ellips
             let Some((clip, text)) = texts.iter().find(|(_, t)| t.galley.text().ends_with(&format!(" {panel}")) && tab.contains(t.pos)) else {
                 panic!("no label in tab {panel}")
             };
-            let cut = width < 100.0;
-            assert_eq!(last_char(&text.galley), if cut { Some('…') } else { char::from_digit(panel, 10) }, "{width}: tab {panel}");
+            assert_eq!(last_char(&text.galley), Some('…'), "{width}: tab {panel}");
             let drawn = Rect::from_min_size(text.pos, text.galley.size());
             assert!(drawn.right() <= tab.right() + 0.5 && drawn.left() >= tab.left(), "tab {panel}: {drawn:?} in {tab:?}");
             assert!(tab.contains_rect(clip.intersect(drawn)), "tab {panel}");
@@ -158,6 +157,35 @@ fn double_click_on_a_tab_of_a_minimized_group_ends_expanded() {
     d.click(other);
     assert!(!minimized(&d));
     assert_eq!(d.layout.floating[0].groups()[0].active_panel(), Some(&5));
+}
+
+#[test]
+fn double_click_on_the_active_tab_of_a_minimized_group_or_window_ends_expanded() {
+    let window = Floating { minimized: true, ..Floating::single(vec![5, 6], 1, [80.0, 70.0, 300.0, 220.0]) };
+    let mut d = Driver::new(Layout { root: Some(tabs(&[1], 0)), floating: vec![window] });
+    let active = d.tab(6).center();
+    d.click(active);
+    d.click(active);
+    assert!(!d.layout.floating[0].minimized);
+
+    let mut layout = docked();
+    let Some(Node::Split { first, .. }) = &mut layout.root else { panic!() };
+    let group = Group { minimized: true, ..Group::new(vec![2, 3], 1) };
+    **first = Node::Dock { side: Side::Start, columns: vec![Column::new(vec![group], 240.0)] };
+    let mut d = Driver::new(layout);
+    let minimized = |d: &Driver| {
+        let Some(Node::Split { first, .. }) = &d.layout.root else { panic!() };
+        let Node::Dock { columns, .. } = &**first else { panic!() };
+        columns[0].groups[0].minimized
+    };
+    let active = d.tab(3).center();
+    d.click(active);
+    d.click(active);
+    assert!(!minimized(&d));
+    d.wait();
+    d.click(active);
+    d.click(active);
+    assert!(minimized(&d));
 }
 
 #[test]
