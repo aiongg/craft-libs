@@ -365,6 +365,9 @@ pub enum Action<P> {
         panel: P,
     },
     /// Reveal a registered, currently absent panel. Applications validate their panel registry.
+    /// `anchor` names the group it joins as the last tab. Without one it becomes the root of an
+    /// empty layout, else joins the first dock group that accepts tabs, else gets a new frame
+    /// at the right edge of the docked area ([`Placement::Edge`]).
     Open {
         panel: P,
         anchor: Option<P>,
@@ -909,6 +912,13 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// application, particularly Open.
     pub fn apply_with_permissions(&mut self, action: Action<P>, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
         self.validate()?;
+        let action = match action {
+            Action::Open { panel, anchor: None } if self.root.is_some() && !self.contains(&panel) => {
+                let (anchor, placement) = self.open_place(&permissions).ok_or(DockError::MissingTarget)?;
+                Action::OpenAt { panel, anchor, placement }
+            }
+            action => action,
+        };
         match &action {
             Action::Move { panel, anchor, placement } | Action::OpenAt { panel, anchor, placement } => {
                 // Opening an absent panel moves nothing, so it works in a locked workspace too.
@@ -1239,6 +1249,22 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             }
         }
         removed
+    }
+
+    /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
+    /// the end of the first dock group that accepts tabs, else a new frame at the right edge
+    /// of the docked area.
+    fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
+        let docked: Vec<(&P, Place)> = self
+            .panels()
+            .into_iter()
+            .filter_map(|p| Some((p, self.place(p)?)))
+            .filter(|(_, place)| !matches!(place, Place::Floating { .. }))
+            .collect();
+        if let Some((panel, _)) = docked.iter().find(|(p, place)| matches!(place, Place::Dock { .. }) && permissions(p).accepts_tabs) {
+            return Some(((*panel).clone(), Placement::Tab { before: None }));
+        }
+        docked.first().map(|(panel, _)| ((*panel).clone(), Placement::Edge(Zone::Right)))
     }
 
     fn insert(&mut self, entry: StackEntry<P>, anchor: &P, placement: Placement<P>) -> Result<(), DockError> {
