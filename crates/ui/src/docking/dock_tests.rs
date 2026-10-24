@@ -615,3 +615,90 @@ fn screen_reader_values_follow_the_column_width_on_either_edge() {
         assert_eq!(out.actions, vec![Action::ResizeColumn { panel: 2, width }], "{case}");
     }
 }
+
+/// Panels 1-3 as a creative app's Color, Properties and Layers: Layers fills the column and asks
+/// for room for about ten rows.
+struct Creative;
+
+impl DockContent<u32> for Creative {
+    fn body(&mut self, ui: &mut egui::Ui, _: &u32) {
+        ui.label("Body");
+    }
+    fn permissions(&self, panel: &u32) -> Permissions {
+        if *panel == 0 { Permissions::PROTECTED } else { Permissions::default() }
+    }
+    fn limits(&self, panel: &u32) -> PanelLimits {
+        PanelLimits { min: vec2(0.0, if *panel == 3 { 120.0 } else { 60.0 }), ..PanelLimits::default() }
+    }
+    fn dock_heights(&self, panel: &u32) -> Option<DockHeights> {
+        match panel {
+            1 => Some(DockHeights::new(160.0).compact(100.0)),
+            2 => Some(DockHeights::new(220.0).compact(130.0)),
+            3 => Some(DockHeights::new(300.0).fill(480.0)),
+            _ => None,
+        }
+    }
+}
+
+/// Color, Properties and Layers docked in a window `height` tall, with saved `heights`.
+fn sized_column(height: f32, heights: [Option<f32>; 3]) -> testing::DockDriver<u32, Creative> {
+    let mut layout = docked(Side::Start, &[&[&[1], &[2], &[3]]]);
+    if let Some(Node::Split { first, .. }) = &mut layout.root
+        && let Node::Dock { columns, .. } = first.as_mut()
+    {
+        columns[0].groups.iter_mut().zip(heights).for_each(|(g, h)| g.height = h);
+    }
+    let mut d = testing::DockDriver::new(layout, Creative);
+    d.screen = Rect::from_min_size(Pos2::ZERO, vec2(1440.0, height));
+    d.area = d.screen;
+    d.settle();
+    d
+}
+
+/// Heights of the column's groups as drawn, from their tabs' tops.
+fn drawn_heights(d: &testing::DockDriver<u32, Creative>) -> [f32; 3] {
+    let top = |p| d.hit(&Hit::Tab(p)).unwrap().top();
+    [top(2) - top(1), top(3) - top(2), d.area.bottom() - top(3)]
+}
+
+#[test]
+fn a_default_column_gives_the_filler_its_fill_height() {
+    let strip = DockStyle::from_visuals(&egui::Visuals::dark()).tab_height;
+    // A 900 pt window: Color and Properties give way, towards their compact heights, so Layers
+    // gets the height it asks for.
+    let d = sized_column(900.0, [None; 3]);
+    let [color, properties, layers] = drawn_heights(&d);
+    assert!((layers - (480.0 + strip)).abs() < 0.5, "{:?}", drawn_heights(&d));
+    assert!(color < 160.0 + strip && color >= 100.0 + strip, "{:?}", drawn_heights(&d));
+    assert!(properties < 220.0 + strip && properties >= 130.0 + strip, "{:?}", drawn_heights(&d));
+    // A tall window: both at their defaults, Layers takes the rest.
+    let d = sized_column(1200.0, [None; 3]);
+    let [color, properties, layers] = drawn_heights(&d);
+    assert_eq!((color, properties), (160.0 + strip, 220.0 + strip));
+    assert!(layers > 480.0 + strip);
+    // Nothing is saved until the user resizes a group.
+    assert!(column(&d.layout, 0).groups.iter().all(|g| g.height.is_none()));
+}
+
+#[test]
+fn defaults_give_way_to_the_filler_but_user_heights_stay() {
+    let open = |saved: Option<f32>, min: f32, content: Option<DockHeights>| render::GroupSize { minimized: false, saved, min, content };
+    let color = Some(DockHeights::new(186.0).compact(126.0));
+    let properties = Some(DockHeights::new(246.0).compact(156.0));
+    let layers = Some(DockHeights::new(326.0).fill(506.0));
+    let column = [open(None, 86.0, color), open(None, 86.0, properties), open(None, 146.0, layers)];
+    // Tall: defaults, the filler takes the rest.
+    assert_eq!(render::group_heights(&column, 26.0, 1200.0), vec![186.0, 246.0, 768.0]);
+    // Short: the defaults give way in proportion to their room above the compact heights.
+    assert_eq!(render::group_heights(&column, 26.0, 863.0), vec![156.0, 201.0, 506.0]);
+    // Shorter than the compact heights and the fill: every group gives way towards its minimum.
+    let hs = render::group_heights(&column, 26.0, 400.0);
+    assert!(hs.iter().zip(&column).all(|(h, g)| *h >= g.min - 0.01), "{hs:?}");
+    assert!((hs.iter().sum::<f32>() - 400.0).abs() < 0.01 && hs[0] < 126.0 && hs[1] < 156.0, "{hs:?}");
+    // Heights the user set stay; only the defaults give way.
+    let mine = [open(Some(200.0), 86.0, color), open(None, 86.0, properties), open(None, 146.0, layers)];
+    assert_eq!(render::group_heights(&mine, 26.0, 838.0), vec![200.0, 156.0, 482.0]);
+    // In a drawn column too: Layers gets less than it asks for rather than the user's heights.
+    let d = sized_column(900.0, [Some(200.0), Some(340.0), None]);
+    assert_eq!(drawn_heights(&d), [200.0, 340.0, 900.0 - 14.0 - 540.0]);
+}
