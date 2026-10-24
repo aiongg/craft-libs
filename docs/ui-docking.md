@@ -33,7 +33,7 @@ their sides.
 | Node | Holds |
 |---|---|
 | `Tabs` | A tab group: panels and the active index. |
-| `Split` | Two children, horizontal or vertical, with a ratio. A fixed first or second size from a saved layout is drawn at that size until the divider moves; a moved divider stores a ratio. |
+| `Split` | Two children, horizontal or vertical, and a size: a ratio, a fixed first size or a fixed second size. A moved divider keeps the mode: a fixed side stores its new size in points, a ratio its new ratio. |
 | `Stack` | Accordion entries, each open or closed, with an optional height. |
 | `Dock` | A side and its columns. A `Column` has `Group`s, a width, and `iconic`. |
 
@@ -128,7 +128,7 @@ returns a `DockOutput`. It does not change the layout. The app applies `output.a
 its own command path, so pointer, keyboard and control commands share one path.
 
 `DockContent<P>` is the app's adapter. It draws each panel body and gives its label, icon,
-permissions, size limits, preferred floating size, panel menu and group header. The group header
+permissions, size limits, dock column heights, preferred floating size, panel menu and group header. The group header
 sits at the end of the tab strip; `group_header_width` gets the strip width, so a header that
 draws its own tabs can size them to the room left. An icon is an image (`icon`), or drawn in code by `paint_icon`, which
 gets a painter, the icon rect and the tint color and returns true when it painted. Panel bodies keep a stable egui id when they move, so widget memory
@@ -242,6 +242,18 @@ A flyout fits its content the same way, without the title bar.
   ask for more through `PanelLimits::min`. Frames have no maximum unless every panel in them asks
   for one through `PanelLimits::max`: a panel without a maximum lifts the maximum of the panels it
   joins.
+- A dock column stacks its groups top to bottom. A minimized group shows only its tab strip, and a
+  group the user resized keeps that `Group::height`. A group the user never resized (`height` is
+  `None`) takes the default height its panels ask for through `DockContent::dock_heights`. Groups
+  whose panels ask for a `fill` height share the rest of the column, and groups whose panels ask
+  for no heights take their minimum. When no group asks for a fill, the groups without heights
+  share the rest, and when every open group has a height, the last one fills the column. In a short column the groups at their default give way first, down
+  to their `compact` heights, so the filling group gets its `fill` height. When the column is still
+  too short, every group gives way down to its minimum, and past that the column scrolls. Defaults
+  give way nearest the filling group first: one is at its compact height before the next gives
+  way. Towards the minimums, groups give way in proportion to their room. A group takes the
+  largest default, compact and fill height of its panels. All three are body heights, without
+  the tab strip, like `PanelLimits`.
 - Drop previews show the destination: an outline for tabs, a line for a new group, column or dock,
   a filled half for a split. With `side_edge_zones`, a drag over a group instead outlines each of
   its zones that a drop would change something in (the side trapezoids, the center rectangle and
@@ -376,7 +388,9 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   buttons, so the corner's grab runs down beside the ×; elsewhere the top band lies over the
   bar's drag area. The OS runs the resize from a band (`ViewportCommand::BeginResize`).
 - **Close.** The bar's × and the OS close request close the window's panels, as the
-  floating window's × does. They reopen from the app's Window menu.
+  floating window's × does. They reopen from the app's Window menu. A window with a panel that
+  may not close, or in a locked area, has no × and answers the OS close request with
+  `ViewportCommand::CancelClose`.
 - **Place.** `Floating::native` is the desktop rect of the window's content (egui's
   `inner_rect`), and the in-window `rect` follows it for builds that draw the window in-window.
   The content is also the window's origin for drags; only `ViewportCommand::OuterPosition`
