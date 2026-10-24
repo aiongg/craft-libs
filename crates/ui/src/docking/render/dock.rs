@@ -77,21 +77,27 @@ pub(in crate::docking) struct GroupSize {
     /// `Group::height`: set by the user; `None` or not finite when never resized.
     pub(in crate::docking) saved: Option<f32>,
     pub(in crate::docking) min: f32,
-    /// The content's [`DockHeights`](crate::docking::DockHeights), the strip added.
+    /// The content's [`DockHeights`](crate::docking::DockHeights), the strip added (to a
+    /// `fill` above 0 only, so 0 still means the group does not ask to fill).
     pub(in crate::docking) content: Option<DockHeights>,
 }
 
 /// Heights of stacked groups in a column body `room` high. Minimized groups take `strip`,
-/// groups with a saved height keep it, groups the user never resized take their content's
-/// default height, and the rest share what is left; when every open group has a height, the
-/// last one takes the rest. Default heights shrink towards their compact heights until the
+/// groups with a saved height keep it, and groups the user never resized whose content asks
+/// for a fill height share what is left. Without those, the groups without content heights
+/// share it, and when every open group has a height, the last one takes the rest. Other
+/// groups take their content's default height, or their minimum. Default heights shrink towards their compact heights until the
 /// filling groups get their content's fill height, then every height shrinks towards its
 /// minimum before the column overflows and scrolls. Default heights give way nearest the
 /// filling groups first; saved and default heights then shrink in proportion to their room.
 pub(in crate::docking) fn group_heights(groups: &[GroupSize], strip: f32, room: f32) -> Vec<f32> {
     let saved = |g: &GroupSize| g.saved.filter(|h| h.is_finite());
     let open: Vec<usize> = (0..groups.len()).filter(|i| groups.get(*i).is_some_and(|g| !g.minimized)).collect();
-    let mut shared: Vec<usize> = open.iter().copied().filter(|i| groups.get(*i).is_some_and(|g| saved(g).is_none() && g.content.is_none())).collect();
+    let unsaved = |i: &usize, test: fn(Option<DockHeights>) -> bool| groups.get(*i).is_some_and(|g| saved(g).is_none() && test(g.content));
+    let mut shared: Vec<usize> = open.iter().copied().filter(|i| unsaved(i, |c| c.is_some_and(|c| c.fill > 0.0))).collect();
+    if shared.is_empty() {
+        shared = open.iter().copied().filter(|i| unsaved(i, |c| c.is_none())).collect();
+    }
     if shared.is_empty() {
         shared.extend(open.last());
     }
@@ -333,7 +339,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .iter()
             .filter_map(|p| self.content.dock_heights(p).filter(|h| h.valid()))
             .reduce(|a, b| DockHeights { default: a.default.max(b.default), compact: a.compact.max(b.compact), fill: a.fill.max(b.fill) })
-            .map(|h| DockHeights { default: h.default + strip, compact: h.compact.min(h.default) + strip, fill: h.fill + strip })
+            .map(|h| DockHeights {
+                default: h.default + strip,
+                compact: h.compact.min(h.default) + strip,
+                fill: if h.fill > 0.0 { h.fill + strip } else { 0.0 },
+            })
     }
 
     fn column(&mut self, ui: &mut Ui, column: &Column<P>, first: &P, rect: Rect, edge: Edge) {

@@ -240,9 +240,10 @@ A flyout fits its content the same way, without the title bar.
   joins.
 - A dock column stacks its groups top to bottom. A minimized group shows only its tab strip, and a
   group the user resized keeps that `Group::height`. A group the user never resized (`height` is
-  `None`) takes the default height its panels ask for through `DockContent::dock_heights`; groups
-  whose panels ask for none share the rest of the column. When every open group has a height, the
-  last one fills the column. In a short column the groups at their default give way first, down
+  `None`) takes the default height its panels ask for through `DockContent::dock_heights`. Groups
+  whose panels ask for a `fill` height share the rest of the column, and groups whose panels ask
+  for no heights take their minimum. When no group asks for a fill, the groups without heights
+  share the rest, and when every open group has a height, the last one fills the column. In a short column the groups at their default give way first, down
   to their `compact` heights, so the filling group gets its `fill` height. When the column is still
   too short, every group gives way down to its minimum, and past that the column scrolls. Defaults
   give way nearest the filling group first: one is at its compact height before the next gives
