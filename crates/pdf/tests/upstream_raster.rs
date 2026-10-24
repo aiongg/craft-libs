@@ -325,3 +325,106 @@ fn group4_fax_with_rows_below_its_height_decodes_to_the_image_height() {
         }
     }
 }
+
+/// PdfCraft ledger hayro-interpret P2 (#3178): a shaded Type 3 glyph clips to its `/FontBBox` in
+/// device space at every position, not to the glyph-space box.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn shaded_type3_glyph_draws_at_multiple_positions() {
+    let content = "BT /F 30 Tf 1 0 0 1 50 70 Tm (A) Tj 1 0 0 1 220 70 Tm (A) Tj ET";
+    let glyph = "100 0 d0 0 0 100 100 re W n /S sh";
+    let pdf = format!(
+        "%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 150] /Resources << /Font << /F 5 0 R >> >> /Contents 4 0 R >> endobj
+4 0 obj << /Length {} >> stream
+{content}
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type3 /FontBBox [0 0 100 100] /FontMatrix [0.01 0 0 0.01 0 0] /CharProcs << /A 6 0 R >> /Encoding << /Differences [65 /A] >> /FirstChar 65 /LastChar 65 /Widths [100] /Resources << /Shading << /S 7 0 R >> >> >> endobj
+6 0 obj << /Length {} >> stream
+{glyph}
+endstream endobj
+7 0 obj << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> /Extend [true true] >> endobj
+trailer << /Root 1 0 R >>
+%%EOF",
+        content.len(),
+        glyph.len()
+    );
+    let page = render(pdf.as_bytes());
+    for x in [65, 235] {
+        let px = pixel(&page, x, 65);
+        assert!(px[0] < 240 && px[2] < 240 && px[1] < 10, "glyph at {x}: {px:?}");
+    }
+}
+
+/// PdfCraft ledger hayro-interpret (26) extension: comma-below letters in non-embedded standard
+/// fonts are the letter with the font's comma under it, apart from the letter and inside the
+/// descender, whichever name the font gives them (`/scommaaccent`, `/Kcedilla`, `/uni0219`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn comma_below_letters_in_standard_fonts_draw_a_comma_under_the_letter() {
+    let pairs = [
+        ("s", "uni0219"),
+        ("t", "uni021B"),
+        ("T", "uni021A"),
+        ("K", "uni0136"),
+        ("k", "kcedilla"),
+        ("G", "uni0122"),
+        ("G", "Gcedilla"),
+        ("R", "uni0156"),
+        ("s", "scommaaccent"),
+        ("S", "Scommaaccent"),
+        ("t", "tcommaaccent"),
+        ("T", "Tcommaaccent"),
+        ("k", "kcommaaccent"),
+        ("K", "Kcommaaccent"),
+        ("l", "lcommaaccent"),
+        ("L", "Lcommaaccent"),
+        ("n", "ncommaaccent"),
+        ("N", "Ncommaaccent"),
+        ("r", "rcommaaccent"),
+        ("R", "Rcommaaccent"),
+        ("G", "Gcommaaccent"),
+    ];
+    let letters: Vec<&str> = pairs.iter().flat_map(|(base, accented)| [*base, *accented]).collect();
+    let (size, baseline) = (40u32, 60u32);
+    for font in ["Helvetica", "Times-Roman", "Courier", "Helvetica-BoldOblique"] {
+        let mut content = String::new();
+        for i in 0..letters.len() {
+            content.push_str(&format!("BT /F1 {size} Tf {} {} Td <{:02X}> Tj ET\n", 10 + 40 * i, 80 - baseline, 1 + i));
+        }
+        let differences = letters.iter().map(|n| format!("/{n}")).collect::<Vec<_>>().join(" ");
+        let pdf = format!(
+            "%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 {} 80] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length {} >> stream
+{content}endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /{font}
+  /Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [1 {differences}] >> >> endobj
+trailer << /Root 1 0 R >>
+%%EOF",
+            20 + 40 * letters.len(),
+            content.len()
+        );
+        let p = render(pdf.as_bytes());
+        // The rows (y down) of the i-th letter that have dark pixels.
+        let ink_rows = |i: u32| -> Vec<u32> {
+            (0..p.height).filter(|&y| ((8 + 40 * i)..(48 + 40 * i).min(p.width)).any(|x| pixel(&p, x, y)[0] < 128)).collect()
+        };
+        for (pair, (_, name)) in pairs.iter().enumerate() {
+            let (base, accented) = (ink_rows(2 * pair as u32), ink_rows(2 * pair as u32 + 1));
+            let (Some(&base_bottom), Some(&bottom)) = (base.last(), accented.last()) else {
+                panic!("{font} {name}: draws nothing ({} rows of its base letter)", base.len());
+            };
+            assert!(bottom > base_bottom + 2, "{font} {name}: a mark hangs below the letter ({bottom} vs {base_bottom})");
+            assert!(
+                (base_bottom + 1..bottom).any(|y| !accented.contains(&y)),
+                "{font} {name}: the mark is apart from the letter, a comma and not a cedilla"
+            );
+            assert!(bottom < baseline + size * 3 / 10, "{font} {name}: the comma stays within the descender ({bottom})");
+        }
+    }
+}
