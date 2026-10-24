@@ -292,19 +292,20 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// The main window and the shown native windows on the desktop, front first: palettes
     /// above the rest, each the window focused most recently first. A window whose position is
     /// unknown is left out. `visible`: palettes show. `activated`: the application was just
-    /// activated, so its normal windows are raised (see [`Self::raise_next`]).
+    /// activated, so the main window and its normal windows are raised (see
+    /// [`Self::raise_next`]).
     fn map_desktop(&mut self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)], visible: bool, activated: bool) {
         let key = self.id.with("native-order");
         // Focus order, front first; `None` is the main window.
         let mut order = ctx.data(|d| d.get_temp::<Vec<Option<u64>>>(key)).unwrap_or_default();
         order.retain(|id| id.is_none_or(|id| natives.iter().any(|(w, ..)| w.id == id)));
-        // The main window comes to the front when it gains focus: the normal windows raised
-        // while it keeps focus lie in front of it.
+        // The main window comes to the front when it gains focus, and on a press in it: the
+        // window system raises it then, though it may have kept focus.
         let main_key = self.id.with("native-main-focused");
-        let main_focused = ctx.input(|i| i.viewport().focused == Some(true));
+        let (main_focused, pressed) = ctx.input(|i| (i.viewport().focused == Some(true), i.pointer.any_pressed()));
         let gained = main_focused && !ctx.data(|d| d.get_temp::<bool>(main_key)).unwrap_or(false);
         ctx.data_mut(|d| d.insert_temp(main_key, main_focused));
-        if gained || !order.contains(&None) {
+        if gained || pressed || !order.contains(&None) {
             let front = order.contains(&None);
             order.retain(Option::is_some);
             if front { order.insert(0, None) } else { order.push(None) }
@@ -328,13 +329,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
         }
         if activated && RAISE_ON_ACTIVATION {
-            let normal: Vec<Option<u64>> =
-                order.iter().filter(|id| id.is_some_and(|id| natives.iter().any(|(w, ..)| w.id == id && self.normal_window(w)))).copied().collect();
-            order.retain(|id| !normal.contains(id));
-            order.splice(0..0, normal.iter().copied());
-            // The back one first, so each lands in front of those raised before it.
-            let queue: Vec<u64> = normal.iter().rev().flatten().copied().collect();
-            ctx.data_mut(|d| d.insert_temp(self.id.with("native-raise"), queue));
+            // The back one first, so each lands in front of those raised before it, and the
+            // window just focused, at the front of the order, last.
+            let queue: Vec<Option<u64>> = order
+                .iter()
+                .rev()
+                .filter(|id| id.is_none_or(|id| natives.iter().any(|(w, ..)| w.id == id && self.normal_window(w))))
+                .copied()
+                .collect();
+            if queue.iter().any(Option::is_some) {
+                ctx.data_mut(|d| d.insert_temp(self.id.with("native-raise"), queue));
+            }
         }
         let rank = |id: Option<u64>| order.iter().position(|o| *o == id);
         windows.sort_by_key(|(id, _, normal)| (*normal, rank(Some(*id))));
@@ -344,9 +349,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         self.cross.main = ctx.input(|i| i.viewport().outer_rect.and(i.viewport().inner_rect)).filter(|r| r.is_finite());
     }
 
-    /// Raise the next normal window [`Self::map_desktop`] queued when the application was
-    /// activated: one per pass, since egui sends the commands of different viewports in no
-    /// fixed order. Toggling the window level raises a window without focusing it: on Windows
+    /// Raise the next window [`Self::map_desktop`] queued when the application was activated,
+    /// the main window (`None`) or a normal window: one per pass, since egui sends the commands
+    /// of different viewports in no fixed order. Toggling the window level raises a window without focusing it: on Windows
     /// `HWND_NOTOPMOST` puts the window in front of every window that is not topmost, and on
     /// X11 the window manager raises a window as it takes `_NET_WM_STATE_ABOVE`. winit has no
     /// plain raise. `ViewportCommand::Focus` would take focus from the window the user
@@ -354,9 +359,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// handed back. `Visible(true)` does nothing to a shown window.
     fn raise_next(&self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)]) {
         let key = self.id.with("native-raise");
-        let Some(mut queue) = ctx.data_mut(|d| d.remove_temp::<Vec<u64>>(key)) else { return };
+        let Some(mut queue) = ctx.data_mut(|d| d.remove_temp::<Vec<Option<u64>>>(key)) else { return };
         // A window that became a palette since activation keeps its `AlwaysOnTop` level.
-        let viewport = |id: u64| natives.iter().find(|(w, ..)| w.id == id && self.normal_window(w)).map(|(.., v)| *v);
+        let viewport = |id: Option<u64>| match id {
+            None => Some(ViewportId::ROOT),
+            Some(id) => natives.iter().find(|(w, ..)| w.id == id && self.normal_window(w)).map(|(.., v)| *v),
+        };
         queue.retain(|id| viewport(*id).is_some());
         if queue.is_empty() {
             return;
@@ -394,7 +402,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         ctx.data_mut(|d| {
             d.insert_temp(away_key, !focused && (away || !visible));
             if !focused {
-                d.remove::<Vec<u64>>(self.id.with("native-raise"));
+                d.remove::<Vec<Option<u64>>>(self.id.with("native-raise"));
             }
         });
         (visible, focused && away)
