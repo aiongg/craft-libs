@@ -382,7 +382,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.output.actions.push(Action::Activate { panel: panel.clone() });
             self.output.focused = Some(panel.clone());
             if minimized == Some(true) {
-                self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: false });
+                // Activate already expands the group of its active tab.
+                if !active {
+                    self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: false });
+                }
                 let now = ui.input(|i| i.time);
                 ui.ctx().data_mut(|d| d.insert_temp(expand_key, now));
             }
