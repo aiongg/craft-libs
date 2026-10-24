@@ -354,10 +354,17 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   `Floating::with_id` sets one; a layout
   loads with unique ids; a window that merges into another takes the receiver's id, and a whole
   window that moves (floated again, or its only group dragged) keeps its own.
-- **Level.** The windows stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the
-  document does not bury them. While none of the app's windows has focus they hide
-  (`ViewportCommand::Visible(false)`), and they come back when one has it again. The hide waits
-  250 ms, so focus moving between the app's own windows does not flicker.
+- **Kind and level.** `DockContent::window_kind` sorts panels into palettes
+  (`WindowKind::Palette`, the default) and viewers (`WindowKind::Normal`), such as a video
+  monitor on a second display. A window holding any `Normal` panel is a normal window, whichever
+  of its tabs shows; the rest are palettes.
+  - Palettes stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the document
+    does not bury them. While none of the app's windows has focus they hide
+    (`ViewportCommand::Visible(false)`), and they come back when one has it again. The hide
+    waits 250 ms, so focus moving between the app's own windows does not flicker.
+  - Normal windows have `WindowLevel::Normal` and stay shown while the app is in the
+    background. They stack with the main window by focus, below every palette; a drag over a
+    normal window that lies behind the main window targets the main window.
 - **Bar.** Each window has a bar at the top, 18 points high, in the floating title bar's style:
   the title (the shown panel of its first group) and ×. Dragging the bar moves the window. On
   Wayland, where a window cannot be placed, the bar hands the move to the compositor. On
