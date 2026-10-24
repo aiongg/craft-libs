@@ -37,7 +37,7 @@ index 978eacc..023784f 100644
          Ok(())
      }
 diff --git a/src/configure/PDF_A1.md b/src/configure/PDF_A1.md
-index 2df1775..0617544 100644
+index 06b5243..a4c7bc3 100644
 --- a/src/configure/PDF_A1.md
 +++ b/src/configure/PDF_A1.md
 @@ -58,7 +58,8 @@ with an even number of characters and without whitespaces. 🟢
@@ -51,10 +51,10 @@ index 2df1775..0617544 100644
  ## 6.2 Graphics
  
 diff --git a/src/configure/PDF_A2.md b/src/configure/PDF_A2.md
-index 5e208d7..6fb1f77 100644
+index 7e3fd8f..69acde5 100644
 --- a/src/configure/PDF_A2.md
 +++ b/src/configure/PDF_A2.md
-@@ -220,7 +220,9 @@ krilla prohibits embedding files in this export mode. 🟢
+@@ -222,7 +222,9 @@ krilla prohibits embedding files in this export mode. 🟢
  
  # 6.9 Optional content
  
@@ -94,10 +94,10 @@ index 16959bb..80449b8 100644
  # 7.11 Embedded files
  - krilla supports embedded files, and requires a description in this export mode. 🟢
 diff --git a/src/configure/validate.rs b/src/configure/validate.rs
-index 273f292..a504912 100644
+index b0a8f03..fb429ce 100644
 --- a/src/configure/validate.rs
 +++ b/src/configure/validate.rs
-@@ -153,6 +153,12 @@ pub enum ValidationError {
+@@ -159,6 +159,12 @@ pub enum ValidationError {
      EmbeddedPDF(Option<Location>),
      /// A feature only available in a later PDF version was required.
      RequiresNewerPdfVersion(VersionedFeature, Option<Location>),
@@ -110,7 +110,7 @@ index 273f292..a504912 100644
  }
  
  /// Features that may require a later PDF version than the current one.
-@@ -164,6 +170,8 @@ pub enum VersionedFeature {
+@@ -170,6 +176,8 @@ pub enum VersionedFeature {
      HeaderFooterArtifactSubtypes,
      /// Scope attribute for table header cells.
      TableHeaderScope,
@@ -119,7 +119,7 @@ index 273f292..a504912 100644
  }
  
  impl VersionedFeature {
-@@ -173,6 +181,7 @@ impl VersionedFeature {
+@@ -179,6 +187,7 @@ impl VersionedFeature {
              VersionedFeature::StructureOrderTabbing => PdfVersion::Pdf15,
              VersionedFeature::HeaderFooterArtifactSubtypes => PdfVersion::Pdf17,
              VersionedFeature::TableHeaderScope => PdfVersion::Pdf15,
@@ -127,9 +127,9 @@ index 273f292..a504912 100644
          }
      }
  }
-@@ -559,7 +568,8 @@ impl Archival {
-                 | ValidationError::Transparency(_)
+@@ -566,7 +575,8 @@ impl Archival {
                  | ValidationError::ImageInterpolation(_)
+                 | ValidationError::PdfxVersionWithoutExtensionSchema
                  | ValidationError::EmbeddedFile(EmbedError::Existence, _)
 -                | ValidationError::EmbeddedPDF(_),
 +                | ValidationError::EmbeddedPDF(_)
@@ -137,7 +137,7 @@ index 273f292..a504912 100644
              ) => true,
              // Allowed under all PDF/A-1 profiles.
              (
-@@ -575,7 +585,8 @@ impl Archival {
+@@ -582,7 +592,8 @@ impl Archival {
                  | ValidationError::RequiresNewerPdfVersion(
                      VersionedFeature::HeaderFooterArtifactSubtypes
                      | VersionedFeature::StructureOrderTabbing
@@ -147,7 +147,7 @@ index 273f292..a504912 100644
                      _,
                  ),
              ) => false,
-@@ -620,9 +631,11 @@ impl Archival {
+@@ -628,9 +639,11 @@ impl Archival {
                  | ValidationError::RequiresNewerPdfVersion(
                      VersionedFeature::HeaderFooterArtifactSubtypes
                      | VersionedFeature::StructureOrderTabbing
@@ -161,7 +161,7 @@ index 273f292..a504912 100644
              ) => false,
              // Forbidden under PDF/A-2 but allowed under PDF/A-3.
              (
-@@ -698,9 +711,11 @@ impl Archival {
+@@ -707,9 +720,11 @@ impl Archival {
                  | ValidationError::RequiresNewerPdfVersion(
                      VersionedFeature::HeaderFooterArtifactSubtypes
                      | VersionedFeature::StructureOrderTabbing
@@ -175,7 +175,7 @@ index 273f292..a504912 100644
              ) => false,
              // Forbidden under PDF/A-4 but allowed under other PDF/A-4 profiles.
              (
-@@ -1124,7 +1139,8 @@ impl Accessibility {
+@@ -1133,7 +1148,8 @@ impl Accessibility {
                  | ValidationError::RequiresNewerPdfVersion(
                      VersionedFeature::HeaderFooterArtifactSubtypes
                      | VersionedFeature::StructureOrderTabbing
@@ -185,7 +185,7 @@ index 273f292..a504912 100644
                      _,
                  ),
              ) => true,
-@@ -1149,7 +1165,8 @@ impl Accessibility {
+@@ -1159,7 +1175,8 @@ impl Accessibility {
                      EmbedError::Existence | EmbedError::MissingDate | EmbedError::MissingMimeType,
                      _,
                  )
@@ -653,7 +653,7 @@ index 56b8488..da8ab83 100644
      }
  }
 diff --git a/src/serialize.rs b/src/serialize.rs
-index 0093a25..0394bb7 100644
+index 587e2c6..4f4af4c 100644
 --- a/src/serialize.rs
 +++ b/src/serialize.rs
 @@ -22,6 +22,7 @@ use crate::graphics::device_n::DeviceNColorSpace;
@@ -664,7 +664,7 @@ index 0093a25..0394bb7 100644
  use crate::graphics::separation::SeparationColorSpace;
  use crate::interactive::destination::{NamedDestination, XyzDestination};
  use crate::interchange::embed::EmbeddedFile;
-@@ -344,6 +345,8 @@ pub(crate) struct SerializeContext {
+@@ -356,6 +357,8 @@ pub(crate) struct SerializeContext {
      /// Where the first mesh gradient whose corner colors share no color space was drawn;
      /// [`SerializeContext::finish`] fails with [`KrillaError::MixedMeshColorSpaces`].
      pub(crate) mixed_mesh_colors: Option<Option<Location>>,
@@ -673,7 +673,7 @@ index 0093a25..0394bb7 100644
      /// The ref of the page tree.
      page_tree_ref: Ref,
      /// PDF 2.0 namespaces.
-@@ -405,6 +408,7 @@ impl SerializeContext {
+@@ -417,6 +420,7 @@ impl SerializeContext {
          Self {
              poisoned: false,
              mixed_mesh_colors: None,
@@ -681,7 +681,7 @@ index 0093a25..0394bb7 100644
              cached_mappings: HashMap::new(),
              pdf2_ns,
              global_objects: GlobalObjects::default(),
-@@ -601,6 +605,9 @@ impl SerializeContext {
+@@ -631,6 +635,9 @@ impl SerializeContext {
          if let Some(location) = self.mixed_mesh_colors {
              return Err(KrillaError::MixedMeshColorSpaces(location));
          }

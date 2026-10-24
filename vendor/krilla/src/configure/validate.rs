@@ -142,6 +142,12 @@ pub enum ValidationError {
     ///
     /// [`Overprint`]: crate::blend::Overprint
     OverprintModeIccCmyk(Option<Location>),
+    /// [`SerializeSettings::pdfx_version`] is set. Its XMP property
+    /// `pdfxid:GTS_PDFXVersion` needs a PDF/A extension schema, which krilla does not write;
+    /// PDF/A-1, -2 and -3 require one for every property outside the predefined schemas.
+    ///
+    /// [`SerializeSettings::pdfx_version`]: crate::SerializeSettings::pdfx_version
+    PdfxVersionWithoutExtensionSchema,
     /// The PDF contains an embedded file.
     EmbeddedFile(EmbedError, Option<Location>),
     /// The PDF contains no tagging.
@@ -567,6 +573,7 @@ impl Archival {
                 | ValidationError::MissingDocumentDate
                 | ValidationError::Transparency(_)
                 | ValidationError::ImageInterpolation(_)
+                | ValidationError::PdfxVersionWithoutExtensionSchema
                 | ValidationError::EmbeddedFile(EmbedError::Existence, _)
                 | ValidationError::EmbeddedPDF(_)
                 | ValidationError::OptionalContent(_),
@@ -616,6 +623,7 @@ impl Archival {
                 | ValidationError::MissingDocumentDate
                 | ValidationError::ImageInterpolation(_)
                 | ValidationError::OverprintModeIccCmyk(_)
+                | ValidationError::PdfxVersionWithoutExtensionSchema
                 | ValidationError::EmbeddedPDF(_),
             ) => true,
             // Allowed under all PDF/A-2 and PDF/A-3 profiles.
@@ -696,6 +704,7 @@ impl Archival {
                 | ValidationError::TooManyIndirectObjects
                 | ValidationError::TooHighQNestingLevel
                 | ValidationError::ContainsPostScript(_)
+                | ValidationError::PdfxVersionWithoutExtensionSchema
                 | ValidationError::NoDocumentLanguage
                 | ValidationError::NoDocumentTitle
                 | ValidationError::MissingAltText(_)
@@ -1161,6 +1170,7 @@ impl Accessibility {
                 | ValidationError::Transparency(_)
                 | ValidationError::ImageInterpolation(_)
                 | ValidationError::OverprintModeIccCmyk(_)
+                | ValidationError::PdfxVersionWithoutExtensionSchema
                 | ValidationError::EmbeddedFile(
                     EmbedError::Existence | EmbedError::MissingDate | EmbedError::MissingMimeType,
                     _,
