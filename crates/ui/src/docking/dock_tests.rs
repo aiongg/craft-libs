@@ -615,3 +615,23 @@ fn screen_reader_values_follow_the_column_width_on_either_edge() {
         assert_eq!(out.actions, vec![Action::ResizeColumn { panel: 2, width }], "{case}");
     }
 }
+
+#[test]
+fn an_unanchored_open_prefers_the_end_dock_and_an_edge_frame_takes_a_quarter() {
+    let start = Node::Dock { side: Side::Start, columns: vec![Column::new(vec![group(&[1])], 240.0)] };
+    let end = docked(Side::End, &[&[&[2]]]).root.unwrap();
+    let mut layout = Layout {
+        root: Some(Node::Split { axis: SplitAxis::Horizontal, size: SplitSize::FixedFirst(240.0), first: Box::new(start), second: Box::new(end) }),
+        floating: Vec::new(),
+    };
+    layout.apply(Action::Open { panel: 9, anchor: None }).unwrap();
+    assert_eq!(columns(&layout, Side::End), vec![vec![vec![2, 9]]]);
+    assert_eq!(columns(&layout, Side::Start), vec![vec![vec![1]]]);
+
+    // No dock: a frame at the right edge, a quarter of the width, as for a protected canvas.
+    let mut layout = Layout { root: Some(Node::Tabs { panels: vec![0], active: 0 }), floating: Vec::new() };
+    layout.apply(Action::Open { panel: 9, anchor: None }).unwrap();
+    let Some(Node::Split { axis: SplitAxis::Horizontal, size, second, .. }) = &layout.root else { panic!("{layout:?}") };
+    assert_eq!(*size, SplitSize::Ratio(0.75));
+    assert_eq!(**second, Node::Tabs { panels: vec![9], active: 0 });
+}

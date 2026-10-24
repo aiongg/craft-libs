@@ -366,8 +366,9 @@ pub enum Action<P> {
     },
     /// Reveal a registered, currently absent panel. Applications validate their panel registry.
     /// `anchor` names the group it joins as the last tab. Without one it becomes the root of an
-    /// empty layout, else joins the first dock group that accepts tabs, else gets a new frame
-    /// at the right edge of the docked area ([`Placement::Edge`]).
+    /// empty layout, else joins the first dock group that accepts tabs (the end-side dock's
+    /// first), else gets a new frame a quarter wide at the right edge of the docked area
+    /// ([`Placement::Edge`]).
     Open {
         panel: P,
         anchor: Option<P>,
@@ -912,12 +913,14 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// application, particularly Open.
     pub fn apply_with_permissions(&mut self, action: Action<P>, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
         self.validate()?;
-        let action = match action {
+        // An unanchored open that falls back to a frame at the edge sizes it afterwards.
+        let (action, edge) = match action {
             Action::Open { panel, anchor: None } if self.root.is_some() && !self.contains(&panel) => {
                 let (anchor, placement) = self.open_place(&permissions).ok_or(DockError::MissingTarget)?;
-                Action::OpenAt { panel, anchor, placement }
+                let edge = matches!(placement, Placement::Edge(_)).then(|| panel.clone());
+                (Action::OpenAt { panel, anchor, placement }, edge)
             }
-            action => action,
+            action => (action, None),
         };
         match &action {
             Action::Move { panel, anchor, placement } | Action::OpenAt { panel, anchor, placement } => {
@@ -980,6 +983,12 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         let closed = self.closed_by(&action)?;
         let mut proposed = self.clone();
         proposed.apply_inner(action)?;
+        if let Some(panel) = edge
+            && let Some(root) = proposed.root.as_mut()
+        {
+            // The new frame is the second child: it gets a quarter of the width.
+            restore_parent_size(root, &panel, SplitSize::Ratio(0.75));
+        }
         proposed.validate()?;
         *self = proposed;
         Ok(closed)
@@ -1252,8 +1261,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
-    /// the end of the first dock group that accepts tabs, else a new frame at the right edge
-    /// of the docked area.
+    /// the end of the first dock group that accepts tabs, in the end-side dock if one has such
+    /// a group, else a new frame at the right edge of the docked area.
     fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
         let docked: Vec<(&P, Place)> = self
             .panels()
@@ -1261,7 +1270,15 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             .filter_map(|p| Some((p, self.place(p)?)))
             .filter(|(_, place)| !matches!(place, Place::Floating { .. }))
             .collect();
-        if let Some((panel, _)) = docked.iter().find(|(p, place)| matches!(place, Place::Dock { .. }) && permissions(p).accepts_tabs) {
+        let side = |place: &Place| match place {
+            Place::Dock { path, .. } => match self.root.as_ref().and_then(|root| node_at(root, path)) {
+                Some(Node::Dock { side, .. }) => Some(*side),
+                _ => None,
+            },
+            _ => None,
+        };
+        let groups = docked.iter().filter(|(p, place)| side(place).is_some() && permissions(p).accepts_tabs);
+        if let Some((panel, _)) = groups.clone().find(|(_, place)| side(place) == Some(Side::End)).or_else(|| groups.clone().next()) {
             return Some(((*panel).clone(), Placement::Tab { before: None }));
         }
         docked.first().map(|(panel, _)| ((*panel).clone(), Placement::Edge(Zone::Right)))
