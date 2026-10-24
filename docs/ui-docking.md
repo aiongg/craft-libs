@@ -183,7 +183,7 @@ choosing one makes it active. The active tab is always shown, in its logical pla
 others take the remaining room in their order. An active tab with less room than its minimum
 width, or a lone tab wider than the strip, is cut the same way. The drag bar always keeps its
 reserved width: tabs shrink, then overflow, before it narrows, and only a strip narrower than the
-bar itself shrinks it. A tab dropped on the "…" button goes to the end of the group.
+group header plus the bar shrinks it. A tab dropped on the "…" button goes to the end of the group.
 
 ## Floating size
 

@@ -39,7 +39,7 @@ pub struct DockStyle {
     /// Group menu item that moves the whole group into another group (submenu of targets).
     pub move_group_to_label: String,
     /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
-    /// before the bar narrows.
+    /// before the bar narrows; a strip narrower than the header plus this width narrows it.
     pub drag_bar_width: f32,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu: about
     /// three characters and the "…" at [`Self::font`]'s size, plus the tab's 24 pt padding
