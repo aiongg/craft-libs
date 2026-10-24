@@ -1003,6 +1003,7 @@ dependencies = [
  "fontique",
  "image",
  "js-sys",
+ "log",
  "serde",
  "serde_json",
  "skrifa 0.44.0",

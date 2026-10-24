@@ -42,7 +42,11 @@ accordions, no docks), a rect, an optional native-window rect with the monitor i
 `minimized`. Its `id` names the window across panel moves (see [Native windows](#native-windows)).
 `Floating::single` makes a window with one group, `Floating::new` one with a tree, and
 `Floating::stack` one with groups stacked top to bottom (a vertical split sized by the groups'
-heights, as an app's own stacked layouts migrate); `panels()` and `contains()` read it. Saved layouts keep loading: a window stored as one group (v1) or as a
+heights, as an app's own stacked layouts migrate); `panels()` and `contains()` read it. Each of
+these calls makes a new window with a fresh `id`. Build a layout once and keep it, or give its
+windows ids with `with_id`: a layout built anew each frame, as an unsaved default layout might
+be, otherwise opens new OS windows each frame and loses their drags and places. Debug builds log
+a warning when native windows are replaced by new ones with the same panels three frames running. Saved layouts keep loading: a window stored as one group (v1) or as a
 stack of groups loads as that group or as a vertical split of the stacked groups, sized by their
 heights.
 
@@ -56,7 +60,7 @@ use craft_ui::docking::{Action, Floating, Layout, Node, Placement};
 
 let mut layout = Layout {
     root: Some(Node::Tabs { panels: vec!["layers", "properties"], active: 0 }),
-    floating: vec![Floating::single(vec!["brushes"], 0, [40.0, 80.0, 240.0, 300.0])],
+    floating: vec![Floating::single(vec!["brushes"], 0, [40.0, 80.0, 240.0, 300.0]).with_id(1)],
 };
 layout.apply(Action::Move {
     panel: "brushes",
@@ -213,16 +217,21 @@ A flyout fits its content the same way, without the title bar.
   limits and the screen. A focused resize handle moves its edge 8 pt per arrow key.
 - Over a frame, the tab strip and the middle join its tabs, and the nearest side splits it. The
   side zones are trapezoids along the four edges of the body below the tab strip, like a picture
-  frame: `DockStyle::zone_depth` (40 pt) deep, or a third of the body's width or height when that
-  is less, so every frame keeps a center. A split that would leave either half without
+  frame, all four the same depth: `DockStyle::zone_depth` (40 pt), or a quarter of the body's
+  smaller side when that is less, so every frame keeps a center. A split that would leave either half without
   `DockStyle::min_pane` joins the frame's tabs instead. The gap between two frames is no target.
 - The outer edge band (`DockStyle::edge_band`) takes a drop as a new frame across the whole
   window side: top and bottom, and left and right with `side_edge_zones`. It takes a quarter of
   the window and is offered only when every frame keeps its minimum. Past the band, a frame's own
   side zones apply.
-- A divider resizes only the frames that touch it; every other frame keeps its size. It stops
-  when a frame touching it reaches its minimum. Where a divider ends on another divider, a
-  four-way handle (`Divider::Intersection`) moves both.
+- A dragged divider grows the frames that touch it on one side, up to their maximums. On the
+  other side the frame touching it shrinks to its minimum, then the next frame along the same
+  axis, and so on: the divider stops when every frame on that side is at its minimum. Frames
+  side by side across the axis shrink together, and the next frame gives way once one of them
+  is at its minimum. The line of frames ends at a split across the axis or at a dock; every
+  other frame keeps its size. Dividers between stacked panels and between the groups of a dock
+  column work the same way. Where a divider ends on another divider, a four-way handle
+  (`Divider::Intersection`) moves both.
 - Every frame has the same minimum, `DockStyle::min_pane` (plus its tab strip), unless its panels
   ask for more through `PanelLimits::min`. Frames have no maximum unless every panel in them asks
   for one through `PanelLimits::max`: a panel without a maximum lifts the maximum of the panels it
@@ -327,7 +336,8 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
 (`with_taskbar(false)`).
 
 - **Identity.** `Floating::id` names the OS window, so a window keeps it when its panels change,
-  including when its first panel moves out. `Floating::new` and loading draw fresh ids; a layout
+  including when its first panel moves out. `Floating::new` and loading draw fresh ids, and
+  `Floating::with_id` sets one; a layout
   loads with unique ids; a window that merges into another takes the receiver's id, and a whole
   window that moves (floated again, or its only group dragged) keeps its own.
 - **Level.** The windows stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the
@@ -336,9 +346,18 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   250 ms, so focus moving between the app's own windows does not flicker.
 - **Bar.** Each window has a bar at the top, 18 points high, in the floating title bar's style:
   the title (the shown panel of its first group) and ×. Dragging the bar moves the window. On
-  Windows and Linux the OS frame is off and the window resizes from its edges; on macOS the
-  frame stays with its title bar and buttons hidden, so the OS resizes it. On Wayland, where a
-  window cannot be placed, the bar hands the move to the compositor.
+  Wayland, where a window cannot be placed, the bar hands the move to the compositor. On
+  Windows and Linux the OS frame is off. On macOS the frame stays for its shadow and rounded
+  corners, with its title bar and buttons hidden, and is not resizable: AppKit's resize areas
+  reach well into the content and would take clicks from the ×.
+- **Resize.** A movable window resizes from bands 4 pt deep along its edges. Each corner is an
+  L along both edges, 12 pt long and as deep as the edges. The bands leave out the bar's
+  buttons, which sit 4 pt in from the window's edge so the corner's grab runs down beside
+  them; elsewhere the top band lies over the bar's drag area. The OS runs the resize
+  (`ViewportCommand::BeginResize`), except on macOS, where winit cannot: there the window
+  follows the pointer by `InnerSize` and `OuterPosition`, keeping the opposite edges and the
+  160 by 100 pt minimum, and a window released with too little of its bar on a monitor moves
+  back onto the nearest one, as after a bar drag.
 - **Close.** The bar's × and the OS close request close the window's panels, as the
   floating window's × does. They reopen from the app's Window menu.
 - **Place.** `Floating::native` is the desktop rect of the window's content (egui's
