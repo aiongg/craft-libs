@@ -410,8 +410,9 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   cancels a drag is not forwarded.
 - **Input hook.** eframe runs `App::raw_input_hook` for the main window only. An app that
   rewrites input there (say, Ctrl+click to a secondary click on macOS, or blocking input
-  during automation) passes the same rewrite to `DockArea::native_input_hook` every frame, and
-  the dock area runs it on each native window's `RawInput` (`viewport_id` names the window; see
+  during automation) passes the same rewrite to `DockArea::native_input_hook` every frame as a
+  closure. eframe's hook takes `&mut self`, so state it shares with the closure goes in an
+  `Arc<Mutex<…>>`. The dock area runs it on each native window's `RawInput` (`viewport_id` names the window; see
   `DockArea::window_viewport`). It runs as an egui `Plugin::input_hook`, before egui reads the
   input, so widgets see rewritten pointer and key events as if the window system had sent them.
   It runs once per pass, so a frame that egui runs twice calls it a second time with the

@@ -759,7 +759,9 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// `native-windows`), as `eframe::App::raw_input_hook` does for the main window only. Pass
     /// it every frame; a frame without it runs none. The hook runs for every pass of each
     /// window's frame, before any widget sees the input, so rewritten pointer events count as
-    /// sent. `RawInput::viewport_id` names the window (see [`Self::window_viewport`]).
+    /// sent. `RawInput::viewport_id` names the window (see [`Self::window_viewport`]). State
+    /// shared with the app's own `raw_input_hook`, which takes `&mut self`, goes in an
+    /// `Arc<Mutex<…>>`.
     #[cfg(feature = "native-windows")]
     pub fn native_input_hook(mut self, hook: impl FnMut(&Context, &mut egui::RawInput) + Send + 'static) -> Self {
         self.input_hook = Some(Box::new(hook));
@@ -942,6 +944,14 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         record_tab_focus(ui.ctx(), self.id, layout, !renderer.output.actions.is_empty());
         ui.ctx().data_mut(|d| d.insert_temp(float_space_key(self.id), renderer.float_space));
         ui.ctx().data_mut(|d| d.insert_temp(self.id.with("owned-interactions"), renderer.owned_interactions));
+        // egui runs a discarded pass again with the same hovered files (dropped ones are
+        // taken), so only the next pass reports them.
+        if ui.ctx().will_discard() {
+            renderer.output.window_files.retain_mut(|files| {
+                files.hovered.clear();
+                !files.dropped.is_empty()
+            });
+        }
         renderer.output
     }
 }
