@@ -842,7 +842,7 @@ impl egui::Plugin for NativeInput {
             routed |= route.route(input, &mut self.queued, self.pass);
         }
         if let Some((_, events)) = self.queued.remove(&viewport) {
-            input.events.extend(events);
+            input.events.extend(events.into_iter().map(|(_, event)| event));
         }
         if routed {
             ctx.request_repaint_of(ViewportId::ROOT);

@@ -35,6 +35,8 @@ struct Content {
     saw_files: bool,
     /// The panel with an app drag source, and where it was drawn.
     source: Option<u32>,
+    /// The dock area whose drag the source cancels when the button comes up, as an app may.
+    cancel_on_release: Option<egui::Id>,
     source_rect: Option<Rect>,
     /// Panels whose bodies are app drop sites: where each saw the pointer, and where a release
     /// came with the pointer inside.
@@ -62,6 +64,9 @@ impl DockContent<u32> for Content {
         }
         if self.source == Some(*panel) {
             self.source_rect = Some(ui.allocate_response(vec2(120.0, 60.0), egui::Sense::drag()).rect);
+            if let Some(area) = self.cancel_on_release.filter(|_| ui.input(|i| i.pointer.any_released())) {
+                super::cancel_drag::<u32>(ui.ctx(), area);
+            }
         }
         // As apps' drop sites do: the pointer over the body, and a release there.
         if self.drop_sites.contains(panel)
@@ -1871,6 +1876,22 @@ fn an_app_drag_from_the_main_window_reaches_a_native_windows_panel() {
     d.step(vec![]);
     assert_eq!(d.content.drops, vec![(5, local)]);
     assert!(!d.content.hovers.iter().any(|(panel, _)| *panel == 3), "{:?}", d.content.hovers);
+}
+
+#[test]
+fn a_cancel_while_the_owner_draws_withdraws_the_routed_release() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.content.cancel_on_release = Some(d.id);
+    let id = window(&d, 5).id;
+    let local = pos2(120.0, 200.0);
+    let point = d.host().windows[&d.viewport(id)].rect.min + local.to_vec2() - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    assert!(d.content.hovers.contains(&(5, local)), "{:?}", d.content.hovers);
+    // The release is queued for the native window before the main window draws, and the
+    // source cancels the drag as it draws.
+    d.release(point);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![]);
 }
 
 #[test]

@@ -48,6 +48,7 @@ impl Desktop {
 /// A dock area's app drag in a panel body, in the input plugin.
 #[derive(Debug)]
 pub(super) struct BodyRoute {
+    area: Id,
     /// The window the drag began in, and the widget egui drags there.
     owner: ViewportId,
     /// [`crate::docking::Floating::id`] of the owner; `None` for the main window.
@@ -61,13 +62,14 @@ pub(super) struct BodyRoute {
     ended: bool,
 }
 
-/// Events waiting for each viewport's next input, with the main window's pass that queued them.
-pub(super) type Queued = HashMap<ViewportId, (u64, Vec<Event>)>;
+/// Events waiting for each viewport's next input, with the main window's pass that queued them
+/// and the dock area whose route queued each.
+pub(super) type Queued = HashMap<ViewportId, (u64, Vec<(Id, Event)>)>;
 
-fn queue(queued: &mut Queued, pass: u64, viewport: ViewportId, event: Event) {
+fn queue(queued: &mut Queued, pass: u64, area: Id, viewport: ViewportId, event: Event) {
     let (at, events) = queued.entry(viewport).or_default();
     *at = pass;
-    events.push(event);
+    events.push((area, event));
 }
 
 impl BodyRoute {
@@ -97,14 +99,15 @@ impl BodyRoute {
             let over = pos.is_finite().then(|| self.desktop.at(origin + pos.to_vec2())).flatten().filter(|(v, _)| *v != self.owner);
             let target = over.map(|(viewport, _)| viewport);
             if let Some(left) = self.target.filter(|left| Some(*left) != target) {
-                queue(queued, pass, left, Event::PointerGone);
+                queue(queued, pass, self.area, left, Event::PointerGone);
                 routed = true;
             }
             self.target = target;
             if let Some((viewport, local)) = over {
-                queue(queued, pass, viewport, Event::PointerMoved(local));
+                queue(queued, pass, self.area, viewport, Event::PointerMoved(local));
                 if let Some(modifiers) = release {
-                    queue(queued, pass, viewport, Event::PointerButton { pos: local, button: PointerButton::Primary, pressed: false, modifiers });
+                    let release = Event::PointerButton { pos: local, button: PointerButton::Primary, pressed: false, modifiers };
+                    queue(queued, pass, self.area, viewport, release);
                 }
                 routed = true;
             }
@@ -125,18 +128,31 @@ impl BodyRoute {
 }
 
 /// End `area`'s routing: the window the pointer was over sees it go. `remove`: the drag is
-/// over, so another may start.
+/// over, so another may start. Otherwise the routing was stopped (Escape, a focus loss, input
+/// blocking, [`crate::docking::cancel_drag`]), and events it queued that no window has read
+/// yet are taken back, so a release queued before the stop reaches no window.
 fn end_route(ctx: &Context, area: Id, remove: bool) {
     let queued = ctx.with_plugin(|input: &mut NativeInput| {
         let route = input.routes.get_mut(&area)?;
-        let target = route.target.take();
+        let mut gone: Vec<ViewportId> = route.target.take().into_iter().collect();
         route.ended = true;
         if remove {
             input.routes.remove(&area);
+        } else {
+            for (viewport, (_, events)) in &mut input.queued {
+                let before = events.len();
+                events.retain(|(from, _)| *from != area);
+                if events.len() != before && !gone.contains(viewport) {
+                    gone.push(*viewport);
+                }
+            }
         }
-        target.map(|target| queue(&mut input.queued, input.pass, target, Event::PointerGone))
+        for viewport in &gone {
+            queue(&mut input.queued, input.pass, area, *viewport, Event::PointerGone);
+        }
+        Some(!gone.is_empty())
     });
-    if queued.flatten().is_some() {
+    if queued.flatten() == Some(true) {
         ctx.request_repaint_of(ViewportId::ROOT);
     }
 }
@@ -184,7 +200,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             Some(_) => {}
             None => {
                 let Some(id) = dragged.filter(|id| !stops && self.starts_in_body(ctx, *id)) else { return };
-                let route = BodyRoute { owner: viewport, window, id, desktop: self.desktop(), target: None, ended: false };
+                let route = BodyRoute { area, owner: viewport, window, id, desktop: self.desktop(), target: None, ended: false };
                 ctx.with_plugin(|input: &mut NativeInput| input.routes.insert(area, route));
             }
         }
