@@ -423,6 +423,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let blocked = self.input_blocked;
         ctx.with_plugin(|input: &mut NativeInput| input.windows.insert(viewport, self.id));
         let report = ctx.show_viewport_immediate(viewport, builder, |ui, class| {
+            // `cancel_drag` reaches this viewport's drag here.
+            let cancelled = ui.ctx().data(|d| d.get_temp::<Vec<Id>>(crate::docking::surface::native_cancel_key(self.id)));
+            if ui.ctx().dragged_id().is_some_and(|id| cancelled.is_some_and(|ids| ids.contains(&id))) {
+                ui.ctx().stop_dragging();
+            }
             let full = ui.max_rect();
             // An embedded fallback reads the main window's input: its close request, place,
             // keys and resizes are not this window's.
@@ -433,6 +438,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
             self.cross.pointed = None;
             self.floating_body(ui, window, body, full);
+            self.cross.held |= ui.ctx().dragged_id().is_some_and(|id| self.owned_interactions.contains(&id));
             if debug_close() {
                 debug_outlines(ui, full, &buttons);
             }

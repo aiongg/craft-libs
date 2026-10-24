@@ -14,10 +14,12 @@ mod frame;
 mod iconic;
 #[cfg(feature = "native-windows")]
 mod native;
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) use native::WindowDrag;
 #[cfg(all(test, feature = "native-windows"))]
 pub(in crate::docking) use {
     cross::DragPointer,
-    native::{APPKIT_CORNER, MACOS_CLOSE, Session, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
+    native::{APPKIT_CORNER, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
 };
 
 #[cfg(feature = "native-windows")]
@@ -27,12 +29,6 @@ pub(in crate::docking) use native::{InputHook, set_input_hook};
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) fn native_viewport(area: Id, window: u64) -> egui::ViewportId {
     native::viewport_id(area, window, 0)
-}
-
-/// Stop the bar drag of a native window of the dock area `area`, leaving the window where it is.
-#[cfg(feature = "native-windows")]
-pub(in crate::docking) fn end_window_drag(ctx: &Context, area: Id) {
-    ctx.data_mut(|d| d.remove::<native::WindowDrag>(area.with("window-drag")));
 }
 
 pub(in crate::docking) use frame::{FrameState, view};
