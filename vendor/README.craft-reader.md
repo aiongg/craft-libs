@@ -70,6 +70,11 @@ Hostile-input bounds (CodeRabbit findings):
   overflowing or turning negative.
 - A CID font's `/W2` run that starts past CID 65535 is skipped as in `/W`, instead of
   overflowing and discarding the whole table.
+- CCITT images: `ccitt_size_ok` (inherited PdfCraft ledger item 2) allows at most 2^20
+  columns and 2^28 pixels (columns × rows) before the decoder allocates. A `/Columns` past
+  `u32::MAX` is refused rather than wrapped to a small width. `/Rows` follows PdfCraft (17)
+  and (19): `/Rows 0` or a value below `/Height` decodes to the image height, and decoding
+  still stops where the data ends.
 
 Reader limits from the [PdfCraft revision a2ec27b4775f53c40cad3456936d9406611e3a8d ledger](https://github.com/storytold/pdfcraft/blob/a2ec27b4775f53c40cad3456936d9406611e3a8d/vendor/README.md),
 by its item ids: hayro-interpret (31), its overflow part: the largest 32-bit Type 0 sample is
@@ -79,6 +84,15 @@ also brings is a performance change and is not part of this set. hayro-syntax (7
 object-stream indexes are parsed once with checked offsets, and direct objects nest at most
 64 levels, stricter than PdfCraft's 128. Test:
 `function::type0::tests::thirty_two_bit_samples_do_not_overflow`.
+
+Rendering fixes from the same [PdfCraft revision a2ec27b4775f53c40cad3456936d9406611e3a8d ledger](https://github.com/storytold/pdfcraft/blob/a2ec27b4775f53c40cad3456936d9406611e3a8d/vendor/README.md),
+by its item ids, each marked `PdfCraft patch` in the source: hayro-syntax (17) and (19), CCITT
+`/Rows 0` or fewer `/Rows` than `/Height` decode to the image height; (20), spaces or tabs
+between `stream` and its line break; the `EI` extension of (4), `EI` followed by a delimiter
+ends an inline image; (23), bytes above 0x7F after an `EI` candidate don't reject it; the
+unledgered #3565 fix, a doubled sign (`--280`) is one number in both read and skip, beside the
+local zero-tolerance sign tokens; and the `base_dimensions` one-point floor after `/UserUnit`.
+Their unit tests come with them; the CCITT raster tests are adapted in `tests/upstream_raster.rs`.
 
 This remains the patched 0.7 backend. It retains the existing Bradford Lab conversion,
 floating component precision and codec versions, rather than claiming full 0.8

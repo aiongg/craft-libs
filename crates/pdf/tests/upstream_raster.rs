@@ -1,4 +1,5 @@
-//! Portable regressions adapted from PdfCraft 7437bde378f43856eada40af25b983812e615e8a (MIT OR Apache-2.0).
+//! Portable regressions adapted from PdfCraft 7437bde378f43856eada40af25b983812e615e8a and
+//! a2ec27b4775f53c40cad3456936d9406611e3a8d (MIT OR Apache-2.0).
 #![cfg(feature = "raster")]
 use craft_pdf::{
     open_slice,
@@ -268,4 +269,59 @@ fn tiff_predictor_packed_rgb_image_renders_every_row() {
     let pixel = |y: usize| &page.rgba[((y * 40 + 20) * 4)..][..4];
     assert_eq!(pixel(10), &[255, 0, 0, 255]);
     assert_eq!(pixel(30), &[0, 255, 0, 255]);
+}
+
+// An 8 x 4 all-black Group 4 stream, hand-encoded from ITU-T T.6: one horizontal-mode row
+// (white 0, black 8), three V0 rows, then EOFB.
+const ALL_BLACK_8X4: [u8; 6] = [0x26, 0xa2, 0xfe, 0x00, 0x20, 0x02];
+
+fn fax_page(space: &str, params: &str) -> Pixels {
+    let content = "q 20 0 0 20 5 5 cm /Im1 Do Q";
+    let mut pdf = format!(
+        "%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >> endobj
+4 0 obj << /Length {} >> stream
+{content}
+endstream endobj
+5 0 obj << /Type /XObject /Subtype /Image /Width 8 /Height 4 /ColorSpace {space} /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 8 {params} >> /Length {} >> stream\n",
+        content.len(),
+        ALL_BLACK_8X4.len()
+    )
+    .into_bytes();
+    pdf.extend_from_slice(&ALL_BLACK_8X4);
+    pdf.extend_from_slice(b"\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF");
+    render(&pdf)
+}
+
+fn pixel(page: &Pixels, x: u32, y: u32) -> &[u8] {
+    let i = ((y * page.width + x) * 4) as usize;
+    &page.rgba[i..i + 4]
+}
+
+/// Scanners and fax services write Group 4 pages with `/Rows 0`, which ISO 32000-2 Table 11
+/// defines as "height not predetermined" (the default), not as zero rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn group4_fax_with_rows_zero_decodes_to_the_image_height() {
+    for rows in ["", "/Rows 4", "/Rows 0"] {
+        let page = fax_page("/DeviceGray", rows);
+        assert_eq!(pixel(&page, 15, 24), &[0, 0, 0, 255], "{rows:?}: the fax image paints black");
+        assert_eq!(pixel(&page, 1, 38), &[255, 255, 255, 255], "{rows:?}: outside the image stays white");
+    }
+}
+
+/// PdfCraft #3308: a fax image whose `/Rows` is below its `/Height` is decoded to its height.
+/// `/BlackIs1` turns the fixture white, so rows left undecoded show as black. Also through an
+/// `/Indexed` color space, the filter's other output path.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn group4_fax_with_rows_below_its_height_decodes_to_the_image_height() {
+    for (space, rows) in [("/DeviceGray", "/Rows 2"), ("[/Indexed /DeviceRGB 1 <000000FFFFFF>]", "/Rows 2"), ("/DeviceGray", "/Rows 4")] {
+        let page = fax_page(space, &format!("{rows} /BlackIs1 true"));
+        for y in [17, 22, 27, 32] {
+            assert_eq!(pixel(&page, 15, y), &[255, 255, 255, 255], "{space} {rows}: image row at y {y} is decoded");
+        }
+    }
 }
