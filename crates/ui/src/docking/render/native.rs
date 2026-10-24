@@ -427,9 +427,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             // An embedded fallback reads the main window's input: its close request, place,
             // keys and resizes are not this window's.
             let own = matches!(class, ViewportClass::Immediate | ViewportClass::Deferred);
-            if blocked && own {
-                block_input(ui);
-            }
+            let released = if blocked && own { block_input(ui) } else { Vec::new() };
             ui.painter().rect_filled(full, 0.0, self.style.floating_background);
             let buttons = self.native_bar(ui, window);
             let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
@@ -460,6 +458,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             if blocked {
                 (surface.targets, surface.dock_targets, surface.windows) = Default::default();
                 cover(ui, self.id.with(("native-blocked", window.id)), full, self.style.blocked_dim);
+                if !released.is_empty() {
+                    self.output.forwarded_modifiers = Some(ui.input(|i| i.modifiers));
+                    self.output.forwarded_events.extend(released);
+                }
             } else {
                 self.paint_cross(ui, &mut surface);
                 self.forward_events(ui);
@@ -833,13 +835,15 @@ fn panels<P: Eq + Hash>(windows: &[(u64, Vec<P>)]) -> std::collections::HashSet<
 
 /// The start of a blocked native window's frame: its widgets are disabled, and the pointer,
 /// keys, text and scrolling are taken out of its input before anything reads them, so a panel
-/// that reads input directly sees none either.
-fn block_input(ui: &mut Ui) {
+/// that reads input directly sees none either. Returns the key releases it took out, for the
+/// app: a key pressed before the block would otherwise stay down in the app's shortcuts.
+fn block_input(ui: &mut Ui) -> Vec<Event> {
     // Disabling fades what the window paints, its opaque background too; the cover dims it.
     let opacity = ui.opacity();
     ui.disable();
     ui.set_opacity(opacity);
     let kept = |e: &Event| matches!(e, Event::Screenshot { .. } | Event::WindowFocused(_));
+    let released = ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { pressed: false, .. })).cloned().collect());
     ui.input_mut(|i| {
         i.events.retain(kept);
         i.raw.events.retain(kept);
@@ -851,6 +855,7 @@ fn block_input(ui: &mut Ui) {
         i.pointer = Default::default();
     });
     ui.memory_mut(|m| m.stop_text_input());
+    released
 }
 
 /// The end of a blocked native window's frame: `dim` over its content `full`, in a layer above

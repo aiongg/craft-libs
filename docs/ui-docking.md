@@ -455,10 +455,11 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   under `DockStyle::blocked_dim` (by default the panel fill at 60 %), and its bar, tabs, body
   and resize edges take no input: its widgets are disabled, the pointer, key, text and scroll
   events are dropped at the start of its frame, and a layer over its content takes the pointer,
-  so a popup left open takes no click either. It forwards no events, reports no
-  `window_files`, offers no drop targets, starts no move or resize, is not focused by
-  `raise_panel`, and answers the OS close request with `ViewportCommand::CancelClose`. On
-  macOS it is not resizable meanwhile. A palette drops to `WindowLevel::Normal` while blocked,
+  so a popup left open takes no click either. It forwards only key releases, so a key pressed
+  before the block does not stay down in the app's shortcuts. It reports no `window_files`,
+  offers no drop targets, starts no move or resize, is not focused by `raise_panel`, and
+  answers the OS close request with `ViewportCommand::CancelClose`. On macOS it is not
+  resizable meanwhile. A palette drops to `WindowLevel::Normal` while blocked,
   so the main window can come in front of one that covers the modal. Turning blocking on
   cancels a drag in progress, and a widget of a native window loses keyboard focus. A zoom
   gesture still shows in egui's `InputState::zoom_delta`, which cannot be cleared; a widget that

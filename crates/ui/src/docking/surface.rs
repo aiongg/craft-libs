@@ -840,10 +840,10 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// true while the application shows a modal dialog. egui's `Modal` blocks only the
     /// viewport it is shown in, so the OS windows of floating panels would otherwise still take
     /// clicks and keys. A blocked window is drawn under [`DockStyle::blocked_dim`]; its bar,
-    /// tabs, body and resize edges take no pointer, keys, text, scrolling or files, forward no
-    /// events, and offer no drop targets, and its OS close request is cancelled. Turning it on cancels
-    /// any drag in progress. Floating windows drawn in the main window need nothing from this:
-    /// the modal covers them.
+    /// tabs, body and resize edges take no pointer, keys, text, scrolling or files, forward only
+    /// key releases, and offer no drop targets, and its OS close request is cancelled. Turning
+    /// it on cancels any drag in progress. Floating windows drawn in the main window need
+    /// nothing from this: the modal covers them.
     pub fn input_blocked(mut self, blocked: bool) -> Self {
         self.input_blocked = blocked;
         self

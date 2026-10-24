@@ -1480,6 +1480,10 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
     assert_eq!(d.content.count, 0, "the body takes no click");
     let out = d.window_step(id, vec![key.clone(), Event::Text("s".into())]);
     assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
+    // A key released while blocked still reaches the app, which may have seen it go down.
+    let release = Event::Key { key: Key::S, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
+    let out = d.window_step(id, vec![release.clone()]);
+    assert_eq!(out.forwarded_events, vec![release]);
     // The bar starts no move, of the dock area's or the window system's.
     let sent = d.host().commands.len();
     d.window_hold(id, pos2(40.0, 9.0), pos2(140.0, 59.0));
