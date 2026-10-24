@@ -73,8 +73,8 @@ layout.apply(Action::Move {
 - `Move`, `MovePanel`, `Float` and `Close` act on one panel. `MoveGroup`, `MoveColumn` and
   `MoveWindow` move a group, a dock column or a floating window, named by any panel in it.
 - `Open` reveals an absent panel as the last tab of its `anchor`'s group. Without an anchor it
-  becomes the root of an empty layout, else joins the first dock group that accepts tabs (the
-  end-side dock's first), else gets a new frame a quarter wide at the right edge of the docked
+  becomes the root of an empty layout, else joins the first dock group that accepts tabs and is
+  shown, not minimized or in an iconic column (the end-side dock's first), else gets a new frame a quarter wide at the right edge of the docked
   area. `OpenAt` takes any placement.
 - A `Target` is `At { anchor, placement }`, `Float { rect }` or `NewDock { side }`.
 - A `Placement` is a tab position, a split zone, a new group above or below (with an optional

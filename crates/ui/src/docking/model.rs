@@ -366,8 +366,9 @@ pub enum Action<P> {
     },
     /// Reveal a registered, currently absent panel. Applications validate their panel registry.
     /// `anchor` names the group it joins as the last tab. Without one it becomes the root of an
-    /// empty layout, else joins the first dock group that accepts tabs (the end-side dock's
-    /// first), else gets a new frame a quarter wide at the right edge of the docked area
+    /// empty layout, else joins the first dock group that accepts tabs and is shown (not
+    /// minimized, not in an iconic column; the end-side dock's first), else gets a new frame a
+    /// quarter wide at the right edge of the docked area
     /// ([`Placement::Edge`]).
     Open {
         panel: P,
@@ -1253,8 +1254,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
-    /// the end of the first dock group that accepts tabs, in the end-side dock if one has such
-    /// a group, else a new frame at the right edge of the docked area.
+    /// the end of the first shown dock group that accepts tabs, in the end-side dock if one has
+    /// such a group, else a new frame at the right edge of the docked area.
     fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
         let docked: Vec<(&P, Place)> = self
             .panels()
@@ -1269,7 +1270,12 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             },
             _ => None,
         };
-        let groups = docked.iter().filter(|(p, place)| side(place).is_some() && permissions(p).accepts_tabs);
+        // A minimized group or an iconic column would leave the panel open but not shown.
+        let shown = |place: &Place| match place {
+            Place::Dock { group, .. } => self.column(place).is_some_and(|c| !c.iconic && c.groups.get(*group).is_some_and(|g| !g.minimized)),
+            _ => false,
+        };
+        let groups = docked.iter().filter(|(p, place)| side(place).is_some() && shown(place) && permissions(p).accepts_tabs);
         if let Some((panel, _)) = groups.clone().find(|(_, place)| side(place) == Some(Side::End)).or_else(|| groups.clone().next()) {
             return Some(((*panel).clone(), Placement::Tab { before: None }));
         }
