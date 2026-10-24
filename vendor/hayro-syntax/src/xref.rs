@@ -984,7 +984,8 @@ fn xref_stream_subsection<'a>(
             bytes.iter().fold(0u64, |acc, b| (acc << 8) | *b as u64)
         };
 
-        let obj_number = start + i;
+        // PdfCraft patch: object numbers stop at u32::MAX; a subsection running past it is refused.
+        let obj_number = start.checked_add(i)?;
 
         match f_type {
             // We don't care about free objects.
@@ -1177,6 +1178,10 @@ mod tests {
         let mut whole = Reader::new(&data[..6]);
         assert!(xref_stream_subsection(&mut whole, 0, 2, 1, 1, 1, &mut map).is_some());
         assert_eq!(map.len(), 2);
+        // A subsection running past object number u32::MAX is refused.
+        let mut past_end = XrefMap::default();
+        let mut wrap = Reader::new(&data[..6]);
+        assert!(xref_stream_subsection(&mut wrap, u32::MAX, 2, 1, 1, 1, &mut past_end).is_none());
     }
 
     #[test]
