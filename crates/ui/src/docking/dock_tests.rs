@@ -628,7 +628,7 @@ fn an_unanchored_open_prefers_the_end_dock_and_an_edge_frame_takes_a_quarter() {
     assert_eq!(columns(&layout, Side::End), vec![vec![vec![2, 9]]]);
     assert_eq!(columns(&layout, Side::Start), vec![vec![vec![1]]]);
 
-    // No dock: a frame at the right edge, a quarter of the width, as for a protected canvas.
+    // No dock: a frame at the right edge, a quarter of the width.
     let mut layout = Layout { root: Some(Node::Tabs { panels: vec![0], active: 0 }), floating: Vec::new() };
     layout.apply(Action::Open { panel: 9, anchor: None }).unwrap();
     let Some(Node::Split { axis: SplitAxis::Horizontal, size, second, .. }) = &layout.root else { panic!("{layout:?}") };

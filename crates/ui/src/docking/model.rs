@@ -913,14 +913,12 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// application, particularly Open.
     pub fn apply_with_permissions(&mut self, action: Action<P>, permissions: impl Fn(&P) -> Permissions) -> Result<Vec<P>, DockError> {
         self.validate()?;
-        // An unanchored open that falls back to a frame at the edge sizes it afterwards.
-        let (action, edge) = match action {
+        let action = match action {
             Action::Open { panel, anchor: None } if self.root.is_some() && !self.contains(&panel) => {
                 let (anchor, placement) = self.open_place(&permissions).ok_or(DockError::MissingTarget)?;
-                let edge = matches!(placement, Placement::Edge(_)).then(|| panel.clone());
-                (Action::OpenAt { panel, anchor, placement }, edge)
+                Action::OpenAt { panel, anchor, placement }
             }
-            action => (action, None),
+            action => action,
         };
         match &action {
             Action::Move { panel, anchor, placement } | Action::OpenAt { panel, anchor, placement } => {
@@ -983,12 +981,6 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         let closed = self.closed_by(&action)?;
         let mut proposed = self.clone();
         proposed.apply_inner(action)?;
-        if let Some(panel) = edge
-            && let Some(root) = proposed.root.as_mut()
-        {
-            // The new frame is the second child: it gets a quarter of the width.
-            restore_parent_size(root, &panel, SplitSize::Ratio(0.75));
-        }
         proposed.validate()?;
         *self = proposed;
         Ok(closed)
