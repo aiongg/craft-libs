@@ -672,7 +672,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         // The window system may send no pointer moves while files are dragged in.
         let Some(panel) = self.cross.pointed.clone().or_else(|| crate::docking::dock_model::first_active(&window.root).cloned()) else { return };
-        self.output.window_files.push(WindowFiles { window: window.id, viewport, panel, pos, hovered, dropped });
+        // A window whose own pass is discarded draws twice: keep one report, with the latest
+        // hovered files and every dropped one.
+        if let Some(files) = self.output.window_files.iter_mut().find(|f| f.viewport == viewport) {
+            files.panel = panel;
+            files.pos = pos;
+            files.hovered = hovered;
+            files.dropped.extend(dropped);
+        } else {
+            self.output.window_files.push(WindowFiles { window: window.id, viewport, panel, pos, hovered, dropped });
+        }
     }
 
     /// Keys, text and clipboard events the window's widgets left over, for the application's
