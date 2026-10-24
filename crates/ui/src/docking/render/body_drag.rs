@@ -1,0 +1,214 @@
+//! App drags in panel bodies across OS windows (feature `native-windows`).
+//!
+//! egui gives each window only its own input, and the window where the button went down gets
+//! the pointer until the release. An app's drag that began in a panel body (a media item onto
+//! a timeline in another window) would never show its pointer or release to the window it is
+//! over. So while one lasts, the owner's input hook ([`super::native`]'s plugin) sends each
+//! pointer move over another of the app's windows to that window, in its coordinates, as
+//! `PointerMoved`, `PointerGone` when the pointer leaves it, and the release as a primary
+//! `PointerButton` there. The owner sees the pointer gone while it is over another window, so
+//! its own panels under that window see no hover and no drop.
+//!
+//! A window drawn after the owner in the same pass gets the events in that pass: the main
+//! window owning the drag reaches every native window at once. The main window, and a native
+//! window drawn before the owner, get them on the next pass, which the hook asks for.
+
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
+
+use egui::{Context, Event, Id, Key, PointerButton, Pos2, RawInput, Rect, ViewportId};
+
+use super::Renderer;
+use super::native::{NativeInput, WindowDrag, content_of};
+use crate::docking::desktop::{Over, window_at};
+use crate::docking::{Drag, GroupDrag};
+
+/// The application's windows on the desktop, as the main window last mapped them.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Desktop {
+    /// The main window's content, where known.
+    pub main: Option<Rect>,
+    /// Shown native windows' content, front first, and how many lie in front of the main window.
+    pub windows: Vec<(u64, Rect)>,
+    pub front: usize,
+    /// The viewport of each native window.
+    pub viewports: Vec<(u64, ViewportId)>,
+}
+
+impl Desktop {
+    /// The window under the desktop point `point`, and the point in its coordinates.
+    fn at(&self, point: Pos2) -> Option<(ViewportId, Pos2)> {
+        match window_at(point, &self.windows, self.front, Some(self.main?), None) {
+            Over::Main(local) => Some((ViewportId::ROOT, local)),
+            Over::Window(window, local) => self.viewports.iter().find(|(w, _)| *w == window).map(|(_, viewport)| (*viewport, local)),
+            Over::Desktop => None,
+        }
+    }
+}
+
+/// A dock area's app drag in a panel body, in the input plugin.
+#[derive(Debug)]
+pub(super) struct BodyRoute {
+    /// The window the drag began in, and the widget egui drags there.
+    owner: ViewportId,
+    /// [`crate::docking::Floating::id`] of the owner; `None` for the main window.
+    window: Option<u64>,
+    id: Id,
+    desktop: Desktop,
+    /// The window other than the owner that the pointer is over.
+    target: Option<ViewportId>,
+    /// Nothing more is routed until the drag ends: released, or ended by Escape, a focus loss,
+    /// input blocking or [`crate::docking::cancel_drag`].
+    ended: bool,
+}
+
+/// Events waiting for each viewport's next input, with the main window's pass that queued them.
+pub(super) type Queued = HashMap<ViewportId, (u64, Vec<Event>)>;
+
+fn queue(queued: &mut Queued, pass: u64, viewport: ViewportId, event: Event) {
+    let (at, events) = queued.entry(viewport).or_default();
+    *at = pass;
+    events.push(event);
+}
+
+impl BodyRoute {
+    /// The owner's input before egui reads it: each pointer event over another of the app's
+    /// windows goes to that window, and the owner sees the pointer gone. Returns whether
+    /// anything was queued. Where the owner reports no desktop position nothing is routed.
+    pub(super) fn route(&mut self, input: &mut RawInput, queued: &mut Queued, pass: u64) -> bool {
+        if input.viewport_id != self.owner || self.ended {
+            return false;
+        }
+        let Some((origin, _)) = input.viewports.get(&input.viewport_id).and_then(content_of) else { return false };
+        let mut routed = false;
+        let mut events = Vec::with_capacity(input.events.len());
+        for event in std::mem::take(&mut input.events) {
+            let (pos, release) = match &event {
+                Event::PointerMoved(pos) => (*pos, None),
+                Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers } => (*pos, Some(*modifiers)),
+                _ => {
+                    events.push(event);
+                    continue;
+                }
+            };
+            if self.ended {
+                events.push(event);
+                continue;
+            }
+            let over = pos.is_finite().then(|| self.desktop.at(origin + pos.to_vec2())).flatten().filter(|(v, _)| *v != self.owner);
+            let target = over.map(|(viewport, _)| viewport);
+            if let Some(left) = self.target.filter(|left| Some(*left) != target) {
+                queue(queued, pass, left, Event::PointerGone);
+                routed = true;
+            }
+            self.target = target;
+            if let Some((viewport, local)) = over {
+                queue(queued, pass, viewport, Event::PointerMoved(local));
+                if let Some(modifiers) = release {
+                    queue(queued, pass, viewport, Event::PointerButton { pos: local, button: PointerButton::Primary, pressed: false, modifiers });
+                }
+                routed = true;
+            }
+            if release.is_some() {
+                (self.ended, self.target) = (true, None);
+            }
+            // The owner gets its release, so its drag stops, without the pointer over it.
+            if over.is_none() || release.is_some() {
+                events.push(event);
+            }
+            if over.is_some() {
+                events.push(Event::PointerGone);
+            }
+        }
+        input.events = events;
+        routed
+    }
+}
+
+/// End `area`'s routing: the window the pointer was over sees it go. `remove`: the drag is
+/// over, so another may start.
+fn end_route(ctx: &Context, area: Id, remove: bool) {
+    let queued = ctx.with_plugin(|input: &mut NativeInput| {
+        let route = input.routes.get_mut(&area)?;
+        let target = route.target.take();
+        route.ended = true;
+        if remove {
+            input.routes.remove(&area);
+        }
+        target.map(|target| queue(&mut input.queued, input.pass, target, Event::PointerGone))
+    });
+    if queued.flatten().is_some() {
+        ctx.request_repaint_of(ViewportId::ROOT);
+    }
+}
+
+/// [`crate::docking::cancel_drag`]: an app drag in a panel body goes on, but no longer reaches
+/// other windows.
+pub(in crate::docking) fn cancel_body_route(ctx: &Context, area: Id) {
+    end_route(ctx, area, false);
+}
+
+impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
+    /// In the main window, once the desktop is mapped and before native windows draw: give the
+    /// routing the map, and end it where it cannot go on. `native`: viewports are native.
+    pub(super) fn map_body_route(&mut self, ctx: &Context, native: bool) {
+        let desktop = self.desktop();
+        let owner = ctx.with_plugin(|input: &mut NativeInput| {
+            let route = input.routes.get_mut(&self.id)?;
+            route.desktop = desktop;
+            Some(route.window)
+        });
+        // Windows are no longer native, or the owner closed.
+        let natives = &self.cross.viewports;
+        if owner.flatten().is_some_and(|window| !native || window.is_some_and(|w| !natives.iter().any(|(id, _)| *id == w))) {
+            end_route(ctx, self.id, true);
+        }
+        if native {
+            self.route_body_drag(ctx, None);
+        }
+    }
+
+    fn desktop(&self) -> Desktop {
+        Desktop { main: self.cross.main, windows: self.cross.windows.clone(), front: self.cross.front, viewports: self.cross.viewports.clone() }
+    }
+
+    /// After the window drawing now (`window`; `None` for the main window) drew its panels'
+    /// bodies: start routing an app drag that began in one of them, and end it when the drag
+    /// is over. An Escape in any of the app's windows, a focus loss and input blocking end it.
+    pub(super) fn route_body_drag(&mut self, ctx: &Context, window: Option<u64>) {
+        let (area, viewport, dragged) = (self.id, ctx.viewport_id(), ctx.dragged_id());
+        let route = ctx.with_plugin(|input: &mut NativeInput| input.routes.get(&area).map(|r| (r.owner, r.id))).flatten();
+        let stops = self.input_blocked || self.cross.focus_lost || ctx.input(|i| i.key_pressed(Key::Escape));
+        match route {
+            Some((owner, id)) if owner == viewport && dragged != Some(id) => end_route(ctx, area, true),
+            Some(_) if stops => end_route(ctx, area, false),
+            Some(_) => {}
+            None => {
+                let Some(id) = dragged.filter(|id| !stops && self.starts_in_body(ctx, *id)) else { return };
+                let route = BodyRoute { owner: viewport, window, id, desktop: self.desktop(), target: None, ended: false };
+                ctx.with_plugin(|input: &mut NativeInput| input.routes.insert(area, route));
+            }
+        }
+    }
+
+    /// Whether egui's drag of `id` in the window drawing now is the app's: pressed with the
+    /// primary button in a panel body, and none of the area's own controls or drags.
+    fn starts_in_body(&self, ctx: &Context, id: Id) -> bool {
+        let (area, viewport) = (self.id, ctx.viewport_id());
+        let (down, press) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.press_origin()));
+        let (pressed, owned, dock) = ctx.data(|d| {
+            let pressed = d.get_temp::<Pos2>(body_press_key(area, viewport));
+            let owned = d.get_temp::<Vec<Id>>(area.with("owned-interactions")).is_some_and(|ids| ids.contains(&id))
+                || d.get_temp::<Id>(area.with("pointer-resize")) == Some(id);
+            let dock = d.get_temp::<Drag<P>>(area.with("drag")).is_some()
+                || d.get_temp::<GroupDrag<P>>(area.with("group-drag")).is_some()
+                || d.get_temp::<WindowDrag>(area.with("window-drag")).is_some();
+            (pressed, owned, dock)
+        });
+        down && press.is_some() && pressed == press && !owned && !dock && !self.owned_interactions.contains(&id)
+    }
+}
+
+/// Where the last press in one of the area's panel bodies in `viewport` began.
+pub(super) fn body_press_key(area: Id, viewport: ViewportId) -> Id {
+    area.with(("body-press", viewport))
+}

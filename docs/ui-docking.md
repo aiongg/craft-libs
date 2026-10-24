@@ -511,7 +511,8 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   shown panel, since the window system may send no pointer moves during a file drag), the
   pointer's last position in the window, and the window's `hovered_files` and
   `dropped_files`. Files on the main window stay in its own `RawInput`.
-- **Drags.** Tabs, groups and whole windows drag between the app's OS windows.
+- **Drags.** Tabs, groups and whole windows drag between the app's OS windows, and the app's
+  own drags in panel bodies reach the window under the pointer.
   - *Ownership.* The window where the button went down owns the drag: the window system sends it
     the pointer's moves and the release while the button is held, inside the window or not. So
     the pointer leaving a window (`PointerGone`) is not a release. A drag ends on release,
@@ -554,6 +555,25 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
     works inside its own window, and a release outside it floats a new window that the
     compositor places. Moving a window hands the move to the
     compositor, which never docks it.
+  - *App drags in panel bodies.* A drag the app starts in a panel body (an egui drag of one of
+    its own widgets, pressed with the primary button) reaches the window under the pointer, so
+    a drop site there works as it does inside one window. While the drag lasts, the owner's
+    pointer moves over another of the app's windows (found as for tab drags, front window
+    first) go to that window in its own coordinates: `PointerMoved` while the pointer is over
+    it, `PointerGone` when it leaves, and the release as a primary `PointerButton` with
+    `pressed: false`. That window sees `pointer_hover_pos` and `any_released` as if the window
+    system had sent them; it sees no press, so `any_down` stays false there. The owner gets its
+    own release, so its drag stops, but sees the pointer gone while it is over another window:
+    its panels under a palette see no hover and no drop. Events go in through the area's egui
+    input plugin, before any widget reads the input (in a native window, before the app's
+    `native_input_hook` too); the app calls nothing. A window drawn after the owner in the same pass gets them in that pass
+    (from the main window, every native window does); the main window, and a native window
+    drawn before the owner, get them on the next pass, which is requested. So the app keeps its
+    payload through the frame after the release. Nothing is routed where
+    desktop positions are unknown (Wayland, `native_windows(false)`, embedded viewports) or
+    while input is blocked. Escape in any of the app's windows, a focus loss, `cancel_drag` and
+    a replaced layout stop the routing: the window under the pointer sees it go and gets no
+    release, while the drag itself goes on in its own window until the button comes up.
 
 On the web and wherever egui embeds viewports, nothing changes: floating windows stay in the
 page at their in-window rect, `native` and the monitor fields are kept but unused, the input
