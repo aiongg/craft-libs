@@ -35,14 +35,31 @@ struct Content {
     saw_files: bool,
     /// The panel with an app drag source, and where it was drawn.
     source: Option<u32>,
-    /// The dock area whose drag the source cancels when the button comes up, as an app may.
-    cancel_on_release: Option<egui::Id>,
+    /// How the source marks its drag as one that carries something.
+    marks: Marks,
     source_rect: Option<Rect>,
+    /// The source's drag so far, and how often its drag stopped.
+    source_delta: egui::Vec2,
+    source_stopped: usize,
     /// Panels whose bodies are app drop sites: where each saw the pointer, and where a release
     /// came with the pointer inside.
     drop_sites: Vec<u32>,
     hovers: Vec<(u32, Pos2)>,
     drops: Vec<(u32, Pos2)>,
+    /// Drop sites whose release found egui's drag-and-drop payload.
+    payload_drops: Vec<u32>,
+}
+
+/// How a test's app drag source marks its drag.
+#[derive(Default)]
+enum Marks {
+    /// It does not: a plain egui drag, such as a slider's.
+    #[default]
+    Nothing,
+    /// [`super::route_app_drag`] for this area, each frame while it drags.
+    Route(egui::Id),
+    /// An egui drag-and-drop payload, its panel.
+    Payload,
 }
 
 impl DockContent<u32> for Content {
@@ -63,9 +80,14 @@ impl DockContent<u32> for Content {
             self.counter_rect = Some(response.rect);
         }
         if self.source == Some(*panel) {
-            self.source_rect = Some(ui.allocate_response(vec2(120.0, 60.0), egui::Sense::drag()).rect);
-            if let Some(area) = self.cancel_on_release.filter(|_| ui.input(|i| i.pointer.any_released())) {
-                super::cancel_drag::<u32>(ui.ctx(), area);
+            let response = ui.allocate_response(vec2(120.0, 60.0), egui::Sense::drag());
+            self.source_rect = Some(response.rect);
+            self.source_delta += response.drag_delta();
+            self.source_stopped += usize::from(response.drag_stopped());
+            match self.marks {
+                Marks::Route(area) if response.dragged() => super::route_app_drag(ui.ctx(), area),
+                Marks::Payload => response.dnd_set_drag_payload(*panel),
+                _ => {}
             }
         }
         // As apps' drop sites do: the pointer over the body, and a release there.
@@ -75,6 +97,9 @@ impl DockContent<u32> for Content {
             self.hovers.push((*panel, pos));
             if ui.input(|i| i.pointer.any_released()) {
                 self.drops.push((*panel, pos));
+                if egui::DragAndDrop::has_payload_of_type::<u32>(ui.ctx()) {
+                    self.payload_drops.push(*panel);
+                }
             }
         }
         self.saw_files |= ui.input(|i| !i.raw.hovered_files.is_empty() || !i.raw.dropped_files.is_empty());
@@ -1853,7 +1878,7 @@ fn the_session_follows_winits_environment_rule() {
 /// A driver whose panel `source` has an app drag source and whose panels `sites` are drop sites.
 fn app_drag(layout: Layout<u32>, source: u32, sites: &[u32]) -> DockDriver<u32, Content> {
     let mut d = driver(layout);
-    (d.content.source, d.content.drop_sites) = (Some(source), sites.to_vec());
+    (d.content.source, d.content.drop_sites, d.content.marks) = (Some(source), sites.to_vec(), Marks::Route(d.id));
     d.settle();
     d
 }
@@ -1879,19 +1904,81 @@ fn an_app_drag_from_the_main_window_reaches_a_native_windows_panel() {
 }
 
 #[test]
-fn a_cancel_while_the_owner_draws_withdraws_the_routed_release() {
+fn a_stop_withdraws_a_routed_release_no_window_read_but_not_the_owners() {
+    let mut d = app_drag(layout(true), 5, &[1]);
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    // The release is queued for the main window's next pass, and the drag is cancelled first.
+    d.window_release(id, local);
+    super::cancel_drag::<u32>(&d.ctx, d.id);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![]);
+    // The owner still gets its own release.
+    assert_eq!(d.content.source_stopped, 1);
+}
+
+#[test]
+fn a_plain_egui_drag_over_a_native_window_keeps_its_moves_and_is_not_routed() {
     let mut d = app_drag(layout(true), 1, &[5]);
-    d.content.cancel_on_release = Some(d.id);
+    d.content.marks = Marks::Nothing;
+    let id = window(&d, 5).id;
+    let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+    let from = source(&d);
+    d.hold(from, over);
+    d.move_to(over + vec2(20.0, 10.0));
+    let moved = over + vec2(20.0, 10.0) - from;
+    assert!((d.content.source_delta - moved).length() < 0.01, "{:?}, not {moved:?}", d.content.source_delta);
+    d.release(over);
+    d.step(vec![]);
+    assert!(d.content.hovers.is_empty(), "{:?}", d.content.hovers);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
+    assert_eq!(d.content.source_stopped, 1);
+}
+
+#[test]
+fn an_egui_payload_reaches_a_window_drawn_before_the_owner() {
+    // The main window draws before the native window that owns the drag.
+    let mut d = app_drag(layout(true), 5, &[1]);
+    d.content.marks = Marks::Payload;
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    d.window_release(id, local);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.payload_drops, vec![1]);
+    assert!(!egui::DragAndDrop::has_any_payload(&d.ctx));
+}
+
+#[test]
+fn the_owners_drag_stops_a_pass_after_its_release_over_another_window() {
+    let mut d = app_drag(layout(true), 1, &[5]);
     let id = window(&d, 5).id;
     let local = pos2(120.0, 200.0);
     let point = d.host().windows[&d.viewport(id)].rect.min + local.to_vec2() - ORIGIN.to_vec2();
     d.hold(source(&d), point);
-    assert!(d.content.hovers.contains(&(5, local)), "{:?}", d.content.hovers);
-    // The release is queued for the native window before the main window draws, and the
-    // source cancels the drag as it draws.
+    d.release(point);
+    assert_eq!((d.content.drops.clone(), d.content.source_stopped), (vec![(5, local)], 0));
+    d.step(vec![]);
+    assert_eq!(d.content.source_stopped, 1);
+    assert_eq!(d.ctx.dragged_id(), None);
+}
+
+#[test]
+fn a_routed_release_clicks_nothing_in_the_target() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.content.counter = Some(5);
+    d.step(vec![]);
+    let id = window(&d, 5).id;
+    let button = d.content.counter_rect.unwrap().center();
+    let point = d.host().windows[&d.viewport(id)].rect.min + button.to_vec2() - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
     d.release(point);
     d.step(vec![]);
-    assert_eq!(d.content.drops, vec![]);
+    assert_eq!(d.content.drops, vec![(5, button)]);
+    assert_eq!(d.content.count, 0);
 }
 
 #[test]

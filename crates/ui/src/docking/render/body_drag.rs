@@ -3,15 +3,17 @@
 //! egui gives each window only its own input, and the window where the button went down gets
 //! the pointer until the release. An app's drag that began in a panel body (a media item onto
 //! a timeline in another window) would never show its pointer or release to the window it is
-//! over. So while one lasts, the owner's input hook ([`super::native`]'s plugin) sends each
-//! pointer move over another of the app's windows to that window, in its coordinates, as
-//! `PointerMoved`, `PointerGone` when the pointer leaves it, and the release as a primary
-//! `PointerButton` there. The owner sees the pointer gone while it is over another window, so
-//! its own panels under that window see no hover and no drop.
+//! over. So while one that carries something lasts (an egui drag-and-drop payload, or
+//! [`crate::docking::route_app_drag`]), the owner's input hook ([`super::native`]'s plugin)
+//! sends each pointer move over another of the app's windows to that window, in its
+//! coordinates, as `PointerMoved`, `PointerGone` when the pointer leaves it, and the release as
+//! a primary `PointerButton` there. The owner sees the pointer gone while it is over another
+//! window, so its own panels under that window see no hover and no drop.
 //!
 //! A window drawn after the owner in the same pass gets the events in that pass: the main
 //! window owning the drag reaches every native window at once. The main window, and a native
-//! window drawn before the owner, get them on the next pass, which the hook asks for.
+//! window drawn before the owner, get them on the next pass, which the hook asks for. The
+//! owner's own release then waits a pass too, so its payload outlives the target's read.
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
@@ -108,23 +110,31 @@ impl BodyRoute {
                 if let Some(modifiers) = release {
                     let release = Event::PointerButton { pos: local, button: PointerButton::Primary, pressed: false, modifiers };
                     queue(queued, pass, self.area, viewport, release);
+                    // The owner's own release waits for its next input, so its drag, and an
+                    // egui drag-and-drop payload, last until a window drawn before it has read
+                    // the release. A stop never takes it back, or the button would stay down.
+                    let held = held_key(self.area);
+                    queue(queued, pass, held, self.owner, event);
+                    queue(queued, pass, held, self.owner, Event::PointerGone);
                 }
                 routed = true;
+                events.push(Event::PointerGone);
+            } else {
+                events.push(event);
             }
             if release.is_some() {
                 (self.ended, self.target) = (true, None);
-            }
-            // The owner gets its release, so its drag stops, without the pointer over it.
-            if over.is_none() || release.is_some() {
-                events.push(event);
-            }
-            if over.is_some() {
-                events.push(Event::PointerGone);
             }
         }
         input.events = events;
         routed
     }
+}
+
+/// What tags an owner's held release in the queue: not `area`, whose unread events a stop takes
+/// back.
+fn held_key(area: Id) -> Id {
+    area.with("held-release")
 }
 
 /// End `area`'s routing: the window the pointer was over sees it go. `remove`: the drag is
@@ -206,9 +216,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
     }
 
-    /// Whether egui's drag of `id` in the window drawing now is the app's: pressed with the
-    /// primary button in a panel body, and none of the area's own controls or drags.
+    /// Whether egui's drag of `id` in the window drawing now is the app's and carries something:
+    /// pressed with the primary button in a panel body, none of the area's own controls or
+    /// drags, and with an egui drag-and-drop payload or [`crate::docking::route_app_drag`]
+    /// called this frame or the last. Other drags (sliders, scrollbars, text selection, canvas
+    /// pans) keep the owner's pointer.
     fn starts_in_body(&self, ctx: &Context, id: Id) -> bool {
+        let payload = ctx.plugin_opt::<egui::DragAndDrop>().is_some() && egui::DragAndDrop::has_any_payload(ctx);
+        let main = ctx.cumulative_pass_nr_for(ViewportId::ROOT);
+        let asked = ctx.data(|d| d.get_temp::<u64>(app_drag_key(self.id))).is_some_and(|at| at + 1 >= main);
+        if !payload && !asked {
+            return false;
+        }
         let (area, viewport) = (self.id, ctx.viewport_id());
         let (down, press) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.press_origin()));
         let (pressed, owned, dock) = ctx.data(|d| {
@@ -222,6 +241,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         });
         down && press.is_some() && pressed == press && !owned && !dock && !self.owned_interactions.contains(&id)
     }
+}
+
+/// The main window's pass in which the app last called [`crate::docking::route_app_drag`].
+fn app_drag_key(area: Id) -> Id {
+    area.with("route-app-drag")
+}
+
+/// [`crate::docking::route_app_drag`].
+pub(in crate::docking) fn mark_app_drag(ctx: &Context, area: Id) {
+    let main = ctx.cumulative_pass_nr_for(ViewportId::ROOT);
+    ctx.data_mut(|d| d.insert_temp(app_drag_key(area), main));
 }
 
 /// Where the last press in one of the area's panel bodies in `viewport` began.

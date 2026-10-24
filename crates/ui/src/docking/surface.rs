@@ -735,6 +735,19 @@ pub fn cancel_drag<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id)
     super::render::cancel_body_route(ctx, area_id);
 }
 
+/// Mark the app's drag in a panel body of the area `area_id` as one that carries something, so
+/// it reaches the window under the pointer (feature `native-windows`; elsewhere it does
+/// nothing). A drag with an egui drag-and-drop payload needs no call. Call it each frame while
+/// the drag lasts, from the panel body or before the area shows; a call starts the routing
+/// for this frame and the next, and a routing once started lasts until the drag ends. Drags
+/// that are never marked (sliders, scrollbars, text selection, canvas pans) stay in their window.
+pub fn route_app_drag(ctx: &Context, area_id: Id) {
+    #[cfg(feature = "native-windows")]
+    super::render::mark_app_drag(ctx, area_id);
+    #[cfg(not(feature = "native-windows"))]
+    let _ = (ctx, area_id);
+}
+
 /// One mutable application adapter owns bodies, menus, shaped text and per-panel policy,
 /// avoiding competing mutable closures. Logical labels are used for tab accessibility.
 /// [`DockArea::show_content`] reads every policy from here; the closures passed to the older

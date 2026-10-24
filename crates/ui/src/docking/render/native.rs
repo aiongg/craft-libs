@@ -837,11 +837,13 @@ impl egui::Plugin for NativeInput {
             let pass = self.pass;
             self.queued.retain(|_, (at, _)| *at + 1 >= pass);
         }
+        // Taken first: an owner's held release, queued as it is routed, is for its next input.
+        let waiting = self.queued.remove(&viewport);
         let mut routed = false;
         for route in self.routes.values_mut() {
             routed |= route.route(input, &mut self.queued, self.pass);
         }
-        if let Some((_, events)) = self.queued.remove(&viewport) {
+        if let Some((_, events)) = waiting {
             input.events.extend(events.into_iter().map(|(_, event)| event));
         }
         if routed {

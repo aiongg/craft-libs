@@ -25,7 +25,7 @@ pub(in crate::docking) use {
 };
 
 #[cfg(feature = "native-windows")]
-pub(in crate::docking) use body_drag::cancel_body_route;
+pub(in crate::docking) use body_drag::{cancel_body_route, mark_app_drag};
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) use native::{InputHook, set_input_hook};
 
