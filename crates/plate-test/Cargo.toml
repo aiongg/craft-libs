@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 craft-cms = { workspace = true }
-craft-pdf = { workspace = true, features = ["write-pdf", "write-simple-text"] }
+craft-pdf = { workspace = true, features = ["write-pdf", "write-simple-text", "write-raster-images"] }
 hayro-syntax = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

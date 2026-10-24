@@ -12,6 +12,7 @@ No feature is enabled by default.
 | `write` | Guarded Krilla authoring; no shared reader dependency |
 | `write-pdf` | `write` plus Krilla's embedded-PDF support |
 | `write-simple-text` | `write` plus Krilla's optional text shaper and `draw_text` |
+| `write-raster-images` | `write` plus Krilla's `Image` type, `Surface::draw_image`, its PNG, JPEG, GIF and WebP decoders, and bitmap color glyphs |
 
 ## Reading and rendering
 
@@ -98,10 +99,14 @@ covered by `cargo test --workspace` alone.
 
 ## Writing
 
-Plain `write` retains Krilla raster images without its optional text shaper. Applications
-that supply shaped glyphs do not need that shaper. Adapters that call `draw_text`, such as
-DeckCraft, also need `write-simple-text` when adopting this revision. `write-pdf` adds
-embedded-PDF support independently of text shaping.
+Plain `write` has neither Krilla's text shaper nor its raster images. Applications that
+supply shaped glyphs do not need that shaper. Adapters that call `draw_text`, such as
+DeckCraft, also need `write-simple-text`. Adapters that draw images need
+`write-raster-images`, which brings `krilla::image::Image` (including `from_custom` and
+`from_rgba8`) and its PNG, JPEG, GIF and WebP decoders as one unit. Without it, bitmap color
+glyphs (CBDT, sbix) fall back to the glyph outline, if the font has one. `krilla-svg` enables
+Krilla's raster images itself. `write-pdf` adds embedded-PDF support independently of text
+shaping and images.
 
 The writer pins Krilla 0.8.2, with local unwind-cleanup, print color and optional content patches documented in
 [`vendor/krilla/README.craft.md`](../../vendor/krilla/README.craft.md). Successful

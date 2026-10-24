@@ -12,6 +12,7 @@ use backend::color::device_n::{self, Colorant, DeviceNSpace, Process};
 use backend::color::{cmyk, luma};
 use backend::configure::{Archival, PdfVersion, ValidationError};
 use backend::geom::{PathBuilder, Rect, Size, Transform};
+#[cfg(feature = "write-raster-images")]
 use backend::image::{BitsPerComponent, CustomImage, Image, ImageColorspace};
 use backend::mask::{Mask, MaskType, TransferFunction};
 use backend::num::NormalizedF32;
@@ -672,6 +673,7 @@ fn device_n_space_rejects_bad_colorant_lists() {
 
 // DeviceN images and shadings.
 
+#[cfg(feature = "write-raster-images")]
 #[derive(Clone, Hash)]
 struct Samples {
     data: Vec<u8>,
@@ -680,6 +682,7 @@ struct Samples {
     device_n: Option<DeviceNSpace>,
 }
 
+#[cfg(feature = "write-raster-images")]
 impl CustomImage for Samples {
     fn color_channel(&self) -> &[u8] {
         &self.data
@@ -729,6 +732,7 @@ fn colorant_names(cs: &Object<'_>) -> (String, Vec<String>) {
 
 /// A [Black Gold] duotone: the image's `/ColorSpace` is the DeviceN space, with two 8-bit
 /// samples a pixel in colorant order.
+#[cfg(feature = "write-raster-images")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn device_n_image_writes_one_sample_per_colorant() {
@@ -757,6 +761,7 @@ fn device_n_image_writes_one_sample_per_colorant() {
 
 /// `Image::from_custom` refuses channel data that doesn't match the dimensions, and dimensions
 /// whose channel length overflows, instead of panicking when the page is written.
+#[cfg(feature = "write-raster-images")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn custom_image_with_mismatched_or_huge_dimensions_is_refused() {
@@ -767,6 +772,7 @@ fn custom_image_with_mismatched_or_huge_dimensions_is_refused() {
 }
 
 /// A DeviceN image needs its space from `CustomImage::device_n_space`.
+#[cfg(feature = "write-raster-images")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn device_n_image_without_a_space_is_refused() {
