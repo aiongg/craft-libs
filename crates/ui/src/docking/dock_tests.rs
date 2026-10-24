@@ -681,6 +681,14 @@ fn a_default_column_gives_the_filler_its_fill_height() {
 }
 
 #[test]
+fn shared_groups_with_different_minimums_fit_an_exact_room() {
+    let open = |min: f32, content: Option<DockHeights>| render::GroupSize { minimized: false, saved: None, min, content };
+    let column = [open(50.0, Some(DockHeights::new(186.0))), open(86.0, None), open(146.0, None)];
+    assert_eq!(render::group_heights(&column, 26.0, 418.0), vec![186.0, 86.0, 146.0]);
+    assert_eq!(render::group_heights(&column, 26.0, 518.0), vec![186.0, 166.0, 166.0]);
+}
+
+#[test]
 fn defaults_give_way_to_the_filler_but_user_heights_stay() {
     let open = |saved: Option<f32>, min: f32, content: Option<DockHeights>| render::GroupSize { minimized: false, saved, min, content };
     let color = Some(DockHeights::new(186.0).compact(126.0));

@@ -129,7 +129,20 @@ pub(in crate::docking) fn group_heights(groups: &[GroupSize], strip: f32, room: 
     let shared_min: f32 = shared.iter().filter_map(|i| mins.get(*i)).sum();
     give_way(&mut heights, &sized, &mins, shared_min - room);
     let free = (room - heights.iter().sum::<f32>()).max(0.0);
-    let share = free / shared.len().max(1) as f32;
+    // The shared groups split what is left evenly, each at least its minimum: groups whose
+    // minimum is above the even share take their minimum and the rest split the remainder.
+    let mut floors: Vec<f32> = shared.iter().filter_map(|i| mins.get(*i).copied()).collect();
+    floors.sort_by(|a, b| b.total_cmp(a));
+    let (mut rest, mut count) = (free, floors.len());
+    for floor in floors {
+        if count > 1 && floor > rest / count as f32 {
+            rest -= floor;
+            count -= 1;
+        } else {
+            break;
+        }
+    }
+    let share = rest / count.max(1) as f32;
     for i in &shared {
         if let (Some(height), Some(min)) = (heights.get_mut(*i), mins.get(*i)) {
             *height = share.max(*min);
