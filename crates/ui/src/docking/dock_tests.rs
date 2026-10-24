@@ -664,12 +664,12 @@ fn drawn_heights(d: &testing::DockDriver<u32, Creative>) -> [f32; 3] {
 #[test]
 fn a_default_column_gives_the_filler_its_fill_height() {
     let strip = DockStyle::from_visuals(&egui::Visuals::dark()).tab_height;
-    // A 900 pt window: Color and Properties give way, towards their compact heights, so Layers
-    // gets the height it asks for.
+    // A 900 pt window: Properties, nearest Layers, gives way towards its compact height so
+    // Layers gets the height it asks for; Color keeps its default.
     let d = sized_column(900.0, [None; 3]);
     let [color, properties, layers] = drawn_heights(&d);
     assert!((layers - (480.0 + strip)).abs() < 0.5, "{:?}", drawn_heights(&d));
-    assert!(color < 160.0 + strip && color >= 100.0 + strip, "{:?}", drawn_heights(&d));
+    assert_eq!(color, 160.0 + strip, "{:?}", drawn_heights(&d));
     assert!(properties < 220.0 + strip && properties >= 130.0 + strip, "{:?}", drawn_heights(&d));
     // A tall window: both at their defaults, Layers takes the rest.
     let d = sized_column(1200.0, [None; 3]);
@@ -689,8 +689,10 @@ fn defaults_give_way_to_the_filler_but_user_heights_stay() {
     let column = [open(None, 86.0, color), open(None, 86.0, properties), open(None, 146.0, layers)];
     // Tall: defaults, the filler takes the rest.
     assert_eq!(render::group_heights(&column, 26.0, 1200.0), vec![186.0, 246.0, 768.0]);
-    // Short: the defaults give way in proportion to their room above the compact heights.
-    assert_eq!(render::group_heights(&column, 26.0, 863.0), vec![156.0, 201.0, 506.0]);
+    // Short: the default nearest the filler gives way first; Color keeps its default.
+    assert_eq!(render::group_heights(&column, 26.0, 863.0), vec![186.0, 171.0, 506.0]);
+    // Shorter: Properties is at its compact height before Color gives way.
+    assert_eq!(render::group_heights(&column, 26.0, 818.0), vec![156.0, 156.0, 506.0]);
     // Shorter than the compact heights and the fill: every group gives way towards its minimum.
     let hs = render::group_heights(&column, 26.0, 400.0);
     assert!(hs.iter().zip(&column).all(|(h, g)| *h >= g.min - 0.01), "{hs:?}");

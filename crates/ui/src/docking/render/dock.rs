@@ -86,7 +86,8 @@ pub(in crate::docking) struct GroupSize {
 /// default height, and the rest share what is left; when every open group has a height, the
 /// last one takes the rest. Default heights shrink towards their compact heights until the
 /// filling groups get their content's fill height, then every height shrinks towards its
-/// minimum before the column overflows and scrolls. Groups shrink in proportion to their room.
+/// minimum before the column overflows and scrolls. Default heights give way nearest the
+/// filling groups first; saved and default heights then shrink in proportion to their room.
 pub(in crate::docking) fn group_heights(groups: &[GroupSize], strip: f32, room: f32) -> Vec<f32> {
     let saved = |g: &GroupSize| g.saved.filter(|h| h.is_finite());
     let open: Vec<usize> = (0..groups.len()).filter(|i| groups.get(*i).is_some_and(|g| !g.minimized)).collect();
@@ -95,7 +96,7 @@ pub(in crate::docking) fn group_heights(groups: &[GroupSize], strip: f32, room: 
         shared.extend(open.last());
     }
     let sized: Vec<usize> = open.iter().copied().filter(|i| !shared.contains(i)).collect();
-    let defaulted: Vec<usize> = sized.iter().copied().filter(|i| groups.get(*i).is_some_and(|g| saved(g).is_none())).collect();
+    let mut defaulted: Vec<usize> = sized.iter().copied().filter(|i| groups.get(*i).is_some_and(|g| saved(g).is_none())).collect();
     let mut heights: Vec<f32> = groups
         .iter()
         .enumerate()
@@ -112,7 +113,19 @@ pub(in crate::docking) fn group_heights(groups: &[GroupSize], strip: f32, room: 
     let mins: Vec<f32> = groups.iter().map(|g| if g.minimized { strip } else { g.min }).collect();
     let compacts: Vec<f32> = groups.iter().zip(&mins).map(|(g, min)| g.content.map_or(*min, |c| c.compact).max(*min)).collect();
     let fill: f32 = shared.iter().filter_map(|i| groups.get(*i)).map(|g| g.content.map_or(g.min, |c| c.fill).max(g.min)).sum();
-    give_way(&mut heights, &defaulted, &compacts, fill - room);
+    // Nearest the filling groups first: one group gives way to its compact height before the next.
+    defaulted.sort_by_key(|i| shared.iter().map(|s| s.abs_diff(*i)).min());
+    let mut deficit = heights.iter().sum::<f32>() + fill - room;
+    for i in defaulted {
+        if deficit <= 0.0 {
+            break;
+        }
+        if let (Some(height), Some(floor)) = (heights.get_mut(i), compacts.get(i)) {
+            let give = (*height - floor).clamp(0.0, deficit);
+            *height -= give;
+            deficit -= give;
+        }
+    }
     let shared_min: f32 = shared.iter().filter_map(|i| mins.get(*i)).sum();
     give_way(&mut heights, &sized, &mins, shared_min - room);
     let free = (room - heights.iter().sum::<f32>()).max(0.0);

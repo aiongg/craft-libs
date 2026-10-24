@@ -596,8 +596,9 @@ pub trait DockContent<P> {
     }
     /// How the panel's group sizes itself in a dock column until the user resizes it. `None`
     /// (the default) shares the column's free height with the other groups that have none.
-    /// Groups at their [`DockHeights::default`] give way down to their `compact` height so the
-    /// group that fills the column gets its `fill` height; when the column is still too short,
+    /// Groups at their [`DockHeights::default`] give way down to their `compact` height, the one
+    /// nearest the filler first, so the group that fills the column gets its `fill` height; when
+    /// the column is still too short,
     /// every group gives way down to its minimum. A height the user set is kept.
     fn dock_heights(&self, _panel: &P) -> Option<DockHeights> {
         None

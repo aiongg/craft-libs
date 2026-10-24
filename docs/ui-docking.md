@@ -244,8 +244,9 @@ A flyout fits its content the same way, without the title bar.
   whose panels ask for none share the rest of the column. When every open group has a height, the
   last one fills the column. In a short column the groups at their default give way first, down
   to their `compact` heights, so the filling group gets its `fill` height. When the column is still
-  too short, every group gives way down to its minimum, and past that the column scrolls. Groups
-  give way in proportion to their room above the height they shrink towards. A group takes the
+  too short, every group gives way down to its minimum, and past that the column scrolls. Defaults
+  give way nearest the filling group first: one is at its compact height before the next gives
+  way. Towards the minimums, groups give way in proportion to their room. A group takes the
   largest default, compact and fill height of its panels. All three are body heights, without
   the tab strip, like `PanelLimits`.
 - Drop previews show the destination: an outline for tabs, a line for a new group, column or dock,
