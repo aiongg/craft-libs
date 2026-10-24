@@ -340,8 +340,8 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
 On Wayland floating windows stay in-window: the compositor reports no window positions, so a
 native window could not dock again by drag or reopen where it was. Their `native` rects are
 kept, and the same layout opens native windows on X11, macOS and Windows. The dock area takes
-Wayland to be the backend when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set (winit's rule) or
-`DISPLAY` is not, and the main window has never reported its `outer_rect`; an app that forces X11 in code gets native
+Wayland to be the backend when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set (winit's rule) and
+the main window has never reported its `outer_rect`; an app that forces X11 in code gets native
 windows from the first frame. `DockArea::native_windows(bool)` overrides the choice either way.
 
 - **Identity.** `Floating::id` names the OS window, so a window keeps it when its panels change,

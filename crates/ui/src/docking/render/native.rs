@@ -661,18 +661,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 #[cfg(debug_assertions)]
 const REBUILT_FRAMES: usize = 3;
 
-/// Whether winit may have picked Wayland: `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set and not
-/// empty, or `DISPLAY` is not, which leaves X11 no server. Connecting to `WAYLAND_SOCKET` unsets
-/// it, and this runs after the event loop connected, so a Wayland app started with only that
-/// socket is known by its missing `DISPLAY`. winit reads no variable that forces X11; an app
-/// forces it in code (`EventLoopBuilderExtX11::with_x11`), which [`wayland`] tells apart by
-/// the window positions.
+/// Whether winit picks Wayland: `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set and not empty.
+/// winit reads no variable that forces X11; an app forces it in code
+/// (`EventLoopBuilderExtX11::with_x11`), which [`wayland`] tells apart by the window positions.
 fn wayland_display() -> bool {
     static WAYLAND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *WAYLAND.get_or_init(|| {
         let set = |name: &str| std::env::var_os(name).is_some_and(|value| !value.is_empty());
         cfg!(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))
-            && (set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") || !set("DISPLAY"))
+            && (set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET"))
     })
 }
 
