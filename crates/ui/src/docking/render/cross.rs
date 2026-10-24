@@ -97,6 +97,9 @@ pub(in crate::docking) struct Cross<P> {
     pub moved: Option<Pos2>,
     /// Resolving a window move that docks whatever `title_bar_docks` says.
     pub docks: bool,
+    /// A native window's dragged widget is one of the area's controls: egui keeps a drag per
+    /// viewport.
+    pub held: bool,
 }
 
 impl<P> Default for Cross<P> {
@@ -112,6 +115,7 @@ impl<P> Default for Cross<P> {
             bar: false,
             moved: None,
             docks: false,
+            held: false,
         }
     }
 }

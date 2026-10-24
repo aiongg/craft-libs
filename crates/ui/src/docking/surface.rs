@@ -390,6 +390,13 @@ fn drag_frame_key(area: Id) -> Id {
     area.with("drag-frame")
 }
 
+/// The controls [`cancel_drag`] ended drags of, until the next frame's native windows, each
+/// with its own egui drag, have drawn.
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) fn native_cancel_key(area: Id) -> Id {
+    area.with("cancel-native")
+}
+
 /// A drag ends when its layout changes other than by the area's own actions: a workspace
 /// switch, Reset or an app command. The app applies all of them or none; an action that
 /// fails on its own is skipped, as it is for an app that applies them one at a time. Sizes
@@ -458,9 +465,10 @@ fn record_drag_frame<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     area: Id,
     layout: &Layout<P>,
     owned: &[Id],
+    native_held: bool,
     actions: &[Action<P>],
 ) {
-    let held = ctx.dragged_id().is_some_and(|id| owned.contains(&id));
+    let held = native_held || ctx.dragged_id().is_some_and(|id| owned.contains(&id));
     #[cfg(feature = "native-windows")]
     let held = held || ctx.data(|d| d.get_temp::<super::render::WindowDrag>(area.with("window-drag")).is_some());
     if held || is_dragging::<P>(ctx, area) {
@@ -606,7 +614,8 @@ pub fn is_dragging<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id)
 }
 
 /// Discard pending tab/group gestures, a native window's bar drag and an actively dragged
-/// renderer-owned control. Body/custom-header/menu gestures and other areas are untouched.
+/// renderer-owned control, in the main window now and in a native window when it next draws.
+/// Body/custom-header/menu gestures and other areas are untouched.
 /// Ownership is recorded as controls render; before an initial render or drag threshold there
 /// may be no active egui drag to cancel. Keyboard focus is unchanged. Nothing is restored from
 /// before the drag: floating and native windows go where the next layout drawn has them.
@@ -627,6 +636,8 @@ pub fn cancel_drag<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id)
         for id in resize.iter().chain(ids.iter().flatten()) {
             d.remove::<AnchoredResize>(id.with("pointer-anchor"));
         }
+        #[cfg(feature = "native-windows")]
+        d.get_temp_mut_or_default::<Vec<Id>>(native_cancel_key(area_id)).extend(ids.iter().flatten());
         dragged.is_some_and(|id| resize == Some(id) || ids.is_some_and(|ids| ids.contains(&id)))
     });
     if owned {
@@ -1000,7 +1011,13 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         renderer.report_flyout(ui.ctx());
         super::hits::record(ui.ctx(), self.id, layout, &renderer.owned_interactions);
         record_tab_focus(ui.ctx(), self.id, layout, !renderer.output.actions.is_empty());
-        record_drag_frame(ui.ctx(), self.id, layout, &renderer.owned_interactions, &renderer.output.actions);
+        #[cfg(feature = "native-windows")]
+        let native_held = renderer.cross.held;
+        #[cfg(not(feature = "native-windows"))]
+        let native_held = false;
+        record_drag_frame(ui.ctx(), self.id, layout, &renderer.owned_interactions, native_held, &renderer.output.actions);
+        #[cfg(feature = "native-windows")]
+        ui.ctx().data_mut(|d| d.remove::<Vec<Id>>(native_cancel_key(self.id)));
         ui.ctx().data_mut(|d| d.insert_temp(float_space_key(self.id), renderer.float_space));
         ui.ctx().data_mut(|d| d.insert_temp(self.id.with("owned-interactions"), renderer.owned_interactions));
         renderer.output

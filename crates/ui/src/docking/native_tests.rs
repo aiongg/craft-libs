@@ -1330,3 +1330,45 @@ fn replacing_the_layout_or_cancel_drag_ends_a_bar_drag() {
         assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { .. } | Action::MoveWindow { .. })), "{:?}", out.actions);
     }
 }
+
+#[test]
+fn replacing_the_layout_ends_a_divider_drag_in_a_native_window() {
+    let resizes = |out: &super::DockOutput<u32>| out.actions.iter().filter(|a| matches!(a, Action::ResizeWindowSplit { .. })).count();
+    let split = |d: &DockDriver<u32, Content>| match &window(d, 5).root {
+        Node::Split { size, .. } => *size,
+        root => panic!("{root:?}"),
+    };
+    for replace in [false, true] {
+        let mut start = layout(false);
+        let mut float = Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]);
+        float.root =
+            Node::Split { axis: SplitAxis::Horizontal, size: SplitSize::Ratio(0.5), first: Box::new(tabs(&[5])), second: Box::new(tabs(&[6])) };
+        start.floating.push(float);
+        let mut d = driver(start);
+        d.settle();
+        let id = id_of(&d);
+        let out = d.window_hold(id, pos2(120.0, 150.0), pos2(150.0, 150.0));
+        assert!(resizes(&out) > 0, "{:?}", out.actions);
+        if replace {
+            d.layout.root = Some(Node::Split {
+                axis: SplitAxis::Horizontal,
+                size: SplitSize::Ratio(0.5),
+                first: Box::new(tabs(&[3, 4])),
+                second: Box::new(tabs(&[1, 2])),
+            });
+        }
+        let before = split(&d);
+        let mut moved = 0;
+        for x in [160.0, 170.0, 180.0] {
+            moved += resizes(&d.window_step(id, vec![Event::PointerMoved(pos2(x, 150.0))]));
+        }
+        moved += resizes(&d.window_release(id, pos2(180.0, 150.0)));
+        if replace {
+            assert_eq!(moved, 0);
+            assert_eq!(split(&d), before);
+        } else {
+            assert!(moved > 0);
+            assert_ne!(split(&d), before);
+        }
+    }
+}
