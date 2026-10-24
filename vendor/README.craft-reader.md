@@ -10,7 +10,9 @@ SHA-256 alongside the local hash. The source manifests themselves are not self-h
 with its malformed-CMap patch (PdfCraft #3177): bad `bfchar` or `bfrange` entries, an
 unresolvable `usecmap` and an unparseable tail are skipped instead of discarding the whole
 CMap. Its tests `tests::bad_bfchar_entry_is_skipped` and `tests::unresolvable_usecmap_is_skipped`
-come with it. Consuming workspaces need a `hayro-cmap` patch entry beside the other Hayro entries.
+come with it. One local patch: a binary `usecmap` counts against the 16-level nesting limit
+as a text one does, so a self-referencing binary CMap stops instead of overflowing the stack.
+Consuming workspaces need a `hayro-cmap` patch entry beside the other Hayro entries.
 
 The shared snapshot adds immutable per-document ordinary decode limits, threaded through
 initial xrefs, object streams, fallback and repair. Existing constructors retain their
