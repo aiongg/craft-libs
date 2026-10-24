@@ -331,6 +331,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if activated && RAISE_ON_ACTIVATION {
             // The back one first, so each lands in front of those raised before it, and the
             // window just focused, at the front of the order, last.
+            // While input is blocked the main window, with the modal, ends in front.
+            if self.input_blocked {
+                order.retain(Option::is_some);
+                order.insert(0, None);
+            }
             let queue: Vec<Option<u64>> = order
                 .iter()
                 .rev()

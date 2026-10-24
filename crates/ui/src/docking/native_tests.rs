@@ -476,6 +476,13 @@ fn the_app_comes_forward_with_its_viewers_when_it_is_activated() {
     focus(&mut d, None, 20);
     focus(&mut d, Some(back), 10);
     assert_eq!(levels(&mut d), raised(&[front, MAIN, back]));
+
+    // While a modal blocks input, the main window with the modal is raised last, even when
+    // the app is activated through a viewer.
+    d.input_blocked = true;
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(front), 10);
+    assert_eq!(levels(&mut d), raised(&[back, front, MAIN]));
 }
 
 #[test]
@@ -1585,6 +1592,37 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
     assert!(out.actions.contains(&Action::Activate { panel: 6 }), "{:?}", out.actions);
     let out = d.window_step(id, vec![key.clone()]);
     assert_eq!(out.forwarded_events, vec![key]);
+}
+
+#[test]
+fn a_focused_field_and_a_held_press_stay_inert_across_a_block() {
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    d.content.text = Some(5);
+    d.content.focus_text = true;
+    d.step(vec![]);
+    d.window_step(id, vec![Event::Text("a".into())]);
+    assert_eq!(d.content.typed, "a");
+    // The field loses focus when the block starts, and stays without it after.
+    d.input_blocked = true;
+    d.step(vec![]);
+    let out = d.window_step(id, vec![Event::Text("b".into())]);
+    assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
+    d.input_blocked = false;
+    d.step(vec![]);
+    let out = d.window_step(id, vec![Event::Text("c".into())]);
+    assert_eq!(d.content.typed, "a");
+    assert_eq!(out.forwarded_events, vec![Event::Text("c".into())]);
+
+    // A press made while blocked and released after is no click.
+    let counter = d.content.counter_rect.unwrap().center();
+    d.input_blocked = true;
+    d.step(vec![]);
+    d.window_step(id, vec![Event::PointerMoved(counter), button(counter, true)]);
+    d.input_blocked = false;
+    d.step(vec![]);
+    d.window_step(id, vec![button(counter, false)]);
+    assert_eq!(d.content.count, 0);
 }
 
 #[test]

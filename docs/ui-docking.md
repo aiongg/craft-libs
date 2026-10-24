@@ -484,7 +484,9 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   offers no drop targets, starts no move or resize, is not focused by `raise_panel`, and
   answers the OS close request with `ViewportCommand::CancelClose`. On macOS it is not
   resizable meanwhile. A palette drops to `WindowLevel::Normal` while blocked,
-  so the main window can come in front of one that covers the modal. Turning blocking on
+  so the main window can come in front of one that covers the modal, and when the app is
+  activated meanwhile the main window is raised last, in front of the normal windows. Turning
+  blocking on
   cancels a drag in progress, and a widget of a native window loses keyboard focus. A zoom
   gesture still shows in egui's `InputState::zoom_delta`, which cannot be cleared; a widget that
   zooms only while hovered ignores it. Floating windows drawn in the main window need nothing:
