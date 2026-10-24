@@ -430,6 +430,7 @@ impl<'a> UiFonts<'a> {
             script_face: None,
             served: Vec::new(),
             ui_downloads: Vec::new(),
+            cjk_rows: self.cjk_rows,
         };
         let defaults = FontDefinitions::default();
         let cjk_names: Vec<String> = match self.cjk_rows {
@@ -741,6 +742,7 @@ pub struct Stack {
     script_face: Option<String>,
     /// The served faces in the chains, by name; their data is added as it arrives.
     served: Vec<ServedFace>,
+    cjk_rows: CjkRows,
     /// Names of the served faces to fetch at install.
     ui_downloads: Vec<String>,
 }

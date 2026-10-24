@@ -186,7 +186,7 @@ selected, and earlier versions, stay. The copies don't take the checkout's permi
 read-only checkout (such as the Nix store) works.
 
 ```rust
-// CJK faces only as the interface faces, cut to the app's catalogs (see below).
+// CJK faces only as the interface faces, cut to the app's catalogs (see above).
 let fonts = craft_fonts_build::Embed::new().subset_to(catalogs("filmcraft"));
 let written = if craft_fonts_build::target_is_wasm() {
     fonts.serve("web/fonts", "fonts/").write("craft_fonts.rs")

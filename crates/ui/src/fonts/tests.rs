@@ -765,6 +765,21 @@ fn a_fetched_file_reaches_every_face_and_family_that_uses_it() {
 }
 
 #[test]
+fn fetched_cjk_faces_fit_the_latin_rows_as_embedded_ones_do() {
+    const SC: &[ServedFace] = &[served("Noto Sans CJK SC", "Regular", &["Hans", "Latn"], "fonts/sc.otf", 0)];
+    let mut web = web_fonts("zh-CN", SC).stack();
+    web.provide("fonts/sc.otf", &(Arc::new(CJK.to_vec()) as egui::epaint::text::Blob));
+    let embedded = CraftFace { bytes: CJK, ..SC[0].craft_face() };
+    let desktop = web_fonts("zh-CN", &[]).craft_faces(&[embedded]).stack();
+    let tweak = |stack: &Stack| {
+        let tweak = &stack.definitions.font_data.get("Noto Sans CJK SC Regular").expect("CJK face").tweak;
+        (tweak.scale, tweak.y_offset_factor)
+    };
+    assert_ne!(tweak(&desktop).1, 0.0, "the CJK face moves onto the Latin baseline");
+    assert_eq!(tweak(&web), tweak(&desktop));
+}
+
+#[test]
 fn a_web_build_downloads_the_interface_face_for_its_language() {
     let faces = [
         served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.0123456789abcdef.ttf", 0),
