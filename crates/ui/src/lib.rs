@@ -8,6 +8,7 @@
 pub mod buttons;
 pub mod direction;
 pub mod docking;
+mod focus;
 pub mod fonts;
 pub mod icons;
 pub mod ime;
