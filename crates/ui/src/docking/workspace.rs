@@ -162,21 +162,26 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
             chain.push((anchor.clone(), location.clone()));
         }
         // A floating location whose anchor is hidden would open a window of its own, even when
-        // the chain leads to an open one.
+        // the chain leads to an open one. A neighbour's location brings the panel's own group
+        // and column state (height, width, icon-only), not the neighbour's.
+        let own = chain.first().and_then(|(_, location)| location.group.clone());
         let used = (0..chain.len())
             .rev()
-            .find_map(|i| match layout.restore(panel.clone(), &chain[i].1) {
-                Err(DockError::MissingTarget) => None,
-                result => Some(result.map(|()| i)),
+            .find_map(|i| {
+                let location = Location { group: own.clone().or_else(|| chain[i].1.group.clone()), ..chain[i].1.clone() };
+                match layout.restore(panel.clone(), &location) {
+                    Err(DockError::MissingTarget) => None,
+                    result => Some(result.map(|()| i)),
+                }
             })
             .unwrap_or(Err(DockError::MissingTarget))?;
+        // Past an outer-edge frame the relation can't be reversed: the rest of the chain keeps
+        // its forward anchors, so no two hidden panels anchor on each other.
         for i in 1..=used {
             let (before, location) = &chain[i - 1];
-            if let Some((_, own)) = self.hidden.iter_mut().find(|(p, _)| p == &chain[i].0)
-                && let Some(location) = reversed(own, location, before)
-            {
-                *own = location;
-            }
+            let Some((_, own)) = self.hidden.iter_mut().find(|(p, _)| p == &chain[i].0) else { continue };
+            let Some(location) = reversed(own, location, before) else { break };
+            *own = location;
         }
         Ok(())
     }

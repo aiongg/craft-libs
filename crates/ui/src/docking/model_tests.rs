@@ -255,6 +255,41 @@ fn panels_closed_one_by_one_reopen_into_one_group() {
 }
 
 #[test]
+fn a_panel_reopened_through_a_hidden_neighbour_keeps_its_own_group_state() {
+    let allow = |_: &u32| Permissions::default();
+    let dock_of = |columns: Vec<Column<u32>>| Layout {
+        root: Some(hsplit(SplitSize::FixedSecond(480.0), tabs(&[1], 0), Node::Dock { side: Side::End, columns })),
+        floating: Vec::new(),
+    };
+    // Groups [2] and [3] stacked with their own heights: 2 comes back at its height, not 3's.
+    let stacked = dock_of(vec![
+        Column::new(vec![Group { height: Some(120.0), ..g(&[2], 0) }, Group { height: Some(300.0), ..g(&[3], 0) }], 240.0),
+        Column::new(vec![g(&[5], 0)], 240.0),
+    ]);
+    let mut workspace = Workspace::new(stacked);
+    workspace.set_visible(2, false, None, allow).unwrap();
+    workspace.set_visible(3, false, None, allow).unwrap();
+    workspace.set_visible(2, true, None, allow).unwrap();
+    let group = |w: &Workspace<u32>, panel: u32| {
+        dock(&w.layout, Side::End).iter().flat_map(|c| c.groups.iter()).find(|g| g.panels.contains(&panel)).cloned().unwrap()
+    };
+    assert_eq!(group(&workspace, 2).height, Some(120.0), "{:?}", workspace.layout);
+    workspace.set_visible(3, true, None, allow).unwrap();
+    assert_eq!(group(&workspace, 3).height, Some(300.0), "{:?}", workspace.layout);
+
+    // [2] beside an icon-only column holding [3]: 2 comes back in a column of its own width,
+    // not as an icon.
+    let iconic = Column { iconic: true, ..Column::new(vec![g(&[3], 0)], 200.0) };
+    let mut workspace = Workspace::new(dock_of(vec![Column::new(vec![g(&[2], 0)], 260.0), iconic]));
+    workspace.set_visible(2, false, None, allow).unwrap();
+    workspace.set_visible(3, false, None, allow).unwrap();
+    workspace.set_visible(2, true, None, allow).unwrap();
+    let column = dock(&workspace.layout, Side::End).iter().find(|c| c.groups.iter().any(|g| g.panels.contains(&2))).cloned().unwrap();
+    assert!(!column.iconic, "{:?}", workspace.layout);
+    assert_eq!(column.width, 260.0);
+}
+
+#[test]
 fn panels_closed_one_by_one_reopen_on_their_own_sides() {
     let allow = |_: &u32| Permissions::default();
     let orders = [[2, 3], [3, 2]];
@@ -306,6 +341,16 @@ fn panels_closed_one_by_one_reopen_on_their_own_sides() {
     workspace.set_visible(3, true, None, allow).unwrap();
     assert!(matches!(workspace.layout.place(&3), Some(Place::Node(_))));
     assert_ne!(workspace.layout.place(&2), workspace.layout.place(&3), "{:?}", workspace.layout);
+    // Past the edge frame the chain keeps its forward anchors: 4 does not anchor on 3 while 3
+    // anchors on 4, and both still reopen.
+    let mut workspace = Workspace::new(Layout { root: Some(tabs(&[1], 0)), floating: Vec::new() });
+    workspace.hidden =
+        vec![(2, at(3, Placement::Edge(Zone::Right))), (3, at(4, Placement::Split(Zone::Right))), (4, at(1, Placement::Split(Zone::Right)))];
+    workspace.set_visible(2, true, None, allow).unwrap();
+    assert_eq!(workspace.hidden.iter().find(|(p, _)| *p == 4).and_then(|(_, l)| l.anchor), Some(1), "{:?}", workspace.hidden);
+    workspace.set_visible(3, true, None, allow).unwrap();
+    workspace.set_visible(4, true, None, allow).unwrap();
+    assert!(workspace.hidden.is_empty() && [1, 2, 3, 4].iter().all(|p| workspace.layout.contains(p)), "{:?}", workspace.layout);
 }
 
 #[test]
