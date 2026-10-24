@@ -1466,11 +1466,14 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
     let counter = d.content.counter_rect.unwrap().center();
     let tab = pos2(90.0, TAB_ROW);
     let key = Event::Key { key: Key::S, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+    let level = |d: &DockDriver<u32, Content>| d.host().windows[&viewport].level;
     assert!(!dimmed(&d, viewport));
+    assert_eq!(level(&d), Some(egui::WindowLevel::AlwaysOnTop));
 
     d.input_blocked = true;
     d.step(vec![]);
     assert!(dimmed(&d, viewport), "drawn dimmed");
+    assert_eq!(level(&d), Some(egui::WindowLevel::Normal), "the main window can cover the palette");
     let out = d.window_click(id, tab);
     assert!(out.actions.is_empty(), "{:?}", out.actions);
     d.window_click(id, counter);
@@ -1496,6 +1499,7 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
     d.input_blocked = false;
     d.step(vec![]);
     assert!(!dimmed(&d, viewport));
+    assert_eq!(level(&d), Some(egui::WindowLevel::AlwaysOnTop));
     d.window_click(id, counter);
     assert_eq!(d.content.count, 1);
     let out = d.window_click(id, tab);

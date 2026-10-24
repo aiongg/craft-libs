@@ -395,7 +395,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_position([spawn[0], spawn[1]])
             .with_inner_size([spawn[2], spawn[3]])
             .with_min_inner_size(MIN_SIZE)
-            .with_window_level(if normal { WindowLevel::Normal } else { WindowLevel::AlwaysOnTop })
+            // A blocked palette could cover the modal, and its bar moves nothing: the main
+            // window can come in front of it at the normal level.
+            .with_window_level(if normal || self.input_blocked { WindowLevel::Normal } else { WindowLevel::AlwaysOnTop })
             .with_taskbar(false);
         // The bar replaces the OS title bar. macOS keeps the frame, with its title bar and
         // buttons hidden: AppKit resizes a movable window from its edges and corners with its
