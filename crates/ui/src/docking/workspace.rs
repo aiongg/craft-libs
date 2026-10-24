@@ -120,9 +120,10 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
     }
 
     /// Show or hide one panel. Showing restores its recorded location, following the chain of
-    /// hidden anchors when its own anchor is hidden too; otherwise it opens beside `fallback`.
-    /// The hidden panels on that chain reopen beside it later, so a group or window closed one
-    /// panel at a time comes back as one.
+    /// hidden anchors when its own anchor is hidden too; otherwise it opens as
+    /// [`Action::Open`] with `fallback` as the anchor, following `permissions`. The hidden
+    /// panels on that chain reopen beside it later, so a group or window closed one panel at a
+    /// time comes back as one.
     /// A shown panel becomes the active tab of its group. Hiding follows `permissions` and
     /// [`Self::locked`], as [`Self::apply`] does, so a protected canvas stays shown.
     pub fn set_visible(&mut self, panel: P, visible: bool, fallback: Option<P>, permissions: impl Fn(&P) -> Permissions) -> Result<(), DockError> {
@@ -139,7 +140,7 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
         let mut layout = self.layout.clone();
         if self.restore_from_hidden(&mut layout, &panel).is_err() {
             layout = self.layout.clone();
-            layout.apply(Action::Open { panel: panel.clone(), anchor: fallback })?;
+            layout.apply_with_permissions(Action::Open { panel: panel.clone(), anchor: fallback }, &permissions)?;
         }
         layout.apply(Action::Activate { panel: panel.clone() })?;
         self.layout = layout;
