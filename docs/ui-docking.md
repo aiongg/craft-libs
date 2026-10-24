@@ -483,14 +483,19 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   before the block does not stay down in the app's shortcuts. It reports no `window_files`,
   offers no drop targets, starts no move or resize, is not focused by `raise_panel`, and
   answers the OS close request with `ViewportCommand::CancelClose`. On macOS it is not
-  resizable meanwhile. A palette drops to `WindowLevel::Normal` while blocked,
-  so the main window can come in front of one that covers the modal, and when the app is
-  activated meanwhile the main window is raised last, in front of the normal windows. Turning
-  blocking on
-  cancels a drag in progress, and a widget of a native window loses keyboard focus. A zoom
-  gesture still shows in egui's `InputState::zoom_delta`, which cannot be cleared; a widget that
-  zooms only while hovered ignores it. Floating windows drawn in the main window need nothing:
-  the modal covers them.
+  resizable meanwhile.
+  - *Stacking.* A palette drops to `WindowLevel::Normal` while blocked, so a click on the main
+    window brings it in front of a palette that covers the modal. A shown palette stays shown
+    while the app is in the background, since showing it again on the app's return would raise
+    it over the modal and, on macOS, give it focus. When the app is activated meanwhile, the
+    main window is raised last, in front of the normal windows and of a palette the user
+    clicked.
+  - *Edges.* Turning blocking on cancels a drag in progress, and a widget of a native window
+    loses keyboard focus. A zoom gesture still shows in egui's `InputState::zoom_delta`, which
+    cannot be cleared; a widget that zooms only while hovered ignores it. egui smooths wheel
+    scrolling, so a scroll area in a native window may still scroll for about 100 ms after
+    blocking ends, with the remainder of a wheel turn made just before it began.
+  - Floating windows drawn in the main window need nothing: the modal covers them.
 - **Input hook.** eframe runs `App::raw_input_hook` for the main window only. An app that
   rewrites input there (say, Ctrl+click to a secondary click on macOS, or blocking input
   during automation) passes the same rewrite to `DockArea::native_input_hook` every frame as a

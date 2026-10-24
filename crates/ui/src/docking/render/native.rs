@@ -342,7 +342,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 .filter(|id| id.is_none_or(|id| natives.iter().any(|(w, ..)| w.id == id && self.normal_window(w))))
                 .copied()
                 .collect();
-            if queue.iter().any(Option::is_some) {
+            // Blocked, the main window comes in front of a palette the app was activated through.
+            if self.input_blocked || queue.iter().any(Option::is_some) {
                 ctx.data_mut(|d| d.insert_temp(self.id.with("native-raise"), queue));
             }
         }
@@ -483,6 +484,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_resizable(!self.input_blocked && window.panels().all(|p| self.permissions(p).movable));
         #[cfg(not(target_os = "macos"))]
         let builder = builder.with_decorations(false);
+        // A blocked palette keeps showing while the app is away: showing it on the app's return
+        // would raise it over the modal and, on macOS, give it focus.
+        let visible = visible || (self.input_blocked && place.shown);
         // Only on a change: showing a shown window raises it and, on macOS, takes focus.
         if place.shown != visible {
             ctx.send_viewport_cmd_to(viewport, ViewportCommand::Visible(visible));

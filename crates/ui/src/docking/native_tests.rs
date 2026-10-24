@@ -1595,6 +1595,36 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
 }
 
 #[test]
+fn a_blocked_palette_stays_shown_and_behind_the_main_window_when_the_app_returns() {
+    use egui::{ViewportId, WindowLevel};
+    let mut d = blocked_driver();
+    let palette = d.viewport(id_of(&d));
+    d.input_blocked = true;
+    d.step(vec![]);
+    d.host().commands.clear();
+    let focus = |d: &mut DockDriver<u32, Content>, window: Option<ViewportId>| {
+        d.host().focus = window;
+        for _ in 0..20 {
+            d.step(vec![]);
+        }
+    };
+    // Showing it again would raise it over the modal and, on macOS, give it focus.
+    focus(&mut d, None);
+    assert!(d.host().windows[&palette].visible);
+    focus(&mut d, Some(palette));
+    let host = d.host();
+    assert!(!host.commands.iter().any(|(v, c)| *v == palette && matches!(c, ViewportCommand::Visible(_))), "{:?}", host.commands);
+    // Activated through the palette, the main window comes in front of it, with no viewers.
+    let levels: Vec<_> = host.commands.iter().filter(|(_, c)| matches!(c, ViewportCommand::WindowLevel(_))).cloned().collect();
+    let expected = if cfg!(target_os = "macos") {
+        Vec::new()
+    } else {
+        [WindowLevel::AlwaysOnTop, WindowLevel::Normal].map(|l| (ViewportId::ROOT, ViewportCommand::WindowLevel(l))).to_vec()
+    };
+    assert_eq!(levels, expected);
+}
+
+#[test]
 fn a_focused_field_and_a_held_press_stay_inert_across_a_block() {
     let mut d = blocked_driver();
     let id = id_of(&d);
