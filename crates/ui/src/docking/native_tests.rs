@@ -3,9 +3,9 @@
 
 use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, epaint::ClippedShape, pos2, vec2};
 
-use super::render::{APPKIT_CORNER, DragPointer, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands};
+use super::render::{APPKIT_CORNER, DragPointer, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands, wayland};
 use super::testing::DockDriver;
-use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, Workspace};
+use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, WindowKind, Workspace};
 use crate::layout::{SplitAxis, SplitSize};
 
 /// Desktop position of the main window's content.
@@ -17,12 +17,16 @@ struct Content {
     fixed: Vec<u32>,
     /// Panels that stay in-window.
     in_window: Vec<u32>,
+    /// Viewer panels: their windows are normal windows.
+    normal: Vec<u32>,
     /// The panel with a text field, what it holds, and whether it takes focus next frame.
     text: Option<u32>,
     typed: String,
     focus_text: bool,
     /// The panel with a button that takes focus.
     focused_button: Option<u32>,
+    /// Pointer buttons pressed in each panel's body.
+    pressed: Vec<(u32, PointerButton)>,
 }
 
 impl DockContent<u32> for Content {
@@ -37,6 +41,10 @@ impl DockContent<u32> for Content {
         if self.focused_button == Some(*panel) {
             ui.button("OK").request_focus();
         }
+        if ui.rect_contains_pointer(ui.max_rect()) {
+            let pressed = [PointerButton::Primary, PointerButton::Secondary].into_iter().filter(|b| ui.input(|i| i.pointer.button_pressed(*b)));
+            self.pressed.extend(pressed.map(|b| (*panel, b)));
+        }
     }
 
     fn logical_label(&self, panel: &u32) -> String {
@@ -49,6 +57,10 @@ impl DockContent<u32> for Content {
 
     fn allow_native(&self, panel: &u32) -> bool {
         !self.in_window.contains(panel)
+    }
+
+    fn window_kind(&self, panel: &u32) -> WindowKind {
+        if self.normal.contains(panel) { WindowKind::Normal } else { WindowKind::Palette }
     }
 }
 
@@ -152,15 +164,27 @@ fn closing_the_os_window_closes_its_panels() {
     let id = window(&d, 5).id;
     let out = d.window_click(id, pos2(230.0, 9.0));
     assert!(out.actions.contains(&Action::CloseWindow { panel: 5 }), "{:?}", out.actions);
+}
 
-    // A panel that may not close keeps the window open.
-    let mut d = driver(layout(true));
-    d.content.fixed = vec![6];
-    let viewport = d.viewport(window(&d, 5).id);
-    d.host().windows.get_mut(&viewport).unwrap().close = true;
-    let out = d.step(vec![]);
-    assert!(out.error.is_some());
-    assert!(d.layout.contains(&5));
+#[test]
+fn the_os_close_of_a_window_that_may_not_close_is_cancelled() {
+    // A panel that may not close, or a locked area.
+    for locked in [false, true] {
+        let mut d = driver(layout(true));
+        if locked {
+            d.locked = true;
+        } else {
+            d.content.fixed = vec![6];
+        }
+        let viewport = d.viewport(window(&d, 5).id);
+        let sent = d.host().commands.len();
+        d.host().windows.get_mut(&viewport).unwrap().close = true;
+        let out = d.step(vec![]);
+        assert!(!out.actions.iter().any(|a| matches!(a, Action::CloseWindow { .. })), "locked {locked}: {:?}", out.actions);
+        assert!(out.error.is_none(), "locked {locked}: {:?}", out.error);
+        assert!(d.host().commands[sent..].contains(&(viewport, ViewportCommand::CancelClose)), "locked {locked}: cancelled");
+        assert!(d.layout.contains(&5) && d.layout.contains(&6));
+    }
 }
 
 #[test]
@@ -334,6 +358,37 @@ fn floating_windows_hide_while_the_app_is_inactive() {
     d.host().focus = Some(egui::ViewportId::ROOT);
     d.step(vec![]);
     assert!(d.host().windows[&viewport].visible);
+}
+
+#[test]
+fn viewer_windows_stay_shown_at_normal_level() {
+    let mut layout = layout(false);
+    layout.floating = vec![
+        Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]),
+        Floating::single(vec![6], 0, [560.0, 80.0, 240.0, 300.0]),
+        // A palette in front of a viewer's tab: the viewer makes the window normal.
+        Floating::single(vec![7, 8], 0, [820.0, 80.0, 240.0, 300.0]),
+    ];
+    let mut d = driver(layout);
+    d.content.normal = vec![5, 8];
+    d.step(vec![]);
+    let [viewer, palette, mixed] = [5, 6, 7].map(|p| d.viewport(window(&d, p).id));
+    let level = |d: &DockDriver<u32, Content>, v| d.host().windows[&v].level;
+    assert_eq!(level(&d, viewer), Some(egui::WindowLevel::Normal));
+    assert_eq!(level(&d, palette), Some(egui::WindowLevel::AlwaysOnTop));
+    assert_eq!(level(&d, mixed), Some(egui::WindowLevel::Normal));
+    // Another application: only the palette hides, and the others get no visibility command.
+    d.host().focus = None;
+    for _ in 0..20 {
+        d.step(vec![]);
+    }
+    let shown = |d: &DockDriver<u32, Content>| [viewer, palette, mixed].map(|v| d.host().windows[&v].visible);
+    assert_eq!(shown(&d), [true, false, true]);
+    let told = |d: &DockDriver<u32, Content>, v| d.host().commands.iter().any(|(w, c)| *w == v && matches!(c, ViewportCommand::Visible(_)));
+    assert!(!told(&d, viewer) && !told(&d, mixed));
+    d.host().focus = Some(egui::ViewportId::ROOT);
+    d.step(vec![]);
+    assert_eq!(shown(&d), [true, true, true]);
 }
 
 #[test]
@@ -992,6 +1047,64 @@ fn a_native_window_forwards_no_keys_while_one_of_its_widgets_has_focus() {
 }
 
 #[test]
+fn the_input_hook_rewrites_each_native_windows_input_before_its_widgets_see_it() {
+    // As an app maps Ctrl+click to a secondary click on macOS.
+    let mut d = driver(layout(true)).with_native_input_hook(|_, input| {
+        for event in &mut input.events {
+            if let Event::PointerButton { button, .. } = event {
+                *button = PointerButton::Secondary;
+            }
+        }
+    });
+    let id = id_of(&d);
+    d.window_click(id, pos2(60.0, 150.0));
+    assert_eq!(d.content.pressed, vec![(5, PointerButton::Secondary)]);
+
+    // The main window's input is the app's own `raw_input_hook`'s.
+    d.content.pressed.clear();
+    d.click(pos2(100.0, 300.0));
+    assert_eq!(d.content.pressed, vec![(1, PointerButton::Primary)]);
+}
+
+#[derive(Debug)]
+struct File(std::path::PathBuf);
+
+impl egui::DroppedFile for File {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        Ok(Vec::new())
+    }
+}
+
+#[test]
+fn files_dragged_onto_a_native_window_are_reported_with_its_panel() {
+    let mut d = driver(layout(true));
+    let (id, viewport) = (id_of(&d), d.viewport(id_of(&d)));
+    let hovered = egui::HoveredFile { path: Some("a.png".into()), mime: String::new() };
+    d.host().windows.get_mut(&viewport).unwrap().hovered_files = vec![hovered.clone()];
+    let out = d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 150.0))]);
+    let [files] = out.window_files.as_slice() else { panic!("{:?}", out.window_files) };
+    assert_eq!((files.window, files.viewport, files.panel, files.pos), (id, viewport, 5, Some(pos2(60.0, 150.0))));
+    assert_eq!(files.hovered, vec![hovered]);
+    assert!(files.dropped.is_empty());
+
+    {
+        let mut host = d.host();
+        let window = host.windows.get_mut(&viewport).unwrap();
+        window.hovered_files.clear();
+        window.dropped_files = vec![std::sync::Arc::new(File("a.png".into()))];
+    }
+    let out = d.window_step(id, Vec::new());
+    let [files] = out.window_files.as_slice() else { panic!("{:?}", out.window_files) };
+    assert_eq!(files.panel, 5);
+    assert_eq!(files.dropped.iter().map(|f| f.path().to_path_buf()).collect::<Vec<_>>(), vec![std::path::PathBuf::from("a.png")]);
+    assert!(d.step(Vec::new()).window_files.is_empty());
+}
+
+#[test]
 fn escape_or_focus_loss_ends_a_drag_a_native_window_owns() {
     // Escape cancels it, and is no shortcut.
     let mut d = driver(layout(true));
@@ -1371,4 +1484,69 @@ fn replacing_the_layout_ends_a_divider_drag_in_a_native_window() {
             assert_ne!(split(&d), before);
         }
     }
+}
+
+/// [`layout`] with window `[5, 6]` saved as a native window at `NATIVE`.
+fn saved_native() -> Layout<u32> {
+    let mut layout = layout(true);
+    layout.floating[0].native = Some(NATIVE);
+    layout
+}
+
+const NATIVE: [f32; 4] = [700.0, 400.0, 240.0, 300.0];
+
+#[test]
+fn with_native_windows_off_a_float_stays_in_the_app_window_and_keeps_its_native_rect() {
+    let mut d = DockDriver::new(saved_native(), Content::default());
+    d.native_windows = false;
+    let mut d = d.with_native_host(ORIGIN);
+    assert!(d.host().windows.is_empty() && d.host().commands.is_empty());
+    assert!(d.hit(&Hit::Title(5)).is_some(), "drawn in the main window");
+    assert_eq!(window(&d, 5).native, Some(NATIVE));
+
+    // Its tab docks again by drag, in the main window.
+    let tab = d.hit(&Hit::Tab(5)).unwrap().center();
+    let out = d.drag(tab, pos2(600.0, 300.0));
+    assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 5, anchor: 3 | 4, .. }]), "{:?}", out.actions);
+    assert!(in_root(&d, 5));
+    assert_eq!(window(&d, 6).native, Some(NATIVE));
+    assert!(d.host().windows.is_empty() && d.host().commands.is_empty());
+
+    // The same workspace opens as a native window where native windows are on.
+    let mut d = driver(saved_native());
+    d.settle();
+    assert_eq!(os_window(&d, 5).map(|(rect, _)| rect), Some(Rect::from_min_size(pos2(700.0, 400.0), vec2(240.0, 300.0))));
+}
+
+#[test]
+fn wayland_is_a_main_window_that_never_reported_a_position() {
+    use super::render::Session;
+    let mut d = driver(layout(false));
+    d.host().no_position = true;
+    d.step(vec![]);
+    assert!(wayland(&d.ctx, Session::Wayland));
+    assert!(wayland(&d.ctx, Session::Unknown), "a real window without a Wayland variable");
+    assert!(!wayland(&d.ctx, Session::Other), "X11");
+    // X11 (forced under a Wayland session) reports it; minimized, it reports none again.
+    d.host().no_position = false;
+    d.step(vec![]);
+    assert!(!wayland(&d.ctx, Session::Wayland));
+    d.host().no_position = true;
+    d.step(vec![]);
+    assert!(!wayland(&d.ctx, Session::Wayland));
+    // A context with no real window (a headless test) and no display variables at all.
+    let ctx = egui::Context::default();
+    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    assert!(!wayland(&ctx, Session::Unknown));
+}
+
+#[test]
+fn the_session_follows_winits_environment_rule() {
+    use super::render::{Session, session};
+    let with = |vars: &'static [&'static str]| move |name: &str| vars.contains(&name);
+    assert_eq!(session(true, with(&["WAYLAND_DISPLAY", "DISPLAY"])), Session::Wayland);
+    assert_eq!(session(true, with(&["WAYLAND_SOCKET"])), Session::Wayland);
+    assert_eq!(session(true, with(&["DISPLAY"])), Session::Other);
+    assert_eq!(session(true, with(&[])), Session::Unknown);
+    assert_eq!(session(false, with(&["WAYLAND_DISPLAY"])), Session::Other);
 }
