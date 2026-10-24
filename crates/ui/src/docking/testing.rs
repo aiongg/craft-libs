@@ -426,6 +426,7 @@ impl NativeHost {
                 .then(|| if id == egui::ViewportId::ROOT { rect } else { Rect::from_min_max(rect.min - self.frame, rect.max) }),
             focused: Some(self.focus == Some(id)),
             monitor_size: self.monitor_size,
+            native_pixels_per_point: Some(1.0),
             ..Default::default()
         };
         let main = Rect::from_min_size(self.origin, self.screen.size());

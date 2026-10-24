@@ -1326,16 +1326,33 @@ fn with_native_windows_off_a_float_stays_in_the_app_window_and_keeps_its_native_
 
 #[test]
 fn wayland_is_a_main_window_that_never_reported_a_position() {
+    use super::render::Session;
     let mut d = driver(layout(false));
     d.host().no_position = true;
     d.step(vec![]);
-    assert!(wayland(&d.ctx, true));
-    assert!(!wayland(&d.ctx, false), "no Wayland display");
+    assert!(wayland(&d.ctx, Session::Wayland));
+    assert!(wayland(&d.ctx, Session::Unknown), "a real window without a Wayland variable");
+    assert!(!wayland(&d.ctx, Session::Other), "X11");
     // X11 (forced under a Wayland session) reports it; minimized, it reports none again.
     d.host().no_position = false;
     d.step(vec![]);
-    assert!(!wayland(&d.ctx, true));
+    assert!(!wayland(&d.ctx, Session::Wayland));
     d.host().no_position = true;
     d.step(vec![]);
-    assert!(!wayland(&d.ctx, true));
+    assert!(!wayland(&d.ctx, Session::Wayland));
+    // A context with no real window (a headless test) and no display variables at all.
+    let ctx = egui::Context::default();
+    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    assert!(!wayland(&ctx, Session::Unknown));
+}
+
+#[test]
+fn the_session_follows_winits_environment_rule() {
+    use super::render::{Session, session};
+    let with = |vars: &'static [&'static str]| move |name: &str| vars.contains(&name);
+    assert_eq!(session(true, with(&["WAYLAND_DISPLAY", "DISPLAY"])), Session::Wayland);
+    assert_eq!(session(true, with(&["WAYLAND_SOCKET"])), Session::Wayland);
+    assert_eq!(session(true, with(&["DISPLAY"])), Session::Other);
+    assert_eq!(session(true, with(&[])), Session::Unknown);
+    assert_eq!(session(false, with(&["WAYLAND_DISPLAY"])), Session::Other);
 }

@@ -200,7 +200,7 @@ impl<P> Default for Report<P> {
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Show the native windows and return the windows to draw in-window.
     pub(super) fn native_windows<'w>(&mut self, ctx: &Context, windows: Vec<&'w Floating<P>>) -> Vec<&'w Floating<P>> {
-        let native = !ctx.embed_viewports() && self.native_windows.unwrap_or_else(|| !wayland(ctx, wayland_display()));
+        let native = !ctx.embed_viewports() && self.native_windows.unwrap_or_else(|| !wayland(ctx, env_session()));
         let origin = ctx.input(|i| i.viewport().inner_rect.map(|r| r.min)).filter(|p| p.is_finite()).unwrap_or(Pos2::ZERO);
         let visibility = if native { self.float_visibility(ctx) } else { (true, false) };
         self.cross.on = native;
@@ -661,31 +661,60 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 #[cfg(debug_assertions)]
 const REBUILT_FRAMES: usize = 3;
 
-/// Whether winit picks Wayland: `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set and not empty.
-/// winit reads no variable that forces X11; an app forces it in code
-/// (`EventLoopBuilderExtX11::with_x11`), which [`wayland`] tells apart by the window positions.
-fn wayland_display() -> bool {
-    static WAYLAND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *WAYLAND.get_or_init(|| {
-        let set = |name: &str| std::env::var_os(name).is_some_and(|value| !value.is_empty());
-        cfg!(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))
-            && (set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET"))
+/// What the environment says of winit's backend.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::docking) enum Session {
+    /// `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set: winit picks Wayland unless the app forces
+    /// X11 in code (`EventLoopBuilderExtX11::with_x11`); winit reads no variable that does.
+    Wayland,
+    /// None of those nor `DISPLAY` is set on a Unix desktop: a Wayland app started with only
+    /// `WAYLAND_SOCKET`, which winit unsets as it connects, or no display at all (tests, CI).
+    Unknown,
+    /// X11 or another backend.
+    Other,
+}
+
+/// The [`Session`] of a Unix desktop (`unix`) whose environment variable `name` is set and
+/// not empty when `set(name)`.
+pub(in crate::docking) fn session(unix: bool, set: impl Fn(&str) -> bool) -> Session {
+    if !unix {
+        Session::Other
+    } else if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") {
+        Session::Wayland
+    } else if set("DISPLAY") {
+        Session::Other
+    } else {
+        Session::Unknown
+    }
+}
+
+/// This process's [`Session`], read once.
+fn env_session() -> Session {
+    static SESSION: std::sync::OnceLock<Session> = std::sync::OnceLock::new();
+    *SESSION.get_or_init(|| {
+        session(cfg!(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd")), |name| {
+            std::env::var_os(name).is_some_and(|value| !value.is_empty())
+        })
     })
 }
 
-/// Whether the main window runs on Wayland, given `display` from [`wayland_display`]. egui
-/// does not name the backend, but on Wayland the main window never reports its outer rect,
-/// while under X11 it does from the first frame on (eframe reads it as the window opens). A
-/// minimized X11 window reports none either, so once one has, the backend is not Wayland.
-pub(in crate::docking) fn wayland(ctx: &Context, display: bool) -> bool {
-    if !display {
-        return false;
+/// Whether the main window runs on Wayland, given the environment's `session`. egui does not
+/// name the backend, but on Wayland the main window never reports its outer rect, while under
+/// X11 it does from the first frame on (eframe reads it as the window opens). A minimized X11
+/// window reports none either, so once one has, the backend is not Wayland. Without a Wayland
+/// variable, only a real OS window (one that reports its native pixels per point) counts.
+pub(in crate::docking) fn wayland(ctx: &Context, session: Session) -> bool {
+    let root = |test: fn(&ViewportInfo) -> bool| ctx.input(|i| i.raw.viewports.get(&ViewportId::ROOT).is_some_and(test));
+    match session {
+        Session::Other => return false,
+        Session::Unknown if !root(|v| v.native_pixels_per_point.is_some()) => return false,
+        Session::Wayland | Session::Unknown => {}
     }
     let key = Id::new("craft-ui-dock-window-positions");
     if ctx.data(|d| d.get_temp::<bool>(key).unwrap_or(false)) {
         return false;
     }
-    let reported = ctx.input(|i| i.raw.viewports.get(&ViewportId::ROOT).is_some_and(|v| v.outer_rect.is_some()));
+    let reported = root(|v| v.outer_rect.is_some());
     if reported {
         ctx.data_mut(|d| d.insert_temp(key, true));
     }
