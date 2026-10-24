@@ -8,8 +8,8 @@
 use std::{fmt::Debug, hash::Hash};
 
 use egui::{
-    Context, CursorIcon, Event, Id, Key, Modifiers, Pos2, Rect, ResizeDirection, Sense, Ui, Vec2, ViewportBuilder, ViewportClass, ViewportCommand,
-    ViewportId, ViewportInfo, WindowLevel, pos2, vec2,
+    Color32, Context, CursorIcon, Event, Id, Key, LayerId, Modifiers, Order, Pos2, Rect, ResizeDirection, Sense, Ui, UiBuilder, Vec2,
+    ViewportBuilder, ViewportClass, ViewportCommand, ViewportId, ViewportInfo, WindowLevel, pos2, vec2,
 };
 
 use super::Renderer;
@@ -386,18 +386,25 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_title_shown(false)
             .with_fullsize_content_view(true)
             .with_titlebar_buttons_shown(false)
-            .with_resizable(window.panels().all(|p| self.permissions(p).movable));
+            .with_resizable(!self.input_blocked && window.panels().all(|p| self.permissions(p).movable));
         #[cfg(not(target_os = "macos"))]
         let builder = builder.with_decorations(false);
         if toggled || (info.is_none() && !visible) {
             ctx.send_viewport_cmd_to(viewport, ViewportCommand::Visible(visible));
         }
-        if visible && self.activation.as_ref().is_some_and(|panel| window.contains(panel)) {
+        if visible && !self.input_blocked && self.activation.as_ref().is_some_and(|panel| window.contains(panel)) {
             ctx.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
         }
         let (targets, docks, windows) = (self.targets.len(), self.dock_targets.len(), self.frame.windows.len());
+        let blocked = self.input_blocked;
         let report = ctx.show_viewport_immediate(viewport, builder, |ui, class| {
             let full = ui.max_rect();
+            // An embedded fallback reads the main window's input: its close request, place,
+            // keys and resizes are not this window's.
+            let own = matches!(class, ViewportClass::Immediate | ViewportClass::Deferred);
+            if blocked && own {
+                block_input(ui);
+            }
             ui.painter().rect_filled(full, 0.0, self.style.floating_background);
             let buttons = self.native_bar(ui, window);
             let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
@@ -405,9 +412,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             if debug_close() {
                 debug_outlines(ui, full, &buttons);
             }
-            // An embedded fallback reads the main window's input: its close request, place,
-            // keys and resizes are not this window's.
-            if !matches!(class, ViewportClass::Immediate | ViewportClass::Deferred) {
+            if !own {
                 return Report::default();
             }
             if window.panels().all(|p| self.permissions(p).movable) {
@@ -426,8 +431,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 windows: self.frame.windows.split_off(windows),
             };
             surface.origin = self.window_gestures(ui, window);
-            self.paint_cross(ui, &mut surface);
-            self.forward_events(ui);
+            if blocked {
+                (surface.targets, surface.dock_targets, surface.windows) = Default::default();
+                cover(ui, self.id.with(("native-blocked", window.id)), full, self.style.blocked_dim);
+            } else {
+                self.paint_cross(ui, &mut surface);
+                self.forward_events(ui);
+            }
             ui.input(|i| Report {
                 closed: i.viewport().close_requested(),
                 placed: placed(i.viewport()),
@@ -477,7 +487,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if report.closed {
             // Like the bar's ×: its panels close and reopen from the application's menu. A
             // window the application would refuse to close stays open.
-            if window.panels().all(|p| self.permissions(p).closable) {
+            if !blocked && window.panels().all(|p| self.permissions(p).closable) {
                 self.output.actions.push(Action::CloseWindow { panel: first });
                 return Some(key);
             }
@@ -674,6 +684,33 @@ fn rebuilt<P: Eq + Hash>(previous: &[(u64, Vec<P>)], current: &[(u64, Vec<P>)]) 
 #[cfg(debug_assertions)]
 fn panels<P: Eq + Hash>(windows: &[(u64, Vec<P>)]) -> std::collections::HashSet<&Vec<P>> {
     windows.iter().map(|(_, panels)| panels).collect()
+}
+
+/// The start of a blocked native window's frame: its widgets are disabled, and the pointer,
+/// keys, text and scrolling are taken out of its input before anything reads them, so a panel
+/// that reads input directly sees none either.
+fn block_input(ui: &mut Ui) {
+    // Disabling fades what the window paints, its opaque background too; the cover dims it.
+    let opacity = ui.opacity();
+    ui.disable();
+    ui.set_opacity(opacity);
+    let kept = |e: &Event| matches!(e, Event::Screenshot { .. } | Event::WindowFocused(_));
+    ui.input_mut(|i| {
+        i.events.retain(kept);
+        i.raw.events.retain(kept);
+        i.keys_down.clear();
+        i.smooth_scroll_delta = Vec2::ZERO;
+        i.pointer = Default::default();
+    });
+    ui.memory_mut(|m| m.stop_text_input());
+}
+
+/// The end of a blocked native window's frame: `dim` over its content `full`, in a layer above
+/// its popups that takes the pointer, so a popup left open takes no click either.
+fn cover(ui: &Ui, id: Id, full: Rect, dim: Color32) {
+    let cover = Ui::new(ui.ctx().clone(), id, UiBuilder::new().layer_id(LayerId::new(Order::Tooltip, id)).max_rect(full));
+    cover.painter().rect_filled(full, 0.0, dim);
+    cover.interact(full, id.with("sink"), Sense::CLICK | Sense::DRAG);
 }
 
 /// Move and size a native window so its content is the desktop rect `to`. The size goes

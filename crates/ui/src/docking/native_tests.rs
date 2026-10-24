@@ -23,6 +23,10 @@ struct Content {
     focus_text: bool,
     /// The panel with a button that takes focus.
     focused_button: Option<u32>,
+    /// The panel with a counter button, its clicks, and where it was drawn.
+    counter: Option<u32>,
+    count: usize,
+    counter_rect: Option<Rect>,
 }
 
 impl DockContent<u32> for Content {
@@ -36,6 +40,11 @@ impl DockContent<u32> for Content {
         }
         if self.focused_button == Some(*panel) {
             ui.button("OK").request_focus();
+        }
+        if self.counter == Some(*panel) {
+            let response = ui.button("Add");
+            self.count += usize::from(response.clicked());
+            self.counter_rect = Some(response.rect);
         }
     }
 
@@ -1302,4 +1311,91 @@ fn a_layout_built_each_frame_without_ids_is_warned_about() {
         d.step(vec![]);
     }
     assert!(!warned(&d));
+}
+
+/// Fill of the overlay over a blocked native window in [`blocked_driver`].
+const DIM: Color32 = Color32::from_rgba_premultiplied(10, 20, 30, 120);
+
+fn blocked_driver() -> DockDriver<u32, Content> {
+    let mut d = DockDriver::new(layout(true), Content { counter: Some(5), ..Content::default() })
+        .with_style(|s| s.blocked_dim = DIM)
+        .with_native_host(ORIGIN);
+    d.settle();
+    d
+}
+
+/// Whether the native window `viewport` drew the overlay over all of its content.
+fn dimmed(d: &DockDriver<u32, Content>, viewport: egui::ViewportId) -> bool {
+    let full = Rect::from_min_size(Pos2::ZERO, d.host().windows[&viewport].rect.size());
+    d.host().windows[&viewport].shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == DIM && r.rect == full))
+}
+
+#[test]
+fn a_native_window_takes_no_input_while_the_app_blocks_it() {
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    let viewport = d.viewport(id);
+    let counter = d.content.counter_rect.unwrap().center();
+    let tab = pos2(90.0, TAB_ROW);
+    let key = Event::Key { key: Key::S, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+    assert!(!dimmed(&d, viewport));
+
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(dimmed(&d, viewport), "drawn dimmed");
+    let out = d.window_click(id, tab);
+    assert!(out.actions.is_empty(), "{:?}", out.actions);
+    d.window_click(id, counter);
+    assert_eq!(d.content.count, 0, "the body takes no click");
+    let out = d.window_step(id, vec![key.clone(), Event::Text("s".into())]);
+    assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
+    // The bar starts no move, of the dock area's or the window system's.
+    let sent = d.host().commands.len();
+    d.window_hold(id, pos2(40.0, 9.0), pos2(140.0, 59.0));
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_none());
+    assert!(
+        !d.host().commands[sent..].iter().any(|(v, c)| *v == viewport && matches!(c, ViewportCommand::StartDrag | ViewportCommand::OuterPosition(_)))
+    );
+    let out = d.window_release(id, pos2(140.0, 59.0));
+    assert!(out.actions.is_empty(), "{:?}", out.actions);
+    // The OS close request is cancelled.
+    d.host().windows.get_mut(&viewport).unwrap().close = true;
+    let out = d.step(vec![]);
+    assert!(!out.actions.iter().any(|a| matches!(a, Action::CloseWindow { .. })), "{:?}", out.actions);
+    assert!(d.host().commands.contains(&(viewport, ViewportCommand::CancelClose)));
+
+    // Unblocked, the same input works again.
+    d.input_blocked = false;
+    d.step(vec![]);
+    assert!(!dimmed(&d, viewport));
+    d.window_click(id, counter);
+    assert_eq!(d.content.count, 1);
+    let out = d.window_click(id, tab);
+    assert!(out.actions.contains(&Action::Activate { panel: 6 }), "{:?}", out.actions);
+    let out = d.window_step(id, vec![key.clone()]);
+    assert_eq!(out.forwarded_events, vec![key]);
+}
+
+#[test]
+fn blocking_input_cancels_a_drag_in_progress() {
+    // A tab drag a native window owns.
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    let over = d.window_local(id, ORIGIN + vec2(600.0, 300.0)).unwrap();
+    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    assert!(super::is_dragging::<u32>(&d.ctx, d.id));
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(!super::is_dragging::<u32>(&d.ctx, d.id));
+    let out = d.window_release(id, over);
+    assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { .. } | Action::Float { .. })), "{:?}", out.actions);
+
+    // A bar drag.
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    d.window_hold(id, pos2(40.0, 9.0), pos2(140.0, 59.0));
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_some());
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_none());
 }

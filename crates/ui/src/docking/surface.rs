@@ -44,6 +44,8 @@ pub struct DockStyle {
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
     pub floating_background: Color32,
     pub floating_stroke: Stroke,
+    /// Painted over a native floating window while [`DockArea::input_blocked`] is on.
+    pub blocked_dim: Color32,
     /// Height of a floating window's title bar.
     pub title_height: f32,
     /// Width of the band along the layout's outer edge that splits at the root.
@@ -162,6 +164,7 @@ impl DockStyle {
             drag_bar_width: 40.0,
             floating_background: visuals.window_fill,
             floating_stroke: visuals.window_stroke,
+            blocked_dim: visuals.panel_fill.gamma_multiply(0.6),
             title_height: super::chrome::TITLE_HEIGHT,
             edge_band: 8.0,
             side_edge_zones: false,
@@ -746,6 +749,7 @@ pub struct DockArea<'a, P = ()> {
     auto_collapse: bool,
     float_bounds: Option<Rect>,
     monitors: Vec<Monitor>,
+    input_blocked: bool,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
@@ -760,6 +764,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             auto_collapse: true,
             float_bounds: None,
             monitors: Vec::new(),
+            input_blocked: false,
         }
     }
 
@@ -769,6 +774,19 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// windows store the monitor size egui reports and restore onto the main window's monitor.
     pub fn monitors(mut self, monitors: Vec<Monitor>) -> Self {
         self.monitors = monitors;
+        self
+    }
+
+    /// Native floating windows ignore input while `blocked` (feature `native-windows`): pass
+    /// true while the application shows a modal dialog. egui's `Modal` blocks only the
+    /// viewport it is shown in, so the OS windows of floating panels would otherwise still take
+    /// clicks and keys. A blocked window is drawn under [`DockStyle::blocked_dim`]; its bar,
+    /// tabs, body and resize edges take no pointer, keys, text or scrolling, forward no events,
+    /// and offer no drop targets, and its OS close request is cancelled. Turning it on cancels
+    /// any drag in progress. Floating windows drawn in the main window need nothing from this:
+    /// the modal covers them.
+    pub fn input_blocked(mut self, blocked: bool) -> Self {
+        self.input_blocked = blocked;
         self
     }
 
@@ -903,6 +921,15 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             cancel_drag::<P>(ui.ctx(), self.id);
             return DockOutput { error: Some(DockError::InvalidGeometry), ..Default::default() };
         }
+        // Blocking starts while the pointer may be down: a drag that went on would act on its
+        // release, under the modal.
+        let blocked_key = self.id.with("input-blocked");
+        if self.input_blocked && !ui.ctx().data(|d| d.get_temp::<bool>(blocked_key).unwrap_or(false)) {
+            cancel_drag::<P>(ui.ctx(), self.id);
+            #[cfg(feature = "native-windows")]
+            super::render::end_window_drag(ui.ctx(), self.id);
+        }
+        ui.ctx().data_mut(|d| d.insert_temp(blocked_key, self.input_blocked));
         release_moved_tab_focus(ui.ctx(), self.id, layout);
         let (view, frame) = super::render::view(layout, self.maximized.as_ref(), self.hide, &*content);
         let places = layout.places();
@@ -933,6 +960,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             dividers: Vec::new(),
             tree: None,
             monitors: self.monitors,
+            input_blocked: self.input_blocked,
             #[cfg(feature = "native-windows")]
             cross: Default::default(),
         };

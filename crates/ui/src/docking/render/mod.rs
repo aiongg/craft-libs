@@ -26,6 +26,12 @@ pub(in crate::docking) fn native_viewport(area: Id, window: u64) -> egui::Viewpo
     native::viewport_id(area, window, 0)
 }
 
+/// Stop the bar drag of a native window of the dock area `area`, leaving the window where it is.
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) fn end_window_drag(ctx: &Context, area: Id) {
+    ctx.data_mut(|d| d.remove::<native::WindowDrag>(area.with("window-drag")));
+}
+
 pub(in crate::docking) use frame::{FrameState, view};
 
 pub(in crate::docking) use group::GroupKind;
@@ -76,6 +82,9 @@ pub(super) struct Renderer<'a, P> {
     /// [`crate::docking::DockArea::monitors`].
     #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
     pub(super) monitors: Vec<crate::docking::Monitor>,
+    /// [`crate::docking::DockArea::input_blocked`].
+    #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
+    pub(super) input_blocked: bool,
     /// The other OS windows a drag may cross into.
     #[cfg(feature = "native-windows")]
     pub(super) cross: cross::Cross<P>,

@@ -422,6 +422,18 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   `Paste` without the key). The app feeds them to the shortcut handling it runs on the main
   window. A window where any widget has keyboard focus forwards nothing, and an Escape that
   cancels a drag is not forwarded.
+- **Modal dialogs.** egui's `Modal` blocks input only in the viewport it is shown in. While the
+  app shows one, it passes `DockArea::input_blocked(true)`. Each native window is then drawn
+  under `DockStyle::blocked_dim` (by default the panel fill at 60 %), and its bar, tabs, body
+  and resize edges take no input: its widgets are disabled, the pointer, key, text and scroll
+  events are dropped at the start of its frame, and a layer over its content takes the pointer,
+  so a popup left open takes no click either. It forwards no events, offers no drop targets,
+  starts no move or resize, is not focused by `raise_panel`, and answers the OS close request
+  with `ViewportCommand::CancelClose`. On macOS it is not resizable meanwhile. Turning blocking
+  on cancels a drag in progress, and a widget of a native window loses keyboard focus. A zoom
+  gesture still shows in egui's `InputState::zoom_delta`, which cannot be cleared; a widget that
+  zooms only while hovered ignores it. Floating windows drawn in the main window need nothing:
+  the modal covers them.
 - **Drags.** Tabs, groups and whole windows drag between the app's OS windows.
   - *Ownership.* The window where the button went down owns the drag: the window system sends it
     the pointer's moves and the release while the button is held, inside the window or not. So
