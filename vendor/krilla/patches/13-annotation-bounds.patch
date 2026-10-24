@@ -1,5 +1,5 @@
 diff --git a/src/error.rs b/src/error.rs
-index a19ebf6..05a22eb 100644
+index a19ebf6..7158052 100644
 --- a/src/error.rs
 +++ b/src/error.rs
 @@ -43,6 +43,15 @@ pub enum KrillaError {
@@ -29,12 +29,12 @@ index a19ebf6..05a22eb 100644
 +            KrillaError::InvalidDestination(page_index) => write!(
 +                f,
 +                "a destination on page {} is not in the document or not finite",
-+                page_index + 1
++                page_index.saturating_add(1)
 +            ),
 +            KrillaError::InvalidPageBox(page_index) => write!(
 +                f,
 +                "a page box on page {} doesn't map to finite coordinates",
-+                page_index + 1
++                page_index.saturating_add(1)
 +            ),
              KrillaError::Font(_, message) => write!(f, "failed to embed font: {message}"),
              KrillaError::Validation(errors) => {

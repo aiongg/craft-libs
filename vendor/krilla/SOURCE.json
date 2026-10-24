@@ -137,7 +137,7 @@
     {
       "path": "src/error.rs",
       "upstream_sha256": "656b260bd99d250535099f17f2db8e6e6135e72c74fb6dff304371db9f646be5",
-      "sha256": "1eec749136ec1a1281a27f0fb7d0806230126174248cf48da21b1fa8926520ed"
+      "sha256": "8d06efd85136668d1a491f2f04ba2d69e82347a89f275d9299998445f28172ac"
     },
     {
       "path": "src/geom.rs",

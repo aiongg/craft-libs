@@ -112,12 +112,12 @@ impl Display for KrillaError {
             KrillaError::InvalidDestination(page_index) => write!(
                 f,
                 "a destination on page {} is not in the document or not finite",
-                page_index + 1
+                page_index.saturating_add(1)
             ),
             KrillaError::InvalidPageBox(page_index) => write!(
                 f,
                 "a page box on page {} doesn't map to finite coordinates",
-                page_index + 1
+                page_index.saturating_add(1)
             ),
             KrillaError::Font(_, message) => write!(f, "failed to embed font: {message}"),
             KrillaError::Validation(errors) => {
