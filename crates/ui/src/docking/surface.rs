@@ -38,9 +38,14 @@ pub struct DockStyle {
     pub float_group_label: String,
     /// Group menu item that moves the whole group into another group (submenu of targets).
     pub move_group_to_label: String,
-    /// Minimum width of the drag bar left of the group header. Tabs overflow before the bar
-    /// narrows.
+    /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
+    /// before the bar narrows; a strip narrower than the header plus this width narrows it.
     pub drag_bar_width: f32,
+    /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu: about
+    /// three characters and the "…" at [`Self::font`]'s size, plus the tab's 24 pt padding
+    /// (54 pt at the default 12 pt font). Tabs whose names are shorter keep their natural
+    /// width. Set it again after changing the font.
+    pub min_tab_width: f32,
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
     pub floating_background: Color32,
     pub floating_stroke: Stroke,
@@ -135,6 +140,7 @@ impl DockStyle {
     }
 
     pub fn from_visuals(visuals: &egui::Visuals) -> Self {
+        let font = FontId::proportional(12.0);
         Self {
             tab_height: 26.0,
             gap: 4.0,
@@ -146,7 +152,8 @@ impl DockStyle {
             inactive_text: visuals.weak_text_color(),
             border: visuals.widgets.noninteractive.bg_stroke,
             accent: visuals.selection.stroke.color,
-            font: FontId::proportional(12.0),
+            min_tab_width: font.size * 2.5 + TAB_PADDING,
+            font,
             float_label: "Float Panel".into(),
             close_label: "Close Panel".into(),
             move_panel_to_label: "Move Panel to Group".into(),
@@ -208,6 +215,7 @@ impl DockStyle {
             self.border.width,
             self.font.size,
             self.drag_bar_width,
+            self.min_tab_width,
             self.floating_stroke.width,
             self.title_height,
             self.edge_band,
@@ -501,6 +509,20 @@ impl DockHeights {
     }
 }
 
+/// How a floating window in its own OS window behaves (feature `native-windows`), see
+/// [`DockContent::window_kind`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WindowKind {
+    /// A tool palette: it stays above other windows and hides while none of the app's windows
+    /// has focus.
+    #[default]
+    Palette,
+    /// A window of its own, such as a viewer on a second display: normal window level, and it
+    /// stays shown while the app is in the background.
+    Normal,
+}
+
 #[derive(Clone)]
 pub(super) struct Drag<P> {
     pub(super) panel: P,
@@ -629,6 +651,11 @@ pub trait DockContent<P> {
     fn allow_native(&self, _panel: &P) -> bool {
         true
     }
+    /// How the panel's native floating window behaves (feature `native-windows`). A window
+    /// holding any [`WindowKind::Normal`] panel is a normal window; the rest are palettes.
+    fn window_kind(&self, _panel: &P) -> WindowKind {
+        WindowKind::Palette
+    }
     /// Host-owned drop resolution for targets the renderer cannot know about. Returning
     /// feedback consumes the gesture, including no-op targets; the renderer then emits no move.
     fn resolve_drag(&mut self, _ctx: &Context, _style: &DockStyle, _request: &DropRequest<'_, P>) -> Option<DropFeedback> {
@@ -714,6 +741,9 @@ impl<P, C: DockContent<P> + ?Sized> DockContent<P> for Overrides<'_, P, C> {
     fn allow_native(&self, panel: &P) -> bool {
         self.inner.allow_native(panel)
     }
+    fn window_kind(&self, panel: &P) -> WindowKind {
+        self.inner.window_kind(panel)
+    }
     fn resolve_drag(&mut self, ctx: &Context, style: &DockStyle, request: &DropRequest<'_, P>) -> Option<DropFeedback> {
         self.inner.resolve_drag(ctx, style, request)
     }
@@ -746,6 +776,7 @@ pub struct DockArea<'a, P = ()> {
     auto_collapse: bool,
     float_bounds: Option<Rect>,
     monitors: Vec<Monitor>,
+    native_windows: Option<bool>,
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
@@ -760,6 +791,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             auto_collapse: true,
             float_bounds: None,
             monitors: Vec::new(),
+            native_windows: None,
         }
     }
 
@@ -769,6 +801,16 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     /// windows store the monitor size egui reports and restore onto the main window's monitor.
     pub fn monitors(mut self, monitors: Vec<Monitor>) -> Self {
         self.monitors = monitors;
+        self
+    }
+
+    /// Whether floating windows open in their own OS windows (feature `native-windows`), where
+    /// the backend has viewports. Off, they stay in the app window, and their native rects are
+    /// kept for a later run with it on. By default it is on, except on Wayland: the compositor
+    /// reports no window positions, so a native window could not dock again by drag or open
+    /// where it was.
+    pub fn native_windows(mut self, on: bool) -> Self {
+        self.native_windows = Some(on);
         self
     }
 
@@ -933,6 +975,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             dividers: Vec::new(),
             tree: None,
             monitors: self.monitors,
+            native_windows: self.native_windows,
             #[cfg(feature = "native-windows")]
             cross: Default::default(),
         };
