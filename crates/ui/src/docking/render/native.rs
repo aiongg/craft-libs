@@ -843,8 +843,10 @@ impl egui::Plugin for NativeInput {
         for route in self.routes.values_mut() {
             routed |= route.route(input, &mut self.queued, self.pass);
         }
+        // Before the window's own events: they happened earlier, and a held release must not
+        // end a press that follows it.
         if let Some((_, events)) = waiting {
-            input.events.extend(events.into_iter().map(|(_, event)| event));
+            input.events.splice(0..0, events.into_iter().map(|(_, event)| event));
         }
         if routed {
             ctx.request_repaint_of(ViewportId::ROOT);

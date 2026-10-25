@@ -1967,6 +1967,19 @@ fn the_owners_drag_stops_a_pass_after_its_release_over_another_window() {
 }
 
 #[test]
+fn a_press_right_after_a_routed_release_outlives_the_held_release() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let point = d.host().windows[&d.viewport(id)].rect.min + vec2(120.0, 200.0) - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    d.release(point);
+    // The owner's held release comes before a press in its next input.
+    let at = source(&d);
+    d.step(vec![Event::PointerMoved(at), button(at, true)]);
+    assert!(d.ctx.input(|i| i.pointer.primary_down()));
+}
+
+#[test]
 fn a_routed_release_clicks_nothing_in_the_target() {
     let mut d = app_drag(layout(true), 1, &[5]);
     d.content.counter = Some(5);
