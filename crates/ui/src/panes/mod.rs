@@ -5,7 +5,8 @@
 //! `CentralPanel`; the document never becomes a panel. The app owns which panes are open and
 //! where they are: the host takes the open list and each pane's [`PaneState`] every frame and
 //! returns [`PaneRequest`]s for the app to run through its own commands. Docking chrome
-//! ([`crate::docking::chrome`]) draws the floating frames and title bars.
+//! ([`crate::docking::chrome`]) draws the floating frames and title bars. [`Rail`] draws an icon
+//! strip at one edge that opens one pane at a time.
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -19,6 +20,10 @@ use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+mod rail;
+
+pub use rail::{RAIL_BUTTON, RAIL_WIDTH, Rail, RailItem, RailOutput, RailRequest};
 
 /// A title dragged this far out of a docked pane floats it; a pane dropped this close to the
 /// host's left or right edge docks there.
@@ -737,5 +742,7 @@ pub fn float_rect(saved: Option<[f32; 4]>, bounds: Rect, min: Vec2) -> Rect {
     Rect::from_min_size(pos, size)
 }
 
+#[cfg(test)]
+mod rail_tests;
 #[cfg(test)]
 mod tests;

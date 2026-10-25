@@ -73,6 +73,61 @@ State:
   Escape sends the start rect back.
 - `panes::float_rect` brings a saved rect back inside the window, whatever the file says.
 
+## Rail
+
+`panes::Rail` is a vertical strip of icons, always shown at one edge. Each icon stands for a
+task pane, and one pane at a time is open beside the strip. A click on an icon opens its pane in
+place of the open one; a click on the open pane's icon closes it. The rail stores nothing: the
+app owns which pane is open, as with `PaneHost`.
+
+```rust
+use craft_ui::panes::{Edge, PaneHost, Rail, RailItem, RailRequest, SidePolicy};
+
+let items = [
+    RailItem::new(Pane::Comments, icons.source("comments"), tr("Comments")).marker(has_comments),
+    RailItem::new(Pane::Bookmarks, icons.source("bookmark"), tr("Bookmarks")).enabled(has_outline),
+];
+// After the top and bottom bars, before PaneHost: the rail is the outermost panel on its edge.
+let rail = Rail::new("rail").edge(Edge::End).rtl(ui_is_rtl).show(ui, &items, app.pane.as_ref(), |ui| {
+    page_navigation(ui); // the foot: below the items, always visible; may draw nothing
+});
+match rail.request {
+    Some(RailRequest::Open(pane)) => app.pane = Some(pane),
+    Some(RailRequest::Close(_)) => app.pane = None,
+    _ => {}
+}
+// The open pane, between the document and the rail. Its PaneContent returns `movable = false`
+// and a `default_state` docked at the rail's edge.
+let open: Vec<Pane> = app.pane.into_iter().collect();
+let out = PaneHost::new("task-panes").rtl(ui_is_rtl).policy(SidePolicy::OneSlot).show(ui, &open, |_| None, &mut MyPanes { app });
+egui::CentralPanel::default().show(ui, |ui| document(ui));
+```
+
+| Piece | Behavior |
+|---|---|
+| `RailItem` | `pane`, `icon` (an `egui::ImageSource`, like docking's `DockContent::icon`), `label` (tooltip and accessible name; translate it in the app), `enabled`, `marker`. `RailItem::new` makes an enabled item without a marker. |
+| `.edge(e)` | `End` (default) or `Start`. `Start` is left, or right with `.rtl(true)`. The rail is vertical, so `Bottom` draws at `End`. |
+| `.width(w)`, `.button_size(s)` | Rail width (48) and item size (34; the icon is 16 smaller). Non-finite values fall back to the defaults. |
+| `.frame(f)` | Default: the panel fill, a hairline border, 8 pt above and below. Item colors come from `DockStyle`, as in the docking icon columns. |
+| Panel | Exact width, not resizable. Shown before `PaneHost::show`, it is outermost, so a docked pane on the same edge sits between it and the document. |
+| Items | Top-down in a vertical scroll area. The foot is a bottom sub-panel, so in a short window the items scroll and never run into it. A pane listed twice is drawn once. An empty list draws an empty rail. |
+| States | The open pane's item draws selected. `marker` draws a dot while the pane is not open. A disabled item draws disabled, takes no focus and sends nothing. |
+| `RailOutput` | `request`: `Open(p)` or `Close(p)` (`#[non_exhaustive]`), at most one per frame. `focused`: the item holding keyboard focus. `rect`: where the rail was drawn. |
+| Accessibility | Each item is a toggle button (accesskit `Button` with a toggled state) named by its `label`. |
+| Keyboard | Items take Tab focus. Enter or Space clicks the focused item. Up and Down move focus between enabled items and stop at the ends. |
+
+F6 stays with the app. To include the rail in an F6 cycle, give `PaneHost` `.f6(false)` and,
+when the cycle reaches the rail, focus the open pane's item or the first enabled one:
+
+```rust
+if let Some(pane) = app.pane.or(first_enabled) {
+    ctx.memory_mut(|m| m.request_focus(Rail::new("rail").item_id(&pane)));
+}
+```
+
+While `rail.focused` is `Some`, focus is in the rail: the next F6 moves on, for example to the
+panes with `panes::focus_next`.
+
 ## Adoption
 
 ### WordCraft (`Columns`)
