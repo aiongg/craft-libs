@@ -18,7 +18,7 @@ pub mod localized;
 pub mod panes;
 pub mod printing;
 pub mod tabs;
-#[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod testing;
 pub mod text;
 pub mod theme;

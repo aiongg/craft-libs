@@ -432,7 +432,7 @@ for leaving a language out of the app's menu on a machine that can't show it.
 
 ## Testing screens in each language
 
-The `testing` feature adds `testing::Screens`, for an app's screenshot tests of its key screens in
+The `screen-testing` feature adds `testing::Screens`, for an app's screenshot tests of its key screens in
 Arabic, Japanese, Traditional Chinese (Taiwan), Korean, Thai and Vietnamese (`testing::LANGUAGES`).
 Each language gets an egui_kittest harness with the app's font stack installed for that UI language
 and system fonts off, so snapshots match on every machine and a character no face draws fails the

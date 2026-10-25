@@ -1,5 +1,5 @@
 //! Screenshot and input smoke tests of an app's screens in the suite's test languages
-//! (`testing` feature).
+//! (`screen-testing` feature).
 //!
 //! [`Screens`] renders a UI closure with egui_kittest once per language in [`LANGUAGES`]: Arabic,
 //! Japanese, Traditional Chinese (Taiwan), Korean, Thai and Vietnamese. Each run installs the

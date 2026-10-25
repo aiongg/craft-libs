@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# Screenshot and input tests of an app's screens (the testing feature).
+# Screenshot and input tests of an app's screens (the screen-testing feature).
 egui_kittest = { version = "0.37", features = ["snapshot", "wgpu"], optional = true }
 # The versions egui_system_font_provider 0.37 uses.
 fontique = { version = "0.11.1", default-features = false, features = ["system", "fontconfig-dlopen"], optional = true }
@@ -49,9 +49,11 @@ native-windows = []
 color_fonts = ["epaint/color_fonts"]
 # Find installed fonts for characters the app's faces lack (desktop only).
 system_fonts = ["dep:fontique", "dep:unicode-script"]
-# `docking::testing`, a headless driver for application docking tests, and craft_ui::testing:
-# per-language screenshot tests and IME smoke tests with egui_kittest (desktop only).
-testing = ["dep:egui_kittest"]
+# `docking::testing`: a headless driver for application docking tests.
+testing = []
+# craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest
+# (desktop only).
+screen-testing = ["dep:egui_kittest"]
 
 [dev-dependencies]
 # serde: the IME tests read events that only the suite's egui fork has from JSON.
@@ -66,7 +68,7 @@ required-features = ["native-windows"]
 
 [[test]]
 name = "screens"
-required-features = ["testing"]
+required-features = ["screen-testing"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }
