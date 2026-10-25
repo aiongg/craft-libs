@@ -14,7 +14,7 @@ use egui::{
 };
 
 use super::Edge;
-use crate::docking::DockStyle;
+use crate::docking::chrome::ChromeStyle;
 
 /// Default width of the rail.
 pub const RAIL_WIDTH: f32 = 48.0;
@@ -33,7 +33,7 @@ const MAX_SIZE: f32 = 4096.0;
 #[derive(Clone, Debug)]
 pub struct RailItem<P> {
     pub pane: P,
-    /// Painted tinted with the rail's text colors, like docking's panel icons.
+    /// Painted tinted with the chrome's text colors, like docking's panel icons.
     pub icon: ImageSource<'static>,
     /// Tooltip and accessible name. Translate it in the app.
     pub label: String,
@@ -42,12 +42,15 @@ pub struct RailItem<P> {
     /// A small dot telling that the pane has content (comments exist, the document has
     /// bookmarks). Drawn only while the pane is not open.
     pub marker: bool,
+    /// The item's accessible description while the marker shows ("Has comments"). Translate it
+    /// in the app.
+    pub marker_label: Option<String>,
 }
 
 impl<P> RailItem<P> {
     /// An enabled item without a marker.
     pub fn new(pane: P, icon: ImageSource<'static>, label: impl Into<String>) -> Self {
-        Self { pane, icon, label: label.into(), enabled: true, marker: false }
+        Self { pane, icon, label: label.into(), enabled: true, marker: false, marker_label: None }
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
@@ -57,6 +60,11 @@ impl<P> RailItem<P> {
 
     pub fn marker(mut self, marker: bool) -> Self {
         self.marker = marker;
+        self
+    }
+
+    pub fn marker_label(mut self, label: impl Into<String>) -> Self {
+        self.marker_label = Some(label.into());
         self
     }
 }
@@ -73,6 +81,7 @@ pub enum RailRequest<P> {
 
 /// What [`Rail::show`] returns.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RailOutput<P> {
     /// The click of this frame, if any.
     pub request: Option<RailRequest<P>>,
@@ -123,8 +132,8 @@ impl Rail {
         self
     }
 
-    /// Frame of the rail. Default: the panel fill, a hairline border and an 8 pt margin above
-    /// and below.
+    /// Frame of the rail. Default: the panel fill and an 8 pt margin above and below. The panel's
+    /// separator line draws the inner edge.
     pub fn frame(mut self, frame: Frame) -> Self {
         self.frame = Some(frame);
         self
@@ -145,19 +154,11 @@ impl Rail {
     /// the rail. `items` are drawn top-down and scroll in a short window; `foot` draws below
     /// them, always visible (page navigation, zoom), and may draw nothing. `open` is the pane
     /// the app has open.
-    pub fn show<P: Clone + PartialEq + Hash + Debug>(
-        self,
-        ui: &mut Ui,
-        items: &[RailItem<P>],
-        open: Option<&P>,
-        foot: impl FnOnce(&mut Ui),
-    ) -> RailOutput<P> {
-        let style = DockStyle::from_ui(ui);
+    pub fn show<P: Clone + Hash + Debug>(self, ui: &mut Ui, items: &[RailItem<P>], open: Option<&P>, foot: impl FnOnce(&mut Ui)) -> RailOutput<P> {
+        let style = ChromeStyle::from_ui(ui);
         let panel_id = self.id.with("rail-panel");
         let panel = if self.left() { egui::Panel::left(panel_id) } else { egui::Panel::right(panel_id) };
-        let frame = self.frame.unwrap_or_else(|| {
-            Frame::NONE.fill(ui.visuals().panel_fill).stroke(ui.visuals().widgets.noninteractive.bg_stroke).inner_margin(Margin::symmetric(0, 8))
-        });
+        let frame = self.frame.unwrap_or_else(|| Frame::NONE.fill(ui.visuals().panel_fill).inner_margin(Margin::symmetric(0, 8)));
         let shown = panel.exact_size(self.width).resizable(false).frame(frame).show(ui, |ui| {
             // The foot is a panel of its own, so that in a short window the items scroll instead
             // of running into it.
@@ -180,38 +181,53 @@ impl Rail {
         RailOutput { request, focused, rect: shown.response.rect }
     }
 
-    fn items<P: Clone + PartialEq + Hash + Debug>(
+    fn items<P: Clone + Hash + Debug>(
         &self,
         ui: &mut Ui,
         items: &[RailItem<P>],
         open: Option<&P>,
-        style: &DockStyle,
+        style: &ChromeStyle,
     ) -> (Option<RailRequest<P>>, Option<P>) {
         let mut request = None;
         let mut focused = None;
+        let open = open.map(|pane| self.item_id(pane));
         let mut drawn: Vec<Id> = Vec::new();
-        // Focus order for Up and Down: the enabled items, and the position of the focused one.
-        let mut enabled: Vec<Id> = Vec::new();
+        // Focus order for Up and Down: the enabled items with their place in `drawn`.
+        let mut enabled: Vec<(usize, Id, &P)> = Vec::new();
         let mut focus_index = None;
+        // An item disabled while focused, by its place. egui drops a disabled widget's focus as
+        // it draws it, so this is read before.
+        let mut lost_focus = None;
         for item in items {
             let id = self.item_id(&item.pane);
             // A pane listed twice would give two widgets one id.
             if drawn.contains(&id) {
                 continue;
             }
+            let place = drawn.len();
             drawn.push(id);
-            let selected = open == Some(&item.pane);
+            let selected = open == Some(id);
+            let had_focus = ui.memory(|m| m.has_focus(id));
             let response = ui
                 .add_enabled_ui(item.enabled, |ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(self.button, self.button), Sense::hover());
                     let response = ui.interact(rect, id, Sense::click());
                     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, ui.is_enabled(), selected, &item.label));
+                    if item.marker
+                        && !selected
+                        && let Some(label) = &item.marker_label
+                    {
+                        ui.ctx().accesskit_node_builder(id, |node| node.set_description(label.as_str()));
+                    }
                     self.paint(ui, &response, item, selected, style);
                     response
                 })
                 .inner;
             let response = if item.enabled { response.on_hover_text(&item.label) } else { response.on_disabled_hover_text(&item.label) };
             if !item.enabled {
+                if had_focus {
+                    lost_focus = Some(place);
+                }
                 continue;
             }
             if response.gained_focus() {
@@ -221,13 +237,23 @@ impl Rail {
                 focus_index = Some(enabled.len());
                 focused = Some(item.pane.clone());
             }
-            enabled.push(id);
+            enabled.push((place, id, &item.pane));
             if response.clicked() {
                 request = Some(if selected { RailRequest::Close(item.pane.clone()) } else { RailRequest::Open(item.pane.clone()) });
             }
         }
+        if let Some(place) = lost_focus
+            && focus_index.is_none()
+        {
+            // Focus moves to the nearest enabled item below, else above, else leaves the rail.
+            let next = enabled.iter().find(|(p, ..)| *p > place).or_else(|| enabled.iter().rev().find(|(p, ..)| *p < place));
+            if let Some(&(_, next, pane)) = next {
+                ui.memory_mut(|m| m.request_focus(next));
+                focused = Some(pane.clone());
+            }
+        }
         if let Some(index) = focus_index
-            && let Some(&id) = enabled.get(index)
+            && let Some(&(_, id, _)) = enabled.get(index)
         {
             // Up and Down move between the items, never out of the rail by egui's geometric focus.
             ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { vertical_arrows: true, ..Default::default() }));
@@ -240,14 +266,14 @@ impl Rail {
                     None
                 }
             });
-            if let Some(&next) = next.flatten().and_then(|i| enabled.get(i)) {
+            if let Some(&(_, next, _)) = next.flatten().and_then(|i| enabled.get(i)) {
                 ui.memory_mut(|m| m.request_focus(next));
             }
         }
         (request, focused)
     }
 
-    fn paint<P>(&self, ui: &Ui, response: &Response, item: &RailItem<P>, selected: bool, style: &DockStyle) {
+    fn paint<P>(&self, ui: &Ui, response: &Response, item: &RailItem<P>, selected: bool, style: &ChromeStyle) {
         let rect = response.rect;
         if !rect.is_positive() {
             return;
@@ -260,7 +286,7 @@ impl Rail {
         if response.has_focus() {
             painter.rect_stroke(rect.shrink(1.0), 4.0, Stroke::new(1.0, style.accent), StrokeKind::Inside);
         }
-        let tint = if selected || hovered { style.text } else { style.inactive_text };
+        let tint = if selected || hovered { style.text } else { style.weak_text };
         let icon = rect.shrink(ICON_INSET);
         if icon.is_positive() {
             egui::Image::new(item.icon.clone()).tint(tint).paint_at(ui, icon);

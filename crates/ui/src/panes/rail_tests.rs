@@ -57,6 +57,8 @@ struct App {
     pane: bool,
     foot: bool,
     out: Option<RailOutput<Tool>>,
+    /// `PaneOutput::focused` of the pane host.
+    pane_focused: Option<Tool>,
     document: Rect,
 }
 
@@ -71,6 +73,7 @@ impl App {
             pane: false,
             foot: false,
             out: None,
+            pane_focused: None,
             document: Rect::NOTHING,
         }
     }
@@ -84,7 +87,8 @@ impl App {
         });
         if self.pane {
             let open: Vec<Tool> = self.open.into_iter().collect();
-            PaneHost::new("panes").rtl(self.rtl).policy(SidePolicy::OneSlot).show(ui, &open, |_| None, &mut Content { edge: self.edge });
+            let panes = PaneHost::new("panes").rtl(self.rtl).policy(SidePolicy::OneSlot).show(ui, &open, |_| None, &mut Content { edge: self.edge });
+            self.pane_focused = panes.focused;
         }
         self.document = egui::CentralPanel::default().show(ui, |ui| ui.label("Document")).response.rect;
         match &out.request {
@@ -156,7 +160,8 @@ fn a_disabled_item_sends_nothing_and_the_marker_shows_only_while_closed() {
     let mut app = App::new();
     app.items[1].enabled = false;
     app.items[0].marker = true;
-    app.items[3].marker = true;
+    app.items[0].marker_label = Some("Has comments".into());
+    app.items[3] = app.items[3].clone().marker(true).marker_label("Has layers");
     app.open = Some(Tool::Comments);
     let mut h = harness(app, 600.0);
     click_item(&mut h, Tool::Bookmarks);
@@ -176,6 +181,10 @@ fn a_disabled_item_sends_nothing_and_the_marker_shows_only_while_closed() {
     let shown = markers(&h);
     assert_eq!(shown.len(), 1, "{shown:?}");
     assert!(item(&h, Tool::Layers).contains(shown[0]));
+    assert!(shown[0].x > item(&h, Tool::Layers).center().x, "the marker sits at the top-right corner");
+    let description = |h: &Harness<'_, App>, label: &str| h.get_by_label(label).accesskit_node().description();
+    assert_eq!(description(&h, "Layers").as_deref(), Some("Has layers"));
+    assert_eq!(description(&h, "Comments"), None, "no description while the pane is open");
 
     // Closed, Comments shows its marker too.
     click_item(&mut h, Tool::Comments);
@@ -183,6 +192,19 @@ fn a_disabled_item_sends_nothing_and_the_marker_shows_only_while_closed() {
     let shown = markers(&h);
     assert_eq!(shown.len(), 2, "{shown:?}");
     assert!(shown.iter().any(|p| item(&h, Tool::Comments).contains(*p)));
+    h.run_steps(1);
+    // Hovering Comments shows a tooltip with its label; move away before reading by label.
+    h.input_mut().events.push(Event::PointerMoved(Pos2::new(400.0, 300.0)));
+    h.run_steps(2);
+    assert_eq!(description(&h, "Comments").as_deref(), Some("Has comments"));
+
+    let mut app = App::new();
+    app.rtl = true;
+    app.items[3].marker = true;
+    let h = harness(app, 600.0);
+    let shown = markers(&h);
+    assert_eq!(shown.len(), 1, "{shown:?}");
+    assert!(shown[0].x < item(&h, Tool::Layers).center().x, "right-to-left: the marker sits at the top-left corner");
 }
 
 #[test]
@@ -290,4 +312,73 @@ fn an_empty_rail_draws_and_bad_sizes_fall_back() {
         assert_eq!(out.rect.width(), RAIL_WIDTH);
     });
     h.run_steps(2);
+}
+
+#[test]
+fn a_disabled_item_takes_no_tab_focus_and_a_focused_item_disabled_hands_focus_on() {
+    let mut app = App::new();
+    app.items[1].enabled = false;
+    let mut h = harness(app, 600.0);
+    let focused_id = |h: &Harness<'_, App>| h.ctx.memory(|m| m.focused());
+    let id = |tool: Tool| Rail::new("rail").item_id(&tool);
+    h.ctx.memory_mut(|m| m.request_focus(id(Tool::Comments)));
+    h.run_steps(2);
+    key(&mut h, Key::Tab);
+    assert_eq!(focused_id(&h), Some(id(Tool::Pages)), "Tab skips the disabled item");
+
+    // Pages is disabled while focused: focus goes to the next enabled item.
+    h.state_mut().items[2].enabled = false;
+    h.run_steps(2);
+    assert_eq!(focused_id(&h), Some(id(Tool::Layers)));
+    assert_eq!(focused(&h), Some(Tool::Layers));
+
+    // The last item disabled while focused: focus goes to the enabled one above.
+    h.ctx.memory_mut(|m| m.request_focus(id(Tool::Tags)));
+    h.run_steps(2);
+    h.state_mut().items[5].enabled = false;
+    h.run_steps(2);
+    assert_eq!(focused_id(&h), Some(id(Tool::Files)));
+
+    // Nothing left enabled: focus leaves the rail.
+    for item in &mut h.state_mut().items {
+        item.enabled = false;
+    }
+    h.run_steps(2);
+    assert_eq!((focused_id(&h), focused(&h)), (None, None));
+}
+
+#[test]
+fn a_press_on_the_rail_clears_the_pane_hosts_focused_pane() {
+    let mut app = App::new();
+    app.pane = true;
+    app.open = Some(Tool::Comments);
+    let mut h = harness(app, 600.0);
+    let body = h.get_by_label("Comments body").rect().center();
+    click(&mut h, body);
+    assert_eq!(h.state().pane_focused, Some(Tool::Comments));
+    // Below the items: the rail, not a pane.
+    let rail = h.state().out().rect;
+    click(&mut h, Pos2::new(rail.center().x, rail.bottom() - 40.0));
+    assert_eq!(h.state().pane_focused, None);
+    assert!(h.state().log.is_empty());
+    assert_eq!(h.state().open, Some(Tool::Comments));
+}
+
+#[test]
+fn a_bottom_edge_draws_the_rail_at_the_end() {
+    let mut app = App::new();
+    app.edge = Edge::Bottom;
+    let h = harness(app, 600.0);
+    let rail = h.state().out().rect;
+    assert_eq!((rail.right(), rail.height()), (R, 584.0), "{rail:?}");
+}
+
+#[test]
+fn chrome_style_from_visuals_matches_the_dock_style_it_skips() {
+    use crate::docking::{DockStyle, chrome::ChromeStyle};
+    for visuals in [egui::Visuals::light(), egui::Visuals::dark()] {
+        let direct = ChromeStyle::from_visuals(&visuals);
+        let through_dock = ChromeStyle::from_dock(&DockStyle::from_visuals(&visuals));
+        assert_eq!(format!("{direct:?}"), format!("{through_dock:?}"));
+    }
 }

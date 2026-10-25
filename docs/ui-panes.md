@@ -13,8 +13,8 @@ document stays the app's `CentralPanel`.
 | plain egui panels | Fixed view parts: slide thumbnails, notes, formula bar, sheet tabs, status bar. |
 | `egui::Window` | Free tool windows that never dock (Read Aloud, Power Query). |
 
-`panes` needs no docking types; it uses only the docking chrome (`FloatingFrame`, `TitleBar`,
-`live_move`).
+`panes` needs no docking types; it uses only the docking chrome (`ChromeStyle`,
+`FloatingFrame`, `TitleBar`, `live_move`).
 
 ## API
 
@@ -107,23 +107,26 @@ egui::CentralPanel::default().show(ui, |ui| document(ui));
 
 | Piece | Behavior |
 |---|---|
-| `RailItem` | `pane`, `icon` (an `egui::ImageSource`, like docking's `DockContent::icon`), `label` (tooltip and accessible name; translate it in the app), `enabled`, `marker`. `RailItem::new` makes an enabled item without a marker. |
+| `RailItem` | `pane`, `icon` (an `egui::ImageSource`, like docking's `DockContent::icon`), `label` (tooltip and accessible name; translate it in the app), `enabled`, `marker`, `marker_label` (the accessible description while the marker shows, such as "Has comments"). `RailItem::new` makes an enabled item without a marker. |
 | `.edge(e)` | `End` (default) or `Start`. `Start` is left, or right with `.rtl(true)`. The rail is vertical, so `Bottom` draws at `End`. |
 | `.width(w)`, `.button_size(s)` | Rail width (48) and item size (34; the icon is 16 smaller). Non-finite values fall back to the defaults. |
-| `.frame(f)` | Default: the panel fill, a hairline border, 8 pt above and below. Item colors come from `DockStyle`, as in the docking icon columns. |
+| `.frame(f)` | Default: the panel fill, 8 pt above and below. The panel's separator line draws the inner edge. Item colors come from `ChromeStyle`, like the pane title bars. |
 | Panel | Exact width, not resizable. Shown before `PaneHost::show`, it is outermost, so a docked pane on the same edge sits between it and the document. |
 | Items | Top-down in a vertical scroll area. The foot is a bottom sub-panel, so in a short window the items scroll and never run into it. A pane listed twice is drawn once. An empty list draws an empty rail. |
-| States | The open pane's item draws selected. `marker` draws a dot while the pane is not open. A disabled item draws disabled, takes no focus and sends nothing. |
-| `RailOutput` | `request`: `Open(p)` or `Close(p)` (`#[non_exhaustive]`), at most one per frame. `focused`: the item holding keyboard focus. `rect`: where the rail was drawn. |
+| States | The open pane's item draws selected. `marker` draws a dot while the pane is not open. A disabled item draws disabled, takes no focus and sends nothing. An item disabled while focused hands focus to the nearest enabled item, the one below first. |
+| `RailOutput` | `#[non_exhaustive]`. `request`: `Open(p)` or `Close(p)` (`#[non_exhaustive]`), at most one per frame. `focused`: the item holding keyboard focus. `rect`: where the rail was drawn. |
 | Accessibility | Each item is a toggle button (accesskit `Button` with a toggled state) named by its `label`. |
-| Keyboard | Items take Tab focus. Enter or Space clicks the focused item. Up and Down move focus between enabled items and stop at the ends. |
+| Keyboard | Items take Tab focus. Enter or Space clicks the focused item. Up and Down move focus between enabled items and stop at the ends. Escape is the app's: the rail neither closes the pane nor moves focus on it. |
 
 F6 stays with the app. To include the rail in an F6 cycle, give `PaneHost` `.f6(false)` and,
-when the cycle reaches the rail, focus the open pane's item or the first enabled one:
+when the cycle reaches the rail, focus the open pane's item if it is enabled, else the first
+enabled one:
 
 ```rust
-if let Some(pane) = app.pane.or(first_enabled) {
-    ctx.memory_mut(|m| m.request_focus(Rail::new("rail").item_id(&pane)));
+let enabled = || items.iter().filter(|item| item.enabled);
+let target = enabled().find(|item| Some(&item.pane) == app.pane.as_ref()).or_else(|| enabled().next());
+if let Some(item) = target {
+    ctx.memory_mut(|m| m.request_focus(Rail::new("rail").item_id(&item.pane)));
 }
 ```
 
