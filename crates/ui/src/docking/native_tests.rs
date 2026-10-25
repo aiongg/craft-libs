@@ -375,6 +375,10 @@ fn a_minimized_native_window_shrinks_to_its_bar_and_keeps_its_expanded_size() {
     d.settle();
     assert_eq!(os_window(&d, 5).unwrap().0, Rect::from_min_size(open.min, vec2(300.0, 300.0)));
     assert_eq!(size_commands(&d, viewport), [Some(vec2(300.0, 300.0)), Some(vec2(160.0, 100.0)), Some(egui::Vec2::INFINITY)]);
+    // The limits change before the size: the OS clamps a new size to the limits it has.
+    let commands: Vec<_> = d.host().commands.iter().filter(|(v, _)| *v == viewport).map(|(_, c)| c.clone()).collect();
+    let last = |f: fn(&ViewportCommand) -> bool| commands.iter().rposition(f);
+    assert!(last(|c| matches!(c, ViewportCommand::MaxInnerSize(_))) < last(|c| matches!(c, ViewportCommand::InnerSize(_))), "{commands:?}");
     assert_eq!(window(&d, 5).native, Some([open.left(), open.top(), 300.0, 300.0]));
 }
 
