@@ -25,6 +25,8 @@ struct Content {
     text: Option<u32>,
     typed: String,
     focus_text: bool,
+    /// The text field gives up keyboard focus on the next frame.
+    blur_text: bool,
     /// The panel with a button that takes focus.
     focused_button: Option<u32>,
     /// The panel with a counter button, its clicks, and where it was drawn.
@@ -62,6 +64,10 @@ struct Content {
     drops: Vec<(u32, Pos2)>,
     /// Drop sites whose release found egui's drag-and-drop payload.
     payload_drops: Vec<u32>,
+    /// Key and clipboard events panel 1 saw in the main window, and the text field's panel in
+    /// its own window.
+    main_keys: Vec<Event>,
+    field_keys: Vec<Event>,
 }
 
 /// How a test's app drag source marks its drag.
@@ -89,6 +95,9 @@ impl DockContent<u32> for Content {
             let field = ui.text_edit_singleline(&mut self.typed);
             if std::mem::take(&mut self.focus_text) {
                 field.request_focus();
+            }
+            if std::mem::take(&mut self.blur_text) {
+                field.surrender_focus();
             }
         }
         if self.focused_button == Some(*panel) {
@@ -135,6 +144,13 @@ impl DockContent<u32> for Content {
             }
         }
         self.saw_files |= ui.input(|i| !i.raw.hovered_files.is_empty() || !i.raw.dropped_files.is_empty());
+        let main = ui.ctx().viewport_id() == egui::ViewportId::ROOT;
+        if (main && *panel == 1) || (!main && self.text == Some(*panel)) {
+            let keys = ui.input(|i| {
+                i.events.iter().filter(|e| matches!(e, Event::Key { .. } | Event::Copy | Event::Cut | Event::Paste(_))).cloned().collect::<Vec<_>>()
+            });
+            (if main { &mut self.main_keys } else { &mut self.field_keys }).extend(keys);
+        }
         if ui.rect_contains_pointer(ui.max_rect()) {
             let pressed = [PointerButton::Primary, PointerButton::Secondary].into_iter().filter(|b| ui.input(|i| i.pointer.button_pressed(*b)));
             self.pressed.extend(pressed.map(|b| (*panel, b)));
@@ -1731,6 +1747,61 @@ fn a_blocked_palette_stays_shown_and_behind_the_main_window_when_the_app_returns
     assert_eq!(levels, expected);
 }
 
+/// A menu's key equivalent, as an app's menu glue reports it in the main window's input.
+fn menu_key(key: Key) -> Vec<Event> {
+    let press = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::COMMAND };
+    vec![press(true), press(false)]
+}
+
+#[test]
+fn menu_keys_go_to_the_focused_text_field_of_the_native_window_with_the_keyboard() {
+    let has = |events: &[Event], key: Key| events.iter().any(|e| matches!(e, Event::Key { key: k, .. } if *k == key));
+    let pasted = |d: &DockDriver<u32, Content>, viewport| d.host().commands.contains(&(viewport, ViewportCommand::RequestPaste));
+    let mut d = driver(layout(true));
+    let viewport = d.viewport(id_of(&d));
+    (d.content.text, d.content.focus_text) = (Some(5), true);
+    d.host().focus = Some(viewport);
+    d.settle();
+    assert_eq!(super::typing_window(&d.ctx), Some(viewport));
+    // Between frames, where an app's `raw_input_hook` asks, the answer is the last frame's.
+    d.content.blur_text = true;
+    d.step(vec![]);
+    assert_eq!(super::typing_window(&d.ctx), None, "right after the field loses focus");
+    d.content.focus_text = true;
+    d.step(vec![]);
+    assert_eq!(super::typing_window(&d.ctx), Some(viewport), "right after the field takes focus");
+    d.step(menu_key(Key::V));
+    assert!(!has(&d.content.main_keys, Key::V), "{:?}", d.content.main_keys);
+    assert!(pasted(&d, viewport), "the field's window asks for the clipboard text");
+    d.step(menu_key(Key::C));
+    assert!(!has(&d.content.main_keys, Key::C));
+    assert!(d.content.field_keys.contains(&Event::Copy), "{:?}", d.content.field_keys);
+    // Saving is the app's, from any window.
+    d.step(menu_key(Key::S));
+    assert!(has(&d.content.main_keys, Key::S));
+    assert!(!has(&d.content.field_keys, Key::S));
+
+    // Under a block the window's field is inert: the main window keeps every key.
+    d.input_blocked = true;
+    d.settle();
+    assert_eq!(super::typing_window(&d.ctx), None);
+    d.host().commands.clear();
+    d.step(menu_key(Key::V));
+    assert!(has(&d.content.main_keys, Key::V));
+    assert!(!pasted(&d, viewport));
+
+    // With no focused field, nothing moves.
+    let mut d = driver(layout(true));
+    let viewport = d.viewport(id_of(&d));
+    d.content.text = Some(5);
+    d.host().focus = Some(viewport);
+    d.settle();
+    d.step(menu_key(Key::V));
+    assert!(has(&d.content.main_keys, Key::V));
+    assert!(d.content.field_keys.is_empty(), "{:?}", d.content.field_keys);
+    assert!(!pasted(&d, viewport));
+}
+
 #[test]
 fn a_focused_field_and_a_held_press_stay_inert_across_a_block() {
     let mut d = blocked_driver();
@@ -2278,6 +2349,33 @@ fn cancel_drag_from_a_native_input_hook_returns() {
     cancel.store(true, Ordering::SeqCst);
     d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 150.0))]);
     assert!(!cancel.load(Ordering::SeqCst), "the hook did not run");
+}
+
+/// `send_keys` from the per-area native input hook, inside `Plugin::input_hook`, returns
+/// without locking the plugin again, and the keys reach that window's next input.
+#[test]
+fn send_keys_from_a_native_input_hook_returns_and_delivers() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    let send = Arc::new(AtomicBool::new(false));
+    let flag = send.clone();
+    let mut d = driver(layout(true)).with_native_input_hook(move |ctx, input| {
+        if flag.swap(false, Ordering::SeqCst) {
+            super::send_keys(ctx, input.viewport_id, vec![Event::Copy]);
+        }
+    });
+    let id = id_of(&d);
+    d.content.text = Some(5);
+    d.settle();
+    send.store(true, Ordering::SeqCst);
+    d.window_step(id, vec![]);
+    assert!(!send.load(Ordering::SeqCst), "the hook did not run");
+    d.step(vec![]);
+    d.window_step(id, vec![]);
+    assert!(d.content.field_keys.contains(&Event::Copy), "{:?}", d.content.field_keys);
 }
 
 /// An app drag with a release queued for the main window: `cancel_drag` from the per-area
