@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
-use egui_kittest::{Harness, kittest::Queryable};
+use egui_kittest::{Harness, kittest::NodeT, kittest::Queryable};
 
 use super::*;
 
@@ -41,6 +41,30 @@ impl PaneContent<Pane> for Content {
     }
 }
 
+/// [`Content`] with the title bar on or off.
+struct Titled(bool);
+
+impl PaneContent<Pane> for Titled {
+    fn title(&self, pane: &Pane) -> String {
+        Content.title(pane)
+    }
+    fn body(&mut self, ui: &mut Ui, pane: &Pane) {
+        Content.body(ui, pane);
+    }
+    fn default_state(&self, pane: &Pane) -> PaneState {
+        Content.default_state(pane)
+    }
+    fn movable(&self, pane: &Pane) -> bool {
+        Content.movable(pane)
+    }
+    fn closable(&self, pane: &Pane) -> bool {
+        Content.closable(pane)
+    }
+    fn title_bar(&self, _: &Pane) -> bool {
+        self.0
+    }
+}
+
 /// The app side: open list, persisted states and every request it received.
 struct App {
     open: Vec<Pane>,
@@ -50,16 +74,27 @@ struct App {
     to_document: usize,
     rtl: bool,
     policy: SidePolicy,
+    title_bar: bool,
 }
 
 impl App {
     fn new(open: &[Pane]) -> Self {
-        Self { open: open.to_vec(), states: HashMap::new(), log: Vec::new(), focused: None, to_document: 0, rtl: false, policy: SidePolicy::Columns }
+        Self {
+            open: open.to_vec(),
+            states: HashMap::new(),
+            log: Vec::new(),
+            focused: None,
+            to_document: 0,
+            rtl: false,
+            policy: SidePolicy::Columns,
+            title_bar: true,
+        }
     }
 
     fn frame(&mut self, ui: &mut Ui) {
         let states = self.states.clone();
-        let out = PaneHost::new("panes").rtl(self.rtl).policy(self.policy).show(ui, &self.open, |p| states.get(p).copied(), &mut Content);
+        let out =
+            PaneHost::new("panes").rtl(self.rtl).policy(self.policy).show(ui, &self.open, |p| states.get(p).copied(), &mut Titled(self.title_bar));
         egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
         for request in &out.requests {
             match request {
@@ -148,6 +183,49 @@ fn last_resize(app: &App, pane: Pane) -> Option<f32> {
         PaneRequest::Resize(p, size) if *p == pane => Some(*size),
         _ => None,
     })
+}
+
+#[test]
+fn a_docked_pane_without_a_title_bar_fills_the_pane_and_still_resizes() {
+    for title_bar in [true, false] {
+        let mut app = App::new(&[Pane::Nav]);
+        app.title_bar = title_bar;
+        let mut h = harness(app);
+        let chrome = [
+            rect(&h, pane_id(Pane::Nav).with("title")).is_some(),
+            h.query_by_label("Move Nav pane").is_some(),
+            h.query_by_label("Pane options").is_some(),
+            h.query_by_label("Close").is_some(),
+        ];
+        assert_eq!(chrome, [title_bar; 4], "title bar {title_bar}: title, its node, ▾ and ×");
+        // The body's first line sits under the body margin, below the title bar when there is one.
+        let body = h.get_by_label("Nav body").rect();
+        let top = if title_bar { L + TITLE_BAR_HEIGHT + 8.0 } else { L + 8.0 };
+        assert!((body.top() - top).abs() < 2.0, "title bar {title_bar}: body {body:?}");
+
+        // Without the bar, the body is the pane's accessible region, named by its title.
+        let regions = h.query_all_by_label("Nav").filter(|n| n.accesskit_node().role() == egui::accesskit::Role::Pane).count();
+        assert_eq!(regions, usize::from(!title_bar), "title bar {title_bar}");
+        assert_eq!(h.get_by_label("Resize pane").accesskit_node().role(), egui::accesskit::Role::Splitter);
+
+        drag(&mut h, pos2(L + 250.0, 300.0), pos2(L + 300.0, 300.0));
+        assert_eq!(last_resize(h.state(), Pane::Nav), Some(300.0), "title bar {title_bar}");
+        assert_eq!(edge(&h, Pane::Nav), L + 300.0);
+    }
+}
+
+#[test]
+fn f6_reaches_a_pane_without_a_title_bar() {
+    let mut app = App::new(&[Pane::Nav, Pane::Comments]);
+    app.title_bar = false;
+    let mut h = harness(app);
+    key(&mut h, Key::F6, Modifiers::NONE);
+    assert_eq!(h.state().focused, Some(Pane::Nav));
+    assert_eq!(h.ctx.memory(|m| m.focused()), Some(pane_id(Pane::Nav).with("body")), "F6 focuses the body");
+    key(&mut h, Key::F6, Modifiers::NONE);
+    assert_eq!(h.state().focused, Some(Pane::Comments));
+    key(&mut h, Key::F6, Modifiers::NONE);
+    assert_eq!((h.state().focused, h.state().to_document), (None, 1));
 }
 
 #[test]

@@ -25,7 +25,8 @@ impl PaneContent<Pane> for MyPanes<'_> {
     fn title(&self, pane: &Pane) -> String { tr(pane.title()) }
     fn body(&mut self, ui: &mut egui::Ui, pane: &Pane) { /* the pane's contents */ }
     fn default_state(&self, pane: &Pane) -> PaneState { PaneState::docked(Edge::End, 250.0) }
-    // Optional: size_range (200..=520), movable, closable, menu (app items in the ▾ menu).
+    // Optional: size_range (200..=520), movable, closable, menu (app items in the ▾ menu),
+    // title_bar (false: a docked pane draws no title bar; floating panes always draw one).
 }
 
 // Every frame, after the top and bottom bars and before the CentralPanel:
@@ -98,6 +99,7 @@ match rail.request {
 }
 // The open pane, between the document and the rail. Its PaneContent returns `movable = false`
 // and a `default_state` docked at the rail's edge.
+// Apps whose panes draw their own headers return false from `title_bar`.
 let open: Vec<Pane> = app.pane.into_iter().collect();
 let out = PaneHost::new("task-panes").rtl(ui_is_rtl).policy(SidePolicy::OneSlot).show(ui, &open, |_| None, &mut MyPanes { app });
 egui::CentralPanel::default().show(ui, |ui| document(ui));

@@ -12,7 +12,9 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use egui::{Context, Frame, Id, Key, LayerId, Margin, Modifiers, Order, Pos2, Rect, Response, Sense, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{
+    Context, Frame, Id, Key, LayerId, Margin, Modifiers, Order, Pos2, Rect, Response, Sense, Ui, UiBuilder, Vec2, WidgetInfo, WidgetType, pos2, vec2,
+};
 
 use crate::docking::PanelLimits;
 use crate::docking::chrome::{self, ChromeStyle, FloatingFrame, MoveStep, TitleBar};
@@ -139,6 +141,13 @@ pub trait PaneContent<P> {
     }
     /// `false`: no × and no Close item (context panes such as PivotTable Fields).
     fn closable(&self, _pane: &P) -> bool {
+        true
+    }
+    /// `false`: a docked pane draws no title bar (no title, ▾ menu, × or title drag), for bodies
+    /// that draw their own header. The body fills the pane, the resize edge stays and F6 still
+    /// reaches the pane. Close then comes only from the app. A floating pane always draws its
+    /// title bar, which moves it.
+    fn title_bar(&self, _pane: &P) -> bool {
         true
     }
     /// App items, shown above the Move, Float and Close items of the ▾ menu.
@@ -492,21 +501,40 @@ impl PaneHost {
             Side::Bottom => egui::Panel::bottom(panel_id),
         };
         let frame = self.frame.unwrap_or_else(|| Frame::NONE.fill(ui.visuals().panel_fill).stroke(ui.visuals().widgets.noninteractive.bg_stroke));
+        let title_bar = content.title_bar(&s.pane);
         let shown = panel.exact_size(size).resizable(false).frame(frame).show(ui, |ui| {
             let top = ui.max_rect();
-            let title = Rect::from_min_size(top.min, vec2(top.width(), TITLE_BAR_HEIGHT));
-            ui.allocate_rect(title, Sense::hover());
-            let bar = self.chrome(ui, title, s, content, style, focus, bounds, requests);
+            let (bar, body_top) = if title_bar {
+                let title = Rect::from_min_size(top.min, vec2(top.width(), TITLE_BAR_HEIGHT));
+                ui.allocate_rect(title, Sense::hover());
+                (Some(self.chrome(ui, title, s, content, style, focus, bounds, requests)), title.bottom())
+            } else {
+                (None, top.top())
+            };
             // The pane reserves exactly its size and clips its body. egui cuts a panel wider
             // than its exact size at its outer edge, so a wide body would shift a right or
             // bottom pane's reserved rect inwards and the document would draw over the pane.
-            let body = Rect::from_min_max(pos2(top.left(), title.bottom()), top.max);
+            let body = Rect::from_min_max(pos2(top.left(), body_top), top.max);
+            // Without a title bar, F6 focuses the body itself; Tab goes on into its widgets,
+            // which register after it.
+            let stop = (!title_bar).then(|| {
+                let stop = ui.interact(body, s.id.with("body"), Sense::focusable_noninteractive());
+                let title = content.title(&s.pane);
+                stop.widget_info(|| WidgetInfo::labeled(WidgetType::Panel, true, &title));
+                if focus {
+                    stop.request_focus();
+                }
+                stop
+            });
             let mut child = ui.new_child(UiBuilder::new().max_rect(body).layout(*ui.layout()));
             child.set_clip_rect(body.intersect(ui.clip_rect()));
             Frame::NONE.inner_margin(self.margin).show(&mut child, |ui| {
                 ui.set_min_width(ui.available_width());
                 content.body(ui, &s.pane);
             });
+            if stop.as_ref().is_some_and(Response::has_focus) {
+                ui.painter().rect_stroke(body.shrink(1.0), 0.0, egui::Stroke::new(1.0, style.accent), egui::StrokeKind::Inside);
+            }
             ui.allocate_rect(body, Sense::hover());
             bar
         });
@@ -538,13 +566,15 @@ impl PaneHost {
             requests.push(PaneRequest::Resize(s.pane.clone(), next));
         }
 
-        if content.movable(&s.pane) {
+        if content.movable(&s.pane)
+            && let Some(bar) = &bar
+        {
             // Docked at the host's left or right edge, the pane gets the width the side limits
             // give its size: a bottom pane's height, not its width.
             let (side_min, side_max) = self.limits(content, &s.pane, bounds.width());
             let side_width =
                 s.state.size.filter(|v| v.is_finite()).or(default.filter(|v| v.is_finite())).unwrap_or(side_min).clamp(side_min, side_max);
-            self.drag_out(ui.ctx(), &bar, s, edge, rect, side_width, bounds, memory, preview, style, requests);
+            self.drag_out(ui.ctx(), bar, s, edge, rect, side_width, bounds, memory, preview, style, requests);
         }
         rect
     }
