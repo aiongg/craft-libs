@@ -16,7 +16,7 @@ use egui::{
 };
 
 use super::Renderer;
-use super::body_drag::{BodyRoute, Queued};
+use super::body_drag::{BodyRoute, Held, Queued};
 use super::cross::{DragPointer, Surface};
 use crate::docking::chrome::{ChromeStyle, TitleBar};
 pub(in crate::docking) use crate::docking::placement::BAR_HEIGHT;
@@ -817,6 +817,8 @@ pub(super) struct NativeInput {
     pub routes: std::collections::HashMap<Id, BodyRoute>,
     /// Pointer events routed to each window, for its next input.
     pub queued: Queued,
+    /// Owners' held releases, for their input in a later main-window pass.
+    pub held: Held,
     /// The main window's passes so far.
     pub pass: u64,
 }
@@ -836,18 +838,21 @@ impl egui::Plugin for NativeInput {
             // since the last pass are for a window that is gone.
             let pass = self.pass;
             self.queued.retain(|_, (at, _)| *at + 1 >= pass);
+            self.held.retain(|_, (at, _)| *at + 1 >= pass);
         }
-        // Taken first: an owner's held release, queued as it is routed, is for its next input.
+        // Taken before routing, which may queue more for this window's next input. A held
+        // release waits for a later main-window pass: a discarded pass reruns within its own.
         let waiting = self.queued.remove(&viewport);
+        let held = if self.held.get(&viewport).is_some_and(|(at, _)| *at < self.pass) { self.held.remove(&viewport) } else { None };
         let mut routed = false;
         for route in self.routes.values_mut() {
-            routed |= route.route(input, &mut self.queued, self.pass);
+            routed |= route.route(input, &mut self.queued, &mut self.held, self.pass);
         }
         // Before the window's own events: they happened earlier, and a held release must not
         // end a press that follows it.
-        if let Some((_, events)) = waiting {
-            input.events.splice(0..0, events.into_iter().map(|(_, event)| event));
-        }
+        let earlier =
+            held.into_iter().flat_map(|(_, events)| events).chain(waiting.into_iter().flat_map(|(_, events)| events.into_iter().map(|(_, e)| e)));
+        input.events.splice(0..0, earlier);
         if routed {
             ctx.request_repaint_of(ViewportId::ROOT);
         }

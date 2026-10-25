@@ -68,6 +68,10 @@ pub(super) struct BodyRoute {
 /// and the dock area whose route queued each.
 pub(super) type Queued = HashMap<ViewportId, (u64, Vec<(Id, Event)>)>;
 
+/// Each owner's held release and the pointer events after it, with the main window's pass that
+/// held them: delivered in a later pass only, never taken back.
+pub(super) type Held = HashMap<ViewportId, (u64, Vec<Event>)>;
+
 fn queue(queued: &mut Queued, pass: u64, area: Id, viewport: ViewportId, event: Event) {
     let (at, events) = queued.entry(viewport).or_default();
     *at = pass;
@@ -78,14 +82,19 @@ impl BodyRoute {
     /// The owner's input before egui reads it: each pointer event over another of the app's
     /// windows goes to that window, and the owner sees the pointer gone. Returns whether
     /// anything was queued. Where the owner reports no desktop position nothing is routed.
-    pub(super) fn route(&mut self, input: &mut RawInput, queued: &mut Queued, pass: u64) -> bool {
+    pub(super) fn route(&mut self, input: &mut RawInput, queued: &mut Queued, held: &mut Held, pass: u64) -> bool {
         if input.viewport_id != self.owner || self.ended {
             return false;
         }
         let Some((origin, _)) = input.viewports.get(&input.viewport_id).and_then(content_of) else { return false };
-        let mut routed = false;
+        let (mut routed, mut holding) = (false, false);
         let mut events = Vec::with_capacity(input.events.len());
         for event in std::mem::take(&mut input.events) {
+            // Pointer events after a held release wait behind it, in order.
+            if holding && matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. } | Event::PointerGone) {
+                held.entry(self.owner).or_default().1.push(event);
+                continue;
+            }
             let (pos, release) = match &event {
                 Event::PointerMoved(pos) => (*pos, None),
                 Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers } => (*pos, Some(*modifiers)),
@@ -110,12 +119,18 @@ impl BodyRoute {
                 if let Some(modifiers) = release {
                     let release = Event::PointerButton { pos: local, button: PointerButton::Primary, pressed: false, modifiers };
                     queue(queued, pass, self.area, viewport, release);
-                    // The owner's own release waits for its next input, so its drag, and an
-                    // egui drag-and-drop payload, last until a window drawn before it has read
-                    // the release. A stop never takes it back, or the button would stay down.
-                    let held = held_key(self.area);
-                    queue(queued, pass, held, self.owner, event);
-                    queue(queued, pass, held, self.owner, Event::PointerGone);
+                    // The owner's own release waits for its input in a later pass of the main
+                    // window (not a discarded pass's rerun), so its drag, and an egui
+                    // drag-and-drop payload, last until a window drawn before it has read the
+                    // release. A stop never takes it back, or the button would stay down.
+                    let (at, events) = held.entry(self.owner).or_default();
+                    *at = pass;
+                    events.extend([event, Event::PointerGone]);
+                    holding = true;
+                    routed = true;
+                    (self.ended, self.target) = (true, None);
+                    events.push(Event::PointerGone);
+                    continue;
                 }
                 routed = true;
                 events.push(Event::PointerGone);
@@ -129,12 +144,6 @@ impl BodyRoute {
         input.events = events;
         routed
     }
-}
-
-/// What tags an owner's held release in the queue: not `area`, whose unread events a stop takes
-/// back.
-fn held_key(area: Id) -> Id {
-    area.with("held-release")
 }
 
 /// End `area`'s routing: the window the pointer was over sees it go. `remove`: the drag is

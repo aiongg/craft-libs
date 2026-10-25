@@ -41,6 +41,8 @@ struct Content {
     /// The source's drag so far, and how often its drag stopped.
     source_delta: egui::Vec2,
     source_stopped: usize,
+    /// The source asks egui to run its window's pass again, once, the next time it draws.
+    discard_next: bool,
     /// Panels whose bodies are app drop sites: where each saw the pointer, and where a release
     /// came with the pointer inside.
     drop_sites: Vec<u32>,
@@ -84,6 +86,9 @@ impl DockContent<u32> for Content {
             self.source_rect = Some(response.rect);
             self.source_delta += response.drag_delta();
             self.source_stopped += usize::from(response.drag_stopped());
+            if std::mem::take(&mut self.discard_next) {
+                ui.ctx().request_discard("the source's pass runs twice");
+            }
             match self.marks {
                 Marks::Route(area) if response.dragged() => super::route_app_drag(ui.ctx(), area),
                 Marks::Payload => response.dnd_set_drag_payload(*panel),
@@ -1950,6 +1955,37 @@ fn an_egui_payload_reaches_a_window_drawn_before_the_owner() {
     d.step(vec![]);
     assert_eq!(d.content.payload_drops, vec![1]);
     assert!(!egui::DragAndDrop::has_any_payload(&d.ctx));
+}
+
+#[test]
+fn an_owner_that_discards_its_release_pass_keeps_the_payload_for_the_target() {
+    let mut d = app_drag(layout(true), 5, &[1]);
+    d.content.marks = Marks::Payload;
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    // The owner's pass that holds its release runs twice.
+    d.content.discard_next = true;
+    d.window_release(id, local);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.payload_drops, vec![1]);
+}
+
+#[test]
+fn pointer_events_after_a_held_release_wait_behind_it() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let point = d.host().windows[&d.viewport(id)].rect.min + vec2(120.0, 200.0) - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    let delta = d.content.source_delta;
+    // The release over the native window, then the pointer back on the source and a new press,
+    // in one input.
+    let at = source(&d);
+    d.step(vec![button(point, false), Event::PointerMoved(at), button(at, true)]);
+    assert_eq!(d.content.source_delta, delta, "no move after the release reaches the source's drag");
+    d.step(vec![]);
+    assert!(d.ctx.input(|i| i.pointer.primary_down()), "the new press outlives the held release");
 }
 
 #[test]

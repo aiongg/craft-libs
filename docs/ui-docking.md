@@ -579,8 +579,9 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
     - *Release timing.* A window drawn after the owner in the same pass gets the events in that
       pass (from the main window, every native window does). The main window, and a native
       window drawn before the owner, get them on the next pass, which is requested. When the
-      release goes to another window, the owner gets its own release a pass later, so its drag
-      stops (`drag_stopped`) then. egui clears a `DragAndDrop` payload when the owner sees the
+      release goes to another window, the owner gets its own release, and the pointer events
+      that came after it, in the main window's next pass (a rerun of a discarded pass does not
+      count), so its drag stops (`drag_stopped`) then. egui clears a `DragAndDrop` payload when the owner sees the
       release, so the target always reads its release while the payload is there. An app that
       keeps its own payload clears it no earlier than the owner's release.
     - *Limits.* Nothing is routed where desktop positions are unknown (Wayland,
