@@ -449,12 +449,15 @@ fn viewer_windows_stay_shown_at_normal_level() {
     assert_eq!(level(&d, viewer), Some(egui::WindowLevel::Normal));
     assert_eq!(level(&d, palette), Some(egui::WindowLevel::AlwaysOnTop));
     assert_eq!(level(&d, mixed), Some(egui::WindowLevel::Normal));
-    // Another application: the palette joins the others at the normal level.
+    // Another application: the palette drops behind it; the viewers stay at the normal level.
     d.host().focus = None;
     for _ in 0..20 {
         d.step(vec![]);
     }
-    assert_eq!([viewer, palette, mixed].map(|v| level(&d, v)), [Some(egui::WindowLevel::Normal); 3]);
+    assert_eq!(
+        [viewer, palette, mixed].map(|v| level(&d, v)),
+        [Some(egui::WindowLevel::Normal), Some(INACTIVE_PALETTE), Some(egui::WindowLevel::Normal)]
+    );
     d.host().focus = Some(egui::ViewportId::ROOT);
     d.step(vec![]);
     assert_eq!(level(&d, palette), Some(egui::WindowLevel::AlwaysOnTop));
