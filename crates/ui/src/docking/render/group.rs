@@ -80,7 +80,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.output.focused = Some(selected.clone());
             }
         }
-        // The drag bar keeps its reserved width: tabs overflow before it narrows.
+        // The drag bar keeps its reserved width: tabs shrink, then overflow, before it narrows.
         let bar_width = self.style.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
         let tabs_width = (strip.width() - header_width - bar_width).max(0.0);
         let widths: Vec<f32> = panels
@@ -94,9 +94,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     + TAB_PADDING
             })
             .collect();
-        // Tabs keep their full names; the rest go to the overflow menu. Only an active tab wider
-        // than the strip is cut, with its name in a tooltip.
-        let fit = tabs::fit_whole(&widths, active, tabs_width, OVERFLOW_WIDTH);
+        // The widest tabs shrink first, to a common width no narrower than `min_tab_width`; only
+        // when every tab at that width cannot fit do the rest go to the overflow menu. A tab
+        // narrower than its name cuts it with "…" and names it in a tooltip.
+        let fit = tabs::fit(&widths, active, tabs_width, self.style.min_tab_width, OVERFLOW_WIDTH);
         let owner = TabGroup { panels, selected, minimized, kind, rect };
         let mut x = strip.left();
         let mut shown = Vec::new();
@@ -381,8 +382,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if response.clicked() {
             self.output.actions.push(Action::Activate { panel: panel.clone() });
             self.output.focused = Some(panel.clone());
-            if minimized == Some(true) && !active {
-                self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: false });
+            if minimized == Some(true) {
+                // Activate already expands the group of its active tab.
+                if !active {
+                    self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: false });
+                }
                 let now = ui.input(|i| i.time);
                 ui.ctx().data_mut(|d| d.insert_temp(expand_key, now));
             }

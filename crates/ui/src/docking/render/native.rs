@@ -1,29 +1,37 @@
 //! Floating windows in their own OS windows (feature `native-windows`). Where the backend has
 //! viewports, every floating window whose panels allow it is drawn with
-//! `show_viewport_immediate`, always on top of other windows and hidden while none of the
-//! application's windows has focus. Where egui embeds viewports (wasm, tests) windows stay
-//! in-window at their in-window rect. Tabs, groups and whole windows drag between OS windows
-//! (see `cross.rs`).
+//! `show_viewport_immediate`. Palettes stay on top of other windows and hide while none of the
+//! application's windows has focus; viewers are normal windows that come forward when the
+//! application is activated. Where egui embeds viewports (wasm, tests) windows stay
+//! in-window at their in-window rect, and so do they on Wayland, unless the app turns native
+//! windows on ([`crate::docking::DockArea::native_windows`]). Tabs, groups and whole windows
+//! drag between OS windows (see `cross.rs`), and so do the app's drags in panel bodies
+//! (`body_drag.rs`).
 
 use std::{fmt::Debug, hash::Hash};
 
 use egui::{
-    Context, CursorIcon, Event, Id, Key, Modifiers, Pos2, Rect, ResizeDirection, Sense, Ui, Vec2, ViewportBuilder, ViewportClass, ViewportCommand,
-    ViewportId, ViewportInfo, WindowLevel, pos2, vec2,
+    Color32, Context, CursorIcon, Event, Id, Key, LayerId, Modifiers, Order, Pos2, RawInput, Rect, ResizeDirection, Sense, Ui, UiBuilder, Vec2,
+    ViewportBuilder, ViewportClass, ViewportCommand, ViewportId, ViewportInfo, WindowLevel, pos2, vec2,
 };
 
 use super::Renderer;
+use super::body_drag::{BodyRoute, Held, Queued};
 use super::cross::{DragPointer, Surface};
 use crate::docking::chrome::{ChromeStyle, TitleBar};
 pub(in crate::docking) use crate::docking::placement::BAR_HEIGHT;
 use crate::docking::placement::{kept_reachable, monitor_of, restore, sanitized};
-use crate::docking::{Action, Drag, Floating, GroupDrag, GroupGesture, Node};
+use crate::docking::{Action, Drag, Floating, GroupDrag, GroupGesture, Node, WindowFiles, WindowKind};
 
 /// Smallest native window.
 const MIN_SIZE: [f32; 2] = [160.0, 100.0];
 /// How long floating windows stay after the application's last window lost focus, so focus
 /// moving between our own windows does not hide them.
 const HIDE_DELAY: f64 = 0.25;
+/// Whether normal windows are raised when the application is activated. macOS brings an
+/// application's windows forward itself: all of them on activation from the Dock or the
+/// application switcher, the clicked one alone on a click, as its own windows do.
+const RAISE_ON_ACTIVATION: bool = !cfg!(target_os = "macos");
 /// How long reports of a native window's place may lag a move the dock area commanded.
 const MOVE_WAIT: f64 = 0.5;
 /// How far the resize bands reach into a native window from its edges, where the window has
@@ -142,6 +150,8 @@ struct Place {
     pending: Option<f64>,
     /// The window system put the frame, not the content, where it opened: corrected once.
     corrected: bool,
+    /// Shown, as it opened or was last told.
+    shown: bool,
 }
 
 /// Whether two rects differ by more than rounding.
@@ -151,7 +161,7 @@ fn differs(a: [f32; 4], b: [f32; 4]) -> bool {
 
 /// Desktop position of a viewport's content, and its offset from the window's outer
 /// position, where the window system reports both.
-fn content_of(info: &ViewportInfo) -> Option<(Pos2, Vec2)> {
+pub(super) fn content_of(info: &ViewportInfo) -> Option<(Pos2, Vec2)> {
     let (outer, inner) = (info.outer_rect?, info.inner_rect?);
     (outer.min.is_finite() && inner.min.is_finite()).then(|| (inner.min, inner.min - outer.min))
 }
@@ -199,9 +209,9 @@ impl<P> Default for Report<P> {
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Show the native windows and return the windows to draw in-window.
     pub(super) fn native_windows<'w>(&mut self, ctx: &Context, windows: Vec<&'w Floating<P>>) -> Vec<&'w Floating<P>> {
-        let native = !ctx.embed_viewports();
+        let native = !ctx.embed_viewports() && self.native_windows.unwrap_or_else(|| !wayland(ctx, env_session()));
         let origin = ctx.input(|i| i.viewport().inner_rect.map(|r| r.min)).filter(|p| p.is_finite()).unwrap_or(Pos2::ZERO);
-        let visibility = if native { self.float_visibility(ctx) } else { (true, false) };
+        let (visible, activated) = if native { self.float_visibility(ctx) } else { (true, false) };
         self.cross.on = native;
         let mut shown = Vec::new();
         let mut in_window = Vec::new();
@@ -232,7 +242,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             if ctx.data(|d| d.get_temp::<WindowDrag>(key)).is_some_and(|d| !natives.iter().any(|(w, ..)| w.id == d.window)) {
                 ctx.data_mut(|d| d.remove::<WindowDrag>(key));
             }
-            self.map_desktop(ctx, &natives, visibility.0);
+            self.map_desktop(ctx, &natives, visible, activated);
+            self.raise_next(ctx, &natives);
             // The main window owns drags of the panels it draws.
             let id = self.id;
             let dragged = ctx.data(|d| {
@@ -242,9 +253,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let origin = self.cross.main.map(|m| m.min);
                 self.record_pointer(ctx, None, origin, None);
             }
+            self.cross.viewports = natives.iter().map(|(w, _, viewport)| (w.id, *viewport)).collect();
         }
+        self.map_body_route(ctx, native);
         for (window, rect, viewport) in natives {
-            if let Some(key) = self.native_window(ctx, window, rect, viewport, visibility) {
+            if let Some(key) = self.native_window(ctx, window, rect, viewport, visible) {
                 shown.push(key);
             }
         }
@@ -280,36 +293,105 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         ctx.data_mut(|d| d.insert_temp(key, (runs, current)));
     }
 
-    /// The main window and the shown native windows on the desktop, front first: the window
-    /// focused most recently first. A window whose position is unknown is left out.
-    fn map_desktop(&mut self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)], visible: bool) {
+    /// The main window and the shown native windows on the desktop, front first: palettes
+    /// above the rest, each the window focused most recently first. A window whose position is
+    /// unknown is left out. `visible`: palettes show. `activated`: the application was just
+    /// activated, so the main window and its normal windows are raised (see
+    /// [`Self::raise_next`]).
+    fn map_desktop(&mut self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)], visible: bool, activated: bool) {
         let key = self.id.with("native-order");
-        let mut order = ctx.data(|d| d.get_temp::<Vec<u64>>(key)).unwrap_or_default();
-        order.retain(|id| natives.iter().any(|(w, ..)| w.id == *id));
+        // Focus order, front first; `None` is the main window.
+        let mut order = ctx.data(|d| d.get_temp::<Vec<Option<u64>>>(key)).unwrap_or_default();
+        order.retain(|id| id.is_none_or(|id| natives.iter().any(|(w, ..)| w.id == id)));
+        // The main window comes to the front when it gains focus, and on a press in it: the
+        // window system raises it then, though it may have kept focus.
+        let main_key = self.id.with("native-main-focused");
+        let (main_focused, pressed) = ctx.input(|i| (i.viewport().focused == Some(true), i.pointer.any_pressed()));
+        let gained = main_focused && !ctx.data(|d| d.get_temp::<bool>(main_key)).unwrap_or(false);
+        ctx.data_mut(|d| d.insert_temp(main_key, main_focused));
+        if gained || pressed || !order.contains(&None) {
+            let front = order.contains(&None);
+            order.retain(Option::is_some);
+            if front { order.insert(0, None) } else { order.push(None) }
+        }
         let mut windows = Vec::new();
         for (window, rect, viewport) in natives {
             let info = ctx.input(|i| i.raw.viewports.get(viewport).cloned());
             // A new window opens in front.
-            if info.as_ref().is_some_and(|i| i.focused == Some(true)) || !order.contains(&window.id) {
-                order.retain(|id| *id != window.id);
-                order.insert(0, window.id);
+            if info.as_ref().is_some_and(|i| i.focused == Some(true)) || !order.contains(&Some(window.id)) {
+                order.retain(|id| *id != Some(window.id));
+                order.insert(0, Some(window.id));
             }
             let [x, y, w, h] = *rect;
             let placed = match info {
                 None => Some(Rect::from_min_size(pos2(x, y), vec2(w, h))),
                 Some(info) => placed(&info).map(|[x, y, w, h]| Rect::from_min_size(pos2(x, y), vec2(w, h))),
             };
-            if let Some(placed) = placed.filter(|r| r.is_finite() && visible) {
-                windows.push((window.id, placed));
+            let normal = self.normal_window(window);
+            if let Some(placed) = placed.filter(|r| r.is_finite() && (visible || normal)) {
+                windows.push((window.id, placed, normal));
             }
         }
-        windows.sort_by_key(|(id, _)| order.iter().position(|o| o == id));
+        if activated && RAISE_ON_ACTIVATION {
+            // The back one first, so each lands in front of those raised before it, and the
+            // window just focused, at the front of the order, last.
+            // While input is blocked the main window, with the modal, ends in front.
+            if self.input_blocked {
+                order.retain(Option::is_some);
+                order.insert(0, None);
+            }
+            let queue: Vec<Option<u64>> = order
+                .iter()
+                .rev()
+                .filter(|id| id.is_none_or(|id| natives.iter().any(|(w, ..)| w.id == id && self.normal_window(w))))
+                .copied()
+                .collect();
+            // Blocked, the main window comes in front of a palette the app was activated through.
+            if self.input_blocked || queue.iter().any(Option::is_some) {
+                ctx.data_mut(|d| d.insert_temp(self.id.with("native-raise"), queue));
+            }
+        }
+        let rank = |id: Option<u64>| order.iter().position(|o| *o == id);
+        windows.sort_by_key(|(id, _, normal)| (*normal, rank(Some(*id))));
+        self.cross.front = windows.iter().filter(|(id, _, normal)| !normal || rank(Some(*id)) < rank(None)).count();
+        self.cross.windows = windows.into_iter().map(|(id, rect, _)| (id, rect)).collect();
         ctx.data_mut(|d| d.insert_temp(key, order));
-        self.cross.windows = windows;
         self.cross.main = ctx.input(|i| i.viewport().outer_rect.and(i.viewport().inner_rect)).filter(|r| r.is_finite());
     }
 
-    /// Whether floating windows show this frame, and whether that changed since the last.
+    /// Raise the next window [`Self::map_desktop`] queued when the application was activated,
+    /// the main window (`None`) or a normal window: one per pass, since egui sends the commands
+    /// of different viewports in no fixed order. Toggling the window level raises a window without focusing it: on Windows
+    /// `HWND_NOTOPMOST` puts the window in front of every window that is not topmost, and on
+    /// X11 the window manager raises a window as it takes `_NET_WM_STATE_ABOVE`. winit has no
+    /// plain raise. `ViewportCommand::Focus` would take focus from the window the user
+    /// activated, and egui-winit ignores it for a window that has focus, so focus could not be
+    /// handed back. `Visible(true)` does nothing to a shown window.
+    fn raise_next(&self, ctx: &Context, natives: &[(&Floating<P>, [f32; 4], ViewportId)]) {
+        let key = self.id.with("native-raise");
+        let Some(mut queue) = ctx.data_mut(|d| d.remove_temp::<Vec<Option<u64>>>(key)) else { return };
+        // A window that became a palette since activation keeps its `AlwaysOnTop` level.
+        let viewport = |id: Option<u64>| match id {
+            None => Some(ViewportId::ROOT),
+            Some(id) => natives.iter().find(|(w, ..)| w.id == id && self.normal_window(w)).map(|(.., v)| *v),
+        };
+        queue.retain(|id| viewport(*id).is_some());
+        if queue.is_empty() {
+            return;
+        }
+        if let Some(viewport) = viewport(queue.remove(0)) {
+            ctx.send_viewport_cmd_to(viewport, ViewportCommand::WindowLevel(WindowLevel::AlwaysOnTop));
+            ctx.send_viewport_cmd_to(viewport, ViewportCommand::WindowLevel(WindowLevel::Normal));
+        }
+        if !queue.is_empty() {
+            ctx.data_mut(|d| d.insert_temp(key, queue));
+            ctx.request_repaint();
+        }
+    }
+
+    /// Whether palettes show this frame, and whether the application was just activated: one
+    /// of its windows has focus after none had it for long enough to hide the palettes.
+    /// Losing focus again stops the raise of normal windows that activation started.
     fn float_visibility(&mut self, ctx: &Context) -> (bool, bool) {
         let (focused, now) = ctx.input(|i| {
             let infos = || i.raw.viewports.values();
@@ -319,19 +401,34 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         });
         self.cross.focus_lost = crate::focus::turned_false(ctx, self.id.with("app-focus"), focused);
         let key = self.id.with("native-visibility");
-        let (last, was) = ctx.data(|d| d.get_temp::<(f64, bool)>(key)).unwrap_or((now, true));
-        let last = if focused { now } else { last };
+        let last = if focused { now } else { ctx.data(|d| d.get_temp::<f64>(key)).unwrap_or(now) };
         let visible = floats_shown(focused, now, last);
         if visible && !focused {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64((HIDE_DELAY - (now - last)).max(0.0)));
         }
-        ctx.data_mut(|d| d.insert_temp(key, (last, visible)));
-        (visible, visible != was)
+        ctx.data_mut(|d| d.insert_temp(key, last));
+        let away_key = self.id.with("native-away");
+        let away = ctx.data(|d| d.get_temp::<bool>(away_key)).unwrap_or(false);
+        ctx.data_mut(|d| {
+            d.insert_temp(away_key, !focused && (away || !visible));
+            if !focused {
+                d.remove::<Vec<Option<u64>>>(self.id.with("native-raise"));
+            }
+        });
+        (visible, focused && away)
     }
 
-    /// One floating window in its own viewport. Returns the key of its [`Place`].
-    fn native_window(&mut self, ctx: &Context, window: &Floating<P>, rect: [f32; 4], viewport: ViewportId, visibility: (bool, bool)) -> Option<Id> {
-        let (visible, toggled) = visibility;
+    /// A window holding a viewer is a normal window, so it neither vanishes nor sits over other
+    /// applications; the rest are palettes.
+    fn normal_window(&self, window: &Floating<P>) -> bool {
+        window.panels().any(|p| self.content.window_kind(p) == WindowKind::Normal)
+    }
+
+    /// One floating window in its own viewport. `visible`: palettes show. Returns the key of
+    /// its [`Place`].
+    fn native_window(&mut self, ctx: &Context, window: &Floating<P>, rect: [f32; 4], viewport: ViewportId, visible: bool) -> Option<Id> {
+        let normal = self.normal_window(window);
+        let visible = visible || normal;
         let first = window.panels().next()?.clone();
         let key = self.id.with(("native-place", viewport));
         let now = ctx.input(|i| i.time);
@@ -365,7 +462,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 };
                 seen.insert(window.id);
                 ctx.data_mut(|d| d.insert_temp(seen_key, seen));
-                Place { spawn, known: spawn, pending: Some(now + MOVE_WAIT), corrected: false }
+                Place { spawn, known: spawn, pending: Some(now + MOVE_WAIT), corrected: false, shown: true }
             }
         };
         let spawn = place.spawn;
@@ -375,7 +472,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_position([spawn[0], spawn[1]])
             .with_inner_size([spawn[2], spawn[3]])
             .with_min_inner_size(MIN_SIZE)
-            .with_window_level(WindowLevel::AlwaysOnTop)
+            // A blocked palette could cover the modal, and its bar moves nothing: the main
+            // window can come in front of it at the normal level.
+            .with_window_level(if normal || self.input_blocked { WindowLevel::Normal } else { WindowLevel::AlwaysOnTop })
             .with_taskbar(false);
         // The bar replaces the OS title bar. macOS keeps the frame, with its title bar and
         // buttons hidden: AppKit resizes a movable window from its edges and corners with its
@@ -386,28 +485,44 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_title_shown(false)
             .with_fullsize_content_view(true)
             .with_titlebar_buttons_shown(false)
-            .with_resizable(window.panels().all(|p| self.permissions(p).movable));
+            .with_resizable(!self.input_blocked && window.panels().all(|p| self.permissions(p).movable));
         #[cfg(not(target_os = "macos"))]
         let builder = builder.with_decorations(false);
-        if toggled || (info.is_none() && !visible) {
+        // A blocked palette keeps showing while the app is away: showing it on the app's return
+        // would raise it over the modal and, on macOS, give it focus.
+        let visible = visible || (self.input_blocked && place.shown);
+        // Only on a change: showing a shown window raises it and, on macOS, takes focus.
+        if place.shown != visible {
             ctx.send_viewport_cmd_to(viewport, ViewportCommand::Visible(visible));
+            place.shown = visible;
         }
-        if visible && self.activation.as_ref().is_some_and(|panel| window.contains(panel)) {
+        if visible && !self.input_blocked && self.activation.as_ref().is_some_and(|panel| window.contains(panel)) {
             ctx.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
         }
         let (targets, docks, windows) = (self.targets.len(), self.dock_targets.len(), self.frame.windows.len());
+        let blocked = self.input_blocked;
+        ctx.with_plugin(|input: &mut NativeInput| input.windows.insert(viewport, self.id));
         let report = ctx.show_viewport_immediate(viewport, builder, |ui, class| {
+            // `cancel_drag` reaches this viewport's drag here.
+            let cancelled = ui.ctx().data(|d| d.get_temp::<Vec<Id>>(crate::docking::surface::native_cancel_key(self.id)));
+            if ui.ctx().dragged_id().is_some_and(|id| cancelled.is_some_and(|ids| ids.contains(&id))) {
+                ui.ctx().stop_dragging();
+            }
             let full = ui.max_rect();
+            // An embedded fallback reads the main window's input: its close request, place,
+            // keys and resizes are not this window's.
+            let own = matches!(class, ViewportClass::Immediate | ViewportClass::Deferred);
+            let released = if blocked && own { block_input(ui) } else { Vec::new() };
             ui.painter().rect_filled(full, 0.0, self.style.floating_background);
             let buttons = self.native_bar(ui, window);
             let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
+            self.cross.pointed = None;
             self.floating_body(ui, window, body, full);
+            self.cross.held |= ui.ctx().dragged_id().is_some_and(|id| self.owned_interactions.contains(&id));
             if debug_close() {
                 debug_outlines(ui, full, &buttons);
             }
-            // An embedded fallback reads the main window's input: its close request, place,
-            // keys and resizes are not this window's.
-            if !matches!(class, ViewportClass::Immediate | ViewportClass::Deferred) {
+            if !own {
                 return Report::default();
             }
             if window.panels().all(|p| self.permissions(p).movable) {
@@ -426,8 +541,19 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 windows: self.frame.windows.split_off(windows),
             };
             surface.origin = self.window_gestures(ui, window);
-            self.paint_cross(ui, &mut surface);
-            self.forward_events(ui);
+            if blocked {
+                (surface.targets, surface.dock_targets, surface.windows) = Default::default();
+                cover(ui, self.id.with(("native-blocked", window.id)), full, self.style.blocked_dim);
+                if !released.is_empty() {
+                    self.output.forwarded_modifiers = Some(ui.input(|i| i.modifiers));
+                    self.output.forwarded_events.extend(released);
+                }
+            } else {
+                self.paint_cross(ui, &mut surface);
+                self.route_body_drag(ui.ctx(), Some(window.id));
+                self.forward_events(ui);
+                self.report_files(ui, window, viewport);
+            }
             ui.input(|i| Report {
                 closed: i.viewport().close_requested(),
                 placed: placed(i.viewport()),
@@ -475,9 +601,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         ctx.data_mut(|d| d.insert_temp(key, place));
         if report.closed {
-            // Like the bar's ×: its panels close and reopen from the application's menu.
-            self.output.actions.push(Action::CloseWindow { panel: first });
-            return Some(key);
+            // Like the bar's ×: its panels close and reopen from the application's menu. A
+            // window the application would refuse to close stays open.
+            if !blocked && window.panels().all(|p| self.permissions(p).closable) {
+                self.output.actions.push(Action::CloseWindow { panel: first });
+                return Some(key);
+            }
+            ctx.send_viewport_cmd_to(viewport, ViewportCommand::CancelClose);
         }
         // The layout follows the window's place, once a bar drag is over.
         let known = place.known;
@@ -635,6 +765,26 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         self.cross.release = Some((drag, pointer));
     }
 
+    /// Files dragged over or dropped on the window this frame, with the panel under the pointer.
+    fn report_files(&mut self, ui: &Ui, window: &Floating<P>, viewport: ViewportId) {
+        let (hovered, dropped, pos) = ui.input(|i| (i.raw.hovered_files.clone(), i.raw.dropped_files.clone(), i.pointer.latest_pos()));
+        if hovered.is_empty() && dropped.is_empty() {
+            return;
+        }
+        // The window system may send no pointer moves while files are dragged in.
+        let Some(panel) = self.cross.pointed.clone().or_else(|| crate::docking::dock_model::first_active(&window.root).cloned()) else { return };
+        // A window whose own pass is discarded draws twice: keep one report, with the latest
+        // hovered files and every dropped one.
+        if let Some(files) = self.output.window_files.iter_mut().find(|f| f.viewport == viewport) {
+            files.panel = panel;
+            files.pos = pos;
+            files.hovered = hovered;
+            files.dropped.extend(dropped);
+        } else {
+            self.output.window_files.push(WindowFiles { window: window.id, viewport, panel, pos, hovered, dropped });
+        }
+    }
+
     /// Keys, text and clipboard events the window's widgets left over, for the application's
     /// shortcuts. Nothing while a widget of the window has keyboard focus: its keys are its own.
     fn forward_events(&mut self, ui: &Ui) {
@@ -655,10 +805,142 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 }
 
+/// Input hooks of dock areas for their native windows, run by egui before it reads each
+/// window's input. eframe runs `App::raw_input_hook` for the main window only. App drags in
+/// panel bodies cross windows here too (`body_drag.rs`).
+#[derive(Default)]
+pub(super) struct NativeInput {
+    hooks: std::collections::HashMap<Id, egui::mutex::Mutex<InputHook>>,
+    /// The dock area of each native window shown this frame.
+    windows: std::collections::HashMap<ViewportId, Id>,
+    /// Each dock area's app drag in a panel body.
+    pub routes: std::collections::HashMap<Id, BodyRoute>,
+    /// Pointer events routed to each window, for its next input.
+    pub queued: Queued,
+    /// Owners' held releases, for their input in a later main-window pass.
+    pub held: Held,
+    /// The main window's passes so far.
+    pub pass: u64,
+}
+
+pub(in crate::docking) type InputHook = Box<dyn FnMut(&Context, &mut RawInput) + Send>;
+
+impl egui::Plugin for NativeInput {
+    fn debug_name(&self) -> &'static str {
+        "craft-ui docking native input"
+    }
+
+    fn input_hook(&mut self, ctx: &Context, input: &mut RawInput) {
+        let viewport = input.viewport_id;
+        if viewport == ViewportId::ROOT {
+            self.pass += 1;
+            // Every window draws in the main window's pass: events for one that has not drawn
+            // since the last pass are for a window that is gone.
+            let pass = self.pass;
+            self.queued.retain(|_, (at, _)| *at + 1 >= pass);
+            self.held.retain(|_, (at, _)| *at + 1 >= pass);
+        }
+        // Taken before routing, which may queue more for this window's next input. A held
+        // release waits for a later main-window pass: a discarded pass reruns within its own.
+        let waiting = self.queued.remove(&viewport);
+        let held = if self.held.get(&viewport).is_some_and(|(at, _)| *at < self.pass) { self.held.remove(&viewport) } else { None };
+        let mut routed = false;
+        for route in self.routes.values_mut() {
+            routed |= route.route(input, &mut self.queued, &mut self.held, self.pass);
+        }
+        // Before the window's own events: they happened earlier, and a held release must not
+        // end a press that follows it.
+        let earlier =
+            held.into_iter().flat_map(|(_, events)| events).chain(waiting.into_iter().flat_map(|(_, events)| events.into_iter().map(|(_, e)| e)));
+        input.events.splice(0..0, earlier);
+        if routed {
+            ctx.request_repaint_of(ViewportId::ROOT);
+        }
+        if let Some(hook) = self.windows.get(&input.viewport_id).and_then(|area| self.hooks.get(area)) {
+            (hook.lock())(ctx, input);
+        }
+    }
+}
+
+/// Set or clear the input hook of the dock area `area` for this frame, and forget its native
+/// windows until they show again.
+pub(in crate::docking) fn set_input_hook(ctx: &Context, area: Id, hook: Option<InputHook>) {
+    if ctx.plugin_opt::<NativeInput>().is_none() {
+        ctx.add_plugin(NativeInput::default());
+    }
+    ctx.with_plugin(|input: &mut NativeInput| {
+        input.windows.retain(|_, a| *a != area);
+        match hook {
+            Some(hook) => input.hooks.insert(area, egui::mutex::Mutex::new(hook)),
+            None => input.hooks.remove(&area),
+        }
+    });
+}
+
 /// Frames running whose native windows are all new, with the last frame's panels, before
 /// [`Renderer::warn_rebuilt`] warns.
 #[cfg(debug_assertions)]
 const REBUILT_FRAMES: usize = 3;
+
+/// What the environment says of winit's backend.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::docking) enum Session {
+    /// `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set: winit picks Wayland unless the app forces
+    /// X11 in code (`EventLoopBuilderExtX11::with_x11`); winit reads no variable that does.
+    Wayland,
+    /// None of those nor `DISPLAY` is set on a Unix desktop: a Wayland app started with only
+    /// `WAYLAND_SOCKET`, which winit unsets as it connects, or no display at all (tests, CI).
+    Unknown,
+    /// X11 or another backend.
+    Other,
+}
+
+/// The [`Session`] of a Unix desktop (`unix`) whose environment variable `name` is set and
+/// not empty when `set(name)`.
+pub(in crate::docking) fn session(unix: bool, set: impl Fn(&str) -> bool) -> Session {
+    if !unix {
+        Session::Other
+    } else if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") {
+        Session::Wayland
+    } else if set("DISPLAY") {
+        Session::Other
+    } else {
+        Session::Unknown
+    }
+}
+
+/// This process's [`Session`], read once.
+fn env_session() -> Session {
+    static SESSION: std::sync::OnceLock<Session> = std::sync::OnceLock::new();
+    *SESSION.get_or_init(|| {
+        session(cfg!(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd")), |name| {
+            std::env::var_os(name).is_some_and(|value| !value.is_empty())
+        })
+    })
+}
+
+/// Whether the main window runs on Wayland, given the environment's `session`. egui does not
+/// name the backend, but on Wayland the main window never reports its outer rect, while under
+/// X11 it does from the first frame on (eframe reads it as the window opens). A minimized X11
+/// window reports none either, so once one has, the backend is not Wayland. Without a Wayland
+/// variable, only a real OS window (one that reports its native pixels per point) counts.
+pub(in crate::docking) fn wayland(ctx: &Context, session: Session) -> bool {
+    let root = |test: fn(&ViewportInfo) -> bool| ctx.input(|i| i.raw.viewports.get(&ViewportId::ROOT).is_some_and(test));
+    match session {
+        Session::Other => return false,
+        Session::Unknown if !root(|v| v.native_pixels_per_point.is_some()) => return false,
+        Session::Wayland | Session::Unknown => {}
+    }
+    let key = Id::unique("craft-ui-dock-window-positions");
+    if ctx.data(|d| d.get_temp::<bool>(key).unwrap_or(false)) {
+        return false;
+    }
+    let reported = root(|v| v.outer_rect.is_some());
+    if reported {
+        ctx.data_mut(|d| d.insert_temp(key, true));
+    }
+    !reported
+}
 
 /// Whether every window of `current` is new to `previous`, and they hold the same panels:
 /// windows, with their panels, as `(id, panels)`.
@@ -670,6 +952,39 @@ fn rebuilt<P: Eq + Hash>(previous: &[(u64, Vec<P>)], current: &[(u64, Vec<P>)]) 
 #[cfg(debug_assertions)]
 fn panels<P: Eq + Hash>(windows: &[(u64, Vec<P>)]) -> std::collections::HashSet<&Vec<P>> {
     windows.iter().map(|(_, panels)| panels).collect()
+}
+
+/// The start of a blocked native window's frame: its widgets are disabled, and the pointer,
+/// keys, text and scrolling are taken out of its input before anything reads them, so a panel
+/// that reads input directly sees none either. Returns the key releases it took out, for the
+/// app: a key pressed before the block would otherwise stay down in the app's shortcuts.
+fn block_input(ui: &mut Ui) -> Vec<Event> {
+    // Disabling fades what the window paints, its opaque background too; the cover dims it.
+    let opacity = ui.opacity();
+    ui.disable();
+    ui.set_opacity(opacity);
+    let kept = |e: &Event| matches!(e, Event::WindowFocused(_));
+    let released = ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { pressed: false, .. })).cloned().collect());
+    ui.input_mut(|i| {
+        i.events.retain(kept);
+        i.raw.events.retain(kept);
+        // File drops are fields of their own, not events.
+        i.raw.dropped_files.clear();
+        i.raw.hovered_files.clear();
+        i.keys_down.clear();
+        i.smooth_scroll_delta = Vec2::ZERO;
+        i.pointer = Default::default();
+    });
+    ui.memory_mut(|m| m.stop_text_input());
+    released
+}
+
+/// The end of a blocked native window's frame: `dim` over its content `full`, in a layer above
+/// its popups that takes the pointer, so a popup left open takes no click either.
+fn cover(ui: &Ui, id: Id, full: Rect, dim: Color32) {
+    let cover = Ui::new(ui.ctx().clone(), id, UiBuilder::new().layer_id(LayerId::new(Order::Tooltip, id)).max_rect(full));
+    cover.painter().rect_filled(full, 0.0, dim);
+    cover.interact(full, id.with("sink"), Sense::CLICK | Sense::DRAG);
 }
 
 /// Move and size a native window so its content is the desktop rect `to`. The size goes

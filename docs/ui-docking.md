@@ -33,7 +33,7 @@ their sides.
 | Node | Holds |
 |---|---|
 | `Tabs` | A tab group: panels and the active index. |
-| `Split` | Two children, horizontal or vertical, with a ratio. A fixed first or second size from a saved layout is drawn at that size until the divider moves; a moved divider stores a ratio. |
+| `Split` | Two children, horizontal or vertical, and a size: a ratio, a fixed first size or a fixed second size. A moved divider keeps the mode: a fixed side stores its new size in points, a ratio its new ratio. |
 | `Stack` | Accordion entries, each open or closed, with an optional height. |
 | `Dock` | A side and its columns. A `Column` has `Group`s, a width, and `iconic`. |
 
@@ -72,6 +72,10 @@ layout.apply(Action::Move {
 
 - `Move`, `MovePanel`, `Float` and `Close` act on one panel. `MoveGroup`, `MoveColumn` and
   `MoveWindow` move a group, a dock column or a floating window, named by any panel in it.
+- `Open` reveals an absent panel as the last tab of its `anchor`'s group. Without an anchor it
+  becomes the root of an empty layout, else joins the first dock group that accepts tabs and is
+  shown, not minimized or in an iconic column (the end-side dock's first), else gets a new frame a quarter wide at the right edge of the docked
+  area. `OpenAt` takes any placement.
 - A `Target` is `At { anchor, placement }`, `Float { rect }` or `NewDock { side }`.
 - A `Placement` is a tab position, a split zone, a new group above or below (with an optional
   preferred `height`), a new column, or a new frame on an outer edge.
@@ -109,7 +113,7 @@ an optional saved arrangement for Reset, and `locked`.
 | Method | Does |
 |---|---|
 | `apply`, `apply_all` | Apply actions all or none, with the app's permissions. Closed panels are recorded in `hidden`. While `locked`, moving, floating and closing are refused; `SetNative`, which records the OS windows, still applies. |
-| `set_visible(panel, visible, fallback, permissions)` | Hide a panel that may close, or show it at its recorded place, else beside `fallback`. |
+| `set_visible(panel, visible, fallback, permissions)` | Hide a panel that may close, or show it at its recorded place, else as `Open` beside `fallback`, or where `Open` without an anchor puts it. A group or window closed one panel at a time comes back as one group as its panels are shown again. |
 | `reconcile(registered, permissions, default)` | Fit a loaded workspace to the panels the app has now. Unknown panels move to `hidden`, so they come back when registered again. A registered panel that cannot close, such as the canvas, is always shown. |
 | `reset(default)` | Return to the saved arrangement, or to `default` for a built-in workspace. |
 | `validate` | Check a loaded workspace before use. |
@@ -124,7 +128,7 @@ returns a `DockOutput`. It does not change the layout. The app applies `output.a
 its own command path, so pointer, keyboard and control commands share one path.
 
 `DockContent<P>` is the app's adapter. It draws each panel body and gives its label, icon,
-permissions, size limits, preferred floating size, panel menu and group header. The group header
+permissions, size limits, dock column heights, preferred floating size, panel menu and group header. The group header
 sits at the end of the tab strip; `group_header_width` gets the strip width, so a header that
 draws its own tabs can size them to the room left. An icon is an image (`icon`), or drawn in code by `paint_icon`, which
 gets a painter, the icon rect and the tint color and returns true when it painted. Panel bodies keep a stable egui id when they move, so widget memory
@@ -170,13 +174,20 @@ docking and `craft_ui::panes` both draw) for apps that draw their own windows.
 
 ## Tab strips
 
-Every shown tab carries its panel's full name. Tabs that do not fit go to the "…" button at the
-end of the strip, whose menu lists the hidden panels; choosing one makes it active. The active tab
-is always shown, in its logical place: when it lies past the tabs that fit, it takes the place of
-the last of them. Only an active tab wider than the room beside the "…" button, or a lone tab
-wider than the strip, is cut with "…", and its tooltip names it in full. The drag bar always keeps
-its reserved width: tabs go to the overflow menu before it narrows, and only a strip narrower than
-the bar itself shrinks it. A tab dropped on the "…" button goes to the end of the group.
+Tabs start at their natural width, wide enough for the panel's name. When the strip is too
+narrow, the widest tabs shrink first, to a common width; tabs whose names fit that width keep
+their natural width. A tab narrower than its name cuts the name with "…" and shows it in full as a
+tooltip. Shrunk tabs keep their hit areas, drag and keyboard behaviour, and accessibility labels
+with the full names.
+
+No tab shrinks below `DockStyle::min_tab_width`: by default about three characters and the "…"
+plus the tab's padding, 54 pt at the 12 pt font. Only when the tabs at that width do not all fit
+do the rest go to the "…" button at the end of the strip, whose menu lists the hidden panels;
+choosing one makes it active. The active tab is always shown, in its logical place, and the
+others take the remaining room in their order. An active tab with less room than its minimum
+width, or a lone tab wider than the strip, is cut the same way. The drag bar always keeps its
+reserved width: tabs shrink, then overflow, before it narrows, and only a strip narrower than the
+group header plus the bar shrinks it. A tab dropped on the "…" button goes to the end of the group.
 
 ## Floating size
 
@@ -238,6 +249,18 @@ A flyout fits its content the same way, without the title bar.
   ask for more through `PanelLimits::min`. Frames have no maximum unless every panel in them asks
   for one through `PanelLimits::max`: a panel without a maximum lifts the maximum of the panels it
   joins.
+- A dock column stacks its groups top to bottom. A minimized group shows only its tab strip, and a
+  group the user resized keeps that `Group::height`. A group the user never resized (`height` is
+  `None`) takes the default height its panels ask for through `DockContent::dock_heights`. Groups
+  whose panels ask for a `fill` height share the rest of the column, and groups whose panels ask
+  for no heights take their minimum. When no group asks for a fill, the groups without heights
+  share the rest, and when every open group has a height, the last one fills the column. In a short column the groups at their default give way first, down
+  to their `compact` heights, so the filling group gets its `fill` height. When the column is still
+  too short, every group gives way down to its minimum, and past that the column scrolls. Defaults
+  give way nearest the filling group first: one is at its compact height before the next gives
+  way. Towards the minimums, groups give way in proportion to their room. A group takes the
+  largest default, compact and fill height of its panels. All three are body heights, without
+  the tab strip, like `PanelLimits`.
 - Drop previews show the destination: an outline for tabs, a line for a new group, column or dock,
   a filled half for a split. With `side_edge_zones`, a drag over a group instead outlines each of
   its zones that a drop would change something in (the side trapezoids, the center rectangle and
@@ -245,6 +268,14 @@ A flyout fits its content the same way, without the title bar.
   group does not take, by its permissions or because a split leaves no room, are not drawn; nor is
   the center of the group a tab comes from. Escape or losing window focus cancels
   a drag.
+- A drag in progress (a tab, group, column, window bar, native window bar or divider, in any of
+  the app's windows) also ends when the layout passed to the area is not the one it drew last
+  frame, with or without its returned actions applied: the app switched workspaces, ran Reset
+  or changed the layout by command. Sizes and rectangles are not compared, so an app may clamp
+  a moved window or adjust a split during the drag. Nothing is restored from before the drag;
+  windows go where the new layout has them. `cancel_drag` ends the area's drags at any other
+  time. A native window moved by the compositor (`ViewportCommand::StartDrag`, as on Wayland)
+  is not the area's drag: it ends when the user releases the button.
 - With `float_on_empty_drop`, a release over no target floats what moves at the pointer, such
   as a panel dropped on a protected canvas. Without it, that release cancels the drag and
   nothing moves: the gap between two groups, a menu bar or a status bar is no target. A release
@@ -304,6 +335,8 @@ let closed = command.apply(&mut app.workspace, style.right_to_left, &space, |pan
   a new dock; when it already is that dock's last column, the command does nothing.
 - `window.panel.dock` with `left`, `right`, `top` or `bottom` and no `anchor` or `side` makes a
   new frame on that outer edge (`Placement::Edge`). A hidden panel is shown first.
+- Showing a panel (`activate`, `dock` without a destination, `ui.dock` `open`) restores a hidden
+  panel's place; a panel never laid out opens as `Open` without an anchor does.
 - `window.panel.float` without a rect floats what it moves at the size a drag floats it at (see
   Floating size). It goes
   inside the dock area, 24 points from its top-left corner, so it stays clear of the menu bar.
@@ -337,15 +370,46 @@ viewport's `inner_rect.min` plus its rect). A window with a panel whose
 that is not floatable, stays in-window. Floating windows get no taskbar or Alt-Tab entry
 (`with_taskbar(false)`).
 
+On Wayland floating windows stay in-window: the compositor reports no window positions, so a
+native window could not dock again by drag or reopen where it was. Their `native` rects are
+kept, and the same layout opens native windows on X11, macOS and Windows. The dock area takes
+Wayland to be the backend when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set (winit's rule) and
+the main window has never reported its `outer_rect`; an app that forces X11 in code gets native
+windows from the first frame. `DockArea::native_windows(bool)` overrides the choice either way.
+
 - **Identity.** `Floating::id` names the OS window, so a window keeps it when its panels change,
   including when its first panel moves out. `Floating::new` and loading draw fresh ids, and
   `Floating::with_id` sets one; a layout
   loads with unique ids; a window that merges into another takes the receiver's id, and a whole
   window that moves (floated again, or its only group dragged) keeps its own.
-- **Level.** The windows stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the
-  document does not bury them. While none of the app's windows has focus they hide
-  (`ViewportCommand::Visible(false)`), and they come back when one has it again. The hide waits
-  250 ms, so focus moving between the app's own windows does not flicker.
+- **Kind and level.** `DockContent::window_kind` sorts panels into palettes
+  (`WindowKind::Palette`, the default) and viewers (`WindowKind::Normal`), such as a video
+  monitor on a second display. A window holding any `Normal` panel is a normal window, whichever
+  of its tabs shows; the rest are palettes.
+  - Palettes stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the document
+    does not bury them. While none of the app's windows has focus they hide
+    (`ViewportCommand::Visible(false)`), and they come back when one has it again. The hide
+    waits 250 ms, so focus moving between the app's own windows does not flicker.
+  - Normal windows have `WindowLevel::Normal` and stay shown while the app is in the
+    background. They stack with the main window by focus, below every palette; a drag over a
+    normal window that lies behind the main window targets the main window where the two
+    overlap, and the normal window outside the main window.
+  - Like palettes, normal windows have no taskbar entry; they come forward with the app
+    instead. When one of the app's windows gains focus after none had it for the hide delay,
+    the main window and each normal window get `WindowLevel::AlwaysOnTop` and then
+    `WindowLevel::Normal`, one window per frame, in their focus order from back to front.
+    They keep their order, nothing takes focus, and the window the user activated is raised
+    last, so it stays in front. The focus order counts a press in the main window as focusing
+    it, since the window system raises it then. The main window is left at the normal level,
+    so an app that keeps its main window always on top should not use normal windows. On
+    Windows the toggle puts the window in front of every window that is not topmost, without
+    activating it; on X11 the window manager raises a window as it takes
+    `_NET_WM_STATE_ABOVE`. egui 0.36 cannot make the main window a native window's owner,
+    which on Windows would bring the window forward with the main window, and
+    `ViewportCommand::Focus` would take focus. On
+    macOS nothing is raised: activation from the Dock or the application switcher brings all
+    of the app's windows forward, and a click brings the clicked window alone, as with the
+    app's other windows.
 - **Bar.** Each window has a bar at the top, 18 points high, in the floating title bar's style:
   the title (the shown panel of its first group) and ×. Dragging the bar moves the window. On
   Wayland, where a window cannot be placed, the bar hands the move to the compositor. On
@@ -370,7 +434,9 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   buttons, so the corner's grab runs down beside the ×; elsewhere the top band lies over the
   bar's drag area. The OS runs the resize from a band (`ViewportCommand::BeginResize`).
 - **Close.** The bar's × and the OS close request close the window's panels, as the
-  floating window's × does. They reopen from the app's Window menu.
+  floating window's × does. They reopen from the app's Window menu. A window with a panel that
+  may not close, or in a locked area, has no × and answers the OS close request with
+  `ViewportCommand::CancelClose`.
 - **Place.** `Floating::native` is the desktop rect of the window's content (egui's
   `inner_rect`), and the in-window `rect` follows it for builds that draw the window in-window.
   The content is also the window's origin for drags; only `ViewportCommand::OuterPosition`
@@ -408,7 +474,45 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   `Paste` without the key). The app feeds them to the shortcut handling it runs on the main
   window. A window where any widget has keyboard focus forwards nothing, and an Escape that
   cancels a drag is not forwarded.
-- **Drags.** Tabs, groups and whole windows drag between the app's OS windows.
+- **Modal dialogs.** egui's `Modal` blocks input only in the viewport it is shown in. While the
+  app shows one, it passes `DockArea::input_blocked(true)`. Each native window is then drawn
+  under `DockStyle::blocked_dim` (by default the panel fill at 60 %), and its bar, tabs, body
+  and resize edges take no input: its widgets are disabled, the pointer, key, text and scroll
+  events are dropped at the start of its frame, and a layer over its content takes the pointer,
+  so a popup left open takes no click either. It forwards only key releases, so a key pressed
+  before the block does not stay down in the app's shortcuts. It reports no `window_files`,
+  offers no drop targets, starts no move or resize, is not focused by `raise_panel`, and
+  answers the OS close request with `ViewportCommand::CancelClose`. On macOS it is not
+  resizable meanwhile.
+  - *Stacking.* A palette drops to `WindowLevel::Normal` while blocked, so a click on the main
+    window brings it in front of a palette that covers the modal. A shown palette stays shown
+    while the app is in the background, since showing it again on the app's return would raise
+    it over the modal and, on macOS, give it focus. When the app is activated meanwhile, the
+    main window is raised last, in front of the normal windows and of a palette the user
+    clicked.
+  - *Edges.* Turning blocking on cancels a drag in progress, and a widget of a native window
+    loses keyboard focus. A zoom gesture still shows in egui's `InputState::zoom_delta`, which
+    cannot be cleared; a widget that zooms only while hovered ignores it. egui smooths wheel
+    scrolling, so a scroll area in a native window may still scroll for about 100 ms after
+    blocking ends, with the remainder of a wheel turn made just before it began.
+  - Floating windows drawn in the main window need nothing: the modal covers them.
+- **Input hook.** eframe runs `App::raw_input_hook` for the main window only. An app that
+  rewrites input there (say, Ctrl+click to a secondary click on macOS, or blocking input
+  during automation) passes the same rewrite to `DockArea::native_input_hook` every frame as a
+  closure. eframe's hook takes `&mut self`, so state it shares with the closure goes in an
+  `Arc<Mutex<…>>`. The dock area runs it on each native window's `RawInput` (`viewport_id` names the window; see
+  `DockArea::window_viewport`). It runs as an egui `Plugin::input_hook`, before egui reads the
+  input, so widgets see rewritten pointer and key events as if the window system had sent them.
+  It runs once per pass, so a frame that egui runs twice calls it a second time with the
+  events already taken. The hook must be `Send + 'static`, as egui plugins are.
+- **Dropped files.** Files dragged over or dropped on a native window come back in
+  `DockOutput::window_files`, one `WindowFiles` per window that had any this frame: the
+  window's id and viewport, the panel whose body is under the pointer (else the window's
+  shown panel, since the window system may send no pointer moves during a file drag), the
+  pointer's last position in the window, and the window's `hovered_files` and
+  `dropped_files`. Files on the main window stay in its own `RawInput`.
+- **Drags.** Tabs, groups and whole windows drag between the app's OS windows, and the app's
+  own drags in panel bodies reach the window under the pointer.
   - *Ownership.* The window where the button went down owns the drag: the window system sends it
     the pointer's moves and the release while the button is held, inside the window or not. So
     the pointer leaving a window (`PointerGone`) is not a release. A drag ends on release,
@@ -417,8 +521,9 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
   - *Hit-testing.* The owner adds its desktop origin to the pointer: a native window's reported
     `inner_rect.min`, or while it moves by its bar, the place it was last put less the pointer's
     offset from the pressed point. The window under that
-    desktop point is a floating native window first, most recently focused first, then the main
-    window. A window moving by its bar is never its own target. A point in no window is on the
+    desktop point is a floating native window in front of the main window first (palettes, then
+    normal windows, most recently focused first), then the main window, then a normal window
+    behind it. A window moving by its bar is never its own target. A point in no window is on the
     desktop.
   - *Targets and previews.* Each window draws its drop targets in its own coordinates, and the
     window under the pointer draws the drop preview (zone, dock line, ghost) in its own frame.
@@ -445,14 +550,50 @@ that is not floatable, stays in-window. Floating windows get no taskbar or Alt-T
     the desktop, or with Ctrl/Cmd held, it stays where it was moved, and the layout takes its
     place once, at the release. Escape puts it back. An
     in-window floating window's title bar still splits only groups of other floating windows.
-  - *Wayland.* Where `outer_rect` is `None`, desktop positions are unknown, so drops across
-    windows cannot be resolved. A drag works inside its own window, and a release outside it
-    floats a new window that the compositor places. Moving a window hands the move to the
+  - *Wayland.* With `DockArea::native_windows(true)` on Wayland, or wherever `outer_rect` is
+    `None`, desktop positions are unknown, so drops across windows cannot be resolved. A drag
+    works inside its own window, and a release outside it floats a new window that the
+    compositor places. Moving a window hands the move to the
     compositor, which never docks it.
+  - *App drags in panel bodies.* A drag the app starts in a panel body can reach the window
+    under the pointer, so a drop site there works as it does inside one window.
+    - *Which drags.* An egui drag of one of the app's widgets, pressed with the primary button
+      in a panel body, that carries something: egui's `DragAndDrop` holds a payload
+      (`dnd_set_drag_payload`), or the app calls `docking::route_app_drag(ctx, area_id)` each
+      frame while the drag lasts, from the body or before the area shows. An app that keeps its
+      payload in the context's data makes that call. Other drags (sliders, scrollbars, text
+      selection, canvas pans) stay in their window and keep getting its pointer. A call counts
+      for its frame and the next; once routing starts, it lasts until the drag ends.
+    - *Events.* While the drag lasts, the owner's pointer moves over another of the app's
+      windows (found as for tab drags, front window first) go to that window in its own
+      coordinates: `PointerMoved` while the pointer is over it, `PointerGone` when it leaves,
+      and the release as a primary `PointerButton` with `pressed: false`. That window sees
+      `pointer_hover_pos` and `any_released` as if the window system had sent them. It sees no
+      press, so `any_down` stays false there and nothing in it is clicked. The owner sees the
+      pointer gone while it is over another window, so its panels under a palette see no hover
+      and no drop.
+    - *Input path.* Events go in through the area's egui input plugin, before any widget reads
+      the input; the app calls nothing more. In a native window this runs before the app's
+      `native_input_hook`. eframe runs the main window's `App::raw_input_hook` earlier, so that
+      hook sees the main window's input without the routed events.
+    - *Release timing.* A window drawn after the owner in the same pass gets the events in that
+      pass (from the main window, every native window does). The main window, and a native
+      window drawn before the owner, get them on the next pass, which is requested. When the
+      release goes to another window, the owner gets its own release, and the pointer events
+      that came after it, in the main window's next pass (a rerun of a discarded pass does not
+      count), so its drag stops (`drag_stopped`) then. egui clears a `DragAndDrop` payload when the owner sees the
+      release, so the target always reads its release while the payload is there. An app that
+      keeps its own payload clears it no earlier than the owner's release.
+    - *Limits.* Nothing is routed where desktop positions are unknown (Wayland,
+      `native_windows(false)`, embedded viewports) or while input is blocked. Escape in any of
+      the app's windows, a focus loss, `cancel_drag` and a replaced layout stop the routing:
+      the window under the pointer sees it go and gets no release it has not read yet. The drag
+      goes on in its own window until the button comes up, and the owner still gets its
+      release.
 
 On the web and wherever egui embeds viewports, nothing changes: floating windows stay in the
-page at their in-window rect, `native` and the monitor fields are kept but unused, and
-`forwarded_events` stays empty. Without the feature, the fields exist and are never set by the
+page at their in-window rect, `native` and the monitor fields are kept but unused, the input
+hook never runs, and `forwarded_events` and `window_files` stay empty. Without the feature, the fields exist and are never set by the
 renderer.
 
 ## Labels
@@ -499,7 +640,9 @@ OS windows: the main window's content sits at `origin` on the desktop, and each 
 runs its own frame with its own input and desktop rect (`host()`, `window_step`,
 `window_click`). `NativeHost` can report a monitor size (`monitor_size`), give windows a frame
 between their outer position and content (`frame`), land `OuterPosition` a frame late (`lag`),
-and report no positions (`no_position`, as on Wayland).
+and report no positions (`no_position`, as on Wayland). A `HostWindow` takes files dragged
+over it (`hovered_files`) or dropped on it (`dropped_files`), and `with_native_input_hook`
+passes a hook to `DockArea::native_input_hook` every frame.
 
 `crates/ui/examples/docking_native.rs` (`cargo run -p craft-ui --example docking_native
 --features native-windows`) shows a dock with two native floating windows and prints every

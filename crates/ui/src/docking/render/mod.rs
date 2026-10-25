@@ -7,6 +7,8 @@ use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 use super::{Action, DockContent, DockOutput, DockStyle, DropTarget, Layout, Node, PanelLimits, Permissions, dock_model::Place};
 
 #[cfg(feature = "native-windows")]
+mod body_drag;
+#[cfg(feature = "native-windows")]
 mod cross;
 mod dock;
 mod floating;
@@ -14,11 +16,20 @@ mod frame;
 mod iconic;
 #[cfg(feature = "native-windows")]
 mod native;
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) use native::WindowDrag;
 #[cfg(all(test, feature = "native-windows"))]
 pub(in crate::docking) use {
     cross::DragPointer,
-    native::{APPKIT_CORNER, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands},
+    native::{APPKIT_CORNER, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
 };
+
+#[cfg(all(test, feature = "native-windows"))]
+pub(in crate::docking) use body_drag::held_events;
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) use body_drag::{cancel_body_route, mark_app_drag};
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) use native::{InputHook, set_input_hook};
 
 /// The viewport of the native window `window` of the dock area `area`.
 #[cfg(feature = "native-windows")]
@@ -34,7 +45,7 @@ pub(in crate::docking) use iconic::Iconic;
 pub use iconic::{close_flyout, flyout, open_flyout};
 
 #[cfg(test)]
-pub(in crate::docking) use dock::fit_widths;
+pub(in crate::docking) use dock::{GroupSize, fit_widths, group_heights};
 pub(in crate::docking) use floating::RESIZE_HANDLES;
 mod group;
 mod preview;
@@ -76,6 +87,12 @@ pub(super) struct Renderer<'a, P> {
     /// [`crate::docking::DockArea::monitors`].
     #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
     pub(super) monitors: Vec<crate::docking::Monitor>,
+    /// [`crate::docking::DockArea::input_blocked`].
+    #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
+    pub(super) input_blocked: bool,
+    /// [`crate::docking::DockArea::native_windows`].
+    #[cfg_attr(not(feature = "native-windows"), allow(dead_code))]
+    pub(super) native_windows: Option<bool>,
     /// The other OS windows a drag may cross into.
     #[cfg(feature = "native-windows")]
     pub(super) cross: cross::Cross<P>,
@@ -359,6 +376,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // Any button: a canvas pans with the middle button and opens menus with the secondary.
         if child.rect_contains_pointer(rect) && child.input(|i| i.pointer.any_pressed()) {
             self.output.focused = Some(panel.clone());
+            #[cfg(feature = "native-windows")]
+            if let Some(press) = child.input(|i| i.pointer.press_origin()) {
+                let key = body_drag::body_press_key(self.id, child.ctx().viewport_id());
+                child.ctx().data_mut(|d| d.insert_temp(key, press));
+            }
+        }
+        #[cfg(feature = "native-windows")]
+        if child.rect_contains_pointer(rect) {
+            self.cross.pointed = Some(panel.clone());
         }
     }
 }

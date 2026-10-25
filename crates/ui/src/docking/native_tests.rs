@@ -3,9 +3,9 @@
 
 use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, epaint::ClippedShape, pos2, vec2};
 
-use super::render::{APPKIT_CORNER, DragPointer, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands};
+use super::render::{APPKIT_CORNER, DragPointer, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, floats_shown, resize_bands, wayland};
 use super::testing::DockDriver;
-use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, Workspace};
+use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, WindowKind, Workspace};
 use crate::layout::{SplitAxis, SplitSize};
 
 /// Desktop position of the main window's content.
@@ -17,12 +17,51 @@ struct Content {
     fixed: Vec<u32>,
     /// Panels that stay in-window.
     in_window: Vec<u32>,
+    /// Viewer panels: their windows are normal windows.
+    normal: Vec<u32>,
     /// The panel with a text field, what it holds, and whether it takes focus next frame.
     text: Option<u32>,
     typed: String,
     focus_text: bool,
     /// The panel with a button that takes focus.
     focused_button: Option<u32>,
+    /// The panel with a counter button, its clicks, and where it was drawn.
+    counter: Option<u32>,
+    count: usize,
+    counter_rect: Option<Rect>,
+    /// Pointer buttons pressed in each panel's body.
+    pressed: Vec<(u32, PointerButton)>,
+    /// A panel body saw hovered or dropped files.
+    saw_files: bool,
+    /// The panel with an app drag source, and where it was drawn.
+    source: Option<u32>,
+    /// How the source marks its drag as one that carries something.
+    marks: Marks,
+    source_rect: Option<Rect>,
+    /// The source's drag so far, and how often its drag stopped.
+    source_delta: egui::Vec2,
+    source_stopped: usize,
+    /// The source asks egui to run its window's pass again, once, the next time it draws.
+    discard_next: bool,
+    /// Panels whose bodies are app drop sites: where each saw the pointer, and where a release
+    /// came with the pointer inside.
+    drop_sites: Vec<u32>,
+    hovers: Vec<(u32, Pos2)>,
+    drops: Vec<(u32, Pos2)>,
+    /// Drop sites whose release found egui's drag-and-drop payload.
+    payload_drops: Vec<u32>,
+}
+
+/// How a test's app drag source marks its drag.
+#[derive(Default)]
+enum Marks {
+    /// It does not: a plain egui drag, such as a slider's.
+    #[default]
+    Nothing,
+    /// [`super::route_app_drag`] for this area, each frame while it drags.
+    Route(egui::Id),
+    /// An egui drag-and-drop payload, its panel.
+    Payload,
 }
 
 impl DockContent<u32> for Content {
@@ -37,6 +76,42 @@ impl DockContent<u32> for Content {
         if self.focused_button == Some(*panel) {
             ui.button("OK").request_focus();
         }
+        if self.counter == Some(*panel) {
+            let response = ui.button("Add");
+            self.count += usize::from(response.clicked());
+            self.counter_rect = Some(response.rect);
+        }
+        if self.source == Some(*panel) {
+            let response = ui.allocate_response(vec2(120.0, 60.0), egui::Sense::drag());
+            self.source_rect = Some(response.rect);
+            self.source_delta += response.drag_delta();
+            self.source_stopped += usize::from(response.drag_stopped());
+            if std::mem::take(&mut self.discard_next) {
+                ui.ctx().request_discard("the source's pass runs twice");
+            }
+            match self.marks {
+                Marks::Route(area) if response.dragged() => super::route_app_drag(ui.ctx(), area),
+                Marks::Payload => response.dnd_set_drag_payload(*panel),
+                _ => {}
+            }
+        }
+        // As apps' drop sites do: the pointer over the body, and a release there.
+        if self.drop_sites.contains(panel)
+            && let Some(pos) = ui.ctx().pointer_hover_pos().filter(|p| ui.max_rect().contains(*p))
+        {
+            self.hovers.push((*panel, pos));
+            if ui.input(|i| i.pointer.any_released()) {
+                self.drops.push((*panel, pos));
+                if egui::DragAndDrop::has_payload_of_type::<u32>(ui.ctx()) {
+                    self.payload_drops.push(*panel);
+                }
+            }
+        }
+        self.saw_files |= ui.input(|i| !i.raw.hovered_files.is_empty() || !i.raw.dropped_files.is_empty());
+        if ui.rect_contains_pointer(ui.max_rect()) {
+            let pressed = [PointerButton::Primary, PointerButton::Secondary].into_iter().filter(|b| ui.input(|i| i.pointer.button_pressed(*b)));
+            self.pressed.extend(pressed.map(|b| (*panel, b)));
+        }
     }
 
     fn logical_label(&self, panel: &u32) -> String {
@@ -49,6 +124,10 @@ impl DockContent<u32> for Content {
 
     fn allow_native(&self, panel: &u32) -> bool {
         !self.in_window.contains(panel)
+    }
+
+    fn window_kind(&self, panel: &u32) -> WindowKind {
+        if self.normal.contains(panel) { WindowKind::Normal } else { WindowKind::Palette }
     }
 }
 
@@ -152,15 +231,27 @@ fn closing_the_os_window_closes_its_panels() {
     let id = window(&d, 5).id;
     let out = d.window_click(id, pos2(230.0, 9.0));
     assert!(out.actions.contains(&Action::CloseWindow { panel: 5 }), "{:?}", out.actions);
+}
 
-    // A panel that may not close keeps the window open.
-    let mut d = driver(layout(true));
-    d.content.fixed = vec![6];
-    let viewport = d.viewport(window(&d, 5).id);
-    d.host().windows.get_mut(&viewport).unwrap().close = true;
-    let out = d.step(vec![]);
-    assert!(out.error.is_some());
-    assert!(d.layout.contains(&5));
+#[test]
+fn the_os_close_of_a_window_that_may_not_close_is_cancelled() {
+    // A panel that may not close, or a locked area.
+    for locked in [false, true] {
+        let mut d = driver(layout(true));
+        if locked {
+            d.locked = true;
+        } else {
+            d.content.fixed = vec![6];
+        }
+        let viewport = d.viewport(window(&d, 5).id);
+        let sent = d.host().commands.len();
+        d.host().windows.get_mut(&viewport).unwrap().close = true;
+        let out = d.step(vec![]);
+        assert!(!out.actions.iter().any(|a| matches!(a, Action::CloseWindow { .. })), "locked {locked}: {:?}", out.actions);
+        assert!(out.error.is_none(), "locked {locked}: {:?}", out.error);
+        assert!(d.host().commands[sent..].contains(&(viewport, ViewportCommand::CancelClose)), "locked {locked}: cancelled");
+        assert!(d.layout.contains(&5) && d.layout.contains(&6));
+    }
 }
 
 #[test]
@@ -334,6 +425,119 @@ fn floating_windows_hide_while_the_app_is_inactive() {
     d.host().focus = Some(egui::ViewportId::ROOT);
     d.step(vec![]);
     assert!(d.host().windows[&viewport].visible);
+}
+
+#[test]
+fn viewer_windows_stay_shown_at_normal_level() {
+    let mut layout = layout(false);
+    layout.floating = vec![
+        Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]),
+        Floating::single(vec![6], 0, [560.0, 80.0, 240.0, 300.0]),
+        // A palette in front of a viewer's tab: the viewer makes the window normal.
+        Floating::single(vec![7, 8], 0, [820.0, 80.0, 240.0, 300.0]),
+    ];
+    let mut d = driver(layout);
+    d.content.normal = vec![5, 8];
+    d.step(vec![]);
+    let [viewer, palette, mixed] = [5, 6, 7].map(|p| d.viewport(window(&d, p).id));
+    let level = |d: &DockDriver<u32, Content>, v| d.host().windows[&v].level;
+    assert_eq!(level(&d, viewer), Some(egui::WindowLevel::Normal));
+    assert_eq!(level(&d, palette), Some(egui::WindowLevel::AlwaysOnTop));
+    assert_eq!(level(&d, mixed), Some(egui::WindowLevel::Normal));
+    // Another application: only the palette hides, and the others get no visibility command.
+    d.host().focus = None;
+    for _ in 0..20 {
+        d.step(vec![]);
+    }
+    let shown = |d: &DockDriver<u32, Content>| [viewer, palette, mixed].map(|v| d.host().windows[&v].visible);
+    assert_eq!(shown(&d), [true, false, true]);
+    let told = |d: &DockDriver<u32, Content>, v| d.host().commands.iter().any(|(w, c)| *w == v && matches!(c, ViewportCommand::Visible(_)));
+    assert!(!told(&d, viewer) && !told(&d, mixed));
+    d.host().focus = Some(egui::ViewportId::ROOT);
+    d.step(vec![]);
+    assert_eq!(shown(&d), [true, true, true]);
+}
+
+#[test]
+fn the_app_comes_forward_with_its_viewers_when_it_is_activated() {
+    use egui::{ViewportId, WindowLevel};
+    let start = || {
+        let mut layout = layout(false);
+        layout.floating = vec![
+            Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]),
+            Floating::single(vec![6], 0, [560.0, 80.0, 240.0, 300.0]),
+            Floating::single(vec![7], 0, [820.0, 80.0, 240.0, 300.0]),
+        ];
+        let mut d = driver(layout);
+        d.content.normal = vec![5, 7];
+        d.step(vec![]);
+        let [back, palette, front] = [5, 6, 7].map(|p| d.viewport(window(&d, p).id));
+        (d, back, palette, front)
+    };
+    let focus = |d: &mut DockDriver<u32, Content>, window: Option<ViewportId>, frames: usize| {
+        d.host().focus = window;
+        for _ in 0..frames {
+            d.step(vec![]);
+        }
+    };
+    let levels = |d: &mut DockDriver<u32, Content>| -> Vec<(ViewportId, WindowLevel)> {
+        let mut host = d.host();
+        assert!(!host.commands.iter().any(|(_, c)| matches!(c, ViewportCommand::Focus)), "no window takes focus");
+        let levels = host.commands.iter().filter_map(|(v, c)| if let ViewportCommand::WindowLevel(l) = c { Some((*v, *l)) } else { None }).collect();
+        host.commands.clear();
+        levels
+    };
+    // Each window once, in this order: the main window's commands are the root's.
+    let raised = |order: &[ViewportId]| -> Vec<(ViewportId, WindowLevel)> {
+        if cfg!(target_os = "macos") {
+            return Vec::new();
+        }
+        order.iter().flat_map(|v| [(*v, WindowLevel::AlwaysOnTop), (*v, WindowLevel::Normal)]).collect()
+    };
+    const MAIN: ViewportId = ViewportId::ROOT;
+
+    let (mut d, back, palette, front) = start();
+    // Focus moving between the app's own windows, with a frame of none between two, raises
+    // nothing.
+    focus(&mut d, Some(back), 2);
+    focus(&mut d, None, 1);
+    focus(&mut d, Some(front), 2);
+    focus(&mut d, Some(MAIN), 2);
+    assert_eq!(levels(&mut d), []);
+    // Another application, then back through the main window: the viewers are raised back to
+    // front and the main window last, without focus; the palette only shows again.
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(MAIN), 10);
+    assert_eq!(levels(&mut d), raised(&[back, front, MAIN]));
+    assert!(d.host().windows[&palette].visible);
+    // Back through the back viewer: it is raised last, so it stays in front, and the main
+    // window comes forward behind it.
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(back), 10);
+    assert_eq!(levels(&mut d), raised(&[front, MAIN, back]));
+    // A queued viewer that turns into a palette before its turn is not raised: the raise
+    // would leave it at the normal level.
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(MAIN), 1);
+    d.content.normal = vec![7];
+    focus(&mut d, Some(MAIN), 10);
+    assert_eq!(levels(&mut d), raised(&[front, MAIN]));
+
+    // A press in the main window brings it in front of the viewers that opened over it, though
+    // it kept focus.
+    let (mut d, back, _, front) = start();
+    d.click(pos2(100.0, 300.0));
+    levels(&mut d);
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(back), 10);
+    assert_eq!(levels(&mut d), raised(&[front, MAIN, back]));
+
+    // While a modal blocks input, the main window with the modal is raised last, even when
+    // the app is activated through a viewer.
+    d.input_blocked = true;
+    focus(&mut d, None, 20);
+    focus(&mut d, Some(front), 10);
+    assert_eq!(levels(&mut d), raised(&[back, front, MAIN]));
 }
 
 #[test]
@@ -992,6 +1196,88 @@ fn a_native_window_forwards_no_keys_while_one_of_its_widgets_has_focus() {
 }
 
 #[test]
+fn the_input_hook_rewrites_each_native_windows_input_before_its_widgets_see_it() {
+    // As an app maps Ctrl+click to a secondary click on macOS.
+    let mut d = driver(layout(true)).with_native_input_hook(|_, input| {
+        for event in &mut input.events {
+            if let Event::PointerButton { button, .. } = event {
+                *button = PointerButton::Secondary;
+            }
+        }
+    });
+    let id = id_of(&d);
+    d.window_click(id, pos2(60.0, 150.0));
+    assert_eq!(d.content.pressed, vec![(5, PointerButton::Secondary)]);
+
+    // The main window's input is the app's own `raw_input_hook`'s.
+    d.content.pressed.clear();
+    d.click(pos2(100.0, 300.0));
+    assert_eq!(d.content.pressed, vec![(1, PointerButton::Primary)]);
+}
+
+#[derive(Debug)]
+struct File(std::path::PathBuf);
+
+impl egui::DroppedFile for File {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        Ok(Vec::new())
+    }
+}
+
+#[test]
+fn files_dragged_onto_a_native_window_are_reported_with_its_panel() {
+    let mut d = driver(layout(true));
+    let (id, viewport) = (id_of(&d), d.viewport(id_of(&d)));
+    let hovered = egui::HoveredFile { path: Some("a.png".into()), mime: String::new() };
+    d.host().windows.get_mut(&viewport).unwrap().hovered_files = vec![hovered.clone()];
+    let out = d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 150.0))]);
+    let [files] = out.window_files.as_slice() else { panic!("{:?}", out.window_files) };
+    assert_eq!((files.window, files.viewport, files.panel, files.pos), (id, viewport, 5, Some(pos2(60.0, 150.0))));
+    assert_eq!(files.hovered, vec![hovered]);
+    assert!(files.dropped.is_empty());
+
+    {
+        let mut host = d.host();
+        let window = host.windows.get_mut(&viewport).unwrap();
+        window.hovered_files.clear();
+        window.dropped_files = vec![std::sync::Arc::new(File("a.png".into()))];
+    }
+    let out = d.window_step(id, Vec::new());
+    let [files] = out.window_files.as_slice() else { panic!("{:?}", out.window_files) };
+    assert_eq!(files.panel, 5);
+    assert_eq!(files.dropped.iter().map(|f| f.path().to_path_buf()).collect::<Vec<_>>(), vec![std::path::PathBuf::from("a.png")]);
+    assert!(d.step(Vec::new()).window_files.is_empty());
+}
+
+#[test]
+fn a_blocked_native_window_reports_no_files() {
+    let mut d = driver(layout(true));
+    let (id, viewport) = (id_of(&d), d.viewport(id_of(&d)));
+    d.input_blocked = true;
+    d.step(Vec::new());
+    let drop = |d: &mut DockDriver<u32, Content>| {
+        let mut host = d.host();
+        let window = host.windows.get_mut(&viewport).unwrap();
+        window.hovered_files = vec![egui::HoveredFile { path: Some("a.png".into()), mime: String::new() }];
+        window.dropped_files = vec![std::sync::Arc::new(File("a.png".into()))];
+    };
+    drop(&mut d);
+    let out = d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 150.0))]);
+    assert!(out.window_files.is_empty(), "{:?}", out.window_files);
+    assert!(!d.content.saw_files);
+
+    d.input_blocked = false;
+    drop(&mut d);
+    let out = d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 150.0))]);
+    assert_eq!(out.window_files.len(), 1);
+    assert!(d.content.saw_files);
+}
+
+#[test]
 fn escape_or_focus_loss_ends_a_drag_a_native_window_owns() {
     // Escape cancels it, and is no shortcut.
     let mut d = driver(layout(true));
@@ -1290,4 +1576,582 @@ fn a_layout_built_each_frame_without_ids_is_warned_about() {
         d.step(vec![]);
     }
     assert!(!warned(&d));
+}
+
+/// Fill of the overlay over a blocked native window in [`blocked_driver`].
+const DIM: Color32 = Color32::from_rgba_premultiplied(10, 20, 30, 120);
+
+fn blocked_driver() -> DockDriver<u32, Content> {
+    let mut d = DockDriver::new(layout(true), Content { counter: Some(5), ..Content::default() })
+        .with_style(|s| s.blocked_dim = DIM)
+        .with_native_host(ORIGIN);
+    d.settle();
+    d
+}
+
+/// Whether the native window `viewport` drew the overlay over all of its content.
+fn dimmed(d: &DockDriver<u32, Content>, viewport: egui::ViewportId) -> bool {
+    let full = Rect::from_min_size(Pos2::ZERO, d.host().windows[&viewport].rect.size());
+    d.host().windows[&viewport].shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == DIM && r.rect == full))
+}
+
+#[test]
+fn a_native_window_takes_no_input_while_the_app_blocks_it() {
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    let viewport = d.viewport(id);
+    let counter = d.content.counter_rect.unwrap().center();
+    let tab = pos2(90.0, TAB_ROW);
+    let key = Event::Key { key: Key::S, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+    let level = |d: &DockDriver<u32, Content>| d.host().windows[&viewport].level;
+    assert!(!dimmed(&d, viewport));
+    assert_eq!(level(&d), Some(egui::WindowLevel::AlwaysOnTop));
+
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(dimmed(&d, viewport), "drawn dimmed");
+    assert_eq!(level(&d), Some(egui::WindowLevel::Normal), "the main window can cover the palette");
+    let out = d.window_click(id, tab);
+    assert!(out.actions.is_empty(), "{:?}", out.actions);
+    d.window_click(id, counter);
+    assert_eq!(d.content.count, 0, "the body takes no click");
+    let out = d.window_step(id, vec![key.clone(), Event::Text("s".into())]);
+    assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
+    // A key released while blocked still reaches the app, which may have seen it go down.
+    let release = Event::Key { key: Key::S, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
+    let out = d.window_step(id, vec![release.clone()]);
+    assert_eq!(out.forwarded_events, vec![release]);
+    // The bar starts no move, of the dock area's or the window system's.
+    let sent = d.host().commands.len();
+    d.window_hold(id, pos2(40.0, 9.0), pos2(140.0, 59.0));
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_none());
+    assert!(
+        !d.host().commands[sent..].iter().any(|(v, c)| *v == viewport && matches!(c, ViewportCommand::StartDrag | ViewportCommand::OuterPosition(_)))
+    );
+    let out = d.window_release(id, pos2(140.0, 59.0));
+    assert!(out.actions.is_empty(), "{:?}", out.actions);
+    // The OS close request is cancelled.
+    d.host().windows.get_mut(&viewport).unwrap().close = true;
+    let out = d.step(vec![]);
+    assert!(!out.actions.iter().any(|a| matches!(a, Action::CloseWindow { .. })), "{:?}", out.actions);
+    assert!(d.host().commands.contains(&(viewport, ViewportCommand::CancelClose)));
+
+    // Unblocked, the same input works again.
+    d.input_blocked = false;
+    d.step(vec![]);
+    assert!(!dimmed(&d, viewport));
+    assert_eq!(level(&d), Some(egui::WindowLevel::AlwaysOnTop));
+    d.window_click(id, counter);
+    assert_eq!(d.content.count, 1);
+    let out = d.window_click(id, tab);
+    assert!(out.actions.contains(&Action::Activate { panel: 6 }), "{:?}", out.actions);
+    let out = d.window_step(id, vec![key.clone()]);
+    assert_eq!(out.forwarded_events, vec![key]);
+}
+
+#[test]
+fn a_blocked_palette_stays_shown_and_behind_the_main_window_when_the_app_returns() {
+    use egui::{ViewportId, WindowLevel};
+    let mut d = blocked_driver();
+    let palette = d.viewport(id_of(&d));
+    d.input_blocked = true;
+    d.step(vec![]);
+    d.host().commands.clear();
+    let focus = |d: &mut DockDriver<u32, Content>, window: Option<ViewportId>| {
+        d.host().focus = window;
+        for _ in 0..20 {
+            d.step(vec![]);
+        }
+    };
+    // Showing it again would raise it over the modal and, on macOS, give it focus.
+    focus(&mut d, None);
+    assert!(d.host().windows[&palette].visible);
+    focus(&mut d, Some(palette));
+    let host = d.host();
+    assert!(!host.commands.iter().any(|(v, c)| *v == palette && matches!(c, ViewportCommand::Visible(_))), "{:?}", host.commands);
+    // Activated through the palette, the main window comes in front of it, with no viewers.
+    let levels: Vec<_> = host.commands.iter().filter(|(_, c)| matches!(c, ViewportCommand::WindowLevel(_))).cloned().collect();
+    let expected = if cfg!(target_os = "macos") {
+        Vec::new()
+    } else {
+        [WindowLevel::AlwaysOnTop, WindowLevel::Normal].map(|l| (ViewportId::ROOT, ViewportCommand::WindowLevel(l))).to_vec()
+    };
+    assert_eq!(levels, expected);
+}
+
+#[test]
+fn a_focused_field_and_a_held_press_stay_inert_across_a_block() {
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    d.content.text = Some(5);
+    d.content.focus_text = true;
+    d.step(vec![]);
+    d.window_step(id, vec![Event::Text("a".into())]);
+    assert_eq!(d.content.typed, "a");
+    // The field loses focus when the block starts, and stays without it after.
+    d.input_blocked = true;
+    d.step(vec![]);
+    let out = d.window_step(id, vec![Event::Text("b".into())]);
+    assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
+    d.input_blocked = false;
+    d.step(vec![]);
+    let out = d.window_step(id, vec![Event::Text("c".into())]);
+    assert_eq!(d.content.typed, "a");
+    assert_eq!(out.forwarded_events, vec![Event::Text("c".into())]);
+
+    // A press made while blocked and released after is no click.
+    let counter = d.content.counter_rect.unwrap().center();
+    d.input_blocked = true;
+    d.step(vec![]);
+    d.window_step(id, vec![Event::PointerMoved(counter), button(counter, true)]);
+    d.input_blocked = false;
+    d.step(vec![]);
+    d.window_step(id, vec![button(counter, false)]);
+    assert_eq!(d.content.count, 0);
+}
+
+#[test]
+fn blocking_input_cancels_a_drag_in_progress() {
+    // A tab drag a native window owns.
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    let over = d.window_local(id, ORIGIN + vec2(600.0, 300.0)).unwrap();
+    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    assert!(super::is_dragging::<u32>(&d.ctx, d.id));
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(!super::is_dragging::<u32>(&d.ctx, d.id));
+    let out = d.window_release(id, over);
+    assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { .. } | Action::Float { .. })), "{:?}", out.actions);
+
+    // A bar drag.
+    let mut d = blocked_driver();
+    let id = id_of(&d);
+    d.window_hold(id, pos2(40.0, 9.0), pos2(140.0, 59.0));
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_some());
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert!(d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag"))).is_none());
+}
+
+#[test]
+fn replacing_the_layout_or_cancel_drag_ends_a_bar_drag() {
+    let moving = |d: &DockDriver<u32, Content>| d.ctx.data(|data| data.get_temp::<WindowDrag>(d.id.with("window-drag")));
+    for replace in [false, true] {
+        let mut d = driver(layout(true));
+        let id = id_of(&d);
+        d.window_step(id, vec![Event::PointerMoved(pos2(40.0, 9.0)), button(pos2(40.0, 9.0), true)]);
+        d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 19.0))]);
+        assert!(moving(&d).is_some());
+        d.step(vec![]);
+        if replace {
+            // The same window where the OS has it, beside swapped frames.
+            let mut replacement = layout(true);
+            replacement.root = Some(Node::Split {
+                axis: SplitAxis::Horizontal,
+                size: SplitSize::Ratio(0.5),
+                first: Box::new(tabs(&[3, 4])),
+                second: Box::new(tabs(&[1, 2])),
+            });
+            replacement.floating[0] = Floating { native: window(&d, 5).native, ..replacement.floating[0].clone().with_id(id) };
+            d.layout = replacement;
+        } else {
+            super::cancel_drag::<u32>(&d.ctx, d.id);
+        }
+        d.settle();
+        assert_eq!(moving(&d), None);
+        // The OS window goes where the layout has it.
+        let before = os_window(&d, 5).unwrap().0;
+        let native = window(&d, 5).native.unwrap();
+        assert_eq!(before.min, pos2(native[0], native[1]));
+        d.window_step(id, vec![Event::PointerMoved(pos2(90.0, 39.0))]);
+        d.window_step(id, vec![Event::PointerMoved(pos2(120.0, 59.0))]);
+        assert_eq!(moving(&d), None);
+        assert_eq!(os_window(&d, 5).unwrap().0, before);
+        let out = d.window_step(id, vec![button(pos2(120.0, 59.0), false)]);
+        assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { .. } | Action::MoveWindow { .. })), "{:?}", out.actions);
+    }
+}
+
+#[test]
+fn replacing_the_layout_ends_a_divider_drag_in_a_native_window() {
+    let resizes = |out: &super::DockOutput<u32>| out.actions.iter().filter(|a| matches!(a, Action::ResizeWindowSplit { .. })).count();
+    let split = |d: &DockDriver<u32, Content>| match &window(d, 5).root {
+        Node::Split { size, .. } => *size,
+        root => panic!("{root:?}"),
+    };
+    for replace in [false, true] {
+        let mut start = layout(false);
+        let mut float = Floating::single(vec![5], 0, [300.0, 80.0, 240.0, 300.0]);
+        float.root =
+            Node::Split { axis: SplitAxis::Horizontal, size: SplitSize::Ratio(0.5), first: Box::new(tabs(&[5])), second: Box::new(tabs(&[6])) };
+        start.floating.push(float);
+        let mut d = driver(start);
+        d.settle();
+        let id = id_of(&d);
+        let out = d.window_hold(id, pos2(120.0, 150.0), pos2(150.0, 150.0));
+        assert!(resizes(&out) > 0, "{:?}", out.actions);
+        if replace {
+            d.layout.root = Some(Node::Split {
+                axis: SplitAxis::Horizontal,
+                size: SplitSize::Ratio(0.5),
+                first: Box::new(tabs(&[3, 4])),
+                second: Box::new(tabs(&[1, 2])),
+            });
+        }
+        let before = split(&d);
+        let mut moved = 0;
+        for x in [160.0, 170.0, 180.0] {
+            moved += resizes(&d.window_step(id, vec![Event::PointerMoved(pos2(x, 150.0))]));
+        }
+        moved += resizes(&d.window_release(id, pos2(180.0, 150.0)));
+        if replace {
+            assert_eq!(moved, 0);
+            assert_eq!(split(&d), before);
+        } else {
+            assert!(moved > 0);
+            assert_ne!(split(&d), before);
+        }
+    }
+}
+
+/// [`layout`] with window `[5, 6]` saved as a native window at `NATIVE`.
+fn saved_native() -> Layout<u32> {
+    let mut layout = layout(true);
+    layout.floating[0].native = Some(NATIVE);
+    layout
+}
+
+const NATIVE: [f32; 4] = [700.0, 400.0, 240.0, 300.0];
+
+#[test]
+fn with_native_windows_off_a_float_stays_in_the_app_window_and_keeps_its_native_rect() {
+    let mut d = DockDriver::new(saved_native(), Content::default());
+    d.native_windows = false;
+    let mut d = d.with_native_host(ORIGIN);
+    assert!(d.host().windows.is_empty() && d.host().commands.is_empty());
+    assert!(d.hit(&Hit::Title(5)).is_some(), "drawn in the main window");
+    assert_eq!(window(&d, 5).native, Some(NATIVE));
+
+    // Its tab docks again by drag, in the main window.
+    let tab = d.hit(&Hit::Tab(5)).unwrap().center();
+    let out = d.drag(tab, pos2(600.0, 300.0));
+    assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 5, anchor: 3 | 4, .. }]), "{:?}", out.actions);
+    assert!(in_root(&d, 5));
+    assert_eq!(window(&d, 6).native, Some(NATIVE));
+    assert!(d.host().windows.is_empty() && d.host().commands.is_empty());
+
+    // The same workspace opens as a native window where native windows are on.
+    let mut d = driver(saved_native());
+    d.settle();
+    assert_eq!(os_window(&d, 5).map(|(rect, _)| rect), Some(Rect::from_min_size(pos2(700.0, 400.0), vec2(240.0, 300.0))));
+}
+
+#[test]
+fn wayland_is_a_main_window_that_never_reported_a_position() {
+    use super::render::Session;
+    let mut d = driver(layout(false));
+    d.host().no_position = true;
+    d.step(vec![]);
+    assert!(wayland(&d.ctx, Session::Wayland));
+    assert!(wayland(&d.ctx, Session::Unknown), "a real window without a Wayland variable");
+    assert!(!wayland(&d.ctx, Session::Other), "X11");
+    // X11 (forced under a Wayland session) reports it; minimized, it reports none again.
+    d.host().no_position = false;
+    d.step(vec![]);
+    assert!(!wayland(&d.ctx, Session::Wayland));
+    d.host().no_position = true;
+    d.step(vec![]);
+    assert!(!wayland(&d.ctx, Session::Wayland));
+    // A context with no real window (a headless test) and no display variables at all.
+    let ctx = egui::Context::default();
+    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    assert!(!wayland(&ctx, Session::Unknown));
+}
+
+#[test]
+fn the_session_follows_winits_environment_rule() {
+    use super::render::{Session, session};
+    let with = |vars: &'static [&'static str]| move |name: &str| vars.contains(&name);
+    assert_eq!(session(true, with(&["WAYLAND_DISPLAY", "DISPLAY"])), Session::Wayland);
+    assert_eq!(session(true, with(&["WAYLAND_SOCKET"])), Session::Wayland);
+    assert_eq!(session(true, with(&["DISPLAY"])), Session::Other);
+    assert_eq!(session(true, with(&[])), Session::Unknown);
+    assert_eq!(session(false, with(&["WAYLAND_DISPLAY"])), Session::Other);
+}
+
+/// A driver whose panel `source` has an app drag source and whose panels `sites` are drop sites.
+fn app_drag(layout: Layout<u32>, source: u32, sites: &[u32]) -> DockDriver<u32, Content> {
+    let mut d = driver(layout);
+    (d.content.source, d.content.drop_sites, d.content.marks) = (Some(source), sites.to_vec(), Marks::Route(d.id));
+    d.settle();
+    d
+}
+
+#[allow(clippy::expect_used)]
+fn source(d: &DockDriver<u32, Content>) -> Pos2 {
+    d.content.source_rect.expect("source drawn").center()
+}
+
+#[test]
+fn an_app_drag_from_the_main_window_reaches_a_native_windows_panel() {
+    // Panel 3's frame lies under window [5, 6], which takes the drop.
+    let mut d = app_drag(layout(true), 1, &[3, 5]);
+    let id = window(&d, 5).id;
+    let local = pos2(120.0, 200.0);
+    let point = d.host().windows[&d.viewport(id)].rect.min + local.to_vec2() - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    assert!(d.content.hovers.contains(&(5, local)), "{:?}", d.content.hovers);
+    d.release(point);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![(5, local)]);
+    assert!(!d.content.hovers.iter().any(|(panel, _)| *panel == 3), "{:?}", d.content.hovers);
+}
+
+#[test]
+fn a_stop_withdraws_a_routed_release_no_window_read_but_not_the_owners() {
+    let mut d = app_drag(layout(true), 5, &[1]);
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    // The release is queued for the main window's next pass, and the drag is cancelled first.
+    d.window_release(id, local);
+    super::cancel_drag::<u32>(&d.ctx, d.id);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![]);
+    // The owner still gets its own release.
+    assert_eq!(d.content.source_stopped, 1);
+}
+
+#[test]
+fn a_plain_egui_drag_over_a_native_window_keeps_its_moves_and_is_not_routed() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.content.marks = Marks::Nothing;
+    let id = window(&d, 5).id;
+    let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+    let from = source(&d);
+    d.hold(from, over);
+    d.move_to(over + vec2(20.0, 10.0));
+    let moved = over + vec2(20.0, 10.0) - from;
+    assert!((d.content.source_delta - moved).length() < 0.01, "{:?}, not {moved:?}", d.content.source_delta);
+    d.release(over);
+    d.step(vec![]);
+    assert!(d.content.hovers.is_empty(), "{:?}", d.content.hovers);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
+    assert_eq!(d.content.source_stopped, 1);
+}
+
+#[test]
+fn an_egui_payload_reaches_a_window_drawn_before_the_owner() {
+    // The main window draws before the native window that owns the drag.
+    let mut d = app_drag(layout(true), 5, &[1]);
+    d.content.marks = Marks::Payload;
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    d.window_release(id, local);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.payload_drops, vec![1]);
+    assert!(!egui::DragAndDrop::has_any_payload(&d.ctx));
+}
+
+#[test]
+fn an_owner_that_discards_its_release_pass_keeps_the_payload_for_the_target() {
+    let mut d = app_drag(layout(true), 5, &[1]);
+    d.content.marks = Marks::Payload;
+    let id = window(&d, 5).id;
+    let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
+    d.window_hold(id, source(&d), local);
+    // The owner's pass that holds its release runs twice.
+    d.content.discard_next = true;
+    d.window_release(id, local);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.payload_drops, vec![1]);
+}
+
+#[test]
+fn pointer_events_after_a_held_release_wait_behind_it() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let point = d.host().windows[&d.viewport(id)].rect.min + vec2(120.0, 200.0) - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    let delta = d.content.source_delta;
+    // The release over the native window, then the pointer back on the source and a new press,
+    // in one input.
+    let at = source(&d);
+    d.step(vec![button(point, false), Event::PointerMoved(at), button(at, true)]);
+    assert_eq!(d.content.source_delta, delta, "no move after the release reaches the source's drag");
+    d.step(vec![]);
+    assert!(d.ctx.input(|i| i.pointer.primary_down()), "the new press outlives the held release");
+}
+
+#[test]
+fn the_owners_drag_stops_a_pass_after_its_release_over_another_window() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let local = pos2(120.0, 200.0);
+    let point = d.host().windows[&d.viewport(id)].rect.min + local.to_vec2() - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    d.release(point);
+    assert_eq!((d.content.drops.clone(), d.content.source_stopped), (vec![(5, local)], 0));
+    // The owner saw the pointer go, and holds its release and the pointer's going once.
+    assert_eq!(d.ctx.input(|i| i.pointer.hover_pos()), None);
+    let held = super::render::held_events(&d.ctx, egui::ViewportId::ROOT);
+    assert!(matches!(held.as_slice(), [Event::PointerButton { pressed: false, .. }, Event::PointerGone]), "{held:?}");
+    d.step(vec![]);
+    assert_eq!(d.content.source_stopped, 1);
+    assert_eq!(d.ctx.dragged_id(), None);
+}
+
+#[test]
+fn a_press_right_after_a_routed_release_outlives_the_held_release() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let point = d.host().windows[&d.viewport(id)].rect.min + vec2(120.0, 200.0) - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    d.release(point);
+    // The owner's held release comes before a press in its next input.
+    let at = source(&d);
+    d.step(vec![Event::PointerMoved(at), button(at, true)]);
+    assert!(d.ctx.input(|i| i.pointer.primary_down()));
+}
+
+#[test]
+fn a_routed_release_clicks_nothing_in_the_target() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.content.counter = Some(5);
+    d.step(vec![]);
+    let id = window(&d, 5).id;
+    let button = d.content.counter_rect.unwrap().center();
+    let point = d.host().windows[&d.viewport(id)].rect.min + button.to_vec2() - ORIGIN.to_vec2();
+    d.hold(source(&d), point);
+    d.release(point);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![(5, button)]);
+    assert_eq!(d.content.count, 0);
+}
+
+#[test]
+fn an_app_drag_from_a_native_window_reaches_the_main_window() {
+    let mut d = app_drag(layout(true), 5, &[1]);
+    let id = window(&d, 5).id;
+    // Frame [1, 2], left of the native window on the desktop.
+    let point = pos2(100.0, 300.0);
+    let local = d.window_local(id, ORIGIN + point.to_vec2()).unwrap();
+    d.window_hold(id, source(&d), local);
+    d.window_release(id, local);
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(d.content.drops, vec![(1, point)]);
+    assert!(d.content.hovers.contains(&(1, point)), "{:?}", d.content.hovers);
+}
+
+#[test]
+fn an_app_drag_between_native_windows_drops_in_the_front_one() {
+    // Window [7] overlaps window [5, 6] at (550, 280) on the desktop; window [8] is apart.
+    let mut layout = layout(true);
+    layout.floating.push(Floating::single(vec![7], 0, [350.0, 150.0, 240.0, 150.0]));
+    layout.floating.push(Floating::single(vec![8], 0, [20.0, 420.0, 240.0, 150.0]));
+    let overlap = pos2(550.0, 280.0);
+    for front in [7, 5] {
+        let mut d = app_drag(layout.clone(), 8, &[5, 7]);
+        let viewport = d.viewport(window(&d, front).id);
+        d.host().focus = Some(viewport);
+        d.step(vec![]);
+        d.host().focus = Some(egui::ViewportId::ROOT);
+        d.step(vec![]);
+        let (owner, target) = (window(&d, 8).id, window(&d, front).id);
+        let local = d.window_local(owner, overlap).unwrap();
+        d.window_hold(owner, source(&d), local);
+        d.window_release(owner, local);
+        d.step(vec![]);
+        d.step(vec![]);
+        assert_eq!(d.content.drops, vec![(front, d.window_local(target, overlap).unwrap())], "front {front}");
+    }
+}
+
+#[test]
+fn an_app_drag_released_outside_every_window_drops_nowhere() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+    d.hold(source(&d), over);
+    assert!(d.content.hovers.iter().any(|(panel, _)| *panel == 5), "{:?}", d.content.hovers);
+    // Left of the main window, over no window of the app: the native window sees the pointer go.
+    let out = pos2(-60.0, 120.0);
+    d.move_to(out);
+    d.content.hovers.clear();
+    d.move_to(out);
+    d.release(out);
+    d.step(vec![]);
+    assert!(d.content.hovers.is_empty(), "{:?}", d.content.hovers);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
+}
+
+/// Hold an app drag from panel 1 over window [5, 6] and release it there.
+fn drag_onto_window(d: &mut DockDriver<u32, Content>) {
+    let id = window(d, 5).id;
+    let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+    d.hold(source(d), over);
+    d.release(over);
+    d.step(vec![]);
+    d.step(vec![]);
+}
+
+#[test]
+fn no_app_drag_is_routed_where_windows_report_no_positions() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.host().no_position = true;
+    d.step(vec![]);
+    drag_onto_window(&mut d);
+    assert!(d.content.hovers.is_empty(), "{:?}", d.content.hovers);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
+}
+
+#[test]
+fn a_blocked_native_window_gets_no_app_drag() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    d.input_blocked = true;
+    d.settle();
+    drag_onto_window(&mut d);
+    assert!(d.content.hovers.is_empty(), "{:?}", d.content.hovers);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
+}
+
+#[test]
+fn escape_and_cancel_drag_end_the_routing_of_an_app_drag() {
+    for cancel in [false, true] {
+        let mut d = app_drag(layout(true), 1, &[5]);
+        let id = window(&d, 5).id;
+        let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+        d.hold(source(&d), over);
+        assert!(!d.content.hovers.is_empty(), "cancel {cancel}");
+        if cancel {
+            super::cancel_drag::<u32>(&d.ctx, d.id);
+            d.step(vec![]);
+        } else {
+            d.key(Key::Escape);
+        }
+        d.content.hovers.clear();
+        d.move_to(over);
+        d.release(over);
+        d.step(vec![]);
+        assert!(d.content.hovers.is_empty(), "cancel {cancel}: {:?}", d.content.hovers);
+        assert!(d.content.drops.is_empty(), "cancel {cancel}: {:?}", d.content.drops);
+    }
+}
+
+#[test]
+fn a_tab_drag_onto_a_native_window_is_no_app_drag() {
+    let mut d = app_drag(layout(true), 1, &[5]);
+    let id = window(&d, 5).id;
+    let over = d.host().windows[&d.viewport(id)].rect.center() - ORIGIN.to_vec2();
+    let tab = d.hit(&Hit::Tab(1)).unwrap().center();
+    let out = d.drag(tab, over);
+    d.step(vec![]);
+    assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 1, anchor: 5 | 6, .. }]), "{:?}", out.actions);
+    assert!(d.content.drops.is_empty(), "{:?}", d.content.drops);
 }

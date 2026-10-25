@@ -728,10 +728,8 @@ fn split_inner_edge_remains_draggable_beside_a_scrollbar() {
     frame(&mut layout, vec![Event::PointerMoved(start), pointer_button(start, true)]);
     frame(&mut layout, vec![Event::PointerMoved(start + vec2(40.0, 0.0))]);
     frame(&mut layout, vec![pointer_button(start + vec2(40.0, 0.0), false)]);
-    // A dragged divider keeps a ratio of the space, whatever mode it was saved with.
-    let Node::Split { size: SplitSize::Ratio(ratio), .. } = layout.root.unwrap() else { panic!() };
-    // 800 points less the 4 point divider.
-    assert!((ratio * 796.0 - 260.0).abs() < 0.01, "sidebar width after inner-edge drag: {}", ratio * 796.0);
+    let Node::Split { size: SplitSize::FixedFirst(width), .. } = layout.root.unwrap() else { panic!() };
+    assert!((width - 260.0).abs() < 0.01, "sidebar width after inner-edge drag: {width}");
 }
 
 #[test]
@@ -1403,16 +1401,9 @@ fn popup_action_labels_use_custom_visual_text_and_logical_accessibility() {
 }
 
 #[test]
-fn a_narrow_strip_shows_whole_tabs_and_lists_the_others_in_the_overflow_menu() {
+fn a_strip_too_narrow_for_its_tabs_at_their_minimum_width_lists_the_others_in_the_overflow_menu() {
     use egui::accesskit::Role;
     use egui_kittest::{Harness, kittest::Queryable};
-    fn elided(shape: &egui::Shape) -> bool {
-        match shape {
-            egui::Shape::Text(text) => text.galley.elided,
-            egui::Shape::Vec(shapes) => shapes.iter().any(elided),
-            _ => false,
-        }
-    }
     let area = Id::unique("whole-tabs");
     let layout = Layout { root: Some(tabs(&[1, 2, 3, 4, 5, 6], 5)), floating: vec![] };
     let mut h = Harness::builder().with_size(vec2(260.0, 240.0)).build_ui(move |ui| {
@@ -1432,7 +1423,10 @@ fn a_narrow_strip_shows_whole_tabs_and_lists_the_others_in_the_overflow_menu() {
     let mut expected: Vec<u32> = (1..shown.len() as u32).collect();
     expected.push(6);
     assert_eq!(shown, expected);
-    assert!(h.output().shapes.iter().all(|shape| !elided(&shape.shape)), "every shown tab keeps its full name");
+    // As many tabs show as fit at the minimum width beside the drag bar and the "…" button.
+    let style = DockStyle::default();
+    let room = 260.0 - style.drag_bar_width - 22.0;
+    assert!(shown.len() as f32 * style.min_tab_width <= room && (shown.len() + 1) as f32 * style.min_tab_width > room, "{shown:?}");
     h.get_by_role_and_label(Role::Button, "Panels").click();
     h.run_steps(2);
     let listed: Vec<u32> = (1..=6).filter(|p| h.query_by_role_and_label(Role::Button, &format!("Panel {p}")).is_some()).collect();
@@ -1441,13 +1435,13 @@ fn a_narrow_strip_shows_whole_tabs_and_lists_the_others_in_the_overflow_menu() {
 }
 
 #[test]
-fn only_an_active_tab_wider_than_the_strip_is_truncated_and_named_in_a_tooltip() {
+fn tab_labels_that_do_not_fit_are_truncated_inside_their_tab_and_named_in_a_tooltip() {
     let ctx = Context::default();
     ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
     let layout = Layout { root: Some(tabs(&[1, 2, 3], 0)), floating: vec![] };
     let label = |p: &u32| format!("Eigenschaften und Anpassungen {p}");
     let run = |events: Vec<Event>| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(150.0, 200.0))), events, ..Default::default() };
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(240.0, 200.0))), events, ..Default::default() };
         let mut output = ctx.run_ui(input, |ui| {
             DockArea::new(Id::unique("truncate")).show(
                 ui,
@@ -1465,23 +1459,24 @@ fn only_an_active_tab_wider_than_the_strip_is_truncated_and_named_in_a_tooltip()
     };
     run(vec![]);
     let shapes = run(vec![]);
-    let tab = |p: u32| ctx.read_response(Id::unique("truncate").with(("tab", &p))).map(|response| response.rect);
-    assert!(tab(2).is_none() && tab(3).is_none(), "the other tabs overflow instead of shrinking");
-    let active = tab(1).unwrap();
-    // The clip rect would hide an overflowing label; what is laid out must itself fit.
-    let painted: Vec<&egui::epaint::TextShape> = shapes
-        .iter()
-        .filter_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if active.contains(text.visual_bounding_rect().center()) => Some(text),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(painted.len(), 1, "{painted:?}");
-    assert!(painted[0].galley.elided);
-    assert!(active.contains_rect(painted[0].visual_bounding_rect()), "label {:?} overflows {active:?}", painted[0].visual_bounding_rect());
-    run(vec![Event::PointerMoved(active.center())]);
+    let tab = |p: u32| ctx.read_response(Id::unique("truncate").with(("tab", &p))).expect("every tab shrinks to fit").rect;
+    for p in 1..=3 {
+        let tab = tab(p);
+        // The clip rect would hide an overflowing label; what is laid out must itself fit.
+        let painted: Vec<&egui::epaint::TextShape> = shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if tab.contains(text.visual_bounding_rect().center()) => Some(text),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(painted.len(), 1, "tab {p}: {painted:?}");
+        assert!(painted[0].galley.elided, "tab {p}");
+        assert!(tab.contains_rect(painted[0].visual_bounding_rect()), "tab {p}: label {:?} overflows {tab:?}", painted[0].visual_bounding_rect());
+    }
+    run(vec![Event::PointerMoved(tab(2).center())]);
     let shapes = run(vec![]);
-    let full = label(&1);
+    let full = label(&2);
     // An elided galley still reports its whole text, so the cut tab label alone would match.
     assert!(
         shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text() == full && !text.galley.elided)),
@@ -1773,4 +1768,75 @@ fn overflowing_strip_paints_a_single_ellipsis_symbol() {
     });
     h.run_steps(2);
     assert!(h.output().shapes.iter().any(|shape| paints(&shape.shape, "\u{2026}")));
+}
+
+struct Plain;
+
+impl DockContent<u32> for Plain {
+    fn body(&mut self, _: &mut egui::Ui, _: &u32) {}
+}
+
+/// `sample` with its docked frames swapped: every panel stays, in other places.
+fn swapped() -> Layout<u32> {
+    let mut layout = sample();
+    layout.root = Some(Node::Split {
+        axis: SplitAxis::Horizontal,
+        size: SplitSize::FixedFirst(240.0),
+        first: Box::new(tabs(&[2, 3, 4], 1)),
+        second: Box::new(tabs(&[1], 0)),
+    });
+    layout
+}
+
+#[test]
+fn replacing_the_layout_ends_a_drag_in_progress() {
+    use super::testing::DockDriver;
+    let area = Id::unique("replaced");
+    let driver = || {
+        let mut d = DockDriver::new(sample(), Plain);
+        d.id = area;
+        d.settle();
+        d
+    };
+    // Over frame [1], clear of the floating window.
+    let over = pos2(500.0, 450.0);
+    for replace in [false, true] {
+        let mut d = driver();
+        let tab = d.hit(&Hit::Tab(2)).unwrap().center();
+        d.hold(tab, over);
+        assert!(is_dragging::<u32>(&d.ctx, area));
+        if replace {
+            d.layout = swapped();
+        }
+        d.move_to(over + vec2(4.0, 0.0));
+        assert_eq!(is_dragging::<u32>(&d.ctx, area), !replace);
+        let out = d.release(over);
+        if replace {
+            assert!(out.actions.is_empty(), "{:?}", out.actions);
+            assert_eq!(d.layout, swapped());
+        } else {
+            assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 2, anchor: 1, .. }]), "{:?}", out.actions);
+        }
+    }
+
+    // A window follows its bar through its own moves, and through an app that adjusts the
+    // moved rectangle or a split's size, and stops when the app switches workspaces.
+    let mut d = driver();
+    let bar = d.hit(&Hit::Title(5)).unwrap().center();
+    d.hold(bar, bar + vec2(60.0, 40.0));
+    d.move_to(bar + vec2(90.0, 60.0));
+    assert!(is_dragging::<u32>(&d.ctx, area));
+    assert_ne!(d.layout.floating[0].rect, sample().floating[0].rect);
+    d.layout.floating[0].rect[0] += 3.0;
+    if let Some(Node::Split { size, .. }) = &mut d.layout.root {
+        *size = SplitSize::FixedSecond(260.0);
+    }
+    d.move_to(bar + vec2(100.0, 70.0));
+    assert!(is_dragging::<u32>(&d.ctx, area));
+    d.layout = swapped();
+    let out = d.move_to(bar + vec2(120.0, 80.0));
+    assert!(!is_dragging::<u32>(&d.ctx, area));
+    assert!(out.actions.is_empty(), "{:?}", out.actions);
+    d.release(bar + vec2(120.0, 80.0));
+    assert_eq!(d.layout, swapped());
 }
