@@ -35,6 +35,15 @@ fn plus_and_minus_keys_parse_from_their_glyphs() {
 }
 
 #[test]
+fn arrow_glyphs_parse_as_arrow_keys() {
+    for (glyph, key) in [("←", Key::Left), ("→", Key::Right), ("↑", Key::Up), ("↓", Key::Down)] {
+        assert_eq!(Key::parse(glyph), Some(key), "{glyph}");
+    }
+    assert_eq!(Chord::parse("⌘←").unwrap().to_string(), "Cmd+Left");
+    assert_eq!(Chord::parse("Alt+Shift+→").unwrap().to_string(), "Alt+Shift+Right");
+}
+
+#[test]
 fn aliases_parse_to_canonical_chords() {
     let cases = [
         ("cmd+shift+z", "Cmd+Shift+Z"),
