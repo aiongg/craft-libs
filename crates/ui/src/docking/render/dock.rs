@@ -447,8 +447,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let xs = view.x_range();
         let half = self.style.seam_band * 0.5;
-        let width = self.style.drop_line_width;
-        // A line on an edge scrolled out of the view shows at the view's edge.
+        // A line on an edge scrolled out of the view shows at the view's edge, so it is no
+        // taller than the view.
+        let width = self.style.drop_line_width.min(view.height().max(0.0));
         let line = |y: f32| horizontal_line(y.clamp(view.top() + width * 0.5, view.bottom() - width * 0.5), xs, width);
         let push = |targets: &mut Vec<DockDrop<P>>, target: DockTarget<P>, band: Rect, line: Rect| {
             let band = band.intersect(view);

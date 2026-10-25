@@ -327,6 +327,22 @@ fn a_stripless_dock_groups_top_third_stacks_above_it() {
 }
 
 #[test]
+fn a_drop_line_wider_than_a_short_dock_column_draws_without_panicking() {
+    for iconic in [false, true] {
+        let mut layout = docked(Side::Start, &[&[&[2], &[3]]]);
+        if let Some(Node::Split { first, .. }) = &mut layout.root
+            && let Node::Dock { columns, .. } = &mut **first
+        {
+            columns.iter_mut().for_each(|c| c.iconic = iconic);
+        }
+        let mut d = testing::DockDriver::new(layout, TestContent::default())
+            .with_area(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 40.0)))
+            .with_style(|s| s.drop_line_width = 100.0);
+        d.step(vec![]);
+    }
+}
+
+#[test]
 fn dock_bands_are_28_pt_wide() {
     let window = || with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
     let target = |layout: Layout<u32>, at: Pos2| {
