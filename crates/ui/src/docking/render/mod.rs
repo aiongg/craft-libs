@@ -31,6 +31,17 @@ pub(in crate::docking) use body_drag::{cancel_body_route, mark_app_drag};
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) use native::{InputHook, set_input_hook};
 
+/// Give the main window the keyboard when one of the native windows of the dock area `area`
+/// has it.
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) fn focus_main_from_native<P>(ctx: &Context, area: Id, layout: &Layout<P>) {
+    let focused =
+        ctx.input(|i| layout.floating.iter().any(|w| i.raw.viewports.get(&native_viewport(area, w.id)).and_then(|v| v.focused) == Some(true)));
+    if focused {
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+    }
+}
+
 /// The viewport of the native window `window` of the dock area `area`.
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) fn native_viewport(area: Id, window: u64) -> egui::ViewportId {

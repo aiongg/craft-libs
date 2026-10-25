@@ -1134,10 +1134,13 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             return DockOutput { error: Some(DockError::InvalidGeometry), ..Default::default() };
         }
         // Blocking starts while the pointer may be down: a drag that went on would act on its
-        // release, under the modal.
+        // release, under the modal. A native window with the keyboard would drop the keys the
+        // modal needs, so the main window, where the modal is, takes it.
         let blocked_key = self.id.with("input-blocked");
         if self.input_blocked && !ui.ctx().data(|d| d.get_temp::<bool>(blocked_key).unwrap_or(false)) {
             cancel_drag::<P>(ui.ctx(), self.id);
+            #[cfg(feature = "native-windows")]
+            super::render::focus_main_from_native(ui.ctx(), self.id, layout);
         }
         ui.ctx().data_mut(|d| d.insert_temp(blocked_key, self.input_blocked));
         cancel_drag_if_replaced(ui.ctx(), self.id, layout);

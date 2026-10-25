@@ -1711,6 +1711,27 @@ fn a_focused_field_and_a_held_press_stay_inert_across_a_block() {
 }
 
 #[test]
+fn blocking_input_hands_focus_from_a_native_window_to_the_main_window() {
+    let focus_main = |d: &DockDriver<u32, Content>| {
+        d.host().commands.iter().filter(|(v, c)| *v == egui::ViewportId::ROOT && matches!(c, ViewportCommand::Focus)).count()
+    };
+    // A dialog opened from a floating panel needs the keys there, in the main window.
+    let mut d = blocked_driver();
+    let viewport = d.viewport(id_of(&d));
+    d.host().focus = Some(viewport);
+    d.step(vec![]);
+    d.input_blocked = true;
+    d.step(vec![]);
+    d.step(vec![]);
+    assert_eq!(focus_main(&d), 1, "once, when blocking starts");
+    // With the main window focused already, nothing is sent.
+    let mut d = blocked_driver();
+    d.input_blocked = true;
+    d.step(vec![]);
+    assert_eq!(focus_main(&d), 0);
+}
+
+#[test]
 fn blocking_input_cancels_a_drag_in_progress() {
     // A tab drag a native window owns.
     let mut d = blocked_driver();
