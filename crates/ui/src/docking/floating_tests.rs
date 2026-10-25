@@ -51,6 +51,8 @@ struct Content {
     /// Canvas 0 accepts side splits, as an app that opens panels beside it does.
     beside: bool,
     drawn: Vec<u32>,
+    /// A preview the host draws for every drag, from `resolve_drag`.
+    host_preview: Option<Rect>,
 }
 
 impl DockContent<u32> for Content {
@@ -70,6 +72,9 @@ impl DockContent<u32> for Content {
     }
     fn allow_native(&self, _: &u32) -> bool {
         self.native
+    }
+    fn resolve_drag(&mut self, _: &Context, _: &DockStyle, _: &DropRequest<'_, u32>) -> Option<DropFeedback> {
+        self.host_preview.map(|rect| DropFeedback { preview: Some(rect), insertion: None })
     }
 }
 
@@ -747,6 +752,20 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
     h.run_steps(2);
     menu(&mut h, 5);
     assert_eq!(h.query_all_by_label("Undock Panel Group").count(), 0);
+}
+
+#[test]
+fn a_title_bar_drag_fades_over_a_preview_the_host_draws() {
+    let mut d = Driver::new(workspace(), false);
+    d.content.host_preview = Some(Rect::from_min_size(pos2(20.0, 20.0), vec2(100.0, 100.0)));
+    let title = d.title(8).center();
+    d.step(vec![Event::PointerMoved(title), button(title, true)]);
+    d.step(vec![Event::PointerMoved(title + vec2(8.0, 6.0))]);
+    d.step(vec![Event::PointerMoved(pos2(650.0, 150.0))]);
+    let rect = window_of(&d.layout, 8).unwrap().rect;
+    d.step(vec![]);
+    let shown = d.window_opacity(rect).unwrap();
+    assert!((shown - 0.75).abs() < 0.01, "{shown}");
 }
 
 #[test]

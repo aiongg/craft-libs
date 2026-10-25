@@ -882,6 +882,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let painter = self.preview_painter(ctx);
             if let Some(rect) = feedback.preview.filter(|rect| crate::docking::targets::usable(*rect)) {
                 drop_preview(&painter, rect, self.style.accent, true);
+                // A window moving by its title bar fades over it, as over the renderer's own.
+                ctx.data_mut(|d| d.insert_temp(self.id.with(GROUP_HIGHLIGHTED), true));
             }
             if let Some(rect) = feedback.insertion.filter(|rect| crate::docking::targets::usable(*rect)) {
                 painter.rect_filled(rect, 0.0, self.style.accent);
