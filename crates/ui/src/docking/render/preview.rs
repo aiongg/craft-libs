@@ -396,7 +396,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The ghost at the pointer (a window moving live is its own ghost) under one destination
     /// preview. The ghost has a translucent fill, a 2 pt outline and the members' labels.
-    pub(super) fn paint_group_drag(&mut self, ui: &Ui, drag: &GroupDrag<P>, pointer: Pos2, float_only: bool) {
+    /// Returns whether it highlighted a drop target.
+    pub(super) fn paint_group_drag(&mut self, ui: &Ui, drag: &GroupDrag<P>, pointer: Pos2, float_only: bool) -> bool {
         let ctx = ui.ctx();
         let painter = self.preview_painter(ctx);
         if drag.gesture != GroupGesture::Window {
@@ -418,16 +419,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
         }
         if float_only || (drag.gesture == GroupGesture::Window && !self.title_bar_docks()) {
-            return;
+            return false;
         }
         if let Some((action, line)) = self.dock_group_proposal(drag, pointer) {
+            let highlighted = action.is_some();
             if let Some(action) = action {
                 self.paint_dock_preview(ctx, &painter, action, &drag.members, line);
                 if drag.gesture != GroupGesture::Window {
                     self.paint_float_hint(ctx, pointer);
                 }
             }
-            return;
+            return highlighted;
         }
         let proposal = self.group_proposal(drag, pointer).filter(|p| !p.noop);
         let zones = self.paint_group_zones(&painter, drag, pointer, proposal.as_ref());
@@ -441,7 +443,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             if drag.gesture != GroupGesture::Window {
                 self.paint_float_hint(ctx, pointer);
             }
+            return true;
         }
+        false
     }
 
     pub(in crate::docking) fn finish_drag(&mut self, ctx: &Context) {
