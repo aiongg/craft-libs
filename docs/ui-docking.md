@@ -364,8 +364,8 @@ A flyout fits its content the same way, without the title bar.
   windows go where the new layout has them. `cancel_drag` ends the area's drags at any other
   time. A native window moved by the compositor (`ViewportCommand::StartDrag`, as on Wayland)
   is not the area's drag: it ends when the user releases the button. On macOS, where AppKit
-  moves a native window by its bar, the area's drag ends but the window follows the cursor
-  until the release.
+  moves a native window by its bar, a cancel ends the area's drag, so the release drops
+  nothing, but AppKit keeps moving the window until the release.
 - With `float_on_empty_drop`, a release over no target floats what moves at the pointer, such
   as a panel dropped on a protected canvas. Without it, that release cancels the drag and
   nothing moves: the gap between two groups, a menu bar or a status bar is no target. A release
