@@ -75,6 +75,9 @@ struct App {
     rtl: bool,
     policy: SidePolicy,
     title_bar: bool,
+    /// The document is one drag-sensing widget, like a canvas.
+    drag_document: bool,
+    document_drags: usize,
 }
 
 impl App {
@@ -88,6 +91,8 @@ impl App {
             rtl: false,
             policy: SidePolicy::Columns,
             title_bar: true,
+            drag_document: false,
+            document_drags: 0,
         }
     }
 
@@ -95,7 +100,19 @@ impl App {
         let states = self.states.clone();
         let out =
             PaneHost::new("panes").rtl(self.rtl).policy(self.policy).show(ui, &self.open, |p| states.get(p).copied(), &mut Titled(self.title_bar));
-        egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
+        let drag_document = self.drag_document;
+        // A canvas fills the panel, without the default frame's margin.
+        let panel = if drag_document { egui::CentralPanel::default().frame(Frame::NONE) } else { egui::CentralPanel::default() };
+        let dragged = panel
+            .show(ui, |ui| {
+                if drag_document {
+                    ui.interact(ui.max_rect(), Id::new("document-drag"), Sense::click_and_drag()).dragged()
+                } else {
+                    ui.label("Document").dragged()
+                }
+            })
+            .inner;
+        self.document_drags += usize::from(dragged);
         for request in &out.requests {
             match request {
                 PaneRequest::Close(p) => self.open.retain(|o| o != p),
@@ -226,6 +243,36 @@ fn f6_reaches_a_pane_without_a_title_bar() {
     assert_eq!(h.state().focused, Some(Pane::Comments));
     key(&mut h, Key::F6, Modifiers::NONE);
     assert_eq!((h.state().focused, h.state().to_document), (None, 1));
+}
+
+#[test]
+fn the_resize_edge_works_on_both_sides_of_the_line_over_a_dragging_document() {
+    for offset in [-3.5, 3.5] {
+        let mut app = App::new(&[Pane::Nav]);
+        app.drag_document = true;
+        let mut h = harness(app);
+        // The line is at L + 250; positive offsets lie over the document.
+        drag(&mut h, pos2(L + 250.0 + offset, 300.0), pos2(L + 300.0 + offset, 300.0));
+        // The edge follows the pointer.
+        let size = last_resize(h.state(), Pane::Nav);
+        assert!(size.is_some_and(|size| (size - (300.0 + offset)).abs() <= 1.0), "offset {offset}: {size:?}");
+        assert_eq!(h.state().document_drags, 0, "offset {offset}: the document took the drag");
+    }
+    // A floating pane over the edge keeps its presses: the edge stays under floating windows.
+    let mut app = App::new(&[Pane::Nav, Pane::Styles]);
+    app.states.insert(Pane::Styles, PaneState { place: Place::Floating, size: None, float_rect: Some([L + 150.0, 100.0, 220.0, 300.0]) });
+    let mut h = harness(app);
+    h.run_steps(2);
+    drag(&mut h, pos2(L + 250.0, 300.0), pos2(L + 300.0, 300.0));
+    assert_eq!(last_resize(h.state(), Pane::Nav), None, "the edge under a floating pane took the drag");
+
+    // Away from the edge, the document still drags.
+    let mut app = App::new(&[Pane::Nav]);
+    app.drag_document = true;
+    let mut h = harness(app);
+    drag(&mut h, pos2(L + 400.0, 300.0), pos2(L + 450.0, 300.0));
+    assert!(h.state().document_drags > 0);
+    assert_eq!(last_resize(h.state(), Pane::Nav), None);
 }
 
 #[test]

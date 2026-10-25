@@ -547,7 +547,13 @@ impl PaneHost {
             Side::Bottom => (SplitAxis::Vertical, Rect::from_x_y_ranges(rect.x_range(), rect.top() - 2.0..=rect.top() + 2.0)),
         };
         let handle_style = ResizeHandleStyle { hovered: style.accent.gamma_multiply(0.5), dragged: style.accent, focused: style.accent };
-        let resize = ResizeHandle::new(s.id.with("resize"), axis, strip, &self.labels.resize, handle_style).show(ui);
+        // The edge's hit strip reaches over the document, whose widgets register after the host
+        // and would take presses there on the host's layer. A sublayer sits directly above it:
+        // over the document, under floating windows.
+        let edge_layer = LayerId::new(ui.layer_id().order, s.id.with("resize-layer"));
+        ui.ctx().set_sublayer(ui.layer_id(), edge_layer);
+        let mut edge_ui = ui.new_child(UiBuilder::new().layer_id(edge_layer));
+        let resize = ResizeHandle::new(s.id.with("resize"), axis, strip, &self.labels.resize, handle_style).show(&mut edge_ui);
         let next = if resize.response.dragged() {
             resize.response.interact_pointer_pos().map(|p| match side {
                 Side::Left => p.x - rect.left(),
