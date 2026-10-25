@@ -28,6 +28,13 @@ fn canonical_text_round_trips_for_every_key_and_modifier_set() {
 }
 
 #[test]
+fn plus_and_minus_keys_parse_from_their_glyphs() {
+    assert_eq!(Key::parse("+"), Some(Key::Plus));
+    assert_eq!(Key::parse("-"), Some(Key::Minus));
+    assert_eq!(Key::parse("−"), Some(Key::Minus), "U+2212");
+}
+
+#[test]
 fn aliases_parse_to_canonical_chords() {
     let cases = [
         ("cmd+shift+z", "Cmd+Shift+Z"),
@@ -50,6 +57,8 @@ fn aliases_parse_to_canonical_chords() {
         ("Cmd+Plus", "Cmd++"),
         ("cmd+Equals", "Cmd+="),
         ("Cmd+-", "Cmd+-"),
+        ("Cmd+−", "Cmd+-"),
+        ("⌘−", "Cmd+-"),
         ("Cmd + K", "Cmd+K"),
         ("esc", "Escape"),
         ("return", "Enter"),
