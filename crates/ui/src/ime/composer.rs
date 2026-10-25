@@ -513,8 +513,9 @@ impl Composer {
         self.output_pass = Some(ctx.cumulative_pass_nr());
         let rect = self.caret.unwrap_or(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1.0, 1.0)));
         let viewport = ctx.viewport_id();
-        let observation = ImeObservation::new(ctx.cumulative_frame_nr_for(viewport), ctx.cumulative_pass_nr_for(viewport), ImeTarget::new(self.owner, 0))
-            .purpose(self.purpose);
+        let observation =
+            ImeObservation::new(ctx.cumulative_frame_nr_for(viewport), ctx.cumulative_pass_nr_for(viewport), ImeTarget::new(self.owner, 0))
+                .purpose(self.purpose);
         // `None` only once egui's process-wide generation counter has run out.
         let Some(context) = self.context.observe(viewport, Some(observation)) else {
             return;
