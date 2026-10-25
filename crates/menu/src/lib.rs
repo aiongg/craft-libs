@@ -56,6 +56,7 @@
 //! [`NativeMenu::raw_input`]. [`NativeMenu::raw_input`] also
 //! keeps a click or Escape that closes an open native menu away from egui.
 
+pub mod bar;
 mod driver;
 mod layout;
 mod model;
@@ -63,6 +64,7 @@ mod model;
 #[cfg(target_os = "macos")]
 pub mod mac;
 
+pub use bar::{BarStyle, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use driver::{Backend, ClipboardKeys, Event, Gate, NativeMenu, had_input};
 pub use layout::{Clash, Layout, LayoutOptions, mac_layout};

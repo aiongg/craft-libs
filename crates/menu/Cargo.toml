@@ -19,5 +19,9 @@ muda = { version = "0.21.2", default-features = false }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder"] }
 
+[dev-dependencies]
+# `default_fonts` so that the bar's tests lay out text.
+egui = { workspace = true, features = ["default_fonts"] }
+
 [lints]
 workspace = true
