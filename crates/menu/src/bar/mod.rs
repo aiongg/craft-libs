@@ -15,7 +15,7 @@ use egui::containers::menu::{MenuConfig, MenuState, SubMenu, SubMenuButton};
 use egui::text::LayoutJob;
 use egui::{Color32, Id, PopupCloseBehavior, Response, TextFormat, TextStyle, Ui, UiKind, UiStackInfo, WidgetText};
 
-use crate::{Gate, Item, ItemKind, Menu, MenuBar, Node};
+use crate::{Gate, Item, ItemKind, Menu, MenuBar, Node, Target};
 use nav::Nav;
 
 pub use nav::is_open;
@@ -57,6 +57,15 @@ impl Default for BarStyle {
     }
 }
 
+/// The platform whose key names a target's shortcut column shows.
+fn keymap_platform(target: Target) -> Platform {
+    match target {
+        Target::Mac => Platform::Mac,
+        Target::Windows => Platform::Windows,
+        Target::Linux | Target::Web => Platform::Linux,
+    }
+}
+
 fn english(label: &'static str) -> String {
     label.to_owned()
 }
@@ -66,17 +75,16 @@ fn english(label: &'static str) -> String {
 pub struct MenuBarUi<'a> {
     bar: &'a MenuBar,
     gate: Gate,
-    platform: Platform,
+    target: Target,
     style: Option<BarStyle>,
     label: &'a dyn Fn(&'static str) -> String,
     id: Id,
 }
 
 impl<'a> MenuBarUi<'a> {
-    /// The bar for `bar`, laid out for the platform it runs on. Shortcuts show as on
-    /// [`Platform::current`] (a web build shows Ctrl names).
+    /// The bar for `bar`, already laid out ([`crate::layout`]), on [`Target::current`].
     pub fn new(bar: &'a MenuBar) -> MenuBarUi<'a> {
-        MenuBarUi { bar, gate: Gate::default(), platform: Platform::current(), style: None, label: &english, id: Id::new("craft-menu-bar") }
+        MenuBarUi { bar, gate: Gate::default(), target: Target::current(), style: None, label: &english, id: Id::new("craft-menu-bar") }
     }
 
     /// What may run this frame: the items `gate` forbids ([`Gate::allows`]) are drawn and
@@ -86,9 +94,10 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
-    /// The platform whose names the shortcut column uses ([`craft_keymap::Chord::display`]).
-    pub fn platform(mut self, platform: Platform) -> MenuBarUi<'a> {
-        self.platform = platform;
+    /// The platform the bar is on, for the shortcut column: ⌘ glyphs on [`Target::Mac`], Ctrl
+    /// names everywhere else, the web included ([`craft_keymap::Chord::display`]).
+    pub fn target(mut self, target: Target) -> MenuBarUi<'a> {
+        self.target = target;
         self
     }
 
@@ -119,7 +128,7 @@ impl<'a> MenuBarUi<'a> {
         let style = self.style.clone().unwrap_or_else(|| BarStyle::from_style(ui.style()));
         let nav_id = self.id.with("nav");
         let mut nav = Nav::load(&ctx, nav_id);
-        let mut draw = Draw { gate: self.gate, platform: self.platform, style: &style, label: self.label, press: self.id.with("press"), clicked: None };
+        let mut draw = Draw { gate: self.gate, platform: keymap_platform(self.target), style: &style, label: self.label, press: self.id.with("press"), clicked: None };
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             egui::MenuBar::new().ui(ui, |ui| {

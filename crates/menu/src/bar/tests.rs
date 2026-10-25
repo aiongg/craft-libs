@@ -52,6 +52,7 @@ struct Bar {
     ctx: egui::Context,
     bar: MenuBar,
     gate: Gate,
+    target: Target,
     size: Vec2,
     dt: f64,
     time: f64,
@@ -66,7 +67,7 @@ impl Bar {
         let ctx = egui::Context::default();
         ctx.enable_accesskit();
         ctx.all_styles_mut(|s| s.scroll_animation = egui::style::ScrollAnimation::none());
-        let mut b = Bar { ctx, bar, gate: Gate::default(), size, dt: 1.0 / 60.0, time: 0.0, events: Vec::new(), pointer: pos2(-10.0, -10.0), tree: Vec::new(), clicked: Vec::new() };
+        let mut b = Bar { ctx, bar, gate: Gate::default(), target: Target::Linux, size, dt: 1.0 / 60.0, time: 0.0, events: Vec::new(), pointer: pos2(-10.0, -10.0), tree: Vec::new(), clicked: Vec::new() };
         b.run(3);
         b
     }
@@ -80,9 +81,10 @@ impl Bar {
             events: std::mem::take(&mut self.events),
             ..Default::default()
         };
-        let (bar, gate) = (&self.bar, self.gate);
+        let (bar, gate, target) = (&self.bar, self.gate, self.target);
         let mut out = Vec::new();
-        let full = self.ctx.run_ui(raw, |ui| out = MenuBarUi::new(bar).gate(gate).platform(Platform::Linux).show(ui));
+        let mut full = self.ctx.run_ui(raw, |ui| out = MenuBarUi::new(bar).gate(gate).target(target).show(ui));
+        full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
             self.tree = update.nodes;
         }
@@ -358,9 +360,10 @@ fn the_overflow_labels_come_from_the_label_hook() {
     let mut tree = Vec::new();
     for _ in 0..2 {
         let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 300.0))), ..Default::default() };
-        let out = ctx.run_ui(raw, |ui| {
+        let mut out = ctx.run_ui(raw, |ui| {
             MenuBarUi::new(&bar).label(&label).show(ui);
         });
+        out.textures_delta.clear();
         tree = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
     }
     assert!(tree.iter().any(|(_, n)| n.label() == Some("Menü")));
@@ -384,6 +387,16 @@ fn accesskit_sees_a_menu_bar_of_menus_with_checked_states_and_shortcuts() {
     assert_eq!(b.node("Grid").and_then(|n| n.keyboard_shortcut()), Some("G"), "a display-only shortcut too");
     b.click("File");
     assert_eq!(b.node("New").map(|n| (n.role(), n.keyboard_shortcut())), Some((Role::MenuItem, Some("Ctrl+N"))));
+}
+
+#[test]
+fn the_web_shows_ctrl_names_and_the_mac_its_glyphs() {
+    for (target, text) in [(Target::Web, "Ctrl+N"), (Target::Windows, "Ctrl+N"), (Target::Mac, "⌘N")] {
+        let mut b = wide();
+        b.target = target;
+        b.click("File");
+        assert_eq!(b.node("New").and_then(|n| n.keyboard_shortcut()), Some(text), "{target:?}");
+    }
 }
 
 /// A menu far taller than the window.
