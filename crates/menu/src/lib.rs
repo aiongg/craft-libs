@@ -56,20 +56,25 @@
 //! menu. A click is [`Event::Click`], and [`NativeMenu::take_clicks`] returns its command for the app
 //! to run like an in-window menu click; so is a key equivalent the layout assigned (⌘Q on the
 //! app's Quit item, ⌘, on Settings), which the app's key handling doesn't know, and, while a text
-//! field has the keys ([`NativeMenu::set_text_editing`]), every key equivalent but the field's own
+//! field has the keys ([`Gate::text_editing`]), every key equivalent but the field's own
 //! (⌘C, ⌘X, ⌘V and [`craft_keymap::text_editing_chords`]): an app's key handling skips shortcuts
-//! while text has the keys, and a Mac app's menu commands (⌘S, ⌘N) run while typing.
+//! while text has the keys, and a Mac app's menu commands (⌘S, ⌘N) run while typing. Only
+//! shortcuts with ⌘ or ⌃ become key equivalents; tool keys (`B`, `⇧B`, `F5`) stay with the app.
 //!
-//! muda has one menu event handler per process, and the first one set stays:
-//! `craft_quit::install_app_menu` and `mac::install` are alternatives, and an app calls one of
-//! them once.
+//! What may run from the menus is the app's [`Gate`], set every frame ([`NativeMenu::set_gate`]):
+//! while a modal dialog is open or a shortcut is being recorded, the app's items are greyed and
+//! their clicks dropped, also clicks that arrived before the gate closed. While a shortcut is
+//! recorded, key equivalents reach egui as plain key presses.
+//!
+//! craft-menu owns muda's one menu event handler: `mac::install` (a full menu bar) and
+//! `mac::install_app_menu` (a minimal app menu, for apps without a [`MenuBar`]) both use it.
+//! [`NativeMenu::on_command`] sees each allowed click as it arrives, also while egui is idle.
 //!
 //! Per frame: [`NativeMenu::raw_input`] before egui reads the input (`eframe::App::raw_input_hook`),
-//! then [`NativeMenu::take_clicks`] and run the commands, then [`NativeMenu::sync_with`], which
-//! lays the menus out again only when the app's state changed, and
-//! [`NativeMenu::set_text_editing`] with whether a text field has the keys, for the next
-//! [`NativeMenu::raw_input`]. [`NativeMenu::raw_input`] also
-//! keeps a click or Escape that closes an open native menu away from egui.
+//! then [`NativeMenu::set_gate`], [`NativeMenu::take_clicks`] and run the commands, then
+//! [`NativeMenu::sync_with`], which lays the menus out again only when the app's state changed.
+//! [`NativeMenu::raw_input`] also keeps a click or Escape that closes an open native menu away
+//! from egui.
 
 pub mod bar;
 mod driver;
@@ -82,7 +87,7 @@ pub mod mac;
 
 pub use bar::{BarStyle, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
-pub use driver::{Backend, ClipboardKeys, Event, Gate, NativeMenu, had_input};
+pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};
 pub use keymap::{ItemState, apply_keymap, apply_state};
 pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
 pub use model::{

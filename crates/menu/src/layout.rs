@@ -373,7 +373,8 @@ fn shown_on(bar: &MenuBar, target: Target) -> MenuBar {
 
 /// The listed documents as radio items, the one in front selected, after a separator.
 fn document_items(bar: &MenuBar) -> Vec<Node> {
-    let items: Vec<Node> = bar.documents.iter().filter(|d| !d.hidden).map(|d| Item::new(d.command.clone(), d.label.clone()).radio(d.active).into()).collect();
+    let items: Vec<Node> =
+        bar.documents.iter().filter(|d| !d.hidden).map(|d| Item::new(d.command.clone(), d.label.clone()).radio(d.active).into()).collect();
     if items.is_empty() {
         return items;
     }

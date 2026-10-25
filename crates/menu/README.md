@@ -146,11 +146,36 @@ menu doesn't stay up). `None` means AppKit refused the menus: keep the in-window
 let native_menu = craft_menu::mac::install(&cc.egui_ctx, &craft_menu::mac_layout(&menu_bar, &LayoutOptions::new("PhotoCraft")).bar);
 ```
 
-The backend owns muda's menu event handler. There is one per process and the first one set
-stays, so `mac::install` and `craft_quit::install_app_menu` are alternatives: an app calls one of
-them, once, and a second `mac::install` returns `None`. craft-menu's own Quit item already asks
-the window to close. Each menu event wakes egui, so a chosen item runs at once rather than with
-the next input event.
+An app without a `MenuBar` yet installs the minimal app menu instead: About, Services, Hide,
+Hide Others, Show All and Quit, where Quit asks the app first.
+
+```rust
+#[cfg(target_os = "macos")]
+craft_menu::mac::install_app_menu(&cc.egui_ctx, "WordCraft")?;
+```
+
+craft-menu owns muda's menu event handler. muda keeps the first one set per process, so the
+crate sets it once and both `mac::install` and `mac::install_app_menu` use it; a later
+`mac::install` replaces the minimal app menu, and a second `mac::install` returns `None`.
+`craft_quit::install_app_menu` is deprecated in favor of `mac::install_app_menu`: it sets its own
+handler, so an app calling it first would leave craft-menu's menus without events. Quit is
+never AppKit's predefined Quit: it is the app's item tagged `ItemRole::Quit`, or the item with
+`craft_quit::QUIT_MENU_ID`, which runs `craft_quit::on_menu_event` (the window is asked to close,
+so the app's unsaved-changes prompt runs). Each menu event wakes egui, so a chosen item runs at
+once rather than with the next input event.
+
+The backend calls AppKit's Window and Help menu hooks for the menus with `MenuRole::Window` and
+`MenuRole::Help`; it never looks at titles. Services is AppKit's own submenu.
+
+Only shortcuts with ⌘ or ⌃ become key equivalents. The others (`B`, `⇧B`, `⌥B`, a bare `F5`) are
+tool keys the app handles itself; as key equivalents AppKit would take them from text fields.
+The native menu does not show them: muda 0.21 gives no access to the `NSMenuItem`, and its
+`set_attributed_title` needs an `NSAttributedString` with a font and a right tab stop, which
+objc2 builds only through `unsafe` calls, and the workspace forbids unsafe code. The egui bar
+shows them in its shortcut column.
+
+Check and radio items are AppKit check items. AppKit flips one when it is chosen; the next sync
+sets it back to the app's state, so the app's state always wins.
 
 While a menu is open, a click or Escape in the window closes it and does not reach egui (no
 canvas gesture, no tool action); pointer moves pass through. Only one click is kept this way
@@ -167,14 +192,23 @@ clipboard commands from the keys itself sets `menu.clipboard_keys(ClipboardKeys:
 key presses. A shortcut the layout assigned (⌘Q on the app's Quit item, ⌘, on Settings) comes
 back as a click instead, since the app's key handling doesn't bind it.
 
-While a text field has the keys, an app's key handling leaves shortcuts to the field, but a Mac
-app's menu commands (⌘S, ⌘N) run while typing. So the app reports each frame whether text has
-the keys (`set_text_editing`), and while it does, a key equivalent comes back as a click, except
-the keys the field handles itself: ⌘C, ⌘X and ⌘V (as `ClipboardKeys` says) and
-`craft_keymap::text_editing_chords` (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …) stay key presses.
+The app tells the menu what may run with a `Gate`, every frame (`set_gate`):
 
-Each frame: `raw_input` before egui reads the input, then the commands from `take_clicks`, then
-`sync_with`, then `set_text_editing` for the next frame's `raw_input`.
+| Gate field | Effect on the native menu |
+| --- | --- |
+| `modal` | The app's items are greyed (updated in place) and their clicks dropped, also clicks that arrived before the dialog opened. Hide, Hide Others, Minimize and Quit stay. |
+| `recording_shortcut` | As `modal`, and every key equivalent reaches egui as the plain key press (⌘Q, ⌘H, ⌘C included), so the recorder sees it. |
+| `text_editing` | A key equivalent comes back as a click (⌘S saves while typing), except the keys the field handles itself: ⌘C, ⌘X and ⌘V (as `ClipboardKeys` says) and `craft_keymap::text_editing_chords` (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …). |
+
+Each frame, in this order:
+
+1. `raw_input`, before egui reads the input (`eframe::App::raw_input_hook`). It uses the gate
+   from the last `set_gate`.
+2. `set_gate`, with the app's state for this frame.
+3. `take_clicks`, and run the commands it returns: the clicks since the last frame that the gate
+   allows now. Minimize and Quit are already handled.
+4. `sync_with`, which lays the menus out again only when the app's state changed or a menu event
+   arrived, and re-syncs them in place when the gate changed.
 
 ```rust
 // eframe::App::raw_input_hook, before egui reads the input:
@@ -184,18 +218,29 @@ if let Some(menu) = &mut self.native_menu {
 
 // In the frame:
 if let Some(menu) = &mut self.native_menu {
+    menu.set_gate(Gate {
+        modal: self.dialog.is_some(),
+        recording_shortcut: self.shortcut_editor.is_recording(),
+        text_editing: ctx.wants_keyboard_input(),
+    });
     for command in menu.take_clicks(ctx) {
-        self.run_command(ctx, &command); // Minimize and Quit are already handled
+        self.run_command(ctx, &command);
     }
     let state = self.menu_state_hash(craft_menu::had_input(ctx).then_some(ctx.cumulative_frame_nr()));
     for c in menu.sync_with(state, || craft_menu::mac_layout(&self.menu_bar(), &LayoutOptions::new("PhotoCraft"))) {
         log::info!("menu: {} is {} on macOS and {} in the app; {}", c.shortcut, c.system, c.command, c.resolution);
     }
-    menu.set_text_editing(ctx.wants_keyboard_input());
 }
 ```
 
 `sync_with` builds the layout only when `state` changed or a menu event arrived, because
 building the rows usually walks every command's enabled state. The backend then updates labels,
 enabled and checked in place and rebuilds only when `structure_key` (or, for the open
-documents, `window_key`) changes.
+documents, `window_key`) changes. Adding or removing an item in a dynamic list (recent files,
+workspaces, plugins) changes `structure_key`; relabelling one doesn't.
+
+An app that needs a click while egui is idle (to wake its own loop, or hand the command to a
+worker) sets `menu.on_command(Box::new(|command| ..))`. The hook runs from the menu event
+handler as the click arrives, on the main thread, for the app commands the gate allows; key
+equivalents reported as key presses and the built-in items don't reach it. `take_clicks` still
+returns every command, so an app that runs one from the hook skips it there.
