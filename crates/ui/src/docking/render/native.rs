@@ -828,6 +828,8 @@ pub(super) struct NativeInput {
     /// noted so far in this one.
     typing: std::collections::HashSet<ViewportId>,
     typing_next: std::collections::HashSet<ViewportId>,
+    /// The main window's completed passes when `typing` was last taken from `typing_next`.
+    typing_at: u64,
     /// Key and clipboard events for each window's next input, and the pass they were queued in.
     keys: std::collections::HashMap<ViewportId, (u64, Vec<Event>)>,
 }
@@ -850,6 +852,7 @@ impl egui::Plugin for NativeInput {
             self.held.retain(|_, (at, _)| *at + 1 >= pass);
             self.keys.retain(|_, (at, _)| *at + 1 >= pass);
             self.typing = std::mem::take(&mut self.typing_next);
+            self.typing_at = ctx.cumulative_pass_nr_for(ViewportId::ROOT);
             // eframe has run `App::raw_input_hook`, where an app's native menu reports its key
             // equivalents (macOS: AppKit's menu takes them before the key window sees them).
             // While a native window has the keyboard, the main window gets no keys of its own,
@@ -939,7 +942,11 @@ fn text_clipboard_keys(ctx: &Context, viewport: ViewportId, events: &mut Vec<Eve
 
 /// See [`crate::docking::typing_window`].
 pub(in crate::docking) fn typing_window(ctx: &Context) -> Option<ViewportId> {
-    let typing = ctx.with_plugin(|input: &mut NativeInput| input.typing.clone())?;
+    // Between frames (in `App::raw_input_hook`) a main-window pass has ended since the swap, and
+    // `typing_next` is the whole of the last pass, which the next swap hands to the routing.
+    let passes = ctx.cumulative_pass_nr_for(ViewportId::ROOT);
+    let typing =
+        ctx.with_plugin(|input: &mut NativeInput| if passes > input.typing_at { input.typing_next.clone() } else { input.typing.clone() })?;
     ctx.input_for(ViewportId::ROOT, |i| typing_window_of(&typing, &i.raw.viewports))
 }
 

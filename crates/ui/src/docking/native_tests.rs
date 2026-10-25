@@ -23,6 +23,8 @@ struct Content {
     text: Option<u32>,
     typed: String,
     focus_text: bool,
+    /// The text field gives up keyboard focus on the next frame.
+    blur_text: bool,
     /// The panel with a button that takes focus.
     focused_button: Option<u32>,
     /// The panel with a counter button, its clicks, and where it was drawn.
@@ -75,6 +77,9 @@ impl DockContent<u32> for Content {
             let field = ui.text_edit_singleline(&mut self.typed);
             if std::mem::take(&mut self.focus_text) {
                 field.request_focus();
+            }
+            if std::mem::take(&mut self.blur_text) {
+                field.surrender_focus();
             }
         }
         if self.focused_button == Some(*panel) {
@@ -1706,6 +1711,13 @@ fn menu_keys_go_to_the_focused_text_field_of_the_native_window_with_the_keyboard
     d.host().focus = Some(viewport);
     d.settle();
     assert_eq!(super::typing_window(&d.ctx), Some(viewport));
+    // Between frames, where an app's `raw_input_hook` asks, the answer is the last frame's.
+    d.content.blur_text = true;
+    d.step(vec![]);
+    assert_eq!(super::typing_window(&d.ctx), None, "right after the field loses focus");
+    d.content.focus_text = true;
+    d.step(vec![]);
+    assert_eq!(super::typing_window(&d.ctx), Some(viewport), "right after the field takes focus");
     d.step(menu_key(Key::V));
     assert!(!has(&d.content.main_keys, Key::V), "{:?}", d.content.main_keys);
     assert!(pasted(&d, viewport), "the field's window asks for the clipboard text");
