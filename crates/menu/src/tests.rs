@@ -8,8 +8,19 @@ use egui::{Key, Modifiers};
 use super::*;
 use crate::driver::key_event;
 
+mod native;
+
 fn chord(s: &str) -> Chord {
     Chord::parse(s).unwrap()
+}
+
+/// The modifiers held for a key-down: ⌘, ⌃, ⌥, ⇧.
+fn held([cmd, ctrl, alt, shift]: [bool; 4]) -> Option<craft_keymap::Mods> {
+    Some(craft_keymap::Mods { cmd, ctrl, alt, shift })
+}
+
+fn typing(text_editing: bool) -> Gate {
+    Gate { text_editing, ..Gate::default() }
 }
 
 fn cmd(id: &str) -> CommandRef {
@@ -232,7 +243,9 @@ fn chords_become_egui_key_presses() {
     use crate::driver::native_ok;
     assert!(native_ok(&chord("Cmd+B")));
     assert!(native_ok(&chord("Ctrl+B")));
-    assert!(native_ok(&chord("F5")));
+    assert!(native_ok(&chord("Ctrl+F5")));
+    assert!(!native_ok(&chord("F5")), "a bare function key is display-only");
+    assert!(!native_ok(&chord("Alt+F12")));
     assert!(!native_ok(&chord("B")));
     assert!(!native_ok(&chord("Alt+F")));
     assert!(!native_ok(&chord("Shift+X")));
@@ -243,11 +256,13 @@ fn chords_become_egui_key_presses() {
     let ctrl = key_event(&chord("Ctrl+Cmd+M"), true);
     assert!(matches!(ctrl, egui::Event::Key { modifiers, .. } if modifiers.ctrl && modifiers.command));
 
-    // Every shortcut the layout writes is a key equivalent.
-    for it in mac_layout(&sample(true, true), &LayoutOptions::new("Sample")).bar.items() {
+    // Every shortcut the layout writes is a key equivalent; the app's F7 is display-only.
+    let bar = mac_layout(&sample(true, true), &LayoutOptions::new("Sample")).bar;
+    for it in bar.items().into_iter().filter(|it| it.layout_shortcut) {
         let Some(sc) = &it.shortcut else { continue };
         assert!(native_ok(sc), "{sc} on {}", it.command);
     }
+    assert!(!native_ok(&bar.find(&cmd("panel.layers")).unwrap().shortcut.unwrap()));
 }
 
 /// A command's native id is its key; a command shown twice gets `key#2` for its second item, also
@@ -273,7 +288,8 @@ struct Fake {
     cancels: Rc<Cell<usize>>,
     /// Keeps reporting a menu open after `cancel_tracking`.
     stuck: bool,
-    text_editing: Rc<Cell<bool>>,
+    /// What the backend's menu event handler would call.
+    dispatch: Rc<RefCell<Option<Dispatch>>>,
 }
 
 impl Backend for Fake {
@@ -292,8 +308,8 @@ impl Backend for Fake {
             self.tracking.set(false);
         }
     }
-    fn set_text_editing(&mut self, editing: bool) {
-        self.text_editing.set(editing);
+    fn attach(&mut self, dispatch: Dispatch) {
+        *self.dispatch.borrow_mut() = Some(dispatch);
     }
 }
 
@@ -487,24 +503,25 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
     assert!(!mac_layout(&bar, &LayoutOptions::new("Sample")).bar.find(&cmd("file.quit")).unwrap().layout_shortcut, "the app's own ⌘Q");
 
     let cmd_q = Chord::parse("Cmd+Q").unwrap();
-    let held = Some([true, false, false, false]);
-    assert_eq!(chosen_event(&cmd("file.exit"), Some(&cmd_q), true, held, false), Event::Click("file.exit".into()));
-    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, held, false), Event::Key(cmd_q.clone()));
+    let cmd_held = held([true, false, false, false]);
+    let open = Gate::default();
+    assert_eq!(chosen_event(&cmd("file.exit"), Some(&cmd_q), true, cmd_held, open), Event::Click("file.exit".into()));
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, cmd_held, open), Event::Key(cmd_q.clone()));
     // ⇧ held on a ⌘R item: the key press that was made.
     let shift_r = Chord::parse("Cmd+Shift+R").unwrap();
     assert_eq!(
-        chosen_event(&cmd("view.reload"), Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true]), false),
+        chosen_event(&cmd("view.reload"), Some(&Chord::parse("Cmd+R").unwrap()), false, held([true, false, false, true]), open),
         Event::Key(shift_r)
     );
-    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, None, false), Event::Click("file.quit".into()), "a mouse click");
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, None, open), Event::Click("file.quit".into()), "a mouse click");
     assert_eq!(
-        chosen_event(&Builtin::Minimize.command(), Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false]), false),
+        chosen_event(&Builtin::Minimize.command(), Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, held([true, true, false, false]), open),
         Event::Click(Builtin::Minimize.command())
     );
     // ↩ inside the open menu: on a ⌘ item without ⌘ held, and on a bare tool key.
-    let enter = Some([false; 4]);
-    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, enter, false), Event::Click("file.quit".into()));
-    assert_eq!(chosen_event(&cmd("tool.brush"), Some(&Chord::parse("B").unwrap()), false, enter, false), Event::Click("tool.brush".into()));
+    let enter = held([false; 4]);
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, enter, open), Event::Click("file.quit".into()));
+    assert_eq!(chosen_event(&cmd("tool.brush"), Some(&Chord::parse("B").unwrap()), false, enter, open), Event::Click("tool.brush".into()));
 }
 
 /// While a text field has the keys, a key equivalent runs its command as a click (⌘S saves while
@@ -512,18 +529,23 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
 #[test]
 fn key_equivalents_run_commands_while_text_editing() {
     use crate::driver::chosen_event;
-    let editing = Rc::new(Cell::new(false));
-    let mut menu = NativeMenu::new(Box::new(Fake { text_editing: editing.clone(), ..Default::default() }));
-    menu.set_text_editing(true);
-    assert!(editing.get(), "the backend has the flag for chosen_event");
+    let dispatch = Rc::new(RefCell::new(None));
+    let mut menu = NativeMenu::new(Box::new(Fake { dispatch: dispatch.clone(), ..Default::default() }));
+    menu.set_gate(typing(true));
+    let dispatch = dispatch.borrow().clone().unwrap();
+    assert_eq!(
+        dispatch.chosen(&cmd("file.save"), Some(&chord("Cmd+S")), false, held([true, false, false, false])),
+        Event::Click(cmd("file.save")),
+        "the backend's handler sees the gate"
+    );
 
-    let chosen = |shortcut: &str, held: [bool; 4], text_editing: bool| {
-        chosen_event(&cmd("cmd"), Some(&Chord::parse(shortcut).unwrap()), false, Some(held), text_editing)
+    let chosen = |shortcut: &str, mods: [bool; 4], text_editing: bool| {
+        chosen_event(&cmd("cmd"), Some(&Chord::parse(shortcut).unwrap()), false, held(mods), typing(text_editing))
     };
     let cmd = [true, false, false, false];
     let shift_cmd = [true, false, false, true];
     for (shortcut, held) in
-        [("Cmd+S", cmd), ("Cmd+N", cmd), ("Cmd+Shift+S", shift_cmd), ("Ctrl+Cmd+F", [true, true, false, false]), ("F5", [false; 4])]
+        [("Cmd+S", cmd), ("Cmd+N", cmd), ("Cmd+Shift+S", shift_cmd), ("Ctrl+Cmd+F", [true, true, false, false]), ("Ctrl+F5", [false, true, false, false])]
     {
         assert_eq!(chosen(shortcut, held, true), Event::Click("cmd".into()), "{shortcut} while typing");
         assert!(matches!(chosen(shortcut, held, false), Event::Key(_)), "{shortcut} with no text field");

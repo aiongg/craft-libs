@@ -1,9 +1,12 @@
 //! The app's side: events from the platform menu in, menu bars out.
 
+use std::borrow::Cow;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
 use crate::layout::{Clash, Layout};
-use crate::model::{Builtin, MenuBar};
+use crate::model::{Builtin, Item, MenuBar, Node};
 
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
@@ -47,8 +50,76 @@ impl Gate {
     /// only the built-in items (Hide, Hide Others, Minimize, Quit) do. Quit stays because it asks
     /// the app first. A text field having the keys doesn't stop a click: menu commands run while
     /// typing, as in a Mac app, and the keys a field keeps are handled before the menus see them.
-    pub fn allows(&self, item: &crate::Item) -> bool {
-        !(self.modal || self.recording_shortcut) || crate::Builtin::of(&item.command).is_some()
+    pub fn allows(&self, item: &Item) -> bool {
+        self.allows_command(&item.command)
+    }
+
+    /// [`Gate::allows`] for an item that runs `command`.
+    pub fn allows_command(&self, command: &CommandRef) -> bool {
+        !(self.modal || self.recording_shortcut) || Builtin::of(command).is_some()
+    }
+
+    /// `bar` with every item the gate forbids disabled, so the menus show them greyed.
+    pub(crate) fn grey<'a>(&self, bar: &'a MenuBar) -> Cow<'a, MenuBar> {
+        fn walk(nodes: &mut [Node], gate: &Gate) {
+            for n in nodes {
+                match n {
+                    Node::Item(it) if !gate.allows(it) => it.enabled = false,
+                    Node::Submenu { children, .. } => walk(children, gate),
+                    _ => {}
+                }
+            }
+        }
+        if !(self.modal || self.recording_shortcut) {
+            return Cow::Borrowed(bar);
+        }
+        let mut bar = bar.clone();
+        for m in &mut bar.menus {
+            walk(&mut m.children, self);
+        }
+        Cow::Owned(bar)
+    }
+}
+
+/// An app's [`NativeMenu::on_command`] hook.
+pub type CommandHook = Box<dyn Fn(&CommandRef) + Send + Sync>;
+
+/// What a backend's menu event handler needs from the driver when an item is chosen: the
+/// current [`Gate`] and the app's [`NativeMenu::on_command`] hook. The platform calls the handler
+/// between frames, from the event that chose the item, so this is shared with the driver rather
+/// than borrowed from it. [`NativeMenu::new`] hands it to the backend ([`Backend::attach`]).
+#[derive(Clone, Default)]
+pub struct Dispatch(Arc<Mutex<Shared>>);
+
+#[derive(Default)]
+struct Shared {
+    gate: Gate,
+    hook: Option<Arc<dyn Fn(&CommandRef) + Send + Sync>>,
+}
+
+impl Dispatch {
+    /// The event for an item with `command`, its `shortcut` and [`Item::layout_shortcut`],
+    /// chosen with the modifiers `held` for a key-down (⌘, ⌃, ⌥, ⇧ as AppKit reports them) or
+    /// `None` for a mouse click, under the current gate. A click the gate allows on an app command
+    /// (not a [`Builtin`]) also goes to the app's [`NativeMenu::on_command`] hook, before this
+    /// returns.
+    pub fn chosen(&self, command: &CommandRef, shortcut: Option<&Chord>, layout_shortcut: bool, held: Option<Mods>) -> Event {
+        let (gate, hook) = {
+            let shared = self.lock();
+            (shared.gate, shared.hook.clone())
+        };
+        let event = chosen_event(command, shortcut, layout_shortcut, held, gate);
+        if let (Event::Click(c), Some(hook)) = (&event, hook)
+            && gate.allows_command(c)
+            && Builtin::of(c).is_none()
+        {
+            hook(c);
+        }
+        event
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Shared> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -66,9 +137,9 @@ pub trait Backend {
     }
     /// Close the open native menu, if there is one.
     fn cancel_tracking(&mut self) {}
-    /// Whether a text field has the keys ([`NativeMenu::set_text_editing`]), for
-    /// the choice between reporting a key equivalent as a key press or a click.
-    fn set_text_editing(&mut self, _editing: bool) {}
+    /// Keep the driver's [`Dispatch`]: the backend's menu event handler turns every chosen item
+    /// into an [`Event`] through [`Dispatch::chosen`]. [`NativeMenu::new`] calls it once.
+    fn attach(&mut self, dispatch: Dispatch);
 }
 
 /// The native menu bar, while the app uses one (its in-window menus are hidden then).
@@ -86,10 +157,18 @@ pub struct NativeMenu {
     /// Whether a click may be kept from egui as the one closing an open menu (see
     /// [`NativeMenu::raw_input`]).
     armed: bool,
+    gate: Gate,
+    dispatch: Dispatch,
+    /// The menus last laid out, before the gate greyed anything, and the gate they were last
+    /// synced with: a gate change re-syncs them without laying them out again.
+    bar: Option<MenuBar>,
+    synced_gate: Option<Gate>,
 }
 
 impl NativeMenu {
-    pub fn new(backend: Box<dyn Backend>) -> NativeMenu {
+    pub fn new(mut backend: Box<dyn Backend>) -> NativeMenu {
+        let dispatch = Dispatch::default();
+        backend.attach(dispatch.clone());
         NativeMenu {
             backend,
             state: None,
@@ -99,6 +178,10 @@ impl NativeMenu {
             clipboard: ClipboardKeys::default(),
             paste: false,
             armed: true,
+            gate: Gate::default(),
+            dispatch,
+            bar: None,
+            synced_gate: None,
         }
     }
 
@@ -107,13 +190,37 @@ impl NativeMenu {
         self
     }
 
-    /// Whether a text field has the keys (in egui, `ctx.wants_keyboard_input()`). Call it every
-    /// frame, before the next [`NativeMenu::raw_input`]. While it is on, a key equivalent runs
-    /// its item as an [`Event::Click`], as a Mac app's menu commands run while typing, except
-    /// the keys the field handles itself: ⌘C, ⌘X and ⌘V (following [`ClipboardKeys`]) and
-    /// [`craft_keymap::text_editing_chords`] (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …) stay key presses.
-    pub fn set_text_editing(&mut self, editing: bool) {
-        self.backend.set_text_editing(editing);
+    /// What may run from the menus. Call it every frame, before [`NativeMenu::take_clicks`]; it
+    /// also holds for the menu events that arrive until the next call.
+    ///
+    /// - While [`Gate::modal`] or [`Gate::recording_shortcut`] is on, the app's items are greyed
+    ///   (updated in place at the next [`NativeMenu::sync_with`]) and clicks on them are dropped,
+    ///   also a click that arrived before the gate closed and is still waiting for
+    ///   [`NativeMenu::take_clicks`]. The built-in items (Hide, Hide Others, Minimize, Quit) stay.
+    ///   A greyed item's key equivalent goes to the window, so the app's key handling sees it.
+    /// - While [`Gate::recording_shortcut`] is on, every key equivalent reaches egui as the plain
+    ///   key press that was made (⌘Q, ⌘H and ⌘C included), for the shortcut recorder.
+    /// - While [`Gate::text_editing`] is on (in egui, `ctx.wants_keyboard_input()`), a key
+    ///   equivalent runs its item as an [`Event::Click`], as a Mac app's menu commands run while
+    ///   typing, except the keys the field handles itself: ⌘C, ⌘X and ⌘V (following
+    ///   [`ClipboardKeys`]) and [`craft_keymap::text_editing_chords`] (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …) stay
+    ///   key presses.
+    pub fn set_gate(&mut self, gate: Gate) {
+        self.gate = gate;
+        self.dispatch.lock().gate = gate;
+    }
+
+    /// Run `hook` with each command clicked in the menus, from the menu event handler, as the
+    /// click arrives: on macOS on the main thread, between frames, also while egui is idle. Only
+    /// app commands the current gate ([`NativeMenu::set_gate`]) allows reach it, and key
+    /// equivalents reported as key presses don't. It must return quickly; it is for waking the
+    /// app's own loop or a worker.
+    ///
+    /// [`NativeMenu::take_clicks`] still returns every command, after the gate as it is then: an
+    /// app that runs a command from the hook skips it there. A command the hook saw can still be
+    /// dropped by `take_clicks` when the gate closed in between.
+    pub fn on_command(&mut self, hook: CommandHook) {
+        self.dispatch.lock().hook = Some(Arc::from(hook));
     }
 
     /// Before egui sees this frame's input: key equivalents become the key presses they were,
@@ -155,7 +262,7 @@ impl NativeMenu {
 
     fn add_key(&mut self, raw: &mut egui::RawInput, chord: &Chord) {
         let pressed_key = chord.key.to_egui();
-        let clipboard = self.clipboard == ClipboardKeys::Egui && chord.mods == Mods::CMD;
+        let clipboard = self.clipboard == ClipboardKeys::Egui && chord.mods == Mods::CMD && !self.gate.recording_shortcut;
         let event = match chord.key {
             Key::C if clipboard => egui::Event::Copy,
             Key::X if clipboard => egui::Event::Cut,
@@ -173,7 +280,8 @@ impl NativeMenu {
         raw.events.insert(at, event);
     }
 
-    /// The commands clicked since the last call, for the app to run like in-window menu clicks.
+    /// The commands clicked since the last call that the gate ([`NativeMenu::set_gate`]) allows
+    /// now, for the app to run like in-window menu clicks; the others are dropped.
     /// [`Builtin::Minimize`] (minimizes the window) and [`Builtin::Quit`] (asks the window to
     /// close, see [`craft_quit::on_menu_event`]) are run here and left out. A ⌘V from the menu
     /// ([`ClipboardKeys::Egui`]) is asked of eframe here too.
@@ -183,6 +291,9 @@ impl NativeMenu {
         }
         let mut out = Vec::new();
         for command in std::mem::take(&mut self.clicks) {
+            if !self.gate.allows_command(&command) {
+                continue;
+            }
             match Builtin::of(&command) {
                 Some(Builtin::Minimize) => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
                 Some(Builtin::Quit) => {
@@ -197,23 +308,34 @@ impl NativeMenu {
     /// Bring the native menu up to date. `state` is a hash of what the menus show (see
     /// [`had_input`]); `build` lays them out ([`crate::mac_layout`]) and runs only when `state`
     /// changed or a menu event arrived since the last sync, since building the rows usually walks
-    /// every command's enabled state.
+    /// every command's enabled state. A menu event re-syncs because AppKit flips a check or radio
+    /// item's state itself when it is chosen: the sync sets it back to the app's state. A gate
+    /// change ([`NativeMenu::set_gate`]) re-syncs the menus last laid out, greyed or not, without
+    /// calling `build`.
     ///
     /// Returns the layout's clashes when they differ from the last ones returned, for the app to
     /// log; otherwise nothing.
     pub fn sync_with(&mut self, state: u64, build: impl FnOnce() -> Layout) -> Vec<Clash> {
-        if self.state == Some(state) && !self.dirty {
+        let relayout = self.state != Some(state) || self.dirty;
+        if !relayout && self.synced_gate == Some(self.gate) {
             return Vec::new();
         }
-        let layout = build();
-        self.backend.sync(&layout.bar);
-        self.state = Some(state);
-        self.dirty = false;
-        if layout.clashes == self.clashes {
-            return Vec::new();
+        let mut clashes = Vec::new();
+        if relayout {
+            let layout = build();
+            self.state = Some(state);
+            self.dirty = false;
+            if layout.clashes != self.clashes {
+                self.clashes = layout.clashes.clone();
+                clashes = layout.clashes;
+            }
+            self.bar = Some(layout.bar);
         }
-        self.clashes = layout.clashes.clone();
-        layout.clashes
+        if let Some(bar) = &self.bar {
+            self.backend.sync(&self.gate.grey(bar));
+        }
+        self.synced_gate = Some(self.gate);
+        clashes
     }
 }
 
@@ -235,26 +357,26 @@ pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() ->
 }
 
 /// What a backend reports for an item chosen with `command`, `chord` (its shortcut) and
-/// `layout_shortcut` ([`crate::Item::layout_shortcut`]). `key` holds the modifiers held (⌘, ⌃, ⌥,
-/// ⇧) when a key-down chose it, `None` for a mouse click. `text_editing`: a text field has the
-/// keys ([`NativeMenu::set_text_editing`]).
+/// `layout_shortcut` ([`crate::Item::layout_shortcut`]) under `gate`. `held` holds the modifiers
+/// held when a key-down chose it, `None` for a mouse click.
 ///
 /// A key-down is the item's key equivalent, reported as the key press, unless it was ↩ or Space
-/// inside the open menu: the item's shortcut is not a key equivalent at all (a bare tool key), or
-/// needs ⌘ or ⌃ and neither is held. The key is the item's (AppKit matched on it); the modifiers
-/// are the ones held, since AppKit may match ⌘R to a ⇧⌘R item. Minimize, craft-quit's Quit and
-/// shortcuts the layout assigned are run by the driver or the app's click handling, not by its
-/// key handling, so they stay clicks. While text editing, the app's key handling leaves shortcuts
-/// to the field, so a key equivalent is a click too, except the field's own editing keys
-/// ([`text_editing_key`]).
-#[cfg(any(target_os = "macos", test))]
-pub(crate) fn chosen_event(command: &CommandRef, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>, text_editing: bool) -> Event {
-    let runs_as_click = layout_shortcut || matches!(Builtin::of(command), Some(Builtin::Minimize | Builtin::Quit));
-    let pressed = key
+/// inside the open menu: the item's shortcut is not a key equivalent at all ([`native_ok`]), or
+/// neither ⌘ nor ⌃ is held. The key is the item's (AppKit matched on it); the modifiers are the
+/// ones held, since AppKit may match ⌘R to a ⇧⌘R item. Minimize, craft-quit's Quit and shortcuts
+/// the layout assigned are run by the driver or the app's click handling, not by its key
+/// handling, so they stay clicks. While text editing, the app's key handling leaves shortcuts to
+/// the field, so a key equivalent is a click too, except the field's own editing keys
+/// ([`text_editing_key`]). While recording a shortcut every key equivalent is a key press, for the
+/// recorder.
+pub(crate) fn chosen_event(command: &CommandRef, chord: Option<&Chord>, layout_shortcut: bool, held: Option<Mods>, gate: Gate) -> Event {
+    let recording = gate.recording_shortcut;
+    let runs_as_click = !recording && (layout_shortcut || matches!(Builtin::of(command), Some(Builtin::Minimize | Builtin::Quit)));
+    let pressed = held
         .zip(chord)
-        .filter(|([cmd, ctrl, ..], c)| !runs_as_click && native_ok(c) && (*cmd || *ctrl || !c.has_command()))
-        .map(|([cmd, ctrl, alt, shift], c)| Chord::new(Mods { cmd, ctrl, alt, shift }, c.key))
-        .filter(|c| !text_editing || text_editing_key(c));
+        .filter(|(held, c)| !runs_as_click && native_ok(c) && (held.cmd || held.ctrl))
+        .map(|(held, c)| Chord::new(held, c.key))
+        .filter(|c| recording || !gate.text_editing || text_editing_key(c));
     match pressed {
         Some(chord) => Event::Key(chord),
         None => Event::Click(command.clone()),
@@ -263,18 +385,17 @@ pub(crate) fn chosen_event(command: &CommandRef, chord: Option<&Chord>, layout_s
 
 /// A chord a text field handles itself: the clipboard keys and craft-keymap's text-editing
 /// chords (undo, redo, select all, moving by word and line).
-#[cfg(any(target_os = "macos", test))]
 fn text_editing_key(c: &Chord) -> bool {
     const CLIPBOARD: [Chord; 3] = [Chord::new(Mods::CMD, Key::C), Chord::new(Mods::CMD, Key::X), Chord::new(Mods::CMD, Key::V)];
     CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(craft_keymap::Platform::Mac).contains(c)
 }
 
-/// May the native menu show this as a key equivalent? Only with ⌘ or ⌃, or a function key.
-/// Bare letters and ⌥/⇧-only keys are tool keys: as key equivalents AppKit would take a `b`
-/// typed into a text field.
-#[cfg(any(target_os = "macos", test))]
+/// May the native menu make this a key equivalent? Only with ⌘ or ⌃. Other shortcuts (a bare
+/// letter, ⇧ or ⌥ alone, a bare function key) are tool keys: as key equivalents AppKit would take
+/// a `b` typed into a text field, and the app's key handling may bind them per tool or context.
+/// They are shown but not made key equivalents.
 pub(crate) fn native_ok(c: &Chord) -> bool {
-    c.has_command() || c.is_function_key()
+    c.has_command()
 }
 
 /// The key press egui would have received for `chord` on macOS: `cmd` is ⌘, `ctrl` the Control

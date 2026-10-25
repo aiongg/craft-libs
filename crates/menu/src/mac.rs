@@ -15,17 +15,27 @@
 //!   item's: AppKit may match ⌘R to a ⇧⌘R item), so the app's key rules still apply. A shortcut
 //!   the layout assigned ([`crate::Item::layout_shortcut`]) stays a click: the app's keys don't
 //!   know it. While a text field has the keys, a key equivalent is a click unless the field
-//!   handles it ([`NativeMenu::set_text_editing`]).
+//!   handles it ([`NativeMenu::set_gate`]).
+//! - Only shortcuts with ⌘ or ⌃ become key equivalents. The others (`B`, `⇧B`, `⌥B`, `F5`) are not
+//!   shown in the native menu: muda 0.21 has no handle on the `NSMenuItem`, and its
+//!   `set_attributed_title` needs an `NSAttributedString` with a font and a tab stop, which
+//!   objc2 builds only with `unsafe` calls (the workspace forbids unsafe code).
+//! - The process has one muda menu event handler, set by the first [`install`] or
+//!   [`install_app_menu`]; each install points it at its own menu.
+//! - A check or radio item: AppKit (muda) flips its state when it is chosen. The next sync sets it
+//!   back to the app's state; the driver re-syncs after every menu event.
 //! - Hide ([`crate::Builtin::Hide`]) and Hide Others ([`crate::Builtin::HideOthers`]) are custom items calling
 //!   `NSApplication hide:` and `hideOtherApplications:`, because the predefined ones always take ⌘H
 //!   and ⌥⌘H.
 //! - While a menu is open, changes wait until it closes: replacing or changing an `NSMenu` while
 //!   AppKit tracks it can leave the displayed menu stranded.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::Duration;
 
 use muda::accelerator::{Accelerator, Code, Modifiers};
@@ -33,28 +43,156 @@ use muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};
 
-use craft_keymap::{Chord, CommandRef, Key};
+use craft_keymap::{Chord, CommandRef, Key, Mods};
 
-use crate::driver::{Backend, Event, NativeMenu, chosen_event, native_ok};
+use crate::driver::{Backend, Dispatch, Event, NativeMenu, native_ok};
 use crate::model::{Builtin, Item, ItemKind, Menu, MenuBar, MenuRole, Node, Standard, native_id, structure_key, window_key};
 
-/// Set by the first [`install`]: muda keeps the first menu event handler and ignores later ones.
+/// Set by [`install`]: there is one full menu bar per process.
 static INSTALLED: AtomicBool = AtomicBool::new(false);
+
+/// Where the menu event handler sends events: the menu installed last.
+static ROUTE: Mutex<Option<Route>> = Mutex::new(None);
+
+/// muda keeps the first menu event handler set and ignores later ones, so it is set once.
+static HANDLER: OnceLock<()> = OnceLock::new();
+
+thread_local! {
+    /// The minimal app menu ([`install_app_menu`]). muda's items must outlive the native menu
+    /// that shows them.
+    static APP_MENU: RefCell<Option<muda::Menu>> = const { RefCell::new(None) };
+}
 
 /// Install the native menu bar for `bar` (a [`crate::mac_layout`] result) and return the driver
 /// for it. Call it once, on the main thread, in eframe's creator closure, so winit's default menu
-/// doesn't stay up. `None` when AppKit refused the menus: the app keeps its in-window menus.
+/// doesn't stay up. `None` when AppKit refused the menus (the app keeps its in-window menus), off
+/// the main thread, or when a menu bar is already installed. It replaces an app menu from
+/// [`install_app_menu`].
 ///
-/// The menu takes over muda's menu event handler. There is one per process and the first one set
-/// stays, so a second call returns `None`, and this and `craft_quit::install_app_menu` are
-/// alternatives: an app calls one of them, once.
+/// craft-menu owns muda's menu event handler. muda keeps the first one set, so an app that also
+/// calls the deprecated `craft_quit::install_app_menu` must call it after this, or not at all;
+/// before, this menu would get no events.
 pub fn install(ctx: &egui::Context, bar: &MenuBar) -> Option<NativeMenu> {
     MainThreadMarker::new()?;
     if INSTALLED.swap(true, Ordering::SeqCst) {
         return None;
     }
     let mut menu = MacMenu::new(ctx);
-    menu.build(bar).then(|| NativeMenu::new(Box::new(menu)))
+    if !menu.build(bar) {
+        INSTALLED.store(false, Ordering::SeqCst);
+        return None;
+    }
+    // `NativeMenu::new` attaches the driver's dispatch, which points the handler at this menu.
+    Some(NativeMenu::new(Box::new(menu)))
+}
+
+/// Replace winit's default macOS app menu with a minimal one whose Quit (⌘Q) asks the app first,
+/// for an app without a [`MenuBar`] of its own: About, Services, Hide, Hide Others, Show All and
+/// Quit, labelled in English with `app_name` ("Quit WordCraft").
+///
+/// winit's Quit ends the process without asking, so unsaved work is lost. This Quit has the id
+/// [`craft_quit::QUIT_MENU_ID`] and runs [`craft_quit::on_menu_event`]: it asks the root window to
+/// close, the app's unsaved-changes check runs as for the close button, and
+/// [`craft_quit::on_close_request`] then quits. Call it once, from the eframe app creator: winit
+/// builds its default menu before that and would replace one installed earlier.
+///
+/// Does nothing when this menu or a full menu bar ([`install`]) is already installed. On error
+/// winit's menu stays: the app still runs, but ⌘Q quits without asking.
+pub fn install_app_menu(ctx: &egui::Context, app_name: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if MainThreadMarker::new().is_none() {
+        return Err("craft_menu::mac::install_app_menu runs on the main thread".into());
+    }
+    if INSTALLED.load(Ordering::SeqCst) || APP_MENU.with_borrow(Option::is_some) {
+        return Ok(());
+    }
+    let quit = MenuItem::with_id(craft_quit::QUIT_MENU_ID, format!("Quit {app_name}"), true, Some(Accelerator::new(Modifiers::META, Code::KeyQ)));
+    let app_menu = Submenu::new(app_name, true);
+    app_menu.append_items(&[
+        &PredefinedMenuItem::about(Some(&format!("About {app_name}")), None),
+        &PredefinedMenuItem::separator(),
+        &PredefinedMenuItem::services(None),
+        &PredefinedMenuItem::separator(),
+        &PredefinedMenuItem::hide(Some(&format!("Hide {app_name}"))),
+        &PredefinedMenuItem::hide_others(None),
+        &PredefinedMenuItem::show_all(None),
+        &PredefinedMenuItem::separator(),
+        &quit,
+    ])?;
+    let menu = muda::Menu::new();
+    menu.append(&app_menu)?;
+    menu.init_for_nsapp();
+    route_events(Route::AppMenu(ctx.clone()));
+    APP_MENU.set(Some(menu));
+    Ok(())
+}
+
+/// The installed menu the handler reports to.
+#[derive(Clone)]
+enum Route {
+    /// [`install_app_menu`]'s: only Quit reports, to craft-quit.
+    AppMenu(egui::Context),
+    /// A full menu bar's.
+    Menu(MenuRoute),
+}
+
+#[derive(Clone)]
+struct MenuRoute {
+    ctx: egui::Context,
+    targets: Targets,
+    dispatch: Dispatch,
+    tx: Sender<Event>,
+}
+
+/// What each native item runs, by muda id, for the handler.
+type Targets = Arc<Mutex<HashMap<String, Target>>>;
+
+/// Point the process's menu event handler at `route`, setting the handler the first time.
+fn route_events(route: Route) {
+    *lock(&ROUTE) = Some(route);
+    HANDLER.get_or_init(|| MenuEvent::set_event_handler(Some(handle_event)));
+}
+
+/// The menu event handler. AppKit calls it on the main thread, from the event that chose the
+/// item: a key equivalent is a key-down, a click a mouse-up (or ↩ inside the open menu).
+fn handle_event(e: MenuEvent) {
+    let held = MainThreadMarker::new()
+        .and_then(|mtm| NSApplication::sharedApplication(mtm).currentEvent())
+        .filter(|ev| ev.r#type() == NSEventType::KeyDown)
+        .map(|ev| {
+            let flags = ev.modifierFlags();
+            Mods {
+                cmd: flags.contains(NSEventModifierFlags::Command),
+                ctrl: flags.contains(NSEventModifierFlags::Control),
+                alt: flags.contains(NSEventModifierFlags::Option),
+                shift: flags.contains(NSEventModifierFlags::Shift),
+            }
+        });
+    // A copy, so nothing is locked while the app's hook runs.
+    let route = lock(&ROUTE).clone();
+    let ctx = match route {
+        None => return,
+        Some(Route::AppMenu(ctx)) => {
+            craft_quit::on_menu_event(&ctx, e.id.as_ref());
+            ctx
+        }
+        Some(Route::Menu(r)) => {
+            let target = lock(&r.targets).get(e.id.as_ref()).cloned();
+            // Ids that aren't ours are AppKit's own items (Services, Zoom, …), already handled.
+            if let Some(t) = target {
+                let event = r.dispatch.chosen(&t.command, t.chord.as_ref(), t.layout_shortcut, held);
+                // The receiver goes away only with the app.
+                let _ = r.tx.send(event);
+            }
+            r.ctx
+        }
+    };
+    // Choosing an item is not window input, so nothing else wakes egui: without this the item
+    // runs only with the next input event, 8 to 90 seconds later in measurements.
+    ctx.request_repaint();
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[derive(Clone)]
@@ -67,19 +205,18 @@ enum Handle {
 #[derive(Clone)]
 struct Entry {
     handle: Handle,
-    /// The command (several entries can share one).
-    command: CommandRef,
-    chord: Option<Chord>,
-    layout_shortcut: bool,
+    target: Target,
     label: String,
     enabled: bool,
 }
 
-/// How an item was chosen, read from AppKit's current event while it calls the handler.
-struct Chosen {
-    id: String,
-    /// For a key press (not a mouse click), the modifiers held: ⌘, ⌃, ⌥, ⇧.
-    key: Option<[bool; 4]>,
+/// What choosing an item reports.
+#[derive(Clone)]
+struct Target {
+    /// The command (several items can share one).
+    command: CommandRef,
+    chord: Option<Chord>,
+    layout_shortcut: bool,
 }
 
 /// The native items by muda id.
@@ -92,35 +229,35 @@ struct MacMenu {
     ctx: egui::Context,
     menu: Option<muda::Menu>,
     entries: Entries,
-    rx: Receiver<Chosen>,
+    /// The entries' targets, for the menu event handler.
+    targets: Targets,
+    tx: Sender<Event>,
+    rx: Receiver<Event>,
     structure: u64,
     window: Option<WindowMenu>,
     /// The latest menus, waiting for the open menu to close.
     pending: Option<MenuBar>,
-    /// A text field has the keys ([`NativeMenu::set_text_editing`]).
-    text_editing: bool,
 }
 
 impl MacMenu {
     fn new(ctx: &egui::Context) -> MacMenu {
         let (tx, rx) = channel();
-        let repaint = ctx.clone();
-        MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
-            // AppKit calls this on the main thread, from the event that chose the item: a key
-            // equivalent is a key-down, a click a mouse-up (or ↩ inside the open menu).
-            let event = MainThreadMarker::new().and_then(|mtm| NSApplication::sharedApplication(mtm).currentEvent());
-            let key = event.filter(|ev| ev.r#type() == NSEventType::KeyDown).map(|ev| {
-                let flags = ev.modifierFlags();
-                [NSEventModifierFlags::Command, NSEventModifierFlags::Control, NSEventModifierFlags::Option, NSEventModifierFlags::Shift]
-                    .map(|m| flags.contains(m))
-            });
-            // The receiver goes away only with the app.
-            let _ = tx.send(Chosen { id: e.id.0, key });
-            // Choosing an item is not window input, so nothing else wakes egui: without this the
-            // item runs only with the next input event, 8 to 90 seconds later in measurements.
-            repaint.request_repaint();
-        }));
-        MacMenu { ctx: ctx.clone(), menu: None, entries: HashMap::new(), rx, structure: 0, window: None, pending: None, text_editing: false }
+        MacMenu {
+            ctx: ctx.clone(),
+            menu: None,
+            entries: HashMap::new(),
+            targets: Targets::default(),
+            tx,
+            rx,
+            structure: 0,
+            window: None,
+            pending: None,
+        }
+    }
+
+    /// Hand the entries' targets to the menu event handler.
+    fn publish(&self) {
+        *lock(&self.targets) = self.entries.iter().map(|(id, e)| (id.clone(), e.target.clone())).collect();
     }
 
     /// Build the menu bar for `bar` and make it NSApp's. On an error or a panic in muda or AppKit
@@ -157,6 +294,7 @@ impl MacMenu {
                 self.entries = entries;
                 self.window = window;
                 self.structure = structure_key(bar);
+                self.publish();
                 true
             }
             _ => {
@@ -203,6 +341,7 @@ impl MacMenu {
             Ok(Ok(window)) => {
                 self.entries = entries;
                 self.window = Some(window);
+                self.publish();
             }
             _ => {
                 self.build(bar);
@@ -241,7 +380,8 @@ impl MacMenu {
                 }
                 e.enabled = it.enabled;
             }
-            // Compare with AppKit's own state: muda toggles a check item when it's clicked.
+            // Compare with AppKit's own state: muda flips a check item when it's chosen, and the
+            // app's state wins (a radio item chosen again stays selected).
             if let (Handle::Check(h), Some(c)) = (&e.handle, it.kind.checked())
                 && h.is_checked() != c
             {
@@ -303,14 +443,8 @@ fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<
                         Handle::Plain(h)
                     }
                 };
-                let entry = Entry {
-                    handle,
-                    command: it.command.clone(),
-                    chord,
-                    layout_shortcut: it.layout_shortcut,
-                    label: it.label.clone(),
-                    enabled: it.enabled,
-                };
+                let target = Target { command: it.command.clone(), chord, layout_shortcut: it.layout_shortcut };
+                let entry = Entry { handle, target, label: it.label.clone(), enabled: it.enabled };
                 entries.insert(id, entry);
             }
         }
@@ -331,20 +465,21 @@ impl Backend for MacMenu {
 
     fn drain(&mut self) -> Vec<Event> {
         let mut out = Vec::new();
-        while let Ok(chosen) = self.rx.try_recv() {
+        while let Ok(event) = self.rx.try_recv() {
             // With asynchronous menu presentation the menu can stay on screen after its item ran.
             self.cancel_tracking();
-            // Ids that aren't ours are AppKit's own items (Services, Zoom, …), already handled.
-            let Some(e) = self.entries.get(&chosen.id) else { continue };
-            let builtin = Builtin::of(&e.command);
-            if matches!(builtin, Some(Builtin::Hide | Builtin::HideOthers)) {
+            // Hide and Hide Others run here. While a shortcut is recorded their key equivalents
+            // arrive as key presses instead, for the recorder.
+            if let Event::Click(command) = &event
+                && let Some(hide @ (Builtin::Hide | Builtin::HideOthers)) = Builtin::of(command)
+            {
                 if let Some(mtm) = MainThreadMarker::new() {
                     let app = NSApplication::sharedApplication(mtm);
-                    if builtin == Some(Builtin::Hide) { app.hide(None) } else { app.hideOtherApplications(None) }
+                    if hide == Builtin::Hide { app.hide(None) } else { app.hideOtherApplications(None) }
                 }
                 continue;
             }
-            out.push(chosen_event(&e.command, e.chord.as_ref(), e.layout_shortcut, chosen.key, self.text_editing));
+            out.push(event);
         }
         // After the events: they were chosen from the menus as they were.
         if let Some(bar) = self.pending.take() {
@@ -367,8 +502,8 @@ impl Backend for MacMenu {
         MainThreadMarker::new().and_then(|mtm| NSApplication::sharedApplication(mtm).mainMenu()).is_some_and(|m| m.highlightedItem().is_some())
     }
 
-    fn set_text_editing(&mut self, editing: bool) {
-        self.text_editing = editing;
+    fn attach(&mut self, dispatch: Dispatch) {
+        route_events(Route::Menu(MenuRoute { ctx: self.ctx.clone(), targets: self.targets.clone(), dispatch, tx: self.tx.clone() }));
     }
 
     fn cancel_tracking(&mut self) {
@@ -502,7 +637,7 @@ mod tests {
         let shortcuts = [
             "Cmd+Q", "Cmd+H", "Cmd+Alt+H", "Ctrl+Cmd+H", "Ctrl+Cmd+M", "Cmd+,", "Cmd+Shift+Z", "Cmd+1", "Cmd+[", "Cmd+=", "Cmd++",
             "Cmd+-", "Cmd+Delete", "Cmd+Backspace", "Cmd+Left", "Alt+Cmd+ArrowDown", "Cmd+Escape", "Cmd+Home", "Cmd+End",
-            "Cmd+PageUp", "Cmd+PageDown", "Cmd+Enter", "F7", "Alt+F12",
+            "Cmd+PageUp", "Cmd+PageDown", "Cmd+Enter", "Ctrl+F7",
         ];
         for s in shortcuts {
             let c = Chord::parse(s).unwrap();
