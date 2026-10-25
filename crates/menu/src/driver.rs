@@ -367,7 +367,7 @@ impl NativeMenu {
     /// change calls for it), so they never go stale. It costs a layout per frame.
     pub fn sync(&mut self, mut layout: Layout) -> Vec<Clash> {
         self.keep_kinds(&mut layout.bar);
-        if !self.dirty && self.bar.as_ref() == Some(&layout.bar) && self.synced_gate == Some(self.gate) {
+        if !self.dirty && self.bar.as_ref() == Some(&layout.bar) && self.clashes == layout.clashes && self.synced_gate == Some(self.gate) {
             return Vec::new();
         }
         let clashes = self.keep(layout);
