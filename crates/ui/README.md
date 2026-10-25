@@ -592,8 +592,8 @@ verify the actual pixels as well as callback routing.
 The crate uses egui 0.37 and Rust 1.95 or later. Its production dependency disables egui's default
 features, so egui's bundled fonts and rendering features remain the application's choice. It has
 no default features; see [UI fonts](#ui-fonts) for `color_fonts` and `system_fonts`, and
-[Testing screens in each language](#testing-screens-in-each-language) for `testing`, which also
-adds the headless docking driver `docking::testing`. See the
+[Testing screens in each language](#testing-screens-in-each-language) for `screen-testing`;
+`testing` adds the headless docking driver `docking::testing`. See the
 [suite audit](../../docs/ui-components-audit.md) for candidates, policies and adoption order.
 
 Validation:

@@ -401,6 +401,37 @@ fn the_app_ends_a_composition_keeping_or_discarding_the_marked_text() {
     assert!(inserts(&edits).is_empty(), "the IME's late commit is dropped");
 }
 
+#[test]
+fn the_ime_context_generation_is_new_only_when_the_context_starts_again() {
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    let caret = Rect::from_min_size(pos2(10.0, 10.0), vec2(1.0, 16.0));
+    let mut time = 0.0;
+    let mut pass = |c: &mut Composer, editing: &[bool]| {
+        time += 0.1;
+        let out = run(&ctx, time, vec![], |ctx| {
+            for e in editing {
+                c.update(ctx, *e);
+            }
+            if !editing.is_empty() {
+                c.set_caret(ctx, caret);
+            }
+        });
+        out.platform_output.ime.as_ref().map(|i| i.context_generation)
+    };
+    let first = pass(&mut c, &[true]);
+    assert!(first.is_some());
+    assert_eq!(pass(&mut c, &[true]), first, "consecutive editing passes keep the context");
+    // The editing ends and starts again in one pass.
+    let again = pass(&mut c, &[false, true]);
+    assert!(again.is_some() && again != first, "{again:?} after {first:?}");
+    assert_eq!(pass(&mut c, &[true]), again);
+    // A pass without the composer.
+    assert_eq!(pass(&mut c, &[]), None);
+    let after_skip = pass(&mut c, &[true]);
+    assert!(after_skip.is_some() && after_skip != again, "{after_skip:?} after {again:?}");
+}
+
 fn run(ctx: &Context, time: f64, events: Vec<Event>, f: impl FnMut(&Context)) -> egui::FullOutput {
     let raw = RawInput { time: Some(time), events, screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() };
     let mut f = f;
