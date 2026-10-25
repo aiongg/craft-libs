@@ -861,8 +861,9 @@ pub trait DockContent<P> {
     }
     /// Draw the group header into `ui.max_rect()`, sized by [`Self::group_header_width`].
     /// The header's widgets take their own input, so a drag on them moves nothing. For a widget
-    /// that should drag (a ≡ button, say), call [`begin_drag`] with `active` and the widget's
-    /// rect when its response reports `drag_started()`; the panel then moves as its tab would.
+    /// that should drag (a ≡ button, say), call [`begin_drag`] with the id given to
+    /// [`DockArea::new`], `active` and the widget's rect when its response reports
+    /// `drag_started()`; the panel then moves as its tab would.
     fn group_header(&mut self, _ui: &mut Ui, _panels: &[P], _active: &P, _floating: bool) {}
 }
 
