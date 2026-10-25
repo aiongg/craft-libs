@@ -8,7 +8,7 @@ use crate::docking::{
     Action, Drag, DropProposal, DropRequest, DropTarget, GroupDrag, GroupGesture, Layout, Node, Placement, Target, Zone, cancel_drag,
     dock_model::Place,
     surface::TAB_PADDING,
-    targets::{SIDE_EDGE_ZONE_DEPTH, resolve_drop_on},
+    targets::{DockDrop, SIDE_EDGE_ZONE_DEPTH, resolve_drop_on},
 };
 use crate::layout::{SplitAxis, SplitSize};
 
@@ -206,11 +206,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// [`crate::docking::resolve_drop_by`] with [`crate::docking::DockStyle::zone_rule`] and the
-    /// canvas sides of [`crate::docking::DockStyle::drop_edges`], where a split that would leave
-    /// a group without room becomes a join of the target group, or no target when the group
-    /// takes no tabs. A drop that would change only sizes is a no-op ([`Self::settled`]).
+    /// canvas sides of [`crate::docking::DockStyle::drop_edges`] (none in the docking profile),
+    /// where a split that would leave a group without room becomes a join of the target group,
+    /// or no target when the group takes no tabs. A drop that would change only sizes is a no-op ([`Self::settled`]).
     fn resolve_roomy(&self, panel: &P, pointer: Pos2, targets: &[DropTarget<P>], action: impl Fn(Target<P>) -> Action<P>) -> Option<DropProposal<P>> {
-        let proposal = resolve_drop_on(panel, pointer, targets, self.style.zone_rule(), self.style.drop_sides())?;
+        let proposal = resolve_drop_on(panel, pointer, targets, self.style.zone_rule(), self.style.canvas_sides())?;
         if !matches!(proposal.placement, Placement::Split(zone) if zone != Zone::Center) {
             return Some(self.settled(proposal, action));
         }
@@ -228,7 +228,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             pointer,
             std::slice::from_ref(&DropTarget { allow_splits: false, ..target.clone() }),
             self.style.zone_rule(),
-            self.style.drop_sides(),
+            self.style.canvas_sides(),
         )?;
         Some(self.settled(proposal, action))
     }
@@ -429,10 +429,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if float_only || (drag.gesture == GroupGesture::Window && !self.title_bar_docks()) {
             return false;
         }
-        if let Some((action, line)) = self.dock_group_proposal(drag, pointer) {
+        if let Some((action, drop)) = self.dock_group_proposal(drag, pointer) {
             let highlighted = action.is_some();
             if let Some(action) = action {
-                self.paint_dock_preview(ctx, &painter, action, &drag.members, line);
+                self.paint_dock_preview(ctx, &painter, action, &drag.members, &drop);
                 if drag.gesture != GroupGesture::Window {
                     self.paint_float_hint(ctx, pointer);
                 }
@@ -497,7 +497,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         let dock = if float_only || outside { None } else { self.dock_tab_proposal(&drag.panel, pointer) };
-        if let Some((action, line)) = dock {
+        if let Some((action, drop)) = dock {
             if released {
                 cancel_drag::<P>(ctx, self.id);
                 if let Some(action) = action.filter(|_| pointer.distance(drag.origin) >= 2.0) {
@@ -506,7 +506,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 }
             } else if let Some(action) = action {
                 let painter = self.preview_painter(ctx);
-                self.paint_dock_preview(ctx, &painter, action, std::slice::from_ref(&drag.panel), line);
+                self.paint_dock_preview(ctx, &painter, action, std::slice::from_ref(&drag.panel), &drop);
                 self.paint_float_hint(ctx, pointer);
             }
             return;
@@ -580,10 +580,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// The preview of a group target, for tab and group drags of `members`, which `action` moves
-    /// there: for a drop beside the group or the layout, the rect the members then take
-    /// ([`Self::result_rect`]), else the tab outline of the whole group, and the insertion marker
-    /// on a strip. With [`crate::docking::DockStyle::side_edge_zones`], the region the drop
-    /// takes, filled for a tab drag (`filled`) or a split.
+    /// there: for a drop beside the group, the rect the members then take
+    /// ([`Self::result_rect`]); on the layout's outer edge band, the line along that edge; else
+    /// the tab outline of the whole group, and the insertion marker on a strip. With
+    /// [`crate::docking::DockStyle::side_edge_zones`], the region the drop takes, filled for a
+    /// tab drag (`filled`) or a split.
     fn paint_preview(
         &self,
         ctx: &Context,
@@ -594,9 +595,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         action: impl Fn(Target<P>) -> Action<P>,
     ) {
         if crate::docking::targets::usable(proposal.preview) {
-            let beside = matches!(proposal.placement, Placement::Split(zone) | Placement::SplitSized { zone, .. } | Placement::Edge(zone) if zone != Zone::Center);
+            let beside = matches!(proposal.placement, Placement::Split(zone) | Placement::SplitSized { zone, .. } if zone != Zone::Center);
             if self.style.side_edge_zones {
                 drop_preview(painter, proposal.preview.shrink(1.0), self.style.accent, filled);
+            } else if matches!(proposal.placement, Placement::Edge(_)) {
+                self.paint_drop_line(ctx, proposal.preview);
             } else if beside {
                 let to = Target::At { anchor: proposal.anchor.clone(), placement: proposal.placement.clone() };
                 match self.result_rect(action(to), members) {
@@ -611,12 +614,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// The preview of a dock drop that `action` makes of `members`: the rect they then take
-    /// ([`Self::result_rect`]). A drop into an iconic column, or any dock drop with
-    /// [`crate::docking::DockStyle::side_edge_zones`], shows its `line`.
-    fn paint_dock_preview(&self, ctx: &Context, painter: &egui::Painter, action: Action<P>, members: &[P], line: Rect) {
-        match (!self.style.side_edge_zones).then_some(action).and_then(|action| self.result_rect(action, members)) {
+    /// ([`Self::result_rect`]). A drop on the window edge ([`DockDrop::outer`]) or into an
+    /// iconic column, and any dock drop with [`crate::docking::DockStyle::side_edge_zones`],
+    /// shows the drop's line.
+    fn paint_dock_preview(&self, ctx: &Context, painter: &egui::Painter, action: Action<P>, members: &[P], drop: &DockDrop<P>) {
+        let rect = (!self.style.side_edge_zones && !drop.outer).then_some(action).and_then(|action| self.result_rect(action, members));
+        match rect {
             Some(rect) => tab_outline(painter, rect.shrink(1.0), self.style.accent),
-            None => self.paint_drop_line(ctx, line),
+            None => self.paint_drop_line(ctx, drop.line),
         }
     }
 

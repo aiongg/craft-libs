@@ -121,6 +121,48 @@ fn set_window_opacity(title: &str, main: Option<&str>, opacity: f64) {
     }
 }
 
+/// Where the cursor is on the desktop, in egui's desktop points, for a native window that
+/// follows a bar drag.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(in crate::docking) enum DesktopCursor {
+    /// The window system's: AppKit's on macOS, none elsewhere.
+    #[default]
+    System,
+    /// A stand-in window system's (`docking::testing::NativeHost`), or none.
+    #[cfg(any(test, feature = "testing"))]
+    Fixed(Option<Pos2>),
+}
+
+impl DesktopCursor {
+    fn at(self, ctx: &Context) -> Option<Pos2> {
+        match self {
+            Self::System => system_cursor(ctx),
+            #[cfg(any(test, feature = "testing"))]
+            Self::Fixed(at) => at,
+        }
+        .filter(|p| p.is_finite())
+    }
+}
+
+/// AppKit's cursor, in the desktop points egui reports window positions in. AppKit measures
+/// from the bottom-left of the primary screen (the one with the menu bar, first in
+/// `NSScreen::screens`), y up; winit flips window positions against that screen's height,
+/// whichever screen a window is on, so the cursor is flipped the same way. egui's points are
+/// AppKit's divided by the zoom factor.
+#[cfg(target_os = "macos")]
+fn system_cursor(ctx: &Context) -> Option<Pos2> {
+    let mtm = objc2::MainThreadMarker::new()?;
+    let primary = objc2_app_kit::NSScreen::screens(mtm).firstObject()?;
+    let at = objc2_app_kit::NSEvent::mouseLocation();
+    let height = primary.frame().size.height;
+    Some(pos2(at.x as f32, (height - at.y) as f32) / ctx.zoom_factor())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system_cursor(_: &Context) -> Option<Pos2> {
+    None
+}
+
 /// Whether native windows outline their ×'s hit area, and on macOS AppKit's resize areas:
 /// `CRAFT_DOCK_DEBUG_CLOSE=1`, read once.
 fn debug_close() -> bool {
@@ -159,6 +201,9 @@ struct Place {
     corrected: bool,
     /// Shown, as it opened or was last told.
     shown: bool,
+    /// The height of its bar while minimized, as it was last told. `known` keeps the expanded
+    /// size meanwhile.
+    collapsed: Option<f32>,
 }
 
 /// Whether two rects differ by more than rounding.
@@ -443,6 +488,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let moving = |ctx: &Context| ctx.data(|d| d.get_temp::<WindowDrag>(drag_key)).is_some_and(|d| d.window == window.id);
         let info = ctx.input(|i| i.raw.viewports.get(&viewport).cloned());
         let frame = info.as_ref().and_then(content_of).map_or(Vec2::ZERO, |(_, frame)| frame);
+        // A minimized window shows its bar and what `floating_body` draws below it.
+        let collapsed = window.minimized.then(|| BAR_HEIGHT + self.minimized_body(window));
+        let shown = |[x, y, w, h]: [f32; 4]| [x, y, w, collapsed.unwrap_or(h)];
         let mut place = match ctx.data(|d| d.get_temp::<Place>(key)) {
             Some(mut place) => {
                 // The application changed the window's place (undo, reset, a reloaded layout):
@@ -451,7 +499,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     && let Some(native) = window.native.filter(|native| differs(*native, place.known))
                 {
                     let target = kept_reachable(native, &self.monitors);
-                    place_window(ctx, viewport, target, frame);
+                    place_window(ctx, viewport, shown(target), frame);
                     (place.known, place.pending) = (target, Some(now + MOVE_WAIT));
                 }
                 place
@@ -469,9 +517,22 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 };
                 seen.insert(window.id);
                 ctx.data_mut(|d| d.insert_temp(seen_key, seen));
-                Place { spawn, known: spawn, pending: Some(now + MOVE_WAIT), corrected: false, shown: true }
+                Place { spawn, known: spawn, pending: Some(now + MOVE_WAIT), corrected: false, shown: true, collapsed: None }
             }
         };
+        // Minimized or expanded: the window keeps its top-left corner and width, and its
+        // height is fixed while it shows only its bar.
+        // The limits go first: the OS clamps the new size to the limits it has.
+        if place.collapsed != collapsed {
+            let (min, max) = match collapsed {
+                Some(height) => (vec2(MIN_SIZE[0], height), vec2(1_000_000.0, height)),
+                None => (Vec2::from(MIN_SIZE), Vec2::INFINITY),
+            };
+            ctx.send_viewport_cmd_to(viewport, ViewportCommand::MinInnerSize(min));
+            ctx.send_viewport_cmd_to(viewport, ViewportCommand::MaxInnerSize(max));
+            place_window(ctx, viewport, shown(place.known), frame);
+            (place.collapsed, place.pending) = (collapsed, Some(now + MOVE_WAIT));
+        }
         let spawn = place.spawn;
         let title = crate::docking::dock_model::first_active(&window.root).map(|p| self.label_of(p)).unwrap_or_default();
         let builder = ViewportBuilder::default()
@@ -594,7 +655,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let opacity = if this { drag_opacity(ctx, self.id) } else { 1.0 };
             set_window_opacity(&title, main.as_deref(), opacity);
         }
-        if let Some(placed) = report.placed.filter(|_| !moving) {
+        // The collapsed height a minimized window reports is not the size to keep.
+        let reported = report.placed.map(|[x, y, w, h]| [x, y, w, if place.collapsed.is_some() { place.known[3] } else { h }]);
+        if let Some(placed) = reported.filter(|_| !moving) {
             let waiting = place.pending.is_some_and(|until| now < until);
             if !differs(placed, place.known) {
                 place.pending = None;
@@ -722,21 +785,29 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let Some(mut drag) = ui.ctx().data(|d| d.get_temp::<WindowDrag>(key)).filter(|d| d.window == window) else { return false };
         let content = ui.input(|i| content_of(i.viewport()));
         let frame = content.map_or(Vec2::ZERO, |(_, frame)| frame);
-        // A pointer move of this frame is relative to where the window was when the window
-        // system sent it, which is where it reports the window now: a move commanded earlier
-        // may not have landed yet. Without one the window stays, since the last position egui
-        // keeps (button events included) was measured against an older place.
-        let moved = ui.input(|i| i.events.iter().rev().find_map(|e| if let Event::PointerMoved(p) = e { Some(*p) } else { None }));
-        let mut step = None;
-        if let (Some((origin, _)), Some(local)) = (content, moved.filter(|p| p.is_finite())) {
-            let to = origin + (local.to_vec2() - drag.grab);
-            if to.distance(drag.to) > 0.0 {
-                (drag.to, step) = (to, Some(to));
-                ui.ctx().data_mut(|d| d.insert_temp(key, drag));
+        // Where the window system tells the cursor on the desktop (macOS), the window goes
+        // there: AppKit reports the window's place as soon as a move is commanded, but measures
+        // the pointer events it sends against where the window server had the window, which
+        // can be a move behind. Elsewhere a pointer move of this frame is relative to where the
+        // window was when the window system sent it, which is where it reports the window now:
+        // a move commanded earlier may not have landed yet. Without one the window stays, since
+        // the last position egui keeps (button events included) was measured against an older
+        // place.
+        let to = match self.cursor.at(ui.ctx()) {
+            Some(cursor) => Some(cursor - drag.grab),
+            None => {
+                let moved = ui.input(|i| i.events.iter().rev().find_map(|e| if let Event::PointerMoved(p) = e { Some(*p) } else { None }));
+                content.zip(moved.filter(|p| p.is_finite())).map(|((origin, _), local)| origin + (local.to_vec2() - drag.grab))
             }
+        };
+        let mut step = None;
+        if let Some(to) = to.filter(|to| to.distance(drag.to) > 0.0) {
+            (drag.to, step) = (to, Some(to));
+            ui.ctx().data_mut(|d| d.insert_temp(key, drag));
         }
         // The pointer on the desktop is the pressed point of the window where it was last
-        // put, so the origin is that place, less the local pointer.
+        // put (the cursor, where the window system tells it), so the origin is that place,
+        // less the local pointer. Targets are hit there.
         let local = ui.input(|i| i.pointer.latest_pos()).filter(|p| p.is_finite());
         let origin = local.map(|local| drag.to + drag.grab - local.to_vec2()).or(content.map(|(origin, _)| origin));
         let pointer = self.record_pointer(ui.ctx(), Some(window), origin, Some(&drag));
