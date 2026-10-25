@@ -151,12 +151,31 @@ pub(crate) fn submit_with_progress(pdf: &[u8], job: &Job, progress: &mut dyn FnM
     let read = &read;
     // The worker is joined before `dir` is dropped: the spooler reads the file.
     let result = crate::progress::run(progress, move |sender| {
-        let (ticket, paper) = driver_ticket(&device, job, first, landscape)?;
+        let (mut ticket, mut paper) = driver_ticket(&device, job, first, landscape)?;
         let xml = std::str::from_utf8(ticket.get_xml()).map_err(spool_error)?;
-        // The capabilities are read only when the ticket lacks a requested value: they tell a
-        // driver that dropped it from one that never had the feature. Unreadable stays strict.
-        if ticket::verify_job_options(xml, job, count, ticket::Offered::default()).is_err() {
-            ticket::verify_job_options(xml, job, count, driver_offers(&device))?;
+        let mut repeat = None;
+        // Jobs of one copy each, for collated copies that can't be one job.
+        let mut jobs = 1;
+        // The capabilities are read when the ticket lacks a requested value: they tell a driver
+        // that dropped it from one that never had the feature. Unreadable stays strict. A driver
+        // can also keep a collation it doesn't offer, so collated copies always read them.
+        let checked = ticket::verify_job_options(xml, job, count, ticket::Offered::default());
+        if checked.is_err() || ticket::collated_copies(job, count) {
+            let offered = driver_offers(&device);
+            if ticket::repeats_collated(job, count, offered) {
+                let single = Job { copies: 1, ..job.clone() };
+                (ticket, paper) = driver_ticket(&device, &single, first, landscape)?;
+                let xml = std::str::from_utf8(ticket.get_xml()).map_err(spool_error)?;
+                ticket::verify_job_options(xml, &single, count, offered)?;
+                // Two-sided as the driver will print it, the queue's default included.
+                let copies = job.copies.clamp(1, 999);
+                match ticket::one_job_sides(xml) {
+                    Some(two_sided) => repeat = Some(sheets::Repeat { copies, two_sided }),
+                    None => jobs = copies,
+                }
+            } else if checked.is_err() {
+                ticket::verify_job_options(xml, job, count, offered)?;
+            }
         }
         let (fit, paper) = match job.scaling {
             Scaling::Exact => (Fit::Exact, first),
@@ -166,29 +185,50 @@ pub(crate) fn submit_with_progress(pdf: &[u8], job: &Job, progress: &mut dyn FnM
             }
         };
         let edits = sheets::plan(&read.sheets, paper, fit)?;
-        let updated = if edits.is_empty() { None } else { Some(read.update(&edits)?) };
+        let mut updated = None;
+        if let Some(r) = repeat {
+            updated = read.repeated(&edits, r)?;
+            if updated.is_none() {
+                (repeat, jobs) = (None, r.copies);
+            }
+        }
+        if updated.is_none() && !edits.is_empty() {
+            updated = Some(read.update(&edits)?);
+        }
         let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(written)?;
         file.write_all(updated.as_deref().unwrap_or(pdf)).map_err(written)?;
         drop(file);
-        WinPdfPrinter::new(device)
-            .print_with_progress(&path, ticket, |processed, total| {
-                // Page acceptance is distinct from terminal job success. The callback
-                // drains on the submitter's thread, so it can retain non-Send UI state.
-                let _ = sender.send((processed as usize, total as usize));
-            })
-            .map_err(|e| {
-                let mut message = e.to_string();
-                let mut cause = std::error::Error::source(&e);
-                while let Some(source) = cause {
-                    message.push_str(&format!(": {source}"));
-                    cause = source.source();
-                }
-                spool_error(message)
-            })
+        let printer = WinPdfPrinter::new(device);
+        let jobs = jobs as usize;
+        for copy in 0..jobs {
+            printer
+                .print_with_progress(&path, ticket.clone(), |processed, total| {
+                    // Page acceptance is distinct from terminal job success. The callback
+                    // drains on the submitter's thread, so it can retain non-Send UI state.
+                    let (processed, total) = (processed as usize, total as usize);
+                    let _ = sender.send((copy * total + processed, jobs * total));
+                })
+                .map_err(|e| {
+                    let mut message = e.to_string();
+                    let mut cause = std::error::Error::source(&e);
+                    while let Some(source) = cause {
+                        message.push_str(&format!(": {source}"));
+                        cause = source.source();
+                    }
+                    if copy > 0 {
+                        message = format!("{copy} of {jobs} copies were sent, each as a job of its own, and the next was not: {message}");
+                    }
+                    spool_error(message)
+                })?;
+        }
+        Ok((repeat, jobs))
     });
     drop(dir);
-    result?;
-    Ok(format!("spooled {count} sheet(s)"))
+    Ok(match result? {
+        (Some(repeat), _) => format!("spooled {count} sheet(s) {} times, collated", repeat.copies),
+        (None, jobs) if jobs > 1 => format!("spooled {count} sheet(s) as {jobs} jobs, one per collated copy"),
+        _ => format!("spooled {count} sheet(s)"),
+    })
 }
 
 #[cfg(test)]

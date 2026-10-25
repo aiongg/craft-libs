@@ -206,6 +206,49 @@ pub(crate) fn offered(capabilities_xml: &str) -> Offered {
     }
 }
 
+/// Whether a `pages`-page job asks for collated copies.
+pub(crate) fn collated_copies(job: &Job, pages: usize) -> bool {
+    job.collate && job.copies.clamp(1, 999) > 1 && pages > 1
+}
+
+/// Whether collated copies are made by repeating the document in one job with one copy on the
+/// ticket: the job asks for them and the driver can't collate.
+pub(crate) fn repeats_collated(job: &Job, pages: usize, offered: Offered) -> bool {
+    collated_copies(job, pages) && offered.collate == Some(false)
+}
+
+/// Whether a repeated job's validated one-copy ticket ([`crate::sheets::Repeat`]) prints on
+/// both sides; `None` when the copies can't share one job and are printed as a job each: a
+/// duplex option other than the schema's (the blank backs would be guessed), several pages per
+/// sheet, binding (booklets and offset stacking included) or stapling, which would treat every
+/// copy as one document.
+pub(crate) fn one_job_sides(xml: &str) -> Option<bool> {
+    let document = roxmltree::Document::parse(xml).ok()?;
+    let features = |names: &'static [&'static str]| {
+        document.root_element().children().filter(move |n| n.has_tag_name((NS_PSF, "Feature")) && names.iter().any(|name| named(*n, name)))
+    };
+    fn option<'a, 'i>(feature: roxmltree::Node<'a, 'i>) -> Option<roxmltree::Node<'a, 'i>> {
+        feature.children().find(|n| n.has_tag_name((NS_PSF, "Option")))
+    }
+    let mut two_sided = false;
+    for feature in features(&["JobDuplexAllDocumentsContiguously", "DocumentDuplex"]) {
+        match option(feature) {
+            Some(o) if named(o, "OneSided") => {}
+            Some(o) if named(o, "TwoSidedLongEdge") || named(o, "TwoSidedShortEdge") => two_sided = true,
+            _ => return None,
+        }
+    }
+    if features(&["JobNUpAllDocumentsContiguously", "DocumentNUp"]).any(|f| integer(f, "ScoredProperty", "PagesPerSheet").is_some_and(|n| n > 1)) {
+        return None;
+    }
+    if features(&["JobBindAllDocuments", "DocumentBinding", "JobStapleAllDocuments", "DocumentStaple"])
+        .any(|f| !option(f).is_some_and(|o| named(o, "None")))
+    {
+        return None;
+    }
+    Some(two_sided)
+}
+
 /// Confirm explicit job options survived driver validation. Collation only changes output
 /// when both the document and copy count exceed one. Without a duplex request the queue's
 /// default applies; without a grayscale request the driver's own colour setting applies.
@@ -216,8 +259,9 @@ pub(crate) fn offered(capabilities_xml: &str) -> Offered {
 /// with no colour option, uncollated copies on one that can't collate. Two-sided on a simplex
 /// driver is refused, and so are collated copies on a driver that can't collate: Windows doesn't
 /// document collating for such a driver (the standard XPS filters make the copies, and leave
-/// collated copies to the device only when its GPD or PPD has a Collate command). An unknown
-/// offer (`None`) is checked strictly.
+/// collated copies to the device only when its GPD or PPD has a Collate command). The job then
+/// asks for one copy and repeats the document instead ([`repeats_collated`]), in one job or a
+/// job per copy ([`one_job_sides`]). An unknown offer (`None`) is checked strictly.
 pub(crate) fn verify_job_options(xml: &str, job: &Job, pages: usize, offered: Offered) -> Result<(), Error> {
     let document = roxmltree::Document::parse(xml).map_err(spool_error)?;
     let root = document.root_element();
@@ -502,6 +546,11 @@ mod tests {
         let changed = ticket_xml(&collated, false).replace("psk:Collated", "psk:Uncollated");
         assert!(verify_job_options(&changed, &collated, 3, caps(COLLATE)).is_err());
         assert!(verify_job_options(&dropped(&uncollated), &uncollated, 3, Offered::default()).is_err(), "unknown stays strict");
+        // The job repeats the document instead of asking for collated copies.
+        assert!(repeats_collated(&collated, 3, caps(&[])));
+        assert!(!repeats_collated(&collated, 3, caps(COLLATE)) && !repeats_collated(&collated, 3, Offered::default()));
+        assert!(!repeats_collated(&uncollated, 3, caps(&[])) && !repeats_collated(&collated, 1, caps(&[])));
+        assert!(!repeats_collated(&Job { copies: 1, ..collated.clone() }, 3, caps(&[])));
         // One page or one copy has no collating order.
         assert!(verify_job_options(&dropped(&collated), &collated, 1, caps(&[])).is_ok());
     }
@@ -581,5 +630,28 @@ mod tests {
         assert_eq!(job_filename("..."), "Print.pdf");
         assert_eq!(job_filename(""), "Print.pdf");
         assert_eq!(job_filename("Отчёт"), "Отчёт.pdf");
+    }
+
+    #[test]
+    fn a_repeated_job_reads_its_sides_and_leaves_layouts_that_mix_copies_to_separate_jobs() {
+        let xml = ticket_xml(&Job { duplex: Some(Duplex::LongEdge), ..Job::default() }, false);
+        assert_eq!(one_job_sides(&xml), Some(true));
+        assert_eq!(one_job_sides(&xml.replace("JobDuplexAllDocumentsContiguously", "DocumentDuplex")), Some(true));
+        assert_eq!(one_job_sides(&ticket_xml(&Job { duplex: Some(Duplex::Off), ..Job::default() }, false)), Some(false));
+        assert_eq!(one_job_sides(&ticket_xml(&Job::default(), false)), Some(false), "no duplex feature");
+        assert_eq!(one_job_sides(&xml.replace("psk:TwoSidedLongEdge", "vendor:Duplex")), None, "an option it can't read");
+        let with = |feature: &str| xml.replace("</psf:PrintTicket>", &format!("{feature}</psf:PrintTicket>"));
+        let n_up = |n: u32| {
+            with(&format!(
+                r#"<psf:Feature name="psk:JobNUpAllDocumentsContiguously"><psf:Option><psf:ScoredProperty name="psk:PagesPerSheet"><psf:Value xsi:type="xsd:integer">{n}</psf:Value></psf:ScoredProperty></psf:Option></psf:Feature>"#
+            ))
+        };
+        assert_eq!(one_job_sides(&n_up(1)), Some(true));
+        assert_eq!(one_job_sides(&n_up(2)), None);
+        for feature in ["JobBindAllDocuments", "JobStapleAllDocuments", "DocumentStaple"] {
+            let finishing = |option: &str| with(&format!(r#"<psf:Feature name="psk:{feature}"><psf:Option name="psk:{option}"/></psf:Feature>"#));
+            assert_eq!(one_job_sides(&finishing("None")), Some(true), "{feature}");
+            assert_eq!(one_job_sides(&finishing("StapleTopLeft")), None, "{feature}");
+        }
     }
 }
