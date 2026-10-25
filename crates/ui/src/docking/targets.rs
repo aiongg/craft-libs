@@ -209,14 +209,16 @@ pub fn tab_insertion_marker<P: Eq>(target: &DropTarget<P>, before: Option<&P>) -
 /// group is a no-op at center. The body's side zones are [`drop_zone`]'s with `zone_depth`
 /// ([`SIDE_EDGE_ZONE_DEPTH`] in the docking area): one depth on all four sides, at most a quarter
 /// of the body's smaller side. A split previews the half of the group it takes ([`zone_rect`]).
-/// Floating groups normally set `allow_splits` to false.
+/// Floating groups normally set `allow_splits` to false. These are the split-tree zones; a host
+/// that resolves drops for a [`crate::docking::DockStyle`] calls [`resolve_drop_by`] with its
+/// [`crate::docking::DockStyle::zone_rule`].
 pub fn resolve_drop<P: Clone + Eq>(panel: &P, pointer: Pos2, targets: &[DropTarget<P>], zone_depth: f32) -> Option<DropProposal<P>> {
-    resolve_by(panel, pointer, targets, ZoneRule::Depth(zone_depth))
+    resolve_drop_by(panel, pointer, targets, ZoneRule::Depth(zone_depth))
 }
 
-/// How [`resolve_by`] divides a group's body.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum ZoneRule {
+/// How [`resolve_drop_by`] divides a group's body.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ZoneRule {
     /// [`drop_zone`] with this depth; a split previews the half it takes.
     Depth(f32),
     /// [`body_zone`] with this fraction; a split previews a `line` thick line along the
@@ -224,8 +226,9 @@ pub(super) enum ZoneRule {
     Fraction { fraction: f32, line: f32 },
 }
 
-/// [`resolve_drop`] with the body zones of `rule`.
-pub(super) fn resolve_by<P: Clone + Eq>(panel: &P, pointer: Pos2, targets: &[DropTarget<P>], rule: ZoneRule) -> Option<DropProposal<P>> {
+/// [`resolve_drop`] with the body zones of `rule`: [`crate::docking::DockStyle::zone_rule`]
+/// gives the ones the dock area uses.
+pub fn resolve_drop_by<P: Clone + Eq>(panel: &P, pointer: Pos2, targets: &[DropTarget<P>], rule: ZoneRule) -> Option<DropProposal<P>> {
     if !pointer.is_finite() || targets.len() > super::MAX_PANELS {
         return None;
     }

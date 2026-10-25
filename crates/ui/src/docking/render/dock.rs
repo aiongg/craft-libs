@@ -8,7 +8,7 @@ use std::{fmt::Debug, hash::Hash};
 
 use egui::{Context, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
-use super::{GroupKind, Renderer, RowItem, row_drag, row_range};
+use super::{GroupKind, Renderer, RowItem, row_drag, row_range, stripless};
 use crate::docking::{
     Action, Column, DockEvent, DockHeights, DockStyle, Group, GroupDrag, GroupGesture, Node, Placement, Side, Target, Zone,
     dock_model::Unit,
@@ -448,10 +448,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let xs = view.x_range();
         let half = self.style.seam_band * 0.5;
         let width = self.style.drop_line_width;
+        // A line on an edge scrolled out of the view shows at the view's edge.
+        let line = |y: f32| horizontal_line(y.clamp(view.top() + width * 0.5, view.bottom() - width * 0.5), xs, width);
         let push = |targets: &mut Vec<DockDrop<P>>, target: DockTarget<P>, band: Rect, line: Rect| {
             let band = band.intersect(view);
             if usable(band) {
-                targets.push(DockDrop { target, band, line: line.intersect(view.expand(2.0)) });
+                targets.push(DockDrop { target, band, line });
             }
         };
         let mut previous: Option<&P> = None;
@@ -459,11 +461,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let Some(anchor) = group.panels.first() else { continue };
             if let Some(above) = previous {
                 let band = Rect::from_x_y_ranges(xs, (rect.top() - half)..=(rect.top() + half));
-                push(&mut self.dock_targets, DockTarget::Seam { anchor: above.clone() }, band, horizontal_line(rect.top(), xs, width));
+                push(&mut self.dock_targets, DockTarget::Seam { anchor: above.clone() }, band, line(rect.top()));
             }
-            let body = Rect::from_min_max(pos2(rect.left(), (rect.top() + self.style.tab_height).min(rect.bottom())), rect.max).intersect(view);
+            let header = if stripless(&group.panels, &*self.content) { 0.0 } else { self.style.tab_height };
+            let body = Rect::from_min_max(pos2(rect.left(), (rect.top() + header).min(rect.bottom())), rect.max).intersect(view);
             if !group.minimized && usable(body) {
-                let line = |y: f32| horizontal_line(y, xs, width).intersect(view.expand(2.0));
                 let center = group.panels.get(group.active).is_some_and(|p| self.permissions(p).accepts_tabs);
                 let (above, below) =
                     (DockTarget::GroupBand { anchor: anchor.clone(), below: false }, DockTarget::GroupBand { anchor: anchor.clone(), below: true });
@@ -481,7 +483,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             && top < view.bottom()
         {
             let band = Rect::from_x_y_ranges(xs, top..=view.bottom());
-            push(&mut self.dock_targets, DockTarget::GroupBand { anchor: last.clone(), below: true }, band, horizontal_line(top, xs, width));
+            push(&mut self.dock_targets, DockTarget::GroupBand { anchor: last.clone(), below: true }, band, line(top));
         }
         // Height dividers between an open group and the next open one, after the groups so
         // their hit areas win at the boundary. The heights of the groups a drag changes are

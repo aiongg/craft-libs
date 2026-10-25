@@ -261,6 +261,9 @@ A flyout fits its content the same way, without the title bar.
   depth, `docking::SIDE_EDGE_ZONE_DEPTH` (40 pt), or a quarter of the body's smaller side when
   that is less, so every frame keeps a center. A dock column's groups take the same depth.
   `drop_zone` and `resolve_drop` give these zones to hosts that draw their own frames.
+- A host that resolves drops over its own groups calls `resolve_drop_by` with
+  `DockStyle::zone_rule()`, so its zones and previews match the dock area's in either profile.
+  `resolve_drop` always gives the split-tree zones.
 - A dragged divider grows the frames that touch it on one side, up to their maximums. On the
   other side the frame touching it shrinks to its minimum, then the next frame along the same
   axis, and so on: the divider stops when every frame on that side is at its minimum. Frames

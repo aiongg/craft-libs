@@ -369,10 +369,13 @@ fn a_bodys_outer_thirds_are_its_sides_and_the_relatively_nearer_side_wins_at_a_c
 
 #[test]
 fn a_drop_beside_a_group_previews_a_line_along_its_edge_and_a_group_without_tabs_has_no_middle() {
-    let rule = targets::ZoneRule::Fraction { fraction: 1.0 / 3.0, line: 4.0 };
+    let style = DockStyle::from_visuals(&egui::Visuals::dark());
+    let rule = style.zone_rule();
+    assert_eq!(rule, ZoneRule::Fraction { fraction: 1.0 / 3.0, line: 4.0 });
+    assert_eq!(DockStyle { side_edge_zones: true, ..style }.zone_rule(), ZoneRule::Depth(SIDE_EDGE_ZONE_DEPTH));
     let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(300.0, 224.0));
     let group = target(2, &[2, 3], rect);
-    let resolve = |at, group: &DropTarget<u32>| targets::resolve_by(&5, at, std::slice::from_ref(group), rule);
+    let resolve = |at, group: &DropTarget<u32>| resolve_drop_by(&5, at, std::slice::from_ref(group), rule);
     let left = resolve(pos2(20.0, 140.0), &group).unwrap();
     assert_eq!(left.placement, Placement::Split(Zone::Left));
     assert_eq!(left.preview, Rect::from_x_y_ranges(10.0..=14.0, rect.y_range()), "the group's whole left edge");
@@ -385,6 +388,16 @@ fn a_drop_beside_a_group_previews_a_line_along_its_edge_and_a_group_without_tabs
     let canvas = DropTarget { accepts_tabs: false, ..group };
     assert_eq!(resolve(pos2(150.0, 144.0), &canvas).unwrap().placement, Placement::Split(Zone::Left));
     assert!(resolve(pos2(90.0, 30.0), &canvas).is_none());
+}
+
+#[test]
+fn a_style_needs_a_drop_line_and_side_zones_of_at_most_half_the_body() {
+    let style = DockStyle::from_visuals(&egui::Visuals::dark());
+    assert!(style.valid());
+    assert!(DockStyle { side_zone_fraction: 0.0, ..style.clone() }.valid());
+    assert!(DockStyle { side_zone_fraction: 0.5, ..style.clone() }.valid());
+    assert!(!DockStyle { side_zone_fraction: 0.6, ..style.clone() }.valid());
+    assert!(!DockStyle { drop_line_width: 0.0, ..style }.valid());
 }
 
 #[test]

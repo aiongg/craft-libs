@@ -264,7 +264,7 @@ fn a_dock_groups_top_and_bottom_thirds_stack_its_sides_make_columns_and_its_midd
     // Group 3's body is 0..240 across and 333..600 down.
     for (at, expected, line) in [
         (pos2(120.0, 360.0), vec![vec![vec![2], vec![5], vec![3]]], Some(hline(307.0, 0.0..=240.0))),
-        (pos2(120.0, 580.0), vec![vec![vec![2], vec![3], vec![5]]], Some(hline(600.0, 0.0..=240.0))),
+        (pos2(120.0, 580.0), vec![vec![vec![2], vec![3], vec![5]]], Some(hline(598.0, 0.0..=240.0))),
         (pos2(30.0, 466.0), vec![vec![vec![5]], vec![vec![2], vec![3]]], Some(vline(0.0, 0.0..=600.0))),
         (pos2(200.0, 466.0), vec![vec![vec![2], vec![3]], vec![vec![5]]], Some(vline(240.0, 0.0..=600.0))),
         (pos2(120.0, 466.0), vec![vec![vec![2], vec![3, 5]]], None),
@@ -298,6 +298,32 @@ fn with_side_edge_zones_a_dock_groups_side_zones_are_40_pt_deep() {
         d.drag(tab, at);
         assert_eq!(columns(&d.layout, Side::Start), expected, "{at:?}");
     }
+}
+
+#[test]
+fn a_group_edge_scrolled_out_of_view_previews_its_line_at_the_views_edge() {
+    // Groups 306 pt high from y = 14: group 3 spans 320..626 and its body's bottom third starts
+    // at 533, above the window's bottom.
+    let layout = with_floating(docked(Side::Start, &[&[&[2], &[3], &[4]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+    let mut d = Driver::with(layout, TestContent { min_height: 280.0 }, false);
+    let at = pos2(120.0, 580.0);
+    d.hold(bar(&d, 5), at);
+    assert!(d.painted(hline(598.0, 0.0..=240.0)), "the line at the view's bottom");
+    d.step(vec![button(at, false)]);
+    assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![3], vec![5], vec![4]]]);
+}
+
+#[test]
+fn a_stripless_dock_groups_top_third_stacks_above_it() {
+    // Canvas 9 in the middle; protected panel 0 alone in the lower group draws no tab strip, so
+    // its body is 307..600.
+    let mut layout = with_floating(docked(Side::Start, &[&[&[2], &[0]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+    if let Some(Node::Split { second, .. }) = &mut layout.root {
+        **second = Node::Tabs { panels: vec![9], active: 0 };
+    }
+    let mut d = Driver::new(layout);
+    d.drag(bar(&d, 5), pos2(120.0, 330.0));
+    assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![5], vec![0]]]);
 }
 
 #[test]

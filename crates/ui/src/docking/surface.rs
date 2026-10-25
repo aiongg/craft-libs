@@ -54,8 +54,8 @@ pub struct DockStyle {
     /// Height of a floating window's title bar.
     pub title_height: f32,
     /// Width of the band along the layout's outer edge that splits at the root (28 pt). It is
-    /// at most a quarter of the layout's width and height. With [`Self::side_edge_zones`] the
-    /// band is 8 pt.
+    /// at most a quarter of the layout's width and height. Not used with
+    /// [`Self::side_edge_zones`], whose band is 8 pt.
     pub edge_band: f32,
     /// The split-tree profile. The outer edge band also runs along the left and right edges,
     /// where a drop adds a full-height column. A group's side zones are trapezoids
@@ -66,11 +66,11 @@ pub struct DockStyle {
     pub side_edge_zones: bool,
     /// The share of a group's body, below the tab strip, that means "beside" on each side: of
     /// its width from the left and right edges, of its height from the top and bottom edges
-    /// (one third). The middle joins the group as a tab. Not used with
+    /// (one third, at most one half). The middle joins the group as a tab. Not used with
     /// [`Self::side_edge_zones`].
     pub side_zone_fraction: f32,
     /// Width of the line a drop beside a group, column, dock or the layout's edge previews with
-    /// (4 pt).
+    /// (4 pt, more than zero).
     pub drop_line_width: f32,
     /// [D] The docked area's left and right edges, where no dock is yet, take a drop as a new
     /// dock (see [`Self::new_dock_band`]).
@@ -227,6 +227,17 @@ impl DockStyle {
         }
     }
 
+    /// How a group's body divides into drop zones: [`crate::docking::SIDE_EDGE_ZONE_DEPTH`] deep
+    /// with [`Self::side_edge_zones`], else [`Self::side_zone_fraction`] of it, with
+    /// [`Self::drop_line_width`] previews. Pass it to [`crate::docking::resolve_drop_by`].
+    pub fn zone_rule(&self) -> super::ZoneRule {
+        if self.side_edge_zones {
+            super::ZoneRule::Depth(super::SIDE_EDGE_ZONE_DEPTH)
+        } else {
+            super::ZoneRule::Fraction { fraction: self.side_zone_fraction, line: self.drop_line_width }
+        }
+    }
+
     pub(super) fn valid(&self) -> bool {
         [
             self.tab_height,
@@ -255,6 +266,8 @@ impl DockStyle {
             && self.iconic_width <= self.iconic_max_width
             && self.tab_height > 0.0
             && self.font.size > 0.0
+            && self.drop_line_width > 0.0
+            && self.side_zone_fraction <= 0.5
     }
 }
 
