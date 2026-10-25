@@ -459,8 +459,9 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   - Palettes stay above other windows (`WindowLevel::AlwaysOnTop`), so clicking the document
     does not bury them. They stay shown while the app is in the background, so files dragged
     from another app reach them and an OS sheet attached to one stays open. While none of the
-    app's windows has focus they take `WindowLevel::Normal`, so they do not cover other apps,
-    and they go back to `AlwaysOnTop` when one has it again. The app counts as in the
+    app's windows has focus they take `WindowLevel::Normal`, so they do not cover other apps
+    (on Windows `WindowLevel::AlwaysOnBottom`: there `Normal` would put them in front of the
+    app the user switched to), and they go back to `AlwaysOnTop` when one has it again. The app counts as in the
     background after 250 ms without focus, so focus moving between its own windows changes
     nothing. The level is sent only when it changes.
   - Normal windows have `WindowLevel::Normal` and stay shown while the app is in the

@@ -33,6 +33,12 @@ const AWAY_DELAY: f64 = 0.25;
 /// application's windows forward itself: all of them on activation from the Dock or the
 /// application switcher, the clicked one alone on a click, as its own windows do.
 const RAISE_ON_ACTIVATION: bool = !cfg!(target_os = "macos");
+/// The level of a palette while the application is inactive, behind other applications'
+/// windows. On Windows `WindowLevel::Normal` is `HWND_NOTOPMOST`, which puts the window in
+/// front of every window that is not topmost, the activated application's too; `HWND_BOTTOM`
+/// sends it behind them without activating it.
+pub(in crate::docking) const INACTIVE_PALETTE: WindowLevel =
+    if cfg!(target_os = "windows") { WindowLevel::AlwaysOnBottom } else { WindowLevel::Normal };
 /// How long reports of a native window's place may lag a move the dock area commanded.
 const MOVE_WAIT: f64 = 0.5;
 /// How far the resize bands reach into a native window from its edges, where the window has
@@ -478,9 +484,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .with_min_inner_size(MIN_SIZE)
             // A blocked palette could cover the modal, and its bar moves nothing: the main
             // window can come in front of it at the normal level. While the application is
-            // inactive, a palette at the normal level stays shown behind other applications'
-            // windows. egui sends the level only when it changes.
-            .with_window_level(if normal || self.input_blocked || !active { WindowLevel::Normal } else { WindowLevel::AlwaysOnTop })
+            // inactive, its palettes stay shown behind other applications' windows
+            // (`INACTIVE_PALETTE`). egui sends the level only when it changes.
+            .with_window_level(match (normal || self.input_blocked, active) {
+                (true, _) => WindowLevel::Normal,
+                (false, true) => WindowLevel::AlwaysOnTop,
+                (false, false) => INACTIVE_PALETTE,
+            })
             .with_taskbar(false);
         // The bar replaces the OS title bar. macOS keeps the frame, with its title bar and
         // buttons hidden: AppKit resizes a movable window from its edges and corners with its

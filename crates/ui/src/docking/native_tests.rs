@@ -3,7 +3,9 @@
 
 use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, epaint::ClippedShape, pos2, vec2};
 
-use super::render::{APPKIT_CORNER, DragPointer, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, drag_opacity, resize_bands, wayland};
+use super::render::{
+    APPKIT_CORNER, DragPointer, INACTIVE_PALETTE, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, drag_opacity, resize_bands, wayland,
+};
 use super::testing::DockDriver;
 use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, WindowKind, Workspace};
 use crate::layout::{SplitAxis, SplitSize};
@@ -411,12 +413,12 @@ fn palettes_stay_shown_at_the_normal_level_while_the_app_is_inactive() {
     focus(&mut d, None, 1);
     focus(&mut d, Some(palette), 30);
     assert_eq!(level(&d), Some(WindowLevel::AlwaysOnTop));
-    // Another application: the palette drops to the normal level after the delay, and shows
-    // on, so files dragged from that application can reach it.
+    // Another application: the palette drops behind it after the delay, and shows on, so
+    // files dragged from that application can reach it.
     focus(&mut d, None, 10);
     assert_eq!(level(&d), Some(WindowLevel::AlwaysOnTop), "not yet");
     focus(&mut d, None, 10);
-    assert_eq!(level(&d), Some(WindowLevel::Normal));
+    assert_eq!(level(&d), Some(INACTIVE_PALETTE));
     // Back: on top again.
     focus(&mut d, Some(ViewportId::ROOT), 1);
     assert_eq!(level(&d), Some(WindowLevel::AlwaysOnTop));
