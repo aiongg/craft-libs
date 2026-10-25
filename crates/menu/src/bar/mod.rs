@@ -7,7 +7,7 @@
 //! menus scroll, and the arrow keys, ↩ and Space drive an open menu ([`nav`]). When the titles
 //! don't fit, the last ones move into a trailing "⋯" menu, or all of them into one "Menu".
 
-mod nav;
+pub(crate) mod nav;
 
 use craft_keymap::{CommandRef, Platform};
 use egui::accesskit::{HasPopup, Role, Toggled};
@@ -38,12 +38,13 @@ pub struct BarStyle {
 }
 
 impl BarStyle {
-    /// Title padding, title color and menu width from `style`.
+    /// Title padding, title color and a menu width in step with the row height, from `style`.
     pub fn from_style(style: &egui::Style) -> BarStyle {
         BarStyle {
             title_padding: style.spacing.button_padding,
             title_color: style.visuals.widgets.inactive.text_color(),
-            menu_width: style.spacing.menu_width,
+            // egui's `menu_width` is where menu text wraps, far wider than a menu needs.
+            menu_width: 12.0 * style.spacing.interact_size.y,
             separator_spacing: 9.0,
             check_mark: "✓".to_owned(),
             radio_mark: "●".to_owned(),
@@ -146,10 +147,12 @@ impl<'a> MenuBarUi<'a> {
                         n.set_has_popup(HasPopup::Menu);
                         n.set_expanded(open_now);
                     });
-                    // The bar's close behavior and style, as a menu (not bar) config so that
-                    // submenus inside draw as submenus.
+                    // The bar's style, as a menu (not bar) config so that submenus inside draw as
+                    // submenus. Only a click outside closes the menus, as in a native menu: a
+                    // click on a disabled item or a separator leaves them open, and the item
+                    // that runs closes them itself.
                     let bar = MenuConfig::find(ui);
-                    let config = MenuConfig::new().close_behavior(bar.close_behavior).style(bar.style.clone());
+                    let config = MenuConfig::new().close_behavior(PopupCloseBehavior::CloseOnClickOutside).style(bar.style.clone());
                     let open = title_press(&ctx, &title, draw.press);
                     // The release ending the press that opened this menu is a click "outside"
                     // the popup: it must not close it again.
@@ -483,6 +486,3 @@ fn switch_on_hover(ctx: &egui::Context, buttons: &[Response]) {
         ctx.request_repaint();
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -8,6 +8,7 @@ use egui::{Key, Modifiers};
 use super::*;
 use crate::driver::key_event;
 
+mod bar;
 mod layout;
 mod native;
 

@@ -1,11 +1,10 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! The egui bar: clicks, hover, the keys, overflow, scrolling, submenu hover intent and AccessKit.
 
 use egui::accesskit::{self, NodeId, Role, Toggled};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Vec2, pos2, vec2};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Vec2, pos2, vec2};
 
-use super::nav::{ARROW, Nav, heading, is_open};
 use super::*;
-use crate::{Builtin, Chord, Menu, MenuRole};
+use crate::bar::nav::{ARROW, Nav, heading, is_open};
 
 fn item(id: &str, label: &str) -> Item {
     Item::new(id, label)
@@ -132,8 +131,14 @@ impl Bar {
         self.frame();
     }
 
+    /// A point on `label`, near its left end: a menu row can be wider than a narrow window.
+    fn point(&self, label: &str) -> Pos2 {
+        let r = self.rect(label);
+        pos2(r.left() + (r.width() / 2.0).min(20.0), r.center().y)
+    }
+
     fn hover(&mut self, label: &str) {
-        let p = self.rect(label).center();
+        let p = self.point(label);
         self.move_to(p);
         self.run(3);
     }
@@ -151,7 +156,7 @@ impl Bar {
     }
 
     fn click(&mut self, label: &str) {
-        let p = self.rect(label).center();
+        let p = self.point(label);
         self.click_at(p);
     }
 
@@ -212,10 +217,13 @@ fn press_drag_release_runs_an_item() {
     b.button(true);
     b.run(3);
     assert!(b.shown("Open…"), "the press opens the menu");
+    // Down out of the bar first, then across: crossing the Edit title would open Edit.
     let open = b.rect("Open…").center();
+    let below = pos2(file.x, open.y);
     for k in 1..=6 {
-        b.move_to(file + (open - file) * (k as f32 / 6.0));
+        b.move_to(file + (below - file) * (k as f32 / 6.0));
     }
+    b.move_to(open);
     b.button(false);
     b.run(2);
     assert_eq!(b.take(), vec![CommandRef::new("file.open")]);
@@ -385,7 +393,7 @@ fn accesskit_sees_a_menu_bar_of_menus_with_checked_states_and_shortcuts() {
     assert_eq!(state("Light"), Some((Role::MenuItemRadio, Some(Toggled::True))));
     assert_eq!(state("Dark"), Some((Role::MenuItemRadio, Some(Toggled::False))));
     assert_eq!(b.node("Grid").and_then(|n| n.keyboard_shortcut()), Some("G"), "a display-only shortcut too");
-    b.click("File");
+    b.hover("File");
     assert_eq!(b.node("New").map(|n| (n.role(), n.keyboard_shortcut())), Some((Role::MenuItem, Some("Ctrl+N"))));
 }
 
@@ -428,10 +436,13 @@ fn every_row_of_a_tall_menu_is_reachable_with_the_arrow_keys() {
     let mut b = open_tall();
     for i in 0..60 {
         b.key(Key::ArrowDown);
+        // The scroll lands a frame after the row is revealed.
+        b.run(2);
         assert_eq!(b.nav().highlighted(0), Some(i));
-        assert!(b.visible(0, i), "row {i} is scrolled into view");
+        assert!(b.visible(0, i), "row {i} is scrolled into view: {:?} in {:?}", b.nav().rows[0][i].rect, b.nav().views[0]);
     }
     b.key(Key::ArrowDown);
+    b.run(2);
     assert_eq!(b.nav().highlighted(0), Some(0));
     assert!(b.visible(0, 0), "↓ wraps to the first row, scrolling back up");
 }
@@ -600,3 +611,4 @@ fn heading_is_the_triangle_to_the_submenus_near_edge() {
     assert!(!heading(pos2(150.0, 110.0), pos2(170.0, 160.0), left));
     assert!(!heading(from, from, Rect::NOTHING));
 }
+
