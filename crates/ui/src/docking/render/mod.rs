@@ -21,7 +21,7 @@ pub(in crate::docking) use native::WindowDrag;
 #[cfg(all(test, feature = "native-windows"))]
 pub(in crate::docking) use {
     cross::DragPointer,
-    native::{APPKIT_CORNER, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
+    native::{APPKIT_CORNER, INACTIVE_PALETTE, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, drag_opacity, resize_bands, session, wayland},
 };
 
 #[cfg(all(test, feature = "native-windows"))]
@@ -29,7 +29,44 @@ pub(in crate::docking) use body_drag::held_events;
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) use body_drag::{cancel_body_route, mark_app_drag};
 #[cfg(feature = "native-windows")]
-pub(in crate::docking) use native::{InputHook, set_input_hook};
+pub(in crate::docking) use native::{DesktopCursor, InputHook, send_keys, set_input_hook, typing_window};
+
+/// How long after blocking starts a native window that still has the keyboard hands it to the
+/// main window: an OS dialog the app opens with the modal (a file dialog) takes focus a little
+/// later, and a Focus sent before then could raise the main window over it.
+#[cfg(feature = "native-windows")]
+const BLOCKED_FOCUS_WAIT: f64 = 0.2;
+
+/// Opacity of a floating window, in-window or native, while its bar, only tab or only tab row
+/// drags it over a drop target: the highlighted target under the window shows through it.
+pub(in crate::docking) const DRAG_OPACITY: f32 = 0.75;
+
+/// While input is blocked (`starts`: from this frame), a native window of the dock area `area`
+/// with the keyboard would drop the keys the modal needs, so once, after
+/// [`BLOCKED_FOCUS_WAIT`], the main window, where the modal is, takes the keyboard if one still
+/// has it. If focus went elsewhere meanwhile, such as to an OS dialog, nothing is sent.
+#[cfg(feature = "native-windows")]
+pub(in crate::docking) fn focus_main_from_native<P>(ctx: &Context, area: Id, layout: &Layout<P>, blocked: bool, starts: bool) {
+    let (key, now) = (area.with("blocked-focus"), ctx.input(|i| i.time));
+    if !blocked {
+        ctx.data_mut(|d| d.remove::<f64>(key));
+        return;
+    }
+    if starts {
+        ctx.data_mut(|d| d.insert_temp(key, now));
+    }
+    let Some(since) = ctx.data(|d| d.get_temp::<f64>(key)) else { return };
+    if now - since < BLOCKED_FOCUS_WAIT {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(BLOCKED_FOCUS_WAIT - (now - since)));
+        return;
+    }
+    ctx.data_mut(|d| d.remove::<f64>(key));
+    let focused =
+        ctx.input(|i| layout.floating.iter().any(|w| i.raw.viewports.get(&native_viewport(area, w.id)).and_then(|v| v.focused) == Some(true)));
+    if focused {
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
+    }
+}
 
 /// The viewport of the native window `window` of the dock area `area`.
 #[cfg(feature = "native-windows")]
@@ -69,6 +106,10 @@ pub(super) struct Renderer<'a, P> {
     pub(super) targets: Vec<DropTarget<P>>,
     /// [D] Seams, group bands, column edges and new-dock bands, see [`crate::docking::targets::DockDrop`].
     pub(super) dock_targets: Vec<crate::docking::targets::DockDrop<P>>,
+    /// [D] The open groups of dock columns, whose body zones stack or make columns.
+    pub(super) dock_groups: Vec<dock::DockGroup<P>>,
+    /// [D] The scroll offset of each dock column that scrolls this frame, by its first panel.
+    pub(super) column_scroll: HashMap<P, f32>,
     pub(super) owned_interactions: Vec<Id>,
     pub(super) output: DockOutput<P>,
     pub(super) frame: FrameState<P>,
@@ -96,6 +137,9 @@ pub(super) struct Renderer<'a, P> {
     /// The other OS windows a drag may cross into.
     #[cfg(feature = "native-windows")]
     pub(super) cross: cross::Cross<P>,
+    /// Where a native window that follows a bar drag goes.
+    #[cfg(feature = "native-windows")]
+    pub(super) cursor: DesktopCursor,
 }
 
 pub(super) struct DrawnDivider {
@@ -218,9 +262,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     };
                     let response = ui.interact(collapse, self.id.with(("collapse", &entry.panel)), Sense::click());
                     self.register_interaction(ui.ctx(), response.id);
-                    response.widget_info(|| {
-                        egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), entry.open, self.label_of(&entry.panel))
-                    });
+                    response
+                        .widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), entry.open, self.label_of(&entry.panel)));
                     ui.painter().with_clip_rect(collapse).text(
                         collapse.center(),
                         egui::Align2::CENTER_CENTER,
@@ -362,13 +405,20 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
     }
 
+    /// Draw a panel body into `rect`.
+    ///
+    /// An unusable rect returns without painting. Otherwise the body runs in a clipped child scope,
+    /// and its minimum height is recorded against `rect.height()` for floating-size policy. Any
+    /// pointer press inside the body focuses the panel, including secondary and middle presses; with
+    /// native windows that press origin is stored for body-drag routing and the panel is recorded as
+    /// the pointed body. The panel's content map keeps the sizing entry for later frames.
     pub(super) fn contents(&mut self, ui: &mut Ui, panel: &P, rect: Rect) {
         if !crate::docking::targets::usable(rect) {
             return;
         }
         ui.painter().rect_filled(rect, 0.0, self.style.background);
         let mut child =
-            ui.new_child(UiBuilder::new().id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
+            ui.new_child(UiBuilder::new().scope_id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
         self.content.body(&mut child, panel);
         let at = self.contents.get(panel).copied();
