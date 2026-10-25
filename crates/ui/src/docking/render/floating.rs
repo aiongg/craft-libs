@@ -11,6 +11,8 @@ pub(in crate::docking) use crate::docking::chrome::RESIZE_HANDLES;
 /// A floating window as drawn: what covers the layout behind it.
 pub(in crate::docking) struct WindowHit<P> {
     pub(super) window: Rect,
+    /// Where the window's tree is drawn.
+    pub(super) body: Rect,
     pub(super) members: Vec<P>,
 }
 
@@ -37,13 +39,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     pub(super) fn window_limits(&self, window: &Floating<P>) -> PanelLimits {
         let chrome = self.window_chrome(window);
         let tree = node_limits(&window.root, self.style, &*self.content);
-        let body = match (&window.root, window.minimized) {
-            (Node::Tabs { .. }, true) => (self.style.tab_height, self.style.tab_height),
-            (_, true) => (0.0, 0.0),
-            (_, false) => (tree.min.y, tree.max.y),
+        let body = match window.minimized {
+            true => (self.minimized_body(window), self.minimized_body(window)),
+            false => (tree.min.y, tree.max.y),
         };
         let min = vec2(tree.min.x, chrome + body.0).min(vec2(1_000_000.0, 1_000_000.0));
         PanelLimits { min, max: vec2(tree.max.x, chrome + body.1).max(min).min(vec2(1_000_000.0, 1_000_000.0)) }
+    }
+
+    /// The height of a minimized window's body: the tab strip of its only group, or nothing.
+    pub(super) fn minimized_body(&self, window: &Floating<P>) -> f32 {
+        if matches!(window.root, Node::Tabs { .. }) { self.style.tab_height } else { 0.0 }
     }
 
     /// The title bar and, for a movable (resizable) window, the resize band above it.
@@ -120,7 +126,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.tree = outer;
             }
         }
-        self.frame.windows.push(WindowHit { window: frame, members: window.panels().cloned().collect() });
+        self.frame.windows.push(WindowHit { window: frame, body, members: window.panels().cloned().collect() });
     }
 
     /// Drag moves the whole window live, double-click minimizes or expands it, × closes every

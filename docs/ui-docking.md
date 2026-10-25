@@ -85,7 +85,9 @@ layout.apply(Action::Move {
   that side or a new group above or below in a dock. A floating window takes splits as the
   docked layout does; `Placement::Group` on a floating anchor splits its group above or below.
 - A side split zone puts what moves in a new half-size split of the anchor's frame, and no
-  other frame changes size. The new split has its own divider.
+  other frame changes size. The new split has its own divider. `Placement::SplitSized` sizes
+  that split instead (`size`) and resizes the enclosing split whose divider runs along the
+  anchor frame's side (`outer`), so the frames beyond that divider give the new frame its room.
 - Other actions select, minimize, collapse to icons, resize splits (`ResizeSplit` in the docked
   layout, `ResizeWindowSplit` in the floating window holding a panel), columns and groups, and
   move a floating window to its own OS window (`SetNative`, and `SetMonitor` for the monitor it
@@ -215,7 +217,10 @@ A flyout fits its content the same way, without the title bar.
   with `title_bar_docks` a release over a target docks the whole window there, else it only
   moves.
 - Inside a floating window, tabs and drag bars drag and dock as they do in the docked layout,
-  into any window. Its groups split, join and resize like frames, with dividers and four-way
+  into any window. A drag bar or border of a window's only group takes the whole window along,
+  so, like the title bar, it looks through the window: the groups, docks and windows behind it
+  take the drop while the pointer is still inside it. In a window of several groups, the other
+  groups stay targets. Its groups split, join and resize like frames, with dividers and four-way
   handles (`Divider::WindowSplit` and `Divider::WindowIntersection`, named by the window's first
   panel). Double-clicking the title bar minimizes the window to its title bar, or to the tab strip
   of its only group; so does double-clicking that group's strip. The group menu's float item
@@ -234,13 +239,25 @@ A flyout fits its content the same way, without the title bar.
     beside the group on that side. Where two sides meet, at a corner, the side the pointer is
     relatively nearer wins.
   - The middle third joins the group's tabs.
-  - A group that takes no tabs, such as a protected canvas, has no middle: every point of its
-    body docks beside it on the relatively nearest side. Its strip takes nothing.
+  - A group that takes no tabs, such as a protected canvas, takes nothing on its strip, and its
+    body has no middle: every point docks beside it on the relatively nearest side.
+  - In the docking profile (`new_dock_zones` without `side_edge_zones`), the body of a frame or
+    floating group that takes no tabs takes nothing, whatever its `accepts_splits`: a release
+    there is a release over no target, so a floating window stays floating and a docked panel
+    or group floats as `float_on_empty_drop` says. Only the bands along borders (below) dock
+    beside it, as in Adobe apps, whose document area is no drop zone. A dock column's group
+    keeps its sides.
 - Beside a frame is a split of that frame. Beside a group in a dock column, the top and bottom
   stack a new group above or below it, and the left and right make a new column on that side.
+  A group dragged to an edge of its own column, such as the window edge of the column it heads,
+  makes a new column there, as one of its tabs would; when it is the column's only group,
+  nothing changes.
 - A frame too narrow or short for two halves of `DockStyle::min_pane` still splits when the
-  frames beyond it can give the room, as they do for a dragged divider. When they cannot, that
-  side joins the frame's tabs instead, or takes nothing when the frame takes no tabs. The gap
+  frames beyond it can give the room, as they do for a dragged divider. When they cannot, the
+  frame keeps its size and the new frame takes the width (or height) the moved panels have now,
+  at least its minimum, from the frames beyond the frame's divider on that side
+  (`Placement::SplitSized`). When those have no room either, that side joins the frame's tabs
+  instead, or takes nothing when the frame takes no tabs. The gap
   between two frames is no target.
 - Bands along borders come before the group zones. Each is centred on its border where the
   pointer can reach both sides:
@@ -250,12 +267,32 @@ A flyout fits its content the same way, without the title bar.
   | The seam between two stacked groups of a dock column | A new group between them | `seam_band` (28 pt) |
   | Each edge of a dock column | A new column on that side | `column_edge_band` (28 pt) |
   | The docked area's left or right edge without a dock, and an empty dock | A new dock | `new_dock_band` (28 pt) |
-  | The layout's top and bottom edges (and left and right with `side_edge_zones`) | A new frame across the whole window side, a quarter of the window | `edge_band` (28 pt, 8 pt with `side_edge_zones`; at most a quarter of the layout) |
+  | The edge area's top and bottom in `drop_edges` (all four sides with `side_edge_zones`) | A new frame along that whole side, a quarter of the edge area | `edge_band` (28 pt, 8 pt with `side_edge_zones`; at most a quarter of the edge area) |
 
   Where a band overlaps a group's outer third, both mean the same side. Without
   `side_edge_zones`, a band reaches only 4 pt past its line into a tab strip that takes tabs;
   the rest of the strip joins. The outer
   edge band is offered only when every frame keeps its minimum.
+- The edge area is the root, or the part between the docks. Without `side_edge_zones` it also
+  narrows to the canvas column: where neither side of a side-by-side split is a dock and only
+  one side holds a protected panel, that side. The top (bottom) band also narrows a split of
+  rows to its first (last) row when only that row holds the canvas, so a full-width row below
+  the canvas keeps the bottom band. Side panels in split frames then get no band across the
+  whole window, and the drop wraps only the canvas column. A drop on a narrowed band anchors
+  on the canvas, so `Placement::Edge` narrows the same way when applied; on a band that is not
+  narrowed it anchors on a panel that is not protected. The renderer tries the drop with its
+  own permissions and offers the band only when the drop wraps the panels the band shows.
+  `window.panel.dock` to an outer edge picks its anchor the same way, from the permissions
+  `apply` (or `to_actions`) gets and the area's `FloatSpace` (`with_side_edge_zones` before it
+  has drawn).
+- `DockStyle::drop_edges` (a `Sides`, all four by default) lists which sides of the layout's
+  outer edge, and of a group that takes no tabs (a canvas) without `new_dock_zones`, take a
+  drop. There a canvas's whole body goes to the nearest listed side; with none listed it takes
+  nothing. In the docking profile the canvas body takes no drop and the outer left and right
+  edges are new docks, so only the outer top and bottom apply. Groups that take tabs keep all
+  four sides. A dock-column app whose palettes dock only at the left
+  and right, as in AutoCAD, sets `Sides::NONE` with `new_dock_zones` on. Not used with
+  `side_edge_zones`.
 - With `side_edge_zones` (the split-tree arrangement), a frame's zones are a picture frame
   instead: trapezoids along the four edges of the body below the tab strip, all four the same
   depth, `docking::SIDE_EDGE_ZONE_DEPTH` (40 pt), or a quarter of the body's smaller side when
@@ -288,13 +325,27 @@ A flyout fits its content the same way, without the title bar.
   way. Towards the minimums, groups give way in proportion to their room. A group takes the
   largest default, compact and fill height of its panels. All three are body heights, without
   the tab strip, like `PanelLimits`.
-- Drop previews have two shapes, the same for tab and group drags:
-  - A drop beside something shows a `DockStyle::drop_line_width` (4 pt) accent line along the
-    whole edge it docks to: a group's edge for a split or a new group above or below it, the
-    column's width for a seam, the dock's height for a new column or dock, and the layout's
-    whole edge for the outer edge band. The line's length shows what the drop docks beside.
-  - A drop that joins a group shows a 2 pt accent outline of the whole group, with a light fill,
-    and on its strip the 2 pt insertion marker.
+- Drop previews have four shapes, the same for tab and group drags:
+  - A drop beside something shows the rect the dragged panel, group or column will take, at its
+    real position and size, as a 2 pt accent outline with a light fill. The renderer applies
+    the drop to a copy of the layout and lays it out with the code that draws it, so the rect
+    is the one the panel's group gets on release: the new frame for a split (including
+    `Placement::SplitSized`), the new group for a stack above or below a dock group or on a
+    seam, and the whole column, bar included, for a new column between columns or beside a
+    dock group's side.
+  - A drop on a band along the layout's outer edge shows a `DockStyle::drop_line_width` (4 pt)
+    accent line along that edge: the new-dock band, the window edge of a dock's outermost
+    column, and the outer edge band (`Placement::Edge`), whose line spans the edge area it
+    wraps. A drop between the icon groups of an iconic column shows the same line there.
+  - A drop that joins a group shows the same outline and fill around the whole group, and on
+    its strip the 2 pt insertion marker.
+  - A drop that floats shows the floating rect.
+
+  A drop that would leave every panel where it is, changing only sizes, shows nothing and
+  changes nothing: a lone group dropped beside the group it already borders, or a frame's tab
+  on the layout edge the frame already holds. Split sizes, column widths, group heights and
+  window rectangles are not compared, and a run of splits along one axis is the same however
+  it nests.
 
   A group drag also shows its ghost at the pointer. With `side_edge_zones`, a drag over a group
   instead outlines each of its zones that a drop would change something in (the side
@@ -302,7 +353,7 @@ A flyout fits its content the same way, without the title bar.
   fills the zone under the pointer. Sides the group does not take, by its permissions or
   because a split leaves no room, are not drawn; nor is the center of the group a tab comes
   from. A drop there that the zones do not show, such as the outer edge band, fills the region
-  it takes. Escape or losing window focus cancels a drag.
+  it takes, and dock drops show the line along the edge they dock to. Escape or losing window focus cancels a drag.
 - A drag in progress (a tab, group, column, window bar, native window bar or divider, in any of
   the app's windows) also ends when the layout passed to the area is not the one it drew last
   frame, with or without its returned actions applied: the app switched workspaces, ran Reset
@@ -369,7 +420,8 @@ let closed = command.apply(&mut app.workspace, style.right_to_left, &space, |pan
   it floats. `side` is `Start` or `End`: what moves becomes a new last column of that dock, or
   a new dock; when it already is that dock's last column, the command does nothing.
 - `window.panel.dock` with `left`, `right`, `top` or `bottom` and no `anchor` or `side` makes a
-  new frame on that outer edge (`Placement::Edge`). A hidden panel is shown first.
+  new frame on that outer edge (`Placement::Edge`), wrapping what a drag to that edge would
+  (see the edge area above). A hidden panel is shown first.
 - Showing a panel (`activate`, `dock` without a destination, `ui.dock` `open`) restores a hidden
   panel's place; a panel never laid out opens as `Open` without an anchor does.
 - `window.panel.float` without a rect floats what it moves at the size a drag floats it at (see
@@ -413,10 +465,11 @@ the main window has never reported its `outer_rect`; an app that forces X11 in c
 windows from the first frame. `DockArea::native_windows(bool)` overrides the choice either way.
 
 - **Identity.** `Floating::id` names the OS window, so a window keeps it when its panels change,
-  including when its first panel moves out. `Floating::new` and loading draw fresh ids, and
-  `Floating::with_id` sets one; a layout
-  loads with unique ids; a window that merges into another takes the receiver's id, and a whole
-  window that moves (floated again, or its only group dragged) keeps its own.
+  including when its first panel moves out. `Floating::new` draws a fresh id and
+  `Floating::with_id` sets one. A saved layout stores every window's id and loads with unique
+  ids: a window saved without an id, or with one an earlier window took, gets a fresh one. A
+  window that merges into another takes the receiver's id, and a whole window that moves
+  (floated again, or its only group dragged) keeps its own.
 - **Kind and level.** `DockContent::window_kind` sorts panels into palettes
   (`WindowKind::Palette`, the default) and viewers (`WindowKind::Normal`), such as a video
   monitor on a second display. A window holding any `Normal` panel is a normal window, whichever
@@ -565,7 +618,7 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
     behind it. A window moving by its bar is never its own target. A point in no window is on the
     desktop.
   - *Targets and previews.* Each window draws its drop targets in its own coordinates, and the
-    window under the pointer draws the drop preview (zone, dock line, ghost) in its own frame.
+    window under the pointer draws the drop preview (zone, result rect, ghost) in its own frame.
     The source window shows only the "Hold {key} to undock" hint. The release is resolved at the
     end of the main window's frame, after every native window has drawn.
   - *Drops.* Over a window, a tab or group docks or joins there with the usual targets: dock lines
@@ -574,12 +627,17 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
     (the window's top-left is the pointer minus the grab offset, less the bar's height). A
     Ctrl/Cmd-drag floats there wherever it is released.
   - *Moving a window.* Dragging the bar, the only tab of a window, or the drag area of its only
-    group moves the window, so the pressed point stays under the pointer. Each move is worked
-    out from a pointer move of that frame and the window's reported place, which the pointer's
-    position is relative to; a move commanded earlier may land late. A frame with no pointer
-    move leaves the window. X11 sends no move whose position in the window repeats the last
-    one, so while the pointer keeps exact pace with the window the window can trail it by one
-    move until the next. Released over a target in another window, the whole window docks or
+    group moves the window, so the pressed point stays under the pointer. On macOS each frame
+    puts the window at the cursor's desktop position (AppKit's `NSEvent::mouseLocation`) less
+    the pressed point, and targets are hit at that position. AppKit reports a window's new place
+    as soon as a move is commanded, but measures the pointer events it sends against where the
+    window server had the window, which can be a move behind; placing the window from those
+    events would overshoot and step back. Elsewhere each move is worked out from a pointer move
+    of that frame and the window's reported place, which the pointer's position is relative to;
+    a move commanded earlier may land late. A frame with no pointer move leaves the window. X11
+    sends no move whose position in the window repeats the last one, so while the pointer keeps
+    exact pace with the window the window can trail it by one move until the next. Released over
+    a target in another window, the whole window docks or
     joins there as its groups (`Action::MoveWindow`). The bar docks only with
     `DockStyle::title_bar_docks`; the only tab or group docks either way, since it is the way
     back in with that flag off. Targets: in the
@@ -679,7 +737,10 @@ OS windows: the main window's content sits at `origin` on the desktop, and each 
 runs its own frame with its own input and desktop rect (`host()`, `window_step`,
 `window_click`). `NativeHost` can report a monitor size (`monitor_size`), give windows a frame
 between their outer position and content (`frame`), land `OuterPosition` a frame late (`lag`),
-and report no positions (`no_position`, as on Wayland). A `HostWindow` takes files dragged
+and report no positions (`no_position`, as on Wayland). `window_pointer` moves the pointer to a
+desktop point in a native window; the host can tell that point as the cursor's (`tells_cursor`,
+as AppKit does) and measure the window's pointer events against its place some frames back
+(`stale`, a pattern taken one entry per call). A `HostWindow` takes files dragged
 over it (`hovered_files`) or dropped on it (`dropped_files`), and `with_native_input_hook`
 passes a hook to `DockArea::native_input_hook` every frame.
 

@@ -178,6 +178,35 @@ impl Driver {
         }
     }
 
+    /// Whether the last frame painted the result preview of `rect`: a 2 pt outline with a light
+    /// fill, inset 1 pt.
+    fn previewed(&self, rect: Rect) -> bool {
+        let rect = rect.shrink(1.0);
+        let shapes = || {
+            self.shapes.iter().filter_map(|c| match &c.shape {
+                egui::Shape::Rect(r) if r.rect == rect => Some(r),
+                _ => None,
+            })
+        };
+        shapes()
+            .filter(|r| r.fill == egui::Color32::TRANSPARENT && r.stroke.width == 2.0)
+            .any(|outline| shapes().any(|r| r.stroke.width == 0.0 && r.fill == outline.stroke.color.gamma_multiply(0.08)))
+    }
+
+    /// The rect of the group whose strip starts with `panel`'s tab, in the column whose bar
+    /// names `column`: down to the next group's tab, `next`, or the window's bottom.
+    fn group_rect(&self, panel: u32, next: Option<u32>, column: u32) -> Rect {
+        let tab = self.tab(panel);
+        let bottom = next.map_or(600.0, |next| self.tab(next).top());
+        Rect::from_x_y_ranges(self.column_of(column).x_range(), tab.top()..=bottom)
+    }
+
+    /// The rect of the dock column whose bar names `panel`.
+    fn column_of(&self, panel: u32) -> Rect {
+        let bar = self.rect("column-bar", panel).union(self.rect("column-collapse", panel));
+        Rect::from_x_y_ranges(bar.x_range(), bar.top()..=600.0)
+    }
+
     /// Whether the last frame painted the filled insertion line `line`.
     fn painted(&self, line: Rect) -> bool {
         self.shapes.iter().any(|clipped| match &clipped.shape {
@@ -219,14 +248,18 @@ fn bar(d: &Driver, panel: u32) -> Pos2 {
 // groups share 14..600, meeting at y = 307.
 
 #[test]
-fn group_dropped_on_a_seam_inserts_between_and_shows_a_horizontal_line() {
+fn group_dropped_on_a_seam_inserts_between_and_previews_the_rect_it_takes() {
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
     let mut d = Driver::new(layout);
     assert_eq!(d.tab(3).top(), 307.0);
     let seam = pos2(120.0, 309.0);
     d.hold(bar(&d, 5), seam);
-    assert!(d.painted(hline(307.0, 0.0..=240.0)), "a horizontal line across the column at the seam");
+    let held = d.shapes.clone();
     let out = d.step(vec![button(seam, false)]);
+    d.settle();
+    let rect = d.group_rect(5, Some(3), 2);
+    d.shapes = held;
+    assert!(d.previewed(rect), "group 5's rect between groups 2 and 3: {rect:?}");
     assert_eq!(moved(&out.actions), Some((5, &Target::At { anchor: 2, placement: Placement::Group { below: true, height: None } })));
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![5], vec![3]]]);
     assert!(d.layout.floating.is_empty());
@@ -261,22 +294,29 @@ fn group_dropped_on_a_top_or_bottom_band_stacks_above_or_below() {
 
 #[test]
 fn a_dock_groups_top_and_bottom_thirds_stack_its_sides_make_columns_and_its_middle_joins() {
-    // Group 3's body is 0..240 across and 333..600 down.
-    for (at, expected, line) in [
-        (pos2(120.0, 360.0), vec![vec![vec![2], vec![5], vec![3]]], Some(hline(307.0, 0.0..=240.0))),
-        (pos2(120.0, 580.0), vec![vec![vec![2], vec![3], vec![5]]], Some(hline(598.0, 0.0..=240.0))),
-        (pos2(30.0, 466.0), vec![vec![vec![5]], vec![vec![2], vec![3]]], Some(vline(0.0, 0.0..=600.0))),
-        (pos2(200.0, 466.0), vec![vec![vec![2], vec![3]], vec![vec![5]]], Some(vline(240.0, 0.0..=600.0))),
+    // Group 3's body is 0..240 across and 333..600 down. Each drop beside previews the rect
+    // group 5 then takes: in the column, below the group `Some` names, or a whole column.
+    for (at, expected, result) in [
+        (pos2(120.0, 360.0), vec![vec![vec![2], vec![5], vec![3]]], Some(Some(3))),
+        (pos2(120.0, 580.0), vec![vec![vec![2], vec![3], vec![5]]], Some(None)),
+        (pos2(30.0, 466.0), vec![vec![vec![5]], vec![vec![2], vec![3]]], None),
+        (pos2(200.0, 466.0), vec![vec![vec![2], vec![3]], vec![vec![5]]], None),
         (pos2(120.0, 466.0), vec![vec![vec![2], vec![3, 5]]], None),
     ] {
         let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
         let mut d = Driver::new(layout);
         d.hold(bar(&d, 5), at);
-        if let Some(line) = line {
-            assert!(d.painted(line), "{at:?}: the line of the edge it docks to");
-        }
+        let held = d.shapes.clone();
         d.step(vec![button(at, false)]);
         assert_eq!(columns(&d.layout, Side::Start), expected, "{at:?}");
+        d.settle();
+        let rect = match result {
+            Some(next) => d.group_rect(5, next, 2),
+            None if expected.len() == 2 => d.column_of(5),
+            None => continue,
+        };
+        d.shapes = held;
+        assert!(d.previewed(rect), "{at:?}: the rect group 5 takes, {rect:?}");
     }
 }
 
@@ -311,6 +351,31 @@ fn a_group_edge_scrolled_out_of_view_previews_its_line_at_the_views_edge() {
     assert!(d.painted(hline(598.0, 0.0..=240.0)), "the line at the view's bottom");
     d.step(vec![button(at, false)]);
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![3], vec![5], vec![4]]]);
+}
+
+#[test]
+fn in_a_scrolled_column_a_stack_previews_the_rect_at_the_scroll_offset() {
+    // Groups 306 pt high from y = 14: group 3 spans 320..626 before scrolling.
+    let layout = with_floating(docked(Side::Start, &[&[&[2], &[3], &[4]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+    let mut d = Driver::with(layout, TestContent { min_height: 280.0 }, false);
+    let over = d.tab(2).center();
+    d.step(vec![
+        Event::PointerMoved(over),
+        Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(0.0, -200.0), phase: egui::TouchPhase::Move, modifiers: Modifiers::NONE },
+    ]);
+    d.wait();
+    let group = d.tab(3);
+    assert!(group.top() < 250.0, "scrolled up: {group:?}");
+    // Group 3's top third stacks 5 above it, where 3 is now.
+    let at = pos2(120.0, group.bottom() + 40.0);
+    d.hold(bar(&d, 5), at);
+    let held = d.shapes.clone();
+    d.step(vec![button(at, false)]);
+    assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![5], vec![3], vec![4]]]);
+    d.settle();
+    let rect = d.group_rect(5, Some(3), 2);
+    d.shapes = held;
+    assert!(d.previewed(rect), "the rect group 5 takes, {rect:?}");
 }
 
 #[test]
@@ -368,8 +433,14 @@ fn group_dropped_on_a_column_edge_makes_a_new_column() {
     let mut d = Driver::new(layout.clone());
     let edge = pos2(246.0, 200.0);
     d.hold(bar(&d, 5), edge);
-    assert!(d.painted(vline(240.0, 0.0..=600.0)), "a vertical line the full height of the dock");
+    let held = d.shapes.clone();
     let out = d.step(vec![button(edge, false)]);
+    d.settle();
+    let rect = d.column_of(5);
+    assert_eq!((rect.left(), rect.top(), rect.bottom()), (240.0, 0.0, 600.0));
+    let shapes = std::mem::replace(&mut d.shapes, held);
+    assert!(d.previewed(rect), "the new column's rect, the full height of the dock");
+    d.shapes = shapes;
     assert_eq!(moved(&out.actions), Some((5, &Target::At { anchor: 2, placement: Placement::Column { after: true } })));
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![3]], vec![vec![5]]]);
     assert_eq!(column(&d.layout, 1).width, 150.0, "the new column keeps the window's width");
@@ -388,7 +459,13 @@ fn group_dropped_on_the_window_edge_without_a_dock_makes_a_new_dock() {
         d.hold(bar(&d, 5), at);
         let x = if new == Side::End { 598.0 } else { 2.0 };
         assert!(d.painted(vline(x, 0.0..=600.0)), "{new:?}: a vertical line at the window edge");
+        let held = d.shapes.clone();
         let out = d.step(vec![button(at, false)]);
+        d.settle();
+        let rect = d.column_of(5);
+        let shapes = std::mem::replace(&mut d.shapes, held);
+        assert!(!d.previewed(rect), "{new:?}: no rect of the new dock's column");
+        d.shapes = shapes;
         assert_eq!(moved(&out.actions), Some((5, &Target::NewDock { side: new })));
         assert_eq!(columns(&d.layout, new), vec![vec![vec![5]]]);
         assert_eq!(columns(&d.layout, side), vec![vec![vec![2]]]);
@@ -862,4 +939,95 @@ fn defaults_give_way_to_the_filler_but_user_heights_stay() {
     // In a drawn column too: Layers gets less than it asks for rather than the user's heights.
     let d = sized_column(900.0, [Some(200.0), Some(340.0), None]);
     assert_eq!(drawn_heights(&d), [200.0, 340.0, 900.0 - 14.0 - 540.0]);
+}
+
+/// Dock columns left and right of protected canvas 0, as in a creative app: group [1, 7] above
+/// [2] at the left, [3] above [4] at the right, each column 200 wide, and a floating window
+/// holding group [5, 6].
+fn creative() -> testing::DockDriver<u32, TestContent> {
+    let dock = |side, groups: &[&[u32]]| Node::Dock { side, columns: vec![Column::new(groups.iter().map(|g| group(g)).collect(), 200.0)] };
+    let canvas = Node::Tabs { panels: vec![0], active: 0 };
+    let inner = Node::Split {
+        axis: SplitAxis::Horizontal,
+        size: SplitSize::FixedSecond(200.0),
+        first: Box::new(canvas),
+        second: Box::new(dock(Side::End, &[&[3], &[4]])),
+    };
+    let root = Node::Split {
+        axis: SplitAxis::Horizontal,
+        size: SplitSize::FixedFirst(200.0),
+        first: Box::new(dock(Side::Start, &[&[1, 7], &[2]])),
+        second: Box::new(inner),
+    };
+    let layout = Layout { root: Some(root), floating: vec![Floating::single(vec![5, 6], 0, [300.0, 200.0, 200.0, 160.0])] };
+    testing::DockDriver::new(layout, TestContent::default()).with_style(|s| {
+        s.side_edge_zones = false;
+        s.new_dock_zones = true;
+        s.float_on_empty_drop = true;
+        s.title_bar_docks = true;
+    })
+}
+
+/// The rect of the result preview the last frame painted: a 2 pt accent outline with a light
+/// fill.
+fn result_preview<C: DockContent<u32>>(d: &testing::DockDriver<u32, C>) -> Option<Rect> {
+    let fill = DockStyle::default().accent.gamma_multiply(0.08);
+    d.shapes()
+        .iter()
+        .find_map(|clipped| match &clipped.shape {
+            egui::Shape::Rect(shape) if shape.fill == fill && shape.stroke.width == 0.0 => Some(shape.rect),
+            _ => None,
+        })
+        .filter(|rect| d.outlined(*rect))
+}
+
+#[test]
+fn a_group_dropped_on_the_window_edge_makes_a_column_there_and_previews_the_edge_line() {
+    // Group [1, 7] heads the left column, so the column's window edge is named by panel 1: the
+    // drop names the column by panel 2 instead and moves the whole group out.
+    let mut d = creative();
+    let at = pos2(3.0, 300.0);
+    d.hold(d.hit(&Hit::DragBar(1)).unwrap().center(), at);
+    assert!(d.filled(Rect::from_x_y_ranges(0.0..=4.0, 0.0..=600.0)), "the line along the window edge");
+    assert_eq!(result_preview(&d), None);
+    let out = d.release(at);
+    assert_eq!(out.actions, vec![Action::MoveGroup { panel: 1, to: Target::At { anchor: 2, placement: Placement::Column { after: false } } }]);
+    assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![1, 7]], vec![vec![2]]]);
+
+    // A floating window's group at the right window edge.
+    let mut d = creative();
+    let at = pos2(797.0, 300.0);
+    d.hold(d.hit(&Hit::DragBar(5)).unwrap().center(), at);
+    assert!(d.filled(Rect::from_x_y_ranges(796.0..=800.0, 0.0..=600.0)), "the line along the window edge");
+    assert_eq!(result_preview(&d), None);
+    let out = d.release(at);
+    assert_eq!(out.actions, vec![Action::MoveGroup { panel: 5, to: Target::At { anchor: 3, placement: Placement::Column { after: false } } }]);
+    assert_eq!(columns(&d.layout, Side::End), vec![vec![vec![5, 6]], vec![vec![3], vec![4]]]);
+
+    // The bottom edge band between the docks: the line along the canvas's bottom.
+    let mut d = creative();
+    let at = pos2(400.0, 597.0);
+    d.hold(d.hit(&Hit::DragBar(5)).unwrap().center(), at);
+    assert!(d.filled(Rect::from_x_y_ranges(204.0..=596.0, 596.0..=600.0)), "the line along the canvas's bottom edge");
+    assert_eq!(result_preview(&d), None);
+    let out = d.release(at);
+    assert!(
+        matches!(&out.actions[..], [Action::MoveGroup { panel: 5, to: Target::At { placement: Placement::Edge(Zone::Bottom), .. } }]),
+        "{:?}",
+        out.actions
+    );
+}
+
+#[test]
+fn a_tab_dropped_beside_a_dock_group_previews_the_rect_it_takes() {
+    // The bottom third of group [2], the left column's last group: a new group below it.
+    let mut d = creative();
+    let at = pos2(100.0, 560.0);
+    d.hold(d.hit(&Hit::Tab(6)).unwrap().center(), at);
+    let preview = result_preview(&d);
+    let out = d.release(at);
+    assert_eq!(out.actions, vec![Action::Move { panel: 6, anchor: 2, placement: Placement::Group { below: true, height: None } }]);
+    d.settle();
+    let rect = Rect::from_x_y_ranges(0.0..=200.0, d.hit(&Hit::Tab(6)).unwrap().top()..=600.0);
+    assert_eq!(preview, Some(rect.shrink(1.0)), "group 6's rect below group 2");
 }

@@ -35,8 +35,8 @@ pub use surface::{
     WindowFiles, WindowKind, begin_drag, cancel_drag, float_space, is_dragging, route_app_drag, send_keys, typing_window,
 };
 pub use targets::{
-    DropProposal, DropTarget, SIDE_EDGE_ZONE_DEPTH, ZoneRule, body_zone, drop_zone, resolve_drop, resolve_drop_by, tab_insertion_marker, zone_rect,
-    zone_shape,
+    DropProposal, DropTarget, SIDE_EDGE_ZONE_DEPTH, Sides, ZoneRule, body_zone, drop_zone, resolve_drop, resolve_drop_by, tab_insertion_marker,
+    zone_rect, zone_shape,
 };
 pub use workspace::Workspace;
 
