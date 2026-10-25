@@ -1997,6 +1997,10 @@ fn the_owners_drag_stops_a_pass_after_its_release_over_another_window() {
     d.hold(source(&d), point);
     d.release(point);
     assert_eq!((d.content.drops.clone(), d.content.source_stopped), (vec![(5, local)], 0));
+    // The owner saw the pointer go, and holds its release and the pointer's going once.
+    assert_eq!(d.ctx.input(|i| i.pointer.hover_pos()), None);
+    let held = super::render::held_events(&d.ctx, egui::ViewportId::ROOT);
+    assert!(matches!(held.as_slice(), [Event::PointerButton { pressed: false, .. }, Event::PointerGone]), "{held:?}");
     d.step(vec![]);
     assert_eq!(d.content.source_stopped, 1);
     assert_eq!(d.ctx.dragged_id(), None);

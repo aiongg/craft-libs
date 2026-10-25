@@ -24,6 +24,8 @@ pub(in crate::docking) use {
     native::{APPKIT_CORNER, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, floats_shown, resize_bands, session, wayland},
 };
 
+#[cfg(all(test, feature = "native-windows"))]
+pub(in crate::docking) use body_drag::held_events;
 #[cfg(feature = "native-windows")]
 pub(in crate::docking) use body_drag::{cancel_body_route, mark_app_drag};
 #[cfg(feature = "native-windows")]

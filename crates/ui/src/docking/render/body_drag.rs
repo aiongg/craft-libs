@@ -123,9 +123,9 @@ impl BodyRoute {
                     // window (not a discarded pass's rerun), so its drag, and an egui
                     // drag-and-drop payload, last until a window drawn before it has read the
                     // release. A stop never takes it back, or the button would stay down.
-                    let (at, events) = held.entry(self.owner).or_default();
+                    let (at, held_events) = held.entry(self.owner).or_default();
                     *at = pass;
-                    events.extend([event, Event::PointerGone]);
+                    held_events.extend([event, Event::PointerGone]);
                     holding = true;
                     routed = true;
                     (self.ended, self.target) = (true, None);
@@ -261,6 +261,12 @@ fn app_drag_key(area: Id) -> Id {
 pub(in crate::docking) fn mark_app_drag(ctx: &Context, area: Id) {
     let main = ctx.cumulative_pass_nr_for(ViewportId::ROOT);
     ctx.data_mut(|d| d.insert_temp(app_drag_key(area), main));
+}
+
+/// The events held for `viewport`'s input in a later pass.
+#[cfg(test)]
+pub(in crate::docking) fn held_events(ctx: &Context, viewport: ViewportId) -> Vec<Event> {
+    ctx.with_plugin(|input: &mut NativeInput| input.held.get(&viewport).map(|(_, events)| events.clone())).flatten().unwrap_or_default()
 }
 
 /// Where the last press in one of the area's panel bodies in `viewport` began.
