@@ -77,7 +77,9 @@ pub fn double_click_command(action: DoubleClick, maximized: bool) -> Option<egui
 /// The area senses clicks only. A drag-sensing background would also receive drags that start
 /// on a click-only control (egui gives clicks and drags to different widgets), so a drag is
 /// detected here as a press on the empty area that has stopped being a click.
-pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) {
+///
+/// Returns the empty area's response, for an accessible label or a tooltip.
+pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) -> egui::Response {
     prefetch();
     let resp = ui.interact(rect, ui.id().with("title_bar_empty"), egui::Sense::click());
     let covered = ui.ctx().pointer_hover_pos().filter(|p| rect.contains(*p)).and_then(|p| ui.ctx().layer_id_at(p));
@@ -89,7 +91,7 @@ pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) {
     let armed = resp.id.with("drag_press");
     if ui.input(|i| i.viewport().fullscreen).unwrap_or(false) {
         ui.data_mut(|d| d.remove::<Option<f64>>(armed));
-        return;
+        return resp;
     }
     if resp.double_clicked() {
         let maximized = ui.input(|i| i.viewport().maximized).unwrap_or(false);
@@ -107,6 +109,7 @@ pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) {
         ui.data_mut(|d| d.remove::<Option<f64>>(armed));
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
+    resp
 }
 
 /// Whether `top`, the topmost layer under the pointer, keeps a drag there from moving the window.
