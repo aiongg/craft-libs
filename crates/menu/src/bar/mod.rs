@@ -4,9 +4,12 @@
 //! A press on a title opens its menu (releasing over an item runs it, as in a native bar), a
 //! second press or Esc closes it, and while one is open the pointer moving onto another title
 //! opens that one. Submenus open on hover and stay open while the pointer heads for them. Tall
-//! menus scroll, and the arrow keys, ↩ and Space drive an open menu ([`nav`]). When the titles
-//! don't fit, the last ones move into a trailing "⋯" menu, or all of them into one "Menu".
+//! menus scroll, and the arrow keys, ↩ and Space drive an open menu ([`nav`]). Except on a Mac
+//! target, a tap on Alt or F10 puts the keyboard on the bar and the menus have mnemonics, as on
+//! Windows ([`keys`]). When the titles don't fit, the last ones move into a trailing "⋯" menu,
+//! or all of them into one "Menu".
 
+pub(crate) mod keys;
 pub(crate) mod nav;
 
 use craft_keymap::{CommandRef, Platform};
@@ -16,9 +19,23 @@ use egui::text::LayoutJob;
 use egui::{Color32, Id, PopupCloseBehavior, Response, TextFormat, TextStyle, Ui, UiKind, UiStackInfo, WidgetText};
 
 use crate::{Gate, Item, ItemKind, Menu, MenuBar, Node, Target};
+use keys::Keys;
 use nav::Nav;
 
+pub use keys::{is_focused, leave_for_shortcut};
 pub use nav::is_open;
+
+/// A row or title, as the bar names it to the app's mnemonic hooks ([`MenuBarUi::english`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Labeled<'s> {
+    /// An item, by its command.
+    Command(&'s CommandRef),
+    /// A menu or submenu, by its title as shown.
+    Title(&'s str),
+}
+
+/// The app's English labels ([`MenuBarUi::english`]).
+type EnglishHook<'h> = dyn Fn(Labeled<'_>) -> Option<String> + 'h;
 
 /// How the bar looks. [`BarStyle::from_style`] takes its defaults from an egui style.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,13 +96,24 @@ pub struct MenuBarUi<'a> {
     target: Target,
     style: Option<BarStyle>,
     label: &'a dyn Fn(&'static str) -> String,
+    english: Option<&'a EnglishHook<'a>>,
+    preferred: &'a [(&'a str, char)],
     id: Id,
 }
 
 impl<'a> MenuBarUi<'a> {
     /// The bar for `bar`, already laid out ([`crate::layout`]), on [`Target::current`].
     pub fn new(bar: &'a MenuBar) -> MenuBarUi<'a> {
-        MenuBarUi { bar, gate: Gate::default(), target: Target::current(), style: None, label: &english, id: Id::new("craft-menu-bar") }
+        MenuBarUi {
+            bar,
+            gate: Gate::default(),
+            target: Target::current(),
+            style: None,
+            label: &english,
+            english: None,
+            preferred: &[],
+            id: Id::new("craft-menu-bar"),
+        }
     }
 
     /// What may run this frame: the items `gate` forbids ([`Gate::allows`]) are drawn and
@@ -116,6 +144,24 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
+    /// The English label of a row or title, for labels the keyboard can't type a letter of
+    /// (Chinese, Japanese, Korean…): such a label shows its English label's mnemonic after it,
+    /// "文件(F)", as Windows menus do. Without this hook (or when it returns `None`) such a label
+    /// has no mnemonic. Not asked on a Mac target, which has no mnemonics.
+    pub fn english(mut self, english: &'a dyn Fn(Labeled<'_>) -> Option<String>) -> MenuBarUi<'a> {
+        self.english = Some(english);
+        self
+    }
+
+    /// Preferred mnemonics, each for a menu or submenu by its title as shown or for an item by
+    /// its command id: the row takes that letter when its label has it and no row before it in
+    /// its menu took it. Every other row takes the first unused letter of its label, word starts
+    /// first.
+    pub fn mnemonics(mut self, preferred: &'a [(&'a str, char)]) -> MenuBarUi<'a> {
+        self.preferred = preferred;
+        self
+    }
+
     /// The bar's id, where its state lives in egui memory: tells two bars in one window apart.
     pub fn id(mut self, id: Id) -> MenuBarUi<'a> {
         self.id = id;
@@ -129,23 +175,61 @@ impl<'a> MenuBarUi<'a> {
         let style = self.style.clone().unwrap_or_else(|| BarStyle::from_style(ui.style()));
         let nav_id = self.id.with("nav");
         let mut nav = Nav::load(&ctx, nav_id);
-        let mut draw = Draw { gate: self.gate, platform: keymap_platform(self.target), style: &style, label: self.label, press: self.id.with("press"), clicked: None };
+        let keys_id = self.id.with("keys");
+        let mut keys = Keys::load(&ctx, keys_id);
+        // Option is a typing key on a Mac; a dialog or the shortcut recorder has the keys.
+        let mnemonics = self.target != Target::Mac;
+        let keys_on = mnemonics && !self.gate.modal && !self.gate.recording_shortcut;
+        if keys_on {
+            keys.begin(&mut nav);
+            nav.underline = keys.show_underlines(&ctx);
+        } else {
+            keys.off();
+        }
+        let mut draw = Draw {
+            gate: self.gate,
+            platform: keymap_platform(self.target),
+            style: &style,
+            label: self.label,
+            mnemonics,
+            english: self.english,
+            preferred: self.preferred,
+            press: self.id.with("press"),
+            clicked: None,
+        };
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             egui::MenuBar::new().ui(ui, |ui| {
                 ctx.accesskit_node_builder(ui.unique_id(), |n| n.set_role(Role::MenuBar));
                 ui.spacing_mut().button_padding = style.title_padding;
                 nav.bar_bottom = Some(ui.max_rect().bottom());
-                let tops = self.tops(ui);
+                let tops = self.tops(ui, &draw);
+                let names: Vec<(&str, Name<'_>)> = tops.iter().map(Top::name).collect();
+                let (titles, title_keys) = draw.mnemonics(&names);
                 let mut buttons = Vec::with_capacity(tops.len());
-                for top in &tops {
-                    let title = ui.add(egui::Button::new(egui::RichText::new(top.title()).color(style.title_color)));
+                for (k, top) in tops.iter().enumerate() {
+                    let shown = titles.get(k).map_or(top.title(), String::as_str);
+                    let mnemonic = title_keys.get(k).copied().flatten();
+                    let text: WidgetText = if nav.underline {
+                        keys::title_text(ui, shown, mnemonic, style.title_color)
+                    } else {
+                        egui::RichText::new(shown).color(style.title_color).into()
+                    };
+                    let mut button = egui::Button::new(text);
+                    if keys.focus == Some(k) {
+                        // The title the keyboard is on is lit like a hovered one.
+                        button = button.fill(ui.visuals().widgets.hovered.weak_bg_fill);
+                    }
+                    let title = ui.add(button);
                     let open_now = egui::Popup::is_id_open(&ctx, egui::Popup::default_response_id(&title));
                     ctx.accesskit_node_builder(title.id, |n| {
                         n.set_role(Role::MenuItem);
-                        n.set_label(top.title());
+                        n.set_label(shown);
                         n.set_has_popup(HasPopup::Menu);
                         n.set_expanded(open_now);
+                        if let Some(m) = mnemonic {
+                            n.set_access_key(m.to_string());
+                        }
                     });
                     // The bar's style, as a menu (not bar) config so that submenus inside draw as
                     // submenus. Only a click outside closes the menus, as in a native menu: a
@@ -168,7 +252,7 @@ impl<'a> MenuBarUi<'a> {
                             ui.set_min_width(style.menu_width);
                             let rows = match top {
                                 Top::Menu(m) => entries(&m.children),
-                                Top::Group(_, menus) => menus.iter().map(|m| Entry::Sub(&m.title, &m.children)).collect(),
+                                Top::Group(_, _, menus) => menus.iter().map(|m| Entry::Sub(&m.title, &m.children)).collect(),
                             };
                             draw.level(ui, 1, &rows, &mut nav);
                         });
@@ -177,8 +261,12 @@ impl<'a> MenuBarUi<'a> {
                 switch_on_hover(&ctx, &buttons);
                 let ids: Vec<Id> = buttons.iter().map(egui::Popup::default_response_id).collect();
                 nav.keys(&ctx, &ids, &mut draw.clicked);
+                if keys_on {
+                    keys.keys(&ctx, self.gate, &ids, &title_keys, &mut nav, &mut draw.clicked);
+                }
             });
         });
+        keys.store(&ctx, keys_id);
         nav.store(&ctx, nav_id);
         // The press-drag gesture ends with the button (its release was handled by the rows).
         if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
@@ -189,13 +277,15 @@ impl<'a> MenuBarUi<'a> {
 
     /// The titles to draw: every menu when they fit in the row; else the menus that fit with
     /// room for a "⋯" menu holding the rest; else one "Menu" holding them all.
-    fn tops(&self, ui: &Ui) -> Vec<Top<'a>> {
+    fn tops(&self, ui: &Ui, draw: &Draw<'_>) -> Vec<Top<'a>> {
         let menus = &self.bar.menus;
         let font = TextStyle::Button.resolve(ui.style());
         let pad = 2.0 * ui.spacing().button_padding.x;
         let width = |t: &str| ui.painter().layout_no_wrap(t.to_owned(), font.clone(), Color32::PLACEHOLDER).size().x + pad;
         let room = ui.available_width();
-        let widths: Vec<f32> = menus.iter().map(|m| width(&m.title)).collect();
+        // Measured as shown, with any "(F)" a title takes.
+        let names: Vec<(&str, Name<'_>)> = menus.iter().map(|m| (m.title.as_str(), Name::App(Labeled::Title(&m.title)))).collect();
+        let widths: Vec<f32> = draw.mnemonics(&names).0.iter().map(|t| width(t)).collect();
         if widths.iter().sum::<f32>() <= room {
             return menus.iter().map(Top::Menu).collect();
         }
@@ -210,26 +300,43 @@ impl<'a> MenuBarUi<'a> {
             })
             .count();
         if fit == 0 {
-            return vec![Top::Group((self.label)("Menu"), menus)];
+            return vec![Top::Group((self.label)("Menu"), "Menu", menus)];
         }
         let (shown, rest) = menus.split_at(fit);
-        shown.iter().map(Top::Menu).chain([Top::Group(more, rest)]).collect()
+        shown.iter().map(Top::Menu).chain([Top::Group(more, "⋯", rest)]).collect()
     }
 }
 
-/// A title of the bar: a menu, or the overflow menu holding whole menus as submenus.
+/// A title of the bar: a menu, or the overflow menu (its title, translated and in English)
+/// holding whole menus as submenus.
 enum Top<'a> {
     Menu(&'a Menu),
-    Group(String, &'a [Menu]),
+    Group(String, &'static str, &'a [Menu]),
 }
 
 impl Top<'_> {
     fn title(&self) -> &str {
         match self {
             Top::Menu(m) => &m.title,
-            Top::Group(title, _) => title,
+            Top::Group(title, ..) => title,
         }
     }
+
+    /// The title as shown, and what it is.
+    fn name(&self) -> (&str, Name<'_>) {
+        match self {
+            Top::Menu(m) => (&m.title, Name::App(Labeled::Title(&m.title))),
+            Top::Group(title, english, _) => (title, Name::Own(english)),
+        }
+    }
+}
+
+/// A row or title to assign a mnemonic to: one of the app's, or one the bar writes itself (by
+/// its English label).
+#[derive(Clone, Copy)]
+enum Name<'s> {
+    App(Labeled<'s>),
+    Own(&'static str),
 }
 
 /// A row of a menu level.
@@ -270,6 +377,10 @@ struct Draw<'s> {
     platform: Platform,
     style: &'s BarStyle,
     label: &'s dyn Fn(&'static str) -> String,
+    /// The target has mnemonics (not a Mac).
+    mnemonics: bool,
+    english: Option<&'s EnglishHook<'s>>,
+    preferred: &'s [(&'s str, char)],
     /// Where the press-drag gesture's flag lives: a press on a title opened the menus and the
     /// button is still down.
     press: Id,
@@ -277,6 +388,35 @@ struct Draw<'s> {
 }
 
 impl Draw<'_> {
+    /// The labels to show for one menu level (or the titles) and their mnemonics, from the
+    /// labels as the app shows them ([`keys::localized`]). On a Mac target, the labels as they
+    /// are and no mnemonics.
+    fn mnemonics(&self, rows: &[(&str, Name<'_>)]) -> (Vec<String>, Vec<Option<char>>) {
+        if !self.mnemonics {
+            return (rows.iter().map(|(l, _)| (*l).to_owned()).collect(), vec![None; rows.len()]);
+        }
+        let labels: Vec<&str> = rows.iter().map(|(l, _)| *l).collect();
+        let english: Vec<Option<String>> = rows
+            .iter()
+            .map(|(_, name)| match *name {
+                Name::App(labeled) => self.english.and_then(|f| f(labeled)),
+                Name::Own(english) => Some(english.to_owned()),
+            })
+            .collect();
+        let preferred: Vec<Option<char>> = rows
+            .iter()
+            .map(|(_, name)| {
+                let key = match *name {
+                    Name::App(Labeled::Command(c)) => c.id.as_str(),
+                    Name::App(Labeled::Title(t)) => t,
+                    Name::Own(_) => return None,
+                };
+                self.preferred.iter().find(|(k, _)| *k == key).map(|(_, c)| *c)
+            })
+            .collect();
+        keys::localized(&labels, &english, &preferred)
+    }
+
     /// One level of a menu, scrolling when taller than the window.
     fn level(&mut self, ui: &mut Ui, depth: usize, rows: &[Entry<'_>], nav: &mut Nav) {
         let label = self.label;
@@ -289,8 +429,22 @@ impl Draw<'_> {
         // Rows touch, as in native menus.
         ui.spacing_mut().item_spacing.y = 0.0;
         let marks = Marks::new(ui, self.style);
+        // Mnemonics are unique within the level, separators aside.
+        let names: Vec<(&str, Name<'_>)> = rows
+            .iter()
+            .filter_map(|r| match *r {
+                Entry::Item(it) => Some((it.label.as_str(), Name::App(Labeled::Command(&it.command)))),
+                Entry::Sub(label, _) => Some((label, Name::App(Labeled::Title(label)))),
+                Entry::Separator => None,
+            })
+            .collect();
+        let (shown, mnemonics) = self.mnemonics(&names);
+        let mut next = 0;
         let mut last_was_sep = true;
         for (i, row) in rows.iter().enumerate() {
+            let label = |next: usize, fallback: &str| -> (String, Option<char>) {
+                (shown.get(next).cloned().unwrap_or_else(|| fallback.to_owned()), mnemonics.get(next).copied().flatten())
+            };
             match *row {
                 Entry::Separator => {
                     let more = rows.get(i + 1..).is_some_and(|rest| rest.iter().any(|r| !matches!(r, Entry::Separator)));
@@ -300,18 +454,24 @@ impl Draw<'_> {
                     }
                 }
                 Entry::Item(it) => {
-                    self.item(ui, depth, it, &marks, nav);
+                    let (shown, mnemonic) = label(next, &it.label);
+                    next += 1;
+                    self.item(ui, depth, it, (&shown, mnemonic), &marks, nav);
                     last_was_sep = false;
                 }
-                Entry::Sub(label, children) => {
-                    self.submenu(ui, depth, label, children, &marks, nav);
+                Entry::Sub(title, children) => {
+                    let (shown, mnemonic) = label(next, title);
+                    next += 1;
+                    self.submenu(ui, depth, (&shown, mnemonic), children, &marks, nav);
                     last_was_sep = false;
                 }
             }
         }
     }
 
-    fn item(&mut self, ui: &mut Ui, depth: usize, it: &Item, marks: &Marks, nav: &mut Nav) {
+    /// An item's row; `shown` is its label as shown and its mnemonic.
+    fn item(&mut self, ui: &mut Ui, depth: usize, it: &Item, shown: (&str, Option<char>), marks: &Marks, nav: &mut Nav) {
+        let (label, mnemonic) = shown;
         let enabled = it.enabled && self.gate.allows(it);
         let (role, mark) = match it.kind {
             ItemKind::Plain => (Role::MenuItem, None),
@@ -319,14 +479,15 @@ impl Draw<'_> {
             ItemKind::Radio(on) => (Role::MenuItemRadio, on.then_some(self.style.radio_mark.as_str())),
         };
         let shortcut = it.shortcut.map(|c| c.display(self.platform));
-        let mut button = egui::Button::new(marks.text(ui, mark, &it.label));
+        let underline = mnemonic.filter(|_| nav.underline);
+        let mut button = egui::Button::new(marks.text(ui, mark, label, underline));
         if let Some(s) = &shortcut {
             button = button.shortcut_text(s.as_str());
         }
         let press = self.press;
-        let hit = nav.row(ui, depth - 1, enabled, Some(&it.command), |ui, _| {
+        let hit = nav.row(ui, depth - 1, enabled, Some(&it.command), mnemonic, |ui, _| {
             let r = ui.add_enabled(enabled, button);
-            access(&r, role, &it.label, it.kind.checked(), shortcut.as_deref());
+            access(&r, role, label, mnemonic, it.kind.checked(), shortcut.as_deref());
             let hit = r.clicked() || released_on(ui, &r, press);
             (r, hit)
         });
@@ -336,11 +497,13 @@ impl Draw<'_> {
         }
     }
 
-    fn submenu(&mut self, ui: &mut Ui, depth: usize, label: &str, children: &[Node], marks: &Marks, nav: &mut Nav) {
+    /// A submenu's row; `shown` is its title as shown and its mnemonic.
+    fn submenu(&mut self, ui: &mut Ui, depth: usize, shown: (&str, Option<char>), children: &[Node], marks: &Marks, nav: &mut Nav) {
+        let (label, mnemonic) = shown;
         let enabled = any_enabled(children, self.gate);
-        let text = marks.text(ui, None, label);
+        let text = marks.text(ui, None, label, mnemonic.filter(|_| nav.underline));
         ui.add_enabled_ui(enabled, |ui| {
-            nav.row(ui, depth - 1, enabled, None, |ui, nav| {
+            nav.row(ui, depth - 1, enabled, None, mnemonic, |ui, nav| {
                 let (response, open) = submenu_row(ui, text, |ui| {
                     ui.ctx().accesskit_node_builder(ui.unique_id(), |n| n.set_role(Role::Menu));
                     self.level(ui, depth + 1, &entries(children), nav);
@@ -349,7 +512,7 @@ impl Draw<'_> {
                     // Where the submenu hangs from, to keep it below the bar.
                     nav.set_anchor(depth, response.rect);
                 }
-                access(&response, Role::MenuItem, label, None, None);
+                access(&response, Role::MenuItem, label, mnemonic, None, None);
                 response.ctx.accesskit_node_builder(response.id, |n| {
                     n.set_has_popup(HasPopup::Menu);
                     n.set_expanded(open);
@@ -376,9 +539,9 @@ impl Marks {
         Marks { font, gutter }
     }
 
-    /// A row's text: `mark` in the column, then the label. The text takes the button's color
-    /// (dimmed when disabled).
-    fn text(&self, ui: &Ui, mark: Option<&str>, label: &str) -> WidgetText {
+    /// A row's text: `mark` in the column, then the label with `mnemonic` underlined. The text
+    /// takes the button's color (dimmed when disabled).
+    fn text(&self, ui: &Ui, mark: Option<&str>, label: &str, mnemonic: Option<char>) -> WidgetText {
         let plain = TextFormat { font_id: self.font.clone(), color: Color32::PLACEHOLDER, ..Default::default() };
         let mut job = LayoutJob::default();
         job.wrap.max_width = f32::INFINITY;
@@ -388,17 +551,20 @@ impl Marks {
             job.append(mark, 0.0, plain.clone());
             lead = (self.gutter - w).max(0.0);
         }
-        job.append(label, lead, plain);
+        keys::append_underlined(&mut job, label, lead, mnemonic, &plain);
         job.into()
     }
 }
 
-/// Give a row its AccessKit role, its label without the mark, its checked state and its
-/// shortcut. egui marks it disabled already.
-fn access(r: &Response, role: Role, label: &str, checked: Option<bool>, shortcut: Option<&str>) {
+/// Give a row its AccessKit role, its label without the mark, its mnemonic, its checked state
+/// and its shortcut. egui marks it disabled already.
+fn access(r: &Response, role: Role, label: &str, mnemonic: Option<char>, checked: Option<bool>, shortcut: Option<&str>) {
     r.ctx.accesskit_node_builder(r.id, |n| {
         n.set_role(role);
         n.set_label(label);
+        if let Some(m) = mnemonic {
+            n.set_access_key(m.to_string());
+        }
         match checked {
             Some(true) => n.set_toggled(Toggled::True),
             Some(false) => n.set_toggled(Toggled::False),
@@ -453,7 +619,10 @@ fn title_press(ctx: &egui::Context, title: &Response, press: Id) -> Option<egui:
 
 /// Did the press-drag gesture that opened the menus end over `item` (released on it)?
 fn released_on(ui: &Ui, item: &Response, press: Id) -> bool {
-    item.enabled() && item.contains_pointer() && ui.input(|i| i.pointer.primary_released()) && ui.ctx().data(|d| d.get_temp::<bool>(press)).unwrap_or(false)
+    item.enabled()
+        && item.contains_pointer()
+        && ui.input(|i| i.pointer.primary_released())
+        && ui.ctx().data(|d| d.get_temp::<bool>(press)).unwrap_or(false)
 }
 
 /// Whether the pointer can reach a title: a tall submenu that egui moved up over the bar is on

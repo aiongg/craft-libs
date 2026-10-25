@@ -121,6 +121,24 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
 - **Keys, while a menu is open:** ↑ and ↓ move the highlight, → opens a submenu or the next
   menu, ← closes the submenu or opens the previous menu, ↩ and Space run the item, Esc closes.
   `craft_menu::bar::is_open(ctx)` tells the app's shortcut handling to wait meanwhile.
+- **Keyboard access (Windows, Linux, web):** a tap on Alt alone, or F10, puts the keyboard on
+  the bar: the first title is lit, ← and → move along the titles, ↓, ↩ and Space open the lit
+  menu, Esc, a second tap or a click leaves. Alt+letter opens the menu with that mnemonic, and
+  in an open menu a letter runs the row with that mnemonic or opens its submenu. Mnemonics are
+  underlined while Alt is held, while the bar has the keyboard, and in a menu opened from the
+  keyboard. Each menu level assigns them from the labels as shown, so translated: unique within
+  the level, the first unused letter, word starts first; `.mnemonics(&[("View", 'W'),
+  ("file.open", 'P')])` names preferred letters by title as shown or by command id. A label
+  without an ASCII letter or digit shows its English label's letter after it, "文件(F)", when
+  `.english(&hook)` returns that English label for the `Labeled::Command` or `Labeled::Title`;
+  without one it has no mnemonic. While the bar has the keyboard the app's shortcuts wait, as
+  for an open menu (`craft_menu::bar::is_focused(ctx)`); call
+  `craft_menu::bar::leave_for_shortcut(ctx)` before them so that a command shortcut (Ctrl+S,
+  F7) leaves the bar and runs. While a dialog is open or a shortcut is being recorded (`Gate`),
+  Alt, F10 and the letters leave the bar alone. While a text field has the keys, a tap on Alt
+  still focuses the bar, as on Windows, but a letter without Alt goes on to the field (and takes
+  the keyboard off the bar) unless a menu is open. On `Target::Mac` the bar has no mnemonics and
+  Alt does nothing: Option is a typing key there.
 - **Items:** disabled items, and the items the `Gate` forbids (`Gate::allows`), are greyed and
   never run. Check items show ✓, the selected radio item a dot, and the shortcut column shows
   every shortcut, the display-only ones too, in the target's names (⌘ glyphs on `Target::Mac`,
@@ -132,7 +150,7 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
   (`craft_quit::QUIT_MENU_ID`). The bar returns it like any other command; pass it to
   `craft_quit::on_menu_event`, which asks the window to close so the unsaved-changes check runs.
 - **Accessibility:** AccessKit sees a menu bar of menu items, the open menus, check and radio
-  items with their state, disabled items, and each item's shortcut.
+  items with their state, disabled items, and each item's shortcut and mnemonic (`access_key`).
 - **Style:** `BarStyle::from_style(ui.style())` by default; `.style(..)` sets title padding and
   color, the menu width, separator room and the check and radio marks.
 

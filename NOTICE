@@ -89,14 +89,15 @@ The macOS backend in crates/menu/src/mac.rs is adapted from:
   https://github.com/storytold/vectorcraft
   Copyright (c) 2026 ArtCraft Team and the VectorCraft contributors.
   Both licensed MIT OR Apache-2.0.
-The egui menu bar in crates/menu/src/bar (its menu navigation, scrolling and submenu hover
-intent, and their tests) is ported from:
-- PhotoCraft, crates/ui-egui/src/menu_nav.rs and menu_nav_tests.rs, and the menu bar in
-  crates/ui-egui/src/menus.rs, revision c36e46c3873ee39f299cc50a3dcd28494c78366d.
+The egui menu bar in crates/menu/src/bar (its menu navigation, scrolling, submenu hover
+intent, keyboard access and mnemonics, and their tests) is ported from:
+- PhotoCraft, crates/ui-egui/src/menu_nav.rs and menu_nav_tests.rs, menu_keys.rs and
+  menu_keys_tests.rs, and the menu bar in crates/ui-egui/src/menus.rs, revision
+  c36e46c3873ee39f299cc50a3dcd28494c78366d.
   https://github.com/storytold/photocraft
-  Copyright (c) 2026 ArtCraft Team and the PhotoCraft contributors, among them BFlat, Brandon
-  Thomas, Brennan Stehling, Daniel Lošák, David Mann, Fabio Lissi, FredApps, Higgs32584,
-  jason4short, MarekSpodBiedry and Nigel Ihza Firdausy.
+  Copyright (c) 2026 ArtCraft Team and the PhotoCraft contributors, among them aiongg, artman67,
+  BFlat, Brandon Thomas, Brennan Stehling, Daniel Lošák, David Mann, Fabio Lissi, FredApps,
+  Higgs32584, itsF4LCON, jason4short, Korg1ch, MarekSpodBiedry and Nigel Ihza Firdausy.
   Licensed MIT OR Apache-2.0. PhotoCraft's menus, theme and Help search are not copied.
 
 The colour management module in crates/cms is extracted from:
