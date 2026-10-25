@@ -83,6 +83,7 @@ enum Hide {
 /// The style of an editor whose layout is one split tree of tab groups, as FilmCraft sets it.
 pub(super) fn frame_style(style: &mut DockStyle) {
     style.side_edge_zones = true;
+    style.edge_band = 8.0;
     style.new_dock_zones = false;
     style.close_others_item = true;
     style.maximize_item = true;

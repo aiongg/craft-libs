@@ -260,6 +260,62 @@ fn group_dropped_on_a_top_or_bottom_band_stacks_above_or_below() {
 }
 
 #[test]
+fn a_dock_groups_top_and_bottom_thirds_stack_its_sides_make_columns_and_its_middle_joins() {
+    // Group 3's body is 0..240 across and 333..600 down.
+    for (at, expected, line) in [
+        (pos2(120.0, 360.0), vec![vec![vec![2], vec![5], vec![3]]], Some(hline(307.0, 0.0..=240.0))),
+        (pos2(120.0, 580.0), vec![vec![vec![2], vec![3], vec![5]]], Some(hline(600.0, 0.0..=240.0))),
+        (pos2(30.0, 466.0), vec![vec![vec![5]], vec![vec![2], vec![3]]], Some(vline(0.0, 0.0..=600.0))),
+        (pos2(200.0, 466.0), vec![vec![vec![2], vec![3]], vec![vec![5]]], Some(vline(240.0, 0.0..=600.0))),
+        (pos2(120.0, 466.0), vec![vec![vec![2], vec![3, 5]]], None),
+    ] {
+        let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+        let mut d = Driver::new(layout);
+        d.hold(bar(&d, 5), at);
+        if let Some(line) = line {
+            assert!(d.painted(line), "{at:?}: the line of the edge it docks to");
+        }
+        d.step(vec![button(at, false)]);
+        assert_eq!(columns(&d.layout, Side::Start), expected, "{at:?}");
+    }
+}
+
+#[test]
+fn dock_bands_are_28_pt_wide() {
+    let window = || with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+    let target = |layout: Layout<u32>, at: Pos2| {
+        let mut d = Driver::new(layout);
+        let out = d.drag(bar(&d, 5), at);
+        moved(&out.actions).map(|(_, to)| to.clone())
+    };
+    let column_after = Target::At { anchor: 2, placement: Placement::Column { after: true } };
+    // 14 pt either side of the dock's inner edge at 240; past it, the protected canvas.
+    assert_eq!(target(window(), pos2(253.0, 300.0)), Some(column_after.clone()));
+    assert_ne!(target(window(), pos2(255.0, 300.0)), Some(column_after));
+    // 28 pt along the window edge without a dock.
+    assert_eq!(target(window(), pos2(573.0, 300.0)), Some(Target::NewDock { side: Side::End }));
+    assert_ne!(target(window(), pos2(571.0, 300.0)), Some(Target::NewDock { side: Side::End }));
+    // 28 pt along the bottom of the part between the docks, which splits at the root.
+    assert!(matches!(target(window(), pos2(420.0, 573.0)), Some(Target::At { placement: Placement::Edge(Zone::Bottom), .. })));
+    assert!(!matches!(target(window(), pos2(420.0, 571.0)), Some(Target::At { placement: Placement::Edge(_), .. })));
+    // 14 pt either side of a seam. In a 400 pt column, 16 pt in from the window edge and 13
+    // above the seam at 307 is relatively nearer group 2's left than its bottom, but the seam
+    // takes it; 15 above, the left third makes a column.
+    let wide = || {
+        let mut layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [450.0, 300.0, 100.0, 150.0])]);
+        if let Some(Node::Split { size, first, .. }) = &mut layout.root {
+            *size = SplitSize::FixedFirst(400.0);
+            if let Node::Dock { columns, .. } = &mut **first {
+                columns.iter_mut().for_each(|c| c.width = 400.0);
+            }
+        }
+        layout
+    };
+    assert_eq!(target(wide(), pos2(16.0, 294.0)), Some(Target::At { anchor: 2, placement: Placement::Group { below: true, height: None } }));
+    assert_eq!(target(wide(), pos2(16.0, 292.0)), Some(Target::At { anchor: 2, placement: Placement::Column { after: false } }));
+}
+
+#[test]
 fn group_dropped_on_a_column_edge_makes_a_new_column() {
     // The dock's inner edge: a column after the existing one, previewed full height.
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
