@@ -1,7 +1,7 @@
 //! Floating windows in their own OS windows (feature `native-windows`), drawn by the driver's
 //! stand-in for OS windows.
 
-use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, epaint::ClippedShape, pos2, vec2};
+use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, Vec2, ViewportCommand, epaint::ClippedShape, pos2, vec2};
 
 use super::render::{
     APPKIT_CORNER, DragPointer, INACTIVE_PALETTE, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, drag_opacity, resize_bands, wayland,
@@ -17,6 +17,8 @@ const ORIGIN: Pos2 = pos2(100.0, 50.0);
 struct Content {
     /// Panels that may not close.
     fixed: Vec<u32>,
+    /// The protected canvas that takes splits beside it, as PhotoCraft's does.
+    canvas: Option<u32>,
     /// Panels that stay in-window.
     in_window: Vec<u32>,
     /// Viewer panels: their windows are normal windows.
@@ -121,6 +123,9 @@ impl DockContent<u32> for Content {
     }
 
     fn permissions(&self, panel: &u32) -> Permissions {
+        if self.canvas == Some(*panel) {
+            return Permissions { accepts_splits: true, ..Permissions::PROTECTED };
+        }
         Permissions { closable: !self.fixed.contains(panel), ..Permissions::default() }
     }
 
@@ -326,6 +331,62 @@ fn a_restored_window_opens_on_a_connected_monitor() {
     assert_eq!(os_window(&d, 5).unwrap().0.min, pos2(1080.0, 100.0));
     assert_eq!(window(&d, 5).native, Some([1080.0, 100.0, 240.0, 300.0]));
     assert_eq!(window(&d, 5).monitor.as_ref().and_then(|m| m.name.as_deref()), Some("left"));
+}
+
+/// The last `InnerSize`, `MinInnerSize` and `MaxInnerSize` sent to `viewport`.
+fn size_commands(d: &DockDriver<u32, Content>, viewport: egui::ViewportId) -> [Option<egui::Vec2>; 3] {
+    let mut sizes = [None; 3];
+    for (_, c) in d.host().commands.iter().filter(|(v, _)| *v == viewport) {
+        match c {
+            ViewportCommand::InnerSize(s) => sizes[0] = Some(*s),
+            ViewportCommand::MinInnerSize(s) => sizes[1] = Some(*s),
+            ViewportCommand::MaxInnerSize(s) => sizes[2] = Some(*s),
+            _ => {}
+        }
+    }
+    sizes
+}
+
+#[test]
+fn a_minimized_native_window_shrinks_to_its_bar_and_keeps_its_expanded_size() {
+    let mut d = driver(layout(true));
+    let viewport = d.viewport(window(&d, 5).id);
+    let open = os_window(&d, 5).unwrap().0;
+    let (native, rect) = (window(&d, 5).native, window(&d, 5).rect);
+    assert_eq!(native, Some([open.left(), open.top(), 240.0, 300.0]));
+
+    // Its bar and its group's tab strip, at the same width and top-left corner; only the width
+    // resizes.
+    let collapsed = BAR + super::DockStyle::default().tab_height;
+    d.layout.apply(Action::SetMinimized { panel: 5, minimized: true }).unwrap();
+    d.settle();
+    assert_eq!(os_window(&d, 5).unwrap().0, Rect::from_min_size(open.min, vec2(240.0, collapsed)));
+    let [_, min, max] = size_commands(&d, viewport);
+    assert_eq!((min.map(|s| s.y), max.map(|s| s.y)), (Some(collapsed), Some(collapsed)));
+
+    // The layout keeps the expanded size after the window reports the collapsed one, past the
+    // wait for commanded moves, and takes a new width.
+    for _ in 0..40 {
+        d.step(vec![]);
+    }
+    assert_eq!((window(&d, 5).native, window(&d, 5).rect), (native, rect));
+    d.host().windows.get_mut(&viewport).unwrap().rect = Rect::from_min_size(open.min, vec2(300.0, collapsed));
+    for _ in 0..40 {
+        d.step(vec![]);
+    }
+    assert_eq!(window(&d, 5).native, Some([open.left(), open.top(), 300.0, 300.0]));
+    assert_eq!(window(&d, 5).rect[2..], [300.0, 300.0]);
+
+    // Expanded: the saved height comes back, and the height resizes again.
+    d.layout.apply(Action::SetMinimized { panel: 5, minimized: false }).unwrap();
+    d.settle();
+    assert_eq!(os_window(&d, 5).unwrap().0, Rect::from_min_size(open.min, vec2(300.0, 300.0)));
+    assert_eq!(size_commands(&d, viewport), [Some(vec2(300.0, 300.0)), Some(vec2(160.0, 100.0)), Some(egui::Vec2::INFINITY)]);
+    // The limits change before the size: the OS clamps a new size to the limits it has.
+    let commands: Vec<_> = d.host().commands.iter().filter(|(v, _)| *v == viewport).map(|(_, c)| c.clone()).collect();
+    let last = |f: fn(&ViewportCommand) -> bool| commands.iter().rposition(f);
+    assert!(last(|c| matches!(c, ViewportCommand::MaxInnerSize(_))) < last(|c| matches!(c, ViewportCommand::InnerSize(_))), "{commands:?}");
+    assert_eq!(window(&d, 5).native, Some([open.left(), open.top(), 300.0, 300.0]));
 }
 
 #[test]
@@ -932,6 +993,55 @@ fn a_native_windows_bar_docks_it_at_frame_edges_and_dock_lines_but_not_a_body_ce
 }
 
 #[test]
+fn over_a_canvas_body_a_window_stays_floating_and_a_tab_floats_while_the_edge_bands_dock() {
+    // PhotoCraft: a dock column of [2] above [3, 4] beside canvas 0, which takes splits, and
+    // window [5, 6] floating.
+    let accent = Color32::from_rgb(250, 10, 200);
+    let dock = Node::Dock {
+        side: super::Side::Start,
+        columns: vec![super::Column::new(vec![super::Group::new(vec![2], 0), super::Group::new(vec![3, 4], 0)], 240.0)],
+    };
+    let root = Node::Split { axis: SplitAxis::Horizontal, size: SplitSize::FixedFirst(240.0), first: Box::new(dock), second: Box::new(tabs(&[0])) };
+    let layout = Layout { root: Some(root), floating: vec![Floating::single(vec![5, 6], 0, [300.0, 80.0, 240.0, 200.0])] };
+    let start = || {
+        DockDriver::new(layout.clone(), Content { canvas: Some(0), ..Content::default() })
+            .with_style(move |s| {
+                s.accent = accent;
+                s.float_hint = false;
+            })
+            .with_native_host(ORIGIN)
+    };
+    // The canvas spans x = 244 to 800 and the whole height: no tab strip.
+    for at in [pos2(520.0, 150.0), pos2(520.0, 450.0)] {
+        let mut d = start();
+        let before = accented(d.shapes(), accent);
+        let id = window(&d, 5).id;
+        d.window_step(id, vec![Event::PointerMoved(pos2(40.0, 9.0)), button(pos2(40.0, 9.0), true)]);
+        d.window_step(id, vec![Event::PointerMoved(pos2(60.0, 19.0))]);
+        let local = d.window_local(id, ORIGIN + at.to_vec2()).unwrap();
+        d.window_step(id, vec![Event::PointerMoved(local)]);
+        d.step(vec![]);
+        assert_eq!(accented(d.shapes(), accent), before, "{at:?}: no preview");
+        let out = d.window_step(id, vec![button(pos2(40.0, 9.0), false)]);
+        assert_eq!(window_move(&out), None, "{at:?}: {:?}", out.actions);
+        assert!(window(&d, 5).contains(&6), "{at:?}");
+    }
+    // A docked tab dropped there floats.
+    let mut d = start();
+    let tab = d.hit(&Hit::Tab(3)).unwrap().center();
+    let out = d.drag(tab, pos2(520.0, 450.0));
+    assert!(matches!(out.actions.as_slice(), [Action::Float { panel: 3, .. }]), "{:?}", out.actions);
+    // The window's right edge, where no dock is yet, and the bottom edge band beside the canvas
+    // still dock the window.
+    let mut d = start();
+    let out = drag_bar_to(&mut d, 5, pos2(795.0, 300.0));
+    assert_eq!(window_move(&out), Some(&Target::NewDock { side: super::Side::End }), "{:?}", out.actions);
+    let mut d = start();
+    let out = drag_bar_to(&mut d, 5, pos2(520.0, 590.0));
+    assert!(matches!(window_move(&out), Some(Target::At { placement: Placement::Edge(super::Zone::Bottom), .. })), "{:?}", out.actions);
+}
+
+#[test]
 fn escape_during_a_bar_drag_puts_the_window_back() {
     let mut d = driver(layout(true));
     let id = window(&d, 5).id;
@@ -1088,6 +1198,45 @@ fn a_bar_drag_follows_the_pointer_when_moves_land_late() {
     let to = pointer - grab.to_vec2();
     assert_eq!(d.host().windows[&viewport].rect.min, to);
     assert_eq!(window(&d, 5).native.map(|r| [r[0], r[1]]), Some([to.x, to.y]));
+}
+
+/// A bar drag at a steady pointer speed under AppKit's timing: the window's reported place is
+/// fresh, while pointer events are measured against where the window was a frame back on some
+/// frames. Returns the window's step each frame. Released, the layout keeps where it ended.
+fn bar_drag_with_stale_pointer(tells_cursor: bool) -> Vec<Vec2> {
+    let mut d = driver(layout(true));
+    d.host().tells_cursor = tells_cursor;
+    d.host().stale = vec![1, 0, 1, 1, 0];
+    let id = id_of(&d);
+    let viewport = d.viewport(id);
+    let grab = pos2(40.0, 9.0);
+    let mut pointer = d.host().windows[&viewport].rect.min + grab.to_vec2();
+    d.window_step(id, vec![Event::PointerMoved(grab), button(grab, true)]);
+    let mut place = d.host().windows[&viewport].rect.min;
+    let mut steps = Vec::new();
+    // On to the desktop right of the main window, where the release docks nothing.
+    for _ in 0..24 {
+        pointer += vec2(20.0, 5.0);
+        d.window_pointer(id, pointer);
+        let now = d.host().windows[&viewport].rect.min;
+        steps.push(now - place);
+        place = now;
+    }
+    let local = pointer - place.to_vec2();
+    d.window_step(id, vec![button(local, false)]);
+    d.settle();
+    assert_eq!(window(&d, 5).native.map(|r| pos2(r[0], r[1])), Some(d.host().windows[&viewport].rect.min));
+    steps
+}
+
+#[test]
+fn a_bar_drag_follows_the_cursor_where_pointer_events_trail_the_window() {
+    // Without the cursor the window overshoots and steps back.
+    let steps = bar_drag_with_stale_pointer(false);
+    assert!(steps.iter().any(|s| s.x < 0.0), "{steps:?}");
+    // With it, every frame moves the window by the pointer's step.
+    let steps = bar_drag_with_stale_pointer(true);
+    assert!(steps.iter().all(|s| *s == vec2(20.0, 5.0)), "{steps:?}");
 }
 
 #[test]
