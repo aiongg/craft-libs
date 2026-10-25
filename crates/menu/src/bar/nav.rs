@@ -12,10 +12,10 @@
 //! nor opens the submenu of a row crossed. The pointer resting on another row, or moving away
 //! from the submenu, switches as usual.
 //!
-//! The bar's own keys (Alt and F10 focusing it, mnemonics) drive the same state: the open menu
-//! ([`Nav::top`], through the popup ids in [`Nav::tops`]), the level the arrows move in
-//! ([`Nav::level`]) and its highlighted row ([`Nav::highlighted`]), with [`Nav::open_sub`] to go
-//! into a submenu.
+//! The bar's own keys (Alt and F10 focusing it, mnemonics; [`super::keys`]) drive the same
+//! state: the open menu ([`Nav::top`], through the popup ids in [`Nav::tops`]), the level the
+//! arrows move in ([`Nav::level`]), its rows' mnemonics ([`Nav::row_with_mnemonic`]) and
+//! [`Nav::open_sub_row`] to go into a submenu.
 
 use egui::containers::menu::{MenuState, SubMenu, find_menu_root};
 use egui::{Id, Key, Modifiers, Pos2, Rect, Sense, Ui, pos2, vec2};
@@ -57,6 +57,8 @@ pub(crate) struct Row {
     /// Where it was drawn (scrolled out of view when outside its level's `views` rect).
     #[cfg_attr(not(test), allow(dead_code))]
     pub rect: Rect,
+    /// The letter that runs it from the keyboard, upper case.
+    pub mnemonic: Option<char>,
 }
 
 /// Keyboard and highlight state of the open menu.
@@ -74,6 +76,8 @@ pub(crate) struct Nav {
     pub rows: Vec<Vec<Row>>,
     /// Menu-root id per level (the owner of egui's `MenuState` for that level).
     roots: Vec<Id>,
+    /// Underline the rows' mnemonics this frame.
+    pub underline: bool,
     /// Bottom of the menu bar: where top-level menus hang from.
     pub bar_bottom: Option<f32>,
     /// The visible (scrolled) part of each level.
@@ -151,13 +155,14 @@ impl Nav {
 
     /// Draw a row of `level` with `add`, lit like a hovered row when the keyboard (or the
     /// pointer) is on it, and register it for the keys. `add` returns the row's response. A row
-    /// without a `command` opens a submenu.
+    /// without a `command` opens a submenu; `mnemonic` is the letter that runs or opens it.
     pub fn row<R>(
         &mut self,
         ui: &mut Ui,
         level: usize,
         enabled: bool,
         command: Option<&CommandRef>,
+        mnemonic: Option<char>,
         add: impl FnOnce(&mut Ui, &mut Nav) -> (egui::Response, R),
     ) -> R {
         let i = self.rows.get(level).map_or(usize::MAX, Vec::len);
@@ -179,7 +184,7 @@ impl Nav {
             self.aim(level, i, root, open, &r);
         }
         if let Some(rows) = self.rows.get_mut(level) {
-            rows.push(Row { widget: r.id, enabled, command: command.cloned(), rect: r.rect });
+            rows.push(Row { widget: r.id, enabled, command: command.cloned(), rect: r.rect, mnemonic });
             if let Some(index) = held {
                 self.set_hi(level, Some(index));
             } else {
@@ -231,7 +236,8 @@ impl Nav {
         aim.held = false;
         // A click or a key closes menus as usual; so does leaving the submenu's direction, or
         // resting on another row.
-        let (acted, rest) = ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click() || !i.keys_down.is_empty(), i.pointer.time_since_last_movement()));
+        let (acted, rest) =
+            ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click() || !i.keys_down.is_empty(), i.pointer.time_since_last_movement()));
         let Some(target) = target else { return false };
         if acted || rest >= AIM_REST || !heading(aim.from, p, target) {
             return false;
@@ -288,6 +294,24 @@ impl Nav {
         if let Some(aim) = self.aims.get_mut(level) {
             *aim = None;
         }
+    }
+
+    /// Light the first enabled row of `level` once it has been drawn (a menu opened from the
+    /// keyboard, as on Windows).
+    pub fn highlight_first(&mut self, level: usize) {
+        self.first_at = Some(level);
+    }
+
+    /// The enabled row of the level the arrows are in whose mnemonic is `c`.
+    pub fn row_with_mnemonic(&self, c: char) -> Option<Row> {
+        let level = self.level.min(self.rows.len().saturating_sub(1));
+        self.rows.get(level)?.iter().find(|r| r.enabled && r.mnemonic == Some(c)).cloned()
+    }
+
+    /// Open the submenu of row `widget` of the level the arrows are in.
+    pub fn open_sub_row(&mut self, ctx: &egui::Context, widget: Id) {
+        let level = self.level.min(self.rows.len().saturating_sub(1));
+        self.open_sub(ctx, level, widget);
     }
 
     /// Open the submenu of row `widget` of `level` and move the keyboard into it, on its first

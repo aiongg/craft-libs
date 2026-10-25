@@ -4,7 +4,11 @@ use egui::accesskit::{self, NodeId, Role, Toggled};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Vec2, pos2, vec2};
 
 use super::*;
+use crate::bar::Labeled;
 use crate::bar::nav::{ARROW, Nav, heading, is_open};
+
+#[path = "bar_keys.rs"]
+mod keys;
 
 fn item(id: &str, label: &str) -> Item {
     Item::new(id, label)
@@ -52,6 +56,8 @@ struct Bar {
     bar: MenuBar,
     gate: Gate,
     target: Target,
+    english: Option<fn(Labeled<'_>) -> Option<String>>,
+    preferred: Vec<(&'static str, char)>,
     size: Vec2,
     dt: f64,
     time: f64,
@@ -66,7 +72,21 @@ impl Bar {
         let ctx = egui::Context::default();
         ctx.enable_accesskit();
         ctx.all_styles_mut(|s| s.scroll_animation = egui::style::ScrollAnimation::none());
-        let mut b = Bar { ctx, bar, gate: Gate::default(), target: Target::Linux, size, dt: 1.0 / 60.0, time: 0.0, events: Vec::new(), pointer: pos2(-10.0, -10.0), tree: Vec::new(), clicked: Vec::new() };
+        let mut b = Bar {
+            ctx,
+            bar,
+            gate: Gate::default(),
+            target: Target::Linux,
+            english: None,
+            preferred: Vec::new(),
+            size,
+            dt: 1.0 / 60.0,
+            time: 0.0,
+            events: Vec::new(),
+            pointer: pos2(-10.0, -10.0),
+            tree: Vec::new(),
+            clicked: Vec::new(),
+        };
         b.run(3);
         b
     }
@@ -80,9 +100,15 @@ impl Bar {
             events: std::mem::take(&mut self.events),
             ..Default::default()
         };
-        let (bar, gate, target) = (&self.bar, self.gate, self.target);
+        let (bar, gate, target, english, preferred) = (&self.bar, self.gate, self.target, self.english, &self.preferred);
         let mut out = Vec::new();
-        let mut full = self.ctx.run_ui(raw, |ui| out = MenuBarUi::new(bar).gate(gate).target(target).show(ui));
+        let mut full = self.ctx.run_ui(raw, |ui| {
+            let mut ui_bar = MenuBarUi::new(bar).gate(gate).target(target).mnemonics(preferred);
+            if let Some(english) = &english {
+                ui_bar = ui_bar.english(english);
+            }
+            out = ui_bar.show(ui);
+        });
         full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
             self.tree = update.nodes;
@@ -456,7 +482,12 @@ fn the_wheel_scrolls_a_tall_menu() {
         if b.visible(0, 59) {
             break;
         }
-        b.events.push(Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(0.0, -60.0), modifiers: Modifiers::NONE, phase: egui::TouchPhase::Move });
+        b.events.push(Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: vec2(0.0, -60.0),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+        });
         b.run(2);
     }
     assert!(b.visible(0, 59), "the wheel reaches the last row");
@@ -611,4 +642,3 @@ fn heading_is_the_triangle_to_the_submenus_near_edge() {
     assert!(!heading(pos2(150.0, 110.0), pos2(170.0, 160.0), left));
     assert!(!heading(from, from, Rect::NOTHING));
 }
-
