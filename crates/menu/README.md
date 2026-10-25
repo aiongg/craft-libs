@@ -137,12 +137,14 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
   F7) leaves the bar and runs. While a dialog is open or a shortcut is being recorded (`Gate`),
   Alt, F10 and the letters leave the bar alone. While a text field has the keys, a tap on Alt
   still focuses the bar, as on Windows, but a letter without Alt goes on to the field (and takes
-  the keyboard off the bar) unless a menu is open. On `Target::Mac` the bar has no mnemonics and
-  Alt does nothing: Option is a typing key there.
+  the keyboard off the bar) unless a menu is open. On `Target::Mac`, and on `Target::Web` in a
+  browser on a Mac (`ctx.os()`), the bar has no mnemonics and Alt does nothing: Option is a typing
+  key there.
 - **Items:** disabled items, and the items the `Gate` forbids (`Gate::allows`), are greyed and
   never run. Check items show ✓, the selected radio item a dot, and the shortcut column shows
   every shortcut, the display-only ones too, in the target's names (⌘ glyphs on `Target::Mac`,
-  Ctrl names elsewhere, the web included; `.target(..)` to choose).
+  Ctrl names on Windows and Linux, the browser's system's names on the web; `.target(..)` to
+  choose).
 - **Narrow windows:** the menus that don't fit move into a trailing `⋯` menu; when not even the
   first fits, one `Menu` title holds them all. `.label(&tr)` translates `⋯`, `Menu` and the
   scroll arrows' names, with the same hook as `LayoutOptions::label`.
@@ -215,9 +217,9 @@ The app tells the menu what may run with a `Gate`, every frame (`set_gate`):
 
 | Gate field | Effect on the native menu |
 | --- | --- |
-| `modal` | The app's items are greyed (updated in place) and their clicks dropped, also clicks that arrived before the dialog opened. Hide, Hide Others, Minimize and Quit stay. |
+| `modal` | The app's items are greyed (updated in place) and their clicks dropped, also clicks that arrived before the dialog opened. Hide, Hide Others, Minimize and Quit stay, and so do the items whose shortcut a text field handles (Undo, Copy, Select All): AppKit doesn't pass a disabled item's key equivalent on, so ⌘C and ⌘Z would die in the dialog's fields. |
 | `recording_shortcut` | As `modal`, and every key equivalent reaches egui as the plain key press (⌘Q, ⌘H, ⌘C included), so the recorder sees it. |
-| `text_editing` | A key equivalent comes back as a click (⌘S saves while typing), except the keys the field handles itself: ⌘C, ⌘X and ⌘V (as `ClipboardKeys` says) and `craft_keymap::text_editing_chords` (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …). |
+| `text_editing` | A key equivalent comes back as a click (⌘S saves while typing), except the keys the field handles itself: ⌘C, ⌘X and ⌘V (as `ClipboardKeys` says) and `craft_keymap::text_editing_chords` (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …). A mouse click on one of those items (Edit › Copy, Undo) is a press and release of its shortcut, so it acts on the field. |
 
 Each frame, in this order:
 
@@ -256,10 +258,18 @@ if let Some(menu) = &mut self.native_menu {
 building the rows usually walks every command's enabled state. The backend then updates labels,
 enabled and checked in place and rebuilds only when `structure_key` (or, for the open
 documents, `window_key`) changes. Adding or removing an item in a dynamic list (recent files,
-workspaces, plugins) changes `structure_key`; relabelling one doesn't.
+workspaces, plugins) changes `structure_key`; relabelling one doesn't. An item that was a check
+item once stays one, unchecked, when the app's state stops giving it a checked state, so that
+doesn't rebuild the menus.
+
+`state` must cover everything the menus show. A change that comes without input, such as a load
+or save finishing on a worker or a timer, leaves the menus stale until the next input or menu
+event unless it is in the hash. An app that can't keep the hash complete calls
+`menu.sync(layout)` instead, with the layout built every frame: it is compared with the last
+one and synced only when it differs.
 
 An app that needs a click while egui is idle (to wake its own loop, or hand the command to a
 worker) sets `menu.on_command(Box::new(|command| ..))`. The hook runs from the menu event
 handler as the click arrives, on the main thread, for the app commands the gate allows; key
-equivalents reported as key presses and the built-in items don't reach it. `take_clicks` still
-returns every command, so an app that runs one from the hook skips it there.
+equivalents reported as key presses and the built-in items don't reach it. It returns `true`
+when it ran the command; `take_clicks` leaves those out and returns the others.

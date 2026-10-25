@@ -71,9 +71,11 @@ fn a_modal_gate_greys_the_apps_items() {
     let synced = synced.borrow();
     let enabled = |bar: &MenuBar, c: &CommandRef| bar.find(c).unwrap().enabled;
     let greyed = &synced[1];
-    assert!(!enabled(greyed, &cmd("edit.undo")) && !enabled(greyed, &cmd("help.about")));
+    assert!(!enabled(greyed, &cmd("file.new")) && !enabled(greyed, &cmd("help.about")));
+    // AppKit sends a disabled item's key equivalent nowhere: ⌘Z must reach the dialog's fields.
+    assert!(enabled(greyed, &cmd("edit.undo")), "the text-editing keys stay");
     assert!(enabled(greyed, &Builtin::Hide.command()) && enabled(greyed, &Builtin::HideOthers.command()));
-    assert!(enabled(&synced[2], &cmd("edit.undo")));
+    assert!(enabled(&synced[2], &cmd("file.new")));
     assert_eq!(structure_key(greyed), structure_key(&synced[0]), "greying is an update in place");
 
     assert!(Gate::default().grey(&synced[0]).as_ref() == &synced[0]);
@@ -87,7 +89,10 @@ fn on_command_sees_allowed_clicks_only() {
     let (mut menu, _, events, dispatch) = driver();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = seen.clone();
-    menu.on_command(Box::new(move |c| log.lock().unwrap().push(c.clone())));
+    menu.on_command(Box::new(move |c| {
+        log.lock().unwrap().push(c.clone());
+        false
+    }));
 
     let save = chord("Cmd+S");
     let mouse = |c: &CommandRef| dispatch.chosen(c, Some(&save), false, None);
@@ -100,7 +105,70 @@ fn on_command_sees_allowed_clicks_only() {
     assert_eq!(*seen.lock().unwrap(), [cmd("file.save")]);
 
     menu.raw_input(&mut egui::RawInput::default());
-    assert_eq!(take_clicks(&mut menu), [cmd("file.save")], "the normal path still runs it");
+    assert_eq!(take_clicks(&mut menu), [cmd("file.save")], "a click the hook didn't run");
+
+    menu.on_command(Box::new(|c| c.id == "file.save"));
+    events.borrow_mut().extend([mouse(&cmd("file.save")), mouse(&cmd("file.export"))]);
+    assert_eq!(events.borrow()[0], Event::Handled(cmd("file.save")));
+    menu.raw_input(&mut egui::RawInput::default());
+    assert_eq!(take_clicks(&mut menu), [cmd("file.export")], "the hook ran file.save");
+}
+
+/// While a text field has the keys, clicking Edit › Copy or Undo acts on the field: the item's
+/// shortcut is tapped (press and release, since a click has no key-up), not the app's command run.
+#[test]
+fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
+    let (copy, undo, save) = (chord("Cmd+C"), chord("Cmd+Z"), chord("Cmd+S"));
+    assert_eq!(chosen_event(&cmd("edit.copy"), Some(&copy), false, None, typing(true)), Event::Tap(copy));
+    assert_eq!(chosen_event(&cmd("edit.undo"), Some(&undo), false, None, typing(true)), Event::Tap(undo));
+    assert_eq!(chosen_event(&cmd("file.save"), Some(&save), false, None, typing(true)), Event::Click(cmd("file.save")));
+    assert_eq!(chosen_event(&cmd("edit.undo"), Some(&undo), false, None, typing(false)), Event::Click(cmd("edit.undo")));
+
+    let (mut menu, _, events, _) = driver();
+    menu.set_gate(typing(true));
+    events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
+    let mut raw = egui::RawInput::default();
+    menu.raw_input(&mut raw);
+    assert_eq!(raw.events, [key_event(&undo, true), key_event(&undo, false), egui::Event::Copy]);
+    assert!(take_clicks(&mut menu).is_empty());
+}
+
+/// `sync` lays nothing out itself: it compares each frame's layout with the last, so a change
+/// without input still reaches the menus, and an unchanged one costs no sync.
+#[test]
+fn sync_compares_each_frames_layout() {
+    let (mut menu, synced, _, _) = driver();
+    let opts = LayoutOptions::new("Sample");
+    let mut bar = sample(false, true);
+    menu.sync(mac_layout(&bar, &opts));
+    menu.sync(mac_layout(&bar, &opts));
+    assert_eq!(synced.borrow().len(), 1, "unchanged: no sync");
+    bar.for_each_item_mut(|it| {
+        if it.command.id == "file.new" {
+            it.enabled = false;
+        }
+    });
+    menu.sync(mac_layout(&bar, &opts));
+    assert_eq!(synced.borrow().len(), 2);
+    assert!(!synced.borrow()[1].find(&cmd("file.new")).unwrap().enabled);
+}
+
+/// An item that was a check item stays one when the app's state stops saying checked
+/// (`checked: None`): unchecked, with the same structure, so the menus aren't rebuilt.
+#[test]
+fn a_check_item_keeps_its_kind() {
+    let (mut menu, synced, _, _) = driver();
+    let opts = LayoutOptions::new("Sample");
+    let with = |checked: Option<bool>| {
+        let mut bar = sample(false, true);
+        apply_state(&mut bar, |c| ItemState { checked: checked.filter(|_| c.id == "file.new"), ..ItemState::default() });
+        mac_layout(&bar, &opts)
+    };
+    menu.sync(with(Some(true)));
+    menu.sync(with(None));
+    let synced = synced.borrow();
+    assert_eq!(synced[1].find(&cmd("file.new")).unwrap().kind, ItemKind::Check(false));
+    assert_eq!(structure_key(&synced[1]), structure_key(&synced[0]));
 }
 
 /// Only shortcuts with ⌘ or ⌃ are key equivalents. A tool key (`B`, `⇧B`, `⌥B`, `F5`) is

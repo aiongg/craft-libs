@@ -62,8 +62,9 @@
 //! shortcuts with ⌘ or ⌃ become key equivalents; tool keys (`B`, `⇧B`, `F5`) stay with the app.
 //!
 //! What may run from the menus is the app's [`Gate`], set every frame ([`NativeMenu::set_gate`]):
-//! while a modal dialog is open or a shortcut is being recorded, the app's items are greyed and
-//! their clicks dropped, also clicks that arrived before the gate closed. While a shortcut is
+//! while a modal dialog is open or a shortcut is being recorded, the app's items are greyed (but
+//! the text fields' own Undo, Copy, …) and their clicks dropped, also clicks that arrived before
+//! the gate closed. While a shortcut is
 //! recorded, key equivalents reach egui as plain key presses.
 //!
 //! craft-menu owns muda's one menu event handler: `mac::install` (a full menu bar) and
@@ -72,7 +73,8 @@
 //!
 //! Per frame: [`NativeMenu::raw_input`] before egui reads the input (`eframe::App::raw_input_hook`),
 //! then [`NativeMenu::set_gate`], [`NativeMenu::take_clicks`] and run the commands, then
-//! [`NativeMenu::sync_with`], which lays the menus out again only when the app's state changed.
+//! [`NativeMenu::sync_with`], which lays the menus out again only when the app's state changed
+//! (or [`NativeMenu::sync`], which compares a layout built every frame).
 //! [`NativeMenu::raw_input`] also keeps a click or Escape that closes an open native menu away
 //! from egui.
 

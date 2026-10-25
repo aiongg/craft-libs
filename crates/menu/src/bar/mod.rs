@@ -75,12 +75,19 @@ impl Default for BarStyle {
     }
 }
 
-/// The platform whose key names a target's shortcut column shows.
-fn keymap_platform(target: Target) -> Platform {
+/// The platform whose key names a target's shortcut column shows; for the web, the one the
+/// browser runs on (`os`, [`egui::Context::os`]).
+fn keymap_platform(target: Target, os: egui::os::OperatingSystem) -> Platform {
+    use egui::os::OperatingSystem;
     match target {
         Target::Mac => Platform::Mac,
         Target::Windows => Platform::Windows,
-        Target::Linux | Target::Web => Platform::Linux,
+        Target::Linux => Platform::Linux,
+        Target::Web => match os {
+            OperatingSystem::Mac | OperatingSystem::IOS => Platform::Mac,
+            OperatingSystem::Windows => Platform::Windows,
+            _ => Platform::Linux,
+        },
     }
 }
 
@@ -123,8 +130,9 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
-    /// The platform the bar is on, for the shortcut column: ⌘ glyphs on [`Target::Mac`], Ctrl
-    /// names everywhere else, the web included ([`craft_keymap::Chord::display`]).
+    /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘
+    /// glyphs on [`Target::Mac`] and in a browser on a Mac ([`egui::Context::os`]), Ctrl names
+    /// everywhere else. Where the names are a Mac's, the bar has no mnemonics.
     pub fn target(mut self, target: Target) -> MenuBarUi<'a> {
         self.target = target;
         self
@@ -177,8 +185,10 @@ impl<'a> MenuBarUi<'a> {
         let mut nav = Nav::load(&ctx, nav_id);
         let keys_id = self.id.with("keys");
         let mut keys = Keys::load(&ctx, keys_id);
-        // Option is a typing key on a Mac; a dialog or the shortcut recorder has the keys.
-        let mnemonics = self.target != Target::Mac;
+        // Option is a typing key on a Mac, also in a browser there; a dialog or the shortcut
+        // recorder has the keys.
+        let platform = keymap_platform(self.target, ctx.os());
+        let mnemonics = platform != Platform::Mac;
         let keys_on = mnemonics && !self.gate.modal && !self.gate.recording_shortcut;
         if keys_on {
             keys.begin(&mut nav);
@@ -188,7 +198,7 @@ impl<'a> MenuBarUi<'a> {
         }
         let mut draw = Draw {
             gate: self.gate,
-            platform: keymap_platform(self.target),
+            platform,
             style: &style,
             label: self.label,
             mnemonics,

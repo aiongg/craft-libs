@@ -70,6 +70,8 @@ struct Bar {
 impl Bar {
     fn new(bar: MenuBar, size: Vec2) -> Bar {
         let ctx = egui::Context::default();
+        // Not the host's: the web target's key names follow it.
+        ctx.set_os(egui::os::OperatingSystem::Nix);
         ctx.enable_accesskit();
         ctx.all_styles_mut(|s| s.scroll_animation = egui::style::ScrollAnimation::none());
         let mut b = Bar {
@@ -423,13 +425,24 @@ fn accesskit_sees_a_menu_bar_of_menus_with_checked_states_and_shortcuts() {
     assert_eq!(b.node("New").map(|n| (n.role(), n.keyboard_shortcut())), Some((Role::MenuItem, Some("Ctrl+N"))));
 }
 
+/// In a browser the names are those of the system it runs on, and on a Mac there are no
+/// mnemonics: Option types there.
 #[test]
-fn the_web_shows_ctrl_names_and_the_mac_its_glyphs() {
-    for (target, text) in [(Target::Web, "Ctrl+N"), (Target::Windows, "Ctrl+N"), (Target::Mac, "⌘N")] {
+fn the_web_shows_the_browsers_system_names_and_the_mac_its_glyphs() {
+    use egui::os::OperatingSystem as Os;
+    for (target, os, text, mnemonic) in [
+        (Target::Web, Os::Nix, "Ctrl+N", true),
+        (Target::Web, Os::Mac, "⌘N", false),
+        (Target::Windows, Os::Nix, "Ctrl+N", true),
+        (Target::Mac, Os::Nix, "⌘N", false),
+    ] {
         let mut b = wide();
+        b.ctx.set_os(os);
         b.target = target;
         b.click("File");
-        assert_eq!(b.node("New").and_then(|n| n.keyboard_shortcut()), Some(text), "{target:?}");
+        let new = b.node("New");
+        assert_eq!(new.and_then(|n| n.keyboard_shortcut()), Some(text), "{target:?} on {os:?}");
+        assert_eq!(new.and_then(|n| n.access_key()).is_some(), mnemonic, "{target:?} on {os:?}");
     }
 }
 
