@@ -1,16 +1,17 @@
 //! The app's side: events from the platform menu in, menu bars out.
 
-use crate::chord::Chord;
+use craft_keymap::{Chord, CommandRef, Key, Mods};
+
 use crate::layout::{Clash, Layout};
-use crate::model::{MINIMIZE, MenuBar};
+use crate::model::{Builtin, MenuBar};
 
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     /// An item was chosen with the mouse (or the keyboard inside an open menu), or by a key
-    /// equivalent the app's key handling doesn't know ([`crate::Item::layout_shortcut`]). Only
-    /// the item's id: a parameter the command needs goes in the id.
-    Click(String),
+    /// equivalent the app's key handling doesn't know ([`crate::Item::layout_shortcut`]): the
+    /// item's command.
+    Click(CommandRef),
     /// A key equivalent was pressed: the shortcut, to be handled as the key press it was.
     Key(Chord),
 }
@@ -28,6 +29,17 @@ pub enum ClipboardKeys {
     /// Key presses like any other key equivalent, for an app that runs its clipboard commands
     /// from the keys itself.
     Raw,
+}
+
+/// What may run from the menus this frame, set by the app.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Gate {
+    /// A modal dialog is open.
+    pub modal: bool,
+    /// The shortcut editor is recording a chord.
+    pub recording_shortcut: bool,
+    /// A text field has the keys.
+    pub text_editing: bool,
 }
 
 /// A platform's native menu bar.
@@ -54,7 +66,7 @@ pub struct NativeMenu {
     backend: Box<dyn Backend>,
     /// The state the menus were last built from.
     state: Option<u64>,
-    clicks: Vec<String>,
+    clicks: Vec<CommandRef>,
     /// An event arrived (AppKit may have toggled a check item itself): re-sync.
     dirty: bool,
     clashes: Vec<Clash>,
@@ -88,8 +100,8 @@ impl NativeMenu {
     /// Whether a text field has the keys (in egui, `ctx.wants_keyboard_input()`). Call it every
     /// frame, before the next [`NativeMenu::raw_input`]. While it is on, a key equivalent runs
     /// its item as an [`Event::Click`], as a Mac app's menu commands run while typing, except
-    /// the text-editing keys the field handles itself: ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z and ⇧⌘Z stay key
-    /// presses (⌘C, ⌘X and ⌘V following [`ClipboardKeys`]).
+    /// the keys the field handles itself: ⌘C, ⌘X and ⌘V (following [`ClipboardKeys`]) and
+    /// [`craft_keymap::text_editing_chords`] (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …) stay key presses.
     pub fn set_text_editing(&mut self, editing: bool) {
         self.backend.set_text_editing(editing);
     }
@@ -125,23 +137,23 @@ impl NativeMenu {
         for e in self.backend.drain() {
             match e {
                 Event::Key(chord) => self.add_key(raw, &chord),
-                Event::Click(id) => self.clicks.push(id),
+                Event::Click(command) => self.clicks.push(command),
             }
             self.dirty = true;
         }
     }
 
     fn add_key(&mut self, raw: &mut egui::RawInput, chord: &Chord) {
-        let Some(press @ egui::Event::Key { key: pressed_key, .. }) = chord.key_event(true) else { return };
-        let clipboard = self.clipboard == ClipboardKeys::Egui && chord.cmd && !(chord.ctrl || chord.alt || chord.shift);
-        let event = match pressed_key {
-            egui::Key::C if clipboard => egui::Event::Copy,
-            egui::Key::X if clipboard => egui::Event::Cut,
-            egui::Key::V if clipboard => {
+        let pressed_key = chord.key.to_egui();
+        let clipboard = self.clipboard == ClipboardKeys::Egui && chord.mods == Mods::CMD;
+        let event = match chord.key {
+            Key::C if clipboard => egui::Event::Copy,
+            Key::X if clipboard => egui::Event::Cut,
+            Key::V if clipboard => {
                 self.paste = true;
                 return;
             }
-            _ => press,
+            _ => key_event(chord, true),
         };
         let at = raw
             .events
@@ -151,20 +163,22 @@ impl NativeMenu {
         raw.events.insert(at, event);
     }
 
-    /// The items clicked since the last call, for the app to run like in-window menu clicks.
-    /// [`MINIMIZE`] (minimizes the window) and [`craft_quit::QUIT_MENU_ID`] (asks the window to
+    /// The commands clicked since the last call, for the app to run like in-window menu clicks.
+    /// [`Builtin::Minimize`] (minimizes the window) and [`Builtin::Quit`] (asks the window to
     /// close, see [`craft_quit::on_menu_event`]) are run here and left out. A ⌘V from the menu
     /// ([`ClipboardKeys::Egui`]) is asked of eframe here too.
-    pub fn take_clicks(&mut self, ctx: &egui::Context) -> Vec<String> {
+    pub fn take_clicks(&mut self, ctx: &egui::Context) -> Vec<CommandRef> {
         if std::mem::take(&mut self.paste) {
             ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
         }
         let mut out = Vec::new();
-        for id in std::mem::take(&mut self.clicks) {
-            if id == MINIMIZE {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-            } else if !craft_quit::on_menu_event(ctx, &id) {
-                out.push(id);
+        for command in std::mem::take(&mut self.clicks) {
+            match Builtin::of(&command) {
+                Some(Builtin::Minimize) => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                Some(Builtin::Quit) => {
+                    craft_quit::on_menu_event(ctx, Builtin::Quit.id());
+                }
+                _ => out.push(command),
             }
         }
         out
@@ -224,24 +238,42 @@ pub(crate) fn dismiss_input(raw: &mut egui::RawInput, tracking: impl FnOnce() ->
 /// to the field, so a key equivalent is a click too, except the field's own editing keys
 /// ([`text_editing_key`]).
 #[cfg(any(target_os = "macos", test))]
-pub(crate) fn chosen_event(command: &str, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>, text_editing: bool) -> Event {
-    let runs_as_click = layout_shortcut || command == MINIMIZE || command == craft_quit::QUIT_MENU_ID;
+pub(crate) fn chosen_event(command: &CommandRef, chord: Option<&Chord>, layout_shortcut: bool, key: Option<[bool; 4]>, text_editing: bool) -> Event {
+    let runs_as_click = layout_shortcut || matches!(Builtin::of(command), Some(Builtin::Minimize | Builtin::Quit));
     let pressed = key
         .zip(chord)
-        .filter(|([cmd, ctrl, ..], c)| !runs_as_click && c.native_ok() && (*cmd || *ctrl || !(c.cmd || c.ctrl)))
-        .map(|([cmd, ctrl, alt, shift], c)| Chord { cmd, ctrl, alt, shift, key: c.key.clone() })
+        .filter(|([cmd, ctrl, ..], c)| !runs_as_click && native_ok(c) && (*cmd || *ctrl || !c.has_command()))
+        .map(|([cmd, ctrl, alt, shift], c)| Chord::new(Mods { cmd, ctrl, alt, shift }, c.key))
         .filter(|c| !text_editing || text_editing_key(c));
     match pressed {
         Some(chord) => Event::Key(chord),
-        None => Event::Click(command.to_string()),
+        None => Event::Click(command.clone()),
     }
 }
 
-/// ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z or ⇧⌘Z: keys a text field handles itself.
+/// A chord a text field handles itself: the clipboard keys and craft-keymap's text-editing
+/// chords (undo, redo, select all, moving by word and line).
 #[cfg(any(target_os = "macos", test))]
 fn text_editing_key(c: &Chord) -> bool {
-    let is = |k: &str| c.key.eq_ignore_ascii_case(k);
-    c.cmd && !c.ctrl && !c.alt && (if c.shift { is("Z") } else { ["C", "X", "V", "A", "Z"].iter().any(|k| is(k)) })
+    const CLIPBOARD: [Chord; 3] = [Chord::new(Mods::CMD, Key::C), Chord::new(Mods::CMD, Key::X), Chord::new(Mods::CMD, Key::V)];
+    CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(craft_keymap::Platform::Mac).contains(c)
+}
+
+/// May the native menu show this as a key equivalent? Only with ⌘ or ⌃, or a function key.
+/// Bare letters and ⌥/⇧-only keys are tool keys: as key equivalents AppKit would take a `b`
+/// typed into a text field.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn native_ok(c: &Chord) -> bool {
+    c.has_command() || c.is_function_key()
+}
+
+/// The key press egui would have received for `chord` on macOS: `cmd` is ⌘, `ctrl` the Control
+/// key.
+pub(crate) fn key_event(chord: &Chord, pressed: bool) -> egui::Event {
+    let m = chord.mods;
+    let key = chord.key.to_egui();
+    let modifiers = egui::Modifiers { alt: m.alt, ctrl: m.ctrl, shift: m.shift, mac_cmd: m.cmd, command: m.cmd };
+    egui::Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers }
 }
 
 /// A key press or click this frame. It may have changed state an app's menu hash doesn't list,

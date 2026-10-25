@@ -2,32 +2,41 @@
 
 A Craft app's menus as a macOS menu bar. The app supplies its menu tree and runs its commands;
 this crate lays the menus out the Mac way, drives a platform `Backend`, and turns the menu's key
-equivalents back into the input egui would have had without it. It depends on egui and
-[`craft-quit`](../quit/src/lib.rs), and on no app. Everything but the macOS backend
+equivalents back into the input egui would have had without it. It depends on egui,
+[`craft-keymap`](../keymap/src/lib.rs) (commands and chords) and [`craft-quit`](../quit/src/lib.rs),
+and on no app. Everything but the macOS backend
 (`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`.
 
 ## The menus
 
 Build a `MenuBar` directly, or from the flat rows an in-window bar draws (`from_items`, with
-`Row { path, id, label, shortcut, enabled, checked }`, `---` for a separator). Then tag what
-macOS puts in fixed places:
+`Row { path, command, label, shortcut, enabled, kind }`, `---` for a separator). Give each menu
+its role (`MenuRole::{App, File, Edit, View, Window, Help, Other}`), then tag what macOS puts in
+fixed places:
 
 ```rust
 let mut bar = craft_menu::from_items(&["File", "Edit", "View", "Window", "Help"], &rows);
-bar.tag_item("help.about", ItemRole::About);
-bar.tag_item("file.exit", ItemRole::Quit); // the app's quit, with its unsaved-changes prompt
-bar.tag_submenu("Edit", "Preferences", ItemRole::Settings);
-bar.tag_submenu("View", "Theme", ItemRole::Appearance);
 bar.tag_menu("File", MenuRole::File);
+bar.tag_menu("Edit", MenuRole::Edit);
+bar.tag_menu("View", MenuRole::View);
 bar.tag_menu("Window", MenuRole::Window);
 bar.tag_menu("Help", MenuRole::Help);
+bar.tag_item(&"help.about".into(), ItemRole::About);
+bar.tag_item(&"file.exit".into(), ItemRole::Quit); // the app's quit, with its unsaved-changes prompt
+bar.tag_submenu(MenuRole::Edit, "Preferences", ItemRole::Settings);
+bar.tag_submenu(MenuRole::View, "Theme", ItemRole::Appearance);
 ```
 
-Items built directly use `Item::new(id, label)` with `.shortcut("Cmd+Shift+Z")`, `.enabled(..)`,
-`.checked(..)` and `.role(..)`; submenus use `Node::submenu(label, children)`, with `.role(..)`
-for a tagged one. Shortcuts are written `Cmd+Shift+Z`; `Ctrl` is the Control key, not ⌘. Open
-documents in the Window menu are items with `ItemRole::Document`. A click reports only the
-item's id, so a command that takes a parameter carries it in the id (`file.recent:3`).
+Each item runs a `craft_keymap::CommandRef`, and a click reports it. A command that takes a
+parameter carries it in the `CommandRef`:
+`CommandRef::with_params("file.open_recent", json!({"index": 3}))`. Items built directly use
+`Item::new(command, label)` with `.shortcut(chord)`, `.enabled(..)`, `.check(..)` or
+`.radio(..)` (the item's `ItemKind`), `.role(..)` and `.platforms(..)`; submenus use
+`Node::submenu(label, children)`, with `.role(..)` for a tagged one. A shortcut is a
+`craft_keymap::Chord`: `cmd` is ⌘ and `ctrl` the Control key. macOS shows radio items as check
+items. Open documents in the Window menu are items with `ItemRole::Document`. The items the
+layout adds itself run a `Builtin` command (Hide, Hide Others, Minimize, Quit), which the crate
+handles.
 
 `mac_layout(&bar, &LayoutOptions::new("PhotoCraft"))` returns the Mac menu bar and the clashes
 it resolved:
@@ -41,7 +50,7 @@ it resolved:
 - **Clashes:** when the app binds ⌘H, ⌥⌘H, ⌘M, ⌘W, ⌘, or ⌘Q to a command, the command keeps
   it. Hide and Minimize move to ⌃⌘H and ⌃⌘M, the others go without a shortcut, and each case is
   reported as a `Clash`. Shortcuts bound outside the menus (tool and canvas keys) count when the
-  app lists them: `LayoutOptions::new("PhotoCraft").extra_shortcuts(&[(shortcut, command_id), ..])`.
+  app lists them: `LayoutOptions::new("PhotoCraft").extra_shortcuts(&[(chord, command), ..])`.
 
 The labels the layout writes are English. To translate them, pass
 `LayoutOptions { label, ..LayoutOptions::new(app_name) }`, where `label` maps an English label
@@ -81,10 +90,10 @@ back as a click instead, since the app's key handling doesn't bind it.
 While a text field has the keys, an app's key handling leaves shortcuts to the field, but a Mac
 app's menu commands (⌘S, ⌘N) run while typing. So the app reports each frame whether text has
 the keys (`set_text_editing`), and while it does, a key equivalent comes back as a click, except
-the keys the field handles itself: ⌘C, ⌘X, ⌘V, ⌘A, ⌘Z and ⇧⌘Z stay key presses (⌘C, ⌘X and ⌘V
-as `ClipboardKeys` says).
+the keys the field handles itself: ⌘C, ⌘X and ⌘V (as `ClipboardKeys` says) and
+`craft_keymap::text_editing_chords` (⌘A, ⌘Z, ⇧⌘Z, ⌘←, …) stay key presses.
 
-Each frame: `raw_input` before egui reads the input, then the ids from `take_clicks`, then
+Each frame: `raw_input` before egui reads the input, then the commands from `take_clicks`, then
 `sync_with`, then `set_text_editing` for the next frame's `raw_input`.
 
 ```rust
@@ -95,8 +104,8 @@ if let Some(menu) = &mut self.native_menu {
 
 // In the frame:
 if let Some(menu) = &mut self.native_menu {
-    for id in menu.take_clicks(ctx) {
-        self.run_command(ctx, &id); // Minimize and craft-quit's Quit are already handled
+    for command in menu.take_clicks(ctx) {
+        self.run_command(ctx, &command); // Minimize and Quit are already handled
     }
     let state = self.menu_state_hash(craft_menu::had_input(ctx).then_some(ctx.cumulative_frame_nr()));
     for c in menu.sync_with(state, || craft_menu::mac_layout(&self.menu_bar(), &LayoutOptions::new("PhotoCraft"))) {

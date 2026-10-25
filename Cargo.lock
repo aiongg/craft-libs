@@ -892,6 +892,7 @@ dependencies = [
 name = "craft-menu"
 version = "0.1.0"
 dependencies = [
+ "craft-keymap",
  "craft-quit",
  "egui",
  "muda",

@@ -6,15 +6,24 @@ use std::rc::Rc;
 use egui::{Key, Modifiers};
 
 use super::*;
+use crate::driver::key_event;
+
+fn chord(s: &str) -> Chord {
+    Chord::parse(s).unwrap()
+}
+
+fn cmd(id: &str) -> CommandRef {
+    CommandRef::new(id)
+}
 
 fn row(path: &[&str], id: &str, label: &str, shortcut: Option<&str>) -> Row {
     Row {
         path: path.iter().map(|s| s.to_string()).collect(),
-        id: id.into(),
+        command: id.into(),
         label: label.into(),
-        shortcut: shortcut.map(Into::into),
+        shortcut: shortcut.map(chord),
         enabled: true,
-        checked: None,
+        kind: ItemKind::Plain,
     }
 }
 
@@ -49,18 +58,20 @@ fn sample(clashing: bool, tag_quit: bool) -> MenuBar {
         row(&["Help"], "help.docs", "Docs", None),
     ];
     let mut bar = from_items(&["File", "Edit", "View", "Window", "Help"], &rows);
-    bar.tag_item("help.about", ItemRole::About);
-    if tag_quit {
-        bar.tag_item("file.exit", ItemRole::Quit);
-    }
-    bar.tag_item("doc.0", ItemRole::Document);
-    bar.tag_item("theme.next", ItemRole::Appearance);
-    bar.tag_submenu("Edit", "Preferences", ItemRole::Settings);
-    bar.tag_submenu("Edit", "Language", ItemRole::Language);
-    bar.tag_submenu("Window", "Theme", ItemRole::Appearance);
     bar.tag_menu("File", MenuRole::File);
+    bar.tag_menu("Edit", MenuRole::Edit);
+    bar.tag_menu("View", MenuRole::View);
     bar.tag_menu("Window", MenuRole::Window);
     bar.tag_menu("Help", MenuRole::Help);
+    bar.tag_item(&cmd("help.about"), ItemRole::About);
+    if tag_quit {
+        bar.tag_item(&cmd("file.exit"), ItemRole::Quit);
+    }
+    bar.tag_item(&cmd("doc.0"), ItemRole::Document);
+    bar.tag_item(&cmd("theme.next"), ItemRole::Appearance);
+    bar.tag_submenu(MenuRole::Edit, "Preferences", ItemRole::Settings);
+    bar.tag_submenu(MenuRole::Edit, "Language", ItemRole::Language);
+    bar.tag_submenu(MenuRole::Window, "Theme", ItemRole::Appearance);
     bar
 }
 
@@ -68,7 +79,7 @@ fn ids(nodes: &[Node]) -> Vec<String> {
     nodes
         .iter()
         .map(|n| match n {
-            Node::Item(it) => it.id.clone(),
+            Node::Item(it) => it.command.key(),
             Node::Separator => "---".into(),
             Node::Submenu { label, .. } => format!("[{label}]"),
             Node::Standard { kind, .. } => format!("<{kind:?}>"),
@@ -89,15 +100,15 @@ fn the_app_menu_is_laid_out_the_mac_way() {
     #[rustfmt::skip]
     let expected = [
         "help.about", "---", "[Settings]", "[Language]", "[Appearance]", "---",
-        "<Services>", "---", HIDE, HIDE_OTHERS, "<ShowAll>", "---", "file.exit",
+        "<Services>", "---", Builtin::Hide.id(), Builtin::HideOthers.id(), "<ShowAll>", "---", "file.exit",
     ];
     assert_eq!(ids(&app.children), expected);
-    let quit = l.bar.find("file.exit").unwrap();
-    assert_eq!((quit.label.as_str(), quit.shortcut.as_deref()), ("Quit Sample", Some("Cmd+Q")), "the app's own Quit");
-    assert_eq!(l.bar.find("help.about").unwrap().label, "About Sample");
-    assert_eq!(l.bar.find(HIDE).unwrap().shortcut.as_deref(), Some("Cmd+H"));
-    assert_eq!(l.bar.find(HIDE_OTHERS).unwrap().shortcut.as_deref(), Some("Cmd+Alt+H"));
-    assert_eq!(l.bar.find("prefs.general").unwrap().shortcut.as_deref(), Some("Cmd+,"), "⌘, opens the first settings page");
+    let quit = l.bar.find(&cmd("file.exit")).unwrap();
+    assert_eq!((quit.label.as_str(), quit.shortcut), ("Quit Sample", Some(chord("Cmd+Q"))), "the app's own Quit");
+    assert_eq!(l.bar.find(&cmd("help.about")).unwrap().label, "About Sample");
+    assert_eq!(l.bar.find(&Builtin::Hide.command()).unwrap().shortcut, Some(chord("Cmd+H")));
+    assert_eq!(l.bar.find(&Builtin::HideOthers.command()).unwrap().shortcut, Some(chord("Cmd+Alt+H")));
+    assert_eq!(l.bar.find(&cmd("prefs.general")).unwrap().shortcut, Some(chord("Cmd+,")), "⌘, opens the first settings page");
     let Some(Node::Submenu { children, .. }) = app.children.iter().find(|n| matches!(n, Node::Submenu { label, .. } if label == "Appearance")) else {
         panic!("an Appearance submenu");
     };
@@ -129,8 +140,8 @@ fn an_untagged_quit_is_craft_quits_and_labels_are_translated() {
         other => other.into(),
     };
     let l = mac_layout(&bar, &LayoutOptions { label: &german, ..LayoutOptions::new("Sample") });
-    let quit = l.bar.find(craft_quit::QUIT_MENU_ID).unwrap();
-    assert_eq!((quit.label.as_str(), quit.shortcut.as_deref(), quit.role), ("Sample beenden", Some("Cmd+Q"), Some(ItemRole::Quit)));
+    let quit = l.bar.find(&Builtin::Quit.command()).unwrap();
+    assert_eq!((quit.label.as_str(), quit.shortcut, quit.role), ("Sample beenden", Some(chord("Cmd+Q")), Some(ItemRole::Quit)));
     assert!(ids(&titled(&l.bar, "File").children).contains(&"file.exit".to_string()), "File › Exit stays");
     let app = l.bar.menu(MenuRole::App).unwrap();
     assert!(app.children.contains(&Node::Standard { kind: Standard::Services, label: "Dienste".into() }));
@@ -143,24 +154,24 @@ fn an_untagged_quit_is_craft_quits_and_labels_are_translated() {
 #[test]
 fn clashes_are_resolved_in_the_apps_favour() {
     let l = mac_layout(&sample(true, true), &LayoutOptions::new("Sample"));
-    let clash = |sc: &str| l.clashes.iter().find(|c| c.shortcut == sc).map(|c| c.command.as_str());
+    let clash = |sc: &str| l.clashes.iter().find(|c| c.shortcut == chord(sc)).map(|c| c.command.id.as_str());
     assert_eq!(clash("Cmd+H"), Some("view.extras"));
     assert_eq!(clash("Cmd+M"), Some("view.curves"));
     assert_eq!(clash("Cmd+W"), Some("file.close"));
     assert_eq!(clash("Cmd+,"), Some("view.hideLayers"));
     assert_eq!(l.clashes.len(), 4);
-    assert_eq!(l.bar.find(HIDE).unwrap().shortcut.as_deref(), Some("Ctrl+Cmd+H"));
-    assert_eq!(l.bar.find(MINIMIZE).unwrap().shortcut.as_deref(), Some("Ctrl+Cmd+M"));
-    assert_eq!(l.bar.find("prefs.general").unwrap().shortcut, None);
-    assert_eq!(ids(&l.bar.menu(MenuRole::Window).unwrap().children)[..2], [MINIMIZE, "<Zoom>"]);
+    assert_eq!(l.bar.find(&Builtin::Hide.command()).unwrap().shortcut, Some(chord("Ctrl+Cmd+H")));
+    assert_eq!(l.bar.find(&Builtin::Minimize.command()).unwrap().shortcut, Some(chord("Ctrl+Cmd+M")));
+    assert_eq!(l.bar.find(&cmd("prefs.general")).unwrap().shortcut, None);
+    assert_eq!(ids(&l.bar.menu(MenuRole::Window).unwrap().children)[..2], [Builtin::Minimize.id(), "<Zoom>"]);
     assert!(!ids(&titled(&l.bar, "File").children).contains(&"<CloseWindow>".to_string()), "⌘W stays File › Close");
 
     // With ⌃⌘H taken too, Hide goes without a shortcut.
     let mut bar = sample(true, true);
-    bar.menus[0].children.push(Item::new("file.other", "Other").shortcut("Ctrl+Cmd+H").into());
+    bar.menus[0].children.push(Item::new("file.other", "Other").shortcut(chord("Ctrl+Cmd+H")).into());
     let l = mac_layout(&bar, &LayoutOptions::new("Sample"));
-    assert_eq!(l.bar.find(HIDE).unwrap().shortcut, None);
-    assert_eq!(l.clashes.iter().find(|c| c.shortcut == "Cmd+H").map(|c| c.resolution), Some("Hide has no shortcut"));
+    assert_eq!(l.bar.find(&Builtin::Hide.command()).unwrap().shortcut, None);
+    assert_eq!(l.clashes.iter().find(|c| c.shortcut == chord("Cmd+H")).map(|c| c.resolution), Some("Hide has no shortcut"));
 }
 
 #[test]
@@ -194,7 +205,7 @@ fn keys_separate_rebuilds_from_updates_in_place() {
         for m in &mut bar.menus {
             for n in &mut m.children {
                 if let Node::Item(it) = n
-                    && it.id == "edit.undo"
+                    && it.command.id == "edit.undo"
                 {
                     f(it);
                 }
@@ -204,12 +215,12 @@ fn keys_separate_rebuilds_from_updates_in_place() {
     };
     assert_eq!(key(&edit(&|it| it.label = "Undo Typing".into())), key(&base));
     assert_eq!(key(&edit(&|it| it.enabled = false)), key(&base));
-    assert_ne!(structure_key(&edit(&|it| it.shortcut = Some("Ctrl+Z".into()))), structure_key(&base));
-    assert_ne!(structure_key(&edit(&|it| it.checked = Some(false))), structure_key(&base));
+    assert_ne!(structure_key(&edit(&|it| it.shortcut = Some(chord("Ctrl+Z")))), structure_key(&base));
+    assert_ne!(structure_key(&edit(&|it| it.kind = ItemKind::Check(false))), structure_key(&base));
 
     let mut two = sample(false, true);
     let window = two.menus.iter_mut().find(|m| m.role == MenuRole::Window).unwrap();
-    window.children.push(Item::new("doc.1", "Untitled-2").checked(true).role(ItemRole::Document).into());
+    window.children.push(Item::new("doc.1", "Untitled-2").check(true).role(ItemRole::Document).into());
     let two = mac_layout(&two, &opts).bar;
     assert_eq!(structure_key(&two), structure_key(&base));
     assert_ne!(window_key(&two), window_key(&base));
@@ -217,35 +228,41 @@ fn keys_separate_rebuilds_from_updates_in_place() {
 }
 
 #[test]
-fn chords_parse_and_become_egui_key_presses() {
-    let c = Chord::parse("Shift+Cmd+Z").unwrap();
-    assert_eq!(c.portable(), "Cmd+Shift+Z");
-    assert_eq!(Chord::parse("Ctrl+Cmd+M").unwrap().portable(), "Ctrl+Cmd+M");
-    assert_eq!(Chord::parse("Cmd++").unwrap().key, "+");
-    assert_eq!(Chord::parse("Cmd+A+B"), None);
-    assert_eq!(Chord::parse("Cmd"), None);
-    assert!(Chord::parse("Cmd+B").unwrap().native_ok());
-    assert!(Chord::parse("Ctrl+B").unwrap().native_ok());
-    assert!(Chord::parse("F5").unwrap().native_ok());
-    assert!(!Chord::parse("B").unwrap().native_ok());
-    assert!(!Chord::parse("Alt+F").unwrap().native_ok());
-    assert!(!Chord::parse("Shift+X").unwrap().native_ok());
-    assert!(!Chord::parse("F25").unwrap().is_function_key());
+fn chords_become_egui_key_presses() {
+    use crate::driver::native_ok;
+    assert!(native_ok(&chord("Cmd+B")));
+    assert!(native_ok(&chord("Ctrl+B")));
+    assert!(native_ok(&chord("F5")));
+    assert!(!native_ok(&chord("B")));
+    assert!(!native_ok(&chord("Alt+F")));
+    assert!(!native_ok(&chord("Shift+X")));
 
-    let Some(egui::Event::Key { key, modifiers, pressed: true, .. }) = c.key_event(true) else { panic!("a key press") };
+    let egui::Event::Key { key, modifiers, pressed: true, .. } = key_event(&chord("Shift+Cmd+Z"), true) else { panic!("a key press") };
     assert_eq!(key, Key::Z);
     assert!(modifiers.command && modifiers.mac_cmd && modifiers.shift && !modifiers.ctrl && !modifiers.alt);
-    let ctrl = Chord::parse("Ctrl+Cmd+M").unwrap().key_event(true);
-    assert!(matches!(ctrl, Some(egui::Event::Key { modifiers, .. }) if modifiers.ctrl && modifiers.command));
-    assert_eq!(Chord::parse("Cmd+NoSuchKey").unwrap().key_event(true), None);
+    let ctrl = key_event(&chord("Ctrl+Cmd+M"), true);
+    assert!(matches!(ctrl, egui::Event::Key { modifiers, .. } if modifiers.ctrl && modifiers.command));
 
-    // Every shortcut the layout writes parses back to itself and has a key press.
+    // Every shortcut the layout writes is a key equivalent.
     for it in mac_layout(&sample(true, true), &LayoutOptions::new("Sample")).bar.items() {
         let Some(sc) = &it.shortcut else { continue };
-        let c = Chord::parse(sc).unwrap();
-        assert_eq!(&c.portable(), sc);
-        assert!(c.key_event(true).is_some(), "{sc} on {}", it.id);
+        assert!(native_ok(sc), "{sc} on {}", it.command);
     }
+}
+
+/// A command's native id is its key; a command shown twice gets `key#2` for its second item, also
+/// when it has parameters.
+#[test]
+fn a_command_shown_twice_gets_a_second_native_id() {
+    use crate::model::native_id;
+    let keys = cmd("edit.keys");
+    let recent = CommandRef::parse_key(r#"file.open_recent {"index":3}"#).unwrap();
+    let mut taken: Vec<String> = Vec::new();
+    for c in [&keys, &recent, &keys, &recent, &keys] {
+        let id = native_id(c, |id| taken.iter().any(|t| t == id));
+        taken.push(id);
+    }
+    assert_eq!(taken, ["edit.keys", r#"file.open_recent {"index":3}"#, "edit.keys#2", r#"file.open_recent {"index":3}#2"#, "edit.keys#3"]);
 }
 
 #[derive(Default)]
@@ -289,7 +306,7 @@ fn key_equivalents_become_one_key_press() {
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
     let paste = Chord::parse("Cmd+V").unwrap();
     let release = egui::Event::Key { key: Key::V, physical_key: Some(Key::V), pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
-    let press = paste.key_event(true).unwrap();
+    let press = key_event(&paste, true);
 
     events.borrow_mut().push(Event::Key(paste.clone()));
     let mut raw = egui::RawInput { events: vec![egui::Event::ModifiersChanged(Modifiers::COMMAND), release.clone()], ..Default::default() };
@@ -307,8 +324,11 @@ fn key_equivalents_become_one_key_press() {
 #[test]
 fn clicks_and_syncs() {
     let synced = Rc::new(RefCell::new(Vec::new()));
-    let events =
-        Rc::new(RefCell::new(vec![Event::Click(MINIMIZE.into()), Event::Click("edit.undo".into()), Event::Click(craft_quit::QUIT_MENU_ID.into())]));
+    let events = Rc::new(RefCell::new(vec![
+        Event::Click(Builtin::Minimize.command()),
+        Event::Click("edit.undo".into()),
+        Event::Click(craft_quit::QUIT_MENU_ID.into()),
+    ]));
     let mut menu = NativeMenu::new(Box::new(Fake { synced: synced.clone(), events: events.clone(), ..Default::default() }));
     let mut raw = egui::RawInput::default();
     menu.raw_input(&mut raw);
@@ -318,7 +338,7 @@ fn clicks_and_syncs() {
     let mut clicks = Vec::new();
     let mut out = ctx.run_ui(raw, |ui| clicks = menu.take_clicks(ui.ctx()));
     out.textures_delta.clear(); // not painted
-    assert_eq!(clicks, ["edit.undo"]);
+    assert_eq!(clicks, [cmd("edit.undo")]);
     let commands = out.viewport_output.remove(&egui::ViewportId::ROOT).map(|o| o.commands).unwrap_or_default();
     assert!(commands.contains(&egui::ViewportCommand::Minimized(true)));
     assert!(commands.contains(&egui::ViewportCommand::Close), "Quit asks the window to close");
@@ -424,15 +444,15 @@ fn key(key: Key, pressed: bool, modifiers: Modifiers) -> egui::Event {
 fn clipboard_key_equivalents_reach_text_fields() {
     let events = Rc::new(RefCell::new(Vec::new()));
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
-    let chord = |s: &str| Event::Key(Chord::parse(s).unwrap());
-    events.borrow_mut().extend([chord("Cmd+C"), chord("Cmd+X"), chord("Cmd+Shift+V")]);
+    let equivalent = |s: &str| Event::Key(chord(s));
+    events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+X"), equivalent("Cmd+Shift+V")]);
     let release = key(Key::C, false, Modifiers::COMMAND);
     let mut raw = egui::RawInput { events: vec![release.clone()], ..Default::default() };
     menu.raw_input(&mut raw);
-    let shift_v = Chord::parse("Cmd+Shift+V").unwrap().key_event(true).unwrap();
+    let shift_v = key_event(&chord("Cmd+Shift+V"), true);
     assert_eq!(raw.events, [egui::Event::Copy, release, egui::Event::Cut, shift_v], "⌘⇧V is an app shortcut");
 
-    events.borrow_mut().push(chord("Cmd+V"));
+    events.borrow_mut().push(equivalent("Cmd+V"));
     let mut raw = egui::RawInput::default();
     menu.raw_input(&mut raw);
     assert!(raw.events.is_empty(), "the paste comes from eframe, with the clipboard's text");
@@ -445,10 +465,10 @@ fn clipboard_key_equivalents_reach_text_fields() {
     assert!(commands.contains(&egui::ViewportCommand::RequestPaste));
 
     let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() })).clipboard_keys(ClipboardKeys::Raw);
-    events.borrow_mut().extend([chord("Cmd+C"), chord("Cmd+V")]);
+    events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+V")]);
     let mut raw = egui::RawInput::default();
     menu.raw_input(&mut raw);
-    let press = |s: &str| Chord::parse(s).unwrap().key_event(true).unwrap();
+    let press = |s: &str| key_event(&chord(s), true);
     assert_eq!(raw.events, [press("Cmd+C"), press("Cmd+V")]);
 }
 
@@ -458,33 +478,33 @@ fn clipboard_key_equivalents_reach_text_fields() {
 fn shortcuts_the_layout_assigns_come_back_as_clicks() {
     use crate::driver::chosen_event;
     let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample"));
-    let assigned = |id: &str| l.bar.find(id).unwrap().layout_shortcut;
-    assert!(assigned("file.exit") && assigned("prefs.general") && assigned(HIDE));
+    let assigned = |id: &str| l.bar.find(&cmd(id)).unwrap().layout_shortcut;
+    assert!(assigned("file.exit") && assigned("prefs.general") && assigned(Builtin::Hide.id()));
     assert!(!assigned("edit.undo") && !assigned("prefs.keys"));
     let mut bar = sample(false, true);
-    bar.menus[0].children.push(Item::new("file.quit", "Quit").shortcut("Cmd+Q").role(ItemRole::Quit).into());
-    bar.tag_item("file.exit", ItemRole::About);
-    assert!(!mac_layout(&bar, &LayoutOptions::new("Sample")).bar.find("file.quit").unwrap().layout_shortcut, "the app's own ⌘Q");
+    bar.menus[0].children.push(Item::new("file.quit", "Quit").shortcut(chord("Cmd+Q")).role(ItemRole::Quit).into());
+    bar.tag_item(&cmd("file.exit"), ItemRole::About);
+    assert!(!mac_layout(&bar, &LayoutOptions::new("Sample")).bar.find(&cmd("file.quit")).unwrap().layout_shortcut, "the app's own ⌘Q");
 
     let cmd_q = Chord::parse("Cmd+Q").unwrap();
     let held = Some([true, false, false, false]);
-    assert_eq!(chosen_event("file.exit", Some(&cmd_q), true, held, false), Event::Click("file.exit".into()));
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, held, false), Event::Key(cmd_q.clone()));
+    assert_eq!(chosen_event(&cmd("file.exit"), Some(&cmd_q), true, held, false), Event::Click("file.exit".into()));
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, held, false), Event::Key(cmd_q.clone()));
     // ⇧ held on a ⌘R item: the key press that was made.
     let shift_r = Chord::parse("Cmd+Shift+R").unwrap();
     assert_eq!(
-        chosen_event("view.reload", Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true]), false),
+        chosen_event(&cmd("view.reload"), Some(&Chord::parse("Cmd+R").unwrap()), false, Some([true, false, false, true]), false),
         Event::Key(shift_r)
     );
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, None, false), Event::Click("file.quit".into()), "a mouse click");
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, None, false), Event::Click("file.quit".into()), "a mouse click");
     assert_eq!(
-        chosen_event(MINIMIZE, Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false]), false),
-        Event::Click(MINIMIZE.into())
+        chosen_event(&Builtin::Minimize.command(), Some(&Chord::parse("Ctrl+Cmd+M").unwrap()), false, Some([true, true, false, false]), false),
+        Event::Click(Builtin::Minimize.command())
     );
     // ↩ inside the open menu: on a ⌘ item without ⌘ held, and on a bare tool key.
     let enter = Some([false; 4]);
-    assert_eq!(chosen_event("file.quit", Some(&cmd_q), false, enter, false), Event::Click("file.quit".into()));
-    assert_eq!(chosen_event("tool.brush", Some(&Chord::parse("B").unwrap()), false, enter, false), Event::Click("tool.brush".into()));
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, enter, false), Event::Click("file.quit".into()));
+    assert_eq!(chosen_event(&cmd("tool.brush"), Some(&Chord::parse("B").unwrap()), false, enter, false), Event::Click("tool.brush".into()));
 }
 
 /// While a text field has the keys, a key equivalent runs its command as a click (⌘S saves while
@@ -498,7 +518,7 @@ fn key_equivalents_run_commands_while_text_editing() {
     assert!(editing.get(), "the backend has the flag for chosen_event");
 
     let chosen = |shortcut: &str, held: [bool; 4], text_editing: bool| {
-        chosen_event("cmd", Some(&Chord::parse(shortcut).unwrap()), false, Some(held), text_editing)
+        chosen_event(&cmd("cmd"), Some(&Chord::parse(shortcut).unwrap()), false, Some(held), text_editing)
     };
     let cmd = [true, false, false, false];
     let shift_cmd = [true, false, false, true];
@@ -518,16 +538,16 @@ fn key_equivalents_run_commands_while_text_editing() {
 /// keeps the key, and shortcuts bound outside the menus clash like menu ones.
 #[test]
 fn hide_others_and_extra_shortcuts_give_way_to_the_app() {
-    let extra = [("Cmd+Alt+H".to_string(), "canvas.hideGuides".to_string()), ("Shift+Cmd+Q".to_string(), "canvas.other".to_string())];
+    let extra = [(chord("Cmd+Alt+H"), cmd("canvas.hideGuides")), (chord("Shift+Cmd+Q"), cmd("canvas.other"))];
     let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample").extra_shortcuts(&extra));
-    assert_eq!(l.bar.find(HIDE_OTHERS).unwrap().shortcut, None);
+    assert_eq!(l.bar.find(&Builtin::HideOthers.command()).unwrap().shortcut, None);
     assert_eq!(
         l.clashes,
-        [Clash { shortcut: "Cmd+Alt+H", system: "Hide Others", command: "canvas.hideGuides".into(), resolution: "Hide Others has no shortcut" }]
+        [Clash { shortcut: chord("Cmd+Alt+H"), system: "Hide Others", command: cmd("canvas.hideGuides"), resolution: "Hide Others has no shortcut" }]
     );
-    let extra = [("Cmd+H".to_string(), "canvas.hand".to_string())];
+    let extra = [(chord("Cmd+H"), cmd("canvas.hand"))];
     let l = mac_layout(&sample(false, true), &LayoutOptions::new("Sample").extra_shortcuts(&extra));
-    assert_eq!(l.bar.find(HIDE).unwrap().shortcut.as_deref(), Some("Ctrl+Cmd+H"));
+    assert_eq!(l.bar.find(&Builtin::Hide.command()).unwrap().shortcut, Some(chord("Ctrl+Cmd+H")));
 }
 
 /// An app menu in the app's own tree merges into the layout's: no second app menu.
@@ -539,7 +559,7 @@ fn an_apps_own_app_menu_is_merged() {
         Node::submenu("Theme", vec![Item::new("theme.light", "Light").into()]).role(ItemRole::Appearance),
     ];
     bar.menus.insert(0, Menu::new("Sample", own).role(MenuRole::App));
-    bar.tag_item("theme.next", ItemRole::Document);
+    bar.tag_item(&cmd("theme.next"), ItemRole::Document);
     bar.menus.iter_mut().find(|m| m.title == "Window").unwrap().children.retain(|n| !matches!(n, Node::Submenu { .. }));
     let l = mac_layout(&bar, &LayoutOptions::new("Sample"));
     assert_eq!(l.bar.menus.iter().filter(|m| m.role == MenuRole::App).count(), 1);

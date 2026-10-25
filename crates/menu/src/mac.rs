@@ -2,8 +2,10 @@
 //! off). This module only builds and updates the `NSMenu`s; the layout and how keys reach egui are
 //! in the platform-free part of the crate.
 //!
-//! - muda ids must be unique: a command shown twice (Keyboard Shortcuts in Edit and Window) has
-//!   `id` for its first item and `id#2` for its second.
+//! - An item's muda id is its command's [`craft_keymap::CommandRef::key`]. muda ids must be
+//!   unique: a command shown twice (Keyboard Shortcuts in Edit and Window) has `key` for its first
+//!   item and `key#2` for its second, and both report the command.
+//! - A radio item is a check item: AppKit menus have no radio look.
 //! - A structure change ([`crate::structure_key`]: a new Open Recent file, a language switch)
 //!   rebuilds the menu bar; labels, enabled and checked are updated in place. Opening or closing a
 //!   document ([`crate::window_key`]) rebuilds only the Window menu: AppKit adds its own items to
@@ -14,7 +16,7 @@
 //!   the layout assigned ([`crate::Item::layout_shortcut`]) stays a click: the app's keys don't
 //!   know it. While a text field has the keys, a key equivalent is a click unless the field
 //!   handles it ([`NativeMenu::set_text_editing`]).
-//! - Hide ([`crate::HIDE`]) and Hide Others ([`crate::HIDE_OTHERS`]) are custom items calling
+//! - Hide ([`crate::Builtin::Hide`]) and Hide Others ([`crate::Builtin::HideOthers`]) are custom items calling
 //!   `NSApplication hide:` and `hideOtherApplications:`, because the predefined ones always take ⌘H
 //!   and ⌥⌘H.
 //! - While a menu is open, changes wait until it closes: replacing or changing an `NSMenu` while
@@ -31,9 +33,10 @@ use muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};
 
-use crate::chord::Chord;
-use crate::driver::{Backend, Event, NativeMenu, chosen_event};
-use crate::model::{HIDE, HIDE_OTHERS, Item, Menu, MenuBar, MenuRole, Node, Standard, structure_key, window_key};
+use craft_keymap::{Chord, CommandRef, Key};
+
+use crate::driver::{Backend, Event, NativeMenu, chosen_event, native_ok};
+use crate::model::{Builtin, Item, ItemKind, Menu, MenuBar, MenuRole, Node, Standard, native_id, structure_key, window_key};
 
 /// Set by the first [`install`]: muda keeps the first menu event handler and ignores later ones.
 static INSTALLED: AtomicBool = AtomicBool::new(false);
@@ -64,8 +67,8 @@ enum Handle {
 #[derive(Clone)]
 struct Entry {
     handle: Handle,
-    /// The command id (several entries can share one).
-    command: String,
+    /// The command (several entries can share one).
+    command: CommandRef,
     chord: Option<Chord>,
     layout_shortcut: bool,
     label: String,
@@ -218,7 +221,7 @@ impl MacMenu {
         // Items by muda id: the n-th item of a command, depth first, is its n-th native item.
         let mut items: HashMap<String, &Item> = HashMap::new();
         for it in bar.items() {
-            let id = unique_id(&it.id, |id| items.contains_key(id));
+            let id = native_id(&it.command, |id| items.contains_key(id));
             items.insert(id, it);
         }
         for (id, e) in &mut self.entries {
@@ -239,7 +242,7 @@ impl MacMenu {
                 e.enabled = it.enabled;
             }
             // Compare with AppKit's own state: muda toggles a check item when it's clicked.
-            if let (Handle::Check(h), Some(c)) = (&e.handle, it.checked)
+            if let (Handle::Check(h), Some(c)) = (&e.handle, it.kind.checked())
                 && h.is_checked() != c
             {
                 h.set_checked(c);
@@ -285,16 +288,16 @@ fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<
                 sub.append(&p)?;
             }
             Node::Item(it) => {
-                let id = unique_id(&it.id, |id| entries.contains_key(id));
-                let chord = it.shortcut.as_deref().and_then(Chord::parse);
-                let accel = chord.as_ref().filter(|c| c.native_ok()).and_then(accelerator);
-                let handle = match it.checked {
-                    Some(c) => {
+                let id = native_id(&it.command, |id| entries.contains_key(id));
+                let chord = it.shortcut;
+                let accel = chord.as_ref().filter(|c| native_ok(c)).and_then(accelerator);
+                let handle = match it.kind {
+                    ItemKind::Check(c) | ItemKind::Radio(c) => {
                         let h = CheckMenuItem::with_id(id.clone(), escape(&it.label), it.enabled, c, accel);
                         sub.append(&h)?;
                         Handle::Check(h)
                     }
-                    None => {
+                    ItemKind::Plain => {
                         let h = MenuItem::with_id(id.clone(), escape(&it.label), it.enabled, accel);
                         sub.append(&h)?;
                         Handle::Plain(h)
@@ -302,7 +305,7 @@ fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<
                 };
                 let entry = Entry {
                     handle,
-                    command: it.id.clone(),
+                    command: it.command.clone(),
                     chord,
                     layout_shortcut: it.layout_shortcut,
                     label: it.label.clone(),
@@ -333,10 +336,11 @@ impl Backend for MacMenu {
             self.cancel_tracking();
             // Ids that aren't ours are AppKit's own items (Services, Zoom, …), already handled.
             let Some(e) = self.entries.get(&chosen.id) else { continue };
-            if e.command == HIDE || e.command == HIDE_OTHERS {
+            let builtin = Builtin::of(&e.command);
+            if matches!(builtin, Some(Builtin::Hide | Builtin::HideOthers)) {
                 if let Some(mtm) = MainThreadMarker::new() {
                     let app = NSApplication::sharedApplication(mtm);
-                    if e.command == HIDE { app.hide(None) } else { app.hideOtherApplications(None) }
+                    if builtin == Some(Builtin::Hide) { app.hide(None) } else { app.hideOtherApplications(None) }
                 }
                 continue;
             }
@@ -374,124 +378,112 @@ impl Backend for MacMenu {
     }
 }
 
-/// `id`, or `id#2`, `id#3`, … when `taken`.
-fn unique_id(id: &str, taken: impl Fn(&str) -> bool) -> String {
-    let mut unique = id.to_string();
-    let mut n = 2;
-    while taken(&unique) {
-        unique = format!("{id}#{n}");
-        n += 1;
-    }
-    unique
-}
-
 /// `&` marks a mnemonic in muda labels.
 fn escape(s: &str) -> String {
     s.replace('&', "&&")
 }
 
-/// A key equivalent for AppKit. `Cmd` is ⌘ (`META`) and `Ctrl` is ⌃: never folded together.
+/// A key equivalent for AppKit. `cmd` is ⌘ (`META`) and `ctrl` is ⌃: never folded together.
 fn accelerator(c: &Chord) -> Option<Accelerator> {
+    let m = c.mods;
     let mut mods = Modifiers::empty();
-    for (on, m) in [(c.cmd, Modifiers::META), (c.ctrl, Modifiers::CONTROL), (c.alt, Modifiers::ALT), (c.shift, Modifiers::SHIFT)] {
+    for (on, flag) in [(m.cmd, Modifiers::META), (m.ctrl, Modifiers::CONTROL), (m.alt, Modifiers::ALT), (m.shift, Modifiers::SHIFT)] {
         if on {
-            mods |= m;
+            mods |= flag;
         }
     }
-    const LETTERS: [Code; 26] = [
-        Code::KeyA,
-        Code::KeyB,
-        Code::KeyC,
-        Code::KeyD,
-        Code::KeyE,
-        Code::KeyF,
-        Code::KeyG,
-        Code::KeyH,
-        Code::KeyI,
-        Code::KeyJ,
-        Code::KeyK,
-        Code::KeyL,
-        Code::KeyM,
-        Code::KeyN,
-        Code::KeyO,
-        Code::KeyP,
-        Code::KeyQ,
-        Code::KeyR,
-        Code::KeyS,
-        Code::KeyT,
-        Code::KeyU,
-        Code::KeyV,
-        Code::KeyW,
-        Code::KeyX,
-        Code::KeyY,
-        Code::KeyZ,
-    ];
-    const DIGITS: [Code; 10] =
-        [Code::Digit0, Code::Digit1, Code::Digit2, Code::Digit3, Code::Digit4, Code::Digit5, Code::Digit6, Code::Digit7, Code::Digit8, Code::Digit9];
-    const F: [Code; 24] = [
-        Code::F1,
-        Code::F2,
-        Code::F3,
-        Code::F4,
-        Code::F5,
-        Code::F6,
-        Code::F7,
-        Code::F8,
-        Code::F9,
-        Code::F10,
-        Code::F11,
-        Code::F12,
-        Code::F13,
-        Code::F14,
-        Code::F15,
-        Code::F16,
-        Code::F17,
-        Code::F18,
-        Code::F19,
-        Code::F20,
-        Code::F21,
-        Code::F22,
-        Code::F23,
-        Code::F24,
-    ];
-    let k = c.key.as_str();
-    let mut chars = k.chars();
-    let code = match (chars.next(), chars.next()) {
-        (Some(ch), None) if ch.is_ascii_alphabetic() => *LETTERS.get((ch.to_ascii_uppercase() as usize).checked_sub('A' as usize)?)?,
-        (Some(ch), None) if ch.is_ascii_digit() => *DIGITS.get((ch as usize).checked_sub('0' as usize)?)?,
-        _ if c.is_function_key() => *F.get(k.get(1..)?.parse::<usize>().ok()?.checked_sub(1)?)?,
-        _ => match k {
-            "[" => Code::BracketLeft,
-            "]" => Code::BracketRight,
-            "\\" => Code::Backslash,
-            "/" => Code::Slash,
-            // `+` is ⇧= on the keyboards AppKit matches by key: Zoom In shows ⌘=.
-            "=" | "+" => Code::Equal,
-            "-" => Code::Minus,
-            "'" => Code::Quote,
-            ";" => Code::Semicolon,
-            "," => Code::Comma,
-            "." => Code::Period,
-            "`" => Code::Backquote,
-            // keyboard-types names: `Delete` is forward delete (egui's `Key::Delete`), `Backspace`
-            // the key Macs label delete. muda writes them as U+007F and U+0008; which physical key
-            // AppKit matches to each is not yet checked on a Mac.
-            "Delete" => Code::Delete,
-            "Backspace" => Code::Backspace,
-            "Left" | "ArrowLeft" => Code::ArrowLeft,
-            "Right" | "ArrowRight" => Code::ArrowRight,
-            "Up" | "ArrowUp" => Code::ArrowUp,
-            "Down" | "ArrowDown" => Code::ArrowDown,
-            "Home" => Code::Home,
-            "End" => Code::End,
-            "PageUp" => Code::PageUp,
-            "PageDown" => Code::PageDown,
-            "Escape" | "Esc" if !mods.is_empty() => Code::Escape,
-            "Enter" | "Return" if !mods.is_empty() => Code::Enter,
-            "Tab" if !mods.is_empty() => Code::Tab,
-            "Space" if !mods.is_empty() => Code::Space,
-            _ => return None,
-        },
+    let code = match c.key {
+        Key::A => Code::KeyA,
+        Key::B => Code::KeyB,
+        Key::C => Code::KeyC,
+        Key::D => Code::KeyD,
+        Key::E => Code::KeyE,
+        Key::F => Code::KeyF,
+        Key::G => Code::KeyG,
+        Key::H => Code::KeyH,
+        Key::I => Code::KeyI,
+        Key::J => Code::KeyJ,
+        Key::K => Code::KeyK,
+        Key::L => Code::KeyL,
+        Key::M => Code::KeyM,
+        Key::N => Code::KeyN,
+        Key::O => Code::KeyO,
+        Key::P => Code::KeyP,
+        Key::Q => Code::KeyQ,
+        Key::R => Code::KeyR,
+        Key::S => Code::KeyS,
+        Key::T => Code::KeyT,
+        Key::U => Code::KeyU,
+        Key::V => Code::KeyV,
+        Key::W => Code::KeyW,
+        Key::X => Code::KeyX,
+        Key::Y => Code::KeyY,
+        Key::Z => Code::KeyZ,
+        Key::Num0 => Code::Digit0,
+        Key::Num1 => Code::Digit1,
+        Key::Num2 => Code::Digit2,
+        Key::Num3 => Code::Digit3,
+        Key::Num4 => Code::Digit4,
+        Key::Num5 => Code::Digit5,
+        Key::Num6 => Code::Digit6,
+        Key::Num7 => Code::Digit7,
+        Key::Num8 => Code::Digit8,
+        Key::Num9 => Code::Digit9,
+        Key::F1 => Code::F1,
+        Key::F2 => Code::F2,
+        Key::F3 => Code::F3,
+        Key::F4 => Code::F4,
+        Key::F5 => Code::F5,
+        Key::F6 => Code::F6,
+        Key::F7 => Code::F7,
+        Key::F8 => Code::F8,
+        Key::F9 => Code::F9,
+        Key::F10 => Code::F10,
+        Key::F11 => Code::F11,
+        Key::F12 => Code::F12,
+        Key::F13 => Code::F13,
+        Key::F14 => Code::F14,
+        Key::F15 => Code::F15,
+        Key::F16 => Code::F16,
+        Key::F17 => Code::F17,
+        Key::F18 => Code::F18,
+        Key::F19 => Code::F19,
+        Key::F20 => Code::F20,
+        Key::F21 => Code::F21,
+        Key::F22 => Code::F22,
+        Key::F23 => Code::F23,
+        Key::F24 => Code::F24,
+        Key::OpenBracket => Code::BracketLeft,
+        Key::CloseBracket => Code::BracketRight,
+        Key::Backslash => Code::Backslash,
+        Key::Slash => Code::Slash,
+        // `+` is ⇧= on the keyboards AppKit matches by key: Zoom In shows ⌘=.
+        Key::Equals | Key::Plus => Code::Equal,
+        Key::Minus => Code::Minus,
+        Key::Quote => Code::Quote,
+        Key::Semicolon => Code::Semicolon,
+        Key::Comma => Code::Comma,
+        Key::Period => Code::Period,
+        Key::Backtick => Code::Backquote,
+        // `Delete` is forward delete (egui's `Key::Delete`), `Backspace` the key Macs label
+        // delete. muda writes them as U+007F and U+0008; which physical key AppKit matches to
+        // each is not yet checked on a Mac.
+        Key::Delete => Code::Delete,
+        Key::Backspace => Code::Backspace,
+        Key::Insert => Code::Insert,
+        Key::Left => Code::ArrowLeft,
+        Key::Right => Code::ArrowRight,
+        Key::Up => Code::ArrowUp,
+        Key::Down => Code::ArrowDown,
+        Key::Home => Code::Home,
+        Key::End => Code::End,
+        Key::PageUp => Code::PageUp,
+        Key::PageDown => Code::PageDown,
+        Key::Escape if !mods.is_empty() => Code::Escape,
+        Key::Enter if !mods.is_empty() => Code::Enter,
+        Key::Tab if !mods.is_empty() => Code::Tab,
+        Key::Space if !mods.is_empty() => Code::Space,
+        _ => return None,
     };
     Some(Accelerator::new(mods, code))
 }
@@ -501,6 +493,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use crate::driver::key_event;
 
     /// The shortcuts the layout writes itself, and common app ones, become key equivalents.
     #[test]
@@ -513,8 +506,8 @@ mod tests {
         ];
         for s in shortcuts {
             let c = Chord::parse(s).unwrap();
-            assert!(c.native_ok() && accelerator(&c).is_some(), "{s} has no key equivalent");
-            assert!(c.key_event(true).is_some(), "{s} has no egui key press");
+            assert!(native_ok(&c) && accelerator(&c).is_some(), "{s} has no key equivalent");
+            assert!(matches!(key_event(&c, true), egui::Event::Key { .. }), "{s} has no egui key press");
         }
         let code = |s: &str| accelerator(&Chord::parse(s).unwrap()).unwrap();
         assert_eq!(code("Cmd+Delete"), Accelerator::new(Modifiers::META, Code::Delete), "forward delete, as egui's Key::Delete");
@@ -527,13 +520,5 @@ mod tests {
         let a = accelerator(&Chord::parse("Cmd+M").unwrap()).unwrap();
         let b = accelerator(&Chord::parse("Ctrl+Cmd+M").unwrap()).unwrap();
         assert_ne!(a, b);
-    }
-
-    #[test]
-    fn a_command_shown_twice_gets_a_second_id() {
-        let mut taken = vec!["edit.keys".to_string()];
-        let second = unique_id("edit.keys", |id| taken.iter().any(|t| t == id));
-        taken.push(second.clone());
-        assert_eq!((second.as_str(), unique_id("edit.keys", |id| taken.iter().any(|t| t == id)).as_str()), ("edit.keys#2", "edit.keys#3"));
     }
 }
