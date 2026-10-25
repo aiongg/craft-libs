@@ -92,10 +92,12 @@ pub type CommandHook = Box<dyn Fn(&CommandRef) + Send + Sync>;
 #[derive(Clone, Default)]
 pub struct Dispatch(Arc<Mutex<Shared>>);
 
+type SharedHook = Arc<dyn Fn(&CommandRef) + Send + Sync>;
+
 #[derive(Default)]
 struct Shared {
     gate: Gate,
-    hook: Option<Arc<dyn Fn(&CommandRef) + Send + Sync>>,
+    hook: Option<SharedHook>,
 }
 
 impl Dispatch {

@@ -14,8 +14,10 @@ fn recording() -> Gate {
     Gate { recording_shortcut: true, ..Gate::default() }
 }
 
+type Shared<T> = Rc<RefCell<Vec<T>>>;
+
 /// A driver over a fake backend, with what it synced, its pending events and its dispatch.
-fn driver() -> (NativeMenu, Rc<RefCell<Vec<MenuBar>>>, Rc<RefCell<Vec<Event>>>, Dispatch) {
+fn driver() -> (NativeMenu, Shared<MenuBar>, Shared<Event>, Dispatch) {
     let fake = Fake::default();
     let (synced, events, dispatch) = (fake.synced.clone(), fake.events.clone(), fake.dispatch.clone());
     let menu = NativeMenu::new(Box::new(fake));
@@ -90,7 +92,7 @@ fn on_command_sees_allowed_clicks_only() {
     let save = chord("Cmd+S");
     let mouse = |c: &CommandRef| dispatch.chosen(c, Some(&save), false, None);
     events.borrow_mut().push(mouse(&cmd("file.save")));
-    assert_eq!(dispatch.chosen(&cmd("file.save"), Some(&save), false, held([true, false, false, false])), Event::Key(save.clone()));
+    assert_eq!(dispatch.chosen(&cmd("file.save"), Some(&save), false, held([true, false, false, false])), Event::Key(save));
     mouse(&Builtin::Quit.command());
     menu.set_gate(modal());
     mouse(&cmd("file.export"));
@@ -123,7 +125,7 @@ fn only_command_or_control_shortcuts_are_key_equivalents() {
 fn recording_a_shortcut_passes_key_equivalents_through() {
     let cmd_held = held([true, false, false, false]);
     let quit = chord("Cmd+Q");
-    assert_eq!(chosen_event(&cmd("file.exit"), Some(&quit), true, cmd_held, recording()), Event::Key(quit.clone()));
+    assert_eq!(chosen_event(&cmd("file.exit"), Some(&quit), true, cmd_held, recording()), Event::Key(quit));
     let min = chord("Ctrl+Cmd+M");
     assert_eq!(chosen_event(&Builtin::Minimize.command(), Some(&min), false, held([true, true, false, false]), recording()), Event::Key(min));
     let hide = chord("Cmd+H");

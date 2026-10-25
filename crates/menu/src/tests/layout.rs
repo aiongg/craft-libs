@@ -4,7 +4,7 @@ use craft_keymap::{Bindable, Binding, Keymap, Platform, Policy, Scope, Scopes};
 
 use super::*;
 
-fn menu<'a>(bar: &'a MenuBar, role: MenuRole) -> &'a Menu {
+fn menu(bar: &MenuBar, role: MenuRole) -> &Menu {
     bar.menu(role).unwrap()
 }
 

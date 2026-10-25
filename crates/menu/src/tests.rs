@@ -324,7 +324,7 @@ fn key_equivalents_become_one_key_press() {
     let release = egui::Event::Key { key: Key::V, physical_key: Some(Key::V), pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
     let press = key_event(&paste, true);
 
-    events.borrow_mut().push(Event::Key(paste.clone()));
+    events.borrow_mut().push(Event::Key(paste));
     let mut raw = egui::RawInput { events: vec![egui::Event::ModifiersChanged(Modifiers::COMMAND), release.clone()], ..Default::default() };
     menu.raw_input(&mut raw);
     assert_eq!(raw.events, [egui::Event::ModifiersChanged(Modifiers::COMMAND), press.clone(), release]);
@@ -506,7 +506,7 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
     let cmd_held = held([true, false, false, false]);
     let open = Gate::default();
     assert_eq!(chosen_event(&cmd("file.exit"), Some(&cmd_q), true, cmd_held, open), Event::Click("file.exit".into()));
-    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, cmd_held, open), Event::Key(cmd_q.clone()));
+    assert_eq!(chosen_event(&cmd("file.quit"), Some(&cmd_q), false, cmd_held, open), Event::Key(cmd_q));
     // ⇧ held on a ⌘R item: the key press that was made.
     let shift_r = Chord::parse("Cmd+Shift+R").unwrap();
     assert_eq!(
