@@ -464,9 +464,9 @@ fn editing_that_ends_mid_pass_turns_the_ime_off_in_that_pass() {
     assert!(interrupted, "the second update keeps the first one's interrupt");
     assert!(out.platform_output.ime.is_none());
     // A pass in which the composer wrote nothing leaves another widget's IME output alone.
-    let other = IMEOutput { purpose: IMEPurpose::Normal, rect: caret, cursor_rect: caret, should_interrupt_composition: false };
+    let other = IMEOutput::new(egui::Id::unique("other"), 1, IMEPurpose::Normal, caret, caret);
     let out = run(&ctx, 0.2, vec![], |ctx| {
-        ctx.output_mut(|o| o.ime = Some(other));
+        ctx.output_mut(|o| o.ime = Some(other.clone()));
         c.update(ctx, false);
     });
     assert_eq!(out.platform_output.ime, Some(other));

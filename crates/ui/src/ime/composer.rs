@@ -1,6 +1,10 @@
 use std::ops::Range;
 
-use egui::{Context, Event, IMEPurpose, ImeEvent, Key, Modifiers, Rect, output::IMEOutput};
+use egui::{
+    Context, Event, IMEPurpose, Id, ImeEvent, Key, Modifiers, Rect,
+    ime_context::{ImeContextTracker, ImeObservation, ImeTarget},
+    output::IMEOutput,
+};
 
 /// Seconds after a composition ends in which the IME's own confirm, cancel and edit keys
 /// (Enter, Escape, Backspace, Delete, Space) are still taken as the IME's, and after a bare
@@ -93,7 +97,9 @@ pub struct Processed {
 ///
 /// It turns a pass's input events into ordered [`Edit`]s, keeps the marked (preedit) text, and
 /// tells the platform where the caret is so the candidate window opens there.
-#[derive(Clone, Debug, Default)]
+///
+/// A clone is a new IME context: it gets its own context generation when it next writes output.
+#[derive(Debug)]
 pub struct Composer {
     preedit: String,
     active: Option<Range<usize>>,
@@ -113,11 +119,67 @@ pub struct Composer {
     pass: Option<u64>,
     output_pass: Option<u64>,
     on: bool,
+    /// The IME context's owner, as egui's `IMEOutput::owner`.
+    owner: Id,
+    /// The context generation egui's `IMEOutput` carries: new whenever the composer turns the
+    /// IME on again, changes purpose, or skipped a pass.
+    context: ImeContextTracker,
+}
+
+impl Default for Composer {
+    fn default() -> Self {
+        Self {
+            preedit: String::new(),
+            active: None,
+            guard: None,
+            kept: None,
+            last_commit: None,
+            modifiers: Modifiers::default(),
+            caret: None,
+            purpose: IMEPurpose::default(),
+            interrupt: false,
+            interrupted: false,
+            pass: None,
+            output_pass: None,
+            on: false,
+            owner: Id::unique("craft_ui::ime::Composer"),
+            context: ImeContextTracker::new(),
+        }
+    }
+}
+
+impl Clone for Composer {
+    fn clone(&self) -> Self {
+        Self {
+            preedit: self.preedit.clone(),
+            active: self.active.clone(),
+            guard: self.guard,
+            kept: self.kept.clone(),
+            last_commit: self.last_commit.clone(),
+            modifiers: self.modifiers,
+            caret: self.caret,
+            purpose: self.purpose,
+            interrupt: self.interrupt,
+            interrupted: self.interrupted,
+            pass: self.pass,
+            output_pass: self.output_pass,
+            on: self.on,
+            owner: self.owner,
+            context: ImeContextTracker::new(),
+        }
+    }
 }
 
 impl Composer {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The IME owner egui and the platform integration know this canvas's text by. Give each
+    /// canvas that types text its own (the default is one id shared by every composer).
+    pub fn with_owner(mut self, owner: Id) -> Self {
+        self.owner = owner;
+        self
     }
 
     /// `IMEPurpose::Password` or `Terminal` for canvases that need them.
@@ -147,6 +209,7 @@ impl Composer {
         let pass = self.start_pass(ctx);
         if !editing || ctx.text_edit_focused() {
             self.on = false;
+            self.context.observe(ctx.viewport_id(), None);
             if self.output_pass == Some(pass) && !ctx.text_edit_focused() {
                 ctx.output_mut(|o| o.ime = None);
             }
@@ -449,11 +512,22 @@ impl Composer {
         let interrupt = std::mem::take(&mut self.interrupt);
         self.output_pass = Some(ctx.cumulative_pass_nr());
         let rect = self.caret.unwrap_or(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1.0, 1.0)));
+        let viewport = ctx.viewport_id();
+        let observation = ImeObservation::new(ctx.cumulative_frame_nr_for(viewport), ctx.cumulative_pass_nr_for(viewport), ImeTarget::new(self.owner, 0))
+            .purpose(self.purpose);
+        // `None` only once egui's process-wide generation counter has run out.
+        let Some(context) = self.context.observe(viewport, Some(observation)) else {
+            return;
+        };
         // egui-winit turns the IME on only in passes that set `ime`.
         ctx.output_mut(|o| {
             // A later write in the same pass (the caret after edits) keeps the interrupt.
-            let interrupt = interrupt || o.ime.is_some_and(|ime| ime.should_interrupt_composition);
-            o.ime = Some(IMEOutput { purpose: self.purpose, rect, cursor_rect: rect, should_interrupt_composition: interrupt });
+            let interrupt = interrupt || o.ime.as_ref().is_some_and(|ime| ime.should_interrupt_composition);
+            let mut ime = IMEOutput::new(context.owner, context.context_generation, context.purpose, rect, rect);
+            ime.should_interrupt_composition = interrupt;
+            ime.change_cause = context.change_cause;
+            ime.surrounding_text = context.surrounding_text;
+            o.ime = Some(ime);
         });
     }
 }
