@@ -173,7 +173,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// only [`crate::docking::targets::STRIP_REACH`] from the line.
     pub(super) fn edge_proposal(&self, members: &[P], pointer: Pos2) -> Option<(P, Zone, Rect)> {
         let area = self.frame.edge.filter(|area| area.contains(pointer))?;
-        let band = self.style.edge_band.min(area.width() / 4.0).min(area.height() / 4.0);
+        let band = if self.style.side_edge_zones { crate::docking::targets::SIDE_EDGE_BAND } else { self.style.edge_band };
+        let band = band.min(area.width() / 4.0).min(area.height() / 4.0);
         let line = |zone| crate::docking::targets::edge_line(area, zone, self.style.drop_line_width);
         let mut edges = vec![(pointer.y - area.top(), Zone::Top), (area.bottom() - pointer.y, Zone::Bottom)];
         if self.style.side_edge_zones {

@@ -83,7 +83,6 @@ enum Hide {
 /// The style of an editor whose layout is one split tree of tab groups, as FilmCraft sets it.
 pub(super) fn frame_style(style: &mut DockStyle) {
     style.side_edge_zones = true;
-    style.edge_band = 8.0;
     style.new_dock_zones = false;
     style.close_others_item = true;
     style.maximize_item = true;
@@ -390,6 +389,18 @@ fn outer_edge_band_splits_at_the_root() {
     let tab = d.tab(4).unwrap().center();
     let out = d.drag(tab, pos2(246.0, 300.0));
     assert!(!out.actions.iter().any(|a| matches!(a, Action::Move { placement: Placement::Edge(_), .. })), "{:?}", out.actions);
+}
+
+#[test]
+fn the_split_tree_outer_edge_band_is_8_pt() {
+    let mut d = Driver::new(frames(), true);
+    let tab = d.tab(3).unwrap().center();
+    let out = d.drag(tab, pos2(7.0, 300.0));
+    assert!(out.actions.contains(&Action::Move { panel: 3, anchor: 1, placement: Placement::Edge(Zone::Left) }), "{:?}", out.actions);
+    // Past it, frame [1]'s left side zone.
+    let mut d = Driver::new(frames(), true);
+    let out = d.drag(tab, pos2(10.0, 300.0));
+    assert!(out.actions.contains(&Action::Move { panel: 3, anchor: 1, placement: Placement::Split(Zone::Left) }), "{:?}", out.actions);
 }
 
 #[test]

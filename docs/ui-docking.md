@@ -17,7 +17,7 @@ outside the crate.
 | Arrangement | Layout | Style settings | Apps |
 |---|---|---|---|
 | Docks beside a canvas (the defaults) | `Node::Dock`s on the window's start and end edges. A dock has columns; a column has stacked groups and can collapse to icons. Frames (tab groups and splits) fill the space between the docks. | `new_dock_zones` on | Creative apps with a canvas and panel docks |
-| A split tree of tab groups | `Split`s and `Tabs` only. | `edge_band` 8, `side_edge_zones`, `maximize_item`, `close_others_item`, `command_press_floats`, `float_hint`, `wheel_selects_tabs`, `middle_click_closes_tabs` on, `new_dock_zones`, `float_on_empty_drop` and `title_bar_docks` off; menu labels such as "Undock Panel" set on `float_label`, `float_group_label` and `close_group_label` | Apps whose whole window is frames |
+| A split tree of tab groups | `Split`s and `Tabs` only. | `side_edge_zones`, `maximize_item`, `close_others_item`, `command_press_floats`, `float_hint`, `wheel_selects_tabs`, `middle_click_closes_tabs` on, `new_dock_zones`, `float_on_empty_drop` and `title_bar_docks` off; menu labels such as "Undock Panel" set on `float_label`, `float_group_label` and `close_group_label` | Apps whose whole window is frames |
 
 Sides are logical: `Side::Start` is the left edge, or the right edge when
 `DockStyle::right_to_left` is set. egui has no app-wide direction, so the app sets it from its
@@ -250,7 +250,7 @@ A flyout fits its content the same way, without the title bar.
   | The seam between two stacked groups of a dock column | A new group between them | `seam_band` (28 pt) |
   | Each edge of a dock column | A new column on that side | `column_edge_band` (28 pt) |
   | The docked area's left or right edge without a dock, and an empty dock | A new dock | `new_dock_band` (28 pt) |
-  | The layout's top and bottom edges (and left and right with `side_edge_zones`) | A new frame across the whole window side, a quarter of the window | `edge_band` (28 pt, at most a quarter of the layout) |
+  | The layout's top and bottom edges (and left and right with `side_edge_zones`) | A new frame across the whole window side, a quarter of the window | `edge_band` (28 pt, 8 pt with `side_edge_zones`; at most a quarter of the layout) |
 
   Where a band overlaps a group's outer third, both mean the same side. Without
   `side_edge_zones`, a band reaches only 4 pt past its line into a tab strip that takes tabs;
@@ -259,8 +259,8 @@ A flyout fits its content the same way, without the title bar.
 - With `side_edge_zones` (the split-tree arrangement), a frame's zones are a picture frame
   instead: trapezoids along the four edges of the body below the tab strip, all four the same
   depth, `docking::SIDE_EDGE_ZONE_DEPTH` (40 pt), or a quarter of the body's smaller side when
-  that is less, so every frame keeps a center. `drop_zone` and `resolve_drop` give these zones
-  to hosts that draw their own frames.
+  that is less, so every frame keeps a center. A dock column's groups take the same depth.
+  `drop_zone` and `resolve_drop` give these zones to hosts that draw their own frames.
 - A dragged divider grows the frames that touch it on one side, up to their maximums. On the
   other side the frame touching it shrinks to its minimum, then the next frame along the same
   axis, and so on: the divider stops when every frame on that side is at its minimum. Frames

@@ -12,7 +12,10 @@ use super::{GroupKind, Renderer, RowItem, row_drag, row_range};
 use crate::docking::{
     Action, Column, DockEvent, DockHeights, DockStyle, Group, GroupDrag, GroupGesture, Node, Placement, Side, Target, Zone,
     dock_model::Unit,
-    targets::{DockDrop, DockTarget, STRIP_REACH, body_zone, column_edge, horizontal_line, resolve_dock, usable, vertical_line},
+    targets::{
+        DockDrop, DockTarget, SIDE_EDGE_ZONE_DEPTH, STRIP_REACH, body_zone, column_edge, drop_zone, horizontal_line, resolve_dock, usable,
+        vertical_line,
+    },
 };
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
@@ -638,7 +641,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// The dock target at `pointer`: a band at a border, else a side zone of a dock group's
-    /// body. The middle of a group that takes tabs is none: the group's own target joins it.
+    /// body ([`SIDE_EDGE_ZONE_DEPTH`] deep with [`DockStyle::side_edge_zones`]). The middle of a
+    /// group that takes tabs is none: the group's own target joins it.
     fn dock_drop(&self, pointer: Pos2) -> Option<DockDrop<P>> {
         let mut candidates = self.dock_candidates();
         let strip = self.in_tab_strip(pointer);
@@ -652,7 +656,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return None;
         }
         let group = self.dock_groups.iter().find(|g| g.body.contains(pointer))?;
-        let zone = body_zone(group.body, 0.0, self.style.side_zone_fraction, group.center, pointer)?;
+        let zone = if self.style.side_edge_zones {
+            drop_zone(group.body, 0.0, SIDE_EDGE_ZONE_DEPTH, pointer)?
+        } else {
+            body_zone(group.body, 0.0, self.style.side_zone_fraction, group.center, pointer)?
+        };
         let (target, line) = group.side(zone)?.clone();
         Some(DockDrop { target, band: group.body, line })
     }

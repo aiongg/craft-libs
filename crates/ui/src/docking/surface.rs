@@ -54,7 +54,8 @@ pub struct DockStyle {
     /// Height of a floating window's title bar.
     pub title_height: f32,
     /// Width of the band along the layout's outer edge that splits at the root (28 pt). It is
-    /// at most a quarter of the layout's width and height.
+    /// at most a quarter of the layout's width and height. With [`Self::side_edge_zones`] the
+    /// band is 8 pt.
     pub edge_band: f32,
     /// The split-tree profile. The outer edge band also runs along the left and right edges,
     /// where a drop adds a full-height column. A group's side zones are trapezoids

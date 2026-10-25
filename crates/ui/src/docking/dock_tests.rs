@@ -281,6 +281,26 @@ fn a_dock_groups_top_and_bottom_thirds_stack_its_sides_make_columns_and_its_midd
 }
 
 #[test]
+fn with_side_edge_zones_a_dock_groups_side_zones_are_40_pt_deep() {
+    // Group 3's body is 0..240 across and 333..600 down. 60 pt in from its left edge and 57
+    // below its top are in its outer thirds but past 40 pt: the middle, which joins it.
+    for (at, expected) in [
+        (pos2(30.0, 466.0), vec![vec![vec![5]], vec![vec![2], vec![3]]]),
+        (pos2(120.0, 360.0), vec![vec![vec![2], vec![5], vec![3]]]),
+        (pos2(60.0, 466.0), vec![vec![vec![2], vec![3, 5]]]),
+        (pos2(120.0, 390.0), vec![vec![vec![2], vec![3, 5]]]),
+    ] {
+        let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
+        let mut d = testing::DockDriver::new(layout, TestContent::default())
+            .with_area(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 600.0)))
+            .with_style(|s| s.side_edge_zones = true);
+        let tab = d.hit(&Hit::Tab(5)).unwrap_or_else(|| panic!("tab 5")).center();
+        d.drag(tab, at);
+        assert_eq!(columns(&d.layout, Side::Start), expected, "{at:?}");
+    }
+}
+
+#[test]
 fn dock_bands_are_28_pt_wide() {
     let window = || with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
     let target = |layout: Layout<u32>, at: Pos2| {

@@ -35,6 +35,11 @@ pub(super) fn usable(rect: Rect) -> bool {
 /// `depth` that [`drop_zone`], [`zone_shape`] and [`resolve_drop`] take there.
 pub const SIDE_EDGE_ZONE_DEPTH: f32 = 40.0;
 
+/// Width of the band along the layout's outer edge with
+/// [`crate::docking::DockStyle::side_edge_zones`], in place of
+/// [`crate::docking::DockStyle::edge_band`].
+pub(super) const SIDE_EDGE_BAND: f32 = 8.0;
+
 /// The picture-frame zones of [`crate::docking::DockStyle::side_edge_zones`]. Tab header (the
 /// top `tab_height` of `rect`) is the center; otherwise the nearest side zone of the body below
 /// it wins. Every side zone reaches the same depth into the body: `depth`, or a
