@@ -26,6 +26,18 @@ pub struct Document {
     pub hidden: bool,
 }
 
+impl Document {
+    /// A listed document, not the one in front.
+    pub fn new(command: impl Into<CommandRef>, label: impl Into<String>) -> Document {
+        Document { command: command.into(), label: label.into(), active: false, hidden: false }
+    }
+
+    pub fn active(mut self, active: bool) -> Document {
+        self.active = active;
+        self
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Menu {
     pub title: String,
@@ -146,8 +158,8 @@ impl ItemKind {
     }
 }
 
-/// Items macOS expects in fixed places. The app tags its own About, Settings, Quit, Appearance,
-/// Language and Document items; the layout adds Hide and Minimize.
+/// Items the layouts put in fixed places. The app tags its own About, Settings, Quit, Appearance
+/// and Language items; the Mac layout adds Hide and Minimize.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ItemRole {
     About,
@@ -162,9 +174,6 @@ pub enum ItemRole {
     Appearance,
     /// The app's language chooser, a submenu.
     Language,
-    /// An open document in the Window menu, where a Mac app lists its windows. Its label is the
-    /// document's name.
-    Document,
 }
 
 /// The items AppKit provides.
@@ -343,6 +352,27 @@ impl MenuBar {
         out
     }
 
+    /// Every item, depth first, changed in place.
+    pub(crate) fn for_each_item_mut(&mut self, mut f: impl FnMut(&mut Item)) {
+        fn walk(nodes: &mut [Node], f: &mut dyn FnMut(&mut Item)) {
+            for n in nodes {
+                match n {
+                    Node::Item(it) => f(it),
+                    Node::Submenu { children, .. } => walk(children, f),
+                    Node::Separator | Node::Standard { .. } => {}
+                }
+            }
+        }
+        for m in &mut self.menus {
+            walk(&mut m.children, &mut f);
+        }
+    }
+
+    /// Whether `command` opens one of [`MenuBar::documents`].
+    pub(crate) fn is_document(&self, command: &CommandRef) -> bool {
+        self.documents.iter().any(|d| d.command == *command)
+    }
+
     pub fn find(&self, command: &CommandRef) -> Option<&Item> {
         self.items().into_iter().find(|it| it.command == *command)
     }
@@ -440,12 +470,20 @@ pub fn from_items(tops: &[&str], rows: &[Row]) -> MenuBar {
     MenuBar { menus, documents: Vec::new() }
 }
 
-/// Drop separators at the start or end of a level and collapse runs of them, at every depth.
+/// Drop separators at the start or end of a level and collapse runs of them, and drop empty
+/// submenus, at every depth. A submenu holding only a disabled placeholder (`No Recent Files`)
+/// stays.
 pub fn tidy(nodes: Vec<Node>) -> Vec<Node> {
     let mut out: Vec<Node> = Vec::with_capacity(nodes.len());
     for n in nodes {
         let n = match n {
-            Node::Submenu { label, children, role, platforms } => Node::Submenu { label, children: tidy(children), role, platforms },
+            Node::Submenu { label, children, role, platforms } => {
+                let children = tidy(children);
+                if children.is_empty() {
+                    continue;
+                }
+                Node::Submenu { label, children, role, platforms }
+            }
             other => other,
         };
         if matches!(n, Node::Separator) && matches!(out.last(), None | Some(Node::Separator)) {
@@ -461,14 +499,16 @@ pub fn tidy(nodes: Vec<Node>) -> Vec<Node> {
 
 /// A hash of everything a native menu can only change by rebuilding: menus, roles, item
 /// commands, kinds (plain, check or radio), shortcuts, submenu labels and the labels of AppKit's items. Item
-/// labels, enabled and checked are updated in place. Window's open documents are left out:
-/// opening or closing a document rebuilds only the Window menu ([`window_key`]).
+/// labels, enabled and checked are updated in place. Window's open documents (the items running a
+/// [`MenuBar::documents`] command) are left out: opening or closing a document rebuilds only the
+/// Window menu ([`window_key`]).
 pub fn structure_key(bar: &MenuBar) -> u64 {
     let mut h = DefaultHasher::new();
     for m in &bar.menus {
         (&m.title, m.role).hash(&mut h);
         if m.role == MenuRole::Window {
-            let mut rest: Vec<Node> = m.children.iter().filter(|n| !is_document(n)).cloned().collect();
+            let document = |n: &Node| matches!(n, Node::Item(it) if bar.is_document(&it.command));
+            let mut rest: Vec<Node> = m.children.iter().filter(|n| !document(n)).cloned().collect();
             while matches!(rest.last(), Some(Node::Separator)) {
                 rest.pop();
             }
@@ -488,10 +528,6 @@ pub fn window_key(bar: &MenuBar) -> u64 {
         hash_nodes(&m.children, &mut h);
     }
     h.finish()
-}
-
-pub(crate) fn is_document(n: &Node) -> bool {
-    matches!(n, Node::Item(it) if it.role == Some(ItemRole::Document))
 }
 
 fn hash_nodes(nodes: &[Node], h: &mut DefaultHasher) {

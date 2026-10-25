@@ -1,18 +1,33 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-//! A Craft app's menus as a macOS menu bar.
+//! A Craft app's menus, laid out for macOS, Windows, Linux and the web.
 //!
 //! The app supplies its menus as a tree ([`MenuBar`]), built directly or from the flat rows of
 //! its in-window bar ([`from_items`]), gives each top-level menu its role ([`MenuRole`]), and
-//! tags the items macOS puts in fixed places ([`MenuBar::tag_item`], [`MenuBar::tag_submenu`]).
+//! tags the items the layouts put in fixed places ([`MenuBar::tag_item`], [`MenuBar::tag_submenu`]).
 //! Each item runs a [`craft_keymap::CommandRef`], its shortcut is a [`craft_keymap::Chord`], and
-//! its [`ItemKind`] makes it plain, a check item or a radio item. [`mac_layout`]
-//! arranges them the way a Mac app's are, and [`NativeMenu`] hands the result to a platform
+//! its [`ItemKind`] makes it plain, a check item or a radio item. [`layout`]
+//! arranges them the way the platform's apps do, and [`NativeMenu`] hands the result to a platform
 //! [`Backend`] and brings its events back. This part is pure and platform-free, so it is tested
 //! everywhere and builds for the web; only the backend, `mac` (macOS only, built on muda), touches
 //! AppKit. Its `mac::install` builds the menu bar and returns the [`NativeMenu`].
 //!
-//! What the layout does:
+//! **Layouts.** [`layout`] takes a [`Target`] ([`Target::current`] for this build) and calls
+//! [`mac_layout`], [`desktop_layout`] (Windows and Linux) or [`web_layout`]. Each first drops the
+//! items and submenus whose [`Platforms`] leave the target out, and every one lists
+//! [`MenuBar::documents`] (but the hidden ones) last in the Window menu, as radio items with the
+//! active document selected. On Windows and Linux About goes last in Help, Settings last in Edit
+//! as Preferences, and Quit last in File, as Exit on Windows; the web layout has no Quit and takes
+//! the browser's own shortcuts (Ctrl+W, Ctrl+T, …) off the items, reporting each as a [`Clash`].
+//! A layout adds the menus it needs when the app has none. A submenu left empty goes; a dynamic
+//! list with nothing in it shows the disabled placeholder item the app supplies.
+//!
+//! **Keymap.** [`apply_keymap`] sets the items' shortcuts from the app's
+//! [`craft_keymap::Keymap`], user overrides included, and makes toggle commands check items;
+//! [`apply_state`] sets enabled and checked per frame from an [`ItemState`] the app returns for
+//! each command. Both run on the app's bar, before the layout.
+//!
+//! What the Mac layout does:
 //! - an **app menu** named after the app: About (the item tagged [`ItemRole::About`]), Settings
 //!   ([`ItemRole::Settings`], an item or a submenu of pages), Language ([`ItemRole::Language`]),
 //!   Appearance ([`ItemRole::Appearance`]), Services, Hide ([`Builtin::Hide`]), Hide Others
@@ -21,7 +36,7 @@
 //!   [`Builtin::Quit`], which asks the window to close. These items leave the menus they came from. A menu the app
 //!   tagged [`MenuRole::App`] is merged into this one;
 //! - **Window** ([`MenuRole::Window`], added when the app has none) gets Minimize, Zoom and Bring
-//!   All to Front, with the open documents ([`ItemRole::Document`]) after them, where a Mac app
+//!   All to Front, with the open documents ([`MenuBar::documents`]) after them, where a Mac app
 //!   lists its windows. **Help** ([`MenuRole::Help`]) gets the system search field from the
 //!   backend. **File** ([`MenuRole::File`]) gets Close Window unless the app binds ⌘W;
 //! - **clashes** with the system's keys (⌘H, ⌥⌘H, ⌘M, ⌘W, ⌘,, ⌘Q) are resolved in the app's
@@ -58,6 +73,7 @@
 
 pub mod bar;
 mod driver;
+mod keymap;
 mod layout;
 mod model;
 
@@ -67,7 +83,8 @@ pub mod mac;
 pub use bar::{BarStyle, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use driver::{Backend, ClipboardKeys, Event, Gate, NativeMenu, had_input};
-pub use layout::{Clash, Layout, LayoutOptions, mac_layout};
+pub use keymap::{ItemState, apply_keymap, apply_state};
+pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
 pub use model::{
     Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
 };

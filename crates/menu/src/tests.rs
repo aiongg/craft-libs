@@ -8,6 +8,8 @@ use egui::{Key, Modifiers};
 use super::*;
 use crate::driver::key_event;
 
+mod layout;
+
 fn chord(s: &str) -> Chord {
     Chord::parse(s).unwrap()
 }
@@ -53,7 +55,6 @@ fn sample(clashing: bool, tag_quit: bool) -> MenuBar {
         row(&["Window", "Theme"], "theme.dark", "Dark", None),
         row(&["Window"], "theme.next", "Next Theme", None),
         row(&["Window"], "panel.layers", "Layers", Some("F7")),
-        row(&["Window"], "doc.0", "Untitled-1", None),
         row(&["Help"], "help.about", "About", None),
         row(&["Help"], "help.docs", "Docs", None),
     ];
@@ -67,7 +68,7 @@ fn sample(clashing: bool, tag_quit: bool) -> MenuBar {
     if tag_quit {
         bar.tag_item(&cmd("file.exit"), ItemRole::Quit);
     }
-    bar.tag_item(&cmd("doc.0"), ItemRole::Document);
+    bar.documents = vec![Document::new("doc.0", "Untitled-1").active(true)];
     bar.tag_item(&cmd("theme.next"), ItemRole::Appearance);
     bar.tag_submenu(MenuRole::Edit, "Preferences", ItemRole::Settings);
     bar.tag_submenu(MenuRole::Edit, "Language", ItemRole::Language);
@@ -147,7 +148,7 @@ fn an_untagged_quit_is_craft_quits_and_labels_are_translated() {
     assert!(app.children.contains(&Node::Standard { kind: Standard::Services, label: "Dienste".into() }));
     let titles: Vec<&str> = l.bar.menus.iter().map(|m| m.title.as_str()).collect();
     assert_eq!(titles, ["Sample", "File", "Edit", "View", "Fenster", "Help"], "a Window menu before Help");
-    assert_eq!(ids(&l.bar.menu(MenuRole::Window).unwrap().children), ["<Minimize>", "<Zoom>", "---", "<BringAllToFront>"]);
+    assert_eq!(ids(&l.bar.menu(MenuRole::Window).unwrap().children), ["<Minimize>", "<Zoom>", "---", "<BringAllToFront>", "---", "doc.0"]);
 }
 
 /// App commands keep ⌘H, ⌘M, ⌘W and ⌘,: the system items give way, and each clash is reported.
@@ -190,7 +191,7 @@ fn rows_become_a_tidy_tree() {
     assert_eq!(bar.menus[0].children, [Item::new("a", "a").into(), Node::Separator, Node::submenu("Sub", vec![Item::new("b", "b").into()])]);
     assert!(bar.menus[1].children.is_empty());
     let nested = vec![Node::Separator, Node::submenu("S", vec![Node::Separator, Node::Separator]), Node::Separator, Node::Separator];
-    assert_eq!(tidy(nested), [Node::submenu("S", vec![])]);
+    assert_eq!(tidy(nested), [], "a submenu left empty goes");
 }
 
 /// Labels, enabled and checked are updated in place; a shortcut or a check item that used to be
@@ -219,8 +220,7 @@ fn keys_separate_rebuilds_from_updates_in_place() {
     assert_ne!(structure_key(&edit(&|it| it.kind = ItemKind::Check(false))), structure_key(&base));
 
     let mut two = sample(false, true);
-    let window = two.menus.iter_mut().find(|m| m.role == MenuRole::Window).unwrap();
-    window.children.push(Item::new("doc.1", "Untitled-2").check(true).role(ItemRole::Document).into());
+    two.documents.push(Document::new("doc.1", "Untitled-2"));
     let two = mac_layout(&two, &opts).bar;
     assert_eq!(structure_key(&two), structure_key(&base));
     assert_ne!(window_key(&two), window_key(&base));
@@ -559,7 +559,6 @@ fn an_apps_own_app_menu_is_merged() {
         Node::submenu("Theme", vec![Item::new("theme.light", "Light").into()]).role(ItemRole::Appearance),
     ];
     bar.menus.insert(0, Menu::new("Sample", own).role(MenuRole::App));
-    bar.tag_item(&cmd("theme.next"), ItemRole::Document);
     bar.menus.iter_mut().find(|m| m.title == "Window").unwrap().children.retain(|n| !matches!(n, Node::Submenu { .. }));
     let l = mac_layout(&bar, &LayoutOptions::new("Sample"));
     assert_eq!(l.bar.menus.iter().filter(|m| m.role == MenuRole::App).count(), 1);

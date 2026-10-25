@@ -1,7 +1,8 @@
 # craft-menu
 
-A Craft app's menus as a macOS menu bar. The app supplies its menu tree and runs its commands;
-this crate lays the menus out the Mac way, drives a platform `Backend`, and turns the menu's key
+A Craft app's menus, laid out for macOS, Windows, Linux and the web. The app supplies its menu
+tree and runs its commands; this crate lays the menus out the way each platform's apps do, takes
+shortcuts from craft-keymap, drives a platform `Backend`, and turns the menu's key
 equivalents back into the input egui would have had without it. It depends on egui,
 [`craft-keymap`](../keymap/src/lib.rs) (commands and chords) and [`craft-quit`](../quit/src/lib.rs),
 and on no app. Everything but the macOS backend
@@ -34,9 +35,33 @@ parameter carries it in the `CommandRef`:
 `.radio(..)` (the item's `ItemKind`), `.role(..)` and `.platforms(..)`; submenus use
 `Node::submenu(label, children)`, with `.role(..)` for a tagged one. A shortcut is a
 `craft_keymap::Chord`: `cmd` is ⌘ and `ctrl` the Control key. macOS shows radio items as check
-items. Open documents in the Window menu are items with `ItemRole::Document`. The items the
+items. The app's open documents go in `MenuBar::documents` (`Document::new(command, name)`,
+`.active(..)` for the one in front, `hidden` for one kept open but not listed), and the layouts
+list them in the Window menu. The items the
 layout adds itself run a `Builtin` command (Hide, Hide Others, Minimize, Quit), which the crate
 handles.
+
+## Layouts
+
+`layout(&bar, target, &LayoutOptions::new("PhotoCraft"))` lays the menus out for a `Target`
+(`Mac`, `Windows`, `Linux`, `Web`; `Target::current()` for this build) and returns the bar and
+the clashes it resolved. Every layout first drops the items and submenus whose `.platforms(..)`
+leave the target out, and lists the open documents (but the hidden ones) last in the Window menu
+as radio items, the one in front selected. A submenu left empty goes; for an empty dynamic list
+(no recent files) the app supplies a disabled placeholder item, which keeps the submenu.
+
+| Target | About | Settings | Quit | Also |
+|---|---|---|---|---|
+| `Mac` | app menu | app menu, Settings… (⌘,) | app menu, ⌘Q | Services, Hide, Minimize, Zoom, Close Window |
+| `Windows` | last in Help | last in Edit, Preferences… | last in File, Exit | |
+| `Linux` | last in Help | last in Edit, Preferences… | last in File, Quit | |
+| `Web` | last in Help | last in Edit, Preferences… | none | browser shortcuts removed |
+
+The layouts find these items by role, never by title, and add a File, Edit, Window or Help menu
+when the app has none to put them in. Language and Appearance stay where the app put them off
+macOS, and the Windows, Linux and web layouts keep the app's shortcuts. The browser keeps Ctrl or
+⌘ with W, N, T and Q, and with Shift+N, Shift+T and Shift+W, for its tabs and windows, so the
+web layout takes those shortcuts off the items and reports each as a `Clash`.
 
 `mac_layout(&bar, &LayoutOptions::new("PhotoCraft"))` returns the Mac menu bar and the clashes
 it resolved:
@@ -52,9 +77,24 @@ it resolved:
   reported as a `Clash`. Shortcuts bound outside the menus (tool and canvas keys) count when the
   app lists them: `LayoutOptions::new("PhotoCraft").extra_shortcuts(&[(chord, command), ..])`.
 
-The labels the layout writes are English. To translate them, pass
-`LayoutOptions { label, ..LayoutOptions::new(app_name) }`, where `label` maps an English label
-such as `"Quit {app}"` to the app's translation; the crate substitutes `{app}`.
+The labels the layouts write (`About {app}`, `Preferences…`, `Exit`, `Window`, `Minimize`, …)
+are English. To translate them, pass `LayoutOptions { label, ..LayoutOptions::new(app_name) }`,
+where `label` maps an English label such as `"Quit {app}"` to the app's translation; the crate
+substitutes `{app}`.
+
+## Keymap
+
+`apply_keymap(&mut bar, &keymap)` gives each item the shortcut its command has in the app's
+`craft_keymap::Keymap`, the user's overrides included: the first single-press binding, one in
+the command's home scope first. A command the keymap knows but binds to nothing loses its
+shortcut; an item whose command the keymap doesn't know keeps its own. Items of toggle commands
+(`Bindable::toggle`) become check items, keeping their checked state; radio items stay radio
+items.
+
+Each frame, `apply_state(&mut bar, |command| ItemState { enabled, checked })` sets enabled and
+checked from the app's state. `checked: Some(..)` makes a plain item a check item and selects or
+clears a radio item; `None` leaves the kind as it is. The built-in items and the open documents
+are left alone. Both run on the app's bar, before the layout.
 
 ## macOS
 
