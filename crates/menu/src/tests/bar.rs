@@ -194,7 +194,7 @@ impl Bar {
     }
 
     fn nav(&self) -> Nav {
-        Nav::current(&self.ctx, Id::new("craft-menu-bar").with("nav"))
+        Nav::current(&self.ctx, Id::unique("craft-menu-bar").with("nav"))
     }
 
     /// Is row `i` of `level` entirely inside its level's visible (scrolled) part, in the window?
@@ -487,6 +487,7 @@ fn the_wheel_scrolls_a_tall_menu() {
             delta: vec2(0.0, -60.0),
             modifiers: Modifiers::NONE,
             phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
         });
         b.run(2);
     }

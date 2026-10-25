@@ -100,7 +100,7 @@ pub(crate) struct Nav {
 }
 
 fn open_id() -> Id {
-    Id::new("craft-menu-bar-open")
+    Id::unique("craft-menu-bar-open")
 }
 
 /// Whether one of the bar's menus is open. An app leaves the keys to it meanwhile: its
@@ -453,12 +453,12 @@ pub(crate) fn level_room(screen: Rect, bar_bottom: Option<f32>, depth: usize, an
 pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, label: &dyn Fn(&'static str) -> String, rows: impl FnOnce(&mut Ui, &mut Nav)) {
     let ctx = ui.ctx().clone();
     let level = depth.saturating_sub(1);
-    nav.begin_level(level, find_menu_root(ui).id);
+    nav.begin_level(level, find_menu_root(ui).scope_id);
     let screen = ctx.content_rect();
     // The menu frame's margin and stroke around the rows.
     let frame = ui.spacing().menu_margin.sum().y + 2.0;
     let anchor = nav.anchors.get(level).copied().flatten();
-    let key = ui.id().with(("craft-menu-level", depth));
+    let key = ui.scope_id().with(("craft-menu-level", depth));
     // Rows' height from the last frame: does this level overflow?
     let content: Option<f32> = ctx.data(|d| d.get_temp(key));
     let room = level_room(screen, nav.bar_bottom, depth, anchor, content, frame);
@@ -469,12 +469,16 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, label: &dyn Fn(&'s
     // 400 pt, on the first): a scroll area never grows past that, so every menu would stop at that
     // height and scroll even on a tall window. Ask for the room the window has; auto-shrink then
     // fits the area to its rows, so a menu scrolls only when they don't fit.
-    let out = egui::ScrollArea::vertical()
+    let mut area = egui::ScrollArea::vertical()
         .id_salt(("craft-menu-level", depth))
         .max_height(height)
         .min_scrolled_height(height)
-        .scroll_source(egui::containers::scroll_area::ScrollSource::ALL)
-        .show(ui, |ui| rows(ui, nav));
+        .scroll_source(egui::containers::scroll_area::ScrollSource::ALL);
+    // Where the scroll arrows moved the rows last frame; egui's scroll state has no setter.
+    if let Some(y) = ctx.data_mut(|d| d.remove_temp::<f32>(key.with("scroll-to"))) {
+        area = area.vertical_scroll_offset(y);
+    }
+    let out = area.show(ui, |ui| rows(ui, nav));
     let down = over.then(|| ui.allocate_exact_size(vec2(0.0, ARROW), Sense::hover()).0);
     ctx.data_mut(|d| d.insert_temp(key, out.content_size.y));
     if let Some(v) = nav.views.get_mut(level) {
@@ -493,7 +497,7 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, label: &dyn Fn(&'s
     let (live_color, dead_color) = (ui.visuals().text_color(), ui.visuals().weak_text_color().gamma_multiply(0.5));
     let x = ui.min_rect().x_range();
     let max = (out.content_size.y - out.inner_rect.height()).max(0.0);
-    let offset = out.state.offset.y;
+    let offset = out.state.clamped_offset().y;
     let dt = ctx.input(|i| i.stable_dt).clamp(0.0, 0.1);
     let mut target = offset;
     for (strip, dir, live) in [(up, -1.0, offset > 0.5), (down, 1.0, offset < max - 0.5)] {
@@ -509,7 +513,7 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, label: &dyn Fn(&'s
         let id = key.with(dir < 0.0);
         let r = ui.interact(strip, id, Sense::hover());
         let name = label(if dir < 0.0 { "Scroll menu up" } else { "Scroll menu down" });
-        r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, live, &name));
+        r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, live, &name));
         if live && pointer_on(ui, strip) {
             target = (offset + dir * SPEED * dt.max(1.0 / 120.0)).clamp(0.0, max);
             ctx.request_repaint();
@@ -523,8 +527,6 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, label: &dyn Fn(&'s
         }
     }
     if target != offset {
-        let mut st = out.state;
-        st.offset.y = target;
-        st.store(&ctx, out.id);
+        ctx.data_mut(|d| d.insert_temp(key.with("scroll-to"), target));
     }
 }

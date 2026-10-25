@@ -39,11 +39,11 @@ pub(crate) struct Keys {
 }
 
 fn focus_id() -> Id {
-    Id::new("craft-menu-bar-focus")
+    Id::unique("craft-menu-bar-focus")
 }
 
 fn leave_id() -> Id {
-    Id::new("craft-menu-bar-leave")
+    Id::unique("craft-menu-bar-leave")
 }
 
 /// Whether the keyboard is on the bar (Alt tap or F10, no menu open yet). The app's shortcuts

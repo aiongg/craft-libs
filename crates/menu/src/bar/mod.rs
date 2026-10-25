@@ -112,7 +112,7 @@ impl<'a> MenuBarUi<'a> {
             label: &english,
             english: None,
             preferred: &[],
-            id: Id::new("craft-menu-bar"),
+            id: Id::unique("craft-menu-bar"),
         }
     }
 
@@ -589,7 +589,7 @@ fn submenu_row(ui: &mut Ui, title: WidgetText, content: impl FnOnce(&mut Ui)) ->
     if open {
         ui.style_mut().visuals.widgets.inactive = ui.style().visuals.widgets.open;
     }
-    let response = ui.add(egui::Button::new(title).right_text(SubMenuButton::RIGHT_ARROW));
+    let response = ui.add(egui::Button::new(title).right_text(SubMenuButton::arrow_atom(None)));
     ui.style_mut().visuals.widgets.inactive = inactive;
     // The rect egui tests the pointer against (`SubMenu::show`), against the part that can be seen.
     let reach = response.rect.expand2(ui.spacing().item_spacing / 2.0);

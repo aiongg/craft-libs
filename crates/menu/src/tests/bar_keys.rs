@@ -10,7 +10,7 @@ use crate::bar::{Labeled, is_focused, leave_for_shortcut};
 
 impl Bar {
     fn keys(&self) -> Keys {
-        Keys::current(&self.ctx, Id::new("craft-menu-bar").with("keys"))
+        Keys::current(&self.ctx, Id::unique("craft-menu-bar").with("keys"))
     }
 
     fn focus(&self) -> Option<usize> {
@@ -161,6 +161,7 @@ fn alt_with_a_wheel_scroll_a_lost_focus_or_a_drag_is_no_tap() {
         unit: egui::MouseWheelUnit::Line,
         delta: vec2(0.0, -1.0),
         phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Unknown,
         modifiers: Modifiers::ALT,
     });
     b.run(2);
@@ -253,7 +254,8 @@ fn mnemonics_are_underlined_only_with_alt_or_a_keyboard_opened_menu() {
     let underlined = |b: &Bar| {
         let ctx = b.ctx.clone();
         // The rows' mnemonics are in AccessKit either way; the drawn text has the underline.
-        b.node("New").and_then(|n| n.access_key().map(str::to_owned)).is_some() && Nav::current(&ctx, Id::new("craft-menu-bar").with("nav")).underline
+        b.node("New").and_then(|n| n.access_key().map(str::to_owned)).is_some()
+            && Nav::current(&ctx, Id::unique("craft-menu-bar").with("nav")).underline
     };
     assert!(!underlined(&b));
     b.alt(true);
