@@ -176,7 +176,8 @@ craft-menu owns muda's menu event handler. muda keeps the first one set per proc
 crate sets it once and both `mac::install` and `mac::install_app_menu` use it; a later
 `mac::install` replaces the minimal app menu, and a second `mac::install` returns `None`.
 `craft_quit::install_app_menu` is deprecated in favor of `mac::install_app_menu`: it sets its own
-handler, so an app calling it first would leave craft-menu's menus without events. Quit is
+handler, so an app calls it or craft-menu's installers, never both. Called first, it leaves
+craft-menu's menus without events; called after, it replaces their menu bar. Quit is
 never AppKit's predefined Quit: it is the app's item tagged `ItemRole::Quit`, or the item with
 `craft_quit::QUIT_MENU_ID`, which runs `craft_quit::on_menu_event` (the window is asked to close,
 so the app's unsaved-changes prompt runs). Each menu event wakes egui, so a chosen item runs at

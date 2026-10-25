@@ -223,8 +223,9 @@ fn a_letter_in_an_open_menu_runs_the_row_with_that_mnemonic_or_opens_its_submenu
     assert_eq!(b.mnemonic(0, "view.grid"), Some('G'));
     let letters: Vec<char> = b.nav().rows[0].iter().filter_map(|r| r.mnemonic).collect();
     let mut unique = letters.clone();
+    unique.sort_unstable();
     unique.dedup();
-    assert_eq!(letters, unique, "mnemonics are unique within a level");
+    assert_eq!(letters.len(), unique.len(), "mnemonics are unique within a level: {letters:?}");
     b.letter('g');
     assert_eq!(b.take(), vec![CommandRef::new("view.grid")], "G ran Grid");
     assert!(!is_open(&b.ctx), "and closed the menu");

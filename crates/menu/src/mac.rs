@@ -69,9 +69,9 @@ thread_local! {
 /// the main thread, or when a menu bar is already installed. It replaces an app menu from
 /// [`install_app_menu`].
 ///
-/// craft-menu owns muda's menu event handler. muda keeps the first one set, so an app that also
-/// calls the deprecated `craft_quit::install_app_menu` must call it after this, or not at all;
-/// before, this menu would get no events.
+/// craft-menu owns muda's menu event handler. muda keeps the first one set, so an app calls this
+/// or the deprecated `craft_quit::install_app_menu`, never both: called first, that one leaves
+/// this menu without events; called after, it replaces this menu bar with its app menu.
 pub fn install(ctx: &egui::Context, bar: &MenuBar) -> Option<NativeMenu> {
     MainThreadMarker::new()?;
     if INSTALLED.swap(true, Ordering::SeqCst) {
