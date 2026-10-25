@@ -566,3 +566,14 @@ fn an_apps_own_app_menu_is_merged() {
     let app = l.bar.menu(MenuRole::App).unwrap();
     assert_eq!(ids(&app.children)[..7], ["help.about", "---", "[Settings]", "[Language]", "[Appearance]", "---", "app.discord"]);
 }
+
+#[test]
+fn a_modal_dialog_or_shortcut_recording_lets_only_the_built_in_items_run() {
+    let save = Item::new(CommandRef::new("file.save"), "Save");
+    let quit = Item::new(Builtin::Quit.command(), "Quit");
+    for gate in [Gate { modal: true, ..Gate::default() }, Gate { recording_shortcut: true, ..Gate::default() }] {
+        assert!(!gate.allows(&save) && gate.allows(&quit), "{gate:?}");
+    }
+    assert!(Gate { text_editing: true, ..Gate::default() }.allows(&save));
+    assert!(Gate::default().allows(&save));
+}

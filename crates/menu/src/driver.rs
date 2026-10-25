@@ -42,6 +42,16 @@ pub struct Gate {
     pub text_editing: bool,
 }
 
+impl Gate {
+    /// Whether `item` may run now: while a modal dialog is open or a shortcut is being recorded,
+    /// only the built-in items (Hide, Hide Others, Minimize, Quit) do. Quit stays because it asks
+    /// the app first. A text field having the keys doesn't stop a click: menu commands run while
+    /// typing, as in a Mac app, and the keys a field keeps are handled before the menus see them.
+    pub fn allows(&self, item: &crate::Item) -> bool {
+        !(self.modal || self.recording_shortcut) || crate::Builtin::of(&item.command).is_some()
+    }
+}
+
 /// A platform's native menu bar.
 pub trait Backend {
     /// Bring the menu in step with `bar`: update labels, enabled and checked in place, or
