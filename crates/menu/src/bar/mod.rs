@@ -220,7 +220,7 @@ impl<'a> MenuBarUi<'a> {
             press: self.id.with("press"),
             clicked: None,
         };
-        let room = self.fit.map_or(ui.available_width(), |max| max.min(ui.available_width()));
+        let room = self.fit.map_or(ui.available_width(), |max| max.min(ui.available_width())).max(0.0);
         let width = match self.fit {
             // The half point keeps rounding from pushing the last title into "⋯".
             Some(_) => (self.title_widths(ui, &draw, style.title_padding.x).iter().sum::<f32>() + 0.5).min(room),

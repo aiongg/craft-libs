@@ -82,7 +82,8 @@ pub fn install(ctx: &egui::Context, bar: &MenuBar) -> Option<NativeMenu> {
 pub struct MacOptions {
     /// Make the [`MenuRole::Window`] menu AppKit's Windows menu, which lists the app's windows
     /// after the menu's own items. On by default. An app that lists its documents itself
-    /// ([`MenuBar::documents`]) in one window turns it off: AppKit would list that window too.
+    /// in the Window menu ([`MenuBar::documents`]) and keeps them in one window turns it off: AppKit
+    /// would list that window as well.
     pub window_list: bool,
 }
 

@@ -483,6 +483,9 @@ fn a_bar_shrunk_to_fit_shares_its_row() {
     assert!(b.title("⋯").is_some(), "the menus past 100 points overflow");
     // The bar's 100 points and the row's item spacing (8).
     assert!(b.after.is_some_and(|x| x <= 109.0), "{:?}", b.after);
+    // A limit an app computed from a full row can go negative.
+    b.fit = Some(-20.0);
+    b.run(2);
 }
 
 /// A menu far taller than the window.

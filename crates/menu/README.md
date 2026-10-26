@@ -188,8 +188,9 @@ once rather than with the next input event.
 
 The backend calls AppKit's Window and Help menu hooks for the menus with `MenuRole::Window` and
 `MenuRole::Help`; it never looks at titles. Services is AppKit's own submenu. AppKit's Window
-menu lists the app's windows after the menu's own items; an app that lists its documents in one
-window (`MenuBar::documents`) would see them twice, so it installs with
+menu lists the app's windows after the menu's own items. An app that keeps its documents in one
+window and lists them in the Window menu itself (`MenuBar::documents`) would see each twice, so it
+installs with
 `mac::install_with(ctx, &bar, MacOptions::default().window_list(false))`.
 
 Only shortcuts with ⌘ or ⌃ become key equivalents. The others (`B`, `⇧B`, `⌥B`, a bare `F5`) are
