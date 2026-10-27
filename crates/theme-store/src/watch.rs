@@ -98,6 +98,16 @@ impl Snapshot {
         }
         [&self.active, &self.app_theme].into_iter().flatten().find(|r| r.theme.id == *id).map(|r| r.theme.clone())
     }
+
+    /// Any theme the suite knows, for a preview card: a built-in, the active or app theme, or
+    /// a library theme in [`index`](Self::index), with no file read or [`Op::Export`].
+    pub fn preview(&self, id: &ThemeId) -> Option<SuiteTheme> {
+        self.theme(id).or_else(|| {
+            // The index is sorted by file name, and a library file's name is its id.
+            let at = self.index.binary_search_by(|e| e.id.as_str().cmp(id.as_str())).ok()?;
+            self.index.get(at).map(ThemeEntry::theme)
+        })
+    }
 }
 
 /// Watches the suite folder and runs store operations off the UI thread.
@@ -394,7 +404,9 @@ impl Shared {
         // After the snapshot, so a reader that sees the new generation gets at least its snapshot.
         self.generation.store(generation, Ordering::Release);
         if wake && !self.stopped.load(Ordering::Acquire) {
-            (self.wake)();
+            // A panic here would end the worker and drop the requests still queued, which then
+            // never get a result; the snapshot is out already, so only the repaint is lost.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.wake)()));
         }
     }
 }

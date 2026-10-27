@@ -36,7 +36,7 @@ match store.update(&base, SelectionChange::theme(ThemeId::parse("craft.graphite"
 | `StoreError` | `Busy`, `Conflict { disk }`, `IdExists`, `InUse`, … ; nothing on disk changed |
 | `Problem` | damaged, too new or unreadable files; the store keeps its last accepted state |
 | `parse_theme`, `theme_to_json`, `ThemeRecord` | theme file v1; unknown keys stay in the stored bytes |
-| `SuiteClient` | what an app calls: per-frame `sync`, the optimistic `shown` choice, `change`, conflict and failure notices with `apply_mine` and `retry`, the `theme` lookup |
+| `SuiteClient` | what an app calls: per-frame `sync`, the optimistic `shown` choice, `change`, conflict and failure notices with `apply_mine` and `retry`, the `theme` lookup, `preview` for any theme's picker card |
 | `SuiteWatch`, `Snapshot`, `Op`, `OpOutput` | the store on a worker thread: snapshots by generation, queued operations with results |
 | `FileStamp`, `library_files`, `selection_stamp`, `theme_stamp`, `parse_counts` | cheap change checks for a watcher |
 
@@ -60,8 +60,10 @@ if client.sync() || choice_changed {
 
 // The user picks a theme or mode; shown() reflects it at once.
 client.change(SelectionChange::theme(id));
-// Notices: client.conflict() with client.apply_mine(), client.failure() with client.retry(),
+// Notices: client.conflict() with client.apply_mine(), client.failure() with client.retry()
+// (StoreError::Lost when more than 16 other results pushed the answer out between two syncs),
 // client.problems() for files the suite can't use.
+// Picker cards: client.preview(id) for built-ins and every library theme, no export needed.
 ```
 
 The worker stats `selection.json` every 500 ms and compares its bytes every 10 s, parses only
