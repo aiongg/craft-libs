@@ -175,8 +175,7 @@ fn file_of<'a>(family: &'a Family, face: &FaceInfo) -> Option<&'a FontFile> {
 impl FontsPanel {
     pub(crate) fn details(&mut self, ctx: &Context, area: Rect) {
         self.sheet(ctx, area);
-        let allowed = self.allowed(ctx.input(|i| i.time));
-        self.subsets.request_detail(ctx, allowed);
+        self.subsets.request_detail(ctx);
         if self.detail.is_none() {
             self.detail_axes.clear();
         }
