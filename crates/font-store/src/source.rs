@@ -319,8 +319,17 @@ fn check(raw: Raw, origin: Origin<'_>) -> Result<Index, IndexError> {
         }
     };
     let curated = curated && host.is_none();
-    if raw.families.len() > MAX_FAMILIES || raw.languages.len() > MAX_FAMILIES * 4 || raw.scripts.len() > MAX_LIST {
-        return invalid("too many families, languages or scripts");
+    if raw.families.len() > MAX_FAMILIES || raw.languages.len() > MAX_FAMILIES * 4 || raw.scripts.len() > MAX_LIST || raw.samples.len() > MAX_LIST {
+        return invalid("too many families, languages, scripts or samples");
+    }
+    for (script, sample) in &raw.samples {
+        for s in [script, &sample.method, &sample.language] {
+            check_str("sample", s)?;
+        }
+        // Some samples are several lines (Nüshu, Carian).
+        if sample.text.len() > MAX_STR || sample.text.chars().any(|c| c.is_control() && c != '\n') {
+            return invalid(format!("the `{}` sample is too long or has control characters", short(script)));
+        }
     }
     for l in &raw.languages {
         check_str("language", &l.id)?;
@@ -465,8 +474,15 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
                 return invalid(format!("`{}` has a bad axis", short(&f.path)));
             }
         }
-        if f.instances.len() > MAX_LIST || f.list_instance.is_some_and(|i| i >= f.instances.len()) {
+        if (!f.instances.is_empty() && f.axes.is_empty()) || f.instances.len() > MAX_LIST || f.list_instance.is_some_and(|i| i >= f.instances.len()) {
             return invalid(format!("`{}` has a bad list instance", short(&f.path)));
+        }
+        // Every instance has a coordinate for each axis and for no other.
+        for i in &f.instances {
+            check_str("instance name", &i.name)?;
+            if i.coordinates.len() != f.axes.len() || f.axes.iter().any(|a| !i.coordinates.contains_key(&a.tag)) {
+                return invalid(format!("`{}` has an instance without its axes", short(&f.path)));
+            }
         }
         for ps in &f.postscript {
             check_str("PostScript name", ps)?;

@@ -178,6 +178,18 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
 
     first["families"][3]["files"][0]["list_instance"] = json!(1);
     assert!(index_of(&first).is_err());
+    first["families"][3]["files"][0]["list_instance"] = json!(0);
+    first["samples"]["Latn"]["text"] = json!("bad\u{7}");
+    assert!(index_of(&first).is_err());
+    first["samples"]["Latn"] = sample("Hello");
+    // An instance gives a coordinate for every axis, and only those.
+    first["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wdth": 100.0}}]);
+    assert!(index_of(&first).is_err());
+    first["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
+    assert!(index_of(&first).is_ok());
+    // Named instances belong to variable fonts only.
+    first["families"][2]["files"][0]["instances"] = json!([{"name": "Bold", "coordinates": {}}]);
+    assert!(index_of(&first).is_err());
 }
 
 #[cfg(feature = "bundled-index")]
@@ -690,7 +702,9 @@ mod store {
         let before = server.requests().len();
         // The licence has no mirror address here, and its index URLs are refused, so the install
         // fails; the file itself came from the mirror and nothing else was requested.
-        let _ = strict_user.install_face(&index, face, &Cancel::new(), &mut none);
+        let err = strict_user.install_face(&index, face, &Cancel::new(), &mut none).unwrap_err();
+        let licence = face.family.license_file_name().unwrap();
+        assert!(matches!(&err, Error::Download { what, .. } if what == licence), "{err:?}");
         assert_eq!(server.requests()[before..], [format!("/mirror/v1/files/{sha}")]);
 
         // Bytes that fail the sha256 fall through to the index's URLs.
