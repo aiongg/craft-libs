@@ -318,8 +318,13 @@ fn highest_priority_first_and_cancelled_requests_deliver_nothing() {
 
 #[test]
 fn sample_hash_is_the_sha256_prefix_of_the_exact_text() {
-    // `printf Hello | sha256sum` starts 185f8db32271fe25f561a6fc938b2e26...
-    assert_eq!(SampleHash::of("Hello").as_str(), "185f8db32271");
+    let vectors: serde_json::Value = serde_json::from_str(include_str!("data/preview-vectors.json")).unwrap();
+    let vectors = vectors["sample_hash"]["vectors"].as_array().unwrap();
+    assert!(vectors.len() >= 4);
+    for v in vectors {
+        let text = v["text"].as_str().unwrap();
+        assert_eq!(SampleHash::of(text).as_str(), v["h"].as_str().unwrap(), "{text:?}");
+    }
     assert_ne!(SampleHash::of("Hello\n"), SampleHash::of("Hello"));
     let a = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("a"))).unwrap();
     let b = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("b"))).unwrap();
