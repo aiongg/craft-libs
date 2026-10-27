@@ -5,7 +5,7 @@
 //! file's sha256: the face's default sample, printable ASCII, or a set of codepoints, at the
 //! instance the list shows or with every axis kept. Responses never change, so the cache never
 //! revalidates. With the service at `https://fonts.example.com`, the list's sample of a face is
-//! `https://fonts.example.com/v1/faces/<sha256>/list/sample.woff2`.
+//! `https://fonts.example.com/v1/faces/<sha256>/list/sample-<h>.woff2`.
 //!
 //! [`Previews`] requests nothing unless a preview service is set and previews are enabled
 //! ([`Installer::preview_service`], [`Installer::previews_enabled`]). Previews are on by default;
@@ -117,11 +117,27 @@ impl Instance {
     }
 }
 
+/// The first 12 lowercase hex digits of the sha256 of a sample text (UTF-8, as the index has
+/// it), which names the sample subset for that text.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SampleHash(String);
+
+impl SampleHash {
+    pub fn of(text: &str) -> SampleHash {
+        SampleHash(sha256_hex(text.as_bytes())[..12].to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Which characters a subset holds.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Subset {
     /// The face's default sample (its script's sentence from the index) and the family name.
-    Sample,
+    /// The hash names the text the client has; the service answers 404 for any other.
+    Sample(SampleHash),
     /// Printable ASCII, U+0020 to U+007E, for faces that cover Latin.
     Ascii,
     /// These codepoints, for typed text the static subsets don't cover.
@@ -164,11 +180,11 @@ impl PreviewKey {
         &self.subset
     }
 
-    /// The path below the service's base URL: `v1/faces/<sha256>/<instance>/sample.woff2`,
+    /// The path below the service's base URL: `v1/faces/<sha256>/<instance>/sample-<h>.woff2`,
     /// `.../ascii.woff2` or `.../u/<codepoints>.woff2`.
     pub fn path(&self) -> String {
         let what = match &self.subset {
-            Subset::Sample => "sample".to_string(),
+            Subset::Sample(h) => format!("sample-{}", h.as_str()),
             Subset::Ascii => "ascii".to_string(),
             Subset::Codepoints(c) => format!("u/{}", c.encode()),
         };
@@ -191,6 +207,8 @@ pub enum PreviewError {
     /// The request failed: the network, an HTTP status (503 while the service is busy), the
     /// size limit.
     Failed(String),
+    /// The service has no such subset (HTTP 404): for a sample, its text isn't the client's.
+    NotFound,
     /// The response isn't a WOFF2 font with outlines.
     NotAFont,
 }
@@ -201,6 +219,7 @@ impl std::fmt::Display for PreviewError {
             PreviewError::PreviewsOff => f.write_str("font previews are turned off"),
             PreviewError::NoService => f.write_str("no preview service is set"),
             PreviewError::Failed(e) => f.write_str(e),
+            PreviewError::NotFound => f.write_str("the service has no such preview"),
             PreviewError::NotAFont => f.write_str("the preview is not a font, or a damaged one"),
         }
     }
@@ -644,7 +663,10 @@ impl Worker {
         if !self.installer.previews_enabled() {
             return Err(PreviewError::PreviewsOff);
         }
-        let bytes = self.fetcher.get(&key.url(&service), MAX_PREVIEW_BYTES, cancel).map_err(|e| PreviewError::Failed(e.to_string()))?;
+        let bytes = self.fetcher.get(&key.url(&service), MAX_PREVIEW_BYTES, cancel).map_err(|e| match e {
+            FetchError::Failed(m) if m.contains("404") => PreviewError::NotFound,
+            e => PreviewError::Failed(e.to_string()),
+        })?;
         let font = decode(&bytes)?;
         if let Some(cache) = &self.cache {
             cache.put(&path, &bytes);
