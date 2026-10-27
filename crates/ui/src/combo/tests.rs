@@ -433,3 +433,59 @@ fn a_click_opened_menu_under_a_text_field_leaves_it_the_focus_while_typing() {
     assert!(h.state().1, "the menu stays open");
     assert!(h.query_by_label("Fonts matching \"ar\"").is_some(), "the menu follows the text");
 }
+
+#[test]
+fn a_menu_with_a_footer_shrinks_when_its_list_empties_and_grows_back() {
+    let mut h = Harness::builder().with_size(egui::vec2(400.0, 800.0)).build_ui_state(
+        |ui, filter: &mut String| {
+            ui.add_space(20.0);
+            let row = ui.spacing().interact_size.y;
+            let field = ui.button("Send");
+            let _ = super::Menu::new(ui, &field)
+                .height(260.0)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .show_rows_with_header_footer(
+                    |ui| {
+                        ui.label("Title");
+                        let name = ui.label("Search").id;
+                        // A search field that takes the focus when the menu opens, as apps do.
+                        let (id, pass) = (ui.id().with("search"), ui.ctx().cumulative_pass_nr());
+                        let opened = ui.data(|d| d.get_temp::<u64>(id)).is_none_or(|last| last + 1 < pass);
+                        ui.data_mut(|d| d.insert_temp(id, pass));
+                        let field = ui.text_edit_singleline(filter).labelled_by(name);
+                        if opened {
+                            field.request_focus();
+                        }
+                        if filter.is_empty() { 30 } else { 0 }
+                    },
+                    row,
+                    |&n| n,
+                    |ui, range, _| {
+                        for n in range {
+                            let _ = ui.selectable_label(false, format!("Bus {n}"));
+                        }
+                    },
+                    |ui| {
+                        let _ = ui.button("new bus...");
+                        let _ = ui.button("Remove send");
+                    },
+                );
+        },
+        String::new(),
+    );
+    h.run();
+    h.get_by_label("Send").click();
+    h.run();
+    let footer = |h: &Harness<'_, String>| h.get_by_label("Remove send").rect();
+    let full = footer(&h);
+    h.get_by_role(egui::Role::TextInput).type_text("zzzz");
+    h.run();
+    let none = footer(&h);
+    assert_eq!(h.state(), "zzzz");
+    assert!(none.top() < full.top() - 100.0, "no matches shrink the menu: {none:?} vs {full:?}");
+    for _ in 0..4 {
+        h.key_press(egui::Key::Backspace);
+        h.run();
+    }
+    assert!((footer(&h).top() - full.top()).abs() < 1.0, "cleared, the footer is back: {:?} vs {full:?}", footer(&h));
+}

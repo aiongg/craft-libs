@@ -542,8 +542,6 @@ impl<'a> Menu<'a> {
             .width(field.width())
             .style(style)
             .close_behavior(close_behavior)
-            // A menu remeasured before its side is settled isn't shown on that side meanwhile.
-            .sizing_pass(remeasure && !settled)
             .show(|ui| {
                 ui.set_min_width(ui.available_width());
                 // The popup offers last pass's height. Offer the full height instead: the scroll
@@ -562,12 +560,13 @@ impl<'a> Menu<'a> {
                     let f = footer(ui);
                     let height = ui.min_rect().bottom() - top;
                     if footer_height.is_none_or(|h| (h - height).abs() > 0.5) {
-                        // The list took the wrong room: lay the menu out again before it shows.
+                        // The list took the wrong room: lay the menu out again next pass. Not a
+                        // discarded pass: the header's side effects (focusing a search field on
+                        // open) would run twice.
                         ui.data_mut(|d| {
                             d.insert_temp(footer_id, height);
                             d.insert_temp(remeasure_id, true);
                         });
-                        ui.ctx().request_discard("the menu's footer changed height");
                         ui.ctx().request_repaint();
                     }
                     f
