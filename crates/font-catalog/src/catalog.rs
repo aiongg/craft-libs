@@ -478,6 +478,14 @@ impl Catalog {
         self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
+    /// Every face the last scan found, in path order, with the faces [`Catalog::faces`] drops as
+    /// duplicates of another of the same family, style and PostScript name. Faces added from
+    /// files or bytes aren't in it. For telling apart copies of one font in different places.
+    pub fn scanned_faces(&self) -> Vec<FaceInfo> {
+        self.ensure();
+        self.scanned().into_iter().map(|f| f.info).collect()
+    }
+
     /// The family names, sorted ignoring case.
     pub fn families(&self) -> Arc<[String]> {
         Arc::clone(&self.snapshot().families)

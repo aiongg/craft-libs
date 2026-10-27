@@ -1264,6 +1264,122 @@ mod store {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// A store with Test Sans installed, its catalog and an OS user font folder, all in temporary
+    /// folders: the store, the system root (`<root>/usr/share/fonts`) and the home folder.
+    fn shared_store(server: &Server, name: &str) -> (FontStore, PathBuf, PathBuf, PathBuf) {
+        let index = index_of(&fixture().index).unwrap();
+        let dir = temp(name);
+        let root = temp(&format!("{name}-root"));
+        let env = FontEnv { os: Os::Unix, root: root.clone(), home: Some(root.join("home")), font_store: Some(dir.clone()), ..Default::default() };
+        let catalog = Arc::new(Catalog::new(env).with_font_service(false));
+        let shared = root.join("home/.local/share/fonts/Craft");
+        let store = user_store(server, &dir).with_catalog(catalog).with_os_fonts(OsFontFolder::at(&shared, OsFontLayout::Folders));
+        store.install_family(&index, index.family("Test Sans").unwrap(), &Cancel::new(), &mut none).unwrap();
+        (store, dir, root, shared)
+    }
+
+    fn ledger(dir: &Path) -> serde_json::Value {
+        serde_json::from_slice(&std::fs::read(dir.join("os-fonts.json")).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_family_made_available_to_all_apps_is_withdrawn_exactly() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts");
+        let family = shared.join("testsans");
+        assert!(store.available_to_all_supported());
+        assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+        assert!(matches!(store.make_available(GOOGLE_FONTS, "Test Var"), Err(Error::NotInstalled(_))));
+
+        let copies = store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let names = ["TestSans-Bold.ttf", "TestSans-Italic.ttf", "TestSans-Regular.ttf"];
+        assert_eq!(entries(&family), names, "fonts only: no licence, no temporary files");
+        assert_eq!(copies, names.map(|n| family.join(n)));
+        for name in names {
+            assert_eq!(std::fs::read(family.join(name)).unwrap(), std::fs::read(dir.join("testsans").join(name)).unwrap());
+        }
+        let l = ledger(&dir);
+        assert_eq!((l["version"].as_u64(), l["families"][0]["family"].as_str()), (Some(1), Some("Test Sans")));
+        let files = l["families"][0]["files"].as_array().unwrap();
+        assert_eq!(files.len(), 3);
+        for f in files {
+            let path = PathBuf::from(f["path"].as_str().unwrap());
+            assert_eq!(f["sha256"].as_str().unwrap(), sha256_hex(&std::fs::read(&path).unwrap()));
+            assert_eq!((f["state"].as_str(), f["mechanism"].as_str()), (Some("active"), Some("copy")));
+        }
+        assert_eq!(files[0]["postscript"], json!(["TestSans-Bold"]));
+        assert!(store.is_available(GOOGLE_FONTS, "test sans"));
+        // Again: the copies, which the catalog now lists as system fonts, aren't conflicts.
+        assert_eq!(store.make_available(GOOGLE_FONTS, "Test Sans").unwrap(), copies);
+
+        // A crash after a copy was renamed into place, before the ledger said so: the next change
+        // settles the entry and deletes the temporary file.
+        std::fs::write(family.join(".craft-TestSans-Regular.ttf.part"), b"half").unwrap();
+        let mut l = ledger(&dir);
+        l["families"][0]["files"][2]["state"] = json!("adding");
+        std::fs::write(dir.join("os-fonts.json"), l.to_string()).unwrap();
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert_eq!(entries(&family), names);
+        assert!(ledger(&dir)["families"][0]["files"].as_array().unwrap().iter().all(|f| f["state"] == "active"));
+
+        // Withdrawing leaves a changed copy and files the store didn't add, and reports the copy.
+        let italic = family.join("TestSans-Italic.ttf");
+        std::fs::write(&italic, b"the user's own").unwrap();
+        std::fs::write(family.join("Unlisted.ttf"), b"x").unwrap();
+        assert_eq!(store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap(), [italic.clone()]);
+        assert_eq!(entries(&family), ["TestSans-Italic.ttf", "Unlisted.ttf"]);
+        assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+        assert_eq!(ledger(&dir)["families"], json!([]));
+        assert!(store.verify().is_empty(), "the store's own files are untouched");
+
+        // The changed file is no longer the store's: it sits where a copy would go.
+        match store.make_available(GOOGLE_FONTS, "Test Sans") {
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestSans-Italic".into(), path: italic.clone() }]),
+            other => panic!("{other:?}"),
+        }
+        std::fs::remove_file(&italic).unwrap();
+        std::fs::remove_file(family.join("Unlisted.ttf")).unwrap();
+
+        // Removing the family from the store withdraws it.
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        store.remove_family(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert!(!family.exists());
+        assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn making_available_refuses_postscript_conflicts_and_agents() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-conflict");
+        let agent = FontStore::new(dir.clone(), Caller::Agent).with_os_fonts(OsFontFolder::at(&shared, OsFontLayout::Folders));
+        assert!(matches!(agent.make_available(GOOGLE_FONTS, "Test Sans"), Err(Error::NotAllowed)));
+        assert!(matches!(agent.withdraw(GOOGLE_FONTS, "Test Sans"), Err(Error::NotAllowed)));
+        assert!(!FontStore::new(dir.clone(), Caller::User).available_to_all_supported());
+
+        // A different font of the same PostScript name in a system folder.
+        let system = root.join("usr/share/fonts");
+        std::fs::create_dir_all(&system).unwrap();
+        let other = system.join("TestSans-Bold.ttf");
+        std::fs::write(&other, font("Test Sans", "Bold", 600)).unwrap();
+        match store.make_available(GOOGLE_FONTS, "Test Sans") {
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestSans-Bold".into(), path: other.clone() }]),
+            other => panic!("{other:?}"),
+        }
+        assert!(!shared.exists(), "nothing copied");
+        assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+
+        // The same file is no conflict: the system has it, so it isn't copied or recorded.
+        std::fs::write(&other, std::fs::read(dir.join("testsans/TestSans-Bold.ttf")).unwrap()).unwrap();
+        let copies = store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert_eq!(copies, ["TestSans-Italic.ttf", "TestSans-Regular.ttf"].map(|n| shared.join("testsans").join(n)));
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     /// Fetches the pinned indexes from jsDelivr and GitHub and installs a Noto family whose
     /// licence is in another repository. `cargo test -p craft-font-store -- --ignored`.
     #[test]

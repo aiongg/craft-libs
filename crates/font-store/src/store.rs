@@ -5,6 +5,7 @@
 //! ```text
 //! settings.json        the consent setting and the sources the user added
 //! manifest.json        what is installed
+//! os-fonts.json        the ledger of copies in the OS user font folder ("available to all apps")
 //! indexes/             the last indexes fetched: sources.json, one file per source
 //! previews/            preview subsets from the preview service (WOFF2), a cache of at most 50 MB
 //! <family dir>/        google/fonts' folder name, or <source>/<family>: the fonts and the licence
@@ -28,6 +29,10 @@ use crate::pin::IndexPin;
 use crate::source::{is_source_url, safe_dir, safe_file_name, slug};
 use crate::sources::{MAX_SOURCES_BYTES, SourceEntry, SourcesFile};
 use crate::verify::{VerifyError, is_font, sha256_hex, verify_font};
+
+mod os_fonts;
+
+pub use os_fonts::{Conflict, OsFontFolder, OsFontLayout};
 
 const SETTINGS: &str = "settings.json";
 const MANIFEST: &str = "manifest.json";
@@ -69,8 +74,9 @@ pub enum Error {
     /// Downloading is off; the user turns it on in the app.
     #[error("downloading fonts is turned off")]
     NetworkOff,
-    /// An agent tried to turn the network on.
-    #[error("only the user can turn on downloading fonts")]
+    /// An agent tried what only the user may do: turn the network on, change a setting, make a
+    /// family available to all apps or withdraw it.
+    #[error("only the user can do this, in the app")]
     NotAllowed,
     /// Not an https URL a source can be added from.
     #[error("{0} is not an https URL")]
@@ -106,6 +112,13 @@ pub enum Error {
     /// The operation was cancelled.
     #[error("cancelled")]
     Cancelled,
+    /// Families can't be made available to all apps here; the reason says why.
+    #[error("{0}")]
+    Unsupported(String),
+    /// Fonts the store didn't add already have the family's PostScript names, or sit where its
+    /// copies would go.
+    #[error("fonts on this system already have these names: {}", .0.iter().map(|c| format!("{} ({})", c.postscript, c.path.display())).collect::<Vec<_>>().join(", "))]
+    Conflict(Vec<Conflict>),
     /// Reading or writing the store failed.
     #[error("{what}: {source}")]
     Io {
@@ -235,6 +248,8 @@ pub struct FontStore {
     caller: Caller,
     client: Client,
     catalog: Option<Arc<Catalog>>,
+    /// The OS user font folder, or why there is none.
+    os_fonts: Result<OsFontFolder, String>,
     /// Tests: stands in for the environment variable.
     #[cfg(test)]
     preview_env: Option<Option<String>>,
@@ -250,21 +265,26 @@ impl FontStore {
     /// The store for the app's own interface, in the folder every app reads.
     /// `None` where there is no per-user folder.
     pub fn for_user(env: &FontEnv) -> Option<Self> {
-        Some(Self::new(font_store_dir(env)?, Caller::User))
+        let mut store = Self::new(font_store_dir(env)?, Caller::User);
+        store.set_os_fonts(OsFontFolder::for_env(env));
+        Some(store)
     }
 
     /// The store for an agent (MCP, CLI): it can never turn the network on.
     pub fn for_agent(env: &FontEnv) -> Option<Self> {
-        Some(Self::new(font_store_dir(env)?, Caller::Agent))
+        let mut store = Self::new(font_store_dir(env)?, Caller::Agent);
+        store.set_os_fonts(OsFontFolder::for_env(env));
+        Some(store)
     }
 
-    /// A store in `dir`.
+    /// A store in `dir`, with no OS user font folder ([`FontStore::with_os_fonts`] sets one).
     pub fn new(dir: PathBuf, caller: Caller) -> Self {
         Self {
             dir,
             caller,
             client: Client::default(),
             catalog: None,
+            os_fonts: Err("no user font folder was given".into()),
             #[cfg(test)]
             preview_env: None,
         }
@@ -648,6 +668,9 @@ impl FontStore {
         };
         drop(stage);
         self.rescan();
+        if result.is_ok() {
+            self.reshare(&family.source, &family.family);
+        }
         result
     }
 
@@ -714,13 +737,15 @@ impl FontStore {
             .is_some_and(|i| i.files.iter().any(|x| x.name == file.file_name() && x.sha256 == file.sha256))
     }
 
-    /// Removes the family of this name installed from `source`: its files, its licence and its
-    /// manifest entry. Its folder disappears at once and is deleted after.
+    /// Removes the family of this name installed from `source`: its copies in the OS user font
+    /// folder (as [`FontStore::withdraw`]), its files, its licence and its manifest entry. Its
+    /// folder disappears at once and is deleted after.
     pub fn remove_family(&self, source: &str, name: &str) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
             let mut manifest = self.read_manifest();
             let pos = manifest.families.iter().position(|f| f.is(source, name)).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
+            self.withdraw_for_removal(source, name, None)?;
             let entry = manifest.families.remove(pos);
             let folder = self.dir.join(&entry.dir);
             let stage = Stage::new(&self.dir)?;
@@ -743,9 +768,9 @@ impl FontStore {
         result
     }
 
-    /// Removes some files of an installed family (one style, say), by their names in its folder.
-    /// Taking out the last one removes the family. Names the family's manifest entry doesn't list
-    /// are left alone.
+    /// Removes some files of an installed family (one style, say), by their names in its folder,
+    /// with their copies in the OS user font folder. Taking out the last one removes the family.
+    /// Names the family's manifest entry doesn't list are left alone.
     pub fn remove_files(&self, source: &str, name: &str, files: &[String]) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
@@ -757,6 +782,7 @@ impl FontStore {
             if removing.is_empty() {
                 return Ok(());
             }
+            self.withdraw_for_removal(source, name, Some(removing.as_slice()))?;
             entry.files.retain(|f| !removing.contains(&f.name));
             let folder = self.dir.join(&entry.dir);
             let stage = Stage::new(&self.dir)?;
