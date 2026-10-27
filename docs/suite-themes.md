@@ -175,9 +175,11 @@ quick picks never conflict with each other. A conflict is kept as `client.confli
 loaded yet keeps the previous theme in `shown()`, so the app never flashes its own palette in
 between; for the app's own choice, `set_app_theme(id)` loads it and `is_loading(id)` says when to
 keep the current look. At startup the app passes its own library theme with
-`StoreOptions::app_theme` and its saved state with `last_accepted`; `SuiteWatch::open` reads those
-one or two theme files before returning, so the first frame already has them and the client
-doesn't request them again. `client.problems()` lists files the suite can't use, each with a
+`StoreOptions::app_theme` and its saved state with `last_accepted`; `SuiteWatch::open` reads
+`selection.json` and those one or two theme files before returning, so the first frame already
+has them, a pick in that frame merges against the real disk state, and the client doesn't
+request the app theme again. If open couldn't read `selection.json`, the client holds picks
+until the worker's first snapshot. `client.problems()` lists files the suite can't use, each with a
 `Display`.
 
 ## File format and storage
@@ -361,10 +363,11 @@ the disk state; on another error it holds the accepted state from before. `Resca
 `AppTheme` have no result; their effect is the next snapshot, published only if something
 changed. Send `AppTheme` when the app's own choice changes.
 
-`open` reads only the theme named by `StoreOptions::app_theme` and the library theme of
-`last_accepted`'s suite choice, at most 256 KiB each, so generation 0 has them; a failure leaves
-the slot empty for the worker to retry and report. It lists nothing and doesn't read
-`selection.json`.
+`open` reads `selection.json` (at most 64 KiB, no lock), the theme named by
+`StoreOptions::app_theme` and the library theme of the accepted suite choice (from the file, or
+`last_accepted` when the file can't be used), at most 256 KiB each, so generation 0 holds the
+disk state and the worker's first poll publishes nothing new. A failed read keeps
+`last_accepted` and leaves the slot empty for the worker to retry and report. It lists nothing.
 
 `SuiteWatch::memory()` and in-memory folders run without a thread: `request` applies the
 operation before it returns, with the same snapshots and generations but no `wake` call, since

@@ -101,17 +101,18 @@ fn an_external_write_bumps_the_generation_and_wakes_once() {
     let first = write_selection(tmp.path(), &Accepted::default(), SelectionChange::whole(sel("craft.graphite", Mode::Dark)));
     let (wakes, wake) = counter();
     let watch = SuiteWatch::spawn(Store::open(&SuiteDir::at(tmp.path()), options()), wake, FAST);
-    wait_for("the first load", || watch.generation() == 1);
-    // Several stamp checks and byte comparisons with nothing changed.
+    // Open read the file: the first poll and several stamp checks and byte comparisons find
+    // nothing new.
+    assert_eq!(watch.snapshot().accepted, first);
     std::thread::sleep(Duration::from_millis(100));
-    assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (1, 1));
+    assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (0, 0));
 
     write_selection(tmp.path(), &first, SelectionChange::mode(Mode::Light));
-    wait_for("the change", || watch.generation() == 2);
+    wait_for("the change", || watch.generation() == 1);
     std::thread::sleep(Duration::from_millis(100));
-    assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (2, 2));
+    assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (1, 1));
     let snapshot = watch.snapshot();
-    assert_eq!(snapshot.generation, 2);
+    assert_eq!(snapshot.generation, 1);
     assert_eq!(snapshot.accepted.suite, sel("craft.graphite", Mode::Light).into());
 }
 
@@ -122,7 +123,7 @@ fn a_same_metadata_replacement_is_found_by_the_byte_comparison() {
     write_selection(tmp.path(), &Accepted::default(), SelectionChange::whole(sel("craft.graphite", Mode::Dark)));
     let (_, wake) = counter();
     let watch = SuiteWatch::inline(Store::open(&SuiteDir::at(tmp.path()), options()), wake);
-    assert_eq!(watch.generation(), 1);
+    assert_eq!(watch.generation(), 0);
 
     // Same length, same file, modification time put back: only the bytes differ.
     let modified = fs::metadata(&path).unwrap().modified().unwrap();
@@ -133,9 +134,9 @@ fn a_same_metadata_replacement_is_found_by_the_byte_comparison() {
     fs::File::options().write(true).open(&path).unwrap().set_modified(modified).unwrap();
 
     watch.poll_once(false);
-    assert_eq!(watch.generation(), 1, "the stamp check can't see this change");
+    assert_eq!(watch.generation(), 0, "the stamp check can't see this change");
     watch.poll_once(true);
-    assert_eq!(watch.generation(), 2);
+    assert_eq!(watch.generation(), 1);
     assert_eq!(watch.snapshot().accepted.suite, sel("craft.artcraft", Mode::Dark).into());
 }
 
@@ -347,7 +348,8 @@ fn an_app_theme_named_at_open_is_in_the_first_snapshot() {
     assert_eq!(first.generation, 0);
     assert_eq!(first.app_theme.as_ref().map(|r| &r.theme.id), Some(&sample));
     assert!(first.index.is_empty(), "open lists nothing");
-    assert_eq!(watch.parse_counts(), crate::ParseCounts { selection: 0, themes: 1 });
+    // selection.json (from the import) and the theme; nothing else.
+    assert_eq!(watch.parse_counts(), crate::ParseCounts { selection: 1, themes: 1 });
 
     let mut client = crate::SuiteClient::new(watch);
     assert!(!client.is_loading(&sample));
@@ -361,6 +363,8 @@ fn an_app_theme_named_at_open_is_in_the_first_snapshot() {
 fn the_last_accepted_suite_theme_is_in_the_first_snapshot() {
     let tmp = tempfile::tempdir().unwrap();
     store_with_sample(tmp.path());
+    // Damaged: the store keeps the last accepted state, and open reads its theme.
+    fs::write(tmp.path().join("selection.json"), "{ damaged").unwrap();
     let sample = ThemeId::parse(SAMPLE_THEME_ID).unwrap();
     let last = Accepted::from_selection(Selection { theme: sample.clone(), mode: Mode::Dark });
     let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options().last_accepted(last)), Box::new(|| {}));
@@ -382,4 +386,87 @@ fn a_theme_missing_at_open_is_left_to_the_worker() {
         client.problems().iter().any(|p| matches!(p, Problem::Theme { stem, error: StoreError::NotFound(_) } if stem == "gone"))
     });
     assert!(!client.is_loading(&gone));
+}
+
+/// selection.json with a chosen theme and mode, written three times: revision 3.
+fn chosen_on_disk(dir: &Path) -> Accepted {
+    let mut store = Store::open(&SuiteDir::at(dir), options());
+    store.update(&Accepted::default(), SelectionChange::whole(sel("craft.artcraft", Mode::System))).unwrap();
+    let base = store.accepted().clone();
+    store.update(&base, SelectionChange::theme(ThemeId::parse("craft.high-contrast").unwrap())).unwrap();
+    let base = store.accepted().clone();
+    store.update(&base, SelectionChange::whole(sel("craft.graphite", Mode::Dark))).unwrap()
+}
+
+fn settle(client: &mut crate::SuiteClient) {
+    wait_for("the change", || {
+        client.sync();
+        !client.is_pending()
+    });
+}
+
+#[test]
+fn a_pick_in_the_first_frame_merges_against_the_disk_state() {
+    for change in [SelectionChange::mode(Mode::Light), SelectionChange::theme(ThemeId::parse("craft.artcraft").unwrap())] {
+        let tmp = tempfile::tempdir().unwrap();
+        let disk = chosen_on_disk(tmp.path());
+        assert_eq!(disk.revision, 3);
+        // No worker, no poll: generation 0 is all the client has.
+        let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options()), Box::new(|| {}));
+        let mut client = crate::SuiteClient::new(watch);
+        assert_eq!((client.snapshot().generation, client.accepted()), (0, &disk));
+        client.change(change.clone());
+        settle(&mut client);
+        assert!(client.conflict().is_none() && client.failure().is_none(), "{:?}", client.conflict());
+        assert_eq!(client.accepted().revision, 4);
+        assert_eq!(client.accepted().suite, change.applied_to(&disk.suite));
+    }
+
+    // The same with the worker running.
+    let tmp = tempfile::tempdir().unwrap();
+    chosen_on_disk(tmp.path());
+    let mut client = crate::SuiteClient::new(SuiteWatch::open(&SuiteDir::at(tmp.path()), options(), || {}));
+    client.change(SelectionChange::mode(Mode::Light));
+    settle(&mut client);
+    assert!(client.conflict().is_none());
+    assert_eq!(client.accepted().suite, sel("craft.graphite", Mode::Light).into());
+}
+
+#[test]
+fn the_first_poll_after_open_publishes_nothing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let disk = chosen_on_disk(tmp.path());
+    let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options()), Box::new(|| {}));
+    assert_eq!(watch.snapshot().accepted, disk);
+    assert_eq!(watch.parse_counts().selection, 1);
+    watch.poll_once(true);
+    assert_eq!(watch.generation(), 0);
+    assert_eq!(watch.parse_counts().selection, 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_selection_unread_at_open_holds_changes_until_the_worker_reads_it() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("themes");
+    chosen_on_disk(&dir);
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::metadata(dir.join("selection.json")).is_ok() {
+        // Running as root: permissions don't stop reads.
+        return;
+    }
+    let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(&dir), options()), Box::new(|| {}));
+    let mut client = crate::SuiteClient::new(watch);
+    client.change(SelectionChange::mode(Mode::Light));
+    assert!(client.is_pending());
+    assert!(client.watch().snapshot().results.is_empty(), "sent against a state nobody read");
+
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+    client.watch().poll_once(false);
+    settle(&mut client);
+    assert!(client.conflict().is_none() && client.failure().is_none());
+    assert_eq!(client.accepted().revision, 4);
+    assert_eq!(client.accepted().suite, sel("craft.graphite", Mode::Light).into());
 }

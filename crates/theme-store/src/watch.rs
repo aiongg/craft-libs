@@ -125,6 +125,8 @@ pub struct SuiteWatch {
     shared: Arc<Shared>,
     /// From [`StoreOptions::app_theme`]: already requested.
     app_theme: Option<ThemeId>,
+    /// Whether open read `selection.json`, so generation 0 holds the disk state.
+    selection_read: bool,
     next_request: AtomicU64,
     #[cfg(not(target_arch = "wasm32"))]
     worker: Option<Worker>,
@@ -151,6 +153,12 @@ impl SuiteWatch {
     /// An in-memory suite, for app constructors, tests, web builds and portable installs.
     pub fn memory() -> Self {
         Self::open(&SuiteDir::memory(), StoreOptions::new(concat!("craft-theme-store ", env!("CARGO_PKG_VERSION"))), || {})
+    }
+
+    /// Whether generation 0 holds the state read from disk at open, rather than only the last
+    /// accepted state.
+    pub(crate) fn selection_read(&self) -> bool {
+        self.selection_read
     }
 
     /// The app theme from [`StoreOptions::app_theme`], already requested at open.
@@ -195,9 +203,11 @@ impl SuiteWatch {
     fn build(mut store: Store, wake: Wake) -> (Arc<Shared>, Self) {
         let app_theme = store.app_theme.take();
         let mut engine = Engine::new(store);
-        engine.preload(app_theme.as_ref());
+        let selection_read = engine.preload(app_theme.as_ref());
         let first = engine.snapshot(0);
-        engine.changed = false;
+        // Without the disk state in generation 0, the worker's first read is always published:
+        // clients wait for it before sending changes.
+        engine.changed = !selection_read;
         let shared = Arc::new(Shared {
             engine: Mutex::new(engine),
             snapshot: Mutex::new(Arc::new(first)),
@@ -208,6 +218,7 @@ impl SuiteWatch {
         let watch = SuiteWatch {
             shared: Arc::clone(&shared),
             app_theme: app_theme.filter(|id| !id.is_builtin()),
+            selection_read,
             next_request: AtomicU64::new(0),
             #[cfg(not(target_arch = "wasm32"))]
             worker: None,
@@ -553,14 +564,21 @@ impl Engine {
         }
     }
 
-    /// Reads the app's own theme and the last accepted suite theme, if they are library themes,
-    /// so the first snapshot has them. No listing and no `selection.json`: open stays cheap.
-    fn preload(&mut self, app_theme: Option<&ThemeId>) {
+    /// Reads `selection.json`, the app's own theme and the suite's theme (if they are library
+    /// themes), so the first snapshot has the real accepted state and changes made in the first
+    /// frame merge against it. No library listing: open stays cheap. A failed selection read
+    /// keeps the last accepted state; the worker retries it. Returns whether the selection was
+    /// read (a missing file counts as read).
+    fn preload(&mut self, app_theme: Option<&ThemeId>) -> bool {
+        self.check_selection(false);
+        let read = self.selection_stamp.is_some();
+        self.accepted = self.store.accepted().clone();
         self.app_theme.follow(app_theme);
         self.app_theme.preload(&mut self.store);
         let suite = self.accepted.suite.theme.clone();
         self.suite_theme.follow(suite.as_ref());
         self.suite_theme.preload(&mut self.store);
+        read
     }
 
     /// One timer tick: `selection.json` by stamp (by bytes with `verify`), then the library and
@@ -716,6 +734,16 @@ impl Engine {
     }
 
     fn read_library_file(&mut self, file: &LibraryFile) -> Option<Cached> {
+        // A theme in use, read already (at open, or since): not parsed twice.
+        for tracked in [&self.suite_theme, &self.app_theme] {
+            if let Some(record) = &tracked.record
+                && tracked.read
+                && tracked.stamp == Some(file.stamp)
+                && record.theme.id.as_str() == file.stem
+            {
+                return Some(Cached { stamp: file.stamp, entry: Ok(ThemeEntry::new(record, file.stamp)) });
+            }
+        }
         let entry = match self.store.load_stem(&file.stem) {
             Ok(None) => return None,
             Ok(Some(record)) => {
