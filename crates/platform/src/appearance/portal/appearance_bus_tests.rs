@@ -1,21 +1,36 @@
 //! Private-bus regression based on PdfCraft's queued-update test (storytold/pdfcraft#881).
-use super::{DEST, GNOME, IFACE, KEY, PATH, STANDARD, watch_connection};
+use super::{DEST, Fallbacks, GNOME, IFACE, KEY, LAYOUT_KEY, PATH, STANDARD, WM, watch_connection};
 use crate::appearance::{Theme, Watcher};
 use std::time::Duration;
 use zbus::zvariant::{OwnedValue, Value};
 
+struct Daemon(std::process::Child);
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+/// A private session bus, and its address.
+fn private_bus(tag: &str) -> Result<(Daemon, String), Box<dyn std::error::Error>> {
+    use std::io::BufRead;
+    use std::process::{Command, Stdio};
+    let mut daemon = Daemon(
+        Command::new("dbus-daemon")
+            .args(["--session", "--nofork", "--print-address=1"])
+            .arg(format!("--address=unix:abstract={tag}-{}", std::process::id()))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?,
+    );
+    let mut address = String::new();
+    std::io::BufReader::new(daemon.0.stdout.take().ok_or("no daemon stdout")?).read_line(&mut address)?;
+    Ok((daemon, address.trim().to_string()))
+}
+
 #[test]
 #[ignore = "requires dbus-daemon; private session bus only"]
 fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Result<(), Box<dyn std::error::Error>> {
-    use std::io::BufRead;
-    use std::process::{Command, Stdio};
-    struct Daemon(std::process::Child);
-    impl Drop for Daemon {
-        fn drop(&mut self) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
     struct Settings {
         captured: std::sync::mpsc::Sender<()>,
         released: async_channel::Receiver<()>,
@@ -31,16 +46,7 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
             OwnedValue::try_from(Value::Value(Box::new(Value::U32(2)))).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
         }
     }
-    let mut daemon = Daemon(
-        Command::new("dbus-daemon")
-            .args(["--session", "--nofork", "--print-address=1"])
-            .arg(format!("--address=unix:abstract=craft-appearance-test-{}", std::process::id()))
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?,
-    );
-    let mut address = String::new();
-    std::io::BufReader::new(daemon.0.stdout.take().ok_or("no daemon stdout")?).read_line(&mut address)?;
+    let (_daemon, address) = private_bus("craft-appearance-test")?;
     let (captured, seen) = std::sync::mpsc::channel();
     let (release, released) = async_channel::bounded(1);
     let server = futures_lite::future::block_on(
@@ -54,7 +60,7 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
             let _ = woke.send(());
         },
         move |shared| async move {
-            let _ = watch_connection(&shared, &mut true, &mut false, client).await;
+            let _ = watch_connection(&shared, &mut Fallbacks::used(), &mut false, client).await;
         },
     )
     .ok_or("could not start observer")?;
@@ -77,7 +83,7 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
         true,
         || {},
         move |shared| async move {
-            let _ = watch_connection(&shared, &mut true, &mut false, client).await;
+            let _ = watch_connection(&shared, &mut Fallbacks::used(), &mut false, client).await;
         },
     )
     .ok_or("could not start pending-read observer")?;
@@ -105,7 +111,7 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
         move |shared| async move {
             // The production observer repeats this session after its bounded reconnect backoff.
             loop {
-                let _ = watch_connection(&shared, &mut true, &mut false, client.clone()).await;
+                let _ = watch_connection(&shared, &mut Fallbacks::used(), &mut false, client.clone()).await;
                 let _ = attempted.send(());
                 async_io::Timer::after(Duration::from_millis(10)).await;
             }
@@ -143,5 +149,61 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
     wakes.recv_timeout(Duration::from_secs(2))?;
     assert_eq!(tracker.current(), None);
     drop(tracker);
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires dbus-daemon; private session bus only"]
+fn button_layout_is_read_and_followed_on_the_theme_connection() -> Result<(), Box<dyn std::error::Error>> {
+    struct Settings;
+    #[zbus::interface(name = "org.freedesktop.portal.Settings")]
+    impl Settings {
+        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+            match (namespace, key) {
+                (STANDARD, KEY) => Ok(OwnedValue::from(1u32)),
+                (WM, LAYOUT_KEY) => OwnedValue::try_from(Value::from("appmenu:close")).map_err(|e| zbus::fdo::Error::Failed(e.to_string())),
+                _ => Err(zbus::fdo::Error::InvalidArgs("unknown setting".into())),
+            }
+        }
+    }
+    let (_daemon, address) = private_bus("craft-appearance-layout-test")?;
+    let server = futures_lite::future::block_on(zbus::connection::Builder::address(address.as_str())?.name(DEST)?.serve_at(PATH, Settings)?.build())?;
+    let client = futures_lite::future::block_on(zbus::connection::Builder::address(address.as_str())?.build())?;
+    let (woke, wakes) = std::sync::mpsc::channel();
+    let tracker = Watcher::spawn(
+        true,
+        move || {
+            let _ = woke.send(());
+        },
+        move |shared| async move {
+            let _ = watch_connection(&shared, &mut Fallbacks::used(), &mut false, client).await;
+        },
+    )
+    .ok_or("could not start observer")?;
+    // The theme, then the layout: one wake each.
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.current(), Some(Theme::Dark));
+    assert_eq!(tracker.button_layout().as_deref(), Some("appmenu:close"));
+    let emit = |namespace: &str, key: &str, value: Value<'_>| {
+        futures_lite::future::block_on(server.emit_signal(None::<&str>, PATH, IFACE, "SettingChanged", &(namespace, key, value)))
+    };
+    emit(WM, LAYOUT_KEY, Value::from("close,minimize:"))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.button_layout().as_deref(), Some("close,minimize:"));
+    // A malformed value, another namespace's key of the same name and a repeat change nothing.
+    emit(WM, LAYOUT_KEY, Value::U32(3))?;
+    emit("org.example.other", LAYOUT_KEY, Value::from("close:"))?;
+    emit(WM, LAYOUT_KEY, Value::from("close,minimize:"))?;
+    assert!(wakes.recv_timeout(Duration::from_millis(100)).is_err());
+    assert_eq!(tracker.button_layout().as_deref(), Some("close,minimize:"));
+    // The theme still follows its own signal on the same connection.
+    emit(STANDARD, KEY, Value::U32(2))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.current(), Some(Theme::Light));
+    assert_eq!(tracker.button_layout().as_deref(), Some("close,minimize:"));
+    let before = std::time::Instant::now();
+    drop(tracker);
+    assert!(before.elapsed() < Duration::from_secs(1));
     Ok(())
 }
