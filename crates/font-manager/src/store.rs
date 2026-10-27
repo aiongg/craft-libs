@@ -12,7 +12,7 @@ use std::sync::{Condvar, Mutex};
 
 use craft_font_catalog::Catalog;
 pub use craft_font_store::UserSource;
-use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, verify_font};
+use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, PreviewServiceSource, verify_font};
 
 use crate::index::{Family, Index};
 
@@ -104,10 +104,34 @@ pub trait Installer: Send + Sync {
         Err(StoreError(NO_FOLDER.into()))
     }
 
-    /// The preview service's base URL, if one is set: `CRAFT_FONT_PREVIEW_URL`, else the font
+    /// The preview service's base URL, if one is set: [`craft_font_store::PREVIEW_SERVICE_ENV`], else the font
     /// store's `preview_service` setting. Installs try it as a mirror first.
     fn preview_service(&self) -> Option<String> {
         None
+    }
+
+    /// Where [`Installer::preview_service`] comes from: the environment variable (the setting
+    /// can't change it), the saved setting, or nowhere.
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        PreviewServiceSource::None
+    }
+
+    /// The store's HTTP client, if it has one. [`Previews`](crate::remote::Previews) fetches
+    /// with it, so a preview service that installs found unreachable is skipped by previews too,
+    /// and the reverse.
+    fn http_client(&self) -> Option<Client> {
+        None
+    }
+
+    /// Whether previews may be fetched from the preview service: the user's setting, on by
+    /// default.
+    fn previews_enabled(&self) -> bool {
+        true
+    }
+
+    /// Turns previews on or off, as the user's own action.
+    fn set_previews_enabled(&self, _enabled: bool) -> Result<(), StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
     }
 
     /// Sets or clears the preview service (https, or http for a loopback host), as the user's own
@@ -128,14 +152,19 @@ const NO_FOLDER: &str = "there is no folder for the font store";
 /// craft-font-store's store, in the user's font store folder.
 pub struct SuiteStore {
     store: FontStore,
-    client: Client,
 }
 
 impl SuiteStore {
     /// The store the catalog's environment names, rescanning `catalog` after each change.
     pub fn for_user(catalog: Arc<Catalog>) -> Option<SuiteStore> {
         let store = FontStore::for_user(catalog.env())?.with_catalog(catalog);
-        Some(SuiteStore { store, client: Client::default() })
+        Some(SuiteStore { store })
+    }
+
+    /// The store's HTTP client. Clones share the preview service's down state with installs;
+    /// [`Previews::new`](crate::remote::Previews::new) takes it through [`Installer::http_client`].
+    pub fn client(&self) -> Client {
+        self.store.client()
     }
 
     /// The store's source and name for the family holding `files`, which can differ from the
@@ -193,7 +222,7 @@ impl Installer for SuiteStore {
             let mut reasons = Vec::new();
             for url in index.file_urls(family, file) {
                 let mut on_bytes = |n: u64| progress(Progress { done: before.saturating_add(n), total });
-                match self.client.get(&url, file.size, &cancel, &mut on_bytes) {
+                match self.store.client().get(&url, file.size, &cancel, &mut on_bytes) {
                     Ok(bytes) => match verify_font(file, &bytes) {
                         Ok(()) => {
                             out.push(Downloaded { path: file.path.clone(), bytes });
@@ -237,12 +266,28 @@ impl Installer for SuiteStore {
         self.store.preview_service()
     }
 
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        self.store.preview_service_source()
+    }
+
+    fn http_client(&self) -> Option<Client> {
+        Some(self.store.client())
+    }
+
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
         self.store.set_preview_service(url).map_err(err)
     }
 
     fn preview_cache(&self) -> Option<PathBuf> {
         Some(self.store.previews_dir())
+    }
+
+    fn previews_enabled(&self) -> bool {
+        self.store.previews_enabled()
+    }
+
+    fn set_previews_enabled(&self, enabled: bool) -> Result<(), StoreError> {
+        self.store.set_previews_enabled(enabled).map_err(err)
     }
 }
 
@@ -302,6 +347,7 @@ pub struct FakeStore {
     served_indexes: HashMap<String, Vec<u8>>,
     user: Mutex<Vec<UserSource>>,
     preview_service: Mutex<Option<String>>,
+    previews: Mutex<bool>,
     /// User sources downloaded so far, and those whose file changed since.
     fetched: Mutex<Vec<String>>,
     changed: Mutex<Vec<String>>,
@@ -322,6 +368,7 @@ impl FakeStore {
             served_indexes: HashMap::new(),
             user: Mutex::new(Vec::new()),
             preview_service: Mutex::new(None),
+            previews: Mutex::new(true),
             fetched: Mutex::new(Vec::new()),
             changed: Mutex::new(Vec::new()),
             held: (Mutex::new(false), Condvar::new()),
@@ -534,6 +581,19 @@ impl Installer for FakeStore {
 
     fn preview_service(&self) -> Option<String> {
         self.preview_service.lock().ok()?.clone()
+    }
+
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        if self.preview_service().is_some() { PreviewServiceSource::Saved } else { PreviewServiceSource::None }
+    }
+
+    fn previews_enabled(&self) -> bool {
+        self.previews.lock().map_or(true, |p| *p)
+    }
+
+    fn set_previews_enabled(&self, enabled: bool) -> Result<(), StoreError> {
+        *self.previews.lock().map_err(err)? = enabled;
+        Ok(())
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {

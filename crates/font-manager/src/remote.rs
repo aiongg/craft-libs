@@ -7,9 +7,12 @@
 //! revalidates. With the service at `https://fonts.example.com`, the list's sample of a face is
 //! `https://fonts.example.com/v1/faces/<sha256>/list/sample.woff2`.
 //!
-//! [`Previews`] requests nothing unless the user has allowed downloads and a preview service is
-//! set ([`Installer::downloads_allowed`], [`Installer::preview_service`]). Without a service the
-//! panel keeps its whole-family previews.
+//! [`Previews`] requests nothing unless a preview service is set and previews are enabled
+//! ([`Installer::preview_service`], [`Installer::previews_enabled`]). Previews are on by default;
+//! a user setting turns them off. There is no prompt, and the install consent
+//! ([`Installer::downloads_allowed`]) is not consulted: previews are fetched whether or not
+//! installs are allowed. With previews off nothing goes to the network, but previews already in
+//! the disk cache are still used. Without a service the panel keeps its whole-family previews.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
@@ -181,8 +184,8 @@ impl PreviewKey {
 /// Why a preview didn't load.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PreviewError {
-    /// The user hasn't allowed downloads, and the subset isn't cached.
-    DownloadsOff,
+    /// The user turned previews off, and the subset isn't cached.
+    PreviewsOff,
     /// No preview service is set.
     NoService,
     /// The request failed: the network, an HTTP status (503 while the service is busy), the
@@ -195,7 +198,7 @@ pub enum PreviewError {
 impl std::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PreviewError::DownloadsOff => f.write_str("downloading fonts is turned off"),
+            PreviewError::PreviewsOff => f.write_str("font previews are turned off"),
             PreviewError::NoService => f.write_str("no preview service is set"),
             PreviewError::Failed(e) => f.write_str(e),
             PreviewError::NotAFont => f.write_str("the preview is not a font, or a damaged one"),
@@ -390,7 +393,7 @@ type Wake = Arc<dyn Fn() + Send + Sync>;
 /// Fetches subsets on [`WORKERS`] threads of its own, separate from the panel's jobs, highest
 /// priority first. Results wait in [`Previews::poll`]; a cancelled request delivers nothing.
 ///
-/// Each request reads the disk cache first. Only on a miss, and only while downloads are allowed
+/// Each request reads the disk cache first. Only on a miss, and only while previews are enabled
 /// and a service is set, does it go to the network; the response is decoded, checked and cached.
 /// Without a service, requests come back as [`PreviewError::NoService`] at once and nothing is
 /// read or fetched.
@@ -435,18 +438,19 @@ impl State {
 }
 
 impl Previews {
-    /// A pool fetching with craft-font-store's client (a network failure of the service pauses
-    /// its requests for a minute; pass the store's own [`Client`] to [`Previews::with_fetcher`]
-    /// to share that pause with installs) and caching in the store's
+    /// A pool fetching with the installer's client ([`Installer::http_client`]), else with its own
+    /// craft-font-store [`Client`]. A network failure of the service pauses its requests for a
+    /// minute, for every user of the same client (installs too). It caches in the store's
     /// [`Installer::preview_cache`] folder, up to [`CACHE_LIMIT`]. It starts its threads on the
     /// first request.
     pub fn new(installer: Arc<dyn Installer>) -> Previews {
         let timeouts = Timeouts { connect: Duration::from_secs(10), response: Duration::from_secs(15), overall: Duration::from_secs(60) };
+        let client = installer.http_client().unwrap_or_else(|| Client::new(timeouts));
         let cache = installer.preview_cache().map(|dir| Arc::new(DiskCache::new(dir, CACHE_LIMIT)));
         let (tx, rx) = channel();
         Previews {
             installer,
-            fetcher: Arc::new(Client::new(timeouts)),
+            fetcher: Arc::new(client),
             cache,
             wake: None,
             workers: WORKERS,
@@ -480,10 +484,10 @@ impl Previews {
         self
     }
 
-    /// Whether a preview service is set. It reads the store's settings, so callers ask when the
+    /// Whether a preview service is set and previews are enabled. It reads the store's settings, so callers ask when the
     /// panel opens or its settings change, not every frame.
     pub fn available(&self) -> bool {
-        self.installer.preview_service().is_some()
+        self.installer.preview_service().is_some() && self.installer.previews_enabled()
     }
 
     /// The disk cache, if there is one.
@@ -636,8 +640,8 @@ impl Worker {
                 Err(_) => cache.remove(&path),
             }
         }
-        if !self.installer.downloads_allowed() {
-            return Err(PreviewError::DownloadsOff);
+        if !self.installer.previews_enabled() {
+            return Err(PreviewError::PreviewsOff);
         }
         let bytes = self.fetcher.get(&key.url(&service), MAX_PREVIEW_BYTES, cancel).map_err(|e| PreviewError::Failed(e.to_string()))?;
         let font = decode(&bytes)?;

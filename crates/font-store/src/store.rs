@@ -75,6 +75,9 @@ pub enum Error {
     /// Not an https URL a source can be added from.
     #[error("{0} is not an https URL")]
     BadUrl(String),
+    /// Not a usable preview service address.
+    #[error("{0} is not an https URL, or an http URL to 127.0.0.1 or [::1]")]
+    BadServiceUrl(String),
     /// No exact match in the index.
     #[error(transparent)]
     Unavailable(#[from] Unavailable),
@@ -190,7 +193,7 @@ pub struct UserSource {
     pub last_sha256: Option<String>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Settings {
     #[serde(default)]
     network: Network,
@@ -198,6 +201,18 @@ struct Settings {
     user_sources: Vec<UserSource>,
     #[serde(default)]
     preview_service: Option<String>,
+    #[serde(default = "on")]
+    previews: bool,
+}
+
+fn on() -> bool {
+    true
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { network: Network::default(), user_sources: Vec::new(), preview_service: None, previews: true }
+    }
 }
 
 /// Something [`FontStore::verify`] found wrong with an installed file.
@@ -255,7 +270,7 @@ impl FontStore {
         }
     }
 
-    /// Tests: reads `env` instead of `CRAFT_FONT_PREVIEW_URL`.
+    /// Tests: reads `env` instead of [`PREVIEW_SERVICE_ENV`].
     #[cfg(test)]
     pub(crate) fn with_preview_env(mut self, env: Option<&str>) -> Self {
         self.preview_env = Some(env.map(str::to_string));
@@ -317,21 +332,31 @@ impl FontStore {
         self.change_settings(|s| s.network = Network::On)
     }
 
-    /// The preview service's base URL, or `None` while there is none: the `CRAFT_FONT_PREVIEW_URL`
+    /// The preview service's base URL, or `None` while there is none: [`PREVIEW_SERVICE_ENV`]
     /// environment variable when set and not empty, else the `preview_service` setting. Installs
     /// try its mirror (`<service>/v1/files/<sha256>`, `<service>/v1/licences/<sha256>`) before
     /// the index's URLs. A value that is not a usable URL counts as unset.
     pub fn preview_service(&self) -> Option<String> {
+        self.preview_service_and_source().0
+    }
+
+    /// Where [`FontStore::preview_service`] gets its value: the environment, the saved setting,
+    /// or nowhere. An unusable value counts as unset, as there.
+    pub fn preview_service_source(&self) -> PreviewServiceSource {
+        self.preview_service_and_source().1
+    }
+
+    fn preview_service_and_source(&self) -> (Option<String>, PreviewServiceSource) {
         #[cfg(test)]
         let env = self.preview_env.clone().unwrap_or_else(|| std::env::var(PREVIEW_SERVICE_ENV).ok());
         #[cfg(not(test))]
         let env = std::env::var(PREVIEW_SERVICE_ENV).ok();
-        resolve_preview_service(env.as_deref(), self.settings().preview_service.as_deref())
+        resolve_preview_source(env.as_deref(), self.settings().preview_service.as_deref())
     }
 
     /// Sets (or with `None` clears) the preview service in `settings.json`, from the user's own
     /// action. Only https URLs are accepted, and http for a loopback host. The environment
-    /// variable still takes precedence. [`Error::NotAllowed`] for an agent, [`Error::BadUrl`]
+    /// variable still takes precedence. [`Error::NotAllowed`] for an agent, [`Error::BadServiceUrl`]
     /// for an unusable URL.
     pub fn set_preview_service(&self, url: Option<&str>) -> Result<(), Error> {
         if self.caller != Caller::User {
@@ -347,6 +372,21 @@ impl FontStore {
     /// Turns downloading off. Anyone may.
     pub fn disable_network(&self) -> Result<(), Error> {
         self.change_settings(|s| s.network = Network::Off)
+    }
+
+    /// Whether the app may fetch font previews from the preview service. On unless the user
+    /// turned it off. It matters only while a service is set; it doesn't affect installs.
+    pub fn previews_enabled(&self) -> bool {
+        self.settings().previews
+    }
+
+    /// Turns previews from the preview service on or off, from the user's own action.
+    /// [`Error::NotAllowed`] for an agent.
+    pub fn set_previews_enabled(&self, enabled: bool) -> Result<(), Error> {
+        if self.caller != Caller::User {
+            return Err(Error::NotAllowed);
+        }
+        self.change_settings(|s| s.previews = enabled)
     }
 
     fn change_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<(), Error> {
@@ -906,22 +946,41 @@ fn read_limited(path: &Path, max: u64) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
-const PREVIEW_SERVICE_ENV: &str = "CRAFT_FONT_PREVIEW_URL";
+/// The environment variable that sets the preview service's base URL; it beats the saved setting.
+pub const PREVIEW_SERVICE_ENV: &str = "CRAFT_FONT_PREVIEW_URL";
+
+/// Where the preview service in effect comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreviewServiceSource {
+    /// [`PREVIEW_SERVICE_ENV`]; the setting can't change it.
+    Env,
+    /// The `preview_service` setting in `settings.json`.
+    Saved,
+    /// There is no service.
+    None,
+}
 
 /// The environment value when set and not empty, else the setting; an unusable value counts as
 /// unset.
+#[cfg(test)]
 pub(crate) fn resolve_preview_service(env: Option<&str>, setting: Option<&str>) -> Option<String> {
-    match env.map(str::trim).filter(|e| !e.is_empty()) {
-        Some(e) => normalize_service_url(e),
-        None => setting.and_then(normalize_service_url),
-    }
+    resolve_preview_source(env, setting).0
+}
+
+/// [`resolve_preview_service`] and where the value came from.
+pub(crate) fn resolve_preview_source(env: Option<&str>, setting: Option<&str>) -> (Option<String>, PreviewServiceSource) {
+    let (url, source) = match env.map(str::trim).filter(|e| !e.is_empty()) {
+        Some(e) => (normalize_service_url(e), PreviewServiceSource::Env),
+        None => (setting.and_then(normalize_service_url), PreviewServiceSource::Saved),
+    };
+    if url.is_some() { (url, source) } else { (None, PreviewServiceSource::None) }
 }
 
 /// The preview-service address `url` stands for: without a trailing slash, when it is an https URL,
-/// or an http one for a loopback host, with no credentials, query or fragment. [`Error::BadUrl`]
+/// or an http one for a loopback host, with no credentials, query or fragment. [`Error::BadServiceUrl`]
 /// otherwise.
 pub fn check_preview_service(url: &str) -> Result<String, Error> {
-    normalize_service_url(url).ok_or_else(|| Error::BadUrl(url.trim().chars().take(200).collect()))
+    normalize_service_url(url).ok_or_else(|| Error::BadServiceUrl(url.trim().chars().take(200).collect()))
 }
 
 /// `url` without a trailing slash, when it is an https URL, or an http one for a loopback host,
