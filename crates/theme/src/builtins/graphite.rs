@@ -1,5 +1,4 @@
-//! Graphite: PdfCraft's Light gray and Dark gray palettes, with the status colours PdfCraft and
-//! the ArtCraft Launcher share.
+//! Graphite: PdfCraft's Light gray and Dark gray palettes, with the launcher's status colours.
 
 use super::hex;
 use crate::{CoreRoles, Variant};

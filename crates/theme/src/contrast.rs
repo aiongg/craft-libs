@@ -20,11 +20,14 @@ pub fn ratio(fg: Rgba, bg: Rgba) -> f32 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
-/// The minimum ratio a pair needs (WCAG 2.2 AA).
+/// The minimum ratio a pair needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Need {
-    /// 4.5:1, body text.
+    /// 4.5:1, text (WCAG 2.2 AA).
     Text,
+    /// 3.5:1, secondary text on the hover, pressed and selected state backgrounds, which it
+    /// sits on only while the pointer or the selection is there.
+    MutedText,
     /// 3:1, focus rings, control edges, status marks and other graphics.
     NonText,
 }
@@ -33,6 +36,7 @@ impl Need {
     pub fn min_ratio(self) -> f32 {
         match self {
             Need::Text => 4.5,
+            Need::MutedText => 3.5,
             Need::NonText => 3.0,
         }
     }
@@ -79,7 +83,9 @@ type Row = (&'static [Paint], &'static [Paint], Need);
 
 /// The table in docs/suite-themes.md: every foreground of a row on every background of it.
 const ROWS: &[Row] = &[
-    (&[R(Text), R(TextMuted)], &[R(Background), R(Surface), R(Raised), D("hover"), D("pressed"), R(Selection), D("selected_hover")], Need::Text),
+    (&[R(Text)], &[R(Background), R(Surface), R(Raised), D("hover"), D("pressed"), R(Selection), D("selected_hover")], Need::Text),
+    (&[R(TextMuted)], &[R(Background), R(Surface), R(Raised)], Need::Text),
+    (&[R(TextMuted)], &[D("hover"), D("pressed"), R(Selection), D("selected_hover")], Need::MutedText),
     (&[D("text_faint")], &[R(Background), R(Surface), R(Raised)], Need::Text),
     (&[R(OnAccent)], &[R(Accent), D("accent_hover"), D("accent_pressed")], Need::Text),
     (&[D("accent_text")], &[R(Background), R(Surface), R(Raised)], Need::Text),

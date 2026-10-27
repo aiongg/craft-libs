@@ -161,7 +161,8 @@ own visual and interaction checks.
 
 ## Suite themes (2026-10)
 
-PdfCraft and the ArtCraft Launcher are the two runtime consumers of a shared suite-theme contract:
+PdfCraft, PhotoCraft and the ArtCraft Launcher are the runtime consumers of a shared suite-theme
+contract:
 theme identity, 13 core colour roles, derived states, resolution and contrast checks, following
 skylartaylor's brief on [pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090). It is not
 a universal token struct: apps keep their `Tokens`, `Visuals` and saved preferences and map the
@@ -173,7 +174,8 @@ The contract lives in the egui-free [`craft-theme`](../crates/theme/README.md) c
 launcher's catalogue or an extension validator can use it without egui. Theme files, storage and
 change watching belong to `craft-theme-store`, outside rendering. `craft_ui::theme` only bridges to
 egui (`color32`, `install`). The contrast checks run on the colour pairs the apps paint; PdfCraft
-and the launcher are their two runtime consumers. [Suite themes](suite-themes.md) describes the
+(its Appearance warnings and adapter tests), PhotoCraft and the launcher (their adapter tests) are
+their runtime consumers. [Suite themes](suite-themes.md) describes the
 contract and how an app adopts it.
 
 The earlier statements on this page remain true for `WidgetPalette` and everything outside the

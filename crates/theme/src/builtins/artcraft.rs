@@ -4,7 +4,7 @@
 use super::hex;
 use crate::CoreRoles;
 
-pub const ID: &str = crate::DEFAULT_SUITE_THEME;
+pub const ID: &str = crate::SUITE_DEFAULT;
 pub const NAME: &str = "ArtCraft";
 
 pub const LIGHT: CoreRoles = CoreRoles {
@@ -32,7 +32,7 @@ pub const DARK: CoreRoles = CoreRoles {
     line: hex(0x3E3E3E),
     accent: hex(0x78ADF6),
     on_accent: hex(0x141414),
-    selection: hex(0x333333),
+    selection: hex(0x6B6B6B),
     focus: hex(0x78ADF6),
     good: hex(0x85DC6A),
     warn: hex(0xE8B046),

@@ -4,8 +4,8 @@
 use std::cell::RefCell;
 
 use craft_theme::{
-    APP_DEFAULT, AppChoice, CoreRoles, DEFAULT_SUITE_THEME, Fallback, Mode, Origin, Resolution, Rgba, Role, RoleMap, Selection, SuiteTheme, ThemeId,
-    Variant,
+    APP_DEFAULT, AppChoice, AppDefaults, CoreRoles, Fallback, Mode, Origin, Resolution, Rgba, Role, RoleMap, SUITE_DEFAULT, Selection, SuiteTheme,
+    ThemeId, Variant,
     contrast::{self, Need, Paint},
     derive, lookup_builtin, resolve,
 };
@@ -41,15 +41,32 @@ fn builtins_have_both_variants_and_no_diagnostics() {
 }
 
 #[test]
-fn default_selection_is_artcraft_following_the_system() {
-    let sel = Selection::default();
-    assert_eq!(sel.theme.as_str(), DEFAULT_SUITE_THEME);
-    assert_eq!(sel.mode, Mode::System);
-    assert!(craft_theme::builtin(&sel.theme).is_some());
-    assert_eq!(AppChoice::default(), AppChoice::FollowSuite);
-    let own = Selection { theme: ThemeId::app_default(), mode: Mode::Dark };
-    assert_eq!(AppChoice::FollowSuite.effective(&sel), &sel);
-    assert_eq!(AppChoice::Own(own.clone()).effective(&sel), &own);
+fn effective_selection() {
+    let defaults = AppDefaults { theme: ThemeId::suite_default(), mode: Mode::Dark };
+    let suite = Selection { theme: id("craft.graphite"), mode: Mode::Light };
+    let own = Selection { theme: ThemeId::app_default(), mode: Mode::System };
+    let follow = AppChoice::FollowSuite;
+    // No suite selection yet: a following app shows its own defaults.
+    assert_eq!(follow.effective(None, &defaults), Selection { theme: id(SUITE_DEFAULT), mode: Mode::Dark });
+    assert_eq!(follow.effective(Some(&suite), &defaults), suite);
+    assert_eq!(AppChoice::Own(own.clone()).effective(None, &defaults), own);
+    assert_eq!(AppChoice::Own(own.clone()).effective(Some(&suite), &defaults), own);
+    assert!(craft_theme::builtin(&ThemeId::suite_default()).is_some());
+}
+
+/// Fails to compile if `T: Default` (the method lookup becomes ambiguous): an app's
+/// `#[serde(default)]` must not invent a choice or a suite selection.
+#[test]
+fn choices_and_selections_have_no_default() {
+    trait AmbiguousIfDefault<A> {
+        fn check() {}
+    }
+    impl<T: ?Sized> AmbiguousIfDefault<()> for T {}
+    struct IsDefault;
+    impl<T: Default> AmbiguousIfDefault<IsDefault> for T {}
+    <AppChoice as AmbiguousIfDefault<_>>::check();
+    <Selection as AmbiguousIfDefault<_>>::check();
+    <AppDefaults as AmbiguousIfDefault<_>>::check();
 }
 
 /// One user theme with only a dark variant, alongside the built-ins.
@@ -137,55 +154,73 @@ fn lighter(a: Rgba, b: Rgba) -> bool {
 
 #[test]
 fn derived_states_step_away_from_text_when_toward_would_fail() {
-    // ArtCraft dark's mid-grey surface: lighter steps would take text_muted below 4.5:1, so hover
-    // and pressed darken.
-    let artcraft = craft_theme::builtin(&id(DEFAULT_SUITE_THEME)).unwrap().dark.unwrap();
+    // ArtCraft dark: hover and pressed lighten toward text; lightening the mid-grey selection
+    // would take text below 4.5:1 and text_muted below 3.5:1, so selected_hover darkens.
+    let artcraft = craft_theme::builtin(&ThemeId::suite_default()).unwrap().dark.unwrap();
     let d = derive(&artcraft, Variant::Dark);
-    assert!(lighter(artcraft.surface, d.hover) && lighter(d.hover, d.pressed));
-    // Toward text where that keeps the pairs: the dark selection lightens, light hover darkens.
-    assert!(lighter(d.selected_hover, artcraft.selection));
+    assert_eq!((d.hover.to_hex(), d.pressed.to_hex()), ("#5f5f5f".to_owned(), "#696969".to_owned()));
+    assert!(lighter(artcraft.selection, d.selected_hover));
     let light = graphite(Variant::Light);
     assert!(lighter(light.surface, derive(&light, Variant::Light).hover));
 
     let mut grey = light;
     (grey.background, grey.surface, grey.raised, grey.text, grey.text_muted) =
-        (Rgba::from_rgb_u32(0xC4C4C4), Rgba::from_rgb_u32(0xC4C4C4), Rgba::from_rgb_u32(0xC4C4C4), Rgba::BLACK, Rgba::from_rgb_u32(0x4E4E4E));
+        (Rgba::from_rgb_u32(0xC4C4C4), Rgba::from_rgb_u32(0xC4C4C4), Rgba::from_rgb_u32(0xC4C4C4), Rgba::BLACK, Rgba::from_rgb_u32(0x606060));
     let d = derive(&grey, Variant::Light);
     assert!(lighter(d.hover, grey.surface) && lighter(d.pressed, grey.surface));
     for bg in [d.hover, d.pressed] {
-        assert!(contrast::ratio(grey.text_muted, bg) >= 4.5);
+        assert!(contrast::ratio(grey.text_muted, bg) >= 3.5);
     }
-}
-
-fn opaque() -> impl Strategy<Value = Rgba> {
-    any::<[u8; 3]>().prop_map(|[r, g, b]| Rgba::rgb(r, g, b))
 }
 
 fn channel_range(lo: u8, hi: u8) -> impl Strategy<Value = Rgba> {
     [lo..=hi, lo..=hi, lo..=hi].prop_map(|[r, g, b]| Rgba::rgb(r, g, b))
 }
 
-/// Mostly plausible light themes, so the preconditions below hold often, plus arbitrary colours.
+fn opaque() -> impl Strategy<Value = Rgba> {
+    channel_range(0, 255)
+}
+
+/// Mostly plausible themes, dark text on light backgrounds or light on dark, so the
+/// preconditions below hold often; the other roles are arbitrary.
 fn core_roles() -> impl Strategy<Value = CoreRoles> {
-    (
-        [channel_range(190, 255), channel_range(190, 255), channel_range(190, 255)],
-        [channel_range(0, 100), channel_range(0, 100)],
-        [opaque(), opaque(), opaque(), opaque(), opaque(), opaque(), opaque(), opaque()],
-    )
-        .prop_map(|([background, surface, raised], [text, text_muted], [line, accent, on_accent, selection, focus, good, warn, bad])| {
-            CoreRoles { background, surface, raised, text, text_muted, line, accent, on_accent, selection, focus, good, warn, bad }
-        })
+    let shaped = |(back_lo, back_hi), (ink_lo, ink_hi)| {
+        (
+            [channel_range(back_lo, back_hi), channel_range(back_lo, back_hi), channel_range(back_lo, back_hi), channel_range(back_lo, back_hi)],
+            [channel_range(ink_lo, ink_hi), channel_range(ink_lo, ink_hi)],
+            [opaque(), opaque(), opaque(), opaque(), opaque(), opaque(), opaque()],
+        )
+            .prop_map(|([background, surface, raised, selection], [text, text_muted], [line, accent, on_accent, focus, good, warn, bad])| {
+                CoreRoles { background, surface, raised, text, text_muted, line, accent, on_accent, selection, focus, good, warn, bad }
+            })
+    };
+    prop_oneof![shaped((170, 255), (0, 110)), shaped((0, 90), (150, 255))]
+}
+
+/// [`Rgba::lerp_gamma`] with `-t`, as the derived-state guard steps away from `text`.
+fn step_away(base: Rgba, from: Rgba, t: f32) -> Rgba {
+    let ch = |a: u8, b: u8| (f32::from(a) - (f32::from(b) - f32::from(a)) * t + 0.5).floor().clamp(0.0, 255.0) as u8;
+    Rgba::rgb(ch(base.r(), from.r()), ch(base.g(), from.g()), ch(base.b(), from.b()))
+}
+
+/// Whether `candidate`, painted as the derived background `name`, meets every pair on it.
+fn meets_pairs_on(name: &'static str, candidate: Rgba, roles: &CoreRoles) -> bool {
+    contrast::painted_pairs().iter().filter(|p| p.bg == Paint::Derived(name)).all(|p| {
+        let Paint::Role(fg) = p.fg else { return true };
+        p.need.is_met(contrast::ratio(roles.get(fg), candidate))
+    })
 }
 
 proptest! {
     #[test]
     fn derived_states_keep_pairs_their_core_roles_allow(roles in core_roles(), dark in any::<bool>()) {
         let v = if dark { Variant::Dark } else { Variant::Light };
-        let d = derive(&roles, v);
-        let text_ok = |fg| [roles.background, roles.surface, roles.raised].iter().all(|&bg| contrast::ratio(fg, bg) >= 4.5);
-        let theme = SuiteTheme::from_maps("random", "Random", 1, Some(&role_map(&roles)), None).unwrap().0;
+        let map = role_map(&roles);
+        let (light, dark_map) = if dark { (None, Some(&map)) } else { (Some(&map), None) };
+        let theme = SuiteTheme::from_maps("random", "Random", 1, light, dark_map).unwrap().0;
         let failing: Vec<_> = contrast::diagnose(&theme).into_iter().map(|d| (d.fg, d.bg)).collect();
         let fails = |name: &'static str| failing.iter().any(|&(fg, bg)| fg == Paint::Derived(name) || bg == Paint::Derived(name));
+        let text_ok = |fg| [roles.background, roles.surface, roles.raised].iter().all(|&bg| contrast::ratio(fg, bg) >= 4.5);
         if text_ok(roles.text) {
             prop_assert!(!fails("accent_text") && !fails("control_edge"));
         }
@@ -195,14 +230,23 @@ proptest! {
         if contrast::ratio(roles.on_accent, roles.accent) >= 4.5 {
             prop_assert!(!fails("accent_hover") && !fails("accent_pressed"));
         }
+        // The guard: if a step toward text or the same step away meets every pair, the state does.
+        let (hover, pressed) = if dark { (0.08, 0.14) } else { (0.06, 0.12) };
+        for (name, base, t) in [("hover", roles.surface, hover), ("pressed", roles.surface, pressed), ("selected_hover", roles.selection, 0.08)] {
+            let toward = base.lerp_gamma(roles.text, t);
+            if meets_pairs_on(name, toward, &roles) || meets_pairs_on(name, step_away(base, roles.text, t), &roles) {
+                prop_assert!(!fails(name), "{}", name);
+            }
+        }
         // Resolution is pure and hands back the theme's colours with `derive`'s states.
         let sel = Selection { theme: theme.id.clone(), mode: if dark { Mode::Dark } else { Mode::Light } };
         let lookup = |_: &ThemeId| Some(theme.clone());
         let got = resolve(&sel, None, v, &lookup);
         prop_assert_eq!(&got, &resolve(&sel, None, v, &lookup));
         let Resolution::Theme(r) = got else { return Err(TestCaseError::fail("not a theme")) };
+        prop_assert_eq!((r.variant, r.note), (v, None));
         prop_assert_eq!(r.roles, roles);
-        prop_assert_eq!(r.derived, derive(&roles, Variant::Light));
-        prop_assert_eq!(d.accent_soft, roles.surface.lerp_gamma(roles.accent, 0.14));
+        prop_assert_eq!(r.derived, derive(&roles, v));
+        prop_assert_eq!(r.derived.accent_soft, roles.surface.lerp_gamma(roles.accent, 0.14));
     }
 }

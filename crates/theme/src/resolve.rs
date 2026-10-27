@@ -1,6 +1,9 @@
-use crate::{CoreRoles, DEFAULT_SUITE_THEME, Derived, Mode, SuiteTheme, ThemeId, Variant, derive};
+use crate::{CoreRoles, Derived, Mode, SuiteTheme, ThemeId, Variant, derive};
 
 /// A theme and a mode: the suite's selection, or an app's own.
+///
+/// There is no default: a missing suite selection means the user hasn't picked one, and each app
+/// shows its own [`AppDefaults`] until they do.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Selection {
@@ -8,28 +11,42 @@ pub struct Selection {
     pub mode: Mode,
 }
 
-impl Default for Selection {
-    /// [`DEFAULT_SUITE_THEME`], following the system.
-    fn default() -> Self {
-        Selection { theme: ThemeId::from_static(DEFAULT_SUITE_THEME), mode: Mode::System }
+/// What an app shows while it follows the suite and the user hasn't picked a suite theme yet.
+///
+/// Each app states its own, normally [`crate::SUITE_DEFAULT`] with the mode that suits it (the
+/// creative apps Dark; office apps may ship Light).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AppDefaults {
+    pub theme: ThemeId,
+    pub mode: Mode,
+}
+
+impl AppDefaults {
+    pub fn selection(&self) -> Selection {
+        Selection { theme: self.theme.clone(), mode: self.mode }
     }
 }
 
 /// An app's choice, kept in the app's own preferences.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+///
+/// No `Default`: an app states what a fresh install and a legacy preference file each become, so
+/// a `#[serde(default)]` can't silently move existing users to the suite.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
 pub enum AppChoice {
-    #[default]
     FollowSuite,
     /// "Use a different theme in this app".
     Own(Selection),
 }
 
 impl AppChoice {
-    pub fn effective<'a>(&'a self, suite: &'a Selection) -> &'a Selection {
-        match self {
-            AppChoice::FollowSuite => suite,
-            AppChoice::Own(own) => own,
+    /// The selection to resolve: the app's own, else the suite's, else the app's defaults when
+    /// the suite has no selection.
+    pub fn effective(&self, suite: Option<&Selection>, defaults: &AppDefaults) -> Selection {
+        match (self, suite) {
+            (AppChoice::Own(own), _) => own.clone(),
+            (AppChoice::FollowSuite, Some(suite)) => suite.clone(),
+            (AppChoice::FollowSuite, None) => defaults.selection(),
         }
     }
 }

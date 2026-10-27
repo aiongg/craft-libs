@@ -1,5 +1,6 @@
 //! High contrast: black on white with a dark blue accent, and white on black with a yellow
-//! accent after DesignCraft's high-contrast brightness. Text pairs reach 7:1 (WCAG AAA).
+//! accent after DesignCraft's high-contrast brightness. Text pairs reach 7:1 (WCAG AAA); the
+//! lowest muted pair is dark text_muted on selection at 5.64:1.
 
 use super::hex;
 use crate::CoreRoles;

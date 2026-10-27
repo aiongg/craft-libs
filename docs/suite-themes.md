@@ -3,8 +3,8 @@
 A suite theme is a named set of colours that every Craft app can paint its interface with, so that
 one choice in one app can restyle the whole suite. This page is the contract the apps share and
 how an app adopts it. It follows skylartaylor's brief on
-[pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090); PdfCraft and the ArtCraft
-Launcher are its first two consumers.
+[pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090). PdfCraft, PhotoCraft and the
+ArtCraft Launcher are its first consumers.
 
 The contract is deliberately small. Apps keep their own `Tokens`, `egui::Visuals`, layout, fonts,
 document and canvas colours and saved preferences. They map the 13 core roles below into their own
@@ -20,7 +20,9 @@ tokens through an adapter.
 
 A theme has a stable `ThemeId` (`[a-z0-9][a-z0-9._-]{1,63}`), a display name, a version and a light
 variant, a dark variant or both. Renaming a theme keeps its id. Ids starting with `craft.` belong to
-the built-ins; `ThemeId::parse_user` and `SuiteTheme::from_maps` refuse them for user themes.
+the built-ins. User theme ids become file names, so `ThemeId::parse_user` and
+`SuiteTheme::from_maps` refuse `craft.` ids and ids whose first dot-separated part is a Windows
+device name (`con`, `nul`, `aux`, `prn`, `com1`-`com9`, `lpt1`-`lpt9`).
 
 | Id | Name | Light | Dark |
 |---|---|---|---|
@@ -32,10 +34,26 @@ the built-ins; `ThemeId::parse_user` and `SuiteTheme::from_maps` refuse them for
 `builtins()` returns the last three. `craft.app-default` is not a theme with colours: it stands for
 each app's current palette, and the settings UI lists it beside the others.
 
-A `Selection` is a theme id and a `Mode` (`System`, `Light` or `Dark`). The suite has one selection;
-its default is `craft.artcraft` with `Mode::System`. Each app keeps an `AppChoice` in its own
-preferences: `FollowSuite`, or `Own(Selection)` ("Use a different theme in this app").
-`AppChoice::effective` returns the selection that applies.
+A `Selection` is a theme id and a `Mode` (`System`, `Light` or `Dark`). The suite has at most one
+selection, stored in the suite folder's `selection.json`. No `selection.json` means no suite
+selection: nobody has picked one yet, and neither `Selection` nor `AppChoice` has a default that
+could invent one.
+
+Each app keeps an `AppChoice` in its own preferences: `FollowSuite`, or `Own(Selection)` ("Use a
+different theme in this app"). Each app also states its `AppDefaults` (a theme and a mode): what it
+shows while it follows the suite and the suite has no selection. Apps normally use `SUITE_DEFAULT`
+(`craft.artcraft`); the pilot apps (PdfCraft, PhotoCraft, the launcher) use ArtCraft with
+`Mode::Dark`, and office apps may ship Light. `AppChoice::effective(suite, &defaults)` returns the
+selection that applies:
+
+| `AppChoice` | Suite selection | Effective selection |
+|---|---|---|
+| `Own(sel)` | any | `sel` |
+| `FollowSuite` | `Some(suite)` | `suite` |
+| `FollowSuite` | none | the app's `AppDefaults` |
+
+An app writes `selection.json` only when the user picks a suite theme or mode, never on first
+start.
 
 ## Core roles
 
@@ -71,18 +89,22 @@ the same variant, and `from_maps` lists each one it filled.
 
 Each state keeps the painted pairs it is part of at their requirement. When a step toward `text`
 would break one, the state steps away from `text` by the same amount instead. For example,
-ArtCraft's dark surface is mid grey, so its hover and pressed states are darker than the surface:
-lighter ones would leave `text_muted` below 4.5:1. Built-in colours are never changed to suit a
+ArtCraft's dark selection is mid grey, so its `selected_hover` is darker than the selection: a
+lighter one would leave `text` below 4.5:1 and `text_muted` below 3.5:1. Built-in colours are never changed to suit a
 derived state.
 
 ## Contrast
 
 `contrast::painted_pairs()` lists every pair the apps paint from the roles and derived states.
-Ratios are WCAG 2; a translucent foreground is composited over the background first.
+Ratios are WCAG 2; a translucent foreground is composited over the background first. Text needs
+4.5:1 (WCAG AA). Muted text needs 4.5:1 on the resting backgrounds and 3.5:1 on the hover, pressed
+and selected state backgrounds, where it sits only while the pointer or the selection is there.
 
 | Foreground | Background | Need |
 |---|---|---|
-| `text`, `text_muted` | `background`, `surface`, `raised`, `hover`, `pressed`, `selection`, `selected_hover` | 4.5:1 |
+| `text` | `background`, `surface`, `raised`, `hover`, `pressed`, `selection`, `selected_hover` | 4.5:1 |
+| `text_muted` | `background`, `surface`, `raised` | 4.5:1 |
+| `text_muted` | `hover`, `pressed`, `selection`, `selected_hover` | 3.5:1 |
 | `text_faint` | `background`, `surface`, `raised` | 4.5:1 |
 | `on_accent` | `accent`, `accent_hover`, `accent_pressed` | 4.5:1 |
 | `accent_text` | `background`, `surface`, `raised` | 4.5:1 |
@@ -130,7 +152,9 @@ Each app sets `Options::fallback_theme`. The shared crates store nothing in egui
 
 An app's saved light/dark preference becomes `Own(craft.app-default, same mode)` on adoption, so
 its look doesn't change until the user picks a named theme or turns on "Follow suite". A fresh
-install follows the suite.
+install follows the suite and shows the app's `AppDefaults` until the user picks a suite theme.
+Each app sets these defaults explicitly for a fresh install and for a legacy preference file, so a
+`#[serde(default)]` never moves existing users to the suite.
 
 Each adapter PR carries an exact style comparison (see
 [theme-infrastructure.md](theme-infrastructure.md#migration-and-validation)): with

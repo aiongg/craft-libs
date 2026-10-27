@@ -10,11 +10,14 @@ for egui and installs styles. [docs/suite-themes.md](../../docs/suite-themes.md)
 contract and how an app adopts it.
 
 ```rust
-use craft_theme::{AppChoice, Resolution, Selection, Variant, lookup_builtin, resolve};
+use craft_theme::{AppChoice, AppDefaults, Mode, Resolution, ThemeId, Variant, lookup_builtin, resolve};
 
-let suite = Selection::default(); // ArtCraft, following the system
+// What this app shows while it follows the suite and nobody has picked a suite theme.
+let defaults = AppDefaults { theme: ThemeId::suite_default(), mode: Mode::Dark };
 let choice = AppChoice::FollowSuite; // from the app's own preferences
-match resolve(choice.effective(&suite), Some(Variant::Dark), Variant::Light, &lookup_builtin) {
+let suite = None; // from craft-theme-store: no selection.json yet
+let sel = choice.effective(suite, &defaults);
+match resolve(&sel, Some(Variant::Dark), Variant::Light, &lookup_builtin) {
     Resolution::Theme(r) => { /* map r.roles and r.derived onto the app's tokens */ }
     Resolution::AppDefault { variant, .. } => { /* the app's own palette in `variant` */ }
 }
@@ -23,11 +26,11 @@ match resolve(choice.effective(&suite), Some(Variant::Dark), Variant::Light, &lo
 | Item | What it is |
 |---|---|
 | `Rgba` | sRGB with unmultiplied alpha; `parse_hex`, `to_hex`, `lerp_gamma`, `over` |
-| `ThemeId`, `APP_DEFAULT`, `DEFAULT_SUITE_THEME` | ids `[a-z0-9][a-z0-9._-]{1,63}`; `craft.` is reserved for built-ins |
+| `ThemeId`, `APP_DEFAULT`, `SUITE_DEFAULT` | ids `[a-z0-9][a-z0-9._-]{1,63}`; `craft.` is reserved for built-ins, and user ids can't start with a Windows device name |
 | `Role`, `CoreRoles`, `Variant`, `Mode` | the 13 roles of one variant; light/dark; System/Light/Dark |
 | `SuiteTheme::from_maps` | a user theme from role maps; missing roles come from Graphite and are listed |
 | `builtins()`, `builtin`, `lookup_builtin` | ArtCraft, Graphite, High contrast |
-| `Selection`, `AppChoice` | a theme and mode; an app's "follow suite" or own choice |
+| `Selection`, `AppChoice`, `AppDefaults` | a theme and mode; an app's "follow suite" or own choice; what a following app shows before a suite theme is picked (no `Default` for any of them) |
 | `resolve`, `Resolution`, `Resolved`, `Fallback` | pure resolution; unknown ids give the app default, never another theme |
 | `derive`, `Derived` | hover, pressed and the other derived states, guarded to keep their contrast pairs |
 | `contrast` | `ratio`, `painted_pairs`, advisory `diagnose`, `check` for app-painted pairs |
