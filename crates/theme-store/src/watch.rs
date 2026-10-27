@@ -123,6 +123,8 @@ impl Snapshot {
 /// `wake` runs on the worker and must not block or call back into the watch.
 pub struct SuiteWatch {
     shared: Arc<Shared>,
+    /// From [`StoreOptions::app_theme`]: already requested.
+    app_theme: Option<ThemeId>,
     next_request: AtomicU64,
     #[cfg(not(target_arch = "wasm32"))]
     worker: Option<Worker>,
@@ -149,6 +151,11 @@ impl SuiteWatch {
     /// An in-memory suite, for app constructors, tests, web builds and portable installs.
     pub fn memory() -> Self {
         Self::open(&SuiteDir::memory(), StoreOptions::new(concat!("craft-theme-store ", env!("CARGO_PKG_VERSION"))), || {})
+    }
+
+    /// The app theme from [`StoreOptions::app_theme`], already requested at open.
+    pub(crate) fn initial_app_theme(&self) -> Option<&ThemeId> {
+        self.app_theme.as_ref()
     }
 
     /// Goes up by one with every new snapshot: the only call an app makes each frame.
@@ -185,18 +192,14 @@ impl SuiteWatch {
         id
     }
 
-    fn build(store: Store, wake: Wake) -> (Arc<Shared>, Self) {
-        let first = Snapshot {
-            accepted: store.accepted().clone(),
-            index: Arc::from([]),
-            active: None,
-            app_theme: None,
-            problems: Vec::new(),
-            results: Arc::from([]),
-            generation: 0,
-        };
+    fn build(mut store: Store, wake: Wake) -> (Arc<Shared>, Self) {
+        let app_theme = store.app_theme.take();
+        let mut engine = Engine::new(store);
+        engine.preload(app_theme.as_ref());
+        let first = engine.snapshot(0);
+        engine.changed = false;
         let shared = Arc::new(Shared {
-            engine: Mutex::new(Engine::new(store)),
+            engine: Mutex::new(engine),
             snapshot: Mutex::new(Arc::new(first)),
             generation: AtomicU64::new(0),
             wake,
@@ -204,6 +207,7 @@ impl SuiteWatch {
         });
         let watch = SuiteWatch {
             shared: Arc::clone(&shared),
+            app_theme: app_theme.filter(|id| !id.is_builtin()),
             next_request: AtomicU64::new(0),
             #[cfg(not(target_arch = "wasm32"))]
             worker: None,
@@ -422,6 +426,16 @@ impl Tracked {
         Tracked { keep_missing: true, ..Tracked::default() }
     }
 
+    /// One read at open, before the first snapshot. A failure leaves the slot unread, for the
+    /// worker to retry and report.
+    fn preload(&mut self, store: &mut Store) {
+        self.refresh(store);
+        if self.record.is_none() {
+            self.read = false;
+            self.problem = None;
+        }
+    }
+
     /// Built-ins need no file. Returns whether the id changed.
     fn follow(&mut self, id: Option<&ThemeId>) -> bool {
         let id = id.filter(|id| !id.is_builtin());
@@ -537,6 +551,16 @@ impl Engine {
             results: VecDeque::new(),
             changed: false,
         }
+    }
+
+    /// Reads the app's own theme and the last accepted suite theme, if they are library themes,
+    /// so the first snapshot has them. No listing and no `selection.json`: open stays cheap.
+    fn preload(&mut self, app_theme: Option<&ThemeId>) {
+        self.app_theme.follow(app_theme);
+        self.app_theme.preload(&mut self.store);
+        let suite = self.accepted.suite.theme.clone();
+        self.suite_theme.follow(suite.as_ref());
+        self.suite_theme.preload(&mut self.store);
     }
 
     /// One timer tick: `selection.json` by stamp (by bytes with `verify`), then the library and
