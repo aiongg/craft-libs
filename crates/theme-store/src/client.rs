@@ -33,13 +33,17 @@ pub struct SuiteClient {
     conflict: Option<(Accepted, SelectionChange)>,
     failure: Option<(SelectionChange, StoreError)>,
     app_theme: Option<ThemeId>,
+    /// Open couldn't read `selection.json`: changes wait in the queue for the worker's first
+    /// snapshot instead of merging against a state nobody read.
+    hold: bool,
 }
 
 impl SuiteClient {
     pub fn new(watch: SuiteWatch) -> Self {
         let snapshot = watch.snapshot();
         let app_theme = watch.initial_app_theme().cloned();
-        SuiteClient { watch, generation: None, snapshot, pending: None, queued: None, conflict: None, failure: None, app_theme }
+        let hold = !watch.selection_read();
+        SuiteClient { watch, generation: None, snapshot, pending: None, queued: None, conflict: None, failure: None, app_theme, hold }
     }
 
     /// An in-memory suite, for app constructors, tests and web builds.
@@ -56,6 +60,14 @@ impl SuiteClient {
         }
         self.generation = Some(generation);
         self.snapshot = self.watch.snapshot();
+        if self.hold && generation > 0 {
+            self.hold = false;
+            if self.pending.is_none()
+                && let Some(queued) = self.queued.take()
+            {
+                self.send(queued);
+            }
+        }
         self.settle();
         true
     }
@@ -93,7 +105,7 @@ impl SuiteClient {
         if change.is_empty() {
             return;
         }
-        if self.pending.is_none() {
+        if self.pending.is_none() && !self.hold {
             self.send(change);
             return;
         }
