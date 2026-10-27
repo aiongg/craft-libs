@@ -568,6 +568,7 @@ impl<'a> Menu<'a> {
                             d.insert_temp(remeasure_id, true);
                         });
                         ui.ctx().request_discard("the menu's footer changed height");
+                        ui.ctx().request_repaint();
                     }
                     f
                 });
@@ -594,7 +595,8 @@ fn rows_list<H, R>(
 
 /// Whether the pointer or the keyboard focus went into the menu `popup` this pass.
 fn moved_into(ctx: &Context, popup: Id) -> bool {
-    let pointer = ctx.input(|i| i.pointer.interact_pos());
+    // The pointer counts only on a press or click: a resting mouse says nothing about focus.
+    let pointer = ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos())).flatten();
     let in_menu = ctx.memory(|m| m.area_rect(popup)).zip(pointer).is_some_and(|(menu, pos)| menu.contains(pos));
     let focused = ctx.memory(|m| m.focused()).and_then(|id| ctx.read_response(id));
     in_menu || focused.is_some_and(|r| r.layer_id == LayerId::new(Order::Foreground, popup))

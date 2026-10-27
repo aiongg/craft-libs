@@ -359,6 +359,59 @@ fn a_menu_under_a_text_field_leaves_it_the_focus_and_takes_a_pick() {
 }
 
 #[test]
+fn a_menu_under_a_text_field_closes_when_the_focus_leaves_it() {
+    for mouse_over_menu in [false, true] {
+        let mut h = Harness::new_ui_state(
+            |ui, t: &mut Typed| {
+                let name = ui.label("Font").id;
+                let field = ui.text_edit_singleline(&mut t.text).labelled_by(name);
+                t.open |= field.gained_focus() || field.changed();
+                let _ = ui.button("Other");
+                let menu = super::Menu::new(ui, &field).open(&mut t.open);
+                let _ = menu.show_ui(|ui| ui.label("Fonts"));
+            },
+            Typed { text: String::new(), open: false, picked: None },
+        );
+        h.run();
+        h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+        h.run();
+        assert!(h.state().open);
+        if mouse_over_menu {
+            h.get_by_label("Fonts").hover();
+            h.run();
+            assert!(h.state().open, "hovering the menu keeps it open");
+        }
+        h.key_press(egui::Key::Tab);
+        h.run();
+        h.run();
+        assert!(!h.state().open, "Tab to another widget closes the menu (mouse over menu {mouse_over_menu})");
+    }
+}
+
+#[test]
+fn a_click_on_the_canvas_closes_a_menu_under_a_text_field() {
+    let mut h = font_field();
+    h.run();
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+    h.run();
+    assert!(h.state().open);
+    h.hover_at(egui::pos2(380.0, 280.0));
+    h.run();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton {
+            pos: egui::pos2(380.0, 280.0),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run();
+    }
+    h.run();
+    h.run();
+    assert!(!h.state().open, "a click elsewhere closes the menu");
+}
+
+#[test]
 fn a_click_opened_menu_under_a_text_field_leaves_it_the_focus_while_typing() {
     let mut h = Harness::new_ui_state(
         |ui, shown: &mut (String, bool)| {
