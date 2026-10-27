@@ -2,14 +2,14 @@
 
 use std::{fmt, io, path::PathBuf, sync::Arc, time::Duration};
 
-use craft_theme::{Selection, SuiteTheme, ThemeId, builtin};
+use craft_theme::{SuiteTheme, ThemeId, builtin};
 use serde_json::Map;
 
 use crate::{
     SuiteDir,
     backend::{Backend, FileStamp, LibraryFile, Lock, LockError, Memory, WriteError},
     format::{FormatError, MAX_THEME_BYTES, ThemeRecord, copy_id, parse_theme, replace_top_level_id, theme_to_json},
-    selection::{Accepted, MAX_SELECTION_BYTES, SelectionDoc, SelectionError, merge, parse_selection, render_selection},
+    selection::{Accepted, MAX_SELECTION_BYTES, SelectionChange, SelectionDoc, SelectionError, merge, parse_selection, render_selection},
 };
 
 /// How long a write waits for another app's lock before giving up with [`StoreError::Busy`].
@@ -266,14 +266,16 @@ impl Store {
         self.backend.selection_stamp()
     }
 
-    /// Writes the suite selection the user picked. `base` is the accepted state the user's
-    /// change was made on, and `mine` the whole selection they want: with no suite selection
-    /// yet, the app's own default with the change applied. Fields merge three ways as
-    /// docs/suite-themes.md describes; on success returns the new accepted state.
-    pub fn update(&mut self, base: &Accepted, mine: Selection) -> Result<Accepted, StoreError> {
+    /// Writes the fields of the suite selection the user changed. `base` is the accepted state
+    /// the change was made on. Fields merge as docs/suite-themes.md describes; on success returns
+    /// the new accepted state. A change with no fields writes nothing.
+    pub fn update(&mut self, base: &Accepted, change: SelectionChange) -> Result<Accepted, StoreError> {
+        if change.is_empty() {
+            return Ok(self.accepted.clone());
+        }
         let _lock = self.lock()?;
         let disk = self.read_for_write(base)?;
-        let Some(merged) = merge(base.suite.as_ref(), disk.accepted.suite.as_ref(), &mine) else {
+        let Some(merged) = merge(base, &disk.accepted, &change) else {
             self.accepted = disk.accepted.clone();
             return Err(StoreError::Conflict { disk: disk.accepted });
         };

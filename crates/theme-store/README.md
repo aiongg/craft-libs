@@ -9,16 +9,17 @@ describes the file format, the folder and the protocol.
 
 ```rust,ignore
 use craft_theme::{Mode, Selection, ThemeId};
-use craft_theme_store::{Store, StoreError, StoreOptions, SuiteDir};
+use craft_theme_store::{SelectionChange, Store, StoreError, StoreOptions, SuiteDir};
 
 // Desktop shells only; app constructors, tests and web builds use SuiteDir::memory().
 let mut store = Store::open(&SuiteDir::resolve(false), StoreOptions::new("pdfcraft 0.15.0"));
 let _ = store.load_selection(); // a problem keeps the last accepted state
 
-// The user picks a theme: base is the state the UI showed, mine the whole selection wanted.
+// The user picks a theme. base is the accepted state the UI showed; `shown` is the selection on
+// screen (the suite's, or the app's own default), which fills fields the change leaves alone.
 let base = store.accepted().clone();
-let mine = Selection { theme: ThemeId::parse("craft.graphite")?, mode: Mode::System };
-match store.update(&base, mine) {
+let change = SelectionChange::new(shown).with_theme(ThemeId::parse("craft.graphite")?);
+match store.update(&base, change) {
     Ok(accepted) => { /* show accepted.suite */ }
     Err(StoreError::Conflict { disk }) => { /* "Changed in another Craft app", offer "Apply mine" */ }
     Err(e) => { /* back to store.accepted(), show e with Retry */ }
@@ -29,6 +30,7 @@ match store.update(&base, mine) {
 |---|---|
 | `SuiteDir` | `CRAFT_SUITE_DIR` (empty: in memory), in memory for isolated apps, else `ArtCraft/themes` in the local config folder |
 | `Store` | `load_selection`, `update`, `import`, `delete`, `export`, `library`, `load_theme`, `theme` (a `resolve` lookup) |
+| `SelectionChange` | the fields the user changed (`theme`, `mode`) over the selection the app showed |
 | `Accepted` | `suite: Option<Selection>`, `revision`, `library_revision`; `None` until an app writes a suite choice |
 | `StoreError` | `Busy`, `Conflict { disk }`, `IdExists`, `InUse`, … ; nothing on disk changed |
 | `Problem` | damaged, too new or unreadable files; the store keeps its last accepted state |

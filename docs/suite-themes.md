@@ -239,19 +239,23 @@ Reads take no lock: every write replaces the file with an atomic rename. Each wr
    abandoned with `Busy`.
 5. Releases the lock and returns the new `Accepted`.
 
-`Store::update(base, mine)` takes the state the user's change was made on and the whole selection
-the user wants. The merge, per field (`theme`, `mode`):
+`Store::update(base, change)` takes the state the user's change was made on and a
+`SelectionChange`: the fields the user changed (`theme`, `mode`; their new values are "mine" below) and `shown`, the selection the app
+showed (the suite's, or its own default when no app had written one). Only changed fields can
+conflict. Per field:
 
-| Base | Disk | Result |
+| Field | Disk | Result |
 |---|---|---|
-| any | no selection | mine |
-| a selection | a selection | mine equals base or disk: disk's value. Only mine changed: mine. Both changed to different values: conflict |
-| no selection | a selection | each field where mine differs from disk conflicts; equal fields keep disk |
+| not changed | a selection | disk's value |
+| not changed | no selection | `shown`'s value |
+| changed | no selection | mine |
+| changed | equal to mine | disk's value (nothing to write for it) |
+| changed | differs from mine, base has a selection | disk equals base: mine. Disk differs from base (another app wrote this field after the caller read): conflict |
+| changed | differs from mine, base has no selection | disk's revision past base's (another app wrote the first suite choice meanwhile): conflict. Otherwise mine |
 
-The last row covers an app that showed its own default while another app wrote the first suite
-choice: the user picked a look based on something that is no longer what the suite shows, so the
+A mode-only change therefore keeps the theme on disk and writes only the mode. On a conflict the
 app shows the suite's choice with "Changed in another Craft app; your choice wasn't applied" and
-"Apply mine", which repeats the update with the new state as base.
+"Apply mine", which repeats the same change with the disk state as base.
 
 Library operations take the same lock. They set `library_revision` to the file's value plus one,
 so concurrent imports never collapse into one bump, and leave `suite` as it is (absent stays

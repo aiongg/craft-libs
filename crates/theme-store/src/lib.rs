@@ -16,16 +16,19 @@
 //!
 //! ```
 //! use craft_theme::{Mode, Selection, ThemeId};
-//! use craft_theme_store::{Store, StoreOptions, SuiteDir};
+//! use craft_theme_store::{SelectionChange, Store, StoreOptions, SuiteDir};
 //!
 //! let mut store = Store::open(&SuiteDir::memory(), StoreOptions::new("doc 1.0"));
 //! store.load_selection().unwrap();
 //! assert_eq!(store.accepted().suite, None); // no app has chosen a suite theme yet
 //!
+//! // The app showed its own default; the user picks Graphite.
 //! let base = store.accepted().clone();
-//! let mine = Selection { theme: ThemeId::parse("craft.graphite").unwrap(), mode: Mode::Dark };
-//! let accepted = store.update(&base, mine.clone()).unwrap();
-//! assert_eq!((accepted.suite, accepted.revision), (Some(mine), 1));
+//! let shown = Selection { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::Dark };
+//! let change = SelectionChange::new(shown).with_theme(ThemeId::parse("craft.graphite").unwrap());
+//! let accepted = store.update(&base, change).unwrap();
+//! let graphite = Selection { theme: ThemeId::parse("craft.graphite").unwrap(), mode: Mode::Dark };
+//! assert_eq!((accepted.suite, accepted.revision), (Some(graphite), 1));
 //! ```
 
 mod backend;
@@ -41,7 +44,7 @@ pub mod testing;
 pub use backend::{FileStamp, LibraryFile};
 pub use dir::{DirSource, SUITE_DIR_ENV, SuiteDir};
 pub use format::{FormatError, MAX_THEME_BYTES, THEME_SCHEMA, THEME_SCHEMA_VERSION, ThemeRecord, parse_theme, theme_to_json};
-pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionError};
+pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError};
 pub use store::{Imported, LOCK_TIMEOUT, Library, ParseCounts, Problem, Store, StoreError, StoreOptions, ThemeEntry};
 
 #[cfg(test)]

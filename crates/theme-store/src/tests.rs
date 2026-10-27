@@ -10,7 +10,7 @@ use craft_theme::{Mode, Selection, ThemeId};
 use serde_json::Value;
 
 use crate::{
-    Accepted, FormatError, Problem, SelectionError, Store, StoreError, StoreOptions, SuiteDir,
+    Accepted, FormatError, Problem, SelectionChange, SelectionError, Store, StoreError, StoreOptions, SuiteDir,
     testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON, sample_roles},
 };
 
@@ -24,6 +24,10 @@ fn open(dir: &Path) -> Store {
 
 fn sel(theme: &str, mode: Mode) -> Selection {
     Selection { theme: ThemeId::parse(theme).unwrap(), mode }
+}
+
+fn whole(theme: &str, mode: Mode) -> SelectionChange {
+    SelectionChange::whole(sel(theme, mode))
 }
 
 fn id(s: &str) -> ThemeId {
@@ -55,7 +59,7 @@ fn reads_never_create_files_and_no_file_means_no_selection() {
     assert!(!dir.exists());
 
     let mine = sel("craft.graphite", Mode::Dark);
-    let accepted = store.update(&Accepted::default(), mine.clone()).unwrap();
+    let accepted = store.update(&Accepted::default(), SelectionChange::whole(mine.clone())).unwrap();
     assert_eq!(accepted, Accepted { suite: Some(mine), revision: 1, library_revision: 0 });
     assert_eq!(selection_json(&dir)["written_by"], "test 1.0");
     assert!(dir.join("selection.lock").exists());
@@ -70,7 +74,7 @@ fn memory_store_runs_the_same_protocol() {
     let sample = id(SAMPLE_THEME_ID);
     assert_eq!(&*store.export(&sample).unwrap(), SAMPLE_THEME_JSON.as_bytes());
     let base = store.accepted().clone();
-    store.update(&base, Selection { theme: sample.clone(), mode: Mode::Light }).unwrap();
+    store.update(&base, SelectionChange::whole(Selection { theme: sample.clone(), mode: Mode::Light })).unwrap();
     assert!(matches!(store.delete(&sample), Err(StoreError::InUse(_))));
     let theme = store.theme(&sample).unwrap();
     assert_eq!(theme.light, Some(sample_roles(craft_theme::Variant::Light)));
@@ -120,7 +124,7 @@ fn low_contrast_imports_succeed_with_diagnostics() {
     let entry = &store.library().entries[0];
     assert_eq!(entry.diagnostics, imported.record.missing.len() + imported.record.diagnostics.len());
     let base = store.accepted().clone();
-    store.update(&base, sel("flat", Mode::Dark)).unwrap();
+    store.update(&base, whole("flat", Mode::Dark)).unwrap();
 }
 
 #[test]
@@ -130,7 +134,7 @@ fn delete_rules() {
     store.import(theme_json("one", "").as_bytes(), false).unwrap();
     store.import(theme_json("two", "").as_bytes(), false).unwrap();
     let base = store.accepted().clone();
-    store.update(&base, sel("one", Mode::System)).unwrap();
+    store.update(&base, whole("one", Mode::System)).unwrap();
     assert!(matches!(store.delete(&id("one")), Err(StoreError::InUse(_))));
     assert!(matches!(store.delete(&id("craft.graphite")), Err(StoreError::BuiltIn(_))));
     assert!(matches!(store.delete(&id("three")), Err(StoreError::NotFound(_))));
@@ -152,7 +156,7 @@ fn unknown_selection_keys_survive_an_update() {
     let mut store = open(tmp.path());
     store.load_selection().unwrap();
     let base = store.accepted().clone();
-    let accepted = store.update(&base, sel("craft.artcraft", Mode::Dark)).unwrap();
+    let accepted = store.update(&base, whole("craft.artcraft", Mode::Dark)).unwrap();
     assert_eq!((accepted.revision, accepted.library_revision), (8, 2));
     let disk = selection_json(tmp.path());
     assert_eq!(disk["later"], serde_json::json!({"x": [1, 2]}));
@@ -171,7 +175,7 @@ fn a_newer_selection_is_never_overwritten() {
     assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::TooNew { schema_version: 2 }))));
     assert!(store.is_read_only());
     assert_eq!(store.accepted(), &last);
-    let refused = store.update(&last, sel("craft.graphite", Mode::Dark));
+    let refused = store.update(&last, whole("craft.graphite", Mode::Dark));
     assert!(matches!(refused, Err(StoreError::Selection(SelectionError::TooNew { .. }))));
     assert!(store.import(SAMPLE_THEME_JSON.as_bytes(), false).is_err());
     assert_eq!(fs::read_to_string(&path).unwrap(), future);
@@ -183,13 +187,13 @@ fn a_damaged_selection_keeps_the_last_state_and_moves_aside_on_write() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let mut store = open(tmp.path());
-    let base = store.update(&Accepted::default(), sel("craft.graphite", Mode::Light)).unwrap();
+    let base = store.update(&Accepted::default(), whole("craft.graphite", Mode::Light)).unwrap();
     fs::write(&path, "{ not json").unwrap();
     assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::Corrupt(_)))));
     assert_eq!(store.accepted(), &base);
     // Reads leave it where it is; the next write moves it aside and merges against the base.
     assert_eq!(fs::read_to_string(&path).unwrap(), "{ not json");
-    let next = store.update(&base, sel("craft.graphite", Mode::Dark)).unwrap();
+    let next = store.update(&base, whole("craft.graphite", Mode::Dark)).unwrap();
     assert_eq!(next.revision, 2);
     let moved = store.take_moved_aside();
     assert_eq!(moved.len(), 1);
@@ -205,7 +209,7 @@ fn an_oversized_selection_is_refused() {
     fs::write(&path, &big).unwrap();
     let mut store = open(tmp.path());
     assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::TooLarge { .. }))));
-    assert!(matches!(store.update(&Accepted::default(), sel("craft.graphite", Mode::Dark)), Err(StoreError::Selection(_))));
+    assert!(matches!(store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)), Err(StoreError::Selection(_))));
     assert_eq!(fs::read_to_string(&path).unwrap(), big);
 }
 
@@ -215,25 +219,30 @@ fn same_field_changed_elsewhere_is_a_conflict_and_writes_nothing() {
     let path = tmp.path().join("selection.json");
     let mut a = open(tmp.path());
     let mut b = open(tmp.path());
-    let base = a.update(&Accepted::default(), sel("craft.artcraft", Mode::System)).unwrap();
+    let base = a.update(&Accepted::default(), whole("craft.artcraft", Mode::System)).unwrap();
     b.load_selection().unwrap();
-    let b_state = b.update(&base, sel("craft.graphite", Mode::System)).unwrap();
+    let b_state = b.update(&base, whole("craft.graphite", Mode::System)).unwrap();
     let before = fs::read(&path).unwrap();
-    match a.update(&base, sel("craft.high-contrast", Mode::System)) {
+    let shown = base.suite.clone().unwrap();
+    match a.update(&base, SelectionChange::new(shown.clone()).with_theme(id("craft.high-contrast"))) {
         Err(StoreError::Conflict { disk }) => assert_eq!(disk, b_state),
         other => panic!("{other:?}"),
     }
     assert_eq!(fs::read(&path).unwrap(), before);
     assert_eq!(a.accepted(), &b_state);
     // A different field merges.
-    let merged = a.update(&base, sel("craft.artcraft", Mode::Dark)).unwrap();
+    let merged = a.update(&base, SelectionChange::new(shown).with_mode(Mode::Dark)).unwrap();
     assert_eq!(merged.suite, Some(sel("craft.graphite", Mode::Dark)));
-    // No base selection, another app wrote first: a different choice conflicts.
+    // No base selection, another app wrote first: a changed field with another value conflicts;
+    // one equal to disk keeps disk's other fields.
     let fresh = tempfile::tempdir().unwrap();
     let mut c = open(fresh.path());
     let mut d = open(fresh.path());
-    c.update(&Accepted::default(), sel("craft.graphite", Mode::System)).unwrap();
-    assert!(matches!(d.update(&Accepted::default(), sel("craft.artcraft", Mode::Dark)), Err(StoreError::Conflict { .. })));
+    c.update(&Accepted::default(), whole("craft.graphite", Mode::System)).unwrap();
+    let own_default = SelectionChange::new(sel("craft.artcraft", Mode::Dark));
+    assert!(matches!(d.update(&Accepted::default(), own_default.clone().with_mode(Mode::Light)), Err(StoreError::Conflict { .. })));
+    let kept = d.update(&Accepted::default(), own_default.with_mode(Mode::System)).unwrap();
+    assert_eq!((kept.suite, kept.revision), (Some(sel("craft.graphite", Mode::System)), 1));
 }
 
 #[test]
@@ -243,23 +252,23 @@ fn a_held_lock_is_busy_after_the_timeout() {
     lock.try_lock().unwrap();
     let mut store = open(tmp.path());
     let start = Instant::now();
-    assert!(matches!(store.update(&Accepted::default(), sel("craft.graphite", Mode::Dark)), Err(StoreError::Busy)));
+    assert!(matches!(store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)), Err(StoreError::Busy)));
     assert!(start.elapsed() >= Duration::from_millis(100));
     assert!(!tmp.path().join("selection.json").exists());
     drop(lock);
-    store.update(&Accepted::default(), sel("craft.graphite", Mode::Dark)).unwrap();
+    store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)).unwrap();
 }
 
 #[test]
 fn a_failed_write_leaves_file_and_revision_unchanged() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
-    let base = open(tmp.path()).update(&Accepted::default(), sel("craft.graphite", Mode::Light)).unwrap();
+    let base = open(tmp.path()).update(&Accepted::default(), whole("craft.graphite", Mode::Light)).unwrap();
     let before = fs::read(&path).unwrap();
     for at in [FailAt::Create, FailAt::Sync, FailAt::Rename] {
         let mut store = Store::open(&SuiteDir::at(tmp.path()), options().file_system(Box::new(FailingFs(at))));
         store.load_selection().unwrap();
-        assert!(matches!(store.update(&base, sel("craft.graphite", Mode::Dark)), Err(StoreError::Io(_))), "{at:?}");
+        assert!(matches!(store.update(&base, whole("craft.graphite", Mode::Dark)), Err(StoreError::Io(_))), "{at:?}");
         assert_eq!(fs::read(&path).unwrap(), before, "{at:?}");
         assert_eq!(store.accepted(), &base);
     }
@@ -304,7 +313,7 @@ fn a_change_under_the_lock_abandons_the_write() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let mut store = Store::open(&SuiteDir::at(tmp.path()), options().file_system(Box::new(Intruder(path.clone()))));
-    assert!(matches!(store.update(&Accepted::default(), sel("craft.graphite", Mode::Dark)), Err(StoreError::Busy)));
+    assert!(matches!(store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)), Err(StoreError::Busy)));
     assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"schema_version":1,"revision":9}"#);
 }
 
@@ -333,7 +342,7 @@ fn library_problems_and_parse_counts() {
     assert_eq!(stems, ["broken", "renamed"]);
     assert_eq!(store.parse_counts().themes, 3);
 
-    store.update(&Accepted::default(), sel("good", Mode::Dark)).unwrap();
+    store.update(&Accepted::default(), whole("good", Mode::Dark)).unwrap();
     let after_write = store.parse_counts().selection;
     // Bytes this store wrote, or read before, are not parsed again.
     for _ in 0..5 {

@@ -5,7 +5,7 @@
 use std::{path::Path, process::Command};
 
 use craft_theme::{Mode, Selection, ThemeId};
-use craft_theme_store::{Accepted, Store, StoreError, StoreOptions, SuiteDir};
+use craft_theme_store::{Accepted, SelectionChange, Store, StoreError, StoreOptions, SuiteDir};
 
 const ROLE: &str = "CRAFT_THEME_STORE_TEST_ROLE";
 const DIR: &str = "CRAFT_THEME_STORE_TEST_DIR";
@@ -22,7 +22,9 @@ fn two_processes_keep_every_update() {
     let tmp = tempfile::tempdir().unwrap();
     // Both children start from an existing selection, so neither takes the no-base path.
     let mut store = Store::open(&SuiteDir::at(tmp.path()), StoreOptions::new("parent"));
-    store.update(&Accepted::default(), Selection { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::System }).unwrap();
+    store
+        .update(&Accepted::default(), SelectionChange::whole(Selection { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::System }))
+        .unwrap();
 
     let exe = std::env::current_exe().unwrap();
     let children: Vec<_> = ["theme", "mode"]
@@ -59,11 +61,11 @@ fn child(role: &str, dir: &Path) {
     }
     for i in 0..UPDATES as usize {
         let base = store.accepted().clone();
-        let mut mine = base.suite.clone().unwrap();
-        match role {
-            "theme" => mine.theme = ThemeId::parse(THEMES[i % 2]).unwrap(),
-            _ => mine.mode = MODES[i % 2],
-        }
+        let shown = SelectionChange::new(base.suite.clone().unwrap());
+        let mine = match role {
+            "theme" => shown.with_theme(ThemeId::parse(THEMES[i % 2]).unwrap()),
+            _ => shown.with_mode(MODES[i % 2]),
+        };
         loop {
             match store.update(&base, mine.clone()) {
                 Ok(_) => break,

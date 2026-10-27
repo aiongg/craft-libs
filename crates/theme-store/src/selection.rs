@@ -28,31 +28,75 @@ impl Accepted {
     }
 }
 
-/// The selection to write, from `base` (the state the caller's change was made on), what is on
-/// disk now and `mine` (the full selection the user wants). `None` is a conflict.
-///
-/// With a base selection, each field merges three ways: a field mine left at the base value
-/// takes the disk value; a field only mine changed takes mine; a field both changed to
-/// different values conflicts. Without a base selection (the caller showed its own fresh-install
-/// default), there is nothing to merge against: an empty disk takes mine, and a selection another
-/// app wrote meanwhile conflicts on every field where mine differs from it.
-pub(crate) fn merge(base: Option<&Selection>, disk: Option<&Selection>, mine: &Selection) -> Option<Selection> {
-    let Some(disk) = disk else {
-        return Some(mine.clone());
-    };
-    let Some(base) = base else {
-        return (mine == disk).then(|| disk.clone());
-    };
-    Some(Selection { theme: merge_field(&base.theme, &disk.theme, &mine.theme)?, mode: merge_field(&base.mode, &disk.mode, &mine.mode)? })
+/// The suite selection fields the user changed, over the selection the app showed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectionChange {
+    /// What the app showed when the user made the change: the suite selection it followed, or
+    /// its own default when no app had written one. It fills the fields this change leaves alone
+    /// when `selection.json` has no selection yet.
+    pub shown: Selection,
+    pub theme: Option<ThemeId>,
+    pub mode: Option<Mode>,
 }
 
-fn merge_field<T: PartialEq + Clone>(base: &T, disk: &T, mine: &T) -> Option<T> {
-    if mine == base || mine == disk {
-        Some(disk.clone())
-    } else if disk == base {
-        Some(mine.clone())
-    } else {
-        None
+impl SelectionChange {
+    /// No field changed yet; add them with [`with_theme`](Self::with_theme) and
+    /// [`with_mode`](Self::with_mode).
+    pub fn new(shown: Selection) -> Self {
+        SelectionChange { shown, theme: None, mode: None }
+    }
+
+    /// Both fields set to `selection`, such as "Apply mine" after a conflict.
+    pub fn whole(selection: Selection) -> Self {
+        SelectionChange { theme: Some(selection.theme.clone()), mode: Some(selection.mode), shown: selection }
+    }
+
+    pub fn with_theme(mut self, theme: ThemeId) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+
+    pub fn with_mode(mut self, mode: Mode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.theme.is_none() && self.mode.is_none()
+    }
+
+    /// The shown selection with the change applied: what the app shows until the write returns.
+    pub fn wanted(&self) -> Selection {
+        Selection { theme: self.theme.clone().unwrap_or_else(|| self.shown.theme.clone()), mode: self.mode.unwrap_or(self.shown.mode) }
+    }
+}
+
+/// The selection to write, from `base` (the state the caller's change was made on), what is on
+/// disk now and the change. `None` is a conflict.
+///
+/// A field the change leaves alone takes disk's value, or the shown value when disk has no
+/// selection; it never conflicts. A changed field conflicts only when disk holds a different
+/// value that another app wrote after the caller's read: disk's value differs from base's, or,
+/// with no base selection, disk's revision is past base's.
+pub(crate) fn merge(base: &Accepted, disk: &Accepted, change: &SelectionChange) -> Option<Selection> {
+    let Some(on_disk) = &disk.suite else {
+        return Some(change.wanted());
+    };
+    let raced = disk.revision > base.revision;
+    let base = base.suite.as_ref();
+    Some(Selection {
+        theme: merge_field(base.map(|b| &b.theme), &on_disk.theme, change.theme.as_ref(), raced)?,
+        mode: merge_field(base.map(|b| &b.mode), &on_disk.mode, change.mode.as_ref(), raced)?,
+    })
+}
+
+fn merge_field<T: PartialEq + Clone>(base: Option<&T>, disk: &T, mine: Option<&T>, raced: bool) -> Option<T> {
+    match mine {
+        Some(mine) if mine != disk => {
+            let written_elsewhere = base.map_or(raced, |base| base != disk);
+            (!written_elsewhere).then(|| mine.clone())
+        }
+        _ => Some(disk.clone()),
     }
 }
 
@@ -189,25 +233,44 @@ mod tests {
         Selection { theme: ThemeId::parse(theme).unwrap(), mode }
     }
 
+    fn state(suite: Option<Selection>, revision: u64) -> Accepted {
+        Accepted { suite, revision, library_revision: 0 }
+    }
+
     #[test]
     fn merge_table() {
-        let base = sel("craft.artcraft", Mode::System);
-        let dark = sel("craft.artcraft", Mode::Dark);
-        let graphite = sel("craft.graphite", Mode::System);
-        // Only mine changed / only disk changed / different fields changed.
-        assert_eq!(merge(Some(&base), Some(&base), &graphite), Some(graphite.clone()));
-        assert_eq!(merge(Some(&base), Some(&dark), &base), Some(dark.clone()));
-        assert_eq!(merge(Some(&base), Some(&dark), &graphite), Some(sel("craft.graphite", Mode::Dark)));
-        // Same field, same value: no conflict. Different values: conflict.
-        assert_eq!(merge(Some(&base), Some(&dark), &dark), Some(dark.clone()));
-        assert_eq!(merge(Some(&base), Some(&dark), &sel("craft.artcraft", Mode::Light)), None);
-        // No selection on disk: mine, whatever the base.
-        assert_eq!(merge(None, None, &dark), Some(dark.clone()));
-        assert_eq!(merge(Some(&base), None, &dark), Some(dark.clone()));
-        // No base, another app wrote first: equal is fine, any difference conflicts.
-        assert_eq!(merge(None, Some(&dark), &dark), Some(dark.clone()));
-        assert_eq!(merge(None, Some(&dark), &sel("craft.artcraft", Mode::Light)), None);
-        assert_eq!(merge(None, Some(&dark), &graphite), None);
+        let base_sel = sel("craft.artcraft", Mode::System);
+        let base = state(Some(base_sel.clone()), 3);
+        let to_graphite = SelectionChange::new(base_sel.clone()).with_theme(ThemeId::parse("craft.graphite").unwrap());
+        let to_dark = SelectionChange::new(base_sel.clone()).with_mode(Mode::Dark);
+        let to_light = SelectionChange::new(base_sel.clone()).with_mode(Mode::Light);
+        let dark_disk = state(Some(sel("craft.artcraft", Mode::Dark)), 4);
+        // Only mine changed / another app changed the other field.
+        assert_eq!(merge(&base, &base, &to_graphite), Some(sel("craft.graphite", Mode::System)));
+        assert_eq!(merge(&base, &dark_disk, &to_graphite), Some(sel("craft.graphite", Mode::Dark)));
+        // An untouched field never conflicts, whatever disk holds.
+        assert_eq!(merge(&base, &state(Some(sel("craft.graphite", Mode::System)), 4), &to_dark), Some(sel("craft.graphite", Mode::Dark)));
+        // Same field: equal value is fine; a different value written elsewhere conflicts.
+        assert_eq!(merge(&base, &dark_disk, &to_dark), Some(sel("craft.artcraft", Mode::Dark)));
+        assert_eq!(merge(&base, &dark_disk, &to_light), None);
+        // "Apply mine" repeats the change on the disk state as base.
+        assert_eq!(merge(&dark_disk, &dark_disk, &to_light), Some(sel("craft.artcraft", Mode::Light)));
+        // No selection on disk: the shown selection with the change, whatever the base.
+        let fresh = state(None, 0);
+        assert_eq!(merge(&fresh, &fresh, &to_dark), Some(sel("craft.artcraft", Mode::Dark)));
+        assert_eq!(merge(&base, &state(None, 5), &to_dark), Some(sel("craft.artcraft", Mode::Dark)));
+        // No base selection, another app wrote first: only changed fields with another value
+        // conflict; a mode-only change takes the theme from disk.
+        let shown_default = SelectionChange::new(sel("craft.high-contrast", Mode::Dark));
+        let first = state(Some(sel("craft.graphite", Mode::System)), 1);
+        assert_eq!(merge(&fresh, &first, &shown_default.clone().with_mode(Mode::Light)), None);
+        assert_eq!(merge(&fresh, &first, &shown_default.clone().with_mode(Mode::System)), Some(sel("craft.graphite", Mode::System)));
+        assert_eq!(
+            merge(&fresh, &first, &shown_default.clone().with_theme(ThemeId::parse("craft.graphite").unwrap())),
+            Some(sel("craft.graphite", Mode::System))
+        );
+        // Not raced: disk's revision is not past base's (base came from the same file).
+        assert_eq!(merge(&state(None, 1), &first, &shown_default.with_mode(Mode::Light)), Some(sel("craft.graphite", Mode::Light)));
     }
 
     #[test]
