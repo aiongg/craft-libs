@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex};
 
 use craft_font_catalog::Catalog;
-pub use craft_font_store::UserSource;
-use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, PreviewServiceSource, verify_font};
+use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, verify_font};
+pub use craft_font_store::{PREVIEW_SERVICE_ENV, PreviewServiceSource, UserSource};
 
 use crate::index::{Family, Index};
 
