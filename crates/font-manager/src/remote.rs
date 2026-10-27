@@ -664,7 +664,7 @@ impl Worker {
             return Err(PreviewError::PreviewsOff);
         }
         let bytes = self.fetcher.get(&key.url(&service), MAX_PREVIEW_BYTES, cancel).map_err(|e| match e {
-            FetchError::Failed(m) if m.contains("404") => PreviewError::NotFound,
+            FetchError::Failed(m) if m == "HTTP 404" => PreviewError::NotFound,
             e => PreviewError::Failed(e.to_string()),
         })?;
         let font = decode(&bytes)?;
