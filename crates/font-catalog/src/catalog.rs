@@ -119,17 +119,29 @@ struct Index {
 
 impl Index {
     /// Added faces first: a document's or the app's own face wins over an installed face of the
-    /// same family and style.
+    /// same family and style. Among scanned duplicates the font store's face wins, so a store
+    /// font copied into the OS font folder stays the store's wherever the folders sort.
     fn build(added: &[Face], scanned: &[Face]) -> Self {
-        let mut faces: Vec<Face> = Vec::new();
-        let mut seen = HashSet::new();
-        for f in added.iter().chain(scanned) {
+        let all: Vec<&Face> = added.iter().chain(scanned).collect();
+        let mut winner: HashMap<_, usize> = HashMap::new();
+        for (i, f) in all.iter().enumerate() {
             let variations: Vec<(u32, u32)> = f.info.variations.iter().map(|(t, v)| (u32::from_be_bytes(*t), v.to_bits())).collect();
             let key = (f.info.family.to_ascii_lowercase(), norm(&f.info.style), f.keys.postscript.first().cloned(), variations);
-            if seen.insert(key) {
-                faces.push(f.clone());
+            match winner.entry(key) {
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(i);
+                }
+                std::collections::hash_map::Entry::Occupied(mut e) => {
+                    let held = *e.get();
+                    if held >= added.len() && all[held].info.source != Source::Store && f.info.source == Source::Store {
+                        e.insert(i);
+                    }
+                }
             }
         }
+        let mut kept: Vec<usize> = winner.into_values().collect();
+        kept.sort_unstable();
+        let faces: Vec<Face> = kept.into_iter().map(|i| all[i].clone()).collect();
         let mut by_family: HashMap<String, Vec<usize>> = HashMap::new();
         let mut aliases: HashMap<String, Vec<Alias>> = HashMap::new();
         let mut postscript: HashMap<String, usize> = HashMap::new();
