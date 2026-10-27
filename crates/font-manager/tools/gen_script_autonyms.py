@@ -24,7 +24,11 @@ for sid in sorted(ids - {"Latn"}):
         continue
     lang = sub.split("_")[0]
     try:
-        name = Locale(lang).scripts.get(sid)
+        # The script's own locale (zh_Hant_TW, not zh), so Hant is named in Traditional Chinese.
+        own = Locale.parse(sub)
+        # For Han, the name of the written language ("简体中文") reads better than the script's.
+        name = own.languages.get(f"{lang}_{sid}") if sid in ("Hans", "Hant") else None
+        name = name or own.scripts.get(sid)
     except Exception:
         continue
     if not name or re.fullmatch(r"[\x00-ɏ]+", name):

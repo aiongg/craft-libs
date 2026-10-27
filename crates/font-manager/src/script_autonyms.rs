@@ -4,6 +4,7 @@
 
 /// (script ID, name of the script in its main language), sorted by ID.
 pub(crate) const SCRIPT_AUTONYMS: &[(&str, &str)] = &[
+    ("Adlm", "𞤀𞤁𞤂𞤢𞤃"),
     ("Arab", "العربية"),
     ("Armn", "հայկական"),
     ("Beng", "বাংলা"),
@@ -13,13 +14,12 @@ pub(crate) const SCRIPT_AUTONYMS: &[(&str, &str)] = &[
     ("Deva", "देवनागरी"),
     ("Ethi", "ኢትዮፒክ"),
     ("Geor", "ქართული"),
-    ("Glag", "глаго́лица"),
     ("Grek", "Ελληνικό"),
     ("Gujr", "ગુજરાતી"),
     ("Guru", "ਗੁਰਮੁਖੀ"),
     ("Hang", "한글"),
-    ("Hans", "简体"),
-    ("Hant", "繁体"),
+    ("Hans", "简体中文"),
+    ("Hant", "繁體中文"),
     ("Hebr", "עברי"),
     ("Hira", "ひらがな"),
     ("Hmnp", "𞄐𞄦𞄲𞄤𞄎𞄫𞄰 𞄚𞄜𞄲𞄔𞄬𞄱 𞄀𞄄𞄰𞄩"),
@@ -30,8 +30,7 @@ pub(crate) const SCRIPT_AUTONYMS: &[(&str, &str)] = &[
     ("Kore", "한국 문자"),
     ("Laoo", "ລາວ"),
     ("Mlym", "മലയാളം"),
-    ("Mong", "монгол бичиг"),
-    ("Mtei", "মীতৈ ময়েক"),
+    ("Mtei", "ꯃꯤꯇꯩ ꯃꯌꯦꯛ"),
     ("Mymr", "မြန်မာ"),
     ("Olck", "ᱚᱞ ᱪᱤᱠᱤ"),
     ("Orya", "ଓଡ଼ିଆ"),
