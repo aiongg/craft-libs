@@ -122,16 +122,17 @@ A Google Fonts family's folder is google/fonts' own folder name (`lato/`); anoth
 
 The catalog scans the store folder. With `with_catalog(catalog)`, every install and removal ends with `catalog.rescan()`, which reads only new and changed files, so the app sees the fonts at once. Other running apps notice through `Catalog::rescan_if_changed` (when their window is activated) or `Catalog::watch`.
 
-## Available to all apps
+## Copies in the OS font folder
 
-Fonts in the store are for the Craft apps only. A family can also be made available to every other program of the current user: opt-in per family, off by default, and only from the user's own action.
+Fonts in the store are for the Craft apps only. A family can also be copied into the OS user font folder, for every other program of the current user (the API calls this making it available to all apps): opt-in per family, off by default, and only from the user's own action.
 
 | Call | What it does |
 |---|---|
 | `available_to_all_supported()`, `available_to_all_unsupported()` | Whether the action works here, and why not. The interface hides it when it doesn't. |
 | `make_available(source, name)` | Checks for conflicts, copies the family's font files into the OS user font folder and records them in the ledger. Calling it again copies styles installed since and brings the copies up to date. Returns the copies. |
 | `withdraw(source, name)` | Deletes the copies the ledger lists, each only if its sha256 is unchanged. Returns the copies left in place because they changed. |
-| `is_available(source, name)`, `available_family_holding(name, files)`, `available_files(source, name)` | Read the ledger. They read the file again only when it changed, so a list can ask for every row. |
+| `is_available(source, name)`, `available_family_holding(name, files)`, `available_files(source, name)` | Read the ledger. They read the file again only when it changed, so a list can ask for every row. `available_family_holding` goes by the store files when it has them, so a family of the same name from another source doesn't count. |
+| `copies_out_of_reach(source, name)` | The family's listed copies when this build can't change the OS folder (a Flatpak whose access to it was revoked). Removing the family leaves them. |
 | `pending_files(source, name)` | Files of an available family not available yet: styles installed since by an agent, or whose copy is older than the store's file. |
 
 `make_available`, `withdraw`, the installs and removals block (hashing, copying, a catalog rescan): call them off the UI thread.
@@ -144,7 +145,7 @@ Only the user. An agent (`for_agent`) never changes what is in the OS font folde
 - Its install into an available family stays in the store; the new files show in `pending_files`, and the interface offers to copy them. The user's install copies them at once.
 - Its `remove_family` of a family with copies, and its `remove_files` of files with copies, give `Error::NotAllowed` before anything changes.
 
-The user's `remove_family` and `remove_files` withdraw the copies first, so the ledger never lists copies of fonts the store no longer has. Where there is no OS folder (a Snap build, say) but the ledger lists copies, removing the family gives `Error::Unsupported`: a build that has the folder withdraws them.
+The user's `remove_family` and `remove_files` withdraw the copies first, so the ledger never lists copies of fonts the store no longer has. Where this build can't change the OS folder (a Flatpak whose `xdg-data/fonts` access was revoked, a Snap build) but the ledger lists copies, removing the family removes its store files and leaves the copies, still listed in the ledger: a build that has the folder withdraws them, and a reinstall finds them the store's. `copies_out_of_reach` names them beforehand.
 
 ### Folders
 
@@ -163,7 +164,7 @@ Running apps see a new font at once or only after a restart, depending on the ap
 
 ### Conflicts
 
-`make_available` reads the catalog given to `with_catalog` (rescanned first if the font folders changed), else a fresh catalog of the process's environment, with the store locked. It refuses with `Error::Conflict`, changing nothing and naming each PostScript name and file, when:
+`make_available` reads the catalog given to `with_catalog` (rescanned first if the font folders changed), else a fresh catalog of the process's environment, with the store locked. It refuses with `Error::Conflict`, changing nothing and naming each file with the PostScript name it has (`None` for a file in the way), when:
 
 - a system font has a PostScript name of one of the family's faces or named instances (ignoring ASCII case). Names come from a catalog scan of each store file and from the index. fontconfig would otherwise pick the newer version system-wide, and macOS can't activate two fonts of one PostScript name;
 - another store family's copy has one of those names (Roboto from Google Fonts and from a user's source, say);

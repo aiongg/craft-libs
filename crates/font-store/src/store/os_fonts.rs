@@ -1,4 +1,4 @@
-//! "Available to all apps": copies of a store family in the OS user font folder, recorded in a
+//! Copies of a store family in the OS user font folder, for every app of the user, recorded in a
 //! ledger (`os-fonts.json`) so that withdrawing one removes exactly what the store added.
 //!
 //! Crash safety: the ledger lists a copy as `adding` before it is made, and as `active` once it
@@ -41,7 +41,7 @@ pub enum OsFontLayout {
     Folders,
 }
 
-/// The OS user font folder that "available to all apps" copies families into.
+/// The OS user font folder the store copies families into, for every app of the user.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OsFontFolder {
     dir: PathBuf,
@@ -93,7 +93,7 @@ impl OsFontFolder {
                 };
                 Ok(Self { dir: data.join("fonts/Craft"), layout: OsFontLayout::Folders, fc_cache })
             }
-            Os::Windows => Err("making fonts available to all apps isn't supported on Windows yet".into()),
+            Os::Windows => Err("copying fonts into the Windows Fonts folder isn't supported yet".into()),
             Os::Haiku | Os::None => Err("this system has no user font folder the store can add to".into()),
         }
     }
@@ -201,13 +201,14 @@ fn flatpak_can_write(info: &Path, home: Option<&Path>, data: &Path) -> bool {
     grants.iter().any(|(name, write)| *write && covers(name))
 }
 
-/// A font that already has a PostScript name of the family being made available.
+/// What stops a family being copied into the OS user font folder: a font that already has one
+/// of its PostScript names, or a file in the way of a copy.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Conflict {
-    /// The PostScript name.
-    pub postscript: String,
-    /// The file that has it: a system font, another store family's copy, or a file the store
-    /// didn't add where a copy would go.
+    /// The PostScript name `path` has too; `None` for a file the store didn't add (another
+    /// family's copy, a link) sitting where a copy would go.
+    pub postscript: Option<String>,
+    /// A system font or another store family's copy with the name, or the file in the way.
     pub path: PathBuf,
 }
 
@@ -374,13 +375,13 @@ impl FontStore {
         self.os_fonts = folder;
     }
 
-    /// Whether families can be made available to all apps here. The interface hides the action
-    /// when it is false.
+    /// Whether families can be copied into the OS user font folder here. The interface hides the
+    /// action when it is false.
     pub fn available_to_all_supported(&self) -> bool {
         self.os_fonts.is_ok()
     }
 
-    /// Why families can't be made available to all apps here; `None` when they can.
+    /// Why families can't be copied into the OS user font folder here; `None` when they can.
     pub fn available_to_all_unsupported(&self) -> Option<&str> {
         self.os_fonts.as_ref().err().map(String::as_str)
     }
@@ -390,25 +391,37 @@ impl FontStore {
         self.os_fonts.as_ref().ok()
     }
 
-    /// Whether the family of this name installed from `source` is available to all apps. Cheap
+    /// Whether the family of this name installed from `source` has copies in the OS user font
+    /// folder (is available to all apps). Cheap
     /// enough for every row of a list: it reads the ledger again only when the file changed.
     /// False when the ledger can't be read.
     pub fn is_available(&self, source: &str, name: &str) -> bool {
         self.cached_ledger().is_some_and(|l| l.family(source, name).is_some())
     }
 
-    /// The source and name of the available family whose store folder holds one of `files`, else
-    /// of the available family called `name` (ignoring case). Cheap like
+    /// The source and name of the available family whose store folder holds one of `files`; with
+    /// no `files`, of the available family called `name` (ignoring case). A family of the same
+    /// name from another source doesn't count when `files` are given. Cheap like
     /// [`FontStore::is_available`]: it reads only the ledger.
     pub fn available_family_holding(&self, name: &str, files: &[PathBuf]) -> Option<(String, String)> {
         let ledger = self.cached_ledger()?;
-        let lower = name.to_lowercase();
-        ledger
-            .families
-            .iter()
-            .find(|f| safe_dir(&f.dir) && files.iter().any(|p| p.starts_with(self.dir.join(&f.dir))))
-            .or_else(|| ledger.families.iter().find(|f| f.family.to_lowercase() == lower))
-            .map(|f| (f.source.clone(), f.family.clone()))
+        let found = if files.is_empty() {
+            let lower = name.to_lowercase();
+            ledger.families.iter().find(|f| f.family.to_lowercase() == lower)
+        } else {
+            ledger.families.iter().find(|f| safe_dir(&f.dir) && files.iter().any(|p| p.starts_with(self.dir.join(&f.dir))))
+        };
+        found.map(|f| (f.source.clone(), f.family.clone()))
+    }
+
+    /// The family's copies the ledger lists when this build can't change the OS user font folder
+    /// (a Flatpak whose access to it was taken away, say): removing the family leaves them in
+    /// place. Empty when the folder can be changed or the family has no copies.
+    pub fn copies_out_of_reach(&self, source: &str, name: &str) -> Vec<PathBuf> {
+        if self.os_fonts.is_ok() {
+            return Vec::new();
+        }
+        self.available_files(source, name)
     }
 
     /// The copies of the family's files in the OS user font folder.
@@ -416,7 +429,7 @@ impl FontStore {
         self.cached_ledger().and_then(|l| l.family(source, name).map(|f| f.copies().map(|x| x.path.clone()).collect())).unwrap_or_default()
     }
 
-    /// The store files of an available family that aren't available to all apps yet, by their
+    /// The store files of an available family that have no copy in the OS folder yet, by their
     /// names in its folder: styles installed since (an agent's install doesn't copy them), or
     /// files whose copy is older than the store's. Empty for a family that isn't available.
     pub fn pending_files(&self, source: &str, name: &str) -> Vec<String> {
@@ -475,9 +488,10 @@ impl FontStore {
 
     /// While the store is locked, before the family (`files` only, by their store names, when
     /// given) leaves the store: withdraws their copies. Refuses, before anything changes, when
-    /// copies would have to go but an agent asks ([`Error::NotAllowed`]), the ledger can't be
-    /// used ([`Error::Ledger`]), or there is no OS folder to remove them from
-    /// ([`Error::Unsupported`]: a build that has one withdraws them).
+    /// copies would have to go but an agent asks ([`Error::NotAllowed`]) or the ledger can't be
+    /// used ([`Error::Ledger`]). Where this build can't change the OS folder, the copies stay
+    /// there and in the ledger ([`FontStore::copies_out_of_reach`]), so a build that can still
+    /// removes them, and a reinstall finds them the store's.
     pub(super) fn withdraw_for_removal(&self, source: &str, name: &str, files: Option<&[String]>) -> Result<(), Error> {
         let ledger = self.read_ledger()?;
         let Some(family) = ledger.family(source, name) else { return Ok(()) };
@@ -488,9 +502,7 @@ impl FontStore {
         if self.caller != Caller::User && family.copies().any(touched) {
             return Err(Error::NotAllowed);
         }
-        let folder = self.os_fonts.as_ref().map_err(|reason| {
-            Error::Unsupported(format!("{name} is available to all apps and its copies can't be removed here ({reason}); withdraw it first"))
-        })?;
+        let Ok(folder) = self.os_fonts.as_ref() else { return Ok(()) };
         self.unshare_locked(folder, source, name, files)?;
         folder.refresh();
         Ok(())
@@ -521,7 +533,7 @@ impl FontStore {
             for p in &planned {
                 for other in &others {
                     for ps in p.postscript.iter().filter(|ps| other.postscript.iter().any(|o| o.eq_ignore_ascii_case(ps))) {
-                        conflicts.push(Conflict { postscript: ps.clone(), path: other.path.clone() });
+                        conflicts.push(Conflict { postscript: Some(ps.clone()), path: other.path.clone() });
                     }
                 }
             }
@@ -555,7 +567,7 @@ impl FontStore {
                         None => std::fs::symlink_metadata(&p.path).is_ok(),
                     };
                 if blocked {
-                    conflicts.push(Conflict { postscript: p.postscript.first().cloned().unwrap_or_default(), path: p.path.clone() });
+                    conflicts.push(Conflict { postscript: None, path: p.path.clone() });
                 }
                 let state = if disk.as_ref() == Some(&p.sha256) {
                     State::Active
@@ -668,7 +680,7 @@ impl FontStore {
                 if sha.as_ref() == Some(&p.sha256) {
                     present.insert(p.store_file.clone(), path.clone());
                 } else {
-                    conflicts.push(Conflict { postscript: ps.clone(), path: path.clone() });
+                    conflicts.push(Conflict { postscript: Some(ps.clone()), path: path.clone() });
                 }
             }
         }
