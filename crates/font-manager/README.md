@@ -71,17 +71,18 @@ panel.ui(ui);
 | `sources_ui(ui)` | The font sources, for a host's settings page |
 | `set_index(index)` | The indexes, after the host fetched them |
 | `with_previews(previews)`, `loading_previews()` | The list's preview service pool (tests pass one with a stand-in `Fetch`), and whether it is fetching |
+| `reload_preview_settings()` | Reads the preview service and previews settings again after a host's settings page changed them (also every few seconds) |
 | `set_language(tag)` | The interface language, the host's own; English when its catalog isn't embedded |
 | `install_interface_fonts(ctx, craft_faces)` | For a host without interface fonts of its own (the standalone app): craft-ui's font stack for the panel's language, craft-fonts' faces the app embeds with craft-fonts-build, and the interface direction |
 
 ## Network use
 
-Nothing is downloaded until the user allows it. Downloads are off by default; the first Install or
-Preview asks first. Files come from each source's repositories at the commit or tag its index
+Nothing is installed or downloaded whole until the user allows it. Downloads are off by default;
+the first Install or Preview asks first. Files come from each source's repositories at the commit or tag its index
 records, through jsDelivr (raw GitHub as the fallback), and each is checked against the index's
 size and sha256 before use. Previews stay in memory and are never installed. List previews from a
-preview service follow the same consent; with downloads off, only subsets already in the disk
-cache are shown. A source the user
+preview service don't ask: they follow the previews setting (on by default), not the download
+consent; with the setting off, only subsets already in the disk cache are shown. A source the user
 adds is an index at an https URL; its families are never curated.
 
 ## Strings

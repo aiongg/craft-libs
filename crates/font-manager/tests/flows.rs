@@ -564,6 +564,13 @@ fn service_setup(name: &str, service: &Arc<FakeService>, workers: usize) -> (Har
     (harness, store)
 }
 
+/// Sets the preview service, as a host's settings page does.
+fn set_service(h: &mut Harness<'_, FontsPanel>, store: &FakeStore) {
+    store.set_preview_service(Some("http://127.0.0.1:9")).unwrap();
+    h.state_mut().reload_preview_settings();
+    settle(h);
+}
+
 /// Steps until the panel has fetched what it asks for and asks for nothing more.
 fn idle(h: &mut Harness<'_, FontsPanel>) {
     let mut quiet = 0;
@@ -606,14 +613,23 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
     let service = Arc::new(FakeService::default());
     let (mut h, store) = service_setup("list-previews", &service, 8);
     // No service: the list stays as it is without one.
-    allow(&mut h);
+    settle(&mut h);
     assert!(service.take().is_empty());
     let preview = By::new().predicate(|n| n.label().is_some_and(|l| l.contains("Preview") && l.contains("Family 01")));
     assert!(h.get_all(preview).next().is_some(), "the whole-family preview is offered");
 
-    store.set_preview_service(Some("http://127.0.0.1:9")).unwrap();
-    allow(&mut h);
+    // The previews setting off: nothing is fetched.
+    store.set_previews_enabled(false).unwrap();
+    set_service(&mut h, &store);
+    assert!(!h.state().loading_previews());
+    assert!(service.take().is_empty());
+
+    // On, with downloads (installs) still off: previews load without asking.
+    store.set_previews_enabled(true).unwrap();
+    h.state_mut().reload_preview_settings();
     idle(&mut h);
+    assert!(!h.state().downloads_allowed());
+    assert!(h.query_by_label("Nothing is installed until you allow downloads.").is_some());
     let shown = on_screen(&h);
     assert!(shown.len() >= 3 && shown.len() < 10, "{shown:?}");
     assert_eq!(shown, (1..=shown.len()).collect::<Vec<_>>());
@@ -642,8 +658,7 @@ fn scrolling_cancels_rows_that_left() {
     let service = Arc::new(FakeService::default());
     *service.held.lock().unwrap() = true;
     let (mut h, store) = service_setup("list-previews-scroll", &service, 1);
-    store.set_preview_service(Some("http://127.0.0.1:9")).unwrap();
-    allow(&mut h);
+    set_service(&mut h, &store);
     assert!(h.state().loading_previews());
     assert_eq!(on_screen(&h).first(), Some(&1));
 

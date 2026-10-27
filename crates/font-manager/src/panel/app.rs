@@ -272,7 +272,7 @@ impl FontsPanel {
         let catalogue = options.index.map(|index| Catalogue { search: Search::new(&index), index: Arc::new(index) });
         let previews = Arc::new(Catalog::new(FontEnv { os: Os::None, ..FontEnv::default() }).with_font_service(false));
         let look = Look::default();
-        let subsets = Subsets::new(Previews::new(Arc::clone(&options.installer)));
+        let subsets = Subsets::new(Arc::clone(&options.installer), Previews::new(Arc::clone(&options.installer)));
         FontsPanel {
             settings,
             tab: Tab::Catalogue,
@@ -323,6 +323,13 @@ impl FontsPanel {
     pub fn with_previews(mut self, previews: Previews) -> FontsPanel {
         self.subsets.replace(previews);
         self
+    }
+
+    /// Reads the preview service and previews settings again on the next frame, after a host's
+    /// settings page changed them. The panel also reads them every few seconds and when its
+    /// window regains focus.
+    pub fn reload_preview_settings(&mut self) {
+        self.subsets.read_settings_soon();
     }
 
     /// Whether previews from the font preview service are being fetched.
@@ -457,21 +464,17 @@ impl FontsPanel {
     pub fn set_downloads_allowed(&mut self, allowed: bool) -> Result<(), StoreError> {
         let result = self.installer.allow_downloads(allowed);
         self.consent = None;
-        if allowed {
-            self.subsets.retry();
-        }
         self.notice = result.as_ref().err().map(|e| fmt("The download setting couldn't be saved: {error}", &[("error", &e.0)]));
         result
     }
 
-    /// The consent, read from the store at most every few seconds, with the preview service.
+    /// The consent, read from the store at most every few seconds.
     pub(crate) fn allowed(&mut self, now: f64) -> bool {
         match self.consent {
             Some((allowed, at)) if (0.0..CONSENT_RECHECK_SECS).contains(&(now - at)) => allowed,
             _ => {
                 let allowed = self.installer.downloads_allowed();
                 self.consent = Some((allowed, now));
-                self.subsets.refresh();
                 allowed
             }
         }
@@ -491,6 +494,7 @@ impl FontsPanel {
                 self.catalog.rescan_if_changed();
             }
             self.consent = None;
+            self.subsets.read_settings_soon();
         }
         self.focused = focused;
         self.refresh_installed();

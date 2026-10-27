@@ -5,8 +5,8 @@
 //! and two below; rows that leave that window are cancelled. Once the screen's samples are in,
 //! its Latin rows also get the ASCII subset, so typed ASCII and the presets draw at once. Other
 //! typed text asks for a subset of its own characters, for the rows on screen only, once the
-//! typing pauses. Without a service, or with downloads off and nothing cached, nothing is asked
-//! and the list keeps its whole-family previews.
+//! typing pauses. Without a service nothing is asked and the list keeps its whole-family
+//! previews; with the previews setting off, only subsets in the disk cache are shown.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -17,6 +17,7 @@ use egui::Context;
 use crate::index::{Family, Index};
 use crate::panel::app::list_file;
 use crate::remote::{Codepoints, Instance, PreviewKey, Previews, Subset};
+use crate::store::Installer;
 
 /// Rows on screen.
 const VISIBLE: u32 = 3;
@@ -31,6 +32,9 @@ const PAUSE_SECS: f64 = 0.25;
 const RETRY_SECS: f64 = 30.0;
 /// Decoded subsets kept in memory; the disk cache holds more.
 const MAX_HELD: usize = 256;
+/// How often the service and previews settings are read again, as another Craft app can change
+/// them.
+const SETTINGS_RECHECK_SECS: f64 = 3.0;
 
 /// A row of the list: the family, whose list face draws it, and the text it shows.
 pub(crate) struct Row<'a> {
@@ -39,11 +43,16 @@ pub(crate) struct Row<'a> {
 }
 
 pub(crate) struct Subsets {
+    installer: Arc<dyn Installer>,
     /// `None` only while it is being given its repaint callback.
     pool: Option<Previews>,
     armed: bool,
-    /// A service is set: read with the download consent, not every frame.
+    /// A service is set, so rows draw from subsets; and previews are on, so subsets not in the
+    /// disk cache are fetched. Read every few seconds, not every frame.
     available: bool,
+    fetching: bool,
+    /// When those were read.
+    read_at: Option<f64>,
     /// Decoded subsets and the frame each was last wanted in.
     fonts: HashMap<PreviewKey, (Arc<Vec<u8>>, u64)>,
     /// Subsets that didn't load, and when.
@@ -59,12 +68,14 @@ pub(crate) struct Subsets {
 }
 
 impl Subsets {
-    pub(crate) fn new(pool: Previews) -> Subsets {
-        let available = pool.available();
+    pub(crate) fn new(installer: Arc<dyn Installer>, pool: Previews) -> Subsets {
         Subsets {
+            installer,
             pool: Some(pool),
             armed: false,
-            available,
+            available: false,
+            fetching: false,
+            read_at: None,
             fonts: HashMap::new(),
             failed: HashMap::new(),
             asked: HashMap::new(),
@@ -77,24 +88,28 @@ impl Subsets {
 
     /// Fetches through `pool` instead.
     pub(crate) fn replace(&mut self, pool: Previews) {
-        *self = Subsets::new(pool);
+        *self = Subsets::new(Arc::clone(&self.installer), pool);
     }
 
-    /// Reads again whether a service is set; a change asks for everything again.
-    pub(crate) fn refresh(&mut self) {
-        let available = self.pool.as_ref().is_some_and(Previews::available);
-        if available != self.available {
-            self.available = available;
+    /// Reads the service and previews settings again on the next frame.
+    pub(crate) fn read_settings_soon(&mut self) {
+        self.read_at = None;
+    }
+
+    /// Whether rows draw from subsets: a service is set.
+    pub(crate) fn available(&self) -> bool {
+        self.available
+    }
+
+    /// Reads whether a service is set and previews are on; a change asks for everything again.
+    fn read_settings(&mut self) {
+        let available = self.installer.preview_service().is_some();
+        let fetching = self.pool.as_ref().is_some_and(Previews::available);
+        if (available, fetching) != (self.available, self.fetching) {
+            (self.available, self.fetching) = (available, fetching);
             self.failed.clear();
-            if !available {
-                self.cancel_all();
-            }
+            self.cancel_all();
         }
-    }
-
-    /// Asks for failed subsets again, as after downloads were allowed.
-    pub(crate) fn retry(&mut self) {
-        self.failed.clear();
     }
 
     /// Whether subsets are being fetched.
@@ -114,6 +129,10 @@ impl Subsets {
         }
         if typed != self.typed.0 {
             self.typed = (typed, self.now);
+        }
+        if self.read_at.is_none_or(|at| !(0.0..SETTINGS_RECHECK_SECS).contains(&(self.now - at))) {
+            self.read_at = Some(self.now);
+            self.read_settings();
         }
         let Some(pool) = &self.pool else { return };
         for preview in pool.poll() {
@@ -165,9 +184,8 @@ impl Subsets {
 
     /// Asks for the subsets of the list's rows from `start` on (`None` for a row drawn without
     /// the service, such as an installed family), `visible` of them on screen, and cancels those
-    /// no longer wanted. `allowed` is the download consent: without it only cached subsets are
-    /// asked for.
-    pub(crate) fn request(&mut self, ctx: &Context, index: &Index, start: usize, rows: &[Option<Row<'_>>], visible: Range<usize>, allowed: bool) {
+    /// no longer wanted.
+    pub(crate) fn request(&mut self, ctx: &Context, index: &Index, start: usize, rows: &[Option<Row<'_>>], visible: Range<usize>) {
         if !self.available {
             return;
         }
@@ -180,26 +198,26 @@ impl Subsets {
         for row in visible.clone().filter_map(row) {
             let Some(sample) = sample_key(row.family) else { continue };
             settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
-            self.want(&mut wanted, sample, VISIBLE, allowed);
+            self.want(&mut wanted, sample, VISIBLE);
             if let Some(ascii) = covers_latin(row.family).then(|| subset_key(row.family, Subset::Ascii)).flatten() {
                 latin.push(ascii);
             }
             match key(index, row) {
                 Some(k) if matches!(k.subset(), Subset::Codepoints(_)) && !paused => {}
-                Some(k) => self.want(&mut wanted, k, VISIBLE, allowed),
+                Some(k) => self.want(&mut wanted, k, VISIBLE),
                 None => {}
             }
         }
         if settled {
             for ascii in latin {
-                self.want(&mut wanted, ascii, BACKGROUND, allowed);
+                self.want(&mut wanted, ascii, BACKGROUND);
             }
         }
         let above = visible.start.saturating_sub(screen)..visible.start;
         let below = visible.end..visible.end.saturating_add(2 * screen);
         for row in above.chain(below).filter_map(row) {
             if let Some(sample) = sample_key(row.family) {
-                self.want(&mut wanted, sample, WINDOW, allowed);
+                self.want(&mut wanted, sample, WINDOW);
             }
         }
         if !paused {
@@ -221,8 +239,8 @@ impl Subsets {
     }
 
     /// Adds `key` to `wanted` at `priority` unless it is here, failed lately, or can't load:
-    /// with downloads off, only what the disk cache has.
-    fn want(&mut self, wanted: &mut HashMap<PreviewKey, u32>, key: PreviewKey, priority: u32, allowed: bool) {
+    /// with previews off, only what the disk cache has.
+    fn want(&mut self, wanted: &mut HashMap<PreviewKey, u32>, key: PreviewKey, priority: u32) {
         if let Some((_, used)) = self.fonts.get_mut(&key) {
             *used = self.frame;
             return;
@@ -231,7 +249,7 @@ impl Subsets {
             return;
         }
         let cached = || self.pool.as_ref().and_then(Previews::cache).is_some_and(|c| c.contains(&key.path()));
-        if allowed || self.asked.contains_key(&key) || cached() {
+        if self.fetching || self.asked.contains_key(&key) || cached() {
             wanted.insert(key, priority);
         }
     }
