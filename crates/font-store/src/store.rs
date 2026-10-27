@@ -584,6 +584,7 @@ impl FontStore {
     /// Downloads from each URL in turn until one gives bytes that pass `check`. The first
     /// `mirrors` URLs come from the preview-service setting and may use loopback http; the rest
     /// are https only.
+    #[allow(clippy::too_many_arguments)]
     fn fetch(
         &self,
         urls: &[String],
