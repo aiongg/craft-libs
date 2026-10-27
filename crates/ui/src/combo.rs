@@ -15,8 +15,8 @@ use std::cell::RefCell;
 use std::ops::Range;
 
 use egui::{
-    Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Id, IdSalt, InnerResponse, IntoAtoms, NumExt as _, Painter, Popup,
-    PopupCloseBehavior, Rect, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom, WidgetInfo,
+    Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, NumExt as _, Painter, Popup,
+    PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom, WidgetInfo,
     class::{ClassName, Classes, HasClasses},
     style::{StyleModifier, WidgetVisuals},
     vec2,
@@ -188,6 +188,32 @@ impl<'a> ComboBox<'a> {
         self.show(ui, |menu| menu.show_rows_with_header(header, row_height, total_rows, rows))
     }
 
+    /// Like [`Self::show_ui_with_header`], with `footer` (an "Add…" row) fixed under the list.
+    /// See [`Menu::show_ui_with_header_footer`].
+    pub fn show_ui_with_header_footer<H, R, F>(
+        self,
+        ui: &mut Ui,
+        header: impl FnOnce(&mut Ui) -> H,
+        list: impl FnOnce(&mut Ui, H) -> R,
+        footer: impl FnOnce(&mut Ui) -> F,
+    ) -> InnerResponse<Option<(R, F)>> {
+        self.show(ui, |menu| menu.show_ui_with_header_footer(header, list, footer))
+    }
+
+    /// Like [`Self::show_rows_with_header`], with `footer` fixed under the list. See
+    /// [`Menu::show_ui_with_header_footer`].
+    pub fn show_rows_with_header_footer<H, R, F>(
+        self,
+        ui: &mut Ui,
+        header: impl FnOnce(&mut Ui) -> H,
+        row_height: f32,
+        total_rows: impl FnOnce(&H) -> usize,
+        rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
+        footer: impl FnOnce(&mut Ui) -> F,
+    ) -> InnerResponse<Option<(R, F)>> {
+        self.show(ui, |menu| menu.show_rows_with_header_footer(header, row_height, total_rows, rows, footer))
+    }
+
     fn show<R>(self, ui: &mut Ui, open: impl FnOnce(Menu<'_>) -> Option<R>) -> InnerResponse<Option<R>> {
         let button_id = ui.make_persistent_id(self.id_salt);
         show(ui, button_id, self, open)
@@ -302,9 +328,12 @@ fn show<R>(ui: &mut Ui, button_id: Id, mut combo: ComboBox<'_>, open: impl FnOnc
         info
     });
 
-    let height = height.unwrap_or_else(|| ui.spacing().combo_height);
     let popup = Popup::menu(&button_response).id(popup_id(button_id)).style(popup_style);
-    let inner = open(Menu::with_popup(popup, &button_response).height(height).close_behavior(close_behavior));
+    let mut menu = Menu::with_popup(popup, ui, &button_response).close_behavior(close_behavior);
+    if let Some(height) = height {
+        menu = menu.height(height);
+    }
+    let inner = open(menu);
 
     InnerResponse {
         inner,
@@ -323,12 +352,22 @@ fn paint_default_icon(painter: &Painter, rect: Rect, visuals: &WidgetVisuals) {
 }
 
 /// The menu of a combo box, under a field an app draws itself: [`ComboBox`]'s menu without the
-/// button. The field's response opens and closes it; the menu is at least as wide as the field.
+/// button. A click on the field opens and closes it, or [`Self::open`] decides; the menu is at
+/// least as wide as the field.
+///
+/// The menu opens below the field, or above it when there is more room there, and stays on that
+/// side while it is open. It is never taller than the room on that side: a long list scrolls.
+///
+/// Searchable menus use the header forms ([`Self::show_ui_with_header`] and the rest): the header
+/// stays in place and only the list scrolls. Anything fixed above the list goes in the header,
+/// such as a "none" row above the search field; anything fixed below it goes in the footer.
+/// [`Self::show_rows_with_header`] is for rows of one height; a list of rows of different
+/// heights, or a tree, uses [`Self::show_ui_with_header`].
 ///
 /// ```
 /// # egui::__run_test_ui(|ui| {
 /// let field = ui.button("Font");
-/// craft_ui::combo::Menu::new(&field).height(400.0).show_ui(|ui| ui.label("Arial"));
+/// craft_ui::combo::Menu::new(ui, &field).height(400.0).show_ui(|ui| ui.label("Arial"));
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
@@ -336,24 +375,34 @@ pub struct Menu<'a> {
     popup: Popup<'a>,
     ctx: Context,
     width: f32,
-    height: Option<f32>,
+    height: f32,
+    /// The popup frame's margins and stroke, top and bottom.
+    frame: f32,
     close_behavior: PopupCloseBehavior,
 }
 
 impl<'a> Menu<'a> {
-    /// The menu under `field`.
-    pub fn new(field: &Response) -> Self {
-        Self::with_popup(Popup::menu(field), field)
+    /// The menu under `field`, a widget in `ui`.
+    pub fn new(ui: &Ui, field: &Response) -> Self {
+        Self::with_popup(Popup::menu(field), ui, field)
     }
 
-    fn with_popup(popup: Popup<'a>, field: &Response) -> Self {
-        Self { popup, ctx: field.ctx.clone(), width: field.rect.width(), height: None, close_behavior: PopupCloseBehavior::CloseOnClick }
+    fn with_popup(popup: Popup<'a>, ui: &Ui, field: &Response) -> Self {
+        Self {
+            popup,
+            ctx: field.ctx.clone(),
+            width: field.rect.width(),
+            height: ui.spacing().combo_height,
+            frame: Frame::popup(ui.style()).total_margin().sum().y,
+            close_behavior: PopupCloseBehavior::CloseOnClick,
+        }
     }
 
-    /// The menu's maximum outer height. Default: [`egui::Spacing::combo_height`].
+    /// The menu's maximum outer height, kept to the room on its side of the field. Default:
+    /// [`egui::Spacing::combo_height`].
     #[inline]
     pub fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
+        self.height = height;
         self
     }
 
@@ -361,6 +410,15 @@ impl<'a> Menu<'a> {
     #[inline]
     pub fn close_behavior(mut self, close_behavior: PopupCloseBehavior) -> Self {
         self.close_behavior = close_behavior;
+        self
+    }
+
+    /// Shows the menu while `open`, whatever clicks on the field do: for a text field that keeps
+    /// the keyboard focus while it is open, such as a font field that lists the fonts its text
+    /// matches. The menu doesn't take the focus.
+    #[inline]
+    pub fn open(mut self, open: bool) -> Self {
+        self.popup = self.popup.open(open);
         self
     }
 
@@ -374,7 +432,7 @@ impl<'a> Menu<'a> {
     /// Shows `add` in the menu while it is open, scrolling when it is taller than the menu.
     /// Returns what `add` returned, or `None` while the menu is closed.
     pub fn show_ui<R>(self, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-        self.show(|_| (), |scroll, ui, ()| scroll.show(ui, add).inner)
+        self.show(|_| (), |scroll, ui, ()| scroll.show(ui, add).inner, None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 
     /// Shows `header` at the top of the menu and `list` under it while the menu is open, and
@@ -383,12 +441,13 @@ impl<'a> Menu<'a> {
     /// as tall as both, up to its height. `list` lays out in a vertical scroll area: give it
     /// rows, not a scroll area of its own.
     pub fn show_ui_with_header<H, R>(self, header: impl FnOnce(&mut Ui) -> H, list: impl FnOnce(&mut Ui, H) -> R) -> Option<R> {
-        self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner)
+        self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner, None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 
     /// Like [`Self::show_ui_with_header`], with a list of `total_rows(&header's)` rows, each
     /// `row_height` tall without the item spacing, that only lays out the rows in view: `rows`
-    /// gets the range to add, as in [`ScrollArea::show_rows`], and what `header` returned.
+    /// gets the range to add, as in [`ScrollArea::show_rows`], and what `header` returned. For
+    /// rows of one height only.
     pub fn show_rows_with_header<H, R>(
         self,
         header: impl FnOnce(&mut Ui) -> H,
@@ -396,34 +455,126 @@ impl<'a> Menu<'a> {
         total_rows: impl FnOnce(&H) -> usize,
         rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
     ) -> Option<R> {
-        self.show(header, |scroll, ui, h| {
-            let total = total_rows(&h);
-            scroll.show_rows(ui, row_height, total, |ui, range| rows(ui, range, h)).inner
-        })
+        self.show(header, rows_list(row_height, total_rows, rows), None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 
-    fn show<H, R>(self, header: impl FnOnce(&mut Ui) -> H, list: impl FnOnce(ScrollArea, &mut Ui, H) -> R) -> Option<R> {
-        let Self { popup, ctx, width, height, close_behavior } = self;
-        let height = height.unwrap_or_else(|| ctx.global_style().spacing.combo_height);
+    /// Like [`Self::show_ui_with_header`], with `footer` (an "Add…" row) fixed under the list.
+    /// Returns what `list` and `footer` returned.
+    pub fn show_ui_with_header_footer<H, R, F>(
+        self,
+        header: impl FnOnce(&mut Ui) -> H,
+        list: impl FnOnce(&mut Ui, H) -> R,
+        footer: impl FnOnce(&mut Ui) -> F,
+    ) -> Option<(R, F)> {
+        self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner, Some(footer)).and_then(|(r, f)| Some((r, f?)))
+    }
+
+    /// Like [`Self::show_rows_with_header`], with `footer` fixed under the list.
+    pub fn show_rows_with_header_footer<H, R, F>(
+        self,
+        header: impl FnOnce(&mut Ui) -> H,
+        row_height: f32,
+        total_rows: impl FnOnce(&H) -> usize,
+        rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
+        footer: impl FnOnce(&mut Ui) -> F,
+    ) -> Option<(R, F)> {
+        self.show(header, rows_list(row_height, total_rows, rows), Some(footer)).and_then(|(r, f)| Some((r, f?)))
+    }
+
+    fn show<H, R, F>(
+        self,
+        header: impl FnOnce(&mut Ui) -> H,
+        list: impl FnOnce(ScrollArea, &mut Ui, H) -> R,
+        footer: Option<impl FnOnce(&mut Ui) -> F>,
+    ) -> Option<(R, Option<F>)> {
+        let Self { popup, ctx, width, height, frame, close_behavior } = self;
         let id = popup.get_id();
+        let (align, settled) = side(&popup);
+        // Until the side is settled, the menu is measured against the whole screen.
+        let room = match popup.get_anchor_rect() {
+            Some(anchor) if settled => room(align, anchor, ctx.content_rect()),
+            _ => ctx.content_rect().height(),
+        };
+        let height = height.min(room - frame).max(0.0);
+        let footer_id = id.with("craft-footer-height");
         let inner = popup
+            .align(align)
+            .align_alternatives(&[])
             .width(width)
             .close_behavior(close_behavior)
             .show(|ui| {
                 ui.set_min_width(ui.available_width());
                 // The popup offers last pass's height. Offer the full height instead: the scroll
-                // area takes what the header leaves of it, then shrinks to the list.
+                // area takes what the header and footer leave of it, then shrinks to the list.
                 ui.set_max_height(height);
                 let header = header(ui);
-                // Labels widen a narrow menu rather than wrap early, as in egui's combo box.
+                // The footer comes after the list; keep the room it took last pass.
+                let footer_room =
+                    if footer.is_some() { ui.data(|d| d.get_temp::<f32>(footer_id)).unwrap_or(0.0) + ui.spacing().item_spacing.y } else { 0.0 };
+                // Labels widen a narrow menu rather than wrap early, as in egui's combo box. A
+                // list left with no room keeps ScrollArea's minimum scrolled height.
                 ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-                list(ScrollArea::vertical().max_height(ui.available_height()), ui, header)
+                let list = list(ScrollArea::vertical().max_height((ui.available_height() - footer_room).max(0.0)), ui, header);
+                let footer = footer.map(|footer| {
+                    let top = ui.cursor().top();
+                    let f = footer(ui);
+                    ui.data_mut(|d| d.insert_temp(footer_id, ui.min_rect().bottom() - top));
+                    f
+                });
+                (list, footer)
             })
             .map(|r| r.inner);
         if inner.is_some() {
             ctx.accesskit_node_builder(id, |node| node.set_role(Role::ListBox));
         }
         inner
+    }
+}
+
+fn rows_list<H, R>(
+    row_height: f32,
+    total_rows: impl FnOnce(&H) -> usize,
+    rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
+) -> impl FnOnce(ScrollArea, &mut Ui, H) -> R {
+    move |scroll, ui, h| {
+        let total = total_rows(&h);
+        scroll.show_rows(ui, row_height, total, |ui, range| rows(ui, range, h)).inner
+    }
+}
+
+/// The side of its field `popup` shows on, and whether it is settled. The side is settled on the
+/// first pass after the menu opens (the one before measures it): the side egui picks when the
+/// menu fits there, else the one with more room. It is kept while the menu stays open, so a
+/// menu that shrinks or grows while open doesn't jump to the other side.
+fn side(popup: &Popup<'_>) -> (RectAlign, bool) {
+    let ctx = popup.ctx();
+    let key = popup.get_id().with("craft-side");
+    if !popup.is_open() {
+        ctx.data_mut(|d| d.remove::<RectAlign>(key));
+        return (popup.get_best_align(), false);
+    }
+    if let Some(align) = ctx.data(|d| d.get_temp::<RectAlign>(key)) {
+        return (align, true);
+    }
+    // Outside the data lock: these read the popup's state from memory.
+    let mut align = popup.get_best_align();
+    if let (Some(size), Some(anchor)) = (popup.get_expected_size(), popup.get_anchor_rect()) {
+        let screen = ctx.content_rect();
+        let flipped = align.flipped_y();
+        if room(align, anchor, screen) < size.y && room(flipped, anchor, screen) > room(align, anchor, screen) {
+            align = flipped;
+        }
+    }
+    ctx.data_mut(|d| d.insert_temp(key, align));
+    (align, true)
+}
+
+/// The height a menu on the `align` side of `anchor` has inside `screen`.
+fn room(align: RectAlign, anchor: Rect, screen: Rect) -> f32 {
+    match (align.parent.y(), align.child.y()) {
+        (Align::Max, Align::Min) => screen.bottom() - anchor.bottom(),
+        (Align::Min, Align::Max) => anchor.top() - screen.top(),
+        _ => screen.height(),
     }
 }
 
