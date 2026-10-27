@@ -13,6 +13,13 @@ repository.workspace = true
 egui = ["dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
 # `restore`: the window-restore store (`window.json` beside `config.toml`) and the pure `place`. No egui.
 restore = ["dep:craft-atomic", "dep:craft-settings", "dep:serde", "dep:serde_json"]
+# `restore::install`, `restore::Tracker` and placement for further windows, for eframe apps. eframe
+# needs a renderer: `restore-egui` turns on its wgpu (without backends), `restore-egui-glow` its glow.
+# Pick the one the app already uses: with both, eframe starts on wgpu.
+restore-egui = ["restore-eframe", "eframe/wgpu_no_default_features"]
+restore-egui-glow = ["restore-eframe", "eframe/glow"]
+# What the two above share; enable one of them instead.
+restore-eframe = ["restore", "egui", "dep:eframe", "dep:winit"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
@@ -21,9 +28,16 @@ craft-settings = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = { version = "0.37", default-features = false, optional = true }
+winit = { version = "0.30", default-features = false, optional = true }
+
 # Only Linux and the BSDs probe a Wayland compositor; everywhere else the frame is the OS's.
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = "0.31"
+# winit needs at least one windowing backend here. X11 needs no system libraries to build; the
+# apps add `wayland` themselves.
+eframe = { version = "0.37", default-features = false, features = ["x11"], optional = true }
 
 # `title_bar::sync_movable` (`NSWindow.movable`), `mac::TrafficLights` (button frames, OS version); eframe's winit already uses these.
 [target.'cfg(target_os = "macos")'.dependencies]

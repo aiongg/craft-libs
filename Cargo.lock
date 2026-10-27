@@ -1095,6 +1095,7 @@ version = "0.1.0"
 dependencies = [
  "craft-atomic",
  "craft-settings",
+ "eframe",
  "egui",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -1103,6 +1104,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "wayland-client",
+ "winit",
 ]
 
 [[package]]
@@ -1355,6 +1357,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_glow",
+ "glow",
  "glutin",
  "glutin-winit",
  "image",

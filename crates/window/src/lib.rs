@@ -136,6 +136,8 @@
 //!
 //! The `restore` feature (no egui) adds [`restore`]: where a window opens, from the last session's
 //! geometry and the connected monitors, and the `window.json` store beside `config.toml`.
+//! `restore-egui` (eframe on wgpu) or `restore-egui-glow` (eframe on glow) add
+//! `restore::install`, `restore::Tracker` and `restore::cascade_window` for eframe apps.
 
 mod desktop;
 mod layout;
