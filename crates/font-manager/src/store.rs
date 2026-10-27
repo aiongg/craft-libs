@@ -103,6 +103,18 @@ pub trait Installer: Send + Sync {
     fn remove_user_source(&self, _url: &str) -> Result<(), StoreError> {
         Err(StoreError(NO_FOLDER.into()))
     }
+
+    /// The preview service's base URL, if one is set: `CRAFT_FONT_PREVIEW_URL`, else the font
+    /// store's `preview_service` setting. Installs try it as a mirror first.
+    fn preview_service(&self) -> Option<String> {
+        None
+    }
+
+    /// Sets or clears the preview service (https, or http for a loopback host), as the user's own
+    /// action.
+    fn set_preview_service(&self, _url: Option<&str>) -> Result<(), StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
+    }
 }
 
 const NO_FOLDER: &str = "there is no folder for the font store";
@@ -214,6 +226,14 @@ impl Installer for SuiteStore {
     fn remove_user_source(&self, url: &str) -> Result<(), StoreError> {
         self.store.remove_user_source(url).map_err(err)
     }
+
+    fn preview_service(&self) -> Option<String> {
+        self.store.preview_service()
+    }
+
+    fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
+        self.store.set_preview_service(url).map_err(err)
+    }
 }
 
 /// The store when the system names no folder for it (no home folder): nothing installs.
@@ -271,6 +291,7 @@ pub struct FakeStore {
     /// Index files user sources "download", by URL.
     served_indexes: HashMap<String, Vec<u8>>,
     user: Mutex<Vec<UserSource>>,
+    preview_service: Mutex<Option<String>>,
     /// User sources downloaded so far, and those whose file changed since.
     fetched: Mutex<Vec<String>>,
     changed: Mutex<Vec<String>>,
@@ -290,6 +311,7 @@ impl FakeStore {
             builtin: None,
             served_indexes: HashMap::new(),
             user: Mutex::new(Vec::new()),
+            preview_service: Mutex::new(None),
             fetched: Mutex::new(Vec::new()),
             changed: Mutex::new(Vec::new()),
             held: (Mutex::new(false), Condvar::new()),
@@ -497,6 +519,18 @@ impl Installer for FakeStore {
 
     fn remove_user_source(&self, url: &str) -> Result<(), StoreError> {
         self.user.lock().map_err(err)?.retain(|s| s.url != url);
+        Ok(())
+    }
+
+    fn preview_service(&self) -> Option<String> {
+        self.preview_service.lock().ok()?.clone()
+    }
+
+    fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
+        if url.is_some_and(|u| !u.starts_with("https://")) {
+            return Err(StoreError("a preview service address starts with https://".into()));
+        }
+        *self.preview_service.lock().map_err(err)? = url.map(|u| u.trim_end_matches('/').to_owned());
         Ok(())
     }
 }

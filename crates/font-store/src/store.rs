@@ -194,6 +194,8 @@ struct Settings {
     network: Network,
     #[serde(default)]
     user_sources: Vec<UserSource>,
+    #[serde(default)]
+    preview_service: Option<String>,
 }
 
 /// Something [`FontStore::verify`] found wrong with an installed file.
@@ -282,6 +284,29 @@ impl FontStore {
             return Err(Error::NotAllowed);
         }
         self.change_settings(|s| s.network = Network::On)
+    }
+
+    /// The preview service's base URL, or `None` while there is none: the `CRAFT_FONT_PREVIEW_URL`
+    /// environment variable when set and not empty, else the `preview_service` setting. Installs
+    /// try its mirror (`<service>/v1/files/<sha256>`, `<service>/v1/licences/<sha256>`) before
+    /// the index's URLs. A value that is not a usable URL counts as unset.
+    pub fn preview_service(&self) -> Option<String> {
+        resolve_preview_service(std::env::var(PREVIEW_SERVICE_ENV).ok().as_deref(), self.settings().preview_service.as_deref())
+    }
+
+    /// Sets (or with `None` clears) the preview service in `settings.json`, from the user's own
+    /// action. Only https URLs are accepted, and http for a loopback host. The environment
+    /// variable still takes precedence. [`Error::NotAllowed`] for an agent, [`Error::BadUrl`]
+    /// for an unusable URL.
+    pub fn set_preview_service(&self, url: Option<&str>) -> Result<(), Error> {
+        if self.caller != Caller::User {
+            return Err(Error::NotAllowed);
+        }
+        let url = match url {
+            Some(u) => Some(normalize_service_url(u).ok_or_else(|| Error::BadUrl(u.trim().chars().take(200).collect()))?),
+            None => None,
+        };
+        self.change_settings(|s| s.preview_service = url)
     }
 
     /// Turns downloading off. Anyone may.
@@ -503,7 +528,9 @@ impl FontStore {
         for (i, file) in wanted.iter().enumerate() {
             let mut on_bytes = |n: u64| progress(Progress { file: i, files: wanted.len(), done: done_before + n, total });
             let check = |bytes: &[u8]| verify_font(file, bytes);
-            let bytes = self.fetch(&index.file_urls(family, file), file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
+            let mut urls = self.mirror_urls("files", &file.sha256);
+            urls.extend(index.file_urls(family, file));
+            let bytes = self.fetch(&urls, file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
             done_before += file.size;
             staged.push((file.file_name().to_string(), stage.write(file.file_name(), &bytes)?));
         }
@@ -516,7 +543,10 @@ impl FontStore {
                 Some(f) if sha256_hex(bytes) != f.sha256 => Err(VerifyError::Sha256),
                 _ => Ok(()),
             };
-            let bytes = self.fetch(&index.license_urls(family), max, name, cancel, &mut |_| {}, &check)?;
+            // Without a sha256 there is no mirror address.
+            let mut urls = family.license_file.as_ref().map(|f| self.mirror_urls("licences", &f.sha256)).unwrap_or_default();
+            urls.extend(index.license_urls(family));
+            let bytes = self.fetch(&urls, max, name, cancel, &mut |_| {}, &check)?;
             staged.push((name.to_string(), stage.write(name, &bytes)?));
         }
         if cancel.is_cancelled() {
@@ -542,6 +572,11 @@ impl FontStore {
         drop(stage);
         self.rescan();
         result
+    }
+
+    /// The preview service's address for a file by its sha256; empty without a service.
+    fn mirror_urls(&self, kind: &str, sha256: &str) -> Vec<String> {
+        self.preview_service().map(|base| format!("{base}/v1/{kind}/{sha256}")).into_iter().collect()
     }
 
     /// Downloads from each URL in turn until one gives bytes that pass `check`.
@@ -823,6 +858,41 @@ fn read_limited(path: &Path, max: u64) -> Option<Vec<u8>> {
         return None;
     }
     std::fs::read(path).ok()
+}
+
+const PREVIEW_SERVICE_ENV: &str = "CRAFT_FONT_PREVIEW_URL";
+
+/// The environment value when set and not empty, else the setting; an unusable value counts as
+/// unset.
+pub(crate) fn resolve_preview_service(env: Option<&str>, setting: Option<&str>) -> Option<String> {
+    match env.map(str::trim).filter(|e| !e.is_empty()) {
+        Some(e) => normalize_service_url(e),
+        None => setting.and_then(normalize_service_url),
+    }
+}
+
+/// `url` without a trailing slash, when it is an https URL, or an http one for a loopback host,
+/// with no credentials, query or fragment.
+fn normalize_service_url(url: &str) -> Option<String> {
+    let url = url.trim().trim_end_matches('/');
+    if url.len() > 2000 || url.chars().any(|c| c.is_control() || c.is_whitespace() || c == '\\') {
+        return None;
+    }
+    let (https, rest) = match (url.strip_prefix("https://"), url.strip_prefix("http://")) {
+        (Some(r), _) => (true, r),
+        (None, Some(r)) => (false, r),
+        _ => return None,
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    if authority.is_empty() || authority.contains('@') || url.contains(['?', '#']) {
+        return None;
+    }
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or_default(),
+        None => authority.split(':').next().unwrap_or_default(),
+    };
+    let loopback = matches!(host.to_ascii_lowercase().as_str(), "127.0.0.1" | "::1" | "localhost");
+    (https || loopback).then(|| url.to_string())
 }
 
 fn host(url: &str) -> &str {

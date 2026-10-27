@@ -646,6 +646,69 @@ mod store {
     }
 
     #[test]
+    fn preview_service_is_a_mirror_tried_first() {
+        let server = Server::start();
+        let f = fixture();
+        server.serve_fixture(&f);
+        let index = index_of(&f.index).unwrap();
+        let face = index.find_face("Test Sans", "Bold").unwrap();
+        let sha = face.file.sha256.clone();
+        let dir = temp("mirror");
+        let user = FontStore::new(dir.clone(), Caller::User).with_client(server.client());
+        user.enable_network().unwrap();
+
+        // No service: only the index's URLs.
+        user.install_face(&index, face, &Cancel::new(), &mut none).unwrap();
+        assert!(server.requests().iter().all(|r| !r.starts_with("/mirror/")));
+        user.remove_family(&face.family.source, &face.family.family).unwrap();
+        let before = server.requests().len();
+
+        // A service answering with the right bytes is the only request for the file.
+        let bytes = f.files.iter().find(|(p, _)| p == &face.file.path).unwrap().1.clone();
+        server.serve("mirror", &format!("v1/files/{sha}"), Reply::Ok(bytes));
+        user.set_preview_service(Some(&format!("{}mirror/", server.base))).unwrap();
+        user.install_face(&index, face, &Cancel::new(), &mut none).unwrap();
+        let after = server.requests()[before..].to_vec();
+        assert_eq!(after.first().map(String::as_str), Some(format!("/mirror/v1/files/{sha}").as_str()));
+        assert!(after.iter().all(|r| !r.starts_with("/cdn/") || r.contains("LICENSE") || r.contains("OFL")), "{after:?}");
+        user.remove_family(&face.family.source, &face.family.family).unwrap();
+
+        // Bytes that fail the sha256 fall through to the index's URLs.
+        server.serve("mirror", &format!("v1/files/{sha}"), Reply::Ok(b"not the font".to_vec()));
+        user.install_face(&index, face, &Cancel::new(), &mut none).unwrap();
+        assert!(user.is_installed(face.family, face.file));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn preview_service_setting_is_user_only_and_https() {
+        let dir = temp("service");
+        let user = FontStore::new(dir.clone(), Caller::User);
+        let agent = FontStore::new(dir.clone(), Caller::Agent);
+        assert!(matches!(agent.set_preview_service(Some("https://fonts.example.com")), Err(Error::NotAllowed)));
+        assert!(matches!(user.set_preview_service(Some("http://fonts.example.com")), Err(Error::BadUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("https://user@fonts.example.com")), Err(Error::BadUrl(_))));
+        user.set_preview_service(Some("http://localhost:8080/")).unwrap();
+        user.set_preview_service(Some("https://fonts.example.com/")).unwrap();
+        assert_eq!(agent.preview_service().as_deref(), Some("https://fonts.example.com"));
+        user.set_preview_service(None).unwrap();
+        assert_eq!(agent.preview_service(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn preview_service_env_beats_the_setting() {
+        let (env, setting) = (Some("https://a.example.com/"), Some("https://b.example.com"));
+        assert_eq!(crate::store::resolve_preview_service(env, setting).as_deref(), Some("https://a.example.com"));
+        assert_eq!(crate::store::resolve_preview_service(Some(""), setting).as_deref(), Some("https://b.example.com"));
+        assert_eq!(crate::store::resolve_preview_service(None, None), None);
+        assert_eq!(crate::store::resolve_preview_service(Some("http://fonts.example.com"), setting), None);
+        assert_eq!(crate::store::resolve_preview_service(Some("http://127.0.0.1:9"), None).as_deref(), Some("http://127.0.0.1:9"));
+        assert_eq!(crate::store::resolve_preview_service(Some("http://[::1]:9/x/"), None).as_deref(), Some("http://[::1]:9/x"));
+    }
+
+    #[test]
     fn install_verify_and_remove_a_family() {
         let server = Server::start();
         let f = fixture();
