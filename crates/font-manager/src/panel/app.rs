@@ -173,6 +173,10 @@ pub struct FontsPanel {
     pub(crate) category_counts: [usize; 7],
     pub(crate) show_counts: [usize; 3],
     pub(crate) language_text: String,
+    /// The host's interface language tag, as passed to [`FontsPanel::set_language`].
+    pub(crate) ui_tag: Option<String>,
+    /// The Language and Script filters have been set to the interface language's.
+    pub(crate) filters_defaulted: bool,
     pub(crate) installed: Vec<InstalledFamily>,
     /// Installed faces by lower-case family name, every source together.
     pub(crate) installed_by_name: HashMap<String, Vec<FaceInfo>>,
@@ -300,6 +304,8 @@ impl FontsPanel {
             category_counts: [0; 7],
             show_counts: [0; 3],
             language_text: String::new(),
+            ui_tag: None,
+            filters_defaulted: false,
             installed: Vec::new(),
             installed_by_name: HashMap::new(),
             installed_generation: None,
@@ -458,6 +464,7 @@ impl FontsPanel {
     /// Shows the interface in `language` (a tag such as `de` or `pt-BR`), the host's interface
     /// language, when its catalog is embedded; English otherwise.
     pub fn set_language(&mut self, language: &str) {
+        self.ui_tag = Some(language.to_owned());
         i18n::set_current(I18N.match_tag(language).unwrap_or(craft_i18n::Lang::EN));
     }
 
@@ -506,6 +513,7 @@ impl FontsPanel {
         }
         self.focused = focused;
         self.refresh_installed();
+        self.apply_default_filters();
         self.refresh_results();
         self.keys(&ctx);
 
