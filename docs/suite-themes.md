@@ -13,7 +13,7 @@ tokens through an adapter.
 | Crate | Contents |
 |---|---|
 | [`craft-theme`](../crates/theme/README.md) | Theme ids, roles, themes, derived states, contrast, built-ins, resolution. No egui, no I/O; builds for wasm. |
-| `craft-theme-store` | Theme files, the suite folder, the suite selection and change watching, outside rendering. |
+| [`craft-theme-store`](../crates/theme-store/README.md) | Theme files, the suite folder, the suite selection and its lock/revision protocol, outside rendering. |
 | [`craft_ui::theme`](../crates/ui/README.md#theme-mechanisms) | `color32` and `install`: the bridge to egui. |
 
 ## Themes and selection
@@ -162,5 +162,117 @@ Each adapter PR carries an exact style comparison (see
 
 ## File format and storage
 
-`craft-theme-store` (coming) defines the theme file format, the machine-local theme library, the
-suite selection and how apps see each other's changes.
+`craft-theme-store` keeps the suite selection and the user's theme library in one machine-local
+folder that every Craft app reads.
+
+### Folder
+
+`SuiteDir::resolve(app_isolated)` picks it in this order:
+
+1. `CRAFT_SUITE_DIR`. Set but empty: in memory, nothing on disk is read or written.
+2. In memory when the app runs without a disk store (`app_isolated`): app constructors, tests,
+   portable installs. Only the desktop shells open the folder, so tests and agents never touch it.
+3. `ArtCraft/themes` under the local config folder: `~/.config/ArtCraft/themes` on Linux and the
+   BSDs, `~/Library/Application Support/ArtCraft/themes` on macOS, `%LOCALAPPDATA%\ArtCraft\themes`
+   on Windows.
+
+Web builds are always in memory. An in-memory store runs the same operations as one on disk.
+
+```text
+ArtCraft/themes/selection.json                     suite selection and revisions
+ArtCraft/themes/selection.lock                     lock file, never deleted
+ArtCraft/themes/library/<id>.json                  one user theme per file
+ArtCraft/themes/selection.broken-<unix-ts>.json    a damaged selection, moved aside on the next write
+```
+
+Reading never creates anything. The folder and `selection.json` appear with the first write: the
+user choosing a suite theme or mode, or importing a theme.
+
+### Theme files
+
+```json
+{ "schema": "craft-theme", "schema_version": 1,
+  "id": "user.navy-cream", "name": "Navy and cream", "version": 3,
+  "light": { "background": "#F2F1EE", "surface": "#FBFAF7", "text": "#1B2340", "…": "…" },
+  "dark": { "…": "…" },
+  "apps": { "pdfcraft": { "tokens_version": 1, "titlebar": "#101010" } },
+  "family": { } }
+```
+
+- JSON, at most 256 KiB. `schema_version` is the format; `version` is the author's revision.
+- `id` follows the id rules and can't start with `craft.`. A library file is named `<id>.json`.
+- At least one of `light` and `dark`. Colours are `#RRGGBB` or `#RRGGBBAA`.
+- A role that is missing, or whose colour doesn't parse, is filled from Graphite of the same
+  variant and listed as a `MissingRole`. The stored file keeps the original value.
+- `apps` and `family` are reserved and not applied yet. They and every other key the app doesn't
+  know stay in the file byte for byte.
+- A file with a newer `schema_version` is refused, never changed.
+
+A theme picker's diagnostic count for a theme is its `MissingRole` count plus its contrast
+`Diagnostic` count. Neither blocks an import or a selection.
+
+### Selection file
+
+```json
+{ "schema_version": 1, "revision": 17, "library_revision": 4,
+  "suite": { "theme": "craft.artcraft", "mode": "system" }, "written_by": "pdfcraft 0.15.0" }
+```
+
+`Accepted::suite` is `None` while there is no file or the file has no `suite`: no app has chosen a
+suite theme yet, and each app shows its own fresh-install default. The store never writes `suite`
+on its own, so one app's default never reaches the others. Keys the app doesn't know are kept
+on every write.
+
+### Writes: lock, merge, revision
+
+Reads take no lock: every write replaces the file with an atomic rename. Each write:
+
+1. Opens `selection.lock` and takes an exclusive lock (`File::try_lock`), retrying every 20 ms
+   for up to 2 s, then gives up with `Busy`.
+2. Reads `selection.json`. A damaged file is moved to `selection.broken-<unix-ts>.json` and the
+   caller's base stands in for it. A file from a newer build gives `TooNew` and the store stays
+   read-only; a file over 64 KiB is refused. Neither is changed.
+3. Merges (below). A conflict returns `Conflict { disk }` and writes nothing.
+4. Writes the result with `revision` one above the file's, carrying the file's unknown keys,
+   through craft-atomic with private permissions. Just before the rename it reads the file again;
+   if it changed (a writer that ignored the lock, possible on network file systems), the write is
+   abandoned with `Busy`.
+5. Releases the lock and returns the new `Accepted`.
+
+`Store::update(base, mine)` takes the state the user's change was made on and the whole selection
+the user wants. The merge, per field (`theme`, `mode`):
+
+| Base | Disk | Result |
+|---|---|---|
+| any | no selection | mine |
+| a selection | a selection | mine equals base or disk: disk's value. Only mine changed: mine. Both changed to different values: conflict |
+| no selection | a selection | each field where mine differs from disk conflicts; equal fields keep disk |
+
+The last row covers an app that showed its own default while another app wrote the first suite
+choice: the user picked a look based on something that is no longer what the suite shows, so the
+app shows the suite's choice with "Changed in another Craft app; your choice wasn't applied" and
+"Apply mine", which repeats the update with the new state as base.
+
+Library operations take the same lock. They set `library_revision` to the file's value plus one,
+so concurrent imports never collapse into one bump, and leave `suite` as it is (absent stays
+absent).
+
+- **Import** validates the file, writes its original bytes to `library/<id>.json` without ever
+  replacing a file, and bumps `library_revision`. A taken id gives `IdExists`; "import as copy"
+  stores it as the first free `<id>-2`, `<id>-3`, … and changes nothing but the `id` value.
+- **Delete** refuses the suite selection's theme (`InUse`) and built-ins. Per-app choices naming
+  a deleted theme fall back to the app default, as unknown ids always do.
+- **Export** returns a library theme's stored bytes, or a built-in written out as a theme file.
+
+When a write fails, everything it changed is undone (an imported file is removed, a deleted one
+restored) and the error comes back; the app returns to `Store::accepted()` and offers Retry.
+
+### Last accepted state
+
+The store keeps the last state it read or wrote. A damaged, too new or unreadable
+`selection.json` comes back from `load_selection` as a `Problem` and leaves that state in place.
+Each app also copies it into its own preferences and passes it to `StoreOptions::last_accepted`,
+so a bad file at startup still shows the last look.
+
+The lock file and revision protocol, the re-check before the rename and the failure handling
+follow the theme store in [pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090).

@@ -1024,6 +1024,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-theme-store"
+version = "0.1.0"
+dependencies = [
+ "craft-atomic",
+ "craft-theme",
+ "dirs",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "craft-ui"
 version = "0.1.0"
 dependencies = [
