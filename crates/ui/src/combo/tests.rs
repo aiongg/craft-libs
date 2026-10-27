@@ -449,7 +449,7 @@ fn a_menu_with_a_footer_shrinks_when_its_list_empties_and_grows_back() {
                         ui.label("Title");
                         let name = ui.label("Search").id;
                         // A search field that takes the focus when the menu opens, as apps do.
-                        let (id, pass) = (ui.id().with("search"), ui.ctx().cumulative_pass_nr());
+                        let (id, pass) = (ui.scope_id().with("search"), ui.ctx().cumulative_pass_nr());
                         let opened = ui.data(|d| d.get_temp::<u64>(id)).is_none_or(|last| last + 1 < pass);
                         ui.data_mut(|d| d.insert_temp(id, pass));
                         let field = ui.text_edit_singleline(filter).labelled_by(name);
