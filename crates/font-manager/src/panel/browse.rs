@@ -288,7 +288,12 @@ impl FontsPanel {
         }
         let mut allow = false;
         let mut hide = false;
-        let text = tl!("Fonts that aren't installed show a sample once you preview them. Nothing is downloaded until you allow it.");
+        // With a preview service, samples show without asking: the note is about installs only.
+        let text = if self.subsets.available() {
+            tl!("Nothing is installed until you allow downloads.")
+        } else {
+            tl!("Fonts that aren't installed show a sample once you preview them. Nothing is downloaded until you allow it.")
+        };
         widgets::note_with_actions(
             ui,
             s,
@@ -432,8 +437,7 @@ impl FontsPanel {
     fn request_subsets(&mut self, ctx: &egui::Context, index: &Index, results: &[usize], visible: std::ops::Range<usize>) {
         let window = Subsets::window(&visible, results.len());
         let rows: Vec<Option<Row<'_>>> = window.clone().map(|n| self.subset_row(index, *results.get(n)?)).collect();
-        let allowed = self.allowed(ctx.input(|i| i.time));
-        self.subsets.request(ctx, index, window.start, &rows, visible, allowed);
+        self.subsets.request(ctx, index, window.start, &rows, visible);
     }
 
     /// The family at `i` in the index as a row drawn with a subset: `None` when it is installed

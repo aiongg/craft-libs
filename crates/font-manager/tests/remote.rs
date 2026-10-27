@@ -12,8 +12,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::remote::{Codepoints, DiskCache, Instance, MAX_CODEPOINTS, Preview, PreviewError, PreviewKey, Previews, Subset};
-use craft_font_manager::store::{FakeStore, Installer};
+use craft_font_manager::store::{FakeStore, Installer, SuiteStore};
+use craft_font_manager::{Catalog, FontEnv};
 use craft_font_store::{Client, is_font};
 
 const WOFF2: &[u8] = include_bytes!("data/Tiny-glyf.woff2");
@@ -210,16 +212,18 @@ fn previews_come_from_the_service_then_the_cache_and_only_with_consent() {
     let got = wait_for(&previews, 1);
     assert_eq!(got.first().map(|p| p.font.clone().unwrap_err()), Some(PreviewError::NoService));
 
-    // A service, but downloads off: no request.
+    // A service, but previews off: no request.
     store.set_preview_service(Some(&service.base)).unwrap();
-    assert!(previews.available());
+    store.set_previews_enabled(false).unwrap();
+    assert!(!previews.available());
     previews.request(sample.clone(), 1);
     let got = wait_for(&previews, 1);
-    assert_eq!(got.first().map(|p| p.font.clone().unwrap_err()), Some(PreviewError::DownloadsOff));
+    assert_eq!(got.first().map(|p| p.font.clone().unwrap_err()), Some(PreviewError::PreviewsOff));
     assert!(service.requests().is_empty());
 
-    // With consent: decoded, checked and cached.
-    store.allow_downloads(true).unwrap();
+    // Previews on (the default), installs not allowed: decoded, checked and cached anyway.
+    store.set_previews_enabled(true).unwrap();
+    assert!(previews.available() && !store.downloads_allowed());
     previews.request(sample.clone(), 1);
     previews.request(broken.clone(), 1);
     let got = wait_for(&previews, 2);
@@ -230,13 +234,25 @@ fn previews_come_from_the_service_then_the_cache_and_only_with_consent() {
     let cache = previews.cache().unwrap();
     assert!(cache.dir().starts_with(&dir) && cache.contains(&sample.path()) && !cache.contains(&broken.path()));
 
-    // A new session reads the disk cache, even with downloads off again.
-    store.allow_downloads(false).unwrap();
+    // A new session reads the disk cache, even with previews off.
+    store.set_previews_enabled(false).unwrap();
     let later = Previews::new(store.clone());
     later.request(sample.clone(), 1);
     assert!(wait_for(&later, 1).first().is_some_and(|p| p.font.as_ref().is_ok_and(|f| is_font(f))));
     assert_eq!(service.requests().len(), 2);
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_suite_store_and_its_previews_share_the_service_down_state() {
+    let root = temp("suite");
+    let env = FontEnv { os: Os::Unix, root: root.clone(), font_store: Some(root.join("store")), ..FontEnv::default() };
+    let store = SuiteStore::for_user(Arc::new(Catalog::new(env).with_font_service(false))).unwrap();
+    let client = store.http_client().unwrap();
+    assert!(!client.service_is_down() && !store.client().service_is_down());
+    client.mark_service_down();
+    assert!(store.client().service_is_down());
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
