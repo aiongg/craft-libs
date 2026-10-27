@@ -23,5 +23,7 @@ pub mod tabs;
 pub mod testing;
 pub mod text;
 pub mod theme;
+#[cfg(feature = "window-frame")]
+pub mod title_bar;
 
 pub use combo::ComboBox;

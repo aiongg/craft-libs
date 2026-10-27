@@ -14,6 +14,7 @@ workspace = true
 craft-fonts-build = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }
+craft-window = { workspace = true, optional = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }
 log = "0.4"
@@ -55,6 +56,8 @@ testing = []
 # craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest
 # (desktop only).
 screen-testing = ["dep:egui_kittest"]
+# craft_ui::title_bar: the app's bar as the window's title bar, with caption buttons and resize zones.
+window-frame = ["dep:craft-window", "craft-window/egui"]
 
 [dev-dependencies]
 # serde: the IME tests read events that only the suite's egui fork has from JSON.

@@ -1042,6 +1042,7 @@ dependencies = [
  "craft-fonts-build",
  "craft-i18n",
  "craft-theme",
+ "craft-window",
  "eframe",
  "egui",
  "egui_extras",
