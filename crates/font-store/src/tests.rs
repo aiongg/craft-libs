@@ -746,13 +746,13 @@ mod store {
         let user = FontStore::new(dir.clone(), Caller::User).with_preview_env(None);
         let agent = FontStore::new(dir.clone(), Caller::Agent).with_preview_env(None);
         assert!(matches!(agent.set_preview_service(Some("https://fonts.example.com")), Err(Error::NotAllowed)));
-        assert!(matches!(user.set_preview_service(Some("http://fonts.example.com")), Err(Error::BadUrl(_))));
-        assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadUrl(_))));
-        assert!(matches!(user.set_preview_service(Some("https://user@fonts.example.com")), Err(Error::BadUrl(_))));
-        assert!(matches!(user.set_preview_service(Some("http://localhost:8080/")), Err(Error::BadUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("http://fonts.example.com")), Err(Error::BadServiceUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadServiceUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("https://user@fonts.example.com")), Err(Error::BadServiceUrl(_))));
+        assert!(matches!(user.set_preview_service(Some("http://localhost:8080/")), Err(Error::BadServiceUrl(_))));
         user.set_preview_service(Some("http://[::1]:8080/")).unwrap();
         assert_eq!(crate::check_preview_service(" http://127.0.0.1:9/x/ ").as_deref().ok(), Some("http://127.0.0.1:9/x"));
-        assert!(matches!(crate::check_preview_service("https://fonts.example.com/?k=v"), Err(Error::BadUrl(_))));
+        assert!(matches!(crate::check_preview_service("https://fonts.example.com/?k=v"), Err(Error::BadServiceUrl(_))));
         user.set_preview_service(Some("https://fonts.example.com/")).unwrap();
         assert_eq!(agent.preview_service().as_deref(), Some("https://fonts.example.com"));
         user.set_preview_service(None).unwrap();
@@ -827,6 +827,12 @@ mod store {
         assert_eq!(crate::store::resolve_preview_service(env, setting).as_deref(), Some("https://a.example.com"));
         assert_eq!(crate::store::resolve_preview_service(Some(""), setting).as_deref(), Some("https://b.example.com"));
         assert_eq!(crate::store::resolve_preview_service(None, None), None);
+        let source = |env, setting| crate::store::resolve_preview_source(env, setting).1;
+        assert_eq!(
+            (source(env, setting), source(Some(" "), setting), source(None, None)),
+            (PreviewServiceSource::Env, PreviewServiceSource::Saved, PreviewServiceSource::None)
+        );
+        assert_eq!(source(Some("http://fonts.example.com"), setting), PreviewServiceSource::None);
         assert_eq!(crate::store::resolve_preview_service(Some("http://fonts.example.com"), setting), None);
         assert_eq!(crate::store::resolve_preview_service(Some("http://127.0.0.1:9"), None).as_deref(), Some("http://127.0.0.1:9"));
         assert_eq!(crate::store::resolve_preview_service(Some("http://[::1]:9/x/"), None).as_deref(), Some("http://[::1]:9/x"));

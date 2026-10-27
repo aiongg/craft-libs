@@ -12,7 +12,7 @@ use std::sync::{Condvar, Mutex};
 
 use craft_font_catalog::Catalog;
 pub use craft_font_store::UserSource;
-use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, verify_font};
+use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, PreviewServiceSource, verify_font};
 
 use crate::index::{Family, Index};
 
@@ -104,10 +104,16 @@ pub trait Installer: Send + Sync {
         Err(StoreError(NO_FOLDER.into()))
     }
 
-    /// The preview service's base URL, if one is set: `CRAFT_FONT_PREVIEW_URL`, else the font
+    /// The preview service's base URL, if one is set: [`craft_font_store::PREVIEW_SERVICE_ENV`], else the font
     /// store's `preview_service` setting. Installs try it as a mirror first.
     fn preview_service(&self) -> Option<String> {
         None
+    }
+
+    /// Where [`Installer::preview_service`] comes from: the environment variable (the setting
+    /// can't change it), the saved setting, or nowhere.
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        PreviewServiceSource::None
     }
 
     /// Sets or clears the preview service (https, or http for a loopback host), as the user's own
@@ -235,6 +241,10 @@ impl Installer for SuiteStore {
 
     fn preview_service(&self) -> Option<String> {
         self.store.preview_service()
+    }
+
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        self.store.preview_service_source()
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
@@ -534,6 +544,10 @@ impl Installer for FakeStore {
 
     fn preview_service(&self) -> Option<String> {
         self.preview_service.lock().ok()?.clone()
+    }
+
+    fn preview_service_source(&self) -> PreviewServiceSource {
+        if self.preview_service().is_some() { PreviewServiceSource::Saved } else { PreviewServiceSource::None }
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
