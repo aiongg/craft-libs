@@ -17,6 +17,7 @@ use egui::{
 
 use crate::index::{Family, FontFile, Index, script_name, source_label};
 use crate::panel::app::{Detail, FontsPanel, Pending, category_label, family_key, regular, source_name, style_count, style_name};
+use crate::panel::available::{Shared, in_os_fonts};
 use crate::panel::faces::{Owner, Shown};
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
@@ -178,6 +179,9 @@ impl FontsPanel {
         self.subsets.request_detail(ctx);
         if self.detail.is_none() {
             self.detail_axes.clear();
+            // Read again when a sheet opens; a restart note is for the sheet it was shown in.
+            self.availability.clear();
+            self.sharing.retain(|_, shared| !matches!(shared, Shared::Done));
         }
     }
 
@@ -288,8 +292,8 @@ impl FontsPanel {
                         Kind::Install => tl!("Installing"),
                         Kind::Remove => tl!("Removing"),
                         Kind::Preview => tl!("Downloading"),
-                        Kind::MakeAvailable => tl!("Making available to all apps"),
-                        Kind::Withdraw => tl!("Withdrawing from other apps"),
+                        Kind::MakeAvailable => &in_os_fonts("Installing in {place}"),
+                        Kind::Withdraw => &in_os_fonts("Removing from {place}"),
                     };
                     self.progress(ui, s, what, *fraction, 220.0);
                 }
@@ -336,12 +340,11 @@ impl FontsPanel {
         let failure = self.failed.get(&key).or_else(|| self.failed.get(&family_key("", &family.family))).cloned();
         if let Some(failure) = failure {
             ui.add_space(4.0);
+            // Changes to availability report under their switch, never here.
             let what = match failure.kind {
-                Kind::Install => tl!("Couldn't install"),
                 Kind::Remove => tl!("Couldn't remove"),
                 Kind::Preview => tl!("Couldn't download"),
-                Kind::MakeAvailable => tl!("Couldn't make available to all apps"),
-                Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
+                _ => tl!("Couldn't install"),
             };
             let buttons: &[&str] = if failure.retry.is_some() { &[tl!("Retry")] } else { &[] };
             let mut retry = false;
@@ -452,8 +455,11 @@ impl FontsPanel {
                 self.progress(ui, s, tl!("Removing"), None, 220.0);
                 return;
             }
-            let remove =
-                ui.add_enabled_ui(family.removable(), |ui| widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0)).inner;
+            let remove = ui
+                .add_enabled_ui(family.removable() && job.is_none(), |ui| {
+                    widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0)
+                })
+                .inner;
             if !family.removable() {
                 let _ = remove.on_disabled_hover_text(tl!("System fonts are removed with your system's own font tools."));
                 widgets::label(ui, s, tl!("Removed with your system's font tools"), s.p.faint);
@@ -687,7 +693,7 @@ impl FontsPanel {
                 if let Some(RowFace::Face(Owner::Installed, face)) = &row.face
                     && self.pending_style(family, face)
                 {
-                    widgets::label(ui, s, tl!("Not yet available to all apps"), s.p.warn);
+                    widgets::label(ui, s, &in_os_fonts("Not yet in {place}"), s.p.warn);
                 }
                 ui.with_layout(direction::trailing(ui), |ui| match &row.action {
                     RowAction::None => {}
@@ -700,7 +706,8 @@ impl FontsPanel {
                         }
                     }
                     RowAction::Remove(face) => {
-                        let remove = widgets::button(ui, s, tl!("Remove"), widgets::Kind::Danger, 28.0, 0.0);
+                        let idle = self.jobs.of("", family).is_none();
+                        let remove = ui.add_enabled_ui(idle, |ui| widgets::button(ui, s, tl!("Remove"), widgets::Kind::Danger, 28.0, 0.0)).inner;
                         widgets::name(ui, &remove, &fmt("Remove {style}", &[("style", &row.label)]));
                         if remove.clicked() {
                             self.remove(&ctx, family, std::slice::from_ref(face), false);

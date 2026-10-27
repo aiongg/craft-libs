@@ -7,6 +7,7 @@ use egui::{CornerRadius, FontFamily, FontId, Id, Rect, Role, Sense, StrokeKind, 
 
 use crate::index::{Category, Index, script_name, source_label};
 use crate::panel::app::{Detail, FontsPanel, Origin, Pending, Preset, Show, Tab, category_label, family_key, regular, source_name, style_count};
+use crate::panel::available::in_os_fonts;
 use crate::panel::faces::{Owner, Shown};
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
@@ -644,8 +645,8 @@ impl FontsPanel {
                     Kind::Install => tl!("Installing"),
                     Kind::Remove => tl!("Removing"),
                     Kind::Preview => tl!("Downloading"),
-                    Kind::MakeAvailable => tl!("Making available to all apps"),
-                    Kind::Withdraw => tl!("Withdrawing from other apps"),
+                    Kind::MakeAvailable => &in_os_fonts("Installing in {place}"),
+                    Kind::Withdraw => &in_os_fonts("Removing from {place}"),
                 };
                 let text = match fraction {
                     Some(f) => format!("{what} {}", fmt("{percent} %", &[("percent", &i18n::number((f * 100.0).round() as u64))])),
@@ -664,12 +665,11 @@ impl FontsPanel {
                 {
                     self.ask(&ctx, retry);
                 }
+                // Changes to availability report under their switch, never here.
                 let what = match kind {
-                    Kind::Install => tl!("Couldn't install"),
                     Kind::Remove => tl!("Couldn't remove"),
                     Kind::Preview => tl!("Couldn't download"),
-                    Kind::MakeAvailable => tl!("Couldn't make available to all apps"),
-                    Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
+                    _ => tl!("Couldn't install"),
                 };
                 widgets::label(ui, s, what, p.bad).on_hover_text(error);
             }

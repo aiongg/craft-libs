@@ -454,6 +454,10 @@ pub struct FakeStore {
     available: Mutex<Vec<String>>,
     /// What the next [`Installer::make_available`] refuses with.
     refusal: Mutex<Option<Vec<Conflict>>>,
+    /// Store files of available families not copied yet, by lower-case family name.
+    pending: Mutex<HashMap<String, Vec<String>>>,
+    /// The copies the next [`Installer::withdraw`] leaves in place.
+    kept: Mutex<Vec<PathBuf>>,
 }
 
 impl FakeStore {
@@ -475,6 +479,8 @@ impl FakeStore {
             held: (Mutex::new(false), Condvar::new()),
             available: Mutex::new(Vec::new()),
             refusal: Mutex::new(None),
+            pending: Mutex::new(HashMap::new()),
+            kept: Mutex::new(Vec::new()),
         }
     }
 
@@ -514,6 +520,21 @@ impl FakeStore {
     pub fn refuse_next(&self, conflicts: Vec<Conflict>) {
         if let Ok(mut refusal) = self.refusal.lock() {
             *refusal = Some(conflicts);
+        }
+    }
+
+    /// `files` (store file names) of the available family `family` aren't copied yet, as after
+    /// an agent's install, until the next [`Installer::make_available`].
+    pub fn set_pending(&self, family: &str, files: Vec<String>) {
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.insert(family.to_lowercase(), files);
+        }
+    }
+
+    /// The next [`Installer::withdraw`] leaves `copies` in place, as if they changed since.
+    pub fn keep_next(&self, copies: Vec<PathBuf>) {
+        if let Ok(mut kept) = self.kept.lock() {
+            *kept = copies;
         }
     }
 
@@ -732,6 +753,7 @@ impl Installer for FakeStore {
         if let Some(conflicts) = self.refusal.lock().map_err(err)?.take() {
             return Ok(MadeAvailable::Refused(conflicts));
         }
+        self.pending.lock().map_err(err)?.remove(&family.to_lowercase());
         let mut available = self.available.lock().map_err(err)?;
         if !available.iter().any(|f| f.eq_ignore_ascii_case(family)) {
             available.push(family.to_owned());
@@ -742,7 +764,14 @@ impl Installer for FakeStore {
     fn withdraw(&self, family: &str, _files: &[PathBuf]) -> Result<Vec<PathBuf>, StoreError> {
         self.record(Call::Withdraw(family.to_owned()));
         self.available.lock().map_err(err)?.retain(|f| !f.eq_ignore_ascii_case(family));
-        Ok(Vec::new())
+        Ok(std::mem::take(&mut *self.kept.lock().map_err(err)?))
+    }
+
+    fn not_yet_available(&self, family: &str, files: &[PathBuf]) -> Vec<String> {
+        if !self.is_available_to_all(family, files) {
+            return Vec::new();
+        }
+        self.pending.lock().ok().and_then(|p| p.get(&family.to_lowercase()).cloned()).unwrap_or_default()
     }
 
     /// Served from the file table by the index path, like a font.

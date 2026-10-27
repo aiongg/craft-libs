@@ -2,7 +2,8 @@
 //! did, the styles not copied yet, and the confirmation before removing an available family.
 //!
 //! The store copies the family's files into the OS user font folder. Only the user's own action
-//! does that, so the panel never offers it to an agent; it runs for the user alone.
+//! does that, so the panel never offers it to an agent; it runs for the user alone. The interface
+//! names the folder after the OS ("macOS Fonts"): "all apps" read as all Craft apps.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -36,6 +37,35 @@ pub(crate) struct Availability {
     pending: Vec<String>,
 }
 
+/// The OS user font folder as the interface names it, for `{place}`.
+pub(crate) fn os_fonts() -> &'static str {
+    if cfg!(target_os = "macos") {
+        tl!("macOS Fonts")
+    } else if cfg!(target_os = "windows") {
+        tl!("Windows Fonts")
+    } else if cfg!(target_os = "linux") {
+        tl!("the Linux fonts folder")
+    } else {
+        tl!("the system fonts folder")
+    }
+}
+
+/// `template` translated, with `{place}` the OS user font folder.
+pub(crate) fn in_os_fonts(template: &str) -> String {
+    fmt(template, &[("place", os_fonts())])
+}
+
+/// The line under the switch: who gains from it.
+fn help() -> &'static str {
+    if cfg!(target_os = "macos") {
+        tl!("Other apps on this computer, like Word or Pages, can then use it. Craft apps have it either way.")
+    } else if cfg!(target_os = "windows") {
+        tl!("Other apps on this computer, like Word or LibreOffice, can then use it. Craft apps have it either way.")
+    } else {
+        tl!("Other apps on this computer, like LibreOffice, can then use it. Craft apps have it either way.")
+    }
+}
+
 impl FontsPanel {
     /// Whether the store family `family` holding `files` is available to all apps, and its files
     /// not available yet.
@@ -67,16 +97,22 @@ impl FontsPanel {
         }
         ui.add_space(4.0);
         if let Some(reason) = self.installer.available_to_all_unsupported() {
-            widgets::label(ui, s, tl!("Fonts can't be made available to all apps here."), s.p.faint).on_hover_text(reason);
+            widgets::label(ui, s, &in_os_fonts("Fonts can't be installed in {place} from here."), s.p.faint).on_hover_text(reason);
             return;
         }
         let ctx = ui.ctx().clone();
         let (available, pending) = self.availability(family, &files);
-        let busy = self.jobs.of("", family).is_some();
-        let mut on = available;
-        let changed = ui.add_enabled_ui(!busy, |ui| ui.checkbox(&mut on, tl!("Available to all apps"))).inner.changed();
-        let what = tl!("Copies this family into your system's font folder, so other apps can use it too.");
-        ui.add(egui::Label::new(RichText::new(what).size(12.5).color(s.p.muted)).wrap());
+        let job = self.jobs.of("", family).map(|j| j.kind);
+        let busy = job.is_some();
+        // While a change runs, the state it asks for.
+        let mut on = match job {
+            Some(Kind::MakeAvailable) => true,
+            Some(Kind::Withdraw) => false,
+            _ => available,
+        };
+        let label = in_os_fonts("Install in {place}");
+        let changed = ui.add_enabled_ui(!busy, |ui| ui.checkbox(&mut on, label)).inner.changed();
+        ui.add(egui::Label::new(RichText::new(help()).size(12.5).color(s.p.muted)).wrap());
         if changed {
             let request =
                 if on { Request::MakeAvailable(family.to_owned(), files.clone()) } else { Request::Withdraw(family.to_owned(), files.clone()) };
@@ -84,15 +120,17 @@ impl FontsPanel {
         }
         if available && !pending.is_empty() && !busy {
             let mut again = false;
+            let action = in_os_fonts("Install these in {place} too");
             widgets::note_with_actions(
                 ui,
                 s,
                 |ui| {
-                    let text = tn(pending.len() as u64, "{n} style isn't available to all apps yet.", "{n} styles aren't available to all apps yet.");
+                    let text = tn(pending.len() as u64, "{n} style isn't in {place} yet.", "{n} styles aren't in {place} yet.");
+                    let text = craft_i18n::fmt(&text, &[("place", os_fonts())]);
                     ui.label(RichText::new(text).color(s.p.warn));
                 },
-                &[tl!("Make these available too")],
-                |ui, _| again = widgets::button(ui, s, tl!("Make these available too"), widgets::Kind::Secondary, 28.0, 0.0).clicked(),
+                &[&action],
+                |ui, _| again = widgets::button(ui, s, &action, widgets::Kind::Secondary, 28.0, 0.0).clicked(),
                 false,
             );
             if again {
@@ -103,16 +141,14 @@ impl FontsPanel {
         let small = |text: &str, color| egui::Label::new(RichText::new(text).size(12.5).color(color)).wrap();
         match shared {
             Shared::Done => {
-                ui.add(small(tl!("Some apps that are already running see these fonts only after they restart."), s.p.muted));
+                ui.add(small(&in_os_fonts("Some apps that are already running see the fonts in {place} only after they restart."), s.p.muted));
             }
             Shared::Refused(conflicts) => {
                 widgets::note(ui, s, |ui| {
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = 2.0;
-                        ui.add(
-                            egui::Label::new(RichText::new(tl!("Not made available: fonts on this system already have these names.")).color(s.p.bad))
-                                .wrap(),
-                        );
+                        let text = in_os_fonts("Not installed in {place}: fonts on this system already have these names.");
+                        ui.add(egui::Label::new(RichText::new(text).color(s.p.bad)).wrap());
                         for c in &conflicts {
                             ui.label(RichText::new(&c.postscript).color(s.p.ink));
                             ui.add(small(&c.path.display().to_string(), s.p.muted));
@@ -124,7 +160,7 @@ impl FontsPanel {
                 widgets::note(ui, s, |ui| {
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = 2.0;
-                        let text = tl!("These copies changed after they were added, so they stay in your system's font folder:");
+                        let text = in_os_fonts("These copies in {place} changed after they were added, so they stay there:");
                         ui.add(egui::Label::new(RichText::new(text).color(s.p.warn)).wrap());
                         for path in &paths {
                             ui.add(small(&path.display().to_string(), s.p.muted));
@@ -135,8 +171,8 @@ impl FontsPanel {
             Shared::Kept(_) => {}
             Shared::Failed(kind, error) => {
                 let what = match kind {
-                    Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
-                    _ => tl!("Couldn't make available to all apps"),
+                    Kind::Withdraw => in_os_fonts("Couldn't remove from {place}"),
+                    _ => in_os_fonts("Couldn't install in {place}"),
                 };
                 widgets::note(ui, s, |ui| {
                     ui.vertical(|ui| {
@@ -176,13 +212,11 @@ impl FontsPanel {
     pub(crate) fn confirm_removal(&mut self, ctx: &Context) {
         let Some(request) = self.confirming.clone() else { return };
         let family = request.family.as_str();
+        let args = [("family", family), ("place", os_fonts())];
         let text = if request.whole {
-            fmt(
-                "{family} is available to all apps. Removing it also removes its copies from your system's font folder, and other apps can't use it any more.",
-                &[("family", family)],
-            )
+            fmt("{family} is installed in {place}. Removing it also removes it from {place}, and other apps can't use it any more.", &args)
         } else {
-            fmt("{family} is available to all apps. Removing this style also removes its copy from your system's font folder.", &[("family", family)])
+            fmt("{family} is installed in {place}. Removing this style also removes it from {place}.", &args)
         };
         let title = fmt("Remove {family}?", &[("family", family)]);
         let s = self.skin.clone();
@@ -196,7 +230,7 @@ impl FontsPanel {
             let title = RichText::new(&title).size(22.0).family(s.look.display.clone()).color(s.p.ink_strong);
             ui.add(egui::Label::new(title).wrap());
             ui.add(egui::Label::new(RichText::new(text).color(s.p.ink)).wrap());
-            let kept = tl!("Copies that changed after they were added stay where they are.");
+            let kept = in_os_fonts("Copies in {place} that changed after they were added stay there.");
             ui.add(egui::Label::new(RichText::new(kept).color(s.p.muted)).wrap());
             ui.add_space(8.0);
             direction::horizontal(ui, |ui| {

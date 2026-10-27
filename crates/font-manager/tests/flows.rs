@@ -215,21 +215,77 @@ fn install_and_remove_one_style() {
     assert!(!has_installed(&h, "Hack"));
 }
 
+/// The OS user font folder as the panel names it on the system the tests run on.
+fn os_fonts() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macOS Fonts"
+    } else if cfg!(target_os = "windows") {
+        "Windows Fonts"
+    } else if cfg!(target_os = "linux") {
+        "the Linux fonts folder"
+    } else {
+        "the system fonts folder"
+    }
+}
+
+/// The switch that makes a store family available to all apps.
+fn toggle() -> String {
+    format!("Install in {}", os_fonts())
+}
+
+/// Hack installed from the store, with its detail sheet open, made available to all apps.
+fn available_hack(name: &str) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
+    let (mut h, store) = setup(name, Settings::default());
+    allow(&mut h);
+    click(&mut h, "Hack");
+    click(&mut h, "Install all");
+    click_role(&mut h, Role::CheckBox, &toggle());
+    assert!(store.is_available_to_all("Hack", &[]));
+    (h, store)
+}
+
+#[test]
+fn withdrawing_lists_the_copies_left_in_place() {
+    let (mut h, store) = available_hack("withdraw");
+    let changed = PathBuf::from("/home/me/.local/share/fonts/Craft/Hack/Hack-Regular.ttf");
+    store.keep_next(vec![changed.clone()]);
+    click_role(&mut h, Role::CheckBox, &toggle());
+    assert_eq!(store.calls().last(), Some(&Call::Withdraw("Hack".into())));
+    assert_eq!(h.get_by_role_and_label(Role::CheckBox, &toggle()).accesskit_node().toggled(), Some(Toggled::False));
+    assert!(h.query_by_label_contains("changed after they were added").is_some());
+    assert!(h.query_by_label(&changed.display().to_string()).is_some());
+}
+
+#[test]
+fn styles_not_copied_yet_are_marked_and_copied_on_request() {
+    let (mut h, store) = available_hack("pending");
+    store.set_pending("Hack", vec!["Hack-Regular.ttf".into()]);
+    // The sheet reads the family's availability again when it opens.
+    h.key_press(egui::Key::Escape);
+    settle(&mut h);
+    click(&mut h, "Hack");
+    let marker = format!("Not yet in {}", os_fonts());
+    assert!(h.query_by_label(&marker).is_some());
+    click(&mut h, &format!("Install these in {} too", os_fonts()));
+    assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
+    assert!(h.query_by_label(&marker).is_none());
+}
+
 #[test]
 fn a_family_made_available_to_all_apps_asks_before_removal() {
     let (mut h, store) = setup("available", Settings::default());
     allow(&mut h);
     click(&mut h, "Hack");
     click(&mut h, "Install all");
-    click_role(&mut h, Role::CheckBox, "Available to all apps");
+    click_role(&mut h, Role::CheckBox, &toggle());
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
     assert!(store.is_available_to_all("Hack", &[]));
-    assert_eq!(h.get_by_role_and_label(Role::CheckBox, "Available to all apps").accesskit_node().toggled(), Some(Toggled::True));
+    assert_eq!(h.get_by_role_and_label(Role::CheckBox, &toggle()).accesskit_node().toggled(), Some(Toggled::True));
     assert!(h.query_by_label_contains("only after they restart").is_some());
 
     click(&mut h, "Remove all");
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())), "nothing is removed before the user confirms");
-    assert!(h.query_by_label_contains("removes its copies from your system's font folder").is_some());
+    assert!(h.query_by_label_contains(&format!("also removes it from {}", os_fonts())).is_some());
     click(&mut h, "Remove");
     assert_eq!(store.calls().last(), Some(&Call::Remove("Hack".into())));
     assert!(!has_installed(&h, "Hack"));
@@ -243,13 +299,13 @@ fn a_refused_family_lists_the_fonts_in_the_way() {
     click(&mut h, "Install all");
     let path = PathBuf::from("/usr/share/fonts/Hack-Regular.ttf");
     store.refuse_next(vec![Conflict { postscript: "Hack-Regular".into(), path: path.clone() }]);
-    click_role(&mut h, Role::CheckBox, "Available to all apps");
+    click_role(&mut h, Role::CheckBox, &toggle());
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
     assert!(!store.is_available_to_all("Hack", &[]));
     assert!(h.query_by_label_contains("already have these names").is_some());
     assert!(h.query_by_label("Hack-Regular").is_some());
     assert!(h.query_by_label(&path.display().to_string()).is_some());
-    assert_eq!(h.get_by_role_and_label(Role::CheckBox, "Available to all apps").accesskit_node().toggled(), Some(Toggled::False));
+    assert_eq!(h.get_by_role_and_label(Role::CheckBox, &toggle()).accesskit_node().toggled(), Some(Toggled::False));
 }
 
 #[test]

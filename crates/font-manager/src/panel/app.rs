@@ -565,6 +565,7 @@ impl FontsPanel {
                 Ok(Finished::Installed | Finished::Removed) => {
                     self.failed.remove(&key);
                     self.availability.remove(&job.family.to_lowercase());
+                    self.sharing.remove(&job.family.to_lowercase());
                 }
                 Ok(Finished::MadeAvailable(_) | Finished::Withdrawn(_)) => {}
                 Ok(Finished::Previewed(files)) => {
@@ -733,12 +734,30 @@ impl FontsPanel {
         if files.is_empty() {
             return;
         }
+        // Nothing else of the family while a job runs for it: a removal queued behind making it
+        // available would skip the question and then take the new copies.
+        if self.jobs.of("", family).is_some() {
+            return;
+        }
         let request = RemoveRequest { family: family.to_owned(), files, whole };
-        if self.installer.is_available_to_all(family, &request.files) {
+        if self.has_copies(&request) {
             self.confirming = Some(request);
         } else {
             self.start_removal(ctx, request);
         }
+    }
+
+    /// Whether removing `request` takes copies from the OS font folder: the family is available
+    /// to all apps, and the request isn't only styles not copied yet.
+    fn has_copies(&self, request: &RemoveRequest) -> bool {
+        if !self.installer.is_available_to_all(&request.family, &request.files) {
+            return false;
+        }
+        if request.whole {
+            return true;
+        }
+        let pending = self.installer.not_yet_available(&request.family, &request.files);
+        !request.files.iter().filter_map(|f| f.file_name()).all(|n| pending.iter().any(|p| *p == *n.to_string_lossy()))
     }
 
     pub(crate) fn start_removal(&mut self, ctx: &Context, request: RemoveRequest) {
