@@ -12,8 +12,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::remote::{Codepoints, DiskCache, Instance, MAX_CODEPOINTS, Preview, PreviewError, PreviewKey, Previews, Subset};
-use craft_font_manager::store::{FakeStore, Installer};
+use craft_font_manager::store::{FakeStore, Installer, SuiteStore};
+use craft_font_manager::{Catalog, FontEnv};
 use craft_font_store::{Client, is_font};
 
 const WOFF2: &[u8] = include_bytes!("data/Tiny-glyf.woff2");
@@ -237,6 +239,18 @@ fn previews_come_from_the_service_then_the_cache_and_only_with_consent() {
     assert!(wait_for(&later, 1).first().is_some_and(|p| p.font.as_ref().is_ok_and(|f| is_font(f))));
     assert_eq!(service.requests().len(), 2);
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_suite_store_and_its_previews_share_the_service_down_state() {
+    let root = temp("suite");
+    let env = FontEnv { os: Os::Unix, root: root.clone(), font_store: Some(root.join("store")), ..FontEnv::default() };
+    let store = SuiteStore::for_user(Arc::new(Catalog::new(env).with_font_service(false))).unwrap();
+    let client = store.http_client().unwrap();
+    assert!(!client.service_is_down() && !store.client().service_is_down());
+    client.mark_service_down();
+    assert!(store.client().service_is_down());
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]

@@ -116,6 +116,13 @@ pub trait Installer: Send + Sync {
         PreviewServiceSource::None
     }
 
+    /// The store's HTTP client, if it has one. [`Previews`](crate::remote::Previews) fetches
+    /// with it, so a preview service that installs found unreachable is skipped by previews too,
+    /// and the reverse.
+    fn http_client(&self) -> Option<Client> {
+        None
+    }
+
     /// Sets or clears the preview service (https, or http for a loopback host), as the user's own
     /// action.
     fn set_preview_service(&self, _url: Option<&str>) -> Result<(), StoreError> {
@@ -134,14 +141,19 @@ const NO_FOLDER: &str = "there is no folder for the font store";
 /// craft-font-store's store, in the user's font store folder.
 pub struct SuiteStore {
     store: FontStore,
-    client: Client,
 }
 
 impl SuiteStore {
     /// The store the catalog's environment names, rescanning `catalog` after each change.
     pub fn for_user(catalog: Arc<Catalog>) -> Option<SuiteStore> {
         let store = FontStore::for_user(catalog.env())?.with_catalog(catalog);
-        Some(SuiteStore { store, client: Client::default() })
+        Some(SuiteStore { store })
+    }
+
+    /// The store's HTTP client. Clones share the preview service's down state with installs;
+    /// [`Previews::new`](crate::remote::Previews::new) takes it through [`Installer::http_client`].
+    pub fn client(&self) -> Client {
+        self.store.client()
     }
 
     /// The store's source and name for the family holding `files`, which can differ from the
@@ -199,7 +211,7 @@ impl Installer for SuiteStore {
             let mut reasons = Vec::new();
             for url in index.file_urls(family, file) {
                 let mut on_bytes = |n: u64| progress(Progress { done: before.saturating_add(n), total });
-                match self.client.get(&url, file.size, &cancel, &mut on_bytes) {
+                match self.store.client().get(&url, file.size, &cancel, &mut on_bytes) {
                     Ok(bytes) => match verify_font(file, &bytes) {
                         Ok(()) => {
                             out.push(Downloaded { path: file.path.clone(), bytes });
@@ -245,6 +257,10 @@ impl Installer for SuiteStore {
 
     fn preview_service_source(&self) -> PreviewServiceSource {
         self.store.preview_service_source()
+    }
+
+    fn http_client(&self) -> Option<Client> {
+        Some(self.store.client())
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {

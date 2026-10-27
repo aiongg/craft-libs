@@ -9,7 +9,8 @@
 //!
 //! [`Previews`] requests nothing unless the user has allowed downloads and a preview service is
 //! set ([`Installer::downloads_allowed`], [`Installer::preview_service`]). Without a service the
-//! panel keeps its whole-family previews.
+//! panel keeps its whole-family previews. There is no separate preview consent, by design: a
+//! preview request is a download, so the download consent plus a set service is the whole gate.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
@@ -435,18 +436,19 @@ impl State {
 }
 
 impl Previews {
-    /// A pool fetching with craft-font-store's client (a network failure of the service pauses
-    /// its requests for a minute; pass the store's own [`Client`] to [`Previews::with_fetcher`]
-    /// to share that pause with installs) and caching in the store's
+    /// A pool fetching with the installer's client ([`Installer::http_client`]), else with its own
+    /// craft-font-store [`Client`]. A network failure of the service pauses its requests for a
+    /// minute, for every user of the same client (installs too). It caches in the store's
     /// [`Installer::preview_cache`] folder, up to [`CACHE_LIMIT`]. It starts its threads on the
     /// first request.
     pub fn new(installer: Arc<dyn Installer>) -> Previews {
         let timeouts = Timeouts { connect: Duration::from_secs(10), response: Duration::from_secs(15), overall: Duration::from_secs(60) };
+        let client = installer.http_client().unwrap_or_else(|| Client::new(timeouts));
         let cache = installer.preview_cache().map(|dir| Arc::new(DiskCache::new(dir, CACHE_LIMIT)));
         let (tx, rx) = channel();
         Previews {
             installer,
-            fetcher: Arc::new(Client::new(timeouts)),
+            fetcher: Arc::new(client),
             cache,
             wake: None,
             workers: WORKERS,
