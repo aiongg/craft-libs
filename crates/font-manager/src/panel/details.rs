@@ -170,6 +170,7 @@ impl FontsPanel {
         let store: Vec<FaceInfo> = installed.iter().filter(|f| f.source == Source::Store).cloned().collect();
         let on_system = !installed.is_empty() && store.is_empty();
         let previewed = self.previewed.get(&key).cloned();
+        let session_preview = installed.is_empty() && previewed.is_none() && !self.subsets.previewing();
         let job = self.jobs.of(&family.source, &family.family).map(|j| (j.kind, j.file.clone(), j.fraction()));
         let (source, curated) = source_label(&index, &family);
         let eyebrow = [source.to_owned(), category_label(&family)].join(" · ");
@@ -202,17 +203,14 @@ impl FontsPanel {
                     if !store.is_empty() && widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0).clicked() {
                         self.remove(&ctx, &family.family, &store, true);
                     }
-                    if installed.is_empty()
-                        && previewed.is_none()
-                        && widgets::button(ui, s, tl!("Preview"), widgets::Kind::Secondary, s.h(), 0.0).clicked()
-                    {
+                    if session_preview && widgets::button(ui, s, tl!("Preview"), widgets::Kind::Secondary, s.h(), 0.0).clicked() {
                         self.ask(&ctx, Pending::Preview(i));
                     }
                     widgets::label(ui, s, &fmt("{size} download", &[("size", &size)]), s.p.faint);
                 }
             }
         });
-        if installed.is_empty() && previewed.is_none() {
+        if session_preview {
             let note = fmt("Preview downloads this font ({size}) for this session without installing it.", &[("size", &size)]);
             ui.label(RichText::new(note).size(12.5).color(s.p.muted));
         }
