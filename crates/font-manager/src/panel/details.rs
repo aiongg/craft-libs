@@ -39,7 +39,7 @@ enum RowAction {
 /// What a style row draws its sample with.
 enum RowFace {
     /// An installed face, or one of a downloaded preview file.
-    Face(Owner, FaceInfo),
+    Face(Owner, Box<FaceInfo>),
     /// The preview service's subset of the family's file at this position, at these axis values
     /// (none for a static file, or a variable file's default).
     Subset(usize, Vec<([u8; 4], f32)>),
@@ -388,7 +388,7 @@ impl FontsPanel {
                 _ if face.source == Source::Store => RowAction::Remove(Box::new(face.clone())),
                 _ => RowAction::None,
             };
-            rows.push(StyleRow { label: style_name(face).to_owned(), face: Some(RowFace::Face(Owner::Installed, face.clone())), action });
+            rows.push(StyleRow { label: style_name(face).to_owned(), face: Some(RowFace::Face(Owner::Installed, Box::new(face.clone()))), action });
         }
         if on_system {
             return rows;
@@ -423,7 +423,11 @@ impl FontsPanel {
                 for (n, face) in preview_faces.iter().enumerate() {
                     // A variable file's instances install together: the file's action on its first.
                     let action = if n == 0 { action_clone(&action) } else { RowAction::None };
-                    rows.push(StyleRow { label: style_name(face).to_owned(), face: Some(RowFace::Face(Owner::Preview, (*face).clone())), action });
+                    rows.push(StyleRow {
+                        label: style_name(face).to_owned(),
+                        face: Some(RowFace::Face(Owner::Preview, Box::new((*face).clone()))),
+                        action,
+                    });
                 }
             }
         }
@@ -457,7 +461,7 @@ impl FontsPanel {
             .iter()
             .map(|face| StyleRow {
                 label: style_name(face).to_owned(),
-                face: Some(RowFace::Face(Owner::Installed, face.clone())),
+                face: Some(RowFace::Face(Owner::Installed, Box::new(face.clone()))),
                 action: if face.source == Source::Store { RowAction::Remove(Box::new(face.clone())) } else { RowAction::None },
             })
             .collect();
