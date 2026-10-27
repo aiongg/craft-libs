@@ -1327,7 +1327,7 @@ mod store {
         let italic = family.join("TestSans-Italic.ttf");
         std::fs::write(&italic, b"the user's own").unwrap();
         std::fs::write(family.join("Unlisted.ttf"), b"x").unwrap();
-        assert_eq!(store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap(), [italic.clone()]);
+        assert_eq!(store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap(), std::slice::from_ref(&italic));
         assert_eq!(entries(&family), ["TestSans-Italic.ttf", "Unlisted.ttf"]);
         assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
         assert_eq!(ledger(&dir)["families"], json!([]));
