@@ -136,6 +136,45 @@ fn the_index_is_read_and_checked() {
     assert!(matches!(Index::from_json(b"{"), Err(IndexError::Json(_))));
 }
 
+#[test]
+fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
+    let f = fixture();
+    let mut v1_1 = f.index.clone();
+    v1_1["version"] = json!("1.1");
+    let old = index_of(&v1_1).unwrap();
+    let sans = old.family("Test Sans").unwrap();
+    assert!(sans.tags.is_empty() && sans.sample_script.is_none() && old.samples().is_empty());
+    assert_eq!(old.sample_text(sans, &sans.files[0]), None);
+
+    let sample = |text: &str| json!({"text": text, "method": "udhr", "language": "xx"});
+    let mut first = f.index.clone();
+    first["version"] = json!("1.2");
+    first["samples"] = json!({"Latn": sample("Hello"), "Thai": sample("first")});
+    first["families"][2]["tags"] = json!(["Sans", "Display/Playful"]);
+    first["families"][2]["sample_script"] = json!("Latn");
+    first["families"][2]["reserved_names"] = json!(["Test"]);
+    first["families"][2]["files"][0]["sample_script"] = json!("Thai");
+    first["families"][2]["files"][1]["sample_text"] = json!("Own text");
+    first["families"][2]["files"][2]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
+    first["families"][2]["files"][2]["list_instance"] = json!(0);
+    let mut second = noto_fixture().index;
+    second["samples"] = json!({"Thai": sample("second"), "Jpan": sample("Japanese")});
+    let index = Index::merge([index_of(&first).unwrap(), index_of(&second).unwrap()]);
+
+    let sans = index.family_from(GOOGLE_FONTS, "Test Sans").unwrap();
+    assert_eq!(
+        (sans.tags.as_slice(), sans.reserved_names.as_slice()),
+        (&["Sans".to_string(), "Display/Playful".to_string()][..], &["Test".to_string()][..])
+    );
+    assert_eq!(index.samples().keys().collect::<Vec<_>>(), ["Jpan", "Latn", "Thai"]);
+    assert_eq!(index.sample("Thai").unwrap().text, "first");
+    // Own text, then the file's script, then the family's.
+    assert_eq!(index.sample_text(sans, &sans.files[1]), Some("Own text"));
+    assert_eq!(index.sample_text(sans, &sans.files[0]), Some("first"));
+    assert_eq!(index.sample_text(sans, &sans.files[2]), Some("Hello"));
+    assert_eq!((sans.files[2].instances[0].name.as_str(), sans.files[2].list_instance), ("Regular", Some(0)));
+}
+
 #[cfg(feature = "bundled-index")]
 #[test]
 fn the_bundled_indexes_are_the_pinned_ones() {

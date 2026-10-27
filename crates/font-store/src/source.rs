@@ -1,12 +1,12 @@
 //! Reading and checking one source's index file, and its URL templates.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use serde::Deserialize;
 
 use crate::index::{
     Family, FontSource, GOOGLE_FONTS, Index, IndexError, LICENSES, Language, MAJOR_VERSION, MAX_FILE_BYTES, MAX_INDEX_BYTES, MAX_LICENSE_BYTES,
-    Script,
+    Sample, Script,
 };
 
 pub(crate) const MAX_STR: usize = 1024;
@@ -60,6 +60,8 @@ struct Raw {
     languages: Vec<Language>,
     #[serde(default)]
     scripts: Vec<Script>,
+    #[serde(default)]
+    samples: BTreeMap<String, Sample>,
     families: Vec<Family>,
 }
 
@@ -380,7 +382,7 @@ fn check(raw: Raw, origin: Origin<'_>) -> Result<Index, IndexError> {
         repo: raw.repo,
         git_ref: raw.git_ref,
     };
-    Ok(Index::assemble(vec![(source, raw.languages, raw.scripts, families)], Vec::new()))
+    Ok(Index::assemble(vec![(source, raw.languages, raw.scripts, raw.samples, families)], Vec::new()))
 }
 
 /// The family folder in google/fonts: every file at `<ofl|apache|ufl>/<dir>/<file>`.
