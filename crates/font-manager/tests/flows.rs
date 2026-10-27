@@ -506,7 +506,7 @@ impl Fetch for FakeService {
         }
         self.answered.lock().unwrap().push(url.to_owned());
         if *self.no_samples.lock().unwrap() && url.contains("/sample-") {
-            return Err(FetchError::Failed("http status: 404".into()));
+            return Err(FetchError::Failed("HTTP 404".into()));
         }
         Ok(include_bytes!("data/Tiny-glyf.woff2").to_vec())
     }
