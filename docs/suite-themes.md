@@ -182,6 +182,18 @@ request the app theme again. If open couldn't read `selection.json`, the client 
 until the worker's first snapshot. `client.problems()` lists files the suite can't use, each with a
 `Display`.
 
+A theme picker draws its cards with `client.preview(id)`: built-ins, the themes in use and every
+library theme in the index, whose entries carry each variant's filled `CoreRoles`. Nothing is read
+or exported for it; `Op::Export` is only for sharing a file.
+
+A snapshot keeps the last 16 results. An app that sends more operations than that through
+`client.watch()` between two syncs pushes out the answer to the change in flight; the client then
+judges by the accepted state, and a change it doesn't show becomes a failure with
+`StoreError::Lost` ("the result of this change was lost; it may not have been saved"), which
+`retry()` sends again. An app that reads its own results (import, export) looks for them in the
+next frame for the same reason. A request queued on the worker always gets a result: a panic in a
+check, a request or `wake` is caught there and the worker keeps going.
+
 ## File format and storage
 
 `craft-theme-store` keeps the suite selection and the user's theme library in one machine-local
@@ -325,7 +337,7 @@ what it finds as an immutable `Snapshot`:
 | Field | What it holds |
 |---|---|
 | `accepted` | the selection as last read or written; problems never replace it |
-| `index` | the library themes (id, name, variants, diagnostic count, stamp), sorted by file name |
+| `index` | the library themes (id, name, each variant's colours, diagnostic count, stamp), sorted by file name |
 | `active` | the suite selection's library theme, the last version that parsed; `None` for built-ins |
 | `app_theme` | the library theme named with `Op::AppTheme`, for an app's own choice; `None` once its file is deleted, so the app falls back to its default |
 | `problems` | damaged, too new or unreadable files; each listed once |

@@ -160,6 +160,38 @@ fn a_failed_write_is_kept_until_retry() {
 }
 
 #[test]
+fn a_result_pushed_out_before_sync_is_a_failure_unless_the_change_shows() {
+    let tmp = tempfile::tempdir().unwrap();
+    let fail = Arc::new(AtomicBool::new(true));
+    let mut client = inline(tmp.path(), options().file_system(Box::new(FailOnce(Arc::clone(&fail)))));
+    let export_many = |client: &SuiteClient| {
+        for _ in 0..=crate::RESULTS_KEPT {
+            client.watch().request(Op::Export(id("craft.graphite")));
+        }
+    };
+
+    // The write fails, and the app's exports push its result out before the next frame.
+    client.change(SelectionChange::theme(id("craft.graphite")));
+    export_many(&client);
+    client.sync();
+    assert!(!client.is_pending());
+    let (failed, error) = client.failure().cloned().unwrap();
+    assert_eq!(failed, SelectionChange::theme(id("craft.graphite")));
+    assert!(matches!(error, StoreError::Lost));
+
+    client.retry();
+    settle(&mut client);
+    assert_eq!(client.accepted().suite.theme, Some(id("craft.graphite")));
+
+    // A write that went through shows in the accepted state: no notice.
+    client.change(SelectionChange::mode(Mode::Dark));
+    export_many(&client);
+    client.sync();
+    assert_eq!(client.accepted().suite, choice("craft.graphite", Mode::Dark));
+    assert!(client.failure().is_none() && !client.is_pending());
+}
+
+#[test]
 fn a_library_theme_on_its_way_never_shows_the_app_default() {
     let mut client = SuiteClient::memory();
     client.sync();

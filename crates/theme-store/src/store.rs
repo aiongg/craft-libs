@@ -2,7 +2,7 @@
 
 use std::{fmt, io, path::PathBuf, sync::Arc, time::Duration};
 
-use craft_theme::{SuiteTheme, ThemeId, builtin};
+use craft_theme::{CoreRoles, Origin, SuiteTheme, ThemeId, builtin};
 use serde_json::Map;
 
 use crate::{
@@ -96,6 +96,9 @@ pub enum StoreError {
     NotFound(ThemeId),
     /// Built-in themes can't be deleted.
     BuiltIn(ThemeId),
+    /// The watch no longer had the result of this change when the client looked, and the
+    /// suite's state doesn't show it. Retry.
+    Lost,
 }
 
 impl From<io::Error> for StoreError {
@@ -123,7 +126,7 @@ pub enum Problem {
     },
 }
 
-/// One library theme, as a theme picker lists it.
+/// One library theme, as a theme picker lists it, with its colours for a preview card.
 #[derive(Clone, Debug)]
 pub struct ThemeEntry {
     pub id: ThemeId,
@@ -131,6 +134,9 @@ pub struct ThemeEntry {
     pub version: u32,
     pub has_light: bool,
     pub has_dark: bool,
+    /// Each variant's colours, with roles the file left out filled from built-in Graphite.
+    pub light: Option<CoreRoles>,
+    pub dark: Option<CoreRoles>,
     /// Filled roles plus contrast findings ([`ThemeRecord::diagnostic_count`]).
     pub diagnostics: usize,
     pub stamp: FileStamp,
@@ -145,9 +151,16 @@ impl ThemeEntry {
             version: t.version,
             has_light: t.light.is_some(),
             has_dark: t.dark.is_some(),
+            light: t.light,
+            dark: t.dark,
             diagnostics: record.diagnostic_count(),
             stamp,
         }
+    }
+
+    /// The theme as [`craft_theme::resolve`] takes it, for a preview.
+    pub fn theme(&self) -> SuiteTheme {
+        SuiteTheme { id: self.id.clone(), name: self.name.clone(), version: self.version, light: self.light, dark: self.dark, origin: Origin::User }
     }
 }
 
@@ -570,6 +583,7 @@ impl fmt::Display for StoreError {
             StoreError::InUse(id) => write!(f, "{id} is the suite theme; choose another theme before deleting it"),
             StoreError::NotFound(id) => write!(f, "there is no theme {id}"),
             StoreError::BuiltIn(id) => write!(f, "{id} is a built-in theme and can't be deleted"),
+            StoreError::Lost => f.write_str("the result of this change was lost; it may not have been saved"),
         }
     }
 }

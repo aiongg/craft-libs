@@ -10,12 +10,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use craft_theme::{Mode, Selection, ThemeId};
+use craft_theme::{Mode, Selection, ThemeId, Variant};
 
 use super::{Intervals, Op, OpOutput, SuiteWatch};
 use crate::{
     Accepted, ParseCounts, Problem, SelectionChange, SelectionError, Store, StoreError, StoreOptions, SuiteDir,
-    testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON},
+    testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON, sample_roles},
 };
 
 const FAST: Intervals = Intervals { stat: Duration::from_millis(5), verify: Duration::from_millis(20) };
@@ -76,6 +76,10 @@ fn unchanged_files_are_parsed_once_and_never_republished() {
     assert_eq!(first.active.as_ref().map(|r| r.theme.id.as_str()), Some("t04242"));
     assert!(first.problems.is_empty());
     let loaded = ParseCounts { selection: 1, themes: 10_000 };
+    assert_eq!(watch.parse_counts(), loaded);
+    // A picker's preview cards come from the index, with no further reads.
+    let preview = first.preview(&ThemeId::parse("t00007").unwrap()).unwrap();
+    assert_eq!((preview.light.is_none(), preview.dark.map(|r| r.text.0)), (true, Some([255; 4])));
     assert_eq!(watch.parse_counts(), loaded);
     // Without a worker the caller is in its frame already: no wake.
     assert_eq!(wakes.load(Ordering::SeqCst), 0);
@@ -334,6 +338,24 @@ fn a_watch_can_be_shared_between_threads() {
 
 fn store_with_sample(dir: &Path) {
     Store::open(&SuiteDir::at(dir), options()).import(SAMPLE_THEME_JSON.as_bytes(), false).unwrap();
+}
+
+#[test]
+fn a_library_theme_not_in_use_previews_from_the_index() {
+    let tmp = tempfile::tempdir().unwrap();
+    store_with_sample(tmp.path());
+    let watch = SuiteWatch::inline(Store::open(&SuiteDir::at(tmp.path()), options()), Box::new(|| {}));
+    let snapshot = watch.snapshot();
+    let sample = ThemeId::parse(SAMPLE_THEME_ID).unwrap();
+    assert!(snapshot.active.is_none() && snapshot.app_theme.is_none() && snapshot.theme(&sample).is_none());
+
+    let preview = snapshot.preview(&sample).unwrap();
+    assert_eq!((preview.name.as_str(), preview.version), ("Navy and cream", 3));
+    assert_eq!((preview.light, preview.dark), (Some(sample_roles(Variant::Light)), Some(sample_roles(Variant::Dark))));
+    assert!(snapshot.results.is_empty());
+    assert_eq!(watch.parse_counts().themes, 1);
+    assert!(snapshot.preview(&ThemeId::parse("craft.graphite").unwrap()).is_some());
+    assert!(snapshot.preview(&ThemeId::parse("gone").unwrap()).is_none());
 }
 
 #[test]
