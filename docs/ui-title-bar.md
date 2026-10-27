@@ -22,7 +22,7 @@
 ## Using it
 
 ```rust
-let colors = caption_colors(&tokens);                 // the five CaptionColors fields from the app's theme
+let colors = CaptionColors::from_resolved(&resolved); // or the five fields from the app's own tokens
 let labels = CaptionLabels::from_i18n(&i18n, lang);   // English where a translation is missing
 let bar = TitleBar::new(&decision.frame, 32.0, colors).labels(&labels).show(ui, |ui, slots| {
     menus(ui);
@@ -51,6 +51,8 @@ their bar themselves. `CaptionButtons` adds labels and icon-theme glyphs.
 | Breeze | 18 pt bare discs | `#FF98A2` / `#6D2229` |
 | Generic | Adwaita's buttons without the disc at rest | the app's hover and pressed fills |
 
+- `CaptionColors::from_resolved` takes the suite theme's roles: glyph `text`, inactive glyph
+  `text_muted`, fills `derived.hover` and `derived.pressed`, ring `focus`.
 - Glyphs are painted. `CaptionIcons` swaps in the desktop icon theme's `window-*-symbolic`
   glyphs for the round families; the app supplies the renderer.
 - Inactive windows paint the glyphs in `glyph_inactive`. Keyboard focus draws a ring in `focus`.

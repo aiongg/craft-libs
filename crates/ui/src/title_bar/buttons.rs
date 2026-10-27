@@ -308,7 +308,7 @@ impl<'a> CaptionButtons<'a> {
 }
 
 /// White or dark ink, whichever reads better on `fill`.
-fn ink_on(fill: Color32) -> Color32 {
+pub(crate) fn ink_on(fill: Color32) -> Color32 {
     let rgba = |c: Color32| craft_theme::Rgba([c.r(), c.g(), c.b(), 255]);
     let ratio = |ink: Color32| craft_theme::contrast::ratio(rgba(ink), rgba(fill));
     if ratio(Color32::WHITE) >= ratio(DARK_INK) { Color32::WHITE } else { DARK_INK }

@@ -2,6 +2,8 @@
 
 use egui::Color32;
 
+use crate::theme::color32;
+
 /// What the caption buttons paint in the app's colours. The app fills it from its theme. The OS
 /// reds of the Windows and Breeze close buttons are fixed and not part of it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -16,4 +18,57 @@ pub struct CaptionColors {
     pub pressed: Color32,
     /// The keyboard focus ring.
     pub focus: Color32,
+}
+
+impl CaptionColors {
+    /// The colours from the suite theme's roles: the glyphs in `text` (`text_muted` while the
+    /// window is inactive), the fills of a control under the pointer and held down, and the
+    /// theme's focus colour.
+    pub fn from_resolved(r: &craft_theme::Resolved) -> Self {
+        Self {
+            glyph: color32(r.roles.text),
+            glyph_inactive: color32(r.roles.text_muted),
+            hover: color32(r.derived.hover),
+            pressed: color32(r.derived.pressed),
+            focus: color32(r.roles.focus),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use craft_theme::contrast::ratio;
+    use craft_theme::{Resolved, Rgba, builtins, derive};
+
+    use super::*;
+    use crate::title_bar::buttons::ink_on;
+    use crate::title_bar::{BREEZE_CLOSE_HOVER, BREEZE_CLOSE_PRESSED, WINDOWS_CLOSE};
+
+    fn rgba(c: Color32) -> Rgba {
+        Rgba([c.r(), c.g(), c.b(), 255])
+    }
+
+    #[test]
+    fn built_in_themes_fill_the_caption_colours_from_their_roles() {
+        let mut variants = 0;
+        for theme in builtins() {
+            for (variant, roles) in theme.variants() {
+                let derived = derive(roles, variant);
+                let r = Resolved { theme: theme.id.clone(), variant, roles: *roles, derived, note: None };
+                let c = CaptionColors::from_resolved(&r);
+                let expected = [roles.text, roles.text_muted, derived.hover, derived.pressed, roles.focus].map(color32);
+                assert_eq!([c.glyph, c.glyph_inactive, c.hover, c.pressed, c.focus], expected, "{} {variant:?}", theme.id);
+                variants += 1;
+            }
+        }
+        assert!(variants >= 2, "the built-ins have a light and a dark variant");
+    }
+
+    #[test]
+    fn close_glyphs_read_on_the_os_reds() {
+        assert!(ratio(rgba(Color32::WHITE), rgba(WINDOWS_CLOSE)) >= 4.5, "white on Windows' close red");
+        for fill in [BREEZE_CLOSE_HOVER, BREEZE_CLOSE_PRESSED] {
+            assert!(ratio(rgba(ink_on(fill)), rgba(fill)) >= 4.5, "{fill:?}");
+        }
+    }
 }

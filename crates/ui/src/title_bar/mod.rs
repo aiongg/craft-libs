@@ -13,7 +13,7 @@
 //! and its contents (menus, tabs, search) in [`BarSlots::content`].
 //!
 //! ```ignore
-//! let colors = CaptionColors { glyph, glyph_inactive, hover, pressed, focus };
+//! let colors = CaptionColors::from_resolved(&resolved);
 //! let bar = TitleBar::new(&decision.frame, 32.0, colors).labels(&labels).show(ui, |ui, slots| {
 //!     menus(ui);
 //! });
