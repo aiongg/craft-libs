@@ -187,7 +187,7 @@ A crash leaves nothing the store loses track of:
 ### Limits
 
 - The copies stay when the suite is uninstalled, unless the user withdraws them first.
-- The catalog lists a copy as a system face beside the store's face. Both have the same family, style and PostScript name, so `Catalog::faces` keeps one, the first by path: the store's on macOS and on Linux outside a Flatpak.
+- The catalog lists a copy as a system face beside the store's face. Both have the same family, style and PostScript name, so `Catalog::faces` keeps one: the store's, wherever the folders sort.
 - Copies take disk space beside the store's files; there are no hard links, so a font editor saving over a copy can't change the store's file.
 
 ## Web
