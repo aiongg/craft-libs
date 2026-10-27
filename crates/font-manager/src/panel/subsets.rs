@@ -210,9 +210,11 @@ impl Subsets {
         let mut settled = true;
         let mut latin = Vec::new();
         for row in visible.clone().filter_map(row) {
-            let Some(sample) = self.sample_key(index, row.family) else { continue };
-            settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
-            self.want(&mut wanted, sample, VISIBLE);
+            // A family without a sample text still gets the subset its row's text needs.
+            if let Some(sample) = self.sample_key(index, row.family) {
+                settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
+                self.want(&mut wanted, sample, VISIBLE);
+            }
             if let Some(ascii) = covers_latin(row.family).then(|| subset_key(row.family, Subset::Ascii)).flatten() {
                 latin.push(ascii);
             }

@@ -527,6 +527,11 @@ impl FakeService {
 /// Forty Latin families, `Family 01` to `Family 40`, whose one file's sha256 starts with the
 /// family's number in hex, and an index sample for Latin.
 fn service_index() -> Index {
+    service_index_with(r#"{"Latn":{"text":"Sphinx of black quartz, judge my vow","method":"udhr","language":"en_Latn"}}"#)
+}
+
+/// [`service_index`] with `samples` as its sample texts.
+fn service_index_with(samples: &str) -> Index {
     let families: Vec<String> = (1..=40)
         .map(|n| {
             format!(
@@ -540,7 +545,7 @@ fn service_index() -> Index {
         r#"{{"schema":1,"version":"1.2","source":"google/fonts","commit":"45e3d5269e4a17d823f6d84470bc084dc5ae46f6","base_url":"https://cdn.jsdelivr.net/gh/google/fonts@45e3d5269e4a17d823f6d84470bc084dc5ae46f6/",
         "languages":[{{"id":"en_Latn","name":"English","script":"Latn","population":1}}],
         "scripts":[{{"id":"Latn","name":"Latin"}}],
-        "samples":{{"Latn":{{"text":"Sphinx of black quartz, judge my vow","method":"udhr","language":"en_Latn"}}}},
+        "samples":{samples},
         "families":[{}]}}"#,
         families.join(",")
     );
@@ -550,6 +555,10 @@ fn service_index() -> Index {
 /// The panel over [`service_index`] with no installed fonts, previews fetched from `service` by
 /// `workers` threads, and the preview service not yet set.
 fn service_setup(name: &str, service: &Arc<FakeService>, workers: usize) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
+    service_setup_with(name, service, workers, service_index())
+}
+
+fn service_setup_with(name: &str, service: &Arc<FakeService>, workers: usize, index: Index) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("flows").join(name);
     let _ = std::fs::remove_dir_all(&root);
     let store_dir = root.join("store");
@@ -559,7 +568,7 @@ fn service_setup(name: &str, service: &Arc<FakeService>, workers: usize) -> (Har
     catalog.rescan();
     let store = Arc::new(FakeStore::new(store_dir, HashMap::new()));
     let previews = Previews::new(store.clone()).with_fetcher(service.clone()).with_cache(None).with_workers(workers);
-    let options = Options { catalog, installer: store.clone(), index: Ok(service_index()), runner: Runner::Inline };
+    let options = Options { catalog, installer: store.clone(), index: Ok(index), runner: Runner::Inline };
     let panel = FontsPanel::new(options, Settings::default()).with_previews(previews);
     let mut harness = Harness::builder()
         .with_size([1120.0, 678.0])
@@ -676,6 +685,19 @@ fn a_sample_the_service_lacks_falls_back_to_its_characters_once() {
         idle(&mut h);
     }
     assert!(numbers(&service.take(), "sample").is_empty(), "the sample is not asked for again");
+}
+
+#[test]
+fn a_family_without_a_sample_text_gets_its_rows_subset() {
+    let service = Arc::new(FakeService::default());
+    let (mut h, store) = service_setup_with("list-previews-no-sample", &service, 8, service_index_with("{}"));
+    store.set_previews_enabled(true).unwrap();
+    set_service(&mut h, &store);
+    idle(&mut h);
+    let shown = on_screen(&h);
+    let answered = service.take();
+    assert!(numbers(&answered, "sample").is_empty(), "{answered:?}");
+    assert_eq!(numbers(&answered, "ascii"), shown, "{answered:?}");
 }
 
 #[test]
