@@ -169,10 +169,10 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     );
     assert_eq!(index.samples().keys().collect::<Vec<_>>(), ["Jpan", "Latn", "Thai"]);
     assert_eq!(index.sample("Thai").unwrap().text, "first");
-    // Own text, then the file's script, then the family's (Zsym has no sample).
+    // Own text, then the file's script, which has no fallback (Zsym has no sample).
     assert_eq!(index.sample_text(sans, &sans.files[1]), Some("Own text"));
     assert_eq!(index.sample_text(sans, &sans.files[0]), Some("first"));
-    assert_eq!(index.sample_text(sans, &sans.files[2]), Some("Hello"));
+    assert_eq!(index.sample_text(sans, &sans.files[2]), None);
     let var = index.family_from(GOOGLE_FONTS, "Test Var").unwrap();
     assert_eq!((var.files[0].instances[0].name.as_str(), var.files[0].list_instance), ("Regular", Some(0)));
 
@@ -190,6 +190,28 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     // Named instances belong to variable fonts only.
     first["families"][2]["files"][0]["instances"] = json!([{"name": "Bold", "coordinates": {}}]);
     assert!(index_of(&first).is_err());
+
+    // Every 1.2 string a user source can set is checked, one case at a time.
+    let mut check = first.clone();
+    check["families"][2]["files"][0]["instances"] = json!([]);
+    check["families"][2]["copyright"] = json!("Copyright 2020\nTest");
+    check["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
+    assert!(index_of(&check).is_ok());
+    fn reject(v: &mut serde_json::Value, path: &dyn Fn(&mut serde_json::Value) -> &mut serde_json::Value, bad: serde_json::Value, what: &str) {
+        let good = std::mem::replace(path(v), bad);
+        assert!(index_of(v).is_err(), "{what}");
+        *path(v) = good;
+        assert!(index_of(v).is_ok(), "{what} restored");
+    }
+    reject(&mut check, &|v| &mut v["families"][2]["tags"][0], json!("Sans\u{202e}"), "bidi control in a tag");
+    reject(&mut check, &|v| &mut v["families"][2]["files"][1]["sample_text"], json!("x".repeat(61)), "long sample text");
+    reject(&mut check, &|v| &mut v["families"][3]["files"][0]["instances"][0]["coordinates"]["wght"], json!(900.0), "coordinate out of range");
+    check["families"][3]["upstream"] = json!("https://example.org/repo");
+    check["families"][3]["notice_file"] = json!({"path": "apache/testvar/NOTICE", "size": 1, "sha256": sha256_hex(b"x")});
+    assert!(index_of(&check).is_ok());
+    reject(&mut check, &|v| &mut v["families"][3]["upstream"], json!("http://example.org/repo"), "non-https upstream");
+    reject(&mut check, &|v| &mut v["families"][3]["notice_file"]["sha256"], json!("abc"), "bad notice sha256");
+    reject(&mut check, &|v| &mut v["families"][3]["notice_file"]["path"], json!("apache/testvar/TestVar[wght].ttf"), "notice named like a font");
 }
 
 #[cfg(feature = "bundled-index")]
