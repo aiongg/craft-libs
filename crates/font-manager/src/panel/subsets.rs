@@ -8,7 +8,7 @@
 //! typing pauses. Without a service nothing is asked and the list keeps its whole-family
 //! previews; with the previews setting off, only subsets in the disk cache are shown.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use egui::Context;
 
 use crate::index::{Family, Index};
 use crate::panel::app::list_file;
-use crate::remote::{Codepoints, Instance, PreviewKey, Previews, Subset};
+use crate::remote::{Codepoints, Instance, PreviewError, PreviewKey, Previews, SampleHash, Subset};
 use crate::store::Installer;
 
 /// Rows on screen.
@@ -59,6 +59,10 @@ pub(crate) struct Subsets {
     fonts: HashMap<PreviewKey, (Arc<Vec<u8>>, u64)>,
     /// Subsets that didn't load, and when.
     failed: HashMap<PreviewKey, f64>,
+    /// Sample subsets the service doesn't have for the text this index gives (HTTP 404), so
+    /// those faces draw from a subset of the sample text's characters. Keyed by the sample's
+    /// hash too, so another sample text asks for the sample again.
+    sample_missing: HashSet<PreviewKey>,
     /// Asked for and not back yet, at this priority.
     asked: HashMap<PreviewKey, u32>,
     /// The subset each face (by sha256) was last drawn with, drawn while the next one loads.
@@ -81,6 +85,7 @@ impl Subsets {
             read_at: None,
             fonts: HashMap::new(),
             failed: HashMap::new(),
+            sample_missing: HashSet::new(),
             asked: HashMap::new(),
             shown: HashMap::new(),
             typed: (String::new(), 0.0),
@@ -112,6 +117,7 @@ impl Subsets {
         if (available, fetching, &service) != (self.available, self.fetching, &self.service) {
             (self.available, self.fetching, self.service) = (available, fetching, service);
             self.failed.clear();
+            self.sample_missing.clear();
             self.cancel_all();
         }
     }
@@ -149,7 +155,11 @@ impl Subsets {
                 }
                 Err(e) => {
                     log::debug!("preview {}: {e}", preview.key.path());
-                    self.failed.insert(preview.key, self.now);
+                    if e == PreviewError::NotFound && matches!(preview.key.subset(), Subset::Sample(_)) {
+                        self.sample_missing.insert(preview.key);
+                    } else {
+                        self.failed.insert(preview.key, self.now);
+                    }
                 }
             }
         }
@@ -162,7 +172,7 @@ impl Subsets {
         if !self.available {
             return None;
         }
-        let want = key(index, row)?;
+        let want = self.key(index, row)?;
         if self.has_failed(&want) {
             return None;
         }
@@ -200,13 +210,13 @@ impl Subsets {
         let mut settled = true;
         let mut latin = Vec::new();
         for row in visible.clone().filter_map(row) {
-            let Some(sample) = sample_key(row.family) else { continue };
+            let Some(sample) = self.sample_key(index, row.family) else { continue };
             settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
             self.want(&mut wanted, sample, VISIBLE);
             if let Some(ascii) = covers_latin(row.family).then(|| subset_key(row.family, Subset::Ascii)).flatten() {
                 latin.push(ascii);
             }
-            match key(index, row) {
+            match self.key(index, row) {
                 Some(k) if matches!(k.subset(), Subset::Codepoints(_)) && !paused => {}
                 Some(k) => self.want(&mut wanted, k, VISIBLE),
                 None => {}
@@ -220,7 +230,7 @@ impl Subsets {
         let above = visible.start.saturating_sub(screen)..visible.start;
         let below = visible.end..visible.end.saturating_add(2 * screen);
         for row in above.chain(below).filter_map(row) {
-            if let Some(sample) = sample_key(row.family) {
+            if let Some(sample) = sample_subset(index, row.family).filter(|k| !self.sample_missing.contains(k)) {
                 self.want(&mut wanted, sample, WINDOW);
             }
         }
@@ -240,6 +250,17 @@ impl Subsets {
             }
         }
         self.trim();
+    }
+
+    /// The sample subset of `family`'s face, or when the service doesn't have it for this text
+    /// its [`sample_fallback`]. `None` when there is neither.
+    fn sample_key(&self, index: &Index, family: &Family) -> Option<PreviewKey> {
+        let sample = sample_subset(index, family)?;
+        if self.sample_missing.contains(&sample) { sample_fallback(index, family) } else { Some(sample) }
+    }
+
+    fn key(&self, index: &Index, row: &Row<'_>) -> Option<PreviewKey> {
+        key_of(index, row, &self.sample_missing)
     }
 
     /// Adds `key` to `wanted` at `priority` unless it is here, failed lately, or can't load:
@@ -291,30 +312,46 @@ fn subset_key(family: &Family, subset: Subset) -> Option<PreviewKey> {
     PreviewKey::new(&list_file(family)?.sha256, Instance::List, subset)
 }
 
-fn sample_key(family: &Family) -> Option<PreviewKey> {
-    subset_key(family, Subset::Sample)
-}
-
 fn covers_latin(family: &Family) -> bool {
     family.scripts.iter().any(|s| s == "Latn")
 }
 
+/// The sample subset of `family`'s list face for the text `index` gives it.
+fn sample_subset(index: &Index, family: &Family) -> Option<PreviewKey> {
+    let text = index.sample_text(family, list_file(family)?)?;
+    subset_key(family, Subset::Sample(SampleHash::of(text)))
+}
+
 /// The subset that draws `row`'s text: the sample when the sample subset has every character
 /// (the sentence and the family name), else ASCII for printable ASCII in a Latin face, else the
-/// text's own characters. `None` for a family without files, or text of more characters than a
-/// request may name.
-fn key(index: &Index, row: &Row<'_>) -> Option<PreviewKey> {
+/// text's own characters. A sample the service doesn't have gives [`sample_fallback`] instead.
+/// `None` for a family without files, or text of more characters than a request may name.
+fn key_of(index: &Index, row: &Row<'_>, missing: &HashSet<PreviewKey>) -> Option<PreviewKey> {
     let family = row.family;
     let file = list_file(family)?;
     let text = row.text.as_str();
     let sample = index.sample_text(family, file);
     let in_sample = |c: char| c == ' ' || sample.is_some_and(|s| s.contains(c)) || family.family.contains(c);
-    let subset = if sample == Some(text) || (sample.is_some() && text.chars().all(in_sample)) {
-        Subset::Sample
-    } else if covers_latin(family) && text.chars().all(|c| matches!(c, ' '..='~')) {
+    if sample == Some(text) || (sample.is_some() && text.chars().all(in_sample)) {
+        let key = sample_subset(index, family)?;
+        if !missing.contains(&key) {
+            return Some(key);
+        }
+        if let Some(fallback) = sample_fallback(index, family) {
+            return Some(fallback);
+        }
+    }
+    let subset = if covers_latin(family) && text.chars().all(|c| matches!(c, ' '..='~')) {
         Subset::Ascii
     } else {
         Subset::Codepoints(Codepoints::from_text(text))
     };
     PreviewKey::new(&file.sha256, Instance::List, subset)
+}
+
+/// The subset of the sample text's characters and the family name, which the sample subset
+/// holds too. `None` when that is more characters than a request may name.
+fn sample_fallback(index: &Index, family: &Family) -> Option<PreviewKey> {
+    let text = index.sample_text(family, list_file(family)?)?;
+    subset_key(family, Subset::Codepoints(Codepoints::from_text(&format!("{text}{}", family.family))))
 }
