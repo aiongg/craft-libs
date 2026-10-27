@@ -57,6 +57,13 @@ Four existing custom-palette service hooks retain their current signatures and r
 notifications even in manual mode; they do not change the chosen palette. Never infer Auto from the
 egui theme preference when an app implements Auto by explicitly applying a Light/Dark palette.
 
+`Watcher::button_layout()` is GNOME's `org.gnome.desktop.wm.preferences` `button-layout`, read and
+followed on the same portal connection (ReadOne, then legacy Read; `gsettings` once when the portal
+has no answer). It is the string as the desktop reports it, `None` until one arrives, and a change
+runs the same wake callback. Malformed values keep the last one. `wait_first` does not wait for it.
+`craft_window::policy::LayoutWatch` turns it into the caption layout; craft-window takes the string,
+so it needs no D-Bus dependency.
+
 `sync_native_window_theme(ctx, observed)` forwards the cached Linux/BSD desktop answer to native
 decorations when egui's window policy is System, falling back to the current toolkit answer.
 Its output hook runs after egui's automatic

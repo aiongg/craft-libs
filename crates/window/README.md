@@ -62,6 +62,35 @@ if let Frame::Integrated(captions) = &decision.frame {
 
 This crate decides *whether* and *where*; drawing the buttons stays in each app.
 
+### Live layout changes
+
+`policy::LayoutWatch` keeps the caption layout current without a restart:
+
+```rust,ignore
+use craft_window::policy::{Frame, LayoutWatch};
+
+let mut layouts = LayoutWatch::new(&decision);
+// Each frame, with the app's one craft_platform::appearance::Watcher (it also supplies the theme):
+let mut changed = layouts.set_gnome(watcher.button_layout().as_deref());
+if window_gained_focus {
+    changed |= layouts.on_focus();
+}
+if changed && let Frame::Integrated(captions) = &mut decision.frame {
+    captions.layout = layouts.layout().clone();
+}
+```
+
+| Desktop | Live source |
+| --- | --- |
+| GNOME | `button-layout` from the settings portal, through `craft_platform::appearance` |
+| KDE | `kwinrc`, re-read by `on_focus` |
+| Other Linux and BSD desktops | GTK's `settings.ini`, re-read by `on_focus` |
+| Windows, macOS, web | Fixed |
+
+A value with no usable button gives the desktop's default. The app passes the string from
+craft-platform, so this crate has no D-Bus dependency and the theme and layout share one
+connection.
+
 ## Older API
 
 `Choice::probe`, the root `Frame::{Desktop, App}` and `decorate` follow the earlier two-way rule

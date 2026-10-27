@@ -1,7 +1,10 @@
 //! Where the desktop puts the window buttons, and which look they get. The parsers are pure
 //! functions over strings; the file reads at the bottom are thin.
 
-use crate::{Layout, policy::CaptionFamily};
+use crate::{
+    Layout,
+    policy::{CaptionFamily, Decision, Frame, Os},
+};
 
 use crate::desktop::DesktopKind;
 
@@ -78,7 +81,6 @@ pub(crate) fn default_layout(kind: DesktopKind) -> Layout {
 }
 
 /// A parsed layout, or the default when the text names no usable button.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", test))]
 fn parse_or_default(text: Option<&str>, kind: DesktopKind) -> Layout {
     text.map(Layout::parse).filter(Layout::is_usable).unwrap_or_else(|| default_layout(kind))
 }
@@ -103,6 +105,110 @@ pub(crate) fn read_layout(kind: DesktopKind, var: &dyn Fn(&str) -> Option<String
             let ini = read_config(var, "gtk-3.0/settings.ini").unwrap_or_default();
             parse_or_default(gtk_settings(&ini).0.as_deref(), kind)
         }
+    }
+}
+
+/// Follows the desktop's window-button layout while the app runs, so `Captions.layout` can change
+/// without a restart.
+///
+/// - GNOME: the live value is `org.gnome.desktop.wm.preferences` `button-layout`, which
+///   `craft_platform::appearance::Watcher::button_layout` follows on the settings portal. Pass it
+///   to [`LayoutWatch::set_gnome`] when the watcher wakes; until it answers, the layout read at
+///   startup stays.
+/// - KDE: KWin's `kwinrc`; other desktops: GTK's `settings.ini`. Neither announces changes, so
+///   [`LayoutWatch::on_focus`] re-reads them when the window regains focus.
+/// - Windows, macOS and the web: the layout never changes.
+///
+/// A value that names no usable button gives the desktop's default (Close only on GNOME, all
+/// three elsewhere).
+///
+/// ```ignore
+/// let mut layouts = LayoutWatch::new(&decision);
+/// // Each frame, with the app's one `craft_platform::appearance::Watcher`:
+/// let mut changed = layouts.set_gnome(watcher.button_layout().as_deref());
+/// if window_gained_focus {
+///     changed |= layouts.on_focus();
+/// }
+/// if changed && let Frame::Integrated(captions) = &mut decision.frame {
+///     captions.layout = layouts.layout().clone();
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct LayoutWatch {
+    os: Os,
+    kind: DesktopKind,
+    /// The layout read at startup, or on the last focus re-read.
+    read: Layout,
+    /// GNOME's `button-layout` as the platform watcher last reported it.
+    gnome: Option<String>,
+    current: Layout,
+}
+
+impl LayoutWatch {
+    /// Start from `decision`: its desktop, and its caption layout when the app draws the frame.
+    /// For any other frame the desktop's layout is read now (on GNOME with `gsettings`, bounded
+    /// at 500 ms), so a later switch to the app's bar has one.
+    pub fn new(decision: &Decision) -> Self {
+        let os = Os::current();
+        let kind = decision.desktop.kind;
+        let read = match &decision.frame {
+            Frame::Integrated(captions) => captions.layout.clone(),
+            Frame::Native | Frame::Inset(_) => crate::policy::desktop_layout(os, kind),
+        };
+        Self::with(os, kind, read)
+    }
+
+    fn with(os: Os, kind: DesktopKind, read: Layout) -> Self {
+        Self { os, kind, current: read.clone(), read, gnome: None }
+    }
+
+    /// The layout to draw the caption buttons in.
+    pub fn layout(&self) -> &Layout {
+        &self.current
+    }
+
+    /// Take GNOME's `button-layout` from `craft_platform::appearance::Watcher::button_layout`.
+    /// Only GNOME follows it; `None` keeps the startup layout. Returns whether the layout changed.
+    pub fn set_gnome(&mut self, value: Option<&str>) -> bool {
+        if self.gnome.as_deref() == value {
+            return false;
+        }
+        self.gnome = value.map(str::to_owned);
+        self.update()
+    }
+
+    /// Re-read KWin's `kwinrc` (KDE) or GTK's `settings.ini` (other desktops). Call it when the
+    /// window regains focus, since neither file announces changes. GNOME's value comes through
+    /// [`LayoutWatch::set_gnome`] instead, so nothing is read there. Returns whether the layout
+    /// changed.
+    pub fn on_focus(&mut self) -> bool {
+        #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+        {
+            self.refresh_with(&|k: &str| std::env::var(k).ok())
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
+        {
+            false
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+    fn refresh_with(&mut self, var: &dyn Fn(&str) -> Option<String>) -> bool {
+        if self.os != Os::Linux || self.kind == DesktopKind::Gnome {
+            return false;
+        }
+        self.read = read_layout(self.kind, var);
+        self.update()
+    }
+
+    fn update(&mut self) -> bool {
+        let next = match &self.gnome {
+            Some(value) if self.os == Os::Linux && self.kind == DesktopKind::Gnome => parse_or_default(Some(value), self.kind),
+            _ => self.read.clone(),
+        };
+        let changed = next != self.current;
+        self.current = next;
+        changed
     }
 }
 
@@ -203,6 +309,63 @@ mod tests {
         assert_eq!(parse_or_default(None, DesktopKind::Gnome).right, vec![Close], "GNOME's default shows Close only");
         assert_eq!(parse_or_default(Some("appmenu:spacer"), DesktopKind::Other).right, vec![Minimize, Maximize, Close]);
         assert_eq!(parse_or_default(Some("close:"), DesktopKind::Other).left, vec![Close]);
+    }
+
+    #[test]
+    fn a_gnome_portal_value_wins_and_other_desktops_ignore_it() {
+        let startup = Layout::parse("appmenu:minimize,close");
+        let mut gnome = LayoutWatch::with(Os::Linux, DesktopKind::Gnome, startup.clone());
+        assert!(!gnome.set_gnome(None));
+        assert!(gnome.set_gnome(Some("close,minimize:")));
+        assert_eq!(gnome.layout().left, vec![Close, Minimize]);
+        assert!(!gnome.set_gnome(Some("close,minimize:")), "a repeat is no change");
+        // Unusable values give GNOME's default, Close only.
+        assert!(gnome.set_gnome(Some("appmenu:spacer")));
+        assert_eq!(gnome.layout(), &default_layout(DesktopKind::Gnome));
+        assert!(!gnome.set_gnome(Some("")));
+        assert!(gnome.set_gnome(None));
+        assert_eq!(gnome.layout(), &startup);
+        for (os, kind) in [(Os::Linux, DesktopKind::Kde), (Os::Linux, DesktopKind::Other), (Os::Windows, DesktopKind::Gnome)] {
+            let mut other = LayoutWatch::with(os, kind, startup.clone());
+            assert!(!other.set_gnome(Some("close:")), "{os:?} {kind:?}");
+            assert_eq!(other.layout(), &startup);
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+    #[test]
+    fn focus_rereads_kwinrc_and_gtk_settings_but_not_on_gnome() {
+        let dir = std::env::temp_dir().join(format!("craft-window-layout-watch-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("gtk-3.0")).unwrap_or_default();
+        let path = dir.to_string_lossy().into_owned();
+        let var = move |k: &str| (k == "XDG_CONFIG_HOME").then(|| path.clone());
+        let kwinrc = |text: &str| std::fs::write(dir.join("kwinrc"), text).unwrap_or_default();
+        let gtk = |text: &str| std::fs::write(dir.join("gtk-3.0/settings.ini"), text).unwrap_or_default();
+
+        let mut kde = LayoutWatch::with(Os::Linux, DesktopKind::Kde, Layout::default());
+        kwinrc("[org.kde.kdecoration2]\nButtonsOnLeft=XA\nButtonsOnRight=\n");
+        assert!(kde.refresh_with(&var));
+        assert_eq!((kde.layout().left.clone(), kde.layout().right.clone()), (vec![Close, Maximize], vec![]));
+        assert!(!kde.refresh_with(&var), "an unchanged file is no change");
+        // Letters for no button KWin and this crate share give the default.
+        kwinrc("[org.kde.kdecoration2]\nButtonsOnLeft=M\nButtonsOnRight=S\n");
+        assert!(kde.refresh_with(&var));
+        assert_eq!(kde.layout(), &Layout::default());
+
+        let mut other = LayoutWatch::with(Os::Linux, DesktopKind::Other, Layout::default());
+        gtk("[Settings]\ngtk-decoration-layout=close:\n");
+        assert!(other.refresh_with(&var));
+        assert_eq!(other.layout().left, vec![Close]);
+        gtk("[Settings]\ngtk-decoration-layout=appmenu:\n");
+        assert!(other.refresh_with(&var));
+        assert_eq!(other.layout(), &Layout::default());
+
+        let startup = Layout::parse("appmenu:close");
+        let mut gnome = LayoutWatch::with(Os::Linux, DesktopKind::Gnome, startup.clone());
+        gtk("[Settings]\ngtk-decoration-layout=close,minimize:\n");
+        assert!(!gnome.refresh_with(&var));
+        assert_eq!(gnome.layout(), &startup);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
