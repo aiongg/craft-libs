@@ -369,10 +369,52 @@ pub(crate) fn file_faces(path: &Path, max_read: u64, source: Source) -> Vec<Face
         }
         return faces;
     }
-    match std::fs::File::open(path) {
+    match open_regular(path) {
         Ok(file) => reader_faces(file, MAX_FACES, max_read, path, source),
         Err(_) => vec![],
     }
+}
+
+/// `O_NONBLOCK` on the platforms whose value is known here (the crate has no libc dependency):
+/// 0o4000 on Linux and Android except MIPS and SPARC, 4 on Apple's systems and the BSDs, else
+/// none. It keeps opening a FIFO from blocking; reads of a regular file ignore it.
+#[cfg(unix)]
+const O_NONBLOCK: i32 =
+    if cfg!(any(target_vendor = "apple", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly")) {
+        0x4
+    } else if cfg!(all(
+        any(target_os = "linux", target_os = "android"),
+        not(any(
+            target_arch = "mips",
+            target_arch = "mips64",
+            target_arch = "mips32r6",
+            target_arch = "mips64r6",
+            target_arch = "sparc",
+            target_arch = "sparc64"
+        ))
+    )) {
+        0o4000
+    } else {
+        0
+    };
+
+pub(crate) fn not_a_regular_file() -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a regular file")
+}
+
+/// `path` opened for reading, when it is a regular file (after following links). The check is
+/// on the open file, so a FIFO or device swapped in after an earlier check is refused too; on
+/// Unix the open doesn't wait for a FIFO's writer.
+pub(crate) fn open_regular(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(&mut options, O_NONBLOCK);
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(not_a_regular_file());
+    }
+    Ok(file)
 }
 
 fn reader_faces(mut file: impl std::io::Read + std::io::Seek, max_faces: u32, max_read: u64, path: &Path, source: Source) -> Vec<Face> {

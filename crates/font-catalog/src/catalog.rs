@@ -112,6 +112,23 @@ enum Alias {
     Face(usize),
 }
 
+impl Alias {
+    fn face(&self) -> usize {
+        match self {
+            Alias::Family(i) | Alias::Legacy(i, _) | Alias::Face(i) => *i,
+        }
+    }
+
+    /// The order [`Index::resolve`] tries kinds of alias in.
+    fn tier(&self) -> u8 {
+        match self {
+            Alias::Family(_) => 0,
+            Alias::Legacy(..) => 1,
+            Alias::Face(_) => 2,
+        }
+    }
+}
+
 /// One state of the catalog: what lookups read while a scan builds the next one.
 #[derive(Default)]
 struct Index {
@@ -121,6 +138,8 @@ struct Index {
     by_family: HashMap<String, Vec<usize>>,
     aliases: HashMap<String, Vec<Alias>>,
     postscript: HashMap<String, usize>,
+    /// How many of `faces` (the first ones) came from the added faces.
+    added: usize,
 }
 
 impl Index {
@@ -129,11 +148,15 @@ impl Index {
     fn build(added: &[Face], scanned: &[Face]) -> Self {
         let mut faces: Vec<Face> = Vec::new();
         let mut seen = HashSet::new();
-        for f in added.iter().chain(scanned) {
+        let mut from_added = 0;
+        for (n, f) in added.iter().chain(scanned).enumerate() {
             let variations: Vec<(u32, u32)> = f.info.variations.iter().map(|(t, v)| (u32::from_be_bytes(*t), v.to_bits())).collect();
             let key = (f.info.family.to_ascii_lowercase(), norm(&f.info.style), f.keys.postscript.first().cloned(), variations);
             if seen.insert(key) {
                 faces.push(f.clone());
+                if n < added.len() {
+                    from_added += 1;
+                }
             }
         }
         let mut by_family: HashMap<String, Vec<usize>> = HashMap::new();
@@ -175,7 +198,7 @@ impl Index {
         }
         families.sort_by_cached_key(|f| (f.to_lowercase(), f.clone()));
         let infos: Arc<[FaceInfo]> = faces.iter().map(|f| f.info.clone()).collect();
-        Self { faces, infos, families: families.into(), by_family, aliases, postscript }
+        Self { faces, infos, families: families.into(), by_family, aliases, postscript, added: from_added }
     }
 
     fn face(&self, i: usize) -> Option<&Face> {
@@ -312,9 +335,21 @@ struct Added {
     /// The bytes of faces added as bytes, with or without a scope.
     blobs: HashMap<u64, Arc<[u8]>>,
     next_blob: u64,
+    /// Counts every scope's changes together, so a scope's stamp never repeats.
+    scope_changes: u64,
 }
 
 impl Added {
+    /// Record a change of `scope`'s faces: a new stamp, and a view to build again.
+    fn changed(&mut self, scope: Scope) -> &mut Scoped {
+        self.scope_changes += 1;
+        let stamp = self.scope_changes;
+        let scoped = self.scopes.entry(scope).or_default();
+        scoped.stamp = stamp;
+        scoped.view = None;
+        scoped
+    }
+
     /// Every added face, every scope's included: what [`Limits::max_added_faces`] bounds.
     fn count(&self) -> usize {
         self.faces.len() + self.scopes.values().map(|s| s.faces.len()).sum::<usize>()
@@ -327,19 +362,20 @@ impl Added {
     }
 }
 
-/// A scope's faces, and the view its lookups read.
+/// A scope's faces, and the view its lookups read. A removed scope keeps its entry, with no
+/// faces, so its stamp never goes back.
 #[derive(Default)]
 struct Scoped {
     faces: Vec<Face>,
-    /// How often its faces changed, for [`Catalog::generation_in`].
-    changes: u64,
+    /// [`Added::scope_changes`] at the scope's last change, for [`Catalog::generation_in`].
+    stamp: u64,
     /// Built on the first lookup after a change of the scope or of the shared index.
     view: Option<Arc<View>>,
 }
 
 /// What lookups in a scope read: an index of the scope's faces and the shared faces of their
-/// families, consulted before the shared index. A name the scope's faces answer to resolves in
-/// the scope; every other name resolves in the shared index.
+/// families, consulted before the shared index. [`View::answers`] says which of the two a name
+/// resolves in, so the result is what one index of every face would give.
 struct View {
     /// The shared index this view was built from.
     base: Arc<Index>,
@@ -361,6 +397,36 @@ impl View {
         }
         Self { base, index, families: families.into() }
     }
+
+    /// Whether `name` resolves to the scope's faces, trying names in [`Index::resolve`]'s order:
+    /// an exact family name, then each kind of alias. A family the view holds has scope faces;
+    /// otherwise the first kind of alias either index has decides, and the view's aliases list
+    /// the scope's faces first.
+    fn answers(&self, name: &str) -> bool {
+        let lower = name.to_ascii_lowercase();
+        if self.index.by_family.contains_key(&lower) {
+            return true;
+        }
+        if self.base.by_family.contains_key(&lower) {
+            return false;
+        }
+        let key = norm(name);
+        let (own, shared) = (self.index.aliases.get(&key), self.base.aliases.get(&key));
+        for tier in 0..3 {
+            if let Some(a) = own.into_iter().flatten().find(|a| a.tier() == tier) {
+                return a.face() < self.index.added;
+            }
+            if shared.into_iter().flatten().any(|a| a.tier() == tier) {
+                return false;
+            }
+        }
+        false
+    }
+
+    /// The scope's face with PostScript name `name`.
+    fn postscript(&self, name: &str) -> Option<usize> {
+        self.index.postscript.get(&norm(name)).copied().filter(|i| *i < self.index.added)
+    }
 }
 
 /// A family's faces, loaded once ([`Catalog::load_family`]).
@@ -369,7 +435,7 @@ type FamilyLoad = Arc<OnceLock<Arc<[LoadedFace]>>>;
 /// Why a path isn't read as a font: it is a folder, a FIFO, a device or a socket, which could
 /// block or never end.
 fn not_a_regular_file() -> FontFileError {
-    FontFileError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a regular file"))
+    FontFileError::Io(scan::not_a_regular_file())
 }
 
 /// The installed fonts: the platform's font folders, the files its font service knows, the font
@@ -573,11 +639,12 @@ impl Catalog {
         self.generation.load(Ordering::Acquire)
     }
 
-    /// Counts the changes lookups in `scope` see: [`Catalog::generation`] plus the changes of the
-    /// scope's own faces. It never goes down while the scope exists; for a removed scope it is
-    /// [`Catalog::generation`].
+    /// Counts the changes lookups in `scope` see: [`Catalog::generation`] plus a stamp of the
+    /// scope's last change, taken from one counter of every scope's changes. It never goes down
+    /// and never repeats a value, [`Catalog::remove_scope`] and adding to the scope again
+    /// included.
     pub fn generation_in(&self, scope: Scope) -> u64 {
-        let own = lock(&self.added).scopes.get(&scope).map_or(0, |s| s.changes);
+        let own = lock(&self.added).scopes.get(&scope).map_or(0, |s| s.stamp);
         self.generation() + own
     }
 
@@ -596,7 +663,7 @@ impl Catalog {
     fn lookup(&self, scope: Scope) -> (Arc<Index>, Option<Arc<View>>) {
         let base = self.snapshot();
         let mut added = lock(&self.added);
-        let Some(scoped) = added.scopes.get_mut(&scope) else { return (base, None) };
+        let Some(scoped) = added.scopes.get_mut(&scope).filter(|s| !s.faces.is_empty()) else { return (base, None) };
         if let Some(view) = &scoped.view
             && Arc::ptr_eq(&view.base, &base)
         {
@@ -634,7 +701,7 @@ impl Catalog {
     /// [`Catalog::family`] in `scope`.
     pub fn family_in(&self, scope: Scope, name: &str) -> Option<String> {
         let (base, view) = self.lookup(scope);
-        view.and_then(|v| family_name(&v.index, name)).or_else(|| family_name(&base, name))
+        view.filter(|v| v.answers(name)).and_then(|v| family_name(&v.index, name)).or_else(|| family_name(&base, name))
     }
 
     /// The faces of the family `name` names ([`Catalog::family`]).
@@ -646,7 +713,7 @@ impl Catalog {
     /// the shared faces of other styles.
     pub fn styles_in(&self, scope: Scope, family: &str) -> Vec<FaceInfo> {
         let (base, view) = self.lookup(scope);
-        view.and_then(|v| styles_of(&v.index, family)).or_else(|| styles_of(&base, family)).unwrap_or_default()
+        view.filter(|v| v.answers(family)).and_then(|v| styles_of(&v.index, family)).or_else(|| styles_of(&base, family)).unwrap_or_default()
     }
 
     /// The face for `name` in `style`, and how it matched. `name` is a family name (any of its
@@ -663,7 +730,7 @@ impl Catalog {
     /// and the shared faces of their families, any other name as [`Catalog::resolve`].
     pub fn resolve_in(&self, scope: Scope, name: &str, style: &str) -> Option<(FaceInfo, Match)> {
         let (base, view) = self.lookup(scope);
-        view.and_then(|v| resolve_face(&v.index, name, style)).or_else(|| resolve_face(&base, name, style))
+        view.filter(|v| v.answers(name)).and_then(|v| resolve_face(&v.index, name, style)).or_else(|| resolve_face(&base, name, style))
     }
 
     /// The face with this PostScript name (a named instance's too), ignoring case and everything
@@ -675,7 +742,10 @@ impl Catalog {
     /// [`Catalog::by_postscript_name`] in `scope`, the scope's faces first.
     pub fn by_postscript_name_in(&self, scope: Scope, name: &str) -> Option<FaceInfo> {
         let (base, view) = self.lookup(scope);
-        view.and_then(|v| postscript_face(&v.index, name)).or_else(|| postscript_face(&base, name))
+        match view.and_then(|v| Some((v.postscript(name)?, v))) {
+            Some((i, v)) => v.index.face(i).map(|f| f.info.clone()),
+            None => postscript_face(&base, name),
+        }
     }
 
     /// The data of `face`, read from its file (shared with other faces of the file still loaded).
@@ -696,15 +766,15 @@ impl Catalog {
         if let Some(bytes) = lock(&self.files).get(path).and_then(Weak::upgrade) {
             return Ok(bytes);
         }
-        let meta = std::fs::metadata(path)?;
-        if !meta.is_file() {
-            return Err(not_a_regular_file());
-        }
-        let size = meta.len();
+        use std::io::Read;
+        let file = scan::open_regular(path)?;
+        let size = file.metadata()?.len();
         if size > MAX_LOAD {
             return Err(FontFileError::TooLarge { size, max: MAX_LOAD });
         }
-        let bytes: Arc<[u8]> = std::fs::read(path)?.into();
+        let mut data = Vec::new();
+        file.take(MAX_LOAD).read_to_end(&mut data)?;
+        let bytes: Arc<[u8]> = data.into();
         let mut files = lock(&self.files);
         files.retain(|_, w| w.strong_count() > 0);
         files.insert(path.to_path_buf(), Arc::downgrade(&bytes));
@@ -727,7 +797,7 @@ impl Catalog {
     /// unscoped loads.
     pub fn load_family_in(&self, scope: Scope, family: &str) -> Arc<[LoadedFace]> {
         let (_, view) = self.lookup(scope);
-        let Some(name) = view.and_then(|v| family_name(&v.index, family)) else { return self.load_family(family) };
+        let Some(name) = view.filter(|v| v.answers(family)).and_then(|v| family_name(&v.index, family)) else { return self.load_family(family) };
         let cell = Arc::clone(lock(&self.loaded).entry((Some(scope), name.to_ascii_lowercase())).or_default());
         Arc::clone(cell.get_or_init(|| {
             self.styles_in(scope, &name).into_iter().filter_map(|info| Some(LoadedFace { data: self.load(&info).ok()?, info })).collect()
@@ -823,11 +893,8 @@ impl Catalog {
                 self.publish(Index::build(&added.faces, &scanned));
             }
             Some(scope) => {
-                let scoped = added.scopes.entry(scope).or_default();
-                scoped.faces.extend(faces);
-                scoped.changes += 1;
-                scoped.view = None;
-                drop(added);
+                added.changed(scope).faces.extend(faces);
+                // Under the lock, as `publish` does: no load reads the old faces after the stamp.
                 lock(&self.loaded).retain(|(s, _), _| *s != Some(scope));
             }
         }
@@ -849,15 +916,19 @@ impl Catalog {
         removed
     }
 
-    /// Remove `scope` and its faces (its document closed). Returns how many faces. Other scopes
-    /// and unscoped lookups don't change, nor does [`Catalog::generation`].
+    /// Remove `scope`'s faces (its document closed). Returns how many. Other scopes and unscoped
+    /// lookups don't change, nor does [`Catalog::generation`]. The scope keeps a few bytes, so
+    /// [`Catalog::generation_in`] never repeats a value.
     pub fn remove_scope(&self, scope: Scope) -> usize {
         let mut added = lock(&self.added);
-        let Some(scoped) = added.scopes.remove(&scope) else { return 0 };
+        let removed = added.scopes.get(&scope).map_or(0, |s| s.faces.len());
+        if removed == 0 {
+            return 0;
+        }
+        added.changed(scope).faces.clear();
         added.drop_unused_blobs();
-        drop(added);
         lock(&self.loaded).retain(|(s, _), _| *s != Some(scope));
-        scoped.faces.len()
+        removed
     }
 
     /// The faces the last scan found.
@@ -1003,10 +1074,21 @@ impl Walk {
         }
     }
 
+    /// Record `path`. In a confined folder its real path is recorded, so a link swapped in after
+    /// this check can't lead the scan outside the folder.
     fn file(&mut self, path: PathBuf, source: Source, by_name: bool, inside: Option<&Path>) {
         let key = self.key(&path);
-        if inside.is_none_or(|root| key.starts_with(root)) && self.seen_files.insert(key) {
-            self.files.push((path, source, by_name));
+        if inside.is_some_and(|root| !key.starts_with(root)) || !self.seen_files.insert(key) {
+            return;
         }
+        let path = match inside {
+            // On Windows the real path is a `\\?\` path, which apps would show.
+            Some(_) if cfg!(unix) => match std::fs::canonicalize(&path) {
+                Ok(real) => real,
+                Err(_) => return,
+            },
+            _ => path,
+        };
+        self.files.push((path, source, by_name));
     }
 }

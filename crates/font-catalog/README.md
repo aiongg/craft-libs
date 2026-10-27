@@ -45,7 +45,7 @@ The font service covers fonts outside those folders:
 
 ## Scanning
 
-The scan reads each file's table directory and its `name`, `OS/2` and `fvar` tables, at most 1 MiB per table, never the whole file. Faces without outline tables (`glyf`, `CFF `, `CFF2`, `VARC`) are left out. Files in folders count when they have a font extension (`.ttf`, `.otf`, `.ttc`, `.otc`); files a font service or lister names count whatever their name. Only regular files are opened (after following links), so a FIFO or device named `x.ttf` can't block the scan. The scan follows links, except in the folders given to `set_confined_dirs`: there a link whose target is outside the folder is skipped. Mac suitcase fonts are read from their resource fork. Damaged files give no faces, never a panic.
+The scan reads each file's table directory and its `name`, `OS/2` and `fvar` tables, at most 1 MiB per table, never the whole file. Faces without outline tables (`glyf`, `CFF `, `CFF2`, `VARC`) are left out. Files in folders count when they have a font extension (`.ttf`, `.otf`, `.ttc`, `.otc`); files a font service or lister names count whatever their name. Only regular files are read (after following links), and on Unix the open doesn't wait, so a FIFO or device named `x.ttf` can't block the scan. The scan follows links, except in the folders given to `set_confined_dirs`: there a link whose target is outside the folder is skipped. Mac suitcase fonts are read from their resource fork. Damaged files give no faces, never a panic.
 
 Each face (`FaceInfo`) has its family and style, legacy family and style, family names in other languages, full name, PostScript name, weight, width, italic, a named instance's axis settings, `fsType`, the OS/2 code page bits, its file and index, and its source. Each named instance of a variable font is a face of its own.
 
@@ -79,7 +79,7 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 - `installed_fonts_changed` compares the modification times of every folder the scan read (and the folders of files a font service named) and, on Windows, the registry's font list. It costs a few hundred `stat` calls, not a scan.
 - `rescan_if_changed` does both; apps call it when their window is activated.
 - `watch(interval, on_change)` polls on a background thread.
-- `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes; a document lays out again when it changes.
+- `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes and never repeats a value, even after `remove_scope`; a document lays out again when it changes.
 
 ## One enumeration for the UI and documents
 

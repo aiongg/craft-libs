@@ -495,6 +495,37 @@ fn scoped_fonts_are_seen_only_in_their_scope() {
     assert_eq!(cat.load_family_in(b, "Test Sans").iter().filter(|f| f.info.fs_type == 8).count(), 1);
 }
 
+#[test]
+fn a_scope_resolves_as_one_index_of_every_face_would() {
+    let root = temp("scope-names");
+    let cat = system(&root);
+    let limits = Limits::default();
+    let scope = cat.new_scope();
+    // A family spelled without the space answers to "Test Sans" only through an alias, so the
+    // installed family of that exact name wins there, as it does unscoped.
+    let doc = font(&Spec { fs_type: 4, ..spec("TestSans", "Bold", 700) });
+    cat.add_bytes_in(scope, doc.clone(), Source::Document, &limits).unwrap();
+    assert_eq!(cat.resolve_in(scope, "Test Sans", "Bold"), cat.resolve("Test Sans", "Bold"));
+    assert_eq!(cat.styles_in(scope, "Test Sans"), cat.styles("Test Sans"));
+    assert_eq!(cat.family_in(scope, "Test Sans").as_deref(), Some("Test Sans"));
+    let (own, m) = cat.resolve_in(scope, "TestSans", "Bold").unwrap();
+    assert_eq!((own.fs_type, m), (4, Match::Exact));
+    assert_eq!(cat.by_postscript_name_in(scope, "TestSans-Bold").unwrap().fs_type, 4);
+    assert_eq!(cat.by_postscript_name_in(scope, "TestSans-Regular"), cat.by_postscript_name("TestSans-Regular"));
+
+    // The scope's generation never repeats, removed and added to again included.
+    let added = cat.generation_in(scope);
+    assert_eq!(cat.remove_scope(scope), 1);
+    let removed = cat.generation_in(scope);
+    assert_eq!(cat.remove_scope(scope), 0);
+    assert_eq!(cat.generation_in(scope), removed);
+    assert_eq!(cat.resolve_in(scope, "TestSans", "Bold"), cat.resolve("TestSans", "Bold"));
+    cat.add_bytes_in(scope, doc, Source::Document, &limits).unwrap();
+    let again = cat.generation_in(scope);
+    assert!(added < removed && removed < again, "{added} {removed} {again}");
+    assert_eq!(cat.resolve_in(scope, "TestSans", "Bold").unwrap().0.fs_type, 4);
+}
+
 #[cfg(unix)]
 #[test]
 fn the_scan_skips_files_that_are_not_regular() {
@@ -507,9 +538,14 @@ fn the_scan_skips_files_that_are_not_regular() {
     let cat = Arc::new(Catalog::new(linux_env(&root)).with_font_service(false).with_lister(Arc::new(move || vec![named.clone()])));
     // Opening a FIFO blocks until a writer comes, so the scan runs on a thread with a deadline.
     let (tx, rx) = mpsc::channel();
-    let scanning = Arc::clone(&cat);
-    std::thread::spawn(move || tx.send(scanning.families().to_vec()));
-    assert_eq!(rx.recv_timeout(Duration::from_secs(10)).expect("the scan opened the FIFO"), ["Real Face"]);
+    let (scanning, opened) = (Arc::clone(&cat), fifo.clone());
+    std::thread::spawn(move || {
+        // The open itself doesn't wait, whatever an earlier check said.
+        let direct = crate::scan::file_faces(&opened, u64::MAX, Source::User);
+        tx.send((direct.len(), scanning.families().to_vec()))
+    });
+    let (direct, families) = rx.recv_timeout(Duration::from_secs(10)).expect("the scan opened the FIFO");
+    assert_eq!((direct, families.as_slice()), (0, ["Real Face".to_string()].as_slice()));
     assert!(matches!(cat.add_file(&fifo, Source::User, &Limits::default()), Err(FontFileError::Io(_))));
     assert!(matches!(cat.add_file(&dir, Source::User, &Limits::default()), Err(FontFileError::Io(_))));
 }
