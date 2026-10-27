@@ -253,6 +253,9 @@ fn the_suite_store_and_its_previews_share_the_service_down_state() {
     assert!(!client.service_is_down(svc) && !store.client().service_is_down(svc));
     client.mark_service_down(svc);
     assert!(store.client().service_is_down(svc));
+    // The pool's client has its own timeouts and the same down state.
+    let pool_client = client.with_timeouts(craft_font_store::Timeouts::default());
+    assert!(pool_client.service_is_down(svc));
     let _ = std::fs::remove_dir_all(root);
 }
 
