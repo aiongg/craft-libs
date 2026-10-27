@@ -71,6 +71,8 @@ pub(crate) enum Backend {
 pub(crate) struct Memory {
     selection: Option<(Arc<[u8]>, u64)>,
     library: BTreeMap<String, (Arc<[u8]>, u64)>,
+    /// Themes a delete in progress has set aside.
+    hidden: BTreeMap<String, (Arc<[u8]>, u64)>,
     serial: u64,
 }
 
@@ -151,6 +153,18 @@ impl Backend {
         }
     }
 
+    /// Puts back a damaged `selection.json` moved aside by a write that then failed.
+    pub fn restore_selection(&mut self, moved: &std::path::Path) -> io::Result<()> {
+        match self {
+            Backend::Memory(_) => {
+                let _ = moved;
+                Ok(())
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Backend::Disk(d) => d.restore_selection(moved),
+        }
+    }
+
     pub fn list(&self) -> io::Result<Vec<LibraryFile>> {
         match self {
             Backend::Memory(m) => Ok(m.library.iter().map(|(stem, (b, s))| LibraryFile { stem: stem.clone(), stamp: mem_stamp(b, *s) }).collect()),
@@ -188,6 +202,42 @@ impl Backend {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Backend::Disk(d) => d.create_theme(stem, bytes),
+        }
+    }
+
+    /// Renames a theme to a hidden name that listings skip; `NotFound` when there is none.
+    pub fn hide_theme(&mut self, stem: &str) -> io::Result<()> {
+        match self {
+            Backend::Memory(m) => {
+                let entry = m.library.remove(stem).ok_or(io::ErrorKind::NotFound)?;
+                m.hidden.insert(stem.to_owned(), entry);
+                Ok(())
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Backend::Disk(d) => d.hide_theme(stem),
+        }
+    }
+
+    pub fn unhide_theme(&mut self, stem: &str) -> io::Result<()> {
+        match self {
+            Backend::Memory(m) => {
+                let entry = m.hidden.remove(stem).ok_or(io::ErrorKind::NotFound)?;
+                m.library.insert(stem.to_owned(), entry);
+                Ok(())
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Backend::Disk(d) => d.unhide_theme(stem),
+        }
+    }
+
+    pub fn purge_hidden_theme(&mut self, stem: &str) -> io::Result<()> {
+        match self {
+            Backend::Memory(m) => {
+                m.hidden.remove(stem);
+                Ok(())
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Backend::Disk(d) => d.purge_hidden_theme(stem),
         }
     }
 

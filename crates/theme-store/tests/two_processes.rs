@@ -48,7 +48,7 @@ fn two_processes_keep_every_update() {
     let last = (UPDATES - 1) as usize % 2;
     let accepted = store.accepted();
     assert_eq!(accepted.revision, 1 + 2 * UPDATES);
-    assert_eq!(accepted.suite, Some(Selection { theme: ThemeId::parse(THEMES[last]).unwrap(), mode: MODES[last] }));
+    assert_eq!(accepted.suite, craft_theme_store::SuiteChoice::from(Selection { theme: ThemeId::parse(THEMES[last]).unwrap(), mode: MODES[last] }));
 }
 
 /// Each update changes one field relative to this child's own last write, which is stale for
@@ -61,10 +61,9 @@ fn child(role: &str, dir: &Path) {
     }
     for i in 0..UPDATES as usize {
         let base = store.accepted().clone();
-        let shown = SelectionChange::new(base.suite.clone().unwrap());
         let mine = match role {
-            "theme" => shown.with_theme(ThemeId::parse(THEMES[i % 2]).unwrap()),
-            _ => shown.with_mode(MODES[i % 2]),
+            "theme" => SelectionChange::theme(ThemeId::parse(THEMES[i % 2]).unwrap()),
+            _ => SelectionChange::mode(MODES[i % 2]),
         };
         loop {
             match store.update(&base, mine.clone()) {

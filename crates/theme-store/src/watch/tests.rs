@@ -106,13 +106,13 @@ fn an_external_write_bumps_the_generation_and_wakes_once() {
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (1, 1));
 
-    write_selection(tmp.path(), &first, SelectionChange::new(sel("craft.graphite", Mode::Dark)).with_mode(Mode::Light));
+    write_selection(tmp.path(), &first, SelectionChange::mode(Mode::Light));
     wait_for("the change", || watch.generation() == 2);
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!((watch.generation(), wakes.load(Ordering::SeqCst)), (2, 2));
     let snapshot = watch.snapshot();
     assert_eq!(snapshot.generation, 2);
-    assert_eq!(snapshot.accepted.suite, Some(sel("craft.graphite", Mode::Light)));
+    assert_eq!(snapshot.accepted.suite, sel("craft.graphite", Mode::Light).into());
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn a_same_metadata_replacement_is_found_by_the_byte_comparison() {
     assert_eq!(watch.generation(), 1, "the stamp check can't see this change");
     watch.poll_once(true);
     assert_eq!(watch.generation(), 2);
-    assert_eq!(watch.snapshot().accepted.suite, Some(sel("craft.artcraft", Mode::Dark)));
+    assert_eq!(watch.snapshot().accepted.suite, sel("craft.artcraft", Mode::Dark).into());
 }
 
 #[test]
@@ -182,14 +182,14 @@ fn operations_run_on_the_worker_and_report_their_results() {
     let id = watch.request(Op::Update { base, change: SelectionChange::whole(sel("craft.graphite", Mode::Dark)) });
     assert!(matches!(result(&watch, id), Ok(OpOutput::Done)));
     let mine = watch.snapshot().accepted.clone();
-    assert_eq!(mine.suite, Some(sel("craft.graphite", Mode::Dark)));
+    assert_eq!(mine.suite, sel("craft.graphite", Mode::Dark).into());
 
     // Another app changes the mode; this app's mode change made on the old state conflicts.
-    let theirs = write_selection(tmp.path(), &mine, SelectionChange::new(sel("craft.graphite", Mode::Dark)).with_mode(Mode::Light));
-    let change = SelectionChange::new(sel("craft.graphite", Mode::Dark)).with_mode(Mode::System);
+    let theirs = write_selection(tmp.path(), &mine, SelectionChange::mode(Mode::Light));
+    let change = SelectionChange::mode(Mode::System);
     let id = watch.request(Op::Update { base: mine.clone(), change });
     match result(&watch, id) {
-        Err(StoreError::Conflict { disk }) => assert_eq!(disk, theirs),
+        Err(StoreError::Conflict { disk, .. }) => assert_eq!(disk, theirs),
         other => panic!("{other:?}"),
     }
     assert_eq!(watch.snapshot().accepted, theirs);
@@ -228,7 +228,7 @@ fn the_memory_watch_applies_operations_at_once() {
     let id = watch.request(Op::Update { base: snapshot.accepted.clone(), change: SelectionChange::whole(sample.clone()) });
     let snapshot = watch.snapshot();
     assert!(matches!(snapshot.result(id), Some(Ok(OpOutput::Done))));
-    assert_eq!(snapshot.accepted.suite, Some(sample.clone()));
+    assert_eq!(snapshot.accepted.suite, sample.clone().into());
     assert!(snapshot.theme(&sample.theme).is_some());
     let id = watch.request(Op::Delete(sample.theme));
     assert!(matches!(watch.snapshot().result(id), Some(Err(StoreError::InUse(_)))));

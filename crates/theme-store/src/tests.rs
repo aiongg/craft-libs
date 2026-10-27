@@ -10,7 +10,7 @@ use craft_theme::{Mode, Selection, ThemeId};
 use serde_json::Value;
 
 use crate::{
-    Accepted, FormatError, Problem, SelectionChange, SelectionError, Store, StoreError, StoreOptions, SuiteDir,
+    Accepted, FormatError, Problem, SelectionChange, SelectionError, Store, StoreError, StoreOptions, SuiteChoice, SuiteDir,
     testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON, sample_roles},
 };
 
@@ -60,7 +60,7 @@ fn reads_never_create_files_and_no_file_means_no_selection() {
 
     let mine = sel("craft.graphite", Mode::Dark);
     let accepted = store.update(&Accepted::default(), SelectionChange::whole(mine.clone())).unwrap();
-    assert_eq!(accepted, Accepted { suite: Some(mine), revision: 1, library_revision: 0 });
+    assert_eq!(accepted, Accepted { suite: mine.into(), revision: 1, library_revision: 0 });
     assert_eq!(selection_json(&dir)["written_by"], "test 1.0");
     assert!(dir.join("selection.lock").exists());
 }
@@ -70,7 +70,7 @@ fn memory_store_runs_the_same_protocol() {
     let mut store = Store::open(&SuiteDir::memory(), options());
     assert!(store.dir().is_none());
     let imported = store.import(SAMPLE_THEME_JSON.as_bytes(), false).unwrap();
-    assert_eq!(imported.accepted, Accepted { suite: None, revision: 1, library_revision: 1 });
+    assert_eq!(imported.accepted, Accepted { suite: SuiteChoice::default(), revision: 1, library_revision: 1 });
     let sample = id(SAMPLE_THEME_ID);
     assert_eq!(&*store.export(&sample).unwrap(), SAMPLE_THEME_JSON.as_bytes());
     let base = store.accepted().clone();
@@ -183,34 +183,53 @@ fn a_newer_selection_is_never_overwritten() {
 }
 
 #[test]
-fn a_damaged_selection_keeps_the_last_state_and_moves_aside_on_write() {
+fn a_damaged_selection_keeps_the_last_state_and_moves_aside_only_when_written() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let mut store = open(tmp.path());
-    let base = store.update(&Accepted::default(), whole("craft.graphite", Mode::Light)).unwrap();
-    fs::write(&path, "{ not json").unwrap();
+    store.import(theme_json("one", "").as_bytes(), false).unwrap();
+    let base = store.accepted().clone();
+    let base = store.update(&base, whole("one", Mode::Light)).unwrap();
+    // Still JSON, so its counters are salvaged.
+    let damaged = r#"{"schema_version":1,"revision":40,"library_revision":7,"suite":{"theme":5}}"#;
+    fs::write(&path, damaged).unwrap();
     assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::Corrupt(_)))));
     assert_eq!(store.accepted(), &base);
-    // Reads leave it where it is; the next write moves it aside and merges against the base.
-    assert_eq!(fs::read_to_string(&path).unwrap(), "{ not json");
-    let next = store.update(&base, whole("craft.graphite", Mode::Dark)).unwrap();
-    assert_eq!(next.revision, 2);
+
+    // Paths that write nothing leave it where it is: a change that matches, InUse, IdExists, a
+    // failed write.
+    store.update(&base, SelectionChange::mode(Mode::Light)).unwrap();
+    assert!(matches!(store.delete(&id("one")), Err(StoreError::InUse(_))));
+    assert!(matches!(store.import(theme_json("one", "").as_bytes(), false), Err(StoreError::IdExists(_))));
+    // Moved aside, then the write fails creating its temporary file: put back.
+    let mut failing = Store::open(&SuiteDir::at(tmp.path()), options().file_system(Box::new(FailingFs(FailAt::Create))));
+    assert!(failing.update(&base, SelectionChange::mode(Mode::Dark)).is_err());
+    assert!(failing.take_moved_aside().is_empty());
+    assert_eq!(fs::read_to_string(&path).unwrap(), damaged);
+    assert!(store.take_moved_aside().is_empty());
+
+    let next = store.update(&base, SelectionChange::mode(Mode::Dark)).unwrap();
+    assert_eq!((next.revision, next.library_revision), (41, 7));
+    assert_eq!(next.suite, sel("one", Mode::Dark).into());
     let moved = store.take_moved_aside();
     assert_eq!(moved.len(), 1);
-    assert_eq!(fs::read_to_string(&moved[0]).unwrap(), "{ not json");
+    assert_eq!(fs::read_to_string(&moved[0]).unwrap(), damaged);
     assert!(moved[0].file_name().unwrap().to_str().unwrap().starts_with("selection.broken-"));
 }
 
 #[test]
-fn an_oversized_selection_is_refused() {
+fn an_oversized_selection_counts_as_damaged() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
     let big = format!(r#"{{"schema_version":1,"pad":"{}"}}"#, "x".repeat(crate::MAX_SELECTION_BYTES));
     fs::write(&path, &big).unwrap();
     let mut store = open(tmp.path());
     assert!(matches!(store.load_selection(), Err(Problem::Selection(SelectionError::TooLarge { .. }))));
-    assert!(matches!(store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)), Err(StoreError::Selection(_))));
-    assert_eq!(fs::read_to_string(&path).unwrap(), big);
+    assert!(!store.is_read_only());
+    store.update(&Accepted::default(), whole("craft.graphite", Mode::Dark)).unwrap();
+    let moved = store.take_moved_aside();
+    assert_eq!(fs::read_to_string(&moved[0]).unwrap(), big);
+    assert_eq!(selection_json(tmp.path())["suite"]["theme"], "craft.graphite");
 }
 
 #[test]
@@ -221,28 +240,76 @@ fn same_field_changed_elsewhere_is_a_conflict_and_writes_nothing() {
     let mut b = open(tmp.path());
     let base = a.update(&Accepted::default(), whole("craft.artcraft", Mode::System)).unwrap();
     b.load_selection().unwrap();
-    let b_state = b.update(&base, whole("craft.graphite", Mode::System)).unwrap();
+    let b_state = b.update(&base, SelectionChange::theme(id("craft.graphite"))).unwrap();
     let before = fs::read(&path).unwrap();
-    let shown = base.suite.clone().unwrap();
-    match a.update(&base, SelectionChange::new(shown.clone()).with_theme(id("craft.high-contrast"))) {
-        Err(StoreError::Conflict { disk }) => assert_eq!(disk, b_state),
+    let mine = SelectionChange::theme(id("craft.high-contrast"));
+    match a.update(&base, mine.clone()) {
+        Err(StoreError::Conflict { disk, mine: back }) => assert_eq!((disk, back), (b_state.clone(), mine)),
         other => panic!("{other:?}"),
     }
     assert_eq!(fs::read(&path).unwrap(), before);
     assert_eq!(a.accepted(), &b_state);
     // A different field merges.
-    let merged = a.update(&base, SelectionChange::new(shown).with_mode(Mode::Dark)).unwrap();
-    assert_eq!(merged.suite, Some(sel("craft.graphite", Mode::Dark)));
-    // No base selection, another app wrote first: a changed field with another value conflicts;
-    // one equal to disk keeps disk's other fields.
+    let merged = a.update(&base, SelectionChange::mode(Mode::Dark)).unwrap();
+    assert_eq!(merged.suite, sel("craft.graphite", Mode::Dark).into());
+}
+
+#[test]
+fn a_change_writes_only_its_own_fields() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut a = open(tmp.path());
+    let mut b = open(tmp.path());
+    // A fresh install: one app picks a theme, another (still on its old base) a mode.
+    let theme_only = a.update(&Accepted::default(), SelectionChange::theme(id("craft.graphite"))).unwrap();
+    assert_eq!(theme_only.suite, SuiteChoice { theme: Some(id("craft.graphite")), mode: None });
+    assert!(selection_json(tmp.path())["suite"].get("mode").is_none());
+    let both = b.update(&Accepted::default(), SelectionChange::mode(Mode::Light)).unwrap();
+    assert_eq!(both.suite, sel("craft.graphite", Mode::Light).into());
+    // Another app chose the theme first: a different theme on the old base conflicts.
     let fresh = tempfile::tempdir().unwrap();
     let mut c = open(fresh.path());
     let mut d = open(fresh.path());
-    c.update(&Accepted::default(), whole("craft.graphite", Mode::System)).unwrap();
-    let own_default = SelectionChange::new(sel("craft.artcraft", Mode::Dark));
-    assert!(matches!(d.update(&Accepted::default(), own_default.clone().with_mode(Mode::Light)), Err(StoreError::Conflict { .. })));
-    let kept = d.update(&Accepted::default(), own_default.with_mode(Mode::System)).unwrap();
-    assert_eq!((kept.suite, kept.revision), (Some(sel("craft.graphite", Mode::System)), 1));
+    c.update(&Accepted::default(), SelectionChange::theme(id("craft.graphite"))).unwrap();
+    assert!(matches!(d.update(&Accepted::default(), SelectionChange::theme(id("craft.artcraft"))), Err(StoreError::Conflict { .. })));
+}
+
+#[test]
+fn ids_users_cant_create_never_reach_the_file_system() {
+    let tmp = tempfile::tempdir().unwrap();
+    let library = tmp.path().join("library");
+    fs::create_dir_all(&library).unwrap();
+    // On Windows this name opens the console device; elsewhere it is a plain file to ignore.
+    fs::write(library.join("con.json"), theme_json("con", "")).unwrap();
+    let mut store = open(tmp.path());
+    let con = id("con");
+    assert!(matches!(store.load_theme(&con), Err(StoreError::NotFound(_))));
+    assert_eq!(store.theme_stamp(&con).unwrap(), None);
+    assert!(matches!(store.export(&con), Err(StoreError::NotFound(_))));
+    assert!(matches!(store.delete(&con), Err(StoreError::NotFound(_))));
+    assert!(store.theme(&con).is_none());
+    // A library theme that doesn't exist is never written as the suite's.
+    assert!(matches!(store.update(&Accepted::default(), SelectionChange::theme(con)), Err(StoreError::NotFound(_))));
+    assert!(matches!(store.update(&Accepted::default(), SelectionChange::theme(id("gone"))), Err(StoreError::NotFound(_))));
+    assert!(library.join("con.json").exists());
+    assert!(!tmp.path().join("selection.json").exists());
+}
+
+#[test]
+fn a_failed_delete_puts_the_theme_back() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("library/one.json");
+    open(tmp.path()).import(theme_json("one", "").as_bytes(), false).unwrap();
+    let bytes = fs::read(&file).unwrap();
+    // The hide is a rename; the selection write fails creating its temporary file.
+    let mut failing = Store::open(&SuiteDir::at(tmp.path()), options().file_system(Box::new(FailingFs(FailAt::Create))));
+    failing.load_selection().unwrap();
+    assert!(matches!(failing.delete(&id("one")), Err(StoreError::Io(_))));
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+    assert_eq!(fs::read_dir(tmp.path().join("library")).unwrap().count(), 1);
+    let mut store = open(tmp.path());
+    store.load_selection().unwrap();
+    store.delete(&id("one")).unwrap();
+    assert_eq!(fs::read_dir(tmp.path().join("library")).unwrap().count(), 0);
 }
 
 #[test]

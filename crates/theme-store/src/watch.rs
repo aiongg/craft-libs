@@ -629,7 +629,7 @@ impl Engine {
             self.accepted = self.store.accepted().clone();
             self.changed = true;
         }
-        let suite = self.accepted.suite.as_ref().map(|s| s.theme.clone());
+        let suite = self.accepted.suite.theme.clone();
         self.changed |= self.suite_theme.follow(suite.as_ref());
         if rescan || self.listed != Some(self.accepted.library_revision) {
             self.list_library();

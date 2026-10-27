@@ -15,20 +15,21 @@
 //! `craft-theme`.
 //!
 //! ```
-//! use craft_theme::{Mode, Selection, ThemeId};
+//! use craft_theme::{AppDefaults, Mode, ThemeId};
 //! use craft_theme_store::{SelectionChange, Store, StoreOptions, SuiteDir};
 //!
 //! let mut store = Store::open(&SuiteDir::memory(), StoreOptions::new("doc 1.0"));
 //! store.load_selection().unwrap();
-//! assert_eq!(store.accepted().suite, None); // no app has chosen a suite theme yet
+//! assert!(store.accepted().suite.is_empty()); // no app has chosen anything yet
 //!
-//! // The app showed its own default; the user picks Graphite.
+//! // The user picks Graphite: only the theme is written; the mode stays each app's own default.
 //! let base = store.accepted().clone();
-//! let shown = Selection { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::Dark };
-//! let change = SelectionChange::new(shown).with_theme(ThemeId::parse("craft.graphite").unwrap());
-//! let accepted = store.update(&base, change).unwrap();
-//! let graphite = Selection { theme: ThemeId::parse("craft.graphite").unwrap(), mode: Mode::Dark };
-//! assert_eq!((accepted.suite, accepted.revision), (Some(graphite), 1));
+//! let graphite = ThemeId::parse("craft.graphite").unwrap();
+//! let accepted = store.update(&base, SelectionChange::theme(graphite.clone())).unwrap();
+//! assert_eq!((accepted.suite.theme.as_ref(), accepted.suite.mode, accepted.revision), (Some(&graphite), None, 1));
+//!
+//! let defaults = AppDefaults { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::Dark };
+//! assert_eq!(accepted.suite.with_defaults(&defaults).mode, Mode::Dark);
 //! ```
 
 mod backend;
@@ -45,7 +46,7 @@ mod watch;
 pub use backend::{FileStamp, LibraryFile};
 pub use dir::{DirSource, SUITE_DIR_ENV, SuiteDir};
 pub use format::{FormatError, MAX_THEME_BYTES, THEME_SCHEMA, THEME_SCHEMA_VERSION, ThemeRecord, parse_theme, theme_to_json};
-pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError};
+pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError, SuiteChoice};
 pub use store::{Imported, LOCK_TIMEOUT, Library, ParseCounts, Problem, Store, StoreError, StoreOptions, ThemeEntry};
 pub use watch::{Op, OpOutput, RESULTS_KEPT, STAT_INTERVAL, Snapshot, SuiteWatch, VERIFY_INTERVAL};
 

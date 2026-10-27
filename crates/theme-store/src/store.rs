@@ -9,7 +9,7 @@ use crate::{
     SuiteDir,
     backend::{Backend, FileStamp, LibraryFile, Lock, LockError, Memory, WriteError},
     format::{FormatError, MAX_THEME_BYTES, ThemeRecord, copy_id, parse_theme, replace_top_level_id, theme_to_json},
-    selection::{Accepted, MAX_SELECTION_BYTES, SelectionChange, SelectionDoc, SelectionError, merge, parse_selection, render_selection},
+    selection::{Accepted, MAX_SELECTION_BYTES, SelectionChange, SelectionDoc, SelectionError, merge, parse_selection, render_selection, salvage},
 };
 
 /// How long a write waits for another app's lock before giving up with [`StoreError::Busy`].
@@ -70,6 +70,8 @@ pub enum StoreError {
     /// offer to apply the user's choice on top of it.
     Conflict {
         disk: Accepted,
+        /// The change that wasn't applied; "Apply mine" sends it again with `disk` as base.
+        mine: SelectionChange,
     },
     /// `selection.json` is from a newer build (the store is read-only) or too large.
     Selection(SelectionError),
@@ -176,6 +178,8 @@ struct DiskState {
     raw: Map<String, serde_json::Value>,
     accepted: Accepted,
     bytes: Option<Vec<u8>>,
+    /// Damaged or too large: moved aside by the write that replaces it, if one happens.
+    damaged: bool,
 }
 
 /// The suite folder (or its in-memory stand-in): the suite selection and the theme library.
@@ -197,6 +201,10 @@ pub struct Store {
 impl Store {
     /// Opens the store without touching the disk; call [`Store::load_selection`] next. Nothing is
     /// created until the first write.
+    ///
+    /// In memory, each store has its own state: open one per process and share it (a
+    /// [`SuiteWatch`](crate::SuiteWatch) owns it), or apps in the same process won't see each
+    /// other's changes.
     pub fn open(dir: &SuiteDir, options: StoreOptions) -> Store {
         let backend = match dir.path() {
             None => Backend::Memory(Memory::default()),
@@ -269,24 +277,31 @@ impl Store {
         self.backend.selection_stamp()
     }
 
-    /// Writes the fields of the suite selection the user changed. `base` is the accepted state
-    /// the change was made on. Fields merge as docs/suite-themes.md describes; on success returns
-    /// the new accepted state. A change with no fields writes nothing.
+    /// Writes the fields of the suite choice the user changed. `base` is the accepted state the
+    /// change was made on. Fields merge as docs/suite-themes.md describes; on success returns the
+    /// new accepted state. A change with no fields, or one that matches the file, writes nothing.
+    /// A library theme that no longer exists is [`StoreError::NotFound`].
     pub fn update(&mut self, base: &Accepted, change: SelectionChange) -> Result<Accepted, StoreError> {
         if change.is_empty() {
             return Ok(self.accepted.clone());
         }
         let _lock = self.lock()?;
         let disk = self.read_for_write(base)?;
-        let Some(merged) = merge(base, &disk.accepted, &change) else {
+        let Some(merged) = merge(&base.suite, &disk.accepted.suite, &change) else {
             self.accepted = disk.accepted.clone();
-            return Err(StoreError::Conflict { disk: disk.accepted });
+            return Err(StoreError::Conflict { disk: disk.accepted, mine: change });
         };
-        if disk.accepted.suite.as_ref() == Some(&merged) {
+        if merged == disk.accepted.suite {
             self.accepted = disk.accepted.clone();
             return Ok(disk.accepted);
         }
-        let next = Accepted { suite: Some(merged), revision: disk.accepted.revision.saturating_add(1), ..disk.accepted.clone() };
+        if let Some(theme) = &change.theme
+            && !theme.is_builtin()
+            && self.theme_stamp(theme)?.is_none()
+        {
+            return Err(StoreError::NotFound(theme.clone()));
+        }
+        let next = Accepted { suite: merged, revision: disk.accepted.revision.saturating_add(1), ..disk.accepted.clone() };
         self.commit(&disk, next)
     }
 
@@ -332,22 +347,33 @@ impl Store {
 
     /// Removes a library theme. The suite selection's theme can't be deleted; per-app choices
     /// that name it fall back to the app default when they resolve.
+    ///
+    /// The file is renamed to a hidden name first and removed only once `selection.json` records
+    /// the deletion, so a failed write puts it back.
     pub fn delete(&mut self, id: &ThemeId) -> Result<Accepted, StoreError> {
         if id.is_builtin() {
             return Err(StoreError::BuiltIn(id.clone()));
         }
+        let stem = user_stem(id)?;
         let _lock = self.lock()?;
         let base = self.accepted.clone();
         let disk = self.read_for_write(&base)?;
-        if disk.accepted.suite.as_ref().is_some_and(|s| s.theme == *id) {
+        if disk.accepted.suite.theme.as_ref() == Some(id) {
             return Err(StoreError::InUse(id.clone()));
         }
-        let bytes = self.backend.read_theme(id.as_str(), usize::MAX)?.ok_or_else(|| StoreError::NotFound(id.clone()))?;
-        self.backend.remove_theme(id.as_str())?;
+        match self.backend.hide_theme(stem) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Err(StoreError::NotFound(id.clone())),
+            Err(e) => return Err(e.into()),
+        }
         match self.commit(&disk, library_bump(&disk.accepted)) {
-            Ok(accepted) => Ok(accepted),
+            Ok(accepted) => {
+                // A leftover hidden file is never listed; the next delete of this id replaces it.
+                let _ = self.backend.purge_hidden_theme(stem);
+                Ok(accepted)
+            }
             Err(e) => {
-                let _ = self.backend.create_theme(id.as_str(), &bytes);
+                let _ = self.backend.unhide_theme(stem);
                 Err(e)
             }
         }
@@ -358,11 +384,11 @@ impl Store {
         if let Some(theme) = builtin(id) {
             return Ok(Arc::from(theme_to_json(theme).into_bytes()));
         }
-        if id.is_builtin() {
-            return Err(StoreError::NotFound(id.clone()));
+        let bytes = self.backend.read_theme(user_stem(id)?, MAX_THEME_BYTES)?.ok_or_else(|| StoreError::NotFound(id.clone()))?;
+        if bytes.len() > MAX_THEME_BYTES {
+            return Err(StoreError::Format(FormatError::TooLarge { len: bytes.len() }));
         }
-        let bytes = self.backend.read_theme(id.as_str(), usize::MAX)?;
-        bytes.map(Arc::from).ok_or_else(|| StoreError::NotFound(id.clone()))
+        Ok(Arc::from(bytes))
     }
 
     /// The library's files and their stamps, without reading them.
@@ -372,12 +398,15 @@ impl Store {
 
     /// Reads and parses one library theme.
     pub fn load_theme(&mut self, id: &ThemeId) -> Result<ThemeRecord, StoreError> {
-        self.load_stem(id.as_str()).and_then(|r| r.ok_or_else(|| StoreError::NotFound(id.clone())))
+        self.load_stem(user_stem(id)?).and_then(|r| r.ok_or_else(|| StoreError::NotFound(id.clone())))
     }
 
     /// A library theme's stamp; `None` when it doesn't exist.
     pub fn theme_stamp(&self, id: &ThemeId) -> io::Result<Option<FileStamp>> {
-        self.backend.theme_stamp(id.as_str())
+        match user_stem(id) {
+            Ok(stem) => self.backend.theme_stamp(stem),
+            Err(_) => Ok(None),
+        }
     }
 
     /// A built-in or library theme by id, for [`craft_theme::resolve`]'s `lookup`.
@@ -449,25 +478,23 @@ impl Store {
         Ok((bytes, parsed))
     }
 
-    /// Step 2 of the protocol, under the lock. A damaged file is moved aside and `base` stands
-    /// in for it; a newer or oversized one stops the write.
+    /// Step 2 of the protocol, under the lock. A damaged or oversized file is left for the write
+    /// to move aside, with `base` and the file's salvaged counters standing in for it; a newer
+    /// one stops the write.
     fn read_for_write(&mut self, base: &Accepted) -> Result<DiskState, StoreError> {
         let (bytes, parsed) = self.read_disk()?;
         match parsed {
             Ok(Some(doc)) => {
                 self.too_new = None;
-                Ok(DiskState { raw: doc.raw, accepted: doc.accepted, bytes })
+                Ok(DiskState { raw: doc.raw, accepted: doc.accepted, bytes, damaged: false })
             }
             Ok(None) => {
                 self.too_new = None;
-                Ok(DiskState { raw: Map::new(), accepted: Accepted::default(), bytes: None })
+                Ok(DiskState { raw: Map::new(), accepted: Accepted::default(), bytes: None, damaged: false })
             }
-            Err(SelectionError::Corrupt(_)) => {
-                if let Some(moved) = self.backend.move_aside_selection()? {
-                    self.moved_aside.push(moved);
-                }
-                self.seen = None;
-                Ok(DiskState { raw: Map::new(), accepted: base.clone(), bytes: None })
+            Err(SelectionError::Corrupt(_) | SelectionError::TooLarge { .. }) => {
+                self.too_new = None;
+                Ok(DiskState { raw: Map::new(), accepted: salvage(bytes.as_deref(), base), bytes, damaged: true })
             }
             Err(e) => {
                 if let SelectionError::TooNew { schema_version } = e {
@@ -478,20 +505,38 @@ impl Store {
         }
     }
 
-    /// Step 4: writes `next` over what `disk` read, keeping keys this build doesn't know.
+    /// Step 4: writes `next` over what `disk` read, keeping keys this build doesn't know. A
+    /// damaged file is moved aside only now, and put back if the write fails.
     fn commit(&mut self, disk: &DiskState, next: Accepted) -> Result<Accepted, StoreError> {
         let mut raw = disk.raw.clone();
         let bytes = render_selection(&mut raw, &next, &self.written_by);
         if bytes.len() > MAX_SELECTION_BYTES {
             return Err(StoreError::Selection(SelectionError::TooLarge { len: bytes.len() }));
         }
-        self.backend.write_selection(&bytes, disk.bytes.as_deref()).map_err(|e| match e {
-            WriteError::Raced => StoreError::Busy,
-            WriteError::Io(e) => e.into(),
-        })?;
+        let moved = if disk.damaged { self.backend.move_aside_selection()? } else { None };
+        let expected = if disk.damaged { None } else { disk.bytes.as_deref() };
+        if let Err(e) = self.backend.write_selection(&bytes, expected) {
+            if let Some(moved) = &moved {
+                let _ = self.backend.restore_selection(moved);
+            }
+            return Err(match e {
+                WriteError::Raced => StoreError::Busy,
+                WriteError::Io(e) => e.into(),
+            });
+        }
+        self.moved_aside.extend(moved);
         self.seen = Some(Seen { bytes: Some(bytes), parsed: Ok(Some(SelectionDoc { raw, accepted: next.clone() })) });
         self.accepted = next.clone();
         Ok(next)
+    }
+}
+
+/// A library theme's file name without `.json`. Ids a user couldn't create (built-ins, Windows
+/// device names) are never looked up on disk.
+fn user_stem(id: &ThemeId) -> Result<&str, StoreError> {
+    match ThemeId::parse_user(id.as_str()) {
+        Ok(_) => Ok(id.as_str()),
+        Err(_) => Err(StoreError::NotFound(id.clone())),
     }
 }
 

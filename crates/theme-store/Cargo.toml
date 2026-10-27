@@ -12,9 +12,12 @@ default = []
 # `SAMPLE_THEME_JSON` and its expected colours for app adapter tests, and a fault-injecting
 # file system for write-failure tests.
 testing = []
+# serde for `Accepted` and `SuiteChoice`, which apps keep in their preferences.
+serde = ["dep:serde", "craft-theme/serde"]
 
 [dependencies]
 craft-theme = { workspace = true }
+serde = { workspace = true, optional = true }
 serde_json = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

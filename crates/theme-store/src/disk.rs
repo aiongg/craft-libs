@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use craft_atomic::{AtomicFs, NewFilePermissions, RenameRetry, WriteOptions};
+use craft_atomic::{AtomicFs, NewFilePermissions, RenameRetry, WriteOptions, retry_rename};
 
 use crate::backend::LockError;
 use crate::backend::{FileStamp, LibraryFile, WriteError};
@@ -48,6 +48,9 @@ impl Disk {
                 Ok(()) => return Ok(file),
                 Err(TryLockError::WouldBlock) if start.elapsed() < timeout => std::thread::sleep(LOCK_RETRY),
                 Err(TryLockError::WouldBlock) => return Err(LockError::Busy),
+                // No locking here (some network file systems): write anyway; the re-check before
+                // the rename still catches a concurrent writer.
+                Err(TryLockError::Error(e)) if locking_unsupported(&e) => return Ok(file),
                 Err(TryLockError::Error(e)) => return Err(LockError::Io(e)),
             }
         }
@@ -88,7 +91,7 @@ impl Disk {
             let name = if n == 0 { format!("selection.broken-{ts}.json") } else { format!("selection.broken-{ts}-{n}.json") };
             let target = self.dir.join(name);
             if !target.exists() {
-                fs::rename(self.selection_path(), &target)?;
+                retry_rename(RenameRetry::platform(), || self.fs.rename(&self.selection_path(), &target))?;
                 return Ok(target);
             }
         }
@@ -120,6 +123,27 @@ impl Disk {
         Ok(out)
     }
 
+    pub fn restore_selection(&self, moved: &Path) -> io::Result<()> {
+        retry_rename(RenameRetry::platform(), || self.fs.rename(moved, &self.selection_path()))
+    }
+
+    /// `library/.<stem>.json.deleting`: hidden, so listings skip it.
+    fn hidden_theme_path(&self, stem: &str) -> PathBuf {
+        self.dir.join(LIBRARY).join(format!(".{stem}.json.deleting"))
+    }
+
+    pub fn hide_theme(&self, stem: &str) -> io::Result<()> {
+        retry_rename(RenameRetry::platform(), || self.fs.rename(&self.theme_path(stem), &self.hidden_theme_path(stem)))
+    }
+
+    pub fn unhide_theme(&self, stem: &str) -> io::Result<()> {
+        retry_rename(RenameRetry::platform(), || self.fs.rename(&self.hidden_theme_path(stem), &self.theme_path(stem)))
+    }
+
+    pub fn purge_hidden_theme(&self, stem: &str) -> io::Result<()> {
+        self.fs.remove(&self.hidden_theme_path(stem))
+    }
+
     pub fn create_theme(&self, stem: &str, bytes: &[u8]) -> io::Result<()> {
         fs::create_dir_all(self.dir.join(LIBRARY))?;
         private().write_new_custom(&*self.fs, &self.theme_path(stem), bytes)
@@ -128,6 +152,24 @@ impl Disk {
     pub fn remove_theme(&self, stem: &str) -> io::Result<()> {
         self.fs.remove(&self.theme_path(stem))
     }
+}
+
+/// `try_lock` reports that the file system has no locks (`Unsupported`, or `ENOLCK`).
+fn locking_unsupported(e: &io::Error) -> bool {
+    #[cfg(target_os = "linux")]
+    const ENOLCK: i32 = 37;
+    #[cfg(any(target_vendor = "apple", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly"))]
+    const ENOLCK: i32 = 77;
+    #[cfg(not(any(
+        target_os = "linux",
+        target_vendor = "apple",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+        target_os = "dragonfly"
+    )))]
+    const ENOLCK: i32 = -1;
+    e.kind() == io::ErrorKind::Unsupported || e.raw_os_error() == Some(ENOLCK)
 }
 
 /// Library files are written once (an import creates one, a delete removes it), so their stamps
