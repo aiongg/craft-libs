@@ -78,6 +78,9 @@ pub struct FaceInfo {
     pub source: Source,
     /// For a face added as bytes: which of the catalog's added blobs holds it.
     pub(crate) blob: Option<u64>,
+    /// A confined folder's file ([`crate::Catalog::set_confined_dirs`]), recorded by its real
+    /// path: on Unix its loads don't follow a link put in its place after the scan.
+    pub(crate) confined: bool,
 }
 
 /// A face record with the normalized names it answers to.
@@ -267,6 +270,7 @@ pub(crate) fn font_faces(font: &skrifa::FontRef<'_>, index: u32, path: Option<&P
         index,
         source,
         blob: None,
+        confined: false,
     };
     let mut keys = Keys { families, styles, legacy, full_names, postscript };
     let instances = named_instances(font, &info, &mut keys);
@@ -362,9 +366,14 @@ pub(crate) fn file_faces(path: &Path, max_read: u64, source: Source) -> Vec<Face
     opened_file_faces(path, max_read, source, false)
 }
 
-/// [`file_faces`], opening the file with [`open_regular`]'s `no_follow`.
+/// [`file_faces`], opening the file with [`open_regular`]'s `no_follow`. With `no_follow`, a
+/// suitcase gives no faces: its resource fork is opened through the file's path, which follows
+/// a link in its place.
 pub(crate) fn opened_file_faces(path: &Path, max_read: u64, source: Source, no_follow: bool) -> Vec<Face> {
     if crate::suitcase::is_suitcase(path) {
+        if no_follow {
+            return vec![];
+        }
         if crate::suitcase::fork_len(path) > max_read {
             return vec![];
         }

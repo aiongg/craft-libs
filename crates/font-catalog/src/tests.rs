@@ -784,3 +784,121 @@ fn activations_share_one_worker_and_space_out_full_rescans() {
     // Nothing changed, so no call.
     assert!(rx.try_recv().is_err());
 }
+
+#[test]
+fn a_file_replaced_in_place_loads_its_new_bytes() {
+    let root = temp("replace");
+    let path = root.join("fonts/Face.ttf");
+    write(&path, font(&spec("Face", "Regular", 400)));
+    let cat = Catalog::without_installed_fonts();
+    cat.set_app_dirs(vec![root.join("fonts")]);
+    let old = cat.load(&cat.styles("Face")[0]).unwrap();
+    // Held, so the old bytes stay cached.
+    let new = font(&Spec { width: 7, ..spec("Face", "Regular Wide", 400) });
+    std::fs::write(&path, &new).unwrap();
+    cat.rescan();
+    let face = cat.styles("Face")[0].clone();
+    assert_eq!(face.style, "Regular Wide");
+    assert_eq!(&*cat.load(&face).unwrap().bytes, new.as_slice());
+    assert_ne!(&*old.bytes, new.as_slice());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_confined_face_never_loads_through_a_link_swapped_in_after_the_scan() {
+    let root = temp("swap");
+    let picked = root.join("picked");
+    let inside = picked.join("Inside.ttf");
+    write(&inside, font(&spec("Inside Face", "Regular", 400)));
+    write(&root.join("outside/Secret.ttf"), font(&spec("Inside Face", "Regular", 400)));
+    let cat = Catalog::without_installed_fonts();
+    cat.set_confined_dirs(vec![picked]);
+    let face = cat.styles("Inside Face")[0].clone();
+    // Loaded and held, so its bytes are cached; then swapped for a link before a rescan.
+    let held = cat.load(&face).unwrap();
+    std::fs::remove_file(&inside).unwrap();
+    std::os::unix::fs::symlink(root.join("outside/Secret.ttf"), &inside).unwrap();
+    assert!(cat.load(&face).is_err());
+    drop(held);
+    assert!(cat.load(&face).is_err());
+    // An unconfined face of the same path follows the link.
+    let unconfined = FaceInfo { confined: false, ..face };
+    assert!(cat.load(&unconfined).is_ok());
+}
+
+/// A catalog whose font service blocks while `blocked`, and counts its calls.
+fn blocking_catalog(blocked: &Arc<AtomicBool>, calls: &Arc<AtomicUsize>) -> Arc<Catalog> {
+    let (b, c) = (Arc::clone(blocked), Arc::clone(calls));
+    let lister: Lister = Arc::new(move || {
+        c.fetch_add(1, Ordering::SeqCst);
+        while b.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        Vec::new()
+    });
+    Arc::new(Catalog::without_installed_fonts().with_lister(lister))
+}
+
+#[test]
+fn adding_fonts_never_waits_for_a_scan() {
+    let (blocked, calls) = (Arc::new(AtomicBool::new(true)), Arc::new(AtomicUsize::new(0)));
+    let cat = blocking_catalog(&blocked, &calls);
+    // During the first scan: the app's bundled fonts, one rebuild for all of them.
+    cat.scan_in_background();
+    wait_for(|| calls.load(Ordering::SeqCst) == 1);
+    let bundled: Vec<Arc<[u8]>> =
+        vec![font(&spec("Bundled One", "Regular", 400)).into(), b"not a font".as_slice().into(), font(&spec("Bundled Two", "Regular", 400)).into()];
+    let errors = crate::app::add_app_fonts(&cat, app::AppFonts { bundled, ..app::AppFonts::default() });
+    assert_eq!(errors.iter().map(|(i, _)| *i).collect::<Vec<_>>(), [1]);
+    assert!(!cat.is_ready() && blocked.load(Ordering::SeqCst));
+    assert_eq!(cat.generation(), 0);
+    blocked.store(false, Ordering::SeqCst);
+    assert_eq!(cat.families().to_vec(), ["Bundled One", "Bundled Two"]);
+    assert_eq!(cat.generation(), 1);
+    // During a rescan: the face is seen at once.
+    blocked.store(true, Ordering::SeqCst);
+    let rescan = std::thread::spawn({
+        let cat = Arc::clone(&cat);
+        move || cat.rescan()
+    });
+    wait_for(|| calls.load(Ordering::SeqCst) == 2);
+    cat.add_bytes(font(&spec("Later", "Regular", 400)), Source::User, &Limits::default()).unwrap();
+    assert_eq!(cat.families().to_vec(), ["Bundled One", "Bundled Two", "Later"]);
+    blocked.store(false, Ordering::SeqCst);
+    assert_eq!(rescan.join().unwrap(), 3);
+    assert_eq!(cat.families().to_vec(), ["Bundled One", "Bundled Two", "Later"]);
+}
+
+#[test]
+fn rescan_now_counts_as_the_full_rescan() {
+    use crate::app::Refresh;
+
+    let (blocked, calls) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicUsize::new(0)));
+    let cat = blocking_catalog(&blocked, &calls);
+    let root = temp("rescan-now");
+    cat.set_app_dirs(vec![root.clone()]);
+    let (tx, rx) = mpsc::channel();
+    let on_change: app::OnChange = Arc::new(move |c: &Catalog| {
+        let _ = tx.send(c.families().to_vec());
+    });
+    let refresh = Arc::new(Refresh::new(Arc::clone(&cat), Duration::from_secs(60), Some(on_change)));
+    let t0 = Instant::now();
+    cat.rescan();
+    assert!(refresh.activated_at(t0));
+    wait_for(|| !refresh.is_running());
+    // Reload fonts, after a font is installed: on this thread, with on_change.
+    write(&root.join("New.ttf"), font(&spec("New Face", "Regular", 400)));
+    let changes = refresh.rescan_now(Some(t0 + Duration::from_secs(59)));
+    assert_eq!(changes.added, ["New Face"]);
+    assert_eq!(rx.try_recv().unwrap(), ["New Face"]);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    // The interval counts from it: no full rescan at t0 + 60 s.
+    assert!(refresh.activated_at(t0 + Duration::from_secs(60)));
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(refresh.activated_at(t0 + Duration::from_secs(119)));
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    assert!(refresh.rescan_now(None).is_empty());
+    assert!(rx.try_recv().is_err());
+}
