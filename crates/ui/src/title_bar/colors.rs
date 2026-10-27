@@ -16,21 +16,21 @@ pub struct CaptionColors {
     pub hover: Color32,
     /// The fill while a button is held down.
     pub pressed: Color32,
-    /// The keyboard focus ring.
-    pub focus: Color32,
+    /// The bar's background: Breeze's glyph on its hovered or pressed disc.
+    pub bar: Color32,
 }
 
 impl CaptionColors {
     /// The colours from the suite theme's roles: the glyphs in `text` (`text_muted` while the
-    /// window is inactive), the fills of a control under the pointer and held down, and the
-    /// theme's focus colour.
+    /// window is inactive), the fills of a control under the pointer and held down, and the bar
+    /// in `surface`, the role the app's chrome is painted with.
     pub fn from_resolved(r: &craft_theme::Resolved) -> Self {
         Self {
             glyph: color32(r.roles.text),
             glyph_inactive: color32(r.roles.text_muted),
             hover: color32(r.derived.hover),
             pressed: color32(r.derived.pressed),
-            focus: color32(r.roles.focus),
+            bar: color32(r.roles.surface),
         }
     }
 }
@@ -41,8 +41,7 @@ mod tests {
     use craft_theme::{Resolved, Rgba, builtins, derive};
 
     use super::*;
-    use crate::title_bar::buttons::ink_on;
-    use crate::title_bar::{BREEZE_CLOSE_HOVER, BREEZE_CLOSE_PRESSED, WINDOWS_CLOSE};
+    use crate::title_bar::WINDOWS_CLOSE;
 
     fn rgba(c: Color32) -> Rgba {
         Rgba([c.r(), c.g(), c.b(), 255])
@@ -56,8 +55,8 @@ mod tests {
                 let derived = derive(roles, variant);
                 let r = Resolved { theme: theme.id.clone(), variant, roles: *roles, derived, note: None };
                 let c = CaptionColors::from_resolved(&r);
-                let expected = [roles.text, roles.text_muted, derived.hover, derived.pressed, roles.focus].map(color32);
-                assert_eq!([c.glyph, c.glyph_inactive, c.hover, c.pressed, c.focus], expected, "{} {variant:?}", theme.id);
+                let expected = [roles.text, roles.text_muted, derived.hover, derived.pressed, roles.surface].map(color32);
+                assert_eq!([c.glyph, c.glyph_inactive, c.hover, c.pressed, c.bar], expected, "{} {variant:?}", theme.id);
                 variants += 1;
             }
         }
@@ -65,10 +64,7 @@ mod tests {
     }
 
     #[test]
-    fn close_glyphs_read_on_the_os_reds() {
-        assert!(ratio(rgba(Color32::WHITE), rgba(WINDOWS_CLOSE)) >= 4.5, "white on Windows' close red");
-        for fill in [BREEZE_CLOSE_HOVER, BREEZE_CLOSE_PRESSED] {
-            assert!(ratio(rgba(ink_on(fill)), rgba(fill)) >= 4.5, "{fill:?}");
-        }
+    fn the_windows_close_glyph_reads_on_its_red() {
+        assert!(ratio(rgba(Color32::WHITE), rgba(WINDOWS_CLOSE)) >= 4.5);
     }
 }

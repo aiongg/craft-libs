@@ -25,7 +25,7 @@ fn light() -> Palette {
             glyph_inactive: Color32::from_gray(0x8A),
             hover: Color32::from_gray(0xE0),
             pressed: Color32::from_gray(0xCF),
-            focus: Color32::from_rgb(0x00, 0x5F, 0xB8),
+            bar: Color32::from_gray(0xF3),
         },
     }
 }
@@ -38,13 +38,13 @@ fn dark() -> Palette {
             glyph_inactive: Color32::from_gray(0x8F),
             hover: Color32::from_gray(0x2D),
             pressed: Color32::from_gray(0x38),
-            focus: Color32::from_rgb(0x60, 0xCD, 0xFF),
+            bar: Color32::from_gray(0x20),
         },
     }
 }
 
 /// The grid's rows, top to bottom.
-fn looks() -> [Look; 6] {
+fn looks() -> [Look; 5] {
     let rest = Look { active: true, ..Look::default() };
     [
         rest,
@@ -52,7 +52,6 @@ fn looks() -> [Look; 6] {
         Look { hovered: true, pressed: true, ..rest },
         Look { active: false, ..rest },
         Look { maximized: true, ..rest },
-        Look { focused: true, ..rest },
     ]
 }
 
@@ -73,7 +72,7 @@ fn grid(family: CaptionFamily) -> Harness<'static> {
     })
 }
 
-/// Rows: rest, hover, pressed, inactive window, maximized (the restore glyph), keyboard focus.
+/// Rows: rest, hover, pressed, inactive window, maximized (the restore glyph).
 #[test]
 fn title_bar_caption_snapshots() {
     let mut results = SnapshotResults::new();
@@ -138,7 +137,12 @@ fn title_bar_captions_are_labelled_buttons() {
     harness.input_mut().viewports.entry(egui::ViewportId::ROOT).or_default().maximized = Some(true);
     harness.run();
     let _ = harness.get_by_label("Restore");
-    harness.get_by_label("Fermer").click();
+    // Like the OS's own caption buttons, they are no Tab stops.
+    harness.key_press(egui::Key::Tab);
+    harness.run();
+    assert_eq!(harness.ctx.memory(|m| m.focused()), None);
+    // A screen reader presses them.
+    harness.get_by_label("Fermer").click_accesskit();
     harness.run();
     assert!(*harness.state(), "Close asks the app");
 }

@@ -16,7 +16,7 @@ fn colors() -> CaptionColors {
         glyph_inactive: Color32::from_gray(0x8A),
         hover: Color32::from_gray(0xE0),
         pressed: Color32::from_gray(0xD0),
-        focus: Color32::from_rgb(0x00, 0x5F, 0xB8),
+        bar: Color32::from_gray(0xF3),
     }
 }
 
@@ -443,4 +443,45 @@ fn subtract_leaves_only_the_parts_outside_the_holes() {
     for p in [pos2(10.0, 4.0), pos2(60.0, 4.0), pos2(95.0, 7.0)] {
         assert!(pieces.iter().any(|r| r.contains(p)), "{p:?} is outside the holes");
     }
+}
+
+/// Undecorated windows get the bar's resize zones in every family until the window procedure
+/// answers the hit test itself, as the app says by the builder flag or through the regions sink.
+#[test]
+fn resize_zones_stay_until_a_native_hit_test_takes_over() {
+    struct Sink(bool);
+    impl CaptionRegions for Sink {
+        fn native_hit_test(&self) -> bool {
+            self.0
+        }
+    }
+    /// Whether a drag from the left edge below the bar resizes the window.
+    fn resizes_from_the_edge(flag: bool, sink: bool) -> bool {
+        let (ctx, edge) = (Context::default(), pos2(2.0, 200.0));
+        let steps = [
+            vec![],
+            vec![Event::PointerMoved(edge)],
+            vec![button(edge, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(edge + vec2(6.0, 0.0))],
+        ];
+        let mut cmds = vec![];
+        for (i, events) in steps.into_iter().enumerate() {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))),
+                time: Some(i as f64 * 0.05),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                TitleBar::new(&windows(), H, colors()).native_hit_test(flag).regions(&mut Sink(sink)).show(ui, |_, _| {});
+            });
+            // No renderer here to take the font atlas.
+            out.textures_delta.clear();
+            cmds.extend(commands(out));
+        }
+        !resizes(&cmds).is_empty()
+    }
+    assert!(resizes_from_the_edge(false, false), "Windows captions, no native hit test");
+    assert!(!resizes_from_the_edge(true, false), "the app's flag");
+    assert!(!resizes_from_the_edge(false, true), "the regions sink");
 }

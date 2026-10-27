@@ -18,8 +18,6 @@ pub const WINDOWS_CLOSE: Color32 = Color32::from_rgb(0xC4, 0x2B, 0x1C);
 /// Breeze's Close button on hover and press (KDE's Breeze decoration colours).
 pub const BREEZE_CLOSE_HOVER: Color32 = Color32::from_rgb(0xFF, 0x98, 0xA2);
 pub const BREEZE_CLOSE_PRESSED: Color32 = Color32::from_rgb(0x6D, 0x22, 0x29);
-/// The dark ink on a light close fill: Breeze's text colour.
-const DARK_INK: Color32 = Color32::from_rgb(0x23, 0x26, 0x29);
 
 /// A caption button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -206,7 +204,6 @@ pub(crate) fn place(
 pub(crate) struct Look {
     pub hovered: bool,
     pub pressed: bool,
-    pub focused: bool,
     /// The window has keyboard focus.
     pub active: bool,
     pub maximized: bool,
@@ -278,13 +275,14 @@ impl<'a> CaptionButtons<'a> {
         let mut rects = Vec::new();
         for (c, r, centre) in place(family, &arranged(self.captions, is_rtl(ui)), bar, bar.left().max(window.left()), bar.right().min(window.right()))
         {
-            // GTK's and KDE's caption buttons move the window when dragged; Windows' don't.
-            let sense = if windows { Sense::click() } else { Sense::click_and_drag() };
+            // GTK's and KDE's caption buttons move the window when dragged; Windows' don't. Like the
+            // OS's own, they are no Tab stops; screen readers still reach and press them.
+            let sense = if windows { Sense::CLICK } else { Sense::CLICK | Sense::DRAG };
             let resp = ui.interact(r, caption_id(c), sense);
             if !windows && resp.drag_started_by(PointerButton::Primary) {
                 start_os_move(&ctx);
             }
-            let look = Look { hovered: resp.hovered(), pressed: resp.is_pointer_button_down_on(), focused: resp.has_focus(), active, maximized };
+            let look = Look { hovered: resp.hovered(), pressed: resp.is_pointer_button_down_on(), active, maximized };
             let level = match family {
                 // libadwaita eases the disc over 0.2 s.
                 CaptionFamily::Adwaita | CaptionFamily::Generic => ctx.animate_value_with_time(caption_id(c).with("disc"), look.level(), 0.2),
@@ -305,13 +303,6 @@ impl<'a> CaptionButtons<'a> {
         }
         (clicked, rects)
     }
-}
-
-/// White or dark ink, whichever reads better on `fill`.
-pub(crate) fn ink_on(fill: Color32) -> Color32 {
-    let rgba = |c: Color32| craft_theme::Rgba([c.r(), c.g(), c.b(), 255]);
-    let ratio = |ink: Color32| craft_theme::contrast::ratio(rgba(ink), rgba(fill));
-    if ratio(Color32::WHITE) >= ratio(DARK_INK) { Color32::WHITE } else { DARK_INK }
 }
 
 /// Paints one button: `r` is its hit rect, `centre` its face's centre, `level` the round disc's
@@ -343,9 +334,6 @@ pub(crate) fn paint(
         p.rect_filled(r, 0.0, fill);
         let ink = if close && lit { Color32::WHITE } else { glyph };
         paint_windows_glyph(p, c, look.maximized, r.center(), Stroke::new(1.0, ink));
-        if look.focused {
-            p.rect_stroke(r.shrink(1.0), 0.0, Stroke::new(2.0, colors.focus), StrokeKind::Inside);
-        }
     } else {
         paint_round(ui, family, c, centre, look, level, glyph, colors, icons);
     }
@@ -376,8 +364,9 @@ fn paint_windows_glyph(p: &Painter, c: Caption, maximized: bool, at: Pos2, s: St
 
 /// A round Linux caption button centred at `centre`: its disc, then its glyph on a 16 pt grid.
 /// Adwaita's disc rests at the glyph colour at 10 % (libadwaita's `alpha(currentColor)`), so it
-/// suits light and dark bars alike; Generic and Breeze buttons are bare at rest. Breeze's close
-/// button takes Breeze's reds.
+/// suits light and dark bars alike; Generic buttons are bare at rest. Breeze's are bare too and
+/// invert under the pointer, as KWin's: the disc in the glyph colour (Close in Breeze's reds)
+/// and the glyph in the bar's.
 #[allow(clippy::too_many_arguments)]
 fn paint_round(
     ui: &Ui,
@@ -395,9 +384,15 @@ fn paint_round(
     let ppp = ui.ctx().pixels_per_point();
     let snap = |p: Pos2| pos2((p.x * ppp).round() / ppp, (p.y * ppp).round() / ppp);
     let centre = snap(centre);
-    let (fill, ink) = if family == CaptionFamily::Breeze && c == Caption::Close && (look.hovered || look.pressed) {
-        let fill = if look.pressed { BREEZE_CLOSE_PRESSED } else { BREEZE_CLOSE_HOVER };
-        (fill, ink_on(fill))
+    let close = c == Caption::Close;
+    let (fill, ink) = if family == CaptionFamily::Breeze {
+        match (look.hovered, look.pressed && look.hovered) {
+            (_, true) if close => (BREEZE_CLOSE_PRESSED, colors.bar),
+            (true, _) if close => (BREEZE_CLOSE_HOVER, colors.bar),
+            (_, true) => (colors.glyph.gamma_multiply(0.5), colors.bar),
+            (true, _) => (colors.glyph, colors.bar),
+            _ => (Color32::TRANSPARENT, glyph),
+        }
     } else {
         let rest = if family == CaptionFamily::Adwaita { colors.glyph.gamma_multiply(0.10) } else { Color32::TRANSPARENT };
         let fill = if level <= 1.0 { rest.lerp_to_gamma(colors.hover, level) } else { colors.hover.lerp_to_gamma(colors.pressed, level - 1.0) };
@@ -406,9 +401,6 @@ fn paint_round(
     let p = ui.painter();
     if fill.a() > 0 {
         p.circle_filled(centre, size / 2.0, fill);
-    }
-    if look.focused {
-        p.circle_stroke(centre, size / 2.0 + 2.0, Stroke::new(1.5, colors.focus));
     }
     // The glyph grid: 16 pt, or 2 pt less than a smaller button.
     let k = (size - 2.0).min(16.0) / 16.0;

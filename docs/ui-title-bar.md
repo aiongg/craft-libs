@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | `Native` | nothing | nothing | nothing (the OS bar moves the window) | none |
 | `Inset(MacInset)` | the traffic lights' width | nothing | drags; double-click follows the macOS setting | none (AppKit) |
-| `Integrated(Captions)` | the layout's left buttons | the layout's right buttons | drags; double-click maximizes | Linux only |
+| `Integrated(Captions)` | the layout's left buttons | the layout's right buttons | drags; double-click maximizes | until a native hit test resizes |
 
 - In full screen there is no inset, no button and no drag.
 - The app draws the bar's background and fills `BarSlots::content` (menus, tabs, search).
@@ -17,7 +17,9 @@
 - Close never closes the window. The bar returns `close_requested`, and the app runs its own quit
   path (the unsaved-documents prompt). Minimize and maximize send their `ViewportCommand`s.
 - Resize zones: 8 pt edges and 12 pt corners, never over a caption button or a control in the
-  bar. On Windows the window procedure resizes instead.
+  bar, on every undecorated window. Once the window procedure answers the hit test itself
+  (Windows' `WM_NCHITTEST`), the app turns them off with `TitleBar::native_hit_test(true)` or a
+  `CaptionRegions` sink whose `native_hit_test()` returns true. Both are false by default.
 
 ## Using it
 
@@ -48,14 +50,16 @@ their bar themselves. `CaptionButtons` adds labels and icon-theme glyphs.
 |---|---|---|
 | Windows | 46 pt wide, full bar height, flush with the window's edge | `#C42B1C` with a white glyph; 90 % while pressed |
 | Adwaita | 24 pt discs, 10 % glyph colour at rest | the app's hover and pressed fills |
-| Breeze | 18 pt bare discs | `#FF98A2` / `#6D2229` |
+| Breeze | 18 pt bare discs; under the pointer the disc takes the glyph colour and the glyph the bar's | `#FF98A2` / `#6D2229`, glyph in the bar colour |
 | Generic | Adwaita's buttons without the disc at rest | the app's hover and pressed fills |
 
 - `CaptionColors::from_resolved` takes the suite theme's roles: glyph `text`, inactive glyph
-  `text_muted`, fills `derived.hover` and `derived.pressed`, ring `focus`.
+  `text_muted`, fills `derived.hover` and `derived.pressed`, bar `surface`.
 - Glyphs are painted. `CaptionIcons` swaps in the desktop icon theme's `window-*-symbolic`
   glyphs for the round families; the app supplies the renderer.
-- Inactive windows paint the glyphs in `glyph_inactive`. Keyboard focus draws a ring in `focus`.
+- Inactive windows paint the glyphs in `glyph_inactive`.
+- Like the OS's own, the buttons are not Tab stops. Screen readers reach and press them through
+  AccessKit.
 - In a right-to-left UI the Windows captions move to the left, Close outermost. The Linux
   desktops' layouts are the user's settings and stay as set.
 - Tooltips and accessibility labels are "Minimize", "Maximize", "Restore" and "Close"
@@ -65,7 +69,7 @@ their bar themselves. `CaptionButtons` adds labels and icon-theme glyphs.
 
 `TitleBar::regions` takes a `CaptionRegions` sink that receives the bar's rect and each button's
 rect every frame. It does nothing by default; it is the hook for the Windows snap-layout hit test
-in the window procedure.
+in the window procedure, and its `native_hit_test()` turns off the bar's resize zones.
 
 ## Tests
 

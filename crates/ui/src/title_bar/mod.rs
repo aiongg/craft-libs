@@ -1,5 +1,5 @@
-//! The app's own bar as the window's title bar: caption buttons, the drag area and, on Linux,
-//! resize zones along the window's edges.
+//! The app's own bar as the window's title bar: caption buttons, the drag area and resize zones
+//! along the window's edges.
 //!
 //! [`TitleBar`] lays out a bar for the frame [`craft_window::policy::decide_for`] chose:
 //!
@@ -7,7 +7,7 @@
 //! |---|---|---|---|---|
 //! | [`Frame::Native`] | — | — | — (the OS bar moves the window) | — |
 //! | [`Frame::Inset`] | the traffic lights' width | — | drags, double-click per the macOS setting | — |
-//! | [`Frame::Integrated`] | the layout's left buttons | the layout's right buttons | drags, double-click maximizes | Linux |
+//! | [`Frame::Integrated`] | the layout's left buttons | the layout's right buttons | drags, double-click maximizes | until a native hit test resizes |
 //!
 //! In full screen there is no inset, no button and no drag. The app draws the bar's background
 //! and its contents (menus, tabs, search) in [`BarSlots::content`].
@@ -21,6 +21,9 @@
 //!     app.quit(ctx); // asks about unsaved documents first
 //! }
 //! ```
+//!
+//! The resize zones stay on until the window procedure answers the hit test itself: the app says
+//! so with [`TitleBar::native_hit_test`] or [`CaptionRegions::native_hit_test`].
 //!
 //! The app also calls [`release_after_os_resize`] from its `raw_input_hook`, and on macOS
 //! [`craft_window::title_bar::sync_movable`] once per frame.
@@ -41,7 +44,6 @@ pub use colors::CaptionColors;
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 pub use resize::{CORNER, EDGE, release_after_os_resize};
 
-use craft_window::policy::Os;
 use egui::{Id, Rect, Ui, UiBuilder, ViewportCommand, vec2};
 
 use crate::direction::{self, is_rtl};
@@ -56,6 +58,11 @@ pub trait CaptionRegions {
     fn button(&mut self, _caption: Caption, _rect: Rect) {}
     /// The bar's rect, which drags the window outside its buttons and controls.
     fn drag(&mut self, _rect: Rect) {}
+    /// Whether the window procedure answers the hit test from these regions, edges included
+    /// (Windows' `WM_NCHITTEST`). The bar then draws no resize zones. False by default.
+    fn native_hit_test(&self) -> bool {
+        false
+    }
 }
 
 impl CaptionRegions for () {}
@@ -88,11 +95,12 @@ pub struct TitleBar<'a> {
     labels: Option<&'a CaptionLabels>,
     icons: Option<&'a CaptionIcons>,
     regions: Option<&'a mut dyn CaptionRegions>,
+    native_hit_test: bool,
 }
 
 impl<'a> TitleBar<'a> {
     pub fn new(frame: &'a Frame, height: f32, colors: CaptionColors) -> Self {
-        Self { frame, height, colors, id: Id::unique("title_bar"), labels: None, icons: None, regions: None }
+        Self { frame, height, colors, id: Id::unique("title_bar"), labels: None, icons: None, regions: None, native_hit_test: false }
     }
 
     /// Distinguishes the bars of several windows drawn from one `Ui` tree.
@@ -120,6 +128,14 @@ impl<'a> TitleBar<'a> {
     #[must_use]
     pub fn regions(mut self, regions: &'a mut dyn CaptionRegions) -> Self {
         self.regions = Some(regions);
+        self
+    }
+
+    /// The window procedure answers the hit test, edges included, so the bar draws no resize
+    /// zones. Off by default: an undecorated window gets the bar's zones.
+    #[must_use]
+    pub fn native_hit_test(mut self, native: bool) -> Self {
+        self.native_hit_test = native;
         self
     }
 
@@ -180,15 +196,16 @@ impl<'a> TitleBar<'a> {
             }
             let (c, rects) = b.show_rects(ui, bar);
             clicked = c;
+            let mut native = self.native_hit_test;
             if let Some(regions) = self.regions {
+                native |= regions.native_hit_test();
                 regions.drag(bar);
                 for &(c, r) in &rects {
                     regions.button(c, r);
                 }
             }
             holes.extend(rects.into_iter().map(|(_, r)| r));
-            // Windows' window procedure resizes from the frame itself.
-            if Os::current() == Os::Linux {
+            if !native {
                 if !maximized {
                     resize::resize_zones(ui, &holes);
                 }
