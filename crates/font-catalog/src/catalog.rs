@@ -314,12 +314,15 @@ enum Change {
     Changed,
 }
 
+/// A family's lowercase name, its name and how it changed.
+type FamilyChange = (String, String, Change);
+
 /// The families each recent generation added, removed or changed, for unscoped lookups.
 #[derive(Default)]
 struct History {
     /// Each generation that changed a family, oldest first, with the families (lowercase name,
     /// name) and how they changed.
-    changes: VecDeque<(u64, Vec<(String, String, Change)>)>,
+    changes: VecDeque<(u64, Vec<FamilyChange>)>,
     names: usize,
     /// The oldest generation [`Catalog::changes_since`] can start from: the history holds every
     /// change after it.
@@ -628,11 +631,11 @@ impl Catalog {
     /// Make `catalog` the process's catalog ([`Catalog::global`]), for example
     /// [`Catalog::without_installed_fonts`] for a CLI's "no system fonts" switch. Call it before
     /// anything uses the global catalog; once something has, the catalog comes back as the error.
-    pub fn init_global(catalog: Catalog) -> Result<&'static Arc<Catalog>, Catalog> {
+    pub fn init_global(catalog: Catalog) -> Result<&'static Arc<Catalog>, Box<Catalog>> {
         let mut catalog = Some(catalog);
         let global = GLOBAL.get_or_init(|| Arc::new(catalog.take().unwrap_or_else(|| Catalog::new(FontEnv::from_process()))));
         match catalog {
-            Some(catalog) => Err(catalog),
+            Some(catalog) => Err(Box::new(catalog)),
             None => Ok(global),
         }
     }
