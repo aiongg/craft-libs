@@ -100,6 +100,9 @@ pub enum Problem {
     SelectionUnreadable(Arc<io::Error>),
     /// The library folder can't be listed.
     LibraryUnreadable(Arc<io::Error>),
+    /// The watcher's worker thread isn't running as it should: it couldn't start, stopped, or
+    /// failed during a check. Operations still run, on the calling thread if need be.
+    Watcher(&'static str),
     /// A library file that can't be used; `stem` is its name without `.json`.
     Theme {
         stem: String,
@@ -521,6 +524,7 @@ impl fmt::Display for Problem {
             Problem::SelectionUnreadable(e) => write!(f, "can't read the suite theme selection: {e}"),
             Problem::LibraryUnreadable(e) => write!(f, "can't list the theme library: {e}"),
             Problem::Theme { stem, error } => write!(f, "{stem}.json: {error}"),
+            Problem::Watcher(what) => f.write_str(what),
         }
     }
 }

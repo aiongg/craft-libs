@@ -77,7 +77,8 @@ fn unchanged_files_are_parsed_once_and_never_republished() {
     assert!(first.problems.is_empty());
     let loaded = ParseCounts { selection: 1, themes: 10_000 };
     assert_eq!(watch.parse_counts(), loaded);
-    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    // Without a worker the caller is in its frame already: no wake.
+    assert_eq!(wakes.load(Ordering::SeqCst), 0);
 
     // 100 timer ticks, every 20th with the byte comparison (the 500 ms / 10 s ratio).
     for tick in 1..=100 {
@@ -85,7 +86,7 @@ fn unchanged_files_are_parsed_once_and_never_republished() {
     }
     assert_eq!(watch.parse_counts(), loaded);
     assert_eq!(watch.generation(), 1);
-    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    assert_eq!(wakes.load(Ordering::SeqCst), 0);
 
     // A picker opens after a file was added by hand: only the new file is read.
     fs::write(library.join("t10000.json"), theme_json("t10000")).unwrap();
@@ -198,8 +199,8 @@ fn operations_run_on_the_worker_and_report_their_results() {
     wait_for("the index", || watch.snapshot().index.iter().any(|e| e.id.as_str() == SAMPLE_THEME_ID));
     let id = watch.request(Op::Export(ThemeId::parse(SAMPLE_THEME_ID).unwrap()));
     assert!(matches!(result(&watch, id), Ok(OpOutput::Exported(bytes)) if &*bytes == SAMPLE_THEME_JSON.as_bytes()));
-    let id = watch.request(Op::AppTheme(Some(ThemeId::parse(SAMPLE_THEME_ID).unwrap())));
-    result(&watch, id).unwrap();
+    watch.request(Op::AppTheme(Some(ThemeId::parse(SAMPLE_THEME_ID).unwrap())));
+    wait_for("the app theme", || watch.snapshot().app_theme.is_some());
     assert_eq!(watch.snapshot().app_theme.as_ref().map(|r| r.theme.id.clone()), Some(ThemeId::parse(SAMPLE_THEME_ID).unwrap()));
 }
 
@@ -231,6 +232,81 @@ fn the_memory_watch_applies_operations_at_once() {
     assert!(snapshot.theme(&sample.theme).is_some());
     let id = watch.request(Op::Delete(sample.theme));
     assert!(matches!(watch.snapshot().result(id), Some(Err(StoreError::InUse(_)))));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_theme_in_use_is_read_again_until_it_reads() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("library/one.json");
+    let mut store = Store::open(&SuiteDir::at(tmp.path()), options());
+    store.import(theme_json("one").as_bytes(), false).unwrap();
+    let base = store.accepted().clone();
+    store.update(&base, SelectionChange::whole(sel("one", Mode::Dark))).unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read(&file).is_ok() {
+        // Running as root: permissions don't stop reads.
+        return;
+    }
+    let (_, wake) = counter();
+    let watch = SuiteWatch::inline(Store::open(&SuiteDir::at(tmp.path()), options()), wake);
+    let unreadable = watch.snapshot();
+    assert!(unreadable.active.is_none());
+    assert!(matches!(&unreadable.problems[..], [Problem::Theme { error: StoreError::Io(_), .. }]), "{:?}", unreadable.problems);
+
+    // Same stamp, readable now: the next tick reads it.
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+    watch.poll_once(false);
+    let readable = watch.snapshot();
+    assert_eq!(readable.active.as_ref().map(|r| r.theme.id.as_str()), Some("one"));
+    assert_eq!(readable.index.len(), 1);
+    assert!(readable.problems.is_empty(), "{:?}", readable.problems);
+}
+
+#[test]
+fn a_deleted_app_theme_clears_while_the_suite_theme_keeps_its_last_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(&SuiteDir::at(tmp.path()), options());
+    store.import(theme_json("one").as_bytes(), false).unwrap();
+    store.import(theme_json("two").as_bytes(), false).unwrap();
+    let base = store.accepted().clone();
+    store.update(&base, SelectionChange::whole(sel("one", Mode::Dark))).unwrap();
+    let (_, wake) = counter();
+    let watch = SuiteWatch::inline(Store::open(&SuiteDir::at(tmp.path()), options()), wake);
+    let two = ThemeId::parse("two").unwrap();
+    watch.request(Op::AppTheme(Some(two.clone())));
+    assert_eq!(watch.snapshot().app_theme.as_ref().map(|r| &r.theme.id), Some(&two));
+    // The same choice again is not news.
+    let generation = watch.generation();
+    watch.request(Op::AppTheme(Some(two.clone())));
+    assert_eq!(watch.generation(), generation);
+
+    fs::remove_file(tmp.path().join("library/one.json")).unwrap();
+    fs::remove_file(tmp.path().join("library/two.json")).unwrap();
+    watch.poll_once(false);
+    let snapshot = watch.snapshot();
+    assert_eq!(snapshot.active.as_ref().map(|r| r.theme.id.as_str()), Some("one"));
+    assert!(snapshot.app_theme.is_none());
+    assert!(snapshot.theme(&two).is_none());
+    let missing: Vec<_> = snapshot.problems.iter().filter(|p| matches!(p, Problem::Theme { error: StoreError::NotFound(_), .. })).collect();
+    assert_eq!(missing.len(), 2, "{:?}", snapshot.problems);
+}
+
+#[test]
+fn dropping_releases_the_worker_every_time() {
+    let tmp = tempfile::tempdir().unwrap();
+    for _ in 0..50 {
+        let token = Arc::new(());
+        let held = Arc::clone(&token);
+        let watch = SuiteWatch::open(&SuiteDir::at(tmp.path()), options(), move || {
+            let _ = &held;
+        });
+        watch.request(Op::Rescan);
+        drop(watch);
+        assert_eq!(Arc::strong_count(&token), 1);
+    }
 }
 
 #[test]

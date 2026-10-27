@@ -41,9 +41,11 @@ pub enum Op {
     /// A theme file for sharing ([`Store::export`]); the result is [`OpOutput::Exported`].
     Export(ThemeId),
     /// Re-lists the library now, for a theme picker that opens. Unchanged files are not read.
+    /// No result: a new snapshot follows only if something changed.
     Rescan,
     /// The library theme the app uses for its own choice ("Use a different theme in this app"),
     /// kept parsed in [`Snapshot::app_theme`]; `None` when it uses the suite's or a built-in.
+    /// Send it when that choice changes. No result: the same id again does nothing.
     AppTheme(Option<ThemeId>),
 }
 
@@ -65,9 +67,11 @@ pub struct Snapshot {
     pub accepted: Accepted,
     /// The library themes, by file name.
     pub index: Arc<[ThemeEntry]>,
-    /// The suite selection's theme when it is a library theme: the last version that parsed.
+    /// The suite selection's theme when it is a library theme: the last version that parsed,
+    /// kept while its file is missing, damaged or unreadable.
     pub active: Option<ThemeRecord>,
-    /// The theme named by [`Op::AppTheme`]: the last version that parsed.
+    /// The theme named by [`Op::AppTheme`]: the last version that parsed, or `None` once its
+    /// file is deleted, so the app falls back to its default.
     pub app_theme: Option<ThemeRecord>,
     pub problems: Vec<Problem>,
     /// The latest operation results by request id, oldest first, at most [`RESULTS_KEPT`].
@@ -106,12 +110,17 @@ impl Snapshot {
 /// and calls `wake` once; an unchanged poll does neither.
 ///
 /// Without a folder (and on `wasm32`) there is no thread: operations run inside
-/// [`request`](Self::request), with the same snapshots, generations and wake calls.
+/// [`request`](Self::request), with the same snapshots and generations. `wake` is not called
+/// then, since the caller is already in its frame. If the worker thread can't start, the same
+/// form runs on the folder with a [`Problem::Watcher`] in the snapshot: it reads the folder
+/// once and never polls.
 ///
 /// Dropping stops the worker and waits at most 100 ms for it: operations already requested
 /// finish first. A worker still blocked on a file or the lock then is detached, and ends when
-/// its operation returns. `wake` runs on the worker (inside `request` without one) and must
-/// not block or call back into the watch.
+/// its operation returns. A queued update that hasn't run when the process exits is lost, which
+/// is one reason apps also keep the user's choice in their own preferences (`last_suite`).
+///
+/// `wake` runs on the worker and must not block or call back into the watch.
 pub struct SuiteWatch {
     shared: Arc<Shared>,
     next_request: AtomicU64,
@@ -158,13 +167,21 @@ impl SuiteWatch {
         let id = self.next_request.fetch_add(1, Ordering::Relaxed) + 1;
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(worker) = &self.worker {
-            // A worker that is gone has nothing left to report; the request is dropped with it.
-            let _ = worker.ops.send((id, op));
-            return id;
+            match worker.ops.send((id, op)) {
+                Ok(()) => return id,
+                // The worker is gone: run the request here rather than lose it.
+                Err(std::sync::mpsc::SendError((id, op))) => {
+                    let mut engine = lock(&self.shared.engine);
+                    engine.watcher_failed(WORKER_STOPPED);
+                    engine.apply(id, op);
+                    self.shared.publish(&mut engine, false);
+                    return id;
+                }
+            }
         }
         let mut engine = lock(&self.shared.engine);
         engine.apply(id, op);
-        self.shared.publish(&mut engine);
+        self.shared.publish(&mut engine, false);
         id
     }
 
@@ -199,7 +216,7 @@ impl SuiteWatch {
         let (shared, watch) = Self::build(store, wake);
         let mut engine = lock(&shared.engine);
         engine.poll(true);
-        shared.publish(&mut engine);
+        shared.publish(&mut engine, false);
         drop(engine);
         watch
     }
@@ -212,6 +229,9 @@ impl SuiteWatch {
         let worker_shared = Arc::clone(&shared);
         let spawned = std::thread::Builder::new().name("craft-theme-watch".into()).spawn(move || {
             run(&worker_shared, &queue, intervals);
+            // Released before the acknowledgement, so that a drop which sees it knows the
+            // shared state (and the app's wake callback) is no longer held here.
+            drop(worker_shared);
             let _ = done.send(());
         });
         match spawned {
@@ -219,8 +239,9 @@ impl SuiteWatch {
             // No thread to be had: work on the caller's thread rather than not at all.
             Err(_) => {
                 let mut engine = lock(&shared.engine);
+                engine.watcher_failed(WORKER_NOT_STARTED);
                 engine.poll(true);
-                shared.publish(&mut engine);
+                shared.publish(&mut engine, false);
             }
         }
         watch
@@ -231,7 +252,7 @@ impl SuiteWatch {
     pub(crate) fn poll_once(&self, verify: bool) {
         let mut engine = lock(&self.shared.engine);
         engine.poll(verify);
-        self.shared.publish(&mut engine);
+        self.shared.publish(&mut engine, true);
     }
 
     #[cfg(test)]
@@ -248,15 +269,29 @@ impl Drop for SuiteWatch {
             let Worker { ops, thread, finished } = worker;
             // Closing the queue ends the worker once the requests already in it are done.
             drop(ops);
-            let _ = finished.into_inner().unwrap_or_else(PoisonError::into_inner).recv_timeout(DROP_WAIT);
-            if thread.is_finished() {
-                let _ = thread.join();
+            let finished = finished.into_inner().unwrap_or_else(PoisonError::into_inner);
+            match finished.recv_timeout(DROP_WAIT) {
+                // Done, or unwound past the acknowledgement: the thread is ending.
+                Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    let _ = thread.join();
+                }
+                // Still blocked on a file or the lock: detached, it ends when that returns.
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             }
         }
     }
 }
 
 pub(crate) type Wake = Box<dyn Fn() + Send + Sync>;
+
+#[cfg(not(target_arch = "wasm32"))]
+const WORKER_NOT_STARTED: &str = "the theme watcher couldn't start; the theme folder was read once and isn't watched for changes";
+#[cfg(not(target_arch = "wasm32"))]
+const WORKER_STOPPED: &str = "the theme watcher stopped; changes are applied directly and the theme folder isn't watched";
+#[cfg(not(target_arch = "wasm32"))]
+const CHECK_FAILED: &str = "the theme watcher failed while checking the theme folder";
+#[cfg(not(target_arch = "wasm32"))]
+const REQUEST_FAILED: &str = "the theme watcher failed while running this request";
 
 #[cfg(not(target_arch = "wasm32"))]
 struct Worker {
@@ -283,13 +318,20 @@ impl Default for Intervals {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn run(shared: &Shared, queue: &std::sync::mpsc::Receiver<(u64, Op)>, intervals: Intervals) {
-    use std::{sync::mpsc::RecvTimeoutError, time::Instant};
+    use std::{
+        panic::{AssertUnwindSafe, catch_unwind},
+        sync::mpsc::RecvTimeoutError,
+        time::Instant,
+    };
 
-    {
+    // A bug in one check or request must not end the watching; each is reported instead.
+    let poll = |verify: bool| {
         let mut engine = lock(&shared.engine);
-        engine.poll(true);
-        shared.publish(&mut engine);
-    }
+        let failed = catch_unwind(AssertUnwindSafe(|| engine.poll(verify))).is_err();
+        engine.set_check_failed(failed);
+        shared.publish(&mut engine, true);
+    };
+    poll(true);
     let start = Instant::now();
     let mut next_stat = start + intervals.stat;
     let mut next_verify = start + intervals.verify;
@@ -298,8 +340,10 @@ fn run(shared: &Shared, queue: &std::sync::mpsc::Receiver<(u64, Op)>, intervals:
         match queue.recv_timeout(wait) {
             Ok((id, op)) => {
                 let mut engine = lock(&shared.engine);
-                engine.apply(id, op);
-                shared.publish(&mut engine);
+                if catch_unwind(AssertUnwindSafe(|| engine.apply(id, op))).is_err() {
+                    engine.push_result(id, Err(StoreError::Io(Arc::new(std::io::Error::other(REQUEST_FAILED)))));
+                }
+                shared.publish(&mut engine, true);
             }
             Err(RecvTimeoutError::Timeout) => {
                 let now = Instant::now();
@@ -308,9 +352,7 @@ fn run(shared: &Shared, queue: &std::sync::mpsc::Receiver<(u64, Op)>, intervals:
                     next_verify = now + intervals.verify;
                 }
                 next_stat = now + intervals.stat;
-                let mut engine = lock(&shared.engine);
-                engine.poll(verify);
-                shared.publish(&mut engine);
+                poll(verify);
             }
             Err(RecvTimeoutError::Disconnected) => return,
         }
@@ -327,8 +369,8 @@ struct Shared {
 
 impl Shared {
     /// Publishes a new snapshot when something changed. Called with the engine locked, so
-    /// generations never race.
-    fn publish(&self, engine: &mut Engine) {
+    /// generations never race. `wake` only from the worker.
+    fn publish(&self, engine: &mut Engine, wake: bool) {
         if !std::mem::take(&mut engine.changed) {
             return;
         }
@@ -336,7 +378,7 @@ impl Shared {
         *lock(&self.snapshot) = Arc::new(engine.snapshot(generation));
         // After the snapshot, so a reader that sees the new generation gets at least its snapshot.
         self.generation.store(generation, Ordering::Release);
-        if !self.stopped.load(Ordering::Acquire) {
+        if wake && !self.stopped.load(Ordering::Acquire) {
             (self.wake)();
         }
     }
@@ -352,8 +394,16 @@ struct Cached {
     entry: Result<ThemeEntry, Problem>,
 }
 
-/// A library theme in use, re-read only when its stamp changes. A failed read keeps the last
-/// record that parsed.
+impl Cached {
+    /// Read failures other than a file that doesn't parse are retried: another process may
+    /// hold the file for a moment.
+    fn retry(&self) -> bool {
+        matches!(&self.entry, Err(Problem::Theme { error, .. }) if !matches!(error, StoreError::Format(_)))
+    }
+}
+
+/// A library theme in use, re-read only when its stamp changes. I/O errors are retried on the
+/// next check; a file that doesn't parse is read again only once it changes.
 #[derive(Default)]
 struct Tracked {
     id: Option<ThemeId>,
@@ -362,16 +412,23 @@ struct Tracked {
     read: bool,
     record: Option<ThemeRecord>,
     problem: Option<Problem>,
+    /// Keep the last record that parsed when the file goes missing: the suite's theme. The
+    /// app's own theme clears instead, so the app falls back to its default.
+    keep_missing: bool,
 }
 
 impl Tracked {
+    fn suite() -> Self {
+        Tracked { keep_missing: true, ..Tracked::default() }
+    }
+
     /// Built-ins need no file. Returns whether the id changed.
     fn follow(&mut self, id: Option<&ThemeId>) -> bool {
         let id = id.filter(|id| !id.is_builtin());
         if self.id.as_ref() == id {
             return false;
         }
-        *self = Tracked { id: id.cloned(), ..Tracked::default() };
+        *self = Tracked { id: id.cloned(), keep_missing: self.keep_missing, ..Tracked::default() };
         true
     }
 
@@ -380,7 +437,10 @@ impl Tracked {
         if self.id.as_ref() != Some(&record.theme.id) || (self.read && self.stamp == Some(stamp)) {
             return false;
         }
-        *self = Tracked { id: self.id.take(), stamp: Some(stamp), read: true, record: Some(record.clone()), problem: None };
+        self.stamp = Some(stamp);
+        self.read = true;
+        self.record = Some(record.clone());
+        self.problem = None;
         true
     }
 
@@ -389,29 +449,42 @@ impl Tracked {
         let Some(id) = self.id.clone() else {
             return false;
         };
-        let problem = |error: StoreError| Problem::Theme { stem: id.as_str().to_owned(), error };
+        let problem = |error: StoreError| Some(Problem::Theme { stem: id.as_str().to_owned(), error });
         let stamp = match store.theme_stamp(&id) {
             Ok(stamp) => stamp,
-            Err(e) => return set_problem(&mut self.problem, Some(problem(e.into()))),
+            Err(e) => {
+                self.read = false;
+                return set_problem(&mut self.problem, problem(e.into()));
+            }
         };
         if self.read && self.stamp == stamp {
             return false;
         }
-        self.stamp = stamp;
-        self.read = true;
         if stamp.is_none() {
-            return set_problem(&mut self.problem, Some(problem(StoreError::NotFound(id.clone()))));
+            self.stamp = None;
+            self.read = true;
+            let cleared = !self.keep_missing && self.record.take().is_some();
+            let reported = set_problem(&mut self.problem, problem(StoreError::NotFound(id.clone())));
+            return cleared || reported;
         }
         match store.load_theme(&id) {
             Ok(record) => {
+                self.stamp = stamp;
+                self.read = true;
                 self.record = Some(record);
                 self.problem = None;
                 true
             }
-            Err(e) => {
-                set_problem(&mut self.problem, Some(problem(e)));
+            Err(e @ StoreError::Format(_)) => {
+                self.stamp = stamp;
+                self.read = true;
+                set_problem(&mut self.problem, problem(e));
                 // The file changed even if the problem reads the same.
                 true
+            }
+            Err(e) => {
+                self.read = false;
+                set_problem(&mut self.problem, problem(e))
             }
         }
     }
@@ -431,6 +504,8 @@ struct Engine {
     accepted: Accepted,
     selection_stamp: Option<Option<FileStamp>>,
     selection_problem: Option<Problem>,
+    /// Consecutive I/O errors reading `selection.json`.
+    selection_failures: u32,
     listed: Option<u64>,
     files: HashMap<String, Cached>,
     index: Arc<[ThemeEntry]>,
@@ -438,6 +513,7 @@ struct Engine {
     library_problem: Option<Problem>,
     suite_theme: Tracked,
     app_theme: Tracked,
+    watcher_problem: Option<Problem>,
     results: VecDeque<(u64, Result<OpOutput, StoreError>)>,
     changed: bool,
 }
@@ -449,13 +525,15 @@ impl Engine {
             store,
             selection_stamp: None,
             selection_problem: None,
+            selection_failures: 0,
             listed: None,
             files: HashMap::new(),
             index: Arc::from([]),
             file_problems: Vec::new(),
             library_problem: None,
-            suite_theme: Tracked::default(),
+            suite_theme: Tracked::suite(),
             app_theme: Tracked::default(),
+            watcher_problem: None,
             results: VecDeque::new(),
             changed: false,
         }
@@ -469,46 +547,79 @@ impl Engine {
     }
 
     fn apply(&mut self, id: u64, op: Op) {
-        let mut rescan = false;
         let result = match op {
             Op::Update { base, change } => self.store.update(&base, change).map(|_| OpOutput::Done),
             Op::Import { bytes, as_copy } => self.store.import(&bytes, as_copy).map(|i| OpOutput::Imported(i.record.theme.id)),
             Op::Delete(theme) => self.store.delete(&theme).map(|_| OpOutput::Done),
             Op::Export(theme) => self.store.export(&theme).map(OpOutput::Exported),
             Op::Rescan => {
-                rescan = true;
-                Ok(OpOutput::Done)
+                self.check_selection(false);
+                self.settle(true);
+                return;
             }
             Op::AppTheme(theme) => {
-                self.app_theme.follow(theme.as_ref());
-                Ok(OpOutput::Done)
+                self.changed |= self.app_theme.follow(theme.as_ref());
+                self.settle(false);
+                return;
             }
         };
+        self.push_result(id, result);
+        // A write leaves the store with its new state; the stamp check picks up the file
+        // without parsing it again, and clears a problem the write replaced.
+        self.check_selection(false);
+        self.settle(false);
+    }
+
+    fn push_result(&mut self, id: u64, result: Result<OpOutput, StoreError>) {
         if self.results.len() >= RESULTS_KEPT {
             self.results.pop_front();
         }
         self.results.push_back((id, result));
         self.changed = true;
-        // A write leaves the store with its new state; the stamp check picks up the file
-        // without parsing it again, and clears a problem the write replaced.
-        self.check_selection(false);
-        self.settle(rescan);
+    }
+
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    fn watcher_failed(&mut self, what: &'static str) {
+        self.changed |= set_problem(&mut self.watcher_problem, Some(Problem::Watcher(what)));
+    }
+
+    /// Reports a check that failed, and clears that report once a check succeeds.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn set_check_failed(&mut self, failed: bool) {
+        if failed {
+            self.watcher_failed(CHECK_FAILED);
+        } else if matches!(self.watcher_problem, Some(Problem::Watcher(what)) if what == CHECK_FAILED) {
+            self.watcher_problem = None;
+            self.changed = true;
+        }
     }
 
     fn check_selection(&mut self, verify: bool) {
         let stamp = match self.store.selection_stamp() {
             Ok(stamp) => stamp,
-            Err(e) => {
-                self.changed |= set_problem(&mut self.selection_problem, Some(Problem::SelectionUnreadable(Arc::new(e))));
-                return;
-            }
+            Err(e) => return self.selection_unreadable(Problem::SelectionUnreadable(Arc::new(e))),
         };
         if !verify && self.selection_stamp == Some(stamp) {
             return;
         }
         self.selection_stamp = Some(stamp);
-        let problem = self.store.load_selection().err();
-        self.changed |= set_problem(&mut self.selection_problem, problem);
+        match self.store.load_selection() {
+            Err(problem @ Problem::SelectionUnreadable(_)) => self.selection_unreadable(problem),
+            loaded => {
+                self.selection_failures = 0;
+                self.changed |= set_problem(&mut self.selection_problem, loaded.err());
+            }
+        }
+    }
+
+    /// An I/O error on `selection.json`: retried on the next check and reported only when that
+    /// fails too, since another process may hold the file for a moment.
+    fn selection_unreadable(&mut self, problem: Problem) {
+        self.selection_stamp = None;
+        self.selection_failures = self.selection_failures.saturating_add(1);
+        if self.selection_failures > 1 {
+            self.changed |= set_problem(&mut self.selection_problem, Some(problem));
+        }
     }
 
     /// Follows the accepted state: the library when its revision moved (or `rescan`), and the
@@ -522,13 +633,14 @@ impl Engine {
         self.changed |= self.suite_theme.follow(suite.as_ref());
         if rescan || self.listed != Some(self.accepted.library_revision) {
             self.list_library();
+        } else {
+            self.retry_unread();
         }
         self.changed |= self.suite_theme.refresh(&mut self.store);
         self.changed |= self.app_theme.refresh(&mut self.store);
     }
 
     fn list_library(&mut self) {
-        self.listed = Some(self.accepted.library_revision);
         let files = match self.store.library_files() {
             Ok(files) => files,
             Err(e) => {
@@ -536,12 +648,13 @@ impl Engine {
                 return;
             }
         };
+        self.listed = Some(self.accepted.library_revision);
         self.changed |= set_problem(&mut self.library_problem, None);
         let mut previous = std::mem::take(&mut self.files);
         let mut changed = files.len() != previous.len();
         for file in files {
             let cached = match previous.remove(&file.stem) {
-                Some(cached) if cached.stamp == file.stamp => cached,
+                Some(cached) if cached.stamp == file.stamp && !cached.retry() => cached,
                 _ => {
                     changed = true;
                     match self.read_library_file(&file) {
@@ -554,6 +667,26 @@ impl Engine {
             self.files.insert(file.stem, cached);
         }
         if changed || !previous.is_empty() {
+            self.rebuild_index();
+        }
+    }
+
+    /// Reads the library files that last failed with an I/O error again.
+    fn retry_unread(&mut self) {
+        let unread: Vec<LibraryFile> =
+            self.files.iter().filter(|(_, c)| c.retry()).map(|(stem, c)| LibraryFile { stem: stem.clone(), stamp: c.stamp }).collect();
+        let mut changed = false;
+        for file in unread {
+            let before = self.files.remove(&file.stem).and_then(|c| c.entry.err()).map(|p| p.to_string());
+            match self.read_library_file(&file) {
+                Some(cached) => {
+                    changed |= cached.entry.as_ref().err().map(ToString::to_string) != before;
+                    self.files.insert(file.stem, cached);
+                }
+                None => changed = true,
+            }
+        }
+        if changed {
             self.rebuild_index();
         }
     }
@@ -592,7 +725,7 @@ impl Engine {
         let mut problems: Vec<Problem> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         // A broken theme in use is also a broken library file; list it once.
-        let all = [&self.selection_problem, &self.library_problem, &self.suite_theme.problem, &self.app_theme.problem]
+        let all = [&self.watcher_problem, &self.selection_problem, &self.library_problem, &self.suite_theme.problem, &self.app_theme.problem]
             .into_iter()
             .flatten()
             .chain(&self.file_problems);

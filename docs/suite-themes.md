@@ -289,7 +289,7 @@ what it finds as an immutable `Snapshot`:
 | `accepted` | the selection as last read or written; problems never replace it |
 | `index` | the library themes (id, name, variants, diagnostic count, stamp), sorted by file name |
 | `active` | the suite selection's library theme, the last version that parsed; `None` for built-ins |
-| `app_theme` | the library theme named with `Op::AppTheme`, for an app's own choice |
+| `app_theme` | the library theme named with `Op::AppTheme`, for an app's own choice; `None` once its file is deleted, so the app falls back to its default |
 | `problems` | damaged, too new or unreadable files; each listed once |
 | `results` | the last 16 operation results by request id |
 | `generation` | goes up by one with each new snapshot |
@@ -301,14 +301,17 @@ What the worker reads, and when:
   replacement that kept length and modification time. Unchanged bytes are never parsed again.
 - The library: listed only when `library_revision` changes or on `Op::Rescan`, which an app sends
   when a theme picker opens. Only files whose stamp changed are read; the index of the rest is
-  kept.
+  kept. Library files are written once, so a hand edit in place that keeps length and
+  modification time goes unnoticed.
 - The suite's theme and the app's own library theme: their stamps on every 500 ms check, parsed
-  only when they changed. A deleted or broken file becomes a problem and the last good version
-  stays in the snapshot.
+  only when they changed. A deleted or broken file becomes a problem; the suite's theme keeps its
+  last good version, the app's own theme clears when deleted.
+- I/O errors (another process holding a file for a moment) are retried on the next check. An
+  unreadable `selection.json` is reported only when the retry fails too.
 
 Each change publishes a new snapshot and calls `wake` (the app's `request_repaint`) once; a check
-that finds nothing new does neither. `wake` runs on the worker (inside `request` without one) and
-must not block or call back into the watch.
+that finds nothing new does neither. `wake` runs on the worker and must not block or call back
+into the watch.
 
 Each frame the app calls `generation()`, one atomic load, and compares it with its cache key
 `(generation, effective selection, effective variant)`. Only when the key changed does it take
@@ -318,12 +321,21 @@ Changes go through `request(Op)`, which queues the operation and returns its id 
 `Update { base, change }`, `Import`, `Delete`, `Export` (the bytes come back as
 `OpOutput::Exported`), `Rescan` and `AppTheme`. The app applies the change to its own state
 optimistically, then looks for `snapshot().result(id)`: on `Conflict` the snapshot already holds
-the disk state; on another error it holds the accepted state from before.
+the disk state; on another error it holds the accepted state from before. `Rescan` and
+`AppTheme` have no result; their effect is the next snapshot, published only if something
+changed. Send `AppTheme` when the app's own choice changes.
 
 `SuiteWatch::memory()` and in-memory folders run without a thread: `request` applies the
-operation before it returns, with the same snapshots, generations and wake calls. On `wasm32`
-that is the only form. Dropping a `SuiteWatch` lets queued operations finish and waits at most
-100 ms for the worker; a worker still blocked on the lock then finishes on its own.
+operation before it returns, with the same snapshots and generations but no `wake` call, since
+the caller is already in its frame. On `wasm32` that is the only form. If the worker thread
+can't start, the same form runs on the folder with a `Problem::Watcher`: it reads the folder
+once and never polls. A check or request that fails inside the worker is reported (a problem,
+or an error result) and the worker keeps going.
+
+Dropping a `SuiteWatch` lets queued operations finish and waits at most 100 ms for the worker; a
+worker still blocked on the lock then finishes on its own. A queued update that hasn't run when
+the process exits is lost, which is one reason apps also keep the user's choice in their own
+preferences (`last_suite`).
 
 The lock file and revision protocol, the re-check before the rename, the failure handling and the
 stamp-plus-bytes change detection follow the theme store in

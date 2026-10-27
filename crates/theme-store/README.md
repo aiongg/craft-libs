@@ -62,8 +62,8 @@ let id = watch.request(Op::Update { base: snapshot.accepted.clone(), change });
 
 The worker stats `selection.json` every 500 ms and compares its bytes every 10 s, parses only
 what changed, re-lists the library only when its revision changes or on `Op::Rescan`, and calls
-`wake` only when the snapshot changes. `SuiteWatch::memory()` runs without a thread; on `wasm32`
-that is the only form. [docs/suite-themes.md](../../docs/suite-themes.md#watching-for-changes)
+`wake` only when the snapshot changes. `SuiteWatch::memory()` runs without a thread and without
+`wake` calls (the caller is in its frame already); on `wasm32` that is the only form. [docs/suite-themes.md](../../docs/suite-themes.md#watching-for-changes)
 has the details.
 
 Feature `testing` adds `SAMPLE_THEME_JSON` with its expected colours (`sample_roles`), for each

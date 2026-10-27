@@ -130,6 +130,9 @@ impl Disk {
     }
 }
 
+/// Library files are written once (an import creates one, a delete removes it), so their stamps
+/// are the only change check: a hand edit in place that keeps length and modification time goes
+/// unnoticed. `selection.json`, which is replaced on every write, also gets byte comparisons.
 fn stamp_of(meta: &fs::Metadata) -> FileStamp {
     let modified_nanos = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_nanos());
     #[cfg(unix)]
