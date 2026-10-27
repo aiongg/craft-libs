@@ -481,8 +481,9 @@ fn scoped_fonts_are_seen_only_in_their_scope() {
     ));
     cat.add_bytes_in(b, font(&spec("One More", "Regular", 400)), Source::Document, &two).unwrap();
 
-    // A face added without a scope comes after the scope's own.
-    cat.add_bytes(font(&Spec { fs_type: 2, ..spec("Test Sans", "Bold", 700) }), Source::User, &limits).unwrap();
+    // A face added without a scope comes after the scope's own, and the scopes' faces don't
+    // count against unscoped adds.
+    cat.add_bytes(font(&Spec { fs_type: 2, ..spec("Test Sans", "Bold", 700) }), Source::User, &two).unwrap();
     assert_eq!(bold(None), (Source::User, 2));
     assert_eq!(bold(Some(b)), (Source::Document, 8));
 
