@@ -220,7 +220,7 @@ pub(crate) fn category_name(c: Category) -> &'static str {
         Category::Serif => tl!("Serif"),
         Category::Display => tl!("Display"),
         Category::Handwriting => tl!("Handwriting"),
-        Category::Script => tl!("Script"),
+        Category::Script => tl!("Formal script"),
         Category::Monospace => tl!("Monospace"),
     }
 }
