@@ -562,3 +562,39 @@ fn a_footer_that_changes_height_after_settling_still_lands() {
         h.run();
     }
 }
+
+#[test]
+fn a_footer_that_hits_the_remeasure_cap_recovers_once_it_holds_still() {
+    // (held footer height, footer passes so far, bottom of the footer)
+    let mut h = Harness::builder().with_size(egui::vec2(400.0, 600.0)).build_ui_state(
+        |ui, s: &mut (f32, u32, f32)| {
+            let field = ui.button("Send");
+            let _ = super::Menu::new(ui, &field).height(300.0).show_ui_with_header_footer(
+                |ui| ui.label("Title"),
+                |ui, _| {
+                    for n in 0..50 {
+                        let _ = ui.label(format!("Row {n}"));
+                    }
+                },
+                |ui| {
+                    s.1 += 1;
+                    // Grows on each of the first passes, past the cap of two remeasures.
+                    ui.add_space(if s.1 <= 5 { 20.0 + 15.0 * s.1 as f32 } else { s.0 });
+                    s.2 = ui.min_rect().bottom();
+                },
+            );
+        },
+        (40.0, 0, 0.0),
+    );
+    h.run();
+    h.get_by_label("Send").click();
+    // Passes with a stable footer follow the growth: each one resets the remeasure budget.
+    for _ in 0..3 {
+        h.step();
+    }
+    let bottom = h.state().2;
+    h.state_mut().0 = 90.0;
+    h.run();
+    let now = h.state().2;
+    assert!((now - bottom).abs() < 1.0, "the footer ends at {now}, was {bottom}");
+}
