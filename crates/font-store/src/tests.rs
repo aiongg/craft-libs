@@ -827,6 +827,8 @@ mod store {
         assert!(client.service_is_down("https://Fonts.example.com/b"));
         let url = format!("{}b/x", server.base);
         assert_eq!(client.get_from_service(&url, 100, &Cancel::new(), &mut |_| {}).unwrap(), b"ok");
+        client.mark_service_down("https://other.example.com");
+        assert!(client.service_is_down("https://fonts.example.com/a"));
     }
 
     #[test]

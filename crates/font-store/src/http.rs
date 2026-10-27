@@ -2,6 +2,7 @@
 //! progress and cancellation. Plain http only to a loopback host, and only when the caller opts
 //! in for a preview service run locally.
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -97,9 +98,9 @@ pub struct Client {
     agent: ureq::Agent,
     /// For `http://` to a loopback host. It follows no redirects, so it never leaves the machine.
     loopback: ureq::Agent,
-    /// The origin of the preview service that failed on the network, and when it may be tried
-    /// again. Another service isn't affected. Clones share it.
-    service_down: Arc<Mutex<Option<(String, u64)>>>,
+    /// The origins of preview services that failed on the network, each with when it may be
+    /// tried again. Clones share it.
+    service_down: Arc<Mutex<HashMap<String, u64>>>,
     https_only: bool,
     /// URL prefixes the tests serve from a local server.
     #[cfg(test)]
@@ -143,7 +144,7 @@ impl Client {
         Self {
             agent: agent(https_only, 3),
             loopback: agent(false, 0),
-            service_down: Arc::new(Mutex::new(None)),
+            service_down: Arc::new(Mutex::new(HashMap::new())),
             https_only,
             #[cfg(test)]
             rewrite: Vec::new(),
@@ -206,13 +207,16 @@ impl Client {
     /// is recent enough to skip it. Another service is not down.
     pub fn service_is_down(&self, service: &str) -> bool {
         let down = self.service_down.lock().unwrap_or_else(|e| e.into_inner());
-        down.as_ref().is_some_and(|(origin, until)| *origin == service_origin(service) && now_millis() < *until)
+        down.get(&service_origin(service)).is_some_and(|until| now_millis() < *until)
     }
 
     /// Marks the preview service at `service` as down for [`SERVICE_BACKOFF`].
     pub fn mark_service_down(&self, service: &str) {
         let until = now_millis() + SERVICE_BACKOFF.as_millis() as u64;
-        *self.service_down.lock().unwrap_or_else(|e| e.into_inner()) = Some((service_origin(service), until));
+        let mut down = self.service_down.lock().unwrap_or_else(|e| e.into_inner());
+        let now = now_millis();
+        down.retain(|_, until| now < *until);
+        down.insert(service_origin(service), until);
     }
 
     fn request(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64), allow_loopback_http: bool) -> Result<Vec<u8>, FetchError> {
