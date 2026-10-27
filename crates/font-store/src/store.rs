@@ -262,6 +262,12 @@ impl FontStore {
         self
     }
 
+    /// The download client. Clones share the preview service's down state, so a pool built on one
+    /// stops asking a service the store found unreachable, and the reverse.
+    pub fn client(&self) -> Client {
+        self.client.clone()
+    }
+
     /// Uses `client` for downloads (other timeouts).
     pub fn with_client(mut self, client: Client) -> Self {
         self.client = client;

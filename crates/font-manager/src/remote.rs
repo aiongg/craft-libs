@@ -435,7 +435,9 @@ impl State {
 }
 
 impl Previews {
-    /// A pool fetching with craft-font-store's client and caching in the store's
+    /// A pool fetching with craft-font-store's client (a network failure of the service pauses
+    /// its requests for a minute; pass the store's own [`Client`] to [`Previews::with_fetcher`]
+    /// to share that pause with installs) and caching in the store's
     /// [`Installer::preview_cache`] folder, up to [`CACHE_LIMIT`]. It starts its threads on the
     /// first request.
     pub fn new(installer: Arc<dyn Installer>) -> Previews {
