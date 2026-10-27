@@ -215,13 +215,13 @@ pub struct Preview {
 
 /// How the pool downloads: craft-font-store's [`Client`], or a stand-in in tests.
 pub trait Fetch: Send + Sync {
-    /// GETs `url`, at most `max` bytes, stopping soon after `cancel` is set.
+    /// GETs `url`, built from the preview-service setting, at most `max` bytes, stopping soon after `cancel` is set.
     fn get(&self, url: &str, max: u64, cancel: &Cancel) -> Result<Vec<u8>, FetchError>;
 }
 
 impl Fetch for Client {
     fn get(&self, url: &str, max: u64, cancel: &Cancel) -> Result<Vec<u8>, FetchError> {
-        Client::get(self, url, max, cancel, &mut |_| {})
+        Client::get_from_service(self, url, max, cancel, &mut |_| {})
     }
 }
 

@@ -311,7 +311,7 @@ impl FontStore {
             return Err(Error::NotAllowed);
         }
         let url = match url {
-            Some(u) => Some(normalize_service_url(u).ok_or_else(|| Error::BadUrl(u.trim().chars().take(200).collect()))?),
+            Some(u) => Some(check_preview_service(u)?),
             None => None,
         };
         self.change_settings(|s| s.preview_service = url)
@@ -430,7 +430,7 @@ impl FontStore {
     pub fn fetch_indexes(&self, pin: &IndexPin, cancel: &Cancel) -> Result<Index, Error> {
         self.require_network()?;
         let check = |bytes: &[u8]| if sha256_hex(bytes) == pin.sha256 { Ok(()) } else { Err(VerifyError::Sha256) };
-        let bytes = self.fetch(&pin.urls(), MAX_SOURCES_BYTES as u64, "sources.json", cancel, &mut |_| {}, &check)?;
+        let bytes = self.fetch(&pin.urls(), 0, MAX_SOURCES_BYTES as u64, "sources.json", cancel, &mut |_| {}, &check)?;
         let sources = SourcesFile::from_json(&bytes)?;
         let cache = self.dir.join(INDEX_CACHE);
         std::fs::create_dir_all(&cache).map_err(io("creating the index folder"))?;
@@ -465,14 +465,14 @@ impl FontStore {
                 Ok(())
             }
         };
-        let bytes = self.fetch(&pin.file_urls(path), size, &entry.name, cancel, &mut |_| {}, &check)?;
+        let bytes = self.fetch(&pin.file_urls(path), 0, size, &entry.name, cancel, &mut |_| {}, &check)?;
         let index = entry.read(&bytes, entry.gz().is_some())?;
         self.write_file(&format!("{INDEX_CACHE}/{}", builtin_cache_name(entry)), &bytes)?;
         Ok(index)
     }
 
     fn fetch_user(&self, user: &UserSource, cancel: &Cancel) -> Result<Index, Error> {
-        let bytes = self.fetch(std::slice::from_ref(&user.url), MAX_INDEX_BYTES as u64, &user.url, cancel, &mut |_| {}, &|_| Ok(()))?;
+        let bytes = self.fetch(std::slice::from_ref(&user.url), 0, MAX_INDEX_BYTES as u64, &user.url, cancel, &mut |_| {}, &|_| Ok(()))?;
         let index = user_index(&bytes, user)?;
         if let Some(name) = self.user_cache(&user.url).file_name().and_then(|n| n.to_str()) {
             self.write_file(&format!("{INDEX_CACHE}/{name}"), &bytes)?;
@@ -537,8 +537,9 @@ impl FontStore {
             let mut on_bytes = |n: u64| progress(Progress { file: i, files: wanted.len(), done: done_before + n, total });
             let check = |bytes: &[u8]| verify_font(file, bytes);
             let mut urls = self.mirror_urls("files", &file.sha256);
+            let mirrors = urls.len();
             urls.extend(index.file_urls(family, file));
-            let bytes = self.fetch(&urls, file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
+            let bytes = self.fetch(&urls, mirrors, file.size, file.file_name(), cancel, &mut on_bytes, &check)?;
             done_before += file.size;
             staged.push((file.file_name().to_string(), stage.write(file.file_name(), &bytes)?));
         }
@@ -553,8 +554,9 @@ impl FontStore {
             };
             // Without a sha256 there is no mirror address.
             let mut urls = family.license_file.as_ref().map(|f| self.mirror_urls("licences", &f.sha256)).unwrap_or_default();
+            let mirrors = urls.len();
             urls.extend(index.license_urls(family));
-            let bytes = self.fetch(&urls, max, name, cancel, &mut |_| {}, &check)?;
+            let bytes = self.fetch(&urls, mirrors, max, name, cancel, &mut |_| {}, &check)?;
             staged.push((name.to_string(), stage.write(name, &bytes)?));
         }
         if cancel.is_cancelled() {
@@ -587,10 +589,13 @@ impl FontStore {
         self.preview_service().map(|base| format!("{base}/v1/{kind}/{sha256}")).into_iter().collect()
     }
 
-    /// Downloads from each URL in turn until one gives bytes that pass `check`.
+    /// Downloads from each URL in turn until one gives bytes that pass `check`. The first
+    /// `mirrors` URLs come from the preview-service setting and may use loopback http; the rest
+    /// are https only.
     fn fetch(
         &self,
         urls: &[String],
+        mirrors: usize,
         max: u64,
         what: &str,
         cancel: &Cancel,
@@ -599,8 +604,10 @@ impl FontStore {
     ) -> Result<Vec<u8>, Error> {
         let mut reasons = Vec::new();
         let mut rejected = None;
-        for url in urls {
-            match self.client.get(url, max, cancel, on_bytes) {
+        for (i, url) in urls.iter().enumerate() {
+            let got =
+                if i < mirrors { self.client.get_from_service(url, max, cancel, on_bytes) } else { self.client.get(url, max, cancel, on_bytes) };
+            match got {
                 Ok(bytes) => match check(&bytes) {
                     Ok(()) => return Ok(bytes),
                     Err(e) => {
@@ -877,6 +884,13 @@ pub(crate) fn resolve_preview_service(env: Option<&str>, setting: Option<&str>) 
         Some(e) => normalize_service_url(e),
         None => setting.and_then(normalize_service_url),
     }
+}
+
+/// The preview-service address `url` stands for: without a trailing slash, when it is an https URL,
+/// or an http one for a loopback host, with no credentials, query or fragment. [`Error::BadUrl`]
+/// otherwise.
+pub fn check_preview_service(url: &str) -> Result<String, Error> {
+    normalize_service_url(url).ok_or_else(|| Error::BadUrl(url.trim().chars().take(200).collect()))
 }
 
 /// `url` without a trailing slash, when it is an https URL, or an http one for a loopback host,

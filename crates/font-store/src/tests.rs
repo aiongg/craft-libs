@@ -155,8 +155,9 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     first["families"][2]["reserved_names"] = json!(["Test"]);
     first["families"][2]["files"][0]["sample_script"] = json!("Thai");
     first["families"][2]["files"][1]["sample_text"] = json!("Own text");
-    first["families"][2]["files"][2]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
-    first["families"][2]["files"][2]["list_instance"] = json!(0);
+    first["families"][2]["files"][2]["sample_script"] = json!("Zsym");
+    first["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
+    first["families"][3]["files"][0]["list_instance"] = json!(0);
     let mut second = noto_fixture().index;
     second["samples"] = json!({"Thai": sample("second"), "Jpan": sample("Japanese")});
     let index = Index::merge([index_of(&first).unwrap(), index_of(&second).unwrap()]);
@@ -168,11 +169,15 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     );
     assert_eq!(index.samples().keys().collect::<Vec<_>>(), ["Jpan", "Latn", "Thai"]);
     assert_eq!(index.sample("Thai").unwrap().text, "first");
-    // Own text, then the file's script, then the family's.
+    // Own text, then the file's script, then the family's (Zsym has no sample).
     assert_eq!(index.sample_text(sans, &sans.files[1]), Some("Own text"));
     assert_eq!(index.sample_text(sans, &sans.files[0]), Some("first"));
     assert_eq!(index.sample_text(sans, &sans.files[2]), Some("Hello"));
-    assert_eq!((sans.files[2].instances[0].name.as_str(), sans.files[2].list_instance), ("Regular", Some(0)));
+    let var = index.family_from(GOOGLE_FONTS, "Test Var").unwrap();
+    assert_eq!((var.files[0].instances[0].name.as_str(), var.files[0].list_instance), ("Regular", Some(0)));
+
+    first["families"][3]["files"][0]["list_instance"] = json!(1);
+    assert!(index_of(&first).is_err());
 }
 
 #[cfg(feature = "bundled-index")]
@@ -673,6 +678,21 @@ mod store {
         assert!(after.iter().all(|r| !r.starts_with("/cdn/") || r.contains("LICENSE") || r.contains("OFL")), "{after:?}");
         user.remove_family(&face.family.source, &face.family.family).unwrap();
 
+        // The mirror is plain http to 127.0.0.1 and is fetched by a client that is https only
+        // for everything else.
+        let strict = {
+            let mut c = Client::new(Timeouts::default());
+            c.rewrite = vec![("https://cdn.jsdelivr.net/".into(), format!("{}cdn/", server.base))];
+            c
+        };
+        let strict_user = FontStore::new(dir.clone(), Caller::User).with_client(strict);
+        server.serve("mirror", &format!("v1/files/{sha}"), Reply::Ok(f.files.iter().find(|(p, _)| p == &face.file.path).unwrap().1.clone()));
+        let before = server.requests().len();
+        // The licence has no mirror address here, and its index URLs are refused, so the install
+        // fails; the file itself came from the mirror and nothing else was requested.
+        let _ = strict_user.install_face(&index, face, &Cancel::new(), &mut none);
+        assert_eq!(server.requests()[before..], [format!("/mirror/v1/files/{sha}")]);
+
         // Bytes that fail the sha256 fall through to the index's URLs.
         server.serve("mirror", &format!("v1/files/{sha}"), Reply::Ok(b"not the font".to_vec()));
         user.install_face(&index, face, &Cancel::new(), &mut none).unwrap();
@@ -690,11 +710,26 @@ mod store {
         assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadUrl(_))));
         assert!(matches!(user.set_preview_service(Some("https://user@fonts.example.com")), Err(Error::BadUrl(_))));
         user.set_preview_service(Some("http://localhost:8080/")).unwrap();
+        assert_eq!(crate::check_preview_service(" http://127.0.0.1:9/x/ ").as_deref().ok(), Some("http://127.0.0.1:9/x"));
+        assert!(matches!(crate::check_preview_service("https://fonts.example.com/?k=v"), Err(Error::BadUrl(_))));
         user.set_preview_service(Some("https://fonts.example.com/")).unwrap();
         assert_eq!(agent.preview_service().as_deref(), Some("https://fonts.example.com"));
         user.set_preview_service(None).unwrap();
         assert_eq!(agent.preview_service(), None);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn loopback_http_is_refused_outside_the_preview_service() {
+        let server = Server::start();
+        server.serve("user", "index.json", Reply::Ok(b"{}".to_vec()));
+        let mut client = Client::new(Timeouts::default());
+        client.rewrite = vec![("https://fonts.example.org/".into(), server.base.clone())];
+        let url = "https://fonts.example.org/user/index.json";
+        let got = client.get(url, 1000, &Cancel::new(), &mut |_| {});
+        assert!(matches!(got, Err(FetchError::Failed(_))), "{got:?}");
+        assert!(server.requests().is_empty());
+        assert_eq!(client.get_from_service(url, 1000, &Cancel::new(), &mut |_| {}).unwrap(), b"{}");
     }
 
     #[test]

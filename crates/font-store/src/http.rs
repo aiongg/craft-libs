@@ -1,6 +1,6 @@
 //! The one HTTP client: blocking HTTPS GET through ureq with rustls, timeouts, a size cap,
-//! progress and cancellation. Plain http only to a loopback host, for a preview service run
-//! locally.
+//! progress and cancellation. Plain http only to a loopback host, and only when the caller opts
+//! in for a preview service run locally.
 
 use std::io::Read;
 use std::sync::Arc;
@@ -68,8 +68,8 @@ pub enum FetchError {
 /// The User-Agent every request sends: the crate and its version, nothing about the user.
 pub const USER_AGENT: &str = concat!("craft-font-store/", env!("CARGO_PKG_VERSION"));
 
-/// The HTTP client. HTTPS only, except plain http to `127.0.0.1`, `::1` or `localhost`; no
-/// cookies, no credentials.
+/// The HTTP client. HTTPS only, except [`Client::get_from_service`], which also speaks plain
+/// http to `127.0.0.1`, `::1` or `localhost`; no cookies, no credentials.
 #[derive(Clone)]
 pub struct Client {
     agent: ureq::Agent,
@@ -138,13 +138,24 @@ impl Client {
     /// GETs `url`, at most `max` bytes, calling `on_bytes` with the bytes read so far. The
     /// request runs on a helper thread, so `cancel` stops it even while the server sends nothing.
     pub fn get(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64)) -> Result<Vec<u8>, FetchError> {
+        self.request(url, max, cancel, on_bytes, false)
+    }
+
+    /// [`Client::get`] for a URL built from the validated preview-service setting: plain `http://`
+    /// to a loopback host is allowed, without following redirects. Never call it with a URL from
+    /// an index or a user source.
+    pub fn get_from_service(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64)) -> Result<Vec<u8>, FetchError> {
+        self.request(url, max, cancel, on_bytes, true)
+    }
+
+    fn request(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64), allow_loopback_http: bool) -> Result<Vec<u8>, FetchError> {
         if cancel.is_cancelled() {
             return Err(FetchError::Cancelled);
         }
         let stop = Arc::new(AtomicBool::new(false));
         let (tx, rx) = mpsc::channel();
         let url = self.url(url);
-        let agent = if is_loopback_http(&url) { self.loopback.clone() } else { self.agent.clone() };
+        let agent = if allow_loopback_http && is_loopback_http(&url) { self.loopback.clone() } else { self.agent.clone() };
         let flag = Arc::clone(&stop);
         std::thread::Builder::new()
             .name("font-store-fetch".into())
