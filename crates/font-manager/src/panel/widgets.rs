@@ -378,9 +378,14 @@ pub fn field(ui: &mut Ui, s: &Skin, text: &mut String, hint: &str, label: &str, 
 
 /// A drop-down `width` wide showing `selected`, named `label`.
 pub fn select<R>(ui: &mut Ui, id_salt: &str, label: &str, selected: &str, width: f32, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    let inner = craft_ui::combo::combo(ui, id_salt, selected, width, 380.0, egui::PopupCloseBehavior::CloseOnClick, add);
+    let inner = select_box(id_salt, selected, width).show_ui(ui, add);
     name(ui, &inner.response, label);
     inner.inner
+}
+
+/// The combo box of [`select`], for a menu with a header; name its response with [`name`].
+pub fn select_box<'a>(id_salt: &str, selected: &'a str, width: f32) -> craft_ui::ComboBox<'a> {
+    craft_ui::ComboBox::from_id_salt(id_salt).selected_text(selected).width(width).height(380.0).truncate()
 }
 
 /// An inline note in a sunken, hairline box: an info glyph, then `add`.

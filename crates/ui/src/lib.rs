@@ -23,3 +23,5 @@ pub mod tabs;
 pub mod testing;
 pub mod text;
 pub mod theme;
+
+pub use combo::ComboBox;

@@ -3,133 +3,429 @@
 //! egui lays a popup out in the size it had on the previous pass, and [`egui::ComboBox`] puts its
 //! menu in a [`ScrollArea`] that takes no more than that height. Contents that shrink (a search
 //! with no matches) shrink the menu; contents that grow again (the search cleared) only scroll
-//! inside it, and the menu stays small until it is closed. [`menu`] offers its contents the full
-//! height on every pass, so the menu grows back. Use [`combo`] in place of `ComboBox`, and
-//! [`menu`] under a field an app draws itself.
+//! inside it, and the menu stays small until it is closed (emilk/egui#5225). [`ComboBox`] is
+//! egui's combo box with a menu that offers its contents the full height on every pass, so the
+//! menu grows back. [`Menu`] is that menu under a field an app draws itself.
+//!
+//! A searchable menu keeps its search field in place and scrolls only its list:
+//! [`ComboBox::show_ui_with_header`] and [`ComboBox::show_rows_with_header`], and the same on
+//! [`Menu`].
+
+use std::cell::RefCell;
+use std::ops::Range;
 
 use egui::{
-    Align2, AsIdSalt, Atom, AtomExt as _, Button, InnerResponse, Popup, PopupCloseBehavior, Rect, Response, Role, ScrollArea, Shape, TextWrapMode,
-    Ui, Vec2, WidgetInfo, WidgetText, vec2,
+    Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Id, IdSalt, InnerResponse, IntoAtoms, NumExt as _, Painter, Popup,
+    PopupCloseBehavior, Rect, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom, WidgetInfo,
+    class::{ClassName, Classes, HasClasses},
+    style::{StyleModifier, WidgetVisuals},
+    vec2,
+    widget_style::ButtonStyle,
 };
 
-/// A combo box `width` wide showing `selected`, with `add` as its [`menu`], at most `max_height`
-/// tall and closing on `close`. Like egui's `ComboBox::from_id_salt(id_salt)
-/// .selected_text(selected).width(width).height(max_height).truncate().close_behavior(close)
-/// .show_ui(ui, add)`, with a menu that grows when its contents do. egui's combo box closes on
-/// [`PopupCloseBehavior::CloseOnClick`].
-pub fn combo<R>(
-    ui: &mut Ui,
-    id_salt: impl AsIdSalt,
-    selected: impl Into<WidgetText>,
-    width: f32,
-    max_height: f32,
-    close: PopupCloseBehavior,
-    add: impl FnOnce(&mut Ui) -> R,
-) -> InnerResponse<Option<R>> {
-    let selected: WidgetText = selected.into();
-    let value = selected.text().to_owned();
-    ui.push_id(id_salt, |ui| {
-        let open = Popup::is_id_open(ui.ctx(), ui.next_auto_id().with("popup"));
-        let open_color = ui.visuals().widgets.open.fg_stroke.color;
-        let icon = Atom::paint(Vec2::splat(ui.spacing().icon_width), move |ui, args| {
-            let rect = Rect::from_center_size(args.rect.center(), vec2(args.rect.width() * 0.7, args.rect.height() * 0.45));
-            ui.painter().add(Shape::rotated_triangle(rect, 0.0, if open { open_color } else { args.fallback_text_color }));
-        })
-        .atom_grow(true)
-        .atom_align(if ui.style().right_to_left { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER });
-        let button = ui.add(Button::new((selected, icon)).truncate().min_size(vec2(width, 0.0)));
-        button.widget_info(|| {
-            let mut info = WidgetInfo::new(Role::ComboBox);
-            info.enabled = ui.is_enabled();
-            info.current_text_value = Some(value.clone());
-            info
-        });
-        let inner = menu(&button, max_height, close, add);
-        InnerResponse::new(inner, button)
-    })
-    .inner
+pub use egui::IconPainter;
+
+/// egui's [`egui::ComboBox`] with a menu that grows when its contents do.
+///
+/// The builder, the button and what the methods return are egui 0.37's. The one difference is
+/// the menu: its scroll area is offered the full [`Self::height`] on every pass instead of the
+/// menu's height on the previous pass, so a menu whose contents shrink and grow again while it
+/// is open (a filtered list) grows back. It adds [`Self::show_ui_with_header`] and
+/// [`Self::show_rows_with_header`] for menus with a search field.
+///
+/// ```
+/// # egui::__run_test_ui(|ui| {
+/// let mut selected = 0;
+/// craft_ui::ComboBox::from_label("Size").show_index(ui, &mut selected, 3, |i| ["Small", "Medium", "Large"][i]);
+/// # });
+/// ```
+#[must_use = "You should call .show*"]
+pub struct ComboBox<'a> {
+    id_salt: IdSalt,
+    label: Option<Atoms<'a>>,
+    selected_text: Atoms<'a>,
+    width: Option<f32>,
+    height: Option<f32>,
+    icon: Option<IconPainter>,
+    wrap_mode: Option<TextWrapMode>,
+    close_behavior: Option<PopupCloseBehavior>,
+    popup_style: StyleModifier,
+    classes: Classes,
 }
 
-/// `add` in a menu under `button` (which opens and closes it), at least as wide as `button`, at
-/// most `max_height` tall (scrolling beyond) and closing on `close`. Its height follows its
-/// contents on every pass. Returns what `add` returned while the menu is open.
-pub fn menu<R>(button: &Response, max_height: f32, close: PopupCloseBehavior, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    let popup = Popup::default_response_id(button);
-    let inner = Popup::menu(button)
-        .width(button.rect.width())
-        .close_behavior(close)
-        .show(|ui| {
-            ui.set_min_width(ui.available_width());
-            // The popup offers last pass's height. Offer the full height instead: a scroll area
-            // takes the height it is offered, then shrinks to its contents.
-            ui.set_max_height(max_height);
-            ScrollArea::vertical()
-                .max_height(max_height)
-                .show(ui, |ui| {
-                    // Labels widen a narrow menu rather than wrap early, as in egui's combo box.
-                    ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-                    add(ui)
-                })
-                .inner
-        })
-        .map(|r| r.inner);
-    if inner.is_some() {
-        button.ctx.accesskit_node_builder(popup, |node| node.set_role(Role::ListBox));
+impl<'a> ComboBox<'a> {
+    /// Present on the button of every combo box, as on egui's.
+    #[expect(clippy::disallowed_types, reason = "egui's class names, so themes style both alike")]
+    pub const CLASS: ClassName = egui::ComboBox::CLASS;
+
+    /// Present on the button of a combo box while its menu is open, as on egui's.
+    #[expect(clippy::disallowed_types, reason = "egui's class names, so themes style both alike")]
+    pub const CLASS_OPEN: ClassName = egui::ComboBox::CLASS_OPEN;
+
+    fn with(id_salt: IdSalt, label: Option<Atoms<'a>>) -> Self {
+        let mut combo = Self {
+            id_salt,
+            label,
+            selected_text: Atoms::default(),
+            width: None,
+            height: None,
+            icon: None,
+            wrap_mode: None,
+            close_behavior: None,
+            popup_style: StyleModifier::default(),
+            classes: Classes::default(),
+        };
+        combo.add_class(Self::CLASS);
+        combo
     }
-    inner
+
+    /// A combo box with `label` next to it, its id from `id_salt`.
+    pub fn new(id_salt: impl AsIdSalt, label: impl IntoAtoms<'a>) -> Self {
+        Self::with(IdSalt::new(id_salt), Some(label.into_atoms()))
+    }
+
+    /// A combo box with `label` next to it, its id from the label's contents.
+    pub fn from_label(label: impl IntoAtoms<'a>) -> Self {
+        let label = label.into_atoms();
+        Self::with(label.salt(), Some(label))
+    }
+
+    /// A combo box without a label.
+    pub fn from_id_salt(id_salt: impl AsIdSalt) -> Self {
+        Self::with(IdSalt::new(id_salt), None)
+    }
+
+    /// The button's minimum width. Default: [`egui::Spacing::combo_width`].
+    #[inline]
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
+    /// The menu's maximum outer height. Default: [`egui::Spacing::combo_height`].
+    #[inline]
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// What the button shows as the selected value.
+    #[inline]
+    pub fn selected_text(mut self, selected_text: impl IntoAtoms<'a>) -> Self {
+        self.selected_text = selected_text.into_atoms();
+        self
+    }
+
+    /// Paints the icon in place of the down-pointing triangle.
+    #[inline]
+    pub fn icon(mut self, icon_fn: impl FnOnce(&Ui, Rect, &WidgetVisuals, bool) + 'static) -> Self {
+        self.icon = Some(Box::new(icon_fn));
+        self
+    }
+
+    /// How the selected text wraps. Default: the [`Ui`]'s.
+    #[inline]
+    pub fn wrap_mode(mut self, wrap_mode: TextWrapMode) -> Self {
+        self.wrap_mode = Some(wrap_mode);
+        self
+    }
+
+    /// Wraps the selected text: [`TextWrapMode::Wrap`].
+    #[inline]
+    pub fn wrap(mut self) -> Self {
+        self.wrap_mode = Some(TextWrapMode::Wrap);
+        self
+    }
+
+    /// Truncates the selected text: [`TextWrapMode::Truncate`].
+    #[inline]
+    pub fn truncate(mut self) -> Self {
+        self.wrap_mode = Some(TextWrapMode::Truncate);
+        self
+    }
+
+    /// When the menu closes. Default: [`PopupCloseBehavior::CloseOnClick`].
+    #[inline]
+    pub fn close_behavior(mut self, close_behavior: PopupCloseBehavior) -> Self {
+        self.close_behavior = Some(close_behavior);
+        self
+    }
+
+    /// The menu's style. Default: the [`Ui`]'s.
+    #[inline]
+    pub fn popup_style(mut self, popup_style: StyleModifier) -> Self {
+        self.popup_style = popup_style;
+        self
+    }
+
+    /// Shows the button, and `menu_contents` in the menu while it is open. `inner` is what
+    /// `menu_contents` returned, or `None` while the menu is closed.
+    pub fn show_ui<R>(self, ui: &mut Ui, menu_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<Option<R>> {
+        self.show(ui, |menu| menu.show_ui(menu_contents))
+    }
+
+    /// Like [`Self::show_ui`], with `header` (a search field, filter chips) fixed at the top of
+    /// the menu and only `list` scrolling under it. See [`Menu::show_ui_with_header`].
+    pub fn show_ui_with_header<H, R>(
+        self,
+        ui: &mut Ui,
+        header: impl FnOnce(&mut Ui) -> H,
+        list: impl FnOnce(&mut Ui, H) -> R,
+    ) -> InnerResponse<Option<R>> {
+        self.show(ui, |menu| menu.show_ui_with_header(header, list))
+    }
+
+    /// Like [`Self::show_ui_with_header`], with a list of rows of one height that only lays out
+    /// the rows in view. See [`Menu::show_rows_with_header`].
+    pub fn show_rows_with_header<H, R>(
+        self,
+        ui: &mut Ui,
+        header: impl FnOnce(&mut Ui) -> H,
+        row_height: f32,
+        total_rows: impl FnOnce(&H) -> usize,
+        rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
+    ) -> InnerResponse<Option<R>> {
+        self.show(ui, |menu| menu.show_rows_with_header(header, row_height, total_rows, rows))
+    }
+
+    fn show<R>(self, ui: &mut Ui, open: impl FnOnce(Menu<'_>) -> Option<R>) -> InnerResponse<Option<R>> {
+        let button_id = ui.make_persistent_id(self.id_salt);
+        show(ui, button_id, self, open)
+    }
+
+    /// Shows `get(i)` for `i` in `0..len` as the choices, with `*selected` chosen. The response is
+    /// marked changed when a choice is picked.
+    pub fn show_index<Text: IntoAtoms<'a>>(self, ui: &mut Ui, selected: &mut usize, len: usize, get: impl Fn(usize) -> Text) -> Response {
+        let combo = self.selected_text(get(*selected));
+        let mut changed = false;
+        let mut response = combo
+            .show_ui(ui, |ui| {
+                for i in 0..len {
+                    if ui.selectable_label(i == *selected, get(i)).clicked() {
+                        *selected = i;
+                        changed = true;
+                    }
+                }
+            })
+            .response;
+        if changed {
+            response.mark_changed();
+        }
+        response
+    }
+
+    /// Whether the menu of the combo box `id` (its response's id) is open.
+    pub fn is_open(ctx: &Context, id: Id) -> bool {
+        Popup::is_id_open(ctx, popup_id(id))
+    }
+}
+
+impl HasClasses for ComboBox<'_> {
+    fn classes(&self) -> &Classes {
+        &self.classes
+    }
+
+    fn classes_mut(&mut self) -> &mut Classes {
+        &mut self.classes
+    }
+}
+
+fn popup_id(button_id: Id) -> Id {
+    button_id.with("popup")
+}
+
+// The button is egui 0.37's `combo_box_dyn`, so a combo box looks the same as egui's.
+fn show<R>(ui: &mut Ui, button_id: Id, mut combo: ComboBox<'_>, open: impl FnOnce(Menu<'_>) -> Option<R>) -> InnerResponse<Option<R>> {
+    let is_popup_open = Popup::is_id_open(ui.ctx(), popup_id(button_id));
+    let wrap_mode = combo.wrap_mode.unwrap_or_else(|| ui.wrap_mode());
+    let close_behavior = combo.close_behavior.unwrap_or(PopupCloseBehavior::CloseOnClick);
+    combo.set_class(ComboBox::CLASS_OPEN, is_popup_open);
+    let ComboBox { label, selected_text, width, height, icon, popup_style, classes, .. } = combo;
+
+    // Built from the same atoms and style as a `Button`, so the two line up when put side by side.
+    let ButtonStyle { atom_layout: atom_layout_style } = ui.widget_style(button_id, &classes);
+
+    // The visuals passed to the icon painter, from the interaction state at the start of the pass.
+    let visuals = if is_popup_open {
+        ui.visuals().widgets.open
+    } else if let Some(response) = ui.ctx().read_response(button_id) {
+        *ui.style().interact(&response)
+    } else {
+        ui.visuals().widgets.inactive
+    };
+
+    let min_width = width.unwrap_or_else(|| ui.spacing().combo_width);
+    let min_size = Vec2::new(min_width, 0.0).at_least(atom_layout_style.min_size);
+
+    let icon = RefCell::new(icon);
+    let rtl = ui.style().right_to_left;
+    let icon_atom = Atom::paint(Vec2::splat(ui.spacing().icon_width), move |ui, args| {
+        let rect = args.rect.expand(visuals.expansion);
+        if let Some(icon) = icon.borrow_mut().take() {
+            icon(ui, rect, &visuals, is_popup_open);
+        } else {
+            paint_default_icon(ui.painter(), rect, &visuals);
+        }
+    })
+    .atom_grow(true)
+    .atom_align(if rtl { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER });
+    let direction = if rtl { Direction::RightToLeft } else { Direction::LeftToRight };
+
+    let accessible_text = selected_text.text().map(String::from).unwrap_or_default();
+    let button = atom_layout_style
+        .apply(
+            WidgetAtom::new((selected_text, icon_atom))
+                .id(button_id)
+                .sense(Sense::click())
+                .fallback_font(TextStyle::Button)
+                .wrap_mode(wrap_mode)
+                .direction(direction),
+        )
+        .min_size(min_size);
+
+    let (button_response, label_response) = match label {
+        Some(label) => {
+            let label_text = label.text().map(String::from).unwrap_or_default();
+            let outer_response =
+                WidgetAtom::new((Atom::widget(button), label)).gap(ui.spacing().item_spacing.x).direction(direction).show(ui).response;
+            outer_response.widget_info(|| WidgetInfo::labeled(Role::Label, ui.is_enabled(), &label_text));
+            let button_response = ui.ctx().read_response(button_id).unwrap_or_else(|| outer_response.clone());
+            (button_response, Some((outer_response, !label_text.is_empty())))
+        }
+        None => (button.show(ui).response, None),
+    };
+
+    button_response.widget_info(|| {
+        let mut info = WidgetInfo::new(Role::ComboBox);
+        info.enabled = ui.is_enabled();
+        info.current_text_value = Some(accessible_text.clone());
+        info
+    });
+
+    let height = height.unwrap_or_else(|| ui.spacing().combo_height);
+    let popup = Popup::menu(&button_response).id(popup_id(button_id)).style(popup_style);
+    let inner = open(Menu::with_popup(popup, &button_response).height(height).close_behavior(close_behavior));
+
+    InnerResponse {
+        inner,
+        response: match label_response {
+            // An empty label names nothing, so the caller names the combo box.
+            Some((label_response, true)) => button_response.labelled_by(label_response.id) | label_response,
+            Some((label_response, false)) => button_response | label_response,
+            None => button_response,
+        },
+    }
+}
+
+fn paint_default_icon(painter: &Painter, rect: Rect, visuals: &WidgetVisuals) {
+    let rect = Rect::from_center_size(rect.center(), vec2(rect.width() * 0.7, rect.height() * 0.45));
+    painter.add(Shape::rotated_triangle(rect, 0.0, visuals.fg_stroke.color));
+}
+
+/// The menu of a combo box, under a field an app draws itself: [`ComboBox`]'s menu without the
+/// button. The field's response opens and closes it; the menu is at least as wide as the field.
+///
+/// ```
+/// # egui::__run_test_ui(|ui| {
+/// let field = ui.button("Font");
+/// craft_ui::combo::Menu::new(&field).height(400.0).show_ui(|ui| ui.label("Arial"));
+/// # });
+/// ```
+#[must_use = "You should call .show*"]
+pub struct Menu<'a> {
+    popup: Popup<'a>,
+    ctx: Context,
+    width: f32,
+    height: Option<f32>,
+    close_behavior: PopupCloseBehavior,
+}
+
+impl<'a> Menu<'a> {
+    /// The menu under `field`.
+    pub fn new(field: &Response) -> Self {
+        Self::with_popup(Popup::menu(field), field)
+    }
+
+    fn with_popup(popup: Popup<'a>, field: &Response) -> Self {
+        Self { popup, ctx: field.ctx.clone(), width: field.rect.width(), height: None, close_behavior: PopupCloseBehavior::CloseOnClick }
+    }
+
+    /// The menu's maximum outer height. Default: [`egui::Spacing::combo_height`].
+    #[inline]
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// When the menu closes. Default: [`PopupCloseBehavior::CloseOnClick`].
+    #[inline]
+    pub fn close_behavior(mut self, close_behavior: PopupCloseBehavior) -> Self {
+        self.close_behavior = close_behavior;
+        self
+    }
+
+    /// The menu's style. Default: egui's menu style.
+    #[inline]
+    pub fn style(mut self, style: impl Into<StyleModifier>) -> Self {
+        self.popup = self.popup.style(style);
+        self
+    }
+
+    /// Shows `add` in the menu while it is open, scrolling when it is taller than the menu.
+    /// Returns what `add` returned, or `None` while the menu is closed.
+    pub fn show_ui<R>(self, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+        self.show(|_| (), |scroll, ui, ()| scroll.show(ui, add).inner)
+    }
+
+    /// Shows `header` at the top of the menu and `list` under it while the menu is open, and
+    /// returns what `list` returned. `list` gets what `header` returned, such as the rows a
+    /// search field's text matches. Only `list` scrolls; the header stays in place. The menu is
+    /// as tall as both, up to its height. `list` lays out in a vertical scroll area: give it
+    /// rows, not a scroll area of its own.
+    pub fn show_ui_with_header<H, R>(self, header: impl FnOnce(&mut Ui) -> H, list: impl FnOnce(&mut Ui, H) -> R) -> Option<R> {
+        self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner)
+    }
+
+    /// Like [`Self::show_ui_with_header`], with a list of `total_rows(&header's)` rows, each
+    /// `row_height` tall without the item spacing, that only lays out the rows in view: `rows`
+    /// gets the range to add, as in [`ScrollArea::show_rows`], and what `header` returned.
+    pub fn show_rows_with_header<H, R>(
+        self,
+        header: impl FnOnce(&mut Ui) -> H,
+        row_height: f32,
+        total_rows: impl FnOnce(&H) -> usize,
+        rows: impl FnOnce(&mut Ui, Range<usize>, H) -> R,
+    ) -> Option<R> {
+        self.show(header, |scroll, ui, h| {
+            let total = total_rows(&h);
+            scroll.show_rows(ui, row_height, total, |ui, range| rows(ui, range, h)).inner
+        })
+    }
+
+    fn show<H, R>(self, header: impl FnOnce(&mut Ui) -> H, list: impl FnOnce(ScrollArea, &mut Ui, H) -> R) -> Option<R> {
+        let Self { popup, ctx, width, height, close_behavior } = self;
+        let height = height.unwrap_or_else(|| ctx.global_style().spacing.combo_height);
+        let id = popup.get_id();
+        let inner = popup
+            .width(width)
+            .close_behavior(close_behavior)
+            .show(|ui| {
+                ui.set_min_width(ui.available_width());
+                // The popup offers last pass's height. Offer the full height instead: the scroll
+                // area takes what the header leaves of it, then shrinks to the list.
+                ui.set_max_height(height);
+                let header = header(ui);
+                // Labels widen a narrow menu rather than wrap early, as in egui's combo box.
+                ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
+                list(ScrollArea::vertical().max_height(ui.available_height()), ui, header)
+            })
+            .map(|r| r.inner);
+        if inner.is_some() {
+            ctx.accesskit_node_builder(id, |node| node.set_role(Role::ListBox));
+        }
+        inner
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use egui_kittest::Harness;
-
-    struct Menu {
-        filter: String,
-        button: Option<egui::Id>,
-    }
-
-    fn popup(h: &Harness<'_, Menu>) -> egui::Id {
-        h.state().button.unwrap_or(egui::Id::NULL).with("popup")
-    }
-
-    /// The menu's height as egui keeps it between passes.
-    fn height(h: &Harness<'_, Menu>) -> f32 {
-        egui::AreaState::load(&h.ctx, popup(h)).and_then(|s| s.size).map_or(0.0, |s| s.y)
-    }
-
-    #[test]
-    fn a_filtered_menu_grows_back_when_the_filter_is_cleared() {
-        let mut h = Harness::builder().with_size(egui::vec2(600.0, 800.0)).build_ui_state(
-            |ui, m: &mut Menu| {
-                let inner = super::combo(ui, "language", "Any language", 200.0, 380.0, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-                    let name = ui.label("Find a language").id;
-                    ui.text_edit_singleline(&mut m.filter).labelled_by(name);
-                    let rows = if m.filter.is_empty() { 60 } else { 0 };
-                    let row = ui.spacing().interact_size.y;
-                    egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show_rows(ui, row, rows, |ui, range| {
-                        for n in range {
-                            let _ = ui.selectable_label(false, format!("Language {n}"));
-                        }
-                    });
-                });
-                ui.ctx().accesskit_node_builder(inner.response.id, |node| node.set_label("Language"));
-                m.button = Some(inner.response.id);
-            },
-            Menu { filter: String::new(), button: None },
-        );
-        h.run();
-        egui::Popup::open_id(&h.ctx, popup(&h));
-        h.run();
-        let full = height(&h);
-        assert!(full > 300.0, "the open menu shows the list: {full}");
-
-        h.state_mut().filter = "xxxx".into();
-        h.run();
-        let none = height(&h);
-        assert!(none < 100.0, "no matches shrink the menu: {none}");
-
-        h.state_mut().filter.clear();
-        h.run();
-        assert!((height(&h) - full).abs() < 1.0, "cleared, the menu is {} tall again, not {}", full, height(&h));
-    }
-}
+mod tests;
