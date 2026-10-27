@@ -224,7 +224,7 @@ fn os_fonts() -> &'static str {
     } else if cfg!(target_os = "linux") {
         "the Linux fonts folder"
     } else {
-        "the system fonts folder"
+        "your fonts folder"
     }
 }
 
@@ -273,19 +273,25 @@ fn styles_not_copied_yet_are_marked_and_copied_on_request() {
 
 #[test]
 fn a_family_made_available_to_all_apps_asks_before_removal() {
-    let (mut h, store) = setup("available", Settings::default());
-    allow(&mut h);
-    click(&mut h, "Hack");
-    click(&mut h, "Install all");
-    click_role(&mut h, Role::CheckBox, &toggle());
+    let (mut h, store) = available_hack("available");
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
-    assert!(store.is_available_to_all("Hack", &[]));
     assert_eq!(h.get_by_role_and_label(Role::CheckBox, &toggle()).accesskit_node().toggled(), Some(Toggled::True));
     assert!(h.query_by_label_contains("only after they restart").is_some());
+    let question = format!("also removes it from {}", os_fonts());
 
     click(&mut h, "Remove all");
+    assert!(h.query_by_label_contains(&question).is_some());
+    click(&mut h, "Cancel");
+    assert!(h.query_by_label_contains(&question).is_none());
+    click(&mut h, "Remove all");
+    h.key_press(egui::Key::Escape);
+    settle(&mut h);
+    assert!(h.query_by_label_contains(&question).is_none());
+    assert_eq!(h.state().details_family().as_deref(), Some("Hack"), "Escape closes the question, not the sheet");
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())), "nothing is removed before the user confirms");
-    assert!(h.query_by_label_contains(&format!("also removes it from {}", os_fonts())).is_some());
+    assert!(has_installed(&h, "Hack"));
+
+    click(&mut h, "Remove all");
     click(&mut h, "Remove");
     assert_eq!(store.calls().last(), Some(&Call::Remove("Hack".into())));
     assert!(!has_installed(&h, "Hack"));
@@ -298,14 +304,43 @@ fn a_refused_family_lists_the_fonts_in_the_way() {
     click(&mut h, "Hack");
     click(&mut h, "Install all");
     let path = PathBuf::from("/usr/share/fonts/Hack-Regular.ttf");
-    store.refuse_next(vec![Conflict { postscript: "Hack-Regular".into(), path: path.clone() }]);
+    let blocking = PathBuf::from("/home/me/.local/share/fonts/Craft/Hack/Hack-Regular.ttf");
+    store.refuse_next(vec![
+        Conflict { postscript: Some("Hack-Regular".into()), path: path.clone() },
+        Conflict { postscript: None, path: blocking.clone() },
+    ]);
     click_role(&mut h, Role::CheckBox, &toggle());
     assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
     assert!(!store.is_available_to_all("Hack", &[]));
     assert!(h.query_by_label_contains("already have these names").is_some());
     assert!(h.query_by_label("Hack-Regular").is_some());
     assert!(h.query_by_label(&path.display().to_string()).is_some());
+    assert!(h.query_by_label_contains(&format!("is in the way: {}", blocking.display())).is_some());
     assert_eq!(h.get_by_role_and_label(Role::CheckBox, &toggle()).accesskit_node().toggled(), Some(Toggled::False));
+}
+
+#[test]
+fn without_an_os_folder_the_switch_is_hidden_and_copies_out_of_reach_are_named() {
+    let out_of_reach = "can't remove them";
+    let (mut h, store) = setup("unsupported", Settings::default());
+    store.lose_os_folder("the Snap build can't write the user font folder");
+    allow(&mut h);
+    click(&mut h, "Hack");
+    click(&mut h, "Install all");
+    assert!(h.query_by_role_and_label(Role::CheckBox, &toggle()).is_none());
+    assert!(h.query_by_label_contains(out_of_reach).is_none(), "nothing to say about a family without copies");
+
+    // Copies made before the folder went out of reach: named, and removal goes ahead without them.
+    let (mut h, store) = available_hack("out-of-reach");
+    store.lose_os_folder("the Flatpak has no write access to the user font folder");
+    h.key_press(egui::Key::Escape);
+    settle(&mut h);
+    click(&mut h, "Hack");
+    assert!(h.query_by_role_and_label(Role::CheckBox, &toggle()).is_none());
+    assert!(h.query_by_label_contains(out_of_reach).is_some());
+    click(&mut h, "Remove all");
+    assert_eq!(store.calls().last(), Some(&Call::Remove("Hack".into())));
+    assert!(!has_installed(&h, "Hack"));
 }
 
 #[test]

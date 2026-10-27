@@ -35,6 +35,8 @@ pub(crate) struct Availability {
     available: bool,
     /// The store names of its files not available to all apps yet.
     pending: Vec<String>,
+    /// Its copies in the OS folder this build can't change.
+    out_of_reach: Vec<PathBuf>,
 }
 
 /// The OS user font folder as the interface names it, for `{place}`.
@@ -46,7 +48,7 @@ pub(crate) fn os_fonts() -> &'static str {
     } else if cfg!(target_os = "linux") {
         tl!("the Linux fonts folder")
     } else {
-        tl!("the system fonts folder")
+        tl!("your fonts folder")
     }
 }
 
@@ -67,18 +69,18 @@ fn help() -> &'static str {
 }
 
 impl FontsPanel {
-    /// Whether the store family `family` holding `files` is available to all apps, and its files
-    /// not available yet.
-    fn availability(&mut self, family: &str, files: &[PathBuf]) -> (bool, Vec<String>) {
+    /// The store family `family` holding `files`: whether it is available to all apps, its
+    /// files not available yet, and its copies this build can't change.
+    fn availability(&mut self, family: &str, files: &[PathBuf]) -> &Availability {
         let generation = self.catalog.generation();
         let key = family.to_lowercase();
-        if let Some(a) = self.availability.get(&key).filter(|a| a.generation == generation) {
-            return (a.available, a.pending.clone());
+        if self.availability.get(&key).is_none_or(|a| a.generation != generation) {
+            let available = self.installer.is_available_to_all(family, files);
+            let pending = if available { self.installer.not_yet_available(family, files) } else { Vec::new() };
+            let out_of_reach = if available { self.installer.copies_out_of_reach(family, files) } else { Vec::new() };
+            self.availability.insert(key.clone(), Availability { generation, available, pending, out_of_reach });
         }
-        let available = self.installer.is_available_to_all(family, files);
-        let pending = if available { self.installer.not_yet_available(family, files) } else { Vec::new() };
-        self.availability.insert(key, Availability { generation, available, pending: pending.clone() });
-        (available, pending)
+        &self.availability[&key]
     }
 
     /// Whether `face` of `family` is a store style the family's copies don't include yet.
@@ -95,13 +97,18 @@ impl FontsPanel {
         if files.is_empty() {
             return;
         }
-        ui.add_space(4.0);
-        if let Some(reason) = self.installer.available_to_all_unsupported() {
-            widgets::label(ui, s, &in_os_fonts("Fonts can't be installed in {place} from here."), s.p.faint).on_hover_text(reason);
+        if !self.installer.available_to_all_supported() {
+            let out_of_reach = self.availability(family, &files).out_of_reach.clone();
+            if !out_of_reach.is_empty() {
+                ui.add_space(4.0);
+                self.out_of_reach(ui, s, &out_of_reach);
+            }
             return;
         }
+        ui.add_space(4.0);
         let ctx = ui.ctx().clone();
-        let (available, pending) = self.availability(family, &files);
+        let a = self.availability(family, &files);
+        let (available, pending) = (a.available, a.pending.clone());
         let job = self.jobs.of("", family).map(|j| j.kind);
         let busy = job.is_some();
         // While a change runs, the state it asks for.
@@ -147,11 +154,18 @@ impl FontsPanel {
                 widgets::note(ui, s, |ui| {
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = 2.0;
-                        let text = in_os_fonts("Not installed in {place}: fonts on this system already have these names.");
-                        ui.add(egui::Label::new(RichText::new(text).color(s.p.bad)).wrap());
-                        for c in &conflicts {
-                            ui.label(RichText::new(&c.postscript).color(s.p.ink));
-                            ui.add(small(&c.path.display().to_string(), s.p.muted));
+                        ui.add(egui::Label::new(RichText::new(in_os_fonts("Not installed in {place}.")).color(s.p.bad)).wrap());
+                        let named: Vec<(&String, &PathBuf)> = conflicts.iter().filter_map(|c| Some((c.postscript.as_ref()?, &c.path))).collect();
+                        if !named.is_empty() {
+                            ui.label(RichText::new(tl!("Fonts on this system already have these names:")).color(s.p.ink));
+                            for (postscript, path) in named {
+                                ui.label(RichText::new(postscript).color(s.p.ink));
+                                ui.add(small(&path.display().to_string(), s.p.muted));
+                            }
+                        }
+                        for c in conflicts.iter().filter(|c| c.postscript.is_none()) {
+                            let text = fmt("A file the store didn't add is in the way: {path}", &[("path", &c.path.display().to_string())]);
+                            ui.add(small(&text, s.p.ink));
                         }
                     });
                 });
@@ -183,6 +197,26 @@ impl FontsPanel {
                 });
             }
         }
+    }
+
+    /// The copies of a family in the OS folder this build can't change, and what would let it.
+    fn out_of_reach(&self, ui: &mut Ui, s: &Skin, copies: &[PathBuf]) {
+        widgets::note(ui, s, |ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                let text = in_os_fonts("This family has copies in {place}, and this version of the app can't remove them.");
+                ui.add(egui::Label::new(RichText::new(text).color(s.p.warn)).wrap());
+                if self.catalog.env().flatpak {
+                    let how = tl!("To remove them, give the app access to xdg-data/fonts again (in Flatseal, or with flatpak override --user --filesystem=xdg-data/fonts:create).");
+                    ui.add(egui::Label::new(RichText::new(how).size(12.5).color(s.p.muted)).wrap());
+                }
+                let rest = tl!("Removing the family here removes it from Craft apps only. Its copies stay:");
+                ui.add(egui::Label::new(RichText::new(rest).size(12.5).color(s.p.muted)).wrap());
+                for path in copies {
+                    ui.add(egui::Label::new(RichText::new(path.display().to_string()).size(12.5).color(s.p.muted)).wrap());
+                }
+            });
+        });
     }
 
     fn start_sharing(&mut self, ctx: &Context, family: &str, request: Request) {

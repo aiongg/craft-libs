@@ -167,6 +167,13 @@ pub trait Installer: Send + Sync {
         (!self.available_to_all_supported()).then(|| NOT_HERE.to_owned())
     }
 
+    /// The copies of the store family `family` in the OS user font folder that this build can't
+    /// change (a Flatpak whose access to the folder was revoked): removing the family leaves
+    /// them. Empty when there are none or the folder can be changed.
+    fn copies_out_of_reach(&self, _family: &str, _files: &[PathBuf]) -> Vec<PathBuf> {
+        Vec::new()
+    }
+
     /// Whether the store family `family` (its name, and the files the catalog found for it in
     /// the font store) is available to all apps. Cheap enough to call for every row.
     fn is_available_to_all(&self, _family: &str, _files: &[PathBuf]) -> bool {
@@ -202,7 +209,7 @@ pub trait Installer: Send + Sync {
 }
 
 const NO_FOLDER: &str = "there is no folder for the font store";
-const NOT_HERE: &str = "fonts can't be made available to all apps here";
+const NOT_HERE: &str = "fonts can't be copied into your fonts folder here";
 
 /// craft-font-store's store, in the user's font store folder.
 pub struct SuiteStore {
@@ -367,6 +374,10 @@ impl Installer for SuiteStore {
         self.store.available_to_all_unsupported().map(str::to_owned)
     }
 
+    fn copies_out_of_reach(&self, family: &str, files: &[PathBuf]) -> Vec<PathBuf> {
+        self.installed_name(family, files).map(|(source, name)| self.store.copies_out_of_reach(&source, &name)).unwrap_or_default()
+    }
+
     fn make_available(&self, family: &str, files: &[PathBuf]) -> Result<MadeAvailable, StoreError> {
         let (source, name) = self.found(family, files)?;
         match self.store.make_available(&source, &name) {
@@ -458,6 +469,8 @@ pub struct FakeStore {
     pending: Mutex<HashMap<String, Vec<String>>>,
     /// The copies the next [`Installer::withdraw`] leaves in place.
     kept: Mutex<Vec<PathBuf>>,
+    /// Why it can't change the OS folder, when it can't.
+    unsupported: Mutex<Option<String>>,
 }
 
 impl FakeStore {
@@ -481,6 +494,7 @@ impl FakeStore {
             refusal: Mutex::new(None),
             pending: Mutex::new(HashMap::new()),
             kept: Mutex::new(Vec::new()),
+            unsupported: Mutex::new(None),
         }
     }
 
@@ -535,6 +549,14 @@ impl FakeStore {
     pub fn keep_next(&self, copies: Vec<PathBuf>) {
         if let Ok(mut kept) = self.kept.lock() {
             *kept = copies;
+        }
+    }
+
+    /// It can't change the OS folder from now on, for `reason`. Families already available keep
+    /// their copies, out of its reach.
+    pub fn lose_os_folder(&self, reason: &str) {
+        if let Ok(mut unsupported) = self.unsupported.lock() {
+            *unsupported = Some(reason.to_owned());
         }
     }
 
@@ -640,7 +662,8 @@ impl Installer for FakeStore {
         if let Some(outside) = request.files.iter().find(|f| !self.in_store(f)) {
             return Err(StoreError(format!("{} isn't in the font store", outside.display())));
         }
-        if request.whole {
+        // Like the store, it leaves copies out of its reach listed.
+        if request.whole && self.available_to_all_supported() {
             self.available.lock().map_err(err)?.retain(|f| !f.eq_ignore_ascii_case(&request.family));
         }
         for file in &request.files {
@@ -741,7 +764,19 @@ impl Installer for FakeStore {
     }
 
     fn available_to_all_supported(&self) -> bool {
-        true
+        self.unsupported.lock().is_ok_and(|u| u.is_none())
+    }
+
+    fn available_to_all_unsupported(&self) -> Option<String> {
+        self.unsupported.lock().ok().and_then(|u| u.clone())
+    }
+
+    /// The family's files, as if copied, while it can't reach the OS folder.
+    fn copies_out_of_reach(&self, family: &str, files: &[PathBuf]) -> Vec<PathBuf> {
+        if self.available_to_all_supported() || !self.is_available_to_all(family, files) {
+            return Vec::new();
+        }
+        files.iter().filter_map(|f| f.file_name()).map(|n| self.dir.join("os-fonts").join(n)).collect()
     }
 
     fn is_available_to_all(&self, family: &str, _files: &[PathBuf]) -> bool {

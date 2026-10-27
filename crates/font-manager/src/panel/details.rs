@@ -17,7 +17,7 @@ use egui::{
 
 use crate::index::{Family, FontFile, Index, script_name, source_label};
 use crate::panel::app::{Detail, FontsPanel, Pending, category_label, family_key, regular, source_name, style_count, style_name};
-use crate::panel::available::{Shared, in_os_fonts};
+use crate::panel::available::in_os_fonts;
 use crate::panel::faces::{Owner, Shown};
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
@@ -179,9 +179,9 @@ impl FontsPanel {
         self.subsets.request_detail(ctx);
         if self.detail.is_none() {
             self.detail_axes.clear();
-            // Read again when a sheet opens; a restart note is for the sheet it was shown in.
+            // Read again when a sheet opens; outcomes are for the sheet they were shown in.
             self.availability.clear();
-            self.sharing.retain(|_, shared| !matches!(shared, Shared::Done));
+            self.sharing.clear();
         }
     }
 
@@ -303,7 +303,13 @@ impl FontsPanel {
                     } else if widgets::button(ui, s, tl!("Install all"), widgets::Kind::Primary, s.h(), 0.0).clicked() {
                         self.ask(&ctx, Pending::Install(i));
                     }
-                    if !store.is_empty() && widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0).clicked() {
+                    // A style's install runs: the family's removal waits for it.
+                    if !store.is_empty()
+                        && ui
+                            .add_enabled_ui(job.is_none(), |ui| widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0))
+                            .inner
+                            .clicked()
+                    {
                         self.remove(&ctx, &family.family, &store, true);
                     }
                     if installed.is_empty()

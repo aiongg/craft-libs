@@ -748,9 +748,10 @@ impl FontsPanel {
     }
 
     /// Whether removing `request` takes copies from the OS font folder: the family is available
-    /// to all apps, and the request isn't only styles not copied yet.
+    /// to all apps, the folder can be changed here, and the request isn't only styles not copied
+    /// yet. Copies out of reach stay, as the detail sheet says.
     fn has_copies(&self, request: &RemoveRequest) -> bool {
-        if !self.installer.is_available_to_all(&request.family, &request.files) {
+        if !self.installer.available_to_all_supported() || !self.installer.is_available_to_all(&request.family, &request.files) {
             return false;
         }
         if request.whole {
