@@ -26,9 +26,13 @@ The layout follows Adobe Fonts' and Google Fonts' browse pages.
   card's state at its end (Install and Preview, Installed, a progress bar while downloading,
   Couldn't install with Retry, "Not curated" for a source the user added), and a large sample in
   the face below. The list is virtual: only the cards on screen are laid out, and their faces load
-  as they come into view. The arrow keys step through the cards and Enter opens one.
-- **Sample toolbar**: a preset (a sentence in the language filtered by, or in the family's own
-  script when it has no Latin; the alphabet; numerals), the sample text, and the size.
+  as they come into view. With a preview service set, families that aren't installed draw from
+  small subsets of their face: the sample for the cards on screen, then one screen above and two
+  below, then ASCII for the Latin cards on screen; typed text outside those asks for its own
+  characters once typing pauses. The arrow keys step through the cards and Enter opens one.
+- **Sample toolbar**: a preset (a sentence in the language filtered by, else the family's own
+  sample from the index, by its `sample_script`; the alphabet; numerals), the sample text, and the
+  size.
 - **Details sheet** over the list: every style in its own face with Install or Remove for each,
   Install all and Remove all, the source, designer, licence, scripts and languages, and what a
   preview downloads.
@@ -66,6 +70,7 @@ panel.ui(ui);
 | `show_downloads_switch(false)` | For a host with the switch in its own settings |
 | `sources_ui(ui)` | The font sources, for a host's settings page |
 | `set_index(index)` | The indexes, after the host fetched them |
+| `with_previews(previews)`, `loading_previews()` | The list's preview service pool (tests pass one with a stand-in `Fetch`), and whether it is fetching |
 | `set_language(tag)` | The interface language, the host's own; English when its catalog isn't embedded |
 | `install_interface_fonts(ctx, craft_faces)` | For a host without interface fonts of its own (the standalone app): craft-ui's font stack for the panel's language, craft-fonts' faces the app embeds with craft-fonts-build, and the interface direction |
 
@@ -74,7 +79,9 @@ panel.ui(ui);
 Nothing is downloaded until the user allows it. Downloads are off by default; the first Install or
 Preview asks first. Files come from each source's repositories at the commit or tag its index
 records, through jsDelivr (raw GitHub as the fallback), and each is checked against the index's
-size and sha256 before use. Previews stay in memory and are never installed. A source the user
+size and sha256 before use. Previews stay in memory and are never installed. List previews from a
+preview service follow the same consent; with downloads off, only subsets already in the disk
+cache are shown. A source the user
 adds is an index at an https URL; its families are never curated.
 
 ## Strings

@@ -14,6 +14,7 @@ use crate::panel::app::{Detail, FontsPanel, Pending, category_label, family_key,
 use crate::panel::faces::Owner;
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
+use crate::panel::samples;
 use crate::panel::widgets::{self, Glyph, Skin};
 use crate::{FaceInfo, Source};
 
@@ -426,7 +427,12 @@ impl FontsPanel {
             tn(rows.len() as u64, "{n} style", "{n} styles")
         };
         widgets::label(ui, s, &title, s.p.faint);
-        let sample = self.sample_for(scripts.iter().map(String::as_str));
+        let index = self.index();
+        let own = index.as_deref().and_then(|index| {
+            let family = index.families().get(family_index).or_else(|| index.family(family))?;
+            samples::of_family(index, family)
+        });
+        let sample = self.sample_for(own, scripts.iter().map(String::as_str));
         let size = self.settings.size.max(24.0);
         let width = ui.available_width();
         for row in rows {
