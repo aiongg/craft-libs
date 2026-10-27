@@ -69,9 +69,10 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 
 - `new_scope()` returns a `Scope`. `add_bytes_in(scope, …)` and `add_file_in(scope, …)` add faces to it.
 - `resolve_in`, `by_postscript_name_in`, `family_in`, `styles_in`, `families_in` and `load_family_in` look up in a scope. Inside a scope, its own faces come first, then the faces added without a scope, then the installed faces. A family the scope has faces of keeps its other styles from the installed fonts.
+- `faces_in(scope)` lists the scope's own faces in the order they were added (not the shared ones), one of each face as lookups see it. It never waits for a scan.
 - Other scopes and the unscoped lookups never see a scope's faces.
-- `remove_scope(scope)` removes its faces when the document closes. Other scopes keep theirs, and `remove_added` doesn't touch scoped faces.
-- `Limits::max_added_faces` counts the added faces of every scope together.
+- `remove_file_in(scope, path)` removes the faces one `add_file_in` file gave, when the document drops or replaces it. `remove_scope(scope)` removes all of them when the document closes. Other scopes keep theirs, and `remove_added` doesn't touch scoped faces.
+- `Limits::max_added_faces` bounds each scope on its own, and the unscoped added faces on their own.
 
 ## Changes
 
@@ -79,7 +80,7 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 - `installed_fonts_changed` compares the modification times of every folder the scan read (and the folders of files a font service named) and, on Windows, the registry's font list. It costs a few hundred `stat` calls, not a scan.
 - `rescan_if_changed` does both; apps call it when their window is activated.
 - `watch(interval, on_change)` polls on a background thread.
-- `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes and never repeats a value, even after `remove_scope`; a document lays out again when it changes.
+- `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes and never repeats a value, even after `remove_scope`; a document lays out again when it changes. `scope_generation(scope)` counts the scope's own changes alone (its adds and removals), for a cache that takes shared changes through `changes_since`.
 - `changes_since(generation)` lists the families unscoped lookups find differently since then: `added`, `removed`, and `changed` (a style installed or removed, a file replaced). An app re-resolves only those names and lays out only the documents that use them. The catalog keeps the last 64 changes of the family set, at most 4,096 family names in all; for an older generation it answers `full`, and the app re-resolves everything.
 
 ## In an app

@@ -59,7 +59,8 @@ pub struct Limits {
     pub max_file_bytes: u64,
     /// The most faces read from one file (a collection).
     pub max_faces_per_file: u32,
-    /// The most added faces the catalog holds in all, every scope's included.
+    /// The most added faces one scope holds, and the most added without a scope: each scope and
+    /// the unscoped faces count on their own.
     pub max_added_faces: usize,
 }
 
@@ -130,6 +131,12 @@ impl Alias {
     }
 }
 
+/// What tells faces apart: of the faces alike in it, lookups see only the first.
+fn identity(f: &Face) -> (String, String, Option<String>, Vec<(u32, u32)>) {
+    let variations = f.info.variations.iter().map(|(t, v)| (u32::from_be_bytes(*t), v.to_bits())).collect();
+    (f.info.family.to_ascii_lowercase(), norm(&f.info.style), f.keys.postscript.first().cloned(), variations)
+}
+
 /// One state of the catalog: what lookups read while a scan builds the next one.
 #[derive(Default)]
 struct Index {
@@ -154,9 +161,7 @@ impl Index {
         let mut seen = HashSet::new();
         let mut from_added = 0;
         for (n, f) in added.iter().chain(scanned).enumerate() {
-            let variations: Vec<(u32, u32)> = f.info.variations.iter().map(|(t, v)| (u32::from_be_bytes(*t), v.to_bits())).collect();
-            let key = (f.info.family.to_ascii_lowercase(), norm(&f.info.style), f.keys.postscript.first().cloned(), variations);
-            if seen.insert(key) {
+            if seen.insert(identity(f)) {
                 faces.push(f.clone());
                 if n < added.len() {
                     from_added += 1;
@@ -485,21 +490,34 @@ impl Added {
         let stamp = self.scope_changes;
         let scoped = self.scopes.entry(scope).or_default();
         scoped.stamp = stamp;
+        scoped.changes += 1;
         scoped.view = None;
         scoped
     }
 
-    /// Every added face, every scope's included: what [`Limits::max_added_faces`] bounds.
-    fn count(&self) -> usize {
-        self.faces.len() + self.scopes.values().map(|s| s.faces.len()).sum::<usize>()
-    }
-
-    /// Keep `bytes` for `faces` when `pending` more faces about to be added leave room within
-    /// `limits`; returns the faces, pointing at the bytes.
-    fn store(&mut self, bytes: Arc<[u8]>, mut faces: Vec<Face>, pending: usize, limits: &Limits) -> Result<Vec<Face>, FontFileError> {
-        if self.count() + pending + faces.len() > limits.max_added_faces {
+    /// Whether `scope` (or the unscoped faces) has room for `more` faces within `limits`.
+    fn room(&self, scope: Option<Scope>, more: usize, limits: &Limits) -> Result<(), FontFileError> {
+        let held = match scope {
+            None => self.faces.len(),
+            Some(scope) => self.scopes.get(&scope).map_or(0, |s| s.faces.len()),
+        };
+        if held + more > limits.max_added_faces {
             return Err(FontFileError::TooManyFaces { max: limits.max_added_faces });
         }
+        Ok(())
+    }
+
+    /// Keep `bytes` for `faces` when `pending` more faces about to be added to `scope` leave room
+    /// within `limits`; returns the faces, pointing at the bytes.
+    fn store(
+        &mut self,
+        scope: Option<Scope>,
+        bytes: Arc<[u8]>,
+        mut faces: Vec<Face>,
+        pending: usize,
+        limits: &Limits,
+    ) -> Result<Vec<Face>, FontFileError> {
+        self.room(scope, pending + faces.len(), limits)?;
         let blob = self.next_blob;
         self.next_blob += 1;
         self.blobs.insert(blob, bytes);
@@ -523,6 +541,8 @@ struct Scoped {
     faces: Vec<Face>,
     /// [`Added::scope_changes`] at the scope's last change, for [`Catalog::generation_in`].
     stamp: u64,
+    /// The scope's own changes, for [`Catalog::scope_generation`].
+    changes: u64,
     /// Built on the first lookup after a change of the scope or of the shared index.
     view: Option<Arc<View>>,
 }
@@ -838,6 +858,13 @@ impl Catalog {
         self.generation() + own
     }
 
+    /// Counts the changes of `scope`'s own faces: each add to it and each removal from it, and
+    /// nothing else (no scan, no unscoped change, no other scope's). 0 for a scope nothing was
+    /// added to. It never goes down, [`Catalog::remove_scope`] included.
+    pub fn scope_generation(&self, scope: Scope) -> u64 {
+        lock(&self.added).scopes.get(&scope).map_or(0, |s| s.changes)
+    }
+
     fn snapshot(&self) -> Arc<Index> {
         self.ensure();
         Arc::clone(&self.index.read().unwrap_or_else(PoisonError::into_inner))
@@ -922,6 +949,15 @@ impl Catalog {
     /// Every face added without a scope or installed, added faces first.
     pub fn faces(&self) -> Arc<[FaceInfo]> {
         Arc::clone(&self.snapshot().infos)
+    }
+
+    /// The faces added to `scope`, in the order they were added; not the unscoped or installed
+    /// faces. Of the faces with the same family, style, PostScript name and instance, the first
+    /// added is listed, as lookups in the scope see it. It never waits for a scan.
+    pub fn faces_in(&self, scope: Scope) -> Vec<FaceInfo> {
+        let added = lock(&self.added);
+        let mut seen = HashSet::new();
+        added.scopes.get(&scope).map_or_else(Vec::new, |s| s.faces.iter().filter(|f| seen.insert(identity(f))).map(|f| f.info.clone()).collect())
     }
 
     /// The family `name` names: its own name ignoring ASCII case, or any other of its names
@@ -1079,7 +1115,7 @@ impl Catalog {
             .into_iter()
             .map(|p| {
                 let (bytes, faces) = p?;
-                let faces = added.store(bytes, faces, all.len(), limits)?;
+                let faces = added.store(None, bytes, faces, all.len(), limits)?;
                 let infos = faces.iter().map(|f| f.info.clone()).collect();
                 all.extend(faces);
                 Ok(infos)
@@ -1099,7 +1135,7 @@ impl Catalog {
     fn add_bytes_to(&self, scope: Option<Scope>, bytes: Arc<[u8]>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
         let (bytes, faces) = bytes_faces(bytes, source, limits)?;
         let mut added = lock(&self.added);
-        let faces = added.store(bytes, faces, 0, limits)?;
+        let faces = added.store(scope, bytes, faces, 0, limits)?;
         Ok(self.push_added(added, scope, faces))
     }
 
@@ -1134,9 +1170,7 @@ impl Catalog {
             return Err(FontFileError::NotAFont);
         }
         let added = lock(&self.added);
-        if added.count() + faces.len() > limits.max_added_faces {
-            return Err(FontFileError::TooManyFaces { max: limits.max_added_faces });
-        }
+        added.room(scope, faces.len(), limits)?;
         Ok(self.push_added(added, scope, faces))
     }
 
@@ -1182,6 +1216,21 @@ impl Catalog {
         }
         added.changed(scope).faces.clear();
         added.drop_unused_blobs();
+        lock(&self.loaded).retain(|(s, _), _| *s != Some(scope));
+        removed
+    }
+
+    /// Remove the faces [`Catalog::add_file_in`] added to `scope` from the file at `path` (the path
+    /// as it was passed; the document deleted or replaced one of its font files). Returns how
+    /// many. A change of the scope's faces, as an add is, when there were any.
+    pub fn remove_file_in(&self, scope: Scope, path: &Path) -> usize {
+        let mut added = lock(&self.added);
+        let from_file = |f: &Face| f.info.blob.is_none() && f.info.path.as_deref() == Some(path);
+        let removed = added.scopes.get(&scope).map_or(0, |s| s.faces.iter().filter(|f| from_file(f)).count());
+        if removed == 0 {
+            return 0;
+        }
+        added.changed(scope).faces.retain(|f| !from_file(f));
         lock(&self.loaded).retain(|(s, _), _| *s != Some(scope));
         removed
     }

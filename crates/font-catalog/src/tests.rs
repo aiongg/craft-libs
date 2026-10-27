@@ -473,9 +473,13 @@ fn scoped_fonts_are_seen_only_in_their_scope() {
     assert!(cat.load_family_in(a, "Test Sans").iter().any(|f| f.info.fs_type == 4));
     assert!(cat.load_family("Test Sans").iter().all(|f| f.info.fs_type == 0));
 
-    // The limit on added faces counts every scope.
-    let three = Limits { max_added_faces: 3, ..limits };
-    assert!(matches!(cat.add_bytes(font(&spec("One More", "Regular", 400)), Source::User, &three), Err(FontFileError::TooManyFaces { max: 3 })));
+    // The limit on added faces counts each scope on its own: A is full, B isn't.
+    let two = Limits { max_added_faces: 2, ..limits };
+    assert!(matches!(
+        cat.add_bytes_in(a, font(&spec("One More", "Regular", 400)), Source::Document, &two),
+        Err(FontFileError::TooManyFaces { max: 2 })
+    ));
+    cat.add_bytes_in(b, font(&spec("One More", "Regular", 400)), Source::Document, &two).unwrap();
 
     // A face added without a scope comes after the scope's own.
     cat.add_bytes(font(&Spec { fs_type: 2, ..spec("Test Sans", "Bold", 700) }), Source::User, &limits).unwrap();
@@ -493,6 +497,46 @@ fn scoped_fonts_are_seen_only_in_their_scope() {
     assert_eq!(cat.remove_added(Source::User), 1);
     assert_eq!(bold(Some(b)), (Source::Document, 8));
     assert_eq!(cat.load_family_in(b, "Test Sans").iter().filter(|f| f.info.fs_type == 8).count(), 1);
+}
+
+#[test]
+fn a_scope_lists_counts_and_removes_its_own_files() {
+    let root = temp("scope-own");
+    let cat = system(&root);
+    let limits = Limits::default();
+    let (a, b) = (cat.new_scope(), cat.new_scope());
+    assert_eq!(cat.scope_generation(a), 0);
+    let (one, two) = (root.join("doc-a/One.ttf"), root.join("doc-a/Two.ttc"));
+    write(&one, font(&spec("Doc One", "Regular", 400)));
+    write(&two, collection(&[font(&spec("Doc Two", "Regular", 400)), font(&spec("Doc Two", "Bold", 700))]));
+    cat.add_file_in(a, &one, Source::Document, &limits).unwrap();
+    cat.add_file_in(a, &two, Source::Document, &limits).unwrap();
+    // The same face again is listed once.
+    cat.add_bytes_in(a, font(&spec("Doc One", "Regular", 400)), Source::Document, &limits).unwrap();
+    let generation = cat.scope_generation(a);
+    assert_eq!(generation, 3);
+
+    // Another scope's, unscoped and scanned changes neither show in A's faces nor move its count.
+    cat.add_bytes_in(b, font(&spec("Other Doc", "Regular", 400)), Source::Document, &limits).unwrap();
+    cat.add_bytes(font(&spec("Shared Face", "Regular", 400)), Source::User, &limits).unwrap();
+    cat.rescan();
+    let names = |s: Scope| cat.faces_in(s).iter().map(|f| format!("{} {}", f.family, f.style)).collect::<Vec<_>>();
+    assert_eq!(names(a), ["Doc One Regular", "Doc Two Regular", "Doc Two Bold"]);
+    assert_eq!(names(b), ["Other Doc Regular"]);
+    assert_eq!(cat.scope_generation(a), generation);
+    assert_eq!(cat.scope_generation(b), 1);
+
+    assert_eq!(cat.remove_file_in(a, &two), 2);
+    assert_eq!(cat.scope_generation(a), generation + 1);
+    assert_eq!(names(a), ["Doc One Regular"]);
+    assert!(cat.family_in(a, "Doc Two").is_none());
+    assert_eq!(cat.remove_file_in(a, &two), 0);
+    assert_eq!(cat.remove_file_in(b, &one), 0);
+    assert_eq!(cat.scope_generation(a), generation + 1);
+    assert_eq!(cat.scope_generation(b), 1);
+    assert_eq!(cat.remove_scope(a), 2);
+    assert_eq!(cat.scope_generation(a), generation + 2);
+    assert!(cat.faces_in(a).is_empty());
 }
 
 #[test]
