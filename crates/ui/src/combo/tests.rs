@@ -510,7 +510,7 @@ fn a_footer_that_changes_height_every_pass_settles() {
                 },
                 |ui| {
                     *passes += 1;
-                    ui.add_space(if *passes % 2 == 0 { 10.0 } else { 30.0 });
+                    ui.add_space(if (*passes).is_multiple_of(2) { 10.0 } else { 30.0 });
                 },
             );
         },
