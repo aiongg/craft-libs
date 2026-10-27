@@ -13,7 +13,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use craft_font_manager::craft_font_catalog::Os;
-use craft_font_manager::remote::{Codepoints, DiskCache, Instance, MAX_CODEPOINTS, Preview, PreviewError, PreviewKey, Previews, Subset};
+use craft_font_manager::remote::{Codepoints, DiskCache, Instance, MAX_CODEPOINTS, Preview, PreviewError, PreviewKey, Previews, SampleHash, Subset};
 use craft_font_manager::store::{FakeStore, Installer, SuiteStore};
 use craft_font_manager::{Catalog, FontEnv};
 use craft_font_store::{Client, is_font};
@@ -53,15 +53,15 @@ fn canonical_codepoints_match_the_shared_vectors() {
 fn subset_urls() {
     let key = |inst, subset| PreviewKey::new(&sha(0x0a), inst, subset).map(|k| k.url("https://fonts.example.com/"));
     let base = format!("https://fonts.example.com/v1/faces/{}", sha(0x0a));
-    assert_eq!(key(Instance::List, Subset::Sample), Some(format!("{base}/list/sample.woff2")));
+    assert_eq!(key(Instance::List, Subset::Sample(SampleHash::of("Hello"))), Some(format!("{base}/list/sample-185f8db32271.woff2")));
     assert_eq!(key(Instance::List, Subset::Ascii), Some(format!("{base}/list/ascii.woff2")));
-    assert_eq!(key(Instance::Var, Subset::Sample), Some(format!("{base}/var/sample.woff2")));
+    assert_eq!(key(Instance::Var, Subset::Sample(SampleHash::of("Hello"))), Some(format!("{base}/var/sample-185f8db32271.woff2")));
     assert_eq!(key(Instance::Var, Subset::Codepoints(Codepoints::from_text("ab"))), Some(format!("{base}/var/u/61-62.woff2")));
 
-    let upper = PreviewKey::new(&"AB".repeat(32), Instance::List, Subset::Sample).unwrap();
+    let upper = PreviewKey::new(&"AB".repeat(32), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap();
     assert_eq!(upper.sha256(), "ab".repeat(32));
-    assert!(PreviewKey::new("../../etc", Instance::List, Subset::Sample).is_none());
-    assert!(PreviewKey::new(&"g".repeat(64), Instance::List, Subset::Sample).is_none());
+    assert!(PreviewKey::new("../../etc", Instance::List, Subset::Sample(SampleHash::of("Hello"))).is_none());
+    assert!(PreviewKey::new(&"g".repeat(64), Instance::List, Subset::Sample(SampleHash::of("Hello"))).is_none());
     let many: Codepoints = ('\u{4e00}'..).take(MAX_CODEPOINTS + 1).collect();
     assert!(PreviewKey::new(&sha(1), Instance::List, Subset::Codepoints(many.clone())).is_none());
     let mut fits = many;
@@ -200,8 +200,8 @@ fn previews_come_from_the_service_then_the_cache_and_only_with_consent() {
     let service = Service::start();
     let dir = temp("service");
     let store = Arc::new(FakeStore::new(&dir, HashMap::new()));
-    let sample = PreviewKey::new(&sha(1), Instance::List, Subset::Sample).unwrap();
-    let broken = PreviewKey::new(&sha(2), Instance::List, Subset::Sample).unwrap();
+    let sample = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap();
+    let broken = PreviewKey::new(&sha(2), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap();
     service.serve(&sample, Reply::Ok(WOFF2.to_vec()));
     service.serve(&broken, Reply::Ok(b"wOF2 but not really".to_vec()));
     let previews = Previews::new(store.clone());
@@ -266,7 +266,7 @@ fn a_service_marked_down_gets_no_requests() {
     let store = Arc::new(FakeStore::new(&dir, HashMap::new()));
     store.set_preview_service(Some(&service.base)).unwrap();
     store.allow_downloads(true).unwrap();
-    let key = PreviewKey::new(&sha(1), Instance::List, Subset::Sample).unwrap();
+    let key = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap();
     service.serve(&key, Reply::Ok(WOFF2.to_vec()));
     // The client is shared with, say, the store's installs, which found the service unreachable.
     let client = Client::default();
@@ -286,7 +286,7 @@ fn highest_priority_first_and_cancelled_requests_deliver_nothing() {
     let store = Arc::new(FakeStore::new(&dir, HashMap::new()));
     store.allow_downloads(true).unwrap();
     store.set_preview_service(Some(&service.base)).unwrap();
-    let keys: Vec<PreviewKey> = (1..=4).map(|n| PreviewKey::new(&sha(n), Instance::List, Subset::Sample).unwrap()).collect();
+    let keys: Vec<PreviewKey> = (1..=4).map(|n| PreviewKey::new(&sha(n), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap()).collect();
     let [held, low, high, dropped] = [&keys[0], &keys[1], &keys[2], &keys[3]];
     service.serve(held, Reply::Held);
     for key in [low, high, dropped] {
@@ -313,5 +313,29 @@ fn highest_priority_first_and_cancelled_requests_deliver_nothing() {
     assert!(previews.poll().is_empty());
     assert_eq!(previews.pending(), 0);
     service.release();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn sample_hash_is_the_sha256_prefix_of_the_exact_text() {
+    // `printf Hello | sha256sum` starts 185f8db32271fe25f561a6fc938b2e26...
+    assert_eq!(SampleHash::of("Hello").as_str(), "185f8db32271");
+    assert_ne!(SampleHash::of("Hello\n"), SampleHash::of("Hello"));
+    let a = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("a"))).unwrap();
+    let b = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("b"))).unwrap();
+    assert_ne!(a.path(), b.path(), "the disk cache key names the text");
+}
+
+#[test]
+fn a_404_comes_back_as_not_found() {
+    let service = Service::start();
+    let dir = temp("notfound");
+    let store = Arc::new(FakeStore::new(&dir, HashMap::new()));
+    store.set_preview_service(Some(&service.base)).unwrap();
+    let key = PreviewKey::new(&sha(1), Instance::List, Subset::Sample(SampleHash::of("Hello"))).unwrap();
+    let previews = Previews::new(store.clone());
+    previews.request(key, 1);
+    let got = wait_for(&previews, 1);
+    assert_eq!(got.first().map(|p| p.font.clone().unwrap_err()), Some(PreviewError::NotFound));
     let _ = std::fs::remove_dir_all(dir);
 }
