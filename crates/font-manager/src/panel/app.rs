@@ -170,7 +170,7 @@ pub struct FontsPanel {
     pub(crate) source_url: String,
     pub(crate) source_message: Option<(bool, String)>,
     /// Families per category (all first) and per install state, for the other filters as set.
-    pub(crate) category_counts: [usize; 6],
+    pub(crate) category_counts: [usize; 7],
     pub(crate) show_counts: [usize; 3],
     pub(crate) language_text: String,
     pub(crate) installed: Vec<InstalledFamily>,
@@ -229,6 +229,7 @@ pub(crate) fn category_name(c: Category) -> &'static str {
         Category::Serif => tl!("Serif"),
         Category::Display => tl!("Display"),
         Category::Handwriting => tl!("Handwriting"),
+        Category::Script => tl!("Formal script"),
         Category::Monospace => tl!("Monospace"),
     }
 }
@@ -296,7 +297,7 @@ impl FontsPanel {
             sources_job: None,
             source_url: String::new(),
             source_message: None,
-            category_counts: [0; 6],
+            category_counts: [0; 7],
             show_counts: [0; 3],
             language_text: String::new(),
             installed: Vec::new(),
@@ -597,7 +598,7 @@ impl FontsPanel {
             Show::NotInstalled => !installed(i),
         };
         let any_category = Query { category: None, ..self.query.clone() };
-        let mut by_category = [0usize; 6];
+        let mut by_category = [0usize; 7];
         let mut by_state = [0usize; 3];
         let mut by_source: Vec<usize> = vec![0; c.index.sources().len()];
         for i in c.search.families(&c.index, &any_category) {
