@@ -88,11 +88,11 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 An app that shapes and draws with its own face objects (skrifa, harfrust) keeps them in a `FaceCache<F>`:
 
 - `get_or_make(&catalog, &info, make)` returns the face made before from the same file and face index, or from the same added bytes, else calls `make` with the data `catalog.load` gives. `make` runs without locks held. Two threads making one face at once both get the first one cached.
-- `refresh(&catalog)` lets go of the faces whose file the catalog no longer lists, or lists changed (after a rescan, or after the file was added to a scope again), and of the faces whose added bytes or scope were removed. It returns them, so the app drops what it made from them. It does nothing while the catalog's generation and its scopes are unchanged, never waits for a scan and reads no files. Apps call it after a rescan and after a document's fonts are added or its scope is removed.
-- When the catalog lists a file changed, `get_or_make` makes its faces again, and the next `refresh` returns the old ones.
-- `forget_changed(path)` lets go of a file's faces when the file differs from the one they were made from, for an app that watches files itself.
+- `refresh(&catalog)` lets go of the faces whose file the catalog no longer lists, or lists changed (after a rescan, or after the file was added to a scope again), and of the faces whose added bytes or scope were removed. It returns them, so the app drops what it made from them. It does nothing while the catalog is unchanged and no face was made since the last call, never waits for a scan and reads no files. Apps call it after a rescan and after a document's fonts are added or its scope is removed.
+- When the catalog lists a file changed, `get_or_make` makes its faces again, and the next `refresh` returns the old ones. An `info` resolved before the change costs a `stat` per call, so apps resolve their fonts again after `changes_since` names them.
+- `forget_changed(path)` lets go of a file's faces when the file differs from the one their bytes were read from, for an app that watches files itself. A face being made from the file at that moment is returned but not kept.
 
-A face stays while the installed fonts, the fonts added without a scope or any scope list its file unchanged. One cache therefore serves the installed fonts and every document's scope, and documents that use the same file share its faces. The key is the file and face index alone, so an app whose faces differ by where they came from (document faces tagged with their document) keeps one cache for each kind.
+A face stays while the installed fonts, the fonts added without a scope or any scope list its file unchanged. One cache therefore serves the installed fonts and every document's scope, and documents that use the same file share its faces. The key is the file and face index alone, so an app whose faces differ by where they came from (document faces tagged with their document) keeps one cache for each kind. A cache serves one catalog.
 
 ## In an app
 

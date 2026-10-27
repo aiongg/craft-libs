@@ -1018,9 +1018,15 @@ impl Catalog {
 
     /// The data of `face`, read from its file (shared with other faces of the file still loaded).
     pub fn load(&self, face: &FaceInfo) -> Result<FontData, FontFileError> {
+        self.load_stamped(face).map(|(data, _)| data)
+    }
+
+    /// [`Catalog::load`], with the stamp of the file the bytes were read from (`None` for added
+    /// bytes, or a file that can't be stamped).
+    pub(crate) fn load_stamped(&self, face: &FaceInfo) -> Result<(FontData, Option<FileStamp>), FontFileError> {
         if let Some(blob) = face.blob {
             let bytes = lock(&self.added).blobs.get(&blob).cloned().ok_or(FontFileError::Gone)?;
-            return Ok(FontData { bytes, index: face.index });
+            return Ok((FontData { bytes, index: face.index }, None));
         }
         let path = face.path.as_deref().ok_or(FontFileError::Gone)?;
         if crate::suitcase::is_suitcase(path) {
@@ -1028,23 +1034,26 @@ impl Catalog {
             if face.confined {
                 return Err(FontFileError::NotAFont);
             }
+            // Taken before the read: a change during it shows as a change.
+            let stamp = std::fs::metadata(path).ok().map(|m| file_stamp(&m));
             let font = crate::suitcase::read_fonts(path).into_iter().nth(face.index as usize).ok_or(FontFileError::NotAFont)?;
-            return Ok(FontData { bytes: font.into(), index: 0 });
+            return Ok((FontData { bytes: font.into(), index: 0 }, stamp));
         }
-        Ok(FontData { bytes: self.file_bytes(path, face.confined)?, index: face.index })
+        let (bytes, stamp) = self.file_bytes(path, face.confined)?;
+        Ok((FontData { bytes, index: face.index }, Some(stamp)))
     }
 
     /// The bytes of the file at `path`, shared while anything holds them. With `no_follow`
     /// (a confined file), a link in its place is refused, and so are bytes cached by a read that
     /// followed links.
-    fn file_bytes(&self, path: &Path, no_follow: bool) -> Result<Arc<[u8]>, FontFileError> {
+    fn file_bytes(&self, path: &Path, no_follow: bool) -> Result<(Arc<[u8]>, FileStamp), FontFileError> {
         // A file replaced in place since it was read is read again.
         let meta = if no_follow { std::fs::symlink_metadata(path) } else { std::fs::metadata(path) };
         if let Some(meta) = meta.ok().filter(std::fs::Metadata::is_file)
             && let Some(bytes) =
                 lock(&self.files).get(path).filter(|c| c.stamp == file_stamp(&meta) && (c.no_follow || !no_follow)).and_then(|c| c.bytes.upgrade())
         {
-            return Ok(bytes);
+            return Ok((bytes, file_stamp(&meta)));
         }
         use std::io::Read;
         let file = scan::open_regular(path, no_follow)?;
@@ -1058,8 +1067,9 @@ impl Catalog {
         let bytes: Arc<[u8]> = data.into();
         let mut files = lock(&self.files);
         files.retain(|_, c| c.bytes.strong_count() > 0);
-        files.insert(path.to_path_buf(), Loaded { stamp: file_stamp(&meta), no_follow, bytes: Arc::downgrade(&bytes) });
-        Ok(bytes)
+        let stamp = file_stamp(&meta);
+        files.insert(path.to_path_buf(), Loaded { stamp, no_follow, bytes: Arc::downgrade(&bytes) });
+        Ok((bytes, stamp))
     }
 
     /// Every face of the family `family` names ([`Catalog::family`]) with its data. The first

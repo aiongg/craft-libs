@@ -1102,3 +1102,88 @@ fn threads_making_one_face_get_the_first_made() {
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     assert!(Arc::ptr_eq(&a, &b));
 }
+
+#[test]
+fn a_face_made_after_a_refresh_is_checked_by_the_next() {
+    let root = temp("faces-after-refresh");
+    let cat = Catalog::without_installed_fonts();
+    let limits = Limits::default();
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let file = root.join("doc/Doc.ttf");
+    write(&file, font(&spec("Doc Face", "Regular", 400)));
+    let scope = cat.new_scope();
+    let info = cat.add_file_in(scope, &file, Source::Document, &limits).unwrap().remove(0);
+    cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    cat.remove_scope(scope);
+    assert_eq!(cache.refresh(&cat).len(), 1);
+    assert!(cache.refresh(&cat).is_empty());
+    // A layout that looked the face up before the scope closed makes it again, and nothing in
+    // the catalog changes after that.
+    cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(cache.refresh(&cat).len(), 1);
+}
+
+#[test]
+fn a_watchers_forget_during_a_make_is_not_lost() {
+    let root = temp("faces-forget");
+    let cat = Catalog::without_installed_fonts();
+    let limits = Limits::default();
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let file = root.join("doc/Doc.ttf");
+    write(&file, font(&spec("Doc Face", "Regular", 400)));
+    let scope = cat.new_scope();
+    let info = cat.add_file_in(scope, &file, Source::Document, &limits).unwrap().remove(0);
+    let first = cache
+        .get_or_make(&cat, &info, |info, data| {
+            assert!(cache.forget_changed(&file).is_empty());
+            maker(&calls)(info, data)
+        })
+        .unwrap();
+    // Not kept: the next call makes it again, and keeps that one.
+    let second = cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(Arc::ptr_eq(&second, &cache.get_or_make(&cat, &info, maker(&calls)).unwrap()));
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    // The file as it was read is unchanged: a watcher's event lets go of nothing.
+    assert!(cache.forget_changed(&file).is_empty());
+}
+
+#[test]
+fn no_face_made_after_its_scope_closed_outlives_the_next_refresh() {
+    let root = temp("faces-race");
+    let cat = Catalog::without_installed_fonts();
+    let limits = Limits::default();
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let file = root.join("doc/Doc.ttf");
+    write(&file, font(&spec("Doc Face", "Regular", 400)));
+    for _ in 0..20 {
+        let scope = cat.new_scope();
+        let info = cat.add_file_in(scope, &file, Source::Document, &limits).unwrap().remove(0);
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                while !stop.load(Ordering::SeqCst) {
+                    cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+                }
+            });
+            s.spawn(|| {
+                while !stop.load(Ordering::SeqCst) {
+                    cache.refresh(&cat);
+                }
+            });
+            std::thread::sleep(Duration::from_millis(2));
+            cat.remove_scope(scope);
+            std::thread::sleep(Duration::from_millis(2));
+            stop.store(true, Ordering::SeqCst);
+        });
+        cache.refresh(&cat);
+        let before = calls.load(Ordering::SeqCst);
+        cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), before + 1);
+        cache.refresh(&cat);
+    }
+}
