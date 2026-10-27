@@ -36,31 +36,32 @@ match store.update(&base, SelectionChange::theme(ThemeId::parse("craft.graphite"
 | `StoreError` | `Busy`, `Conflict { disk }`, `IdExists`, `InUse`, … ; nothing on disk changed |
 | `Problem` | damaged, too new or unreadable files; the store keeps its last accepted state |
 | `parse_theme`, `theme_to_json`, `ThemeRecord` | theme file v1; unknown keys stay in the stored bytes |
+| `SuiteClient` | what an app calls: per-frame `sync`, the optimistic `shown` choice, `change`, conflict and failure notices with `apply_mine` and `retry`, the `theme` lookup |
 | `SuiteWatch`, `Snapshot`, `Op`, `OpOutput` | the store on a worker thread: snapshots by generation, queued operations with results |
 | `FileStamp`, `library_files`, `selection_stamp`, `theme_stamp`, `parse_counts` | cheap change checks for a watcher |
 
-`Store` methods block on file I/O and on the lock (up to 2 s). Apps use `SuiteWatch`, which owns
-the store on a worker thread, instead of calling them on the UI thread:
+`Store` methods block on file I/O and on the lock (up to 2 s). Apps use `SuiteClient` over a
+`SuiteWatch`, which owns the store on a worker thread, instead of calling them on the UI thread:
 
 ```rust,ignore
-use craft_theme_store::{Op, StoreOptions, SuiteDir, SuiteWatch};
+use craft_theme_store::{SelectionChange, StoreOptions, SuiteClient, SuiteDir, SuiteWatch};
 
 let options = StoreOptions::new("pdfcraft 0.15.0").last_accepted(prefs.last_suite.clone());
 let watch = SuiteWatch::open(&SuiteDir::resolve(false), options, move || ctx.request_repaint());
+let mut client = SuiteClient::new(watch); // SuiteClient::memory() in constructors, tests, web
 
-// Each frame: one atomic load; rebuild only when the key changed. `effective` is
-// `choice.effective(Some(&snapshot.accepted.suite.with_defaults(&defaults)), &defaults)`,
-// recomputed when the generation or the app's own choice changes.
-let key = (watch.generation(), effective.clone(), ctx.theme());
-if key != self.theme_key {
-    let snapshot = watch.snapshot();
-    let resolution = craft_theme::resolve(&effective, system, fallback, &|id| snapshot.theme(id));
-    // tokens and styles from `resolution`
+// Each frame: one atomic load unless something changed.
+if client.sync() || choice_changed {
+    let suite = client.shown().with_defaults(&defaults);
+    let effective = choice.effective(Some(&suite), &defaults);
+    let resolution = craft_theme::resolve(&effective, system, fallback, &|id| client.theme(id));
+    // tokens and styles from `resolution`; save client.accepted() as prefs.last_suite
 }
 
-// The user picks a theme: apply it locally, then send it.
-let id = watch.request(Op::Update { base: snapshot.accepted.clone(), change });
-// Later frames: snapshot.result(id) is Ok, or an error with the accepted state to go back to.
+// The user picks a theme or mode; shown() reflects it at once.
+client.change(SelectionChange::theme(id));
+// Notices: client.conflict() with client.apply_mine(), client.failure() with client.retry(),
+// client.problems() for files the suite can't use.
 ```
 
 The worker stats `selection.json` every 500 ms and compares its bytes every 10 s, parses only
