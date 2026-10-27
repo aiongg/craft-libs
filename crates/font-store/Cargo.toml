@@ -28,6 +28,12 @@ craft-font-catalog = { workspace = true }
 # Blocking HTTPS with rustls and webpki roots: no async runtime, no OpenSSL.
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
 
+# The per-user Windows font folder: registration under HKCU, the Windows build, whether the
+# process runs in an AppContainer. Both are safe wrappers, already in the workspace's lockfile.
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6"
+winsafe = { version = "0.0.29", default-features = false, features = ["advapi"] }
+
 [dev-dependencies]
 write-fonts = "0.54"
 

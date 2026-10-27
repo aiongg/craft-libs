@@ -33,6 +33,10 @@ use crate::verify::{VerifyError, is_font, sha256_hex, verify_font};
 mod os_fonts;
 
 pub use os_fonts::{Conflict, OsFontFolder, OsFontLayout};
+#[cfg(test)]
+pub(crate) use os_fonts::{registry_value_name, unique_value_name};
+#[cfg(all(test, not(windows)))]
+pub(crate) use os_fonts::{test_register, test_registry, test_unregister};
 
 const SETTINGS: &str = "settings.json";
 const MANIFEST: &str = "manifest.json";

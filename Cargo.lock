@@ -822,6 +822,8 @@ dependencies = [
  "skrifa 0.47.0",
  "thiserror 2.0.21",
  "ureq",
+ "windows-registry",
+ "winsafe",
  "write-fonts 0.54.1",
 ]
 

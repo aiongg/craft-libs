@@ -1364,6 +1364,76 @@ mod store {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    /// The Windows layout on another system: the copies' registrations go to a stand-in registry.
+    #[cfg(not(windows))]
+    #[test]
+    fn windows_copies_are_registered_and_unregistered_exactly() {
+        use crate::store::{test_register, test_registry, test_unregister};
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-windows");
+        let store = store.with_os_fonts(OsFontFolder::at(&shared, OsFontLayout::Windows));
+        let family = shared.join("testsans");
+        // Another program's font holds the Regular's name; its value stays as it is.
+        let theirs = root.join("theirs.ttf");
+        test_register("Test Sans Regular (TrueType)", &theirs);
+
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let names = ["Test Sans Bold (TrueType)", "Test Sans Italic (TrueType)", "Test Sans Regular #2 (TrueType)"];
+        let files = ["TestSans-Bold.ttf", "TestSans-Italic.ttf", "TestSans-Regular.ttf"];
+        let ours: Vec<(String, String)> = names.iter().zip(files).map(|(n, f)| (n.to_lowercase(), family.join(f).display().to_string())).collect();
+        let theirs_value = ("test sans regular (truetype)".to_string(), theirs.display().to_string());
+        let mut expected = ours.clone();
+        expected.push(theirs_value.clone());
+        expected.sort();
+        assert_eq!(test_registry(), expected);
+        let listed: Vec<_> = ledger(&dir)["families"][0]["files"].as_array().unwrap().iter().map(|f| f["registry"].clone()).collect();
+        assert_eq!(listed, names.map(|n| json!(n)));
+
+        // A registration lost since comes back with the next call, under the same name.
+        test_unregister(names[0], &family.join(files[0]));
+        assert_eq!(test_registry().len(), 3);
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert_eq!(test_registry(), expected);
+
+        // Withdrawing removes the store's registrations only.
+        assert!(store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap().is_empty());
+        assert!(!family.exists());
+        assert_eq!(test_registry(), std::slice::from_ref(&theirs_value));
+
+        // A ledger entry without a registration name (as written before Windows had copies) still
+        // reads, and withdrawing it touches no registration.
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let mut old = ledger(&dir);
+        for f in old["families"][0]["files"].as_array_mut().unwrap() {
+            f.as_object_mut().unwrap().remove("registry");
+        }
+        std::fs::write(dir.join("os-fonts.json"), old.to_string()).unwrap();
+        assert!(store.is_available(GOOGLE_FONTS, "Test Sans"));
+        assert!(store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap().is_empty());
+        assert!(!family.exists());
+        assert_eq!(test_registry(), expected);
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn registry_value_names_follow_the_font() {
+        use crate::store::{registry_value_name, unique_value_name};
+        use write_fonts::FontBuilder;
+        use write_fonts::types::Tag;
+        assert_eq!(registry_value_name(&font("Test Sans", "Bold Italic", 700), "x.ttf"), "Test Sans Bold Italic (TrueType)");
+        let mut cff = FontBuilder::new();
+        cff.add_raw(Tag::new(b"CFF "), vec![0u8; 4]);
+        let cff = cff.build();
+        assert_eq!(registry_value_name(&cff, "Test-Serif.otf"), "Test-Serif (OpenType)", "no names: the file's");
+        assert_eq!(registry_value_name(b"not a font", "odd.ttf"), "odd (TrueType)");
+        let taken = ["Test Sans Regular (TrueType)", "test sans regular #2 (truetype)"];
+        let is_taken = |n: &str| taken.iter().any(|t| t.eq_ignore_ascii_case(n));
+        assert_eq!(unique_value_name("Test Sans Regular (TrueType)", is_taken), "Test Sans Regular #3 (TrueType)");
+        assert_eq!(unique_value_name("Test Sans Bold (TrueType)", is_taken), "Test Sans Bold (TrueType)");
+    }
+
     #[test]
     fn making_available_refuses_postscript_conflicts_and_agents() {
         let server = Server::start();
@@ -1395,6 +1465,7 @@ mod store {
     }
 
     /// A catalog of the same system as [`shared_store`]'s, to look at what a scan sees.
+    #[cfg(unix)]
     fn catalog_of(dir: &Path, root: &Path) -> Catalog {
         let env = FontEnv {
             os: Os::Unix,

@@ -154,13 +154,18 @@ The user's `remove_family` and `remove_files` withdraw the copies first, so the 
 | macOS | `~/Library/Fonts` | `Craft-<file>`, side by side. macOS activates them for every app of the user. |
 | Linux and the BSDs | `$XDG_DATA_HOME/fonts/Craft` (`~/.local/share/fonts/Craft`) | `<store family folder>/<file>`. fontconfig reads the folder with its subfolders; `fc-cache` refreshes the cache afterwards when it is on `PATH`, off the calling thread. |
 | Flatpak | the host's `$HOST_XDG_DATA_HOME/fonts/Craft`, else `~/.local/share/fonts/Craft` | Only when `/.flatpak-info` grants write access to that folder (`--filesystem=xdg-data/fonts:create`; its entries apply in order, `!name` revokes and `:ro` grants no write). No `fc-cache`: it would refresh the sandbox's cache. |
-| Snap, a sandboxed macOS build (Mac App Store), Windows, Haiku, the web | none | `Error::Unsupported`. Windows (10 1809 and later, HKCU registration) comes later. |
+| Windows 10 1809 (build 17763) and later | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\Craft` | `<store family folder>\<file>`, each registered under `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts` (see below). |
+| Snap, a sandboxed macOS build (Mac App Store), earlier Windows builds, a Windows app in an AppContainer or an MSIX package, Haiku, the web | none | `Error::Unsupported`. Windows before build 17763 has no per-user fonts; an AppContainer can't write the folder or the key; an MSIX package's writes there are its own, so other apps wouldn't see them. |
 
 `FontStore::new` has no folder; `with_os_fonts(OsFontFolder::at(dir, layout))` sets one, for tests and setups the rules above don't cover.
 
+On Windows each copy gets a `REG_SZ` value in the current user's `Fonts` key, holding its full path. Its name is the font's full name (the full names joined by ` & ` for a collection), then ` (OpenType)` for CFF outlines, else ` (TrueType)`, as Windows names its own; Windows reads only the data. A name another program's value already holds for another file gets a number before the suffix (`Roboto Regular #2 (TrueType)`). The ledger records each name. Every `make_available` registers the family's copies again, so a lost registration comes back. A withdrawal deletes a value only while it still names the copy, and before the file. Before copying, the store gives `ALL APPLICATION PACKAGES` and `ALL RESTRICTED APPLICATION PACKAGES` read access to its `Craft` folder (with `icacls`), and to the `Fonts` folder above it when the store creates that, as Windows' own per-user font folder has; packaged apps can't read the fonts without it.
+
+The store doesn't load copies into the running Windows session or broadcast `WM_FONTCHANGE`: both take Win32 calls with no safe wrapper, and the workspace forbids `unsafe`. Windows loads registered fonts at every sign-in, so other apps see the copies from the next sign-in. For the same reason the store can't unload a copy, and Windows keeps loaded font files locked: withdrawing a copy loaded since the last sign-in deletes its registration but fails to delete the file. The copy stays in the ledger; after the next sign-in, Windows no longer loads it and a new withdrawal deletes it. Replacing a loaded copy with a newer store file fails the same way, and the old copy stays listed.
+
 Only font files are copied. Licences stay in the store, which remains the record: copying a font into the same user's font folder isn't redistribution under the OFL, the Apache 2.0 licence or the UFL, and macOS doesn't expect text files in `~/Library/Fonts`.
 
-Running apps see a new font at once or only after a restart, depending on the app (GTK under GNOME and Firefox at once, Chromium, Electron and Qt apps after a restart), so the interface tells the user that open apps may need a restart.
+Running apps see a new font at once or only after a restart, depending on the app (GTK under GNOME and Firefox at once, Chromium, Electron and Qt apps after a restart), so the interface tells the user that open apps may need a restart. On Windows, apps see it from the next sign-in.
 
 ### Conflicts
 
@@ -174,7 +179,7 @@ The store's own copies are told apart by file identity (device and inode on Unix
 
 ### The ledger
 
-`os-fonts.json` (version 1) lists, per family (name, source and store folder), every file: its store file name, its path, the store file's sha256, its PostScript names, how it is there (`copy`, or `present` for a system file) and its state (`adding` or `active`).
+`os-fonts.json` (version 1) lists, per family (name, source and store folder), every file: its store file name, its path, the store file's sha256, its PostScript names, how it is there (`copy`, or `present` for a system file), its state (`adding` or `active`) and, on Windows, the name of the registry value that registers it (`registry`; absent in ledgers written elsewhere, which read as they are).
 
 The store deletes a file only when the ledger lists it as a copy, at the very path the store puts that file (`path_for` of the family's folder and file name), with no symbolic link on the way, and with the sha256 the ledger gives. Any other listed path is left alone and reported. A ledger that can't be read or understood (damaged, an unknown value, another version) is kept as it is: queries treat the family as not available, and everything that would change the ledger, removals of the family from the store included, gives `Error::Ledger`.
 

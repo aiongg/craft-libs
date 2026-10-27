@@ -11,6 +11,9 @@
 //! the next change. A withdrawal deletes files first and rewrites the ledger after, so a crash in
 //! between leaves entries whose files are gone, which the next withdrawal drops.
 //!
+//! On Windows each copy is also registered under HKCU (`win`), and the ledger records the value
+//! name, so that withdrawing deletes exactly the registration the store made.
+//!
 //! Everything here blocks (hashing, copying, a catalog rescan): call it off the UI thread.
 
 use std::collections::{HashMap, HashSet};
@@ -27,6 +30,73 @@ use super::{Caller, Error, FontStore, InstalledFamily, io};
 use crate::source::{safe_dir, safe_file_name};
 use crate::verify::VerifyError;
 
+#[cfg(windows)]
+mod win;
+
+/// Stands in for the Windows registry on other systems: no folder there has the `Windows` layout
+/// except one a test sets with [`OsFontFolder::at`].
+#[cfg(not(windows))]
+mod win {
+    use std::collections::HashMap;
+    use std::path::Path;
+    use std::sync::{Mutex, PoisonError};
+
+    /// Value names in lower case: (name, data).
+    static REGISTRY: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
+
+    fn with<T>(f: impl FnOnce(&mut HashMap<String, (String, String)>) -> T) -> T {
+        f(REGISTRY.lock().unwrap_or_else(PoisonError::into_inner).get_or_insert_with(HashMap::new))
+    }
+
+    pub(super) fn support() -> Result<(), String> {
+        Err("this build isn't for Windows".into())
+    }
+
+    pub(super) fn names(data: &str, path: &Path) -> bool {
+        Path::new(data) == path
+    }
+
+    pub(super) fn registered() -> HashMap<String, String> {
+        with(|r| r.iter().map(|(k, (_, d))| (k.clone(), d.clone())).collect())
+    }
+
+    pub(super) fn register(name: &str, path: &Path) -> std::io::Result<()> {
+        with(|r| r.insert(name.to_lowercase(), (name.to_string(), path.to_string_lossy().into_owned())));
+        Ok(())
+    }
+
+    pub(super) fn unregister(name: &str, path: &Path) -> std::io::Result<()> {
+        with(|r| {
+            if r.get(&name.to_lowercase()).is_some_and(|(_, d)| names(d, path)) {
+                r.remove(&name.to_lowercase());
+            }
+        });
+        Ok(())
+    }
+
+    pub(super) fn open_to_packaged_apps(_: &Path) {}
+}
+
+/// The stand-in registry's values (name, data), sorted by name; tests set and read it.
+#[cfg(all(test, not(windows)))]
+pub(crate) fn test_registry() -> Vec<(String, String)> {
+    let mut values: Vec<(String, String)> = win::registered().into_iter().collect();
+    values.sort();
+    values
+}
+
+/// Registers `name` with `data` in the stand-in registry, as another program would.
+#[cfg(all(test, not(windows)))]
+pub(crate) fn test_register(name: &str, data: &Path) {
+    let _ = win::register(name, data);
+}
+
+/// Deletes `name` from the stand-in registry while it names `data`.
+#[cfg(all(test, not(windows)))]
+pub(crate) fn test_unregister(name: &str, data: &Path) {
+    let _ = win::unregister(name, data);
+}
+
 const LEDGER: &str = "os-fonts.json";
 const LEDGER_VERSION: u32 = 1;
 const MAX_LEDGER_BYTES: u64 = 16 << 20;
@@ -39,6 +109,11 @@ pub enum OsFontLayout {
     /// A folder per family, `<folder>/<store family folder>/<file>`: `~/.local/share/fonts/Craft`,
     /// which fontconfig reads with its subfolders.
     Folders,
+    /// A folder per family like `Folders`, each file registered under
+    /// `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts` with its full path:
+    /// `%LOCALAPPDATA%\Microsoft\Windows\Fonts\Craft`. Windows loads the registered files at
+    /// every sign-in.
+    Windows,
 }
 
 /// The OS user font folder the store copies families into, for every app of the user.
@@ -60,7 +135,11 @@ impl OsFontFolder {
     ///   Flatpak, the host's folder (`$HOST_XDG_DATA_HOME`, else `~/.local/share`), only when
     ///   `/.flatpak-info` grants write access to it (`--filesystem=xdg-data/fonts:create`), and
     ///   without `fc-cache`. Not in a Snap (`SNAP` is set).
-    /// - Windows (for now), Haiku and the web: not offered.
+    /// - Windows 10 1809 (build 17763) and later:
+    ///   `%LOCALAPPDATA%\Microsoft\Windows\Fonts\Craft`, each file registered under HKCU. Not on
+    ///   earlier builds, which have no per-user fonts, nor in an AppContainer or an MSIX package,
+    ///   whose registry writes other apps don't see.
+    /// - Haiku and the web: not offered.
     pub fn for_env(env: &FontEnv) -> Result<Self, String> {
         Self::for_env_with(env, &|k| std::env::var_os(k).filter(|v| !v.is_empty()))
     }
@@ -93,7 +172,12 @@ impl OsFontFolder {
                 };
                 Ok(Self { dir: data.join("fonts/Craft"), layout: OsFontLayout::Folders, fc_cache })
             }
-            Os::Windows => Err("copying fonts into the Windows Fonts folder isn't supported yet".into()),
+            Os::Windows => {
+                let local = env.local_app_data.clone().filter(|p| p.is_absolute()).ok_or("there is no %LOCALAPPDATA% folder")?;
+                win::support()?;
+                let dir = local.join("Microsoft").join("Windows").join("Fonts").join("Craft");
+                Ok(Self { dir, layout: OsFontLayout::Windows, fc_cache: false })
+            }
             Os::Haiku | Os::None => Err("this system has no user font folder the store can add to".into()),
         }
     }
@@ -113,13 +197,14 @@ impl OsFontFolder {
     fn path_for(&self, family_dir: &str, file: &str) -> PathBuf {
         match self.layout {
             OsFontLayout::Flat => self.dir.join(format!("Craft-{file}")),
-            OsFontLayout::Folders => self.dir.join(family_dir).join(file),
+            OsFontLayout::Folders | OsFontLayout::Windows => self.dir.join(family_dir).join(file),
         }
     }
 
     /// Whether `path` is inside the folder and no folder on the way, nor `path` itself, is a
-    /// symbolic link (a dangling one included), so that writes and deletes stay inside. With the
-    /// `Folders` layout the store's own `Craft` folder counts too.
+    /// symbolic link (a dangling one included, and on Windows a junction), so that writes and
+    /// deletes stay inside. With the `Folders` and `Windows` layouts the store's own `Craft`
+    /// folder counts too.
     fn no_links(&self, path: &Path) -> bool {
         let Ok(rest) = path.strip_prefix(&self.dir) else { return false };
         if rest.components().count() == 0 || !rest.components().all(|c| matches!(c, Component::Normal(_))) {
@@ -127,7 +212,7 @@ impl OsFontFolder {
         }
         let mut at = self.dir.clone();
         let mut check = Vec::new();
-        if self.layout == OsFontLayout::Folders {
+        if self.layout != OsFontLayout::Flat {
             check.push(at.clone());
         }
         for c in rest.components() {
@@ -145,6 +230,25 @@ impl OsFontFolder {
             && safe_file_name(&file.store_file)
             && file.path == self.path_for(dir, &file.store_file)
             && self.no_links(&file.path)
+    }
+
+    /// Whether copies are registered with Windows.
+    fn registers(&self) -> bool {
+        self.layout == OsFontLayout::Windows
+    }
+
+    /// Before copies are made into a `Windows` folder: creates it and gives packaged apps read
+    /// access, as Windows' own per-user font folder has. The `Fonts` folder above gets it too
+    /// when the store creates that.
+    fn prepare_windows(&self) {
+        let fonts = self.dir.parent().filter(|f| !f.exists());
+        if std::fs::create_dir_all(&self.dir).is_err() || !std::fs::symlink_metadata(&self.dir).is_ok_and(|m| m.is_dir()) {
+            return;
+        }
+        win::open_to_packaged_apps(&self.dir);
+        if let Some(fonts) = fonts {
+            win::open_to_packaged_apps(fonts);
+        }
     }
 
     /// Tells fontconfig, off the calling thread. It isn't needed for correctness: fontconfig
@@ -243,6 +347,9 @@ struct LedgerFile {
     /// While `adding` over an earlier copy: that copy's sha256.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replacing: Option<String>,
+    /// On Windows: the name of the HKCU font value that registers the copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    registry: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -361,6 +468,52 @@ struct Planned {
     path: PathBuf,
     sha256: String,
     postscript: Vec<String>,
+    /// With the `Windows` layout: the name to register the copy under, before it is made unique.
+    registry: Option<String>,
+}
+
+/// Longest font name part of a registry value name, in characters.
+const MAX_REGISTRY_NAME: usize = 200;
+
+/// The name a copy is registered under in HKCU, as Windows names its own: the full names of the
+/// file's fonts, joined by ` & ` for a collection, then ` (OpenType)` for CFF outlines, else
+/// ` (TrueType)`. A font without a full name stands in with its family and style, and a file
+/// with neither with its name. Windows reads the value's data, not its name.
+pub(crate) fn registry_value_name(bytes: &[u8], file_name: &str) -> String {
+    use skrifa::raw::FileRef;
+    use skrifa::{MetadataProvider, Tag, string::StringId};
+    let mut names: Vec<String> = Vec::new();
+    let mut cff = false;
+    if let Ok(file) = FileRef::new(bytes) {
+        for font in file.fonts().flatten() {
+            cff |= font.table_data(Tag::new(b"CFF ")).is_some() || font.table_data(Tag::new(b"CFF2")).is_some();
+            let get = |id| font.localized_strings(id).english_or_first().map(|s| s.to_string()).filter(|s| !s.trim().is_empty());
+            let name = get(StringId::FULL_NAME).or_else(|| {
+                let family = get(StringId::FAMILY_NAME)?;
+                Some(get(StringId::SUBFAMILY_NAME).map_or_else(|| family.clone(), |style| format!("{family} {style}")))
+            });
+            if let Some(name) = name.filter(|n| !names.contains(n)) {
+                names.push(name);
+            }
+        }
+    }
+    let joined = if names.is_empty() {
+        Path::new(file_name).file_stem().map_or_else(|| file_name.to_string(), |s| s.to_string_lossy().into_owned())
+    } else {
+        names.join(" & ")
+    };
+    let clean: String = joined.chars().filter(|c| !c.is_control()).take(MAX_REGISTRY_NAME).collect();
+    format!("{} ({})", clean.trim(), if cff { "OpenType" } else { "TrueType" })
+}
+
+/// `base`, or when `taken` says that name is in use, `base` numbered before its suffix
+/// (`Test Sans Regular #2 (TrueType)`).
+pub(crate) fn unique_value_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(base) {
+        return base.to_string();
+    }
+    let (stem, suffix) = base.rfind(" (").map_or((base, ""), |i| base.split_at(i));
+    (2..).map(|n| format!("{stem} #{n}{suffix}")).find(|name| !taken(name)).unwrap_or_else(|| base.to_string())
 }
 
 impl FontStore {
@@ -450,7 +603,9 @@ impl FontStore {
     /// false, [`Error::Ledger`] when the ledger can't be used.
     ///
     /// It blocks (hashing, copying, a catalog rescan): call it off the UI thread. Running apps see
-    /// the fonts at once or after a restart, depending on the app.
+    /// the fonts at once or after a restart, depending on the app; on Windows, from the next
+    /// sign-in. There, [`Error::Io`] after the copies are made means a registration failed: the
+    /// copies stay listed, and the next call registers them again.
     pub fn make_available(&self, source: &str, name: &str) -> Result<Vec<PathBuf>, Error> {
         if self.caller != Caller::User {
             return Err(Error::NotAllowed);
@@ -461,7 +616,9 @@ impl FontStore {
     /// Takes the family's copies out of the OS user font folder, from the user's own action. Only
     /// files the ledger lists go, and only while unchanged: returns the ones left in place because
     /// they changed since (or were moved or linked elsewhere). [`Error::NotAllowed`] for an agent.
-    /// It blocks: call it off the UI thread.
+    /// On Windows a copy loaded since the last sign-in can't be deleted: its registration goes,
+    /// the call fails with [`Error::Io`] and the copy stays listed until a withdrawal after the
+    /// next sign-in. It blocks: call it off the UI thread.
     pub fn withdraw(&self, source: &str, name: &str) -> Result<Vec<PathBuf>, Error> {
         if self.caller != Caller::User {
             return Err(Error::NotAllowed);
@@ -537,6 +694,16 @@ impl FontStore {
                 }
             }
 
+            // Registry value names are unique in the key, ignoring case: one another program set
+            // for another file, or another copy has, is taken.
+            let registered = if folder.registers() { win::registered() } else { HashMap::new() };
+            let mut names_used: HashSet<String> = ledger
+                .families
+                .iter()
+                .filter(|f| !f.is(source, name))
+                .flat_map(|f| f.files.iter().filter_map(|x| x.registry.as_ref().map(|n| n.to_lowercase())))
+                .collect();
+
             let mut files = Vec::new();
             let mut to_copy = Vec::new();
             for p in &planned {
@@ -553,6 +720,7 @@ impl FontStore {
                         mechanism: Mechanism::Present,
                         state: State::Active,
                         replacing: None,
+                        registry: None,
                     });
                     continue;
                 }
@@ -574,6 +742,16 @@ impl FontStore {
                     to_copy.push(p);
                     State::Adding
                 };
+                let registry = p.registry.as_ref().map(|base| {
+                    let chosen = earlier_copy.and_then(|e| e.registry.clone()).unwrap_or_else(|| {
+                        unique_value_name(base, |n| {
+                            let n = n.to_lowercase();
+                            names_used.contains(&n) || registered.get(&n).is_some_and(|data| !win::names(data, &p.path))
+                        })
+                    });
+                    names_used.insert(chosen.to_lowercase());
+                    chosen
+                });
                 files.push(LedgerFile {
                     store_file: p.store_file.clone(),
                     path: p.path.clone(),
@@ -582,6 +760,7 @@ impl FontStore {
                     mechanism: Mechanism::Copy,
                     state,
                     replacing: earlier_copy.filter(|_| state == State::Adding).map(|e| e.sha256.clone()),
+                    registry,
                 });
             }
             if !conflicts.is_empty() {
@@ -599,6 +778,9 @@ impl FontStore {
             ledger.families.sort_by_key(|f| (f.family.to_lowercase(), f.source.clone()));
             self.write_ledger(&ledger)?;
 
+            if folder.registers() && !to_copy.is_empty() {
+                folder.prepare_windows();
+            }
             if let Err(e) = to_copy.into_iter().try_for_each(|p| copy_in(folder, p)) {
                 ledger.settle(folder);
                 let _ = self.write_ledger(&ledger);
@@ -616,11 +798,19 @@ impl FontStore {
             ledger.families.retain(|f| !f.files.is_empty());
             self.write_ledger(&ledger)?;
             prune_dirs(folder, stale.iter().map(|s| s.path.as_path()));
-            ledger.family(source, name).map(|f| f.copies().map(|x| x.path.clone()).collect()).unwrap_or_default()
+            // Every copy is registered again, so a registration lost since (a failed withdrawal,
+            // the user's edit) comes back.
+            let copies: Vec<&LedgerFile> = ledger.family(source, name).map(|f| f.copies().collect()).unwrap_or_default();
+            let registered = copies.iter().try_for_each(|f| match &f.registry {
+                Some(n) if folder.registers() => win::register(n, &f.path).map_err(io(format!("registering {}", f.path.display()))),
+                _ => Ok(()),
+            });
+            (copies.iter().map(|x| x.path.clone()).collect::<Vec<_>>(), registered)
         };
         folder.refresh();
         self.rescan();
-        Ok(copies)
+        let (copies, registered) = copies;
+        registered.map(|()| copies)
     }
 
     /// The family's files, checked against the manifest, with their PostScript names: the
@@ -637,12 +827,17 @@ impl FontStore {
             postscript.extend(f.postscript.iter().cloned());
             postscript.sort();
             postscript.dedup();
+            let registry = match folder.registers() {
+                true => Some(registry_value_name(&std::fs::read(&from).map_err(io(format!("reading {}", f.name)))?, &f.name)),
+                false => None,
+            };
             planned.push(Planned {
                 store_file: f.name.clone(),
                 source: from,
                 path: folder.path_for(&family.dir, &f.name),
                 sha256: f.sha256.clone(),
                 postscript,
+                registry,
             });
         }
         Ok(planned)
@@ -800,10 +995,22 @@ fn remove_if_unchanged(folder: &OsFontFolder, dir: &str, f: &LedgerFile) -> Resu
     }
     restore_removing(&f.path);
     let _ = std::fs::remove_file(aside(&f.path, "part"));
+    let what = || format!("removing {}", f.path.display());
+    let registry = f.registry.as_deref().filter(|_| folder.registers());
     if std::fs::symlink_metadata(&f.path).is_err() {
+        if let Some(name) = registry {
+            win::unregister(name, &f.path).map_err(io(what()))?;
+        }
         return Ok(true);
     }
-    let what = || format!("removing {}", f.path.display());
+    if let Some(name) = registry {
+        // A changed copy keeps its registration; the registration goes before the file, so that
+        // a copy Windows has loaded and won't let go isn't loaded again at the next sign-in.
+        if file_sha256(&f.path).as_ref() != Some(&f.sha256) {
+            return Ok(false);
+        }
+        win::unregister(name, &f.path).map_err(io(what()))?;
+    }
     let removing = aside(&f.path, "removing");
     std::fs::rename(&f.path, &removing).map_err(io(what()))?;
     if file_sha256(&removing).as_ref() == Some(&f.sha256) {
@@ -811,6 +1018,9 @@ fn remove_if_unchanged(folder: &OsFontFolder, dir: &str, f: &LedgerFile) -> Resu
         Ok(true)
     } else {
         std::fs::rename(&removing, &f.path).map_err(io(what()))?;
+        if let Some(name) = registry {
+            win::register(name, &f.path).map_err(io(what()))?;
+        }
         Ok(false)
     }
 }
