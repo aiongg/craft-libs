@@ -56,6 +56,8 @@ pub(crate) struct Subsets {
     /// disk cache are fetched. Read every few seconds, not every frame.
     available: bool,
     fetching: bool,
+    /// The effective service the last settings read saw; another one starts afresh.
+    service: Option<String>,
     /// When those were read.
     read_at: Option<f64>,
     /// Decoded subsets and the frame each was last wanted in.
@@ -86,6 +88,7 @@ impl Subsets {
             armed: false,
             available: false,
             fetching: false,
+            service: None,
             read_at: None,
             fonts: HashMap::new(),
             failed: HashMap::new(),
@@ -115,12 +118,13 @@ impl Subsets {
         self.available
     }
 
-    /// Reads whether a service is set and previews are on; a change asks for everything again.
+    /// Reads which service is set and whether previews are on; a change asks for everything again.
     fn read_settings(&mut self) {
-        let available = self.installer.preview_service().is_some();
+        let service = self.installer.preview_service();
+        let available = service.is_some();
         let fetching = self.pool.as_ref().is_some_and(Previews::available);
-        if (available, fetching) != (self.available, self.fetching) {
-            (self.available, self.fetching) = (available, fetching);
+        if (available, fetching, &service) != (self.available, self.fetching, &self.service) {
+            (self.available, self.fetching, self.service) = (available, fetching, service);
             self.failed.clear();
             self.detail.clear();
             self.cancel_all();
