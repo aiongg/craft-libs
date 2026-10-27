@@ -41,7 +41,7 @@ reads the platform once and calls it.
 `<PREFIX>_TITLEBAR` wins over the setting. With the default prefix `CRAFT`: `CRAFT_TITLEBAR=app`
 forces the app's bar (also on tiling compositors), `=system` or `=desktop` forces the native frame.
 Apps pass their own prefix (`Prefix::new("PDFCRAFT")` reads `PDFCRAFT_TITLEBAR`).
-Only `<PREFIX>_TITLEBAR` is read. `Decision::overridden` reports `Some(true)` or `Some(false)` when the variable decided.
+When `<PREFIX>_TITLEBAR` is unset, `CRAFT_TITLEBAR` applies, so one variable covers every app. `Decision::overridden` reports `Some(true)` or `Some(false)` when the variable decided.
 
 ## Use
 

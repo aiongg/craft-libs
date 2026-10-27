@@ -194,12 +194,12 @@ fn integrated_frame(
 }
 
 /// Read the platform once (500 ms at most, as for [`crate::Choice::probe`]) and decide.
-/// `prefix` names the override variable (only `<PREFIX>_TITLEBAR` is read, as in
-/// [`crate::Choice::probe`]); `backend` is the one the app opens its window on, [`Backend::from_env`]
+/// `prefix` names the override variable `<PREFIX>_TITLEBAR`; when it is unset, `CRAFT_TITLEBAR`
+/// applies. `backend` is the one the app opens its window on, [`Backend::from_env`]
 /// unless the app forces X11.
 pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decision {
     let os = Os::current();
-    let env = std::env::var(prefix.var_name()).ok();
+    let env = std::env::var(prefix.var_name()).or_else(|_| std::env::var(Prefix::default().var_name())).ok();
     let desktop =
         if os == Os::Linux { Desktop::detect(backend) } else { Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None } };
     decide_with(os, backend, &desktop, pref, env.as_deref(), &|kind| desktop_layout(os, kind))
