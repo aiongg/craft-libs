@@ -568,6 +568,9 @@ fn a_confined_folder_skips_links_that_leave_it() {
     cat.set_confined_dirs(vec![root.join("picked-link")]);
     assert_eq!(cat.families().to_vec(), ["Deep Face", "Inside Face"]);
     assert_eq!(cat.styles("Inside Face")[0].source, Source::User);
+    // A confined file opens by its real path without following a link swapped in for it.
+    assert!(crate::scan::open_regular(&picked.join("Inside.ttf"), true).is_ok());
+    assert!(crate::scan::open_regular(&picked.join("Secret.ttf"), true).is_err());
     // As an app folder, the same folder follows its links.
     cat.set_confined_dirs(vec![]);
     cat.set_app_dirs(vec![picked]);

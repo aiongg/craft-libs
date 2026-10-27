@@ -767,7 +767,7 @@ impl Catalog {
             return Ok(bytes);
         }
         use std::io::Read;
-        let file = scan::open_regular(path)?;
+        let file = scan::open_regular(path, false)?;
         let size = file.metadata()?.len();
         if size > MAX_LOAD {
             return Err(FontFileError::TooLarge { size, max: MAX_LOAD });
@@ -985,7 +985,7 @@ impl Catalog {
         }
 
         let mut files = HashMap::new();
-        for (path, source, by_name) in walk.files {
+        for (path, source, by_name, real) in walk.files {
             let Ok(meta) = std::fs::metadata(&path) else { continue };
             // A FIFO or device named like a font would block the scan or never end.
             if !meta.is_file() {
@@ -995,7 +995,9 @@ impl Catalog {
             let cached = state.files.remove(&path).filter(|c| c.len == len && c.modified == mtime);
             let mut faces = match cached {
                 Some(c) => c.faces,
-                None if by_name || scan::is_font_file(&path) || crate::suitcase::is_suitcase(&path) => scan::file_faces(&path, MAX_SCAN_READ, source),
+                None if by_name || scan::is_font_file(&path) || crate::suitcase::is_suitcase(&path) => {
+                    scan::opened_file_faces(&path, MAX_SCAN_READ, source, real)
+                }
                 None => continue,
             };
             for f in &mut faces {
@@ -1032,8 +1034,9 @@ struct Walk {
     seen_files: HashSet<PathBuf>,
     entries: usize,
     dirs: Vec<(PathBuf, Option<SystemTime>)>,
-    /// Each file with where it was found and whether a lister named it.
-    files: Vec<(PathBuf, Source, bool)>,
+    /// Each file with where it was found, whether a lister named it, and whether it is a
+    /// confined folder's file recorded by its real path (opened without following a link).
+    files: Vec<(PathBuf, Source, bool, bool)>,
 }
 
 impl Walk {
@@ -1081,14 +1084,14 @@ impl Walk {
         if inside.is_some_and(|root| !key.starts_with(root)) || !self.seen_files.insert(key) {
             return;
         }
-        let path = match inside {
+        let (path, real) = match inside {
             // On Windows the real path is a `\\?\` path, which apps would show.
             Some(_) if cfg!(unix) => match std::fs::canonicalize(&path) {
-                Ok(real) => real,
+                Ok(real) => (real, true),
                 Err(_) => return,
             },
-            _ => path,
+            _ => (path, false),
         };
-        self.files.push((path, source, by_name));
+        self.files.push((path, source, by_name, real));
     }
 }
