@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align2, Color32, ComboBox, CursorIcon, FontFamily, FontId, Galley, Painter, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, TextEdit,
-    TextFormat, Ui, Vec2, WidgetInfo, pos2, vec2,
+    Align2, Color32, CursorIcon, FontFamily, FontId, Galley, Painter, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, TextEdit, TextFormat,
+    Ui, Vec2, WidgetInfo, pos2, vec2,
 };
 
 use crate::panel::look::{Look, Palette};
@@ -378,7 +378,7 @@ pub fn field(ui: &mut Ui, s: &Skin, text: &mut String, hint: &str, label: &str, 
 
 /// A drop-down `width` wide showing `selected`, named `label`.
 pub fn select<R>(ui: &mut Ui, id_salt: &str, label: &str, selected: &str, width: f32, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    let inner = ComboBox::from_id_salt(id_salt).selected_text(selected).width(width).height(380.0).truncate().show_ui(ui, add);
+    let inner = craft_ui::combo::combo(ui, id_salt, selected, width, 380.0, add);
     name(ui, &inner.response, label);
     inner.inner
 }
