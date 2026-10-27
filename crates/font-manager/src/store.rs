@@ -167,6 +167,13 @@ pub trait Installer: Send + Sync {
         (!self.available_to_all_supported()).then(|| NOT_HERE.to_owned())
     }
 
+    /// The folder in the font store holding `family`'s files. The detail sheet keeps only the
+    /// installed files in it, so a family of the same name from another source isn't mistaken
+    /// for this one. `None` when the store has no folders.
+    fn family_folder(&self, _family: &Family) -> Option<PathBuf> {
+        None
+    }
+
     /// The copies of the store family `family` in the OS user font folder that this build can't
     /// change (a Flatpak whose access to the folder was revoked): removing the family leaves
     /// them. Empty when there are none or the folder can be changed.
@@ -360,6 +367,10 @@ impl Installer for SuiteStore {
 
     fn available_to_all_supported(&self) -> bool {
         self.store.available_to_all_supported()
+    }
+
+    fn family_folder(&self, family: &Family) -> Option<PathBuf> {
+        Some(self.store.dir().join(family.dir()))
     }
 
     fn is_available_to_all(&self, family: &str, files: &[PathBuf]) -> bool {

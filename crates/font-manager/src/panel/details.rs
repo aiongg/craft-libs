@@ -268,7 +268,11 @@ impl FontsPanel {
         let Some(index) = self.index() else { return true };
         let Some(family) = index.families().get(i).cloned() else { return true };
         let key = family_key(&family.source, &family.family);
-        let installed: Vec<FaceInfo> = self.installed_by_name.get(&family.family.to_lowercase()).cloned().unwrap_or_default();
+        // Store files of a same-named family from another source are not this family's.
+        let mut installed: Vec<FaceInfo> = self.installed_by_name.get(&family.family.to_lowercase()).cloned().unwrap_or_default();
+        if let Some(folder) = self.installer.family_folder(&family) {
+            keep_store_folder(&mut installed, &folder);
+        }
         let store: Vec<FaceInfo> = installed.iter().filter(|f| f.source == Source::Store).cloned().collect();
         let on_system = !installed.is_empty() && store.is_empty();
         let previewed = self.previewed.get(&key).cloned();
@@ -838,4 +842,28 @@ fn facts_box(ui: &mut Ui, s: &Skin, facts: &[(String, String)]) {
             ui.add(egui::Label::new(RichText::new(value).color(s.p.ink)).wrap());
         }
     });
+}
+
+/// Drops the store faces outside `folder`: the files of a same-named family from another source.
+fn keep_store_folder(faces: &mut Vec<FaceInfo>, folder: &std::path::Path) {
+    faces.retain(|f| belongs(f.source, f.path.as_deref(), folder));
+}
+
+/// Whether a face is not a store face, or is one directly in `folder`.
+fn belongs(source: Source, path: Option<&std::path::Path>, folder: &std::path::Path) -> bool {
+    source != Source::Store || path.and_then(|p| p.parent()) == Some(folder)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn same_named_families_from_two_sources_are_told_apart() {
+        let mine = Path::new("/s/mine/roboto");
+        assert!(belongs(Source::Store, Some(Path::new("/s/mine/roboto/Regular.ttf")), mine));
+        assert!(!belongs(Source::Store, Some(Path::new("/s/roboto/Regular.ttf")), mine));
+        assert!(belongs(Source::System, Some(Path::new("/sys/Roboto.ttf")), mine));
+    }
 }
