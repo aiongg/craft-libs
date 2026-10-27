@@ -100,7 +100,10 @@ impl Client {
 
     fn build(t: Timeouts, https_only: bool) -> Self {
         let agent = |https_only: bool, redirects: u32| {
-            let config = ureq::Agent::config_builder()
+            let builder = ureq::Agent::config_builder();
+            // A loopback request never goes through an environment proxy.
+            let builder = if https_only || redirects > 0 { builder } else { builder.proxy(None) };
+            let config = builder
                 .https_only(https_only)
                 .user_agent(USER_AGENT)
                 .timeout_connect(Some(t.connect))

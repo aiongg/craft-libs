@@ -697,7 +697,9 @@ mod store {
         let before = server.requests().len();
         // The licence has no mirror address here, and its index URLs are refused, so the install
         // fails; the file itself came from the mirror and nothing else was requested.
-        let _ = strict_user.install_face(&index, face, &Cancel::new(), &mut none);
+        let err = strict_user.install_face(&index, face, &Cancel::new(), &mut none).unwrap_err();
+        let licence = face.family.license_file_name().unwrap();
+        assert!(matches!(&err, Error::Download { what, .. } if what == licence), "{err:?}");
         assert_eq!(server.requests()[before..], [format!("/mirror/v1/files/{sha}")]);
 
         // Bytes that fail the sha256 fall through to the index's URLs.
