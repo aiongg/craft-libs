@@ -175,6 +175,9 @@ pub struct FontsPanel {
     pub(crate) language_text: String,
     /// The host's interface language tag, as passed to [`FontsPanel::set_language`].
     pub(crate) ui_tag: Option<String>,
+    /// The language filter set from the interface language. Rows keep their own samples under
+    /// it; only a language the user picks shows its sample text instead.
+    pub(crate) default_language: Option<usize>,
     /// The Language and Script filters have been set to the interface language's.
     pub(crate) filters_defaulted: bool,
     pub(crate) installed: Vec<InstalledFamily>,
@@ -305,6 +308,7 @@ impl FontsPanel {
             show_counts: [0; 3],
             language_text: String::new(),
             ui_tag: None,
+            default_language: None,
             filters_defaulted: false,
             installed: Vec::new(),
             installed_by_name: HashMap::new(),
@@ -676,7 +680,8 @@ impl FontsPanel {
             Preset::Alphabet => samples::ALPHABET.to_owned(),
             Preset::Numerals => samples::NUMERALS.to_owned(),
             Preset::Sentence => {
-                let language = self.catalogue.as_ref().ok().zip(self.query.language).and_then(|(c, l)| c.index.languages().get(l));
+                let chosen = self.query.language.filter(|l| Some(*l) != self.default_language);
+                let language = self.catalogue.as_ref().ok().zip(chosen).and_then(|(c, l)| c.index.languages().get(l));
                 language.and_then(|l| samples::for_language(&l.id)).or(own).unwrap_or_else(|| samples::for_scripts(scripts)).to_owned()
             }
         }

@@ -238,6 +238,7 @@ impl FontsPanel {
         let tag = self.ui_tag.clone().unwrap_or_else(|| i18n::I18N.code(i18n::current()).to_owned());
         let (language, script) = default_filters(&tag, |id| c.index.languages().iter().any(|l| l.id == id));
         self.query.language = c.index.languages().iter().position(|l| l.id == language);
+        self.default_language = self.query.language;
         self.query.script = c.index.scripts().iter().any(|s| s.id == script).then_some(script);
     }
 
