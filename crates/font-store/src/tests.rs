@@ -717,7 +717,10 @@ mod store {
         // for everything else.
         let strict = {
             let mut c = Client::new(Timeouts::default());
-            c.rewrite = vec![("https://cdn.jsdelivr.net/".into(), format!("{}cdn/", server.base))];
+            c.rewrite = vec![
+                ("https://cdn.jsdelivr.net/".into(), format!("{}cdn/", server.base)),
+                ("https://raw.githubusercontent.com/".into(), format!("{}raw/", server.base)),
+            ];
             c
         };
         let strict_user = FontStore::new(dir.clone(), Caller::User).with_client(strict).with_preview_env(None);
@@ -740,8 +743,8 @@ mod store {
     #[test]
     fn preview_service_setting_is_user_only_and_https() {
         let dir = temp("service");
-        let user = FontStore::new(dir.clone(), Caller::User);
-        let agent = FontStore::new(dir.clone(), Caller::Agent);
+        let user = FontStore::new(dir.clone(), Caller::User).with_preview_env(None);
+        let agent = FontStore::new(dir.clone(), Caller::Agent).with_preview_env(None);
         assert!(matches!(agent.set_preview_service(Some("https://fonts.example.com")), Err(Error::NotAllowed)));
         assert!(matches!(user.set_preview_service(Some("http://fonts.example.com")), Err(Error::BadUrl(_))));
         assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadUrl(_))));
