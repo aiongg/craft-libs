@@ -140,6 +140,7 @@
 mod desktop;
 mod layout;
 mod list;
+pub mod mac;
 mod menu;
 mod place;
 pub mod policy;
