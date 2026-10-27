@@ -29,10 +29,10 @@ impl IndexPin {
     }
 }
 
-/// The built-in sources of this build: aiongg/craft-font-index at `3de0f07` (Google Fonts at
+/// The built-in sources of this build: aiongg/craft-font-index at `995ef20` (Google Fonts at
 /// google/fonts `45e3d52`, and Noto), the copy `Index::bundled` compiles in.
 pub const PINNED_INDEX: IndexPin = IndexPin {
     repo: "aiongg/craft-font-index",
-    commit: "3de0f078dc1d52917382931d2309814db07214df",
-    sha256: "b9b5aade350f40629cb7bbaf88dae041b091f23115321daa2fe192bee4ee9dc5",
+    commit: "995ef2000a0159d70da245e22cfa0797a0756ae8",
+    sha256: "743cfb4c57176befe8190108efcba43f315de33e747b15ec8694c0625a14c24f",
 };
