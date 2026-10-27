@@ -822,6 +822,23 @@ mod store {
     }
 
     #[test]
+    fn previews_are_on_by_default_and_only_the_user_turns_them_off() {
+        let dir = temp("previews-setting");
+        let user = FontStore::new(dir.clone(), Caller::User);
+        let agent = FontStore::new(dir.clone(), Caller::Agent);
+        assert!(user.previews_enabled());
+        assert!(matches!(agent.set_previews_enabled(false), Err(Error::NotAllowed)));
+        user.set_previews_enabled(false).unwrap();
+        assert!(!agent.previews_enabled());
+        // Other settings don't bring it back.
+        user.set_preview_service(Some("https://fonts.example.com")).unwrap();
+        assert!(!user.previews_enabled());
+        user.set_previews_enabled(true).unwrap();
+        assert!(user.previews_enabled());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn preview_service_env_beats_the_setting() {
         let (env, setting) = (Some("https://a.example.com/"), Some("https://b.example.com"));
         assert_eq!(crate::store::resolve_preview_service(env, setting).as_deref(), Some("https://a.example.com"));

@@ -191,7 +191,7 @@ pub struct UserSource {
     pub last_sha256: Option<String>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Settings {
     #[serde(default)]
     network: Network,
@@ -199,6 +199,18 @@ struct Settings {
     user_sources: Vec<UserSource>,
     #[serde(default)]
     preview_service: Option<String>,
+    #[serde(default = "on")]
+    previews: bool,
+}
+
+fn on() -> bool {
+    true
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { network: Network::default(), user_sources: Vec::new(), preview_service: None, previews: true }
+    }
 }
 
 /// Something [`FontStore::verify`] found wrong with an installed file.
@@ -346,6 +358,21 @@ impl FontStore {
     /// Turns downloading off. Anyone may.
     pub fn disable_network(&self) -> Result<(), Error> {
         self.change_settings(|s| s.network = Network::Off)
+    }
+
+    /// Whether the app may fetch font previews from the preview service. On unless the user
+    /// turned it off. It matters only while a service is set; it doesn't affect installs.
+    pub fn previews_enabled(&self) -> bool {
+        self.settings().previews
+    }
+
+    /// Turns previews from the preview service on or off, from the user's own action.
+    /// [`Error::NotAllowed`] for an agent.
+    pub fn set_previews_enabled(&self, enabled: bool) -> Result<(), Error> {
+        if self.caller != Caller::User {
+            return Err(Error::NotAllowed);
+        }
+        self.change_settings(|s| s.previews = enabled)
     }
 
     fn change_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<(), Error> {

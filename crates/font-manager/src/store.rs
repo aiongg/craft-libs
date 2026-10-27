@@ -116,6 +116,17 @@ pub trait Installer: Send + Sync {
         PreviewServiceSource::None
     }
 
+    /// Whether previews may be fetched from the preview service: the user's setting, on by
+    /// default.
+    fn previews_enabled(&self) -> bool {
+        true
+    }
+
+    /// Turns previews on or off, as the user's own action.
+    fn set_previews_enabled(&self, _enabled: bool) -> Result<(), StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
+    }
+
     /// Sets or clears the preview service (https, or http for a loopback host), as the user's own
     /// action.
     fn set_preview_service(&self, _url: Option<&str>) -> Result<(), StoreError> {
@@ -244,6 +255,14 @@ impl Installer for SuiteStore {
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
         self.store.set_preview_service(url).map_err(err)
     }
+
+    fn previews_enabled(&self) -> bool {
+        self.store.previews_enabled()
+    }
+
+    fn set_previews_enabled(&self, enabled: bool) -> Result<(), StoreError> {
+        self.store.set_previews_enabled(enabled).map_err(err)
+    }
 }
 
 /// The store when the system names no folder for it (no home folder): nothing installs.
@@ -302,6 +321,7 @@ pub struct FakeStore {
     served_indexes: HashMap<String, Vec<u8>>,
     user: Mutex<Vec<UserSource>>,
     preview_service: Mutex<Option<String>>,
+    previews: Mutex<bool>,
     /// User sources downloaded so far, and those whose file changed since.
     fetched: Mutex<Vec<String>>,
     changed: Mutex<Vec<String>>,
@@ -322,6 +342,7 @@ impl FakeStore {
             served_indexes: HashMap::new(),
             user: Mutex::new(Vec::new()),
             preview_service: Mutex::new(None),
+            previews: Mutex::new(true),
             fetched: Mutex::new(Vec::new()),
             changed: Mutex::new(Vec::new()),
             held: (Mutex::new(false), Condvar::new()),
@@ -538,6 +559,15 @@ impl Installer for FakeStore {
 
     fn preview_service_source(&self) -> PreviewServiceSource {
         if self.preview_service().is_some() { PreviewServiceSource::Saved } else { PreviewServiceSource::None }
+    }
+
+    fn previews_enabled(&self) -> bool {
+        self.previews.lock().map_or(true, |p| *p)
+    }
+
+    fn set_previews_enabled(&self, enabled: bool) -> Result<(), StoreError> {
+        *self.previews.lock().map_err(err)? = enabled;
+        Ok(())
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
