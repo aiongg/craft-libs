@@ -465,7 +465,7 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
                 return invalid(format!("`{}` has a bad axis", short(&f.path)));
             }
         }
-        if f.instances.len() > MAX_LIST || f.list_instance.is_some_and(|i| i >= f.instances.len()) {
+        if (!f.instances.is_empty() && f.axes.is_empty()) || f.instances.len() > MAX_LIST || f.list_instance.is_some_and(|i| i >= f.instances.len()) {
             return invalid(format!("`{}` has a bad list instance", short(&f.path)));
         }
         for ps in &f.postscript {
