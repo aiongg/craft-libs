@@ -650,8 +650,8 @@ impl Index {
         if let Some(text) = &file.sample_text {
             return Some(text);
         }
-        let script = file.sample_script.as_ref().or(family.sample_script.as_ref())?;
-        self.sample(script).map(|s| s.text.as_str())
+        let sample = |script: &Option<String>| script.as_deref().and_then(|s| self.sample(s));
+        sample(&file.sample_script).or_else(|| sample(&family.sample_script)).map(|s| s.text.as_str())
     }
 
     /// The family of this name, ignoring case, from the first source that has it. Only the whole

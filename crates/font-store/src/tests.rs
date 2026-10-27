@@ -155,8 +155,9 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     first["families"][2]["reserved_names"] = json!(["Test"]);
     first["families"][2]["files"][0]["sample_script"] = json!("Thai");
     first["families"][2]["files"][1]["sample_text"] = json!("Own text");
-    first["families"][2]["files"][2]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
-    first["families"][2]["files"][2]["list_instance"] = json!(0);
+    first["families"][2]["files"][2]["sample_script"] = json!("Zsym");
+    first["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
+    first["families"][3]["files"][0]["list_instance"] = json!(0);
     let mut second = noto_fixture().index;
     second["samples"] = json!({"Thai": sample("second"), "Jpan": sample("Japanese")});
     let index = Index::merge([index_of(&first).unwrap(), index_of(&second).unwrap()]);
@@ -168,11 +169,15 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     );
     assert_eq!(index.samples().keys().collect::<Vec<_>>(), ["Jpan", "Latn", "Thai"]);
     assert_eq!(index.sample("Thai").unwrap().text, "first");
-    // Own text, then the file's script, then the family's.
+    // Own text, then the file's script, then the family's (Zsym has no sample).
     assert_eq!(index.sample_text(sans, &sans.files[1]), Some("Own text"));
     assert_eq!(index.sample_text(sans, &sans.files[0]), Some("first"));
     assert_eq!(index.sample_text(sans, &sans.files[2]), Some("Hello"));
-    assert_eq!((sans.files[2].instances[0].name.as_str(), sans.files[2].list_instance), ("Regular", Some(0)));
+    let var = index.family_from(GOOGLE_FONTS, "Test Var").unwrap();
+    assert_eq!((var.files[0].instances[0].name.as_str(), var.files[0].list_instance), ("Regular", Some(0)));
+
+    first["families"][3]["files"][0]["list_instance"] = json!(1);
+    assert!(index_of(&first).is_err());
 }
 
 #[cfg(feature = "bundled-index")]
