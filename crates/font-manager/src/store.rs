@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex};
 
 use craft_font_catalog::Catalog;
-pub use craft_font_store::UserSource;
 use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, verify_font};
+pub use craft_font_store::{LegalText, UserSource};
 
 use crate::index::{Family, Index};
 
@@ -120,6 +120,12 @@ pub trait Installer: Send + Sync {
     /// for as long as the caller holds them.
     fn preview_cache(&self) -> Option<PathBuf> {
         None
+    }
+
+    /// The text of `family`'s licence or NOTICE file: the installed copy, else downloaded when
+    /// downloads are allowed. `None` when the family has no such file.
+    fn legal_text(&self, _index: &Index, _family: &Family, _which: LegalText) -> Result<Option<String>, StoreError> {
+        Err(StoreError(NO_FOLDER.into()))
     }
 }
 
@@ -243,6 +249,10 @@ impl Installer for SuiteStore {
 
     fn preview_cache(&self) -> Option<PathBuf> {
         Some(self.store.previews_dir())
+    }
+
+    fn legal_text(&self, index: &Index, family: &Family, which: LegalText) -> Result<Option<String>, StoreError> {
+        self.store.legal_text(index, family, which, &Cancel::new()).map_err(err)
     }
 }
 
@@ -544,5 +554,19 @@ impl Installer for FakeStore {
 
     fn preview_cache(&self) -> Option<PathBuf> {
         Some(self.dir.join("previews"))
+    }
+
+    /// Served from the file table by the index path, like a font.
+    fn legal_text(&self, _: &Index, family: &Family, which: LegalText) -> Result<Option<String>, StoreError> {
+        let path = match which {
+            LegalText::License => family.license_file.as_ref().map(|f| f.path.as_str()).or(family.license_path.as_deref()),
+            LegalText::Notice => family.notice_file.as_ref().map(|f| f.path.as_str()),
+        };
+        let Some(path) = path else { return Ok(None) };
+        if !self.downloads_allowed() {
+            return Err(StoreError("downloading fonts is turned off".into()));
+        }
+        let bytes = self.files.get(path).ok_or_else(|| StoreError(format!("{path} isn't available")))?;
+        Ok(Some(String::from_utf8_lossy(bytes).into_owned()))
     }
 }

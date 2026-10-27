@@ -9,13 +9,14 @@ use crate::filter::{Query, Search};
 use crate::index::{Category, Family, FontFile, Index, categories, source_label};
 use crate::installed::{InstalledFamily, group};
 use crate::remote::Previews;
-use crate::store::{Installer, RemoveRequest, StoreError};
+use crate::store::{Installer, LegalText, RemoveRequest, StoreError};
 use crate::{Catalog, FaceInfo, Source};
 use craft_i18n::Folder;
 use craft_ui::direction;
 use craft_ui::fonts::{CraftFace, I18nScripts, UiFonts};
 use egui::{CentralPanel, Context, Frame, Margin, Panel, Ui};
 
+use crate::panel::details::Legal;
 use crate::panel::faces::FaceFonts;
 use crate::panel::i18n::{self, I18N, LANGUAGES, fmt, tl};
 use crate::panel::jobs::{Finished, Jobs, Kind, Request, Runner};
@@ -187,6 +188,10 @@ pub struct FontsPanel {
     /// The list's previews from the font preview service.
     pub(crate) subsets: Subsets,
     pub(crate) faces: FaceFonts,
+    /// The detail view's axis sliders, by file sha256 and axis tag.
+    pub(crate) detail_axes: HashMap<(String, [u8; 4]), f32>,
+    /// Licence and NOTICE texts, by family key.
+    pub(crate) legal: HashMap<(String, LegalText), Legal>,
     pub(crate) jobs: Jobs,
     pub(crate) asking: Option<Pending>,
     /// By lower-case family name.
@@ -305,6 +310,8 @@ impl FontsPanel {
             previewed: HashMap::new(),
             subsets,
             faces: FaceFonts::default(),
+            detail_axes: HashMap::new(),
+            legal: HashMap::new(),
             jobs: Jobs::new(options.runner),
             asking: None,
             failed: HashMap::new(),

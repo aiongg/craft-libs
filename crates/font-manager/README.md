@@ -34,8 +34,12 @@ The layout follows Adobe Fonts' and Google Fonts' browse pages.
   sample from the index, by its `sample_script`; the alphabet; numerals), the sample text, and the
   size.
 - **Details sheet** over the list: every style in its own face with Install or Remove for each,
-  Install all and Remove all, the source, designer, licence, scripts and languages, and what a
-  preview downloads.
+  Install all and Remove all, the source, scripts and languages, and what a preview downloads.
+  With a preview service, styles not installed draw with its subsets: a static file's sample, and
+  one subset of each variable file with every axis kept, drawn at each named instance and at the
+  values of its axis sliders. The licence block shows the licence, copyright, designer and
+  upstream link, an Apache family's NOTICE, and the licence text on request, read through the
+  store.
 - **Installed**: system and font store fonts as the same cards, filtered by source. Only font
   store families can be removed; system fonts are removed with the system's own tools.
 - **Sources** (`sources_ui`, for a host's settings page): the built-in sources, the index URLs the

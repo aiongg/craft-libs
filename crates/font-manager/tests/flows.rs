@@ -497,6 +497,11 @@ impl Fetch for FakeService {
 }
 
 impl FakeService {
+    /// The URLs answered since the last call.
+    fn urls(&self) -> Vec<String> {
+        std::mem::take(&mut *self.answered.lock().unwrap())
+    }
+
     /// What was answered since the last call, as (family number, subset): `sample`, `ascii`, or
     /// `u` for typed characters.
     fn take(&self) -> Vec<(usize, String)> {
@@ -538,6 +543,11 @@ fn service_index() -> Index {
 /// The panel over [`service_index`] with no installed fonts, previews fetched from `service` by
 /// `workers` threads, and the preview service not yet set.
 fn service_setup(name: &str, service: &Arc<FakeService>, workers: usize) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
+    service_setup_with(name, service, workers, service_index())
+}
+
+/// [`service_setup`] over `index`.
+fn service_setup_with(name: &str, service: &Arc<FakeService>, workers: usize, index: Index) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("flows").join(name);
     let _ = std::fs::remove_dir_all(&root);
     let store_dir = root.join("store");
@@ -547,7 +557,7 @@ fn service_setup(name: &str, service: &Arc<FakeService>, workers: usize) -> (Har
     catalog.rescan();
     let store = Arc::new(FakeStore::new(store_dir, HashMap::new()));
     let previews = Previews::new(store.clone()).with_fetcher(service.clone()).with_cache(None).with_workers(workers);
-    let options = Options { catalog, installer: store.clone(), index: Ok(service_index()), runner: Runner::Inline };
+    let options = Options { catalog, installer: store.clone(), index: Ok(index), runner: Runner::Inline };
     let panel = FontsPanel::new(options, Settings::default()).with_previews(previews);
     let mut harness = Harness::builder()
         .with_size([1120.0, 678.0])
@@ -658,4 +668,55 @@ fn scrolling_cancels_rows_that_left() {
     let first = shown[0] - shown.len();
     assert!(!answered.is_empty());
     assert!(answered.iter().all(|(n, _)| *n >= first), "rows that left the window were fetched: {answered:?}");
+}
+
+/// One family: a variable upright file (`wght` 100 to 900, three named instances) whose sha256
+/// is `ab…`, and a static italic, `cd…`.
+fn variable_index() -> Index {
+    let json = format!(
+        r#"{{"schema":1,"version":"1.2","source":"google/fonts","commit":"45e3d5269e4a17d823f6d84470bc084dc5ae46f6","base_url":"https://cdn.jsdelivr.net/gh/google/fonts@45e3d5269e4a17d823f6d84470bc084dc5ae46f6/",
+        "languages":[{{"id":"en_Latn","name":"English","script":"Latn","population":1}}],
+        "scripts":[{{"id":"Latn","name":"Latin"}}],
+        "samples":{{"Latn":{{"text":"Sphinx of black quartz, judge my vow","method":"udhr","language":"en_Latn"}}}},
+        "families":[{{"family":"Varia","categories":["SANS_SERIF"],"languages":[0],"scripts":["Latn"],"license":"OFL","sample_script":"Latn",
+          "files":[
+            {{"path":"ofl/varia/Varia[wght].ttf","size":1000,"sha256":"{}","style":"normal","weight":400,"axes":[{{"tag":"wght","min":100,"max":900}}],"postscript":[],
+              "instances":[{{"name":"Thin","coordinates":{{"wght":100}}}},{{"name":"Regular","coordinates":{{"wght":400}}}},{{"name":"Bold","coordinates":{{"wght":700}}}}],"list_instance":1}},
+            {{"path":"ofl/varia/Varia-Italic.ttf","size":1000,"sha256":"{}","style":"italic","weight":400,"axes":[],"postscript":[]}}]}}]}}"#,
+        "ab".repeat(32),
+        "cd".repeat(32)
+    );
+    Index::from_json(json.as_bytes()).unwrap()
+}
+
+#[test]
+fn a_variable_family_draws_one_var_subset_at_every_axis_value() {
+    let service = Arc::new(FakeService::default());
+    let (mut h, store) = service_setup_with("variable-details", &service, 8, variable_index());
+    store.set_preview_service(Some("http://127.0.0.1:9")).unwrap();
+    allow(&mut h);
+    idle(&mut h);
+    service.urls();
+
+    click(&mut h, "Varia");
+    assert_eq!(h.state().details_family().as_deref(), Some("Varia"));
+    idle(&mut h);
+    let urls = service.urls();
+    let var: Vec<&String> = urls.iter().filter(|u| u.contains("/var/")).collect();
+    assert_eq!(var.len(), 1, "one subset for the variable file's every style: {urls:?}");
+    assert!(var[0].ends_with(&format!("{}/var/sample.woff2", "ab".repeat(32))), "{urls:?}");
+    assert!(urls.iter().any(|u| u.ends_with(&format!("{}/list/sample.woff2", "cd".repeat(32)))), "the static italic's own sample: {urls:?}");
+    for style in ["Thin", "Regular", "Bold"] {
+        assert!(h.query_by_label(style).is_some(), "no {style} row");
+    }
+
+    let value = |h: &Harness<'_, FontsPanel>| h.get_by_role_and_label(Role::Slider, "Weight").accesskit_node().numeric_value();
+    assert_eq!(value(&h), Some(400.0));
+    h.get_by_role_and_label(Role::Slider, "Weight").focus();
+    h.step();
+    h.key_press(egui::Key::ArrowRight);
+    settle(&mut h);
+    assert_eq!(value(&h), Some(401.0));
+    idle(&mut h);
+    assert!(service.urls().is_empty(), "the slider asked for another subset");
 }

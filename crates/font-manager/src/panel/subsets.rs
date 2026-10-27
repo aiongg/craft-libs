@@ -7,14 +7,17 @@
 //! typed text asks for a subset of its own characters, for the rows on screen only, once the
 //! typing pauses. Without a service, or with downloads off and nothing cached, nothing is asked
 //! and the list keeps its whole-family previews.
+//!
+//! The detail view asks for each file it shows, before the list's rows: a static file's subset as
+//! the list would, a variable file's at the `var` instance, which keeps every axis.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
 use egui::Context;
 
-use crate::index::{Family, Index};
+use crate::index::{Family, FontFile, Index};
 use crate::panel::app::list_file;
 use crate::remote::{Codepoints, Instance, PreviewKey, Previews, Subset};
 
@@ -24,6 +27,8 @@ const VISIBLE: u32 = 3;
 const WINDOW: u32 = 2;
 /// ASCII subsets for the rows on screen, once their samples are in.
 const BACKGROUND: u32 = 1;
+/// The files of the family the detail view shows.
+const DETAIL: u32 = 4;
 
 /// How long typing pauses before its characters are asked for.
 const PAUSE_SECS: f64 = 0.25;
@@ -50,8 +55,14 @@ pub(crate) struct Subsets {
     failed: HashMap<PreviewKey, f64>,
     /// Asked for and not back yet, at this priority.
     asked: HashMap<PreviewKey, u32>,
-    /// The subset each face (by sha256) was last drawn with, drawn while the next one loads.
-    shown: HashMap<String, PreviewKey>,
+    /// The subset each face (by sha256 and instance) was last drawn with, drawn while the next
+    /// one loads.
+    shown: HashMap<(String, Instance), PreviewKey>,
+    /// Asked for by the detail view; the list leaves them be.
+    detail: HashSet<PreviewKey>,
+    /// What the detail view wants this frame, and whether it waits for typing to pause.
+    detail_wanted: HashSet<PreviewKey>,
+    detail_waits: bool,
     /// The text setting as last seen, and since when.
     typed: (String, f64),
     frame: u64,
@@ -69,6 +80,9 @@ impl Subsets {
             failed: HashMap::new(),
             asked: HashMap::new(),
             shown: HashMap::new(),
+            detail: HashSet::new(),
+            detail_wanted: HashSet::new(),
+            detail_waits: false,
             typed: (String::new(), 0.0),
             frame: 0,
             now: 0.0,
@@ -87,6 +101,7 @@ impl Subsets {
             self.available = available;
             self.failed.clear();
             if !available {
+                self.detail.clear();
                 self.cancel_all();
             }
         }
@@ -95,6 +110,11 @@ impl Subsets {
     /// Asks for failed subsets again, as after downloads were allowed.
     pub(crate) fn retry(&mut self) {
         self.failed.clear();
+    }
+
+    /// Whether a service is set.
+    pub(crate) fn available(&self) -> bool {
+        self.available
     }
 
     /// Whether subsets are being fetched.
@@ -140,20 +160,71 @@ impl Subsets {
             return None;
         }
         let want = key(index, row)?;
+        self.loaded(want)
+    }
+
+    /// `want` if it is here, else the subset its face was last drawn with at its instance.
+    fn loaded(&mut self, want: PreviewKey) -> Option<(PreviewKey, Arc<Vec<u8>>)> {
         if self.has_failed(&want) {
             return None;
         }
         let frame = self.frame;
+        let face = (want.sha256().to_owned(), want.instance());
         if let Some((font, used)) = self.fonts.get_mut(&want) {
             *used = frame;
             let font = Arc::clone(font);
-            self.shown.insert(want.sha256().to_owned(), want.clone());
+            self.shown.insert(face, want.clone());
             return Some((want, font));
         }
-        let last = self.shown.get(want.sha256())?;
+        let last = self.shown.get(&face)?;
         let (font, used) = self.fonts.get_mut(last)?;
         *used = frame;
         Some((last.clone(), Arc::clone(font)))
+    }
+
+    /// The subset that draws `text` in `file` of `family` in the detail view, and asks for it
+    /// with [`Subsets::request_detail`]: the file's sample subset, and the one `text` needs once
+    /// typing pauses. `None` without a service, while nothing of the file has loaded, and when
+    /// its subset failed.
+    pub(crate) fn detail_font(&mut self, index: &Index, family: &Family, file: &FontFile, text: &str) -> Option<(PreviewKey, Arc<Vec<u8>>)> {
+        if !self.available {
+            return None;
+        }
+        let want = text_key(index, family, file, detail_instance(file), text)?;
+        let sample = PreviewKey::new(&file.sha256, detail_instance(file), Subset::Sample)?;
+        let typing = matches!(want.subset(), Subset::Codepoints(_)) && self.now - self.typed.1 < PAUSE_SECS;
+        self.detail_waits |= typing;
+        if !typing {
+            self.detail_wanted.insert(want.clone());
+        }
+        self.detail_wanted.insert(sample.clone());
+        self.loaded(want).or_else(|| self.loaded(sample))
+    }
+
+    /// Asks for what [`Subsets::detail_font`] wanted this frame, before the list's rows; called
+    /// once a frame, also when the detail view is closed. What it no longer wants goes back to
+    /// the list, which cancels what it doesn't want either.
+    pub(crate) fn request_detail(&mut self, ctx: &Context, allowed: bool) {
+        let wanted = std::mem::take(&mut self.detail_wanted);
+        if std::mem::take(&mut self.detail_waits) {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(PAUSE_SECS));
+        }
+        if !self.available {
+            self.detail.clear();
+            return;
+        }
+        let mut asking = HashMap::new();
+        for key in wanted {
+            self.want(&mut asking, key, DETAIL, allowed);
+        }
+        self.detail = asking.keys().cloned().collect();
+        let Some(pool) = &self.pool else { return };
+        for (key, priority) in asking {
+            if self.asked.get(&key) != Some(&priority) {
+                pool.request(key.clone(), priority);
+                self.asked.insert(key, priority);
+            }
+        }
     }
 
     /// The rows to pass to [`Subsets::request`] when `visible` of `count` rows are on screen:
@@ -207,12 +278,14 @@ impl Subsets {
         }
 
         let Some(pool) = &self.pool else { return };
-        if self.asked.keys().any(|k| !wanted.contains_key(k)) {
-            pool.retain(|k| wanted.contains_key(k));
-            self.asked.retain(|k, _| wanted.contains_key(k));
+        let detail = &self.detail;
+        let keep = |k: &PreviewKey| wanted.contains_key(k) || detail.contains(k);
+        if self.asked.keys().any(|k| !keep(k)) {
+            pool.retain(&keep);
+            self.asked.retain(|k, _| keep(k));
         }
         for (key, priority) in wanted {
-            if self.asked.get(&key) != Some(&priority) {
+            if !self.detail.contains(&key) && self.asked.get(&key) != Some(&priority) {
                 pool.request(key.clone(), priority);
                 self.asked.insert(key, priority);
             }
@@ -240,15 +313,16 @@ impl Subsets {
         self.failed.get(key).is_some_and(|at| self.now - at < RETRY_SECS)
     }
 
-    /// Cancels everything asked for, as when the list isn't shown.
+    /// Cancels everything the list asked for, as when it isn't shown.
     pub(crate) fn cancel_all(&mut self) {
-        if self.asked.is_empty() {
+        if self.asked.keys().all(|k| self.detail.contains(k)) {
             return;
         }
+        let detail = &self.detail;
         if let Some(pool) = &self.pool {
-            pool.retain(|_| false);
+            pool.retain(|k| detail.contains(k));
         }
-        self.asked.clear();
+        self.asked.retain(|k, _| detail.contains(k));
     }
 
     /// Drops the subsets wanted least recently past [`MAX_HELD`].
@@ -263,6 +337,11 @@ impl Subsets {
         }
         self.shown.retain(|_, k| self.fonts.contains_key(k));
     }
+}
+
+/// The instance the detail view draws `file` at: every axis for a variable file.
+fn detail_instance(file: &FontFile) -> Instance {
+    if file.is_variable() { Instance::Var } else { Instance::List }
 }
 
 fn subset_key(family: &Family, subset: Subset) -> Option<PreviewKey> {
@@ -282,9 +361,11 @@ fn covers_latin(family: &Family) -> bool {
 /// text's own characters. `None` for a family without files, or text of more characters than a
 /// request may name.
 fn key(index: &Index, row: &Row<'_>) -> Option<PreviewKey> {
-    let family = row.family;
-    let file = list_file(family)?;
-    let text = row.text.as_str();
+    text_key(index, row.family, list_file(row.family)?, Instance::List, &row.text)
+}
+
+/// The subset of `file` at `instance` that draws `text`, by the rule of [`key`].
+fn text_key(index: &Index, family: &Family, file: &FontFile, instance: Instance, text: &str) -> Option<PreviewKey> {
     let sample = index.sample_text(family, file);
     let in_sample = |c: char| c == ' ' || sample.is_some_and(|s| s.contains(c)) || family.family.contains(c);
     let subset = if sample == Some(text) || (sample.is_some() && text.chars().all(in_sample)) {
@@ -294,5 +375,5 @@ fn key(index: &Index, row: &Row<'_>) -> Option<PreviewKey> {
     } else {
         Subset::Codepoints(Codepoints::from_text(text))
     };
-    PreviewKey::new(&file.sha256, Instance::List, subset)
+    PreviewKey::new(&file.sha256, instance, subset)
 }

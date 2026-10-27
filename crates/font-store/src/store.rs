@@ -23,7 +23,9 @@ use craft_font_catalog::{Catalog, FontEnv, font_store_dir};
 use serde::{Deserialize, Serialize};
 
 use crate::http::{Cancel, Client, FetchError};
-use crate::index::{Face, Family, FontFile, GOOGLE_FONTS, Index, IndexError, MAX_INDEX_BYTES, MAX_LICENSE_BYTES, SourceProblem, Unavailable};
+use crate::index::{
+    Face, Family, FontFile, GOOGLE_FONTS, Index, IndexError, LicenseFile, MAX_INDEX_BYTES, MAX_LICENSE_BYTES, SourceProblem, Unavailable,
+};
 use crate::pin::IndexPin;
 use crate::source::{is_source_url, safe_dir, safe_file_name, slug};
 use crate::sources::{MAX_SOURCES_BYTES, SourceEntry, SourcesFile};
@@ -209,6 +211,25 @@ pub struct Problem {
     pub file: String,
     /// What is wrong; `None` when the file is missing.
     pub error: Option<VerifyError>,
+}
+
+/// Which of a family's legal texts [`FontStore::legal_text`] reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LegalText {
+    /// The licence file (`OFL.txt`, `LICENSE.txt`).
+    License,
+    /// An Apache family's `NOTICE` file.
+    Notice,
+}
+
+/// A licence or NOTICE file's size and sha256, when the index has them. A format 1.0 index has
+/// neither for the licence: the size cap is then the only check.
+fn check_license(file: Option<&LicenseFile>, bytes: &[u8]) -> Result<(), VerifyError> {
+    match file {
+        Some(f) if bytes.len() as u64 != f.size => Err(VerifyError::Size { expected: f.size, actual: bytes.len() as u64 }),
+        Some(f) if sha256_hex(bytes) != f.sha256 => Err(VerifyError::Sha256),
+        _ => Ok(()),
+    }
 }
 
 /// The suite's font store.
@@ -547,11 +568,7 @@ impl FontStore {
             // A format 1.0 index has no size or sha256 for the licence: the size cap is the only
             // check.
             let max = family.license_file.as_ref().map_or(MAX_LICENSE_BYTES, |f| f.size);
-            let check = |bytes: &[u8]| match &family.license_file {
-                Some(f) if bytes.len() as u64 != f.size => Err(VerifyError::Size { expected: f.size, actual: bytes.len() as u64 }),
-                Some(f) if sha256_hex(bytes) != f.sha256 => Err(VerifyError::Sha256),
-                _ => Ok(()),
-            };
+            let check = |bytes: &[u8]| check_license(family.license_file.as_ref(), bytes);
             // Without a sha256 there is no mirror address.
             let mut urls = family.license_file.as_ref().map(|f| self.mirror_urls("licences", &f.sha256)).unwrap_or_default();
             let mirrors = urls.len();
@@ -582,6 +599,32 @@ impl FontStore {
         drop(stage);
         self.rescan();
         result
+    }
+
+    /// The text of `family`'s licence or NOTICE file: the copy installed beside its fonts, else
+    /// downloaded and checked like an install's licence, from the preview service first.
+    /// `Ok(None)` when the family has no such file.
+    pub fn legal_text(&self, index: &Index, family: &Family, which: LegalText, cancel: &Cancel) -> Result<Option<String>, Error> {
+        let (file, name, urls) = match which {
+            LegalText::License => (family.license_file.as_ref(), family.license_file_name(), index.license_urls(family)),
+            LegalText::Notice => (family.notice_file.as_ref(), family.notice_file.as_ref().map(LicenseFile::file_name), index.notice_urls(family)),
+        };
+        let Some(name) = name else { return Ok(None) };
+        let max = file.map_or(MAX_LICENSE_BYTES, |f| f.size);
+        let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+        let installed = self.dir.join(family.dir()).join(name);
+        if std::fs::metadata(&installed).is_ok_and(|m| m.is_file() && m.len() <= max)
+            && let Ok(bytes) = std::fs::read(&installed)
+            && check_license(file, &bytes).is_ok()
+        {
+            return Ok(Some(text(&bytes)));
+        }
+        self.require_network()?;
+        let mut all = file.map(|f| self.mirror_urls("licences", &f.sha256)).unwrap_or_default();
+        let mirrors = all.len();
+        all.extend(urls);
+        let bytes = self.fetch(&all, mirrors, max, name, cancel, &mut |_| {}, &|b| check_license(file, b))?;
+        Ok(Some(text(&bytes)))
     }
 
     /// The preview service's address for a file by its sha256; empty without a service.

@@ -806,6 +806,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "skrifa 0.47.0",
  "wuff",
 ]
 
