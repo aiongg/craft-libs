@@ -445,12 +445,8 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
     for s in fam.categories.iter().chain(&fam.subsets).chain(&fam.scripts) {
         check_str("category, subset or script", s)?;
     }
-    for s in fam.tags.iter().chain(&fam.reserved_names).chain(&fam.sample_script) {
-        check_str("tag, reserved name or sample script", s)?;
-    }
-    // The committed Google Fonts index has copyright notices with line breaks.
-    if let Some(c) = &fam.copyright {
-        check_str("copyright", &c.replace(['\n', '\r', '\t'], " "))?;
+    for s in fam.tags.iter().chain(&fam.reserved_names).chain(&fam.sample_script).chain(&fam.copyright) {
+        check_str("tag, reserved name, sample script or copyright", s)?;
     }
     if fam.upstream.as_deref().is_some_and(|u| !is_source_url(u)) {
         return invalid(format!("the upstream of `{name}` is not an https URL"));

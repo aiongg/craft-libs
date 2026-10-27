@@ -194,7 +194,7 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
     // Every 1.2 string a user source can set is checked, one case at a time.
     let mut check = first.clone();
     check["families"][2]["files"][0]["instances"] = json!([]);
-    check["families"][2]["copyright"] = json!("Copyright 2020\nTest");
+    check["families"][2]["copyright"] = json!("Copyright 2020 Test");
     check["families"][3]["files"][0]["instances"] = json!([{"name": "Regular", "coordinates": {"wght": 400.0}}]);
     assert!(index_of(&check).is_ok());
     fn reject(v: &mut serde_json::Value, path: &dyn Fn(&mut serde_json::Value) -> &mut serde_json::Value, bad: serde_json::Value, what: &str) {
@@ -204,6 +204,7 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
         assert!(index_of(v).is_ok(), "{what} restored");
     }
     reject(&mut check, &|v| &mut v["families"][2]["tags"][0], json!("Sans\u{202e}"), "bidi control in a tag");
+    reject(&mut check, &|v| &mut v["families"][2]["copyright"], json!("Copyright 2020\nTest"), "line break in a copyright");
     reject(&mut check, &|v| &mut v["families"][2]["files"][1]["sample_text"], json!("x".repeat(61)), "long sample text");
     reject(&mut check, &|v| &mut v["families"][3]["files"][0]["instances"][0]["coordinates"]["wght"], json!(900.0), "coordinate out of range");
     check["families"][3]["upstream"] = json!("https://example.org/repo");
