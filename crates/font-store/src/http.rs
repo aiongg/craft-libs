@@ -4,9 +4,9 @@
 
 use std::io::Read;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Cancels a download from another thread. Clones share the flag.
 #[derive(Clone, Debug, Default)]
@@ -48,6 +48,14 @@ impl Default for Timeouts {
     }
 }
 
+impl FetchError {
+    /// Whether the server couldn't be reached or didn't answer in time, as opposed to answering
+    /// with an HTTP status or too much data.
+    pub fn is_network(&self) -> bool {
+        matches!(self, FetchError::Failed(m) if !m.starts_with("HTTP "))
+    }
+}
+
 /// Why a request failed.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum FetchError {
@@ -65,16 +73,25 @@ pub enum FetchError {
     Failed(String),
 }
 
+/// How long a preview service that failed on the network is skipped.
+pub const SERVICE_BACKOFF: Duration = Duration::from_secs(60);
+
+fn now_millis() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
 /// The User-Agent every request sends: the crate and its version, nothing about the user.
 pub const USER_AGENT: &str = concat!("craft-font-store/", env!("CARGO_PKG_VERSION"));
 
 /// The HTTP client. HTTPS only, except [`Client::get_from_service`], which also speaks plain
-/// http to `127.0.0.1`, `::1` or `localhost`; no cookies, no credentials.
+/// http to `127.0.0.1` or `::1`; no cookies, no credentials.
 #[derive(Clone)]
 pub struct Client {
     agent: ureq::Agent,
     /// For `http://` to a loopback host. It follows no redirects, so it never leaves the machine.
     loopback: ureq::Agent,
+    /// When the preview service may be tried again after a network failure. Clones share it.
+    service_down_until: Arc<AtomicU64>,
     /// URL prefixes the tests serve from a local server.
     #[cfg(test)]
     pub(crate) rewrite: Vec<(String, String)>,
@@ -117,6 +134,7 @@ impl Client {
         Self {
             agent: agent(https_only, 3),
             loopback: agent(false, 0),
+            service_down_until: Arc::new(AtomicU64::new(0)),
             #[cfg(test)]
             rewrite: Vec::new(),
         }
@@ -147,8 +165,29 @@ impl Client {
     /// [`Client::get`] for a URL built from the validated preview-service setting: plain `http://`
     /// to a loopback host is allowed, without following redirects. Never call it with a URL from
     /// an index or a user source.
+    ///
+    /// After a network failure (no connection, a timeout; not an HTTP status) the service counts as
+    /// down for [`SERVICE_BACKOFF`]: calls in that time fail at once, so a service that is off
+    /// doesn't make every request wait out the timeouts. Clones of the client share this.
     pub fn get_from_service(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64)) -> Result<Vec<u8>, FetchError> {
-        self.request(url, max, cancel, on_bytes, true)
+        if self.service_is_down() {
+            return Err(FetchError::Failed("the preview service is down".into()));
+        }
+        let got = self.request(url, max, cancel, on_bytes, true);
+        if got.as_ref().is_err_and(FetchError::is_network) {
+            self.mark_service_down();
+        }
+        got
+    }
+
+    /// Whether a network failure of the preview service is recent enough to skip it.
+    pub fn service_is_down(&self) -> bool {
+        now_millis() < self.service_down_until.load(Ordering::Relaxed)
+    }
+
+    /// Marks the preview service as down for [`SERVICE_BACKOFF`].
+    pub fn mark_service_down(&self) {
+        self.service_down_until.store(now_millis() + SERVICE_BACKOFF.as_millis() as u64, Ordering::Relaxed);
     }
 
     fn request(&self, url: &str, max: u64, cancel: &Cancel, on_bytes: &mut dyn FnMut(u64), allow_loopback_http: bool) -> Result<Vec<u8>, FetchError> {
@@ -186,7 +225,7 @@ impl Client {
     }
 }
 
-/// Whether `url` is `http://` to `127.0.0.1`, `[::1]` or `localhost`.
+/// Whether `url` is `http://` to `127.0.0.1` or `[::1]`.
 pub(crate) fn is_loopback_http(url: &str) -> bool {
     let Some(rest) = url.get(..7).filter(|s| s.eq_ignore_ascii_case("http://")).and_then(|_| url.get(7..)) else { return false };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
@@ -197,7 +236,7 @@ pub(crate) fn is_loopback_http(url: &str) -> bool {
         Some(v6) => v6.split(']').next().unwrap_or_default(),
         None => authority.split(':').next().unwrap_or_default(),
     };
-    matches!(host.to_ascii_lowercase().as_str(), "127.0.0.1" | "::1" | "localhost")
+    matches!(host.to_ascii_lowercase().as_str(), "127.0.0.1" | "::1")
 }
 
 enum Msg {

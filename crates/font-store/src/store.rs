@@ -220,6 +220,9 @@ pub struct FontStore {
     caller: Caller,
     client: Client,
     catalog: Option<Arc<Catalog>>,
+    /// Tests: stands in for the environment variable.
+    #[cfg(test)]
+    preview_env: Option<Option<String>>,
 }
 
 impl std::fmt::Debug for FontStore {
@@ -242,7 +245,27 @@ impl FontStore {
 
     /// A store in `dir`.
     pub fn new(dir: PathBuf, caller: Caller) -> Self {
-        Self { dir, caller, client: Client::default(), catalog: None }
+        Self {
+            dir,
+            caller,
+            client: Client::default(),
+            catalog: None,
+            #[cfg(test)]
+            preview_env: None,
+        }
+    }
+
+    /// Tests: reads `env` instead of `CRAFT_FONT_PREVIEW_URL`.
+    #[cfg(test)]
+    pub(crate) fn with_preview_env(mut self, env: Option<&str>) -> Self {
+        self.preview_env = Some(env.map(str::to_string));
+        self
+    }
+
+    /// The download client. Clones share the preview service's down state, so a pool built on one
+    /// stops asking a service the store found unreachable, and the reverse.
+    pub fn client(&self) -> Client {
+        self.client.clone()
     }
 
     /// Uses `client` for downloads (other timeouts).
@@ -299,7 +322,11 @@ impl FontStore {
     /// try its mirror (`<service>/v1/files/<sha256>`, `<service>/v1/licences/<sha256>`) before
     /// the index's URLs. A value that is not a usable URL counts as unset.
     pub fn preview_service(&self) -> Option<String> {
-        resolve_preview_service(std::env::var(PREVIEW_SERVICE_ENV).ok().as_deref(), self.settings().preview_service.as_deref())
+        #[cfg(test)]
+        let env = self.preview_env.clone().unwrap_or_else(|| std::env::var(PREVIEW_SERVICE_ENV).ok());
+        #[cfg(not(test))]
+        let env = std::env::var(PREVIEW_SERVICE_ENV).ok();
+        resolve_preview_service(env.as_deref(), self.settings().preview_service.as_deref())
     }
 
     /// Sets (or with `None` clears) the preview service in `settings.json`, from the user's own
@@ -604,6 +631,7 @@ impl FontStore {
         check: &dyn Fn(&[u8]) -> Result<(), VerifyError>,
     ) -> Result<Vec<u8>, Error> {
         let mut reasons = Vec::new();
+        // A rejection by an index URL is a corrupt file; a mirror's alone is one more failed source.
         let mut rejected = None;
         for (i, url) in urls.iter().enumerate() {
             let got =
@@ -613,7 +641,9 @@ impl FontStore {
                     Ok(()) => return Ok(bytes),
                     Err(e) => {
                         reasons.push(format!("{}: {e}", host(url)));
-                        rejected.get_or_insert(e);
+                        if i >= mirrors {
+                            rejected.get_or_insert(e);
+                        }
                     }
                 },
                 Err(FetchError::Cancelled) => return Err(Error::Cancelled),
@@ -914,7 +944,7 @@ fn normalize_service_url(url: &str) -> Option<String> {
         Some(v6) => v6.split(']').next().unwrap_or_default(),
         None => authority.split(':').next().unwrap_or_default(),
     };
-    let loopback = matches!(host.to_ascii_lowercase().as_str(), "127.0.0.1" | "::1" | "localhost");
+    let loopback = matches!(host.to_ascii_lowercase().as_str(), "127.0.0.1" | "::1");
     (https || loopback).then(|| url.to_string())
 }
 
