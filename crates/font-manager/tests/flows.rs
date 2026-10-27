@@ -487,6 +487,8 @@ fn fake_store_checks_the_preview_service_like_the_store() {
 struct FakeService {
     answered: std::sync::Mutex<Vec<String>>,
     held: std::sync::Mutex<bool>,
+    /// Answers sample subsets with HTTP 404, as for a sample text the service doesn't have.
+    no_samples: std::sync::Mutex<bool>,
 }
 
 impl Fetch for FakeService {
@@ -498,6 +500,9 @@ impl Fetch for FakeService {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         self.answered.lock().unwrap().push(url.to_owned());
+        if *self.no_samples.lock().unwrap() && url.contains("/sample-") {
+            return Err(FetchError::Failed("http status: 404".into()));
+        }
         Ok(include_bytes!("data/Tiny-glyf.woff2").to_vec())
     }
 }
@@ -516,7 +521,8 @@ impl FakeService {
             .map(|url| {
                 let path = url.split("/v1/faces/").nth(1).unwrap();
                 let n = usize::from_str_radix(&path[..2], 16).unwrap();
-                let subset = path[64..].trim_start_matches("/list/").split(['/', '.']).next().unwrap().to_owned();
+                let subset = path[64..].trim_start_matches("/list/").split(['/', '.']).next().unwrap();
+                let subset = if subset.starts_with("sample-") { "sample" } else { subset }.to_owned();
                 (n, subset)
             })
             .collect()
@@ -664,6 +670,25 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
 }
 
 #[test]
+fn a_sample_the_service_lacks_falls_back_to_its_characters_once() {
+    let service = Arc::new(FakeService::default());
+    *service.no_samples.lock().unwrap() = true;
+    let (mut h, store) = service_setup("list-previews-404", &service, 8);
+    store.set_previews_enabled(true).unwrap();
+    set_service(&mut h, &store);
+    idle(&mut h);
+    let shown = on_screen(&h);
+    let answered = service.take();
+    assert_eq!(numbers(&answered, "sample"), (1..=3 * shown.len()).collect::<Vec<_>>(), "{answered:?}");
+    assert_eq!(numbers(&answered, "u"), shown, "one subset of the sample's characters per row on screen");
+    for _ in 0..3 {
+        pause(&mut h);
+        idle(&mut h);
+    }
+    assert!(numbers(&service.take(), "sample").is_empty(), "the sample is not asked for again");
+}
+
+#[test]
 fn scrolling_cancels_rows_that_left() {
     let service = Arc::new(FakeService::default());
     *service.held.lock().unwrap() = true;
@@ -730,8 +755,11 @@ fn a_variable_family_draws_one_var_subset_at_every_axis_value() {
     let urls = service.urls();
     let var: Vec<&String> = urls.iter().filter(|u| u.contains("/var/")).collect();
     assert_eq!(var.len(), 1, "one subset for the variable file's every style: {urls:?}");
-    assert!(var[0].ends_with(&format!("{}/var/sample.woff2", "ab".repeat(32))), "{urls:?}");
-    assert!(urls.iter().any(|u| u.ends_with(&format!("{}/list/sample.woff2", "cd".repeat(32)))), "the static italic's own sample: {urls:?}");
+    assert!(var[0].ends_with(&format!("{}/var/sample-7eb13ed99f41.woff2", "ab".repeat(32))), "{urls:?}");
+    assert!(
+        urls.iter().any(|u| u.ends_with(&format!("{}/list/sample-7eb13ed99f41.woff2", "cd".repeat(32)))),
+        "the static italic's own sample: {urls:?}"
+    );
     for style in ["Thin", "Regular", "Bold"] {
         assert!(h.query_by_label(style).is_some(), "no {style} row");
     }
