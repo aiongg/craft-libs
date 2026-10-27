@@ -131,6 +131,11 @@
 //!     }
 //! }
 //! ```
+//!
+//! # Window restore
+//!
+//! The `restore` feature (no egui) adds [`restore`]: where a window opens, from the last session's
+//! geometry and the connected monitors, and the `window.json` store beside `config.toml`.
 
 mod desktop;
 mod layout;
@@ -142,6 +147,9 @@ pub mod policy;
 pub mod title_bar;
 #[cfg(feature = "egui")]
 mod viewports;
+
+#[cfg(feature = "restore")]
+pub mod restore;
 
 pub use list::{Closed, WindowId, WindowList};
 pub use menu::{Document, MenuEntry, WindowMenu};
