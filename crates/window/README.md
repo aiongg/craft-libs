@@ -101,6 +101,23 @@ flag from `title_bar::window_movable`, which is false while the pointer is on a 
 over the strip. It leaves windows with hidden window buttons alone, such as floating panels in
 their own windows.
 
+### macOS traffic lights
+
+`mac::TrafficLights` measures the zoom button of a titled full-size-content window and returns the
+`MacInset` the app's bar reserves: `leading` is the width to the end of the lights plus the gap
+they keep from the top, `centre_from_top` their centre line. Call `update(ctx)` once per frame;
+it caches, and measures again only after leaving full screen or on a scale change. Until a window
+can be measured it returns `mac::default_inset(major)` for the running macOS version (67 / 14
+before macOS 26, 78 / 16 from 26, the latter measured on 27). In full screen it returns `None`.
+
+```rust,ignore
+let inset = self.lights.update(ctx); // `lights: craft_window::mac::TrafficLights`
+```
+
+To check on a Mac (macOS 26 and 27): the inset ends one gap after the green button and centres on
+the lights; a second window gets the same inset; full screen drops it and leaving full screen
+restores it; moving the window between displays of different scale re-measures.
+
 ## One window per document
 
 For apps that open each document in its own top-level window, the crate also keeps the shared

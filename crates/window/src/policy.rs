@@ -91,7 +91,8 @@ pub struct Captions {
     pub layout: Layout,
 }
 
-/// Where macOS puts the traffic lights over the app's bar, in points.
+/// Where macOS puts the traffic lights over the app's bar, in points. [`crate::mac`] measures the
+/// real lights and has the per-version defaults.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MacInset {
     /// Width reserved at the leading edge for the lights.
@@ -101,7 +102,8 @@ pub struct MacInset {
 }
 
 impl Default for MacInset {
-    /// The standard lights' geometry.
+    /// The standard lights' geometry, for a window that does not exist yet and a macOS version
+    /// that is not known; [`crate::mac::default_inset`] knows the versions.
     fn default() -> Self {
         Self { leading: 78.0, centre_from_top: 14.0 }
     }
