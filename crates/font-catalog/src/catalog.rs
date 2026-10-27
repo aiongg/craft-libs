@@ -149,7 +149,7 @@ struct Index {
 impl Index {
     /// Added faces first: a document's or the app's own face wins over an installed face of the
     /// same family and style.
-    fn build(added: &[Face], scanned: &[Face]) -> Self {
+    fn build<'a>(added: &'a [Face], scanned: impl IntoIterator<Item = &'a Face>) -> Self {
         let mut faces: Vec<Face> = Vec::new();
         let mut seen = HashSet::new();
         let mut from_added = 0;
@@ -422,11 +422,27 @@ struct Config {
     font_service: bool,
 }
 
+/// A file's size and modification time: when either differs, the file changed.
+type FileStamp = (u64, Option<SystemTime>);
+
+fn file_stamp(meta: &std::fs::Metadata) -> FileStamp {
+    (meta.len(), meta.modified().ok())
+}
+
+/// A loaded file's bytes, while anything holds them.
+struct Loaded {
+    /// The file's stamp when read: a file replaced since is read again.
+    stamp: FileStamp,
+    /// Read without following a link in the file's place.
+    no_follow: bool,
+    bytes: Weak<[u8]>,
+}
+
 /// A file found by a scan, remembered so a rescan reads only files that changed.
 struct Cached {
-    len: u64,
-    modified: Option<SystemTime>,
-    faces: Vec<Face>,
+    stamp: FileStamp,
+    /// Shared with [`Added::scanned`].
+    faces: Arc<Vec<Face>>,
 }
 
 #[derive(Default)]
@@ -450,6 +466,10 @@ struct Stamp {
 struct Added {
     /// Faces added without a scope.
     faces: Vec<Face>,
+    /// The faces the last scan found, by file in path order; `None` before the first scan, which
+    /// then builds the index with the faces added before it. Kept here, not read from the scan's
+    /// state, so adding faces never waits for a scan.
+    scanned: Option<Vec<Arc<Vec<Face>>>>,
     scopes: HashMap<Scope, Scoped>,
     /// The bytes of faces added as bytes, with or without a scope.
     blobs: HashMap<u64, Arc<[u8]>>,
@@ -472,6 +492,21 @@ impl Added {
     /// Every added face, every scope's included: what [`Limits::max_added_faces`] bounds.
     fn count(&self) -> usize {
         self.faces.len() + self.scopes.values().map(|s| s.faces.len()).sum::<usize>()
+    }
+
+    /// Keep `bytes` for `faces` when `pending` more faces about to be added leave room within
+    /// `limits`; returns the faces, pointing at the bytes.
+    fn store(&mut self, bytes: Arc<[u8]>, mut faces: Vec<Face>, pending: usize, limits: &Limits) -> Result<Vec<Face>, FontFileError> {
+        if self.count() + pending + faces.len() > limits.max_added_faces {
+            return Err(FontFileError::TooManyFaces { max: limits.max_added_faces });
+        }
+        let blob = self.next_blob;
+        self.next_blob += 1;
+        self.blobs.insert(blob, bytes);
+        for f in &mut faces {
+            f.info.blob = Some(blob);
+        }
+        Ok(faces)
     }
 
     /// Drop the bytes no added face uses any more.
@@ -548,6 +583,19 @@ impl View {
     }
 }
 
+/// The faces of a font file's `bytes`, within `limits`, before they are added.
+fn bytes_faces(bytes: Arc<[u8]>, source: Source, limits: &Limits) -> Result<(Arc<[u8]>, Vec<Face>), FontFileError> {
+    let size = bytes.len() as u64;
+    if size > limits.max_file_bytes {
+        return Err(FontFileError::TooLarge { size, max: limits.max_file_bytes });
+    }
+    let faces = scan::data_faces(&bytes, limits.max_faces_per_file, None, source);
+    if faces.is_empty() {
+        return Err(FontFileError::NotAFont);
+    }
+    Ok((bytes, faces))
+}
+
 /// A family's faces, loaded once ([`Catalog::load_family`]).
 type FamilyLoad = Arc<OnceLock<Arc<[LoadedFace]>>>;
 
@@ -578,7 +626,7 @@ pub struct Catalog {
     next_scope: AtomicU64,
     /// Loaded families by scope (`None`: unscoped) and lowercase family name.
     loaded: Mutex<HashMap<(Option<Scope>, String), FamilyLoad>>,
-    files: Mutex<HashMap<PathBuf, Weak<[u8]>>>,
+    files: Mutex<HashMap<PathBuf, Loaded>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -940,19 +988,32 @@ impl Catalog {
         }
         let path = face.path.as_deref().ok_or(FontFileError::Gone)?;
         if crate::suitcase::is_suitcase(path) {
+            // The scan gives a confined folder's suitcases no faces ([`scan::opened_file_faces`]).
+            if face.confined {
+                return Err(FontFileError::NotAFont);
+            }
             let font = crate::suitcase::read_fonts(path).into_iter().nth(face.index as usize).ok_or(FontFileError::NotAFont)?;
             return Ok(FontData { bytes: font.into(), index: 0 });
         }
-        Ok(FontData { bytes: self.file_bytes(path)?, index: face.index })
+        Ok(FontData { bytes: self.file_bytes(path, face.confined)?, index: face.index })
     }
 
-    fn file_bytes(&self, path: &Path) -> Result<Arc<[u8]>, FontFileError> {
-        if let Some(bytes) = lock(&self.files).get(path).and_then(Weak::upgrade) {
+    /// The bytes of the file at `path`, shared while anything holds them. With `no_follow`
+    /// (a confined file), a link in its place is refused, and so are bytes cached by a read that
+    /// followed links.
+    fn file_bytes(&self, path: &Path, no_follow: bool) -> Result<Arc<[u8]>, FontFileError> {
+        // A file replaced in place since it was read is read again.
+        let meta = if no_follow { std::fs::symlink_metadata(path) } else { std::fs::metadata(path) };
+        if let Some(meta) = meta.ok().filter(std::fs::Metadata::is_file)
+            && let Some(bytes) =
+                lock(&self.files).get(path).filter(|c| c.stamp == file_stamp(&meta) && (c.no_follow || !no_follow)).and_then(|c| c.bytes.upgrade())
+        {
             return Ok(bytes);
         }
         use std::io::Read;
-        let file = scan::open_regular(path, false)?;
-        let size = file.metadata()?.len();
+        let file = scan::open_regular(path, no_follow)?;
+        let meta = file.metadata()?;
+        let size = meta.len();
         if size > MAX_LOAD {
             return Err(FontFileError::TooLarge { size, max: MAX_LOAD });
         }
@@ -960,8 +1021,8 @@ impl Catalog {
         file.take(MAX_LOAD).read_to_end(&mut data)?;
         let bytes: Arc<[u8]> = data.into();
         let mut files = lock(&self.files);
-        files.retain(|_, w| w.strong_count() > 0);
-        files.insert(path.to_path_buf(), Arc::downgrade(&bytes));
+        files.retain(|_, c| c.bytes.strong_count() > 0);
+        files.insert(path.to_path_buf(), Loaded { stamp: file_stamp(&meta), no_follow, bytes: Arc::downgrade(&bytes) });
         Ok(bytes)
     }
 
@@ -996,36 +1057,49 @@ impl Catalog {
     }
 
     /// Add the faces of a font file's `bytes` (a font or a collection) for this session, as
-    /// `source`, seen by every lookup. Returns the faces added.
-    pub fn add_bytes(&self, bytes: Vec<u8>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
-        self.add_bytes_to(None, bytes, source, limits)
+    /// `source`, seen by every lookup. Returns the faces added. It never waits for a scan: faces
+    /// added before the first scan join it. The catalog keeps `bytes` as an `Arc<[u8]>`; pass
+    /// one to share it without a copy.
+    pub fn add_bytes(&self, bytes: impl Into<Arc<[u8]>>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
+        self.add_bytes_to(None, bytes.into(), source, limits)
+    }
+
+    /// [`Catalog::add_bytes`] for several fonts, with one rebuild of the lookups for all of them
+    /// (an app's bundled fonts). Returns each font's faces or why it wasn't added, in order.
+    pub fn add_bytes_many<B: Into<Arc<[u8]>>>(
+        &self,
+        fonts: impl IntoIterator<Item = B>,
+        source: Source,
+        limits: &Limits,
+    ) -> Vec<Result<Vec<FaceInfo>, FontFileError>> {
+        let parsed: Vec<_> = fonts.into_iter().map(|b| bytes_faces(b.into(), source, limits)).collect();
+        let mut added = lock(&self.added);
+        let mut all = Vec::new();
+        let results = parsed
+            .into_iter()
+            .map(|p| {
+                let (bytes, faces) = p?;
+                let faces = added.store(bytes, faces, all.len(), limits)?;
+                let infos = faces.iter().map(|f| f.info.clone()).collect();
+                all.extend(faces);
+                Ok(infos)
+            })
+            .collect();
+        if !all.is_empty() {
+            self.push_added(added, None, all);
+        }
+        results
     }
 
     /// [`Catalog::add_bytes`] into `scope`: only lookups in the scope see the faces.
-    pub fn add_bytes_in(&self, scope: Scope, bytes: Vec<u8>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
-        self.add_bytes_to(Some(scope), bytes, source, limits)
+    pub fn add_bytes_in(&self, scope: Scope, bytes: impl Into<Arc<[u8]>>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
+        self.add_bytes_to(Some(scope), bytes.into(), source, limits)
     }
 
-    fn add_bytes_to(&self, scope: Option<Scope>, bytes: Vec<u8>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
-        let size = bytes.len() as u64;
-        if size > limits.max_file_bytes {
-            return Err(FontFileError::TooLarge { size, max: limits.max_file_bytes });
-        }
-        let mut faces = scan::data_faces(&bytes, limits.max_faces_per_file, None, source);
-        if faces.is_empty() {
-            return Err(FontFileError::NotAFont);
-        }
-        self.ensure();
+    fn add_bytes_to(&self, scope: Option<Scope>, bytes: Arc<[u8]>, source: Source, limits: &Limits) -> Result<Vec<FaceInfo>, FontFileError> {
+        let (bytes, faces) = bytes_faces(bytes, source, limits)?;
         let mut added = lock(&self.added);
-        if added.count() + faces.len() > limits.max_added_faces {
-            return Err(FontFileError::TooManyFaces { max: limits.max_added_faces });
-        }
-        let blob = added.next_blob;
-        added.next_blob += 1;
-        added.blobs.insert(blob, bytes.into());
-        for f in &mut faces {
-            f.info.blob = Some(blob);
-        }
+        let faces = added.store(bytes, faces, 0, limits)?;
         Ok(self.push_added(added, scope, faces))
     }
 
@@ -1059,7 +1133,6 @@ impl Catalog {
         if faces.is_empty() {
             return Err(FontFileError::NotAFont);
         }
-        self.ensure();
         let added = lock(&self.added);
         if added.count() + faces.len() > limits.max_added_faces {
             return Err(FontFileError::TooManyFaces { max: limits.max_added_faces });
@@ -1073,8 +1146,7 @@ impl Catalog {
         match scope {
             None => {
                 added.faces.extend(faces);
-                let scanned = self.scanned();
-                self.publish(Index::build(&added.faces, &scanned));
+                self.rebuild(&added);
             }
             Some(scope) => {
                 added.changed(scope).faces.extend(faces);
@@ -1094,8 +1166,7 @@ impl Catalog {
         added.drop_unused_blobs();
         let removed = before - added.faces.len();
         if removed > 0 {
-            let scanned = self.scanned();
-            self.publish(Index::build(&added.faces, &scanned));
+            self.rebuild(&added);
         }
         removed
     }
@@ -1115,12 +1186,12 @@ impl Catalog {
         removed
     }
 
-    /// The faces the last scan found.
-    fn scanned(&self) -> Vec<Face> {
-        let scan = lock(&self.scan);
-        let mut faces: Vec<(&PathBuf, &Cached)> = scan.files.iter().collect();
-        faces.sort_by(|a, b| a.0.cmp(b.0));
-        faces.into_iter().flat_map(|(_, c)| c.faces.iter().cloned()).collect()
+    /// Publish the added faces with the last scan's; before the first scan, which does that,
+    /// nothing.
+    fn rebuild(&self, added: &Added) {
+        if let Some(scanned) = &added.scanned {
+            self.publish(Index::build(&added.faces, scanned.iter().flat_map(|f| f.iter())));
+        }
     }
 
     fn scan_now(&self, refresh: bool) {
@@ -1175,28 +1246,34 @@ impl Catalog {
             if !meta.is_file() {
                 continue;
             }
-            let (len, mtime) = (meta.len(), meta.modified().ok());
-            let cached = state.files.remove(&path).filter(|c| c.len == len && c.modified == mtime);
+            let stamp = file_stamp(&meta);
+            let cached = state.files.remove(&path).filter(|c| c.stamp == stamp);
             let mut faces = match cached {
                 Some(c) => c.faces,
                 None if by_name || scan::is_font_file(&path) || crate::suitcase::is_suitcase(&path) => {
-                    scan::opened_file_faces(&path, MAX_SCAN_READ, source, real)
+                    Arc::new(scan::opened_file_faces(&path, MAX_SCAN_READ, source, real))
                 }
                 None => continue,
             };
-            for f in &mut faces {
-                f.info.source = source;
-                f.file = Some((len, mtime));
+            if faces.iter().any(|f| f.info.source != source || f.info.confined != real || f.file != Some(stamp)) {
+                for f in Arc::make_mut(&mut faces) {
+                    f.info.source = source;
+                    f.info.confined = real;
+                    f.file = Some(stamp);
+                }
             }
-            files.insert(path, Cached { len, modified: mtime, faces });
+            files.insert(path, Cached { stamp, faces });
         }
+        let mut scanned: Vec<(&PathBuf, &Cached)> = files.iter().collect();
+        scanned.sort_by(|a, b| a.0.cmp(b.0));
+        let scanned: Vec<Arc<Vec<Face>>> = scanned.into_iter().map(|(_, c)| Arc::clone(&c.faces)).collect();
         state.files = files;
         drop(state);
 
         *lock(&self.stamp) = Stamp { app_dirs, confined_dirs, dirs: walk.dirs, registered };
-        let added = lock(&self.added);
-        let scanned = self.scanned();
-        self.publish(Index::build(&added.faces, &scanned));
+        let mut added = lock(&self.added);
+        added.scanned = Some(scanned);
+        self.rebuild(&added);
     }
 }
 
