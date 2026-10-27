@@ -191,7 +191,7 @@ mod portal {
 
     // Outer None means unknown/malformed; Some(None) is an explicit no-preference answer.
     // GNOME 42-46 writes 'default' (portal value 0) for Settings > Appearance > Light, so on GNOME
-    // both mean light; elsewhere standard 0 is no preference.
+    // both mean light; elsewhere both are no preference.
     fn decode(namespace: &str, value: &Value<'_>, gnome: bool) -> Option<Option<Theme>> {
         match (namespace, value) {
             (STANDARD, Value::U32(n)) => Some(match n {
@@ -202,7 +202,8 @@ mod portal {
             }),
             (GNOME, Value::Str(s)) => Some(match s.as_str() {
                 "prefer-dark" => Some(Theme::Dark),
-                "prefer-light" | "default" => Some(Theme::Light),
+                "prefer-light" => Some(Theme::Light),
+                "default" if gnome => Some(Theme::Light),
                 _ => None,
             }),
             _ => None,
@@ -404,7 +405,9 @@ mod portal {
         }
         #[test]
         fn gnome_light_setting_reads_as_light_and_zero_is_no_preference_elsewhere() {
-            assert_eq!(decode(GNOME, &Value::from("default"), false), Some(Some(Theme::Light)));
+            assert_eq!(decode(GNOME, &Value::from("default"), true), Some(Some(Theme::Light)));
+            // A GNOME schema installed on another desktop doesn't make that desktop light.
+            assert_eq!(decode(GNOME, &Value::from("default"), false), Some(None));
             assert_eq!(decode(GNOME, &Value::from("prefer-dark"), false), Some(Some(Theme::Dark)));
             assert_eq!(decode(GNOME, &Value::from("prefer-light"), false), Some(Some(Theme::Light)));
             assert_eq!(decode(STANDARD, &Value::U32(0), true), Some(Some(Theme::Light)));
