@@ -477,6 +477,13 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
         if (!f.instances.is_empty() && f.axes.is_empty()) || f.instances.len() > MAX_LIST || f.list_instance.is_some_and(|i| i >= f.instances.len()) {
             return invalid(format!("`{}` has a bad list instance", short(&f.path)));
         }
+        // Every instance has a coordinate for each axis and for no other.
+        for i in &f.instances {
+            check_str("instance name", &i.name)?;
+            if i.coordinates.len() != f.axes.len() || f.axes.iter().any(|a| !i.coordinates.contains_key(&a.tag)) {
+                return invalid(format!("`{}` has an instance without its axes", short(&f.path)));
+            }
+        }
         for ps in &f.postscript {
             check_str("PostScript name", ps)?;
             if ps.is_empty() {
