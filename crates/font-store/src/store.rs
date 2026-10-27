@@ -6,6 +6,7 @@
 //! settings.json        the consent setting and the sources the user added
 //! manifest.json        what is installed
 //! indexes/             the last indexes fetched: sources.json, one file per source
+//! previews/            preview subsets from the preview service (WOFF2), a cache of at most 50 MB
 //! <family dir>/        google/fonts' folder name, or <source>/<family>: the fonts and the licence
 //! .staging/            downloads being installed; nothing a font scan picks up
 //! .lock                held while the store changes
@@ -31,6 +32,7 @@ use crate::verify::{VerifyError, is_font, sha256_hex, verify_font};
 const SETTINGS: &str = "settings.json";
 const MANIFEST: &str = "manifest.json";
 const INDEX_CACHE: &str = "indexes";
+const PREVIEWS: &str = "previews";
 const SOURCES_CACHE: &str = "sources.json";
 const STAGING: &str = ".staging";
 const LOCK: &str = ".lock";
@@ -259,6 +261,12 @@ impl FontStore {
     /// The store's folder.
     pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    /// The folder for the preview service's subsets, which craft-font-manager caches. The store
+    /// itself never reads or writes it.
+    pub fn previews_dir(&self) -> PathBuf {
+        self.dir.join(PREVIEWS)
     }
 
     /// Who drives this store.

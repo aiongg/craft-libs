@@ -30,7 +30,7 @@ A source the user adds is an index file at an https URL (`.json` or `.json.gz`).
 | No requests at startup | Nothing in the crate makes a request on its own. Only `fetch_indexes` and the installs do, and they return `Error::NetworkOff` without one while the network is off. |
 | Optional preview service | Off unless set: no default address. `CRAFT_FONT_PREVIEW_URL`, else the `preview_service` field of `settings.json` (`FontStore::set_preview_service`, user only, `Error::NotAllowed` for an agent). `FontStore::preview_service()` returns the one in effect. https only; http is accepted for `127.0.0.1`, `::1` and `localhost`. A trailing slash is dropped. Example: `CRAFT_FONT_PREVIEW_URL=https://fonts.example.com`. |
 | Mirror first | With a service set, an install requests `<service>/v1/files/<sha256>` for each font file and `<service>/v1/licences/<sha256>` for a licence (when the index gives its sha256) before the index's URLs. The size and sha256 checks are the same, and a response that fails them moves on to the next URL. |
-| One HTTP client | `Client`: ureq with rustls and the webpki roots, HTTPS only, no cookies, `User-Agent: craft-font-store/<version>`. Timeouts: 15 s to connect, 30 s to the response headers, 10 minutes per file. |
+| One HTTP client | `Client`: ureq with rustls and the webpki roots, HTTPS only (plain http only to `127.0.0.1`, `::1` or `localhost`, following no redirects, for a preview service run locally), no cookies, `User-Agent: craft-font-store/<version>`. Timeouts: 15 s to connect, 30 s to the response headers, 10 minutes per file. |
 
 A file's URLs come from its source's URL templates, best first. Both built-in sources use `https://cdn.jsdelivr.net/gh/{repo}@{ref}/{path}`, then `https://raw.githubusercontent.com/{repo}/{ref}/{path}`. The store tries the next URL after any failure: a network error, an HTTP error (jsDelivr answers 403 for files over 20 MB, such as the Noto Serif CJK fonts), or bytes that don't verify.
 
@@ -99,6 +99,7 @@ When every file has passed, the store takes `.lock`, moves the files into the fa
 settings.json        the network setting and the sources the user added
 manifest.json        what is installed
 indexes/             the last indexes fetched: sources.json, <source>.json.gz, user-<hash>
+previews/            preview subsets (WOFF2) craft-font-manager caches, at most 50 MB
 <family folder>/     the font files and the licence
 .staging/            downloads being installed
 .lock                held while the store changes

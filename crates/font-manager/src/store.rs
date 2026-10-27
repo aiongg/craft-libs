@@ -115,6 +115,12 @@ pub trait Installer: Send + Sync {
     fn set_preview_service(&self, _url: Option<&str>) -> Result<(), StoreError> {
         Err(StoreError(NO_FOLDER.into()))
     }
+
+    /// The folder [`crate::remote::Previews`] caches preview subsets in; none keeps them only
+    /// for as long as the caller holds them.
+    fn preview_cache(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 const NO_FOLDER: &str = "there is no folder for the font store";
@@ -233,6 +239,10 @@ impl Installer for SuiteStore {
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
         self.store.set_preview_service(url).map_err(err)
+    }
+
+    fn preview_cache(&self) -> Option<PathBuf> {
+        Some(self.store.previews_dir())
     }
 }
 
@@ -527,10 +537,15 @@ impl Installer for FakeStore {
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
-        if url.is_some_and(|u| !u.starts_with("https://")) {
+        let loopback = |u: &str| ["http://127.0.0.1", "http://localhost", "http://[::1]"].iter().any(|p| u.starts_with(p));
+        if url.is_some_and(|u| !u.starts_with("https://") && !loopback(u)) {
             return Err(StoreError("a preview service address starts with https://".into()));
         }
         *self.preview_service.lock().map_err(err)? = url.map(|u| u.trim_end_matches('/').to_owned());
         Ok(())
+    }
+
+    fn preview_cache(&self) -> Option<PathBuf> {
+        Some(self.dir.join("previews"))
     }
 }
