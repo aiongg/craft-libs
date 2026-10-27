@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align2, Color32, ComboBox, CursorIcon, FontFamily, FontId, Galley, Painter, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, TextEdit,
-    TextFormat, Ui, Vec2, WidgetInfo, pos2, vec2,
+    Align2, Color32, CursorIcon, FontFamily, FontId, Galley, Painter, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, TextEdit, TextFormat,
+    Ui, Vec2, WidgetInfo, pos2, vec2,
 };
 
 use crate::panel::look::{Look, Palette};
@@ -392,9 +392,14 @@ pub fn select_closing<R>(
     close: egui::PopupCloseBehavior,
     add: impl FnOnce(&mut Ui) -> R,
 ) -> Option<R> {
-    let inner = ComboBox::from_id_salt(id_salt).selected_text(selected).width(width).height(380.0).truncate().close_behavior(close).show_ui(ui, add);
+    let inner = select_box(id_salt, selected, width).close_behavior(close).show_ui(ui, add);
     name(ui, &inner.response, label);
     inner.inner
+}
+
+/// The combo box of [`select`], for a menu with a header; name its response with [`name`].
+pub fn select_box<'a>(id_salt: &str, selected: &'a str, width: f32) -> craft_ui::ComboBox<'a> {
+    craft_ui::ComboBox::from_id_salt(id_salt).selected_text(selected).width(width).height(380.0).truncate()
 }
 
 /// An inline note in a sunken, hairline box: an info glyph, then `add`.
