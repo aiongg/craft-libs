@@ -392,9 +392,8 @@ impl FontStore {
     }
 
     /// Whether the family of this name installed from `source` has copies in the OS user font
-    /// folder (is available to all apps). Cheap
-    /// enough for every row of a list: it reads the ledger again only when the file changed.
-    /// False when the ledger can't be read.
+    /// folder (is available to all apps). Cheap enough for every row of a list: it reads the
+    /// ledger again only when the file changed. False when the ledger can't be read.
     pub fn is_available(&self, source: &str, name: &str) -> bool {
         self.cached_ledger().is_some_and(|l| l.family(source, name).is_some())
     }
