@@ -16,7 +16,7 @@ pub enum DesktopKind {
     Kde,
     /// A tiling compositor or window manager (Sway, Hyprland, i3, niri, river, ...).
     Tiling,
-    /// Any other desktop: COSMIC, Xfce, Cinnamon, MATE, Budgie, an unknown one.
+    /// Any other desktop: COSMIC, Xfce, Cinnamon, MATE, an unknown one. Budgie counts as GNOME.
     Other,
 }
 
@@ -27,8 +27,20 @@ pub struct Desktop {
     /// Whether the compositor offers server-side decorations (`zxdg_decoration_manager_v1`).
     /// `None` when not probed (X11, or the probe failed).
     pub ssd: Option<bool>,
-    /// The GTK theme name, when GTK's `settings.ini` or `GTK_THEME` names one.
+    /// The GTK theme name, when `GTK_THEME` or GTK's `settings.ini` names one.
     pub gtk_theme: Option<String>,
+    /// The icon theme: KDE's (`kdeglobals`) or GTK's setting, else `breeze` on KDE and `Adwaita`
+    /// elsewhere. `None` off Linux and the BSDs.
+    pub icon_theme: Option<String>,
+}
+
+impl Backend {
+    /// The backend winit opens by default: Wayland when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is
+    /// set, else X11. An app that forces X11 (XWayland) passes [`Backend::X11`] instead.
+    pub fn from_env() -> Backend {
+        let set = |k| std::env::var_os(k).is_some_and(|v| !v.is_empty());
+        if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") { Backend::Wayland } else { Backend::X11 }
+    }
 }
 
 impl Desktop {
@@ -39,12 +51,13 @@ impl Desktop {
         {
             let var = |k: &str| std::env::var(k).ok();
             let ssd = if backend == Backend::Wayland { crate::platform::wayland_offers_ssd() } else { None };
-            Desktop { kind: kind_from_env(&var), ssd, gtk_theme: crate::layout::read_gtk_theme(&var) }
+            let kind = kind_from_env(&var);
+            Desktop { kind, ssd, gtk_theme: crate::layout::read_gtk_theme(&var), icon_theme: Some(crate::layout::read_icon_theme(kind, &var)) }
         }
         #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
         {
             let _ = backend;
-            Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None }
+            Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None }
         }
     }
 }
@@ -57,6 +70,10 @@ const TILING: &[&str] = &["sway", "hyprland", "i3", "niri", "river", "bspwm", "a
 /// The desktop kind from the first of its variables that is set (`XDG_CURRENT_DESKTOP`,
 /// `XDG_SESSION_DESKTOP`, `DESKTOP_SESSION`). `ubuntu:GNOME` and `Budgie:GNOME` count as GNOME.
 pub(crate) fn kind_from_env(var: &dyn Fn(&str) -> Option<String>) -> DesktopKind {
+    // A compositor's own socket variable names it even when the desktop variables are missing.
+    if ["SWAYSOCK", "I3SOCK", "HYPRLAND_INSTANCE_SIGNATURE", "NIRI_SOCKET"].iter().any(|k| var(k).is_some_and(|v| !v.is_empty())) {
+        return DesktopKind::Tiling;
+    }
     for key in ["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"] {
         let Some(v) = var(key).map(|v| v.to_ascii_lowercase()).filter(|v| !v.trim().is_empty()) else { continue };
         if v.split(':').map(str::trim).any(|entry| TILING.contains(&entry)) {
@@ -106,5 +123,8 @@ mod tests {
         }
         assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "i3:GNOME-Flashback")])), DesktopKind::Tiling);
         assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "COSMIC")])), DesktopKind::Other);
+        assert_eq!(kind_from_env(&env(&[("SWAYSOCK", "/run/sway.sock")])), DesktopKind::Tiling);
+        assert_eq!(kind_from_env(&env(&[("NIRI_SOCKET", "/run/niri")])), DesktopKind::Tiling);
+        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "Budgie:GNOME")])), DesktopKind::Gnome);
     }
 }

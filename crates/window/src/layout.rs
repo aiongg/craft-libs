@@ -84,11 +84,17 @@ fn parse_or_default(text: Option<&str>, kind: DesktopKind) -> Layout {
 }
 
 /// The layout `kind` uses, read from the desktop's files (`kwinrc` on KDE, GTK's `settings.ini`
-/// elsewhere). GNOME's comes from `gsettings`, in [`crate::Layout::from_desktop`].
+/// elsewhere). GNOME's comes from `gsettings`, then GTK's `settings.ini`, then Close only.
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
 pub(crate) fn read_layout(kind: DesktopKind, var: &dyn Fn(&str) -> Option<String>) -> Layout {
     match kind {
-        DesktopKind::Gnome => Layout::from_desktop(),
+        DesktopKind::Gnome => {
+            let from_gsettings = crate::platform::gsettings_button_layout().map(|v| Layout::parse(&v)).filter(Layout::is_usable);
+            from_gsettings.unwrap_or_else(|| {
+                let ini = read_config(var, "gtk-3.0/settings.ini").unwrap_or_default();
+                parse_or_default(gtk_settings(&ini).0.as_deref(), kind)
+            })
+        }
         DesktopKind::Kde => {
             let rc = read_config(var, "kwinrc").unwrap_or_default();
             parse_or_default(Some(&kwin_layout(&rc)), kind)
@@ -103,8 +109,25 @@ pub(crate) fn read_layout(kind: DesktopKind, var: &dyn Fn(&str) -> Option<String
 /// The GTK theme name from GTK 3's `settings.ini`.
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
 pub(crate) fn read_gtk_theme(var: &dyn Fn(&str) -> Option<String>) -> Option<String> {
-    let from_ini = read_config(var, "gtk-3.0/settings.ini").and_then(|ini| gtk_settings(&ini).1);
-    from_ini.or_else(|| var("GTK_THEME").map(|t| t.split(':').next().unwrap_or_default().to_string()).filter(|t| !t.is_empty()))
+    let from_env = var("GTK_THEME").map(|t| t.split(':').next().unwrap_or_default().to_string()).filter(|t| !t.is_empty());
+    from_env.or_else(|| read_config(var, "gtk-3.0/settings.ini").and_then(|ini| gtk_settings(&ini).1))
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", test))]
+/// The icon theme name for `kind`'s own setting (`kdeglobals` `[Icons] Theme` on KDE, GTK's
+/// `gtk-icon-theme-name` elsewhere), else the desktop's default theme.
+pub(crate) fn icon_theme(kind: DesktopKind, kdeglobals: &str, settings_ini: &str) -> String {
+    let found =
+        if kind == DesktopKind::Kde { ini_value(kdeglobals, "Icons", "Theme") } else { ini_value(settings_ini, "Settings", "gtk-icon-theme-name") };
+    found.filter(|t| !t.is_empty()).unwrap_or_else(|| if kind == DesktopKind::Kde { "breeze" } else { "Adwaita" }.to_string())
+}
+
+/// [`icon_theme`] from the user's config files.
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+pub(crate) fn read_icon_theme(kind: DesktopKind, var: &dyn Fn(&str) -> Option<String>) -> String {
+    let kdeglobals = if kind == DesktopKind::Kde { read_config(var, "kdeglobals").unwrap_or_default() } else { String::new() };
+    let ini = read_config(var, "gtk-3.0/settings.ini").unwrap_or_default();
+    icon_theme(kind, &kdeglobals, &ini)
 }
 
 /// A small file under the user's config directory (`XDG_CONFIG_HOME`, else `~/.config`).
@@ -115,10 +138,10 @@ fn read_config(var: &dyn Fn(&str) -> Option<String>, relative: &str) -> Option<S
         .filter(|d| std::path::Path::new(d).is_absolute())
         .map(std::path::PathBuf::from)
         .or_else(|| var("HOME").map(|h| std::path::Path::new(&h).join(".config")))?;
-    let mut text = String::new();
+    let mut bytes = Vec::new();
     // Config files are small; the cap keeps a stray huge file from stalling startup.
-    std::fs::File::open(config.join(relative)).ok()?.take(1 << 20).read_to_string(&mut text).ok()?;
-    Some(text)
+    std::fs::File::open(config.join(relative)).ok()?.take(1 << 20).read_to_end(&mut bytes).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 #[cfg(test)]
@@ -146,6 +169,16 @@ mod tests {
         assert_eq!(ini_value(rc, "nope", "library"), None);
         // Garbage is just no buttons on that side, never a panic.
         assert_eq!(kwin_layout("[org.kde.kdecoration2]\nButtonsOnRight=\u{ff}\u{20ac}=X\n"), ":close");
+    }
+
+    #[test]
+    fn the_icon_theme_comes_from_the_setting_or_the_desktop_default() {
+        let globals = "[Icons]\nTheme=breeze-dark\n";
+        let ini = "[Settings]\ngtk-icon-theme-name=Papirus\n";
+        assert_eq!(icon_theme(DesktopKind::Kde, globals, ini), "breeze-dark");
+        assert_eq!(icon_theme(DesktopKind::Other, globals, ini), "Papirus");
+        assert_eq!(icon_theme(DesktopKind::Gnome, "", ""), "Adwaita");
+        assert_eq!(icon_theme(DesktopKind::Kde, "", ini), "breeze");
     }
 
     #[test]
@@ -183,6 +216,15 @@ mod tests {
         let path = dir.to_string_lossy().into_owned();
         let var = move |k: &str| (k == "XDG_CONFIG_HOME").then(|| path.clone());
         assert_eq!(read_gtk_theme(&var).as_deref(), Some("Yaru"));
+        std::fs::write(dir.join("kdeglobals"), "[Icons]\nTheme=breeze-dark\n").unwrap_or_default();
+        assert_eq!(read_icon_theme(DesktopKind::Kde, &var), "breeze-dark");
+        let path2 = dir.to_string_lossy().into_owned();
+        let with_env = move |k: &str| match k {
+            "XDG_CONFIG_HOME" => Some(path2.clone()),
+            "GTK_THEME" => Some("Breeze:dark".to_string()),
+            _ => None,
+        };
+        assert_eq!(read_gtk_theme(&with_env).as_deref(), Some("Breeze"), "GTK_THEME wins over settings.ini");
         assert_eq!(read_layout(DesktopKind::Other, &var).left, vec![Close, Maximize]);
         assert_eq!(read_layout(DesktopKind::Kde, &var).right, vec![Maximize, Close]);
         // A relative XDG_CONFIG_HOME is ignored, as the XDG spec says; with no HOME nothing is found.

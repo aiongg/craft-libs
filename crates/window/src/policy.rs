@@ -125,31 +125,52 @@ pub struct Decision {
     /// `Some(true)` when `<PREFIX>_TITLEBAR` forced the app's bar, `Some(false)` when it forced the
     /// system's, `None` when the platform and setting decided.
     pub overridden: Option<bool>,
+    /// The desktop the decision was made for, so an app can hide the "Use system title bar" row
+    /// where it changes nothing (tiling compositors, web) without probing again.
+    pub desktop: Desktop,
 }
 
 /// The decision, pure. `env` is the value of `<PREFIX>_TITLEBAR` (`app`, `system` or `desktop`);
 /// it wins over `pref`. Caption layouts are each family's default; [`decide_for`] fills in the
 /// desktop's own.
 pub fn decide(os: Os, backend: Backend, desktop: &Desktop, pref: TitleBarPref, env: Option<&str>) -> Decision {
-    decide_with(os, backend, desktop, pref, env, None)
+    decide_with(os, backend, desktop, pref, env, &layout::default_layout)
 }
 
-fn decide_with(os: Os, backend: Backend, desktop: &Desktop, pref: TitleBarPref, env: Option<&str>, layout: Option<Layout>) -> Decision {
+/// `layout` supplies the caption layout for a desktop kind; it is called only when the frame comes
+/// out integrated.
+fn decide_with(
+    os: Os,
+    backend: Backend,
+    desktop: &Desktop,
+    pref: TitleBarPref,
+    env: Option<&str>,
+    layout: &dyn Fn(DesktopKind) -> Layout,
+) -> Decision {
     let overridden = crate::parse_override(env);
     let integrated = match (overridden, pref) {
         (Some(app), _) => app,
         (None, pref) => pref == TitleBarPref::Integrated,
     };
-    let frame = if integrated { integrated_frame(os, backend, desktop, overridden.is_some(), layout) } else { Frame::Native };
-    Decision { frame, overridden }
+    let frame =
+        if integrated { integrated_frame(os, backend, desktop, overridden.is_some(), INTEGRATED_ON_SSD_DESKTOPS, layout) } else { Frame::Native };
+    Decision { frame, overridden, desktop: desktop.clone() }
 }
 
 /// The frame when the app's bar is wanted. `forced` is set when the override asked for it, which
 /// also applies on tiling compositors.
-fn integrated_frame(os: Os, backend: Backend, desktop: &Desktop, forced: bool, layout: Option<Layout>) -> Frame {
+/// `integrated_on_ssd` says whether desktops that draw their own frame get the app's bar.
+fn integrated_frame(
+    os: Os,
+    backend: Backend,
+    desktop: &Desktop,
+    forced: bool,
+    integrated_on_ssd: bool,
+    layout: &dyn Fn(DesktopKind) -> Layout,
+) -> Frame {
     let captions = |family: CaptionFamily| {
         let kind = if family == CaptionFamily::Windows { DesktopKind::Other } else { desktop.kind };
-        Frame::Integrated(Captions { family, layout: layout.clone().unwrap_or_else(|| layout::default_layout(kind)) })
+        Frame::Integrated(Captions { family, layout: layout(kind) })
     };
     match os {
         Os::Web => Frame::Native,
@@ -163,7 +184,7 @@ fn integrated_frame(os: Os, backend: Backend, desktop: &Desktop, forced: bool, l
                 DesktopKind::Gnome => captions(CaptionFamily::Adwaita),
                 // Open decision 1: the line below is the only place that picks the app's bar on
                 // desktops that draw their own frame. `false` gives `Native` there.
-                _ if !no_ssd && !INTEGRATED_ON_SSD_DESKTOPS && !forced => Frame::Native,
+                _ if !no_ssd && !integrated_on_ssd && !forced => Frame::Native,
                 DesktopKind::Kde => captions(CaptionFamily::Breeze),
                 DesktopKind::Other if no_ssd => captions(CaptionFamily::Generic),
                 DesktopKind::Other => captions(layout::family(DesktopKind::Other, desktop.gtk_theme.as_deref())),
@@ -173,23 +194,25 @@ fn integrated_frame(os: Os, backend: Backend, desktop: &Desktop, forced: bool, l
 }
 
 /// Read the platform once (500 ms at most, as for [`crate::Choice::probe`]) and decide.
-/// `prefix` names the override variable, `backend` is the one the app opens its window on.
+/// `prefix` names the override variable (only `<PREFIX>_TITLEBAR` is read, as in
+/// [`crate::Choice::probe`]); `backend` is the one the app opens its window on, [`Backend::from_env`]
+/// unless the app forces X11.
 pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decision {
     let os = Os::current();
     let env = std::env::var(prefix.var_name()).ok();
-    let desktop = if os == Os::Linux { Desktop::detect(backend) } else { Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None } };
-    let layout = layout_for(os, &desktop);
-    decide_with(os, backend, &desktop, pref, env.as_deref(), layout)
+    let desktop =
+        if os == Os::Linux { Desktop::detect(backend) } else { Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None } };
+    decide_with(os, backend, &desktop, pref, env.as_deref(), &|kind| desktop_layout(os, kind))
 }
 
 /// The desktop's window-button layout, where it names one.
-fn layout_for(os: Os, desktop: &Desktop) -> Option<Layout> {
+fn desktop_layout(os: Os, kind: DesktopKind) -> Layout {
     #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
     if os == Os::Linux {
-        return Some(layout::read_layout(desktop.kind, &|k: &str| std::env::var(k).ok()));
+        return layout::read_layout(kind, &|k: &str| std::env::var(k).ok());
     }
-    let _ = (os, desktop);
-    None
+    let _ = os;
+    layout::default_layout(kind)
 }
 
 /// Apply a [`Frame`] to an [`egui::ViewportBuilder`] before the window is created: decorations off
@@ -222,7 +245,7 @@ mod tests {
     use TitleBarPref::{Integrated as Int, System};
 
     fn desk(kind: DesktopKind, ssd: Option<bool>, theme: Option<&str>) -> Desktop {
-        Desktop { kind, ssd, gtk_theme: theme.map(str::to_string) }
+        Desktop { kind, ssd, gtk_theme: theme.map(str::to_string), icon_theme: None }
     }
 
     fn family_of(d: &Decision) -> Option<CaptionFamily> {
@@ -261,6 +284,23 @@ mod tests {
             let system = decide(os, backend, &d, System, None);
             assert_eq!(system.frame, Frame::Native, "system bar: {os:?} {d:?}");
         }
+    }
+
+    #[test]
+    fn native_on_ssd_desktops_when_the_flag_is_off() {
+        use DesktopKind::{Gnome, Kde, Other};
+        let frame = |kind, backend, ssd, forced| integrated_frame(Os::Linux, backend, &desk(kind, ssd, None), forced, false, &layout::default_layout);
+        assert_eq!(frame(Kde, Backend::Wayland, Some(true), false), Frame::Native);
+        assert_eq!(frame(Other, Backend::X11, None, false), Frame::Native);
+        assert!(matches!(frame(Kde, Backend::Wayland, Some(true), true), Frame::Integrated(_)), "the override still forces the bar");
+        assert!(matches!(frame(Gnome, Backend::Wayland, Some(false), false), Frame::Integrated(_)));
+        assert!(matches!(frame(Other, Backend::Wayland, Some(false), false), Frame::Integrated(_)), "no SSD: nothing else draws a frame");
+    }
+
+    #[test]
+    fn the_decision_carries_the_desktop() {
+        let d = desk(DesktopKind::Tiling, Some(true), None);
+        assert_eq!(decide(Os::Linux, Backend::Wayland, &d, Int, None).desktop, d);
     }
 
     #[test]

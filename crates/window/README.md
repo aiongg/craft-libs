@@ -24,7 +24,7 @@ title bar" (`TitleBarPref::System`) gives the frame to the OS, window manager or
 | Windows | `Integrated(Windows)`: minimize, maximize, close at the right | `Native` |
 | GNOME, Wayland or XWayland | `Integrated(Adwaita)`, in the order of `button-layout` | `Native` |
 | KDE, Wayland or X11 | `Integrated(Breeze)`, in the order of KWin's `ButtonsOnLeft` and `ButtonsOnRight` | `Native` |
-| COSMIC, Xfce, Cinnamon, MATE, Budgie, other floating desktops | `Integrated(Generic)` in the order of `gtk-decoration-layout`; Adwaita or Breeze when the GTK theme is one of those | `Native` |
+| COSMIC, Xfce, Cinnamon, MATE, other floating desktops | `Integrated(Generic)` in the order of `gtk-decoration-layout`; Adwaita or Breeze when the GTK theme is one of those | `Native` |
 | Tiling compositors and window managers (Sway, Hyprland, i3, niri, river, from `XDG_CURRENT_DESKTOP`) | `Native` | `Native` |
 | Wayland without server-side decorations, not GNOME | `Integrated(Generic)` | `Native` |
 | Web | `Native`; no frame code runs | `Native` |
@@ -41,7 +41,7 @@ reads the platform once and calls it.
 `<PREFIX>_TITLEBAR` wins over the setting. With the default prefix `CRAFT`: `CRAFT_TITLEBAR=app`
 forces the app's bar (also on tiling compositors), `=system` or `=desktop` forces the native frame.
 Apps pass their own prefix (`Prefix::new("PDFCRAFT")` reads `PDFCRAFT_TITLEBAR`).
-`Decision::overridden` reports `Some(true)` or `Some(false)` when the variable decided.
+Only `<PREFIX>_TITLEBAR` is read. `Decision::overridden` reports `Some(true)` or `Some(false)` when the variable decided.
 
 ## Use
 
@@ -51,7 +51,8 @@ use craft_window::policy::{Backend, Frame, TitleBarPref, apply, decide_for};
 
 // Once at startup, before the window is created:
 let pref = if settings.system_title_bar { TitleBarPref::System } else { TitleBarPref::Integrated };
-let decision = decide_for(Prefix::new("PHOTOCRAFT"), Backend::Wayland, pref);
+// Backend::from_env() is what winit opens; an app that forces XWayland passes Backend::X11.
+let decision = decide_for(Prefix::new("PHOTOCRAFT"), Backend::from_env(), pref);
 let viewport = apply(egui::ViewportBuilder::default().with_title("PhotoCraft"), &decision.frame);
 
 if let Frame::Integrated(captions) = &decision.frame {
