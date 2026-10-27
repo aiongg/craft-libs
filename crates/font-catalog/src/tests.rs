@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, mpsc};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::{Duration, Instant};
 
 use write_fonts::FontBuilder;
 use write_fonts::tables::fvar::{AxisInstanceArrays, Fvar, InstanceRecord, VariationAxisRecord};
@@ -647,4 +647,140 @@ fn fork_of(fonts: &[Vec<u8>]) -> Vec<u8> {
     fork.extend(data);
     fork.extend(map);
     fork
+}
+
+#[test]
+fn changes_since_names_the_families_added_removed_and_changed() {
+    let root = temp("changes");
+    let dir = root.join("app-fonts");
+    write(&dir.join("AppFace-Regular.ttf"), font(&spec("App Face", "Regular", 400)));
+    let cat = Catalog::without_installed_fonts();
+    cat.set_app_dirs(vec![dir.clone()]);
+    let names = |v: &[String]| v.to_vec();
+    let start = cat.generation();
+    assert_eq!(names(&cat.changes_since(start).added), Vec::<String>::new());
+    cat.rescan();
+    let scanned = cat.generation();
+    assert_eq!(names(&cat.changes_since(start).added), ["App Face"]);
+    // Added and removed faces.
+    let limits = Limits::default();
+    cat.add_bytes(font(&spec("Added Face", "Regular", 400)), Source::User, &limits).unwrap();
+    let changes = cat.changes_since(scanned);
+    assert_eq!((names(&changes.added), changes.generation, changes.full), (vec!["Added Face".to_string()], cat.generation(), false));
+    let added = changes.generation;
+    cat.remove_added(Source::User);
+    assert_eq!(names(&cat.changes_since(added).removed), ["Added Face"]);
+    assert!(cat.changes_since(scanned).is_empty());
+    assert!(cat.changes_since(cat.generation()).is_empty());
+    // A scope's faces don't count.
+    let scope = cat.new_scope();
+    cat.add_bytes_in(scope, font(&spec("Scoped Face", "Regular", 400)), Source::Document, &limits).unwrap();
+    assert!(cat.changes_since(scanned).is_empty());
+    // A rescan: a family installed, a style added to one, then a family removed.
+    let before = cat.generation();
+    write(&dir.join("Installed-Regular.ttf"), font(&spec("Installed Face", "Regular", 400)));
+    write(&dir.join("AppFace-Bold.ttf"), font(&spec("App Face", "Bold", 700)));
+    cat.rescan();
+    let changes = cat.changes_since(before);
+    assert_eq!((names(&changes.added), names(&changes.changed)), (vec!["Installed Face".to_string()], vec!["App Face".to_string()]));
+    assert!(!cat.rescan_if_changed());
+    cat.rescan();
+    assert_eq!(cat.changes_since(changes.generation), Changes { generation: cat.generation(), ..Changes::default() });
+    std::fs::remove_file(dir.join("Installed-Regular.ttf")).unwrap();
+    cat.rescan();
+    let changes = cat.changes_since(before);
+    assert_eq!((names(&changes.added), names(&changes.removed), names(&changes.changed)), (vec![], vec![], vec!["App Face".to_string()]));
+    assert_eq!(names(&cat.changes_since(changes.generation - 1).removed), ["Installed Face"]);
+    // The history keeps the last 64 changes of the family set; older generations get `full`.
+    let bytes = font(&spec("Churn", "Regular", 400));
+    for _ in 0..40 {
+        cat.add_bytes(bytes.clone(), Source::User, &limits).unwrap();
+        cat.remove_added(Source::User);
+    }
+    let changes = cat.changes_since(before);
+    assert!(changes.full && changes.added.is_empty() && !changes.is_empty());
+    assert!(!cat.changes_since(cat.generation() - 10).full);
+}
+
+#[test]
+fn the_catalog_without_installed_fonts_sees_none_of_the_hosts() {
+    let cat = Catalog::without_installed_fonts();
+    assert!(font_dirs(cat.env()).is_empty() && font_store_dir(cat.env()).is_none());
+    assert_eq!(cat.rescan(), 0);
+    assert!(cat.families().is_empty());
+    assert!(!cat.installed_fonts_changed());
+    // It still takes bundled faces and the app's folders.
+    cat.add_bytes(font(&spec("Bundled Face", "Regular", 400)), Source::Bundled, &Limits::default()).unwrap();
+    let root = temp("empty");
+    write(&root.join("AppFace.ttf"), font(&spec("App Face", "Regular", 400)));
+    cat.set_app_dirs(vec![root]);
+    cat.rescan();
+    assert_eq!(cat.families().to_vec(), ["App Face", "Bundled Face"]);
+}
+
+/// Waits up to 10 seconds for `done`.
+fn wait_for(done: impl Fn() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !done() {
+        assert!(Instant::now() < deadline, "timed out");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn activations_share_one_worker_and_space_out_full_rescans() {
+    use crate::app::Refresh;
+
+    let root = temp("activate");
+    // A font service that names `listed` and waits while `blocked`, so a full rescan is
+    // visible (each calls it) and can be held running.
+    let (calls, blocked, listed) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicBool::new(false)), Arc::new(Mutex::new(Vec::new())));
+    let (c, b, l) = (Arc::clone(&calls), Arc::clone(&blocked), Arc::clone(&listed));
+    let lister: Lister = Arc::new(move || {
+        c.fetch_add(1, Ordering::SeqCst);
+        while b.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        l.lock().unwrap().clone()
+    });
+    let cat = Arc::new(Catalog::without_installed_fonts().with_lister(lister));
+    let (tx, rx) = mpsc::channel();
+    let on_change: app::OnChange = Arc::new(move |c: &Catalog| {
+        let _ = tx.send(c.families().to_vec());
+    });
+    let refresh = Arc::new(Refresh::new(Arc::clone(&cat), Duration::from_secs(60), Some(on_change)));
+    let t0 = Instant::now();
+    assert!(!refresh.activated_at(t0), "nothing before the first scan");
+    cat.rescan();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // Within the interval: a change check only, which doesn't ask the font service.
+    assert!(refresh.activated_at(t0));
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // After it: a full rescan, finding a font only the service knows. Activations while it runs
+    // start nothing.
+    let service = root.join("service/f1");
+    write(&service, font(&spec("Service Face", "Regular", 400)));
+    listed.lock().unwrap().push(service);
+    blocked.store(true, Ordering::SeqCst);
+    assert!(refresh.activated_at(t0 + Duration::from_secs(61)));
+    wait_for(|| calls.load(Ordering::SeqCst) == 2);
+    assert!(!refresh.activated_at(t0 + Duration::from_secs(200)));
+    assert!(!refresh.activated_at(t0 + Duration::from_secs(300)));
+    blocked.store(false, Ordering::SeqCst);
+    assert_eq!(rx.recv_timeout(Duration::from_secs(10)).unwrap(), ["Service Face"]);
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // The interval counts from that full rescan.
+    assert!(refresh.activated_at(t0 + Duration::from_secs(120)));
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(refresh.activated_at(t0 + Duration::from_secs(121)));
+    wait_for(|| !refresh.is_running());
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    // Nothing changed, so no call.
+    assert!(rx.try_recv().is_err());
 }

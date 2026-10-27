@@ -80,6 +80,19 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 - `rescan_if_changed` does both; apps call it when their window is activated.
 - `watch(interval, on_change)` polls on a background thread.
 - `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes and never repeats a value, even after `remove_scope`; a document lays out again when it changes.
+- `changes_since(generation)` lists the families unscoped lookups find differently since then: `added`, `removed`, and `changed` (a style installed or removed, a file replaced). An app re-resolves only those names and lays out only the documents that use them. The catalog keeps the last 64 changes of the family set, at most 4,096 family names in all; for an older generation it answers `full`, and the app re-resolves everything.
+
+## In an app
+
+The `app` module is what every Craft app does with the catalog:
+
+- `app::start(AppFonts { dirs, office, bundled, .. })` at launch, before the first window: the app's folders (with Office's when `office` is set), its bundled faces as `Source::Bundled`, and the first scan on a background thread. It returns the global catalog and the bundled faces that couldn't be added.
+- `app::on_activated()` when a window is activated: `rescan_if_changed` on a worker thread, and a full `rescan` at most every `AppFonts::full_rescan_every` (5 minutes by default), for fonts a font service activates from folders no scan has seen. While a worker runs, activations do nothing. `AppFonts::on_change` is called on the worker when a family changed, to wake an idle window. craft-ui's UI fallback follows rescans by itself.
+- `app::changes_since(generation)` tells the app which documents to lay out again.
+- A CLI calls `app::configure` instead of `start`: the first lookup scans and waits for it, and there are no activation hooks. Its "no system fonts" switch first makes `Catalog::without_installed_fonts()` the global catalog (`Catalog::init_global`), which reads no folders, no font store and no font service, only the faces and folders the app adds. Tests that must not see the host's fonts use the same constructor. On macOS a CLI leaves Office's folders out: reading Office's CloudFonts folder can raise a privacy prompt.
+- On wasm there are no folders, no font service and no threads: `start` adds the bundled faces, other fonts come in through `add_bytes`, and `on_activated` does nothing.
+
+A full rescan asks the font service again. On Linux it takes about 60 ms with 150 font files and 0.5 s with 4,000 (release build); `rescan_if_changed` takes well under a millisecond.
 
 ## One enumeration for the UI and documents
 
@@ -91,4 +104,5 @@ With the `system` feature, `system::collection()` returns the process's fontique
 cargo run -p craft-font-catalog --example fonts             # counts, folders, faces outside them
 cargo run -p craft-font-catalog --example fonts -- Arial     # a family's faces
 cargo run -p craft-font-catalog --example fonts -- --watch   # report fonts installed or removed
+cargo run -p craft-font-catalog --example fonts --release -- --time   # what rescans cost
 ```
