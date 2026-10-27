@@ -35,14 +35,40 @@ match store.update(&base, change) {
 | `StoreError` | `Busy`, `Conflict { disk }`, `IdExists`, `InUse`, … ; nothing on disk changed |
 | `Problem` | damaged, too new or unreadable files; the store keeps its last accepted state |
 | `parse_theme`, `theme_to_json`, `ThemeRecord` | theme file v1; unknown keys stay in the stored bytes |
+| `SuiteWatch`, `Snapshot`, `Op`, `OpOutput` | the store on a worker thread: snapshots by generation, queued operations with results |
 | `FileStamp`, `library_files`, `selection_stamp`, `theme_stamp`, `parse_counts` | cheap change checks for a watcher |
 
-`Store` methods block on file I/O and on the lock (up to 2 s), so apps call them from a worker
-thread. Without a folder the same store runs in memory, and on `wasm32` that is the only mode.
+`Store` methods block on file I/O and on the lock (up to 2 s). Apps use `SuiteWatch`, which owns
+the store on a worker thread, instead of calling them on the UI thread:
+
+```rust,ignore
+use craft_theme_store::{Op, StoreOptions, SuiteDir, SuiteWatch};
+
+let options = StoreOptions::new("pdfcraft 0.15.0").last_accepted(prefs.last_suite.clone());
+let watch = SuiteWatch::open(&SuiteDir::resolve(false), options, move || ctx.request_repaint());
+
+// Each frame: one atomic load; rebuild only when the key changed.
+let key = (watch.generation(), effective.clone(), ctx.theme());
+if key != self.theme_key {
+    let snapshot = watch.snapshot();
+    let resolution = craft_theme::resolve(&effective, system, fallback, &|id| snapshot.theme(id));
+    // tokens and styles from `resolution`
+}
+
+// The user picks a theme: apply it locally, then send it.
+let id = watch.request(Op::Update { base: snapshot.accepted.clone(), change });
+// Later frames: snapshot.result(id) is Ok, or an error with the accepted state to go back to.
+```
+
+The worker stats `selection.json` every 500 ms and compares its bytes every 10 s, parses only
+what changed, re-lists the library only when its revision changes or on `Op::Rescan`, and calls
+`wake` only when the snapshot changes. `SuiteWatch::memory()` runs without a thread; on `wasm32`
+that is the only form. [docs/suite-themes.md](../../docs/suite-themes.md#watching-for-changes)
+has the details.
 
 Feature `testing` adds `SAMPLE_THEME_JSON` with its expected colours (`sample_roles`), for each
 app's adapter test, and `FailingFs`, a file system that fails one step of a write.
 
-The lock file and revision protocol, the re-check before the rename and the failure handling
-follow the theme store in [pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090) by
+The lock file and revision protocol, the re-check before the rename, the failure handling and the
+stamp-plus-bytes change detection follow the theme store in [pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090) by
 mjshfrvstj-sys.

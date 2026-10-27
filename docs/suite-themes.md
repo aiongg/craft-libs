@@ -278,5 +278,53 @@ The store keeps the last state it read or wrote. A damaged, too new or unreadabl
 Each app also copies it into its own preferences and passes it to `StoreOptions::last_accepted`,
 so a bad file at startup still shows the last look.
 
-The lock file and revision protocol, the re-check before the rename and the failure handling
-follow the theme store in [pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090).
+### Watching for changes
+
+Apps don't call `Store` directly. `SuiteWatch::open(dir, options, wake)` (or `start(dir, wake)`
+with default options) owns the store on a worker thread named `craft-theme-watch` and publishes
+what it finds as an immutable `Snapshot`:
+
+| Field | What it holds |
+|---|---|
+| `accepted` | the selection as last read or written; problems never replace it |
+| `index` | the library themes (id, name, variants, diagnostic count, stamp), sorted by file name |
+| `active` | the suite selection's library theme, the last version that parsed; `None` for built-ins |
+| `app_theme` | the library theme named with `Op::AppTheme`, for an app's own choice |
+| `problems` | damaged, too new or unreadable files; each listed once |
+| `results` | the last 16 operation results by request id |
+| `generation` | goes up by one with each new snapshot |
+
+What the worker reads, and when:
+
+- `selection.json`: its stamp (length, modification time, file identity on Unix) every 500 ms,
+  parsed only when the stamp changed; every 10 s its bytes are read and compared, which catches a
+  replacement that kept length and modification time. Unchanged bytes are never parsed again.
+- The library: listed only when `library_revision` changes or on `Op::Rescan`, which an app sends
+  when a theme picker opens. Only files whose stamp changed are read; the index of the rest is
+  kept.
+- The suite's theme and the app's own library theme: their stamps on every 500 ms check, parsed
+  only when they changed. A deleted or broken file becomes a problem and the last good version
+  stays in the snapshot.
+
+Each change publishes a new snapshot and calls `wake` (the app's `request_repaint`) once; a check
+that finds nothing new does neither. `wake` runs on the worker (inside `request` without one) and
+must not block or call back into the watch.
+
+Each frame the app calls `generation()`, one atomic load, and compares it with its cache key
+`(generation, effective selection, effective variant)`. Only when the key changed does it take
+`snapshot()`, resolve with `Snapshot::theme` as the lookup, and rebuild its tokens and styles.
+
+Changes go through `request(Op)`, which queues the operation and returns its id at once:
+`Update { base, change }`, `Import`, `Delete`, `Export` (the bytes come back as
+`OpOutput::Exported`), `Rescan` and `AppTheme`. The app applies the change to its own state
+optimistically, then looks for `snapshot().result(id)`: on `Conflict` the snapshot already holds
+the disk state; on another error it holds the accepted state from before.
+
+`SuiteWatch::memory()` and in-memory folders run without a thread: `request` applies the
+operation before it returns, with the same snapshots, generations and wake calls. On `wasm32`
+that is the only form. Dropping a `SuiteWatch` lets queued operations finish and waits at most
+100 ms for the worker; a worker still blocked on the lock then finishes on its own.
+
+The lock file and revision protocol, the re-check before the rename, the failure handling and the
+stamp-plus-bytes change detection follow the theme store in
+[pdfcraft#1090](https://github.com/storytold/pdfcraft/pull/1090).

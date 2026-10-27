@@ -404,7 +404,7 @@ impl Store {
         library
     }
 
-    fn load_stem(&mut self, stem: &str) -> Result<Option<ThemeRecord>, StoreError> {
+    pub(crate) fn load_stem(&mut self, stem: &str) -> Result<Option<ThemeRecord>, StoreError> {
         let Some(bytes) = self.backend.read_theme(stem, MAX_THEME_BYTES)? else {
             return Ok(None);
         };

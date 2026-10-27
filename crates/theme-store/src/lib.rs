@@ -40,12 +40,14 @@ mod selection;
 mod store;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
+mod watch;
 
 pub use backend::{FileStamp, LibraryFile};
 pub use dir::{DirSource, SUITE_DIR_ENV, SuiteDir};
 pub use format::{FormatError, MAX_THEME_BYTES, THEME_SCHEMA, THEME_SCHEMA_VERSION, ThemeRecord, parse_theme, theme_to_json};
 pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError};
 pub use store::{Imported, LOCK_TIMEOUT, Library, ParseCounts, Problem, Store, StoreError, StoreOptions, ThemeEntry};
+pub use watch::{Op, OpOutput, RESULTS_KEPT, STAT_INTERVAL, Snapshot, SuiteWatch, VERIFY_INTERVAL};
 
 #[cfg(test)]
 mod tests;
