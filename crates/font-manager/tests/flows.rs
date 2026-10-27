@@ -714,14 +714,19 @@ fn variable_index() -> Index {
 fn a_variable_family_draws_one_var_subset_at_every_axis_value() {
     let service = Arc::new(FakeService::default());
     let (mut h, store) = service_setup_with("variable-details", &service, 8, variable_index());
-    store.set_preview_service(Some("http://127.0.0.1:9")).unwrap();
-    allow(&mut h);
-    idle(&mut h);
-    service.urls();
-
+    // The previews setting off: the detail view asks for nothing.
+    store.set_previews_enabled(false).unwrap();
+    set_service(&mut h, &store);
     click(&mut h, "Varia");
     assert_eq!(h.state().details_family().as_deref(), Some("Varia"));
     idle(&mut h);
+    assert!(service.urls().is_empty());
+
+    // On, with downloads still off.
+    store.set_previews_enabled(true).unwrap();
+    h.state_mut().reload_preview_settings();
+    idle(&mut h);
+    assert!(!h.state().downloads_allowed());
     let urls = service.urls();
     let var: Vec<&String> = urls.iter().filter(|u| u.contains("/var/")).collect();
     assert_eq!(var.len(), 1, "one subset for the variable file's every style: {urls:?}");
