@@ -100,6 +100,7 @@ pub struct Client {
     /// The origin of the preview service that failed on the network, and when it may be tried
     /// again. Another service isn't affected. Clones share it.
     service_down: Arc<Mutex<Option<(String, u64)>>>,
+    https_only: bool,
     /// URL prefixes the tests serve from a local server.
     #[cfg(test)]
     pub(crate) rewrite: Vec<(String, String)>,
@@ -143,8 +144,21 @@ impl Client {
             agent: agent(https_only, 3),
             loopback: agent(false, 0),
             service_down: Arc::new(Mutex::new(None)),
+            https_only,
             #[cfg(test)]
             rewrite: Vec::new(),
+        }
+    }
+
+    /// A client with other timeouts that shares this one's preview-service down state, so a
+    /// pool with short timeouts (previews) and the installs agree on which service is down.
+    pub fn with_timeouts(&self, timeouts: Timeouts) -> Client {
+        let fresh = Self::build(timeouts, self.https_only);
+        Client {
+            service_down: Arc::clone(&self.service_down),
+            #[cfg(test)]
+            rewrite: self.rewrite.clone(),
+            ..fresh
         }
     }
 

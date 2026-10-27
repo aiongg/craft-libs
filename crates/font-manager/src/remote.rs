@@ -438,14 +438,15 @@ impl State {
 }
 
 impl Previews {
-    /// A pool fetching with the installer's client ([`Installer::http_client`]), else with its own
-    /// craft-font-store [`Client`]. A network failure of the service pauses its requests for a
+    /// A pool fetching with the installer's client ([`Installer::http_client`]) given short timeouts
+    /// (10 s to connect, 15 s to respond, 30 s overall; the down state stays shared), else with its
+    /// own craft-font-store [`Client`]. A network failure of the service pauses its requests for a
     /// minute, for every user of the same client (installs too). It caches in the store's
     /// [`Installer::preview_cache`] folder, up to [`CACHE_LIMIT`]. It starts its threads on the
     /// first request.
     pub fn new(installer: Arc<dyn Installer>) -> Previews {
-        let timeouts = Timeouts { connect: Duration::from_secs(10), response: Duration::from_secs(15), overall: Duration::from_secs(60) };
-        let client = installer.http_client().unwrap_or_else(|| Client::new(timeouts));
+        let timeouts = Timeouts { connect: Duration::from_secs(10), response: Duration::from_secs(15), overall: Duration::from_secs(30) };
+        let client = installer.http_client().map_or_else(|| Client::new(timeouts), |c| c.with_timeouts(timeouts));
         let cache = installer.preview_cache().map(|dir| Arc::new(DiskCache::new(dir, CACHE_LIMIT)));
         let (tx, rx) = channel();
         Previews {
