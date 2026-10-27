@@ -727,6 +727,11 @@ impl Index {
         }
     }
 
+    /// The URLs of `family`'s NOTICE file, best first; empty when it has none.
+    pub fn notice_urls(&self, family: &Family) -> Vec<String> {
+        family.notice_file.as_ref().map(|f| self.urls(family, &f.path, f.repo.as_deref(), f.git_ref.as_deref())).unwrap_or_default()
+    }
+
     fn urls(&self, family: &Family, path: &str, repo: Option<&str>, git_ref: Option<&str>) -> Vec<String> {
         let Some(source) = self.source_of(family) else { return Vec::new() };
         let repo = repo.or(family.repo.as_deref()).or(source.repo.as_deref());

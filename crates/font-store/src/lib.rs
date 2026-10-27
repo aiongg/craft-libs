@@ -45,7 +45,7 @@ pub use verify::{VerifyError, is_font, sha256_hex, verify_font};
 pub use http::{Cancel, Client, FetchError, Timeouts, USER_AGENT};
 #[cfg(not(target_arch = "wasm32"))]
 pub use store::{
-    Caller, Conflict, Error, FontStore, InstalledFamily, InstalledFile, Network, OsFontFolder, OsFontLayout, PREVIEW_SERVICE_ENV,
+    Caller, Conflict, Error, FontStore, InstalledFamily, InstalledFile, LegalText, Network, OsFontFolder, OsFontLayout, PREVIEW_SERVICE_ENV,
     PreviewServiceSource, Problem, Progress, UserSource, check_preview_service,
 };
 
