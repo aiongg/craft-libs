@@ -178,6 +178,13 @@ fn format_1_2_adds_tags_and_samples_and_1_1_still_loads() {
 
     first["families"][3]["files"][0]["list_instance"] = json!(1);
     assert!(index_of(&first).is_err());
+    first["samples"]["Latn"]["text"] = json!("bad\u{7}");
+    assert!(index_of(&first).is_err());
+    first["samples"]["Latn"] = sample("Hello");
+    // Named instances belong to variable fonts only.
+    first["families"][3]["files"][0]["list_instance"] = json!(0);
+    first["families"][2]["files"][0]["instances"] = json!([{"name": "Bold", "coordinates": {}}]);
+    assert!(index_of(&first).is_err());
 }
 
 #[cfg(feature = "bundled-index")]
