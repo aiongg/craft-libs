@@ -636,8 +636,8 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
     // No service: the list stays as it is without one.
     settle(&mut h);
     assert!(service.take().is_empty());
-    let preview = By::new().predicate(|n| n.label().is_some_and(|l| l.contains("Preview") && l.contains("Family 01")));
-    assert!(h.get_all(preview).next().is_some(), "the whole-family preview is offered");
+    let preview = || By::new().predicate(|n| n.label().is_some_and(|l| l.contains("Preview") && l.contains("Family 01")));
+    assert!(h.get_all(preview()).next().is_some(), "the whole-family preview is offered");
 
     // The previews setting off: nothing is fetched.
     store.set_previews_enabled(false).unwrap();
@@ -651,6 +651,7 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
     idle(&mut h);
     assert!(!h.state().downloads_allowed());
     assert!(h.query_by_label("Nothing is installed until you allow downloads.").is_some());
+    assert!(h.query_all(preview()).next().is_none(), "no session download while the service previews");
     let shown = on_screen(&h);
     assert!(shown.len() >= 3 && shown.len() < 10, "{shown:?}");
     assert_eq!(shown, (1..=shown.len()).collect::<Vec<_>>());

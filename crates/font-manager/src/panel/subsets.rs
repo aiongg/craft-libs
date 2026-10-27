@@ -123,6 +123,12 @@ impl Subsets {
         self.available
     }
 
+    /// Whether rows and the detail view get their previews from the service: a service is set
+    /// and previews are on. Otherwise a session download is the only way to see a font.
+    pub(crate) fn previewing(&self) -> bool {
+        self.available && self.fetching
+    }
+
     /// Reads which service is set and whether previews are on; a change asks for everything again.
     fn read_settings(&mut self) {
         let service = self.installer.preview_service();
