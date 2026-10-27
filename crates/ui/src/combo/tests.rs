@@ -437,8 +437,8 @@ fn a_click_opened_menu_under_a_text_field_leaves_it_the_focus_while_typing() {
 #[test]
 fn a_menu_with_a_footer_shrinks_when_its_list_empties_and_grows_back() {
     let mut h = Harness::builder().with_size(egui::vec2(400.0, 800.0)).build_ui_state(
-        |ui, filter: &mut String| {
-            ui.add_space(20.0);
+        |ui, (filter, seen): &mut (String, Vec<f32>)| {
+            ui.add_space(700.0);
             let row = ui.spacing().interact_size.y;
             let field = ui.button("Send");
             let _ = super::Menu::new(ui, &field)
@@ -467,25 +467,60 @@ fn a_menu_with_a_footer_shrinks_when_its_list_empties_and_grows_back() {
                     },
                     |ui| {
                         let _ = ui.button("new bus...");
-                        let _ = ui.button("Remove send");
+                        let remove = ui.button("Remove send");
+                        // Where the footer is in each frame the user sees in full.
+                        if ui.opacity() >= 1.0 {
+                            seen.push(remove.rect.bottom());
+                        }
                     },
                 );
         },
-        String::new(),
+        (String::new(), Vec::new()),
     );
     h.run();
     h.get_by_label("Send").click();
     h.run();
-    let footer = |h: &Harness<'_, String>| h.get_by_label("Remove send").rect();
+    // The menu opens above its field, so it shrinks from the top: the search field moves down.
+    let footer = |h: &Harness<'_, (String, Vec<f32>)>| h.get_by_role(egui::Role::TextInput).rect();
     let full = footer(&h);
+    // Opening shows the menu where it stays: no visible frame at a side or height it then leaves.
+    let seen = &h.state().1;
+    assert!(!seen.is_empty() && seen.iter().all(|b| (b - seen[0]).abs() < 0.5), "visible frames moved: {seen:?}");
     h.get_by_role(egui::Role::TextInput).type_text("zzzz");
     h.run();
     let none = footer(&h);
-    assert_eq!(h.state(), "zzzz");
-    assert!(none.top() < full.top() - 100.0, "no matches shrink the menu: {none:?} vs {full:?}");
+    assert_eq!(h.state().0, "zzzz");
+    assert!(none.top() > full.top() + 100.0, "no matches shrink the menu: {none:?} vs {full:?}");
     for _ in 0..4 {
         h.key_press(egui::Key::Backspace);
         h.run();
     }
     assert!((footer(&h).top() - full.top()).abs() < 1.0, "cleared, the footer is back: {:?} vs {full:?}", footer(&h));
+}
+
+#[test]
+fn a_footer_that_changes_height_every_pass_settles() {
+    let mut h = Harness::builder().with_size(egui::vec2(400.0, 600.0)).build_ui_state(
+        |ui, passes: &mut u32| {
+            let field = ui.button("Send");
+            let _ = super::Menu::new(ui, &field).show_ui_with_header_footer(
+                |ui| ui.label("Title"),
+                |ui, _| {
+                    let _ = ui.label("Row");
+                },
+                |ui| {
+                    *passes += 1;
+                    ui.add_space(if *passes % 2 == 0 { 10.0 } else { 30.0 });
+                },
+            );
+        },
+        0,
+    );
+    h.run();
+    h.get_by_label("Send").click();
+    h.run();
+    let before = *h.state();
+    h.run();
+    h.run();
+    assert!(*h.state() - before <= 4, "the menu keeps remeasuring: {} passes in two frames", *h.state() - before);
 }

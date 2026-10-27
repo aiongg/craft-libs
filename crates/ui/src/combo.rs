@@ -527,6 +527,12 @@ impl<'a> Menu<'a> {
         let remeasure_id = id.with("craft-remeasure");
         let remeasure = ctx.data_mut(|d| d.remove_temp::<bool>(remeasure_id)).unwrap_or(false);
         let (align, settled) = side(&popup, remeasure);
+        // At most two remeasures per open, so a footer that changes height on every pass settles.
+        let count_id = id.with("craft-remeasures");
+        if ctx.read_response(id).is_none() {
+            ctx.data_mut(|d| d.remove::<u8>(count_id));
+        }
+        let remeasures = ctx.data(|d| d.get_temp::<u8>(count_id)).unwrap_or(0);
         // Until the side is settled, the menu is measured against the whole screen.
         let room = match popup.get_anchor_rect() {
             Some(anchor) if settled => room(align, anchor, ctx.content_rect()),
@@ -543,6 +549,12 @@ impl<'a> Menu<'a> {
             .style(style)
             .close_behavior(close_behavior)
             .show(|ui| {
+                // The pass that measures the menu before its side is settled: drawn at a side that
+                // may change and at a height the room doesn't cap. Laid out and interactive (a
+                // search field takes the focus), but not seen.
+                if remeasure && !settled {
+                    ui.multiply_opacity(0.0);
+                }
                 ui.set_min_width(ui.available_width());
                 // The popup offers last pass's height. Offer the full height instead: the scroll
                 // area takes what the header and footer leave of it, then shrinks to the list.
@@ -559,13 +571,14 @@ impl<'a> Menu<'a> {
                     let top = ui.cursor().top();
                     let f = footer(ui);
                     let height = ui.min_rect().bottom() - top;
-                    if footer_height.is_none_or(|h| (h - height).abs() > 0.5) {
+                    if footer_height.is_none_or(|h| (h - height).abs() > 0.5) && remeasures < 2 {
                         // The list took the wrong room: lay the menu out again next pass. Not a
                         // discarded pass: the header's side effects (focusing a search field on
                         // open) would run twice.
                         ui.data_mut(|d| {
                             d.insert_temp(footer_id, height);
                             d.insert_temp(remeasure_id, true);
+                            d.insert_temp(count_id, remeasures + 1);
                         });
                         ui.ctx().request_repaint();
                     }
