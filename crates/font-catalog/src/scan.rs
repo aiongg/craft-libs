@@ -85,6 +85,9 @@ pub struct FaceInfo {
 pub(crate) struct Face {
     pub info: FaceInfo,
     pub keys: Keys,
+    /// The size and modification time of the scanned file the face is in, so a file replaced in
+    /// place changes its family's signature ([`crate::Catalog::changes_since`]).
+    pub file: Option<(u64, Option<std::time::SystemTime>)>,
 }
 
 /// Every name a face answers to besides its family and style, normalized ([`norm`]).
@@ -267,7 +270,7 @@ pub(crate) fn font_faces(font: &skrifa::FontRef<'_>, index: u32, path: Option<&P
     };
     let mut keys = Keys { families, styles, legacy, full_names, postscript };
     let instances = named_instances(font, &info, &mut keys);
-    std::iter::once(Face { info, keys }).chain(instances).collect()
+    std::iter::once(Face { info, keys, file: None }).chain(instances).collect()
 }
 
 /// The named instances of a variable face (its `fvar` table) as faces of its family, without the
@@ -327,7 +330,7 @@ fn named_instances(font: &skrifa::FontRef<'_>, face: &FaceInfo, keys: &mut Keys)
             ..face.clone()
         };
         let keys = Keys { families: keys.families.clone(), styles, legacy: vec![], full_names: vec![], postscript };
-        out.push(Face { info, keys });
+        out.push(Face { info, keys, file: None });
     }
     sort_dedup(&mut keys.styles);
     sort_dedup(&mut keys.postscript);
