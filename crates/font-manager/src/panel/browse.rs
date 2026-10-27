@@ -155,12 +155,12 @@ impl FontsPanel {
         ui.add_space(12.0);
         widgets::label(ui, s, tl!("Script"), s.p.faint);
         let any = tl!("Any script");
-        let selected = self.query.script.as_deref().and_then(|id| script_name(&index, id)).unwrap_or(any).to_owned();
+        let selected = self.query.script.as_deref().map_or_else(|| any.to_owned(), |id| script_label(&index, id));
         let (common, more) = script_menu(&index, c.search.scripts(), &self.ui_script());
         let more_id = ui.make_persistent_id("craft-fonts.script.more");
         let query = &mut self.query;
         let in_more = query.script.as_ref().is_some_and(|id| more.iter().any(|m| m == id));
-        let name_of = |id: &str| script_name(&index, id).unwrap_or(id).to_owned();
+        let name_of = |id: &str| script_label(&index, id);
         widgets::select_closing(ui, "craft-fonts.script", tl!("Script"), &selected, width, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
             let mut pick = |ui: &mut Ui, value: Option<String>, label: &str| {
                 if ui.selectable_label(query.script == value, label).clicked() {
@@ -808,6 +808,20 @@ pub(crate) fn default_filters(tag: &str, has_language: impl Fn(&str) -> bool) ->
     if has_language(&id) { (id, script) } else { ("en_Latn".to_owned(), "Latn".to_owned()) }
 }
 
+/// A script's name in its main language, when CLDR has one in that script (never Latin).
+pub(crate) fn script_autonym(id: &str) -> Option<&'static str> {
+    crate::script_autonyms::SCRIPT_AUTONYMS.binary_search_by_key(&id, |(i, _)| i).ok().map(|n| crate::script_autonyms::SCRIPT_AUTONYMS[n].1)
+}
+
+/// The Script menu text: `autonym · name`, or the name alone when there is no autonym or it is the name.
+pub(crate) fn script_label(index: &Index, id: &str) -> String {
+    let name = script_name(index, id).unwrap_or(id);
+    match script_autonym(id) {
+        Some(autonym) if autonym != name => format!("{autonym} · {name}"),
+        _ => name.to_owned(),
+    }
+}
+
 /// The Script menu: the scripts listed up front (the interface language's first when it is not a
 /// common one), then the rest by name. `by_name` is [`Search::scripts`].
 pub(crate) fn script_menu(index: &Index, by_name: &[usize], ui_script: &str) -> (Vec<String>, Vec<String>) {
@@ -853,5 +867,9 @@ mod tests {
         let (common, more) = script_menu(&index, search.scripts(), "Hira");
         assert_eq!(common.first().map(String::as_str), Some("Hira"));
         assert!(!more.iter().any(|s| s == "Hira"));
+        assert_eq!(script_autonym("Cyrl"), Some("кириллица"));
+        assert_eq!(script_autonym("Latn"), None);
+        assert_eq!(script_label(&index, "Cyrl"), "кириллица · Cyrillic");
+        assert_eq!(script_label(&index, "Latn"), "Latin");
     }
 }
