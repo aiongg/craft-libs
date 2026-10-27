@@ -1030,6 +1030,7 @@ dependencies = [
  "craft-atomic",
  "craft-theme",
  "dirs",
+ "serde",
  "serde_json",
  "tempfile",
 ]

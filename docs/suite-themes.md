@@ -218,20 +218,30 @@ A theme picker's diagnostic count for a theme is its `MissingRole` count plus it
   "suite": { "theme": "craft.artcraft", "mode": "system" }, "written_by": "pdfcraft 0.15.0" }
 ```
 
-`Accepted::suite` is `None` while there is no file or the file has no `suite`: no app has chosen a
-suite theme yet, and each app shows its own fresh-install default. The store never writes `suite`
-on its own, so one app's default never reaches the others. Keys the app doesn't know are kept
-on every write.
+`suite.theme` and `suite.mode` are each optional: a field is present once a user has chosen it in
+some app. `Accepted::suite` is a `SuiteChoice { theme: Option<ThemeId>, mode: Option<Mode> }`,
+empty while there is no file, no `suite` or neither field. An app that follows the suite shows
+`suite.with_defaults(&app_defaults)`: the chosen fields, and its own fresh-install default for
+the rest. A write contains only fields a user chose, so one app's default never reaches the
+others: picking a theme on a fresh install writes no mode. Keys the app doesn't know are kept on
+every write.
+
+With feature `serde`, `Accepted` and `SuiteChoice` serialize, for the copy each app keeps in its
+preferences (`last_suite`).
 
 ### Writes: lock, merge, revision
 
 Reads take no lock: every write replaces the file with an atomic rename. Each write:
 
 1. Opens `selection.lock` and takes an exclusive lock (`File::try_lock`), retrying every 20 ms
-   for up to 2 s, then gives up with `Busy`.
-2. Reads `selection.json`. A damaged file is moved to `selection.broken-<unix-ts>.json` and the
-   caller's base stands in for it. A file from a newer build gives `TooNew` and the store stays
-   read-only; a file over 64 KiB is refused. Neither is changed.
+   for up to 2 s, then gives up with `Busy`. On a file system without locks (`ENOLCK`,
+   `Unsupported`) it writes without one and relies on the re-check in step 4.
+2. Reads `selection.json`. A damaged file, or one over 64 KiB, is replaced by this write if it
+   writes anything: it is moved to `selection.broken-<unix-ts>.json` just before the new file is
+   written (and put back if that fails). The caller's base stands in for it, with the damaged
+   file's `revision` and `library_revision` when it still parses as JSON, so they never go
+   backwards. A file from a newer build gives `TooNew`, is never changed, and the store stays
+   read-only.
 3. Merges (below). A conflict returns `Conflict { disk }` and writes nothing.
 4. Writes the result with `revision` one above the file's, carrying the file's unknown keys,
    through craft-atomic with private permissions. Just before the rename it reads the file again;
@@ -240,22 +250,22 @@ Reads take no lock: every write replaces the file with an atomic rename. Each wr
 5. Releases the lock and returns the new `Accepted`.
 
 `Store::update(base, change)` takes the state the user's change was made on and a
-`SelectionChange`: the fields the user changed (`theme`, `mode`; their new values are "mine" below) and `shown`, the selection the app
-showed (the suite's, or its own default when no app had written one). Only changed fields can
-conflict. Per field:
+`SelectionChange`: the fields the user changed (`theme`, `mode`; their new values are "mine"
+below). Only these are written, and only they can conflict. Per field:
 
 | Field | Disk | Result |
 |---|---|---|
-| not changed | a selection | disk's value |
-| not changed | no selection | `shown`'s value |
-| changed | no selection | mine |
+| not changed | anything | disk's value, chosen or not |
+| changed | not chosen | mine |
 | changed | equal to mine | disk's value (nothing to write for it) |
-| changed | differs from mine, base has a selection | disk equals base: mine. Disk differs from base (another app wrote this field after the caller read): conflict |
-| changed | differs from mine, base has no selection | disk's revision past base's (another app wrote the first suite choice meanwhile): conflict. Otherwise mine |
+| changed | another value, equal to base's | mine |
+| changed | another value, not base's | conflict: another app chose this field after the caller read |
 
-A mode-only change therefore keeps the theme on disk and writes only the mode. On a conflict the
-app shows the suite's choice with "Changed in another Craft app; your choice wasn't applied" and
-"Apply mine", which repeats the same change with the disk state as base.
+A mode-only change therefore keeps the theme on disk, and two apps on a fresh install that pick
+a theme and a mode at the same time both land. A change naming a library theme that no longer
+exists is `NotFound`. On a conflict the app shows the suite's choice with "Changed in another
+Craft app; your choice wasn't applied" and "Apply mine", which sends the same change again
+(returned in `Conflict { disk, mine }`) with `disk` as base.
 
 Library operations take the same lock. They set `library_revision` to the file's value plus one,
 so concurrent imports never collapse into one bump, and leave `suite` as it is (absent stays
@@ -264,9 +274,15 @@ absent).
 - **Import** validates the file, writes its original bytes to `library/<id>.json` without ever
   replacing a file, and bumps `library_revision`. A taken id gives `IdExists`; "import as copy"
   stores it as the first free `<id>-2`, `<id>-3`, … and changes nothing but the `id` value.
-- **Delete** refuses the suite selection's theme (`InUse`) and built-ins. Per-app choices naming
-  a deleted theme fall back to the app default, as unknown ids always do.
-- **Export** returns a library theme's stored bytes, or a built-in written out as a theme file.
+- **Delete** refuses the suite selection's theme (`InUse`) and built-ins. It renames the file to
+  `library/.<id>.json.deleting` (listings skip hidden names), writes `selection.json`, then
+  removes it; a failed write renames it back. Per-app choices naming a deleted theme fall back to
+  the app default, as unknown ids always do.
+- **Export** returns a library theme's stored bytes (at most 256 KiB), or a built-in written out
+  as a theme file.
+
+Ids a user couldn't create (the `craft.` prefix, Windows device names such as `con`) are
+`NotFound` for every library operation and never reach the file system.
 
 When a write fails, everything it changed is undone (an imported file is removed, a deleted one
 restored) and the error comes back; the app returns to `Store::accepted()` and offers Retry.
