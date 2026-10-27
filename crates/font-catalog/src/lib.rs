@@ -11,7 +11,9 @@
 //! `fvar` tables, never whole files, and a rescan reads only files that changed.
 //!
 //! Apps start it, refresh it on window activation and learn which families changed through
-//! [`app`].
+//! [`app`]. An app that shapes and draws with its own face objects keeps them in a
+//! [`FaceCache`], which makes each face once and lets go of it when its file changes or leaves
+//! the catalog.
 //!
 //! ```no_run
 //! use craft_font_catalog::{Catalog, Match};
@@ -26,6 +28,7 @@
 pub mod app;
 mod catalog;
 mod env;
+mod faces;
 mod fontconfig;
 mod registry;
 mod scan;
@@ -34,6 +37,7 @@ pub mod system;
 
 pub use catalog::{Catalog, Changes, FontData, FontFileError, Limits, Lister, LoadedFace, Match, Scope, Watch};
 pub use env::{FontEnv, Os, font_dirs, font_store_dir, office_font_dirs};
+pub use faces::{FaceCache, FaceKey};
 pub use fontconfig::fontconfig_dirs;
 pub use scan::{FaceInfo, LocalizedName, Source, is_font_file, style_italic, style_weight, style_width};
 

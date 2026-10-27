@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
-use crate::scan::{self, Face, FaceInfo, Source, norm, style_italic, style_weight, style_width};
+use crate::scan::{self, Face, FaceInfo, FileStamp, Source, file_stamp, norm, style_italic, style_weight, style_width};
 use crate::{FontEnv, Os, font_dirs, font_store_dir};
 
 /// Lists font files that the platform's font service knows outside the font folders. Called by
@@ -220,7 +220,7 @@ impl Index {
                 let mut h = DefaultHasher::new();
                 for f in faces.iter().filter_map(|i| self.face(*i)) {
                     let i = &f.info;
-                    (&i.family, &i.style, &i.postscript_name, &i.path, i.index, i.blob, i.source, i.italic, f.file).hash(&mut h);
+                    (&i.family, &i.style, &i.postscript_name, &i.path, i.index, i.blob, i.source, i.italic, i.file).hash(&mut h);
                     (i.weight.to_bits(), i.width.to_bits()).hash(&mut h);
                     for (tag, value) in &i.variations {
                         (tag, value.to_bits()).hash(&mut h);
@@ -427,13 +427,6 @@ struct Config {
     font_service: bool,
 }
 
-/// A file's size and modification time: when either differs, the file changed.
-type FileStamp = (u64, Option<SystemTime>);
-
-fn file_stamp(meta: &std::fs::Metadata) -> FileStamp {
-    (meta.len(), meta.modified().ok())
-}
-
 /// A loaded file's bytes, while anything holds them.
 struct Loaded {
     /// The file's stamp when read: a file replaced since is read again.
@@ -481,12 +474,16 @@ struct Added {
     next_blob: u64,
     /// Counts every scope's changes together, so a scope's stamp never repeats.
     scope_changes: u64,
+    /// Counts every add and removal, with or without a scope, for [`Catalog::face_changes`]:
+    /// before the first scan, unscoped ones don't move the generation.
+    changes: u64,
 }
 
 impl Added {
     /// Record a change of `scope`'s faces: a new stamp, and a view to build again.
     fn changed(&mut self, scope: Scope) -> &mut Scoped {
         self.scope_changes += 1;
+        self.changes += 1;
         let stamp = self.scope_changes;
         let scoped = self.scopes.entry(scope).or_default();
         scoped.stamp = stamp;
@@ -1169,6 +1166,11 @@ impl Catalog {
         if faces.is_empty() {
             return Err(FontFileError::NotAFont);
         }
+        // Taken before the read, so a change during it shows when the file is added again.
+        let stamp = file_stamp(&meta);
+        for f in &mut faces {
+            f.info.file = Some(stamp);
+        }
         let added = lock(&self.added);
         added.room(scope, faces.len(), limits)?;
         Ok(self.push_added(added, scope, faces))
@@ -1180,6 +1182,7 @@ impl Catalog {
         match scope {
             None => {
                 added.faces.extend(faces);
+                added.changes += 1;
                 self.rebuild(&added);
             }
             Some(scope) => {
@@ -1200,6 +1203,7 @@ impl Catalog {
         added.drop_unused_blobs();
         let removed = before - added.faces.len();
         if removed > 0 {
+            added.changes += 1;
             self.rebuild(&added);
         }
         removed
@@ -1233,6 +1237,26 @@ impl Catalog {
         added.changed(scope).faces.retain(|f| !from_file(f));
         lock(&self.loaded).retain(|(s, _), _| *s != Some(scope));
         removed
+    }
+
+    /// Every face the catalog holds (the last scan's, those added without a scope and every
+    /// scope's) passed to `visit` under the lock of the added faces, without waiting for a scan.
+    /// Returns what [`Catalog::face_changes`] returned then.
+    pub(crate) fn visit_faces(&self, mut visit: impl FnMut(&FaceInfo)) -> (u64, u64) {
+        let added = lock(&self.added);
+        let scanned = added.scanned.iter().flatten().flat_map(|f| f.iter());
+        for f in added.faces.iter().chain(scanned).chain(added.scopes.values().flat_map(|s| &s.faces)) {
+            visit(&f.info);
+        }
+        (self.generation(), added.changes)
+    }
+
+    /// [`Catalog::generation`] and a count of every add and removal, scoped or not: when neither
+    /// moved, no face was added to or removed from the catalog and no scan changed it.
+    pub(crate) fn face_changes(&self) -> (u64, u64) {
+        // The generation moves under the same lock (`publish`, through `rebuild`).
+        let added = lock(&self.added);
+        (self.generation(), added.changes)
     }
 
     /// Publish the added faces with the last scan's; before the first scan, which does that,
@@ -1304,11 +1328,11 @@ impl Catalog {
                 }
                 None => continue,
             };
-            if faces.iter().any(|f| f.info.source != source || f.info.confined != real || f.file != Some(stamp)) {
+            if faces.iter().any(|f| f.info.source != source || f.info.confined != real || f.info.file != Some(stamp)) {
                 for f in Arc::make_mut(&mut faces) {
                     f.info.source = source;
                     f.info.confined = real;
-                    f.file = Some(stamp);
+                    f.info.file = Some(stamp);
                 }
             }
             files.insert(path, Cached { stamp, faces });

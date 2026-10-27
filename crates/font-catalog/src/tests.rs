@@ -946,3 +946,158 @@ fn rescan_now_counts_as_the_full_rescan() {
     assert!(refresh.rescan_now(None).is_empty());
     assert!(rx.try_recv().is_err());
 }
+
+/// A face made by a [`FaceCache`] test: the data's length, and which `make` call made it.
+type Made = (usize, usize);
+
+/// Makes faces for a [`FaceCache`] and counts the calls.
+fn maker(calls: &AtomicUsize) -> impl FnOnce(&FaceInfo, &FontData) -> Option<Made> + '_ {
+    |_, data| Some((data.bytes.len(), calls.fetch_add(1, Ordering::SeqCst) + 1))
+}
+
+/// `font(spec)` grown by `extra` bytes: another length, so the file counts as changed.
+fn padded(spec: &Spec, extra: usize) -> Vec<u8> {
+    let mut bytes = font(spec);
+    bytes.extend(std::iter::repeat_n(0, extra));
+    bytes
+}
+
+#[test]
+fn a_cached_face_is_made_once_and_let_go_when_its_file_changes() {
+    let root = temp("faces-installed");
+    let cat = system(&root);
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let regular = |c: &Catalog| c.resolve("Test Sans", "Regular").unwrap().0;
+    let old = regular(&cat);
+    let first = cache.get_or_make(&cat, &old, maker(&calls)).unwrap();
+    assert!(Arc::ptr_eq(&first, &cache.get_or_make(&cat, &old, maker(&calls)).unwrap()));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    cat.add_bytes(font(&spec("Other", "Regular", 400)), Source::User, &Limits::default()).unwrap();
+    assert!(cache.refresh(&cat).is_empty());
+
+    // Rewritten in place: let go once a rescan lists it changed, then made again.
+    let path = old.path.clone().unwrap();
+    let key = FaceKey::File(path.clone(), 0);
+    write(&path, padded(&spec("Test Sans", "Regular", 400), 64));
+    cat.rescan();
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert_eq!(gone[0].0, key);
+    assert!(Arc::ptr_eq(&gone[0].1, &first));
+    let second = cache.get_or_make(&cat, &regular(&cat), maker(&calls)).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(second.0, first.0 + 64);
+    // A face looked up before the change gets the face of the file as it is.
+    assert!(Arc::ptr_eq(&second, &cache.get_or_make(&cat, &old, maker(&calls)).unwrap()));
+
+    // Made again before a refresh: the refresh returns the face it replaced.
+    write(&path, padded(&spec("Test Sans", "Regular", 400), 128));
+    cat.rescan();
+    let third = cache.get_or_make(&cat, &regular(&cat), maker(&calls)).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert!(Arc::ptr_eq(&gone[0].1, &second));
+
+    // Removed.
+    std::fs::remove_file(&path).unwrap();
+    cat.rescan();
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert!(Arc::ptr_eq(&gone[0].1, &third));
+    assert!(cache.refresh(&cat).is_empty());
+}
+
+#[test]
+fn scope_faces_stay_while_a_scope_lists_their_file_unchanged() {
+    let root = temp("faces-scope");
+    let cat = Catalog::without_installed_fonts();
+    let limits = Limits::default();
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let file = root.join("doc/Doc.ttf");
+    write(&file, font(&spec("Doc Face", "Regular", 400)));
+    let (a, b) = (cat.new_scope(), cat.new_scope());
+    let info = cat.add_file_in(a, &file, Source::Document, &limits).unwrap().remove(0);
+    let first = cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    // The shared listing doesn't hold it; its scope does.
+    cat.add_bytes_in(b, font(&spec("Other", "Regular", 400)), Source::Document, &limits).unwrap();
+    assert!(cache.refresh(&cat).is_empty());
+    assert!(cache.forget_changed(&file).is_empty());
+
+    // The document replaced its file: the face is made again from the new one.
+    write(&file, padded(&spec("Doc Face", "Regular", 400), 64));
+    cat.remove_file_in(a, &file);
+    let info = cat.add_file_in(a, &file, Source::Document, &limits).unwrap().remove(0);
+    let second = cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    assert_eq!((calls.load(Ordering::SeqCst), second.0), (2, first.0 + 64));
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert!(Arc::ptr_eq(&gone[0].1, &first));
+
+    // Another scope with the same file shares the face, and keeps it after the first closes.
+    let in_b = cat.add_file_in(b, &file, Source::Document, &limits).unwrap().remove(0);
+    assert!(Arc::ptr_eq(&second, &cache.get_or_make(&cat, &in_b, maker(&calls)).unwrap()));
+    cat.remove_scope(a);
+    assert!(cache.refresh(&cat).is_empty());
+    cat.remove_file_in(b, &file);
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert_eq!(gone[0].0, FaceKey::File(file.clone(), 0));
+
+    // An app's own watcher saw the file change.
+    let c = cat.new_scope();
+    let info = cat.add_file_in(c, &file, Source::Document, &limits).unwrap().remove(0);
+    cache.get_or_make(&cat, &info, maker(&calls)).unwrap();
+    write(&file, font(&spec("Doc Face", "Regular", 400)));
+    assert_eq!(cache.forget_changed(&file).len(), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn faces_of_added_bytes_are_let_go_when_the_bytes_are_removed() {
+    let cat = Catalog::without_installed_fonts();
+    let limits = Limits::default();
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let shared = cat.add_bytes(font(&spec("Added", "Regular", 400)), Source::User, &limits).unwrap().remove(0);
+    let scope = cat.new_scope();
+    let scoped = cat.add_bytes_in(scope, font(&spec("Scoped", "Regular", 400)), Source::Document, &limits).unwrap().remove(0);
+    let made = cache.get_or_make(&cat, &shared, maker(&calls)).unwrap();
+    assert!(Arc::ptr_eq(&made, &cache.get_or_make(&cat, &shared, maker(&calls)).unwrap()));
+    cache.get_or_make(&cat, &scoped, maker(&calls)).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(cache.refresh(&cat).is_empty());
+
+    cat.remove_scope(scope);
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert!(matches!(gone[0].0, FaceKey::Added(_, 0)));
+    cat.remove_added(Source::User);
+    let gone = cache.refresh(&cat);
+    assert_eq!(gone.len(), 1);
+    assert!(Arc::ptr_eq(&gone[0].1, &made));
+}
+
+#[test]
+fn threads_making_one_face_get_the_first_made() {
+    let cat = Catalog::without_installed_fonts();
+    let info = cat.add_bytes(font(&spec("Added", "Regular", 400)), Source::User, &Limits::default()).unwrap().remove(0);
+    let cache = FaceCache::new();
+    let calls = AtomicUsize::new(0);
+    let both = std::sync::Barrier::new(2);
+    let make = || {
+        cache.get_or_make(&cat, &info, |info, data| {
+            both.wait();
+            maker(&calls)(info, data)
+        })
+    };
+    let (a, b) = std::thread::scope(|s| {
+        let a = s.spawn(make);
+        let b = s.spawn(make);
+        (a.join().unwrap().unwrap(), b.join().unwrap().unwrap())
+    });
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(Arc::ptr_eq(&a, &b));
+}

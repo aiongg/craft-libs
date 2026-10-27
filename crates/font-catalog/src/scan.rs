@@ -81,6 +81,18 @@ pub struct FaceInfo {
     /// A confined folder's file ([`crate::Catalog::set_confined_dirs`]), recorded by its real
     /// path: on Unix its loads don't follow a link put in its place after the scan.
     pub(crate) confined: bool,
+    /// The size and modification time of the file the face is in when the scan or
+    /// [`crate::Catalog::add_file`] listed it, so a file replaced in place changes its family's
+    /// signature ([`crate::Catalog::changes_since`]) and a [`crate::FaceCache`] makes its faces
+    /// again.
+    pub(crate) file: Option<FileStamp>,
+}
+
+/// A file's size and modification time: when either differs, the file changed.
+pub(crate) type FileStamp = (u64, Option<std::time::SystemTime>);
+
+pub(crate) fn file_stamp(meta: &std::fs::Metadata) -> FileStamp {
+    (meta.len(), meta.modified().ok())
 }
 
 /// A face record with the normalized names it answers to.
@@ -88,9 +100,6 @@ pub struct FaceInfo {
 pub(crate) struct Face {
     pub info: FaceInfo,
     pub keys: Keys,
-    /// The size and modification time of the scanned file the face is in, so a file replaced in
-    /// place changes its family's signature ([`crate::Catalog::changes_since`]).
-    pub file: Option<(u64, Option<std::time::SystemTime>)>,
 }
 
 /// Every name a face answers to besides its family and style, normalized ([`norm`]).
@@ -271,10 +280,11 @@ pub(crate) fn font_faces(font: &skrifa::FontRef<'_>, index: u32, path: Option<&P
         source,
         blob: None,
         confined: false,
+        file: None,
     };
     let mut keys = Keys { families, styles, legacy, full_names, postscript };
     let instances = named_instances(font, &info, &mut keys);
-    std::iter::once(Face { info, keys, file: None }).chain(instances).collect()
+    std::iter::once(Face { info, keys }).chain(instances).collect()
 }
 
 /// The named instances of a variable face (its `fvar` table) as faces of its family, without the
@@ -334,7 +344,7 @@ fn named_instances(font: &skrifa::FontRef<'_>, face: &FaceInfo, keys: &mut Keys)
             ..face.clone()
         };
         let keys = Keys { families: keys.families.clone(), styles, legacy: vec![], full_names: vec![], postscript };
-        out.push(Face { info, keys, file: None });
+        out.push(Face { info, keys });
     }
     sort_dedup(&mut keys.styles);
     sort_dedup(&mut keys.postscript);

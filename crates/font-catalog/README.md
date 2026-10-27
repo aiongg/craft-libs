@@ -83,6 +83,17 @@ A document's own fonts (embedded, or in a folder beside it) go into a scope, so 
 - `generation` counts the changes unscoped lookups see: scans, and faces added or removed without a scope. A scope's changes leave it alone, so other documents don't lay out again. `generation_in(scope)` adds the scope's own changes and never repeats a value, even after `remove_scope`; a document lays out again when it changes. `scope_generation(scope)` counts the scope's own changes alone (its adds and removals), for a cache that takes shared changes through `changes_since`.
 - `changes_since(generation)` lists the families unscoped lookups find differently since then: `added`, `removed`, and `changed` (a style installed or removed, a file replaced). An app re-resolves only those names and lays out only the documents that use them. The catalog keeps the last 64 changes of the family set, at most 4,096 family names in all; for an older generation it answers `full`, and the app re-resolves everything.
 
+## Faces made by the app
+
+An app that shapes and draws with its own face objects (skrifa, harfrust) keeps them in a `FaceCache<F>`:
+
+- `get_or_make(&catalog, &info, make)` returns the face made before from the same file and face index, or from the same added bytes, else calls `make` with the data `catalog.load` gives. `make` runs without locks held. Two threads making one face at once both get the first one cached.
+- `refresh(&catalog)` lets go of the faces whose file the catalog no longer lists, or lists changed (after a rescan, or after the file was added to a scope again), and of the faces whose added bytes or scope were removed. It returns them, so the app drops what it made from them. It does nothing while the catalog's generation and its scopes are unchanged, never waits for a scan and reads no files. Apps call it after a rescan and after a document's fonts are added or its scope is removed.
+- When the catalog lists a file changed, `get_or_make` makes its faces again, and the next `refresh` returns the old ones.
+- `forget_changed(path)` lets go of a file's faces when the file differs from the one they were made from, for an app that watches files itself.
+
+A face stays while the installed fonts, the fonts added without a scope or any scope list its file unchanged. One cache therefore serves the installed fonts and every document's scope, and documents that use the same file share its faces. The key is the file and face index alone, so an app whose faces differ by where they came from (document faces tagged with their document) keeps one cache for each kind.
+
 ## In an app
 
 The `app` module is what every Craft app does with the catalog:
