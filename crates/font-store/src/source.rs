@@ -319,8 +319,17 @@ fn check(raw: Raw, origin: Origin<'_>) -> Result<Index, IndexError> {
         }
     };
     let curated = curated && host.is_none();
-    if raw.families.len() > MAX_FAMILIES || raw.languages.len() > MAX_FAMILIES * 4 || raw.scripts.len() > MAX_LIST {
-        return invalid("too many families, languages or scripts");
+    if raw.families.len() > MAX_FAMILIES || raw.languages.len() > MAX_FAMILIES * 4 || raw.scripts.len() > MAX_LIST || raw.samples.len() > MAX_LIST {
+        return invalid("too many families, languages, scripts or samples");
+    }
+    for (script, sample) in &raw.samples {
+        for s in [script, &sample.method, &sample.language] {
+            check_str("sample", s)?;
+        }
+        // Some samples are several lines (Nüshu, Carian).
+        if sample.text.len() > MAX_STR || sample.text.chars().any(|c| c.is_control() && c != '\n') {
+            return invalid(format!("the `{}` sample is too long or has control characters", short(script)));
+        }
     }
     for l in &raw.languages {
         check_str("language", &l.id)?;

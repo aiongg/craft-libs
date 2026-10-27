@@ -79,7 +79,7 @@ pub struct Script {
 /// A script's default preview text.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Sample {
-    /// The text, at most 60 characters.
+    /// The text: a sentence for `udhr`, the poem for `iroha`, characters for `exemplar`.
     pub text: String,
     /// Where it comes from: `udhr`, `iroha` or `exemplar`.
     #[serde(default)]
