@@ -123,6 +123,12 @@ impl Subsets {
         self.available
     }
 
+    /// Whether rows and the detail view get their previews from the service: a service is set
+    /// and previews are on. Otherwise a session download is the only way to see a font.
+    pub(crate) fn previewing(&self) -> bool {
+        self.available && self.fetching
+    }
+
     /// Reads which service is set and whether previews are on; a change asks for everything again.
     fn read_settings(&mut self) {
         let service = self.installer.preview_service();
@@ -219,14 +225,16 @@ impl Subsets {
             return None;
         }
         let want = text_key(index, family, file, detail_instance(file), text, &self.sample_missing)?;
-        let sample = self.sample_key(index, family, file, detail_instance(file))?;
+        let sample = self.sample_key(index, family, file, detail_instance(file));
         let typing = matches!(want.subset(), Subset::Codepoints(_)) && self.now - self.typed.1 < PAUSE_SECS;
         self.detail_waits |= typing;
         if !typing {
             self.detail_wanted.insert(want.clone());
         }
-        self.detail_wanted.insert(sample.clone());
-        self.loaded(want).or_else(|| self.loaded(sample))
+        if let Some(sample) = &sample {
+            self.detail_wanted.insert(sample.clone());
+        }
+        self.loaded(want).or_else(|| self.loaded(sample?))
     }
 
     /// Asks for what [`Subsets::detail_font`] wanted this frame, before the list's rows; called
@@ -276,9 +284,11 @@ impl Subsets {
         let mut settled = true;
         let mut latin = Vec::new();
         for row in visible.clone().filter_map(row) {
-            let Some(sample) = list_file(row.family).and_then(|f| self.sample_key(index, row.family, f, Instance::List)) else { continue };
-            settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
-            self.want(&mut wanted, sample, VISIBLE);
+            // A family without a sample text still gets the subset its row's text needs.
+            if let Some(sample) = list_file(row.family).and_then(|f| self.sample_key(index, row.family, f, Instance::List)) {
+                settled &= self.fonts.contains_key(&sample) || self.has_failed(&sample);
+                self.want(&mut wanted, sample, VISIBLE);
+            }
             if let Some(ascii) = covers_latin(row.family).then(|| subset_key(row.family, Subset::Ascii)).flatten() {
                 latin.push(ascii);
             }

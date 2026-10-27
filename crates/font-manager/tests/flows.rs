@@ -537,6 +537,11 @@ impl FakeService {
 /// Forty Latin families, `Family 01` to `Family 40`, whose one file's sha256 starts with the
 /// family's number in hex, and an index sample for Latin.
 fn service_index() -> Index {
+    service_index_with(r#"{"Latn":{"text":"Sphinx of black quartz, judge my vow","method":"udhr","language":"en_Latn"}}"#)
+}
+
+/// [`service_index`] with `samples` as its sample texts.
+fn service_index_with(samples: &str) -> Index {
     let families: Vec<String> = (1..=40)
         .map(|n| {
             format!(
@@ -550,7 +555,7 @@ fn service_index() -> Index {
         r#"{{"schema":1,"version":"1.2","source":"google/fonts","commit":"45e3d5269e4a17d823f6d84470bc084dc5ae46f6","base_url":"https://cdn.jsdelivr.net/gh/google/fonts@45e3d5269e4a17d823f6d84470bc084dc5ae46f6/",
         "languages":[{{"id":"en_Latn","name":"English","script":"Latn","population":1}}],
         "scripts":[{{"id":"Latn","name":"Latin"}}],
-        "samples":{{"Latn":{{"text":"Sphinx of black quartz, judge my vow","method":"udhr","language":"en_Latn"}}}},
+        "samples":{samples},
         "families":[{}]}}"#,
         families.join(",")
     );
@@ -636,8 +641,8 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
     // No service: the list stays as it is without one.
     settle(&mut h);
     assert!(service.take().is_empty());
-    let preview = By::new().predicate(|n| n.label().is_some_and(|l| l.contains("Preview") && l.contains("Family 01")));
-    assert!(h.get_all(preview).next().is_some(), "the whole-family preview is offered");
+    let preview = || By::new().predicate(|n| n.label().is_some_and(|l| l.contains("Preview") && l.contains("Family 01")));
+    assert!(h.get_all(preview()).next().is_some(), "the whole-family preview is offered");
 
     // The previews setting off: nothing is fetched.
     store.set_previews_enabled(false).unwrap();
@@ -651,6 +656,7 @@ fn list_previews_follow_the_screen_and_the_typed_text() {
     idle(&mut h);
     assert!(!h.state().downloads_allowed());
     assert!(h.query_by_label("Nothing is installed until you allow downloads.").is_some());
+    assert!(h.query_all(preview()).next().is_none(), "no session download while the service previews");
     let shown = on_screen(&h);
     assert!(shown.len() >= 3 && shown.len() < 10, "{shown:?}");
     assert_eq!(shown, (1..=shown.len()).collect::<Vec<_>>());
@@ -691,6 +697,19 @@ fn a_sample_the_service_lacks_falls_back_to_its_characters_once() {
         idle(&mut h);
     }
     assert!(numbers(&service.take(), "sample").is_empty(), "the sample is not asked for again");
+}
+
+#[test]
+fn a_family_without_a_sample_text_gets_its_rows_subset() {
+    let service = Arc::new(FakeService::default());
+    let (mut h, store) = service_setup_with("list-previews-no-sample", &service, 8, service_index_with("{}"));
+    store.set_previews_enabled(true).unwrap();
+    set_service(&mut h, &store);
+    idle(&mut h);
+    let shown = on_screen(&h);
+    let answered = service.take();
+    assert!(numbers(&answered, "sample").is_empty(), "{answered:?}");
+    assert_eq!(numbers(&answered, "ascii"), shown, "{answered:?}");
 }
 
 #[test]

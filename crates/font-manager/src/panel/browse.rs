@@ -563,7 +563,7 @@ impl FontsPanel {
         if faces_installed {
             return CardState::Installed;
         }
-        CardState::Offer { preview: !self.previewed.contains_key(&key) }
+        CardState::Offer { preview: !self.subsets.previewing() && !self.previewed.contains_key(&key) }
     }
 
     fn catalogue_card(&mut self, ui: &mut Ui, index: &Index, i: usize, rect: Rect) -> egui::Response {
