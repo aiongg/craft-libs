@@ -160,6 +160,23 @@ Each adapter PR carries an exact style comparison (see
 [theme-infrastructure.md](theme-infrastructure.md#migration-and-validation)): with
 `craft.app-default` the app's `Style` and `Tokens` stay identical.
 
+### Adapters
+
+Apps talk to the suite through `craft_theme_store::SuiteClient`, not through `SuiteWatch::request`
+directly, so the update protocol lives in one place. Each frame the app calls `client.sync()`
+(one atomic load unless the watch has a new snapshot; it returns whether to rebuild), shows
+`client.shown().with_defaults(&defaults)` when following the suite, and resolves with
+`client.theme(id)` as the lookup. A pick goes to `client.change(SelectionChange::theme(id))` or
+`::mode(m)` and shows at once. One change is in flight at a time; picks made meanwhile merge into
+one queued change, sent with the new accepted state as base when the first answer arrives, so
+quick picks never conflict with each other. A conflict is kept as `client.conflict()` until
+`apply_mine()` (the same change on the suite's current state) or `dismiss()`, a failed write as
+`client.failure()` until `retry()`; a later pick clears both. A library theme picked but not
+loaded yet keeps the previous theme in `shown()`, so the app never flashes its own palette in
+between; for the app's own choice, `set_app_theme(id)` loads it and `is_loading(id)` says when to
+keep the current look. `client.problems()` lists files the suite can't use, each with a
+`Display`.
+
 ## File format and storage
 
 `craft-theme-store` keeps the suite selection and the user's theme library in one machine-local

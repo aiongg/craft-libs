@@ -33,6 +33,7 @@
 //! ```
 
 mod backend;
+mod client;
 mod dir;
 #[cfg(not(target_arch = "wasm32"))]
 mod disk;
@@ -44,6 +45,7 @@ pub mod testing;
 mod watch;
 
 pub use backend::{FileStamp, LibraryFile};
+pub use client::SuiteClient;
 pub use dir::{DirSource, SUITE_DIR_ENV, SuiteDir};
 pub use format::{FormatError, MAX_THEME_BYTES, THEME_SCHEMA, THEME_SCHEMA_VERSION, ThemeRecord, parse_theme, theme_to_json};
 pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError, SuiteChoice};
