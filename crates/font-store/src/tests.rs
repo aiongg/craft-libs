@@ -810,6 +810,15 @@ mod store {
     }
 
     #[test]
+    fn a_client_with_other_timeouts_shares_the_down_state() {
+        let client = Client::default();
+        let short =
+            client.with_timeouts(Timeouts { connect: Duration::from_secs(1), response: Duration::from_secs(1), overall: Duration::from_secs(2) });
+        client.mark_service_down("https://fonts.example.com");
+        assert!(short.service_is_down("https://fonts.example.com/v1/x"));
+    }
+
+    #[test]
     fn a_service_marked_down_does_not_block_another() {
         let server = Server::start();
         server.serve("b", "x", Reply::Ok(b"ok".to_vec()));
