@@ -13,7 +13,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::place::{Placement, Rect};
+use super::place::{NormalRect, Placement};
 
 /// The placement in an eframe `app.ron` text: its `"window"` entry, with the size converted to
 /// points at zoom 1 using the `"egui"` entry's `zoom_factor` (1 when absent).
@@ -37,9 +37,13 @@ pub fn eframe_window_settings(ron: &str, zoom: f32) -> Option<Placement> {
     let scale = field(geometry, "scale_factor").and_then(number).filter(|s| *s > 0.0).unwrap_or(1.0);
     let size = field(geometry, "inner_size_points").and_then(vec2)?;
     let pos = field(geometry, "outer_position_pixels").and_then(vec2).or_else(|| field(geometry, "inner_position_pixels").and_then(vec2));
+    // The window's pixel size divided by zoom × scale (eframe >= 0.36), so × zoom is points at
+    // zoom 1. Older eframe saved points at the then-current zoom, which this reads the same way.
     let size = size.map(|v| v * zoom);
+    // Windows parks a minimized window near (-32000, -32000).
+    let pos = pos.filter(|p| p.iter().all(|v| *v > -30000.0));
     Some(Placement {
-        normal: Rect { pos: pos.map_or([0.0; 2], |p| p.map(|v| v / scale)), size },
+        normal: NormalRect { pos: pos.map_or([0.0; 2], |p| p.map(|v| v / scale)), size },
         position_px: pos.map(|p| p.map(|v| v.round() as i32)),
         scale,
         zoom,
@@ -249,6 +253,13 @@ mod tests {
         assert_eq!(eframe_window_settings(w, 1.0).unwrap().position_px, None);
         assert!(eframe_window_settings("(", 1.0).is_none());
         assert!(eframe_app_ron("not ron").is_none());
+    }
+
+    #[test]
+    fn minimized_windows_parked_off_screen_have_no_position() {
+        let w = "(outer_position_pixels:Some((x:-32000.0,y:-32000.0)),fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
+        let p = eframe_window_settings(w, 1.0).unwrap();
+        assert_eq!((p.position_px, p.normal.size), (None, [300.0, 200.0]));
     }
 
     #[test]

@@ -20,7 +20,7 @@ use craft_settings::paths::{self, Location, Portable, Probe};
 use craft_settings::recovery;
 use serde_json::{Map, Value, json};
 
-use super::place::Placement;
+use super::place::{Placement, sane};
 
 /// The file name beside `config.toml`.
 pub const FILE_NAME: &str = "window.json";
@@ -38,6 +38,23 @@ pub enum ReadOnly {
     Unreadable,
 }
 
+/// A write [`Store::take_pending`] prepared.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pending {
+    pub path: PathBuf,
+    pub bytes: Vec<u8>,
+    /// Pass to [`Store::mark_saved`] after the write succeeded.
+    pub generation: u64,
+}
+
+/// Writes `pending` atomically and privately, creating the folder. Needs no access to the store.
+pub fn write_pending(pending: &Pending) -> io::Result<()> {
+    if let Some(dir) = pending.path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    WriteOptions::default().with_new_file_permissions(NewFilePermissions::Private).atomic_write(&pending.path, &pending.bytes)
+}
+
 /// The saved placements of an app's windows.
 #[derive(Debug)]
 pub struct Store {
@@ -47,7 +64,9 @@ pub struct Store {
     /// Top-level keys other than `schema_version` and `windows`.
     extra: Map<String, Value>,
     read_only: Option<ReadOnly>,
-    dirty: bool,
+    /// Counts changes; the store is dirty while it is ahead of `saved`.
+    generation: u64,
+    saved: u64,
     moved_aside: Option<PathBuf>,
 }
 
@@ -77,7 +96,7 @@ impl Store {
 
     /// A store that reads and writes nothing: tests, agents, the web.
     pub fn in_memory() -> Self {
-        Self { path: None, windows: BTreeMap::new(), extra: Map::new(), read_only: None, dirty: false, moved_aside: None }
+        Self { path: None, windows: BTreeMap::new(), extra: Map::new(), read_only: None, generation: 0, saved: 0, moved_aside: None }
     }
 
     /// The file this store writes, if it has one.
@@ -100,18 +119,32 @@ impl Store {
         serde_json::from_value(self.windows.get(key)?.clone()).ok()
     }
 
-    /// Replaces the placement under `key`. Nothing is written until [`save`](Self::save).
+    /// Replaces the placement under `key`. Fields of the old entry that this version does not know
+    /// stay. A placement with a non-finite size is ignored. Nothing is written until
+    /// [`save`](Self::save) or [`take_pending`](Self::take_pending).
     pub fn set(&mut self, key: &str, placement: &Placement) {
-        let Ok(value) = serde_json::to_value(placement) else { return };
-        if self.windows.get(key) != Some(&value) {
-            self.windows.insert(key.to_owned(), value);
-            self.dirty = true;
+        let Some(placement) = sane(placement) else { return };
+        let Ok(Value::Object(new)) = serde_json::to_value(&placement) else { return };
+        let merged = match self.windows.get(key) {
+            Some(Value::Object(old)) => {
+                let mut m = old.clone();
+                m.extend(new);
+                m
+            }
+            _ => new,
+        };
+        let merged = Value::Object(merged);
+        if self.windows.get(key) != Some(&merged) {
+            self.windows.insert(key.to_owned(), merged);
+            self.generation += 1;
         }
     }
 
     /// Forgets `key`.
     pub fn remove(&mut self, key: &str) {
-        self.dirty |= self.windows.remove(key).is_some();
+        if self.windows.remove(key).is_some() {
+            self.generation += 1;
+        }
     }
 
     /// The keys with an entry, in order.
@@ -119,27 +152,37 @@ impl Store {
         self.windows.keys().map(String::as_str)
     }
 
-    /// Whether [`set`](Self::set) or [`remove`](Self::remove) changed something since the last save.
+    /// Whether something changed since the last successful write.
     pub fn is_dirty(&self) -> bool {
-        self.dirty
+        self.generation != self.saved
     }
 
-    /// Writes the file if something changed. `Ok(true)` when written; `Ok(false)` when there was
-    /// nothing to write, or the store is in memory or read-only.
-    pub fn save(&mut self) -> io::Result<bool> {
-        let Some(path) = self.path.clone().filter(|_| self.read_only.is_none() && self.dirty) else {
-            return Ok(false);
-        };
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
+    /// The write that would bring the file up to date, or `None` when there is nothing to write
+    /// (in memory, read-only, or unchanged). Write it with [`write_pending`], without holding any
+    /// lock on the store, then report success with [`mark_saved`](Self::mark_saved).
+    pub fn take_pending(&self) -> Option<Pending> {
+        let path = self.path.clone().filter(|_| self.read_only.is_none() && self.is_dirty())?;
         let mut doc = self.extra.clone();
         doc.insert("schema_version".into(), json!(SCHEMA_VERSION));
         doc.insert("windows".into(), Value::Object(self.windows.clone().into_iter().collect()));
-        let mut bytes = serde_json::to_vec_pretty(&Value::Object(doc)).map_err(io::Error::other)?;
+        let mut bytes = serde_json::to_vec_pretty(&Value::Object(doc)).ok()?;
         bytes.push(b'\n');
-        WriteOptions::default().with_new_file_permissions(NewFilePermissions::Private).atomic_write(&path, &bytes)?;
-        self.dirty = false;
+        Some(Pending { path, bytes, generation: self.generation })
+    }
+
+    /// Records that [`Pending::generation`] reached the disk. The store stays dirty if it changed
+    /// again meanwhile, and after a failed write (do not call this then), so the next
+    /// [`take_pending`](Self::take_pending) retries.
+    pub fn mark_saved(&mut self, generation: u64) {
+        self.saved = self.saved.max(generation.min(self.generation));
+    }
+
+    /// [`take_pending`](Self::take_pending), [`write_pending`] and [`mark_saved`](Self::mark_saved)
+    /// in one call. `Ok(true)` when written; `Ok(false)` when there was nothing to write.
+    pub fn save(&mut self) -> io::Result<bool> {
+        let Some(pending) = self.take_pending() else { return Ok(false) };
+        write_pending(&pending)?;
+        self.mark_saved(pending.generation);
         Ok(true)
     }
 
@@ -164,14 +207,18 @@ impl Store {
         let Some(version) = doc.remove("schema_version").and_then(|v| v.as_u64()) else {
             return self.start_over(&path);
         };
-        let windows = match doc.remove("windows") {
-            Some(Value::Object(m)) => m,
-            None if version > SCHEMA_VERSION => Map::new(),
-            _ => return self.start_over(&path),
-        };
+        // A newer file is never judged by this version's shape rules, so never moved aside.
         if version > SCHEMA_VERSION {
             self.read_only = Some(ReadOnly::NewerSchema(version));
+            if let Some(Value::Object(m)) = doc.remove("windows") {
+                self.windows = m.into_iter().collect();
+            }
+            self.extra = doc;
+            return;
         }
+        let Some(Value::Object(windows)) = doc.remove("windows") else {
+            return self.start_over(&path);
+        };
         self.windows = windows.into_iter().collect();
         self.extra = doc;
     }
@@ -192,7 +239,7 @@ mod tests {
     use crate::restore::{Monitor, MonitorKey};
 
     fn sample(x: i32) -> Placement {
-        let m = Monitor { key: MonitorKey::new("DP-1", [1920, 1080]), pos_px: [0, 0], size_px: [1920, 1080], scale: 1.0 };
+        let m = Monitor::new(MonitorKey::new("DP-1", [1920, 1080]), [0, 0], [1920, 1080], 1.0);
         let mut p = crate::restore::place(None, &[m], Some(0), &crate::restore::Defaults::new([800.0, 600.0], [300.0, 200.0]));
         p.position_px = Some([x, 10]);
         p
@@ -290,6 +337,61 @@ mod tests {
         assert_eq!(v["note"], json!({"a": 1}));
         assert_eq!(v["windows"]["odd"], json!({"unexpected": true}));
         assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
+    }
+
+    #[test]
+    fn newer_schema_with_an_unexpected_shape_is_not_moved_aside() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        std::fs::write(&path, r#"{"schema_version":3,"windows":[1,2]}"#).unwrap();
+        let s = Store::at(&path);
+        assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(3)));
+        assert!(s.moved_aside().is_none() && path.exists());
+    }
+
+    #[test]
+    fn non_finite_placements_are_never_stored() {
+        let mut s = Store::in_memory();
+        let mut p = sample(1);
+        p.normal.size[0] = f32::NAN;
+        s.set(MAIN, &p);
+        assert!(s.get(MAIN).is_none() && !s.is_dirty());
+        let mut p = sample(1);
+        p.normal.pos[1] = f32::INFINITY;
+        s.set(MAIN, &p);
+        assert_eq!(s.get(MAIN).unwrap().normal.pos, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn set_keeps_unknown_fields_of_the_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let mut entry = serde_json::to_value(sample(1)).unwrap();
+        entry["later"] = json!("x");
+        std::fs::write(&path, json!({"schema_version": 1, "windows": {MAIN: entry}}).to_string()).unwrap();
+        let mut s = Store::at(&path);
+        s.set(MAIN, &sample(2));
+        s.save().unwrap();
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(v["windows"][MAIN]["later"], "x");
+        assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
+    }
+
+    #[test]
+    fn dirty_clears_only_after_the_write_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Store::at(&dir.path().join(FILE_NAME));
+        s.set(MAIN, &sample(1));
+        let first = s.take_pending().unwrap();
+        s.set(MAIN, &sample(2));
+        write_pending(&first).unwrap();
+        s.mark_saved(first.generation);
+        assert!(s.is_dirty(), "changed again while the first write was in flight");
+        let second = s.take_pending().unwrap();
+        assert!(s.is_dirty(), "taking a write does not clear it");
+        write_pending(&second).unwrap();
+        s.mark_saved(second.generation);
+        assert!(!s.is_dirty() && s.take_pending().is_none());
     }
 
     #[test]

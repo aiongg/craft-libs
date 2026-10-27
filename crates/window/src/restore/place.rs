@@ -1,7 +1,7 @@
 //! The model and the pure placement rules: saved geometry plus the connected monitors in, the
 //! geometry to open with out.
 //!
-//! Units. Sizes and `Rect`s are logical points at interface zoom 1, so a window saved while the
+//! Units. Sizes and `NormalRect`s are logical points at interface zoom 1, so a window saved while the
 //! user ran the interface at 150 % does not open smaller each launch. Positions are physical
 //! pixels in the desktop's coordinate space (negative for a monitor left of or above the primary).
 
@@ -12,12 +12,13 @@ use serde::{Deserialize, Serialize};
 const BAR: f32 = 64.0;
 const MAX_POINTS: f32 = 100_000.0;
 
-/// A rectangle in logical points at zoom 1: top-left corner and size.
+/// A rectangle in logical points at zoom 1: top-left corner and size. (Not `craft_window::Rect`,
+/// which is the cascade module's.)
 ///
 /// `pos` is `Placement::position_px` divided by `Placement::scale`; it is informational, and
 /// `[0, 0]` when the position is unknown.
 #[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
-pub struct Rect {
+pub struct NormalRect {
     pub pos: [f32; 2],
     pub size: [f32; 2],
 }
@@ -41,9 +42,10 @@ impl MonitorKey {
 
 /// What to remember about a window, and what [`place`] returns for the app to open it with.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Placement {
     /// The last window state that was neither maximized nor full screen.
-    pub normal: Rect,
+    pub normal: NormalRect,
     /// Outer top-left corner in physical pixels; `None` where the platform does not tell (Wayland).
     #[serde(default)]
     pub position_px: Option<[i32; 2]>,
@@ -61,12 +63,20 @@ pub struct Placement {
     pub monitor: Option<MonitorKey>,
 }
 
+impl Placement {
+    /// A window of `size` points, position unknown, on a monitor of `scale`, not maximized.
+    pub fn new(size: [f32; 2], scale: f32) -> Self {
+        make(size, None, scale, 1.0, None)
+    }
+}
+
 fn one() -> f32 {
     1.0
 }
 
 /// A connected monitor.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Monitor {
     pub key: MonitorKey,
     /// Top-left corner in the desktop's pixel space.
@@ -74,10 +84,26 @@ pub struct Monitor {
     pub size_px: [u32; 2],
     /// Physical pixels per point.
     pub scale: f32,
+    /// The part not taken by the taskbar, Dock or menu bar: top-left corner and size in pixels.
+    /// When set, it replaces [`Defaults::screen_room`] for this monitor.
+    pub work_px: Option<([i32; 2], [u32; 2])>,
+}
+
+impl Monitor {
+    pub fn new(key: MonitorKey, pos_px: [i32; 2], size_px: [u32; 2], scale: f32) -> Self {
+        Self { key, pos_px, size_px, scale, work_px: None }
+    }
+
+    /// Sets the usable area (see [`work_px`](Self::work_px)).
+    pub fn with_work_px(mut self, pos_px: [i32; 2], size_px: [u32; 2]) -> Self {
+        self.work_px = Some((pos_px, size_px));
+        self
+    }
 }
 
 /// What the app wants when nothing (usable) is saved, and how the platform behaves.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Defaults {
     /// Size of a first window, in points.
     pub size: [f32; 2],
@@ -95,6 +121,21 @@ impl Defaults {
     pub fn new(size: [f32; 2], min: [f32; 2]) -> Self {
         Self { size, min, screen_room: [0.0, 48.0], restore_fullscreen: false, no_position: false }
     }
+
+    pub fn with_screen_room(mut self, room: [f32; 2]) -> Self {
+        self.screen_room = room;
+        self
+    }
+
+    pub fn with_restore_fullscreen(mut self, on: bool) -> Self {
+        self.restore_fullscreen = on;
+        self
+    }
+
+    pub fn with_no_position(mut self, on: bool) -> Self {
+        self.no_position = on;
+        self
+    }
 }
 
 impl Monitor {
@@ -106,38 +147,55 @@ impl Monitor {
         self.size_px.map(|s| s as f32 / self.scale())
     }
 
+    /// Position and size in pixels of the area windows may use.
+    fn bounds(&self) -> ([i32; 2], [u32; 2]) {
+        self.work_px.unwrap_or((self.pos_px, self.size_px))
+    }
+
+    /// Size in points of the area windows may use: the work area, else the monitor less `room`.
     fn usable(&self, room: [f32; 2]) -> [f32; 2] {
-        let p = self.points();
-        std::array::from_fn(|i| (p[i] - room[i].max(0.0)).max(1.0))
+        let s = self.scale();
+        match self.work_px {
+            Some((_, size)) => size.map(|v| (v as f32 / s).max(1.0)),
+            None => {
+                let p = self.points();
+                std::array::from_fn(|i| (p[i] - room[i].max(0.0)).max(1.0))
+            }
+        }
     }
 
     fn centre_px(&self) -> [f64; 2] {
         std::array::from_fn(|i| f64::from(self.pos_px[i]) + f64::from(self.size_px[i]) / 2.0)
     }
 
-    /// `pos` moved the least that puts a window of `size` points fully on this monitor.
+    /// `pos` moved the least that puts a window of `size` points fully in the usable area.
     fn keep_on(&self, pos: [i32; 2], size: [f32; 2]) -> [i32; 2] {
+        let (bpos, bsize) = self.bounds();
         std::array::from_fn(|i| {
-            let lo = i64::from(self.pos_px[i]);
+            let lo = i64::from(bpos[i]);
             let win = (f64::from(size[i]) * f64::from(self.scale())).round() as i64;
-            let hi = (lo + i64::from(self.size_px[i]) - win).max(lo);
-            i32::try_from(i64::from(pos[i]).clamp(lo, hi)).unwrap_or(self.pos_px[i])
+            let hi = (lo + i64::from(bsize[i]) - win).max(lo);
+            i32::try_from(i64::from(pos[i]).clamp(lo, hi)).unwrap_or(bpos[i])
         })
     }
 
-    /// Area in points of the window's top strip lying on this monitor, if enough of it does.
+    /// Area in points of the window's top strip (full width, up to 64 pt tall) lying on this
+    /// monitor, if at least min(width, 64) × min(height, 64) pt of it does. A few pixels of slack
+    /// absorb Windows' snapped offset of about -7 px.
     fn bar_overlap(&self, pos: [i32; 2], size: [f32; 2]) -> Option<f32> {
+        const SLACK_PX: f64 = 8.0;
         let s = f64::from(self.scale());
-        let bar = [size[0].min(BAR), size[1].min(BAR)];
-        let mut got = [0.0f32; 2];
+        let strip = [size[0], size[1].min(BAR)];
+        let need = [size[0].min(BAR), size[1].min(BAR)];
+        let mut got = [0.0f64; 2];
         for i in 0..2 {
             let a0 = f64::from(pos[i]);
-            let a1 = a0 + f64::from(bar[i]) * s;
+            let a1 = a0 + f64::from(strip[i]) * s;
             let b0 = f64::from(self.pos_px[i]);
             let b1 = b0 + f64::from(self.size_px[i]);
-            got[i] = ((a1.min(b1) - a0.max(b0)).max(0.0) / s) as f32;
+            got[i] = (a1.min(b1) - a0.max(b0)).max(0.0);
         }
-        (got[0] >= bar[0] && got[1] >= bar[1]).then_some(got[0] * got[1])
+        (0..2).all(|i| got[i] + SLACK_PX >= f64::from(need[i]) * s).then(|| (got[0] / s * got[1] / s) as f32)
     }
 }
 
@@ -151,11 +209,14 @@ fn in_points(v: f32) -> bool {
 }
 
 /// The saved record with out-of-range numbers repaired, or `None` when its size is no size.
-fn sane(s: &Placement) -> Option<Placement> {
+pub(super) fn sane(s: &Placement) -> Option<Placement> {
     if !s.normal.size.iter().all(|v| in_points(*v)) {
         return None;
     }
     let mut s = s.clone();
+    if !s.normal.pos.iter().all(|v| v.is_finite()) {
+        s.normal.pos = [0.0; 2];
+    }
     if !(s.scale.is_finite() && s.scale > 0.0 && s.scale <= 16.0) {
         s.scale = 1.0;
     }
@@ -167,7 +228,7 @@ fn sane(s: &Placement) -> Option<Placement> {
 
 fn make(size: [f32; 2], pos_px: Option<[i32; 2]>, scale: f32, zoom: f32, monitor: Option<MonitorKey>) -> Placement {
     let pos = pos_px.map_or([0.0, 0.0], |p| p.map(|v| v as f32 / scale));
-    Placement { normal: Rect { pos, size }, position_px: pos_px, scale, zoom, maximized: false, fullscreen: false, monitor }
+    Placement { normal: NormalRect { pos, size }, position_px: pos_px, scale, zoom, maximized: false, fullscreen: false, monitor }
 }
 
 /// Where a window opens: `saved` kept on a connected monitor, else the default size on `home`
@@ -217,7 +278,15 @@ fn restore(s: &Placement, monitors: &[Monitor], home: &Monitor, primary: &Monito
     let mut visible = false;
     let target = match saved_pos {
         Some(p) => {
-            let shown = monitors.iter().filter_map(|m| m.bar_overlap(p, size).map(|a| (a, m))).max_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, m)| m);
+            // On mixed-DPI desktops pixel ranges overlap; the saved monitor decides first.
+            let shown = monitors
+                .iter()
+                .filter_map(|m| m.bar_overlap(p, size).map(|a| (a, m)))
+                .max_by(|a, b| {
+                    let key = |m: &Monitor| s.monitor.as_ref() == Some(&m.key);
+                    key(a.1).cmp(&key(b.1)).then(a.0.total_cmp(&b.0))
+                })
+                .map(|(_, m)| m);
             visible = shown.is_some();
             shown.or_else(by_key).unwrap_or_else(|| nearest(monitors, p, size, s.scale).unwrap_or(primary))
         }
@@ -225,11 +294,15 @@ fn restore(s: &Placement, monitors: &[Monitor], home: &Monitor, primary: &Monito
     };
 
     let fitted = fit(size, target.usable(d.screen_room), d.min);
-    let pos = saved_pos.map(|p| if visible && fitted == size { p } else { target.keep_on(p, fitted) });
+    let kept = visible && fitted == size;
+    let pos = saved_pos.map(|p| if kept { p } else { target.keep_on(p, fitted) });
+    // A kept position on the saved monitor keeps its saved scale: the pixel ranges of mixed-DPI
+    // monitors overlap, and the position was measured at that scale.
+    let scale = if kept && s.monitor.as_ref() == Some(&target.key) { s.scale } else { target.scale() };
     Placement {
         maximized: s.maximized,
         fullscreen: s.fullscreen && d.restore_fullscreen,
-        ..make(fitted, pos, target.scale(), s.zoom, Some(target.key.clone()))
+        ..make(fitted, pos, scale, s.zoom, Some(target.key.clone()))
     }
 }
 
@@ -249,7 +322,7 @@ mod tests {
     use super::*;
 
     fn mon(name: &str, pos: [i32; 2], size: [u32; 2], scale: f32) -> Monitor {
-        Monitor { key: MonitorKey::new(name, size), pos_px: pos, size_px: size, scale }
+        Monitor::new(MonitorKey::new(name, size), pos, size, scale)
     }
 
     fn hd() -> Monitor {
@@ -303,6 +376,40 @@ mod tests {
         // 100 pt of the bar still on the monitor: untouched.
         let ok = saved(Some([1820, 100]), [800.0, 600.0], 1.0, &m);
         assert_eq!(place(Some(&ok), &[m], Some(0), &defaults()).position_px, Some([1820, 100]));
+    }
+
+    #[test]
+    fn mixed_dpi_prefers_the_saved_monitor_and_keeps_its_scale() {
+        let mac = mon("Mac", [0, 0], [3024, 1964], 2.0);
+        let ext = mon("Ext", [1512, 0], [1920, 1080], 1.0);
+        let s = saved(Some([2000, 100]), [800.0, 600.0], 2.0, &mac);
+        let p = place(Some(&s), &[mac.clone(), ext], Some(0), &defaults());
+        assert_eq!((p.monitor, p.scale, p.position_px), (Some(mac.key), 2.0, Some([2000, 100])));
+    }
+
+    #[test]
+    fn bar_is_a_strip_not_a_corner() {
+        let m = hd();
+        // Left edge: 100 px of an 800 pt window show on the right of x = -700; the strip is wide enough.
+        let s = saved(Some([-700, 100]), [800.0, 600.0], 1.0, &m);
+        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-700, 100]));
+        // Only 30 px show: moved back.
+        let s = saved(Some([-770, 100]), [800.0, 600.0], 1.0, &m);
+        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([0, 100]));
+        // Windows' snapped -7 px offset on the left or top is fine.
+        let s = saved(Some([-7, -7]), [800.0, 600.0], 1.0, &m);
+        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-7, -7]));
+        // Top edge: the strip is 64 pt tall; 40 pt of it visible is not enough.
+        let s = saved(Some([100, -24]), [800.0, 600.0], 1.0, &m);
+        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([100, 0]));
+    }
+
+    #[test]
+    fn work_area_replaces_screen_room() {
+        let m = hd().with_work_px([0, 0], [1920, 1000]);
+        let p = place(None, &[m], Some(0), &Defaults::new([1200.0, 1100.0], [400.0, 300.0]));
+        assert_eq!(p.normal.size, [1200.0, 1000.0]);
+        assert!(p.maximized);
     }
 
     #[test]
