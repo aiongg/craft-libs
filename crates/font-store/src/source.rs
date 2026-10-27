@@ -11,6 +11,8 @@ use crate::index::{
 
 pub(crate) const MAX_STR: usize = 1024;
 const MAX_LIST: usize = 4096;
+/// The most characters a file's own `sample_text` has.
+const MAX_SAMPLE_CHARS: usize = 60;
 const MAX_FAMILIES: usize = 50_000;
 const MAX_FILES: usize = 200_000;
 const MAX_SEGMENT: usize = 64;
@@ -82,8 +84,13 @@ pub(crate) fn check_version(version: &str) -> Result<(), IndexError> {
     if major == Some(MAJOR_VERSION) { Ok(()) } else { Err(IndexError::Version(version.chars().take(40).collect())) }
 }
 
+/// Direction marks, embeddings and isolates, which can reorder the text around them.
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{61c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
 pub(crate) fn check_str(what: &str, s: &str) -> Result<(), IndexError> {
-    if s.len() > MAX_STR || s.chars().any(char::is_control) {
+    if s.len() > MAX_STR || s.chars().any(|c| c.is_control() || is_bidi_control(c)) {
         return invalid(format!("{what} is too long or has control characters"));
     }
     Ok(())
@@ -430,12 +437,23 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
     if fam.files.is_empty() {
         return invalid(format!("`{name}` has no files"));
     }
-    let lists = [fam.categories.len(), fam.subsets.len(), fam.languages.len(), fam.scripts.len(), fam.files.len()];
+    let lists =
+        [fam.categories.len(), fam.subsets.len(), fam.languages.len(), fam.scripts.len(), fam.files.len(), fam.tags.len(), fam.reserved_names.len()];
     if lists.iter().any(|&n| n > MAX_LIST) {
         return invalid(format!("`{name}` has too many entries"));
     }
     for s in fam.categories.iter().chain(&fam.subsets).chain(&fam.scripts) {
         check_str("category, subset or script", s)?;
+    }
+    for s in fam.tags.iter().chain(&fam.reserved_names).chain(&fam.sample_script) {
+        check_str("tag, reserved name or sample script", s)?;
+    }
+    // The committed Google Fonts index has copyright notices with line breaks.
+    if let Some(c) = &fam.copyright {
+        check_str("copyright", &c.replace(['\n', '\r', '\t'], " "))?;
+    }
+    if fam.upstream.as_deref().is_some_and(|u| !is_source_url(u)) {
+        return invalid(format!("the upstream of `{name}` is not an https URL"));
     }
     if fam.languages.iter().any(|&i| i >= ctx.languages) {
         return invalid(format!("`{name}` names a language the index doesn't have"));
@@ -478,10 +496,20 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
             return invalid(format!("`{}` has a bad list instance", short(&f.path)));
         }
         // Every instance has a coordinate for each axis and for no other.
+        for s in f.sample_script.iter().chain(&f.sample_text) {
+            check_str("sample script or text", s)?;
+        }
+        if f.sample_text.as_deref().is_some_and(|t| t.chars().count() > MAX_SAMPLE_CHARS) {
+            return invalid(format!("`{}` has a sample text over {MAX_SAMPLE_CHARS} characters", short(&f.path)));
+        }
         for i in &f.instances {
             check_str("instance name", &i.name)?;
             if i.coordinates.len() != f.axes.len() || f.axes.iter().any(|a| !i.coordinates.contains_key(&a.tag)) {
                 return invalid(format!("`{}` has an instance without its axes", short(&f.path)));
+            }
+            let in_range = |a: &crate::index::Axis| i.coordinates.get(&a.tag).is_some_and(|c| c.is_finite() && (a.min..=a.max).contains(c));
+            if !f.axes.iter().all(in_range) {
+                return invalid(format!("`{}` has an instance outside its axes' ranges", short(&f.path)));
             }
         }
         for ps in &f.postscript {
@@ -493,22 +521,24 @@ fn check_family(fam: &mut Family, ctx: &Ctx<'_>) -> Result<(), IndexError> {
         check_repo_ref(&f.path, f.repo.as_deref(), f.git_ref.as_deref())?;
         fill(ctx.templates, &f.path, repo(f.repo.clone()).as_deref(), git_ref(f.git_ref.clone()).as_deref())?;
     }
-    let beside = |path: &str| -> Result<(), IndexError> {
+    let beside = |what: &str, path: &str| -> Result<(), IndexError> {
         if names.contains(&check_path(path)?.to_ascii_lowercase()) {
-            return invalid(format!("the licence of `{name}` has a font file's name"));
+            return invalid(format!("the {what} of `{name}` has a font file's name"));
         }
         Ok(())
     };
-    if let Some(lf) = &fam.license_file {
-        beside(&lf.path)?;
+    // The licence and the NOTICE file are checked alike.
+    for (what, lf) in [("licence", &fam.license_file), ("notice", &fam.notice_file)] {
+        let Some(lf) = lf else { continue };
+        beside(what, &lf.path)?;
         if !is_sha256(&lf.sha256) || lf.size == 0 || lf.size > MAX_LICENSE_BYTES {
-            return invalid(format!("the licence of `{name}` has a bad sha256 or size"));
+            return invalid(format!("the {what} of `{name}` has a bad sha256 or size"));
         }
         check_repo_ref(&lf.path, lf.repo.as_deref(), lf.git_ref.as_deref())?;
         fill(ctx.templates, &lf.path, repo(lf.repo.clone()).as_deref(), git_ref(lf.git_ref.clone()).as_deref())?;
     }
     if let Some(lp) = &fam.license_path {
-        beside(lp)?;
+        beside("licence", lp)?;
         if fam.license_file.is_none() {
             fill(ctx.templates, lp, repo(None).as_deref(), git_ref(None).as_deref())?;
         }

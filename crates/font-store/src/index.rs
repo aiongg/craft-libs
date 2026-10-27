@@ -645,13 +645,15 @@ impl Index {
     }
 
     /// The preview text of a file of `family`: the file's own `sample_text`, else the sample of
-    /// its `sample_script`, else of the family's.
+    /// its `sample_script`. A file with its own `sample_script` has none when that script has no
+    /// sample; only a file without one uses the family's.
     pub fn sample_text<'a>(&'a self, family: &'a Family, file: &'a FontFile) -> Option<&'a str> {
         if let Some(text) = &file.sample_text {
             return Some(text);
         }
         let sample = |script: &Option<String>| script.as_deref().and_then(|s| self.sample(s));
-        sample(&file.sample_script).or_else(|| sample(&family.sample_script)).map(|s| s.text.as_str())
+        let script = if file.sample_script.is_some() { &file.sample_script } else { &family.sample_script };
+        sample(script).map(|s| s.text.as_str())
     }
 
     /// The family of this name, ignoring case, from the first source that has it. Only the whole
