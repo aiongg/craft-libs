@@ -4,6 +4,7 @@
 mod i18n;
 
 mod app;
+mod available;
 mod browse;
 mod details;
 mod faces;

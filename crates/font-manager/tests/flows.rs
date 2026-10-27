@@ -11,11 +11,11 @@ use std::sync::Arc;
 use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::index::Index;
 use craft_font_manager::remote::{Fetch, Previews};
-use craft_font_manager::store::{Call, FakeStore, Installer};
+use craft_font_manager::store::{Call, Conflict, FakeStore, Installer};
 use craft_font_manager::{Catalog, FontEnv, Source};
 use craft_font_manager::{FontsPanel, Look, Options, Palette, Runner, Settings, Tab, install_interface_fonts};
 use craft_font_store::{Cancel, FetchError};
-use egui::accesskit::Role;
+use egui::accesskit::{Role, Toggled};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{By, NodeT, Queryable};
 
@@ -213,6 +213,43 @@ fn install_and_remove_one_style() {
     click(&mut h, "Remove Regular");
     assert_eq!(store.calls().last(), Some(&Call::Remove("Hack".into())));
     assert!(!has_installed(&h, "Hack"));
+}
+
+#[test]
+fn a_family_made_available_to_all_apps_asks_before_removal() {
+    let (mut h, store) = setup("available", Settings::default());
+    allow(&mut h);
+    click(&mut h, "Hack");
+    click(&mut h, "Install all");
+    click_role(&mut h, Role::CheckBox, "Available to all apps");
+    assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
+    assert!(store.is_available_to_all("Hack", &[]));
+    assert_eq!(h.get_by_role_and_label(Role::CheckBox, "Available to all apps").accesskit_node().toggled(), Some(Toggled::True));
+    assert!(h.query_by_label_contains("only after they restart").is_some());
+
+    click(&mut h, "Remove all");
+    assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())), "nothing is removed before the user confirms");
+    assert!(h.query_by_label_contains("removes its copies from your system's font folder").is_some());
+    click(&mut h, "Remove");
+    assert_eq!(store.calls().last(), Some(&Call::Remove("Hack".into())));
+    assert!(!has_installed(&h, "Hack"));
+}
+
+#[test]
+fn a_refused_family_lists_the_fonts_in_the_way() {
+    let (mut h, store) = setup("refused", Settings::default());
+    allow(&mut h);
+    click(&mut h, "Hack");
+    click(&mut h, "Install all");
+    let path = PathBuf::from("/usr/share/fonts/Hack-Regular.ttf");
+    store.refuse_next(vec![Conflict { postscript: "Hack-Regular".into(), path: path.clone() }]);
+    click_role(&mut h, Role::CheckBox, "Available to all apps");
+    assert_eq!(store.calls().last(), Some(&Call::MakeAvailable("Hack".into())));
+    assert!(!store.is_available_to_all("Hack", &[]));
+    assert!(h.query_by_label_contains("already have these names").is_some());
+    assert!(h.query_by_label("Hack-Regular").is_some());
+    assert!(h.query_by_label(&path.display().to_string()).is_some());
+    assert_eq!(h.get_by_role_and_label(Role::CheckBox, "Available to all apps").accesskit_node().toggled(), Some(Toggled::False));
 }
 
 #[test]

@@ -644,6 +644,8 @@ impl FontsPanel {
                     Kind::Install => tl!("Installing"),
                     Kind::Remove => tl!("Removing"),
                     Kind::Preview => tl!("Downloading"),
+                    Kind::MakeAvailable => tl!("Making available to all apps"),
+                    Kind::Withdraw => tl!("Withdrawing from other apps"),
                 };
                 let text = match fraction {
                     Some(f) => format!("{what} {}", fmt("{percent} %", &[("percent", &i18n::number((f * 100.0).round() as u64))])),
@@ -666,6 +668,8 @@ impl FontsPanel {
                     Kind::Install => tl!("Couldn't install"),
                     Kind::Remove => tl!("Couldn't remove"),
                     Kind::Preview => tl!("Couldn't download"),
+                    Kind::MakeAvailable => tl!("Couldn't make available to all apps"),
+                    Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
                 };
                 widgets::label(ui, s, what, p.bad).on_hover_text(error);
             }

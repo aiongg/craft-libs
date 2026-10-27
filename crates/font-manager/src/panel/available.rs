@@ -1,0 +1,215 @@
+//! Making a store family available to all apps: the detail view's switch, what the last change
+//! did, the styles not copied yet, and the confirmation before removing an available family.
+//!
+//! The store copies the family's files into the OS user font folder. Only the user's own action
+//! does that, so the panel never offers it to an agent; it runs for the user alone.
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use craft_ui::direction;
+use egui::{Context, Frame, Margin, RichText, Ui};
+
+use crate::panel::app::{FontsPanel, store_files};
+use crate::panel::i18n::{fmt, tl, tn};
+use crate::panel::jobs::{Finished, Kind, Request, Running};
+use crate::panel::widgets::{self, Skin};
+use crate::store::{Conflict, MadeAvailable, StoreError};
+use crate::{FaceInfo, Source};
+
+/// What the last change to a family's availability did, shown under its switch.
+#[derive(Clone, Debug)]
+pub(crate) enum Shared {
+    Done,
+    Refused(Vec<Conflict>),
+    /// Withdrawn, leaving these copies in place because they changed since.
+    Kept(Vec<PathBuf>),
+    Failed(Kind, String),
+}
+
+/// A family's availability as last read from the store, for the catalog generation it was read
+/// at: reading it can mean reading the store's manifest, too slow for every frame.
+pub(crate) struct Availability {
+    generation: u64,
+    available: bool,
+    /// The store names of its files not available to all apps yet.
+    pending: Vec<String>,
+}
+
+impl FontsPanel {
+    /// Whether the store family `family` holding `files` is available to all apps, and its files
+    /// not available yet.
+    fn availability(&mut self, family: &str, files: &[PathBuf]) -> (bool, Vec<String>) {
+        let generation = self.catalog.generation();
+        let key = family.to_lowercase();
+        if let Some(a) = self.availability.get(&key).filter(|a| a.generation == generation) {
+            return (a.available, a.pending.clone());
+        }
+        let available = self.installer.is_available_to_all(family, files);
+        let pending = if available { self.installer.not_yet_available(family, files) } else { Vec::new() };
+        self.availability.insert(key, Availability { generation, available, pending: pending.clone() });
+        (available, pending)
+    }
+
+    /// Whether `face` of `family` is a store style the family's copies don't include yet.
+    pub(crate) fn pending_style(&self, family: &str, face: &FaceInfo) -> bool {
+        let Some(a) = self.availability.get(&family.to_lowercase()) else { return false };
+        let name = face.path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy());
+        face.source == Source::Store && name.is_some_and(|n| a.pending.iter().any(|p| *p == n))
+    }
+
+    /// The "Available to all apps" switch of a store family, under its install and remove
+    /// buttons, with what the last change did. `faces` are the family's installed faces.
+    pub(crate) fn available_to_all(&mut self, ui: &mut Ui, s: &Skin, family: &str, faces: &[FaceInfo]) {
+        let files = store_files(faces);
+        if files.is_empty() {
+            return;
+        }
+        ui.add_space(4.0);
+        if let Some(reason) = self.installer.available_to_all_unsupported() {
+            widgets::label(ui, s, tl!("Fonts can't be made available to all apps here."), s.p.faint).on_hover_text(reason);
+            return;
+        }
+        let ctx = ui.ctx().clone();
+        let (available, pending) = self.availability(family, &files);
+        let busy = self.jobs.of("", family).is_some();
+        let mut on = available;
+        let changed = ui.add_enabled_ui(!busy, |ui| ui.checkbox(&mut on, tl!("Available to all apps"))).inner.changed();
+        let what = tl!("Copies this family into your system's font folder, so other apps can use it too.");
+        ui.add(egui::Label::new(RichText::new(what).size(12.5).color(s.p.muted)).wrap());
+        if changed {
+            let request =
+                if on { Request::MakeAvailable(family.to_owned(), files.clone()) } else { Request::Withdraw(family.to_owned(), files.clone()) };
+            self.start_sharing(&ctx, family, request);
+        }
+        if available && !pending.is_empty() && !busy {
+            let mut again = false;
+            widgets::note_with_actions(
+                ui,
+                s,
+                |ui| {
+                    let text = tn(pending.len() as u64, "{n} style isn't available to all apps yet.", "{n} styles aren't available to all apps yet.");
+                    ui.label(RichText::new(text).color(s.p.warn));
+                },
+                &[tl!("Make these available too")],
+                |ui, _| again = widgets::button(ui, s, tl!("Make these available too"), widgets::Kind::Secondary, 28.0, 0.0).clicked(),
+                false,
+            );
+            if again {
+                self.start_sharing(&ctx, family, Request::MakeAvailable(family.to_owned(), files));
+            }
+        }
+        let Some(shared) = self.sharing.get(&family.to_lowercase()).cloned() else { return };
+        let small = |text: &str, color| egui::Label::new(RichText::new(text).size(12.5).color(color)).wrap();
+        match shared {
+            Shared::Done => {
+                ui.add(small(tl!("Some apps that are already running see these fonts only after they restart."), s.p.muted));
+            }
+            Shared::Refused(conflicts) => {
+                widgets::note(ui, s, |ui| {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.add(
+                            egui::Label::new(RichText::new(tl!("Not made available: fonts on this system already have these names.")).color(s.p.bad))
+                                .wrap(),
+                        );
+                        for c in &conflicts {
+                            ui.label(RichText::new(&c.postscript).color(s.p.ink));
+                            ui.add(small(&c.path.display().to_string(), s.p.muted));
+                        }
+                    });
+                });
+            }
+            Shared::Kept(paths) if !paths.is_empty() => {
+                widgets::note(ui, s, |ui| {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        let text = tl!("These copies changed after they were added, so they stay in your system's font folder:");
+                        ui.add(egui::Label::new(RichText::new(text).color(s.p.warn)).wrap());
+                        for path in &paths {
+                            ui.add(small(&path.display().to_string(), s.p.muted));
+                        }
+                    });
+                });
+            }
+            Shared::Kept(_) => {}
+            Shared::Failed(kind, error) => {
+                let what = match kind {
+                    Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
+                    _ => tl!("Couldn't make available to all apps"),
+                };
+                widgets::note(ui, s, |ui| {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(RichText::new(what).color(s.p.bad));
+                        ui.add(small(&error, s.p.muted));
+                    });
+                });
+            }
+        }
+    }
+
+    fn start_sharing(&mut self, ctx: &Context, family: &str, request: Request) {
+        self.sharing.remove(&family.to_lowercase());
+        self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), request);
+    }
+
+    /// Takes the end of a job that made a family available or withdrew it.
+    pub(crate) fn sharing_done(&mut self, job: &Running, result: Result<Finished, StoreError>) {
+        let key = job.family.to_lowercase();
+        self.availability.remove(&key);
+        let shared = match result {
+            Ok(Finished::MadeAvailable(MadeAvailable::Done)) => Shared::Done,
+            Ok(Finished::MadeAvailable(MadeAvailable::Refused(conflicts))) => Shared::Refused(conflicts),
+            Ok(Finished::Withdrawn(kept)) => Shared::Kept(kept),
+            Ok(_) => return,
+            Err(e) => {
+                log::warn!("{} ({:?}): {e}", job.family, job.kind);
+                Shared::Failed(job.kind, e.0)
+            }
+        };
+        self.sharing.insert(key, shared);
+    }
+
+    /// The confirmation before removing fonts of a family available to all apps, whose copies in
+    /// the OS font folder go with them.
+    pub(crate) fn confirm_removal(&mut self, ctx: &Context) {
+        let Some(request) = self.confirming.clone() else { return };
+        let family = request.family.as_str();
+        let text = if request.whole {
+            fmt(
+                "{family} is available to all apps. Removing it also removes its copies from your system's font folder, and other apps can't use it any more.",
+                &[("family", family)],
+            )
+        } else {
+            fmt("{family} is available to all apps. Removing this style also removes its copy from your system's font folder.", &[("family", family)])
+        };
+        let title = fmt("Remove {family}?", &[("family", family)]);
+        let s = self.skin.clone();
+        let mut remove = false;
+        let mut cancel = false;
+        let frame =
+            Frame::new().fill(s.p.bg).stroke(egui::Stroke::new(1.0, s.p.line_strong)).corner_radius(s.look.corner).inner_margin(Margin::same(24));
+        let response = egui::Modal::new(egui::Id::unique("craft-font-manager.remove-available")).frame(frame).show(ctx, |ui| {
+            ui.set_max_width(440.0);
+            ui.spacing_mut().item_spacing.y = 10.0;
+            let title = RichText::new(&title).size(22.0).family(s.look.display.clone()).color(s.p.ink_strong);
+            ui.add(egui::Label::new(title).wrap());
+            ui.add(egui::Label::new(RichText::new(text).color(s.p.ink)).wrap());
+            let kept = tl!("Copies that changed after they were added stay where they are.");
+            ui.add(egui::Label::new(RichText::new(kept).color(s.p.muted)).wrap());
+            ui.add_space(8.0);
+            direction::horizontal(ui, |ui| {
+                remove = widgets::button(ui, &s, tl!("Remove"), widgets::Kind::Danger, s.h(), 0.0).clicked();
+                cancel = widgets::button(ui, &s, tl!("Cancel"), widgets::Kind::Secondary, s.h(), 0.0).clicked();
+            });
+        });
+        if remove {
+            self.confirming = None;
+            self.sharing.remove(&request.family.to_lowercase());
+            self.start_removal(ctx, request);
+        } else if cancel || response.should_close() {
+            self.confirming = None;
+        }
+    }
+}

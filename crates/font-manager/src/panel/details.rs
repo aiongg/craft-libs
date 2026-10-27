@@ -288,6 +288,8 @@ impl FontsPanel {
                         Kind::Install => tl!("Installing"),
                         Kind::Remove => tl!("Removing"),
                         Kind::Preview => tl!("Downloading"),
+                        Kind::MakeAvailable => tl!("Making available to all apps"),
+                        Kind::Withdraw => tl!("Withdrawing from other apps"),
                     };
                     self.progress(ui, s, what, *fraction, 220.0);
                 }
@@ -310,6 +312,7 @@ impl FontsPanel {
                 }
             }
         });
+        self.available_to_all(ui, s, &family.family, &store);
         if installed.is_empty() && previewed.is_none() {
             let note = fmt("Preview downloads this font ({size}) for this session without installing it.", &[("size", &size)]);
             ui.label(RichText::new(note).size(12.5).color(s.p.muted));
@@ -329,12 +332,16 @@ impl FontsPanel {
                 });
             });
         }
-        if let Some(failure) = self.failed.get(&key).cloned() {
+        // A removal goes by name alone.
+        let failure = self.failed.get(&key).or_else(|| self.failed.get(&family_key("", &family.family))).cloned();
+        if let Some(failure) = failure {
             ui.add_space(4.0);
             let what = match failure.kind {
                 Kind::Install => tl!("Couldn't install"),
                 Kind::Remove => tl!("Couldn't remove"),
                 Kind::Preview => tl!("Couldn't download"),
+                Kind::MakeAvailable => tl!("Couldn't make available to all apps"),
+                Kind::Withdraw => tl!("Couldn't withdraw from other apps"),
             };
             let buttons: &[&str] = if failure.retry.is_some() { &[tl!("Retry")] } else { &[] };
             let mut retry = false;
@@ -454,6 +461,9 @@ impl FontsPanel {
                 self.remove(&ctx, &family.name, &family.faces, true);
             }
         });
+        if source == Source::Store {
+            self.available_to_all(ui, s, &family.name, &family.faces);
+        }
         ui.add_space(14.0);
         let rows = family
             .faces
@@ -674,6 +684,11 @@ impl FontsPanel {
             ui.add_space(10.0);
             ui.allocate_ui_with_layout(vec2(width, 28.0), direction::row(ui), |ui| {
                 widgets::label(ui, s, &row.label, s.p.muted);
+                if let Some(RowFace::Face(Owner::Installed, face)) = &row.face
+                    && self.pending_style(family, face)
+                {
+                    widgets::label(ui, s, tl!("Not yet available to all apps"), s.p.warn);
+                }
                 ui.with_layout(direction::trailing(ui), |ui| match &row.action {
                     RowAction::None => {}
                     RowAction::Running(fraction) => self.progress(ui, s, tl!("Installing"), *fraction, 140.0),

@@ -90,7 +90,8 @@ mod tests {
             "Google Fonts",
             "{source}: {error}",
         ];
-        let sources = [include_str!("app.rs"), include_str!("browse.rs"), include_str!("details.rs"), include_str!("sources.rs")];
+        let sources =
+            [include_str!("app.rs"), include_str!("browse.rs"), include_str!("details.rs"), include_str!("sources.rs"), include_str!("available.rs")];
         let mut keys = Vec::new();
         for source in sources {
             for marker in ["tl!(", "fmt("] {

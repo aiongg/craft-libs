@@ -2,6 +2,7 @@
 //! the filters at the reading start, the family cards, and the details sheet over them.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::craft_font_catalog::{FontEnv, Limits, Os};
@@ -16,6 +17,7 @@ use craft_ui::direction;
 use craft_ui::fonts::{CraftFace, I18nScripts, UiFonts};
 use egui::{CentralPanel, Context, Frame, Margin, Panel, Ui};
 
+use crate::panel::available::{Availability, Shared};
 use crate::panel::details::Legal;
 use crate::panel::faces::FaceFonts;
 use crate::panel::i18n::{self, I18N, LANGUAGES, fmt, tl};
@@ -198,6 +200,12 @@ pub struct FontsPanel {
     pub(crate) failed: HashMap<String, Failure>,
     /// A problem that belongs to no family (the download setting couldn't be saved).
     pub(crate) notice: Option<String>,
+    /// What the last change to a family's availability to all apps did, by lower-case name.
+    pub(crate) sharing: HashMap<String, Shared>,
+    /// Families' availability to all apps as last read, by lower-case name.
+    pub(crate) availability: HashMap<String, Availability>,
+    /// A removal waiting for the user to confirm it: the family is available to all apps.
+    pub(crate) confirming: Option<RemoveRequest>,
     focused: bool,
     pub(crate) folder: Folder,
     /// The download consent as last read, and when.
@@ -216,6 +224,14 @@ pub struct FontsPanel {
 /// A removal goes by name alone (`source` empty).
 pub(crate) fn family_key(source: &str, family: &str) -> String {
     format!("{source}\n{}", family.to_lowercase())
+}
+
+/// The store files of `faces`, sorted, once each.
+pub(crate) fn store_files(faces: &[FaceInfo]) -> Vec<PathBuf> {
+    let mut files: Vec<_> = faces.iter().filter(|f| f.source == Source::Store).filter_map(|f| f.path.clone()).collect();
+    files.sort();
+    files.dedup();
+    files
 }
 
 /// The host of an https URL.
@@ -316,6 +332,9 @@ impl FontsPanel {
             asking: None,
             failed: HashMap::new(),
             notice: None,
+            sharing: HashMap::new(),
+            availability: HashMap::new(),
+            confirming: None,
             focused: true,
             folder: Folder::new("en"),
             consent: None,
@@ -522,6 +541,7 @@ impl FontsPanel {
         CentralPanel::default().frame(main).show(ui, |ui| self.main(ui));
         self.details(&ctx, area);
         self.consent(&ctx);
+        self.confirm_removal(&ctx);
     }
 
     fn keys(&mut self, ctx: &Context) {
@@ -529,7 +549,7 @@ impl FontsPanel {
         if find {
             self.focus_search = true;
         }
-        if escape && self.asking.is_none() && self.detail.is_some() {
+        if escape && self.asking.is_none() && self.confirming.is_none() && self.detail.is_some() {
             self.detail = None;
         }
     }
@@ -537,10 +557,16 @@ impl FontsPanel {
     fn poll_jobs(&mut self) {
         for (job, result) in self.jobs.poll() {
             let key = family_key(&job.source, &job.family);
+            if matches!(job.kind, Kind::MakeAvailable | Kind::Withdraw) {
+                self.sharing_done(&job, result);
+                continue;
+            }
             match result {
                 Ok(Finished::Installed | Finished::Removed) => {
                     self.failed.remove(&key);
+                    self.availability.remove(&job.family.to_lowercase());
                 }
+                Ok(Finished::MadeAvailable(_) | Finished::Withdrawn(_)) => {}
                 Ok(Finished::Previewed(files)) => {
                     self.failed.remove(&key);
                     let mut faces = Vec::new();
@@ -560,7 +586,7 @@ impl FontsPanel {
                     let retry = position.and_then(|i| match job.kind {
                         Kind::Install => Some(job.file.clone().map_or(Pending::Install(i), |path| Pending::InstallFile(i, path))),
                         Kind::Preview => Some(Pending::Preview(i)),
-                        Kind::Remove => None,
+                        Kind::Remove | Kind::MakeAvailable | Kind::Withdraw => None,
                     });
                     log::warn!("{} ({:?}): {e}", job.family, job.kind);
                     self.failed.insert(key, Failure { kind: job.kind, error: e.0, retry });
@@ -700,16 +726,23 @@ impl FontsPanel {
         self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), request);
     }
 
-    /// Removes store files: a whole family, or the files of some of its styles.
+    /// Removes store files: a whole family, or the files of some of its styles. A family
+    /// available to all apps asks first, as its copies in the OS font folder go too.
     pub(crate) fn remove(&mut self, ctx: &Context, family: &str, faces: &[FaceInfo], whole: bool) {
-        let mut files: Vec<_> = faces.iter().filter(|f| f.source == Source::Store).filter_map(|f| f.path.clone()).collect();
-        files.sort();
-        files.dedup();
+        let files = store_files(faces);
         if files.is_empty() {
             return;
         }
-        self.failed.remove(&family_key("", family));
         let request = RemoveRequest { family: family.to_owned(), files, whole };
+        if self.installer.is_available_to_all(family, &request.files) {
+            self.confirming = Some(request);
+        } else {
+            self.start_removal(ctx, request);
+        }
+    }
+
+    pub(crate) fn start_removal(&mut self, ctx: &Context, request: RemoveRequest) {
+        self.failed.remove(&family_key("", &request.family));
         self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), Request::Remove(request));
     }
 
