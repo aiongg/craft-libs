@@ -41,7 +41,7 @@ mod tests {
     use craft_theme::{Resolved, Rgba, builtins, derive};
 
     use super::*;
-    use crate::title_bar::WINDOWS_CLOSE;
+    use crate::title_bar::{BREEZE_CLOSE_HOVER, BREEZE_CLOSE_HOVER_GLYPH, BREEZE_CLOSE_PRESSED, BREEZE_CLOSE_PRESSED_GLYPH, WINDOWS_CLOSE};
 
     fn rgba(c: Color32) -> Rgba {
         Rgba([c.r(), c.g(), c.b(), 255])
@@ -66,5 +66,13 @@ mod tests {
     #[test]
     fn the_windows_close_glyph_reads_on_its_red() {
         assert!(ratio(rgba(Color32::WHITE), rgba(WINDOWS_CLOSE)) >= 4.5);
+    }
+
+    #[test]
+    fn the_breeze_close_glyph_reads_on_its_reds() {
+        // The reds and glyphs are fixed, so this holds for light and dark bars alike; at rest Close
+        // has no red and uses the theme's glyph colour, checked by the theme's own contrast table.
+        assert!(ratio(rgba(BREEZE_CLOSE_HOVER_GLYPH), rgba(BREEZE_CLOSE_HOVER)) >= 4.5);
+        assert!(ratio(rgba(BREEZE_CLOSE_PRESSED_GLYPH), rgba(BREEZE_CLOSE_PRESSED)) >= 4.5);
     }
 }

@@ -53,7 +53,7 @@ their bar themselves. `CaptionButtons` adds labels and icon-theme glyphs.
 |---|---|---|
 | Windows | 46 pt wide, full bar height, flush with the window's edge | `#C42B1C` with a white glyph; 90 % while pressed |
 | Adwaita | 24 pt discs, 10 % glyph colour at rest | the app's hover and pressed fills |
-| Breeze | 18 pt bare discs; under the pointer the disc takes the glyph colour and the glyph the bar's | `#FF98A2` / `#6D2229`, glyph in the bar colour |
+| Breeze | 18 pt bare discs; under the pointer the disc takes the glyph colour and the glyph the bar's | `#FF98A2` with a `#232629` glyph / `#6D2229` with a white glyph |
 | Generic | Adwaita's buttons without the disc at rest | the app's hover and pressed fills |
 
 - `CaptionColors::from_resolved` takes the suite theme's roles: glyph `text`, inactive glyph

@@ -37,8 +37,8 @@ mod snapshot_tests;
 mod tests;
 
 pub use buttons::{
-    BREEZE_CLOSE_HOVER, BREEZE_CLOSE_PRESSED, Caption, CaptionButtons, CaptionIcon, CaptionIcons, CaptionLabels, RenderIconFn, WINDOWS_BUTTON_WIDTH,
-    WINDOWS_CLOSE, caption_buttons, caption_id,
+    BREEZE_CLOSE_HOVER, BREEZE_CLOSE_HOVER_GLYPH, BREEZE_CLOSE_PRESSED, BREEZE_CLOSE_PRESSED_GLYPH, Caption, CaptionButtons, CaptionIcon,
+    CaptionIcons, CaptionLabels, RenderIconFn, WINDOWS_BUTTON_WIDTH, WINDOWS_CLOSE, caption_buttons, caption_id,
 };
 pub use colors::CaptionColors;
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};

@@ -18,6 +18,10 @@ pub const WINDOWS_CLOSE: Color32 = Color32::from_rgb(0xC4, 0x2B, 0x1C);
 /// Breeze's Close button on hover and press (KDE's Breeze decoration colours).
 pub const BREEZE_CLOSE_HOVER: Color32 = Color32::from_rgb(0xFF, 0x98, 0xA2);
 pub const BREEZE_CLOSE_PRESSED: Color32 = Color32::from_rgb(0x6D, 0x22, 0x29);
+/// The Close glyph on [`BREEZE_CLOSE_HOVER`] and [`BREEZE_CLOSE_PRESSED`]: fixed, because the reds are
+/// fixed and the bar colour reads on neither in both variants.
+pub const BREEZE_CLOSE_HOVER_GLYPH: Color32 = Color32::from_rgb(0x23, 0x26, 0x29);
+pub const BREEZE_CLOSE_PRESSED_GLYPH: Color32 = Color32::WHITE;
 
 /// A caption button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -387,8 +391,8 @@ fn paint_round(
     let close = c == Caption::Close;
     let (fill, ink) = if family == CaptionFamily::Breeze {
         match (look.hovered, look.pressed && look.hovered) {
-            (_, true) if close => (BREEZE_CLOSE_PRESSED, colors.bar),
-            (true, _) if close => (BREEZE_CLOSE_HOVER, colors.bar),
+            (_, true) if close => (BREEZE_CLOSE_PRESSED, BREEZE_CLOSE_PRESSED_GLYPH),
+            (true, _) if close => (BREEZE_CLOSE_HOVER, BREEZE_CLOSE_HOVER_GLYPH),
             (_, true) => (colors.glyph.gamma_multiply(0.5), colors.bar),
             (true, _) => (colors.glyph, colors.bar),
             _ => (Color32::TRANSPARENT, glyph),
