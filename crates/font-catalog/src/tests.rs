@@ -429,6 +429,117 @@ fn added_fonts_come_first_and_respect_the_limits() {
 }
 
 #[test]
+fn scoped_fonts_are_seen_only_in_their_scope() {
+    let root = temp("scope");
+    let cat = system(&root);
+    let limits = Limits::default();
+    let (a, b) = (cat.new_scope(), cat.new_scope());
+    cat.rescan();
+    let generation = cat.generation();
+    // Each scope replaces the installed Test Sans Bold with its own (told apart by fsType); A also
+    // has a family of its own.
+    let a_bold = cat.add_bytes_in(a, font(&Spec { fs_type: 4, ..spec("Test Sans", "Bold", 700) }), Source::Document, &limits).unwrap();
+    let file = root.join("doc-a/DocOnly.ttf");
+    write(&file, font(&spec("Doc Only", "Regular", 400)));
+    cat.add_file_in(a, &file, Source::Document, &limits).unwrap();
+    cat.add_bytes_in(b, font(&Spec { fs_type: 8, ..spec("Test Sans", "Bold", 700) }), Source::Document, &limits).unwrap();
+    assert_eq!(cat.generation(), generation, "scoped changes leave other documents alone");
+    assert!(cat.generation_in(a) > generation);
+
+    let bold = |scope: Option<Scope>| {
+        let (face, m) = match scope {
+            Some(s) => cat.resolve_in(s, "Test Sans", "Bold"),
+            None => cat.resolve("Test Sans", "Bold"),
+        }
+        .unwrap();
+        assert_eq!(m, Match::Exact);
+        (face.source, face.fs_type)
+    };
+    assert_eq!(bold(Some(a)), (Source::Document, 4));
+    assert_eq!(bold(Some(b)), (Source::Document, 8));
+    assert_eq!(bold(None), (Source::System, 0));
+    // The scope's family keeps its shared styles, and other families resolve as unscoped.
+    assert_eq!(cat.resolve_in(a, "Test Sans", "Regular").unwrap(), cat.resolve("Test Sans", "Regular").unwrap());
+    assert_eq!(cat.styles_in(a, "test sans").len(), 5);
+    assert_eq!(cat.resolve_in(a, "Host Serif", "Bold").unwrap().0.source, Source::System);
+    assert!(cat.families_in(a).iter().any(|f| f == "Doc Only"));
+    assert!(!cat.families_in(b).iter().any(|f| f == "Doc Only"));
+    assert!(!cat.families().iter().any(|f| f == "Doc Only"));
+    assert_eq!(cat.family_in(a, "doc only").as_deref(), Some("Doc Only"));
+    assert!(cat.family("Doc Only").is_none());
+    assert!(cat.by_postscript_name_in(a, "DocOnly-Regular").is_some());
+    assert!(cat.by_postscript_name_in(b, "DocOnly-Regular").is_none());
+    assert!(cat.by_postscript_name("DocOnly-Regular").is_none());
+    assert!(cat.load_family_in(a, "Test Sans").iter().any(|f| f.info.fs_type == 4));
+    assert!(cat.load_family("Test Sans").iter().all(|f| f.info.fs_type == 0));
+
+    // The limit on added faces counts every scope.
+    let three = Limits { max_added_faces: 3, ..limits };
+    assert!(matches!(cat.add_bytes(font(&spec("One More", "Regular", 400)), Source::User, &three), Err(FontFileError::TooManyFaces { max: 3 })));
+
+    // A face added without a scope comes after the scope's own.
+    cat.add_bytes(font(&Spec { fs_type: 2, ..spec("Test Sans", "Bold", 700) }), Source::User, &limits).unwrap();
+    assert_eq!(bold(None), (Source::User, 2));
+    assert_eq!(bold(Some(b)), (Source::Document, 8));
+
+    let before = cat.generation();
+    assert_eq!(cat.remove_scope(a), 2);
+    assert_eq!(cat.generation(), before);
+    assert_eq!(bold(Some(a)), (Source::User, 2));
+    assert_eq!(bold(Some(b)), (Source::Document, 8));
+    assert!(cat.family_in(a, "Doc Only").is_none());
+    assert!(matches!(cat.load(&a_bold[0]), Err(FontFileError::Gone)));
+    // Removing unscoped faces keeps the scopes'.
+    assert_eq!(cat.remove_added(Source::User), 1);
+    assert_eq!(bold(Some(b)), (Source::Document, 8));
+    assert_eq!(cat.load_family_in(b, "Test Sans").iter().filter(|f| f.info.fs_type == 8).count(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_scan_skips_files_that_are_not_regular() {
+    let root = temp("fifo");
+    let dir = root.join("usr/share/fonts");
+    write(&dir.join("Real.ttf"), font(&spec("Real Face", "Regular", 400)));
+    let fifo = dir.join("Blocking.ttf");
+    assert!(std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+    let named = fifo.clone();
+    let cat = Arc::new(Catalog::new(linux_env(&root)).with_font_service(false).with_lister(Arc::new(move || vec![named.clone()])));
+    // Opening a FIFO blocks until a writer comes, so the scan runs on a thread with a deadline.
+    let (tx, rx) = mpsc::channel();
+    let scanning = Arc::clone(&cat);
+    std::thread::spawn(move || tx.send(scanning.families().to_vec()));
+    assert_eq!(rx.recv_timeout(Duration::from_secs(10)).expect("the scan opened the FIFO"), ["Real Face"]);
+    assert!(matches!(cat.add_file(&fifo, Source::User, &Limits::default()), Err(FontFileError::Io(_))));
+    assert!(matches!(cat.add_file(&dir, Source::User, &Limits::default()), Err(FontFileError::Io(_))));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_confined_folder_skips_links_that_leave_it() {
+    use std::os::unix::fs::symlink;
+    let root = temp("confined");
+    let picked = root.join("picked");
+    write(&picked.join("Inside.ttf"), font(&spec("Inside Face", "Regular", 400)));
+    write(&picked.join("sub/Deep.ttf"), font(&spec("Deep Face", "Regular", 400)));
+    write(&root.join("outside/Secret.ttf"), font(&spec("Secret Face", "Regular", 400)));
+    write(&root.join("outside/dir/Other.ttf"), font(&spec("Other Face", "Regular", 400)));
+    symlink(root.join("outside/Secret.ttf"), picked.join("Secret.ttf")).unwrap();
+    symlink(root.join("outside/dir"), picked.join("dir")).unwrap();
+    symlink(&picked, root.join("picked-link")).unwrap();
+    let cat = Catalog::new(linux_env(&root)).with_font_service(false);
+    // The folder may itself be a link; what counts is where it leads.
+    cat.set_confined_dirs(vec![root.join("picked-link")]);
+    assert_eq!(cat.families().to_vec(), ["Deep Face", "Inside Face"]);
+    assert_eq!(cat.styles("Inside Face")[0].source, Source::User);
+    // As an app folder, the same folder follows its links.
+    cat.set_confined_dirs(vec![]);
+    cat.set_app_dirs(vec![picked]);
+    assert!(cat.rescan_if_changed());
+    assert_eq!(cat.families().to_vec(), ["Deep Face", "Inside Face", "Other Face", "Secret Face"]);
+}
+
+#[test]
 fn the_scan_reads_only_what_it_may() {
     let root = temp("bounded");
     let path = root.join("Big.ttf");
