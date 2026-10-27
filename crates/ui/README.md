@@ -406,10 +406,14 @@ directory out of version control. A build filters faces for the web as for the d
 Two features, both off by default, change what every craft-ui user draws, so the app turns them on:
 
 - `system_fonts` (desktop): the stack asks the installed fonts, at regular weight, and `install`
-  replaces the context's font providers, including the one eframe adds. One index of the
-  installed fonts serves every UI language, so a language switch doesn't scan them again.
-  `install` starts building it on a background thread; until it is ready, text draws with the
-  stack's own faces, and the context repaints when it arrives. Without it,
+  replaces the context's font providers, including the one eframe adds. The installed fonts are
+  craft-font-catalog's (`system::collection()`): the system's fonts and those in the Craft font
+  store. One index of them serves every UI language, so a language switch doesn't scan them
+  again. `install` starts building it on a background thread; until it is ready, text draws with
+  the stack's own faces, and the context repaints when it arrives. When the catalog rescans
+  (`system::generation()` changes), the index is rebuilt in the background and the context
+  reloads its fonts at the start of its next pass, so a font installed meanwhile draws the
+  characters that had none. craft-ui never rescans on its own; the app decides when. Without it,
   `install` keeps the providers the context has (eframe's `system_fonts`, for one) and asks the
   stack's own faces after them. `UiFonts::system_provider` supplies a provider either way, and
   `SystemFonts::Off` drops system fonts.

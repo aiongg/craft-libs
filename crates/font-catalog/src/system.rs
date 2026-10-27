@@ -10,6 +10,7 @@
 #[cfg(all(feature = "system", not(target_arch = "wasm32")))]
 mod imp {
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Mutex, PoisonError};
 
     use fontique::{Collection, CollectionOptions, SourceKind};
@@ -22,6 +23,10 @@ mod imp {
     }
 
     static SHARED: Mutex<Option<Shared>> = Mutex::new(None);
+    /// `SHARED`'s generation, readable while a build holds the lock (a UI thread checks it every
+    /// frame). Stored before the lock is released, so a [`collection`] taken after reading it is
+    /// at least that generation.
+    static GENERATION: AtomicU64 = AtomicU64::new(0);
 
     /// A new collection of the system's fonts and the font store's. `None` when fontique panics
     /// (its DirectWrite backend unwraps a failed factory).
@@ -43,6 +48,7 @@ mod imp {
             Some(shared) if !refresh => shared,
             slot => {
                 let collection = build().unwrap_or_else(|| Collection::new(CollectionOptions { shared: false, system_fonts: false }));
+                GENERATION.store(generation + 1, Ordering::Release);
                 slot.insert(Shared { generation: generation + 1, collection })
             }
         };
@@ -54,7 +60,7 @@ mod imp {
     }
 
     pub fn generation() -> u64 {
-        SHARED.lock().unwrap_or_else(PoisonError::into_inner).as_ref().map_or(0, |s| s.generation)
+        GENERATION.load(Ordering::Acquire)
     }
 
     pub fn refresh() {
@@ -105,7 +111,8 @@ pub fn collection() -> fontique::Collection {
 
 #[cfg(all(feature = "system", not(target_arch = "wasm32")))]
 /// Counts the builds of [`collection`]: 0 before the first, one more after each rescan that asked
-/// the font service again.
+/// the font service again. It doesn't wait for a build in progress, so a UI thread can check it
+/// every frame.
 pub fn generation() -> u64 {
     imp::generation()
 }
