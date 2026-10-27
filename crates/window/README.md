@@ -167,6 +167,43 @@ Feature `restore` (no egui): `craft_window::restore`.
 - `restore::legacy` reads eframe's `"window"` entry of `app.ron` (without a RON crate) and has small
   JSON helpers for an app's own old format.
 
+### eframe apps
+
+Feature `restore-egui` (eframe on wgpu) or `restore-egui-glow` (eframe on glow). Each turns on that
+renderer in eframe without backends; pick the one the app uses, since eframe starts on wgpu when
+both are on.
+
+- `restore::install(&mut options, &store, key, &defaults) -> Tracker` gives the root viewport the
+  saved size and maximized state, turns eframe's `persist_window` off, and adds a viewport hook
+  (`NativeOptions::viewport_hooks`, patch E1 of the suite's egui) that runs `place` with the
+  connected monitors when the root window is created, before eframe shows it, and sets its
+  position in pixels, size and state. Hooks already in `options` keep running.
+- `Tracker::frame(ctx)`, every frame from the window's own pass, keeps the window's entry: the
+  inner size of the last state that was neither maximized, full screen nor minimized, in points at
+  zoom 1, and the outer position in pixels (none with `Defaults::no_position`). It writes 1 s after
+  the last change on a short-lived thread, and at once on a close request and on drop. `flush`
+  writes and waits, for an app's own exit path.
+- Multi-window apps save the first window under `restore::MAIN`. `restore::cascade_window(&main, n,
+  step, bounds)` places the `n`th further window one cascade step per window from it, and
+  `restore::apply(builder, &placement, zoom)` turns a placement into that window's viewport
+  builder. Give each window its own `Tracker::new(&store, key, &defaults)` under the app's key for
+  it.
+
+Share one store between all trackers as `Arc<Mutex<Store>>`.
+
+```rust,ignore
+use std::sync::{Arc, Mutex};
+use craft_window::restore::{self, Defaults, MAIN, Store};
+
+let store = Arc::new(Mutex::new(Store::open("photocraft")));
+let defaults = Defaults::new([1280.0, 800.0], [640.0, 400.0])
+    .with_no_position(craft_window::policy::Backend::from_env() == craft_window::policy::Backend::Wayland);
+let mut options = eframe::NativeOptions::default();
+let tracker = restore::install(&mut options, &store, MAIN, &defaults);
+eframe::run_native("PhotoCraft", options, Box::new(move |cc| Ok(Box::new(App::new(cc, tracker)))))?;
+// In App::ui: self.tracker.frame(ui.ctx());
+```
+
 ## Notes
 
 - The Wayland probe opens a short-lived connection and reads the global registry once, on its own

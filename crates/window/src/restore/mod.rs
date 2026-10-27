@@ -1,4 +1,4 @@
-//! Window restore: where a window opens and the file that remembers it. No egui.
+//! Window restore: where a window opens and the file that remembers it. The core has no egui.
 //!
 //! - [`place`]: saved [`Placement`] + connected [`Monitor`]s + app [`Defaults`] → the geometry to
 //!   open with. Pure; the rules are on its documentation.
@@ -6,6 +6,9 @@
 //!   (`"main"` for the first window).
 //! - [`legacy`]: readers for what apps stored before, such as eframe's `"window"` entry in
 //!   `app.ron`.
+//! - With `restore-egui` or `restore-egui-glow`: [`install`] opens an eframe app's root window
+//!   from the store, [`Tracker`] keeps a window's entry up to date, and [`cascade_window`] places
+//!   further windows of a multi-window app from [`MAIN`].
 //!
 //! Keep one [`Store`] per app, shared by every window (for example behind an `Arc<Mutex<_>>`):
 //! each write rewrites the whole file from that store's copy, so two stores in one process
@@ -22,9 +25,19 @@
 //! assert_eq!(store.get("main"), Some(opened));
 //! ```
 
+#[cfg(feature = "restore-eframe")]
+mod egui;
 pub mod legacy;
 mod place;
 mod store;
+#[cfg(feature = "restore-eframe")]
+mod viewports;
 
+#[cfg(all(feature = "restore-eframe", not(target_arch = "wasm32")))]
+pub use self::egui::install;
+#[cfg(feature = "restore-eframe")]
+pub use self::egui::{Tracker, apply};
 pub use place::{Defaults, Monitor, MonitorKey, NormalRect, Placement, place};
 pub use store::{FILE_NAME, MAIN, Pending, ReadOnly, SCHEMA_VERSION, Store, write_pending};
+#[cfg(feature = "restore-eframe")]
+pub use viewports::cascade_window;
