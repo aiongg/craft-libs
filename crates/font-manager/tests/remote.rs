@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use craft_font_manager::remote::{Codepoints, DiskCache, Instance, MAX_CODEPOINTS, Preview, PreviewError, PreviewKey, Previews, Subset};
 use craft_font_manager::store::{FakeStore, Installer};
-use craft_font_store::is_font;
+use craft_font_store::{Client, is_font};
 
 const WOFF2: &[u8] = include_bytes!("data/Tiny-glyf.woff2");
 
@@ -236,6 +236,26 @@ fn previews_come_from_the_service_then_the_cache_and_only_with_consent() {
     later.request(sample.clone(), 1);
     assert!(wait_for(&later, 1).first().is_some_and(|p| p.font.as_ref().is_ok_and(|f| is_font(f))));
     assert_eq!(service.requests().len(), 2);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_service_marked_down_gets_no_requests() {
+    let service = Service::start();
+    let dir = temp("down");
+    let store = Arc::new(FakeStore::new(&dir, HashMap::new()));
+    store.set_preview_service(Some(&service.base)).unwrap();
+    store.allow_downloads(true).unwrap();
+    let key = PreviewKey::new(&sha(1), Instance::List, Subset::Sample).unwrap();
+    service.serve(&key, Reply::Ok(WOFF2.to_vec()));
+    // The client is shared with, say, the store's installs, which found the service unreachable.
+    let client = Client::default();
+    client.mark_service_down();
+    let previews = Previews::new(store.clone()).with_fetcher(Arc::new(client));
+    previews.request(key, 1);
+    let got = wait_for(&previews, 1);
+    assert!(matches!(got.first().map(|p| p.font.clone()), Some(Err(PreviewError::Failed(_)))));
+    assert!(service.requests().is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
 
