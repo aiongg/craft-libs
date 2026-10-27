@@ -693,7 +693,7 @@ mod store {
         let face = index.find_face("Test Sans", "Bold").unwrap();
         let sha = face.file.sha256.clone();
         let dir = temp("mirror");
-        let user = FontStore::new(dir.clone(), Caller::User).with_client(server.client());
+        let user = FontStore::new(dir.clone(), Caller::User).with_client(server.client()).with_preview_env(None);
         user.enable_network().unwrap();
 
         // No service: only the index's URLs.
@@ -719,7 +719,7 @@ mod store {
             c.rewrite = vec![("https://cdn.jsdelivr.net/".into(), format!("{}cdn/", server.base))];
             c
         };
-        let strict_user = FontStore::new(dir.clone(), Caller::User).with_client(strict);
+        let strict_user = FontStore::new(dir.clone(), Caller::User).with_client(strict).with_preview_env(None);
         server.serve("mirror", &format!("v1/files/{sha}"), Reply::Ok(f.files.iter().find(|(p, _)| p == &face.file.path).unwrap().1.clone()));
         let before = server.requests().len();
         // The licence has no mirror address here, and its index URLs are refused, so the install
@@ -745,13 +745,62 @@ mod store {
         assert!(matches!(user.set_preview_service(Some("http://fonts.example.com")), Err(Error::BadUrl(_))));
         assert!(matches!(user.set_preview_service(Some("ftp://fonts.example.com")), Err(Error::BadUrl(_))));
         assert!(matches!(user.set_preview_service(Some("https://user@fonts.example.com")), Err(Error::BadUrl(_))));
-        user.set_preview_service(Some("http://localhost:8080/")).unwrap();
+        assert!(matches!(user.set_preview_service(Some("http://localhost:8080/")), Err(Error::BadUrl(_))));
+        user.set_preview_service(Some("http://[::1]:8080/")).unwrap();
         assert_eq!(crate::check_preview_service(" http://127.0.0.1:9/x/ ").as_deref().ok(), Some("http://127.0.0.1:9/x"));
         assert!(matches!(crate::check_preview_service("https://fonts.example.com/?k=v"), Err(Error::BadUrl(_))));
         user.set_preview_service(Some("https://fonts.example.com/")).unwrap();
         assert_eq!(agent.preview_service().as_deref(), Some("https://fonts.example.com"));
         user.set_preview_service(None).unwrap();
         assert_eq!(agent.preview_service(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_preview_service_that_refuses_connections_is_tried_once_per_install() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let count = Arc::clone(&accepted);
+        // Takes each connection and drops it unanswered: a network failure.
+        std::thread::spawn(move || {
+            for _ in listener.incoming() {
+                count.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        let server = Server::start();
+        let f = fixture();
+        server.serve_fixture(&f);
+        let index = index_of(&f.index).unwrap();
+        let family = index.family("Test Sans").unwrap();
+        let dir = temp("down-mirror");
+        let client = server.client();
+        let user = FontStore::new(dir.clone(), Caller::User).with_client(client.clone()).with_preview_env(None);
+        user.enable_network().unwrap();
+        user.set_preview_service(Some(&format!("http://127.0.0.1:{port}"))).unwrap();
+        user.install_family(&index, family, &Cancel::new(), &mut none).unwrap();
+        // Three files and a licence, one attempt at the mirror.
+        assert_eq!(accepted.load(Ordering::Relaxed), 1);
+        assert!(client.service_is_down());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn mirror_bytes_that_fail_the_check_are_not_a_corrupt_file_when_the_index_is_unreachable() {
+        let server = Server::start();
+        let f = fixture();
+        let index = index_of(&f.index).unwrap();
+        let face = index.find_face("Test Sans", "Bold").unwrap();
+        server.serve("mirror", &format!("v1/files/{}", face.file.sha256), Reply::Ok(b"not the font".to_vec()));
+        let dir = temp("bad-mirror");
+        let user = FontStore::new(dir.clone(), Caller::User).with_client(server.client()).with_preview_env(None);
+        user.enable_network().unwrap();
+        user.set_preview_service(Some(&format!("{}mirror/", server.base))).unwrap();
+        // The index's URLs are not served: they fail, so every reason is reported.
+        match user.install_face(&index, face, &Cancel::new(), &mut none) {
+            Err(Error::Download { reasons, .. }) => assert!(reasons.len() > 1 && reasons[0].contains("127.0.0.1"), "{reasons:?}"),
+            other => panic!("{other:?}"),
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 
