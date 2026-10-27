@@ -1356,7 +1356,7 @@ mod store {
 
         // The changed file is no longer the store's: it sits where a copy would go.
         match store.make_available(GOOGLE_FONTS, "Test Sans") {
-            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestSans-Italic".into(), path: italic.clone() }]),
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: None, path: italic.clone() }]),
             other => panic!("{other:?}"),
         }
         std::fs::remove_file(&italic).unwrap();
@@ -1364,9 +1364,23 @@ mod store {
 
         // Removing the family from the store withdraws it.
         store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert!(store.copies_out_of_reach(GOOGLE_FONTS, "Test Sans").is_empty());
         store.remove_family(GOOGLE_FONTS, "Test Sans").unwrap();
         assert!(!family.exists());
         assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+
+        // A build that can't change the OS folder removes the store's files and leaves the copies
+        // it can't reach, still listed, for a build that can.
+        let index = index_of(&fixture().index).unwrap();
+        store.install_family(&index, index.family("Test Sans").unwrap(), &Cancel::new(), &mut none).unwrap();
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let blind = FontStore::new(dir.clone(), Caller::User);
+        let out_of_reach = blind.copies_out_of_reach(GOOGLE_FONTS, "Test Sans");
+        assert_eq!(out_of_reach, names.map(|n| family.join(n)));
+        blind.remove_family(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert!(blind.installed_family(GOOGLE_FONTS, "Test Sans").is_none());
+        assert!(out_of_reach.iter().all(|c| c.is_file()));
+        assert!(blind.is_available(GOOGLE_FONTS, "Test Sans"));
         let _ = std::fs::remove_dir_all(dir);
         let _ = std::fs::remove_dir_all(root);
     }
@@ -1387,7 +1401,7 @@ mod store {
         let other = system.join("TestSans-Bold.ttf");
         std::fs::write(&other, font("Test Sans", "Bold", 600)).unwrap();
         match store.make_available(GOOGLE_FONTS, "Test Sans") {
-            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestSans-Bold".into(), path: other.clone() }]),
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: Some("TestSans-Bold".into()), path: other.clone() }]),
             other => panic!("{other:?}"),
         }
         assert!(!shared.exists(), "nothing copied");
@@ -1489,7 +1503,7 @@ mod store {
         store.make_available(GOOGLE_FONTS, "Shared One").unwrap();
         match store.make_available(GOOGLE_FONTS, "Shared Two") {
             Err(Error::Conflict(c)) => {
-                assert_eq!(c, [Conflict { postscript: "Shared-Regular".into(), path: shared.join("sharedone/SharedOne-Regular.ttf") }])
+                assert_eq!(c, [Conflict { postscript: Some("Shared-Regular".into()), path: shared.join("sharedone/SharedOne-Regular.ttf") }])
             }
             other => panic!("{other:?}"),
         }
@@ -1498,7 +1512,7 @@ mod store {
         std::fs::create_dir_all(&system).unwrap();
         std::fs::write(system.join("TestVar-Bold.ttf"), font("Test Var", "Bold", 700)).unwrap();
         match store.make_available(GOOGLE_FONTS, "Test Var") {
-            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestVar-Bold".into(), path: system.join("TestVar-Bold.ttf") }]),
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: Some("TestVar-Bold".into()), path: system.join("TestVar-Bold.ttf") }]),
             other => panic!("{other:?}"),
         }
         let _ = std::fs::remove_dir_all(dir);

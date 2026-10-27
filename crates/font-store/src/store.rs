@@ -5,7 +5,7 @@
 //! ```text
 //! settings.json        the consent setting and the sources the user added
 //! manifest.json        what is installed
-//! os-fonts.json        the ledger of copies in the OS user font folder ("available to all apps")
+//! os-fonts.json        the ledger of copies in the OS user font folder
 //! indexes/             the last indexes fetched: sources.json, one file per source
 //! previews/            preview subsets from the preview service (WOFF2), a cache of at most 50 MB
 //! <family dir>/        google/fonts' folder name, or <source>/<family>: the fonts and the licence
@@ -76,8 +76,8 @@ pub enum Error {
     /// Downloading is off; the user turns it on in the app.
     #[error("downloading fonts is turned off")]
     NetworkOff,
-    /// An agent tried what only the user may do: turn the network on, change a setting, make a
-    /// family available to all apps or withdraw it.
+    /// An agent tried what only the user may do: turn the network on, change a setting, or add
+    /// or remove a family's copies in the OS user font folder.
     #[error("only the user can do this, in the app")]
     NotAllowed,
     /// Not an https URL a source can be added from.
@@ -114,17 +114,20 @@ pub enum Error {
     /// The operation was cancelled.
     #[error("cancelled")]
     Cancelled,
-    /// Families can't be made available to all apps here; the reason says why.
+    /// Families can't be copied into the OS user font folder here; the reason says why.
     #[error("{0}")]
     Unsupported(String),
     /// Fonts the store didn't add already have the family's PostScript names, or sit where its
     /// copies would go.
-    #[error("fonts on this system already have these names: {}", .0.iter().map(|c| format!("{} ({})", c.postscript, c.path.display())).collect::<Vec<_>>().join(", "))]
+    #[error("the family can't be copied into your fonts folder: {}", .0.iter().map(|c| match &c.postscript {
+        Some(ps) => format!("{} already has the name {ps}", c.path.display()),
+        None => format!("{} is in the way", c.path.display()),
+    }).collect::<Vec<_>>().join("; "))]
     Conflict(Vec<Conflict>),
     /// The ledger of copies in the OS user font folder (`os-fonts.json`) can't be read or
     /// understood (damaged, or from a newer version). It is kept as it is, and nothing that would
     /// change it runs.
-    #[error("the record of fonts made available to all apps (os-fonts.json in the font store) can't be used: {0}")]
+    #[error("the record of fonts copied into your fonts folder (os-fonts.json in the font store) can't be used: {0}")]
     Ledger(String),
     /// Reading or writing the store failed.
     #[error("{what}: {source}")]
@@ -606,8 +609,8 @@ impl FontStore {
     // ----- install
 
     /// Installs every file of `family`. Files already installed with the same sha256 aren't
-    /// downloaded again. When the family is available to all apps, the user's install also copies
-    /// the new files there; an agent's leaves them in [`FontStore::pending_files`].
+    /// downloaded again. When the family has copies in the OS user font folder, the user's install
+    /// also copies the new files there; an agent's leaves them in [`FontStore::pending_files`].
     pub fn install_family(
         &self,
         index: &Index,
@@ -791,7 +794,8 @@ impl FontStore {
     /// Removes the family of this name installed from `source`: its copies in the OS user font
     /// folder (as [`FontStore::withdraw`]), its files, its licence and its manifest entry. Its
     /// folder disappears at once and is deleted after. A family with copies in the OS folder is
-    /// the user's to remove: an agent gets [`Error::NotAllowed`] and nothing changes.
+    /// the user's to remove: an agent gets [`Error::NotAllowed`] and nothing changes. Copies this
+    /// build can't reach ([`FontStore::copies_out_of_reach`]) stay, listed in the ledger.
     pub fn remove_family(&self, source: &str, name: &str) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
@@ -824,6 +828,7 @@ impl FontStore {
     /// with their copies in the OS user font folder. Taking out the last one removes the family.
     /// Names the family's manifest entry doesn't list are left alone. Files with copies in the OS
     /// folder are the user's to remove: an agent gets [`Error::NotAllowed`] and nothing changes.
+    /// Copies this build can't reach stay, as for [`FontStore::remove_family`].
     pub fn remove_files(&self, source: &str, name: &str, files: &[String]) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
