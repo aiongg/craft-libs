@@ -330,3 +330,56 @@ fn a_watch_can_be_shared_between_threads() {
     fn is_send_sync<T: Send + Sync>() {}
     is_send_sync::<SuiteWatch>();
 }
+
+fn store_with_sample(dir: &Path) {
+    Store::open(&SuiteDir::at(dir), options()).import(SAMPLE_THEME_JSON.as_bytes(), false).unwrap();
+}
+
+#[test]
+fn an_app_theme_named_at_open_is_in_the_first_snapshot() {
+    let tmp = tempfile::tempdir().unwrap();
+    store_with_sample(tmp.path());
+    let sample = ThemeId::parse(SAMPLE_THEME_ID).unwrap();
+    let store = Store::open(&SuiteDir::at(tmp.path()), options().app_theme(Some(sample.clone())));
+    // Built without a worker or a first poll: only what open reads itself.
+    let (_, watch) = SuiteWatch::build(store, Box::new(|| {}));
+    let first = watch.snapshot();
+    assert_eq!(first.generation, 0);
+    assert_eq!(first.app_theme.as_ref().map(|r| &r.theme.id), Some(&sample));
+    assert!(first.index.is_empty(), "open lists nothing");
+    assert_eq!(watch.parse_counts(), crate::ParseCounts { selection: 0, themes: 1 });
+
+    let mut client = crate::SuiteClient::new(watch);
+    assert!(!client.is_loading(&sample));
+    assert!(client.theme(&sample).is_some());
+    // Already requested: naming it again sends nothing.
+    client.set_app_theme(Some(sample));
+    assert_eq!(client.watch().generation(), 0);
+}
+
+#[test]
+fn the_last_accepted_suite_theme_is_in_the_first_snapshot() {
+    let tmp = tempfile::tempdir().unwrap();
+    store_with_sample(tmp.path());
+    let sample = ThemeId::parse(SAMPLE_THEME_ID).unwrap();
+    let last = Accepted::from_selection(Selection { theme: sample.clone(), mode: Mode::Dark });
+    let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options().last_accepted(last)), Box::new(|| {}));
+    let first = watch.snapshot();
+    assert_eq!(first.generation, 0);
+    assert_eq!(first.active.as_ref().map(|r| &r.theme.id), Some(&sample));
+    assert!(first.theme(&sample).is_some());
+}
+
+#[test]
+fn a_theme_missing_at_open_is_left_to_the_worker() {
+    let tmp = tempfile::tempdir().unwrap();
+    let gone = ThemeId::parse("gone").unwrap();
+    let watch = SuiteWatch::open(&SuiteDir::at(tmp.path()), options().app_theme(Some(gone.clone())), || {});
+    let mut client = crate::SuiteClient::new(watch);
+    assert!(client.snapshot().app_theme.is_none());
+    wait_for("the worker's report", || {
+        client.sync();
+        client.problems().iter().any(|p| matches!(p, Problem::Theme { stem, error: StoreError::NotFound(_) } if stem == "gone"))
+    });
+    assert!(!client.is_loading(&gone));
+}

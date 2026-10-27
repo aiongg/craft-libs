@@ -23,6 +23,7 @@ pub struct StoreOptions {
     written_by: String,
     lock_timeout: Duration,
     last: Option<Accepted>,
+    app_theme: Option<ThemeId>,
     #[cfg(not(target_arch = "wasm32"))]
     fs: Option<Box<dyn craft_atomic::AtomicFs + Send + Sync>>,
 }
@@ -34,6 +35,7 @@ impl StoreOptions {
             written_by: written_by.into(),
             lock_timeout: LOCK_TIMEOUT,
             last: None,
+            app_theme: None,
             #[cfg(not(target_arch = "wasm32"))]
             fs: None,
         }
@@ -46,6 +48,15 @@ impl StoreOptions {
 
     /// The state to show until `selection.json` has been read, and while it is damaged or from a
     /// newer build: the copy the app saved in its own preferences.
+    /// The library theme the app uses for its own choice, from its preferences.
+    /// [`SuiteWatch::open`](crate::SuiteWatch::open) reads it (and the suite theme in
+    /// [`last_accepted`](Self::last_accepted)) before returning, so the first snapshot already
+    /// has it. A plain `Store` ignores it.
+    pub fn app_theme(mut self, id: Option<ThemeId>) -> Self {
+        self.app_theme = id;
+        self
+    }
+
     pub fn last_accepted(mut self, last: Accepted) -> Self {
         self.last = Some(last);
         self
@@ -196,6 +207,8 @@ pub struct Store {
     too_new: Option<u64>,
     moved_aside: Vec<PathBuf>,
     counts: ParseCounts,
+    /// From [`StoreOptions::app_theme`], for the watch.
+    pub(crate) app_theme: Option<ThemeId>,
 }
 
 impl Store {
@@ -224,6 +237,7 @@ impl Store {
             too_new: None,
             moved_aside: Vec::new(),
             counts: ParseCounts::default(),
+            app_theme: options.app_theme,
         }
     }
 

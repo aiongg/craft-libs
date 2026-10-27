@@ -38,7 +38,8 @@ pub struct SuiteClient {
 impl SuiteClient {
     pub fn new(watch: SuiteWatch) -> Self {
         let snapshot = watch.snapshot();
-        SuiteClient { watch, generation: None, snapshot, pending: None, queued: None, conflict: None, failure: None, app_theme: None }
+        let app_theme = watch.initial_app_theme().cloned();
+        SuiteClient { watch, generation: None, snapshot, pending: None, queued: None, conflict: None, failure: None, app_theme }
     }
 
     /// An in-memory suite, for app constructors, tests and web builds.
