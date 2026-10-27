@@ -410,10 +410,10 @@ Two features, both off by default, change what every craft-ui user draws, so the
   craft-font-catalog's (`system::collection()`): the system's fonts and those in the Craft font
   store. One index of them serves every UI language, so a language switch doesn't scan them
   again. `install` starts building it on a background thread; until it is ready, text draws with
-  the stack's own faces, and the context repaints when it arrives. When the catalog rescans
-  (`system::generation()` changes), the index is rebuilt in the background and the context
-  reloads its fonts at the start of its next pass, so a font installed meanwhile draws the
-  characters that had none. craft-ui never rescans on its own; the app decides when. Without it,
+  the stack's own faces, and the context repaints when it arrives. When the process's catalog
+  rescans (`system::on_change`), e.g. after another app installed a font, the index is rebuilt in the background and every installed context repaints, idle or not, and reloads its
+  fonts, so a font installed meanwhile draws the characters that had none. craft-ui never
+  rescans on its own; the app decides when. Without it,
   `install` keeps the providers the context has (eframe's `system_fonts`, for one) and asks the
   stack's own faces after them. `UiFonts::system_provider` supplies a provider either way, and
   `SystemFonts::Off` drops system fonts.

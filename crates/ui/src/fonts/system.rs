@@ -4,14 +4,16 @@
 //! Lookups that may not block (the UI thread's) find nothing until the index is built: egui
 //! draws with the faces it has, and every context that was turned away reloads its fonts when the
 //! index arrives, which forgets egui's cached misses and repaints. If the build panics, every
-//! lookup finds nothing from then on and egui keeps the faces it has.
+//! lookup finds nothing and egui keeps the faces it has, until the fonts change and the build is
+//! tried again.
 //!
-//! The index remembers the generation of the fonts it was built from. Every lookup, and every
-//! pass of a context that started the index, compares it to the current generation, which is
-//! cheap. On a change the index is rebuilt in the background while lookups keep asking the old
-//! one. Once the new index is in, each of those contexts reloads its fonts at the start of its next
-//! pass, so the characters it had no font for are asked again; the faces egui already has stay. A
-//! rebuild that panics keeps the old index until the fonts change again.
+//! The index remembers the generation of the fonts it was built from. When the fonts' source
+//! reports a change, and on every lookup and every pass of a context that started the index, it is
+//! compared with the current generation, which is cheap. On a change the index is rebuilt in the
+//! background while lookups keep asking the old one. Once the new index is in, every context that
+//! started the index repaints, idle or not, and reloads its fonts at the start of that pass, so the
+//! characters it had no font for are asked again; the faces egui already has stay. A rebuild that
+//! panics keeps the old index until the fonts change again.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -23,33 +25,41 @@ pub(super) trait FontIndex: Send + 'static {
     /// The provider's preference between fonts for one script, e.g. a locale.
     type Locale: Send + Sync + 'static;
 
-    /// The generation of the fonts the index was built from, as [`Shared::new`]'s `generation`
-    /// counts them.
+    /// The generation of the fonts the index was built from, as [`Source::generation`] counts
+    /// them.
     fn generation(&self) -> u64;
 
     fn font_for(&mut self, request: &FallbackRequest<'_>, locale: &Self::Locale) -> Option<FontInsert>;
 }
 
+/// Where an index's fonts come from: how to read their generation and hear of a change.
+pub(super) struct Source {
+    /// The fonts' current generation. It must not block: every UI pass reads it.
+    pub(super) generation: fn() -> u64,
+    /// Registers a callback for every change of the generation, e.g. a rescan on another thread.
+    pub(super) on_change: fn(Box<dyn Fn() + Send + Sync>),
+}
+
 enum State<T> {
     Idle,
-    /// `turned_away`: a lookup found nothing because the index wasn't built, so `contexts` reload
-    /// their fonts when it is.
+    /// `turned_away`: a lookup found nothing because the index wasn't built, so the contexts
+    /// reload their fonts when it is.
     Building {
         turned_away: bool,
-        contexts: Vec<egui::Context>,
     },
     Ready {
         index: Arc<Mutex<T>>,
         generation: u64,
     },
-    /// The fonts changed to `generation` since `index` was built. Lookups that don't wait ask
-    /// `index` until the new one is in, and `contexts` repaint then.
+    /// The fonts changed since `index` was built. Lookups that don't wait ask it until the new
+    /// one is in.
     Rebuilding {
         index: Arc<Mutex<T>>,
-        generation: u64,
-        contexts: Vec<egui::Context>,
     },
-    Failed,
+    /// The build at `generation` panicked; a later generation tries again.
+    Failed {
+        generation: u64,
+    },
 }
 
 /// An index built on first use, and again whenever the fonts' generation changes.
@@ -57,62 +67,64 @@ pub(super) struct Shared<T> {
     state: Mutex<State<T>>,
     built: Condvar,
     build: fn() -> T,
-    /// The fonts' current generation. It must not block: every UI pass reads it.
-    generation: fn() -> u64,
+    source: Source,
     /// Counts the rebuilds that replaced the index. A context reloads its fonts when this moves
     /// past the count it last saw.
     replaced: AtomicU64,
+    /// The contexts that started the index, to repaint after a rebuild. egui has no weak handle to
+    /// a context, so each stays until its integration calls [`egui::Context::on_exit`].
+    contexts: Mutex<Vec<egui::Context>>,
 }
 
 impl<T: FontIndex> Shared<T> {
-    pub(super) const fn new(build: fn() -> T, generation: fn() -> u64) -> Self {
-        Self { state: Mutex::new(State::Idle), built: Condvar::new(), build, generation, replaced: AtomicU64::new(0) }
+    pub(super) const fn new(build: fn() -> T, source: Source) -> Self {
+        Self { state: Mutex::new(State::Idle), built: Condvar::new(), build, source, replaced: AtomicU64::new(0), contexts: Mutex::new(Vec::new()) }
     }
 
     /// Start building the index on a background thread unless it is built or building. `ctx`
     /// reloads its fonts when the index arrives if a lookup was turned away meanwhile, and follows
     /// the fonts' generation from then on.
     pub(super) fn start(&'static self, ctx: Option<&egui::Context>) {
+        if let Some(ctx) = ctx {
+            let replaced = self.replaced.load(Ordering::Acquire);
+            ctx.data_mut(|d| d.insert_temp(self.seen_id(), replaced));
+            let mut contexts = self.contexts();
+            if !contexts.contains(ctx) {
+                contexts.push(ctx.clone());
+            }
+            drop(contexts);
+            ctx.add_plugin(Follow(self));
+        }
         let idle = {
             let mut state = self.lock();
             let idle = matches!(*state, State::Idle);
             if idle {
-                *state = State::Building { turned_away: false, contexts: Vec::new() };
-            }
-            if let (State::Building { contexts, .. }, Some(ctx)) = (&mut *state, ctx) {
-                contexts.push(ctx.clone());
+                *state = State::Building { turned_away: false };
             }
             idle
         };
         if idle {
+            (self.source.on_change)(Box::new(|| self.follow()));
             self.spawn_build();
-        }
-        if let Some(ctx) = ctx {
-            let replaced = self.replaced.load(Ordering::Acquire);
-            ctx.data_mut(|d| d.insert_temp(self.seen_id(), replaced));
-            ctx.add_plugin(Follow(self));
         }
     }
 
-    /// Rebuild the index in the background if the fonts changed since it was built. `ctx`
-    /// repaints once the new index is in.
-    fn follow(&'static self, ctx: Option<&egui::Context>) {
-        let current = (self.generation)();
+    /// Rebuild the index in the background if the fonts changed since it was built, or retry a
+    /// failed build at a new generation.
+    fn follow(&'static self) {
+        let current = (self.source.generation)();
         let rebuild = {
             let mut state = self.lock();
             match &mut *state {
                 State::Ready { index, generation } if *generation != current => {
                     let index = Arc::clone(index);
-                    *state = State::Rebuilding { index, generation: current, contexts: ctx.into_iter().cloned().collect() };
+                    *state = State::Rebuilding { index };
                     true
                 }
-                State::Rebuilding { contexts, .. } => {
-                    if let Some(ctx) = ctx
-                        && !contexts.contains(ctx)
-                    {
-                        contexts.push(ctx.clone());
-                    }
-                    false
+                State::Failed { generation } if *generation != current => {
+                    // Every lookup since the failure found nothing.
+                    *state = State::Building { turned_away: true };
+                    true
                 }
                 _ => false,
             }
@@ -127,14 +139,14 @@ impl<T: FontIndex> Shared<T> {
     /// lookup without gets the old one.
     fn get(&'static self, wait: bool) -> Option<Arc<Mutex<T>>> {
         self.start(None);
-        self.follow(None);
+        self.follow();
         let mut state = self.lock();
         loop {
             match &mut *state {
                 State::Ready { index, .. } => return Some(Arc::clone(index)),
-                State::Rebuilding { index, .. } if !wait => return Some(Arc::clone(index)),
-                State::Failed => return None,
-                State::Building { turned_away, .. } if !wait => {
+                State::Rebuilding { index } if !wait => return Some(Arc::clone(index)),
+                State::Failed { .. } => return None,
+                State::Building { turned_away } if !wait => {
                     *turned_away = true;
                     return None;
                 }
@@ -149,7 +161,8 @@ impl<T: FontIndex> Shared<T> {
         }
     }
 
-    fn finish(&self) {
+    fn finish(&'static self) {
+        let before = (self.source.generation)();
         let built = std::panic::catch_unwind(self.build).map_err(|payload| {
             let message = payload
                 .downcast_ref::<String>()
@@ -160,26 +173,31 @@ impl<T: FontIndex> Shared<T> {
         });
         let ready = |index: T| State::Ready { generation: index.generation(), index: Arc::new(Mutex::new(index)) };
         let mut state = self.lock();
-        let (next, reload, repaint) = match (built, std::mem::replace(&mut *state, State::Failed)) {
-            (Ok(index), State::Rebuilding { contexts, .. }) => (ready(index), Vec::new(), Some(contexts)),
-            (Err(()), State::Rebuilding { index, generation, .. }) => (State::Ready { index, generation }, Vec::new(), None),
-            (Ok(index), State::Building { turned_away: true, contexts }) => (ready(index), contexts, None),
-            (Ok(index), _) => (ready(index), Vec::new(), None),
-            (Err(()), _) => (State::Failed, Vec::new(), None),
+        let (next, reload, repaint) = match (built, std::mem::replace(&mut *state, State::Idle)) {
+            (Ok(index), State::Rebuilding { .. }) => (ready(index), false, true),
+            (Err(()), State::Rebuilding { index }) => (State::Ready { index, generation: before }, false, false),
+            (Ok(index), State::Building { turned_away }) => (ready(index), turned_away, false),
+            (Ok(index), _) => (ready(index), false, false),
+            (Err(()), _) => (State::Failed { generation: before }, false, false),
         };
         *state = next;
-        if repaint.is_some() {
+        if repaint {
             self.replaced.fetch_add(1, Ordering::Release);
         }
         drop(state);
         self.built.notify_all();
         // Outside the lock: the UI thread holds the context's fonts while it asks for the index.
-        for ctx in reload {
-            super::providers::reload_font_providers(&ctx);
+        // A repainted context reloads its fonts in its next pass (see `Follow`).
+        let contexts = if reload || repaint { self.contexts().clone() } else { Vec::new() };
+        for ctx in contexts {
+            if reload {
+                super::providers::reload_font_providers(&ctx);
+            } else {
+                ctx.request_repaint();
+            }
         }
-        for ctx in repaint.into_iter().flatten() {
-            ctx.request_repaint();
-        }
+        // The fonts may have changed again while this build ran.
+        self.follow();
     }
 
     /// Where a context keeps the [`Self::replaced`] count its fonts were last loaded at.
@@ -189,6 +207,10 @@ impl<T: FontIndex> Shared<T> {
 
     fn lock(&self) -> MutexGuard<'_, State<T>> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn contexts(&self) -> MutexGuard<'_, Vec<egui::Context>> {
+        self.contexts.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -203,12 +225,16 @@ impl<T: FontIndex> egui::plugin::Plugin for Follow<T> {
 
     fn on_begin_pass(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        self.0.follow(Some(&ctx));
+        self.0.follow();
         let replaced = self.0.replaced.load(Ordering::Acquire);
         let seen = ctx.data_mut(|d| std::mem::replace(d.get_temp_mut_or_insert_with(self.0.seen_id(), || replaced), replaced));
         if seen != replaced {
             super::providers::reload_font_providers(&ctx);
         }
+    }
+
+    fn on_exit(&mut self, ctx: &egui::Context) {
+        self.0.contexts().retain(|c| c != ctx);
     }
 }
 
@@ -279,7 +305,11 @@ mod tests {
         0
     }
 
-    static GATED: Shared<Gated> = Shared::new(build_when_open, unchanging);
+    fn never_changes(_: Box<dyn Fn() + Send + Sync>) {}
+
+    const UNCHANGING: Source = Source { generation: unchanging, on_change: never_changes };
+
+    static GATED: Shared<Gated> = Shared::new(build_when_open, UNCHANGING);
 
     #[test]
     fn ui_lookups_skip_the_index_until_it_is_built_then_the_context_reloads() {
@@ -314,7 +344,7 @@ mod tests {
         panic!("stand-in index build failure");
     }
 
-    static PANICS: Shared<Gated> = Shared::new(build_panics, unchanging);
+    static PANICS: Shared<Gated> = Shared::new(build_panics, UNCHANGING);
 
     #[test]
     fn a_panicking_build_leaves_lookups_finding_nothing() {
@@ -361,7 +391,7 @@ mod tests {
         }
     }
 
-    static INSTALLED: Shared<Installed> = Shared::new(build_installed, fonts_generation);
+    static INSTALLED: Shared<Installed> = Shared::new(build_installed, Source { generation: fonts_generation, on_change: never_changes });
 
     #[test]
     fn a_change_in_the_fonts_rebuilds_the_index_and_the_context_reloads() {
@@ -388,5 +418,88 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         }
         assert_eq!(INSTALLED_BUILDS.load(Ordering::Relaxed), 2, "one rebuild per change");
+    }
+
+    static IDLE_FONTS: AtomicU64 = AtomicU64::new(1);
+    static IDLE_BUILDS: AtomicUsize = AtomicUsize::new(0);
+    static IDLE_CALLBACKS: Mutex<Vec<Box<dyn Fn() + Send + Sync>>> = Mutex::new(Vec::new());
+
+    fn idle_generation() -> u64 {
+        IDLE_FONTS.load(Ordering::Acquire)
+    }
+
+    fn build_idle() -> Installed {
+        IDLE_BUILDS.fetch_add(1, Ordering::Relaxed);
+        Installed(idle_generation())
+    }
+
+    fn on_idle_change(callback: Box<dyn Fn() + Send + Sync>) {
+        IDLE_CALLBACKS.lock().unwrap().push(callback);
+    }
+
+    static IDLE: Shared<Installed> = Shared::new(build_idle, Source { generation: idle_generation, on_change: on_idle_change });
+
+    #[test]
+    fn an_idle_context_repaints_when_the_fonts_change() {
+        let ctx = egui::Context::default();
+        let ui: Arc<dyn FontProvider> = Arc::new(Lookup::new(&IDLE, (), false));
+        super::super::providers::set_font_providers(&ctx, vec![ui]);
+        IDLE.start(Some(&ctx));
+        let request = FallbackRequest { cluster: "ع", family: &FontFamily::Proportional };
+        assert!(Lookup::new(&IDLE, (), true).font_for(&request).is_none());
+        let draws_arabic = || {
+            ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+            ctx.fonts_mut(|f| f.has_glyph(&FontId::new(14.0, FontFamily::Proportional), 'ع'))
+        };
+        assert!(!draws_arabic());
+        // Idle: no repaint pending, as an app between inputs. egui calls the callback only for a
+        // repaint requested after that.
+        for _ in 0..10 {
+            if !ctx.has_requested_repaint() {
+                break;
+            }
+            assert!(!draws_arabic());
+        }
+        assert!(!ctx.has_requested_repaint(), "the context settles");
+        let woken = Arc::new(AtomicBool::new(false));
+        let wake = Arc::clone(&woken);
+        ctx.set_request_repaint_callback(move |_| wake.store(true, Ordering::Release));
+
+        // A rescan on another thread, with no pass running.
+        IDLE_FONTS.store(2, Ordering::Release);
+        for callback in IDLE_CALLBACKS.lock().unwrap().iter() {
+            callback();
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !woken.load(Ordering::Acquire) {
+            assert!(Instant::now() < deadline, "the context is asked to repaint once the index is rebuilt");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(IDLE_BUILDS.load(Ordering::Relaxed), 2);
+        draws_arabic();
+        assert!(draws_arabic(), "the repainted context reloads its fonts");
+    }
+
+    fn build_unless_first() -> Installed {
+        let generation = FLAKY_FONTS.load(Ordering::Acquire);
+        assert!(generation > 1, "stand-in index build failure");
+        Installed(generation)
+    }
+
+    static FLAKY_FONTS: AtomicU64 = AtomicU64::new(1);
+
+    fn flaky_generation() -> u64 {
+        FLAKY_FONTS.load(Ordering::Acquire)
+    }
+
+    static FLAKY: Shared<Installed> = Shared::new(build_unless_first, Source { generation: flaky_generation, on_change: never_changes });
+
+    #[test]
+    fn a_failed_build_is_tried_again_when_the_fonts_change() {
+        let request = FallbackRequest { cluster: "ع", family: &FontFamily::Proportional };
+        assert!(Lookup::new(&FLAKY, (), true).font_for(&request).is_none());
+        assert!(Lookup::new(&FLAKY, (), true).font_for(&request).is_none(), "an unchanged generation doesn't retry");
+        FLAKY_FONTS.store(2, Ordering::Release);
+        assert!(Lookup::new(&FLAKY, (), true).font_for(&request).is_some(), "a new generation builds again");
     }
 }

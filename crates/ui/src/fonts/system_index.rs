@@ -8,7 +8,7 @@ use craft_font_catalog::system;
 use egui::{FallbackRequest, FontData, FontFamily, FontInsert, FontPriority, FontProvider, InsertFontFamily};
 use fontique::{Collection, FallbackKey, GenericFamily, Language, QueryFamily, QueryFont, QueryStatus, Script, SourceCache, SourceCacheOptions};
 
-use super::system::{FontIndex, Lookup, Shared};
+use super::system::{FontIndex, Lookup, Shared, Source};
 
 pub(super) struct Index {
     collection: Collection,
@@ -17,7 +17,7 @@ pub(super) struct Index {
     generation: u64,
 }
 
-static INDEX: Shared<Index> = Shared::new(build, system::generation);
+static INDEX: Shared<Index> = Shared::new(build, Source { generation: system::generation, on_change: system::on_change });
 
 #[cfg(test)]
 pub(super) static BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
