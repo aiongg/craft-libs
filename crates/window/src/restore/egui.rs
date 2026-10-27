@@ -1,5 +1,15 @@
 //! The eframe side: open the root window where it was ([`install`]) and remember where each window
 //! is ([`Tracker`]).
+//!
+//! # Checklist on a Mac
+//!
+//! With a Retina laptop (2×) and a 1× external monitor to its right:
+//!
+//! - Close the app with its window on the external monitor, reopen it: the window opens at the
+//!   same place on the external monitor, not at half the distance on the laptop (the position is
+//!   passed in logical points of the target monitor).
+//! - Same with the window on the laptop, and with the external monitor on the left.
+//! - Maximize and full screen on the external monitor, quit and reopen: the same monitor.
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
@@ -7,7 +17,7 @@ use std::time::Duration;
 
 use ::egui::{Context, Vec2, ViewportBuilder, ViewportInfo};
 
-use super::{Defaults, NormalRect, Placement, Store, write_pending};
+use super::{Defaults, Monitor, MonitorKey, NormalRect, Placement, Store, write_pending};
 
 /// Seconds without a change before a [`Tracker`] writes.
 const SAVE_DELAY: f64 = 1.0;
@@ -28,6 +38,33 @@ fn save(store: &Mutex<Store>) -> std::io::Result<bool> {
     write_pending(&pending)?;
     lock(store).mark_saved(pending.generation);
     Ok(true)
+}
+
+/// The monitor key for a window: `key` from the last frame (or the hook), `monitors` as the hook
+/// read them, `position` a point of the window in desktop pixels (none on Wayland), `reported`
+/// the size in pixels of the monitor the platform says the window is on.
+///
+/// The monitor containing `position` wins, so two monitors of one size are told apart. Without a
+/// position or a list, the key stays while `reported` matches its size.
+fn monitor_key(key: Option<&MonitorKey>, monitors: &[Monitor], position: Option<[i32; 2]>, reported: Option<[u32; 2]>) -> Option<MonitorKey> {
+    if let Some([x, y]) = position
+        && let Some(m) = monitors.iter().find(|m| {
+            let [mx, my] = m.pos_px;
+            let [w, h] = m.size_px;
+            (mx..mx.saturating_add_unsigned(w)).contains(&x) && (my..my.saturating_add_unsigned(h)).contains(&y)
+        })
+    {
+        return Some(m.key.clone());
+    }
+    let key = key?;
+    if position.is_some() && !monitors.is_empty() {
+        // Between monitors or off every one: the keyed monitor no longer holds the window.
+        return None;
+    }
+    match reported {
+        Some(px) if px != key.size_px => None,
+        _ => Some(key.clone()),
+    }
 }
 
 fn positive(v: f32) -> Option<f32> {
@@ -69,10 +106,12 @@ pub fn install(options: &mut eframe::NativeOptions, store: &Arc<Mutex<Store>>, k
     options.viewport = apply(std::mem::take(&mut options.viewport), &first, 1.0);
     options.persist_window = false;
     let opened = Arc::new(Mutex::new(None));
-    let hook = native::Hook::new(saved, defaults.clone(), Arc::clone(&opened), options.viewport_hooks.take());
+    let monitors = Arc::new(Mutex::new(Vec::new()));
+    let hook = native::Hook::new(saved, defaults.clone(), Arc::clone(&opened), Arc::clone(&monitors), options.viewport_hooks.take());
     options.viewport_hooks = Some(Arc::new(hook));
     let mut tracker = Tracker::new(store, key, defaults);
     tracker.opened = Some(opened);
+    tracker.monitors = Some(monitors);
     tracker
 }
 
@@ -83,7 +122,11 @@ mod native {
 
     use ::egui::{RawInput, ViewportId};
     use eframe::ViewportHooks;
-    use winit::dpi::{LogicalSize, PhysicalPosition};
+    #[cfg(target_os = "macos")]
+    use winit::dpi::LogicalPosition;
+    use winit::dpi::LogicalSize;
+    #[cfg(not(target_os = "macos"))]
+    use winit::dpi::PhysicalPosition;
     use winit::monitor::MonitorHandle;
     use winit::window::{Fullscreen, Window};
 
@@ -96,6 +139,8 @@ mod native {
         placed: AtomicBool,
         /// Where the window was put, for the tracker's first frame.
         opened: Arc<Mutex<Option<Placement>>>,
+        /// The monitors read at placement, for the tracker's monitor key.
+        monitors: Arc<Mutex<Vec<Monitor>>>,
         next: Option<Arc<dyn ViewportHooks>>,
     }
 
@@ -104,9 +149,10 @@ mod native {
             saved: Option<Placement>,
             defaults: Defaults,
             opened: Arc<Mutex<Option<Placement>>>,
+            monitors: Arc<Mutex<Vec<Monitor>>>,
             next: Option<Arc<dyn ViewportHooks>>,
         ) -> Self {
-            Self { saved, defaults, placed: AtomicBool::new(false), opened, next }
+            Self { saved, defaults, placed: AtomicBool::new(false), opened, monitors, next }
         }
     }
 
@@ -114,7 +160,7 @@ mod native {
         fn window_created(&self, viewport: ViewportId, window: &Window) {
             // eframe may recreate the root window (Android resume); only the first one is placed.
             if viewport == ViewportId::ROOT && !self.placed.swap(true, Ordering::Relaxed) {
-                let placement = open(window, self.saved.as_ref(), &self.defaults);
+                let placement = open(window, self.saved.as_ref(), &self.defaults, &self.monitors);
                 *self.opened.lock().unwrap_or_else(PoisonError::into_inner) = Some(placement);
             }
             if let Some(next) = &self.next {
@@ -142,12 +188,29 @@ mod native {
         Monitor::new(MonitorKey::new(handle.name().unwrap_or_default(), size), [pos.x, pos.y], size, handle.scale_factor() as f32)
     }
 
-    fn open(window: &Window, saved: Option<&Placement>, defaults: &Defaults) -> Placement {
+    /// A position in physical pixels as logical points of a monitor with `scale`.
+    ///
+    /// On macOS winit converts a physical position with the scale of the screen the window is on
+    /// when it is moved, which at creation is the main screen, not the target.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub(super) fn logical_position(px: [i32; 2], scale: f32) -> [f64; 2] {
+        let scale = f64::from(if scale.is_finite() && scale > 0.0 { scale } else { 1.0 });
+        px.map(|v| f64::from(v) / scale)
+    }
+
+    fn open(window: &Window, saved: Option<&Placement>, defaults: &Defaults, shared: &Mutex<Vec<Monitor>>) -> Placement {
         let handles: Vec<MonitorHandle> = window.available_monitors().collect();
         let monitors: Vec<Monitor> = handles.iter().map(monitor).collect();
         let home = window.current_monitor().and_then(|current| handles.iter().position(|h| *h == current));
         let placement = place(saved, &monitors, home, defaults);
+        *shared.lock().unwrap_or_else(PoisonError::into_inner) = monitors.clone();
         if let Some([x, y]) = placement.position_px {
+            #[cfg(target_os = "macos")]
+            {
+                let [lx, ly] = logical_position([x, y], placement.scale);
+                window.set_outer_position(LogicalPosition::new(lx, ly));
+            }
+            #[cfg(not(target_os = "macos"))]
             window.set_outer_position(PhysicalPosition::new(x, y));
         }
         // Logical: if the move lands on a monitor of another scale, the platform's scale change
@@ -185,6 +248,8 @@ pub struct Tracker {
     changed_at: Option<f64>,
     /// Filled by [`install`]'s hook with where the root window opened.
     opened: Option<Arc<Mutex<Option<Placement>>>>,
+    /// The monitors the hook read, to find the one a window is on.
+    monitors: Option<Arc<Mutex<Vec<Monitor>>>>,
     writes: Vec<JoinHandle<()>>,
     #[cfg(test)]
     background_saves: u32,
@@ -203,6 +268,7 @@ impl Tracker {
             current,
             changed_at: None,
             opened: None,
+            monitors: None,
             writes: Vec::new(),
             #[cfg(test)]
             background_saves: 0,
@@ -291,13 +357,15 @@ impl Tracker {
             p.maximized = maximized;
         }
         p.zoom = zoom;
-        // A monitor key is only known from the hook; keep it while the monitor's size matches.
-        if let (Some(key), Some(monitor), Some(s)) = (&p.monitor, info.monitor_size, scale) {
-            let px = [(monitor.x * s * zoom).round() as u32, (monitor.y * s * zoom).round() as u32];
-            if key.size_px != px {
-                p.monitor = None;
-            }
-        }
+        // The centre, not the corner: a maximized window's corner can lie just outside its monitor.
+        let centre = info
+            .outer_rect
+            .filter(|_| !self.no_position)
+            .zip(scale)
+            .map(|(r, s)| [(r.center().x * s * zoom).round() as i32, (r.center().y * s * zoom).round() as i32]);
+        let reported = info.monitor_size.zip(scale).map(|(m, s)| [(m.x * s * zoom).round() as u32, (m.y * s * zoom).round() as u32]);
+        let monitors = self.monitors.as_ref().map(|m| m.lock().unwrap_or_else(PoisonError::into_inner).clone()).unwrap_or_default();
+        p.monitor = monitor_key(p.monitor.as_ref(), &monitors, centre, reported);
         next
     }
 
@@ -450,6 +518,43 @@ mod tests {
         t.observe(&bare, vec2(640.0, 480.0), 1.0, 0.0);
         let p = t.current.clone().unwrap();
         assert_eq!((p.position_px, p.normal.size), (None, [640.0, 480.0]));
+    }
+
+    fn mon(name: &str, pos: [i32; 2], size: [u32; 2]) -> Monitor {
+        Monitor::new(MonitorKey::new(name, size), pos, size, 1.0)
+    }
+
+    #[test]
+    fn the_monitor_key_follows_the_monitor_under_the_window() {
+        let a = mon("A", [0, 0], [1920, 1080]);
+        let b = mon("B", [1920, 0], [1920, 1080]);
+        let monitors = [a.clone(), b.clone()];
+        let size = Some([1920, 1080]);
+        assert_eq!(monitor_key(Some(&a.key), &monitors, Some([2500, 300]), size), Some(b.key.clone()));
+        assert_eq!(monitor_key(Some(&b.key), &monitors, Some([100, 300]), size), Some(a.key.clone()));
+        // Off every monitor: the keyed one no longer holds the window.
+        assert_eq!(monitor_key(Some(&a.key), &monitors, Some([-500, 300]), size), None);
+    }
+
+    #[test]
+    fn without_a_position_or_list_the_key_follows_the_reported_size() {
+        let key = MonitorKey::new("A", [1920, 1080]);
+        // Wayland: no position.
+        let monitors = [mon("A", [0, 0], [1920, 1080])];
+        assert_eq!(monitor_key(Some(&key), &monitors, None, Some([1920, 1080])), Some(key.clone()));
+        assert_eq!(monitor_key(Some(&key), &monitors, None, Some([2560, 1440])), None);
+        // Empty list.
+        assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([1920, 1080])), Some(key.clone()));
+        assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([2560, 1440])), None);
+        assert_eq!(monitor_key(None, &[], Some([10, 10]), None), None);
+    }
+
+    #[test]
+    fn logical_positions_use_the_target_scale() {
+        // Saved at (1540, 100) on a 1× external monitor: logical (1540, 100), not (770, 50).
+        assert_eq!(native::logical_position([1540, 100], 1.0), [1540.0, 100.0]);
+        assert_eq!(native::logical_position([1540, 100], 2.0), [770.0, 50.0]);
+        assert_eq!(native::logical_position([-100, 0], f32::NAN), [-100.0, 0.0]);
     }
 
     #[test]

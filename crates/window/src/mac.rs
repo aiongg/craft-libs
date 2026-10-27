@@ -37,12 +37,22 @@ pub struct Lights {
     pub size: f32,
 }
 
+/// Largest plausible distance of the lights' centre from the window top, in points.
+const MAX_CENTRE_FROM_TOP: f32 = 40.0;
+/// Largest plausible distance of the zoom button's right edge from the window's left, in points.
+const MAX_RIGHT: f32 = 200.0;
+
 /// The inset for measured lights: the lights are centred in a band `2 * centre_from_top` tall,
 /// and content starts the band's side gap after them, the same gap they keep from the top.
 /// `None` for a measurement that is not a plausible button.
 pub fn inset_from_lights(lights: Lights) -> Option<MacInset> {
     let Lights { right, centre_from_top, size } = lights;
-    let sane = [right, centre_from_top, size].iter().all(|v| v.is_finite() && *v > 0.0) && size <= 2.0 * centre_from_top;
+    // The bounds keep out a full-screen window, whose lights sit in the toolbar window about
+    // 1000 pt from the left.
+    let sane = [right, centre_from_top, size].iter().all(|v| v.is_finite() && *v > 0.0)
+        && size <= 2.0 * centre_from_top
+        && centre_from_top <= MAX_CENTRE_FROM_TOP
+        && right <= MAX_RIGHT;
     sane.then(|| MacInset { leading: right + (centre_from_top - size / 2.0), centre_from_top })
 }
 
@@ -148,11 +158,14 @@ fn measure() -> Option<MacInset> {
     let mtm = MainThreadMarker::new()?;
     // Every titled window with a full-size content view has the same geometry; floating panels
     // hide the buttons and are skipped.
+    // A window in full screen is skipped: its buttons live in the full-screen toolbar window.
     let window = NSApplication::sharedApplication(mtm).windows().to_vec().into_iter().find(|w| {
         let mask = w.styleMask();
         mask.contains(NSWindowStyleMask::Titled)
             && mask.contains(NSWindowStyleMask::FullSizeContentView)
+            && !mask.contains(NSWindowStyleMask::FullScreen)
             && w.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden())
+            && w.standardWindowButton(NSWindowButton::ZoomButton).and_then(|zoom| zoom.window()).is_some_and(|owner| owner == *w)
     })?;
     let zoom = window.standardWindowButton(NSWindowButton::ZoomButton)?;
     // Window coordinates count up from the bottom.
@@ -187,7 +200,16 @@ mod tests {
 
     #[test]
     fn implausible_measurements_are_rejected() {
-        for l in [lights(0.0, 14.0, 12.0), lights(f32::NAN, 14.0, 12.0), lights(69.0, -1.0, 12.0), lights(69.0, 14.0, 0.0), lights(69.0, 5.0, 12.0)] {
+        for l in [
+            lights(0.0, 14.0, 12.0),
+            lights(f32::NAN, 14.0, 12.0),
+            lights(69.0, -1.0, 12.0),
+            lights(69.0, 14.0, 0.0),
+            lights(69.0, 5.0, 12.0),
+            lights(69.0, 41.0, 12.0),
+            lights(201.0, 14.0, 12.0),
+            lights(1000.0, 14.0, 12.0),
+        ] {
             assert_eq!(inset_from_lights(l), None, "{l:?}");
         }
     }
