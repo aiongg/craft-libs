@@ -43,7 +43,7 @@ pub use verify::{VerifyError, is_font, sha256_hex, verify_font};
 #[cfg(not(target_arch = "wasm32"))]
 pub use http::{Cancel, Client, FetchError, Timeouts, USER_AGENT};
 #[cfg(not(target_arch = "wasm32"))]
-pub use store::{Caller, Error, FontStore, InstalledFamily, InstalledFile, Network, Problem, Progress, UserSource};
+pub use store::{Caller, Error, FontStore, InstalledFamily, InstalledFile, Network, Problem, Progress, UserSource, check_preview_service};
 
 #[cfg(test)]
 mod tests;

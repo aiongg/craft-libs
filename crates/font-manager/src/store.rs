@@ -527,10 +527,8 @@ impl Installer for FakeStore {
     }
 
     fn set_preview_service(&self, url: Option<&str>) -> Result<(), StoreError> {
-        if url.is_some_and(|u| !u.starts_with("https://")) {
-            return Err(StoreError("a preview service address starts with https://".into()));
-        }
-        *self.preview_service.lock().map_err(err)? = url.map(|u| u.trim_end_matches('/').to_owned());
+        let url = url.map(craft_font_store::check_preview_service).transpose().map_err(err)?;
+        *self.preview_service.lock().map_err(err)? = url;
         Ok(())
     }
 }
