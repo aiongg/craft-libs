@@ -8,19 +8,22 @@
 //! [`menu`] under a field an app draws itself.
 
 use egui::{
-    Align2, AsIdSalt, Atom, AtomExt as _, Button, InnerResponse, Popup, Rect, Response, Role, ScrollArea, Shape, TextWrapMode, Ui, Vec2, WidgetInfo,
-    WidgetText, vec2,
+    Align2, AsIdSalt, Atom, AtomExt as _, Button, InnerResponse, Popup, PopupCloseBehavior, Rect, Response, Role, ScrollArea, Shape, TextWrapMode,
+    Ui, Vec2, WidgetInfo, WidgetText, vec2,
 };
 
 /// A combo box `width` wide showing `selected`, with `add` as its [`menu`], at most `max_height`
-/// tall. Like egui's `ComboBox::from_id_salt(id_salt).selected_text(selected).width(width)
-/// .height(max_height).truncate().show_ui(ui, add)`, with a menu that grows when its contents do.
+/// tall and closing on `close`. Like egui's `ComboBox::from_id_salt(id_salt)
+/// .selected_text(selected).width(width).height(max_height).truncate().close_behavior(close)
+/// .show_ui(ui, add)`, with a menu that grows when its contents do. egui's combo box closes on
+/// [`PopupCloseBehavior::CloseOnClick`].
 pub fn combo<R>(
     ui: &mut Ui,
     id_salt: impl AsIdSalt,
     selected: impl Into<WidgetText>,
     width: f32,
     max_height: f32,
+    close: PopupCloseBehavior,
     add: impl FnOnce(&mut Ui) -> R,
 ) -> InnerResponse<Option<R>> {
     let selected: WidgetText = selected.into();
@@ -41,19 +44,20 @@ pub fn combo<R>(
             info.current_text_value = Some(value.clone());
             info
         });
-        let inner = menu(&button, max_height, add);
+        let inner = menu(&button, max_height, close, add);
         InnerResponse::new(inner, button)
     })
     .inner
 }
 
-/// `add` in a menu under `button` (which opens and closes it), at least as wide as `button` and at
-/// most `max_height` tall, scrolling beyond. Its height follows its contents on every pass.
-/// Returns what `add` returned while the menu is open.
-pub fn menu<R>(button: &Response, max_height: f32, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+/// `add` in a menu under `button` (which opens and closes it), at least as wide as `button`, at
+/// most `max_height` tall (scrolling beyond) and closing on `close`. Its height follows its
+/// contents on every pass. Returns what `add` returned while the menu is open.
+pub fn menu<R>(button: &Response, max_height: f32, close: PopupCloseBehavior, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
     let popup = Popup::default_response_id(button);
     let inner = Popup::menu(button)
         .width(button.rect.width())
+        .close_behavior(close)
         .show(|ui| {
             ui.set_min_width(ui.available_width());
             // The popup offers last pass's height. Offer the full height instead: a scroll area
@@ -97,7 +101,7 @@ mod tests {
     fn a_filtered_menu_grows_back_when_the_filter_is_cleared() {
         let mut h = Harness::builder().with_size(egui::vec2(600.0, 800.0)).build_ui_state(
             |ui, m: &mut Menu| {
-                let inner = super::combo(ui, "language", "Any language", 200.0, 380.0, |ui| {
+                let inner = super::combo(ui, "language", "Any language", 200.0, 380.0, egui::PopupCloseBehavior::CloseOnClick, |ui| {
                     let name = ui.label("Find a language").id;
                     ui.text_edit_singleline(&mut m.filter).labelled_by(name);
                     let rows = if m.filter.is_empty() { 60 } else { 0 };
