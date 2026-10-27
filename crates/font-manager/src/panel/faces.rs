@@ -139,4 +139,72 @@ mod tests {
         assert!(stale.keys().all(|k| k[5..].parse::<usize>().unwrap() < 20));
         assert_eq!(faces.registered.len(), MAX_REGISTERED);
     }
+
+    /// What registering faces costs egui with [`MAX_REGISTERED`] faces on screen, on the CPU:
+    /// the fonts rebuilt, the text laid out and its glyphs rasterized again (not the atlas
+    /// upload). `cargo test -p craft-font-manager --features egui --release --lib add_font_cost -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn add_font_cost() {
+        use std::time::{Duration, Instant};
+        let tiny = wuff::decompress_woff2(include_bytes!("../../tests/data/Tiny-glyf.woff2")).unwrap();
+        let median = |mut v: Vec<Duration>| {
+            v.sort();
+            v[v.len() / 2]
+        };
+        for (what, bytes) in [("Hack, 309 KB", epaint_default_fonts::HACK_REGULAR.to_vec()), ("a 1 KB subset", tiny)] {
+            let ctx = Context::default();
+            crate::install_interface_fonts(&ctx, &[]);
+            let blob: Blob = Arc::new(bytes);
+            let frame = |names: &[String]| {
+                let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    for name in names {
+                        let family = FontFamily::Name(name.as_str().into());
+                        ui.label(egui::RichText::new("Sphinx of black quartz, judge my vow").size(36.0).family(family));
+                    }
+                });
+            };
+            let add = |names: &mut Vec<String>, n: usize| {
+                for _ in 0..n {
+                    let name = format!("face:{}", names.len());
+                    let insert = InsertFontFamily { family: FontFamily::Name(name.as_str().into()), priority: FontPriority::Highest };
+                    ctx.add_font(FontInsert::new(&name, FontData::from_blob(Arc::clone(&blob), 0), vec![insert]));
+                    names.push(name);
+                }
+            };
+            let keep = |names: &mut Vec<String>, n: usize| {
+                names.truncate(n);
+                let mut definitions = ctx.fonts(|f| f.definitions().clone());
+                definitions.font_data.retain(|name, _| !name.starts_with("face:") || names.contains(name));
+                definitions
+                    .families
+                    .retain(|family, _| !matches!(family, FontFamily::Name(n) if n.starts_with("face:") && !names.iter().any(|x| x == &**n)));
+                ctx.set_fonts(definitions);
+                frame(names);
+            };
+            let mut names = Vec::new();
+            add(&mut names, MAX_REGISTERED);
+            frame(&names);
+            let timed = |f: &mut dyn FnMut()| {
+                let start = Instant::now();
+                f();
+                start.elapsed()
+            };
+            let steady = median((0..9).map(|_| timed(&mut || frame(&names))).collect());
+            let mut by_count = Vec::new();
+            for n in [1, PER_FRAME] {
+                let times = (0..9)
+                    .map(|_| {
+                        keep(&mut names, MAX_REGISTERED - n);
+                        timed(&mut || {
+                            add(&mut names, n);
+                            frame(&names);
+                        })
+                    })
+                    .collect();
+                by_count.push((n, median(times)));
+            }
+            println!("{what}, {MAX_REGISTERED} faces drawn: frame {steady:?}; frame adding n faces: {by_count:?}");
+        }
+    }
 }
