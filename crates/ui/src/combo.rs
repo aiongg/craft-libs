@@ -15,8 +15,9 @@ use std::cell::RefCell;
 use std::ops::Range;
 
 use egui::{
-    Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, NumExt as _, Painter, Popup,
-    PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom, WidgetInfo,
+    Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, LayerId, NumExt as _, Order,
+    Painter, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom,
+    WidgetInfo,
     class::{ClassName, Classes, HasClasses},
     style::{StyleModifier, WidgetVisuals},
     vec2,
@@ -102,7 +103,8 @@ impl<'a> ComboBox<'a> {
         self
     }
 
-    /// The menu's maximum outer height. Default: [`egui::Spacing::combo_height`].
+    /// The maximum height of the menu's contents, inside its frame. Default:
+    /// [`egui::Spacing::combo_height`].
     #[inline]
     pub fn height(mut self, height: f32) -> Self {
         self.height = Some(height);
@@ -328,8 +330,8 @@ fn show<R>(ui: &mut Ui, button_id: Id, mut combo: ComboBox<'_>, open: impl FnOnc
         info
     });
 
-    let popup = Popup::menu(&button_response).id(popup_id(button_id)).style(popup_style);
-    let mut menu = Menu::with_popup(popup, ui, &button_response).close_behavior(close_behavior);
+    let popup = Popup::menu(&button_response).id(popup_id(button_id));
+    let mut menu = Menu::with_popup(popup, ui, &button_response).style(popup_style).close_behavior(close_behavior);
     if let Some(height) = height {
         menu = menu.height(height);
     }
@@ -352,8 +354,8 @@ fn paint_default_icon(painter: &Painter, rect: Rect, visuals: &WidgetVisuals) {
 }
 
 /// The menu of a combo box, under a field an app draws itself: [`ComboBox`]'s menu without the
-/// button. A click on the field opens and closes it, or [`Self::open`] decides; the menu is at
-/// least as wide as the field.
+/// button. A click on the field opens and closes it, or the caller does with [`Self::open`]; the
+/// menu is at least as wide as the field.
 ///
 /// The menu opens below the field, or above it when there is more room there, and stays on that
 /// side while it is open. It is never taller than the room on that side: a long list scrolls.
@@ -374,11 +376,12 @@ fn paint_default_icon(painter: &Painter, rect: Rect, visuals: &WidgetVisuals) {
 pub struct Menu<'a> {
     popup: Popup<'a>,
     ctx: Context,
-    width: f32,
+    field: Rect,
+    field_id: Id,
     height: f32,
-    /// The popup frame's margins and stroke, top and bottom.
-    frame: f32,
+    style: StyleModifier,
     close_behavior: PopupCloseBehavior,
+    open: Option<&'a mut bool>,
 }
 
 impl<'a> Menu<'a> {
@@ -388,18 +391,22 @@ impl<'a> Menu<'a> {
     }
 
     fn with_popup(popup: Popup<'a>, ui: &Ui, field: &Response) -> Self {
+        // Below the field or above it, never beside it.
+        let flipped: &'static [RectAlign] = if ui.ctx().global_style().right_to_left { &[RectAlign::TOP_END] } else { &[RectAlign::TOP_START] };
         Self {
-            popup,
+            popup: popup.align_alternatives(flipped),
             ctx: field.ctx.clone(),
-            width: field.rect.width(),
+            field: field.rect,
+            field_id: field.id,
             height: ui.spacing().combo_height,
-            frame: Frame::popup(ui.style()).total_margin().sum().y,
+            style: StyleModifier::from(egui::containers::menu::menu_style),
             close_behavior: PopupCloseBehavior::CloseOnClick,
+            open: None,
         }
     }
 
-    /// The menu's maximum outer height, kept to the room on its side of the field. Default:
-    /// [`egui::Spacing::combo_height`].
+    /// The maximum height of the menu's contents, inside its frame, kept to the room on its side
+    /// of the field. Default: [`egui::Spacing::combo_height`].
     #[inline]
     pub fn height(mut self, height: f32) -> Self {
         self.height = height;
@@ -413,19 +420,30 @@ impl<'a> Menu<'a> {
         self
     }
 
-    /// Shows the menu while `open`, whatever clicks on the field do: for a text field that keeps
-    /// the keyboard focus while it is open, such as a font field that lists the fonts its text
-    /// matches. The menu doesn't take the focus.
+    /// Shows the menu while `*open`, for a field that isn't a button, such as a text field that
+    /// searches the menu while it keeps the keyboard focus. The caller sets `*open` to open the
+    /// menu, and the menu clears it when it closes: on its close behavior, Escape,
+    /// [`Ui::close`] inside it, or the field losing the focus to anything but the menu. Clicks on
+    /// the field neither open nor close it. The menu doesn't take the focus.
+    ///
+    /// ```
+    /// # egui::__run_test_ui(|ui| {
+    /// # let (mut text, mut open) = (String::new(), false);
+    /// let field = ui.text_edit_singleline(&mut text);
+    /// open |= field.gained_focus() || field.changed();
+    /// craft_ui::combo::Menu::new(ui, &field).open(&mut open).show_ui(|ui| ui.label("Arial"));
+    /// # });
+    /// ```
     #[inline]
-    pub fn open(mut self, open: bool) -> Self {
-        self.popup = self.popup.open(open);
+    pub fn open(mut self, open: &'a mut bool) -> Self {
+        self.open = Some(open);
         self
     }
 
     /// The menu's style. Default: egui's menu style.
     #[inline]
     pub fn style(mut self, style: impl Into<StyleModifier>) -> Self {
-        self.popup = self.popup.style(style);
+        self.style = style.into();
         self
     }
 
@@ -487,21 +505,45 @@ impl<'a> Menu<'a> {
         list: impl FnOnce(ScrollArea, &mut Ui, H) -> R,
         footer: Option<impl FnOnce(&mut Ui) -> F>,
     ) -> Option<(R, Option<F>)> {
-        let Self { popup, ctx, width, height, frame, close_behavior } = self;
+        let Self { popup, ctx, field, field_id, height, style, mut close_behavior, open } = self;
         let id = popup.get_id();
-        let (align, settled) = side(&popup);
+        let popup = match open {
+            Some(open) => {
+                let focus_key = id.with("craft-field-focus");
+                let focused = ctx.memory(|m| m.has_focus(field_id));
+                let had_focus = ctx.data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<bool>(focus_key), focused));
+                if had_focus && !focused && !moved_into(&ctx, id) {
+                    *open = false;
+                }
+                // A click in the field (moving a text field's cursor) leaves the menu open.
+                if ctx.input(|i| i.pointer.interact_pos()).is_some_and(|pos| field.contains(pos)) {
+                    close_behavior = PopupCloseBehavior::IgnoreClicks;
+                }
+                popup.open_bool(open)
+            }
+            None => popup,
+        };
+        let footer_id = id.with("craft-footer-height");
+        let remeasure_id = id.with("craft-remeasure");
+        let remeasure = ctx.data_mut(|d| d.remove_temp::<bool>(remeasure_id)).unwrap_or(false);
+        let (align, settled) = side(&popup, remeasure);
         // Until the side is settled, the menu is measured against the whole screen.
         let room = match popup.get_anchor_rect() {
             Some(anchor) if settled => room(align, anchor, ctx.content_rect()),
             _ => ctx.content_rect().height(),
         };
+        let mut popup_style = (*ctx.global_style()).clone();
+        style.apply(&mut popup_style);
+        let frame = Frame::popup(&popup_style).total_margin().sum().y;
         let height = height.min(room - frame).max(0.0);
-        let footer_id = id.with("craft-footer-height");
         let inner = popup
             .align(align)
             .align_alternatives(&[])
-            .width(width)
+            .width(field.width())
+            .style(style)
             .close_behavior(close_behavior)
+            // A menu remeasured before its side is settled isn't shown on that side meanwhile.
+            .sizing_pass(remeasure && !settled)
             .show(|ui| {
                 ui.set_min_width(ui.available_width());
                 // The popup offers last pass's height. Offer the full height instead: the scroll
@@ -509,8 +551,8 @@ impl<'a> Menu<'a> {
                 ui.set_max_height(height);
                 let header = header(ui);
                 // The footer comes after the list; keep the room it took last pass.
-                let footer_room =
-                    if footer.is_some() { ui.data(|d| d.get_temp::<f32>(footer_id)).unwrap_or(0.0) + ui.spacing().item_spacing.y } else { 0.0 };
+                let footer_height = ui.data(|d| d.get_temp::<f32>(footer_id));
+                let footer_room = if footer.is_some() { footer_height.unwrap_or(0.0) + ui.spacing().item_spacing.y } else { 0.0 };
                 // Labels widen a narrow menu rather than wrap early, as in egui's combo box. A
                 // list left with no room keeps ScrollArea's minimum scrolled height.
                 ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
@@ -518,7 +560,15 @@ impl<'a> Menu<'a> {
                 let footer = footer.map(|footer| {
                     let top = ui.cursor().top();
                     let f = footer(ui);
-                    ui.data_mut(|d| d.insert_temp(footer_id, ui.min_rect().bottom() - top));
+                    let height = ui.min_rect().bottom() - top;
+                    if footer_height.is_none_or(|h| (h - height).abs() > 0.5) {
+                        // The list took the wrong room: lay the menu out again before it shows.
+                        ui.data_mut(|d| {
+                            d.insert_temp(footer_id, height);
+                            d.insert_temp(remeasure_id, true);
+                        });
+                        ui.ctx().request_discard("the menu's footer changed height");
+                    }
                     f
                 });
                 (list, footer)
@@ -542,19 +592,30 @@ fn rows_list<H, R>(
     }
 }
 
+/// Whether the pointer or the keyboard focus went into the menu `popup` this pass.
+fn moved_into(ctx: &Context, popup: Id) -> bool {
+    let pointer = ctx.input(|i| i.pointer.interact_pos());
+    let in_menu = ctx.memory(|m| m.area_rect(popup)).zip(pointer).is_some_and(|(menu, pos)| menu.contains(pos));
+    let focused = ctx.memory(|m| m.focused()).and_then(|id| ctx.read_response(id));
+    in_menu || focused.is_some_and(|r| r.layer_id == LayerId::new(Order::Foreground, popup))
+}
+
 /// The side of its field `popup` shows on, and whether it is settled. The side is settled on the
-/// first pass after the menu opens (the one before measures it): the side egui picks when the
-/// menu fits there, else the one with more room. It is kept while the menu stays open, so a
-/// menu that shrinks or grows while open doesn't jump to the other side.
-fn side(popup: &Popup<'_>) -> (RectAlign, bool) {
+/// first pass after the menu was shown and measured (`remeasure` when that measure is stale): the
+/// side egui picks when the menu fits there, else the one with more room. It is kept while the
+/// menu stays open, so a menu that shrinks or grows while open doesn't jump to the other side.
+fn side(popup: &Popup<'_>, remeasure: bool) -> (RectAlign, bool) {
     let ctx = popup.ctx();
     let key = popup.get_id().with("craft-side");
-    if !popup.is_open() {
+    if !popup.is_open() || ctx.read_response(popup.get_id()).is_none() {
         ctx.data_mut(|d| d.remove::<RectAlign>(key));
         return (popup.get_best_align(), false);
     }
     if let Some(align) = ctx.data(|d| d.get_temp::<RectAlign>(key)) {
         return (align, true);
+    }
+    if remeasure {
+        return (popup.get_best_align(), false);
     }
     // Outside the data lock: these read the popup's state from memory.
     let mut align = popup.get_best_align();

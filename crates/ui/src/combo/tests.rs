@@ -104,7 +104,7 @@ fn a_menu_header_stays_put_while_the_list_scrolls_and_the_menu_grows_back() {
     h.run();
     let (field, full) = (h.state().field, search_height(&h));
     assert!(full > 300.0, "the open menu shows the list: {full}");
-    assert!(full < 400.0, "the menu keeps to its height, plus its frame: {full}");
+    assert!(full < 400.0, "the menu's contents keep to its height of 380, inside its frame: {full}");
 
     h.state_mut().scroll = true;
     h.run();
@@ -261,6 +261,19 @@ fn a_menu_that_shrinks_and_grows_while_open_stays_on_its_side() {
 }
 
 #[test]
+fn a_menu_opened_by_the_app_settles_its_side_once_measured() {
+    // Opened with `Popup::open_id`, as photocraft's press-and-drag menus are, so it is open on
+    // the pass it is first shown.
+    let mut h = long_menu(480.0, 600.0, 380.0, 60);
+    h.run();
+    egui::Popup::open_id(&h.ctx, h.state().popup);
+    h.run();
+    let menu = menu_rect(&h);
+    assert!(menu.bottom() <= h.state().button.top() + 0.5, "opens above, where there is room: {menu:?}");
+    assert!(menu.height() > 300.0, "with the whole list: {menu:?}");
+}
+
+#[test]
 fn a_footer_stays_under_the_list() {
     let mut h = Harness::builder().with_size(egui::vec2(400.0, 600.0)).build_ui_state(
         |ui, s: &mut (bool, egui::Rect, egui::Rect)| {
@@ -294,35 +307,76 @@ fn a_footer_stays_under_the_list() {
 
 struct Typed {
     text: String,
-    shown: bool,
-    open_with_focus: bool,
+    open: bool,
+    picked: Option<usize>,
+}
+
+/// A text field that searches its menu: the menu shows while `open`, which the field sets.
+fn font_field() -> Harness<'static, Typed> {
+    Harness::new_ui_state(
+        |ui, t: &mut Typed| {
+            let name = ui.label("Font").id;
+            let field = ui.text_edit_singleline(&mut t.text).labelled_by(name);
+            t.open |= field.gained_focus() || field.changed();
+            let text = t.text.clone();
+            let menu = super::Menu::new(ui, &field).open(&mut t.open);
+            if let Some(Some(n)) = menu.show_ui(|ui| (0..3).find(|n| ui.selectable_label(false, format!("{text} {n}")).clicked())) {
+                t.picked = Some(n);
+            }
+        },
+        Typed { text: String::new(), open: false, picked: None },
+    )
 }
 
 #[test]
-fn a_menu_under_a_text_field_leaves_it_the_focus_while_typing() {
-    for open_with_focus in [false, true] {
-        let mut h = Harness::new_ui_state(
-            |ui, t: &mut Typed| {
-                let name = ui.label("Font").id;
-                let field = ui.text_edit_singleline(&mut t.text).labelled_by(name);
-                let mut menu = super::Menu::new(ui, &field).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
-                if t.open_with_focus {
-                    menu = menu.open(field.has_focus());
-                }
-                let text = t.text.clone();
-                t.shown = menu.show_ui(|ui| ui.label(format!("Fonts matching {text:?}"))).is_some();
-            },
-            Typed { text: String::new(), shown: false, open_with_focus },
-        );
-        h.run();
-        h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
-        h.run();
-        h.get_by_role_and_label(egui::Role::TextInput, "Font").type_text("ar");
-        h.run();
-        let field_focused = h.get_by_role_and_label(egui::Role::TextInput, "Font").is_focused();
-        assert_eq!(h.state().text, "ar", "open_with_focus {open_with_focus}");
-        assert!(field_focused, "the field keeps the focus (open_with_focus {open_with_focus})");
-        assert!(h.state().shown, "the menu stays open (open_with_focus {open_with_focus})");
-        assert!(h.query_by_label("Fonts matching \"ar\"").is_some(), "the menu follows the text");
-    }
+fn a_menu_under_a_text_field_leaves_it_the_focus_and_takes_a_pick() {
+    let mut h = font_field();
+    h.run();
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+    h.run();
+    assert!(h.state().open, "focusing the field opens the menu");
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").type_text("ar");
+    h.run();
+    assert_eq!(h.state().text, "ar");
+    assert!(h.get_by_role_and_label(egui::Role::TextInput, "Font").is_focused(), "the field keeps the focus");
+    assert!(h.query_by_label("ar 1").is_some(), "the menu follows the text");
+
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+    h.run();
+    assert!(h.state().open, "a click in the field leaves the menu open");
+
+    h.get_by_label("ar 1").click();
+    h.run();
+    assert_eq!(h.state().picked, Some(1), "a click on a row picks it");
+    assert!(!h.state().open && h.query_by_label("ar 1").is_none(), "and closes the menu");
+
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+    h.run();
+    assert!(h.state().open && h.query_by_label("ar 1").is_some(), "focusing the field opens it again");
+    h.key_press(egui::Key::Escape);
+    h.run();
+    assert!(!h.state().open && h.query_by_label("ar 1").is_none(), "Escape closes it");
+}
+
+#[test]
+fn a_click_opened_menu_under_a_text_field_leaves_it_the_focus_while_typing() {
+    let mut h = Harness::new_ui_state(
+        |ui, shown: &mut (String, bool)| {
+            let name = ui.label("Font").id;
+            let field = ui.text_edit_singleline(&mut shown.0).labelled_by(name);
+            let text = shown.0.clone();
+            let menu = super::Menu::new(ui, &field).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+            shown.1 = menu.show_ui(|ui| ui.label(format!("Fonts matching {text:?}"))).is_some();
+        },
+        (String::new(), false),
+    );
+    h.run();
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").click();
+    h.run();
+    h.get_by_role_and_label(egui::Role::TextInput, "Font").type_text("ar");
+    h.run();
+    assert_eq!(h.state().0, "ar");
+    assert!(h.get_by_role_and_label(egui::Role::TextInput, "Font").is_focused(), "the field keeps the focus");
+    assert!(h.state().1, "the menu stays open");
+    assert!(h.query_by_label("Fonts matching \"ar\"").is_some(), "the menu follows the text");
 }
