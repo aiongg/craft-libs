@@ -849,7 +849,9 @@ impl Catalog {
     /// Counts the changes lookups in `scope` see: [`Catalog::generation`] plus a stamp of the
     /// scope's last change, taken from one counter of every scope's changes. It never goes down
     /// and never repeats a value, [`Catalog::remove_scope`] and adding to the scope again
-    /// included.
+    /// included. Read it before resolving or laying out, as for [`Catalog::changes_since`]: a
+    /// change that lands in between then shows as a newer value next time, instead of the old
+    /// layout being kept under it.
     pub fn generation_in(&self, scope: Scope) -> u64 {
         let own = lock(&self.added).scopes.get(&scope).map_or(0, |s| s.stamp);
         self.generation() + own
@@ -857,7 +859,8 @@ impl Catalog {
 
     /// Counts the changes of `scope`'s own faces: each add to it and each removal from it, and
     /// nothing else (no scan, no unscoped change, no other scope's). 0 for a scope nothing was
-    /// added to. It never goes down, [`Catalog::remove_scope`] included.
+    /// added to. It never goes down, [`Catalog::remove_scope`] included. Read it before resolving
+    /// or laying out, as [`Catalog::generation_in`] says.
     pub fn scope_generation(&self, scope: Scope) -> u64 {
         lock(&self.added).scopes.get(&scope).map_or(0, |s| s.changes)
     }
