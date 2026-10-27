@@ -19,8 +19,12 @@
 //! let d = craft_window::policy::decide_for(Prefix::default(), Backend::Wayland, TitleBarPref::Integrated);
 //! let viewport = craft_window::policy::apply(egui::ViewportBuilder::default(), &d.frame);
 //! ```
+//!
+//! [`LayoutWatch`] keeps the caption layout current while the app runs: GNOME's value from the
+//! settings portal, KWin's and GTK's files re-read when the window regains focus.
 
 pub use crate::desktop::{Backend, Desktop, DesktopKind};
+pub use crate::layout::LayoutWatch;
 use crate::{Layout, Prefix, layout};
 
 /// Whether KDE, COSMIC, Xfce, Cinnamon, MATE and X11 window managers, which draw their own frame,
@@ -206,7 +210,7 @@ pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decis
 }
 
 /// The desktop's window-button layout, where it names one.
-fn desktop_layout(os: Os, kind: DesktopKind) -> Layout {
+pub(crate) fn desktop_layout(os: Os, kind: DesktopKind) -> Layout {
     #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
     if os == Os::Linux {
         return layout::read_layout(kind, &|k: &str| std::env::var(k).ok());

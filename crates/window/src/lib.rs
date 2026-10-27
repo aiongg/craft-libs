@@ -333,7 +333,6 @@ impl Layout {
 
     /// Whether the layout has at least one button, so the window can be closed by mouse. A layout
     /// with none (a desktop that named only buttons this crate skips) falls back to the default.
-    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", test))]
     pub(crate) fn is_usable(&self) -> bool {
         !self.left.is_empty() || !self.right.is_empty()
     }
