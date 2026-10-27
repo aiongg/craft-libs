@@ -785,7 +785,8 @@ mod store {
         user.install_family(&index, family, &Cancel::new(), &mut none).unwrap();
         // Three files and a licence, one attempt at the mirror.
         assert_eq!(accepted.load(Ordering::Relaxed), 1);
-        assert!(client.service_is_down());
+        assert!(client.service_is_down(&format!("http://127.0.0.1:{port}")));
+        assert!(!client.service_is_down("https://fonts.example.com"));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -806,6 +807,17 @@ mod store {
             other => panic!("{other:?}"),
         }
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_service_marked_down_does_not_block_another() {
+        let server = Server::start();
+        server.serve("b", "x", Reply::Ok(b"ok".to_vec()));
+        let client = server.client();
+        client.mark_service_down("https://fonts.example.com/a");
+        assert!(client.service_is_down("https://Fonts.example.com/b"));
+        let url = format!("{}b/x", server.base);
+        assert_eq!(client.get_from_service(&url, 100, &Cancel::new(), &mut |_| {}).unwrap(), b"ok");
     }
 
     #[test]
