@@ -1380,6 +1380,178 @@ mod store {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    /// A catalog of the same system as [`shared_store`]'s, to look at what a scan sees.
+    fn catalog_of(dir: &Path, root: &Path) -> Catalog {
+        let env = FontEnv {
+            os: Os::Unix,
+            root: root.to_path_buf(),
+            home: Some(root.join("home")),
+            font_store: Some(dir.to_path_buf()),
+            ..Default::default()
+        };
+        Catalog::new(env).with_font_service(false)
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copies_reached_by_another_path_are_still_the_stores_and_links_are_refused() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-alias");
+        // As Flatpak's /run/host/user-fonts: the user's font folder again, scanned first.
+        let fonts = root.join("home/.local/share/fonts");
+        std::fs::create_dir_all(&fonts).unwrap();
+        std::fs::create_dir_all(root.join("usr/share/fonts")).unwrap();
+        std::os::unix::fs::symlink(&fonts, root.join("usr/share/fonts/user-fonts")).unwrap();
+
+        let copies = store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert_eq!(copies.len(), 3);
+        let seen = catalog_of(&dir, &root);
+        seen.rescan();
+        assert!(seen.scanned_faces().iter().any(|f| f.path.as_ref().is_some_and(|p| p.starts_with(root.join("usr/share/fonts/user-fonts")))));
+        assert_eq!(store.make_available(GOOGLE_FONTS, "Test Sans").unwrap(), copies);
+        assert_eq!(store.make_available(GOOGLE_FONTS, "Test Sans").unwrap(), copies);
+        assert!(copies.iter().all(|c| c.is_file()));
+        assert!(store.pending_files(GOOGLE_FONTS, "Test Sans").is_empty());
+
+        // A family folder that is a link leads outside: nothing is written or deleted through it.
+        let outside = temp("os-fonts-outside");
+        let mut l = ledger(&dir);
+        l["families"][0]["files"][0]["path"] = json!(outside.join("TestSans-Bold.ttf"));
+        std::fs::write(dir.join("os-fonts.json"), l.to_string()).unwrap();
+        std::fs::copy(&copies[0], outside.join("TestSans-Bold.ttf")).unwrap();
+        let kept = store.withdraw(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert_eq!(kept, [outside.join("TestSans-Bold.ttf")], "a path the store doesn't put copies at is left alone");
+        assert!(outside.join("TestSans-Bold.ttf").is_file());
+        std::fs::remove_file(&copies[0]).unwrap();
+        std::fs::remove_dir(shared.join("testsans")).unwrap();
+        std::os::unix::fs::symlink(&outside, shared.join("testsans")).unwrap();
+        assert!(matches!(store.make_available(GOOGLE_FONTS, "Test Sans"), Err(Error::Conflict(_))));
+        assert_eq!(entries(&outside), ["TestSans-Bold.ttf"]);
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(outside);
+    }
+
+    #[test]
+    fn a_ledger_that_cant_be_understood_is_kept_and_blocks_changes() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-bad-ledger");
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let mut l = ledger(&dir);
+        l["families"][0]["files"][0]["mechanism"] = json!("hardlink");
+        let bytes = l.to_string();
+        std::fs::write(dir.join("os-fonts.json"), &bytes).unwrap();
+
+        assert!(!store.is_available(GOOGLE_FONTS, "Test Sans"));
+        assert!(matches!(store.make_available(GOOGLE_FONTS, "Test Sans"), Err(Error::Ledger(_))));
+        assert!(matches!(store.withdraw(GOOGLE_FONTS, "Test Sans"), Err(Error::Ledger(_))));
+        assert!(matches!(store.remove_family(GOOGLE_FONTS, "Test Sans"), Err(Error::Ledger(_))));
+        assert_eq!(std::fs::read_to_string(dir.join("os-fonts.json")).unwrap(), bytes);
+        assert_eq!(entries(&shared.join("testsans")).len(), 3);
+        assert!(store.installed_family(GOOGLE_FONTS, "Test Sans").is_some());
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn store_families_and_named_instances_conflict_by_postscript_name() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let index = index_of(&fixture().index).unwrap();
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-families");
+        for name in ["Shared One", "Shared Two", "Test Var"] {
+            store.install_family(&index, index.family(name).unwrap(), &Cancel::new(), &mut none).unwrap();
+        }
+        // Both families' index entries name the face Shared-Regular.
+        store.make_available(GOOGLE_FONTS, "Shared One").unwrap();
+        match store.make_available(GOOGLE_FONTS, "Shared Two") {
+            Err(Error::Conflict(c)) => {
+                assert_eq!(c, [Conflict { postscript: "Shared-Regular".into(), path: shared.join("sharedone/SharedOne-Regular.ttf") }])
+            }
+            other => panic!("{other:?}"),
+        }
+        // A static system face named as one of a variable font's instances.
+        let system = root.join("usr/share/fonts");
+        std::fs::create_dir_all(&system).unwrap();
+        std::fs::write(system.join("TestVar-Bold.ttf"), font("Test Var", "Bold", 700)).unwrap();
+        match store.make_available(GOOGLE_FONTS, "Test Var") {
+            Err(Error::Conflict(c)) => assert_eq!(c, [Conflict { postscript: "TestVar-Bold".into(), path: system.join("TestVar-Bold.ttf") }]),
+            other => panic!("{other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn an_agent_never_changes_the_os_font_folder() {
+        let server = Server::start();
+        server.serve_fixture(&fixture());
+        let index = index_of(&fixture().index).unwrap();
+        let (store, dir, root, shared) = shared_store(&server, "os-fonts-agent");
+        store.remove_files(GOOGLE_FONTS, "Test Sans", &["TestSans-Italic.ttf".into()]).unwrap();
+        store.make_available(GOOGLE_FONTS, "Test Sans").unwrap();
+        let family = shared.join("testsans");
+        let before = entries(&family);
+        assert_eq!(before, ["TestSans-Bold.ttf", "TestSans-Regular.ttf"]);
+
+        // An agent's install stays in the store, listed as not yet available.
+        let agent =
+            FontStore::new(dir.clone(), Caller::Agent).with_client(server.client()).with_os_fonts(OsFontFolder::at(&shared, OsFontLayout::Folders));
+        agent.install_face(&index, index.find_face("Test Sans", "Italic").unwrap(), &Cancel::new(), &mut none).unwrap();
+        assert_eq!(entries(&family), before);
+        assert_eq!(store.pending_files(GOOGLE_FONTS, "Test Sans"), ["TestSans-Italic.ttf"]);
+
+        // An agent can't remove what has copies; the user can.
+        assert!(matches!(agent.remove_family(GOOGLE_FONTS, "Test Sans"), Err(Error::NotAllowed)));
+        assert!(matches!(agent.remove_files(GOOGLE_FONTS, "Test Sans", &["TestSans-Bold.ttf".into()]), Err(Error::NotAllowed)));
+        assert_eq!(store.installed_family(GOOGLE_FONTS, "Test Sans").unwrap().files.len(), 3);
+        assert_eq!(entries(&family), before);
+        agent.remove_files(GOOGLE_FONTS, "Test Sans", &["TestSans-Italic.ttf".into()]).unwrap();
+
+        store.install_face(&index, index.find_face("Test Sans", "Italic").unwrap(), &Cancel::new(), &mut none).unwrap();
+        assert_eq!(entries(&family), ["TestSans-Bold.ttf", "TestSans-Italic.ttf", "TestSans-Regular.ttf"], "the user's install copies it");
+        assert!(store.pending_files(GOOGLE_FONTS, "Test Sans").is_empty());
+        store.remove_family(GOOGLE_FONTS, "Test Sans").unwrap();
+        assert!(!family.exists());
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn the_os_folder_follows_the_platform_and_flatpak_grants() {
+        let root = temp("os-fonts-env");
+        let home = root.join("home");
+        let flatpak = FontEnv { os: Os::Unix, root: root.clone(), home: Some(home.clone()), flatpak: true, ..Default::default() };
+        let with = |vars: &[(&str, &str)], env: &FontEnv| {
+            let vars: Vec<(String, String)> = vars.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            OsFontFolder::for_env_with(env, &move |k| vars.iter().find(|(n, _)| n == k).map(|(_, v)| v.into())).map(|f| f.dir().to_path_buf())
+        };
+        let info = |filesystems: &str| std::fs::write(root.join(".flatpak-info"), format!("[Context]\nfilesystems={filesystems}\n")).unwrap();
+
+        let unix = FontEnv { flatpak: false, xdg_data_home: Some(root.join("data")), ..flatpak.clone() };
+        assert_eq!(with(&[], &unix), Ok(root.join("data/fonts/Craft")));
+        assert!(with(&[("SNAP", "/snap/x")], &unix).is_err());
+        let mac = FontEnv { os: Os::MacOs, ..unix.clone() };
+        assert_eq!(with(&[], &mac), Ok(home.join("Library/Fonts")));
+        assert!(with(&[("APP_SANDBOX_CONTAINER_ID", "x")], &mac).is_err());
+        assert!(with(&[], &FontEnv { os: Os::Windows, ..unix.clone() }).is_err());
+
+        info("xdg-data/fonts:create;");
+        assert_eq!(with(&[], &flatpak), Ok(home.join(".local/share/fonts/Craft")));
+        info("xdg-data/fonts:create;!xdg-data/fonts;");
+        assert!(with(&[], &flatpak).is_err(), "revoked");
+        info("home:ro;");
+        assert!(with(&[], &flatpak).is_err(), "read only");
+        info("~/.local/share/fonts;");
+        assert!(with(&[], &flatpak).is_ok());
+        assert!(with(&[("HOST_XDG_DATA_HOME", "/elsewhere")], &flatpak).is_err(), "the grant is for another folder");
+        info("xdg-data/fonts;");
+        assert_eq!(with(&[("HOST_XDG_DATA_HOME", "/elsewhere")], &flatpak), Ok(PathBuf::from("/elsewhere/fonts/Craft")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     /// Fetches the pinned indexes from jsDelivr and GitHub and installs a Noto family whose
     /// licence is in another repository. `cargo test -p craft-font-store -- --ignored`.
     #[test]

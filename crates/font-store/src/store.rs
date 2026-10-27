@@ -119,6 +119,11 @@ pub enum Error {
     /// copies would go.
     #[error("fonts on this system already have these names: {}", .0.iter().map(|c| format!("{} ({})", c.postscript, c.path.display())).collect::<Vec<_>>().join(", "))]
     Conflict(Vec<Conflict>),
+    /// The ledger of copies in the OS user font folder (`os-fonts.json`) can't be read or
+    /// understood (damaged, or from a newer version). It is kept as it is, and nothing that would
+    /// change it runs.
+    #[error("the record of fonts made available to all apps (os-fonts.json in the font store) can't be used: {0}")]
+    Ledger(String),
     /// Reading or writing the store failed.
     #[error("{what}: {source}")]
     Io {
@@ -250,6 +255,7 @@ pub struct FontStore {
     catalog: Option<Arc<Catalog>>,
     /// The OS user font folder, or why there is none.
     os_fonts: Result<OsFontFolder, String>,
+    ledger_cache: os_fonts::LedgerCache,
     /// Tests: stands in for the environment variable.
     #[cfg(test)]
     preview_env: Option<Option<String>>,
@@ -285,6 +291,7 @@ impl FontStore {
             client: Client::default(),
             catalog: None,
             os_fonts: Err("no user font folder was given".into()),
+            ledger_cache: os_fonts::LedgerCache::default(),
             #[cfg(test)]
             preview_env: None,
         }
@@ -578,7 +585,8 @@ impl FontStore {
     // ----- install
 
     /// Installs every file of `family`. Files already installed with the same sha256 aren't
-    /// downloaded again.
+    /// downloaded again. When the family is available to all apps, the user's install also copies
+    /// the new files there; an agent's leaves them in [`FontStore::pending_files`].
     pub fn install_family(
         &self,
         index: &Index,
@@ -739,7 +747,8 @@ impl FontStore {
 
     /// Removes the family of this name installed from `source`: its copies in the OS user font
     /// folder (as [`FontStore::withdraw`]), its files, its licence and its manifest entry. Its
-    /// folder disappears at once and is deleted after.
+    /// folder disappears at once and is deleted after. A family with copies in the OS folder is
+    /// the user's to remove: an agent gets [`Error::NotAllowed`] and nothing changes.
     pub fn remove_family(&self, source: &str, name: &str) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;
@@ -770,7 +779,8 @@ impl FontStore {
 
     /// Removes some files of an installed family (one style, say), by their names in its folder,
     /// with their copies in the OS user font folder. Taking out the last one removes the family.
-    /// Names the family's manifest entry doesn't list are left alone.
+    /// Names the family's manifest entry doesn't list are left alone. Files with copies in the OS
+    /// folder are the user's to remove: an agent gets [`Error::NotAllowed`] and nothing changes.
     pub fn remove_files(&self, source: &str, name: &str, files: &[String]) -> Result<(), Error> {
         let result = {
             let _lock = self.lock()?;

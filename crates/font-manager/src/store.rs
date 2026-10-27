@@ -153,19 +153,28 @@ pub trait Installer: Send + Sync {
     }
 
     /// Whether the store family `family` (its name, and the files the catalog found for it in
-    /// the font store) is available to all apps.
+    /// the font store) is available to all apps. Cheap enough to call for every row.
     fn is_available_to_all(&self, _family: &str, _files: &[PathBuf]) -> bool {
         false
     }
 
-    /// Makes a store family available to all apps, as the user's own action. A font on the
-    /// system with one of its PostScript names refuses it, naming the fonts.
+    /// The files of an available store family not available to all apps yet (styles an agent
+    /// installed, say), by their names in the store, for the interface to offer copying them.
+    fn not_yet_available(&self, _family: &str, _files: &[PathBuf]) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Makes a store family available to all apps, as the user's own action; calling it again
+    /// copies the styles [`Installer::not_yet_available`] lists. A font on the system with one of
+    /// its PostScript names refuses it, naming the fonts. It blocks (hashing, copying, a catalog
+    /// rescan): call it on a worker thread.
     fn make_available(&self, _family: &str, _files: &[PathBuf]) -> Result<(), StoreError> {
         Err(StoreError(NOT_HERE.into()))
     }
 
     /// Takes a store family's copies out of the OS user font folder, as the user's own action.
-    /// Returns the copies left in place because they changed since.
+    /// Returns the copies left in place because they changed since. It blocks: call it on a
+    /// worker thread.
     fn withdraw(&self, _family: &str, _files: &[PathBuf]) -> Result<Vec<PathBuf>, StoreError> {
         Err(StoreError(NOT_HERE.into()))
     }
@@ -326,7 +335,11 @@ impl Installer for SuiteStore {
     }
 
     fn is_available_to_all(&self, family: &str, files: &[PathBuf]) -> bool {
-        self.installed_name(family, files).is_some_and(|(source, name)| self.store.is_available(&source, &name))
+        self.store.available_family_holding(family, files).is_some()
+    }
+
+    fn not_yet_available(&self, family: &str, files: &[PathBuf]) -> Vec<String> {
+        self.installed_name(family, files).map(|(source, name)| self.store.pending_files(&source, &name)).unwrap_or_default()
     }
 
     fn make_available(&self, family: &str, files: &[PathBuf]) -> Result<(), StoreError> {

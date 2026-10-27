@@ -114,7 +114,7 @@ A Google Fonts family's folder is google/fonts' own folder name (`lato/`); anoth
 | Call | What it does |
 |---|---|
 | `installed()`, `installed_family(source, name)`, `is_installed(family, file)` | Read the manifest. |
-| `remove_family(source, name)` | Withdraws the family's copies from the OS user font folder, moves the family folder out at once, updates the manifest, then deletes the files and the licence. `remove_files` withdraws the copies of the files it removes. |
+| `remove_family(source, name)` | Withdraws the family's copies from the OS user font folder (user only when it has some), moves the family folder out at once, updates the manifest, then deletes the files and the licence. `remove_files` withdraws the copies of the files it removes. |
 | `verify()` | Reads every installed file and reports the missing, damaged and unparseable ones. |
 | `user_sources()`, `add_user_source(url)`, `remove_user_source(url)` | The sources the user added. Removing one leaves its installed families installed. |
 
@@ -124,16 +124,27 @@ The catalog scans the store folder. With `with_catalog(catalog)`, every install 
 
 ## Available to all apps
 
-Fonts in the store are for the Craft apps only. A family can also be made available to every other program of the current user: opt-in per family, off by default, from the user's own action.
+Fonts in the store are for the Craft apps only. A family can also be made available to every other program of the current user: opt-in per family, off by default, and only from the user's own action.
 
 | Call | What it does |
 |---|---|
 | `available_to_all_supported()`, `available_to_all_unsupported()` | Whether the action works here, and why not. The interface hides it when it doesn't. |
-| `make_available(source, name)` | Checks for conflicts, copies the family's font files into the OS user font folder and records them in the ledger. Calling it again brings the copies up to date. Returns the copies. |
+| `make_available(source, name)` | Checks for conflicts, copies the family's font files into the OS user font folder and records them in the ledger. Calling it again copies styles installed since and brings the copies up to date. Returns the copies. |
 | `withdraw(source, name)` | Deletes the copies the ledger lists, each only if its sha256 is unchanged. Returns the copies left in place because they changed. |
-| `is_available(source, name)`, `available_files(source, name)` | Read the ledger. |
+| `is_available(source, name)`, `available_family_holding(name, files)`, `available_files(source, name)` | Read the ledger. They read the file again only when it changed, so a list can ask for every row. |
+| `pending_files(source, name)` | Files of an available family not available yet: styles installed since by an agent, or whose copy is older than the store's file. |
 
-`make_available` and `withdraw` are user only: an agent (`for_agent`) gets `Error::NotAllowed`. Removing a family or some of its files from the store withdraws their copies whoever removes them, so the ledger never lists copies of fonts the store no longer has. Installing into an available family brings its copies up to date.
+`make_available`, `withdraw`, the installs and removals block (hashing, copying, a catalog rescan): call them off the UI thread.
+
+### Who may change the OS folder
+
+Only the user. An agent (`for_agent`) never changes what is in the OS font folder:
+
+- `make_available` and `withdraw` give it `Error::NotAllowed`.
+- Its install into an available family stays in the store; the new files show in `pending_files`, and the interface offers to copy them. The user's install copies them at once.
+- Its `remove_family` of a family with copies, and its `remove_files` of files with copies, give `Error::NotAllowed` before anything changes.
+
+The user's `remove_family` and `remove_files` withdraw the copies first, so the ledger never lists copies of fonts the store no longer has. Where there is no OS folder (a Snap build, say) but the ledger lists copies, removing the family gives `Error::Unsupported`: a build that has the folder withdraws them.
 
 ### Folders
 
@@ -141,7 +152,7 @@ Fonts in the store are for the Craft apps only. A family can also be made availa
 |---|---|---|
 | macOS | `~/Library/Fonts` | `Craft-<file>`, side by side. macOS activates them for every app of the user. |
 | Linux and the BSDs | `$XDG_DATA_HOME/fonts/Craft` (`~/.local/share/fonts/Craft`) | `<store family folder>/<file>`. fontconfig reads the folder with its subfolders; `fc-cache` refreshes the cache afterwards when it is on `PATH`, off the calling thread. |
-| Flatpak | the host's `$HOST_XDG_DATA_HOME/fonts/Craft`, else `~/.local/share/fonts/Craft` | Only with `--filesystem=xdg-data/fonts:create` (read from `/.flatpak-info`). No `fc-cache`: it would refresh the sandbox's cache. |
+| Flatpak | the host's `$HOST_XDG_DATA_HOME/fonts/Craft`, else `~/.local/share/fonts/Craft` | Only when `/.flatpak-info` grants write access to that folder (`--filesystem=xdg-data/fonts:create`; its entries apply in order, `!name` revokes and `:ro` grants no write). No `fc-cache`: it would refresh the sandbox's cache. |
 | Snap, a sandboxed macOS build (Mac App Store), Windows, Haiku, the web | none | `Error::Unsupported`. Windows (10 1809 and later, HKCU registration) comes later. |
 
 `FontStore::new` has no folder; `with_os_fonts(OsFontFolder::at(dir, layout))` sets one, for tests and setups the rules above don't cover.
@@ -152,21 +163,25 @@ Running apps see a new font at once or only after a restart, depending on the ap
 
 ### Conflicts
 
-Before copying, `make_available` refuses with `Error::Conflict`, naming each PostScript name and file, when:
+`make_available` reads the catalog given to `with_catalog` (rescanned first if the font folders changed), else a fresh catalog of the process's environment, with the store locked. It refuses with `Error::Conflict`, changing nothing and naming each PostScript name and file, when:
 
-- a system font the ledger doesn't list has a PostScript name of one of the family's faces or named instances (ignoring ASCII case). fontconfig would otherwise pick the newer version system-wide, and macOS can't activate two fonts of one PostScript name;
-- a file the store didn't add, or another family's copy, sits where a copy would go.
+- a system font has a PostScript name of one of the family's faces or named instances (ignoring ASCII case). Names come from a catalog scan of each store file and from the index. fontconfig would otherwise pick the newer version system-wide, and macOS can't activate two fonts of one PostScript name;
+- another store family's copy has one of those names (Roboto from Google Fonts and from a user's source, say);
+- a file the store didn't add, another family's copy or a symbolic link sits where a copy would go.
 
-A system file identical to the store's (same sha256) is no conflict: it isn't copied and isn't recorded. The check reads the catalog given to `with_catalog` (rescanned first if the font folders changed), else a fresh catalog of the process's environment. Fonts of the same family name with other PostScript names are not checked.
+The store's own copies are told apart by file identity (device and inode on Unix), so a copy the catalog reaches by another path (Flatpak shows the user's fonts again at `/run/host/user-fonts`) is still the store's. A system file identical to the store's (same sha256) is no conflict: the file isn't copied, and the ledger notes it as `present`, never to be deleted. A file at a copy's own place with the store's sha256 is taken into the ledger as a copy. Fonts of the same family name with other PostScript names (soft conflicts) are not checked yet.
 
 ### The ledger
 
-`os-fonts.json` lists, per family (name and source), every copy: its store file name, its path, its sha256, its PostScript names, how it was made (`copy`) and its state (`adding` or `active`). Only paths inside the OS folder are ever deleted, and only when their sha256 matches the ledger. A ledger that can't be read is moved aside to `os-fonts.json.bad` and counts as empty; its copies then count as the system's.
+`os-fonts.json` (version 1) lists, per family (name, source and store folder), every file: its store file name, its path, the store file's sha256, its PostScript names, how it is there (`copy`, or `present` for a system file) and its state (`adding` or `active`).
+
+The store deletes a file only when the ledger lists it as a copy, at the very path the store puts that file (`path_for` of the family's folder and file name), with no symbolic link on the way, and with the sha256 the ledger gives. Any other listed path is left alone and reported. A ledger that can't be read or understood (damaged, an unknown value, another version) is kept as it is: queries treat the family as not available, and everything that would change the ledger, removals of the family from the store included, gives `Error::Ledger`.
 
 A crash leaves nothing the store loses track of:
 
 - A copy is listed as `adding` before it is made, written to `.craft-<name>.part` (a dot-file, which fontconfig and macOS skip), checked against its sha256, and renamed into place; then the ledger lists it as `active`.
 - The next change settles every `adding` entry: the temporary file goes, a file with the new sha256 (or, while replacing a copy, the old one) stays listed as `active`, and any other is dropped from the ledger and left alone.
+- A copy being deleted is renamed to `.craft-<name>.removing`, checked there and then deleted, or renamed back if it changed. One a crash leaves aside goes back at the next change.
 - A withdrawal deletes the files first and rewrites the ledger after, so a crash in between leaves entries whose files are gone, which the next withdrawal drops.
 
 ### Limits

@@ -314,6 +314,12 @@ fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
+/// The faces of the font file at `path` as a scan reads them, named instances included, with
+/// `source` as their source. Empty when it isn't a font.
+pub fn read_faces(path: &Path, source: Source) -> Vec<FaceInfo> {
+    scan::file_faces(path, MAX_SCAN_READ, source).into_iter().map(|f| f.info).collect()
+}
+
 impl Catalog {
     /// A catalog of the fonts installed on the system `env` describes, the font store, and the
     /// files the platform's font service lists (with the `system` feature).

@@ -1,28 +1,34 @@
 //! "Available to all apps": copies of a store family in the OS user font folder, recorded in a
 //! ledger (`os-fonts.json`) so that withdrawing one removes exactly what the store added.
 //!
-//! Crash safety: the ledger lists a file as `adding` before it is copied, and as `active` once
-//! the copy is in place. Copies go to a dot-file (`.craft-<name>.part`, which neither fontconfig
-//! nor macOS reads) and are renamed into place. The next call that changes the ledger settles
-//! every `adding` entry: the temporary file goes; a file that has the new sha256 (or, for a
+//! Crash safety: the ledger lists a copy as `adding` before it is made, and as `active` once it
+//! is in place. Copies go to a dot-file (`.craft-<name>.part`, which neither fontconfig nor macOS
+//! reads) and are renamed into place. The next call that changes the ledger settles every
+//! `adding` entry: the temporary file goes; a file that has the new sha256 (or, for a
 //! replacement, the old one) stays listed as `active`; any other is dropped from the ledger and
-//! left alone. A withdrawal deletes files first and rewrites the ledger after, so a crash in
+//! left alone. A copy being deleted is first renamed to `.craft-<name>.removing` and checked
+//! there, so a file changed at the last moment goes back; one a crash leaves there goes back at
+//! the next change. A withdrawal deletes files first and rewrites the ledger after, so a crash in
 //! between leaves entries whose files are gone, which the next withdrawal drops.
+//!
+//! Everything here blocks (hashing, copying, a catalog rescan): call it off the UI thread.
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
 use std::fs::File;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::SystemTime;
 
-use craft_font_catalog::{Catalog, FontEnv, Os, Source};
+use craft_font_catalog::{Catalog, FontEnv, Os, Source, read_faces};
 use serde::{Deserialize, Serialize};
-use skrifa::MetadataProvider;
-use skrifa::raw::FileRef;
-use skrifa::string::StringId;
 
-use super::{Caller, Error, FontStore, InstalledFamily, io, read_limited};
-use crate::verify::{VerifyError, sha256_hex};
+use super::{Caller, Error, FontStore, InstalledFamily, io};
+use crate::source::{safe_dir, safe_file_name};
+use crate::verify::VerifyError;
 
 const LEDGER: &str = "os-fonts.json";
+const LEDGER_VERSION: u32 = 1;
 const MAX_LEDGER_BYTES: u64 = 16 << 20;
 
 /// How the OS user font folder is laid out.
@@ -51,34 +57,41 @@ impl OsFontFolder {
     ///   such as the Mac App Store's.
     /// - Linux and the BSDs: `$XDG_DATA_HOME/fonts/Craft` (`~/.local/share/fonts/Craft`), and
     ///   `fc-cache` refreshes the user's font cache after each change when it is on `PATH`. In a
-    ///   Flatpak, the host's folder (`$HOST_XDG_DATA_HOME`, else `~/.local/share`), only with the
-    ///   `xdg-data/fonts` permission, and without `fc-cache`. Not in a Snap (`SNAP` is set).
+    ///   Flatpak, the host's folder (`$HOST_XDG_DATA_HOME`, else `~/.local/share`), only when
+    ///   `/.flatpak-info` grants write access to it (`--filesystem=xdg-data/fonts:create`), and
+    ///   without `fc-cache`. Not in a Snap (`SNAP` is set).
     /// - Windows (for now), Haiku and the web: not offered.
     pub fn for_env(env: &FontEnv) -> Result<Self, String> {
+        Self::for_env_with(env, &|k| std::env::var_os(k).filter(|v| !v.is_empty()))
+    }
+
+    /// [`OsFontFolder::for_env`], reading the variables `FontEnv` doesn't hold through `var`.
+    pub(crate) fn for_env_with(env: &FontEnv, var: &dyn Fn(&str) -> Option<OsString>) -> Result<Self, String> {
         const NO_HOME: &str = "there is no home folder";
         match env.os {
             Os::MacOs => {
-                if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
+                if var("APP_SANDBOX_CONTAINER_ID").is_some() {
                     return Err("a sandboxed app (such as the Mac App Store build) can't add fonts to ~/Library/Fonts".into());
                 }
                 let home = env.home.as_ref().ok_or(NO_HOME)?;
                 Ok(Self { dir: home.join("Library/Fonts"), layout: OsFontLayout::Flat, fc_cache: false })
             }
             Os::Unix => {
-                if std::env::var_os("SNAP").is_some() {
+                if var("SNAP").is_some() {
                     return Err("the Snap build can't write the user font folder".into());
                 }
                 let absolute = |p: &PathBuf| p.is_absolute();
                 let local_share = env.home.as_ref().map(|h| h.join(".local/share"));
                 let (data, fc_cache) = if env.flatpak {
-                    if !flatpak_can_write_fonts(&env.root.join(".flatpak-info")) {
+                    let data = var("HOST_XDG_DATA_HOME").map(PathBuf::from).filter(absolute).or(local_share).ok_or(NO_HOME)?;
+                    if !flatpak_can_write(&env.root.join(".flatpak-info"), env.home.as_deref(), &data) {
                         return Err("the Flatpak has no write access to the user font folder (--filesystem=xdg-data/fonts:create)".into());
                     }
-                    (std::env::var_os("HOST_XDG_DATA_HOME").map(PathBuf::from).filter(absolute).or(local_share), false)
+                    (data, false)
                 } else {
-                    (env.xdg_data_home.clone().filter(absolute).or(local_share), true)
+                    (env.xdg_data_home.clone().filter(absolute).or(local_share).ok_or(NO_HOME)?, true)
                 };
-                Ok(Self { dir: data.ok_or(NO_HOME)?.join("fonts/Craft"), layout: OsFontLayout::Folders, fc_cache })
+                Ok(Self { dir: data.join("fonts/Craft"), layout: OsFontLayout::Folders, fc_cache })
             }
             Os::Windows => Err("making fonts available to all apps isn't supported on Windows yet".into()),
             Os::Haiku | Os::None => Err("this system has no user font folder the store can add to".into()),
@@ -96,17 +109,42 @@ impl OsFontFolder {
         &self.dir
     }
 
-    fn path_for(&self, family: &InstalledFamily, file: &str) -> PathBuf {
+    /// Where the copy of `file` of the store family in folder `family_dir` goes.
+    fn path_for(&self, family_dir: &str, file: &str) -> PathBuf {
         match self.layout {
             OsFontLayout::Flat => self.dir.join(format!("Craft-{file}")),
-            OsFontLayout::Folders => self.dir.join(&family.dir).join(file),
+            OsFontLayout::Folders => self.dir.join(family_dir).join(file),
         }
     }
 
-    /// Whether `path` is a file inside the folder, with no `..` or other odd component: the only
-    /// paths from the ledger the store touches.
-    fn holds(&self, path: &Path) -> bool {
-        path.strip_prefix(&self.dir).is_ok_and(|rest| rest.components().count() > 0 && rest.components().all(|c| matches!(c, Component::Normal(_))))
+    /// Whether `path` is inside the folder and no folder on the way, nor `path` itself, is a
+    /// symbolic link (a dangling one included), so that writes and deletes stay inside. With the
+    /// `Folders` layout the store's own `Craft` folder counts too.
+    fn no_links(&self, path: &Path) -> bool {
+        let Ok(rest) = path.strip_prefix(&self.dir) else { return false };
+        if rest.components().count() == 0 || !rest.components().all(|c| matches!(c, Component::Normal(_))) {
+            return false;
+        }
+        let mut at = self.dir.clone();
+        let mut check = Vec::new();
+        if self.layout == OsFontLayout::Folders {
+            check.push(at.clone());
+        }
+        for c in rest.components() {
+            at.push(c);
+            check.push(at.clone());
+        }
+        check.iter().all(|p| std::fs::symlink_metadata(p).map_or(true, |m| !m.file_type().is_symlink()))
+    }
+
+    /// Whether the ledger's `file` of the family in store folder `dir` is a copy the store may
+    /// touch: where the store puts it, with no link on the way.
+    fn owns(&self, dir: &str, file: &LedgerFile) -> bool {
+        file.mechanism == Mechanism::Copy
+            && safe_dir(dir)
+            && safe_file_name(&file.store_file)
+            && file.path == self.path_for(dir, &file.store_file)
+            && self.no_links(&file.path)
     }
 
     /// Tells fontconfig, off the calling thread. It isn't needed for correctness: fontconfig
@@ -127,25 +165,49 @@ impl OsFontFolder {
     }
 }
 
-/// Whether `/.flatpak-info` grants write access to `~/.local/share/fonts`.
-fn flatpak_can_write_fonts(info: &Path) -> bool {
-    let Some(bytes) = read_limited(info, 1 << 20) else { return false };
+/// Whether `/.flatpak-info` grants write access to `<data>/fonts`. Its `filesystems=` entries
+/// apply in order: `!name` revokes an earlier grant of `name`, and `:ro` grants no write.
+fn flatpak_can_write(info: &Path, home: Option<&Path>, data: &Path) -> bool {
+    let Some(bytes) = std::fs::metadata(info).ok().filter(|m| m.len() <= 1 << 20).and_then(|_| std::fs::read(info).ok()) else { return false };
     let text = String::from_utf8_lossy(&bytes);
-    let granted = ["host", "home", "xdg-data", "xdg-data/fonts", "~/.local", "~/.local/share", "~/.local/share/fonts"];
-    text.lines().filter_map(|l| l.trim().strip_prefix("filesystems=")).flat_map(|l| l.split(';')).any(|entry| {
+    let fonts = data.join("fonts");
+    let mut grants: Vec<(String, bool)> = Vec::new();
+    for entry in text.lines().filter_map(|l| l.trim().strip_prefix("filesystems=")).flat_map(|l| l.split(';')) {
         let entry = entry.trim();
+        let (revoke, entry) = match entry.strip_prefix('!') {
+            Some(e) => (true, e),
+            None => (false, entry),
+        };
         let (name, mode) = entry.rsplit_once(':').unwrap_or((entry, "rw"));
-        mode != "ro" && granted.contains(&name.trim_end_matches('/'))
-    })
+        let name = name.trim_end_matches('/').to_string();
+        grants.retain(|(n, _)| *n != name);
+        if !revoke && !name.is_empty() {
+            grants.push((name, mode != "ro"));
+        }
+    }
+    let covers = |name: &str| -> bool {
+        let base = match name {
+            "host" => Some(PathBuf::from("/")),
+            "home" => home.map(Path::to_path_buf),
+            "xdg-data" => Some(data.to_path_buf()),
+            _ => match (name.strip_prefix("xdg-data/"), name.strip_prefix("~/")) {
+                (Some(sub), _) => Some(data.join(sub)),
+                (None, Some(sub)) => home.map(|h| h.join(sub)),
+                _ => Some(PathBuf::from(name)).filter(|p| p.is_absolute()),
+            },
+        };
+        base.is_some_and(|b| fonts.starts_with(b))
+    };
+    grants.iter().any(|(name, write)| *write && covers(name))
 }
 
-/// A font the system already has under a PostScript name of the family being made available.
+/// A font that already has a PostScript name of the family being made available.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Conflict {
     /// The PostScript name.
     pub postscript: String,
-    /// The file that has it. For a file the store didn't add that sits where a copy would go,
-    /// that file.
+    /// The file that has it: a system font, another store family's copy, or a file the store
+    /// didn't add where a copy would go.
     pub path: PathBuf,
 }
 
@@ -160,16 +222,19 @@ enum State {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Mechanism {
+    /// The store copied the file to `path`.
     Copy,
+    /// The system already has the same file at `path`: nothing was copied, and nothing is ever
+    /// deleted for it.
+    Present,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct LedgerFile {
     /// The file's name in the store family's folder.
     store_file: String,
-    /// The copy in the OS folder.
     path: PathBuf,
-    /// The copy's sha256: the store file's.
+    /// The store file's sha256.
     sha256: String,
     postscript: Vec<String>,
     mechanism: Mechanism,
@@ -183,6 +248,8 @@ struct LedgerFile {
 struct LedgerFamily {
     family: String,
     source: String,
+    /// The family's folder in the store.
+    dir: String,
     files: Vec<LedgerFile>,
 }
 
@@ -190,10 +257,14 @@ impl LedgerFamily {
     fn is(&self, source: &str, name: &str) -> bool {
         self.source == source && self.family.to_lowercase() == name.to_lowercase()
     }
+
+    fn copies(&self) -> impl Iterator<Item = &LedgerFile> {
+        self.files.iter().filter(|f| f.mechanism == Mechanism::Copy)
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
-struct Ledger {
+pub(super) struct Ledger {
     version: u32,
     families: Vec<LedgerFamily>,
 }
@@ -203,17 +274,23 @@ impl Ledger {
         self.families.iter().find(|f| f.is(source, name))
     }
 
-    /// Settles every `adding` entry (see the module comment).
+    /// Settles every `adding` entry and puts back files a crashed deletion left aside (see the
+    /// module comment).
     fn settle(&mut self, folder: &OsFontFolder) {
         for family in &mut self.families {
+            let dir = family.dir.clone();
             family.files.retain_mut(|f| {
+                let owned = folder.owns(&dir, f);
+                if owned {
+                    restore_removing(&f.path);
+                }
                 if f.state == State::Active {
                     return true;
                 }
-                if !folder.holds(&f.path) {
+                if !owned {
                     return false;
                 }
-                let _ = std::fs::remove_file(part_path(&f.path));
+                let _ = std::fs::remove_file(aside(&f.path, "part"));
                 match file_sha256(&f.path) {
                     Some(sha) if sha == f.sha256 => {}
                     Some(sha) if f.replacing.as_ref() == Some(&sha) => f.sha256 = sha,
@@ -228,10 +305,25 @@ impl Ledger {
     }
 }
 
-/// Where a copy is written before it is renamed into place.
-fn part_path(path: &Path) -> PathBuf {
+/// The last ledger read, while the file's size and modification time are unchanged.
+#[derive(Default)]
+pub(super) struct LedgerCache(Mutex<Option<(LedgerStamp, Arc<Ledger>)>>);
+
+/// The ledger file's size and modification time.
+type LedgerStamp = (u64, Option<SystemTime>);
+
+/// `.craft-<name>.<what>` beside `path`: a copy being made (`part`) or deleted (`removing`).
+fn aside(path: &Path, what: &str) -> PathBuf {
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    path.with_file_name(format!(".craft-{name}.part"))
+    path.with_file_name(format!(".craft-{name}.{what}"))
+}
+
+/// Puts back a file a crashed deletion left aside.
+fn restore_removing(path: &Path) {
+    let removing = aside(path, "removing");
+    if std::fs::symlink_metadata(path).is_err() && removing.is_file() {
+        let _ = std::fs::rename(&removing, path);
+    }
 }
 
 /// The sha256 of the file at `path`, read in pieces; `None` when it can't be read.
@@ -242,17 +334,26 @@ fn file_sha256(path: &Path) -> Option<String> {
     Some(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// The PostScript name of each face in `bytes`.
-fn postscript_names(bytes: &[u8]) -> Vec<String> {
-    let Ok(file) = FileRef::new(bytes) else { return Vec::new() };
-    file.fonts()
-        .flatten()
-        .filter_map(|f| f.localized_strings(StringId::POSTSCRIPT_NAME).english_or_first().map(|s| s.to_string()))
-        .filter(|s| !s.is_empty())
-        .collect()
+#[cfg(unix)]
+type FileId = (u64, u64);
+#[cfg(not(unix))]
+type FileId = PathBuf;
+
+/// What makes two paths one file, through links and bind mounts (Flatpak shows the host's user
+/// fonts again at `/run/host/user-fonts`).
+fn file_id(path: &Path) -> Option<FileId> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::metadata(path).ok().map(|m| (m.dev(), m.ino()))
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::canonicalize(path).ok()
+    }
 }
 
-/// A store file to copy.
+/// A store file to make available.
 struct Planned {
     store_file: String,
     source: PathBuf,
@@ -289,26 +390,55 @@ impl FontStore {
         self.os_fonts.as_ref().ok()
     }
 
-    /// Whether the family of this name installed from `source` is available to all apps.
+    /// Whether the family of this name installed from `source` is available to all apps. Cheap
+    /// enough for every row of a list: it reads the ledger again only when the file changed.
+    /// False when the ledger can't be read.
     pub fn is_available(&self, source: &str, name: &str) -> bool {
-        !self.available_files(source, name).is_empty()
+        self.cached_ledger().is_some_and(|l| l.family(source, name).is_some())
+    }
+
+    /// The source and name of the available family whose store folder holds one of `files`, else
+    /// of the available family called `name` (ignoring case). Cheap like
+    /// [`FontStore::is_available`]: it reads only the ledger.
+    pub fn available_family_holding(&self, name: &str, files: &[PathBuf]) -> Option<(String, String)> {
+        let ledger = self.cached_ledger()?;
+        let lower = name.to_lowercase();
+        ledger
+            .families
+            .iter()
+            .find(|f| safe_dir(&f.dir) && files.iter().any(|p| p.starts_with(self.dir.join(&f.dir))))
+            .or_else(|| ledger.families.iter().find(|f| f.family.to_lowercase() == lower))
+            .map(|f| (f.source.clone(), f.family.clone()))
     }
 
     /// The copies of the family's files in the OS user font folder.
     pub fn available_files(&self, source: &str, name: &str) -> Vec<PathBuf> {
-        self.read_ledger().family(source, name).map(|f| f.files.iter().map(|x| x.path.clone()).collect()).unwrap_or_default()
+        self.cached_ledger().and_then(|l| l.family(source, name).map(|f| f.copies().map(|x| x.path.clone()).collect())).unwrap_or_default()
+    }
+
+    /// The store files of an available family that aren't available to all apps yet, by their
+    /// names in its folder: styles installed since (an agent's install doesn't copy them), or
+    /// files whose copy is older than the store's. Empty for a family that isn't available.
+    pub fn pending_files(&self, source: &str, name: &str) -> Vec<String> {
+        let Some(ledger) = self.cached_ledger() else { return Vec::new() };
+        let Some(listed) = ledger.family(source, name) else { return Vec::new() };
+        let Some(family) = self.installed_family(source, name) else { return Vec::new() };
+        family.files.iter().filter(|f| !listed.files.iter().any(|x| x.store_file == f.name && x.sha256 == f.sha256)).map(|f| f.name.clone()).collect()
     }
 
     /// Makes the installed family available to all apps, from the user's own action: copies its
     /// font files into the OS user font folder and records them in the ledger. Calling it again
-    /// brings the copies up to date with the store. Returns the copies.
+    /// copies styles installed since and brings the copies up to date. Returns the copies.
     ///
-    /// Refuses with [`Error::Conflict`] when a font the store didn't add has a PostScript name of
-    /// the family, or sits where a copy would go; a file identical to the store's is left as it
-    /// is and not recorded. [`Error::NotAllowed`] for an agent, [`Error::Unsupported`] where
-    /// [`FontStore::available_to_all_supported`] is false.
+    /// Refuses with [`Error::Conflict`], changing nothing, when a font the store didn't copy for
+    /// this family has one of its PostScript names (a system font, or another family's copy), or
+    /// a file the store didn't add sits where a copy would go. A system file identical to the
+    /// store's is no conflict: it isn't copied, and the ledger notes it. [`Error::NotAllowed`]
+    /// for an agent, [`Error::Unsupported`] where [`FontStore::available_to_all_supported`] is
+    /// false, [`Error::Ledger`] when the ledger can't be used.
     ///
-    /// Running apps see the fonts at once or after a restart, depending on the app.
+    /// It blocks (hashing, copying, a catalog rescan): call it off the UI thread. Running apps see
+    /// the fonts at once or after a restart, depending on the app.
     pub fn make_available(&self, source: &str, name: &str) -> Result<Vec<PathBuf>, Error> {
         if self.caller != Caller::User {
             return Err(Error::NotAllowed);
@@ -318,7 +448,8 @@ impl FontStore {
 
     /// Takes the family's copies out of the OS user font folder, from the user's own action. Only
     /// files the ledger lists go, and only while unchanged: returns the ones left in place because
-    /// they changed since (or lie outside the folder). [`Error::NotAllowed`] for an agent.
+    /// they changed since (or were moved or linked elsewhere). [`Error::NotAllowed`] for an agent.
+    /// It blocks: call it off the UI thread.
     pub fn withdraw(&self, source: &str, name: &str) -> Result<Vec<PathBuf>, Error> {
         if self.caller != Caller::User {
             return Err(Error::NotAllowed);
@@ -333,21 +464,33 @@ impl FontStore {
         Ok(kept)
     }
 
-    /// After an install: brings the copies of an available family up to date. A failure leaves
-    /// the earlier copies listed.
+    /// After the user's install: copies new styles of an available family and brings its copies
+    /// up to date. A failure leaves the earlier copies listed and the new files in
+    /// [`FontStore::pending_files`], as an agent's install does.
     pub(super) fn reshare(&self, source: &str, name: &str) {
-        if self.is_available(source, name) {
+        if self.caller == Caller::User && self.is_available(source, name) {
             let _ = self.share(source, name);
         }
     }
 
-    /// While the store is locked: withdraws the family's copies (`files` only, by their store
-    /// names, when given) before it leaves the store. Nothing to do without an OS folder.
+    /// While the store is locked, before the family (`files` only, by their store names, when
+    /// given) leaves the store: withdraws their copies. Refuses, before anything changes, when
+    /// copies would have to go but an agent asks ([`Error::NotAllowed`]), the ledger can't be
+    /// used ([`Error::Ledger`]), or there is no OS folder to remove them from
+    /// ([`Error::Unsupported`]: a build that has one withdraws them).
     pub(super) fn withdraw_for_removal(&self, source: &str, name: &str, files: Option<&[String]>) -> Result<(), Error> {
-        let Ok(folder) = &self.os_fonts else { return Ok(()) };
-        if self.read_ledger().family(source, name).is_none() {
+        let ledger = self.read_ledger()?;
+        let Some(family) = ledger.family(source, name) else { return Ok(()) };
+        let touched = |f: &LedgerFile| files.is_none_or(|o| o.contains(&f.store_file));
+        if !family.files.iter().any(touched) {
             return Ok(());
         }
+        if self.caller != Caller::User && family.copies().any(touched) {
+            return Err(Error::NotAllowed);
+        }
+        let folder = self.os_fonts.as_ref().map_err(|reason| {
+            Error::Unsupported(format!("{name} is available to all apps and its copies can't be removed here ({reason}); withdraw it first"))
+        })?;
         self.unshare_locked(folder, source, name, files)?;
         folder.refresh();
         Ok(())
@@ -355,61 +498,65 @@ impl FontStore {
 
     fn share(&self, source: &str, name: &str) -> Result<Vec<PathBuf>, Error> {
         let folder = self.os_fonts.as_ref().map_err(|reason| Error::Unsupported(reason.clone()))?;
-        let family = self.installed_family(source, name).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
-        let store_dir = self.dir.join(&family.dir);
-        let mut planned = Vec::new();
-        for f in &family.files {
-            let from = store_dir.join(&f.name);
-            let bytes = std::fs::read(&from).map_err(io(format!("reading {}", f.name)))?;
-            if sha256_hex(&bytes) != f.sha256 {
-                return Err(Error::Verify { file: f.name.clone(), error: VerifyError::Sha256 });
-            }
-            let mut postscript = postscript_names(&bytes);
-            postscript.extend(f.postscript.iter().cloned());
-            postscript.sort();
-            postscript.dedup();
-            planned.push(Planned {
-                store_file: f.name.clone(),
-                source: from,
-                path: folder.path_for(&family, &f.name),
-                sha256: f.sha256.clone(),
-                postscript,
-            });
-        }
-        let ours: HashSet<PathBuf> = self.read_ledger().families.iter().flat_map(|f| f.files.iter().map(|x| x.path.clone())).collect();
-        let (mut conflicts, present) = self.system_conflicts(&planned, &ours);
-        planned.retain(|p| !present.contains(&p.store_file));
-
         let copies = {
             let _lock = self.lock()?;
-            let mut ledger = self.read_ledger();
+            let mut ledger = self.read_ledger()?;
             ledger.settle(folder);
+            let family = self.installed_family(source, name).ok_or_else(|| Error::NotInstalled(name.to_string()))?;
+            let planned = self.plan(folder, &family)?;
             let earlier: Vec<LedgerFile> = ledger.family(source, name).map(|f| f.files.clone()).unwrap_or_default();
-            let on_disk: Vec<Option<String>> = planned.iter().map(|p| file_sha256(&p.path)).collect();
-            // A file where a copy goes is ours when the ledger lists it for this family unchanged,
-            // or when it is the store's file already (a copy the ledger lost), unless another
-            // family's copy is there.
-            for (p, disk) in planned.iter().zip(&on_disk) {
-                let others = ledger.families.iter().any(|f| !f.is(source, name) && f.files.iter().any(|x| x.path == p.path));
-                let blocked = others
-                    || match disk {
-                        Some(sha) => *sha != p.sha256 && !earlier.iter().any(|e| e.path == p.path && e.sha256 == *sha),
-                        None => p.path.exists(),
-                    };
-                if blocked {
-                    conflicts.push(Conflict { postscript: p.postscript.first().cloned().unwrap_or_default(), path: p.path.clone() });
+            let others: Vec<&LedgerFile> = ledger.families.iter().filter(|f| !f.is(source, name)).flat_map(LedgerFamily::copies).collect();
+
+            // Faces at these files are the store's own, whatever path the catalog reached them
+            // by: every family's copies, and whatever sits where a copy goes, which the checks
+            // below look at.
+            let ours: HashSet<FileId> = ledger
+                .families
+                .iter()
+                .flat_map(|f| f.copies().map(|x| &x.path))
+                .chain(planned.iter().map(|p| &p.path))
+                .filter_map(|p| file_id(p))
+                .collect();
+            let (mut conflicts, present) = self.system_conflicts(&planned, &ours);
+            for p in &planned {
+                for other in &others {
+                    for ps in p.postscript.iter().filter(|ps| other.postscript.iter().any(|o| o.eq_ignore_ascii_case(ps))) {
+                        conflicts.push(Conflict { postscript: ps.clone(), path: other.path.clone() });
+                    }
                 }
-            }
-            if !conflicts.is_empty() {
-                conflicts.sort_by(|a, b| (&a.postscript, &a.path).cmp(&(&b.postscript, &b.path)));
-                conflicts.dedup();
-                return Err(Error::Conflict(conflicts));
             }
 
             let mut files = Vec::new();
             let mut to_copy = Vec::new();
-            for (p, disk) in planned.iter().zip(&on_disk) {
-                let earlier_copy = earlier.iter().find(|e| e.path == p.path);
+            for p in &planned {
+                let earlier_copy = earlier.iter().find(|e| e.mechanism == Mechanism::Copy && e.path == p.path);
+                // Only a file not copied yet is left to an identical system file.
+                if earlier_copy.is_none()
+                    && let Some(system) = present.get(&p.store_file)
+                {
+                    files.push(LedgerFile {
+                        store_file: p.store_file.clone(),
+                        path: system.clone(),
+                        sha256: p.sha256.clone(),
+                        postscript: p.postscript.clone(),
+                        mechanism: Mechanism::Present,
+                        state: State::Active,
+                        replacing: None,
+                    });
+                    continue;
+                }
+                let disk = file_sha256(&p.path);
+                // A file where a copy goes is ours when the ledger lists it for this family
+                // unchanged, or when it is the store's file already (a copy the ledger lost).
+                let blocked = !folder.no_links(&p.path)
+                    || others.iter().any(|x| x.path == p.path)
+                    || match &disk {
+                        Some(sha) => *sha != p.sha256 && earlier_copy.is_none_or(|e| e.sha256 != *sha),
+                        None => std::fs::symlink_metadata(&p.path).is_ok(),
+                    };
+                if blocked {
+                    conflicts.push(Conflict { postscript: p.postscript.first().cloned().unwrap_or_default(), path: p.path.clone() });
+                }
                 let state = if disk.as_ref() == Some(&p.sha256) {
                     State::Active
                 } else {
@@ -426,16 +573,22 @@ impl FontStore {
                     replacing: earlier_copy.filter(|_| state == State::Adding).map(|e| e.sha256.clone()),
                 });
             }
-            // Earlier copies the store no longer has (or the system has itself) stay listed until
-            // they are deleted below.
-            let stale: Vec<LedgerFile> = earlier.into_iter().filter(|e| !files.iter().any(|f| f.path == e.path)).collect();
+            if !conflicts.is_empty() {
+                conflicts.sort_by(|a, b| (&a.postscript, &a.path).cmp(&(&b.postscript, &b.path)));
+                conflicts.dedup();
+                return Err(Error::Conflict(conflicts));
+            }
+            // Copies of files the store no longer has stay listed until they are deleted below.
+            let stale: Vec<LedgerFile> =
+                earlier.into_iter().filter(|e| e.mechanism == Mechanism::Copy && !files.iter().any(|f| f.path == e.path)).collect();
             files.extend(stale.iter().cloned());
             ledger.families.retain(|f| !f.is(source, name));
-            ledger.families.push(LedgerFamily { family: family.family.clone(), source: family.source.clone(), files });
+            ledger.families.push(LedgerFamily { family: family.family.clone(), source: family.source.clone(), dir: family.dir.clone(), files });
             ledger.families.retain(|f| !f.files.is_empty());
+            ledger.families.sort_by_key(|f| (f.family.to_lowercase(), f.source.clone()));
             self.write_ledger(&ledger)?;
 
-            if let Err(e) = to_copy.into_iter().try_for_each(copy_in) {
+            if let Err(e) = to_copy.into_iter().try_for_each(|p| copy_in(folder, p)) {
                 ledger.settle(folder);
                 let _ = self.write_ledger(&ledger);
                 return Err(e);
@@ -445,23 +598,48 @@ impl FontStore {
                     f.state = State::Active;
                     f.replacing = None;
                 }
+                let dir = entry.dir.clone();
                 // A stale copy leaves the ledger once deleted, or once changed and so not ours.
-                entry.files.retain(|f| !stale.iter().any(|s| s.path == f.path) || remove_if_unchanged(folder, f).is_err());
+                entry.files.retain(|f| !stale.iter().any(|s| s.path == f.path) || remove_if_unchanged(folder, &dir, f).is_err());
             }
             ledger.families.retain(|f| !f.files.is_empty());
-            ledger.families.sort_by_key(|f| (f.family.to_lowercase(), f.source.clone()));
             self.write_ledger(&ledger)?;
             prune_dirs(folder, stale.iter().map(|s| s.path.as_path()));
-            ledger.family(source, name).map(|f| f.files.iter().map(|x| x.path.clone()).collect()).unwrap_or_default()
+            ledger.family(source, name).map(|f| f.copies().map(|x| x.path.clone()).collect()).unwrap_or_default()
         };
         folder.refresh();
         self.rescan();
         Ok(copies)
     }
 
-    /// Faces of the system (not the store's, nor the copies the ledger lists) with a PostScript
-    /// name of `planned`: conflicts, and the store files the system already has identical copies of.
-    fn system_conflicts(&self, planned: &[Planned], ours: &HashSet<PathBuf>) -> (Vec<Conflict>, HashSet<String>) {
+    /// The family's files, checked against the manifest, with their PostScript names: the
+    /// faces' and named instances' as a catalog scan reads them, and the index's.
+    fn plan(&self, folder: &OsFontFolder, family: &InstalledFamily) -> Result<Vec<Planned>, Error> {
+        let store_dir = self.dir.join(&family.dir);
+        let mut planned = Vec::new();
+        for f in &family.files {
+            let from = store_dir.join(&f.name);
+            if file_sha256(&from).as_ref() != Some(&f.sha256) {
+                return Err(Error::Verify { file: f.name.clone(), error: VerifyError::Sha256 });
+            }
+            let mut postscript: Vec<String> = read_faces(&from, Source::Store).into_iter().filter_map(|x| x.postscript_name).collect();
+            postscript.extend(f.postscript.iter().cloned());
+            postscript.sort();
+            postscript.dedup();
+            planned.push(Planned {
+                store_file: f.name.clone(),
+                source: from,
+                path: folder.path_for(&family.dir, &f.name),
+                sha256: f.sha256.clone(),
+                postscript,
+            });
+        }
+        Ok(planned)
+    }
+
+    /// System faces (except at the files in `ours`) with a PostScript name of `planned`:
+    /// conflicts, and the store files the system already has identical copies of, with where.
+    fn system_conflicts(&self, planned: &[Planned], ours: &HashSet<FileId>) -> (Vec<Conflict>, HashMap<String, PathBuf>) {
         // Not `faces()`: it keeps one of two faces alike, which may be the store's.
         let faces = match &self.catalog {
             Some(catalog) => {
@@ -476,39 +654,43 @@ impl FontStore {
                 wanted.entry(ps.to_ascii_lowercase()).or_default().push(p);
             }
         }
-        let mut hashes: HashMap<PathBuf, Option<String>> = HashMap::new();
+        let mut seen: HashMap<PathBuf, (Option<FileId>, Option<String>)> = HashMap::new();
         let mut conflicts = Vec::new();
-        let mut present = HashSet::new();
+        let mut present = HashMap::new();
         for face in faces.iter().filter(|f| f.source == Source::System) {
             let (Some(ps), Some(path)) = (&face.postscript_name, &face.path) else { continue };
-            if ours.contains(path) {
+            let Some(hits) = wanted.get(&ps.to_ascii_lowercase()) else { continue };
+            let (id, sha) = seen.entry(path.clone()).or_insert_with(|| (file_id(path), file_sha256(path)));
+            if id.as_ref().is_some_and(|id| ours.contains(id)) {
                 continue;
             }
-            for p in wanted.get(&ps.to_ascii_lowercase()).into_iter().flatten() {
-                let sha = hashes.entry(path.clone()).or_insert_with(|| file_sha256(path));
+            for p in hits {
                 if sha.as_ref() == Some(&p.sha256) {
-                    present.insert(p.store_file.clone());
+                    present.insert(p.store_file.clone(), path.clone());
                 } else {
                     conflicts.push(Conflict { postscript: ps.clone(), path: path.clone() });
                 }
             }
         }
-        // A file identical to the store's doesn't excuse another face's conflict.
         (conflicts, present)
     }
 
     fn unshare_locked(&self, folder: &OsFontFolder, source: &str, name: &str, only: Option<&[String]>) -> Result<Vec<PathBuf>, Error> {
-        let mut ledger = self.read_ledger();
+        let mut ledger = self.read_ledger()?;
         ledger.settle(folder);
         let mut kept = Vec::new();
         let mut removed = Vec::new();
         let mut failed = None;
         if let Some(entry) = ledger.families.iter_mut().find(|f| f.is(source, name)) {
+            let dir = entry.dir.clone();
             entry.files.retain(|f| {
                 if only.is_some_and(|o| !o.contains(&f.store_file)) {
                     return true;
                 }
-                match remove_if_unchanged(folder, f) {
+                if f.mechanism == Mechanism::Present {
+                    return false;
+                }
+                match remove_if_unchanged(folder, &dir, f) {
                     Ok(true) => removed.push(f.path.clone()),
                     Ok(false) => kept.push(f.path.clone()),
                     Err(e) => {
@@ -528,31 +710,61 @@ impl FontStore {
         }
     }
 
-    /// The ledger. One that can't be read is kept aside as `os-fonts.json.bad` and counts as
-    /// empty: the copies it listed are then the system's, which the conflict check reports.
-    fn read_ledger(&self) -> Ledger {
+    /// The ledger; empty when there is none. One that can't be read, can't be parsed (an unknown
+    /// value, say) or has another version is an error and stays as it is, so nothing it lists is
+    /// lost.
+    fn read_ledger(&self) -> Result<Ledger, Error> {
         let path = self.dir.join(LEDGER);
-        let Some(bytes) = read_limited(&path, MAX_LEDGER_BYTES) else { return Ledger::default() };
-        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-            let _ = std::fs::rename(&path, self.dir.join("os-fonts.json.bad"));
-            Ledger::default()
-        })
+        let meta = match std::fs::metadata(&path) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Ledger::default()),
+            Err(e) => return Err(io(format!("reading {LEDGER}"))(e)),
+        };
+        if meta.len() > MAX_LEDGER_BYTES {
+            return Err(Error::Ledger(format!("it is larger than {MAX_LEDGER_BYTES} bytes")));
+        }
+        let bytes = std::fs::read(&path).map_err(io(format!("reading {LEDGER}")))?;
+        let ledger: Ledger = serde_json::from_slice(&bytes).map_err(|e| Error::Ledger(e.to_string()))?;
+        if ledger.version != LEDGER_VERSION {
+            return Err(Error::Ledger(format!("it is version {}, and this app reads version {LEDGER_VERSION}", ledger.version)));
+        }
+        Ok(ledger)
+    }
+
+    /// [`FontStore::read_ledger`] for queries, read again only when the file changed; `None`
+    /// when it can't be used.
+    fn cached_ledger(&self) -> Option<Arc<Ledger>> {
+        let stamp = std::fs::metadata(self.dir.join(LEDGER)).map_or((0, None), |m| (m.len(), m.modified().ok()));
+        let mut cache = self.ledger_cache.0.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((s, ledger)) = cache.as_ref()
+            && *s == stamp
+        {
+            return Some(Arc::clone(ledger));
+        }
+        let ledger = Arc::new(self.read_ledger().ok()?);
+        *cache = Some((stamp, Arc::clone(&ledger)));
+        Some(ledger)
     }
 
     fn write_ledger(&self, ledger: &Ledger) -> Result<(), Error> {
-        let ledger = Ledger { version: 1, families: ledger.families.clone() };
+        let ledger = Ledger { version: LEDGER_VERSION, families: ledger.families.clone() };
         let bytes = serde_json::to_vec_pretty(&ledger).map_err(|e| io("saving the OS font ledger")(std::io::Error::other(e)))?;
+        *self.ledger_cache.0.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.write_file(LEDGER, &bytes)
     }
 }
 
 /// Copies a store file to its place through a dot-file, checking the copy's sha256.
-fn copy_in(p: &Planned) -> Result<(), Error> {
+fn copy_in(folder: &OsFontFolder, p: &Planned) -> Result<(), Error> {
     let what = || format!("copying {} to {}", p.store_file, p.path.display());
     if let Some(parent) = p.path.parent() {
         std::fs::create_dir_all(parent).map_err(io(what()))?;
     }
-    let part = part_path(&p.path);
+    if !folder.no_links(&p.path) {
+        return Err(io(what())(std::io::Error::other("a symbolic link is in the way")));
+    }
+    let part = aside(&p.path, "part");
+    let _ = std::fs::remove_file(&part);
     std::fs::copy(&p.source, &part).map_err(io(what()))?;
     let checked = File::open(&part).and_then(|f| f.sync_all()).map_err(io(what())).and_then(|()| {
         if file_sha256(&part).as_ref() == Some(&p.sha256) {
@@ -568,17 +780,27 @@ fn copy_in(p: &Planned) -> Result<(), Error> {
     Ok(())
 }
 
-/// Deletes a listed copy when it is unchanged: `Ok(true)` when it is gone (or already was),
-/// `Ok(false)` when it is left in place.
-fn remove_if_unchanged(folder: &OsFontFolder, f: &LedgerFile) -> Result<bool, Error> {
-    if !folder.holds(&f.path) {
+/// Deletes a listed copy of the family in store folder `dir` when it is the store's and
+/// unchanged: `Ok(true)` when it is gone (or already was), `Ok(false)` when it is left in place.
+/// The file is moved aside first and checked there, so one changed in the meantime goes back.
+fn remove_if_unchanged(folder: &OsFontFolder, dir: &str, f: &LedgerFile) -> Result<bool, Error> {
+    if !folder.owns(dir, f) {
         return Ok(false);
     }
-    let _ = std::fs::remove_file(part_path(&f.path));
-    match file_sha256(&f.path) {
-        None if !f.path.exists() => Ok(true),
-        Some(sha) if sha == f.sha256 => std::fs::remove_file(&f.path).map(|()| true).map_err(io(format!("removing {}", f.path.display()))),
-        _ => Ok(false),
+    restore_removing(&f.path);
+    let _ = std::fs::remove_file(aside(&f.path, "part"));
+    if std::fs::symlink_metadata(&f.path).is_err() {
+        return Ok(true);
+    }
+    let what = || format!("removing {}", f.path.display());
+    let removing = aside(&f.path, "removing");
+    std::fs::rename(&f.path, &removing).map_err(io(what()))?;
+    if file_sha256(&removing).as_ref() == Some(&f.sha256) {
+        std::fs::remove_file(&removing).map_err(io(what()))?;
+        Ok(true)
+    } else {
+        std::fs::rename(&removing, &f.path).map_err(io(what()))?;
+        Ok(false)
     }
 }
 
