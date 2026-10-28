@@ -173,6 +173,7 @@ impl<'a> PopupList<'a> {
             None => style,
         };
         let id = popup.get_id();
+        let flagged = open.is_some();
         let popup = match open {
             Some(open) => {
                 let focus_key = id.with("craft-field-focus");
@@ -278,12 +279,52 @@ impl<'a> PopupList<'a> {
                     None => contents(ui),
                 }
             })
-            .map(|r| r.inner);
+            .map(|r| (r.inner, r.response.should_close()));
+        if flagged {
+            record_open(&ctx, id, inner.as_ref().is_some_and(|(_, closing)| !closing));
+        }
+        let inner = inner.map(|(inner, _)| inner);
         if inner.is_some() {
             ctx.accesskit_node_builder(id, |node| node.set_role(Role::ListBox));
         }
         inner
     }
+}
+
+/// The lists open at the end of a pass that egui's popup memory doesn't know, per viewport: popups
+/// shown with a flag of their own ([`PopupList::open`], egui's [`Popup::open_bool`]), as Select and
+/// ComboBox open their lists. Each with the pass it was last recorded open in.
+#[derive(Clone, Default)]
+struct OpenLists(Vec<(Id, u64)>);
+
+fn open_lists_id(ctx: &Context) -> Id {
+    Id::unique("craft-ui-open-lists").with(ctx.viewport_id())
+}
+
+/// Records whether the list `popup` is open at the end of this pass. [`PopupList::show`] records
+/// an [`open`](PopupList::open) popup; an owner that closes its list after showing it in a pass
+/// (a click on an option, a commit read from the field) records it closed. A list no one records
+/// any more counts as closed from the pass after its last record, so a list whose owner is no
+/// longer drawn doesn't stay open.
+pub(crate) fn record_open(ctx: &Context, popup: Id, open: bool) {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    ctx.data_mut(|d| {
+        let lists = &mut d.get_temp_mut_or_default::<OpenLists>(key).0;
+        lists.retain(|&(id, at)| id != popup && at + 1 >= pass);
+        if open {
+            lists.push((popup, pass));
+        }
+    });
+}
+
+/// Whether a popup is open in this viewport: one in egui's popup memory ([`Popup::is_any_open`]:
+/// menus, context menus) or a list [recorded](record_open) open at the end of the last pass or
+/// earlier in this one. Keys a popup takes while it is open (Tab in a select's list) are read at
+/// the start of a pass, before the popup's owner runs, so this is what a control reads to leave
+/// them alone.
+pub(crate) fn any_open(ctx: &Context) -> bool {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|&(_, at)| at + 1 >= pass))
 }
 
 fn rows_list<H, R>(

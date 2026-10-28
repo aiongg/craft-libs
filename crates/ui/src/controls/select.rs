@@ -23,7 +23,7 @@ use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::popup_list::PopupList;
+use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
@@ -397,6 +397,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         }
 
         let open = state.open;
+        // Read by the next pass's focus scope, before this select runs: an open list keeps its Tab.
+        popup_list::record_open(ui.ctx(), popup_id, open);
         let search_id = state.search.filter(|_| open);
         listbox.store(ui);
         // Built after the frame's action: a list opened in this frame keeps Esc for its box.

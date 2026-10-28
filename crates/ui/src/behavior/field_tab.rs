@@ -1,7 +1,9 @@
 //! [`FieldTab`]: a dialog's focus scope, in which Tab and Shift+Tab visit only the text and number
 //! fields, as in PhotoCraft's dialogs.
 
-use egui::{AsIdSalt, Context, Event, FocusDirection, Id, IdSalt, InnerResponse, Key, LayerId, Modifiers, Popup, Rect, Ui, UiBuilder};
+use egui::{AsIdSalt, Context, Event, FocusDirection, Id, IdSalt, InnerResponse, Key, LayerId, Modifiers, Rect, Ui, UiBuilder};
+
+use crate::popup_list;
 
 /// A dialog's focus scope: wrap a dialog's contents in it, and Tab and Shift+Tab visit only its
 /// text and number fields, as in PhotoCraft (Name, Width, Height, Resolution in New Document),
@@ -36,8 +38,9 @@ use egui::{AsIdSalt, Context, Event, FocusDirection, Id, IdSalt, InnerResponse, 
 ///
 /// The scope takes these keys while it holds the focus: the focused control is one of its fields
 /// or lies inside the scope on its layer, or nothing is focused and the scope's layer is the
-/// topmost [`Modal`](egui::Modal). It leaves them alone while any popup is open (an open list
-/// keeps its own Tab) and under a modal layer above it. Outside a scope Tab keeps egui's order
+/// topmost [`Modal`](egui::Modal). It leaves them alone while any popup is open, egui's (a menu)
+/// or a craft-ui list ([`Select`](crate::controls::Select)'s, [`ComboBox`](crate::controls::ComboBox)'s),
+/// since an open list keeps its own Tab, and under a modal layer above it. Outside a scope Tab keeps egui's order
 /// over every control. Scopes don't nest: one per dialog.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldTab {
@@ -119,7 +122,7 @@ fn collecting_id(ctx: &Context) -> Id {
 
 /// Whether the scope on `layer` that saw `record` on its last pass takes this pass's Tab.
 fn holds_focus(ctx: &Context, layer: LayerId, record: Option<&Record>) -> bool {
-    if Popup::is_any_open(ctx) || !ctx.memory(|m| m.allows_interaction(layer)) {
+    if popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(layer)) {
         return false;
     }
     match ctx.memory(|m| m.focused()) {
