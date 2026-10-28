@@ -92,8 +92,8 @@ pub struct TextFieldStyle {
 ///
 /// The other rules (input methods, in-field undo, changes from the host) are [`Typing`]'s.
 ///
-/// - `label` is the accessible name; the field draws no label (a form row or the `Field`
-///   composite shows it).
+/// - `label` is the accessible name; the field draws no label (a form row or the
+///   [`Field`](crate::composites::Field) composite shows it).
 /// - The placeholder shows while the field is empty, in `field.placeholder`.
 /// - [`invalid`](TextField::invalid) draws the edge in `field.invalid` and reports the value
 ///   invalid to AccessKit; the message is the form's.

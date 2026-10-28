@@ -22,7 +22,7 @@ mod tests;
 
 pub use args::{Arg, ArgValue, Args};
 
-use crate::{controls, primitives};
+use crate::{composites, controls, primitives};
 
 /// Where a story's component sits in the design system, in the order the gallery lists them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -129,6 +129,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::tooltip::stories());
     all.extend(controls::text_field::stories());
     all.extend(controls::number_field::stories());
+    all.extend(composites::field::stories());
     all
 }
 
@@ -167,6 +168,7 @@ const DECLARED: &[&[&str]] = &[
     controls::tooltip::COMPONENTS,
     controls::text_field::COMPONENTS,
     controls::number_field::COMPONENTS,
+    composites::field::COMPONENTS,
 ];
 
 /// Every component the crate's modules declare, in [`registry`] order.

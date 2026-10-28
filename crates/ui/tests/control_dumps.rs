@@ -1,9 +1,10 @@
-//! Component dumps of the controls: each control's resolved style (its pure `style` function) for
+//! Component dumps of the controls and composites: each one's resolved style (its pure `style` function) for
 //! every variant and size its stories show, in every built-in and mode it has, at the Compact size
 //! and standard contrast, as text under `tests/dumps/components/`. Rewrite with
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
+use craft_ui::composites::Field;
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -385,5 +386,16 @@ fn tooltip() {
             .line("fill", s.fill)
             .line("border", s.border)
             .line("text", s.text);
+    });
+}
+
+/// Fields: the label column's gap, the help text's place and the colours of label, help and error.
+#[test]
+fn field() {
+    check("field.txt", |d, t| {
+        let s = Field::style(t);
+        d.line("label_gap", s.label_gap).line("help_gap", s.help_gap).line("label_band", s.label_band);
+        d.line("label_role", role(s.label_role)).line("message_role", role(s.message_role));
+        d.line("label", s.label).line("help", s.help).line("error", s.error);
     });
 }

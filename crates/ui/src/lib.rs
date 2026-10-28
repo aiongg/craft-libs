@@ -9,6 +9,7 @@ pub mod behavior;
 pub mod buttons;
 pub mod capture;
 pub mod combo;
+pub mod composites;
 pub mod controls;
 pub mod direction;
 pub mod docking;
