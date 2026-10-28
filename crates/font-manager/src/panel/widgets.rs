@@ -384,6 +384,7 @@ pub fn select<R>(ui: &mut Ui, id_salt: &str, label: &str, selected: &str, width:
 }
 
 /// The combo box of [`select`], for a menu with a header; name its response with [`name`].
+#[allow(deprecated, reason = "the panel's choices use craft_ui::ComboBox until they move to craft_ui::controls::Select")]
 pub fn select_box<'a>(id_salt: &str, selected: &'a str, width: f32) -> craft_ui::ComboBox<'a> {
     craft_ui::ComboBox::from_id_salt(id_salt).selected_text(selected).width(width).height(380.0).truncate()
 }

@@ -15,6 +15,7 @@ use egui::{
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
 use crate::behavior::{ListOptions, Listbox};
+#[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
 use crate::combo::Menu;
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks};
@@ -308,6 +309,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             let popup_id = Popup::default_response_id(&response);
             let header = search.as_ref().map_or(0.0, |_| style.field.height + style.list.gap);
             let mut open = true;
+            #[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
             let menu = Menu::new(ui, &response)
                 .open(&mut open)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
@@ -748,6 +750,7 @@ struct List<'l> {
 impl List<'_> {
     /// Shows the list in `menu` and returns the option chosen in it this frame; `drawn_active` is
     /// the active option when its row was drawn.
+    #[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
     fn show<T: Clone + PartialEq + Send + Sync + 'static>(
         &self,
         ui: &Ui,

@@ -1,4 +1,5 @@
 //! The gallery app.
+#![allow(deprecated, reason = "the gallery's own pickers use craft_ui::ComboBox until they move to craft_ui::controls::Select")]
 
 use std::collections::HashMap;
 use std::sync::Arc;

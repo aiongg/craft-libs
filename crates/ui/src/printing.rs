@@ -1,5 +1,6 @@
 //! Printer selection and asynchronous job feedback, independent of any spooler or document.
 //! Hosts provide workers; applications own PDF generation, commands and translated wording.
+#![allow(deprecated, reason = "the printer and duplex choices use the deprecated combo box until they move to controls::Select")]
 
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};

@@ -133,6 +133,7 @@ fn popups_take_the_scope_they_open_in() {
                         apply_popup_style(ui);
                         plain.borrow_mut().push((before, ui.visuals().panel_fill));
                     });
+                    #[allow(deprecated, reason = "the deprecated menu takes the theme scope's style")]
                     crate::combo::Menu::new(ui, &field).open(&mut true).show_ui(|ui| menu.borrow_mut().push(ui.visuals().panel_fill));
                 },
             );

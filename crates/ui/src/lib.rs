@@ -29,4 +29,5 @@ pub mod testing;
 pub mod text;
 pub mod theme;
 
+#[allow(deprecated, reason = "re-exports the deprecated combo box for the apps that still use it")]
 pub use combo::ComboBox;

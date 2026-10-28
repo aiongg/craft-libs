@@ -1,6 +1,7 @@
 //! The set row (§2.6 of the dialog plan): the set picker, then New Set…, Rename…, Delete, Save,
 //! Revert Set, Export, Import… and Summarize…; actions that do not fit go into a More menu. New
 //! Set… and Rename… open an inline form under the row.
+#![allow(deprecated, reason = "the set picker is a craft_ui::ComboBox until it moves to craft_ui::controls::Select")]
 
 use craft_ui::ComboBox;
 use craft_ui::layout::fit_toolbar;

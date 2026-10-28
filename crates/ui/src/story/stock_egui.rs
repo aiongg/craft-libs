@@ -1,4 +1,5 @@
 //! `foundations/stock-egui`: unmigrated egui widgets under the generated `Style`.
+#![allow(deprecated, reason = "shows the deprecated combo box among the unmigrated widgets")]
 
 use egui::{Id, Ui};
 

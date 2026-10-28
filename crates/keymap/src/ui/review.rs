@@ -1,6 +1,7 @@
 //! The foreign import review (§2.7 of the dialog plan). It takes the place of the table and
 //! detail pane: what the set will change, what did not match and why, suggestions to pick from,
 //! and after the import the report of what was skipped, taken or failed.
+#![allow(deprecated, reason = "the review draws craft_ui::ComboBox until it moves to craft_ui::controls::Select")]
 
 use craft_ui::ComboBox;
 use egui::text::{LayoutJob, TextFormat};

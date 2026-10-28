@@ -10,6 +10,10 @@
 //! A searchable menu keeps its search field in place and scrolls only its list:
 //! [`ComboBox::show_ui_with_header`] and [`ComboBox::show_rows_with_header`], and the same on
 //! [`Menu`].
+//!
+//! Both are deprecated: new code uses [`Select`](crate::controls::Select), whose list is drawn
+//! with this module's menu.
+#![allow(deprecated, reason = "the deprecated combo box and menu's own code and tests")]
 
 use std::cell::RefCell;
 use std::ops::Range;
@@ -44,6 +48,7 @@ use crate::primitives::{SurfaceEdge, SurfaceStyle};
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
+#[deprecated(note = "use craft_ui::controls::Select")]
 pub struct ComboBox<'a> {
     id_salt: IdSalt,
     label: Option<Atoms<'a>>,
@@ -376,6 +381,7 @@ fn paint_default_icon(painter: &Painter, rect: Rect, visuals: &WidgetVisuals) {
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
+#[deprecated(note = "use craft_ui::controls::Select")]
 pub struct Menu<'a> {
     popup: Popup<'a>,
     ctx: Context,
