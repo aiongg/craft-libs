@@ -78,28 +78,49 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
     assert!(!craft_ui::inspect::enabled(&ctx), "the token browser has no inspector");
 }
 
-#[test]
-fn every_control_in_the_bar_has_an_accessible_name() {
-    use craft_ui::inspect;
-    let ctx = Context::default();
-    let mut gallery = Gallery::new(None);
-    gallery.set_inspect(true);
-    for _ in 0..3 {
-        frame(&ctx, &mut gallery);
-    }
-    let tree = inspect::tree(&ctx).expect("the AccessKit tree while inspecting");
+/// The AccessKit tree of one gallery frame.
+fn tree_of(ctx: &Context, gallery: &mut Gallery) -> craft_ui::inspect::AccessTree {
+    let output = ctx.run_ui(RawInput::default(), |ui| gallery.show(ui));
+    let tree = output.platform_output.accesskit_update.as_ref().and_then(craft_ui::inspect::AccessTree::from_update);
+    output.drop_without_applying_deltas();
+    tree.expect("an AccessKit tree")
+}
+
+/// The interactive nodes without a name in the `Ui` that holds the node named `anchor`.
+fn unnamed_beside(tree: &craft_ui::inspect::AccessTree, anchor: &str) -> Vec<String> {
     let nodes: Vec<_> = tree.walk(tree.root()).into_iter().map(|(id, _)| id).collect();
-    let tokens = nodes.iter().copied().find(|id| tree.node(*id).and_then(|n| n.label()) == Some("Tokens")).expect("the Tokens toggle");
-    let bar = nodes.iter().copied().find(|id| tree.node(*id).is_some_and(|n| n.children().contains(&tokens))).expect("the bar's Ui");
-    let controls = tree.interactive(bar);
-    assert!(controls.len() > 10, "the bar's controls: {}", controls.len());
-    let unnamed: Vec<String> = controls
+    let anchor_id = nodes.iter().copied().find(|id| tree.name(*id).as_deref() == Some(anchor)).unwrap_or_else(|| panic!("no node named {anchor:?}"));
+    let parent = nodes.iter().copied().find(|id| tree.node(*id).is_some_and(|n| n.children().contains(&anchor_id))).expect("the anchor's Ui");
+    let controls = tree.interactive(parent);
+    assert!(controls.len() > 1, "{anchor:?}'s Ui holds more than the anchor");
+    controls
         .into_iter()
         .filter(|id| tree.name(*id).is_none())
         .filter_map(|id| tree.node(id))
-        .map(|n| format!("{:?} at {:?}", n.role(), n.bounds()))
-        .collect();
-    assert!(unnamed.is_empty(), "unnamed controls in the bar: {unnamed:#?}");
+        .map(|n| format!("{:?} at {:?} beside {anchor:?}", n.role(), n.bounds()))
+        .collect()
+}
+
+/// The bar, the story tree and the args panel of every story: each control has a name.
+#[test]
+fn every_control_in_the_gallery_chrome_has_an_accessible_name() {
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
+    let mut unnamed = Vec::new();
+    for id in ids {
+        gallery.select(id);
+        frame(&ctx, &mut gallery);
+        let tree = tree_of(&ctx, &mut gallery);
+        for anchor in ["Tokens", "Filter stories", "Reset args"] {
+            for missing in unnamed_beside(&tree, anchor) {
+                unnamed.push(format!("{id}: {missing}"));
+            }
+        }
+    }
+    unnamed.dedup();
+    assert!(unnamed.is_empty(), "unnamed controls in the gallery chrome: {unnamed:#?}");
 }
 
 #[test]

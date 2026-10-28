@@ -199,7 +199,7 @@ impl Gallery {
     }
 
     fn tree(&mut self, ui: &mut Ui) {
-        ui.text_edit_singleline(&mut self.filter);
+        ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Filter stories"));
         let filter = self.filter.to_lowercase();
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             for level in Level::ALL {
@@ -251,26 +251,24 @@ impl Gallery {
         let args = self.args_of(&story);
         egui::Grid::new(("gallery.args", story.id)).num_columns(2).show(ui, |ui| {
             for arg in args.iter_mut() {
-                ui.label(arg.name);
-                match &mut arg.value {
-                    ArgValue::Bool(b) => {
-                        ui.checkbox(b, "");
-                    }
+                let label = ui.label(arg.name);
+                let control = match &mut arg.value {
+                    ArgValue::Bool(b) => ui.checkbox(b, ""),
                     ArgValue::Choice { options, index } => {
                         let shown = options.get(*index).copied().unwrap_or("");
-                        ComboBox::from_id_salt(arg.name).selected_text(shown).show_ui(ui, |ui| {
-                            for (i, option) in options.iter().enumerate() {
-                                ui.selectable_value(index, i, *option);
-                            }
-                        });
+                        ComboBox::from_id_salt(arg.name)
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                for (i, option) in options.iter().enumerate() {
+                                    ui.selectable_value(index, i, *option);
+                                }
+                            })
+                            .response
                     }
-                    ArgValue::Text(t) => {
-                        ui.text_edit_singleline(t);
-                    }
-                    ArgValue::Number { value, min, max } => {
-                        ui.add(egui::DragValue::new(value).range(*min..=*max).speed((*max - *min) / 200.0));
-                    }
-                }
+                    ArgValue::Text(t) => ui.text_edit_singleline(t),
+                    ArgValue::Number { value, min, max } => ui.add(egui::DragValue::new(value).range(*min..=*max).speed((*max - *min) / 200.0)),
+                };
+                control.labelled_by(label.id);
                 ui.end_row();
             }
         });
