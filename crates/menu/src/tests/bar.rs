@@ -401,6 +401,21 @@ fn the_web_shows_the_browsers_system_names_and_the_mac_its_glyphs() {
     }
 }
 
+/// In a browser on a Mac the in-window bar is the only one: F10 reaches it, while Alt (Option)
+/// types.
+#[test]
+fn in_a_browser_on_a_mac_f10_reaches_the_bar_and_alt_does_not() {
+    let mut b = wide();
+    b.ctx.set_os(Os::Mac);
+    b.target = Target::Web;
+    b.alt_tap();
+    assert!(!is_focused(&b.ctx), "Alt leaves the bar alone");
+    b.key(Key::F10);
+    assert!(is_focused(&b.ctx), "F10 puts the keyboard on the bar");
+    b.key(Key::ArrowDown);
+    assert!(is_open(&b.ctx) && b.shown("New"), "↓ opens File");
+}
+
 #[test]
 fn a_mac_target_has_no_mnemonics_and_leaves_alt_and_f10_alone() {
     let mut b = wide();

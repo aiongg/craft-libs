@@ -4,8 +4,9 @@
 //! [`MenuBarUi`] converts the menu model into [`craft_ui::menu`] items (commands, check and radio
 //! items, shortcuts from [`craft_keymap::Chord`], submenus) and draws [`craft_ui::menu::MenuBar`],
 //! which owns the look and the behaviour: press-drag-release, hover switching, submenus with an
-//! aim triangle, scrolling, the keys, mnemonics (except on a Mac target), overflow into "⋯" or
-//! one "Menu", and AccessKit.
+//! aim triangle, scrolling, the keys (F10 except on a Mac target, where the native bar runs;
+//! Alt and mnemonics except where the names are a Mac's), overflow into "⋯" or one "Menu", and
+//! AccessKit.
 
 use craft_keymap::{CommandRef, Platform};
 use craft_ui::menu::{MenuBarLabels, MenuEntry, MenuItem};
@@ -126,7 +127,9 @@ impl<'a> MenuBarUi<'a> {
 
     /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘
     /// glyphs on [`Target::Mac`] and in a browser on a Mac ([`egui::Context::os`]), Ctrl names
-    /// everywhere else. Where the names are a Mac's, the bar has no mnemonics.
+    /// everywhere else. Where the names are a Mac's, the bar has no mnemonics and Alt is left
+    /// alone; F10 still reaches the bar in a browser, where it is the only menu bar. On
+    /// [`Target::Mac`] the native bar has the keys, and this one takes none.
     pub fn target(mut self, target: Target) -> MenuBarUi<'a> {
         self.target = target;
         self
@@ -202,7 +205,7 @@ impl<'a> MenuBarUi<'a> {
         let mut bar = craft_ui::menu::MenuBar::new(&menus)
             .id(self.id)
             .labels(&labels)
-            .keyboard(!self.gate.modal && !self.gate.recording_shortcut)
+            .keyboard(!self.gate.modal && !self.gate.recording_shortcut && self.target != Target::Mac)
             .text_editing(self.gate.text_editing);
         if let Some(max) = self.fit {
             bar = bar.shrink_to_fit(max);
