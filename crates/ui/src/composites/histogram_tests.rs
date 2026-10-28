@@ -241,7 +241,7 @@ fn the_dark_modes_tokens_are_available_in_a_light_theme() {
     ctx.set_theme(ThemePreference::Light);
     ctx.run_ui(egui::RawInput::default(), |ui| {
         assert_eq!(Tokens::of(ui).mode, Mode::Light);
-        let dark = tokens_in_mode(ui, Mode::Dark);
+        let dark = tokens_in_mode(ui.ctx(), Mode::Dark);
         assert_eq!(dark.mode, Mode::Dark);
         assert_ne!(dark.color.data.red, Tokens::of(ui).color.data.red);
     })

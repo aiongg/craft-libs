@@ -338,7 +338,7 @@ impl Histogram {
         let mut style = Histogram::style(&tokens);
         let rgb = matches!(self.data, Some(HistogramData { plot: Plot::Rgb(_), .. }));
         if rgb {
-            style.ribbons = Histogram::style(&tokens_in_mode(ui, Mode::Dark)).ribbons;
+            style.ribbons = Histogram::style(&tokens_in_mode(ui.ctx(), Mode::Dark)).ribbons;
         }
         let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), self.height.unwrap_or(style.height)), Sense::hover());
         let id = ui.make_persistent_id(self.id_salt);

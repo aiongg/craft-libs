@@ -5,7 +5,9 @@
 //! [`install`] every frame. Components read [`Tokens::of(ui)`](TokensOf::of). [`scope`] shows a
 //! part of the UI with other tokens (a dark panel in a light app, a theme preview), and
 //! [`apply_popup_style`] carries a scope into the popups opened inside it. Without
-//! [`install`], tokens are the suite default theme, so tests and stories need no setup.
+//! [`install`], tokens are the suite default theme, so tests and stories need no setup. Code
+//! without a `Ui` (a window-level overlay, a timer) reads [`current`], and [`tokens_in_mode`]
+//! gives the same tokens resolved for the other mode.
 //!
 //! ```
 //! use craft_ui::theme::{Overrides, Tokens, TokensOf, scope};

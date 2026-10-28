@@ -178,10 +178,10 @@ pub fn scope<R>(ui: &mut Ui, overrides: impl FnOnce(&mut Overrides), add_content
     .inner
 }
 
-/// The tokens in effect where `ui` draws, resolved for `mode` instead of the context's: what a
-/// part that is dark in every theme (an RGB histogram's plot) draws its colours from.
-pub fn tokens_in_mode(ui: &Ui, mode: Mode) -> Arc<UiTokens> {
-    let ctx = ui.ctx();
+/// The tokens in effect in `ctx`'s current viewport, as [`current`] reads them, resolved for
+/// `mode` instead of the context's: what a part that is dark in every theme (an RGB histogram's
+/// plot) draws its colours from.
+pub fn tokens_in_mode(ctx: &Context, mode: Mode) -> Arc<UiTokens> {
     let viewport = ctx.viewport_id();
     let overrides = with_state(ctx, |s| s.viewports.get(&viewport).and_then(Viewport::top).map(|e| e.overrides.clone())).unwrap_or_default();
     scoped(ctx, &overrides, mode)
