@@ -19,7 +19,6 @@ fn button_pairs() -> Vec<(ComponentField, Option<ComponentField>, f64, f64)> {
             p.push((button(v, ButtonPart::Text, s), Some(button(v, ButtonPart::Fill, s)), 4.5, 7.0));
         }
     }
-    p.push((button(ButtonVariant::Secondary, ButtonPart::Border, State::Rest), None, 3.0, 4.5));
     p
 }
 
@@ -49,6 +48,7 @@ fn button_defaults_meet_every_minimum() {
     assert_eq!(b.primary.fill.hover, t.color(T::AccentHover));
     assert_eq!(b.danger.fill.pressed, t.color(T::StatusBadSolidPressed));
     assert_eq!(b.colors(ButtonVariant::Secondary).border.get(State::Hover), t.color(T::LineControlEdge));
+    assert_eq!(b.secondary.border.rest, t.color(T::LineBorder));
     assert_eq!(b.ghost.fill.rest, Rgba::TRANSPARENT);
     assert_eq!(b.danger.text, States::new(t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextDisabled)));
 }

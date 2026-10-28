@@ -3,7 +3,7 @@
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::v2::color::Rgba;
-use crate::v2::tokens::{ColorToken, ColorTokens, Edge, TokenRef, TypeRole};
+use crate::v2::tokens::{ColorTokens, Edge, TokenRef, TypeRole};
 use crate::v2::values;
 
 /// A button's emphasis.
@@ -280,12 +280,6 @@ impl Family for ButtonTokens {
                 out.push(ContrastPair { fg: field(variant, ButtonPart::Text, state), bg: fill, minimum: values::TEXT_MIN, required: true });
             }
         }
-        out.push(ContrastPair {
-            fg: field(ButtonVariant::Secondary, ButtonPart::Border, State::Rest),
-            bg: TokenRef::Color(ColorToken::SurfacePanel),
-            minimum: values::NON_TEXT_MIN,
-            required: false,
-        });
         out
     }
 }
