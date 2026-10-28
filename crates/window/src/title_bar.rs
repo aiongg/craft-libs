@@ -101,7 +101,8 @@ pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) -> egui::Response {
         }
     }
     let press = ui.input(|i| i.pointer.press_start_time());
-    if resp.is_pointer_button_down_on() {
+    // Only the primary button moves the window.
+    if resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_down()) {
         ui.data_mut(|d| d.insert_temp(armed, press));
     }
     if press.is_some() && ui.input(|i| i.pointer.is_decidedly_dragging()) && ui.data(|d| d.get_temp::<Option<f64>>(armed)) == Some(press) {
