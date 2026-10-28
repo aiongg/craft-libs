@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{Guides, Readout, Rulers};
+use craft_ui::canvas::{Guides, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
 };
@@ -519,6 +519,22 @@ fn readout() {
         d.line("offset", s.offset).line("pad", s.pad).line("col_gap", s.col_gap).line("row_gap", s.row_gap);
         d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
         d.line("role", role(s.role)).line("label", s.label).line("value", s.value);
+    });
+}
+
+/// Reference point pickers: both sizes, the dots and the picker's colours.
+#[test]
+fn reference_point() {
+    check("reference_point.txt", |d, t| {
+        for (size, name) in [(RefSize::Compact, "compact"), (RefSize::Large, "large")] {
+            let s = ReferencePoint::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("side", s.side).line("dot", s.dot).line("picked_dot", s.picked_dot);
+            });
+        }
+        let s = ReferencePoint::style(t, RefSize::Compact);
+        d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
+        d.line("dot_color", s.dot_color).line("picked", s.picked).line("hover", s.hover).line("arrow", s.arrow);
     });
 }
 

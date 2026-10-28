@@ -17,6 +17,8 @@
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
+//! - [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box;
+//!   [`ReferencePoint`]: the 3 × 3 picker of its reference point.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //!
@@ -47,11 +49,13 @@ pub(crate) mod marquee;
 mod part_focus;
 pub mod quad;
 mod readout;
+pub(crate) mod ref_point;
 pub(crate) mod rulers;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
 pub(crate) mod transform_box;
+pub(crate) mod transform_fields;
 mod turn;
 mod units;
 mod view;
@@ -63,8 +67,10 @@ pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, G
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use readout::{Readout, ReadoutStyle};
+pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
+pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields};
 pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
