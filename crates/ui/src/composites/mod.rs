@@ -14,6 +14,8 @@
 //!   button and optional float and close buttons.
 //! - [`ColorArea`] and [`ColorStrip`]: a colour picker's 2D field and component strip, in one of
 //!   the [`AreaMode`]s.
+//! - [`ColorPicker`]: the colour picker's body, the area and strip with channel rows, the hex
+//!   field and the host's hooks, reporting [`PickedColor`]s.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
@@ -50,7 +52,7 @@ pub(crate) mod section_header;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_header_tests;
 
-pub use color::{AreaMode, ColorArea, ColorPartsStyle, ColorStrip};
+pub use color::{AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorStrip, PickedColor};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

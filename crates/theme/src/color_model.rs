@@ -222,9 +222,10 @@ impl ColorModel for OklchModel {
     fn to_srgb(&self, v: &[f32; MAX_CHANNELS]) -> Srgba {
         Srgba::from_oklch(Oklch { l: f64::from(v[0]) / 100.0, c: f64::from(v[1]), h: f64::from(v[2]) })
     }
-    /// Off by default everywhere: the host turns it on.
+    /// An entry of the Compact picker's model menu; off in the Full picker's grid, which keeps
+    /// Photoshop's layout unless the host turns it on.
     fn default_on(&self) -> DefaultOn {
-        DefaultOn { full: false, compact: false }
+        DefaultOn { full: false, compact: true }
     }
 }
 

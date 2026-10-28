@@ -1,5 +1,6 @@
-//! The colour picker's parts: [`ColorArea`], the 2D field of two components of a colour, and
-//! [`ColorStrip`], the strip of the third, as PhotoCraft's Color Picker field and component strip.
+//! The colour picker, [`ColorPicker`], and its parts: [`ColorArea`], the 2D field of two
+//! components of a colour, and [`ColorStrip`], the strip of the third, as PhotoCraft's Color
+//! Picker field and component strip.
 //!
 //! Both edit a colour as one [`ColorModel`]'s values ([`ModelValues`]), the model and components
 //! an [`AreaMode`] chooses, and report through the edit lifecycle ([`crate::edit`]): a press sets
@@ -8,6 +9,10 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+mod hex;
+mod picker;
+#[cfg(test)]
+mod picker_tests;
 mod strip;
 #[cfg(test)]
 mod tests;
@@ -16,10 +21,13 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
+pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, PickedColor};
 pub use strip::ColorStrip;
 
 use crate::controls::slider::{self, Scale};
-use crate::primitives::{Gap, Row, Stack, Text};
+use crate::edit::{self, EditEvent};
+use crate::localized::LocaleNumbers;
+use crate::primitives::{Content, Gap, Row, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -210,19 +218,80 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker"];
 
 const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/color-area/parts",
-        level: Level::Composites,
-        component: "ColorArea",
-        name: "Area and strip",
-        args: || Args::new().with_choice("mode", MODE_NAMES, 0).with_bool("compact", false).with_bool("disabled", false),
-        show: show_parts,
-    }]
+    vec![
+        Story {
+            id: "composites/color-area/parts",
+            level: Level::Composites,
+            component: "ColorArea",
+            name: "Area and strip",
+            args: || Args::new().with_choice("mode", MODE_NAMES, 0).with_bool("compact", false).with_bool("disabled", false),
+            show: show_parts,
+        },
+        Story {
+            id: "composites/color/compact",
+            level: Level::Composites,
+            component: "ColorPicker",
+            name: "Compact",
+            args: || {
+                Args::new()
+                    .with_bool("alpha", false)
+                    .with_bool("eyedropper", true)
+                    .with_bool("dynamic tracks", true)
+                    .with_bool("web colours only", false)
+                    .with_bool("disabled", false)
+                    .with_number("width", 260.0, 160.0, 480.0)
+            },
+            show: show_compact,
+        },
+    ]
+}
+
+/// A Compact picker editing one colour as a panel does: every event applied, a cancel puts the
+/// colour from before the gesture back; the eyedropper "samples" orange at once.
+fn show_compact(ui: &mut Ui, args: &mut Args) {
+    let numbers = LocaleNumbers::from_tag("en");
+    let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
+    slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
+        let (color, before, last) = &mut state[0];
+        ui.set_width(args.number("width") as f32);
+        let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
+            .alpha(args.bool("alpha"))
+            .dynamic_tracks(args.bool("dynamic tracks"))
+            .enabled(!args.bool("disabled"));
+        if args.bool("eyedropper") {
+            picker = picker.eyedropper("Pick screen color");
+        }
+        if args.bool("web colours only") {
+            picker = picker.constrain(web_color);
+        }
+        let picked = picker.show(ui);
+        if picked.eyedropper_requested {
+            ColorPicker::sampled(ui.ctx(), picked.edit.response.id, craft_theme::Srgba::rgb(1.0, 0.6, 0.0));
+        }
+        if let Some(event) = &picked.edit.event {
+            match event {
+                EditEvent::Begin { .. } => *before = *color,
+                EditEvent::Cancel { .. } => *color = *before,
+                _ => {}
+            }
+            if let Some(p) = event.value() {
+                *color = p.color;
+            }
+            *last = edit::describe(&event.clone().map(|p| (p.color.to_rgba().to_hex(), p.model.map(|m| m.model))));
+        }
+        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
+    });
+}
+
+/// The nearest web colour: each channel on a multiple of 0x33.
+fn web_color(c: craft_theme::Srgba) -> craft_theme::Srgba {
+    let snap = |v: f32| (v * 5.0).round() / 5.0;
+    craft_theme::Srgba::new(snap(c.r), snap(c.g), snap(c.b), c.a)
 }
 
 /// An area and a strip in a mode, editing one colour that keeps the values last edited, as a
