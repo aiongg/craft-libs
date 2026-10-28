@@ -271,7 +271,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
         let generation = CancelAll::get(&self.ctx).generation;
         self.stored.phase = Phase::Active(Active {
-            id: GestureId::new(&self.ctx),
+            id: GestureId::next(),
             generation,
             start: self.host.clone(),
             current: self.host.clone(),
@@ -421,7 +421,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
         if let Some((value, modifiers)) = self.stored.set.take() {
             return Some(match self.scoped {
-                true => EditEvent::Update { id: GestureId::new(&self.ctx), value, modifiers },
+                true => EditEvent::Update { id: GestureId::next(), value, modifiers },
                 false => EditEvent::Set { value, modifiers },
             });
         }

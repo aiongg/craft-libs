@@ -30,6 +30,7 @@ mod story;
 #[cfg(test)]
 mod tests;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiStackInfo};
@@ -38,20 +39,18 @@ pub use gesture::Gesture;
 pub use host::{GestureHost, UndoMarks};
 pub(crate) use story::{RATES, describe, policy, stories};
 
-/// One gesture, unique within its [`Context`]: a new gesture never reuses an earlier id, and a
-/// later gesture has a greater id.
+/// One gesture, unique within the process: a new gesture never reuses an earlier id, and a later
+/// gesture has a greater id, across contexts and memory resets alike. A [`GestureHost`] relies on
+/// that to ignore the late events of a gesture it ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GestureId(u64);
 
 impl GestureId {
-    /// The next unused id of `ctx`: for a gesture that an application's own control reports to a
-    /// [`GestureHost`], and for tests that feed a host events.
-    pub fn new(ctx: &Context) -> Self {
-        ctx.data_mut(|d| {
-            let next = d.get_temp_mut_or_default::<NextGestureId>(Id::unique(NEXT_GESTURE_ID));
-            next.0 += 1;
-            GestureId(next.0)
-        })
+    /// A new id, greater than every id made before it: for a gesture that an application's own
+    /// control reports to a [`GestureHost`], and for tests that feed a host events.
+    pub fn next() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        GestureId(NEXT.fetch_add(1, Ordering::Relaxed))
     }
 }
 
@@ -61,11 +60,6 @@ impl std::fmt::Display for GestureId {
         write!(f, "#{}", self.0)
     }
 }
-
-#[derive(Clone, Copy, Default)]
-struct NextGestureId(u64);
-
-const NEXT_GESTURE_ID: &str = "craft_ui::edit::next_gesture_id";
 
 /// What a value control reports in a frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -109,7 +103,7 @@ pub enum EditEvent<T> {
 /// let ctx = egui::Context::default();
 /// let (mut doc, mut host) = (Doc::default(), GestureHost::new());
 /// let apply = |doc: &mut Doc, v| { doc.undo.push(doc.value); doc.value = v; };
-/// let id = GestureId::new(&ctx);
+/// let id = GestureId::next();
 /// for event in [EditEvent::begin(id), EditEvent::update(id, 1, Modifiers::NONE), EditEvent::update(id, 2, Modifiers::NONE), EditEvent::commit(id, 2, true, Modifiers::NONE)] {
 ///     host.handle(&ctx, &mut doc, event, apply);
 /// }
@@ -375,7 +369,7 @@ pub struct OuterGesture {
 impl OuterGesture {
     /// A new gesture, live in the current pass.
     pub fn begin(ctx: &Context) -> Self {
-        let id = GestureId::new(ctx);
+        let id = GestureId::next();
         live::mark(ctx, id, Ending::Cancel);
         Self { id }
     }

@@ -746,20 +746,20 @@ fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_uncha
     let update = |id, value| EditEvent::Update { id, value, modifiers: Modifiers::NONE };
     let commit = |id, value, changed| EditEvent::Commit { id, value, changed, modifiers: Modifiers::NONE };
 
-    let id = GestureId::new(&ctx);
+    let id = GestureId::next();
     feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 1), update(id, 2), update(id, 3), commit(id, 3, true)]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
-    let id = GestureId::new(&ctx);
+    let id = GestureId::next();
     feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 7), update(id, 8), EditEvent::Cancel { id, reason: CancelReason::Escape }]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
-    let id = GestureId::new(&ctx);
+    let id = GestureId::next();
     feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 5), update(id, 3), commit(id, 3, false)]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
     // A commit with a value no update carried applies it, still as one step.
-    let id = GestureId::new(&ctx);
+    let id = GestureId::next();
     feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 4), commit(id, 6, true)]);
     assert_eq!((doc.now, doc.undo.len()), (6, 2));
 
@@ -767,7 +767,7 @@ fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_uncha
     assert_eq!((doc.now, doc.undo.len()), (9, 3));
 
     // An external change keeps the document as it is.
-    let id = GestureId::new(&ctx);
+    let id = GestureId::next();
     feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 10), EditEvent::Cancel { id, reason: CancelReason::External }]);
     assert_eq!((doc.now, doc.undo.len()), (10, 4));
 }
@@ -781,7 +781,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     let set = |value| EditEvent::Set { value, modifiers: Modifiers::NONE };
 
     // A typing run (recorded by its control as one to keep), then a set from another control.
-    let run = GestureId::new(&ctx);
+    let run = GestureId::next();
     live::mark(&ctx, run, Ending::Commit { changed: true });
     for event in [EditEvent::Begin { id: run }, update(run, 1), update(run, 2), set(9)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
@@ -794,10 +794,39 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     assert_eq!(doc.now, 2);
 
     // A drag (recorded as one to revert), then a set.
-    let drag = GestureId::new(&ctx);
+    let drag = GestureId::next();
     live::mark(&ctx, drag, Ending::Cancel);
     for event in [EditEvent::Begin { id: drag }, update(drag, 5), set(7)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
     assert_eq!((doc.now, doc.undo.len()), (7, 2));
+}
+
+/// A host that ended a dialog's gesture in one context keeps taking gestures after the
+/// application moves to another context or resets its memory.
+#[test]
+fn gesture_ids_grow_across_contexts_and_memory_resets() {
+    let (a, b) = (Context::default(), Context::default());
+    let mut doc = Doc::new(0);
+    let mut host = GestureHost::new();
+    let outer = OuterGesture::begin(&a);
+    host.begin_outer(&a, &mut doc, outer);
+    host.handle(&a, &mut doc, EditEvent::Update { id: outer.id(), value: 1, modifiers: Modifiers::NONE }, Doc::set);
+    assert!(host.commit(&mut doc, outer.id()));
+
+    let in_b = OuterGesture::begin(&b).id();
+    a.memory_mut(|m| *m = egui::Memory::default());
+    let after_reset = OuterGesture::begin(&a).id();
+    assert!(outer.id() < in_b && in_b < after_reset, "{} {in_b} {after_reset}", outer.id());
+
+    for (ctx, id, value) in [(&b, in_b, 2), (&a, after_reset, 3)] {
+        for event in [
+            EditEvent::Begin { id },
+            EditEvent::Update { id, value, modifiers: Modifiers::NONE },
+            EditEvent::Commit { id, value, changed: true, modifiers: Modifiers::NONE },
+        ] {
+            host.handle(ctx, &mut doc, event, Doc::set);
+        }
+        assert_eq!(doc.now, value);
+    }
 }
