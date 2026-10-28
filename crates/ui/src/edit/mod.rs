@@ -19,6 +19,13 @@
 //!   ends as a commit (closing a panel ends editing and keeps the text), with the control's last
 //!   value even when no update reported it ([`unreported`]: a debounce still waiting, or
 //!   [`on_release_only`](EditPolicy::on_release_only)).
+//! - A gesture the host ends before its control does ([`GestureHost`] ending it for another
+//!   control's gesture or change) is over: [`is_live`] is false for it, and its control, on its
+//!   next [`load`](Gesture::load), carries the input on in a new gesture from the host's value.
+//!   That gesture reports its [`Begin`](EditEvent::Begin) at its first change, so a drag or a
+//!   draft that goes on after an options-bar change reaches the host as a gesture of its own.
+//! - [`Gesture::commit_on_interrupt`] makes every interruption of a control's gesture a commit,
+//!   for work kept as it goes (a pen draft's anchors).
 //! - [`focused_gesture`] is the gesture whose control has the focus: a composite holds a press on
 //!   one of its parts while another part's gesture ends.
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
@@ -203,7 +210,8 @@ pub enum CancelReason {
 /// How a gesture ends when it is interrupted: its control is no longer drawn, or another gesture
 /// begins at the host. It follows the control's focus-loss rule: a typing run (a gesture whose
 /// control has the focus, not a drag) commits unless the control
-/// [cancels on focus loss](Gesture::cancel_on_focus_loss); a drag cancels. A commit ends with the
+/// [cancels on focus loss](Gesture::cancel_on_focus_loss); a drag cancels. A control that
+/// [commits on interrupt](Gesture::commit_on_interrupt) always commits. A commit ends with the
 /// control's last value: when no update reported it (a debounce still waiting,
 /// [`on_release_only`](EditPolicy::on_release_only)), the host applies it first ([`unreported`]),
 /// so the run is still one undo step with everything typed.
@@ -355,7 +363,8 @@ impl<T> EditResponse<T> {
 /// Whether gesture `id`'s control was drawn in the current pass of its viewport. Call it in that
 /// viewport, after the controls: a gesture that is not live is over, its control starts idle if
 /// it comes back, and the host ends it as [`ending`] says ([`GestureHost::end_frame`] does that).
-/// From another viewport, a gesture is live until its viewport finishes a pass without it.
+/// From another viewport, a gesture is live until its viewport finishes a pass without it. A
+/// gesture the [`GestureHost`] ended before its control did is not live either.
 pub fn is_live(ctx: &Context, id: GestureId) -> bool {
     match live::judge(ctx, id) {
         live::Judged::Live | live::Judged::Elsewhere { live: true } => true,
