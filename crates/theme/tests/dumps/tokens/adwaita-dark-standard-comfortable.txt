@@ -362,5 +362,6 @@ toggle_button.on_disabled.fill = #3f3f42ff
 toggle_button.on_disabled.border = #18181bff
 toggle_button.on_disabled.text = #86868aff
 tooltip.max_width = 320
+warning = accent.solid on surface.sunken: 2.74 < 3.00
 warning = progress.fill on progress.track: 2.74 < 3.00
 warning = slider.fill.rest on slider.track: 2.74 < 3.00

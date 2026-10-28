@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::semantic_tests::{app, appearances, grey_blue, hex, over, unexpected_warnings, violet};
+use super::semantic_tests::{app, appearances, grey_blue, hex, over, violet};
 use super::*;
 use ColorToken as T;
 
@@ -34,7 +34,7 @@ fn button_defaults_meet_every_minimum() {
         for a in appearances() {
             let r = resolve(&def, a, None);
             let t = &r.tokens;
-            assert!(unexpected_warnings(&r).iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             for (fg, bg, std, hi) in button_pairs() {
                 let min = if a.contrast == Contrast::High { hi } else { std };
                 let ratio = pair_ratio(t, fg, bg);
@@ -74,7 +74,7 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(unexpected_warnings(&r).iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
             for (fg, bg) in item_pairs() {
                 let ratio = pair_ratio(&r.tokens, fg, Some(bg));
@@ -107,7 +107,7 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(unexpected_warnings(&r).iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let track = ComponentField::Slider(SliderField::Track);
             for s in [State::Rest, State::Hover, State::Pressed] {
@@ -178,17 +178,14 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(unexpected_warnings(&r).iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let t = &r.tokens;
             let color = |r: TokenRef| match r {
                 TokenRef::Color(c) => t.color(c),
                 TokenRef::Component(f) => t.component.color(f).unwrap(),
             };
-            // `accent.solid` has a floor on `surface.panel` only, so the default on fill isn't held
-            // to the minimum on `surface.raised`; the built-ins meet it there.
-            let on_fill = ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Fill, state: State::Rest });
-            for (fg, bg) in check_pairs().into_iter().filter(|&p| p != (on_fill, TokenRef::Color(T::SurfaceRaised))) {
+            for (fg, bg) in check_pairs() {
                 let bg = over(color(bg), t.color(T::SurfacePanel));
                 let ratio = contrast_ratio(over(t.component.color(fg).unwrap(), bg), bg);
                 assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
@@ -384,7 +381,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         assert_eq!(t.component.color(text), Some(pin));
         assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
         let ratio = pair_ratio(t, text, Some(fill));
-        assert_eq!(unexpected_warnings(&r), vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
+        assert_eq!(r.warnings, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
         assert_eq!(r.warnings[0].fg.path(), "button.primary.text.rest");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
@@ -462,7 +459,7 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(unexpected_warnings(&r).iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let t = &r.tokens;
             let (text_min, indicator_min) = if a.contrast == Contrast::High { (7.0, 4.5) } else { (4.5, 3.0) };
             for tone in BadgeTone::ALL {
@@ -562,7 +559,7 @@ fn a_swatch_inner_edge_stands_out_from_a_colour_equal_to_the_panel() {
 const SWATCH_INNER_EDGE_MIN: f64 = 3.0;
 
 #[test]
-fn swatch_and_keycap_corners_are_the_control_radius_or_their_override_up_to_their_caps() {
+fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_to_their_caps() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component;
     let comfy = at(Size::Comfortable);
     assert_eq!((comfy.swatch.radius, comfy.kbd.radius), (4.0, 3.0));
@@ -574,8 +571,9 @@ fn swatch_and_keycap_corners_are_the_control_radius_or_their_override_up_to_thei
     let mut def = grey_blue();
     def.components.insert(ComponentField::Swatch(SwatchField::Radius), OverrideValue::Length(10.0));
     def.components.insert(ComponentField::Kbd(KbdField::Radius), OverrideValue::Length(10.0));
+    def.components.insert(ComponentField::Check(CheckField::Radius), OverrideValue::Length(10.0));
     let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
-    assert_eq!((t.swatch.radius, t.kbd.radius), (4.0, 3.0), "overrides are capped too");
+    assert_eq!((t.swatch.radius, t.kbd.radius, t.check.radius), (4.0, 3.0, 3.0), "overrides are capped too");
     def.components.insert(ComponentField::Swatch(SwatchField::Radius), OverrideValue::Length(1.0));
     let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
     assert_eq!(t.swatch.radius, 1.0);

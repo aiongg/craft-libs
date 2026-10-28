@@ -232,7 +232,7 @@ const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 /// backgrounds later (state fills, `accent.solid`) come before the text drawn on them.
 pub(super) const RULES: &[PairRule] = &[
     rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
-    rule(&[T::AccentSolid], &[Token(T::SurfacePanel)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::AccentText], CONTROL_BGS, TEXT_MIN.0, TEXT_MIN.1),

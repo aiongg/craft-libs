@@ -65,14 +65,6 @@ pub(super) fn app(mode: Mode, contrast: Contrast) -> Appearance {
     Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
 
-/// `r`'s warnings without the one a theme without pins can have: the check box's on fill
-/// (`accent.solid`) on `surface.raised`. `accent.solid` has a rule on `surface.panel` only, so the
-/// derived fill can miss 3:1 on the raised surface (grey-blue dark: 2.79:1).
-pub(super) fn unexpected_warnings(r: &Resolved) -> Vec<ContrastCheck> {
-    let on_fill = ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Fill, state: State::Rest });
-    r.warnings.iter().filter(|w| (w.fg, w.bg) != (on_fill.into(), T::SurfaceRaised.into())).copied().collect()
-}
-
 pub(super) fn over(fg: Rgba, bg: Rgba) -> Rgba {
     let a = f64::from(fg.a()) / 255.0;
     let ch = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
@@ -101,7 +93,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
         p.extend(solids.map(|solid| (T::TextOnStatus, solid, 4.5, 7.0)));
     }
     p.extend(CONTROL_BGS.map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
-    p.push((T::AccentSolid, T::SurfacePanel, 3.0, 4.5));
+    p.extend([T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::AccentSolid, bg, 3.0, 4.5)));
     p
 }
 
@@ -143,7 +135,7 @@ fn samples_resolve_and_derived_tokens_meet_every_minimum() {
             if pinned && a.contrast == Contrast::Standard {
                 continue;
             }
-            assert!(unexpected_warnings(&r).is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
             assert_meets_spec(&def.name, &r, a.contrast);
         }
     }
@@ -174,7 +166,7 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, sunken),
             minimum: 3.0,
         });
-        assert_eq!(unexpected_warnings(&r), expected, "{mode:?}");
+        assert_eq!(r.warnings, expected, "{mode:?}");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
@@ -200,7 +192,7 @@ fn pinned_edge_hover_pressed_and_divider_are_kept_without_warnings() {
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(r.tokens.color(t), panel, "{mode:?} {t:?}");
         }
-        assert!(unexpected_warnings(&r).is_empty(), "{mode:?}: {:?}", r.warnings);
+        assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
         let high = resolve(&def, app(mode, Contrast::High), None);
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(high.tokens.color(t), panel, "{mode:?} {t:?} in high contrast");
@@ -313,7 +305,7 @@ fn translucent_state_fill_is_measured_over_the_panel() {
     let derived = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens.color(T::TextNormal);
     def.pins.dark = Pins::from_iter([(T::StateHover, hex("#ffffff14"))]);
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
-    assert!(unexpected_warnings(&r).is_empty(), "{:?}", r.warnings);
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert_eq!(r.tokens.color(T::TextNormal), derived, "text.normal stays light");
     assert_eq!(r.tokens.color(T::StateHover), hex("#ffffff14"));
 }

@@ -106,7 +106,7 @@ pub struct CheckTokens {
     pub gap: f32,
     /// Label type role.
     pub label: TypeRole,
-    /// Corner radius of the box: `shape.radius.control`, at most
+    /// Corner radius of the box: `shape.radius.control` or the theme's `check.radius`, at most
     /// [`CHECK_RADIUS_MAX`](values::CHECK_RADIUS_MAX).
     pub radius: f32,
     /// Stroke width of the check and the dash.
@@ -240,7 +240,7 @@ impl Family for CheckTokens {
 
     fn set(&mut self, f: CheckField, v: OverrideValue) {
         match (f, v) {
-            (CheckField::Radius, OverrideValue::Length(r)) => self.radius = r,
+            (CheckField::Radius, OverrideValue::Length(r)) => self.radius = r.min(values::CHECK_RADIUS_MAX),
             (CheckField::Color { on_off, part, state }, OverrideValue::Color(c)) => *self.colors_mut(on_off).part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}

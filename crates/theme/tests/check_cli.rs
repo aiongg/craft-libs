@@ -32,27 +32,17 @@ fn stdout(o: &Output) -> String {
     String::from_utf8(o.stdout.clone()).unwrap()
 }
 
-/// These seeds derive an `accent.solid` that misses 3:1 on the dark `surface.raised`, where check
-/// boxes draw their on fill: `accent.solid` has a rule on `surface.panel` only. The component pass
-/// reports it in both dark sizes.
-const SEED_WARNINGS: usize = 2;
-
 #[test]
-fn valid_file_has_no_errors_and_reports_every_failing_pair() {
+fn valid_file_has_no_errors_or_warnings() {
     let ok = file("ok.json", &theme(json!({})));
     let out = run(&[], &[&ok]);
     assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
-    assert!(stdout(&out).ends_with(&format!("1 file(s) checked: 0 error(s), {SEED_WARNINGS} warning(s)\n")), "{}", stdout(&out));
+    assert!(stdout(&out).ends_with("1 file(s) checked: 0 error(s), 0 warning(s)\n"), "{}", stdout(&out));
 
     let out = run(&["--json"], &[&ok]);
     let v: Value = serde_json::from_str(&stdout(&out)).unwrap();
     assert_eq!(v[0]["errors"], json!([]));
-    let warnings = v[0]["warnings"].as_array().unwrap();
-    assert_eq!(warnings.len(), SEED_WARNINGS);
-    for w in warnings {
-        assert_eq!((&w["fg"], &w["bg"]), (&json!("check.on.fill.rest"), &json!("surface.raised")), "{w}");
-        assert!(w["appearance"].as_str().unwrap().starts_with("dark/standard/"), "{w}");
-    }
+    assert_eq!(v[0]["warnings"], json!([]));
     assert_eq!(v[0]["file"], ok.to_str().unwrap());
 }
 
@@ -63,7 +53,7 @@ fn pinned_low_contrast_text_warns_and_exits_zero() {
     assert_eq!(out.status.code(), Some(0));
     let text = stdout(&out);
     assert!(text.contains("warning: light/standard/compact: text.faint on "), "{text}");
-    assert!(!text.lines().any(|l| l.contains("dark/") && l.contains("text.faint")), "the light pin doesn't warn in dark: {text}");
+    assert!(!text.contains("dark/"), "{text}");
 
     let out = run(&["--json"], &[&weak]);
     let v: Value = serde_json::from_str(&stdout(&out)).unwrap();
@@ -82,7 +72,7 @@ fn invalid_file_exits_one_with_every_error() {
     let text = stdout(&out);
     assert!(text.contains("error: id: "), "{text}");
     assert!(text.contains("error: dark.\"surface.panel\": not a colour"), "{text}");
-    assert!(text.ends_with(&format!("2 file(s) checked: 2 error(s), {SEED_WARNINGS} warning(s)\n")), "{text}");
+    assert!(text.ends_with("2 file(s) checked: 2 error(s), 0 warning(s)\n"), "{text}");
 
     let out = run(&["--json"], &[&bad]);
     let v: Value = serde_json::from_str(&stdout(&out)).unwrap();
