@@ -491,6 +491,17 @@ fn arrows_and_the_wheel_each_give_one_set_and_a_typing_run_commits_its_step() {
 }
 
 #[test]
+fn the_arrows_step_nothing_while_an_input_method_composes() {
+    let mut rig = Rig::new(5.0);
+    rig.focus();
+    let n = rig.events.len();
+    rig.frame(vec![Event::Ime(egui::ImeEvent::Preedit { text: "１".to_owned(), active_range_chars: Some(0..1) })]);
+    rig.key(Key::ArrowUp);
+    let stepped = since(&rig, n).iter().any(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Update { .. }));
+    assert!(!stepped && rig.value == 5.0, "the arrows are the input method's: {:?}", since(&rig, n));
+}
+
+#[test]
 fn german_and_arabic_digits_round_trip_with_the_unit_typed_or_not() {
     let mut rig = Rig::with(1234.5, |r| {
         r.numbers = LocaleNumbers::from_tag("de");

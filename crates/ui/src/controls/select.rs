@@ -18,7 +18,7 @@ use super::option_list::{
 };
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
-use crate::behavior::{ListOptions, Listbox, take_key};
+use crate::behavior::{ListOptions, Listbox, Typing, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
@@ -104,7 +104,8 @@ pub struct SelectStyle {
 /// - **Pointer**: the list opens on the press, so one gesture can press the box, drag onto an
 ///   option and release to choose it. A plain click opens the list and leaves it open for a
 ///   second click; a release over the box keeps it open, a release elsewhere after a drag closes
-///   it. A press on the box while the list is open closes it.
+///   it. A press on the box while the list is open closes it. The option under the pointer
+///   becomes active, so Enter chooses the row the pointer is on, as in a macOS pop-up menu.
 /// - **Keys on the closed box**: Down, Up, Alt+Down, Enter and Space open the list on the chosen
 ///   option (Up too, as on macOS, where WAI-ARIA's pattern opens on the first option); Home and
 ///   End open it on the first and last option; typing opens it on the first option whose text
@@ -116,7 +117,8 @@ pub struct SelectStyle {
 ///   keyboard moves it.
 /// - **Searchable** ([`searchable`](Select::searchable)): a search field at the top of the list
 ///   takes the focus when it opens and filters the options as the user types; the arrows, Page
-///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text.
+///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text. While an input
+///   method composes in it, the keys are the input method's ([`Typing::composing`]).
 /// - **Preview** ([`preview`](Select::preview)): opening the list begins an edit gesture, every
 ///   option made active (by the pointer or the keys) is an `Update`, and choosing commits. Closing
 ///   without a choice cancels: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or
@@ -294,7 +296,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let modifiers = ui.input(|i| i.modifiers);
 
         let mut action = None;
-        if enabled && (box_focused || search_focused) {
+        // The search field's input method has its keys while it composes.
+        let composing = state.search.is_some_and(|s| Typing::composing(ui, s));
+        if enabled && (box_focused || search_focused) && !composing {
             action = read_keys(ui, id, &mut listbox, &shown, &state, box_focused, chosen);
         }
         let owners: Vec<Id> = std::iter::once(id).chain(state.search).collect();

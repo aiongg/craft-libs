@@ -10,11 +10,12 @@ use egui::text_edit::TextEditState;
 use egui::{Align2, AsIdSalt, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Sense, Shape, Ui, vec2};
 
 use super::option_list::{
-    MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
+    Hover, MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view,
+    store_kept,
 };
 use super::text_field::{BoxState, Held, field_box};
 use super::{SIZE_NAMES, Select, size_arg};
-use crate::behavior::{ListOptions, Listbox, Typing, TypingLook, take_key};
+use crate::behavior::{ListOptions, Listbox, Typing, TypingLook, take_enter, take_key};
 use crate::direction;
 use crate::edit::{self, EditPolicy, EditResponse, GestureId};
 use crate::popup_list::PopupList;
@@ -47,8 +48,10 @@ use crate::theme::{Tokens, TokensOf, margin_x};
 ///
 /// - **Typing** is a typing run as in a text field (one gesture, committed on Enter or when the
 ///   focus leaves, Esc cancels). Each change opens the list on the options matching the typed
-///   text, ignoring case: those starting with it first, then those containing it. No option is
-///   active after a change, so Enter and Tab keep the typed text. With no match the list closes.
+///   text, ignoring case: those starting with it first, then those containing it. With no match
+///   the list closes. Work in the text takes the active option back to it: a change, a move of
+///   the caret or the selection (Left, Right, Home, End, a press in the text), an input method's
+///   composition. Enter then commits the typed text.
 /// - **Opened without typing** (the chevron, Down) while no typing run is under way, the list
 ///   shows every option; the one whose text is the field's has a check mark.
 /// - **Choosing** an option (a click, the release of a press dragged onto it, Enter on the active
@@ -57,15 +60,18 @@ use crate::theme::{Tokens, TokensOf, margin_x};
 ///   chosen text.
 /// - **Keys**: Down opens the list on the option of the field's text (or the first), Alt+Down
 ///   opens it with no option active. In the open list, Down, Up, Page Down and Page Up move the
-///   active option; Home and End stay with the text. Enter and Alt+Up choose the active option;
-///   Enter with none commits the run ([`EditResponse::submitted`]) and closes the list, Alt+Up
-///   with none closes it. Esc closes the list and the run goes on; the next Esc cancels the run,
-///   and the one after leaves the field. Tab commits the typed text and moves on: the active
-///   option is not chosen.
+///   active option; Home and End stay with the text. Enter (Shift+Enter too, as the field
+///   counts it) and Alt+Up choose the active option; Enter with none commits the run
+///   ([`EditResponse::submitted`]) and closes the list, Alt+Up with none closes it. Esc closes
+///   the list and the run goes on; the next Esc cancels the run, and the one after leaves the
+///   field. Tab commits the typed text and moves on: the active option is not chosen. While an
+///   input method composes, the keys are its own ([`Typing::composing`]) and the list reads none.
 /// - **Pointer**: a press on the chevron opens the list, so the same press can drag onto an
 ///   option and choose it on release; a click leaves the list open, and a press on the chevron
 ///   while it is open closes it. A click in the text places the caret and neither opens nor
-///   closes the list.
+///   closes the list. The pointer over an option highlights it and leaves the active option as it
+///   was, so Enter never puts in the text of a row the pointer passed over; in a [`Select`],
+///   whose options are its only values, the option under the pointer becomes active.
 /// - The list closes when the run it was open for ends outside it (an undo, a change from the
 ///   host), when the focus leaves the field and the list, and when the combo box isn't drawn.
 pub struct ComboBox<'a> {
@@ -153,6 +159,10 @@ impl<'a> ComboBox<'a> {
         let mut choice = None;
         if !enabled && state.open {
             state.close(&mut listbox);
+        } else if focused && Typing::composing(ui, id) {
+            // The input method's keys are its own; its composition takes the active option back
+            // to the text, as typing does.
+            listbox.set_active(None);
         } else if focused {
             match read_keys(ui, &mut listbox, &shown, &state, chosen(&options, &state.text)) {
                 Some(KeyAction::Open { active }) => state.open(ui, &mut listbox, active, true),
@@ -187,6 +197,10 @@ impl<'a> ComboBox<'a> {
             .event_filter(key_filter(state.open))
             .show(ui, &look);
         let rect = typed.response().rect;
+        if typed.caret_moved() {
+            // Work in the text takes the active option back to it: Enter commits what was typed.
+            listbox.set_active(None);
+        }
 
         let run = if typed.is_typing() { typed.gesture().id() } else { None };
         if state.open && state.run.is_some() && run != state.run {
@@ -237,7 +251,7 @@ impl<'a> ComboBox<'a> {
                 .height(MAX_ROWS * style.list.height)
                 .surface(style.popup);
             let checked = chosen(&options, typed.text());
-            let rows = OptionRows::new(ui, &style.list, size, id, false, enabled, state.pressing);
+            let rows = OptionRows::new(ui, &style.list, size, id, false, enabled, state.pressing).hover(Hover::Highlights);
             let mut page = state.page;
             let row_height = style.list.height;
             let _ = popup.show_ui(|ui| {
@@ -352,7 +366,7 @@ fn read_keys(ui: &Ui, listbox: &mut Listbox, shown: &Matches<'_, '_>, state: &Co
             return Some(KeyAction::Close);
         }
         if let Some(option) = listbox.active()
-            && (key(Modifiers::ALT, Key::ArrowUp) || key(Modifiers::NONE, Key::Enter))
+            && (key(Modifiers::ALT, Key::ArrowUp) || take_enter(ui))
         {
             return Some(KeyAction::Choose(option));
         }

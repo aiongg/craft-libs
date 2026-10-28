@@ -493,6 +493,31 @@ fn an_empty_list_takes_the_keys_and_changes_nothing() {
 }
 
 #[test]
+fn an_input_method_keeps_its_enter_and_esc_from_the_search_field_s_list() {
+    let mut harness = fonts();
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.event(Event::Text("bod".into()));
+    harness.run();
+    assert_eq!(active(&harness).as_deref(), Some("Bodoni 7"));
+    let ime = |text: &str| Event::Ime(egui::ImeEvent::Preedit { text: text.to_owned(), active_range_chars: Some(0..text.chars().count()) });
+    let key = |key| Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    harness.event(ime("o"));
+    harness.run();
+    // The platform delivers the commit with the Enter that confirmed it, and the cancel with its Esc.
+    harness.input_mut().events.extend([Event::Ime(egui::ImeEvent::Commit("o".to_owned())), key(Key::Enter)]);
+    harness.run();
+    assert_eq!((harness.state().value, expanded(&harness)), (30, Some(true)), "the confirming Enter chooses nothing");
+    harness.event(ime("x"));
+    harness.run();
+    harness.input_mut().events.extend([Event::Ime(egui::ImeEvent::Preedit { text: String::new(), active_range_chars: None }), key(Key::Escape)]);
+    harness.run();
+    assert_eq!(expanded(&harness), Some(true), "the cancelling Esc closes nothing");
+    assert_eq!(harness.get_by_label("Search fonts").accesskit_node().value().as_deref(), Some("bodo"));
+}
+
+#[test]
 fn tab_from_the_search_field_chooses_and_moves_the_focus_on() {
     let mut harness = fonts();
     harness.run();

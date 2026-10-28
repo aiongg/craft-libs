@@ -38,8 +38,21 @@ pub(super) struct OptionRows<'r> {
     enabled: bool,
     /// The press that opened the list is still down, or ends in this pass.
     pressing: bool,
+    hover: Hover,
     pointer_moved: bool,
     released: bool,
+}
+
+/// What the pointer over a row does, by what the control's value is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Hover {
+    /// It makes the row active, so Enter chooses it: a list whose options are the only values
+    /// ([`Select`](super::Select)), as macOS pop-up menus choose the highlighted row.
+    Activates,
+    /// It draws the hover fill and leaves the keyboard's active option as it was: a list of
+    /// suggestions for typed text that is the value ([`ComboBox`](super::ComboBox)), which a row
+    /// the pointer passes over must not replace on Enter.
+    Highlights,
 }
 
 /// One option's row.
@@ -63,12 +76,18 @@ pub(super) struct RowOutcome {
 impl<'r> OptionRows<'r> {
     pub(super) fn new(ui: &Ui, style: &'r ListboxStyle, size: ControlSize, owner: Id, icons: bool, enabled: bool, pressing: bool) -> Self {
         let (pointer_moved, released) = ui.input(|i| (i.pointer.delta() != Vec2::ZERO, i.pointer.primary_released()));
-        Self { style, size, owner, icons, enabled, pressing, pointer_moved, released }
+        Self { style, size, owner, icons, enabled, pressing, hover: Hover::Activates, pointer_moved, released }
     }
 
-    /// Shows `row`: a WAI-ARIA option, selected while chosen. The pointer makes it active when it
-    /// moves onto it or drags over it with the opening press; a click or that press's release
-    /// over it picks it.
+    /// What the pointer over a row does; [`Hover::Activates`] by default.
+    pub(super) fn hover(mut self, hover: Hover) -> Self {
+        self.hover = hover;
+        self
+    }
+
+    /// Shows `row`: a WAI-ARIA option, selected while chosen. The pointer over it does as
+    /// [`hover`](Self::hover) says, when it moves onto it or drags over it with the opening press;
+    /// a click or that press's release over it picks it.
     pub(super) fn show(&self, ui: &mut Ui, listbox: &mut Listbox, row: &OptionRow<'_>) -> RowOutcome {
         let enabled = self.enabled && row.enabled;
         let size = vec2(ui.available_width().max(self.width(ui, row.text)), self.style.height);
@@ -80,13 +99,15 @@ impl<'r> OptionRows<'r> {
             .focus_ring(false)
             .interact(ui, size)
             .finish(ui);
-        if enabled && response.contains_pointer() && (self.pointer_moved || self.pressing) {
+        let pointed = enabled && response.contains_pointer() && (self.pointer_moved || self.pressing);
+        if pointed && self.hover == Hover::Activates {
             listbox.set_active(Some(row.option));
         }
         let picked = enabled && (response.clicked() || (self.pressing && self.released && response.contains_pointer()));
         let active = listbox.active() == Some(row.option);
+        let lit = active || (self.hover == Hover::Highlights && enabled && response.contains_pointer());
         let look =
-            RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, active, focus: active && listbox.keyboard(), enabled };
+            RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, lit, focus: active && listbox.keyboard(), enabled };
         paint_row(ui, self.style, self.size, response.rect, &look);
         RowOutcome { rect: response.rect, picked, active }
     }
@@ -111,7 +132,9 @@ struct RowLook<'r> {
     icon: Option<Icon>,
     icons: bool,
     chosen: bool,
-    active: bool,
+    /// Active, or under the pointer where the pointer only highlights: the active fill
+    /// (`state.hover`) and text.
+    lit: bool,
     /// The active row is the keyboard's focus cue.
     focus: bool,
     enabled: bool,
@@ -128,7 +151,7 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
         return;
     }
     let ppp = ui.pixels_per_point();
-    if look.active && look.enabled {
+    if look.lit && look.enabled {
         ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, s.active_fill);
     }
     if look.focus && look.enabled {
@@ -136,7 +159,7 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     }
     let (text, mark) = match () {
         () if !look.enabled => (s.text_disabled, s.text_disabled),
-        () if look.active => (s.active_text, s.active_text),
+        () if look.lit => (s.active_text, s.active_text),
         () if look.chosen => (s.chosen_text, s.mark),
         () => (s.text, s.mark),
     };

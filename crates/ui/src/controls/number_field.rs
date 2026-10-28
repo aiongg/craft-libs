@@ -286,8 +286,9 @@ impl<'a> NumberField<'a> {
             ui.memory_mut(|m| m.request_focus(id));
             select_all(ui.ctx(), id, &codec.format(&host));
         }
-        // Before `TextEdit`, which would move the caret on them.
-        let arrows = if stepping && ui.memory(|m| m.has_focus(id)) { take_arrows(ui) } else { Vec::new() };
+        // Before `TextEdit`, which would move the caret on them; an input method's own while it
+        // composes.
+        let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
 
         let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width };
         let look = TypingLook {
