@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use craft_theme::{Mode, TextSize, TokenRef, builtins};
 use craft_ui::ComboBox;
 use craft_ui::direction;
+use craft_ui::icons::{self, IconSet};
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
 use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
@@ -115,6 +116,9 @@ impl Gallery {
             {
                 faces::install(ctx, &self.appearance.ui_face, &self.appearance.mono_face);
             }
+            if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
+                icons::set_active(ctx, self.appearance.icon_set());
+            }
             ctx.set_zoom_factor(self.appearance.zoom());
             self.base = self.appearance.base();
         }
@@ -148,6 +152,12 @@ impl Gallery {
                 face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, faces::UI_FACES);
                 face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, faces::MONO_FACES);
             }
+            ui.label("Icons");
+            ComboBox::from_id_salt("gallery.icon_set").selected_text(a.icon_set().title()).show_ui(ui, |ui| {
+                for set in IconSet::ALL {
+                    ui.selectable_value(&mut a.icon_set, set.id().to_owned(), set.title());
+                }
+            });
             ui.label("Scale");
             ui.add(egui::Slider::new(&mut a.scale, SCALE).suffix("%"));
         });

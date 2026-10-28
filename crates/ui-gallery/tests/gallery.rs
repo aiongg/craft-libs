@@ -55,6 +55,24 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
     }
 }
 
+#[test]
+fn the_icon_set_picker_sets_the_active_set() {
+    use craft_ui::icons::{self, IconSet};
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.select("primitives/icon/sizes");
+    frame(&ctx, &mut gallery);
+    assert_eq!(icons::active(&ctx), IconSet::Lucide);
+    for set in IconSet::ALL {
+        gallery.appearance_mut().icon_set = set.id().to_owned();
+        frame(&ctx, &mut gallery);
+        assert_eq!(icons::active(&ctx), set);
+    }
+    gallery.appearance_mut().icon_set = "no-such-set".to_owned();
+    frame(&ctx, &mut gallery);
+    assert_eq!(icons::active(&ctx), IconSet::Lucide, "an unknown saved id falls back to Lucide");
+}
+
 /// Width of `text` in the candidate face's regular family, with and without `tnum`.
 fn digits_width(ctx: &Context, face: &str, text: &str, tnum: bool) -> f32 {
     use craft_ui::theme::tabular;

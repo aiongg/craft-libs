@@ -17,6 +17,7 @@ pub mod ime;
 pub mod layout;
 pub mod localized;
 pub mod panes;
+pub mod primitives;
 pub mod printing;
 pub mod story;
 pub mod tabs;

@@ -1,0 +1,194 @@
+use std::path::{Path, PathBuf};
+
+use craft_theme::{Appearance, Contrast, Edge, Mode, Size, TextSize, TypeRole, builtins, resolve};
+use egui::epaint::RectShape;
+use egui::{Color32, Context, CornerRadius, RawInput, Rect, Shape, Stroke, TextureId, Ui, ViewportId, pos2, vec2};
+
+use super::*;
+use crate::direction::{self, Direction};
+use crate::icons::{self, IconSize};
+use crate::theme::{FontFamilies, ToEgui, TokensOf, UiTokens};
+
+fn tokens(id: &str, mode: Mode) -> UiTokens {
+    let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    UiTokens::new(resolve(theme, appearance, None).tokens, appearance, mode, FontFamilies::default())
+}
+
+/// Every shape of one pass at `pixels_per_point`, nested lists flattened.
+fn shapes(ctx: &Context, pixels_per_point: f32, mut add: impl FnMut(&mut Ui)) -> Vec<Shape> {
+    fn flatten(shape: Shape, out: &mut Vec<Shape>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.into_iter().for_each(|s| flatten(s, out)),
+            shape => out.push(shape),
+        }
+    }
+    let mut input = RawInput::default();
+    input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = Some(pixels_per_point);
+    let mut output = ctx.run_ui(input, |ui| add(ui));
+    output.textures_delta.clear();
+    let mut out = Vec::new();
+    for clipped in output.shapes {
+        flatten(clipped.shape, &mut out);
+    }
+    out
+}
+
+#[test]
+fn surface_style_per_kind_flat_and_bevelled() {
+    use SurfaceKind as K;
+    let t = tokens("craft.graphite", Mode::Dark);
+    assert_eq!(t.shape.edge, Edge::Flat);
+    let c = &t.color;
+    let border = |color: craft_theme::Rgba| SurfaceEdge::Border(Stroke::new(1.0, color.to_egui()));
+    let expected = [
+        (K::Background, c.surface.background, CornerRadius::ZERO, SurfaceEdge::None, None),
+        (K::Panel, c.surface.panel, t.radius.panel, SurfaceEdge::None, None),
+        (K::Raised, c.surface.raised, t.radius.control, border(c.line.border), None),
+        (K::Sunken, c.surface.sunken, t.radius.control, border(c.line.control_edge), None),
+        (K::Pressed, c.state.pressed, t.radius.control, border(c.line.control_edge), None),
+        (K::Popup, c.surface.raised, t.radius.popup, border(c.line.border), Some(t.shadow.popup)),
+        (K::Dialog, c.surface.raised, t.radius.window, border(c.line.border), Some(t.shadow.dialog)),
+    ];
+    for (kind, fill, radius, edge, shadow) in expected {
+        assert_eq!(Surface::style(kind, &t), SurfaceStyle { fill: fill.to_egui(), radius, edge, shadow }, "{kind:?}");
+    }
+
+    let classic = tokens("craft.classic", Mode::Light);
+    let Edge::Bevel { light, dark, width } = classic.shape.edge else { panic!("Classic bevels: {:?}", classic.shape.edge) };
+    let (light, dark) = (light.to_egui(), dark.to_egui());
+    assert_ne!(dark, classic.color.surface.panel.to_egui(), "the shaded edge shows on the panel");
+    for kind in K::ALL {
+        let want = match kind {
+            K::Background | K::Panel => SurfaceEdge::None,
+            K::Raised | K::Popup | K::Dialog => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
+            K::Sunken | K::Pressed => SurfaceEdge::Bevel { top_left: dark, bottom_right: light, width },
+        };
+        assert_eq!(Surface::style(kind, &classic).edge, want, "{kind:?}");
+    }
+
+    // A bevel draws no outline: a fill and a mesh inside the rect, lit and shaded halves.
+    let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 20.0));
+    let drawn = Surface::style(K::Raised, &classic).shapes(rect, 1.0);
+    let [Shape::Rect(RectShape { stroke, .. }), Shape::Mesh(mesh)] = &drawn[..] else { panic!("{drawn:?}") };
+    assert_eq!(*stroke, Stroke::NONE);
+    assert!(mesh.vertices.iter().all(|v| rect.contains(v.pos)), "{:?}", mesh.vertices);
+    assert!(mesh.vertices.iter().any(|v| v.color == light && v.pos == rect.min), "lit top left");
+    assert!(mesh.vertices.iter().any(|v| v.color == dark && v.pos == rect.max), "shaded bottom right");
+}
+
+/// Decision "Bevel": the edge style is read only by the `Surface` primitive, so no other source
+/// file of the crate names it.
+#[test]
+fn only_surface_reads_the_edge_style() {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    // Split so this file doesn't match itself.
+    let patterns = [concat!("shape", ".edge"), concat!("Edge::", "Bevel"), concat!("Edge::", "Flat")];
+    let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let mut files = Vec::new();
+    walk(root, &mut files);
+    let mut found = Vec::new();
+    for file in files.iter().filter(|f| **f != root.join("primitives/surface.rs") && **f != root.join("primitives/tests.rs")) {
+        for (n, line) in std::fs::read_to_string(file).unwrap().lines().enumerate() {
+            if patterns.iter().any(|p| line.contains(p)) {
+                found.push(format!("{}:{}: {line}", file.display(), n + 1));
+            }
+        }
+    }
+    assert!(found.is_empty(), "only primitives/surface.rs may read the edge style:\n{}", found.join("\n"));
+}
+
+#[test]
+fn a_divider_is_one_physical_pixel_on_the_pixel_grid() {
+    for ppp in [1.0, 1.5, 2.0] {
+        assert_eq!(Divider::style(&tokens("craft.artcraft", Mode::Light), ppp).stroke.width * ppp, 1.0, "{ppp}");
+        let mut colour = Color32::TRANSPARENT;
+        let lines: Vec<_> = shapes(&Context::default(), ppp, |ui| {
+            colour = Tokens::of(ui).color.line.divider.to_egui();
+            ui.add_space(3.3);
+            Divider::horizontal().show(ui);
+            ui.horizontal(|ui| {
+                ui.add_space(7.7);
+                Divider::vertical().show(ui);
+            });
+        })
+        .into_iter()
+        .filter_map(|s| match s {
+            Shape::LineSegment { points, stroke } => Some((points, stroke)),
+            _ => None,
+        })
+        .collect();
+        assert_eq!(lines.len(), 2, "{ppp}: {lines:?}");
+        let centre = |v: f32| ((v * ppp).fract() - 0.5).abs() < 1e-3;
+        let edge = |v: f32| (v * ppp - (v * ppp).round()).abs() < 1e-3;
+        for ([a, b], stroke) in lines {
+            assert_eq!((stroke.width * ppp, stroke.color), (1.0, colour), "{ppp}");
+            if a.y == b.y {
+                assert!(centre(a.y) && edge(a.x) && edge(b.x), "{ppp}: {a:?} {b:?}");
+            } else {
+                assert!(a.x == b.x && centre(a.x) && edge(a.y) && edge(b.y), "{ppp}: {a:?} {b:?}");
+            }
+        }
+    }
+}
+
+/// The textures `Icon` drew in one pass.
+fn icon_textures(ctx: &Context, icon: icons::Icon) -> Vec<TextureId> {
+    shapes(ctx, 1.0, |ui| {
+        ui.add(Icon::new(icon).size(IconSize::Md));
+    })
+    .into_iter()
+    .filter_map(|s| match s {
+        Shape::Mesh(mesh) if mesh.texture_id != TextureId::default() => Some(mesh.texture_id),
+        _ => None,
+    })
+    .collect()
+}
+
+#[test]
+fn icons_mirror_right_to_left_only_when_directional() {
+    let ctx = Context::default();
+    let ltr = (icon_textures(&ctx, icons::Icon::ChevronLeft), icon_textures(&ctx, icons::Icon::Close));
+    direction::apply(&ctx, Direction::Rtl);
+    let rtl = (icon_textures(&ctx, icons::Icon::ChevronLeft), icon_textures(&ctx, icons::Icon::Close));
+    assert_eq!((ltr.0.len(), ltr.1.len(), rtl.0.len(), rtl.1.len()), (1, 1, 1, 1));
+    assert_ne!(ltr.0, rtl.0, "chevron_left is drawn from its mirrored raster");
+    assert_eq!(ltr.1, rtl.1, "close is not directional");
+}
+
+#[test]
+fn content_colours_are_their_tokens() {
+    let t = tokens("craft.studio", Mode::Dark);
+    let c = &t.color;
+    let want = [c.text.normal, c.text.muted, c.text.faint, c.text.disabled, c.accent.text, c.text.on_accent, c.text.on_status, c.text.on_selected];
+    assert_eq!(Content::ALL.map(|content| content.color(&t)), want);
+    assert_eq!(&Content::ALL.map(Content::name)[..], CONTENT_NAMES);
+    for content in Content::ALL {
+        assert_eq!(Content::from_name(content.name()), Some(content));
+        assert_eq!(Text::format(&t, TypeRole::Label, content).color, content.color(&t).to_egui());
+    }
+}
+
+#[test]
+fn handles_are_the_token_size_with_a_halo_outside() {
+    let t = tokens("craft.artcraft", Mode::Dark);
+    let (h, o) = (t.component.handle, &t.color.overlay);
+    let drawn = Handle::shapes(HandleShape::Square, pos2(20.3, 20.6), &t, 1.0);
+    let [Shape::Rect(halo), Shape::Rect(body), Shape::Rect(outline)] = &drawn[..] else { panic!("{drawn:?}") };
+    assert_eq!(body.rect.size(), vec2(h.size, h.size));
+    assert_eq!(body.rect.min, body.rect.min.round(), "on the pixel grid");
+    assert_eq!(halo.rect, body.rect.expand(h.halo));
+    assert_eq!((halo.fill, body.fill), (o.halo.to_egui(), o.handle_fill.to_egui()));
+    assert_eq!(outline.stroke, Stroke::new(h.stroke, o.handle_stroke.to_egui()));
+    assert_eq!(Handle::style(HandleShape::Rotate, &t).fill, o.handle_stroke.to_egui());
+    assert_ne!(Handle::style(HandleShape::Rotate, &t).cursor, Handle::style(HandleShape::Round, &t).cursor);
+}

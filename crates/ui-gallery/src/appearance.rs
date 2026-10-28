@@ -4,6 +4,7 @@ use craft_theme::{
     AppDefaults, Contrast, ContrastChoice, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair, builtins,
 };
 use craft_ui::direction::Direction;
+use craft_ui::icons::IconSet;
 use craft_ui::theme::{Base, Overrides};
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +30,8 @@ pub struct Appearance {
     pub ui_face: String,
     /// The candidate monospace face in the mono slot.
     pub mono_face: String,
+    /// The candidate icon set every story draws from: an [`IconSet::id`].
+    pub icon_set: String,
 }
 
 impl Default for Appearance {
@@ -44,6 +47,7 @@ impl Default for Appearance {
             scale: 100,
             ui_face: crate::faces::UI_FACES[0].to_owned(),
             mono_face: crate::faces::MONO_FACES[0].to_owned(),
+            icon_set: IconSet::Lucide.id().to_owned(),
         }
     }
 }
@@ -72,6 +76,11 @@ impl Appearance {
 
     pub fn direction(&self) -> Direction {
         if self.rtl { Direction::Rtl } else { Direction::Ltr }
+    }
+
+    /// The icon set, Lucide when the saved id is unknown.
+    pub fn icon_set(&self) -> IconSet {
+        IconSet::ALL.into_iter().find(|s| s.id() == self.icon_set).unwrap_or(IconSet::Lucide)
     }
 
     pub fn zoom(&self) -> f32 {

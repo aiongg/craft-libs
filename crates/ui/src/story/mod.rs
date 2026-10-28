@@ -22,6 +22,8 @@ mod tests;
 
 pub use args::{Arg, ArgValue, Args};
 
+use crate::primitives;
+
 /// Where a story's component sits in the design system, in the order the gallery lists them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
@@ -97,11 +99,33 @@ pub fn registry() -> Vec<Story> {
     all.extend(colours::stories());
     all.extend(stock_egui::stories());
     all.extend(crate::icons::stories());
+    all.extend(primitives::surface::stories());
+    all.extend(primitives::state_layer::stories());
+    all.extend(primitives::focus_ring::stories());
+    all.extend(primitives::divider::stories());
+    all.extend(primitives::stack::stories());
+    all.extend(primitives::interactive::stories());
+    all.extend(primitives::text::stories());
+    all.extend(primitives::icon::stories());
+    all.extend(primitives::handle::stories());
     all
 }
 
 /// The `COMPONENTS` list of every module with stories, in [`registry`] order.
-const DECLARED: &[&[&str]] = &[colours::COMPONENTS, stock_egui::COMPONENTS, crate::icons::COMPONENTS];
+const DECLARED: &[&[&str]] = &[
+    colours::COMPONENTS,
+    stock_egui::COMPONENTS,
+    crate::icons::COMPONENTS,
+    primitives::surface::COMPONENTS,
+    primitives::state_layer::COMPONENTS,
+    primitives::focus_ring::COMPONENTS,
+    primitives::divider::COMPONENTS,
+    primitives::stack::COMPONENTS,
+    primitives::interactive::COMPONENTS,
+    primitives::text::COMPONENTS,
+    primitives::icon::COMPONENTS,
+    primitives::handle::COMPONENTS,
+];
 
 /// Every component the crate's modules declare, in [`registry`] order.
 pub fn components() -> impl Iterator<Item = &'static str> {

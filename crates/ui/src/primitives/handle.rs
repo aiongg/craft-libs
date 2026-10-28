@@ -1,0 +1,162 @@
+//! [`Handle`]: canvas handles for selections, paths and transforms.
+
+use egui::emath::GuiRounding as _;
+use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, vec2};
+
+use crate::story::{Args, Level, Story};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+/// What a handle does, which sets its shape and pointer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum HandleShape {
+    /// Corners and anchors that resize or move: a square.
+    Square,
+    /// Control points and centres: a circle.
+    Round,
+    /// Rotation: a solid dot.
+    Rotate,
+}
+
+impl HandleShape {
+    /// Every shape, in declaration order.
+    pub const ALL: [HandleShape; 3] = [HandleShape::Square, HandleShape::Round, HandleShape::Rotate];
+
+    /// The name in story args and dumps.
+    pub const fn name(self) -> &'static str {
+        match self {
+            HandleShape::Square => "square",
+            HandleShape::Round => "round",
+            HandleShape::Rotate => "rotate",
+        }
+    }
+}
+
+/// A handle's look, from [`Handle::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HandleStyle {
+    /// Side or diameter in points: `handle.size`.
+    pub size: f32,
+    /// The inside: `overlay.handle_fill` (`overlay.handle_stroke` for a rotate dot).
+    pub fill: Color32,
+    /// The outline inside `size`: `handle.stroke` of `overlay.handle_stroke`; none on a rotate dot.
+    pub stroke: Stroke,
+    /// The outline outside `size`: `handle.halo` of `overlay.halo`, so the handle reads on any
+    /// image.
+    pub halo: Stroke,
+    /// The pointer over the handle.
+    pub cursor: CursorIcon,
+}
+
+/// A canvas handle at a point: `Handle::new(HandleShape::Square).show(ui, center)` draws it and
+/// returns its drag response. Handles stay out of the layout and the Tab order: the canvas they
+/// sit on owns keyboard editing.
+#[derive(Clone, Copy, Debug)]
+pub struct Handle {
+    shape: HandleShape,
+    id_salt: Option<IdSalt>,
+    cursor: Option<CursorIcon>,
+}
+
+impl Handle {
+    pub fn new(shape: HandleShape) -> Self {
+        Self { shape, id_salt: None, cursor: None }
+    }
+
+    /// A stable id for a handle whose position in the call order changes, e.g. one of a path's
+    /// points while points are added. Handles otherwise take the `Ui`'s next automatic id.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id_salt = Some(IdSalt::new(id_salt));
+        self
+    }
+
+    /// A pointer for what this handle does, e.g. [`CursorIcon::ResizeNwSe`] for a top-left corner.
+    pub fn cursor(mut self, cursor: CursorIcon) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+
+    pub fn style(shape: HandleShape, tokens: &UiTokens) -> HandleStyle {
+        let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
+        let (fill, stroke) = match shape {
+            HandleShape::Square | HandleShape::Round => (o.handle_fill, Stroke::new(h.stroke, o.handle_stroke.to_egui())),
+            HandleShape::Rotate => (o.handle_stroke, Stroke::NONE),
+        };
+        let cursor = match shape {
+            HandleShape::Square | HandleShape::Round => CursorIcon::Move,
+            HandleShape::Rotate => CursorIcon::Alias,
+        };
+        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(h.halo, o.halo.to_egui()), cursor }
+    }
+
+    /// The handle's shapes centred on `center`, snapped to the pixel grid: halo, fill, outline.
+    pub fn shapes(shape: HandleShape, center: Pos2, tokens: &UiTokens, pixels_per_point: f32) -> Vec<Shape> {
+        let style = Handle::style(shape, tokens);
+        let body = Rect::from_center_size(center, vec2(style.size, style.size)).round_to_pixels(pixels_per_point);
+        let halo = body.expand(style.halo.width);
+        match shape {
+            HandleShape::Square => vec![
+                Shape::rect_filled(halo, 0.0, style.halo.color),
+                Shape::rect_filled(body, 0.0, style.fill),
+                Shape::rect_stroke(body, 0.0, style.stroke, StrokeKind::Inside),
+            ],
+            HandleShape::Round | HandleShape::Rotate => {
+                let (c, r) = (body.center(), body.width() / 2.0);
+                let mut out = vec![Shape::circle_filled(c, r + style.halo.width, style.halo.color), Shape::circle_filled(c, r, style.fill)];
+                if style.stroke.width > 0.0 {
+                    out.push(Shape::circle_stroke(c, r - style.stroke.width / 2.0, style.stroke));
+                }
+                out
+            }
+        }
+    }
+
+    /// Draws the handle at `center` and senses drags on it and its halo.
+    pub fn show(self, ui: &mut Ui, center: Pos2) -> Response {
+        let tokens = Tokens::of(ui);
+        let style = Handle::style(self.shape, &tokens);
+        let id = match self.id_salt {
+            Some(salt) => ui.make_persistent_id(salt),
+            None => {
+                let id = ui.next_auto_id();
+                ui.skip_ahead_auto_ids(1);
+                id
+            }
+        };
+        let side = style.size + 2.0 * style.halo.width;
+        let rect = Rect::from_center_size(center, vec2(side, side));
+        let response = ui.interact(rect, id, Sense::DRAG);
+        if ui.is_rect_visible(rect) {
+            ui.painter().extend(Handle::shapes(self.shape, center, &tokens, ui.pixels_per_point()));
+        }
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(self.cursor.unwrap_or(style.cursor));
+        }
+        response
+    }
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Handle"];
+
+pub(crate) fn stories() -> Vec<Story> {
+    vec![Story { id: "primitives/handle/shapes", level: Level::Primitives, component: "Handle", name: "Shapes", args: Args::new, show }]
+}
+
+/// The three shapes on a light and a dark strip, draggable.
+fn show(ui: &mut Ui, _: &mut Args) {
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(320.0), 96.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    let (top, bottom) = rect.split_top_bottom_at_fraction(0.5);
+    painter.rect_filled(top, 0.0, Color32::from_gray(235));
+    painter.rect_filled(bottom, 0.0, Color32::from_gray(30));
+    let offsets_id = ui.scope_id().with("handle-story-offsets");
+    let mut offsets: [egui::Vec2; 6] = ui.data(|d| d.get_temp(offsets_id).unwrap_or_default());
+    for (i, offset) in offsets.iter_mut().enumerate() {
+        let shape = HandleShape::ALL[i % 3];
+        let strip = if i < 3 { top } else { bottom };
+        let base = strip.left_center() + vec2(strip.width() * (i % 3 + 1) as f32 / 4.0, 0.0);
+        let response = Handle::new(shape).id_salt(("handle-story", i)).show(ui, base + *offset);
+        *offset += response.drag_delta();
+    }
+    ui.data_mut(|d| d.insert_temp(offsets_id, offsets));
+}
