@@ -69,7 +69,13 @@ impl FocusRing {
 
     /// [`FocusRing::paint`] with resolved corners.
     pub(crate) fn paint_radius(ui: &Ui, rect: Rect, radius: CornerRadius, response: &Response) {
-        if !(response.has_focus() && ui.is_visible() && FocusRing::visible(ui.ctx())) {
+        FocusRing::paint_if(ui, rect, radius, response.has_focus());
+    }
+
+    /// The ring around `rect` when `focused` and [`FocusRing::visible`], for an element that shows
+    /// the focus of a widget it is part of (a list's active row).
+    pub(crate) fn paint_if(ui: &Ui, rect: Rect, radius: CornerRadius, focused: bool) {
+        if !(focused && ui.is_visible() && FocusRing::visible(ui.ctx())) {
             return;
         }
         let tokens = Tokens::of(ui);
