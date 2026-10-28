@@ -150,6 +150,11 @@ impl Driver {
     }
 }
 
+/// The `active_descendant` of the menu node that has one.
+pub(super) fn active_in_menu(tree: &[(NodeId, accesskit::Node)]) -> Option<NodeId> {
+    tree.iter().filter(|(_, n)| n.role() == Role::Menu).find_map(|(_, n)| n.active_descendant())
+}
+
 fn two_submenus() -> Driver {
     let sub = |name: &'static str, n: usize| {
         let rows = (0..n).map(|i| MenuItem::new(format!("{name} {i}"), name).into()).collect();
@@ -486,7 +491,15 @@ struct Owners {
     chosen: Vec<&'static str>,
     open: [bool; 3],
     entries: [Vec<MenuEntry<&'static str>>; 3],
-    focus_target: bool,
+    /// Give this owner (0 One, 1 Two, 2 Target) the focus in the next pass.
+    focus: Option<usize>,
+    /// The owners' widget ids.
+    ids: [Id; 3],
+    /// Key and text events left in the input after the menus, every pass.
+    after: Vec<Event>,
+    /// The pass each owner's menu was last shown in, and the last pass.
+    shown_in: [u64; 3],
+    pass: u64,
 }
 
 impl Owners {
@@ -508,7 +521,11 @@ impl Owners {
                 vec![item("Gamma", "gamma"), item("Delta", "delta")],
                 vec![item("Cut", "cut"), item("Copy", "copy")],
             ],
-            focus_target: false,
+            focus: None,
+            ids: [Id::NULL; 3],
+            after: Vec::new(),
+            shown_in: [0; 3],
+            pass: 0,
         };
         o.run(3);
         o
@@ -525,15 +542,20 @@ impl Owners {
         };
         let mut chosen = Vec::new();
         let mut open = [false; 3];
-        let focus = std::mem::take(&mut self.focus_target);
+        let mut ids = [Id::NULL; 3];
+        let mut after = Vec::new();
+        let mut shown_in = self.shown_in;
+        let mut pass = 0;
+        let focus = self.focus.take();
         let entries = &self.entries;
         let mut full = self.ctx.run_ui(raw, |ui| {
             ui.horizontal(|ui| {
                 let one = ui.add(crate::controls::Button::new("One"));
                 let two = ui.add(crate::controls::Button::new("Two"));
                 let target = ui.add(crate::controls::Button::new("Target"));
-                if focus {
-                    target.request_focus();
+                ids = [one.id, two.id, target.id];
+                if let Some(k) = focus {
+                    [&one, &two, &target][k].request_focus();
                 }
                 let shown = [
                     PressMenu::new(&entries[0]).show(ui, &one),
@@ -543,7 +565,12 @@ impl Owners {
                 for (k, s) in shown.into_iter().enumerate() {
                     chosen.extend(s.chosen);
                     open[k] = s.open;
+                    if s.popup.is_some() {
+                        shown_in[k] = ui.ctx().cumulative_pass_nr();
+                    }
                 }
+                pass = ui.ctx().cumulative_pass_nr();
+                after = ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { .. } | Event::Text(_))).cloned().collect());
             });
         });
         full.textures_delta.clear();
@@ -552,6 +579,10 @@ impl Owners {
         }
         self.chosen.extend(chosen);
         self.open = open;
+        self.ids = ids;
+        self.after.extend(after);
+        self.shown_in = shown_in;
+        self.pass = pass;
     }
 
     fn run(&mut self, frames: usize) {
@@ -602,6 +633,26 @@ impl Owners {
 
     fn shown(&self, label: &str) -> bool {
         self.tree.iter().any(|(_, n)| n.label() == Some(label))
+    }
+
+    /// A letter typed: its key and the text it types.
+    fn letter(&mut self, c: char, modifiers: Modifiers) {
+        let key = Key::from_name(&c.to_ascii_uppercase().to_string()).unwrap_or_else(|| panic!("no key {c}"));
+        self.events.push(Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
+        self.events.push(Event::Text(c.to_string()));
+        self.events.push(Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
+        self.run(3);
+    }
+
+    fn node_id(&self, label: &str) -> NodeId {
+        self.tree.iter().find(|(_, n)| n.label() == Some(label)).map(|(id, _)| *id).unwrap_or_else(|| panic!("no {label:?}"))
+    }
+
+    /// The `active_descendant` of the open menu's node, and of the owner `k`'s widget.
+    fn active(&self, k: usize) -> (Option<NodeId>, Option<NodeId>) {
+        let menu = active_in_menu(&self.tree);
+        let owner = self.ids.get(k).and_then(|id| self.tree.iter().find(|(n, _)| *n == id.accesskit_id())).map(|(_, n)| n);
+        (menu, owner.and_then(accesskit::Node::active_descendant))
     }
 }
 
@@ -663,7 +714,7 @@ fn secondary_click_opens_both_kinds_of_menu() {
 fn the_menu_key_and_shift_f10_open_a_context_menu_at_the_focused_widget() {
     for (key, modifiers) in [(Key::Menu, Modifiers::NONE), (Key::F10, Modifiers::SHIFT)] {
         let mut o = Owners::new();
-        o.focus_target = true;
+        o.focus = Some(2);
         o.run(2);
         o.key(key, modifiers);
         assert!(o.open[2], "{key:?}");
@@ -708,9 +759,204 @@ fn a_secondary_click_while_a_context_menu_is_open_reopens_it_at_the_new_pointer(
     secondary(&mut o, a);
     assert!(o.open[2]);
     let first = o.rect("Cut").left();
-    secondary(&mut o, b);
+    o.key(Key::ArrowDown, Modifiers::NONE);
+    assert!(o.active(2).0.is_some(), "a row is lit");
+    o.move_to(b);
+    for pressed in [true, false] {
+        o.button(egui::PointerButton::Secondary, pressed);
+        assert_eq!(o.shown_in[2], o.pass, "the menu shows on every pass while it moves (pressed: {pressed})");
+    }
+    o.run(3);
     assert!(o.open[2], "still open");
     let second = o.rect("Cut").left();
     assert!((first - second - 36.0).abs() < 1.0, "moved from {first} to {second}");
     assert_eq!(o.tree.iter().filter(|(_, n)| n.label() == Some("Cut")).count(), 1, "one menu");
+    assert_eq!(o.active(2).0, None, "it starts over with nothing lit");
+}
+
+fn key_events(key: Key, modifiers: Modifiers) -> Vec<Event> {
+    [true, false].map(|pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }).into()
+}
+
+/// Opening View's submenu and lighting a row there, then opening Mode's with the pointer: Mode's
+/// submenu shows nothing lit (the old highlight belonged to View's).
+#[test]
+fn a_row_lit_in_one_submenu_is_not_lit_in_the_next_one_the_pointer_opens() {
+    let mut d = two_submenus();
+    let (_, adjust, _) = rest_on_mode(&mut d);
+    let row = d.rect("Mode 2");
+    d.move_to(pos2(row.left() + 20.0, row.center().y));
+    d.run(3);
+    assert_eq!(d.nav().highlighted(1), Some(2), "Mode 2 is lit");
+    d.move_to(pos2(adjust.left() + 20.0, adjust.center().y));
+    d.run(60);
+    assert_eq!(open_submenu(&d), "Adjust");
+    assert_eq!(d.nav().highlighted(1), None, "nothing in Adjust's submenu is lit");
+}
+
+/// A press menu inside a popover (an egui popup of its own), with a reader of Esc after both: the
+/// Esc that closes the menu closes nothing else, and the menu's button gets the focus back.
+#[test]
+fn escape_closes_a_menu_and_leaves_the_popup_it_is_in_open() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.set_os(egui::os::OperatingSystem::Nix);
+    let entries = vec![item("Cut", "cut"), item("Copy", "copy")];
+    let mut outer = true;
+    let mut time = 0.0;
+    // (menu open, popover open, Esc read after them, button focused)
+    let mut frame = |events: Vec<Event>, focus: bool| {
+        time += 1.0 / 60.0;
+        let raw =
+            egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        let mut out = (false, false, false, false);
+        let mut full = ctx.run_ui(raw, |ui| {
+            let host = ui.add(crate::controls::Button::new("Host"));
+            egui::Popup::from_response(&host).open_bool(&mut outer).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+                let switch = ui.add(crate::controls::Button::new("Switch"));
+                if focus {
+                    switch.request_focus();
+                }
+                out.0 = PressMenu::new(&entries).show(ui, &switch).open;
+                out.3 = switch.has_focus();
+            });
+            out.2 = ui.input(|i| i.key_pressed(Key::Escape));
+        });
+        full.textures_delta.clear();
+        out.1 = outer;
+        out
+    };
+    for _ in 0..3 {
+        frame(Vec::new(), true);
+    }
+    frame(key_events(Key::Enter, Modifiers::NONE), false);
+    assert!(frame(Vec::new(), false).0, "Enter on the switch opens its menu");
+    let (menu, popover, read, _) = frame(key_events(Key::Escape, Modifiers::NONE), false);
+    assert!(!menu && popover && !read, "Esc closes the menu alone and is not read after it");
+    let (_, popover, _, focused) = frame(Vec::new(), false);
+    assert!(popover && focused, "the switch has the focus back");
+    let (_, popover, read, _) = frame(key_events(Key::Escape, Modifiers::NONE), false);
+    assert!(!popover && read, "the next Esc is the popover's");
+}
+
+#[test]
+fn the_lit_row_is_the_active_descendant_of_its_menu_and_of_the_focused_owner() {
+    let mut o = Owners::new();
+    o.focus = Some(2);
+    o.run(2);
+    o.key(Key::F10, Modifiers::SHIFT);
+    let (cut, copy) = (o.node_id("Cut"), o.node_id("Copy"));
+    assert_eq!(o.active(2), (Some(cut), Some(cut)), "context menu");
+    o.key(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(o.active(2), (Some(copy), Some(copy)));
+    o.key(Key::Escape, Modifiers::NONE);
+
+    o.focus = Some(0);
+    o.run(2);
+    o.key(Key::Enter, Modifiers::NONE);
+    let (alpha, beta) = (o.node_id("Alpha"), o.node_id("Beta"));
+    assert_eq!(o.active(0), (Some(alpha), Some(alpha)), "press menu");
+    o.key(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(o.active(0), (Some(beta), Some(beta)));
+}
+
+#[test]
+fn enter_or_space_on_a_press_menu_button_opens_it_on_its_first_row_without_running_it() {
+    for key in [Key::Enter, Key::Space] {
+        let mut o = Owners::new();
+        o.focus = Some(0);
+        o.run(2);
+        o.key(key, Modifiers::NONE);
+        assert!(o.open[0] && o.chosen.is_empty(), "{key:?} opens the menu and runs nothing");
+        assert_eq!(o.active(0).0, Some(o.node_id("Alpha")), "{key:?}: the first enabled row is lit");
+        o.key(key, Modifiers::NONE);
+        assert_eq!(o.chosen, ["alpha"], "{key:?} then runs it");
+    }
+}
+
+#[test]
+fn an_accesskit_click_opens_a_press_menu_from_the_keyboard_and_closes_it() {
+    use egui::accesskit::{Action, ActionRequest, TreeId};
+    let mut o = Owners::new();
+    let click = |o: &mut Owners| {
+        let target_node = o.ids[0].accesskit_id();
+        o.events.push(Event::AccessKitActionRequest(ActionRequest { action: Action::Click, target_tree: TreeId::ROOT, target_node, data: None }));
+        o.run(3);
+    };
+    let expanded = |o: &Owners| o.tree.iter().find(|(id, _)| *id == o.ids[0].accesskit_id()).and_then(|(_, n)| n.is_expanded());
+    click(&mut o);
+    assert!(o.open[0], "an AccessKit click opens it");
+    assert_eq!(expanded(&o), Some(true));
+    assert_eq!(o.active(0).0, Some(o.node_id("Alpha")), "as from the keyboard: the first enabled row is lit");
+    click(&mut o);
+    assert!(!o.open[0], "a second one closes it");
+    assert_eq!(expanded(&o), Some(false));
+}
+
+/// Typing in an open menu reaches nothing under it: a letter without a row, a letter on a Mac
+/// (no mnemonics), with or without a row. Command shortcuts go on.
+#[test]
+fn typing_goes_nowhere_while_a_menu_is_open() {
+    let mut o = Owners::new();
+    o.focus = Some(2);
+    o.run(2);
+    o.key(Key::Menu, Modifiers::NONE);
+    assert!(o.open[2]);
+    o.after.clear();
+    o.letter('b', Modifiers::NONE);
+    assert!(o.after.is_empty() && o.open[2] && o.chosen.is_empty(), "B, which no row has, is taken: {:?}", o.after);
+    o.letter('b', Modifiers::COMMAND);
+    assert!(o.after.iter().any(|e| matches!(e, Event::Key { key: Key::B, modifiers, .. } if modifiers.command)), "Ctrl+B goes on");
+    o.key(Key::Escape, Modifiers::NONE);
+    o.after.clear();
+    o.letter('b', Modifiers::NONE);
+    assert!(o.after.contains(&Event::Text("b".into())), "with the menu closed, B types");
+
+    o.ctx.set_os(egui::os::OperatingSystem::Mac);
+    o.key(Key::Menu, Modifiers::NONE);
+    assert!(o.open[2]);
+    o.after.clear();
+    o.letter('c', Modifiers::NONE);
+    assert!(o.after.is_empty() && o.open[2] && o.chosen.is_empty(), "on a Mac a row's letter runs nothing and goes nowhere");
+}
+
+/// A context menu and a press menu taller than the window take translated scroll-strip names.
+#[test]
+fn context_and_press_menus_name_their_scroll_strips() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let rows: Vec<MenuEntry<&'static str>> = (0..60).map(|_| item("Row", "row")).collect();
+    let frame = |events: Vec<Event>| {
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 300.0))), events, ..Default::default() };
+        let mut full = ctx.run_ui(raw, |ui| {
+            ui.horizontal(|ui| {
+                let press = ui.add(crate::controls::Button::new("Press"));
+                let target = ui.add(crate::controls::Button::new("Target"));
+                let _ = PressMenu::new(&rows).scroll_labels("Press up", "Press down").show(ui, &press);
+                let _ = ContextMenu::new(&rows).scroll_labels("Context up", "Context down").show(ui, &target);
+            });
+        });
+        full.textures_delta.clear();
+        full.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default()
+    };
+    let tree = frame(Vec::new());
+    let at = |label: &str| {
+        let b = tree.iter().find(|(_, n)| n.label() == Some(label)).and_then(|(_, n)| n.bounds()).unwrap_or_else(|| panic!("no {label}"));
+        pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
+    };
+    for (owner, up, down) in [("Press", "Press up", "Press down"), ("Target", "Context up", "Context down")] {
+        let p = at(owner);
+        let secondary = |pressed| Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        frame(vec![Event::PointerMoved(p), secondary(true), secondary(false)]);
+        let mut tree = Vec::new();
+        for _ in 0..4 {
+            tree = frame(Vec::new());
+        }
+        let named = |name: &str| tree.iter().any(|(_, n)| n.label() == Some(name));
+        assert!(named(up) && named(down), "{owner}");
+        frame(key_events(Key::Escape, Modifiers::NONE));
+        // The closed menu's layer still covers the window for one pass's hit tests.
+        frame(Vec::new());
+    }
 }

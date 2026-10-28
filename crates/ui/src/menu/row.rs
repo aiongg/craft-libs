@@ -19,6 +19,11 @@ use crate::direction;
 use crate::icons::{self, Icon};
 use crate::theme::{ToEgui, UiTokens, role_format};
 
+/// A radio item's dot: its radius as a part of the icon size, and the least radius (craft-menu's
+/// ● at the list box's icon size).
+const RADIO_DOT: f32 = 1.0 / 6.0;
+const RADIO_DOT_MIN: f32 = 2.0;
+
 /// A menu's sizes and colours, from [`Menu::style`](super::Menu::style).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -150,7 +155,7 @@ impl RowPainter<'_> {
         match row.kind {
             ItemKind::Check(true) => icons::paint(ui, square(column(0.0)), Icon::Check, icon_size(self.size), mark),
             ItemKind::Radio(true) => {
-                ui.painter().circle_filled(pos2(column(0.0), rect.center().y), (s.icon / 6.0).max(2.0), mark);
+                ui.painter().circle_filled(pos2(column(0.0), rect.center().y), (s.icon * RADIO_DOT).max(RADIO_DOT_MIN), mark);
             }
             _ => {}
         }

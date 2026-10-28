@@ -37,7 +37,7 @@ pub use popup::{Menu, MenuResponse};
 pub use press::PressMenu;
 pub use row::MenuStyle;
 
-use egui::{Id, Key, KeyboardShortcut, Modifiers, Popup, Ui};
+use egui::{Id, Key, KeyboardShortcut, Modifiers, Ui};
 
 use crate::controls::{Button, Kbd, SIZE_NAMES, size_arg};
 use crate::icons::Icon;
@@ -161,7 +161,7 @@ fn show_menus(ui: &mut Ui, args: &mut Args) {
     Row::new(Gap::Section).show(ui, |ui| {
         for (label, entries) in [("Edit", &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
-            let shown = Menu::new(entries).size(size).show(ui, Popup::menu(&button));
+            let shown = PressMenu::new(entries).size(size).show(ui, &button);
             if let Some(command) = shown.chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }

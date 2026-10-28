@@ -2,7 +2,7 @@
 //! at its top and bottom, which scroll while the pointer rests on them), and the keyboard drives
 //! it: ↑ / ↓ move the highlight (wrapping, skipping disabled rows, keeping it in view), → opens a
 //! submenu, ← closes one, Enter and Space run the highlighted row or open its submenu, a mnemonic
-//! letter runs its row, Esc closes every level.
+//! letter runs its row. Other typing goes nowhere while the menu is open.
 //!
 //! The highlight is view state in egui memory, per menu. It follows the pointer too, so the mouse
 //! and the keyboard share one highlighted row, as in a native menu.
@@ -17,10 +17,11 @@ use egui::{Color32, Context, FocusDirection, Id, Key, Modifiers, Pos2, Rect, Sen
 
 use super::mnemonic;
 
-/// Gap kept between a menu and the window edge.
-const EDGE: f32 = 6.0;
-/// How fast resting on a scroll strip scrolls, in points per second.
+/// How fast resting on a scroll strip scrolls, in points per second (craft-menu's).
 const SPEED: f32 = 600.0;
+/// The ▲ / ▼ arrow of a scroll strip, as parts of the strip's height: its width and its height
+/// (12 × 4.5 pt in craft-menu's 16 pt strip).
+const ARROW: (f32, f32) = (0.75, 0.28125);
 /// How far above and below an open submenu the pointer may aim and still be heading for it.
 pub(crate) const AIM_SLACK: f32 = 24.0;
 /// How long the pointer may rest on another row, heading for an open submenu, before that row
@@ -68,8 +69,6 @@ pub(crate) struct KeyOutcome {
     /// The path of the row Enter, Space or a mnemonic ran.
     pub run: Option<Vec<usize>>,
     pub step: Option<MenuStep>,
-    /// Esc: close every level.
-    pub close: bool,
 }
 
 /// Keyboard and highlight state of an open menu, kept between passes.
@@ -81,12 +80,20 @@ pub(crate) struct Nav {
     hi: Vec<Option<usize>>,
     /// This pass's rows per level (deeper levels are dropped when their parent redraws).
     pub rows: Vec<Vec<Row>>,
-    /// Menu-root id per level (the owner of egui's `MenuState` for that level).
+    /// Menu-root id per level (the owner of egui's `MenuState` for that level, and its AccessKit
+    /// `Menu` node).
     roots: Vec<Id>,
+    /// The menu root each level was drawn for this pass, and in the pass before: a level whose
+    /// root changed (another submenu at that depth) starts without the old one's highlight, aim
+    /// and anchors.
+    drawn: Vec<Id>,
+    last_drawn: Vec<Id>,
     /// Underline the rows' mnemonics: the menu was opened from the keyboard or a mnemonic ran.
     pub underline: bool,
     /// Where the menu hangs from a bar: no level goes above it.
     pub top_limit: Option<f32>,
+    /// Room kept between a level and the window's edges (`space.gap.stack`).
+    pub edge: f32,
     /// The visible (scrolled) part of each level.
     pub views: Vec<Rect>,
     /// Per level: the row its open submenu hangs from (level 0 has none). From the pass before,
@@ -108,7 +115,9 @@ impl Nav {
     /// The state of the menu `id` as the last pass left it; a fresh one when the menu wasn't open
     /// then.
     pub fn load(ctx: &Context, id: Id, fresh: bool) -> Nav {
-        if fresh { Nav::default() } else { ctx.data(|d| d.get_temp(id)).unwrap_or_default() }
+        let mut nav: Nav = if fresh { Nav::default() } else { ctx.data(|d| d.get_temp(id)).unwrap_or_default() };
+        nav.last_drawn = std::mem::take(&mut nav.drawn);
+        nav
     }
 
     pub fn store(self, ctx: &Context, id: Id) {
@@ -125,10 +134,17 @@ impl Nav {
         self.hi.get(level).copied().flatten()
     }
 
-    /// The widget id of the highlighted row in the level the keys move in.
-    pub fn active(&self) -> Option<Id> {
+    /// The widget id of the highlighted row in the level the keys move in, and that level's
+    /// menu root (its AccessKit `Menu` node).
+    pub fn active(&self) -> Option<(Id, Id)> {
         let level = self.level.min(self.rows.len().saturating_sub(1));
-        self.highlighted(level).and_then(|i| self.rows.get(level)?.get(i)).map(|r| r.widget)
+        let row = self.highlighted(level).and_then(|i| self.rows.get(level)?.get(i))?;
+        Some((row.widget, *self.roots.get(level)?))
+    }
+
+    /// The menu root of `level`, as last drawn.
+    pub fn root(&self, level: usize) -> Option<Id> {
+        self.roots.get(level).copied()
     }
 
     fn set_hi(&mut self, level: usize, row: Option<usize>) {
@@ -140,8 +156,21 @@ impl Nav {
         }
     }
 
-    /// Starts drawing `level`: forgets its rows from before, and every deeper level's.
+    /// Starts drawing `level`: forgets its rows from before, and every deeper level's. A level now
+    /// drawn for another root than in the last pass (the pointer opened another submenu at that
+    /// depth, or the submenu reopened) starts with nothing highlighted, no aim and no anchors.
     fn begin_level(&mut self, level: usize, root: Id) {
+        if self.last_drawn.get(level) != Some(&root) {
+            if let Some(hi) = self.hi.get_mut(level) {
+                *hi = None;
+            }
+            if let Some(aim) = self.aims.get_mut(level) {
+                *aim = None;
+            }
+            self.anchors.truncate(level);
+        }
+        self.drawn.truncate(level);
+        self.drawn.push(root);
         self.rows.truncate(level);
         self.rows.resize(level + 1, Vec::new());
         self.roots.truncate(level);
@@ -304,8 +333,10 @@ impl Nav {
     }
 
     /// Handles this pass's keys, after every level was drawn. `rtl` swaps ← and →; `mnemonics`
-    /// lets a letter run its row. While `typing` (a text field in the menu has the focus), the
-    /// letters, ← / → and Space are the field's.
+    /// lets a letter run its row. Other typing keys and text are taken too, so they don't reach
+    /// the app's single-key shortcuts or a field under the menu, as in a native menu. While
+    /// `typing` (a text field in the menu has the focus), the letters, ← / → and Space are the
+    /// field's. Esc is egui's: the popup closes on it.
     pub fn keys(&mut self, ctx: &Context, rtl: bool, mnemonics: bool, typing: bool) -> KeyOutcome {
         let mut out = KeyOutcome::default();
         let level = self.level.min(self.rows.len().saturating_sub(1));
@@ -314,17 +345,18 @@ impl Nav {
             |k: Key| !(typing && matches!(k, Key::ArrowLeft | Key::ArrowRight | Key::Space)) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
         let current = self.highlighted(level).and_then(|i| self.rows.get(level)?.get(i)).cloned();
         let (forward, back) = if rtl { (Key::ArrowLeft, Key::ArrowRight) } else { (Key::ArrowRight, Key::ArrowLeft) };
-        if press(Key::Escape) {
-            out.close = true;
-        } else if press(Key::ArrowDown) {
+        let acted = if press(Key::ArrowDown) {
             self.step(level, true);
+            true
         } else if press(Key::ArrowUp) {
             self.step(level, false);
+            true
         } else if press(forward) {
             match current {
                 Some(Row { widget, enabled: true, submenu: true, .. }) => self.open_sub(ctx, level, widget),
                 _ => out.step = Some(MenuStep::Next),
             }
+            true
         } else if press(back) {
             if level > 0 {
                 if let Some(&root) = self.roots.get(level - 1) {
@@ -335,31 +367,37 @@ impl Nav {
             } else {
                 out.step = Some(MenuStep::Previous);
             }
+            true
         } else if press(Key::Enter) || press(Key::Space) {
             match current {
                 Some(Row { enabled: true, submenu: false, path, .. }) => out.run = Some(path),
                 Some(Row { widget, enabled: true, submenu: true, .. }) => self.open_sub(ctx, level, widget),
                 _ => {}
             }
-        } else if let Some((key, c)) = mnemonic::letter_pressed(ctx).filter(|_| mnemonics && !typing) {
+            true
+        } else if let Some((_, c)) = mnemonic::letter_pressed(ctx).filter(|_| mnemonics && !typing)
+            && let Some(row) = self.rows.get(level).and_then(|rows| rows.iter().find(|r| r.enabled && r.mnemonic == Some(c))).cloned()
+        {
             // A letter runs the row with that mnemonic in the level the arrows are in, a text
             // field having the keys or not: the open menu has them.
-            let Some(row) = self.rows.get(level).and_then(|rows| rows.iter().find(|r| r.enabled && r.mnemonic == Some(c))).cloned() else {
-                return out;
-            };
-            mnemonic::consume_letter(ctx, Modifiers::NONE, key, c);
             self.underline = true;
             if row.submenu {
                 self.open_sub(ctx, level, row.widget);
             } else {
                 out.run = Some(row.path);
             }
+            true
         } else {
-            return out;
+            false
+        };
+        if !typing {
+            mnemonic::swallow_typing(ctx);
         }
-        // The arrows moved the menu's highlight, not egui's focus.
-        ctx.memory_mut(|m| m.move_focus(FocusDirection::None));
-        ctx.request_repaint();
+        if acted {
+            // The arrows moved the menu's highlight, not egui's focus.
+            ctx.memory_mut(|m| m.move_focus(FocusDirection::None));
+            ctx.request_repaint();
+        }
         out
     }
 }
@@ -391,9 +429,20 @@ fn pointer_on(ui: &Ui, rect: Rect) -> bool {
 /// scrolls instead of egui sliding it up over the bar, where it would hide the menu titles.
 /// `anchor` is the submenu's row (unknown on its first pass), `rows` the level's rows' height when
 /// known (the popup shrinks to it), `frame` the popup's margins, `strip` a scroll strip's height.
-pub(crate) fn level_room(screen: Rect, top_limit: Option<f32>, depth: usize, anchor: Option<Rect>, rows: Option<f32>, frame: f32, strip: f32) -> f32 {
-    let top = top_limit.unwrap_or(screen.top()).max(screen.top()) + EDGE;
-    let bottom = screen.bottom() - EDGE;
+/// `edge` is the room kept to the window's edges.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn level_room(
+    screen: Rect,
+    top_limit: Option<f32>,
+    edge: f32,
+    depth: usize,
+    anchor: Option<Rect>,
+    rows: Option<f32>,
+    frame: f32,
+    strip: f32,
+) -> f32 {
+    let top = top_limit.unwrap_or(screen.top()).max(screen.top()) + edge;
+    let bottom = screen.bottom() - edge;
     let below_bar = bottom - top;
     let room = match anchor.filter(|_| depth > 1) {
         Some(row) => {
@@ -432,7 +481,7 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, strips: &Strips<'_
     let key = ui.scope_id().with(("craft-menu-level", depth));
     // Rows' height from the last pass: does this level overflow?
     let content: Option<f32> = ctx.data(|d| d.get_temp(key));
-    let room = level_room(screen, nav.top_limit, depth, anchor, content, frame, strips.height);
+    let room = level_room(screen, nav.top_limit, nav.edge, depth, anchor, content, frame, strips.height);
     let over = content.is_some_and(|h| h > room + 0.5);
     let up = over.then(|| ui.allocate_exact_size(vec2(0.0, strips.height), Sense::hover()).0);
     let height = if over { room - 2.0 * strips.height } else { room };
@@ -470,7 +519,7 @@ pub(crate) fn level(ui: &mut Ui, depth: usize, nav: &mut Nav, strips: &Strips<'_
     for (strip, dir, live) in [(up, -1.0, offset > 0.5), (down, 1.0, offset < max - 0.5)] {
         let strip = Rect::from_x_y_ranges(x, strip.y_range());
         let c = strip.center();
-        let (h, w) = (4.5, 6.0);
+        let (w, h) = (strips.height * ARROW.0 / 2.0, strips.height * ARROW.1);
         let tri = if dir < 0.0 {
             vec![pos2(c.x - w, c.y + h * 0.5), pos2(c.x + w, c.y + h * 0.5), pos2(c.x, c.y - h * 0.5)]
         } else {

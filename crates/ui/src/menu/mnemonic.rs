@@ -146,6 +146,46 @@ pub(crate) fn letter_pressed(ctx: &Context) -> Option<(Key, char)> {
     })
 }
 
+/// Takes this pass's typing out of the events: the text, and the presses and releases of keys
+/// that type (letters, digits, punctuation) without Ctrl, Alt or Cmd. An open menu swallows them,
+/// matched by a row or not, so they reach neither a field nor the app's single-key shortcuts
+/// under it; command shortcuts and Alt+letter go on.
+pub(crate) fn swallow_typing(ctx: &Context) {
+    ctx.input_mut(|i| {
+        i.events.retain(|e| match e {
+            Event::Text(_) => false,
+            Event::Key { key, modifiers, .. } => modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd || !types(*key),
+            _ => true,
+        });
+    });
+}
+
+/// Whether a key types a character: a letter, a digit or punctuation.
+fn types(key: Key) -> bool {
+    key_char(key).is_some()
+        || matches!(
+            key,
+            Key::Colon
+                | Key::Comma
+                | Key::Backslash
+                | Key::Slash
+                | Key::Pipe
+                | Key::Questionmark
+                | Key::Exclamationmark
+                | Key::OpenBracket
+                | Key::CloseBracket
+                | Key::OpenCurlyBracket
+                | Key::CloseCurlyBracket
+                | Key::Backtick
+                | Key::Minus
+                | Key::Period
+                | Key::Plus
+                | Key::Equals
+                | Key::Semicolon
+                | Key::Quote
+        )
+}
+
 /// Takes `key` (with `mods`) out of this pass's events, and the text it typed: a letter a menu used
 /// doesn't also land in a text field.
 pub(crate) fn consume_letter(ctx: &Context, mods: Modifiers, key: Key, c: char) {
