@@ -81,7 +81,6 @@ mod tests;
 pub(crate) mod text_field;
 #[cfg(test)]
 mod text_field_tests;
-#[cfg_attr(not(test), expect(dead_code, reason = "the levels editor (DS-28l2) shows the rows"))]
 pub(crate) mod thumb_row;
 #[cfg(test)]
 mod thumb_row_tests;

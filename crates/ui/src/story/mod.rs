@@ -142,6 +142,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(composites::empty_state::stories());
     all.extend(composites::curve_editor::stories());
     all.extend(composites::histogram::stories());
+    all.extend(composites::levels_editor::stories());
     all.extend(crate::list::stories());
     all.extend(crate::menu::stories());
     all.extend(crate::menu::bar::stories());
@@ -197,6 +198,7 @@ const DECLARED: &[&[&str]] = &[
     composites::empty_state::COMPONENTS,
     composites::curve_editor::COMPONENTS,
     composites::histogram::COMPONENTS,
+    composites::levels_editor::COMPONENTS,
     crate::list::COMPONENTS,
     crate::menu::COMPONENTS,
     crate::menu::bar::COMPONENTS,

@@ -170,9 +170,13 @@ pub(crate) struct ThumbRowOutput<const N: usize> {
     pub edit: EditResponse<[f64; N]>,
     /// The values drawn: the gesture's, each in its range.
     pub shown: [f64; N],
+    /// The gesture's values as they are (the host's while none runs), for fields that show a
+    /// value outside the range as it is.
+    pub values: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
     /// The thumbs' responses, in row order.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the row's tests find the thumbs by them"))]
     pub thumbs: [Response; N],
     /// The x of a thumb centre at the start and at the end of the range.
     pub travel: (f32, f32),
@@ -402,7 +406,8 @@ impl<const N: usize> ThumbRow<N> {
             }
         }
 
-        let shown = layout.placed(gesture.shown());
+        let values = *gesture.shown();
+        let shown = layout.placed(&values);
         let xs = layout.xs(&shown);
         let thumb_rect = |x: f32| Rect::from_min_size(pos2(x - style.thumb.x / 2.0, rect.top()), style.thumb);
         let thumbs: [Response; N] = std::array::from_fn(|i| {
@@ -438,7 +443,7 @@ impl<const N: usize> ThumbRow<N> {
             }
         }
         let travel = layout.track.ends();
-        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish()), shown, dragged, thumbs, travel }
+        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish()), shown, values, dragged, thumbs, travel }
     }
 }
 

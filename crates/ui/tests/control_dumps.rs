@@ -6,7 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack,
+    Tone,
 };
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -508,6 +509,20 @@ fn histogram() {
         for (name, color) in ["red", "green", "blue"].into_iter().zip(s.ribbons) {
             d.line(&format!("ribbon.{name}"), color);
         }
+    });
+}
+
+/// Levels editors: the width range, the rows, thumbs and bar, the thumb edges and ring, the
+/// captions and the gap between fields.
+#[test]
+fn levels_editor() {
+    check("levels_editor.txt", |d, t| {
+        let s = LevelsEditor::style(t);
+        d.line("min_width", s.min_width).line("max_width", s.max_width).line("row", s.row).line("bar", s.bar);
+        d.line("thumb_width", s.thumb_width).line("thumb_height", s.thumb_height).line("hit", s.hit);
+        d.line("thumb_edge", s.thumb_edge).line("disabled_edge", s.disabled_edge);
+        states(d, "ring", &s.ring);
+        d.line("ring_width", s.ring_width).line("caption_role", role(s.caption_role)).line("field_gap", s.field_gap);
     });
 }
 

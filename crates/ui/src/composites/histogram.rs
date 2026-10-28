@@ -265,6 +265,12 @@ impl Histogram {
         self
     }
 
+    /// Bins in either look, as a host keeps them.
+    pub(super) fn data(mut self, data: HistogramData) -> Self {
+        self.data = Some(data);
+        self
+    }
+
     /// How tall the bins are drawn; [`HistogramScale::Peak`] by default.
     pub fn scale(mut self, scale: HistogramScale) -> Self {
         self.data = self.data.map(|d| d.scale(scale));

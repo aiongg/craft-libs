@@ -12,6 +12,8 @@
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
+//! - [`LevelsEditor`]: a histogram with the input black, gamma and white thumbs and fields under
+//!   it, and the output bar, thumbs and fields; the value is a channel's [`Levels`].
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
 //! - [`ColorArea`] and [`ColorStrip`]: a colour picker's 2D field and component strip, in one of
@@ -27,7 +29,7 @@
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
+//! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -59,6 +61,9 @@ mod field_tests;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod histogram_tests;
+pub(crate) mod levels_editor;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod levels_editor_tests;
 pub mod live;
 mod measure;
 pub(crate) mod notice;
@@ -87,6 +92,7 @@ pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampl
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
+pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use notice::{Notice, NoticeStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

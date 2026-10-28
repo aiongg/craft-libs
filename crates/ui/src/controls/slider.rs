@@ -436,7 +436,6 @@ impl Track {
     /// A track on `rect` for thumbs of another look: a thumb centre runs from `inset` inside the
     /// start to `inset` inside the end, and a press within `reach` of it grabs the thumb. It has
     /// no bar.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the levels editor (DS-28l2) shows thumb rows"))]
     pub fn inset(rect: Rect, inset: f32, reach: f32, scale: Scale) -> Self {
         Self { rect, x0: rect.left() + inset, x1: rect.right() - inset, y: rect.center().y, reach, scale, track_height: 0.0 }
     }
