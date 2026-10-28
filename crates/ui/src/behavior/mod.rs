@@ -11,6 +11,8 @@
 //!   [`ComboBox`](crate::controls::ComboBox).
 //! - [`ListSelection`]: the selection rules of a list over its display order (click, Shift, Cmd/Ctrl,
 //!   keys), kept in a host-owned [`Selection`].
+//! - [`Reorder`]: drag-to-reorder targets, keyboard moves and edge scrolling over a list or a strip,
+//!   without drawing, reported as an [`EditEvent`](crate::edit::EditEvent) sequence of [`Move`]s.
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
@@ -23,6 +25,9 @@ mod list_selection;
 mod list_selection_tests;
 mod listbox;
 mod radio_selection;
+mod reorder;
+#[cfg(test)]
+mod reorder_tests;
 #[cfg(test)]
 mod tests;
 mod typing;
@@ -35,5 +40,8 @@ pub use list_selection::{
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
 pub use radio_selection::RadioSelection;
+pub use reorder::{
+    Axis, DragEnd, DropPosition, ListDrag, Move, Reorder, ReorderGesture, Resolved, RowSpans, StackKey, UniformSpans, edge_scroll_speed,
+};
 pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};
 pub(crate) use typing::{take_composing_keys, take_enter};
