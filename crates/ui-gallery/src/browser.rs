@@ -113,7 +113,7 @@ impl Browser {
                 swatch(ui, o.value, SWATCH);
                 self.path_cell(ui, token);
                 ui.monospace(o.value.to_hex());
-                ui.label(source_words(o.source));
+                ui.label(o.source_words());
                 ui.label(RichText::new(o.pin.map_or("", pin_words)).color(muted));
                 ui.label(moved_words(o.contrast_move));
                 ui.end_row();
@@ -177,7 +177,7 @@ fn color_facts(ui: &mut Ui, o: &ColorOrigin) {
     Grid::new("gallery.tokens.facts").num_columns(2).show(ui, |ui| {
         fact(ui, "Value", o.value);
         ui.label("Source");
-        ui.label(source_words(o.source));
+        ui.label(o.source_words());
         ui.end_row();
         fact(ui, "Derived", o.derived);
         ui.label("Pin");
@@ -305,31 +305,10 @@ fn status_name(kind: StatusKind) -> &'static str {
 
 fn ramp_name(source: Option<ColorSource>) -> String {
     match source {
-        Some(ColorSource::Neutral(_) | ColorSource::NeutralAlpha(..)) => "neutral".to_owned(),
+        Some(ColorSource::Neutral(_) | ColorSource::Anchored(_) | ColorSource::NeutralAlpha(..)) => "neutral".to_owned(),
         Some(ColorSource::Accent(_) | ColorSource::AccentMix { .. }) => "accent".to_owned(),
         Some(ColorSource::Status(kind, _) | ColorSource::StatusMix { kind, .. }) => format!("status {}", status_name(kind)),
         _ => String::new(),
-    }
-}
-
-/// A derivation rule in words, e.g. "neutral 10" or "accent 9 → 10 at 0.5".
-pub fn source_words(source: ColorSource) -> String {
-    match source {
-        ColorSource::Neutral(n) => format!("neutral {n}"),
-        ColorSource::NeutralAlpha(n, a) => format!("neutral {n} at alpha {a}"),
-        ColorSource::Accent(n) => format!("accent {n}"),
-        ColorSource::AccentMix { from, to, t } => format!("accent {from} → {to} at {t}"),
-        ColorSource::Status(kind, n) => format!("status {} {n}", status_name(kind)),
-        ColorSource::StatusMix { kind, from, to, t } => format!("status {} {from} → {to} at {t}", status_name(kind)),
-        ColorSource::Fixed(c) => format!("fixed {}", c.to_hex()),
-        ColorSource::Oklch(l, c, h) => format!("oklch {l} {c} {h}"),
-        ColorSource::Same(t) => format!("= {}", t.path()),
-        ColorSource::OnSolid([only]) => format!("white or black on {}", only.path()),
-        ColorSource::OnSolid(solids) => match solids.first() {
-            Some(first) => format!("white or black on {} and {} more solids", first.path(), solids.len() - 1),
-            None => "white or black".to_owned(),
-        },
-        other => format!("{other:?}"),
     }
 }
 
@@ -366,8 +345,9 @@ mod tests {
             reduced_motion: false,
         };
         let e = explain(theme, appearance, None);
-        let words = |t: ColorToken| source_words(e.color(t).unwrap().source);
+        let words = |t: ColorToken| e.color(t).unwrap().source_words();
         assert_eq!(words(ColorToken::TextFaint), "neutral 10");
+        assert_eq!(words(ColorToken::SurfaceRaised), "neutral 1, anchored on surface.panel");
         assert_eq!(words(ColorToken::AccentPressed), "accent 10 → 11 at 0.5");
         assert_eq!(words(ColorToken::CaptionInactive), "= text.faint");
         assert_eq!(words(ColorToken::TextOnAccent), "white or black on accent.solid");
