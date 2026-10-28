@@ -37,14 +37,19 @@ fn builtins_resolve_everywhere_without_warnings_beyond_their_intent() {
 
 /// The warnings a built-in is known to have. Adwaita dark pins libadwaita's accent (#3584e4) and a
 /// sunken surface (#404044) 2.74:1 apart, below the accent's 3:1 on the tracks of sliders and
-/// progress bars; libadwaita's own dark troughs (15 % of white over the window or view) are 2.6
+/// progress bars and on the angle dial's face; libadwaita's own dark troughs (15 % of white over the window or view) are 2.6
 /// to 2.8:1 from that accent, so no pin true to GNOME passes. High contrast moves them apart.
 fn known_warnings(theme: &ThemeDef, a: Appearance) -> Vec<(String, String)> {
     if theme.id.as_str() != "craft.adwaita" || a.mode != Mode::Dark || a.contrast != Contrast::Standard {
         return Vec::new();
     }
     let pair = |fg: &str, bg: &str| (fg.to_owned(), bg.to_owned());
-    vec![pair("accent.solid", "surface.sunken"), pair("progress.fill", "progress.track"), pair("slider.fill.rest", "slider.track")]
+    vec![
+        pair("accent.solid", "surface.sunken"),
+        pair("angle_dial.needle", "angle_dial.face"),
+        pair("progress.fill", "progress.track"),
+        pair("slider.fill.rest", "slider.track"),
+    ]
 }
 
 /// Links and other accent-coloured text must read as accent, not as body text: a neutral

@@ -133,6 +133,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::tooltip::stories());
     all.extend(controls::text_field::stories());
     all.extend(controls::number_field::stories());
+    all.extend(controls::angle_dial::stories());
     all.extend(composites::field::stories());
     all.extend(composites::property_row::stories());
     all.extend(composites::section_header::stories());
@@ -141,6 +142,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(composites::notice::stories());
     all.extend(composites::empty_state::stories());
     all.extend(composites::curve_editor::stories());
+    all.extend(composites::gradient::stories());
     all.extend(composites::histogram::stories());
     all.extend(composites::levels_editor::stories());
     all.extend(crate::list::stories());
@@ -189,6 +191,7 @@ const DECLARED: &[&[&str]] = &[
     controls::tooltip::COMPONENTS,
     controls::text_field::COMPONENTS,
     controls::number_field::COMPONENTS,
+    controls::angle_dial::COMPONENTS,
     composites::field::COMPONENTS,
     composites::property_row::COMPONENTS,
     composites::section_header::COMPONENTS,
@@ -197,6 +200,7 @@ const DECLARED: &[&[&str]] = &[
     composites::notice::COMPONENTS,
     composites::empty_state::COMPONENTS,
     composites::curve_editor::COMPONENTS,
+    composites::gradient::COMPONENTS,
     composites::histogram::COMPONENTS,
     composites::levels_editor::COMPONENTS,
     crate::list::COMPONENTS,

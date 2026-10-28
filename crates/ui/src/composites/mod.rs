@@ -9,6 +9,11 @@
 //!   one centre.
 //! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
 //!   Input/Output row of the selected point; the value is a [`Curve`].
+//! - [`GradientStops`], [`GradientRamp`] and [`GradientSwatch`]: the value of a gradient stop bar
+//!   with its stop rules ([`gradient::stops`]), the paint of a gradient over the checkerboard, and
+//!   a well that shows one.
+//! - [`GradientEditor`]: the gradient stop bar, its markers and midpoints edited by pointer and
+//!   keys.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
@@ -28,7 +33,7 @@
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
+//! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `gradient_editor.*` for [`GradientEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
 //! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
@@ -58,6 +63,7 @@ mod empty_state_tests;
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub mod gradient;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod histogram_tests;
@@ -91,6 +97,10 @@ pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use gradient::{
+    ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, GradientRamp, GradientRampStyle, GradientStops,
+    GradientSwatch, OpacityStop, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
+};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use notice::{Notice, NoticeStyle};

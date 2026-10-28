@@ -5,6 +5,7 @@
 //!
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
+mod angle_dial;
 mod badge;
 mod button;
 mod check;
@@ -12,6 +13,7 @@ mod color_picker;
 mod curve;
 mod empty_state;
 mod field;
+mod gradient_editor;
 mod guide;
 mod handle;
 mod histogram;
@@ -43,6 +45,7 @@ use super::scale::Elevation;
 use super::theme::Size;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
+pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
@@ -50,6 +53,7 @@ pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use curve::{CurveField, CurveTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
@@ -562,6 +566,8 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Angle dials: the round face and needle that point in a direction.
+    angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// Badges: small labels in a tone.
     badge: BadgeTokens => Badge(BadgeField);
     /// Push buttons.
@@ -576,6 +582,8 @@ families! {
     empty_state: EmptyStateTokens => EmptyState(EmptyStateField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Gradient editors: the stop bar, its markers and midpoint diamonds.
+    gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Ruler guides and smart guides.
     guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.

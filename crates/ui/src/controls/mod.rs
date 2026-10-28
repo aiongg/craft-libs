@@ -21,12 +21,14 @@
 //! - [`TextField`] and [`SearchField`]: one line of text; a typing run is one edit gesture.
 //! - [`NumberField`]: a number in the region's digits, typed, scrubbed, stepped or set on a
 //!   pop-up slider, one edit gesture at a time.
+//! - [`AngleDial`]: an angle as a round dial with a needle and its degree field beside it, one edit
+//!   gesture per drag, scrub or typing run.
 //! - [`Select`]: one of a list of options, chosen from a popup list under a field-like box.
 //! - [`ComboBox`]: a line of text with a popup list of suggestions that the typed text filters.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`, `listbox.*`), so a theme's component
+//! `segmented.*`, `check.*`, `slider.*`, `angle_dial.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`, `listbox.*`), so a theme's component
 //! overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
@@ -45,6 +47,9 @@
 //! # });
 //! ```
 
+pub(crate) mod angle_dial;
+#[cfg(test)]
+mod angle_dial_tests;
 pub(crate) mod badge;
 pub(crate) mod button;
 mod check;
@@ -53,7 +58,7 @@ pub(crate) mod combo_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod combo_box_tests;
 pub(crate) mod field_wheel;
-mod gradient_track;
+pub(crate) mod gradient_track;
 pub(crate) mod icon_button;
 pub(crate) mod kbd;
 pub(crate) mod link;
@@ -91,6 +96,7 @@ mod ui_tests;
 
 use egui::{IdSalt, Ui};
 
+pub use angle_dial::{AngleDial, AngleDialStyle, AngleOrientation};
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
 pub use button::{Button, ButtonStyle};
 pub use check::IndicatorColors;

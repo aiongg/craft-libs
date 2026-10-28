@@ -21,7 +21,7 @@ mod palette;
 mod picker;
 #[cfg(test)]
 mod picker_tests;
-mod popover;
+pub(crate) mod popover;
 #[cfg(test)]
 mod popover_tests;
 mod strip;

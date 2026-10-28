@@ -6,12 +6,12 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack,
-    Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow,
+    SectionHeader, ToastStack, Tone,
 };
 use craft_ui::controls::{
-    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
-    Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
+    AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
+    Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
@@ -326,6 +326,17 @@ fn switch() {
     });
 }
 
+/// Angle dials: the face, edge, needle, hub and dead zone, and the gap to the field.
+#[test]
+fn angle_dial() {
+    check("angle_dial.txt", |d, t| {
+        let s = AngleDial::style(t);
+        d.line("size", s.size).line("face", s.face).line("edge", s.edge.width).line("edge_color", s.edge.color).line("edge_active", s.edge_active);
+        d.line("needle", s.needle.width).line("needle_color", s.needle.color).line("needle_inset", s.needle_inset);
+        d.line("hub", s.hub).line("hub_fill", s.hub_fill).line("dead_zone", s.dead_zone).line("gap", s.gap);
+    });
+}
+
 #[test]
 fn swatch() {
     check("swatch.txt", |d, t| {
@@ -492,6 +503,19 @@ fn curve_editor() {
             d.line(&format!("{key}.halo"), p.halo.width).line(&format!("{key}.halo_color"), p.halo.color);
         }
         d.line("hint_role", role(s.hint_role)).line("hint", s.hint);
+    });
+}
+
+/// Gradient editors: the bar's sizes, the ramp's checkerboard and edge, the marker colours and
+/// the drop line.
+#[test]
+fn gradient_editor() {
+    check("gradient_editor.txt", |d, t| {
+        let s = GradientEditor::style(t);
+        d.line("ramp_height", s.ramp_height).line("inset", s.inset).line("marker", s.marker).line("pointer", s.pointer).line("diamond", s.diamond);
+        d.line("hit", s.hit).line("diamond_hit", s.diamond_hit).line("tear_off", s.tear_off).line("drop_line", s.drop_line);
+        d.line("checker_a", s.ramp.checker[0]).line("checker_b", s.ramp.checker[1]).line("cell", s.ramp.cell).line("edge", s.ramp.edge);
+        d.line("marker_edge", s.marker_edge).line("hovered", s.hovered).line("selected", s.selected).line("drop", s.drop);
     });
 }
 

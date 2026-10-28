@@ -626,6 +626,26 @@ pub const LEVELS_THUMB_HEIGHT: f32 = 9.0;
 pub const LEVELS_HIT: f32 = 7.0;
 /// Compact thickness of a levels editor's output gradient bar, as a curve editor's bars.
 pub const LEVELS_BAR: f32 = 8.0;
+/// The control height the Compact gradient editor sizes are set for.
+pub const GRADIENT_EDITOR_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a gradient editor's ramp (PhotoCraft's stop bar).
+pub const GRADIENT_EDITOR_RAMP_HEIGHT: f32 = 24.0;
+/// Compact inset of the ramp at both ends of the bar, so an end marker fits.
+pub const GRADIENT_EDITOR_INSET: f32 = 8.0;
+/// Compact side of a stop marker's square.
+pub const GRADIENT_EDITOR_MARKER: f32 = 10.0;
+/// Compact height of a stop marker's pointer triangle.
+pub const GRADIENT_EDITOR_POINTER: f32 = 5.0;
+/// Compact radius of a midpoint diamond.
+pub const GRADIENT_EDITOR_DIAMOND: f32 = 3.0;
+/// Compact distance from a stop marker that takes a press.
+pub const GRADIENT_EDITOR_HIT: f32 = 6.0;
+/// Compact distance from a midpoint diamond that takes a press.
+pub const GRADIENT_EDITOR_DIAMOND_HIT: f32 = 4.0;
+/// Compact distance above or below the ramp past which a dragged stop is torn off.
+pub const GRADIENT_EDITOR_TEAR_OFF: f32 = 28.0;
+/// Compact thickness of the line that marks a drop place.
+pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
@@ -636,6 +656,19 @@ pub const LIST_DROP_HALO: f32 = 1.0;
 /// How far a selected row's dimmed label and detail line move from `text.on_selected` toward the
 /// selected fill (OKLab mix), before their contrast minimum.
 pub const LIST_SELECTED_QUIET: f64 = 0.4;
+
+/// The control height the Compact angle dial sizes are set for.
+pub const ANGLE_DIAL_BASE_CONTROL: f32 = 24.0;
+/// Compact diameter of an angle dial's face (PhotoCraft's `angle_dial_row`).
+pub const ANGLE_DIAL_SIZE: f32 = 42.0;
+/// Compact width of an angle dial's needle.
+pub const ANGLE_DIAL_NEEDLE_WIDTH: f32 = 2.0;
+/// Compact distance from the dial's edge to the needle's tip.
+pub const ANGLE_DIAL_NEEDLE_INSET: f32 = 4.0;
+/// Compact radius of the dot at the dial's centre.
+pub const ANGLE_DIAL_HUB: f32 = 2.0;
+/// Compact radius round the dial's centre within which the pointer changes nothing.
+pub const ANGLE_DIAL_DEAD_ZONE: f32 = 2.0;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;

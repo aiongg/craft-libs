@@ -108,7 +108,7 @@ const STATE: &str = "craft_ui::color_popover";
 /// when closed and closes it when open (the anchor's click, or another gesture of the caller's).
 /// The response's edit carries `anchor`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn popup<'a, 'b>(
+pub(crate) fn popup<'a, 'b>(
     ui: &mut Ui,
     swatch: Response,
     toggled: bool,
@@ -196,6 +196,12 @@ pub(super) fn popup<'a, 'b>(
         }
         None => ColorPopoverResponse { edit: EditResponse::new(swatch, None), eyedropper_requested: false, picker_id: None, open },
     }
+}
+
+/// Closes the popup of the popover anchored on `anchor`, for a caller that stops drawing the
+/// anchor while the popup is open.
+pub(crate) fn close(ctx: &egui::Context, anchor: Id) {
+    ctx.data_mut(|d| d.remove::<Open>(anchor.with(STATE)));
 }
 
 /// The popover's state between frames.
