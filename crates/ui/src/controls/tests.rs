@@ -267,6 +267,19 @@ fn turning_a_control_off_keeps_the_ids_of_the_widgets_after_it() {
 }
 
 #[test]
+fn a_least_width_wider_than_the_room_stops_at_the_room() {
+    let ctx = context();
+    let width = Cell::new(0.0);
+    pass(&ctx, &theme("craft.pro"), Vec::new(), |ui| {
+        ui.allocate_ui(vec2(80.0, 40.0), |ui| {
+            ui.set_max_width(80.0);
+            width.set(ui.add(Button::new("Export").min_width(400.0)).rect.width());
+        });
+    });
+    assert!((width.get() - 80.0).abs() < 0.5, "{}", width.get());
+}
+
+#[test]
 fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
     for t in every_builtin() {
         let c = &t.component.check;
