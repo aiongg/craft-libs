@@ -13,10 +13,10 @@ use std::path::{Path, PathBuf};
 
 use craft_theme::{
     Appearance, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BorderColors, ButtonColors, ButtonTokens, BySize, CheckOffColors,
-    CheckOnColors, CheckTokens, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, CurveTokens, Dimmed, Easing, Edge, Elevation,
-    ElevationTokens, EmptyStateTokens, FieldTokens, FontSlot, Gaps, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    ItemColors, KbdTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuTokens, Mode, Motion, MotionTokens, NoticeTokens, Pads,
-    PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens,
+    CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, CurveTokens, Dimmed, Easing,
+    Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FontSlot, Gaps, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens,
+    IconSizes, ItemColors, KbdTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuTokens, Mode, Motion, MotionTokens, NoticeTokens,
+    Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens,
     ShapeTokens, Size, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TextSize, ThemeDef, ThumbColors, ThumbSizes,
     ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TypeRole, TypeStyle, TypeTokens, Variants, builtins, resolve,
 };
@@ -274,6 +274,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         badge,
         button,
         check,
+        color_picker,
         curve,
         empty_state,
         field,
@@ -303,6 +304,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     badge_lines(out, badge);
     button_lines(out, button);
     check_lines(out, check);
+    color_picker_lines(out, color_picker);
     curve_lines(out, curve);
     empty_state_lines(out, empty_state);
     field_lines(out, field);
@@ -450,6 +452,48 @@ fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {
     out.line("toggle_button.on_disabled.fill", hex(*on_disabled_fill));
     out.line("toggle_button.on_disabled.border", hex(*on_disabled_border));
     out.line("toggle_button.on_disabled.text", hex(*on_disabled_text));
+}
+
+fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
+    let ColorPickerTokens {
+        area,
+        area_height,
+        strip_full,
+        strip,
+        compare_width,
+        compare_height,
+        marker_inner_radius,
+        marker_inner_width,
+        marker_outer_radius,
+        marker_outer_width,
+        pointer_width,
+        pointer_height,
+        warning_icon,
+        warning_chip,
+        pair_well,
+        pair_step,
+        pair_gap,
+        pair_ring,
+        ..
+    } = p;
+    out.line("color_picker.area", len(*area));
+    out.line("color_picker.area_height", len(*area_height));
+    out.line("color_picker.strip_full", len(*strip_full));
+    out.line("color_picker.strip", len(*strip));
+    out.line("color_picker.compare_width", len(*compare_width));
+    out.line("color_picker.compare_height", len(*compare_height));
+    out.line("color_picker.marker_inner_radius", len(*marker_inner_radius));
+    out.line("color_picker.marker_inner_width", len(*marker_inner_width));
+    out.line("color_picker.marker_outer_radius", len(*marker_outer_radius));
+    out.line("color_picker.marker_outer_width", len(*marker_outer_width));
+    out.line("color_picker.pointer_width", len(*pointer_width));
+    out.line("color_picker.pointer_height", len(*pointer_height));
+    out.line("color_picker.warning_icon", len(*warning_icon));
+    out.line("color_picker.warning_chip", len(*warning_chip));
+    out.line("color_picker.pair_well", len(*pair_well));
+    out.line("color_picker.pair_step", len(*pair_step));
+    out.line("color_picker.pair_gap", len(*pair_gap));
+    out.line("color_picker.pair_ring", len(*pair_ring));
 }
 
 fn property_lines(out: &mut Lines, p: &PropertyTokens) {

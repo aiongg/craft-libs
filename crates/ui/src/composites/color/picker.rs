@@ -1,0 +1,869 @@
+//! [`ColorPicker`]: the colour picker's body, the area and strip with the channel rows, the hex
+//! field and the hooks a host adds.
+
+use craft_theme::{ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
+use egui::accesskit::Role;
+use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Vec2, pos2, vec2};
+
+use super::hex::{self, HexCodec};
+use super::{AreaMode, ColorArea, ColorStrip};
+use crate::composites::PropertyRow;
+use crate::controls::{IconButton, NumberField, Select, Slider};
+use crate::direction;
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
+use crate::icons::Icon;
+use crate::localized::{LocaleNumbers, Unit};
+use crate::primitives::{Content, Gap, Interactive, Row, Text};
+use crate::theme::{Tokens, TokensOf};
+pub use full::ColorWarning;
+
+mod full;
+
+/// What a [`ColorPicker`] reports: the colour, and the values of the model the user edited it
+/// in while they still give it, so a host can keep a CMYK colour CMYK.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PickedColor {
+    /// Encoded sRGB with straight alpha, after the host's [`constrain`](ColorPicker::constrain).
+    pub color: Srgba,
+    /// The values of the model edited, as the user set them: a typed Lab or CMYK colour outside
+    /// sRGB stays as typed. `None` for a colour set as such (hex, a sample) and for one the
+    /// constraint moved away from its values.
+    pub model: Option<ModelValues>,
+}
+
+/// How a [`ColorPicker`] lays out its parts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ColorPickerLayout {
+    /// PhotoCraft's Color panel and compact popup: the area over the channel slider rows of one
+    /// model, a model switch, the hex row and the optional alpha row.
+    #[default]
+    Compact,
+    /// PhotoCraft's Color Picker dialog: the square area and the strip, the compare swatch and
+    /// the host's warnings beside them over the channel grid, every model's channels at once with
+    /// radios choosing what the area shows, and the hex field.
+    Full,
+}
+
+/// What [`ColorPicker::show`] returns.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use = "the host applies the edit event"]
+pub struct ColorPickerResponse {
+    /// The picker's edit; the response covers the picker, and its id is the one
+    /// [`ColorPicker::sampled`] takes.
+    pub edit: EditResponse<PickedColor>,
+    /// The eyedropper button was pressed: the host starts sampling and gives the result with
+    /// [`ColorPicker::sampled`].
+    pub eyedropper_requested: bool,
+}
+
+/// A colour picker's body: a [`ColorArea`] and a [`ColorStrip`], the channel fields of its
+/// [`ColorModel`]s, the hex field and the host's hooks, in PhotoCraft's Color panel and compact
+/// popup layout ([`ColorPickerLayout::Compact`]) or its Color Picker dialog's
+/// ([`ColorPickerLayout::Full`]):
+///
+/// ```
+/// use craft_theme::Srgba;
+/// use craft_ui::composites::ColorPicker;
+/// use craft_ui::localized::LocaleNumbers;
+/// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(0.2, 0.5, 0.8);
+/// let numbers = LocaleNumbers::from_tag("en");
+/// let picked = ColorPicker::new("foreground", "Foreground colour", color, &numbers).alpha(true).show(ui);
+/// if let Some(p) = picked.edit.event.as_ref().and_then(|e| e.value()) {
+///     color = p.color;
+/// }
+/// # });
+/// ```
+///
+/// - Compact layout: the area fills the width less the strip, `color_picker.area_height` high
+///   ([`area_height`](ColorPicker::area_height)), the strip `color_picker.strip` wide at the
+///   reading end. Under them each channel of the model is a [`PropertyRow`] whose word label
+///   scrubs the [`NumberField`] at the row's end, then a [`Slider`] whose track shows the
+///   channel's colours ([`dynamic_tracks`](ColorPicker::dynamic_tracks)). A model switch lists
+///   the [`models`](ColorPicker::models) (HSB, RGB and OKLCH unless the host chooses). Then "#"
+///   and the hex field, with the eyedropper button when the host gives the
+///   [hook](ColorPicker::eyedropper); and with [`alpha`](ColorPicker::alpha) an "Opacity" row
+///   over the checkerboard. The area shows the [`AreaMode`] the host holds
+///   ([`mode`](ColorPicker::mode)), hue in the strip by default.
+/// - Full layout: the area `color_picker.area` square, the strip `color_picker.strip_full` wide
+///   at its reading end, the "Opacity" row with [`alpha`](ColorPicker::alpha) and the eyedropper
+///   button under them. Beside them the [`compare`](ColorPicker::compare) swatch ("new" over
+///   "current") and the host's [`warning`](ColorPicker::warning)s, over the channel grid: H, S, B,
+///   R, G, B, then "#" and the hex field; L, a, b and the host's models; OKLCH in a column of its
+///   own when the host turns it on ([`models`](ColorPicker::models); HSB, RGB and Lab
+///   otherwise). A radio before each built-in channel's label chooses the [`AreaMode`]; it
+///   edits no colour. The hex field takes the focus, its text selected, whenever the layout
+///   shows after a pass without it ([`focus_hex`](ColorPicker::focus_hex)).
+/// - Channel fields: one width in both layouts, the widest value of every built-in channel and
+///   of the picker's models with its unit ([`NumberField::fit_width`]).
+/// - Edits: every inner control's gesture is the picker's, with the whole colour as its value:
+///   an area or strip drag, a slider drag, a scrub or a typing run is one Begin … Commit (or
+///   Cancel); keys, the wheel, Enter and a sample are [`Set`](EditEvent::Set)s. Esc during a
+///   gesture cancels it; Esc without one is the host's. Inside [`edit::scope`] only updates go
+///   out. The host's [`EditPolicy`] decides how the picker's gesture reports.
+/// - Kept components: the picker keeps the values the user last edited, in that model, while
+///   they still give the colour's 8-bit sRGB (or are what gave the colour the picker reported):
+///   greys keep their hue, black its hue and saturation, a typed Lab colour outside sRGB its
+///   values. [`PickedColor::model`] carries them.
+/// - Hex field: the colour in uppercase; valid input (six digits, eight with alpha, with or
+///   without "#") applies as typed; partial or invalid input waits while the field has the
+///   focus and goes when it leaves; signs and non-ASCII text are invalid. Another control's
+///   change drops what was typed.
+/// - Hooks: [`eyedropper`](ColorPicker::eyedropper) and [`sampled`](ColorPicker::sampled),
+///   [`constrain`](ColorPicker::constrain), [`text`](ColorPicker::text); in the Full layout
+///   [`compare`](ColorPicker::compare) and [`warning`](ColorPicker::warning), whose clicks are
+///   [`Set`](EditEvent::Set)s.
+/// - Tab: in a dialog's [`FieldTab`](crate::behavior::FieldTab) scope Tab visits the number
+///   fields and the hex field; the area, the strip and the sliders are reached with Ctrl+Tab.
+/// - AccessKit: a `Group` named `label`; the channel fields and sliders are named by the
+///   channel's full name ("Hue"), or "<model> <channel>" ("OKLCH hue") while another model on
+///   show has a channel of that name (the rows' and the area's models in Compact, every model in
+///   Full; the strip and the row label follow it); the hex field "Hex colour", the eyedropper by
+///   the host's label.
+///   Full: the radios are a `RadioGroup` "Field shows" with a `RadioButton` per channel, named
+///   by the channel's full name; the compare swatch's halves are an `Image` "New colour" and a
+///   `Button` "Restore current colour", each with its colour's hex as value; each warning a
+///   `Button` named by its tip.
+#[must_use = "show the picker with `show`"]
+pub struct ColorPicker<'a> {
+    id_salt: IdSalt,
+    label: String,
+    color: Srgba,
+    numbers: &'a LocaleNumbers,
+    layout: ColorPickerLayout,
+    models: Option<Vec<&'a dyn ColorModel>>,
+    mode: Option<&'a mut AreaMode>,
+    area_height: Option<f32>,
+    dynamic_tracks: bool,
+    alpha: bool,
+    eyedropper: Option<String>,
+    eyedropper_busy: bool,
+    compare: Option<Srgba>,
+    warnings: Vec<ColorWarning>,
+    constrain: Option<Box<Constrain<'a>>>,
+    text: Option<Box<Translate<'a>>>,
+    policy: EditPolicy,
+    enabled: bool,
+}
+
+/// The host's constraint on every colour reported.
+type Constrain<'a> = dyn Fn(Srgba) -> Srgba + 'a;
+/// The host's translation of the picker's words.
+type Translate<'a> = dyn Fn(&str) -> String + 'a;
+
+impl ColorPicker<'_> {
+    /// The picker's own words, English: the keys [`text`](ColorPicker::text) translates. The
+    /// models' channel and model names go through it too, and the area's name is
+    /// "<across> and <down>" ("Saturation and brightness"). A channel whose name another model
+    /// on show also has is named "<model> <channel>" ("OKLCH hue", "HSB hue").
+    pub const TEXTS: [&'static str; 10] = [
+        "Opacity",
+        "Hex colour",
+        "Colour model",
+        "Not a hex colour",
+        "{n}%",
+        "Field shows",
+        "new",
+        "current",
+        "New colour",
+        "Restore current colour",
+    ];
+}
+
+impl<'a> ColorPicker<'a> {
+    /// A picker named `label` (its group's accessible name, translated: "Foreground colour")
+    /// editing the host's `color`; `numbers` writes and reads its fields. `id_salt` keeps its
+    /// kept values, model and gestures when the layout around it changes.
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: Srgba, numbers: &'a LocaleNumbers) -> Self {
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            color,
+            numbers,
+            layout: ColorPickerLayout::default(),
+            models: None,
+            mode: None,
+            area_height: None,
+            dynamic_tracks: true,
+            alpha: false,
+            eyedropper: None,
+            eyedropper_busy: false,
+            compare: None,
+            warnings: Vec::new(),
+            constrain: None,
+            text: None,
+            policy: EditPolicy::default(),
+            enabled: true,
+        }
+    }
+
+    /// The layout; [`Compact`](ColorPickerLayout::Compact) by default.
+    pub fn layout(mut self, layout: ColorPickerLayout) -> Self {
+        self.layout = layout;
+        self
+    }
+
+    /// The models offered, in order, the host's own among them; the built-in models on by
+    /// default in the layout ([`ColorModel::default_on`]) without it.
+    pub fn models(mut self, models: impl IntoIterator<Item = &'a dyn ColorModel>) -> Self {
+        self.models = Some(models.into_iter().collect());
+        self
+    }
+
+    /// What the area and the strip show, held by the host; kept per picker without it.
+    pub fn mode(mut self, mode: &'a mut AreaMode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
+
+    /// The Compact area's height; `color_picker.area_height` without it. A docked panel gives
+    /// the room its group leaves.
+    pub fn area_height(mut self, height: f32) -> Self {
+        self.area_height = Some(height);
+        self
+    }
+
+    /// Whether the channel sliders' tracks show the channel's colours with the others fixed
+    /// (PhotoCraft's Dynamic Color Sliders); on by default.
+    pub fn dynamic_tracks(mut self, dynamic: bool) -> Self {
+        self.dynamic_tracks = dynamic;
+        self
+    }
+
+    /// Whether the picker edits the alpha: an "Opacity" row, and eight hex digits; off by
+    /// default.
+    pub fn alpha(mut self, alpha: bool) -> Self {
+        self.alpha = alpha;
+        self
+    }
+
+    /// Shows the eyedropper button, named `label` (translated: "Pick screen color"); a press
+    /// reports [`eyedropper_requested`](ColorPickerResponse::eyedropper_requested).
+    pub fn eyedropper(mut self, label: impl Into<String>) -> Self {
+        self.eyedropper = Some(label.into());
+        self
+    }
+
+    /// Disables the eyedropper button while the host samples.
+    pub fn eyedropper_busy(mut self, busy: bool) -> Self {
+        self.eyedropper_busy = busy;
+        self
+    }
+
+    /// The Full layout's compare swatch: the colour being edited over `current`, the colour the
+    /// host started from (the dialog's original); a click on `current` sets it again.
+    pub fn compare(mut self, current: Srgba) -> Self {
+        self.compare = Some(current);
+        self
+    }
+
+    /// A warning beside the Full layout's compare swatch (PhotoCraft's out-of-gamut and
+    /// web-colour warnings); a click on it sets its nearest passing colour. The host gives this
+    /// frame's warnings for the colour it shows.
+    pub fn warning(mut self, warning: ColorWarning) -> Self {
+        self.warnings.push(warning);
+        self
+    }
+
+    /// Applied to every colour before it is reported (PhotoCraft's Only Web Colors snaps each
+    /// edit). Values it moves the colour away from are not reported as
+    /// [`PickedColor::model`].
+    pub fn constrain(mut self, constrain: impl Fn(Srgba) -> Srgba + 'a) -> Self {
+        self.constrain = Some(Box::new(constrain));
+        self
+    }
+
+    /// Translates the picker's words: [`TEXTS`](ColorPicker::TEXTS) and the models' channel and model names, given
+    /// in English. Unchanged without it.
+    pub fn text(mut self, translate: impl Fn(&str) -> String + 'a) -> Self {
+        self.text = Some(Box::new(translate));
+        self
+    }
+
+    /// How the picker's gesture reports ([`EditPolicy`]); Esc cancels a gesture when the policy
+    /// is cancellable.
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Gives the picker with id `id` (its [`response`](ColorPickerResponse::edit)'s) the
+    /// eyedropper's sample; the picker reports it as a [`Set`](EditEvent::Set) in its next
+    /// frame, with its own alpha. A cancelled sample gives nothing.
+    pub fn sampled(ctx: &Context, id: Id, color: Srgba) {
+        ctx.data_mut(|d| d.insert_temp(sample_key(id), color));
+        ctx.request_repaint();
+    }
+
+    /// Focuses the hex field of the picker with id `id` (its [`response`](ColorPickerResponse::edit)'s)
+    /// with its text selected, so typing replaces it. The Full layout does it on the first frame
+    /// it is shown.
+    pub fn focus_hex(ctx: &Context, id: Id) {
+        hex::focus(ctx, id);
+    }
+
+    /// Shows the picker and returns this frame's edit.
+    pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
+        let id = Interactive::id_in(ui, self.id_salt);
+        let builder = UiBuilder::new()
+            .scope_id(id)
+            .layout(Layout::top_down_justified(Align::Min))
+            .accessibility_role(Role::Group)
+            .accessibility_label(self.label.clone());
+        let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, id));
+        let (event, eyedropper_requested) = inner.inner;
+        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested }
+    }
+
+    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, bool) {
+        let tokens = Tokens::of(ui);
+        ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
+        let enabled = self.enabled && ui.is_enabled();
+        let full = self.layout == ColorPickerLayout::Full;
+        let mut state = State::load(ui, id);
+        let pass = ui.ctx().cumulative_pass_nr();
+        if full && enabled && state.shown_pass.is_none_or(|p| p + 1 < pass) {
+            ColorPicker::focus_hex(ui.ctx(), id);
+        }
+        state.shown_pass = Some(pass);
+        let models = self
+            .models
+            .clone()
+            .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
+        let mut mode = self.mode.as_deref().copied().unwrap_or(state.mode);
+        let eyedropper_requested;
+        let event = {
+            let translate = |s: &str| self.text.as_ref().map_or_else(|| s.to_owned(), |t| t(s));
+            let constrain = |c: Srgba| self.constrain.as_ref().map_or(c, |f| f(c));
+            let width = channel_width(ui, self.numbers, &models, &translate);
+
+            let host = Picked::from_host(self.color, state.kept.as_ref());
+            // Esc is the inner controls': each cancels its own gesture, which cancels this one.
+            let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
+            let start = outer.start().cloned();
+            let shown = outer.shown().clone();
+            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
+            let mut edits = Edits::default();
+
+            eyedropper_requested = match self.layout {
+                ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
+                ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, &shown, inner, &translate, &constrain, &mut edits),
+            };
+            if let Some(color) = ui.data_mut(|d| {
+                let color = d.get_temp::<Srgba>(sample_key(id));
+                d.remove::<Srgba>(sample_key(id));
+                color
+            }) {
+                edits.sample = Some(shown.with_color(color.with_alpha(shown.color.a), &constrain));
+            }
+
+            let mut outer = outer.focus_owners(&edits.typing);
+            edits.feed(&mut outer, &mut state, edit::in_scope(ui));
+            let value = outer.shown().clone();
+            let event = outer.finish_as(|p: Picked| p.report());
+            match &event {
+                Some(EditEvent::Cancel { .. }) => state.kept = start.or(state.kept),
+                Some(e) if e.value().is_some() => state.kept = Some(value),
+                _ => {}
+            }
+            event
+        };
+        match self.mode.as_deref_mut() {
+            Some(held) => *held = mode,
+            None => state.mode = mode,
+        }
+        state.store(ui, id);
+        (event, eyedropper_requested)
+    }
+
+    /// The Compact layout: the area and strip, the slider rows of one model, the model switch,
+    /// the hex row and the alpha row; whether the eyedropper button was pressed.
+    #[allow(clippy::too_many_arguments)]
+    fn compact(
+        &self,
+        ui: &mut Ui,
+        id: Id,
+        mode: AreaMode,
+        models: &[&dyn ColorModel],
+        state: &mut State,
+        shown: &Picked,
+        inner: Inner,
+        translate: &dyn Fn(&str) -> String,
+        constrain: &dyn Fn(Srgba) -> Srgba,
+        edits: &mut Edits,
+    ) -> bool {
+        let style = ColorArea::style(&Tokens::of(ui));
+        let height = self.area_height.unwrap_or(style.area_height);
+        let gap = Gap::Inline.points(&Tokens::of(ui));
+        let area_width = (ui.available_width() - gap - ColorStrip::outer_width(&style, style.strip)).max(0.0);
+        let model = models.iter().copied().find(|m| Some(m.id()) == state.model).or_else(|| models.first().copied());
+        let visible: Vec<&dyn ColorModel> = model.into_iter().chain([mode.model()]).collect();
+        self.area_and_strip(ui, mode, &visible, shown, inner, translate, constrain, edits, vec2(area_width, height), style.strip);
+        if let Some(model) = model {
+            let (values, exact) = shown.values_in(model);
+            for (i, ch) in model.channels().iter().enumerate() {
+                let name = channel_name(model, i, &visible, translate);
+                let unit = unit_of(ch.unit, translate);
+                let range = f64::from(ch.min)..=f64::from(ch.max);
+                let track = self.dynamic_tracks.then(|| model.track(i, &values));
+                let (field, slider) =
+                    slider_row(ui, ("channel", i), &name, exact[i], range, f64::from(ch.step), ch.decimals, unit, track, self.numbers, inner);
+                edits.typing.push(field.response.id);
+                for edit in [field, slider] {
+                    edits.push(&edit, |x| shown.with_channel(model, i, x, constrain));
+                }
+            }
+            if models.len() > 1 {
+                state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
+            }
+        }
+        let requested = self.hex_row(ui, id, shown, translate, constrain, inner.enabled, edits);
+        if self.alpha {
+            self.alpha_row(ui, shown, inner, translate, constrain, edits);
+        }
+        requested
+    }
+
+    /// The "Opacity" slider row, 0–100 % over the checkerboard.
+    fn alpha_row(
+        &self,
+        ui: &mut Ui,
+        shown: &Picked,
+        inner: Inner,
+        translate: &dyn Fn(&str) -> String,
+        constrain: &dyn Fn(Srgba) -> Srgba,
+        edits: &mut Edits,
+    ) {
+        let name = translate(ColorPicker::TEXTS[0]);
+        let opaque = shown.color.with_alpha(1.0);
+        let track = Some(vec![opaque.with_alpha(0.0), opaque]);
+        let unit = unit_of("%", translate);
+        let (field, slider) = slider_row(ui, "alpha", &name, shown.alpha, 0.0..=100.0, 1.0, 0, unit, track, self.numbers, inner);
+        edits.typing.push(field.response.id);
+        for edit in [field, slider] {
+            edits.push(&edit, |pct| shown.with_alpha(pct, constrain));
+        }
+    }
+
+    /// The area `area` large and, at the reading end, the strip `strip` wide. The strip and the
+    /// area's components are named as the `visible` models' channels are ([`channel_name`]).
+    #[allow(clippy::too_many_arguments)]
+    fn area_and_strip(
+        &self,
+        ui: &mut Ui,
+        mode: AreaMode,
+        visible: &[&dyn ColorModel],
+        shown: &Picked,
+        inner: Inner,
+        translate: &dyn Fn(&str) -> String,
+        constrain: &dyn Fn(Srgba) -> Srgba,
+        edits: &mut Edits,
+        area: Vec2,
+        strip: f32,
+    ) {
+        let model = mode.model();
+        let (values, _) = shown.values_in(model);
+        let [across, down] = mode.area();
+        let channels = model.channels();
+        let area_name = translate(&format!("{} and {}", channels[across].name, channels[down].name.to_lowercase()));
+        Row::new(Gap::Inline).show(ui, |ui| {
+            let area = ColorArea::new("area", area_name, mode, values)
+                .channel_names(channel_name(model, across, visible, translate), channel_name(model, down, visible, translate))
+                .size(area)
+                .policy(inner.policy)
+                .enabled(inner.enabled)
+                .show(ui);
+            edits.push(&area, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
+            let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
+                .size(vec2(strip, area.response.rect.height()))
+                .policy(inner.policy)
+                .enabled(inner.enabled)
+                .show(ui);
+            edits.push(&strip, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
+        });
+    }
+
+    /// "#", the hex field and the eyedropper button; whether the button was pressed.
+    #[allow(clippy::too_many_arguments)]
+    fn hex_row(
+        &self,
+        ui: &mut Ui,
+        id: Id,
+        shown: &Picked,
+        translate: &dyn Fn(&str) -> String,
+        constrain: &dyn Fn(Srgba) -> Srgba,
+        enabled: bool,
+        edits: &mut Edits,
+    ) -> bool {
+        let tokens = Tokens::of(ui);
+        let gap = Gap::Inline.points(&tokens);
+        let button = self.eyedropper.as_ref().map(|_| IconButton::style(&tokens, ControlSize::Md).side + gap);
+        let mut requested = false;
+        Row::new(Gap::Inline).show(ui, |ui| {
+            ui.add(Text::new("#").role(TypeRole::Mono).content(Content::Muted));
+            let width = (ui.available_width() - button.unwrap_or(0.0)).max(0.0);
+            self.hex_field(ui, id, width, shown, translate, constrain, enabled, edits);
+            if let Some(label) = &self.eyedropper {
+                let pressed = ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)).clicked();
+                requested = pressed;
+            }
+        });
+        requested
+    }
+
+    /// The hex field, `width` wide.
+    #[allow(clippy::too_many_arguments)]
+    fn hex_field(
+        &self,
+        ui: &mut Ui,
+        id: Id,
+        width: f32,
+        shown: &Picked,
+        translate: &dyn Fn(&str) -> String,
+        constrain: &dyn Fn(Srgba) -> Srgba,
+        enabled: bool,
+        edits: &mut Edits,
+    ) {
+        let codec = HexCodec { alpha: self.alpha, reason: translate(ColorPicker::TEXTS[3]) };
+        let label = translate(ColorPicker::TEXTS[1]);
+        let field = ui
+            .allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
+                hex::show(
+                    ui,
+                    hex::hex_id(id),
+                    &label,
+                    shown.color.to_rgba(),
+                    codec,
+                    EditPolicy::default().cancellable(self.policy.cancellable),
+                    enabled,
+                )
+            })
+            .inner;
+        edits.typing.push(field.response.id);
+        edits.push(&field, |rgba| shown.with_hex(rgba, constrain));
+    }
+}
+
+/// What the inner controls share: their policy, whether they take input, and the channel
+/// fields' width.
+#[derive(Clone, Copy, Debug)]
+struct Inner {
+    policy: EditPolicy,
+    enabled: bool,
+    /// The width of every channel field ([`channel_width`]).
+    width: f32,
+}
+
+/// The width of every channel field, in either layout: the widest value of every built-in
+/// channel and of the picker's models' channels, with its unit.
+fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> f32 {
+    let builtin: [&dyn ColorModel; 4] = builtin_models();
+    builtin
+        .into_iter()
+        .chain(models.iter().copied())
+        .flat_map(|m| m.channels().iter())
+        .map(|ch| {
+            let range = f64::from(ch.min)..=f64::from(ch.max);
+            NumberField::fit_width(ui, ControlSize::Md, numbers, range, usize::from(ch.decimals), &unit_of(ch.unit, translate))
+        })
+        .fold(0.0, f32::max)
+}
+
+/// Channel `channel` of `model`'s accessible name, translated: the channel's name, or
+/// "<model> <channel>" ("OKLCH hue") when another of the `visible` models has a channel of that
+/// name.
+fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> String {
+    let name = model.channels()[channel].name;
+    let clash = visible.iter().any(|m| m.id() != model.id() && m.channels().iter().any(|ch| ch.name == name));
+    if clash { translate(&format!("{} {}", model.name(), name.to_lowercase())) } else { translate(name) }
+}
+
+/// A Compact slider row: the word label `name`, which scrubs and names the number field at the
+/// row's end, then the slider under them; the field's and the slider's edits.
+#[allow(clippy::too_many_arguments)]
+fn slider_row(
+    ui: &mut Ui,
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    range: std::ops::RangeInclusive<f64>,
+    step: f64,
+    decimals: u8,
+    unit: Unit,
+    track: Option<Vec<Srgba>>,
+    numbers: &LocaleNumbers,
+    inner: Inner,
+) -> (EditResponse<f64>, EditResponse<f64>) {
+    let Inner { policy, enabled, width } = inner;
+    let field = PropertyRow::word(name)
+        .scrubs()
+        .show(ui, |ui, row| {
+            at_end(ui, width, |ui| {
+                let field = NumberField::new(("field", salt), name, value, numbers)
+                    .range(range.clone())
+                    .step(step)
+                    .decimals(0..=usize::from(decimals))
+                    .unit(unit)
+                    .policy(policy)
+                    .enabled(enabled);
+                match row.scrub() {
+                    Some(label) => field.scrub_by(label),
+                    None => field,
+                }
+                .show(ui)
+            })
+        })
+        .inner;
+    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled);
+    if let Some(stops) = track {
+        slider = slider.track_colors(stops);
+    }
+    (field, slider.show(ui))
+}
+
+/// `add` in a column `width` wide at the reading end of the `Ui`.
+fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let full = ui.available_rect_before_wrap();
+    let width = width.min(full.width());
+    let x = if direction::is_rtl(ui) { full.left() } else { full.right() - width };
+    let rect = Rect::from_min_size(pos2(x, full.top()), vec2(width, full.height()));
+    ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::top_down_justified(Align::Min)), add).inner
+}
+
+// TODO(DS-22): the model switch is a `PressMenu` button under the rows (PhotoCraft's "HSB/HSL" /
+// "RGB Color"); a `Select` stands in for it.
+/// The model menu; the model chosen.
+fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, translate: &dyn Fn(&str) -> String, enabled: bool) -> &'static str {
+    let mut chosen = current;
+    ui.with_layout(direction::column(ui), |ui| {
+        let mut select = Select::new("model", translate(ColorPicker::TEXTS[2]), &mut chosen).enabled(enabled);
+        for m in models {
+            select = select.option(m.id(), translate(m.name()));
+        }
+        let _ = select.show(ui);
+    });
+    chosen
+}
+
+/// A channel's unit as a number field shows it: the template for "°" or "%", none otherwise.
+fn unit_of(unit: &str, translate: &dyn Fn(&str) -> String) -> Unit {
+    match unit {
+        "" => Unit::default(),
+        "%" => Unit::new(&translate(ColorPicker::TEXTS[4])),
+        other => Unit::new(&format!("{{n}}{other}")),
+    }
+}
+
+fn sample_key(id: Id) -> Id {
+    id.with("craft_ui::color_picker::sampled")
+}
+
+/// What the picker keeps between frames, per picker id.
+#[derive(Clone, Debug, Default)]
+struct State {
+    /// The value the picker last reported: the colour with the values that made it.
+    kept: Option<Picked>,
+    /// The inner control whose gesture the picker's gesture is.
+    owner: Option<Id>,
+    /// The model of the Compact rows.
+    model: Option<&'static str>,
+    mode: AreaMode,
+    /// The pass the picker was last shown in: the Full layout focuses the hex field when it shows
+    /// again after a pass without it.
+    shown_pass: Option<u64>,
+}
+
+impl State {
+    fn key(id: Id) -> Id {
+        id.with("craft_ui::color_picker")
+    }
+
+    fn load(ui: &Ui, id: Id) -> Self {
+        ui.data(|d| d.get_temp::<Self>(Self::key(id))).unwrap_or_default()
+    }
+
+    fn store(self, ui: &Ui, id: Id) {
+        ui.data_mut(|d| d.insert_temp(Self::key(id), self));
+    }
+}
+
+/// The picker's value: the colour and the model values the user made it with. Two values are
+/// equal when their 8-bit colours and their values are, so a host that keeps 8-bit colour still
+/// echoes what the picker reported.
+#[derive(Clone, Debug)]
+struct Picked {
+    color: Srgba,
+    /// The values last edited, in their model.
+    values: Option<ModelValues>,
+    /// The same values as the number fields and sliders reported them, which `f32` would round.
+    exact: [f64; MAX_CHANNELS],
+    /// The alpha in percent, as the alpha row reported it.
+    alpha: f64,
+    /// `color` was made from `values` (perhaps moved by the host's constraint): they show
+    /// whatever the colour.
+    made: bool,
+    /// `values` give `color`'s 8-bit sRGB: they go out with it.
+    faithful: bool,
+}
+
+impl PartialEq for Picked {
+    fn eq(&self, other: &Self) -> bool {
+        self.color.to_rgba() == other.color.to_rgba()
+            && self.values == other.values
+            && self.exact == other.exact
+            && self.alpha == other.alpha
+            && self.made == other.made
+            && self.faithful == other.faithful
+    }
+}
+
+impl Picked {
+    /// The host's `color` with the values `kept` from the picker's last report: as reported
+    /// while the host shows that colour; otherwise the values stay for the kept-components rule.
+    fn from_host(color: Srgba, kept: Option<&Picked>) -> Picked {
+        match kept {
+            Some(k) if k.color.to_rgba() == color.to_rgba() => Picked { color, ..k.clone() },
+            Some(k) => Picked { color, alpha: percent(color.a), made: false, faithful: false, ..k.clone() },
+            None => Picked { color, values: None, exact: [0.0; MAX_CHANNELS], alpha: percent(color.a), made: false, faithful: false },
+        }
+    }
+
+    /// The colour in `model`: the kept values while they are of `model` and made the colour or
+    /// still give its 8-bit sRGB, otherwise converted; with the fields' exact values.
+    fn values_in(&self, model: &dyn ColorModel) -> (ModelValues, [f64; MAX_CHANNELS]) {
+        match self.values {
+            Some(v) if v.model == model.id() && (self.made || model.to_srgb(&v.values).same_rgb8(self.color)) => {
+                let exact = std::array::from_fn(|i| if self.exact[i] as f32 == v.values[i] { self.exact[i] } else { f64::from(v.values[i]) });
+                (v, exact)
+            }
+            _ => {
+                let v = model.from_srgb(self.color);
+                (v, v.values.map(f64::from))
+            }
+        }
+    }
+
+    /// The colour `values` give, with this alpha.
+    fn with_values(&self, values: &ModelValues, exact: [f64; MAX_CHANNELS], constrain: &dyn Fn(Srgba) -> Srgba) -> Picked {
+        let made = model_of(values).map_or(self.color, |m| m.to_srgb(&values.values)).with_alpha(self.color.a);
+        let color = constrain(made);
+        Picked { color, values: Some(*values), exact, alpha: self.alpha, made: true, faithful: color.same_rgb8(made) }
+    }
+
+    /// Channel `channel` of `model` set to `value`.
+    fn with_channel(&self, model: &dyn ColorModel, channel: usize, value: f64, constrain: &dyn Fn(Srgba) -> Srgba) -> Picked {
+        let (mut values, mut exact) = self.values_in(model);
+        values.values[channel] = value as f32;
+        exact[channel] = value;
+        let made = model.to_srgb(&values.values).with_alpha(self.color.a);
+        let color = constrain(made);
+        Picked { color, values: Some(values), exact, alpha: self.alpha, made: true, faithful: color.same_rgb8(made) }
+    }
+
+    /// The alpha set to `percent`.
+    fn with_alpha(&self, percent: f64, constrain: &dyn Fn(Srgba) -> Srgba) -> Picked {
+        let color = constrain(self.color.with_alpha((percent / 100.0) as f32));
+        Picked { color, alpha: percent, ..self.clone() }
+    }
+
+    /// A colour set as such (a sample); no model values.
+    fn with_color(&self, color: Srgba, constrain: &dyn Fn(Srgba) -> Srgba) -> Picked {
+        let color = constrain(color);
+        let alpha = if color.to_rgba().0[3] == self.color.to_rgba().0[3] { self.alpha } else { percent(color.a) };
+        Picked { color, values: None, exact: [0.0; MAX_CHANNELS], alpha, made: false, faithful: false }
+    }
+
+    /// The hex field's colour; this value itself while the field shows it.
+    fn with_hex(&self, rgba: Rgba, constrain: &dyn Fn(Srgba) -> Srgba) -> Picked {
+        if rgba == self.color.to_rgba() { self.clone() } else { self.with_color(rgba.into(), constrain) }
+    }
+
+    fn report(self) -> PickedColor {
+        PickedColor { color: self.color, model: self.values.filter(|_| self.made && self.faithful) }
+    }
+}
+
+fn percent(alpha: f32) -> f64 {
+    f64::from(alpha) * 100.0
+}
+
+/// The built-in model of `values`, for the area and strip's values; a host model's values come
+/// from its rows, which convert with the model itself.
+fn model_of(values: &ModelValues) -> Option<&'static dyn ColorModel> {
+    builtin_models().into_iter().find(|m| m.id() == values.model)
+}
+
+/// The inner controls' edits of a frame, in drawing order, as the picker's values.
+#[derive(Default)]
+struct Edits {
+    events: Vec<(Id, EditEvent<Picked>)>,
+    /// The fields whose focus is a typing run's: the picker's gesture commits when it leaves them.
+    typing: Vec<Id>,
+    sample: Option<Picked>,
+    /// One-shot values set by a click: the compare swatch's current half, a warning's chip.
+    sets: Vec<Picked>,
+}
+
+impl Edits {
+    fn push<T: Clone>(&mut self, edit: &EditResponse<T>, map: impl FnOnce(T) -> Picked) {
+        if let Some(event) = edit.event.clone() {
+            self.events.push((edit.response.id, event.map(map)));
+        }
+    }
+
+    /// Turns the inner controls' gestures into the picker's: the control that begins one owns
+    /// it, and its commit or cancel ends it; others' changes join it.
+    fn feed(self, outer: &mut Gesture<Picked>, state: &mut State, scoped: bool) {
+        for (who, event) in self.events {
+            let owner = state.owner == Some(who);
+            match event {
+                // Inside a scope the controls report only updates, each a change of its own.
+                event if scoped => {
+                    if let Some(value) = event.value() {
+                        outer.set(value.clone());
+                    }
+                }
+                EditEvent::Begin { .. } => {
+                    if !outer.is_active() {
+                        outer.begin();
+                        state.owner = Some(who);
+                    }
+                }
+                EditEvent::Update { value, modifiers, .. } => {
+                    if !outer.is_active() {
+                        outer.begin();
+                        state.owner = Some(who);
+                    }
+                    outer.update(value, modifiers);
+                }
+                EditEvent::Commit { value, changed, modifiers, .. } => match outer.start().cloned() {
+                    None => outer.set(value),
+                    Some(start) if owner => {
+                        outer.update(if changed { value } else { start }, modifiers);
+                        outer.commit();
+                    }
+                    Some(_) => outer.update(value, modifiers),
+                },
+                EditEvent::Cancel { reason, .. } => {
+                    if owner {
+                        outer.cancel(reason);
+                    }
+                }
+                EditEvent::Set { value, .. } => outer.set(value),
+            }
+        }
+        for value in self.sets {
+            outer.set(value);
+        }
+        if let Some(sample) = self.sample {
+            outer.set(sample);
+        }
+    }
+}

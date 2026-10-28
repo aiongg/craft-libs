@@ -192,6 +192,7 @@ pub struct Typing<'a, C: Codec = PlainText> {
     invalid: bool,
     keys: EventFilter,
     tabular: bool,
+    keep_rejected: bool,
 }
 
 impl<'a> Typing<'a> {
@@ -256,6 +257,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             invalid: false,
             keys: EventFilter::default(),
             tabular: false,
+            keep_rejected: true,
         }
     }
 
@@ -316,6 +318,14 @@ impl<'a, C: Codec> Typing<'a, C> {
     /// Reports the value invalid to AccessKit; rejected text is reported invalid too.
     pub fn invalid(mut self, invalid: bool) -> Self {
         self.invalid = invalid;
+        self
+    }
+
+    /// Whether a draft that reads as no value stays in the field when its run ends, marked
+    /// invalid (the default), or goes, so that the field shows the value again: PhotoCraft's hex
+    /// field snaps back when the focus leaves it.
+    pub fn keep_rejected(mut self, keep: bool) -> Self {
+        self.keep_rejected = keep;
         self
     }
 
@@ -430,6 +440,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             id,
             escape: self.escape,
             keep_focus: self.keep_focus,
+            keep_rejected: self.keep_rejected,
             escaped,
             codec: self.codec,
             host: self.value,
@@ -495,6 +506,7 @@ pub struct Typed<C: Codec = PlainText> {
     id: Id,
     escape: Escape,
     keep_focus: bool,
+    keep_rejected: bool,
     /// Esc left the field in this pass and goes on to the host.
     escaped: bool,
     codec: C,
@@ -684,9 +696,10 @@ impl<C: Codec> Typed<C> {
         }
         // A run of drafts ends on Enter or when the focus leaves (the gesture commits it as it
         // finishes): text that reads as no value stays, rejected, unless Esc ended the run (a
-        // policy that can't cancel commits it).
+        // policy that can't cancel commits it) or the field doesn't keep rejected text.
         let ending = self.submitted || self.commit || !focused || self.replaced;
         if let Some(draft) = self.draft.take_if(|_| ending)
+            && self.keep_rejected
             && !self.replaced
             && !self.escaped
             && self.gesture.id() == Some(draft.run)

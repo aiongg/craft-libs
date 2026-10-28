@@ -312,6 +312,28 @@ impl<'a> NumberField<'a> {
         }
     }
 
+    /// The width of a field of `size` that shows every value of `range` with `decimals` digits
+    /// after the decimal mark and its `unit` whole: the box's padding, the unit and the widest
+    /// number at either end of the range, in tabular figures. Columns of fields with different
+    /// ranges take the widest of their widths.
+    pub fn fit_width(ui: &Ui, size: ControlSize, numbers: &LocaleNumbers, range: RangeInclusive<f64>, decimals: usize, unit: &Unit) -> f32 {
+        let tokens = Tokens::of(ui);
+        let style = NumberField::style(&tokens, size);
+        let font = tokens.font(style.field.role);
+        let width = |text: String, tabular: bool| {
+            let mut job = egui::text::LayoutJob::simple_singleline(text, font.clone(), Color32::PLACEHOLDER);
+            if tabular {
+                for section in &mut job.sections {
+                    section.format.font_features.push(crate::theme::TABULAR_FIGURES, 1);
+                }
+            }
+            ui.fonts_mut(|f| f.layout_job(job)).size().x
+        };
+        let number = [*range.start(), *range.end()].map(|v| width(numbers.format(v, decimals..=decimals), true)).into_iter().fold(0.0, f32::max);
+        let unit = width(unit.prefix().to_owned(), false) + width(unit.suffix().to_owned(), false);
+        (2.0 * style.field.pad_x + number + unit).ceil()
+    }
+
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
         let bounds = ordered(&self.range);

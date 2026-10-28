@@ -6,7 +6,7 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{
-    ChannelColor, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
 };
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -604,5 +604,23 @@ fn menu() {
         d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
         d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
+    });
+}
+
+#[test]
+fn color_parts() {
+    check("color_parts.txt", |d, t| {
+        let s = ColorArea::style(t);
+        d.line("area", s.area)
+            .line("area_height", s.area_height)
+            .line("strip_full", s.strip_full)
+            .line("strip", s.strip)
+            .line("edge", s.edge)
+            .line("marker_inner_radius", s.marker_inner_radius)
+            .line("marker_inner", s.marker_inner)
+            .line("marker_outer_radius", s.marker_outer_radius)
+            .line("marker_outer", s.marker_outer)
+            .line("pointer", s.pointer)
+            .line("pointer_color", s.pointer_color);
     });
 }

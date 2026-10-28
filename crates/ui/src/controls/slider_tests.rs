@@ -655,3 +655,41 @@ fn a_double_click_or_ctrl_backspace_sets_the_default_value() {
     rig.release(rig.level_at(25.0, 40.0));
     assert_eq!(rig.level_event, commit(id, dragged, true));
 }
+
+/// The meshes and the fill-coloured rects a slider with `stops` paints, and its track.
+fn gradient_slider(stops: [craft_theme::Srgba; 2]) -> (Vec<egui::Mesh>, usize, Option<Track>) {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let (mut track, mut fill) = (None, egui::Color32::TRANSPARENT);
+    let output = ctx.run_ui(RawInput::default(), |ui| {
+        let style = Slider::style(&Tokens::of(ui), ControlSize::Md);
+        fill = style.fill.rest;
+        let rect = Slider::new("hue", "Hue", 50.0, 0.0..=100.0).track_colors(stops).show(ui).response.rect;
+        track = Some(Track::new(rect, &style, Scale::new(&(0.0..=100.0), None)));
+    });
+    let (mut meshes, mut fills) = (Vec::new(), 0);
+    for clipped in &output.shapes {
+        match &clipped.shape {
+            egui::Shape::Mesh(mesh) => meshes.push((**mesh).clone()),
+            egui::Shape::Rect(r) if r.fill == fill => fills += 1,
+            _ => {}
+        }
+    }
+    output.drop_without_applying_deltas();
+    (meshes, fills, track)
+}
+
+#[test]
+fn track_colors_draw_the_gradient_under_the_thumb_and_no_fill() {
+    let (red, blue) = (craft_theme::Srgba::rgb(1.0, 0.0, 0.0), craft_theme::Srgba::rgb(0.0, 0.0, 1.0));
+    let (meshes, fills, track) = gradient_slider([red, blue]);
+    let track = track.expect("the slider was shown");
+    assert_eq!((meshes.len(), fills), (1, 0), "one gradient, no filled part");
+    let colour_at = |x: f32| meshes[0].vertices.iter().find(|v| (v.pos.x - x).abs() < 1e-3).map(|v| v.color);
+    let (start, end) = track.ends();
+    assert_eq!((colour_at(start), colour_at(end)), (Some(red.into()), Some(blue.into())), "the stops lie where the thumb's centre is at the ends");
+    assert!(meshes[0].vertices.iter().all(|v| track.rect.expand(0.01).contains(v.pos)));
+
+    let (meshes, _, _) = gradient_slider([red.with_alpha(0.0), red]);
+    assert_eq!(meshes.len(), 2, "a translucent stop shows the checkerboard under the gradient");
+}

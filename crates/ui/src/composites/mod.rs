@@ -15,6 +15,10 @@
 //! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
+//! - [`ColorArea`] and [`ColorStrip`]: a colour picker's 2D field and component strip, in one of
+//!   the [`AreaMode`]s.
+//! - [`ColorPicker`]: the colour picker's body, the area and strip with channel rows, the hex
+//!   field and the host's hooks, reporting [`PickedColor`]s.
 //! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
 //!   pause on hover and keyboard focus.
 //! - [`Notice`]: an inline status message in the tone's icon and colour.
@@ -23,7 +27,7 @@
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
+//! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
 //! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
@@ -42,6 +46,7 @@
 //! # });
 //! ```
 
+pub(crate) mod color;
 pub(crate) mod curve;
 pub(crate) mod curve_editor;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -73,6 +78,10 @@ pub(crate) mod toast;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toast_tests;
 
+pub use color::{
+    AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
+    ColorWarning, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
+};
 pub use craft_theme::Tone;
 pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};

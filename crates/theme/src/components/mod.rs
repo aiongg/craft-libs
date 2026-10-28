@@ -8,6 +8,7 @@
 mod badge;
 mod button;
 mod check;
+mod color_picker;
 mod curve;
 mod empty_state;
 mod field;
@@ -43,6 +44,7 @@ use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef,
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
+pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use curve::{CurveField, CurveTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
@@ -560,6 +562,8 @@ families! {
     button: ButtonTokens => Button(ButtonField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
+    /// Colour pickers: the sizes of the area, strip, compare swatch and marker.
+    color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
     /// Empty states: the message of an empty panel, list or canvas.

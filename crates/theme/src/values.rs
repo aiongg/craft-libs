@@ -537,6 +537,46 @@ pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
 
+/// The control height the Compact colour picker sizes are set for; other sizes scale them by
+/// their control height over this.
+pub const COLOR_PICKER_BASE_CONTROL: f32 = 24.0;
+/// Compact side of the Full picker's colour area.
+pub const COLOR_PICKER_AREA: f32 = 200.0;
+/// Compact height of the Compact picker's colour area.
+pub const COLOR_PICKER_AREA_HEIGHT: f32 = 120.0;
+/// Compact width of the component strip in the Full picker.
+pub const COLOR_PICKER_STRIP_FULL: f32 = 18.0;
+/// Compact width of the component strip in the Compact picker.
+pub const COLOR_PICKER_STRIP: f32 = 14.0;
+/// Compact width of the compare swatch.
+pub const COLOR_PICKER_COMPARE_WIDTH: f32 = 56.0;
+/// Compact height of the compare swatch.
+pub const COLOR_PICKER_COMPARE_HEIGHT: f32 = 64.0;
+/// Compact radius of the area marker's inner circle.
+pub const COLOR_PICKER_MARKER_INNER_RADIUS: f32 = 5.0;
+/// Compact stroke width of the marker's inner circle.
+pub const COLOR_PICKER_MARKER_INNER_WIDTH: f32 = 1.5;
+/// Compact radius of the marker's outer ring.
+pub const COLOR_PICKER_MARKER_OUTER_RADIUS: f32 = 6.5;
+/// Compact stroke width of the marker's outer ring.
+pub const COLOR_PICKER_MARKER_OUTER_WIDTH: f32 = 1.0;
+/// Compact width of a strip pointer triangle.
+pub const COLOR_PICKER_POINTER_WIDTH: f32 = 6.0;
+/// Compact height of a strip pointer triangle.
+pub const COLOR_PICKER_POINTER_HEIGHT: f32 = 8.0;
+/// Compact size of a warning icon.
+pub const COLOR_PICKER_WARNING_ICON: f32 = 13.0;
+/// Compact size of a warning's chip of the nearest passing colour.
+pub const COLOR_PICKER_WARNING_CHIP: f32 = 10.0;
+/// Compact side of a swatch pair's well.
+pub const COLOR_PICKER_PAIR_WELL: f32 = 24.0;
+/// Compact offset of a swatch pair's back well from its front well, on both axes.
+pub const COLOR_PICKER_PAIR_STEP: f32 = 12.0;
+/// Compact width of the gap around a swatch pair's front well.
+pub const COLOR_PICKER_PAIR_GAP: f32 = 2.0;
+/// Compact width of a swatch pair's ring well.
+pub const COLOR_PICKER_PAIR_RING: f32 = 7.0;
+
 /// The control height the Compact curve editor sizes are set for.
 pub const CURVE_BASE_CONTROL: f32 = 24.0;
 /// Compact least side of a curve editor's graph, bars included (PhotoCraft's Curves).

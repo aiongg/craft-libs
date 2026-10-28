@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
-use craft_theme::{ControlSize, States, TypeRole};
+use craft_theme::{ControlSize, Srgba, States, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
@@ -13,7 +13,7 @@ use egui::{
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
-use super::{RangeSlider, SIZE_NAMES, field_wheel, size_arg};
+use super::{RangeSlider, SIZE_NAMES, Swatch, field_wheel, gradient_track, size_arg};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
@@ -90,6 +90,9 @@ pub struct SliderStyle {
 /// - A slider keeps its geometry right to left ([`Unmirrored::SliderValue`](crate::direction::Unmirrored::SliderValue)):
 ///   the value grows to the right, and the arrow keys act as they are.
 ///
+/// With [`track_colors`](Slider::track_colors) the track shows the colours the value runs
+/// through (a colour channel's gradient) and no fill.
+///
 /// With a step, values snap to its multiples from the range's start, and the range's end is a
 /// stop too when the step doesn't divide the range. A value outside the range is drawn at the
 /// nearer end; a value that isn't a finite number is drawn at the start, and a drag begins no
@@ -107,6 +110,7 @@ pub struct Slider {
     enabled: bool,
     default: Option<f64>,
     wheel_unfocused: bool,
+    track_colors: Option<Vec<Srgba>>,
 }
 
 impl Slider {
@@ -127,6 +131,7 @@ impl Slider {
             enabled: true,
             default: None,
             wheel_unfocused: false,
+            track_colors: None,
         }
     }
 
@@ -171,6 +176,15 @@ impl Slider {
     /// two thumbs give a wheel over the track no one value to step.
     pub fn wheel_unfocused(mut self, on: bool) -> Self {
         self.wheel_unfocused = on;
+        self
+    }
+
+    /// Draws the track as a gradient through `stops`, spread evenly from the range's start to its
+    /// end, over the checkerboard where a stop is translucent, and without the filled part: the
+    /// track of a colour channel (hue, a channel with the others fixed, opacity). The track keeps
+    /// its shape and edge.
+    pub fn track_colors(mut self, stops: impl IntoIterator<Item = impl Into<Srgba>>) -> Self {
+        self.track_colors = Some(stops.into_iter().map(Into::into).collect());
         self
     }
 
@@ -236,9 +250,14 @@ impl Slider {
         let response = sensed.numeric(shown, scale.min..=scale.max, scale.key_step()).finish(ui);
         if ui.is_rect_visible(response.rect) {
             let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
-            paint_track(ui, &style, &track);
             let x = track.x_of(shown);
-            paint_fill(ui, &style, &track, track.rect.left(), x, color(&style.fill));
+            match &self.track_colors {
+                Some(stops) => gradient_track::paint(ui, &style, &track, stops, Swatch::style(&tokens, self.size).checker),
+                None => {
+                    paint_track(ui, &style, &track);
+                    paint_fill(ui, &style, &track, track.rect.left(), x, color(&style.fill));
+                }
+            }
             let paint =
                 ThumbPaint { fill: color(&style.thumb_fill), border: color(&style.thumb_border), ring: color(&style.ring), enabled: sensing.enabled };
             paint_thumb(ui, &style, pos2(x, track.y), paint);
@@ -272,11 +291,11 @@ impl Slider {
 }
 
 /// The keys a focused thumb keeps: the arrows step its value rather than move the focus.
-pub(super) const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
+pub(crate) const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
 
 /// A range with an optional step: where values may go and how keys move them.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Scale {
+pub(crate) struct Scale {
     pub min: f64,
     pub max: f64,
     step: Option<f64>,
@@ -323,7 +342,7 @@ impl Scale {
     /// `value` moved by `delta` towards the next stops: whole steps from the stop at or beyond
     /// `value` in the direction of the move, so a value between stops (or the range's end off the
     /// step grid) goes to the next stop first. Unsnapped and unclamped.
-    fn moved(&self, value: f64, delta: f64) -> f64 {
+    pub fn moved(&self, value: f64, delta: f64) -> f64 {
         let Some(step) = self.step else { return value + delta };
         let at = (value - self.min) / step;
         let steps = (delta / step).round();
@@ -343,7 +362,7 @@ impl Scale {
     }
 
     /// One Page key's change: a tenth of the range, in whole steps when there is a step.
-    fn page_step(&self) -> f64 {
+    pub fn page_step(&self) -> f64 {
         let page = self.span() / 10.0;
         match self.step {
             Some(step) => (page / step).round().max(1.0) * step,
@@ -425,8 +444,13 @@ impl Track {
         }
     }
 
+    /// The thumb centre's x at the minimum and at the maximum.
+    pub fn ends(&self) -> (f32, f32) {
+        (self.x0, self.x1)
+    }
+
     /// The track's rect, on the pixel grid.
-    fn bar(&self, pixels_per_point: f32) -> Rect {
+    pub(super) fn bar(&self, pixels_per_point: f32) -> Rect {
         let half = self.track_height / 2.0;
         Rect::from_min_max(pos2(self.rect.left(), self.y - half), pos2(self.rect.right(), self.y + half)).round_to_pixels(pixels_per_point)
     }
@@ -442,7 +466,7 @@ pub(super) fn pointer(ui: &Ui, response: &Response) -> Option<(Pos2, Pos2)> {
 
 /// Where a tap on `response` fell this frame, in its layer's coordinates: a press and release of
 /// the primary button in one frame over the enabled control. egui reports no drag for it.
-pub(super) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
+pub(crate) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
     if !response.enabled() || !response.hovered() {
         return None;
     }
@@ -461,17 +485,19 @@ fn to_layer(ui: &Ui, response: &Response, pos: Pos2) -> Pos2 {
 
 /// What a control's response says about this frame's input, for [`stepped`].
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Sensing {
+pub(crate) struct Sensing {
     pub enabled: bool,
     /// The pointer is over the control.
     pub hovered: bool,
     /// A drag of the control is under way.
     pub dragging: bool,
+    /// The wheel steps the control; off for one the wheel never steps, so the panel scrolls.
+    pub wheel: bool,
 }
 
 impl Sensing {
     pub fn of(response: &Response) -> Self {
-        Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged() }
+        Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged(), wheel: true }
     }
 }
 
@@ -481,10 +507,10 @@ impl Sensing {
 /// way they change nothing; keys and the wheel are still taken. With a `wheel_over` rect, a
 /// thumb without focus takes the wheel gestures that start over that rect too
 /// ([`field_wheel::notches`]).
-pub(super) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
+pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
     let (step, page) = (scale.key_step(), scale.page_step());
     let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
-    let mut delta = wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging);
+    let mut delta = if sensing.wheel { wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging) } else { 0.0 };
     if let Some(rect) = wheel_over
         && !focused
     {
@@ -674,7 +700,7 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 /// Values kept between frames, as a host keeps them.
-pub(super) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
+pub(crate) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     key: &str,
     initial: [T; N],
@@ -687,7 +713,7 @@ pub(super) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
 }
 
 /// A one-shot or gesture value into the host, as a host without undo applies it.
-pub(super) fn apply<T: Clone>(edit: &EditResponse<T>, value: &mut T) {
+pub(crate) fn apply<T: Clone>(edit: &EditResponse<T>, value: &mut T) {
     if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
         *value = v.clone();
     }
