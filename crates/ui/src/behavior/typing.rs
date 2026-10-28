@@ -135,9 +135,9 @@ pub enum Escape {
 ///   committed text. Enter, Esc, Backspace, Delete and Space are the input method's while it
 ///   composes, and the first of them after a composition ends in the same pass (the key that
 ///   confirmed or cancelled it), as [`crate::ime`] describes: they don't commit, cancel, clear or
-///   leave. A composition open when the focus leaves keeps its marked text as typed, as
-///   `TextEdit` does, so the commit carries it; one open when the field is no longer drawn is
-///   dropped.
+///   leave. An embedding control reads no keys of its own in such a pass ([`Typing::composing`]).
+///   A composition open when the focus leaves keeps its marked text as typed, as `TextEdit`
+///   does, so the commit carries it; one open when the field is no longer drawn is dropped.
 /// - **In-field undo** (Cmd/Ctrl+Z, redo) is `TextEdit`'s, a change of the run like any other.
 ///   When the text changes from outside (a cancel, the host's own change) the undo history
 ///   starts again, so in-field undo never brings back text from before.
@@ -179,6 +179,26 @@ impl<'a> Typing<'a> {
     /// The text `value` in the `TextEdit` with id `id`, named `label` for screen readers.
     pub fn new(id: Id, label: &'a str, value: &str) -> Self {
         Self::with_codec(id, label, value.to_owned(), PlainText)
+    }
+
+    /// Whether an input method composes in the field `id` in this pass: a composition was open
+    /// when the pass began, or one opens or ends in its input. Its keys are its own then (the
+    /// field takes them, as the type's doc says), so an embedding control asks this before it
+    /// reads keys of its own and reads none in such a pass: the Enter that confirms a
+    /// composition chooses no option, the Esc that cancels one closes no list. False while the
+    /// field doesn't have the focus.
+    pub fn composing(ui: &Ui, id: Id) -> bool {
+        if !ui.memory(|m| m.has_focus(id)) {
+            return false;
+        }
+        let state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
+        let mut ime = ImeKeys::new(kept_preedit(ui, id, Seen::load(ui, id).as_ref(), &state).is_some());
+        ui.input(|i| {
+            for event in &i.events {
+                ime.takes(event);
+            }
+        });
+        ime.composed
     }
 }
 
@@ -271,11 +291,10 @@ impl<'a, C: Codec> Typing<'a, C> {
     pub fn show(self, ui: &mut Ui, look: &TypingLook) -> Typed<C> {
         let id = self.id;
         let enabled = self.enabled && ui.is_enabled();
-        let seen = Seen::<C::Value>::load(ui, id);
+        let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
-        // A composition goes on only in a field that kept it and the focus since the last pass.
-        let kept = seen.as_ref().is_some_and(|s| s.composing) && ui.memory(|m| m.owns_ime_events(id));
-        let preedit = state.preedit().filter(|_| kept).map(|(range, text)| (range, text.to_owned()));
+        let caret = state.cursor.char_range();
+        let preedit = kept_preedit(ui, id, seen.as_ref(), &state);
         take_ime_keys(ui, preedit.is_some());
         let focused = enabled && ui.memory(|m| m.has_focus(id));
         let submitted = focused && ui.input(enter_pressed);
@@ -283,7 +302,8 @@ impl<'a, C: Codec> Typing<'a, C> {
 
         let mut gesture = Gesture::load(ui, id, &self.value, self.policy).pointer_selects(true).enabled(enabled);
         let seen_text = seen.as_ref().map(|s| s.text);
-        let (draft, rejected) = seen.map_or((None, None), |s| (s.draft, s.rejected));
+        let rejected = seen.as_ref().and_then(|s| s.rejected(ui, id));
+        let draft = seen.and_then(|s| s.draft);
         // A run that ended since the last pass ended by a cancel (a commit ends in its own pass):
         // its text goes, rejected or not.
         let run_cancelled = draft.as_ref().is_some_and(|d| gesture.id() != Some(d.run));
@@ -344,6 +364,7 @@ impl<'a, C: Codec> Typing<'a, C> {
         ui.set_style(saved);
 
         let marked = output.state.preedit().map(|(range, _)| range);
+        let caret_moved = output.state.cursor.char_range() != caret || output.response.response.is_pointer_button_down_on();
         let composing = marked.is_some();
         let text = remove_chars(&buffer, marked);
         // `galley_pos` is where the text starts; a right-aligned galley's rect starts left of 0.
@@ -362,6 +383,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             text_rect,
             composing,
             submitted,
+            caret_moved,
             filter,
             keys: self.keys,
             draft,
@@ -428,6 +450,7 @@ pub struct Typed<C: Codec = PlainText> {
     text_rect: Rect,
     composing: bool,
     submitted: bool,
+    caret_moved: bool,
     /// `TextEdit`'s focus filter.
     filter: EventFilter,
     /// The embedding control's keys.
@@ -522,6 +545,13 @@ impl<C: Codec> Typed<C> {
         &mut self.gesture
     }
 
+    /// Whether the caret or the selection moved in this pass (the keys, a press or a drag in
+    /// the text, a change of the text), or a press in the text placed it: the user works in the
+    /// text. A combo box gives its active option back to the text then.
+    pub fn caret_moved(&self) -> bool {
+        self.caret_moved
+    }
+
     /// Whether a plain Enter press commits the run in this pass ([`EditResponse::submitted`]).
     pub fn submitted(&self) -> bool {
         self.submitted
@@ -600,8 +630,8 @@ impl<C: Codec> Typed<C> {
         // rejected text.
         let composing = self.composing && focused;
         let escape = composing || (self.escape == Escape::Clear && !self.codec.format(self.gesture.shown()).is_empty()) || self.rejected.is_some();
-        let seen = Seen::new(ui, egui::util::hash(&self.text), focused, composing, self.draft.take(), self.rejected.take());
-        seen.store(ui, self.id);
+        let seen = Seen::new(ui, egui::util::hash(&self.text), focused, composing, self.draft.take());
+        seen.store(ui, self.id, self.rejected.take());
         let filter = either(self.filter, self.keys);
         let event = self.gesture.event_filter(EventFilter { escape: escape || filter.escape, ..filter }).finish_as(report);
         EditResponse::new(self.response, event).submitted(self.submitted)
@@ -653,9 +683,11 @@ fn select_all(ui: &Ui, id: Id, text: &str) {
     ui.ctx().request_repaint();
 }
 
-/// What a field kept from its last pass.
+/// What a field kept from its last pass. Rejected text, which carries the codec's value type,
+/// is kept beside it under its own key, so the rest reads without the codec
+/// ([`Typing::composing`]).
 #[derive(Clone, Debug)]
-struct Seen<T> {
+struct Seen {
     /// The viewport and its pass that stored it.
     viewport: ViewportId,
     pass: u64,
@@ -665,13 +697,12 @@ struct Seen<T> {
     /// A composition was open and the field kept the focus: the marked text goes back in.
     composing: bool,
     draft: Option<Draft>,
-    rejected: Option<Rejected<T>>,
 }
 
-impl<T: Clone + Send + Sync + 'static> Seen<T> {
-    fn new(ui: &Ui, text: u64, focused: bool, composing: bool, draft: Option<Draft>, rejected: Option<Rejected<T>>) -> Self {
+impl Seen {
+    fn new(ui: &Ui, text: u64, focused: bool, composing: bool, draft: Option<Draft>) -> Self {
         let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
-        Self { viewport, pass, text, focused, composing, draft, rejected }
+        Self { viewport, pass, text, focused, composing, draft }
     }
 
     /// What field `id` kept, when it was drawn in the last pass of this viewport (or earlier in
@@ -681,20 +712,54 @@ impl<T: Clone + Send + Sync + 'static> Seen<T> {
         ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|s| s.viewport == viewport && s.pass + 1 >= pass)
     }
 
-    fn store(self, ui: &Ui, id: Id) {
-        ui.data_mut(|d| d.insert_temp(Self::key(id), self));
+    /// The rejected text field `id` kept with this.
+    fn rejected<T: Clone + Send + Sync + 'static>(&self, ui: &Ui, id: Id) -> Option<Rejected<T>> {
+        ui.data(|d| d.get_temp::<Option<Rejected<T>>>(Self::rejected_key(id))).flatten()
+    }
+
+    fn store<T: Clone + Send + Sync + 'static>(self, ui: &Ui, id: Id, rejected: Option<Rejected<T>>) {
+        ui.data_mut(|d| {
+            d.insert_temp(Self::key(id), self);
+            d.insert_temp(Self::rejected_key(id), rejected);
+        });
     }
 
     fn key(id: Id) -> Id {
         id.with("craft_ui::behavior::typing")
     }
+
+    fn rejected_key(id: Id) -> Id {
+        id.with("craft_ui::behavior::typing::rejected")
+    }
+}
+
+/// The marked text of field `id` (in `state`, its `TextEdit` state) that goes back into the
+/// field, with its range: a composition goes on only in a field that kept it and the focus since
+/// the last pass.
+fn kept_preedit(ui: &Ui, id: Id, seen: Option<&Seen>, state: &TextEditState) -> Option<(Range<usize>, String)> {
+    let kept = seen.is_some_and(|s| s.composing) && ui.memory(|m| m.owns_ime_events(id));
+    state.preedit().filter(|_| kept).map(|(range, text)| (range, text.to_owned()))
 }
 
 /// A plain press of Enter: no modifier but Shift (as `consume_key` ignores it), not a held
 /// key's repeat.
+fn is_enter_press(event: &Event) -> bool {
+    matches!(event, Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if Modifiers { shift: false, ..*modifiers }.is_none())
+}
+
+/// Whether this pass's input has a plain press of Enter ([`is_enter_press`]).
 fn enter_pressed(input: &InputState) -> bool {
-    input.events.iter().any(|event| {
-        matches!(event, Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if Modifiers { shift: false, ..*modifiers }.is_none())
+    input.events.iter().any(is_enter_press)
+}
+
+/// Takes this pass's plain presses of Enter out of `ui`'s input, as the field would count them:
+/// for an embedding control whose Enter does something else (a combo box choosing its active
+/// option), so the field doesn't commit on it too.
+pub(crate) fn take_enter(ui: &Ui) -> bool {
+    ui.input_mut(|i| {
+        let before = i.events.len();
+        i.events.retain(|event| !is_enter_press(event));
+        i.events.len() < before
     })
 }
 
@@ -721,26 +786,46 @@ fn clear<C: Codec>(ui: &Ui, codec: &C, gesture: &mut Gesture<C::Value>) {
 /// Space) while a composition is open, and the first of them after one ends in this pass: some
 /// platforms forward the key that confirmed or cancelled it. `composing` is whether one was open
 /// when the pass began.
-fn take_ime_keys(ui: &Ui, mut composing: bool) {
-    let mut ended = false;
-    ui.input_mut(|i| {
-        i.events.retain(|event| match event {
+fn take_ime_keys(ui: &Ui, composing: bool) {
+    let mut ime = ImeKeys::new(composing);
+    ui.input_mut(|i| i.events.retain(|event| !ime.takes(event)));
+}
+
+/// An input method followed through a pass's events, in order.
+struct ImeKeys {
+    /// A composition is open.
+    composing: bool,
+    /// A composition ended and no key or text has come since.
+    ended: bool,
+    /// A composition was open at some point.
+    composed: bool,
+}
+
+impl ImeKeys {
+    /// Before the pass's first event; `composing` when a composition was open as it began.
+    fn new(composing: bool) -> Self {
+        Self { composing, ended: false, composed: composing }
+    }
+
+    /// Whether `event` is a key the input method takes ([`take_ime_keys`]).
+    fn takes(&mut self, event: &Event) -> bool {
+        match event {
             Event::Ime(ImeEvent::Preedit { text, .. }) if !text.is_empty() => {
-                (composing, ended) = (true, false);
-                true
+                (self.composing, self.ended, self.composed) = (true, false, true);
+                false
             }
             Event::Ime(ImeEvent::Preedit { .. } | ImeEvent::Commit(_)) => {
-                (composing, ended) = (false, composing);
-                true
+                (self.composing, self.ended) = (false, self.composing);
+                false
             }
-            Event::Key { key, pressed: true, .. } if is_ime_key(*key) && (composing || std::mem::take(&mut ended)) => false,
+            Event::Key { key, pressed: true, .. } if is_ime_key(*key) && (self.composing || std::mem::take(&mut self.ended)) => true,
             Event::Key { pressed: true, .. } | Event::Text(_) => {
-                ended = false;
-                true
+                self.ended = false;
+                false
             }
-            _ => true,
-        });
-    });
+            _ => false,
+        }
+    }
 }
 
 /// `text` with `insert` put in at char index `at`; at the end when `at` is past it.

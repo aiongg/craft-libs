@@ -53,7 +53,9 @@ pub trait ListOptions {
 ///   the first enabled option from the active one whose text starts with it (ignoring case)
 ///   becomes active. The same character typed again moves on to the next option starting with
 ///   it. A key that moves the active option starts the prefix again.
-/// - The pointer makes the option under it active ([`set_active`](Listbox::set_active)).
+/// - The pointer makes the option under it active where the control lets it
+///   ([`set_active`](Listbox::set_active)): a select does; a combo box's pointer only highlights
+///   a row, so Enter keeps the typed text.
 /// - A key or type-ahead move asks for the active option to be scrolled into view
 ///   ([`take_reveal`](Listbox::take_reveal)); a pointer move doesn't.
 /// - With the keyboard focus on the owner, the active option is the keyboard's focus cue while
