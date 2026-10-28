@@ -1109,9 +1109,8 @@ where
         } else if released || !down {
             Some(DragEnd::Released(self.target.as_ref().map(|t| t.mv.clone())))
         } else if !self.has_payload() {
-            // egui's drag and drop drops the payload on Esc and takes the key, before the
-            // gesture could see it.
-            Some(DragEnd::Escape)
+            // egui's drag and drop takes Esc and drops the payload before the gesture sees the key.
+            Some(if egui::DragAndDrop::aborted_by_escape(&ctx) { DragEnd::Escape } else { DragEnd::PayloadCleared })
         } else {
             None
         };

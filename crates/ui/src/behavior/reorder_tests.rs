@@ -322,6 +322,7 @@ fn a_drag_is_one_gesture_from_begin_to_commit_or_cancel() {
         (DragEnd::FocusLost, CancelReason::FocusLost),
         (DragEnd::Removed, CancelReason::Removed),
         (DragEnd::Released(None), CancelReason::Dismissed),
+        (DragEnd::PayloadCleared, CancelReason::Dismissed),
     ] {
         let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
         assert_eq!(pass(&ctx, |g| g.end(drag_end, Modifiers::NONE)), Some(EditEvent::cancel(id, reason)));

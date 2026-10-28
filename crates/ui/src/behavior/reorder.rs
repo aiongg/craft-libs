@@ -184,6 +184,8 @@ pub enum DragEnd<K> {
     Escape,
     /// The window lost focus.
     FocusLost,
+    /// The app cleared egui's drag payload, or another drag replaced it.
+    PayloadCleared,
     /// The list was not drawn in a pass.
     Removed,
 }
@@ -191,7 +193,7 @@ pub enum DragEnd<K> {
 /// The edit lifecycle of one drag of rows, on an [`edit::Gesture`](Gesture): `Begin` at the
 /// start, then `Commit` with the move on a drop on an accepted target, or `Cancel` (`Escape`,
 /// `FocusLost`, `Removed`, or `Dismissed` for a release where nothing accepts the rows, which
-/// includes a no-op); a stacking key's move is a `Set`. The gesture is live while its control
+/// includes a no-op, and for a payload the app cleared); a stacking key's move is a `Set`. The gesture is live while its control
 /// loads it ([`edit::is_live`](crate::edit::is_live)), and Esc and
 /// [`edit::cancel_all`](crate::edit::cancel_all) end it, as for every edit gesture.
 ///
@@ -259,6 +261,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> ReorderGesture<K> {
             DragEnd::Released(None) => self.gesture.cancel(CancelReason::Dismissed),
             DragEnd::Escape => self.gesture.cancel(CancelReason::Escape),
             DragEnd::FocusLost => self.gesture.cancel(CancelReason::FocusLost),
+            DragEnd::PayloadCleared => self.gesture.cancel(CancelReason::Dismissed),
             DragEnd::Removed => self.gesture.cancel(CancelReason::Removed),
         }
     }

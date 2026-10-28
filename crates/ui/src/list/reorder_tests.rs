@@ -222,7 +222,7 @@ fn a_drag_moves_the_selection_and_reports_its_targets() {
 }
 
 #[test]
-fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
+fn a_drag_ends_on_escape_focus_loss_refusal_removal_a_drop_elsewhere_and_a_cleared_payload() {
     let mut host = Host::new(10);
     host.refuse = Some(5);
     let mut harness = harness(host);
@@ -269,6 +269,14 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     button(&mut harness, zone, false);
     assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Dismissed)));
     assert_eq!(harness.state().dropped, Some(vec![2]), "another widget takes the rows from the payload");
+
+    harness.run_steps(30);
+    grab(&mut harness, 3);
+    egui::DragAndDrop::clear_payload(&harness.ctx);
+    harness.run();
+    assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Dismissed)), "the app cleared the payload: not an Escape");
+    let pos = at(&harness, 3, 0.5);
+    button(&mut harness, pos, false);
 }
 
 #[test]
