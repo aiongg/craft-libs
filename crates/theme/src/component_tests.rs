@@ -157,6 +157,29 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
     assert_eq!((c.bar, c.bar_gap, c.hit, c.drag_off), (scaled(8.0), scaled(4.0), scaled(9.0), scaled(12.0)));
 }
 
+#[test]
+fn gradient_editor_defaults_come_from_semantic_tokens_and_its_cues_meet_the_indicator_minimum() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            for f in [GradientEditorField::Selected, GradientEditorField::MarkerEdge] {
+                let ratio = pair_ratio(&r.tokens, ComponentField::GradientEditor(f), None);
+                assert!(ratio >= min, "{} {a:?}: {f:?} on the panel is {ratio:.2}, needs {min}", def.name);
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let g = &t.component.gradient_editor;
+    assert_eq!((g.edge, g.marker_edge, g.selected), (t.color(T::LineControlEdge), t.color(T::TextMuted), t.color(T::AccentSolid)));
+    let k = t.size.control.md / 24.0;
+    let scaled = |v: f32| (v * k).round();
+    assert_eq!((g.ramp_height, g.inset, g.marker, g.pointer, g.diamond), (scaled(24.0), scaled(8.0), scaled(10.0), scaled(5.0), scaled(3.0)));
+    assert_eq!((g.hit, g.diamond_hit, g.tear_off, g.drop_line), (scaled(6.0), scaled(4.0), scaled(28.0), scaled(2.0)));
+}
+
 /// The channel colours a curve is drawn in are checked on `curve.fill`, not only on the surface
 /// it defaults to: a pinned fill that hides them warns, and high contrast moves the fill.
 #[test]
@@ -473,6 +496,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 3
             // Colour picker: the marker and its halo.
             + 2
+            // Gradient editor: edge, marker edge and selected.
+            + 3
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));

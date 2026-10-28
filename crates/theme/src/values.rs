@@ -609,6 +609,27 @@ pub const CURVE_OTHER_WIDTH: f32 = 1.0;
 /// Opacity of the other channels' curves behind the edited one.
 pub const CURVE_OTHER_ALPHA: f32 = 0.8;
 
+/// The control height the Compact gradient editor sizes are set for.
+pub const GRADIENT_EDITOR_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a gradient editor's ramp (PhotoCraft's stop bar).
+pub const GRADIENT_EDITOR_RAMP_HEIGHT: f32 = 24.0;
+/// Compact inset of the ramp at both ends of the bar, so an end marker fits.
+pub const GRADIENT_EDITOR_INSET: f32 = 8.0;
+/// Compact side of a stop marker's square.
+pub const GRADIENT_EDITOR_MARKER: f32 = 10.0;
+/// Compact height of a stop marker's pointer triangle.
+pub const GRADIENT_EDITOR_POINTER: f32 = 5.0;
+/// Compact radius of a midpoint diamond.
+pub const GRADIENT_EDITOR_DIAMOND: f32 = 3.0;
+/// Compact distance from a stop marker that takes a press.
+pub const GRADIENT_EDITOR_HIT: f32 = 6.0;
+/// Compact distance from a midpoint diamond that takes a press.
+pub const GRADIENT_EDITOR_DIAMOND_HIT: f32 = 4.0;
+/// Compact distance above or below the ramp past which a dragged stop is torn off.
+pub const GRADIENT_EDITOR_TEAR_OFF: f32 = 28.0;
+/// Compact thickness of the line that marks a drop place.
+pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
+
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).
