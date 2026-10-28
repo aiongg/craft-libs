@@ -441,7 +441,11 @@ fn list_row() {
         let s = ListRow::<u8>::style(t);
         d.line("row_height", s.row_height).line("thumb.sm", s.thumb.sm).line("thumb.md", s.thumb.md).line("thumb.lg", s.thumb.lg);
         d.line("thumb_pad", s.thumb_pad).line("thumb_row_min", s.thumb_row_min).line("pad_x", s.pad_x).line("gap", s.gap);
-        d.line("indent", s.indent).line("toggle_column", s.toggle_column).line("min_label", s.min_label).line("trailing_pad", s.trailing_pad);
+        d.line("indent", s.indent)
+            .line("disclosure", s.disclosure)
+            .line("toggle_column", s.toggle_column)
+            .line("min_label", s.min_label)
+            .line("trailing_pad", s.trailing_pad);
         d.line("radius", s.radius).line("dividers", s.dividers).line("drop_width", s.drop_width).line("icon_size", s.icon_size);
         d.line("label_role", role(s.label_role)).line("detail_role", role(s.detail_role));
         d.line("label_line", s.label_line).line("detail_line", s.detail_line);

@@ -7,6 +7,7 @@ use egui::{Color32, CornerRadius, Id, Label, Painter, Rect, Response, Sense, Str
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
+use super::tree::{self, Branch, OpenChange};
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
@@ -93,6 +94,9 @@ pub enum RowEvent<K> {
         /// How it ended.
         end: RenameEnd,
     },
+    /// A tree row's disclosure triangle was clicked, or a screen reader expanded or collapsed
+    /// the row.
+    Open(OpenChange<K>),
 }
 
 /// A trailing item of a row.
@@ -136,6 +140,8 @@ pub struct ListRowStyle {
     pub gap: f32,
     /// `list.indent`.
     pub indent: f32,
+    /// Width of a tree row's disclosure column: `list.disclosure`.
+    pub disclosure: f32,
     /// `list.toggle_column`.
     pub toggle_column: f32,
     /// `list.min_label`.
@@ -257,6 +263,7 @@ pub struct ListRow<'a, K> {
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
+    branch: Option<Branch>,
 }
 
 /// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
@@ -288,7 +295,16 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             role: Role::ListBoxOption,
             position: None,
             slot: None,
+            branch: None,
         }
+    }
+
+    /// Makes the row a tree row: indented by its depth, with a disclosure triangle when it is a
+    /// group, and a `TreeItem` for AccessKit.
+    pub(super) fn branch(mut self, branch: Branch) -> Self {
+        self.branch = Some(branch);
+        self.role = Role::TreeItem;
+        self
     }
 
     /// The row's key.
@@ -418,6 +434,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             pad_x: l.pad_x,
             gap: l.gap,
             indent: l.indent,
+            disclosure: l.disclosure,
             toggle_column: l.toggle_column,
             min_label: l.min_label,
             trailing_pad: l.trailing_pad,
@@ -465,23 +482,36 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             role,
             position,
             slot,
+            branch,
         } = self;
         let tokens = Tokens::of(ui);
         let mut style = Self::style(&tokens);
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let height = style.height(thumb, detail.is_some());
+        let (indent, column) =
+            branch.map_or((indent, 0.0), |b| (indent + b.steps() as f32 * style.indent, if b.group { style.disclosure } else { 0.0 }));
         let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
         let name = match &detail {
             Some(detail) => format!("{label}, {detail}"),
             None => label.clone(),
         };
-        let mut element =
-            Interactive::with_id(row_id, role, name).sense(Sense::CLICK | Sense::DRAG).selected(selected).state_layer(false).focus_ring(false);
+        let mut element = Interactive::with_id(row_id, role, name.clone())
+            .sense(Sense::CLICK | Sense::DRAG)
+            .selected(selected)
+            .state_layer(false)
+            .focus_ring(false);
+        if let Some(Branch { group: true, open, .. }) = branch {
+            element = element.expanded(open);
+        }
         if let Some(position) = position {
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        let mut events = Vec::new();
+        if let Some(branch) = branch {
+            tree::report(ui, &response, &branch, &key, &mut events);
+        }
 
         let side = style.thumb_side(thumb);
         let leading = match (side > 0.0, icon) {
@@ -490,18 +520,22 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             (false, None) => None,
         };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), indent, leading, &widths);
+        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), (indent, column), leading, &widths);
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
             paint_background(ui, &style, rect, selected, hovered || highlight, columns.len(), &geometry);
         }
 
-        let mut events = Vec::new();
         for (index, column) in columns.iter().enumerate() {
             let cell = Cell { index, row_id, key: &key, row_label: &label };
             let at = geometry.span(rect, index as f32 * style.toggle_column, style.toggle_column);
             toggle::show(ui, &cell, column, at, &style, &mut events);
+        }
+
+        if let Some(branch) = branch.filter(|b| b.group) {
+            let at = geometry.span(rect, geometry.column_start, column);
+            tree::show_disclosure(ui, &style, at, &branch, row_id, &key, &label, &mut events);
         }
 
         if let (Some(side), true) = (leading, visible) {
@@ -544,6 +578,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
 /// Where the parts of a row lie, as offsets from the reading start of the row.
 struct Geometry {
     rtl: bool,
+    column_start: f32,
     leading_start: f32,
     label_start: f32,
     label_end: f32,
@@ -552,7 +587,16 @@ struct Geometry {
 }
 
 impl Geometry {
-    fn new(style: &ListRowStyle, rect: Rect, rtl: bool, columns: usize, indent: f32, leading: Option<f32>, items: &[(f32, bool)]) -> Geometry {
+    /// `indent` shrinks to keep the label's room; `column` (a tree row's triangle) doesn't.
+    fn new(
+        style: &ListRowStyle,
+        rect: Rect,
+        rtl: bool,
+        columns: usize,
+        (indent, column): (f32, f32),
+        leading: Option<f32>,
+        items: &[(f32, bool)],
+    ) -> Geometry {
         let base = columns as f32 * style.toggle_column + style.pad_x;
         let end = rect.width() - style.trailing_pad;
         let leading_width = leading.map_or(0.0, |side| side + style.gap);
@@ -561,13 +605,13 @@ impl Geometry {
         let mut used: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
         let mut kept: Vec<bool> = items.iter().map(|(_, optional)| !optional).collect();
         for (i, (width, optional)) in items.iter().enumerate() {
-            if *optional && end - (used + width + style.gap) - (base + indent + leading_width) >= style.min_label {
+            if *optional && end - (used + width + style.gap) - (base + indent + column + leading_width) >= style.min_label {
                 kept[i] = true;
                 used += width + style.gap;
             }
         }
         let label_end = end - used;
-        let indent = indent.min((label_end - base - leading_width - style.min_label).max(0.0));
+        let indent = indent.min((label_end - base - column - leading_width - style.min_label).max(0.0));
         let mut from_end = 0.0;
         let items = items
             .iter()
@@ -580,7 +624,14 @@ impl Geometry {
                 })
             })
             .collect();
-        Geometry { rtl, leading_start: base + indent, label_start: base + indent + leading_width, label_end, items }
+        Geometry {
+            rtl,
+            column_start: base + indent,
+            leading_start: base + indent + column,
+            label_start: base + indent + column + leading_width,
+            label_end,
+            items,
+        }
     }
 
     /// The x of the offset `offset` from the row's reading start.

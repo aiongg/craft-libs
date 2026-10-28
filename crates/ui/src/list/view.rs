@@ -19,7 +19,11 @@ use super::rename;
 use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
-use crate::behavior::{DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, RowInfo, Selection, SelectionChange, SelectionMode};
+use super::tree::{self, Branch, OpenChange};
+use crate::behavior::{
+    DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, RowInfo, Selection, SelectionChange, SelectionMode, TreeMove, tree_key,
+};
+use crate::direction;
 use crate::edit::{CancelReason, EditEvent, GestureId};
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
@@ -40,6 +44,10 @@ pub enum ListEvent<K> {
     Activate(K),
     /// The host's context menu is asked for.
     ContextMenu(ContextMenuRequest<K>),
+    /// A tree group was asked to open or close (its triangle, ← and →, Alt+← and Alt+→, a screen
+    /// reader's Expand and Collapse); the host applies it to its open state. A closing group
+    /// that hid the lead has taken the lead already ([`LeadMoved`](ListEvent::LeadMoved)).
+    Open(OpenChange<K>),
     /// What a row reported: toggle column edits (also those of a column's
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
@@ -152,6 +160,7 @@ pub struct List<'a, K, O: ?Sized> {
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
+    tree: bool,
 }
 
 impl<'a, K, O> List<'a, K, O>
@@ -175,7 +184,20 @@ where
             type_ahead: false,
             reveal: None,
             start_rename: None,
+            tree: false,
         }
+    }
+
+    /// A tree (default false): rows are indented by their depth in the display order, groups
+    /// show a disclosure triangle, the list is an AccessKit `Tree` and its rows `TreeItem`s with
+    /// `level` and `expanded`, and the tree keys work. → opens a closed group or moves to its
+    /// first child; ← closes an open group or moves to the parent (swapped in a right-to-left
+    /// layout); Alt+→ and Alt+← open or close every group. A move to a child or parent selects
+    /// that row alone, as ↑ and ↓ do. Opening and closing are [`ListEvent::Open`]: the host owns
+    /// the open state (or keeps it in a [`TreeState`](super::TreeState)).
+    pub fn tree(mut self, tree: bool) -> Self {
+        self.tree = tree;
+        self
     }
 
     /// The host's selection, which the list changes and reports. Without it the list keeps one
@@ -270,7 +292,8 @@ where
     /// key; it is called for the rows drawn, and for rows a key needs to read (the selected rows'
     /// toggle states, labels for type-ahead).
     pub fn show<'r>(self, ui: &mut Ui, row: impl FnMut(usize, &K) -> ListRow<'r, K>) -> ListOutput<K> {
-        let List { id_salt, label, rows, selection, mode, allow_empty, heights, max_height, can_rename, type_ahead, reveal, start_rename } = self;
+        let List { id_salt, label, rows, selection, mode, allow_empty, heights, max_height, can_rename, type_ahead, reveal, start_rename, tree } =
+            self;
         let id = ui.make_persistent_id(id_salt);
         let rules = ListSelection::new(mode).allow_empty(allow_empty);
         let mut state = State::<K>::load(ui.ctx(), id);
@@ -297,6 +320,8 @@ where
             can_rename: can_rename.as_deref(),
             focus: false,
             lead_row: None,
+            tree,
+            rtl: direction::is_rtl(ui),
         };
 
         pass.end_for_gone_rows();
@@ -320,7 +345,7 @@ where
         let builder = UiBuilder::new()
             .scope_id(id)
             .sense(Sense::CLICK | Sense::FOCUSABLE)
-            .accessibility_role(Role::ListBox)
+            .accessibility_role(if tree { Role::Tree } else { Role::ListBox })
             .accessibility_label(label)
             .layout(Layout::top_down(Align::Min));
         let response = ui
@@ -438,6 +463,11 @@ enum Command {
     List(ListKey),
     Toggle(usize),
     Menu,
+    /// ← or →, with Alt for every group.
+    Tree {
+        right: bool,
+        all: bool,
+    },
 }
 
 /// One frame of a list.
@@ -454,6 +484,8 @@ struct Pass<'p, K, O: ?Sized, F> {
     focus: bool,
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
+    tree: bool,
+    rtl: bool,
 }
 
 impl<'p, 'r, K, O, F> Pass<'p, K, O, F>
@@ -537,7 +569,7 @@ where
         ui.input_mut(|i| {
             i.events.retain(|event| {
                 let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
-                let command = take_command(*key, *modifiers, mac, &column_keys);
+                let command = take_command(*key, *modifiers, mac, &column_keys, self.tree);
                 let keep = match command {
                     Some(Command::List(ListKey::Rename)) => !renames,
                     Some(Command::List(ListKey::ToggleLead)) => typing,
@@ -556,6 +588,7 @@ where
                 Command::List(key) => self.list_key(key, page),
                 Command::Toggle(column) => self.toggle_selected(column),
                 Command::Menu => menu = true,
+                Command::Tree { right, all } => self.tree_key(right != self.rtl, all),
             }
         }
         if let Some(listbox) = &mut listbox {
@@ -688,7 +721,10 @@ where
     /// `focused` whether the list has the focus.
     fn row(&mut self, ui: &mut Ui, at: usize, rect: Rect, lead: bool, focused: bool) {
         let key = self.rows.key(at).clone();
-        let row = (self.build)(at, &key);
+        let mut row = (self.build)(at, &key);
+        if self.tree {
+            row = row.branch(Branch { depth: self.rows.depth(at), group: self.rows.has_children(at), open: self.rows.open(at) });
+        }
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
             Some(open) if open.key == key => {
@@ -707,9 +743,60 @@ where
         });
         self.row_pointer(ui, at, &key, &out);
         for event in out.events {
+            if let RowEvent::Open(change) = event {
+                self.focus = true;
+                self.open_change(at, change);
+                continue;
+            }
             self.row_event(at, &event);
             self.events.push(ListEvent::Row(event));
         }
+    }
+
+    /// The tree keys on the lead: toward the end opens or enters, toward the start closes or
+    /// leaves; with `all`, every group opens or closes.
+    fn tree_key(&mut self, toward_end: bool, all: bool) {
+        let Some(at) = self.lead_at() else { return };
+        if all {
+            let row = self.rows.key(at).clone();
+            self.open_change(at, OpenChange { row, open: toward_end, all: true });
+            return;
+        }
+        match tree_key(self.rows, at, toward_end) {
+            Some(TreeMove::Open(at)) => {
+                let row = self.rows.key(at).clone();
+                self.open_change(at, OpenChange { row, open: true, all: false });
+            }
+            Some(TreeMove::Close(at)) => {
+                let row = self.rows.key(at).clone();
+                self.open_change(at, OpenChange { row, open: false, all: false });
+            }
+            Some(TreeMove::To(to)) => {
+                if let Some(change) = self.rules.click(self.selection, self.rows, to, Modifiers::NONE) {
+                    self.apply(change);
+                }
+                self.state.reveal = Some(self.rows.key(to).clone());
+            }
+            None => {}
+        }
+    }
+
+    /// Reports a group asked to open or close. The lead moves to the group that closes over it
+    /// (to the topmost one when all close), since the rows below it leave the display order; the
+    /// selection is unchanged.
+    fn open_change(&mut self, at: usize, change: OpenChange<K>) {
+        if !change.open
+            && let Some(lead) = self.selection.lead.as_ref().and_then(|lead| self.rows.position(lead))
+        {
+            let target = if change.all { Some(tree::topmost(self.rows, lead)) } else { tree::is_below(self.rows, at, lead).then_some(at) };
+            if let Some(target) = target.filter(|&t| t != lead) {
+                let key = self.rows.key(target).clone();
+                self.selection.lead = Some(key.clone());
+                self.events.push(ListEvent::LeadMoved(key));
+                self.state.reveal = self.selection.lead.clone();
+            }
+        }
+        self.events.push(ListEvent::Open(change));
     }
 
     fn row_pointer(&mut self, ui: &Ui, at: usize, key: &K, out: &RowResponse<K>) {
@@ -807,12 +894,16 @@ where
 
 /// What a pressed key does in a focused list: a column's key, the context-menu keys, or a list
 /// key.
-fn take_command(key: Key, modifiers: Modifiers, mac: bool, column_keys: &[(usize, KeyboardShortcut)]) -> Option<Command> {
+fn take_command(key: Key, modifiers: Modifiers, mac: bool, column_keys: &[(usize, KeyboardShortcut)], tree: bool) -> Option<Command> {
     if let Some(&(column, _)) = column_keys.iter().find(|(_, s)| s.logical_key == key && modifiers.matches_logically(s.modifiers)) {
         return Some(Command::Toggle(column));
     }
     if (key == Key::Menu && modifiers.matches_exact(Modifiers::NONE)) || (key == Key::F10 && modifiers.matches_exact(Modifiers::SHIFT)) {
         return Some(Command::Menu);
+    }
+    if tree && matches!(key, Key::ArrowLeft | Key::ArrowRight) {
+        let all = modifiers.matches_exact(Modifiers::ALT);
+        return (all || modifiers.matches_exact(Modifiers::NONE)).then_some(Command::Tree { right: key == Key::ArrowRight, all });
     }
     ListKey::from_key(key, modifiers, mac).map(Command::List)
 }
