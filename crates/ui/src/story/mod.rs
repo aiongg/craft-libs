@@ -213,9 +213,10 @@ fn pixels_per_point_key() -> egui::Id {
 }
 
 /// Asks the gallery to draw at `pixels_per_point` while the story calling this shows, so canvas
-/// stories can show device-pixel drawing at a scale other than the screen's. The request holds for
-/// the pass it is made in; the gallery reads it with [`take_pixels_per_point_request`] at the end
-/// of the pass and returns to its own scale once no story makes it.
+/// stories can show device-pixel drawing at a scale other than the screen's. The scale is egui's
+/// zoom, so it rescales the whole gallery, chrome included. The request holds for the pass it is
+/// made in; the gallery reads it with [`take_pixels_per_point_request`] at the end of the pass,
+/// applies it when it changes and returns to its own scale once no story makes it.
 pub fn request_pixels_per_point(ctx: &egui::Context, pixels_per_point: f32) {
     ctx.data_mut(|d| d.insert_temp(pixels_per_point_key(), pixels_per_point));
 }

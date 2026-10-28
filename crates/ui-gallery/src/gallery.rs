@@ -26,6 +26,8 @@ pub struct Gallery {
     appearance: Appearance,
     /// The appearance `base` and the context's direction and zoom were set for.
     applied: Option<Appearance>,
+    /// The scale the shown story asks for, once applied; `None` while no story asks.
+    story_ppp: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
     base: Base,
@@ -60,6 +62,7 @@ impl Gallery {
             base: saved.appearance.base(),
             appearance: saved.appearance,
             applied: None,
+            story_ppp: None,
             system_face_applied: false,
             selected,
             filter: saved.filter,
@@ -128,18 +131,21 @@ impl Gallery {
         self.apply_story_scale(ui.ctx());
     }
 
-    /// The scale for the next pass: the one a story requested in this pass
-    /// ([`story::request_pixels_per_point`](craft_ui::story::request_pixels_per_point)), else the
-    /// appearance bar's.
-    fn apply_story_scale(&self, ctx: &egui::Context) {
+    /// Sets the whole gallery's scale when a story starts or stops asking for one
+    /// ([`story::request_pixels_per_point`](craft_ui::story::request_pixels_per_point)): the
+    /// story's request, or back to the appearance bar's. In between the zoom is left alone, so
+    /// egui's Ctrl +/− zoom keeps working.
+    fn apply_story_scale(&mut self, ctx: &egui::Context) {
         let requested = craft_ui::story::take_pixels_per_point_request(ctx);
+        if requested == self.story_ppp {
+            return;
+        }
+        self.story_ppp = requested;
         let zoom = match (requested, ctx.native_pixels_per_point()) {
             (Some(ppp), Some(native)) if native > 0.0 => ppp / native,
             _ => self.appearance.zoom(),
         };
-        if (ctx.zoom_factor() - zoom).abs() > 1e-4 {
-            ctx.set_zoom_factor(zoom);
-        }
+        ctx.set_zoom_factor(zoom);
     }
 
     fn show_panels(&mut self, ui: &mut Ui) {
@@ -179,7 +185,10 @@ impl Gallery {
             if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
                 icons::set_active(ctx, self.appearance.icon_set());
             }
-            ctx.set_zoom_factor(self.appearance.zoom());
+            // A story's scale stays until it stops asking.
+            if self.story_ppp.is_none() {
+                ctx.set_zoom_factor(self.appearance.zoom());
+            }
             self.base = self.appearance.base();
         }
         install(ctx, &self.base);
