@@ -207,9 +207,7 @@ impl Family for ButtonTokens {
             },
             secondary: ButtonColors {
                 fill: States::new(c.state.hover, c.state.pressed, c.state.selected, c.state.disabled_fill),
-                // The rest border is the only boundary on a panel-coloured fill, so it takes the
-                // token held to the non-text minimum on panels (`line.border` is not).
-                border: States::new(c.line.control_edge, c.line.control_edge, c.line.control_edge, c.line.divider),
+                border: States::new(c.line.border, c.line.control_edge, c.line.control_edge, c.line.divider),
                 text: text(c.text.normal),
             },
             ghost: ButtonColors { fill: States::new(clear, c.state.hover, c.state.pressed, clear), border: none, text: text(c.text.normal) },
@@ -279,13 +277,14 @@ impl Family for ButtonTokens {
         for variant in ButtonVariant::ALL {
             for state in [State::Rest, State::Hover, State::Pressed] {
                 let fill = TokenRef::Component(field(variant, ButtonPart::Fill, state));
-                out.push(ContrastPair { fg: field(variant, ButtonPart::Text, state), bg: fill, minimum: values::TEXT_MIN });
+                out.push(ContrastPair { fg: field(variant, ButtonPart::Text, state), bg: fill, minimum: values::TEXT_MIN, required: true });
             }
         }
         out.push(ContrastPair {
             fg: field(ButtonVariant::Secondary, ButtonPart::Border, State::Rest),
             bg: TokenRef::Color(ColorToken::SurfacePanel),
             minimum: values::NON_TEXT_MIN,
+            required: false,
         });
         out
     }

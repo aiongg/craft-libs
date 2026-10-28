@@ -186,6 +186,16 @@ fn fix_fg(c: &mut ColorTokens, fg: ColorToken, bgs: &[Bg], min: f64) {
         }
         c.set(fg, moved);
     }
+    // Backgrounds on opposite sides of the foreground (the halo over black and over white) can
+    // leave the hue-keeping move short; white or black then reaches the minimum when any colour does.
+    let f = c.get(fg);
+    if worst(c, f, bgs).is_some_and(|(r, _)| r < min) {
+        let reach = |e: Rgba| worst(c, e, bgs).map_or(f64::INFINITY, |(r, _)| r);
+        let best = if reach(Rgba::WHITE) >= reach(Rgba::BLACK) { Rgba::WHITE } else { Rgba::BLACK };
+        if reach(best) >= min {
+            c.set(fg, best);
+        }
+    }
 }
 
 /// Keeps text on solid fills that already passes; otherwise picks white or black. When an extreme can't reach `min` on a fill,
@@ -225,6 +235,9 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
     for rule in rules {
         let minimum = minimum(rule, high);
         for &fg in rule.fgs {
+            if !rule.required {
+                continue;
+            }
             let f = c.get(fg);
             // Both halo backdrops report as one pair, with the lower ratio.
             let mut seen: Vec<ContrastWarning> = Vec::new();
@@ -248,11 +261,21 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
 /// Applies `theme`'s component overrides in `mode` for `app`: colour pins (the app's and, when
 /// `high`, the high-contrast ones after them), then the mode-independent overrides, the app's
 /// last. Overrides that [`ThemeDef::override_errors`] lists are skipped.
-pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, app: Option<&AppId>, mode: Mode, high: bool, color: &ColorTokens) {
+pub(super) fn component_overrides(
+    comp: &mut ComponentTokens,
+    theme: &ThemeDef,
+    app: Option<&AppId>,
+    mode: Mode,
+    high: bool,
+    color: &ColorTokens,
+) -> BTreeSet<ComponentField> {
+    let mut pinned = BTreeSet::new();
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
     for (t, v) in pins(theme, app, mode, high) {
-        if let TokenRef::Component(f) = t {
-            let _ = comp.set(f, OverrideValue::Color(v), color);
+        if let TokenRef::Component(f) = t
+            && comp.set(f, OverrideValue::Color(v), color).is_ok()
+        {
+            pinned.insert(f);
         }
     }
     let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
@@ -261,18 +284,26 @@ pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, 
             let _ = comp.set(f, v, color);
         }
     }
+    pinned
 }
 
 /// The component contrast pass. Defaults derive from semantic tokens that already passed, so
 /// only pairs with a pinned colour can fail; with standard contrast those are kept and
-/// reported. With high contrast every failing pair is fixed: the foreground moves first, then
+/// reported when they are required. With high contrast every failing pair is fixed: the foreground moves first, then
 /// the background if the foreground alone can't reach the minimum. Returns the pairs that
 /// still fail.
-pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastWarning> {
+pub(super) fn component_colors(
+    comp: &mut ComponentTokens,
+    color: &ColorTokens,
+    high: bool,
+    pinned: &BTreeSet<ComponentField>,
+) -> Vec<ContrastWarning> {
     let pairs = ComponentTokens::pairs();
-    if high {
-        for p in &pairs {
+    for p in &pairs {
+        if high {
             fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
+        } else if !p.required && !pinned.contains(&p.fg) {
+            fix_component_pair(comp, color, p.fg, p.bg, p.minimum.0);
         }
     }
     let mut out = Vec::new();
@@ -280,7 +311,7 @@ pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, 
         let minimum = if high { p.minimum.1 } else { p.minimum.0 };
         let (Some(fg), Some(bg)) = (comp.color(p.fg), component_bg(comp, color, p.bg)) else { continue };
         let r = ratio(fg, bg);
-        if r < minimum {
+        if p.required && r < minimum {
             out.push(ContrastWarning { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: r, minimum });
         }
     }

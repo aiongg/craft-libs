@@ -179,6 +179,37 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
 }
 
 #[test]
+fn pinned_target_pairs_are_kept_without_warnings_in_standard_and_fixed_in_high() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.pinned-targets").unwrap();
+    for mode in [Mode::Light, Mode::Dark] {
+        let panel = resolve(&def, app(mode, Contrast::Standard), None).tokens.color(T::SurfacePanel);
+        let pins = Pins::from_iter([(T::LineControlEdge, panel), (T::StateHover, panel), (T::LineDivider, panel)]);
+        match mode {
+            Mode::Light => def.pins.light = pins,
+            Mode::Dark => def.pins.dark = pins,
+        }
+        let r = resolve(&def, app(mode, Contrast::Standard), None);
+        for t in [T::LineControlEdge, T::StateHover, T::LineDivider] {
+            assert_eq!(r.tokens.color(t), panel, "{mode:?} {t:?}");
+        }
+        assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
+        let high = resolve(&def, app(mode, Contrast::High), None);
+        assert!(contrast_ratio(high.tokens.color(T::LineControlEdge), high.tokens.color(T::SurfacePanel)) >= 4.5, "{mode:?}");
+        assert!(contrast_ratio(high.tokens.color(T::StateHover), high.tokens.color(T::SurfacePanel)) >= 1.5, "{mode:?}");
+    }
+}
+
+#[test]
+fn dark_accent_seed_in_light_mode_still_meets_the_overlay_pairs() {
+    let def = theme("test.navy", "#d4d0c8", "#0a246a", ["#4e712e", "#806000", "#a00000", "#0a246a"]);
+    for contrast in [Contrast::Standard, Contrast::High] {
+        let r = resolve(&def, app(Mode::Light, contrast), None);
+        assert!(r.warnings.is_empty(), "{contrast:?}: {:?}", r.warnings);
+    }
+}
+
+#[test]
 fn pins_replace_defaults_and_aliases_follow() {
     let mut def = grey_blue();
     let bg = hex("#203040");

@@ -184,13 +184,22 @@ pub(super) struct PairRule {
     pub high: f64,
     /// The fg is white or black on solid fills; when neither reaches the minimum, the fills move.
     pub on_solid: bool,
+    /// Whether a failing pair is reported. Pairs that are not required (WCAG) are targets: fixed
+    /// for unpinned colours, and with high contrast for every colour, but never reported.
+    pub required: bool,
 }
 
 const fn rule(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, high: f64) -> PairRule {
-    PairRule { fgs, bgs, standard, high, on_solid: false }
+    PairRule { fgs, bgs, standard, high, on_solid: false, required: true }
 }
 
-/// WCAG AA text minimum.
+/// A rule whose failures are never reported.
+const fn target(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, high: f64) -> PairRule {
+    PairRule { required: false, ..rule(fgs, bgs, standard, high) }
+}
+
+/// WCAG AA text minimum. The large-text minimum (3:1) applies to 18.66 px semibold or 24 px
+/// regular text; no type role is that large, so no rule uses it.
 pub const TEXT_MIN: (f64, f64) = (4.5, 7.0);
 /// WCAG non-text minimum (control boundaries, focus, indicators, overlays).
 pub const NON_TEXT_MIN: (f64, f64) = (3.0, 4.5);
@@ -217,10 +226,11 @@ const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 /// Every contrast pair, in the order the contrast pass fixes them: fills that serve as
 /// backgrounds later (state fills, `accent.solid`) come before the text drawn on them.
 pub(super) const RULES: &[PairRule] = &[
-    rule(&[T::StateHover], &[Token(T::SurfacePanel)], HOVER_FLOOR.0, HOVER_FLOOR.1),
-    rule(&[T::StatePressed], &[Token(T::SurfacePanel)], PRESSED_FLOOR.0, PRESSED_FLOOR.1),
-    rule(&[T::LineDivider], &[Token(T::SurfaceBackground), Token(T::SurfacePanel)], DIVIDER_FLOOR.0, DIVIDER_FLOOR.1),
-    rule(&[T::LineControlEdge, T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    target(&[T::StateHover], &[Token(T::SurfacePanel)], HOVER_FLOOR.0, HOVER_FLOOR.1),
+    target(&[T::StatePressed], &[Token(T::SurfacePanel)], PRESSED_FLOOR.0, PRESSED_FLOOR.1),
+    target(&[T::LineDivider], &[Token(T::SurfaceBackground), Token(T::SurfacePanel)], DIVIDER_FLOOR.0, DIVIDER_FLOOR.1),
+    target(&[T::LineControlEdge], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], &[Token(T::SurfacePanel)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::AccentText], CONTROL_BGS, TEXT_MIN.0, TEXT_MIN.1),

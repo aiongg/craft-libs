@@ -53,8 +53,8 @@ pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
     let shape = ShapeTokens { radius, edge };
     let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
     let high = appearance.contrast == Contrast::High;
-    derive::component_overrides(&mut component, theme, app, mode, high, &color);
-    warnings.extend(derive::component_colors(&mut component, &color, high));
+    let pinned = derive::component_overrides(&mut component, theme, app, mode, high, &color);
+    warnings.extend(derive::component_colors(&mut component, &color, high, &pinned));
 
     let tokens = Tokens {
         color,

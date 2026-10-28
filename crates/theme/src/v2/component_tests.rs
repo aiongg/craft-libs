@@ -48,7 +48,7 @@ fn button_defaults_meet_every_minimum() {
     let b = &t.component.button;
     assert_eq!(b.primary.fill.hover, t.color(T::AccentHover));
     assert_eq!(b.danger.fill.pressed, t.color(T::StatusBadSolidPressed));
-    assert_eq!(b.colors(ButtonVariant::Secondary).border.get(State::Rest), t.color(T::LineControlEdge));
+    assert_eq!(b.colors(ButtonVariant::Secondary).border.get(State::Hover), t.color(T::LineControlEdge));
     assert_eq!(b.ghost.fill.rest, Rgba::TRANSPARENT);
     assert_eq!(b.danger.text, States::new(t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextDisabled)));
 }
