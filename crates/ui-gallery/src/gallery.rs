@@ -160,12 +160,16 @@ impl Gallery {
             ui.separator();
             let themes = builtins();
             let current = builtin(&a.theme).map_or(a.theme.as_str(), |t| t.name.as_str()).to_owned();
-            ui.label("Theme");
-            ComboBox::from_id_salt("gallery.theme").selected_text(current).show_ui(ui, |ui| {
-                for theme in themes {
-                    ui.selectable_value(&mut a.theme, theme.id.as_str().to_owned(), &theme.name);
-                }
-            });
+            let label = ui.label("Theme");
+            ComboBox::from_id_salt("gallery.theme")
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    for theme in themes {
+                        ui.selectable_value(&mut a.theme, theme.id.as_str().to_owned(), &theme.name);
+                    }
+                })
+                .response
+                .labelled_by(label.id);
             segmented(ui, "Mode", &mut a.dark, [("Light", false), ("Dark", true)]);
             segmented(ui, "Contrast", &mut a.high_contrast, [("Standard", false), ("High", true)]);
             segmented(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]);
@@ -179,14 +183,18 @@ impl Gallery {
                 face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, faces::UI_FACES);
                 face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, faces::MONO_FACES);
             }
-            ui.label("Icons");
-            ComboBox::from_id_salt("gallery.icon_set").selected_text(a.icon_set().title()).show_ui(ui, |ui| {
-                for set in IconSet::ALL {
-                    ui.selectable_value(&mut a.icon_set, set.id().to_owned(), set.title());
-                }
-            });
-            ui.label("Scale");
-            ui.add(egui::Slider::new(&mut a.scale, SCALE).suffix("%"));
+            let label = ui.label("Icons");
+            ComboBox::from_id_salt("gallery.icon_set")
+                .selected_text(a.icon_set().title())
+                .show_ui(ui, |ui| {
+                    for set in IconSet::ALL {
+                        ui.selectable_value(&mut a.icon_set, set.id().to_owned(), set.title());
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            let label = ui.label("Scale");
+            ui.add(egui::Slider::new(&mut a.scale, SCALE).suffix("%")).labelled_by(label.id);
         });
     }
 
@@ -354,12 +362,16 @@ fn text_size_name(size: TextSize) -> &'static str {
 }
 
 fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, options: &[&str]) {
-    ui.label(label);
-    ComboBox::from_id_salt(id).selected_text(value.as_str()).show_ui(ui, |ui| {
-        for option in options {
-            ui.selectable_value(value, (*option).to_owned(), *option);
-        }
-    });
+    let label = ui.label(label);
+    ComboBox::from_id_salt(id)
+        .selected_text(value.as_str())
+        .show_ui(ui, |ui| {
+            for option in options {
+                ui.selectable_value(value, (*option).to_owned(), *option);
+            }
+        })
+        .response
+        .labelled_by(label.id);
 }
 
 /// A labelled pair of exclusive choices.

@@ -192,8 +192,9 @@ impl Inspector {
                     ui.label(RichText::new(format!("{n}.")).strong());
                 }
                 ui.label(RichText::new(format!("{:?}", node.role())).strong());
-                if let Some(label) = node.label() {
-                    ui.label(format!("\"{label}\""));
+                // A text node's name is its value, shown below.
+                if let Some(name) = tree.name(id).filter(|_| node.role() != Role::Label) {
+                    ui.label(format!("\"{name}\""));
                 }
                 if let Some(value) = node.value() {
                     ui.label(RichText::new(format!("= {value}")).italics());
@@ -205,7 +206,7 @@ impl Inspector {
                 if node.is_disabled() {
                     ui.label(RichText::new("disabled").small());
                 }
-                if inspect::is_interactive(node) && !inspect::has_label(node) {
+                if inspect::is_interactive(node) && tree.name(id).is_none() {
                     ui.label(RichText::new("no label").color(warn).strong());
                 }
             });
@@ -218,7 +219,7 @@ impl Inspector {
 
 /// The label of a node, or its role when it has none.
 fn label_of(tree: &AccessTree, id: NodeId) -> String {
-    tree.node(id).map(|n| n.label().map_or_else(|| format!("{:?}", n.role()), str::to_owned)).unwrap_or_default()
+    tree.name(id).or_else(|| tree.node(id).map(|n| format!("{:?}", n.role()))).unwrap_or_default()
 }
 
 /// The band between `outer` and `content` as up to four rects.

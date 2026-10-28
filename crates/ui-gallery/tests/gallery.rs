@@ -79,6 +79,30 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
 }
 
 #[test]
+fn every_control_in_the_bar_has_an_accessible_name() {
+    use craft_ui::inspect;
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.set_inspect(true);
+    for _ in 0..3 {
+        frame(&ctx, &mut gallery);
+    }
+    let tree = inspect::tree(&ctx).expect("the AccessKit tree while inspecting");
+    let nodes: Vec<_> = tree.walk(tree.root()).into_iter().map(|(id, _)| id).collect();
+    let tokens = nodes.iter().copied().find(|id| tree.node(*id).and_then(|n| n.label()) == Some("Tokens")).expect("the Tokens toggle");
+    let bar = nodes.iter().copied().find(|id| tree.node(*id).is_some_and(|n| n.children().contains(&tokens))).expect("the bar's Ui");
+    let controls = tree.interactive(bar);
+    assert!(controls.len() > 10, "the bar's controls: {}", controls.len());
+    let unnamed: Vec<String> = controls
+        .into_iter()
+        .filter(|id| tree.name(*id).is_none())
+        .filter_map(|id| tree.node(id))
+        .map(|n| format!("{:?} at {:?}", n.role(), n.bounds()))
+        .collect();
+    assert!(unnamed.is_empty(), "unnamed controls in the bar: {unnamed:#?}");
+}
+
+#[test]
 fn the_icon_set_picker_sets_the_active_set() {
     use craft_ui::icons::{self, IconSet};
     let ctx = Context::default();
