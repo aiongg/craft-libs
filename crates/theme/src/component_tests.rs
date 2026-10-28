@@ -150,17 +150,27 @@ fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     }
 }
 
-/// The check pairs, written out independently of the family's list: (fg, bg); `None` as bg means
-/// `surface.panel`.
-fn check_pairs() -> Vec<(ComponentField, Option<ComponentField>)> {
-    let check = |on_off, part, state| ComponentField::Check(CheckField::Color { on_off, part, state });
-    let mut p = vec![(check(OnOff::On, CheckPart::Fill, State::Rest), None)];
-    for s in [State::Rest, State::Hover, State::Pressed] {
-        p.push((check(OnOff::Off, CheckPart::Border, s), None));
-        p.push((check(OnOff::On, CheckPart::Mark, s), Some(check(OnOff::On, CheckPart::Fill, s))));
-        p.push((check(OnOff::Off, CheckPart::Mark, s), Some(check(OnOff::Off, CheckPart::Fill, s))));
+/// The check pairs, written out independently of the family's list: (fg, bg), at rest only.
+fn check_pairs() -> Vec<(ComponentField, TokenRef)> {
+    let check = |on_off, part| ComponentField::Check(CheckField::Color { on_off, part, state: State::Rest });
+    let mut p = Vec::new();
+    for bg in [T::SurfacePanel, T::SurfaceRaised] {
+        p.push((check(OnOff::On, CheckPart::Fill), TokenRef::Color(bg)));
+        p.push((check(OnOff::Off, CheckPart::Border), TokenRef::Color(bg)));
+    }
+    for on_off in OnOff::ALL {
+        p.push((check(on_off, CheckPart::Mark), TokenRef::Component(check(on_off, CheckPart::Fill))));
     }
     p
+}
+
+#[test]
+fn check_pairs_are_the_rest_cues_on_the_panel_and_raised_surfaces() {
+    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Check(_))).collect();
+    assert!(listed.iter().all(|p| p.minimum == values::NON_TEXT_MIN));
+    let listed: BTreeSet<_> = listed.into_iter().map(|p| (p.fg, p.bg)).collect();
+    let expected: BTreeSet<_> = check_pairs().into_iter().collect();
+    assert_eq!(listed, expected);
 }
 
 #[test]
@@ -170,8 +180,17 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
             let r = resolve(&def, a, None);
             assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
-            for (fg, bg) in check_pairs() {
-                let ratio = pair_ratio(&r.tokens, fg, bg);
+            let t = &r.tokens;
+            let color = |r: TokenRef| match r {
+                TokenRef::Color(c) => t.color(c),
+                TokenRef::Component(f) => t.component.color(f).unwrap(),
+            };
+            // `accent.solid` has a floor on `surface.panel` only, so the default on fill isn't held
+            // to the minimum on `surface.raised`; the built-ins meet it there.
+            let on_fill = ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Fill, state: State::Rest });
+            for (fg, bg) in check_pairs().into_iter().filter(|&p| p != (on_fill, TokenRef::Color(T::SurfaceRaised))) {
+                let bg = over(color(bg), t.color(T::SurfacePanel));
+                let ratio = contrast_ratio(over(t.component.color(fg).unwrap(), bg), bg);
                 assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
             }
         }
@@ -187,10 +206,24 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     assert_eq!((c.off.border, c.off.mark), (outline, outline));
     let sunken = t.color(T::SurfaceSunken);
     assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
-    assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::StateDisabledFill)));
-    assert_eq!(c.on.border, States { disabled: t.color(T::TextDisabled), ..c.on.fill });
+    assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    assert_eq!(c.on.border, c.on.fill);
     let on_accent = t.color(T::TextOnAccent);
-    assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::TextDisabled)));
+    assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::StateDisabledFill)));
+}
+
+/// A disabled switch, check box or radio button that is on must not look off: its track or box
+/// and its thumb or mark differ from the off ones.
+#[test]
+fn a_disabled_check_that_is_on_differs_from_one_that_is_off() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let c = resolve(&def, a, None).tokens.component.check;
+            for part in [CheckPart::Fill, CheckPart::Mark] {
+                assert_ne!(c.on.part(part).disabled, c.off.part(part).disabled, "{} {a:?}: {} looks off", def.name, part.name());
+            }
+        }
+    }
 }
 
 #[test]

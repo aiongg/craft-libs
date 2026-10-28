@@ -4,8 +4,13 @@
 //! colours of the indicator and mark while off and while on (checked, mixed, selected).
 //!
 //! The mark and the off outline are the cues that identify the control and its state, so they
-//! have the WCAG non-text minimum (3:1, 4.5:1 with high contrast): the mark against the
-//! indicator's fill, the outline and the on fill against the panel.
+//! have the WCAG non-text minimum (3:1, 4.5:1 with high contrast) at rest: the mark against the
+//! indicator's fill, and the off outline and the on fill against the control backgrounds
+//! (`surface.panel` and `surface.raised`). Hover and pressed colours have no minimum.
+//!
+//! A disabled control that is on keeps an on look: a `text.disabled` fill with a
+//! `state.disabled_fill` mark, the reverse of off's `state.disabled_fill` fill with a
+//! `text.disabled` outline and thumb.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
@@ -114,7 +119,8 @@ pub struct CheckTokens {
     pub thumb_inset: f32,
     /// Off: `text.faint` outline on `surface.sunken`; a switch's thumb in `text.faint`.
     pub off: CheckColors,
-    /// On: `accent.*` fill and outline, a `text.on_accent` mark.
+    /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
+    /// and outline with a `state.disabled_fill` mark.
     pub on: CheckColors,
 }
 
@@ -178,7 +184,7 @@ impl Family for CheckTokens {
         // and the off thumb meet the non-text minimum wherever the control sits.
         let outline = States::new(c.text.faint, c.text.muted, c.text.muted, c.text.disabled);
         let sunken = c.surface.sunken;
-        let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.state.disabled_fill);
+        let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
         let on_accent = c.text.on_accent;
         CheckTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
@@ -191,11 +197,7 @@ impl Family for CheckTokens {
             track: BySize { sm: icon.sm * values::SWITCH_ASPECT, md: icon.md * values::SWITCH_ASPECT },
             thumb_inset: values::SWITCH_THUMB_INSET,
             off: CheckColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline, mark: outline },
-            on: CheckColors {
-                fill: accent,
-                border: States { disabled: c.text.disabled, ..accent },
-                mark: States::new(on_accent, on_accent, on_accent, c.text.disabled),
-            },
+            on: CheckColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
         }
     }
 
@@ -245,17 +247,14 @@ impl Family for CheckTokens {
         }
     }
 
-    /// The on fill comes first: high contrast moves it before the marks drawn on it.
+    /// At rest only. The on fill comes first: high contrast moves it before the mark drawn on it.
     fn pairs() -> Vec<ContrastPair> {
-        let field = |on_off, part, state| ComponentField::Check(CheckField::Color { on_off, part, state });
-        let panel = TokenRef::Color(ColorToken::SurfacePanel);
+        let field = |on_off, part| ComponentField::Check(CheckField::Color { on_off, part, state: State::Rest });
+        let backgrounds = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
         let pair = |fg, bg| ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN };
-        let mut out = vec![pair(field(OnOff::On, CheckPart::Fill, State::Rest), panel)];
-        let live = [State::Rest, State::Hover, State::Pressed];
-        out.extend(live.map(|state| pair(field(OnOff::Off, CheckPart::Border, state), panel)));
-        for on_off in [OnOff::On, OnOff::Off] {
-            out.extend(live.map(|state| pair(field(on_off, CheckPart::Mark, state), TokenRef::Component(field(on_off, CheckPart::Fill, state)))));
-        }
+        let mut out: Vec<_> = backgrounds.map(|bg| pair(field(OnOff::On, CheckPart::Fill), bg)).into();
+        out.extend(backgrounds.map(|bg| pair(field(OnOff::Off, CheckPart::Border), bg)));
+        out.extend(OnOff::ALL.map(|on_off| pair(field(on_off, CheckPart::Mark), TokenRef::Component(field(on_off, CheckPart::Fill)))));
         out
     }
 }
