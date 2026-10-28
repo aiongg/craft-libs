@@ -38,6 +38,7 @@ pub struct Interactive<'a> {
     sense: Sense,
     enabled: bool,
     checked: Option<State<'a>>,
+    mixed: bool,
     selected: Option<State<'a>>,
     report: Report,
     look: Look,
@@ -112,6 +113,7 @@ impl<'a> Interactive<'a> {
             sense: Sense::click(),
             enabled: true,
             checked: None,
+            mixed: false,
             selected: None,
             report: Report { role, label: label.into(), value: None, numeric: None, expanded: None, busy: false },
             look: Look { surface: None, corner: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
@@ -149,6 +151,14 @@ impl<'a> Interactive<'a> {
     /// [changed](Response::changed) on a click.
     pub fn toggle(mut self, checked: &'a mut bool) -> Self {
         self.checked = Some(State::Toggle(checked));
+        self
+    }
+
+    /// Neither checked nor unchecked, for a check box over a selection where some items have the
+    /// option and some don't: AccessKit toggled mixed, and the [`on_colors`](Interactive::on_colors).
+    /// It takes the place of [`checked`](Interactive::checked).
+    pub fn mixed(mut self) -> Self {
+        self.mixed = true;
         self
     }
 
@@ -273,7 +283,7 @@ impl<'a> Interactive<'a> {
         if changed {
             response.mark_changed();
         }
-        Sensed { response, checked, selected, report: self.report, look: self.look }
+        Sensed { response, checked, mixed: self.mixed, selected, report: self.report, look: self.look }
     }
 }
 
@@ -284,6 +294,7 @@ impl<'a> Interactive<'a> {
 pub struct Sensed {
     response: Response,
     checked: Option<bool>,
+    mixed: bool,
     selected: Option<bool>,
     report: Report,
     look: Look,
@@ -299,6 +310,14 @@ impl Sensed {
     /// frame.
     pub fn checked(mut self, checked: bool) -> Self {
         self.checked = Some(checked);
+        self.mixed = false;
+        self
+    }
+
+    /// Mixed, as settled after sensing: a check box that stayed mixed. See
+    /// [`Interactive::mixed`].
+    pub fn mixed(mut self) -> Self {
+        self.mixed = true;
         self
     }
 
@@ -320,8 +339,9 @@ impl Sensed {
     /// Reports the element to AccessKit and paints its fill, edge and focus ring. The caller
     /// draws the content after it.
     pub fn finish(self, ui: &Ui) -> Response {
-        let Sensed { response, checked, selected, report, look } = self;
+        let Sensed { response, checked, mixed, selected, report, look } = self;
         let enabled = response.enabled();
+        let checked = if mixed { None } else { checked };
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(report.role, enabled, &report.label);
             info.current_text_value.clone_from(&report.value);
@@ -329,9 +349,12 @@ impl Sensed {
             info.selected = checked;
             info
         });
-        if selected.is_some() || report.numeric.is_some() || report.expanded.is_some() || report.busy {
+        if mixed || selected.is_some() || report.numeric.is_some() || report.expanded.is_some() || report.busy {
             ui.ctx().accesskit_node_builder(response.id, |node| {
+                if mixed {
+                    node.set_toggled(egui::accesskit::Toggled::Mixed);
                 if let Some(Numeric { value, range, step }) = &report.numeric {
+                }
                     node.set_min_numeric_value(*range.start());
                     node.set_max_numeric_value(*range.end());
                     node.set_numeric_value_step(*step);
@@ -359,7 +382,7 @@ impl Sensed {
 
         let tokens = Tokens::of(ui);
         let rect = response.rect;
-        let on = checked == Some(true) || selected == Some(true);
+        let on = mixed || checked == Some(true) || selected == Some(true);
         let pressed = look.state_layer && enabled && response.is_pointer_button_down_on();
         let kind = match look.surface {
             Some(SurfaceKind::Raised) if pressed || on => Some(SurfaceKind::Pressed),

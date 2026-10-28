@@ -6,10 +6,11 @@ use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, CornerRadius, EventFilter, Galley, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
 use super::button::content_color;
 use super::{SIZE_NAMES, icon_size, size_arg};
+use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Content, Corner, Gap, Interactive, Stack, StateColors, Surface, SurfaceKind, SurfaceStyle, Text};
@@ -61,11 +62,9 @@ pub struct SegmentedStyle {
 ///
 /// Equal-width segments sit on a sunken track; the selected one shows `segmented.selected.*`.
 /// It is a WAI-ARIA radio group: AccessKit `RadioGroup` named `label` with a `RadioButton` per
-/// segment, the selected one checked. The group is one Tab stop (the selected segment, or the
-/// first when none is), and focus follows it while the group has focus; the arrow keys select the
-/// next or previous segment, wrapping, with Left and Right swapped in a right-to-left interface,
-/// and Home and End the first and last.
-/// Segments run from the reading start. An icon segment's label is its accessible name and
+/// segment, the selected one checked, with the keys and focus of
+/// [`RadioSelection`](crate::behavior::RadioSelection): one Tab stop, arrows (mirrored in a
+/// right-to-left interface), Home and End. Segments run from the reading start. An icon segment's label is its accessible name and
 /// tooltip, also while disabled.
 #[derive(Debug)]
 pub struct Segmented<'a, T> {
@@ -144,56 +143,15 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
         group.spacing_mut().item_spacing = Vec2::ZERO;
         let ids: Vec<_> = (0..count).map(|i| Interactive::id_in(&group, i)).collect();
         let enabled = self.enabled && ui.is_enabled();
-        let mut selected = self.items.iter().position(|item| item.value == *self.value);
-        let mut changed = false;
-
-        // The selected segment (or the first) is the group's one Tab stop. While a segment has
-        // focus, focus follows the stop, with the arrow keys locked to the group from the first
-        // frame on, and the keys move the selection from it.
-        let arrows = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
-        let focused = enabled && ids.iter().any(|id| ui.memory(|m| m.has_focus(*id)));
-        let follow = |ui: &Ui, selected: Option<usize>| {
-            let stop = ids[selected.unwrap_or(0)];
-            if focused && !ui.memory(|m| m.has_focus(stop)) {
-                ui.memory_mut(|m| m.request_focus_with_filter(stop, arrows));
-            }
-        };
-        if count > 0 {
-            follow(ui, selected);
-        }
-        let stop = selected.unwrap_or(0);
-        if focused && count > 0 {
-            ui.memory_mut(|m| m.set_focus_lock_filter(ids[stop], arrows));
-            let (next, previous) = if direction::is_rtl(ui) { (Key::ArrowLeft, Key::ArrowRight) } else { (Key::ArrowRight, Key::ArrowLeft) };
-            let pressed = |key| ui.input_mut(|i| i.consume_key(Modifiers::NONE, key));
-            let target = if pressed(Key::Home) {
-                Some(0)
-            } else if pressed(Key::End) {
-                Some(count - 1)
-            } else if pressed(next) || pressed(Key::ArrowDown) {
-                Some((stop + 1) % count)
-            } else if pressed(previous) || pressed(Key::ArrowUp) {
-                Some((stop + count - 1) % count)
-            } else {
-                None
-            };
-            if let Some(target) = target.filter(|t| Some(*t) != selected) {
-                *self.value = self.items[target].value.clone();
-                selected = Some(target);
-                changed = true;
-            }
-        }
-
-        // Every segment senses first, so a click settles the selection before any segment is
-        // reported or painted.
-        let stop = selected.unwrap_or(0);
+        let selected = self.items.iter().position(|item| item.value == *self.value);
+        let mut radios = RadioSelection::begin(ui, ids, selected, enabled);
         let sensed: Vec<_> = self
             .items
             .iter()
             .enumerate()
             .map(|(i, item)| {
                 Interactive::new(i, Role::RadioButton, item.label.as_str())
-                    .sense(if i == stop { Sense::click() } else { Sense::CLICK })
+                    .sense(radios.sense(i))
                     .colors(StateColors { fill: style.fill, border: None })
                     .on_colors(StateColors { fill: style.selected_fill, border: None })
                     .corner(Corner::Control)
@@ -201,13 +159,10 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                     .interact(&mut group, segment)
             })
             .collect();
-        if let Some(clicked) = sensed.iter().position(|s| s.response().clicked()).filter(|i| Some(*i) != selected) {
-            *self.value = self.items[clicked].value.clone();
-            selected = Some(clicked);
-            changed = true;
-        }
-        if count > 0 {
-            follow(ui, selected);
+        radios.sensed(ui, &sensed);
+        let selected = radios.selected();
+        if let Some(i) = selected.filter(|_| radios.changed()) {
+            *self.value = self.items[i].value.clone();
         }
 
         let mut responses = Vec::with_capacity(count);
@@ -236,7 +191,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
             Some(all) => all.with_new_rect(track),
             None => ui.interact(track, ui.make_persistent_id(self.id_salt), Sense::hover()),
         };
-        if changed {
+        if radios.changed() {
             response.mark_changed();
         }
         response
