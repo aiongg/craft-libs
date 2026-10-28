@@ -9,8 +9,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use egui::{
-    Align, Context, Frame, Id, LayerId, Margin, Order, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Shape, Style,
-    TextWrapMode, Ui, style::StyleModifier,
+    Align, Context, Frame, Id, Margin, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Shape, Style, TextWrapMode, Ui,
+    style::StyleModifier,
 };
 
 use crate::primitives::{SurfaceEdge, SurfaceStyle};
@@ -177,15 +177,24 @@ impl<'a> PopupList<'a> {
         let popup = match open {
             Some(open) => {
                 let focus_key = id.with("craft-field-focus");
-                let inside = focus_inside(&ctx, &owners, id);
+                // The popup and the popups opened from inside it are one: focus and clicks in a
+                // menu opened from a button in the popup are inside.
+                let family = family(&ctx, id);
+                let inside = focus_inside(&ctx, &owners, &family);
+                // A press or click inside drops a text field's focus in this pass or the next (a
+                // text field gives it up on the release of a click elsewhere): the user is still
+                // inside, so the next pass doesn't count the focus as having been inside.
+                let pressed = pressed_into(&ctx, &family);
                 // A popup that wasn't shown last pass starts with what the focus is now.
                 let shown = ctx.read_response(id).is_some();
-                let had = ctx.data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<bool>(focus_key), inside)) && shown;
-                if had && !inside && !pressed_into(&ctx, id) {
+                let had = ctx.data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<bool>(focus_key), inside && !pressed)) && shown;
+                if had && !inside && !pressed {
                     *open = false;
                 }
-                // A click in the field (moving a text field's cursor) leaves the popup open.
-                if ctx.input(|i| i.pointer.interact_pos()).is_some_and(|pos| field.contains(pos)) {
+                // A click in the field (moving a text field's cursor) or in a popup opened from
+                // inside this one leaves the popup open.
+                let pointer = ctx.input(|i| i.pointer.interact_pos());
+                if pointer.is_some_and(|pos| field.contains(pos) || ctx.layer_id_at(pos).is_some_and(|l| l.id != id && family.contains(&l.id))) {
                     close_behavior = PopupCloseBehavior::IgnoreClicks;
                 }
                 popup.open_bool(open)
@@ -217,6 +226,7 @@ impl<'a> PopupList<'a> {
         };
         let height = height.min(room - frame.total_margin().sum().y).max(0.0);
         let popup = if surface.is_some() { popup.frame(Frame::NONE) } else { popup };
+        let drawing = Drawing::enter(&ctx, id);
         let inner = popup
             .align(align)
             .align_alternatives(&[])
@@ -280,6 +290,8 @@ impl<'a> PopupList<'a> {
                 }
             })
             .map(|r| (r.inner, r.response.should_close()));
+        // Recorded below as a child of the popup this one draws in, not of itself.
+        drop(drawing);
         if flagged {
             record_open(&ctx, id, inner.as_ref().is_some_and(|(_, closing)| !closing));
         }
@@ -291,11 +303,61 @@ impl<'a> PopupList<'a> {
     }
 }
 
-/// The lists open at the end of a pass that egui's popup memory doesn't know, per viewport: popups
-/// shown with a flag of their own ([`PopupList::open`], egui's [`Popup::open_bool`]), as Select and
-/// ComboBox open their lists. Each with the pass it was last recorded open in.
+/// The popups open at the end of a pass, per viewport: those egui's popup memory doesn't know
+/// (shown with a flag of their own, [`PopupList::open`], as Select and ComboBox open their lists)
+/// and the menus. Each with the popup [drawing](Drawing) it, if any, and the pass it was last
+/// recorded open in.
 #[derive(Clone, Default)]
-struct OpenLists(Vec<(Id, u64)>);
+struct OpenLists(Vec<OpenList>);
+
+#[derive(Clone, Copy)]
+struct OpenList {
+    popup: Id,
+    /// The popup whose contents opened it: a menu opened from a button in a popover.
+    parent: Option<Id>,
+    pass: u64,
+}
+
+/// The [`PopupList`]s whose contents are being drawn, innermost last, per viewport. A popup
+/// [recorded](record_open) open while one draws is that popup's child.
+#[derive(Clone, Default)]
+struct Drawing(Vec<Id>);
+
+impl Drawing {
+    fn key(ctx: &Context) -> Id {
+        Id::unique("craft-ui-drawing-popups").with(ctx.viewport_id())
+    }
+
+    #[must_use = "the popup leaves the stack when the guard drops"]
+    fn enter(ctx: &Context, popup: Id) -> DrawingGuard {
+        let key = Self::key(ctx);
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Drawing>(key).0.push(popup));
+        DrawingGuard { ctx: ctx.clone(), popup }
+    }
+
+    fn innermost(ctx: &Context) -> Option<Id> {
+        let key = Self::key(ctx);
+        ctx.data(|d| d.get_temp::<Drawing>(key)).and_then(|d| d.0.last().copied())
+    }
+}
+
+/// A popup's place in [`Drawing`] while its contents draw.
+struct DrawingGuard {
+    ctx: Context,
+    popup: Id,
+}
+
+impl Drop for DrawingGuard {
+    fn drop(&mut self) {
+        let key = Drawing::key(&self.ctx);
+        self.ctx.data_mut(|d| {
+            let stack = &mut d.get_temp_mut_or_default::<Drawing>(key).0;
+            if let Some(at) = stack.iter().rposition(|&p| p == self.popup) {
+                stack.truncate(at);
+            }
+        });
+    }
+}
 
 fn open_lists_id(ctx: &Context) -> Id {
     Id::unique("craft-ui-open-lists").with(ctx.viewport_id())
@@ -306,15 +368,38 @@ fn open_lists_id(ctx: &Context) -> Id {
 /// (a click on an option, a commit read from the field) records it closed. A list no one records
 /// any more counts as closed from the pass after its last record, so a list whose owner is no
 /// longer drawn doesn't stay open.
+///
+/// A popup recorded open while a [`PopupList`]'s contents draw is that popup's child: the
+/// parent stays open while the focus is in the child, and a click in the child is not outside it.
 pub(crate) fn record_open(ctx: &Context, popup: Id, open: bool) {
     let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    let parent = Drawing::innermost(ctx).filter(|&p| p != popup);
     ctx.data_mut(|d| {
         let lists = &mut d.get_temp_mut_or_default::<OpenLists>(key).0;
-        lists.retain(|&(id, at)| id != popup && at + 1 >= pass);
+        lists.retain(|l| l.popup != popup && l.pass + 1 >= pass);
         if open {
-            lists.push((popup, pass));
+            lists.push(OpenList { popup, parent, pass });
         }
     });
+}
+
+/// `popup` and the open popups opened from inside it, at any depth.
+fn family(ctx: &Context, popup: Id) -> Vec<Id> {
+    let pass = ctx.cumulative_pass_nr();
+    let key = open_lists_id(ctx);
+    let lists = ctx.data(|d| d.get_temp::<OpenLists>(key)).unwrap_or_default().0;
+    let mut family = vec![popup];
+    let mut i = 0;
+    while i < family.len() {
+        let parent = family[i];
+        for l in &lists {
+            if l.pass + 1 >= pass && l.parent == Some(parent) && !family.contains(&l.popup) {
+                family.push(l.popup);
+            }
+        }
+        i += 1;
+    }
+    family
 }
 
 /// Whether a popup is open in this viewport: one in egui's popup memory ([`Popup::is_any_open`]:
@@ -324,7 +409,7 @@ pub(crate) fn record_open(ctx: &Context, popup: Id, open: bool) {
 /// them alone.
 pub(crate) fn any_open(ctx: &Context) -> bool {
     let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
-    Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|&(_, at)| at + 1 >= pass))
+    Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass))
 }
 
 fn rows_list<H, R>(
@@ -347,17 +432,19 @@ fn edge_width(surface: &SurfaceStyle) -> f32 {
     }
 }
 
-/// Whether the keyboard focus is with one of `owners` or a widget in the popup `popup`.
-fn focus_inside(ctx: &Context, owners: &[Id], popup: Id) -> bool {
+/// Whether the keyboard focus is with one of `owners` or a widget in one of the popups `family`.
+fn focus_inside(ctx: &Context, owners: &[Id], family: &[Id]) -> bool {
     let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
-    owners.contains(&focused) || ctx.read_response(focused).is_some_and(|r| r.layer_id == LayerId::new(Order::Foreground, popup))
+    owners.contains(&focused) || ctx.read_response(focused).is_some_and(|r| family.contains(&r.layer_id.id))
 }
 
-/// Whether the pointer was pressed or clicked inside the popup `popup` this pass: egui then drops
-/// the focus, which says nothing about where the user is going.
-fn pressed_into(ctx: &Context, popup: Id) -> bool {
-    let pointer = ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos())).flatten();
-    ctx.memory(|m| m.area_rect(popup)).zip(pointer).is_some_and(|(area, pos)| area.contains(pos))
+/// Whether the pointer was pressed or clicked inside one of the popups `family` this pass: egui
+/// then drops the focus, which says nothing about where the user is going.
+fn pressed_into(ctx: &Context, family: &[Id]) -> bool {
+    let Some(pos) = ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos())).flatten() else {
+        return false;
+    };
+    ctx.memory(|m| family.iter().any(|&p| m.area_rect(p).is_some_and(|area| area.contains(pos))))
 }
 
 /// The side of its field `popup` shows on, and whether it is settled. The side is settled on the
