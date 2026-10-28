@@ -19,7 +19,7 @@ use super::rename;
 use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
-use super::tree::{self, Branch, OpenChange};
+use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::behavior::{
     DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, RowInfo, Selection, SelectionChange, SelectionMode, TreeMove, tree_key,
 };
@@ -161,6 +161,7 @@ pub struct List<'a, K, O: ?Sized> {
     reveal: Option<K>,
     start_rename: Option<K>,
     tree: bool,
+    tree_text: Arc<TreeText>,
 }
 
 impl<'a, K, O> List<'a, K, O>
@@ -185,7 +186,14 @@ where
             reveal: None,
             start_rename: None,
             tree: false,
+            tree_text: Arc::default(),
         }
+    }
+
+    /// The words of the tree's disclosure triangles, translated by the host.
+    pub fn tree_text(mut self, text: TreeText) -> Self {
+        self.tree_text = Arc::new(text);
+        self
     }
 
     /// A tree (default false): rows are indented by their depth in the display order, groups
@@ -292,8 +300,22 @@ where
     /// key; it is called for the rows drawn, and for rows a key needs to read (the selected rows'
     /// toggle states, labels for type-ahead).
     pub fn show<'r>(self, ui: &mut Ui, row: impl FnMut(usize, &K) -> ListRow<'r, K>) -> ListOutput<K> {
-        let List { id_salt, label, rows, selection, mode, allow_empty, heights, max_height, can_rename, type_ahead, reveal, start_rename, tree } =
-            self;
+        let List {
+            id_salt,
+            label,
+            rows,
+            selection,
+            mode,
+            allow_empty,
+            heights,
+            max_height,
+            can_rename,
+            type_ahead,
+            reveal,
+            start_rename,
+            tree,
+            tree_text,
+        } = self;
         let id = ui.make_persistent_id(id_salt);
         let rules = ListSelection::new(mode).allow_empty(allow_empty);
         let mut state = State::<K>::load(ui.ctx(), id);
@@ -321,6 +343,7 @@ where
             focus: false,
             lead_row: None,
             tree,
+            tree_text,
             rtl: direction::is_rtl(ui),
         };
 
@@ -485,6 +508,7 @@ struct Pass<'p, K, O: ?Sized, F> {
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
     tree: bool,
+    tree_text: Arc<TreeText>,
     rtl: bool,
 }
 
@@ -723,7 +747,11 @@ where
         let key = self.rows.key(at).clone();
         let mut row = (self.build)(at, &key);
         if self.tree {
-            row = row.branch(Branch { depth: self.rows.depth(at), group: self.rows.has_children(at), open: self.rows.open(at) });
+            row = row.tree_text(self.tree_text.clone()).branch(Branch {
+                depth: self.rows.depth(at),
+                group: self.rows.has_children(at),
+                open: self.rows.open(at),
+            });
         }
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {

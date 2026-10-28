@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use egui::accesskit::Action;
 use egui::{AsIdSalt, Context, Id, Rect, Response, Shape, Stroke, Ui, pos2};
@@ -24,6 +25,25 @@ pub struct OpenChange<K> {
     pub open: bool,
     /// Every group takes the state (PhotoCraft's Alt-click).
     pub all: bool,
+}
+
+/// The words of a tree's disclosure triangle, for a host to translate: its name for a screen
+/// reader is "{expand} {row}" or "{collapse} {row}", and its tooltip is that verb followed by
+/// the hint in parentheses.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TreeText {
+    /// The verb for a closed group.
+    pub expand: String,
+    /// The verb for an open group.
+    pub collapse: String,
+    /// What Alt does, as PhotoCraft's tooltip says it ("Alt-click: all groups").
+    pub all_hint: String,
+}
+
+impl Default for TreeText {
+    fn default() -> Self {
+        Self { expand: "Expand".to_owned(), collapse: "Collapse".to_owned(), all_hint: "Alt-click: all groups".to_owned() }
+    }
 }
 
 /// Where a row sits in a tree, as the display order says.
@@ -71,6 +91,12 @@ impl<'a, K: Hash + Debug + Clone> TreeRow<'a, K> {
         self.row.branch(self.branch)
     }
 
+    /// The words of the disclosure triangle, translated by the host.
+    pub fn text(mut self, text: TreeText) -> Self {
+        self.row = self.row.tree_text(Arc::new(text));
+        self
+    }
+
     /// Shows the row across the available width.
     pub fn show(self, ui: &mut Ui) -> RowResponse<K> {
         self.into_row().show(ui)
@@ -107,12 +133,14 @@ pub(super) fn show_disclosure<K: Clone>(
     style: &ListRowStyle,
     rect: Rect,
     branch: &Branch,
+    text: &TreeText,
     row_id: Id,
     key: &K,
     label: &str,
     events: &mut Vec<RowEvent<K>>,
 ) {
-    let name = format!("{} {label}", if branch.open { "Collapse" } else { "Expand" });
+    let verb = if branch.open { &text.collapse } else { &text.expand };
+    let name = format!("{verb} {label}");
     let sensed = Interactive::with_id(row_id.with("disclosure"), egui::accesskit::Role::Button, name)
         .sense(egui::Sense::CLICK)
         .expanded(branch.open)
@@ -120,6 +148,7 @@ pub(super) fn show_disclosure<K: Clone>(
         .focus_ring(false)
         .interact_at(ui, rect);
     let response = sensed.finish(ui);
+    let response = response.on_hover_text(format!("{verb}  ({})", text.all_hint));
     if response.clicked() {
         let all = ui.input(|i| i.modifiers.alt);
         events.push(RowEvent::Open(OpenChange { row: key.clone(), open: !branch.open, all }));

@@ -1,5 +1,7 @@
 //! [`ListRow`]: one row of a list.
 
+use std::sync::Arc;
+
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
@@ -7,7 +9,7 @@ use egui::{Color32, CornerRadius, Id, Label, Painter, Rect, Response, Sense, Str
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
-use super::tree::{self, Branch, OpenChange};
+use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
@@ -264,6 +266,7 @@ pub struct ListRow<'a, K> {
     position: Option<usize>,
     slot: Option<Rect>,
     branch: Option<Branch>,
+    tree_text: Option<Arc<TreeText>>,
 }
 
 /// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
@@ -296,11 +299,17 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             position: None,
             slot: None,
             branch: None,
+            tree_text: None,
         }
     }
 
     /// Makes the row a tree row: indented by its depth, with a disclosure triangle when it is a
     /// group, and a `TreeItem` for AccessKit.
+    pub(super) fn tree_text(mut self, text: Arc<TreeText>) -> Self {
+        self.tree_text = Some(text);
+        self
+    }
+
     pub(super) fn branch(mut self, branch: Branch) -> Self {
         self.branch = Some(branch);
         self.role = Role::TreeItem;
@@ -483,6 +492,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             position,
             slot,
             branch,
+            tree_text,
         } = self;
         let tokens = Tokens::of(ui);
         let mut style = Self::style(&tokens);
@@ -535,7 +545,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
 
         if let Some(branch) = branch.filter(|b| b.group) {
             let at = geometry.span(rect, geometry.column_start, column);
-            tree::show_disclosure(ui, &style, at, &branch, row_id, &key, &label, &mut events);
+            tree::show_disclosure(ui, &style, at, &branch, &tree_text.unwrap_or_default(), row_id, &key, &label, &mut events);
         }
 
         if let (Some(side), true) = (leading, visible) {

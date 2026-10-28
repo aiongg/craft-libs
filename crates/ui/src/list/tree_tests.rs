@@ -9,6 +9,7 @@ use egui_kittest::{Harness, Node};
 use super::tree::{NODES, display, is_group, show_tree};
 use super::*;
 use crate::behavior::Selection;
+use crate::direction::{self, Direction};
 use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
@@ -37,6 +38,10 @@ fn show(ui: &mut Ui, host: &mut Host) {
 }
 
 fn harness(open: &[usize], selected: usize) -> Harness<'static, Host> {
+    harness_in(open, selected, Direction::Ltr)
+}
+
+fn harness_in(open: &[usize], selected: usize, dir: Direction) -> Harness<'static, Host> {
     let mut state = TreeState::load(&egui::Context::default(), "tree-tests");
     for key in open {
         state.set(key, true);
@@ -45,7 +50,10 @@ fn harness(open: &[usize], selected: usize) -> Harness<'static, Host> {
     let mut harness = Harness::<Host>::builder()
         .with_size([320.0, 300.0])
         .with_step_dt(0.05)
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
         .build_ui_state(show, host);
     harness.run();
     harness.key_press(Key::Tab);
@@ -212,4 +220,32 @@ fn the_tree_story_names_every_control() {
     let unlabelled = a11y::unlabelled(&harness);
     assert!(unlabelled.iter().all(|node| node.starts_with("ScrollBar")), "{unlabelled:?}");
     assert_eq!(harness.get_by_role(Role::Tree).accesskit_node().size_of_set(), Some(9));
+}
+
+#[test]
+fn right_to_left_swaps_the_arrow_keys() {
+    let mut harness = harness_in(&[0], 0, Direction::Rtl);
+    harness.state_mut().events.clear();
+    key(&mut harness, Modifiers::NONE, Key::ArrowLeft);
+    assert_eq!(harness.state().selection, Selection::only(1), "← enters the first child");
+    key(&mut harness, Modifiers::NONE, Key::ArrowDown);
+    events(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::ArrowLeft);
+    assert_eq!(events(&mut harness), [open_event(2, true, false)], "← opens a closed group");
+    key(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(events(&mut harness), [open_event(2, false, false)], "→ closes an open group");
+    key(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(harness.state().selection, Selection::only(0), "→ goes to the parent");
+    key(&mut harness, Modifiers::ALT, Key::ArrowLeft);
+    assert_eq!(events(&mut harness).last(), Some(&open_event(0, true, true)), "Alt+← opens every group");
+    key(&mut harness, Modifiers::ALT, Key::ArrowRight);
+    assert_eq!(events(&mut harness).last(), Some(&open_event(0, false, true)), "Alt+→ closes every group");
+}
+
+#[test]
+fn the_triangle_has_a_tooltip_with_the_alt_hint() {
+    let mut harness = harness(&[], 0);
+    button(&harness, "Expand Poster").hover();
+    harness.run_steps(30);
+    assert!(harness.query_by_label("Expand  (Alt-click: all groups)").is_some(), "tooltip shows the verb and the hint");
 }

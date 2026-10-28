@@ -42,5 +42,5 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 
 pub use row::{DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, TrailingItem};
 pub use toggle::{ToggleColumn, ToggleEdit};
-pub use tree::{OpenChange, TreeRow, TreeState};
+pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};
