@@ -3,7 +3,7 @@
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CornerRadius, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, CornerRadius, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -67,6 +67,8 @@ pub enum RenameEnd {
     Blur,
     /// Esc: nothing is renamed.
     Escape,
+    /// The row left the list: the text typed is committed.
+    Removed,
 }
 
 /// What a row reports besides pointer input, which is on its response.
@@ -254,6 +256,13 @@ pub struct ListRow<'a, K> {
     indent: f32,
     role: Role,
     position: Option<usize>,
+    slot: Option<Rect>,
+}
+
+/// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
+/// row's state (the open rename, the toggle cells).
+pub(super) fn row_id<K: std::hash::Hash + std::fmt::Debug>(scope: Id, key: &K) -> Id {
+    scope.with(("list-row", key))
 }
 
 impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
@@ -278,7 +287,29 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             indent: 0.0,
             role: Role::ListBoxOption,
             position: None,
+            slot: None,
         }
+    }
+
+    /// The row's key.
+    pub(super) fn key(&self) -> &K {
+        &self.key
+    }
+
+    /// The row's label.
+    pub(super) fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// The row's toggle columns.
+    pub(super) fn columns(&self) -> &[ToggleColumn] {
+        &self.columns
+    }
+
+    /// Shows the row in `rect`, which a list places, without allocating it in the `Ui`.
+    pub(super) fn show_at(mut self, ui: &mut Ui, rect: Rect) -> RowResponse<K> {
+        self.slot = Some(rect);
+        self.show(ui)
     }
 
     /// A second line under the label in `caption` and `text.faint` (PhotoCraft Studio's kind
@@ -433,13 +464,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             indent,
             role,
             position,
+            slot,
         } = self;
         let tokens = Tokens::of(ui);
         let mut style = Self::style(&tokens);
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let height = style.height(thumb, detail.is_some());
-        let rect = ui.allocate_space(vec2(ui.available_width(), height)).1;
-        let row_id = ui.scope_id().with(("list-row", &key));
+        let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
+        let row_id = row_id(ui.scope_id(), &key);
         let name = match &detail {
             Some(detail) => format!("{label}, {detail}"),
             None => label.clone(),
@@ -631,9 +663,6 @@ fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
         }
     }
 }
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow"];
 
 const THUMB_NAMES: &[&str] = &["None", "Small", "Medium", "Large"];
 

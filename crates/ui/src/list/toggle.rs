@@ -1,7 +1,7 @@
 //! Toggle columns of a [`ListRow`](super::ListRow): an eye or lock cell per row, and the sweep.
 
 use egui::accesskit::Role;
-use egui::{Id, Rect, Sense, Ui};
+use egui::{Context, Id, KeyboardShortcut, Rect, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
 use crate::edit::{CancelReason, EditEvent, GestureId};
@@ -16,6 +16,7 @@ pub struct ToggleColumn {
     pub(super) on_icon: Icon,
     pub(super) off_icon: Icon,
     pub(super) on: bool,
+    pub(super) key: Option<KeyboardShortcut>,
 }
 
 impl ToggleColumn {
@@ -23,7 +24,15 @@ impl ToggleColumn {
     /// "Visibility Layer 1") whose state in this row is `on`, drawn with `on_icon`, or `off_icon`
     /// under the pointer while off.
     pub fn new(label: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { label: label.into(), on_icon, off_icon, on }
+        Self { label: label.into(), on_icon, off_icon, on, key: None }
+    }
+
+    /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
+    /// focus, as one edit gesture; the host maps it to its own command where it has one
+    /// (PhotoCraft's Layer › Hide Layers). The list reads it from its lead row.
+    pub fn key(mut self, key: KeyboardShortcut) -> Self {
+        self.key = Some(key);
+        self
     }
 
     /// The eye column of PhotoCraft's and DesignCraft's layer rows.
@@ -47,7 +56,8 @@ impl ToggleColumn {
 /// this layer". The `Commit` carries the pressed row's edit.
 ///
 /// The row that took the press reports the end of the gesture, so it must keep being drawn while
-/// the button is held (a list scrolling it out of view cancels the sweep).
+/// the button is held: a [`List`](super::List) keeps drawing it out of view, and cancels the sweep
+/// with [`CancelReason::Removed`] when the row leaves the list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToggleEdit<K> {
     /// Index of the column in the row's [`ListRow::toggle`](super::ListRow::toggle) order.
@@ -95,7 +105,7 @@ pub(super) fn show<K: Clone>(
         .focus_ring(false)
         .interact_at(ui, rect);
     let response = sensed.response().clone();
-    let sweep_id = ui.scope_id().with(("list-row-sweep", cell.index));
+    let sweep_id = sweep_id(ui.scope_id(), cell.index);
     let edit = |on| ToggleEdit { column: cell.index, row: cell.key.clone(), on };
     let (pressed, down, escape, modifiers, pointer, delta) = ui.input(|i| {
         (
@@ -142,6 +152,18 @@ pub(super) fn show<K: Clone>(
         report(EditEvent::set(edit(!column.on), modifiers));
     }
     paint(ui, sensed.finish(ui).rect, column, ui.rect_contains_pointer(rect), style);
+}
+
+/// Where the sweep of `column` among rows shown in a `Ui` whose scope is `scope` is kept: the rows
+/// of one list share it.
+fn sweep_id(scope: Id, column: usize) -> Id {
+    scope.with(("list-row-sweep", column))
+}
+
+/// Forgets the sweep under way in `column` of the rows shown in a `Ui` whose scope is `scope`:
+/// the row that took the press left the list.
+pub(super) fn clear_sweep(ctx: &Context, scope: Id, column: usize) {
+    ctx.data_mut(|d| d.insert_temp(sweep_id(scope, column), None::<Sweep>));
 }
 
 /// Whether the pointer's path since the last frame crossed `rect`'s column at its rows.

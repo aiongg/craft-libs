@@ -21,6 +21,15 @@ struct Draft {
     tab: Option<bool>,
 }
 
+/// Takes the text typed into the open rename of the row `row_id`, closing it; `None` when no
+/// field was shown for it.
+pub(super) fn take_draft(ctx: &egui::Context, row_id: Id) -> Option<String> {
+    let memory = row_id.with("rename");
+    let draft = ctx.data(|d| d.get_temp::<Option<Draft>>(memory)).flatten();
+    ctx.data_mut(|d| d.insert_temp(memory, None::<Draft>));
+    draft.map(|d| d.text)
+}
+
 /// Shows the rename field in `band` and reports how the rename ends, if it does.
 pub(super) fn show<K: Clone>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band: Rect, events: &mut Vec<RowEvent<K>>) {
     let memory = row_id.with("rename");
