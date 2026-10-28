@@ -443,9 +443,7 @@ fn the_list_story_names_every_control() {
             .with_size([400.0, 420.0])
             .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
             .build_ui(move |ui| show_rows(ui, &mut args));
-        // egui's scroll bar has no name of its own.
-        let unlabelled = a11y::unlabelled(&harness);
-        assert!(unlabelled.iter().all(|node| node.starts_with("ScrollBar")), "{unlabelled:?}");
+        assert_eq!(a11y::unlabelled(&harness), Vec::<String>::new());
         assert_eq!(harness.get_by_role(Role::ListBox).accesskit_node().size_of_set(), Some(10_000));
     }
 }

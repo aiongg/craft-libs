@@ -217,8 +217,7 @@ fn the_tree_story_names_every_control() {
         .with_size([400.0, 320.0])
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui(move |ui| show_tree(ui, &mut args));
-    let unlabelled = a11y::unlabelled(&harness);
-    assert!(unlabelled.iter().all(|node| node.starts_with("ScrollBar")), "{unlabelled:?}");
+    assert_eq!(a11y::unlabelled(&harness), Vec::<String>::new());
     assert_eq!(harness.get_by_role(Role::Tree).accesskit_node().size_of_set(), Some(9));
 }
 

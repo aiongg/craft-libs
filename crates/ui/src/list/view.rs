@@ -161,11 +161,13 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 /// - **AccessKit.** The list is a `ListBox` named by its label, `multiselectable` in multiple
 ///   mode, with `size_of_set` the number of rows and `active_descendant` the lead row while it
 ///   has the focus. Rows report `position_in_set`; their actions are `Click` (select only it),
-///   `Focus` (make it the lead) and `ScrollIntoView`.
+///   `Focus` (make it the lead) and `ScrollIntoView`; the scroll bar is named by
+///   [`scroll_bar_label`](List::scroll_bar_label).
 #[must_use = "show the list with `show`"]
 pub struct List<'a, K, O: ?Sized> {
     id_salt: IdSalt,
     label: String,
+    scroll_bar_label: String,
     rows: &'a O,
     selection: Option<&'a mut Selection<K>>,
     mode: SelectionMode,
@@ -192,6 +194,7 @@ where
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
+            scroll_bar_label: "Scroll bar".to_owned(),
             rows,
             selection: None,
             mode: SelectionMode::Multiple,
@@ -273,6 +276,12 @@ where
         self
     }
 
+    /// The scroll bar's name for a screen reader, translated by the host (default "Scroll bar").
+    pub fn scroll_bar_label(mut self, label: impl Into<String>) -> Self {
+        self.scroll_bar_label = label.into();
+        self
+    }
+
     /// The list's greatest height; it fills the height available otherwise.
     pub fn max_height(mut self, height: f32) -> Self {
         self.max_height = Some(height);
@@ -329,6 +338,7 @@ where
         let List {
             id_salt,
             label,
+            scroll_bar_label,
             rows,
             selection,
             mode,
@@ -408,6 +418,7 @@ where
             .scope_builder(builder, |ui| {
                 let mut scroll = ScrollArea::vertical()
                     .id_salt("scroll")
+                    .vertical_scroll_bar_label(scroll_bar_label)
                     .auto_shrink([false, false])
                     .content_margin(0.0)
                     .scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL);

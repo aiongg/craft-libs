@@ -347,8 +347,6 @@ fn the_reorder_stories_name_every_control() {
             .with_size([400.0, 420.0])
             .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
             .build_ui(move |ui| show(ui, &mut args));
-        // egui's scroll bar has no name of its own.
-        let unlabelled = a11y::unlabelled(&harness);
-        assert!(unlabelled.iter().all(|node| node.starts_with("ScrollBar")), "{unlabelled:?}");
+        assert_eq!(a11y::unlabelled(&harness), Vec::<String>::new());
     }
 }
