@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::accesskit::Role;
-use egui::{Area, Context, Event, EventFilter, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense, Ui, vec2};
+use egui::{Area, Context, Event, EventFilter, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Response, Sense, Ui, vec2};
 
 use super::story::{slider, text_field};
 use super::*;
@@ -694,6 +694,53 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert!(!is_live(&ctx, id));
     assert_eq!(ending(&ctx, id), Ending::Commit { changed: true });
     assert_eq!(unreported::<i32>(&ctx, id), Some(5));
+}
+
+/// A composite's parts as one gesture ([`parts::Edits`]): the part that begins it owns it, another
+/// part's change joins it, and the owner's commit that changed nothing ends it at its start. A
+/// click on a part waits while a typing run has the focus, at most `PRESS_WAIT` passes.
+#[test]
+fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
+    let ctx = Context::default();
+    let mut state = parts::State::default();
+    let host = std::cell::Cell::new(0);
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    type Act<'a> = &'a dyn Fn(&mut parts::Edits<i32, i32>, &Response, &Response);
+    let mut pass = |waits: bool, act: Act| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
+            let (a, b) = (part(a_id, 0.0), part(b_id, 30.0));
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let mut edits = parts::Edits::new(&state);
+            act(&mut edits, &a, &b);
+            for click in edits.clicks(ui.ctx(), &mut state, waits) {
+                edits.set(click);
+            }
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let edit = |response: &Response, event: EditEvent<i32>| EditResponse::new(response.clone(), Some(event));
+    let run = GestureId::next();
+    let begun = pass(false, &|e, a, _| e.push(&edit(a, EditEvent::begin(run)), |v| v));
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let joined = pass(false, &|e, a, b| {
+        e.push(&edit(a, EditEvent::update(run, 3, Modifiers::NONE)), |v| v);
+        e.push(&edit(b, EditEvent::set(7, Modifiers::NONE)), |v| v);
+    });
+    assert_eq!(joined, update(id, 7));
+    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 3, false, Modifiers::NONE)), |v| v)), commit(id, 0, false));
+
+    assert_eq!(pass(true, &|e, _, _| e.click(5)), None);
+    assert_eq!(pass(true, &|_, _, _| {}), None);
+    assert_eq!(pass(true, &|_, _, _| {}), Some(EditEvent::set(5, Modifiers::NONE)), "a click waits two passes at most");
+    assert_eq!(pass(true, &|e, _, _| e.click(6)), None);
+    assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
 }
 
 #[test]

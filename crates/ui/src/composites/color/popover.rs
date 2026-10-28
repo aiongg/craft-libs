@@ -108,7 +108,7 @@ const STATE: &str = "craft_ui::color_popover";
 /// when closed and closes it when open (the anchor's click, or another gesture of the caller's).
 /// The response's edit carries `anchor`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn popup<'a, 'b>(
+pub(crate) fn popup<'a, 'b>(
     ui: &mut Ui,
     swatch: Response,
     toggled: bool,

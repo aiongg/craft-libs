@@ -31,6 +31,7 @@
 mod gesture;
 mod host;
 mod live;
+pub(crate) mod parts;
 mod story;
 #[cfg(test)]
 mod tests;
