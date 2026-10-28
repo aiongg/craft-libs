@@ -9,6 +9,7 @@ use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
+use craft_ui::menu::Menu;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -429,5 +430,23 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Menus: list box rows at each size, the least width, shortcut gap, scroll strip, the active row's
+/// colours and the shortcuts' colour and role.
+#[test]
+fn menu() {
+    check("menu.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Menu::style(t, size).rows;
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("icon", s.icon);
+            });
+        }
+        let s = Menu::style(t, ControlSize::Md);
+        d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
+        d.line("active.fill", s.active_fill).line("active.text", s.active_text);
+        d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
     });
 }

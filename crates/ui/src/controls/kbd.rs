@@ -38,7 +38,7 @@ enum Chord {
 /// A key chord: `ui.add(Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, Key::S)))`.
 ///
 /// Given a [`KeyboardShortcut`], it writes the modifiers in the platform's notation: macOS
-/// symbols with no separator (`⌃⇧⌥⌘S`), elsewhere names joined with `+` (`Ctrl+Alt+Shift+S`),
+/// symbols in Apple's order with no separator (`⌃⌥⇧⌘S`), elsewhere names joined with `+` (`Ctrl+Alt+Shift+S`),
 /// as egui's [`ModifierNames`]. [`Kbd::keys`] shows the given key names joined with `+` on every
 /// platform (`Shift+Click`). Plain, the chord is text in a [`Content`] colour, muted by default,
 /// for menus and tooltips; [`keycaps`](Kbd::keycaps) puts each key in a small raised box for help
@@ -93,27 +93,11 @@ impl Kbd {
         KbdStyle { height: k.height, pad_x: k.pad_x, gap: k.pad_x / 2.0, label: k.label, text: k.text.to_egui(), keycap }
     }
 
-    /// The keys of `shortcut` for `os`, modifiers first in the platform's order.
+    /// The keys of `shortcut` for `os`, modifiers first in the platform's order: Apple's ⌃⌥⇧⌘ on
+    /// macOS, Ctrl, Alt, Shift elsewhere.
     pub fn parts(shortcut: &KeyboardShortcut, os: OperatingSystem) -> Vec<String> {
         let mac = is_mac(os);
-        let names = if mac { ModifierNames::SYMBOLS } else { ModifierNames::NAMES };
-        let m: &Modifiers = &shortcut.modifiers;
-        let mut out = Vec::new();
-        let mut add = |on: bool, name: &str| {
-            if on {
-                out.push(name.to_owned());
-            }
-        };
-        if mac {
-            add(m.ctrl, names.ctrl);
-            add(m.shift, names.shift);
-            add(m.alt, names.mac_alt);
-            add(m.mac_cmd || m.command, names.mac_cmd);
-        } else {
-            add(m.ctrl || m.command, names.ctrl);
-            add(m.alt, names.alt);
-            add(m.shift, names.shift);
-        }
+        let mut out = modifier_names(&shortcut.modifiers, mac, if mac { &ModifierNames::SYMBOLS } else { &ModifierNames::NAMES });
         out.push(key_name(shortcut.logical_key));
         out
     }
@@ -126,12 +110,22 @@ impl Kbd {
         keys.join(if symbols { "" } else { "+" })
     }
 
-    /// The names for a screen reader: `Cmd+Shift+S`, whatever the platform's symbols.
-    fn spoken(&self, os: OperatingSystem) -> String {
+    /// The names for a screen reader and AccessKit's `keyboard_shortcut`: `Shift+Cmd+S`, in the
+    /// platform's order whatever its symbols.
+    pub(crate) fn spoken(&self, os: OperatingSystem) -> String {
         match &self.chord {
-            Chord::Shortcut(shortcut) => shortcut.format(&ModifierNames::NAMES, is_mac(os)),
+            Chord::Shortcut(shortcut) => {
+                let mut keys = modifier_names(&shortcut.modifiers, is_mac(os), &ModifierNames::NAMES);
+                keys.push(shortcut.logical_key.name().to_owned());
+                keys.join("+")
+            }
             Chord::Keys(keys) => keys.join("+"),
         }
+    }
+
+    /// The platform the chord is written for: the one set with [`os`](Kbd::os), else `ctx`'s.
+    pub(crate) fn os_in(&self, ctx: &egui::Context) -> OperatingSystem {
+        self.os.unwrap_or_else(|| ctx.os())
     }
 
     fn keys_for(&self, os: OperatingSystem) -> Vec<String> {
@@ -140,6 +134,17 @@ impl Kbd {
             Chord::Keys(keys) => keys.clone(),
         }
     }
+}
+
+/// The names of the modifiers held in `m`, in the platform's order: ⌃⌥⇧⌘ on a Mac (Apple's, as
+/// its menus write them), Ctrl, Alt, Shift elsewhere.
+fn modifier_names(m: &Modifiers, mac: bool, names: &ModifierNames<'_>) -> Vec<String> {
+    let held: [(bool, &str); 4] = if mac {
+        [(m.ctrl, names.ctrl), (m.alt, names.mac_alt), (m.shift, names.shift), (m.mac_cmd || m.command, names.mac_cmd)]
+    } else {
+        [(m.ctrl || m.command, names.ctrl), (m.alt, names.alt), (m.shift, names.shift), (false, "")]
+    };
+    held.iter().filter(|(on, _)| *on).map(|(_, name)| (*name).to_owned()).collect()
 }
 
 pub(crate) fn is_mac(os: OperatingSystem) -> bool {

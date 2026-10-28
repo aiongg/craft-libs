@@ -13,6 +13,7 @@ mod handle;
 mod icon_button;
 mod kbd;
 mod listbox;
+mod menu;
 mod panel_header;
 mod progress;
 mod property;
@@ -37,6 +38,7 @@ pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
+pub use menu::{MenuField, MenuTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
@@ -548,6 +550,8 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
+    /// Menus: what a menu adds to its list box rows.
+    menu: MenuTokens => Menu(MenuField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
     /// Progress bars.

@@ -456,6 +456,15 @@ pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
+/// The control height the Compact menu sizes are set for.
+pub const MENU_BASE_CONTROL: f32 = 24.0;
+/// Compact least width of a menu (PhotoCraft's).
+pub const MENU_MIN_WIDTH: f32 = 220.0;
+/// Compact least room between a menu row's label and its shortcut or submenu arrow.
+pub const MENU_SHORTCUT_GAP: f32 = 16.0;
+/// Compact height of a menu's scroll strip (PhotoCraft's scroll arrows).
+pub const MENU_SCROLL_STRIP: f32 = 16.0;
+
 /// The control height the Compact section header sizes are set for.
 pub const SECTION_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a section header row (PhotoCraft's).
