@@ -151,7 +151,7 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
         assert_eq!(t.color(T::TextFaint), pin);
         assert_eq!(t.color(T::CaptionInactive), pin, "caption.inactive follows the pinned text.faint");
         let expected: Vec<_> = TEXT_BGS
-            .map(|bg| ContrastWarning { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
+            .map(|bg| ContrastCheck { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
             .into_iter()
             .collect();
         assert_eq!(r.warnings, expected, "{mode:?}");
@@ -362,7 +362,7 @@ fn pinned_failing_text_gives_only_the_semantic_warnings() {
     let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
     let t = &r.tokens;
     let expected: Vec<_> = TEXT_BGS
-        .map(|bg| ContrastWarning { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
+        .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
         .into_iter()
         .collect();
     assert_eq!(r.warnings, expected);

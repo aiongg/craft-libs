@@ -17,6 +17,7 @@ use ColorToken as T;
 /// Where a colour token's default value comes from: a ramp step, a mix of two steps, a fixed
 /// colour, or other tokens. [`explain`](crate::explain) reports it per token.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ColorSource {
     /// A step (1 to 12) of the neutral ramp.
     Neutral(usize),

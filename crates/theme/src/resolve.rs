@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use super::components::{ComponentField, ComponentTokens, Semantic};
-use super::derive::{self, ColorSteps, ContrastWarning, Measured};
+use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
 use super::scale::Elevation;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, ThemeDef};
@@ -19,7 +19,7 @@ pub struct Resolved {
     /// Pairs below their minimum, semantic then component: pinned colours in standard contrast
     /// (component pairs only where a component colour is overridden), or pairs that no lightness
     /// move could fix.
-    pub warnings: Vec<ContrastWarning>,
+    pub warnings: Vec<ContrastCheck>,
     /// Carried from the theme, for the picker's "Low contrast" label and the built-in check.
     pub contrast_intent: ContrastIntent,
     /// The mode whose variant was used; differs from the requested mode for single-variant
@@ -42,17 +42,20 @@ pub(super) struct Steps {
     pub color: ColorSteps,
     /// Each pinned component field and the layer whose pin it takes.
     pub component_pins: BTreeMap<ComponentField, PinLayer>,
-    /// Component tokens after the overrides, before their contrast pass.
-    pub component_before_pass: ComponentTokens,
-    /// Every component pair on the final tokens, failing or not.
-    pub component_pairs: Vec<Measured>,
+    /// The component tokens before any contrast pass: defaults and overrides on the semantic
+    /// colours before the semantic pass.
+    pub component_before: ComponentTokens,
+    /// Every component pair on `component_before`.
+    pub component_pairs_before: Vec<ContrastCheck>,
+    /// The same pairs on the final tokens.
+    pub component_pairs: Vec<ContrastCheck>,
 }
 
 /// [`resolve`], and the steps on the way.
 pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
     let mode = theme.variants.mode_for(appearance.mode);
     let (color, color_steps) = derive::colors(theme, app, mode, appearance.contrast);
-    let mut warnings: Vec<ContrastWarning> = color_steps.warnings().collect();
+    let mut warnings: Vec<ContrastCheck> = color_steps.warnings().collect();
     let preset = values::preset(appearance.size);
 
     let seed = theme.shape;
@@ -76,9 +79,13 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     let defaults = component.clone();
     let high = appearance.contrast == Contrast::High;
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high, &color);
-    let component_before_pass = component.clone();
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &defaults, &color, high);
     warnings.extend(component_warnings);
+
+    let before = &color_steps.before_pass;
+    let mut component_before = ComponentTokens::defaults(&Semantic { color: before, shape: &shape, space: &preset.space, size: &preset.size });
+    derive::component_overrides(&mut component_before, theme, app, mode, high, before);
+    let component_pairs_before = derive::measure_components(&component_before, before, high);
 
     let tokens = Tokens {
         color,
@@ -91,5 +98,5 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         component,
     };
     let resolved = Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode };
-    (resolved, Steps { color: color_steps, component_pins, component_before_pass, component_pairs })
+    (resolved, Steps { color: color_steps, component_pins, component_before, component_pairs_before, component_pairs })
 }

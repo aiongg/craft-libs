@@ -124,7 +124,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         assert_eq!(t.component.color(text), Some(pin));
         assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
         let ratio = pair_ratio(t, text, Some(fill));
-        assert_eq!(r.warnings, vec![ContrastWarning { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
+        assert_eq!(r.warnings, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
         assert_eq!(r.warnings[0].fg.path(), "button.primary.text.rest");
 
         let high = resolve(&def, app(mode, Contrast::High), None);

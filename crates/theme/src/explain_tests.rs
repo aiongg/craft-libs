@@ -87,7 +87,7 @@ fn contrast_moves_report_the_value_before_the_pass() {
     assert_ne!(faint.derived, faint.value);
     assert_eq!(faint.contrast_move, Some(faint.derived));
     let pairs: Vec<_> = e.pairs_of(TokenRef::Color(T::TextFaint)).collect();
-    assert!(!pairs.is_empty() && pairs.iter().all(|p| p.fixed_by_pass && p.passes()));
+    assert!(!pairs.is_empty() && pairs.iter().all(|p| p.moved_by_pass && p.pair.passes()));
     // `caption.inactive` follows `text.faint`, so it moved with it.
     let inactive = e.color(T::CaptionInactive).unwrap();
     assert_eq!((inactive.value, inactive.contrast_move), (faint.value, faint.contrast_move));
@@ -126,9 +126,10 @@ fn every_warning_is_a_failing_pair_with_its_ratio() {
     for (theme, a) in &cases {
         let e = explain(theme, *a, None);
         for w in &e.resolved.warnings {
-            let found = e.pairs.iter().find(|p| p.fg == w.fg && p.bg == w.bg).unwrap_or_else(|| panic!("{} {a:?}: {w:?} not in pairs", theme.id));
-            assert_eq!((found.ratio, found.minimum), (w.ratio, w.minimum));
-            assert!(!found.passes());
+            let found =
+                e.pairs.iter().find(|p| p.pair.fg == w.fg && p.pair.bg == w.bg).unwrap_or_else(|| panic!("{} {a:?}: {w:?} not in pairs", theme.id));
+            assert_eq!(found.pair, *w);
+            assert!(!found.pair.passes() && !found.fixed_by_pass);
             match w.fg {
                 TokenRef::Color(_) => semantic += 1,
                 TokenRef::Component(_) => component += 1,
@@ -136,4 +137,87 @@ fn every_warning_is_a_failing_pair_with_its_ratio() {
         }
     }
     assert!(semantic > 0 && component > 0, "the pinned theme has warnings of both layers");
+}
+
+#[test]
+fn high_contrast_moves_a_pinned_token() {
+    let pin = Rgba::rgb(0x55, 0x55, 0x55);
+    let mut def = unpinned();
+    def.pins.dark = Pins::from_iter([(T::TextFaint, pin)]);
+    let standard = explain(&def, appearance(Mode::Dark, Contrast::Standard, Size::Compact), None);
+    let faint = standard.color(T::TextFaint).unwrap();
+    assert_eq!((faint.pin, faint.contrast_move, faint.value), (Some(PinLayer::Theme), None, pin));
+    let high = explain(&def, appearance(Mode::Dark, Contrast::High, Size::Compact), None);
+    let faint = high.color(T::TextFaint).unwrap();
+    assert_eq!((faint.pin, faint.contrast_move), (Some(PinLayer::Theme), Some(pin)));
+    assert_ne!(faint.value, pin);
+}
+
+#[test]
+fn aliases_derive_from_their_targets_pins() {
+    let a = appearance(Mode::Dark, Contrast::Standard, Size::Compact);
+    let plain = explain(&unpinned(), a, None);
+    let pin = Rgba::rgb(0xa0, 0xa0, 0xa0);
+    let mut def = unpinned();
+    def.pins.dark = Pins::from_iter([(T::TextFaint, pin)]);
+    let e = explain(&def, a, None);
+    let inactive = e.color(T::CaptionInactive).unwrap();
+    assert_eq!((inactive.source, inactive.pin), (ColorSource::Same(T::TextFaint), None));
+    assert_eq!((inactive.derived, inactive.contrast_move, inactive.value), (pin, None, pin));
+
+    // A pinned alias derives from its target's unpinned value.
+    def.pins.dark = Pins::from_iter([(T::CaptionInactive, pin)]);
+    let e = explain(&def, a, None);
+    let inactive = e.color(T::CaptionInactive).unwrap();
+    assert_eq!((inactive.pin, inactive.value), (Some(PinLayer::Theme), pin));
+    assert_eq!(inactive.derived, plain.color(T::TextFaint).unwrap().derived);
+
+    // On-solid text follows a pinned solid.
+    let light = appearance(Mode::Light, Contrast::Standard, Size::Compact);
+    let mut def = unpinned();
+    def.pins.light = Pins::from_iter([(T::AccentSolid, Rgba::rgb(0x20, 0x20, 0x40))]);
+    assert_eq!(explain(&unpinned(), light, None).color(T::TextOnAccent).unwrap().derived, Rgba::BLACK);
+    let e = explain(&def, light, None);
+    let on_accent = e.color(T::TextOnAccent).unwrap();
+    let before_pass = on_accent.contrast_move.unwrap_or(on_accent.value);
+    assert_eq!((on_accent.pin, on_accent.derived, before_pass), (None, Rgba::WHITE, Rgba::WHITE));
+}
+
+#[test]
+fn fixed_and_moved_pairs_differ() {
+    let pair = |e: &Explained, fg: ColorToken, bg: ColorToken| *e.pairs.iter().find(|p| p.pair.fg == fg.into() && p.pair.bg == bg.into()).unwrap();
+    let high = appearance(Mode::Dark, Contrast::High, Size::Compact);
+    let e = explain(&graphite(), high, None);
+
+    let fixed = pair(&e, T::TextFaint, T::SurfacePanel);
+    assert!(fixed.ratio_before < fixed.pair.minimum && fixed.pair.passes());
+    assert!(fixed.moved_by_pass && fixed.fixed_by_pass);
+
+    let moved = pair(&e, T::TextMuted, T::SurfaceBackground);
+    assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
+    assert!(moved.moved_by_pass && !moved.fixed_by_pass);
+
+    // The semantic pass moved `accent.solid` and `text.on_accent`, which the button reads.
+    let button = e.pairs.iter().find(|p| p.pair.fg == field("button.primary.text.rest").into()).unwrap();
+    assert_eq!(button.pair.bg, field("button.primary.fill.rest").into());
+    assert!(button.moved_by_pass && button.fixed_by_pass);
+
+    // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
+    let mut def = unpinned();
+    def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
+    let e = explain(&def, high, None);
+    let failing = pair(&e, T::TextNormal, T::SurfacePanel);
+    assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
+    assert!(failing.moved_by_pass && !failing.fixed_by_pass);
+}
+
+#[test]
+fn reads_are_what_both_probes_agree_on() {
+    use super::explain::{PROBES, agree, default_reads, probe_reads};
+    let (a, b) = (probe_reads(PROBES[0]), probe_reads(PROBES[1]));
+    assert_eq!(a, b, "today's defaults read the same tokens under either probe");
+    assert_eq!(default_reads(), a);
+    let f = field("button.primary.fill.rest");
+    assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, Some(T::AccentHover))]), [(f, None)]);
+    assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, None)]), [(f, None)]);
 }

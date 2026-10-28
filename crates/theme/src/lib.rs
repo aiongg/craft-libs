@@ -57,7 +57,7 @@ pub use components::{
     OverrideError, OverrideValue, State, States,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
-pub use derive::{ContrastWarning, Ramps};
+pub use derive::{ContrastCheck, Ramps};
 pub use explain::{ColorOrigin, Explained, FieldOrigin, PairReport, explain};
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use ramp::{Mode, Ramp, RampKind};

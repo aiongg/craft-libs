@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use craft_theme::{
-    Appearance, BarSizes, ButtonColors, ButtonTokens, BySize, ColorToken, ComponentTokens, Contrast, ContrastWarning, ControlSizes, Easing, Edge,
+    Appearance, BarSizes, ButtonColors, ButtonTokens, BySize, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, Easing, Edge,
     Elevation, ElevationTokens, FontSlot, Gaps, IconSizes, Mode, Motion, MotionTokens, Pads, RadiusSet, RailSizes, Rgba, ShapeTokens, Size,
     SizeTokens, SpaceTokens, States, TextSize, ThemeDef, Tokens, TypeRole, TypeStyle, TypeTokens, Variants, builtins, resolve,
 };
@@ -101,7 +101,7 @@ fn decimals(v: f32, places: usize) -> String {
     if s == "-0" { "0".to_owned() } else { s.to_owned() }
 }
 
-fn dump(tokens: &Tokens, warnings: &[ContrastWarning]) -> String {
+fn dump(tokens: &Tokens, warnings: &[ContrastCheck]) -> String {
     let mut out = Lines::default();
     out.0.push_str(HEADER);
     out.0.push('\n');
@@ -119,7 +119,7 @@ fn dump(tokens: &Tokens, warnings: &[ContrastWarning]) -> String {
     component_lines(&mut out, component);
 
     for w in warnings {
-        let ContrastWarning { fg, bg, ratio, minimum } = w;
+        let ContrastCheck { fg, bg, ratio, minimum } = w;
         out.line("warning", format!("{} on {}: {ratio:.2} < {minimum:.2}", fg.path(), bg.path()));
     }
     out.0

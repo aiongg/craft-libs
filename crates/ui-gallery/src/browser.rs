@@ -69,7 +69,7 @@ impl Browser {
     fn filters(&mut self, ui: &mut Ui, base: &Base, mode: Mode, e: &Explained) {
         let shown = base.shown(mode);
         let variant = if e.resolved.variant_used == Mode::Dark { "dark" } else { "light" };
-        let failing = e.pairs.iter().filter(|p| !p.passes()).count();
+        let failing = e.pairs.iter().filter(|p| !p.pair.passes()).count();
         ui.label(format!(
             "{} ({variant} variant, {:?} contrast): {} pairs measured, {failing} below their minimum, {} reported",
             base.inputs.theme(mode).name,
@@ -91,7 +91,7 @@ impl Browser {
         (filter.is_empty() || token.path().contains(&filter))
             && (!self.pinned_only || pinned)
             && (!self.moved_only || moved)
-            && (!self.failing_only || e.pairs_of(token).any(|p| !p.passes()))
+            && (!self.failing_only || e.pairs_of(token).any(|p| !p.pair.passes()))
     }
 
     fn color_table(&mut self, ui: &mut Ui, e: &Explained) {
@@ -165,10 +165,10 @@ impl Browser {
         ui.separator();
         ui.strong("Contrast pairs");
         pairs(ui, e, selected);
-        if let Some((ramp, steps)) = source.and_then(|s| e.ramps.steps_of(s)) {
+        if let Some((ramp, step, toward)) = source.and_then(|s| e.ramps.steps_of(s)) {
             ui.separator();
             ui.strong(format!("Ramp ({})", ramp_name(source)));
-            ramp_row(ui, &ramp.0, &steps);
+            ramp_row(ui, &ramp.0, step, toward);
         }
     }
 }
@@ -225,17 +225,25 @@ fn pairs(ui: &mut Ui, e: &Explained, token: TokenRef) {
                 ui.end_row();
                 any = true;
             }
-            let (other, role) = if p.fg == token { (p.bg, "on") } else { (p.fg, "under") };
+            let pair = p.pair;
+            let (other, role) = if pair.fg == token { (pair.bg, "on") } else { (pair.fg, "under") };
             swatch(ui, value_of(e, other), SWATCH);
             ui.monospace(format!("{role} {}", other.path()));
-            ui.monospace(format!("{:.2}", p.ratio));
-            ui.monospace(format!("{:.1}", p.minimum));
-            if p.passes() {
+            ui.monospace(format!("{:.2}", pair.ratio));
+            ui.monospace(format!("{:.1}", pair.minimum));
+            if pair.passes() {
                 ui.label("pass");
             } else {
                 ui.label(RichText::new("FAIL").strong());
             }
-            ui.label(if p.fixed_by_pass { "fixed by pass" } else { "" });
+            let pass_note = if p.fixed_by_pass {
+                format!("fixed by pass (was {:.2})", p.ratio_before)
+            } else if p.moved_by_pass {
+                format!("moved (was {:.2})", p.ratio_before)
+            } else {
+                String::new()
+            };
+            ui.label(pass_note);
             ui.end_row();
         }
     });
@@ -244,8 +252,9 @@ fn pairs(ui: &mut Ui, e: &Explained, token: TokenRef) {
     }
 }
 
-/// Twelve swatches with the used steps outlined and their numbers in bold.
-fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: &[usize]) {
+/// Twelve swatches with the used step (and the step a mix moves toward) outlined and their
+/// numbers in bold.
+fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) {
     let mark = Tokens::of(ui).color.text.normal.to_egui();
     ui.horizontal(|ui| {
         for (i, &c) in ramp.iter().enumerate() {
@@ -253,7 +262,7 @@ fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: &[usize]) {
             ui.vertical(|ui| {
                 let rect = swatch(ui, c, RAMP_SWATCH);
                 let label = RichText::new(step.to_string()).small();
-                if used.contains(&step) {
+                if step == used || toward == Some(step) {
                     ui.painter().rect_stroke(rect.expand(2.0), 3.0, Stroke::new(2.0, mark), StrokeKind::Outside);
                     ui.label(label.strong());
                 } else {
@@ -320,6 +329,7 @@ pub fn source_words(source: ColorSource) -> String {
             Some(first) => format!("white or black on {} and {} more solids", first.path(), solids.len() - 1),
             None => "white or black".to_owned(),
         },
+        other => format!("{other:?}"),
     }
 }
 
@@ -329,6 +339,7 @@ fn pin_words(layer: PinLayer) -> &'static str {
         PinLayer::App => "app pin",
         PinLayer::ThemeHighContrast => "theme high-contrast pin",
         PinLayer::AppHighContrast => "app high-contrast pin",
+        _ => "pin",
     }
 }
 

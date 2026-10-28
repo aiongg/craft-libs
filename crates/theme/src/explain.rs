@@ -3,7 +3,7 @@
 
 use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
-use super::derive::{Measured, Ramps};
+use super::derive::{ContrastCheck, Ramps};
 use super::resolve::{self, Resolved};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, ShapeTokens, TokenRef};
@@ -12,6 +12,7 @@ use crate::AppId;
 
 /// The steps of [`resolve`] for one theme and appearance.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Explained {
     /// Equal to `resolve(theme, appearance, app)`.
     pub resolved: Resolved,
@@ -28,13 +29,15 @@ pub struct Explained {
 
 /// How a colour token got its value.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ColorOrigin {
     /// The token.
     pub token: ColorToken,
     /// Its derivation rule in the mode used.
     pub source: ColorSource,
-    /// The value `source` gives, before pins and the contrast pass. Tokens defined by other
-    /// tokens take those tokens' derived values.
+    /// The value `source` gives without this token's pin, before the contrast pass. A token
+    /// defined by other tokens takes their pinned values when it is not pinned itself, so the
+    /// value explains what it shows, and their unpinned values when it is.
     pub derived: Rgba,
     /// The layer whose pin the token takes, if it is pinned.
     pub pin: Option<PinLayer>,
@@ -47,6 +50,7 @@ pub struct ColorOrigin {
 
 /// How a component colour field got its value.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct FieldOrigin {
     /// The field.
     pub field: ComponentField,
@@ -55,7 +59,8 @@ pub struct FieldOrigin {
     pub reads: Option<ColorToken>,
     /// The layer whose pin overrides the field, if any.
     pub pin: Option<PinLayer>,
-    /// The value before the component contrast pass, when the pass changed it.
+    /// The value before any contrast pass, when a pass changed it: the component pass, or the
+    /// semantic pass through the token the default reads.
     pub contrast_move: Option<Rgba>,
     /// The final value.
     pub value: Rgba,
@@ -64,28 +69,22 @@ pub struct FieldOrigin {
 /// One measured contrast pair. Translucent backgrounds are measured over `surface.panel`;
 /// pairs on `overlay.halo` report the lower of the ratios over black and over white.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PairReport {
-    /// The foreground token or field.
-    pub fg: TokenRef,
-    /// The background token or field.
-    pub bg: TokenRef,
-    /// The ratio on the final colours.
-    pub ratio: f64,
-    /// The required ratio in this appearance's contrast.
-    pub minimum: f64,
-    /// Whether a contrast pass moved the foreground or the background.
+    /// The pair on the final colours.
+    pub pair: ContrastCheck,
+    /// The ratio before any contrast pass.
+    pub ratio_before: f64,
+    /// Whether a contrast pass, semantic or component, moved the foreground or the background.
+    pub moved_by_pass: bool,
+    /// Whether the pair failed before the passes and passes after them.
     pub fixed_by_pass: bool,
 }
 
 impl PairReport {
-    /// Whether the ratio reaches the minimum.
-    pub fn passes(&self) -> bool {
-        self.ratio >= self.minimum
-    }
-
     /// Whether `token` is this pair's foreground or background.
     pub fn involves(&self, token: TokenRef) -> bool {
-        self.fg == token || self.bg == token
+        self.pair.fg == token || self.pair.bg == token
     }
 }
 
@@ -139,7 +138,7 @@ pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
                 field,
                 reads: reads.iter().find(|(f, _)| *f == field).and_then(|&(_, t)| t),
                 pin: steps.component_pins.get(&field).copied(),
-                contrast_move: changed(steps.component_before_pass.color(field)?, value),
+                contrast_move: changed(steps.component_before.color(field)?, value),
                 value,
             })
         })
@@ -149,25 +148,53 @@ pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
         TokenRef::Color(t) => colors.iter().any(|o| o.token == t && o.contrast_move.is_some()),
         TokenRef::Component(f) => components.iter().any(|o| o.field == f && o.contrast_move.is_some()),
     };
-    let report = |m: &Measured| PairReport { fg: m.fg, bg: m.bg, ratio: m.ratio, minimum: m.minimum, fixed_by_pass: moved(m.fg) || moved(m.bg) };
+    let before: Vec<&ContrastCheck> = steps.color.pairs_before.iter().chain(&steps.component_pairs_before).collect();
+    let report = |pair: &ContrastCheck| {
+        let ratio_before = before.iter().find(|b| b.fg == pair.fg && b.bg == pair.bg).map_or(pair.ratio, |b| b.ratio);
+        PairReport {
+            pair: *pair,
+            ratio_before,
+            moved_by_pass: moved(pair.fg) || moved(pair.bg),
+            fixed_by_pass: ratio_before < pair.minimum && pair.passes(),
+        }
+    };
     let pairs = steps.color.pairs.iter().chain(&steps.component_pairs).map(report).collect();
 
     Explained { resolved, ramps: steps.color.ramps, colors, components, pairs }
 }
 
-/// Each component colour field with the semantic token its default takes, if it is one token.
-///
+/// Two ways to give each token its own opaque colour: channel = (index × step + offset) mod 256
+/// for red, green and blue. The steps are odd, so each channel alone tells up to 256 tokens
+/// apart; the spreads differ, so a mix that lands on another token's colour under one probe
+/// doesn't under the other.
+pub(super) const PROBES: [[usize; 6]; 2] = [[53, 97, 151, 11, 31, 67], [89, 163, 211, 17, 113, 7]];
+
+/// Each component colour field with the semantic token its default takes, if it is one token:
+/// the matches both [`PROBES`] agree on.
+pub(super) fn default_reads() -> Vec<(ComponentField, Option<ColorToken>)> {
+    agree(&probe_reads(PROBES[0]), &probe_reads(PROBES[1]))
+}
+
+/// The matches of `a` that `b` has too; any other field reads none.
+pub(super) fn agree(
+    a: &[(ComponentField, Option<ColorToken>)],
+    b: &[(ComponentField, Option<ColorToken>)],
+) -> Vec<(ComponentField, Option<ColorToken>)> {
+    a.iter().map(|&(f, t)| (f, t.filter(|&t| b.contains(&(f, Some(t)))))).collect()
+}
+
 /// Component defaults are code (each family's `defaults(&Semantic)`), not a table, so the token
-/// can't be looked up. Instead the defaults run once on colours that all differ, and each field's
-/// value is matched back to the token that had it. A field whose value matches no token (a
-/// constant, a mix) reads none. Colours are mode-independent here because the defaults only
-/// copy or combine semantic colours; the Size preset only feeds non-colour fields.
-fn default_reads() -> Vec<(ComponentField, Option<ColorToken>)> {
+/// a field reads can't be looked up. Instead the defaults run on colours that all differ, and
+/// each colour field's value is matched back to the token that had it. A field whose value
+/// matches no token (a constant, a mix) reads none. One run serves every mode and size: the
+/// defaults copy or combine semantic colours, and the Size preset feeds only non-colour fields.
+pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<ColorToken>)> {
+    let [rm, gm, bm, ro, go, bo] = spread;
+    let channel = |i: usize, step: usize, offset: usize| (i.wrapping_mul(step).wrapping_add(offset) % 256) as u8;
     let mut probe = ColorTokens::splat(Rgba::TRANSPARENT);
     for (i, &t) in ColorToken::ALL.iter().enumerate() {
         // Opaque, so no probe colour equals a translucent constant such as `Rgba::TRANSPARENT`.
-        let [hi, lo] = u16::try_from(i).unwrap_or(u16::MAX).to_be_bytes();
-        probe.set(t, Rgba([hi, lo, 0x5b, 0xff]));
+        probe.set(t, Rgba([channel(i, rm, ro), channel(i, gm, go), channel(i, bm, bo), 0xff]));
     }
     let preset = values::preset(Size::Compact);
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };

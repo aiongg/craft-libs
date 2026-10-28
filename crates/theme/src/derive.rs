@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Rgba};
-use super::components::{ComponentField, ComponentTokens, FieldKind, OverrideValue};
+use super::components::{ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue};
 use super::contrast::{contrast_ratio, ensure_contrast};
 use super::ramp::{Mode, Ramp, RampKind};
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
@@ -12,9 +12,10 @@ use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, ColorSource as Source, PairRule, RULES};
 use crate::AppId;
 
-/// A contrast pair that is below its minimum after derivation.
+/// A contrast pair with its measured ratio and its minimum.
+/// [`Resolved::warnings`](crate::Resolved::warnings) lists those below their minimum.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ContrastWarning {
+pub struct ContrastCheck {
     /// The foreground token or field.
     pub fg: TokenRef,
     /// The background token or field. Overlay pairs name `overlay.halo` and report the lower of
@@ -24,6 +25,13 @@ pub struct ContrastWarning {
     pub ratio: f64,
     /// The required ratio.
     pub minimum: f64,
+}
+
+impl ContrastCheck {
+    /// Whether the ratio reaches the minimum.
+    pub fn passes(&self) -> bool {
+        self.ratio >= self.minimum
+    }
 }
 
 /// Most times a foreground is moved while fixing it against several backgrounds.
@@ -41,36 +49,17 @@ pub struct Ramps {
 }
 
 impl Ramps {
-    /// The ramp `source` takes its steps from and the steps it uses (two for a mix); `None` for
-    /// sources that use no ramp.
-    pub fn steps_of(&self, source: Source) -> Option<(&Ramp, Vec<usize>)> {
+    /// The ramp `source` takes its steps from, the step it uses and, for a mix, the step it
+    /// moves toward; `None` for sources that use no ramp.
+    pub fn steps_of(&self, source: Source) -> Option<(&Ramp, usize, Option<usize>)> {
         Some(match source {
-            Source::Neutral(n) | Source::NeutralAlpha(n, _) => (&self.neutral, vec![n]),
-            Source::Accent(n) => (&self.accent, vec![n]),
-            Source::AccentMix { from, to, .. } => (&self.accent, vec![from, to]),
-            Source::Status(kind, n) => (self.status.get(kind), vec![n]),
-            Source::StatusMix { kind, from, to, .. } => (self.status.get(kind), vec![from, to]),
+            Source::Neutral(n) | Source::NeutralAlpha(n, _) => (&self.neutral, n, None),
+            Source::Accent(n) => (&self.accent, n, None),
+            Source::AccentMix { from, to, .. } => (&self.accent, from, Some(to)),
+            Source::Status(kind, n) => (self.status.get(kind), n, None),
+            Source::StatusMix { kind, from, to, .. } => (self.status.get(kind), from, Some(to)),
             Source::Fixed(_) | Source::Oklch(..) | Source::Same(_) | Source::OnSolid(_) => return None,
         })
-    }
-}
-
-/// A contrast pair measured on final colours.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Measured {
-    pub fg: TokenRef,
-    pub bg: TokenRef,
-    pub ratio: f64,
-    pub minimum: f64,
-}
-
-impl Measured {
-    pub fn fails(&self) -> bool {
-        self.ratio < self.minimum
-    }
-
-    fn warning(&self) -> ContrastWarning {
-        ContrastWarning { fg: self.fg, bg: self.bg, ratio: self.ratio, minimum: self.minimum }
     }
 }
 
@@ -78,20 +67,22 @@ impl Measured {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ColorSteps {
     pub ramps: Ramps,
-    /// The defaults: ramp values, with tokens defined by other tokens following them; no pins.
+    /// What each token's source gives without its own pin (see [`derived_values`]).
     pub derived: ColorTokens,
     /// Each pinned token and the layer whose pin it takes.
     pub pins: BTreeMap<ColorToken, PinLayer>,
     /// After pins, before the contrast pass.
     pub before_pass: ColorTokens,
-    /// Every pair of [`RULES`] on the final colours, failing or not.
-    pub pairs: Vec<Measured>,
+    /// Every pair of [`RULES`] on `before_pass`.
+    pub pairs_before: Vec<ContrastCheck>,
+    /// The same pairs on the final colours.
+    pub pairs: Vec<ContrastCheck>,
 }
 
 impl ColorSteps {
     /// The pairs below their minimum.
-    pub fn warnings(&self) -> impl Iterator<Item = ContrastWarning> + '_ {
-        self.pairs.iter().filter(|m| m.fails()).map(Measured::warning)
+    pub fn warnings(&self) -> impl Iterator<Item = ContrastCheck> + '_ {
+        self.pairs.iter().filter(|m| !m.passes()).copied()
     }
 }
 
@@ -110,8 +101,7 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     for &t in ColorToken::ALL {
         c.set(t, direct(&ramps, values::source(t, mode)).unwrap_or(Rgba::BLACK));
     }
-    follow(&mut c, &BTreeSet::new(), mode, true);
-    let derived = c;
+    let unpinned = c;
     let mut layers = BTreeMap::new();
     for (layer, t, v) in pins(theme, app, mode, high) {
         if let TokenRef::Color(t) = t {
@@ -128,8 +118,33 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
         fix_rule(&mut c, &pinned, rule, &RULES[..=i], high);
     }
     follow(&mut c, &pinned, mode, false);
-    let pairs = measure(&c, RULES, high);
-    (c, ColorSteps { ramps, derived, pins: layers, before_pass, pairs })
+    let steps = ColorSteps {
+        ramps,
+        derived: derived_values(&unpinned, &before_pass, &pinned, mode),
+        pins: layers,
+        before_pass,
+        pairs_before: measure(&before_pass, RULES, high),
+        pairs: measure(&c, RULES, high),
+    };
+    (c, steps)
+}
+
+/// What each token's source gives without the token's own pin, from the recorded steps: the
+/// ramp value of a direct source; for a token defined by other tokens, its value before the
+/// contrast pass when it is not pinned (it followed its targets' pins), else what its source
+/// gives on the unpinned values. `unpinned` holds the direct sources' values.
+fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode) -> ColorTokens {
+    let mut out = *unpinned;
+    for &t in ColorToken::ALL {
+        let value = match values::source(t, mode) {
+            Source::Same(_) | Source::OnSolid(_) if !pinned.contains(&t) => before_pass.get(t),
+            Source::Same(other) => unpinned.get(other),
+            Source::OnSolid(solids) => best_extreme(unpinned, solids),
+            _ => continue,
+        };
+        out.set(t, value);
+    }
+    out
 }
 
 /// The mode's pins, then the app's, then, when `high`, the theme's and the app's high-contrast
@@ -351,7 +366,7 @@ fn fix_on_solid(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, fg: ColorTok
         let mut trial = *c;
         trial.set(fg, extreme);
         move_solids(&mut trial, pinned, extreme, bgs, min, high);
-        let fails = measure(&trial, done, high).iter().filter(|m| m.fails()).count();
+        let fails = measure(&trial, done, high).iter().filter(|m| !m.passes()).count();
         if best.as_ref().is_none_or(|(f, _)| fails < *f) {
             best = Some((fails, trial));
         }
@@ -363,8 +378,8 @@ fn fix_on_solid(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, fg: ColorTok
 
 /// Every pair of `rules`, one per foreground and background token. Both halo backdrops report
 /// as one pair, with the lower ratio.
-fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<Measured> {
-    let mut out: Vec<Measured> = Vec::new();
+fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastCheck> {
+    let mut out: Vec<ContrastCheck> = Vec::new();
     for rule in rules {
         let minimum = minimum(rule, high);
         for &fg in rule.fgs {
@@ -374,7 +389,7 @@ fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<Measured> {
                 let bg = TokenRef::Color(bg_token(bg));
                 match out.iter_mut().skip(start).find(|m| m.bg == bg) {
                     Some(m) => m.ratio = m.ratio.min(r),
-                    None => out.push(Measured { fg: TokenRef::Color(fg), bg, ratio: r, minimum }),
+                    None => out.push(ContrastCheck { fg: TokenRef::Color(fg), bg, ratio: r, minimum }),
                 }
             }
         }
@@ -423,26 +438,26 @@ pub(super) fn component_colors(
     defaults: &ComponentTokens,
     color: &ColorTokens,
     high: bool,
-) -> (Vec<Measured>, Vec<ContrastWarning>) {
-    let pairs = ComponentTokens::pairs();
+) -> (Vec<ContrastCheck>, Vec<ContrastCheck>) {
     if high {
-        for p in &pairs {
+        for p in &ComponentTokens::pairs() {
             fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
         }
     }
-    let (mut measured, mut warnings) = (Vec::new(), Vec::new());
-    for p in &pairs {
-        let minimum = if high { p.minimum.1 } else { p.minimum.0 };
-        let (Some(fg), Some(bg)) = (comp.color(p.fg), component_bg(comp, color, p.bg)) else { continue };
-        let overridden = |f: ComponentField| comp.color(f) != defaults.color(f);
-        let own = overridden(p.fg) || matches!(p.bg, TokenRef::Component(b) if overridden(b));
-        let m = Measured { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: ratio(fg, bg), minimum };
-        if m.fails() && (high || own) {
-            warnings.push(m.warning());
-        }
-        measured.push(m);
-    }
+    let measured = measure_components(comp, color, high);
+    let overridden = |t: TokenRef| matches!(t, TokenRef::Component(f) if comp.color(f) != defaults.color(f));
+    let warnings = measured.iter().filter(|m| !m.passes() && (high || overridden(m.fg) || overridden(m.bg))).copied().collect();
     (measured, warnings)
+}
+
+/// Every component pair on `comp` over `color`.
+pub(super) fn measure_components(comp: &ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastCheck> {
+    let check = |p: &ComponentPair| {
+        let minimum = if high { p.minimum.1 } else { p.minimum.0 };
+        let (fg, bg) = (comp.color(p.fg)?, component_bg(comp, color, p.bg)?);
+        Some(ContrastCheck { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: ratio(fg, bg), minimum })
+    };
+    ComponentTokens::pairs().iter().filter_map(check).collect()
 }
 
 /// The colour a component pair's background presents: translucent fills over `surface.panel`.

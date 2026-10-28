@@ -139,6 +139,7 @@ impl ModePins {
 
 /// One set of pins in the order resolution applies them; a later layer wins.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum PinLayer {
     /// [`ThemeDef::pins`].
     Theme,
