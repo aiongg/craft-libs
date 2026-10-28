@@ -3,13 +3,17 @@
 //!
 //! The drop marker is the only cue that shows where a dragged row lands. It is drawn on its own
 //! halo, as canvas overlays are, so it is measured against the halo alone (3:1, 4.5:1 with high
-//! contrast) and reads on any row fill. Labels are text on the panel and on the fills a row takes
-//! (4.5:1, 7:1 with high contrast). The fills themselves are design targets with no minimum. Each
-//! pair is measured at rest.
+//! contrast) and reads on any row fill. Labels, dimmed labels and detail lines are text on the
+//! panel and on the fills a row takes (4.5:1, 7:1 with high contrast); a selected row draws its
+//! dimmed label and detail line in their own colours, `text.on_selected` moved toward the fill. The
+//! ghost's label is text on the ghost's fill. The fills themselves are design targets with no
+//! minimum. Each pair is measured at rest.
 
 use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
-use crate::tokens::{ColorToken, ThumbSizes, TokenRef, TypeRole};
+use crate::contrast::ensure_contrast;
+use crate::derive::{mix, over};
+use crate::tokens::{ColorToken, ColorTokens, ThumbSizes, TokenRef, TypeRole};
 use crate::values;
 
 /// List and list row tokens.
@@ -58,8 +62,13 @@ pub struct ListTokens {
     pub dimmed: Rgba,
     /// The label of the selected row: `text.on_selected`.
     pub selected_text: Rgba,
+    /// The label of a dimmed row that is selected: `text.on_selected` moved toward the selected
+    /// fill, readable on it and on the selected fill under the pointer.
+    pub selected_dimmed: Rgba,
     /// The detail line: `text.faint`.
     pub detail: Rgba,
+    /// The detail line of the selected row: as `selected_dimmed`.
+    pub selected_detail: Rgba,
     /// Icons and the disclosure triangle: `text.muted`.
     pub icon: Rgba,
     /// Icons and the triangle under the pointer: `text.normal`.
@@ -97,7 +106,9 @@ impl ListTokens {
             ListField::Text => &mut self.text,
             ListField::Dimmed => &mut self.dimmed,
             ListField::SelectedText => &mut self.selected_text,
+            ListField::SelectedDimmed => &mut self.selected_dimmed,
             ListField::Detail => &mut self.detail,
+            ListField::SelectedDetail => &mut self.selected_detail,
             ListField::Icon => &mut self.icon,
             ListField::IconHover => &mut self.icon_hover,
             ListField::Hover => &mut self.hover,
@@ -113,9 +124,10 @@ impl ListTokens {
     }
 }
 
-/// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`, `detail`,
-/// `icon`, `icon.hover`, `hover`, `selected`, `selected.hover`, `divider`, `thumb.border`, `drop`,
-/// `drop_halo`, `ghost.fill`, `ghost.border`, e.g. `list.selected.hover`.
+/// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`,
+/// `text.selected.dimmed`, `detail`, `detail.selected`, `icon`, `icon.hover`, `hover`,
+/// `selected`, `selected.hover`, `divider`, `thumb.border`, `drop`, `drop.halo`, `ghost.fill`,
+/// `ghost.border`, e.g. `list.selected.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListField {
     /// `list.radius`
@@ -126,8 +138,12 @@ pub enum ListField {
     Dimmed,
     /// `list.text.selected`
     SelectedText,
+    /// `list.text.selected.dimmed`
+    SelectedDimmed,
     /// `list.detail`
     Detail,
+    /// `list.detail.selected`
+    SelectedDetail,
     /// `list.icon`
     Icon,
     /// `list.icon.hover`
@@ -144,7 +160,7 @@ pub enum ListField {
     ThumbBorder,
     /// `list.drop`
     Drop,
-    /// `list.drop_halo`
+    /// `list.drop.halo`
     DropHalo,
     /// `list.ghost.fill`
     GhostFill,
@@ -159,7 +175,9 @@ impl ListField {
             ListField::Text => "text",
             ListField::Dimmed => "text.dimmed",
             ListField::SelectedText => "text.selected",
+            ListField::SelectedDimmed => "text.selected.dimmed",
             ListField::Detail => "detail",
+            ListField::SelectedDetail => "detail.selected",
             ListField::Icon => "icon",
             ListField::IconHover => "icon.hover",
             ListField::Hover => "hover",
@@ -168,7 +186,7 @@ impl ListField {
             ListField::Divider => "divider",
             ListField::ThumbBorder => "thumb.border",
             ListField::Drop => "drop",
-            ListField::DropHalo => "drop_halo",
+            ListField::DropHalo => "drop.halo",
             ListField::GhostFill => "ghost.fill",
             ListField::GhostBorder => "ghost.border",
         }
@@ -182,7 +200,9 @@ impl Family for ListTokens {
         ListField::Text,
         ListField::Dimmed,
         ListField::SelectedText,
+        ListField::SelectedDimmed,
         ListField::Detail,
+        ListField::SelectedDetail,
         ListField::Icon,
         ListField::IconHover,
         ListField::Hover,
@@ -219,7 +239,9 @@ impl Family for ListTokens {
             text: c.text.normal,
             dimmed: c.text.faint,
             selected_text: c.text.on_selected,
+            selected_dimmed: quiet_on_selected(c),
             detail: c.text.faint,
+            selected_detail: quiet_on_selected(c),
             icon: c.text.muted,
             icon_hover: c.text.normal,
             hover: c.state.hover,
@@ -275,18 +297,36 @@ impl Family for ListTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::List;
         let panel = TokenRef::Color(ColorToken::SurfacePanel);
-        let raised = TokenRef::Color(ColorToken::SurfaceRaised);
         let component = |f| TokenRef::Component(field(f));
         let pair = |fg, bg, minimum| ContrastPair { fg: field(fg), bg, minimum };
         vec![
             pair(ListField::Text, panel, values::TEXT_MIN),
             pair(ListField::Text, component(ListField::Hover), values::TEXT_MIN),
-            pair(ListField::Text, raised, values::TEXT_MIN),
+            pair(ListField::Text, component(ListField::GhostFill), values::TEXT_MIN),
             pair(ListField::Dimmed, panel, values::TEXT_MIN),
             pair(ListField::Detail, panel, values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::Selected), values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::SelectedHover), values::TEXT_MIN),
+            pair(ListField::SelectedDimmed, component(ListField::Selected), values::TEXT_MIN),
+            pair(ListField::SelectedDimmed, component(ListField::SelectedHover), values::TEXT_MIN),
+            pair(ListField::SelectedDetail, component(ListField::Selected), values::TEXT_MIN),
+            pair(ListField::SelectedDetail, component(ListField::SelectedHover), values::TEXT_MIN),
             pair(ListField::Drop, component(ListField::DropHalo), values::NON_TEXT_MIN),
         ]
     }
+}
+
+/// `text.on_selected` moved toward the selected fill (a hidden layer's name, a detail line on the
+/// selected row), then as far back as text needs to read on both selected fills.
+fn quiet_on_selected(c: &ColorTokens) -> Rgba {
+    let fills = [c.state.selected, c.state.selected_hover].map(|fill| over(fill, c.surface.panel));
+    let mut text = mix(c.text.on_selected, fills[0], values::LIST_SELECTED_QUIET);
+    // Moving away from one fill can move toward the other only when they sit either side of the
+    // text; a second round settles that case.
+    for _ in 0..2 {
+        for fill in fills {
+            text = ensure_contrast(text, fill, values::TEXT_MIN.0);
+        }
+    }
+    text
 }
