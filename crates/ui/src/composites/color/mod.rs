@@ -9,6 +9,9 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+mod full_stories;
+#[cfg(test)]
+mod full_tests;
 mod hex;
 mod picker;
 #[cfg(test)]
@@ -21,7 +24,7 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
-pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, PickedColor};
+pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, PickedColor};
 pub use strip::ColorStrip;
 
 use crate::controls::slider::{self, Scale};
@@ -223,7 +226,7 @@ pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker"];
 const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
+    let mut stories = vec![
         Story {
             id: "composites/color-area/parts",
             level: Level::Composites,
@@ -248,7 +251,9 @@ pub(crate) fn stories() -> Vec<Story> {
             },
             show: show_compact,
         },
-    ]
+    ];
+    stories.extend(full_stories::stories());
+    stories
 }
 
 /// A Compact picker editing one colour as a panel does: every event applied, a cancel puts the

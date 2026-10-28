@@ -333,13 +333,23 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     ///
     /// If the set has no option `index`.
     pub fn radio(&mut self, ui: &mut Ui, index: usize, label: &str) -> Response {
+        self.radio_named(ui, index, label, label)
+    }
+
+    /// Draws option `index` showing `label`, as [`radio`](PreparedRadioSet::radio), with
+    /// `name` as its accessible name: a short label ("H:") for an option named in full ("Hue").
+    ///
+    /// # Panics
+    ///
+    /// If the set has no option `index`.
+    pub fn radio_named(&mut self, ui: &mut Ui, index: usize, label: &str, name: &str) -> Response {
         let (id, enabled) = self.items[index];
         let selected = self.radios.selected() == Some(index);
         let (tokens, style) = (&self.tokens, &self.style);
         let response = ui
             .scope_builder(UiBuilder::new().accessibility_parent(self.id), |ui| {
                 let laid = Labelled::layout(ui, tokens, &style.layout(), label);
-                let sensed = Interactive::with_id(id, Role::RadioButton, label)
+                let sensed = Interactive::with_id(id, Role::RadioButton, name)
                     .position_in_set(index)
                     .state_layer(false)
                     .enabled(enabled)

@@ -2,7 +2,9 @@
 //! once it is a colour (PhotoCraft's hex field).
 
 use craft_theme::{ControlSize, Rgba, TypeRole};
-use egui::{Align2, Id, Shape, Ui, vec2};
+use egui::text::CCursorRange;
+use egui::text_edit::TextEditState;
+use egui::{Align2, Context, Id, Shape, Ui, vec2};
 
 use crate::behavior::{Codec, NotAValue, Typing, TypingLook};
 use crate::controls::text_field::{BoxState, field_box};
@@ -59,6 +61,18 @@ pub(super) fn hex_id(picker: Id) -> Id {
     picker.with("craft_ui::color_picker::hex")
 }
 
+/// Focuses the hex field under the picker `picker`; it selects its text when it next shows.
+pub(super) fn focus(ctx: &Context, picker: Id) {
+    let id = hex_id(picker);
+    ctx.memory_mut(|m| m.request_focus(id));
+    ctx.data_mut(|d| d.insert_temp(select_key(id), true));
+    ctx.request_repaint();
+}
+
+fn select_key(id: Id) -> Id {
+    id.with("craft_ui::color_picker::select_hex")
+}
+
 /// Shows the hex field, as wide as the `Ui`'s justified width (a text field's otherwise), for
 /// the colour `value`.
 pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCodec, policy: EditPolicy, enabled: bool) -> EditResponse<Rgba> {
@@ -77,6 +91,11 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
         selected_text: style.selected_text,
         caret: style.caret,
     };
+    if ui.data_mut(|d| d.remove_temp::<bool>(select_key(id))).is_some() {
+        let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
+        state.cursor.set_char_range(Some(CCursorRange::select_all_str(&codec.format(&value))));
+        state.store(ui.ctx(), id);
+    }
     // "#" and six digits, or eight.
     let limit = if codec.alpha { 9 } else { 7 };
     let typing = Typing::with_codec(id, label, value, codec).policy(policy).enabled(enabled).char_limit(limit).keep_rejected(false);

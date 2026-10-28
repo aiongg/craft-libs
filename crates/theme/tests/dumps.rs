@@ -424,7 +424,6 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         area_height,
         strip_full,
         strip,
-        channel_width,
         compare_width,
         compare_height,
         marker_inner_radius,
@@ -441,7 +440,6 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.area_height", len(*area_height));
     out.line("color_picker.strip_full", len(*strip_full));
     out.line("color_picker.strip", len(*strip));
-    out.line("color_picker.channel_width", len(*channel_width));
     out.line("color_picker.compare_width", len(*compare_width));
     out.line("color_picker.compare_height", len(*compare_height));
     out.line("color_picker.marker_inner_radius", len(*marker_inner_radius));

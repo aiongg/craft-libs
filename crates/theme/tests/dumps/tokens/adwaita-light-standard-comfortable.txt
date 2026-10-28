@@ -289,7 +289,6 @@ color_picker.area = 250
 color_picker.area_height = 150
 color_picker.strip_full = 23
 color_picker.strip = 18
-color_picker.channel_width = 53
 color_picker.compare_width = 70
 color_picker.compare_height = 80
 color_picker.marker_inner_radius = 6.5

@@ -478,8 +478,6 @@ pub const COLOR_PICKER_AREA_HEIGHT: f32 = 120.0;
 pub const COLOR_PICKER_STRIP_FULL: f32 = 18.0;
 /// Compact width of the component strip in the Compact picker.
 pub const COLOR_PICKER_STRIP: f32 = 14.0;
-/// Compact width of a channel's number field in the Full picker.
-pub const COLOR_PICKER_CHANNEL_WIDTH: f32 = 42.0;
 /// Compact width of the compare swatch.
 pub const COLOR_PICKER_COMPARE_WIDTH: f32 = 56.0;
 /// Compact height of the compare swatch.

@@ -17,8 +17,6 @@ pub struct ColorPickerTokens {
     pub strip_full: f32,
     /// Width of the component strip in the Compact picker: `color_picker.strip`.
     pub strip: f32,
-    /// Width of a channel's number field in the Full picker: `color_picker.channel_width`.
-    pub channel_width: f32,
     /// Width of the compare swatch: `color_picker.compare_width`.
     pub compare_width: f32,
     /// Height of the compare swatch: `color_picker.compare_height`.
@@ -60,7 +58,6 @@ impl Family for ColorPickerTokens {
             area_height: scale(values::COLOR_PICKER_AREA_HEIGHT),
             strip_full: scale(values::COLOR_PICKER_STRIP_FULL),
             strip: scale(values::COLOR_PICKER_STRIP),
-            channel_width: scale(values::COLOR_PICKER_CHANNEL_WIDTH),
             compare_width: scale(values::COLOR_PICKER_COMPARE_WIDTH),
             compare_height: scale(values::COLOR_PICKER_COMPARE_HEIGHT),
             marker_inner_radius: fine(values::COLOR_PICKER_MARKER_INNER_RADIUS),
