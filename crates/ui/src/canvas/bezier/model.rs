@@ -102,7 +102,7 @@ pub struct EditPath {
     pub key: u64,
     pub subpaths: Vec<EditSubpath>,
     /// The layer colour its outline, anchors and handles are drawn in (DesignCraft, VectorCraft);
-    /// `overlay.stroke` without one.
+    /// `overlay.line` without one.
     pub color: Option<Color32>,
 }
 

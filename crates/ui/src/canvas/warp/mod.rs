@@ -193,9 +193,9 @@ impl<'a> WarpNames<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct WarpStyle {
-    /// Patch boundaries: `transform.line` of `overlay.stroke`, bare.
+    /// Patch boundaries: `transform.line` of `overlay.line`, bare.
     pub line: Stroke,
-    /// A one-patch mesh's rule-of-thirds lines: `transform.warp_minor` of `overlay.stroke` at 0.7
+    /// A one-patch mesh's rule-of-thirds lines: `transform.warp_minor` of `overlay.line` at 0.7
     /// alpha.
     pub minor: Stroke,
     /// Anchors: [`Handle::style`] `Square` at `transform.warp_anchor`.
@@ -350,7 +350,7 @@ impl<'a> WarpGrid<'a> {
 
     pub fn style(tokens: &UiTokens) -> WarpStyle {
         let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
-        let stroke = o.stroke.to_egui();
+        let stroke = o.line.to_egui();
         WarpStyle {
             line: Stroke::new(t.line, stroke),
             minor: Stroke::new(t.warp_minor, stroke.gamma_multiply(0.7)),

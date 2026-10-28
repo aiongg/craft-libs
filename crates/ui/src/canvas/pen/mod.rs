@@ -31,11 +31,11 @@ impl<'a> PenNames<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PenStyle {
-    /// The path so far: `bezier.draft_line` in `overlay.stroke`.
+    /// The path so far: `bezier.draft_line` in `overlay.line`.
     pub draft_line: f32,
     pub color: Color32,
     /// The rubber band: `bezier.line` wide, dashes `bezier.rubber_dash` long with
-    /// `bezier.rubber_gap` between, in `overlay.stroke`.
+    /// `bezier.rubber_gap` between, in `overlay.line`.
     pub rubber_width: f32,
     pub rubber_dash: f32,
     pub rubber_gap: f32,
@@ -191,7 +191,7 @@ impl<'a> PenDraft<'a> {
         let selected_anchor = HandleStyle { size: b.anchor, hit: 2.0 * b.hit, ..Handle::selected_style(tokens, HandleShape::Square) };
         PenStyle {
             draft_line: b.draft_line,
-            color: tokens.color.overlay.stroke.to_egui(),
+            color: tokens.color.overlay.line.to_egui(),
             rubber_width: b.line,
             rubber_dash: b.rubber_dash,
             rubber_gap: b.rubber_gap,
