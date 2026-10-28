@@ -236,3 +236,6 @@ segmented.selected.text.rest = #ebebecff
 segmented.selected.text.hover = #ebebecff
 segmented.selected.text.pressed = #ebebecff
 segmented.selected.text.disabled = #868688ff
+toggle_button.on_disabled.fill = #3f3f41ff
+toggle_button.on_disabled.border = #26262aff
+toggle_button.on_disabled.text = #868688ff

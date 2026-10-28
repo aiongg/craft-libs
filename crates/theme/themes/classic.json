@@ -53,6 +53,7 @@
     "surface.panel": "#d4d0c8",
     "surface.sunken": "#ffffff",
     "text.muted": "#404040",
-    "text.normal": "#000000"
+    "text.normal": "#000000",
+    "toggle_button.on_disabled.fill": "#bebab2"
   }
 }

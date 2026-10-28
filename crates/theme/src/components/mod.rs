@@ -9,6 +9,7 @@ mod button;
 mod handle;
 mod icon_button;
 mod segmented;
+mod toggle_button;
 
 use std::fmt;
 
@@ -20,6 +21,7 @@ pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVari
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
+pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -432,4 +434,6 @@ families! {
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Segmented controls: one of a few options on a track.
     segmented: SegmentedTokens => Segmented(SegmentedField);
+    /// Toggle buttons that are on and disabled.
+    toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
 }

@@ -101,6 +101,20 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
 }
 
 #[test]
+fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let t = resolve(&def, a, None).tokens;
+            let toggle = t.component.toggle_button;
+            assert_eq!(toggle.on_disabled(ButtonPart::Fill), t.color(T::StateSelected));
+            assert_eq!(toggle.on_disabled(ButtonPart::Border), t.color(T::LineDivider));
+            assert_eq!(toggle.on_disabled(ButtonPart::Text), t.color(T::TextDisabled));
+            assert_ne!(toggle.on_disabled_fill, t.component.button.secondary.fill.disabled, "{} {a:?}: on looks off", def.name);
+        }
+    }
+}
+
+#[test]
 fn button_sizes_follow_the_size_preset() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.button;
     let compact = at(Size::Compact);
@@ -120,7 +134,7 @@ fn button_sizes_follow_the_size_preset() {
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4);
+    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 3);
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -143,6 +157,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         ComponentField::from_path("segmented.segment.fill.pressed"),
         Some(ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed }))
     );
+    assert_eq!(
+        ComponentField::from_path("toggle_button.on_disabled.border"),
+        Some(ComponentField::ToggleButton(ToggleButtonField::OnDisabled(ButtonPart::Border)))
+    );
     for bad in [
         "button.height",
         "button.pad_x.md",
@@ -157,6 +175,9 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         "segmented.inset",
         "segmented.track.rest",
         "segmented.selected.fill",
+        "toggle_button.on_disabled",
+        "toggle_button.on_disabled.fill.rest",
+        "toggle_button.on.fill.disabled",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }

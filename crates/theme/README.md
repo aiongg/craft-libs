@@ -27,7 +27,7 @@ Three layers, each derived from the one before:
 2. **Semantic tokens**: surface, text, line, state, accent, status, overlay, data and caption
    colours; shape, size, space, motion and type tokens. Seeds (neutral, accent, four status
    colours) generate ramps, and ramps fill the tokens.
-3. **Component tokens**: one struct per component family (button, handle, icon button, segmented control), with curated overrides.
+3. **Component tokens**: one struct per component family (button, handle, icon button, segmented control, toggle button), with curated overrides.
 
 A theme sets **seeds** and may **pin** any colour token (`"surface.panel": "#F0F0F0"`), or a
 component field, per mode. Pins win over derivation. Apps can pin per app (`apps.<id>`).

@@ -59,7 +59,7 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
 | `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs all five keys when present |
 | `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB` or `#RRGGBBAA`; surfaces (`surface.*` except `surface.scrim`) must be opaque |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast |
-| `components` | no | non-colour component overrides: a length (number or `"full"`), an edge, or `{ "level": 0-3 }` |
+| `components` | no | non-colour component overrides: a length (number or `"full"`) or `{ "level": 0-3 }` |
 | `apps` | no | per-app `{ light, dark, high_contrast, components }`, applied over the theme's values for that app; its `high_contrast` pins apply after the theme's |
 
 - JSON, at most 256 KiB. `schema_version` is the format; `version` is the author's revision.
