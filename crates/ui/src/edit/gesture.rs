@@ -573,6 +573,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// carries the value no update reported), or drops the entry of one that ended.
     fn record_live<U: Clone + Send + Sync + 'static>(&mut self, report: &impl Fn(T) -> U) {
         let dragged = self.dragged();
+        let focused = self.focused_owner().is_some();
         let cancel_on_focus_loss = self.cancel_on_focus_loss;
         match &mut self.stored.phase {
             Phase::Active(a) => {
@@ -584,7 +585,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                     }
                     false => (Ending::Cancel, None),
                 };
-                live::mark(&self.ctx, a.id, ending, unreported);
+                live::mark(&self.ctx, a.id, ending, unreported, focused);
             }
             Phase::Idle | Phase::Restoring { .. } => {
                 if let Some(id) = self.ended {

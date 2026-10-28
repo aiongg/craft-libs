@@ -641,11 +641,13 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
 }
 
 fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
-    let HistogramTokens { height, fill_alpha, backdrop_alpha, line, .. } = t;
+    let HistogramTokens { height, fill_alpha, backdrop_alpha, line, marker_alpha, marker_width, .. } = t;
     out.line("histogram.height", len(*height));
     out.line("histogram.fill_alpha", len(*fill_alpha));
     out.line("histogram.backdrop_alpha", len(*backdrop_alpha));
     out.line("histogram.line", len(*line));
+    out.line("histogram.marker_alpha", len(*marker_alpha));
+    out.line("histogram.marker_width", len(*marker_width));
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {

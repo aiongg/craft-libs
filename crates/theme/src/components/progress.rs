@@ -92,7 +92,7 @@ impl Family for ProgressTokens {
     /// contrast, as the slider's fill.
     fn pairs() -> Vec<ContrastPair> {
         vec![ContrastPair {
-            fg: ComponentField::Progress(ProgressField::Fill),
+            fg: TokenRef::Component(ComponentField::Progress(ProgressField::Fill)),
             bg: TokenRef::Component(ComponentField::Progress(ProgressField::Track)),
             minimum: values::NON_TEXT_MIN,
         }]

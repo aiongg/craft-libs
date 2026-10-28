@@ -19,6 +19,8 @@
 //!   ends as a commit (closing a panel ends editing and keeps the text), with the control's last
 //!   value even when no update reported it ([`unreported`]: a debounce still waiting, or
 //!   [`on_release_only`](EditPolicy::on_release_only)).
+//! - [`focused_gesture`] is the gesture whose control has the focus: a composite holds a press on
+//!   one of its parts for a pass while another part's gesture ends.
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one [`OuterGesture`].
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
@@ -377,6 +379,18 @@ pub fn unreported<T: Clone + 'static>(ctx: &Context, id: GestureId) -> Option<T>
     live::unreported(ctx, id).and_then(|value| value.downcast_ref::<T>().cloned())
 }
 
+/// The active gesture whose control had the keyboard focus in its last pass of the current
+/// viewport, such as a typing run. A press that takes the focus ends it, as [`ending`] says.
+///
+/// A composite that reports its parts through one [`EditResponse`] (a curve editor's graph and
+/// its Input field) holds a press on one part for a pass while such a gesture is under way: the
+/// part with the focus sends its ending event in this pass, and the press edits the value the
+/// host has after it, in the next. So the composite drops no event, and the gesture of the press
+/// starts from the value the other one left.
+pub fn focused_gesture(ctx: &Context) -> Option<GestureId> {
+    live::focused(ctx)
+}
+
 /// Every active gesture of `ctx` reports [`Cancel`](EditEvent::Cancel) with `reason` on its next
 /// frame. The host calls it on a document switch, or on undo during a gesture (instead of
 /// undoing a step). Gestures that begin after the call are not affected.
@@ -419,7 +433,7 @@ impl OuterGesture {
     /// A new gesture, live in the current pass.
     pub fn begin(ctx: &Context) -> Self {
         let id = GestureId::next();
-        live::mark(ctx, id, Ending::Cancel, None);
+        live::mark(ctx, id, Ending::Cancel, None, false);
         Self { id }
     }
 
@@ -429,7 +443,7 @@ impl OuterGesture {
 
     /// Marks the gesture live in this pass; call it every frame the dialog is shown.
     pub fn keep(self, ui: &Ui) {
-        live::mark(ui.ctx(), self.id, Ending::Cancel, None);
+        live::mark(ui.ctx(), self.id, Ending::Cancel, None, false);
     }
 }
 

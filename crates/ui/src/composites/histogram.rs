@@ -66,8 +66,8 @@ impl ChannelColor {
         }
     }
 
-    /// The light end of the channel's gradient bars: white for a neutral channel. Bars show image
-    /// data, so their ends are fixed in every theme.
+    /// The light end of the channel's gradient bars: white for a neutral channel, otherwise the
+    /// theme's data token for the channel. The dark end is black in every theme (image data).
     pub(super) fn bar(self, tokens: &UiTokens) -> Color32 {
         match self {
             ChannelColor::Neutral => Rgba::WHITE.to_egui(),
@@ -188,8 +188,12 @@ pub struct HistogramStyle {
     pub backdrop_alpha: f32,
     /// Width of the ribbons' outlines: `histogram.line`.
     pub line: f32,
-    /// The marker on the tone look: `text.normal` at [`MARKER_ALPHA`].
+    /// The marker on the tone look: `text.normal` at `histogram.marker_alpha`.
     pub marker: Color32,
+    /// Alpha of the marker, also on the RGB look: `histogram.marker_alpha`.
+    pub marker_alpha: f32,
+    /// Width of the marker band: `histogram.marker_width`.
+    pub marker_width: f32,
     /// The stale mark: `status.warn.fg`.
     pub stale: Color32,
 }
@@ -200,11 +204,6 @@ impl HistogramStyle {
         self.tones[channel as usize]
     }
 }
-
-/// Alpha of the marker band.
-const MARKER_ALPHA: f32 = 0.4;
-/// Width of the marker band, in points.
-const MARKER_WIDTH: f32 = 2.0;
 
 /// A plot of bins: one tone channel (Levels, the Histogram panel) or red, green and blue ribbons
 /// (Camera Raw). It is not interactive and not focusable.
@@ -318,7 +317,9 @@ impl Histogram {
             fill_alpha: h.fill_alpha,
             backdrop_alpha: h.backdrop_alpha,
             line: h.line,
-            marker: tokens.color.text.normal.to_egui().gamma_multiply(MARKER_ALPHA),
+            marker: tokens.color.text.normal.to_egui().gamma_multiply(h.marker_alpha),
+            marker_alpha: h.marker_alpha,
+            marker_width: h.marker_width,
             stale: tokens.color.status.warn.fg.to_egui(),
         }
     }
@@ -340,8 +341,9 @@ impl Histogram {
         if rgb {
             style.ribbons = Histogram::style(&tokens_in_mode(ui.ctx(), Mode::Dark)).ribbons;
         }
-        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), self.height.unwrap_or(style.height)), Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), self.height.unwrap_or(style.height)), Sense::hover());
         let id = ui.make_persistent_id(self.id_salt);
+        let response = ui.interact(rect, id, Sense::hover());
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label);
             info.current_text_value.clone_from(&self.value);
@@ -356,11 +358,11 @@ impl Histogram {
             let look = if rgb { HistogramLook::Rgb } else { HistogramLook::Tone };
             painter.extend(plot_shapes(rect, data, look, &style));
             if let Some(level) = self.marker {
-                let color = if rgb { overlap(&style.ribbons, 0b111).gamma_multiply(MARKER_ALPHA) } else { style.marker };
-                painter.extend(marker_shapes(rect, data.bin_count(), level, color));
+                let color = if rgb { overlap(&style.ribbons, 0b111).gamma_multiply(style.marker_alpha) } else { style.marker };
+                painter.extend(marker_shapes(rect, data.bin_count(), level, style.marker_width, color));
             }
         }
-        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, style.border), StrokeKind::Inside);
+        painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
         if self.stale {
             let side = IconSize::Sm.points(&tokens);
             let gap = tokens.space.gap.inline;
@@ -425,14 +427,15 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
     }
 }
 
-/// The marker band at bin position `level`, snapped to whole points and clipped to `rect`.
-pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, color: Color32) -> Vec<Shape> {
+/// The marker band of `width` at bin position `level`, snapped to whole points and clipped to
+/// `rect`.
+pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, width: f32, color: Color32) -> Vec<Shape> {
     if !usable(rect) || bins == 0 || !level.is_finite() {
         return Vec::new();
     }
     let x = rect.left() + ((level + 0.5) / bins as f32).clamp(0.0, 1.0) * rect.width();
-    let left = (x - MARKER_WIDTH / 2.0).round();
-    let band = Rect::from_min_max(pos2(left, rect.top()), pos2(left + MARKER_WIDTH, rect.bottom())).intersect(rect);
+    let left = (x - width / 2.0).round();
+    let band = Rect::from_min_max(pos2(left, rect.top()), pos2(left + width, rect.bottom())).intersect(rect);
     vec![Shape::rect_filled(band, 0.0, color)]
 }
 

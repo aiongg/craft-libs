@@ -183,7 +183,7 @@ impl Family for SliderTokens {
         [State::Rest, State::Hover, State::Pressed]
             .into_iter()
             .map(|state| ContrastPair {
-                fg: field(SliderField::Fill(state)),
+                fg: TokenRef::Component(field(SliderField::Fill(state))),
                 bg: TokenRef::Component(field(SliderField::Track)),
                 minimum: values::NON_TEXT_MIN,
             })

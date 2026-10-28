@@ -734,29 +734,40 @@ pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, 
 pub(super) fn measure_components(comp: &ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastCheck> {
     let check = |p: &ComponentPair| {
         let minimum = if high { p.minimum.1 } else { p.minimum.0 };
-        let (fg, bg) = (comp.color(p.fg)?, component_bg(comp, color, p.bg)?);
-        Some(ContrastCheck { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: ratio(fg, bg), minimum })
+        let (fg, bg) = (pair_color(comp, color, p.fg)?, component_bg(comp, color, p.bg)?);
+        Some(ContrastCheck { fg: p.fg, bg: p.bg, ratio: ratio(fg, bg), minimum })
     };
     ComponentTokens::pairs().iter().filter_map(check).collect()
 }
 
-/// The colour a component pair's background presents: translucent fills over `surface.panel`.
-fn component_bg(comp: &ComponentTokens, color: &ColorTokens, bg: TokenRef) -> Option<Rgba> {
-    let c = match bg {
-        TokenRef::Color(t) => color.get(t),
-        TokenRef::Component(f) => comp.color(f)?,
-    };
-    Some(over(c, color.surface.panel))
+/// The colour of a component pair's token: a semantic one or a component field.
+fn pair_color(comp: &ComponentTokens, color: &ColorTokens, token: TokenRef) -> Option<Rgba> {
+    match token {
+        TokenRef::Color(t) => Some(color.get(t)),
+        TokenRef::Component(f) => comp.color(f),
+    }
 }
 
-/// Moves `fg`, then a component `bg`, until the pair reaches `min`. Moved colours are opaque.
-fn fix_component_pair(comp: &mut ComponentTokens, color: &ColorTokens, fg: ComponentField, bg: TokenRef, min: f64) {
-    let (Some(f), Some(b)) = (comp.color(fg), component_bg(comp, color, bg)) else { return };
+/// The colour a component pair's background presents: translucent fills over `surface.panel`.
+fn component_bg(comp: &ComponentTokens, color: &ColorTokens, bg: TokenRef) -> Option<Rgba> {
+    Some(over(pair_color(comp, color, bg)?, color.surface.panel))
+}
+
+/// Moves a component `fg`, then a component `bg`, until the pair reaches `min`. Moved colours are
+/// opaque. A semantic `fg` stays as the semantic pass left it: only a component `bg` moves.
+fn fix_component_pair(comp: &mut ComponentTokens, color: &ColorTokens, fg: TokenRef, bg: TokenRef, min: f64) {
+    let (Some(f), Some(b)) = (pair_color(comp, color, fg), component_bg(comp, color, bg)) else { return };
     if ratio(f, b) >= min {
         return;
     }
-    let moved = ensure_contrast(f.with_alpha(255), b, min);
-    let _ = comp.set(fg, OverrideValue::Color(moved));
+    let moved = match fg {
+        TokenRef::Component(field) => {
+            let moved = ensure_contrast(f.with_alpha(255), b, min);
+            let _ = comp.set(field, OverrideValue::Color(moved));
+            moved
+        }
+        TokenRef::Color(_) => f,
+    };
     if let TokenRef::Component(bg) = bg
         && ratio(moved, b) < min
     {

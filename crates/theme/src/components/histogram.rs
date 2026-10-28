@@ -1,4 +1,4 @@
-//! Histograms: the plot height, fill and outline of the tone and RGB looks. Sizes and alphas only (no colours): no theme overrides them.
+//! Histograms: the plot height, fill, outline and marker of the tone and RGB looks. Sizes and alphas only (no colours): no theme overrides them.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::values;
@@ -15,6 +15,10 @@ pub struct HistogramTokens {
     pub backdrop_alpha: f32,
     /// Width of the RGB ribbons' outlines: `histogram.line`.
     pub line: f32,
+    /// Alpha of the marker band at a level: `histogram.marker_alpha`.
+    pub marker_alpha: f32,
+    /// Width of the marker band: `histogram.marker_width`.
+    pub marker_width: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -33,6 +37,8 @@ impl Family for HistogramTokens {
             fill_alpha: values::HISTOGRAM_FILL_ALPHA,
             backdrop_alpha: values::HISTOGRAM_BACKDROP_ALPHA,
             line: values::HISTOGRAM_LINE,
+            marker_alpha: values::HISTOGRAM_MARKER_ALPHA,
+            marker_width: values::HISTOGRAM_MARKER_WIDTH,
         }
     }
 

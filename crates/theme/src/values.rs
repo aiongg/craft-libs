@@ -516,6 +516,10 @@ pub const HISTOGRAM_FILL_ALPHA: f32 = 0.3;
 pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
 /// Width of the RGB ribbons' outlines.
 pub const HISTOGRAM_LINE: f32 = 1.0;
+/// Alpha of the marker band (PhotoCraft's `paint_sample`).
+pub const HISTOGRAM_MARKER_ALPHA: f32 = 0.4;
+/// Width of the marker band (PhotoCraft's `paint_sample`).
+pub const HISTOGRAM_MARKER_WIDTH: f32 = 2.0;
 
 /// The control height the Compact menu sizes are set for.
 pub const MENU_BASE_CONTROL: f32 = 24.0;

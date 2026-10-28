@@ -164,7 +164,7 @@ impl Family for ToastTokens {
     /// the title text identifies the tone.
     fn pairs() -> Vec<ContrastPair> {
         let fill = TokenRef::Component(ComponentField::Toast(ToastField::Fill));
-        let pair = |f| ContrastPair { fg: ComponentField::Toast(f), bg: fill, minimum: values::TEXT_MIN };
+        let pair = |f| ContrastPair { fg: TokenRef::Component(ComponentField::Toast(f)), bg: fill, minimum: values::TEXT_MIN };
         let mut out: Vec<ContrastPair> = Tone::ALL.into_iter().map(|t| pair(ToastField::Title(t))).collect();
         out.push(pair(ToastField::Line));
         out.push(pair(ToastField::More));

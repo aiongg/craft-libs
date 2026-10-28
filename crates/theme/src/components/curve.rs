@@ -3,7 +3,7 @@
 
 use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
-use crate::tokens::TokenRef;
+use crate::tokens::{ColorToken as T, TokenRef};
 use crate::values;
 
 /// Curve editor tokens. Sizes are in points.
@@ -157,14 +157,16 @@ impl Family for CurveTokens {
         }
     }
 
-    /// The point outline on the plot: it draws the neutral curve, the unselected points' edges
-    /// and the selected point, the cues that show the editor's state (WCAG 1.4.11), 3:1 and
-    /// 4.5:1 with high contrast.
+    /// The cues that show the editor's state on the plot (WCAG 1.4.11), 3:1 and 4.5:1 with high
+    /// contrast: the point outline, which draws the neutral curve, the unselected points' edges
+    /// and the selected point; and the channel colours (`data.*`) a channel's curve is drawn in.
+    /// High contrast moves `curve.fill` for a channel colour, which stays as the data rule left it.
     fn pairs() -> Vec<ContrastPair> {
-        vec![ContrastPair {
-            fg: ComponentField::Curve(CurveField::PointStroke),
-            bg: TokenRef::Component(ComponentField::Curve(CurveField::Fill)),
-            minimum: values::NON_TEXT_MIN,
-        }]
+        let fill = TokenRef::Component(ComponentField::Curve(CurveField::Fill));
+        let pair = |fg| ContrastPair { fg, bg: fill, minimum: values::NON_TEXT_MIN };
+        let channels = [T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow];
+        std::iter::once(pair(TokenRef::Component(ComponentField::Curve(CurveField::PointStroke))))
+            .chain(channels.map(|t| pair(TokenRef::Color(t))))
+            .collect()
     }
 }

@@ -628,6 +628,26 @@ fn a_change_during_a_typing_run_keeps_the_run_as_one_step_in_either_draw_order()
     }
 }
 
+/// The gesture with the focus is a typing run while it lasts: not once Enter ends it, and not once
+/// its field is no longer drawn.
+#[test]
+fn the_focused_gesture_is_a_typing_run_until_it_ends() {
+    let mut rig = Rig::new(EditPolicy::default());
+    assert_eq!(focused_gesture(&rig.ctx), None);
+    let run = rig.typing_run();
+    assert_eq!(focused_gesture(&rig.ctx), Some(run));
+    rig.frame(vec![key_event(Key::Enter)]);
+    assert_eq!(rig.field_event, commit(run, "Layer 1x".to_owned(), true));
+    assert_eq!(focused_gesture(&rig.ctx), None);
+
+    let mut rig = Rig::new(EditPolicy::default());
+    let run = rig.typing_run();
+    assert_eq!(focused_gesture(&rig.ctx), Some(run));
+    rig.draw_field = false;
+    rig.frame(vec![]);
+    assert_eq!(focused_gesture(&rig.ctx), None);
+}
+
 #[test]
 fn a_drag_whose_control_is_not_drawn_is_removed_and_reverted() {
     let mut rig = Rig::new(EditPolicy::default());
@@ -795,7 +815,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     // A typing run (recorded by its control as one to keep, ending with a value no update
     // carried), then a set from another control.
     let run = GestureId::next();
-    live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)));
+    live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)), true);
     for event in [EditEvent::Begin { id: run }, update(run, 1), update(run, 2), set(9)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
@@ -808,7 +828,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
 
     // A drag (recorded as one to revert), then a set.
     let drag = GestureId::next();
-    live::mark(&ctx, drag, Ending::Cancel, None);
+    live::mark(&ctx, drag, Ending::Cancel, None, false);
     for event in [EditEvent::Begin { id: drag }, update(drag, 5), set(7)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }

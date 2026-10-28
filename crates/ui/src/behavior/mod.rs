@@ -39,7 +39,7 @@ mod tests;
 mod typing;
 
 pub use field_tab::FieldTab;
-pub use key_claim::KeyClaim;
+pub use key_claim::{ClaimedKey, KeyClaim};
 pub use list_selection::{
     DisplayOrder, ListKey, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step, TreeMove, first_child, parent,
     tree_key,

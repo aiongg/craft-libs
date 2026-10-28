@@ -4,8 +4,8 @@
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, KeyboardShortcut, Mesh, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke,
-    StrokeKind, Ui, UiBuilder, pos2, vec2,
+    AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, Mesh, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
+    UiBuilder, pos2, vec2,
 };
 
 use craft_theme::{Rgba, TypeRole};
@@ -14,9 +14,9 @@ use super::Histogram;
 use super::curve::{Curve, Rules};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
-use crate::behavior::KeyClaim;
+use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::controls::NumberField;
-use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::edit::{self, EditPolicy, EditResponse, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
@@ -121,16 +121,34 @@ pub struct CurveStyle {
 }
 
 /// What the editor keeps between frames, per editor.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct State {
     /// The channel the selection belongs to; `None` after the host selected a point.
     channel: Option<usize>,
     selected: Option<usize>,
     drag: Option<Drag>,
+    /// A press held for a pass while another control's gesture with the focus ends.
+    held: Option<Press>,
     /// The last level a pencil stroke under way drew to.
     stroke: Option<[f32; 2]>,
     /// Where the previous pencil stroke ended: Shift+press continues from it.
-    end: Option<[f32; 2]>,
+    end: Option<StrokeEnd>,
+}
+
+/// A press on the graph: where, which button, and whether Cmd/Ctrl was held.
+#[derive(Clone, Copy, Debug)]
+struct Press {
+    pos: Pos2,
+    secondary: bool,
+    command: bool,
+}
+
+/// The end of the previous pencil stroke and the curve it left; the end goes once the host's
+/// curve is another (an undo, a reset, Smooth).
+#[derive(Clone, Debug)]
+struct StrokeEnd {
+    at: [f32; 2],
+    curve: Curve,
 }
 
 /// The point a press captured.
@@ -146,14 +164,16 @@ struct Drag {
 
 const STATE: &str = "craft_ui::curve_editor";
 
-/// The keys a focused graph keeps from the app's shortcuts.
-const CLAIMED: [KeyboardShortcut; 6] = [
-    KeyboardShortcut::new(Modifiers::NONE, Key::Delete),
-    KeyboardShortcut::new(Modifiers::NONE, Key::Backspace),
-    KeyboardShortcut::new(Modifiers::NONE, Key::Plus),
-    KeyboardShortcut::new(Modifiers::NONE, Key::Equals),
-    KeyboardShortcut::new(Modifiers::NONE, Key::Minus),
-    KeyboardShortcut::new(Modifiers::NONE, Key::Insert),
+/// The keys a focused graph keeps from the app's shortcuts. Only `+` is matched logically: many
+/// keyboards type it with Shift.
+const CLAIMED: [ClaimedKey; 7] = [
+    ClaimedKey::exact(Modifiers::NONE, Key::Delete),
+    ClaimedKey::exact(Modifiers::NONE, Key::Backspace),
+    ClaimedKey::logical(Modifiers::NONE, Key::Plus),
+    ClaimedKey::exact(Modifiers::NONE, Key::Equals),
+    ClaimedKey::exact(Modifiers::NONE, Key::Minus),
+    ClaimedKey::exact(Modifiers::NONE, Key::Insert),
+    ClaimedKey::exact(Modifiers::COMMAND, Key::Enter),
 ];
 
 /// The keys a focused graph keeps from focus navigation: the arrows nudge its point.
@@ -173,22 +193,25 @@ pub type Sampler = dyn Fn(&[[f32; 2]]) -> Vec<f32>;
 /// order.
 ///
 /// Points follow PhotoCraft's rules: whole levels `0..=levels`, at most
-/// [`max_points`](CurveEditor::max_points), a new point within two levels of another selects that
-/// one, the end points stay (they move in both axes), and a point stays strictly between its
-/// neighbours' inputs.
+/// [`max_points`](CurveEditor::max_points), a new point within two levels of another's input is
+/// that point, the end points stay (they move in both axes), and a point stays strictly between
+/// its neighbours' inputs.
 ///
 /// Pointer: a press on a point selects and drags it; a press on the empty graph adds a point there
-/// and drags it, as one gesture; dragged more than `curve.drag_off` off the plot an interior point
-/// is removed, and comes back on re-entry within the drag. A right-click or a Cmd/Ctrl press on a
-/// point deletes it. A press gives the graph keyboard focus.
+/// and drags it, as one gesture; a press within two levels of a point's input selects that point
+/// and takes it to the pointer, as one gesture (PhotoCraft). Dragged more than `curve.drag_off`
+/// off the plot an interior point is removed, and comes back on re-entry within the drag. A
+/// right-click or a Cmd/Ctrl press on a point deletes it. A press gives the graph keyboard focus;
+/// while a field's typing run has it, the press waits a pass, so the run's commit goes out first
+/// and the press edits the curve it leaves.
 ///
 /// Keys while the graph has focus: `+` (or `=`) and `-` select the next and previous point (the
 /// first and last with nothing selected; they stop at the ends); arrows move the selected point one
 /// level, ten with Shift; Delete and Backspace remove it; Insert, and Cmd/Ctrl+Enter on every
 /// platform, add a point on the curve halfway between the selected point and the next (across the
 /// widest gap with nothing selected) and select it; Esc cancels a drag and is otherwise left to
-/// the host. The graph claims Delete, Backspace, `+`, `=`, `-` and Insert from the app's shortcuts
-/// ([`KeyClaim`]).
+/// the host. Every key but `+` needs exactly its modifiers. The graph claims Delete, Backspace,
+/// `+`, `=`, `-`, Insert and Cmd/Ctrl+Enter from the app's shortcuts ([`KeyClaim`]).
 ///
 /// Events: a press-drag-release is Begin, Updates and Commit (unchanged for a press without
 /// movement); deletes, nudges and keyboard additions are Sets; the fields report their own
@@ -362,7 +385,11 @@ impl<'a> CurveEditor<'a> {
     /// Selects point `index` of editor `id` (the host's click on the image), in the channel the
     /// editor shows next.
     pub fn select(ctx: &Context, id: Id, index: Option<usize>) {
-        ctx.data_mut(|d| d.insert_temp(id.with(STATE), State { channel: None, selected: index, ..State::default() }));
+        ctx.data_mut(|d| {
+            let state = d.get_temp_mut_or_default::<State>(id.with(STATE));
+            state.channel = None;
+            state.selected = index;
+        });
     }
 
     pub fn style(tokens: &UiTokens) -> CurveStyle {
@@ -412,9 +439,10 @@ impl<'a> CurveEditor<'a> {
                     && let Some(points) = points
                 {
                     let fields = self.fields_row(ui, id, &points, selected);
-                    if edit.event.is_none() {
-                        edit.event = fields;
-                    }
+                    // A press on the graph waits a pass while a field's gesture ends, and the graph
+                    // has the focus during its own gestures: the two never report in one pass.
+                    debug_assert!(edit.event.is_none() || fields.is_none(), "graph {:?} and field {:?} in one pass", edit.event, fields);
+                    edit.event = edit.event.or(fields);
                 }
                 if let Some(hint) = &self.hint {
                     ui.add(Text::new(hint.as_str()).role(style.hint_role).content(Content::Faint));
@@ -458,6 +486,9 @@ impl<'a> CurveEditor<'a> {
             state.end = None;
         }
         state.channel = Some(self.channel);
+        if !self.pencil {
+            state.end = None;
+        }
         if !gesture.is_active() {
             // Cancelled (Esc, an undo, an external change): the selection goes back too.
             if let Some(drag) = state.drag.take() {
@@ -471,6 +502,10 @@ impl<'a> CurveEditor<'a> {
         if self.pencil {
             state.selected = None;
             state.drag = None;
+            state.held = None;
+            if !gesture.is_active() && state.end.as_ref().is_some_and(|end| end.curve != *self.curve) {
+                state.end = None;
+            }
             if enabled {
                 let outputs = Curve::drawn(gesture.shown(), |points| self.samples(points), self.levels);
                 StrokeEdit { gesture: &mut gesture, state: &mut state, outputs, map }.pointer(ui, &response);
@@ -478,7 +513,9 @@ impl<'a> CurveEditor<'a> {
         } else if let Some(points) = points.as_mut() {
             state.selected = state.selected.filter(|&i| i < points.len());
             if enabled {
-                let mut edit = PointEdit { gesture: &mut gesture, points, state: &mut state, rules, map, style };
+                // A press that ends a field's gesture waits for it ([`edit::focused_gesture`]).
+                let hold = self.fields && edit::focused_gesture(ui.ctx()).is_some_and(|g| gesture.id() != Some(g));
+                let mut edit = PointEdit { gesture: &mut gesture, points, state: &mut state, rules, map, style, hold };
                 edit.pointer(ui, &response);
                 if response.has_focus() {
                     KeyClaim::claim(ui.ctx(), id, &CLAIMED);
@@ -488,11 +525,15 @@ impl<'a> CurveEditor<'a> {
         } else {
             state.selected = None;
             state.drag = None;
+            state.held = None;
         }
 
         let shown = gesture.shown().clone();
         let event = gesture.finish();
         let selected = state.selected;
+        if state.held.is_some() {
+            ui.ctx().request_repaint();
+        }
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
 
         let tokens = Tokens::of(ui);
@@ -723,6 +764,8 @@ struct PointEdit<'g, 'p> {
     rules: Rules,
     map: Map,
     style: &'g CurveStyle,
+    /// Another control's gesture has the focus: a press waits a pass for it to end.
+    hold: bool,
 }
 
 impl PointEdit<'_, '_> {
@@ -737,24 +780,29 @@ impl PointEdit<'_, '_> {
     }
 
     /// The press, drag and release of PhotoCraft's `point_curve`, and the right-click and
-    /// Cmd/Ctrl-click deletes.
+    /// Cmd/Ctrl-click deletes. A press gives the graph the focus. While another control's gesture
+    /// has it (the Input field's typing run), the press waits a pass: that gesture's ending event
+    /// goes out first, and the press edits the curve it leaves.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
-        if response.secondary_clicked()
-            && self.state.drag.is_none()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            if let Some(i) = self.map.hit(self.points, pos, self.style.hit)
-                && Rules::delete(self.points, i)
-            {
-                self.set();
-            }
-            self.state.selected = None;
-        }
         // Hit-test where the button went down, not where egui first recognises a drag.
         let press = response.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed());
-        if press && let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
+        let command = ui.input(|i| i.modifiers.command);
+        let new = if press {
+            ui.input(|i| i.pointer.press_origin()).map(|pos| Press { pos, secondary: false, command })
+        } else if response.secondary_clicked() && self.state.drag.is_none() {
+            response.interact_pointer_pos().map(|pos| Press { pos, secondary: true, command })
+        } else {
+            None
+        };
+        if let Some(held) = self.state.held.take() {
+            self.press(ui, held);
+        }
+        if let Some(new) = new {
             response.request_focus();
-            self.press(ui, pos);
+            match self.hold {
+                true => self.state.held = Some(new),
+                false => self.press(ui, new),
+            }
         }
         let released = ui.input(|i| i.pointer.primary_released());
         if !press
@@ -770,11 +818,11 @@ impl PointEdit<'_, '_> {
         }
     }
 
-    fn press(&mut self, ui: &Ui, pos: Pos2) {
+    fn press(&mut self, ui: &Ui, press: Press) {
+        let Press { pos, secondary, command } = press;
         let before = self.state.selected;
-        let command = ui.input(|i| i.modifiers.command);
         match self.map.hit(self.points, pos, self.style.hit) {
-            Some(i) if command => {
+            Some(i) if secondary || command => {
                 if Rules::delete(self.points, i) {
                     self.set();
                 }
@@ -787,6 +835,9 @@ impl PointEdit<'_, '_> {
                 self.state.drag = Some(Drag { index: Some(i), offset: [p[0] - at[0], p[1] - at[1]], before });
                 self.gesture.begin();
             }
+            None if secondary => self.state.selected = None,
+            // A press within two levels of a point's input takes that point to the press, as
+            // PhotoCraft's `point_curve` does.
             None if !command => {
                 let count = self.points.len();
                 let Some(i) = self.rules.insert(self.points, self.map.value_at(pos)) else { return };
@@ -832,14 +883,17 @@ impl PointEdit<'_, '_> {
     }
 
     /// Selection, nudges, deletes and additions while the graph has focus and no drag is under
-    /// way. Each change is one Set.
+    /// way. Each change is one Set. Only `+` takes extra modifiers (many keyboards type it with
+    /// Shift); every other key needs exactly its own, so Shift+Insert (paste) and Alt+arrows stay
+    /// the app's.
     fn keys(&mut self, ui: &Ui, samples: impl Fn(&[[f32; 2]]) -> Vec<f32>) {
         if self.state.drag.is_some() {
             return;
         }
         let n = self.points.len();
-        let take = |modifiers, key| ui.input_mut(|i| i.count_and_consume_key(modifiers, key));
-        for _ in 0..take(Modifiers::NONE, Key::Plus) + take(Modifiers::NONE, Key::Equals) {
+        let take = |modifiers, key| take_exact(ui, modifiers, key);
+        let plus = ui.input_mut(|i| i.count_and_consume_key(Modifiers::NONE, Key::Plus));
+        for _ in 0..plus + take(Modifiers::NONE, Key::Equals) {
             self.state.selected = Some(self.state.selected.map_or(0, |i| (i + 1).min(n - 1)));
         }
         for _ in 0..take(Modifiers::NONE, Key::Minus) {
@@ -849,11 +903,13 @@ impl PointEdit<'_, '_> {
             && let Some(v) = Rules::between(self.points, self.state.selected, &samples(self.points))
         {
             let count = self.points.len();
-            if let Some(i) = self.rules.insert(self.points, v) {
+            // A gap too narrow for a point (within two levels of a neighbour) adds nothing and
+            // keeps the selection.
+            if let Some(i) = self.rules.insert(self.points, v)
+                && self.points.len() != count
+            {
                 self.state.selected = Some(i);
-                if self.points.len() != count {
-                    self.set();
-                }
+                self.set();
             }
         }
         let Some(i) = self.state.selected else { return };
@@ -866,7 +922,6 @@ impl PointEdit<'_, '_> {
         }
         let mut d = [0.0f32; 2];
         for (key, dx, dy) in [(Key::ArrowLeft, -1.0, 0.0), (Key::ArrowRight, 1.0, 0.0), (Key::ArrowUp, 0.0, 1.0), (Key::ArrowDown, 0.0, -1.0)] {
-            // Shift first: `Modifiers::NONE` also matches a press with Shift held.
             let steps = 10 * take(Modifiers::SHIFT, key) + take(Modifiers::NONE, key);
             d = [d[0] + dx * steps as f32, d[1] + dy * steps as f32];
         }
@@ -875,6 +930,18 @@ impl PointEdit<'_, '_> {
             self.set();
         }
     }
+}
+
+/// Takes the presses of `key` with exactly `modifiers` held (Ctrl and Cmd as egui's
+/// [`Modifiers::matches_exact`] counts them); returns how many.
+fn take_exact(ui: &Ui, modifiers: Modifiers, key: Key) -> usize {
+    ui.input_mut(|i| {
+        let before = i.events.len();
+        i.events.retain(
+            |event| !matches!(event, egui::Event::Key { key: k, pressed: true, modifiers: m, .. } if *k == key && m.matches_exact(modifiers)),
+        );
+        before - i.events.len()
+    })
 }
 
 /// One frame's pencil stroke: the pointer draws straight segments into a map of outputs.
@@ -894,7 +961,7 @@ impl StrokeEdit<'_> {
             response.request_focus();
             let at = self.map.value_at(pos);
             let from = match ui.input(|i| i.modifiers.shift) {
-                true => self.state.end.unwrap_or(at),
+                true => self.state.end.as_ref().map_or(at, |end| end.at),
                 false => at,
             };
             self.gesture.begin();
@@ -911,8 +978,9 @@ impl StrokeEdit<'_> {
             self.state.stroke = Some(at);
             self.draw(ui, last, at);
         }
-        if self.state.stroke.is_some() && !down {
-            self.state.end = self.state.stroke.take();
+        if let Some(at) = self.state.stroke.filter(|_| !down) {
+            self.state.stroke = None;
+            self.state.end = Some(StrokeEnd { at, curve: self.gesture.shown().clone() });
             self.gesture.commit();
         }
     }

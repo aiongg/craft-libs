@@ -157,6 +157,22 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
     assert_eq!((c.bar, c.bar_gap, c.hit, c.drag_off), (scaled(8.0), scaled(4.0), scaled(9.0), scaled(12.0)));
 }
 
+/// The channel colours a curve is drawn in are checked on `curve.fill`, not only on the surface
+/// it defaults to: a pinned fill that hides them warns, and high contrast moves the fill.
+#[test]
+fn a_pinned_curve_fill_is_checked_against_the_channel_colours() {
+    let fill = ComponentField::Curve(CurveField::Fill);
+    let mut def = grey_blue();
+    let red = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens.color(T::DataRed);
+    def.pins.dark.0.insert(TokenRef::Component(fill), red);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    let warned = |r: &crate::Resolved| r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::DataRed) && w.bg == TokenRef::Component(fill));
+    assert!(warned(&r), "{:?}", r.warnings);
+    let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
+    let ratio = contrast_ratio(r.tokens.color(T::DataRed), r.tokens.component.color(fill).unwrap());
+    assert!(ratio >= 4.5 && !warned(&r), "{ratio:.2}: {:?}", r.warnings);
+}
+
 /// The knob look of slider and switch thumbs: `surface.knob` with a `line.knob_edge` outline while
 /// enabled; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
 fn knob(t: &Tokens) -> ThumbColors {
@@ -184,9 +200,12 @@ fn field_pairs() -> Vec<(ComponentField, ComponentField, (f64, f64))> {
 
 #[test]
 fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
-    let listed: Vec<_> =
-        ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Field(_))).map(|p| (p.fg, p.bg, p.minimum)).collect();
-    let expected: Vec<_> = field_pairs().into_iter().map(|(fg, bg, min)| (fg, TokenRef::Component(bg), min)).collect();
+    let listed: Vec<_> = ComponentTokens::pairs()
+        .into_iter()
+        .filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_))))
+        .map(|p| (p.fg, p.bg, p.minimum))
+        .collect();
+    let expected: Vec<_> = field_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(fg), TokenRef::Component(bg), min)).collect();
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -237,9 +256,12 @@ fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
 
 #[test]
 fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
-    let listed: Vec<_> =
-        ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Listbox(_))).map(|p| (p.fg, p.bg, p.minimum)).collect();
-    let expected: Vec<_> = listbox_pairs().into_iter().map(|(fg, bg, min)| (ComponentField::Listbox(fg), bg, min)).collect();
+    let listed: Vec<_> = ComponentTokens::pairs()
+        .into_iter()
+        .filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_))))
+        .map(|p| (p.fg, p.bg, p.minimum))
+        .collect();
+    let expected: Vec<_> = listbox_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(ComponentField::Listbox(fg)), bg, min)).collect();
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -275,10 +297,10 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
 /// height.
 #[test]
 fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
-    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Menu(_))).map(|p| (p.fg, p.bg)).collect();
-    let active = TokenRef::Component(ComponentField::Menu(MenuField::ActiveFill));
-    let expected =
-        vec![(ComponentField::Menu(MenuField::ActiveText), active), (ComponentField::Menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
+    let listed: Vec<_> =
+        ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).map(|p| (p.fg, p.bg)).collect();
+    let menu = |f| TokenRef::Component(ComponentField::Menu(f));
+    let expected = vec![(menu(MenuField::ActiveText), menu(MenuField::ActiveFill)), (menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -320,10 +342,10 @@ fn check_pairs() -> Vec<(ComponentField, TokenRef)> {
 
 #[test]
 fn check_pairs_are_the_rest_cues_on_the_panel_and_raised_surfaces() {
-    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Check(_))).collect();
+    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
     assert!(listed.iter().all(|p| p.minimum == values::NON_TEXT_MIN));
     let listed: BTreeSet<_> = listed.into_iter().map(|p| (p.fg, p.bg)).collect();
-    let expected: BTreeSet<_> = check_pairs().into_iter().collect();
+    let expected: BTreeSet<_> = check_pairs().into_iter().map(|(fg, bg)| (TokenRef::Component(fg), bg)).collect();
     assert_eq!(listed, expected);
 }
 

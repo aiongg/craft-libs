@@ -105,8 +105,16 @@ impl Family for MenuTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Menu;
         vec![
-            ContrastPair { fg: field(MenuField::ActiveText), bg: TokenRef::Component(field(MenuField::ActiveFill)), minimum: values::TEXT_MIN },
-            ContrastPair { fg: field(MenuField::Shortcut), bg: TokenRef::Color(ColorToken::SurfaceRaised), minimum: values::TEXT_MIN },
+            ContrastPair {
+                fg: TokenRef::Component(field(MenuField::ActiveText)),
+                bg: TokenRef::Component(field(MenuField::ActiveFill)),
+                minimum: values::TEXT_MIN,
+            },
+            ContrastPair {
+                fg: TokenRef::Component(field(MenuField::Shortcut)),
+                bg: TokenRef::Color(ColorToken::SurfaceRaised),
+                minimum: values::TEXT_MIN,
+            },
         ]
     }
 }

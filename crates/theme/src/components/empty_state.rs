@@ -55,7 +55,7 @@ impl Family for EmptyStateTokens {
 
     fn pairs() -> Vec<ContrastPair> {
         vec![ContrastPair {
-            fg: ComponentField::EmptyState(EmptyStateField::Text),
+            fg: TokenRef::Component(ComponentField::EmptyState(EmptyStateField::Text)),
             bg: TokenRef::Color(ColorToken::SurfacePanel),
             minimum: values::TEXT_MIN,
         }]
