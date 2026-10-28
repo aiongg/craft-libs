@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{Guides, Readout, Rulers};
+use craft_ui::canvas::{BezierOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow,
     SectionHeader, ToastStack, Tone,
@@ -561,6 +561,22 @@ fn readout() {
     });
 }
 
+/// Reference point pickers: both sizes, the dots and the picker's colours.
+#[test]
+fn reference_point() {
+    check("reference_point.txt", |d, t| {
+        for (size, name) in [(RefSize::Compact, "compact"), (RefSize::Large, "large")] {
+            let s = ReferencePoint::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("side", s.side).line("dot", s.dot).line("picked_dot", s.picked_dot);
+            });
+        }
+        let s = ReferencePoint::style(t, RefSize::Compact);
+        d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
+        d.line("dot_color", s.dot_color).line("picked", s.picked).line("hover", s.hover).line("arrow", s.arrow);
+    });
+}
+
 /// Guides and smart guides: line, hit and pattern sizes, the colours, the distance label and the
 /// focus lines.
 #[test]
@@ -592,6 +608,38 @@ fn ruler() {
     });
 }
 
+/// Paths: outline and selected segment widths, the default path colour, the anchor, selected
+/// anchor and handle end looks, the handle line, hit, click slop and flattening tolerance.
+#[test]
+fn bezier() {
+    check("bezier.txt", |d, t| {
+        let s = BezierOverlay::style(t);
+        d.line("line", s.line).line("selected_segment", s.selected_segment).line("color", s.color);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
+/// The pen draft: the path so far, the rubber band's width and dashes, the anchor looks, the close
+/// cue's anchor, ring and offset, the hit and click slop.
+#[test]
+fn pen() {
+    check("pen.txt", |d, t| {
+        let s = PenDraft::style(t);
+        d.line("draft_line", s.draft_line).line("color", s.color);
+        d.line("rubber_width", s.rubber_width).line("rubber_dash", s.rubber_dash).line("rubber_gap", s.rubber_gap);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control), ("close_anchor", &s.close_anchor)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("close_ring", s.close_ring).line("close_offset", s.close_offset);
+        d.line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
 /// Marquees: the ants' colours and march, the band's line and dashes, the drawing look's two
 /// lines, and the click slop.
 #[test]
@@ -601,6 +649,34 @@ fn marquee() {
         d.line("light", s.light).line("dark", s.dark).line("dash", s.dash).line("speed", s.speed).line("tick_ms", s.tick_ms).line("march", s.march);
         d.line("band_line", s.band_line).line("band_dash", s.band_dash).line("band_gap", s.band_gap);
         d.line("drawing_halo", s.drawing_halo).line("drawing_line", s.drawing_line).line("click_slop", s.click_slop);
+    });
+}
+
+/// Transform boxes: the box line, the reach of handles, the rotate zones and a click, the
+/// reference point's sizes and lines, and the focus line round the whole box.
+#[test]
+fn transform() {
+    check("transform.txt", |d, t| {
+        let s = craft_ui::canvas::TransformBox::style(t);
+        d.line("line", s.line).line("handle_size", s.handle.size).line("hit", s.hit).line("rotate_reach", s.rotate_reach);
+        d.line("band_inner", s.band_inner).line("band_outer", s.band_outer).line("click_slop", s.click_slop);
+        d.line("pivot_radius", s.pivot_radius).line("pivot_arm", s.pivot_arm).line("pivot", s.pivot).line("pivot_halo", s.pivot_halo);
+        d.line("focus", s.focus).line("focus_halo", s.focus_halo).line("focus_offset", s.focus_offset);
+    });
+}
+
+/// Warp grids: the patch boundaries and thirds, the anchor and handle end looks, the arm, the
+/// reach and the reveal distance.
+#[test]
+fn warp() {
+    check("warp.txt", |d, t| {
+        let s = craft_ui::canvas::WarpGrid::style(t);
+        d.line("line", s.line).line("minor", s.minor);
+        for (key, h) in [("anchor", &s.anchor), ("control", &s.control)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("arm", s.arm).line("hit", s.hit).line("reveal", s.reveal).line("flatten", s.flatten);
     });
 }
 

@@ -247,3 +247,15 @@ fn handles_are_the_token_size_with_a_halo_outside() {
     assert_ne!(Handle::style(&t, HandleShape::Rotate).cursor, Handle::style(&t, HandleShape::Round).cursor);
     assert_eq!(Handle::style(&t, HandleShape::Square).hit, h.hit);
 }
+
+/// A selected anchor is the handle filled with its outline colour, the same size and halo.
+#[test]
+fn a_selected_handle_is_filled_with_its_outline_colour() {
+    let t = tokens("craft.artcraft", Mode::Dark);
+    let o = &t.color.overlay;
+    for shape in [HandleShape::Square, HandleShape::Round] {
+        let (plain, selected) = (Handle::style(&t, shape), Handle::selected_style(&t, shape));
+        assert_eq!(selected.fill, o.handle_stroke.to_egui());
+        assert_eq!(HandleStyle { fill: plain.fill, ..selected }, plain);
+    }
+}

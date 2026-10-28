@@ -15,6 +15,16 @@
 //! - [`RulerUnits`]: the ruler unit of a document axis, for ruler ticks and guide values.
 //! - [`Rulers`]: the strips along the top and left of a canvas, with the zero point's corner.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
+//! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
+//! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
+//! - [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box;
+//!   [`ReferencePoint`]: the 3 × 3 picker of its reference point.
+//! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
+//! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
+//! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
+//!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
+//! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
+//! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -35,25 +45,45 @@
 //! # });
 //! ```
 
+pub(crate) mod bezier;
 mod claim;
 mod crisp;
 pub(crate) mod guides;
 pub mod hit;
 pub(crate) mod marquee;
+mod part_focus;
+pub(crate) mod pen;
+pub mod quad;
 mod readout;
+pub(crate) mod ref_point;
 pub(crate) mod rulers;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+pub(crate) mod transform_box;
+pub(crate) mod transform_fields;
+mod turn;
 mod units;
 mod view;
+pub(crate) mod warp;
 
 pub use ::kurbo;
+pub use bezier::{
+    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
+    MAX_ANCHORS, PathEdit, PathSelection,
+};
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
+pub use part_focus::{Part, PartFocus, PartFocusResponse};
+pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
 pub use readout::{Readout, ReadoutStyle};
+pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
+pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields};
+pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
+pub use warp::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpStyle};

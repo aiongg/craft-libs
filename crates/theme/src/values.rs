@@ -344,6 +344,9 @@ pub(super) const RULES: &[PairRule] = &[
     },
     rule(&[T::OverlayStroke], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::OverlayMarquee], &[Token(T::OverlayMarqueeDash)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    // A selected anchor is a handle filled with its outline colour: the outline on the fill is the
+    // only mark of the selection.
+    rule(&[T::OverlayHandleStroke], &[Token(T::OverlayHandleFill)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     // A curve editor's curve and points in a channel colour, on its plot (`field.fill`, `surface.sunken`).
     rule(
         &[T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow],
@@ -702,6 +705,76 @@ pub const GUIDE_DOT_RADIUS: f32 = 0.6;
 pub const GUIDE_MEASURE_CAP: f32 = 4.0;
 /// Padding of a distance's label, beside and above the text.
 pub const GUIDE_MEASURE_PAD: (f32, f32) = (8.0, 4.0);
+
+/// Width of a transform box's line and a warp mesh's patch boundaries, in points, at every Size
+/// (PhotoCraft's).
+pub const TRANSFORM_LINE: f32 = 1.0;
+/// Distance from a box handle or the reference point within which the pointer takes it
+/// (PhotoCraft's `HANDLE_PX`).
+pub const TRANSFORM_HIT: f32 = 12.0;
+/// Distance from a corner, outside the box, within which the rotate cursor shows (PhotoCraft's
+/// three handle reaches).
+pub const TRANSFORM_ROTATE_REACH: f32 = 36.0;
+/// Inner edge of the rotate band outside a corner (PhotoCraft's Move tool controls, DesignCraft).
+pub const TRANSFORM_BAND_INNER: f32 = 5.0;
+/// Outer edge of the rotate band outside a corner.
+pub const TRANSFORM_BAND_OUTER: f32 = 18.0;
+/// Farthest a press outside the box may move and still be a click that applies the box.
+pub const TRANSFORM_CLICK_SLOP: f32 = 2.0;
+/// Radius of the reference point's circle.
+pub const TRANSFORM_PIVOT_RADIUS: f32 = 5.0;
+/// Length of each arm of the reference point's cross.
+pub const TRANSFORM_PIVOT_ARM: f32 = 8.0;
+/// Radius of the rotate cursor's arc.
+pub const TRANSFORM_TURN_RADIUS: f32 = 12.0;
+/// Width of the rotate cursor's arc.
+pub const TRANSFORM_TURN_LINE: f32 = 1.5;
+/// Width of the halo on each side of the rotate cursor's arc.
+pub const TRANSFORM_TURN_HALO: f32 = 1.0;
+/// Width of a one-patch warp mesh's rule-of-thirds lines.
+pub const TRANSFORM_WARP_MINOR: f32 = 0.75;
+/// Side of a warp mesh's anchor squares.
+pub const TRANSFORM_WARP_ANCHOR: f32 = 5.0;
+/// Diameter of a warp mesh's handle ends.
+pub const TRANSFORM_WARP_CONTROL: f32 = 5.5;
+/// Distance from the pointer within which a warp handle shows (PhotoCraft's `HANDLE_REVEAL_PX`).
+pub const TRANSFORM_WARP_REVEAL: f32 = 56.0;
+
+/// Width of a path's outline, in points, at every Size.
+pub const BEZIER_LINE: f32 = 1.0;
+/// Width of a selected segment (VectorCraft's).
+pub const BEZIER_SELECTED_SEGMENT: f32 = 2.0;
+/// Width of the path the pen is drawing.
+pub const BEZIER_DRAFT_LINE: f32 = 1.5;
+/// Side of an anchor square.
+pub const BEZIER_ANCHOR: f32 = 6.0;
+/// Diameter of a direction handle's end.
+pub const BEZIER_CONTROL: f32 = 6.0;
+/// Width of the line from an anchor to its direction handle's end.
+pub const BEZIER_CONTROL_LINE: f32 = 1.0;
+/// Distance within which the pointer takes an anchor, handle end or segment (PhotoCraft's).
+pub const BEZIER_HIT: f32 = 6.0;
+/// Farthest a press on a path may move and still be a click (PhotoCraft's).
+pub const BEZIER_CLICK_SLOP: f32 = 1.0;
+/// Largest distance between a curve and the lines it is drawn with.
+pub const BEZIER_FLATTEN: f32 = 0.3;
+/// Dash length of the pen's rubber band.
+pub const BEZIER_RUBBER_DASH: f32 = 4.0;
+/// Gap between the rubber band's dashes.
+pub const BEZIER_RUBBER_GAP: f32 = 3.0;
+/// Side of the first anchor while a press there would close the path.
+pub const BEZIER_CLOSE_ANCHOR: f32 = 8.0;
+/// Radius of the pen's close cue ring.
+pub const BEZIER_CLOSE_RING: f32 = 3.5;
+/// Distance across and down from the pointer to the close cue ring.
+pub const BEZIER_CLOSE_OFFSET: f32 = 11.0;
+
+/// Side of the compact reference point picker, in points, at every Size (PhotoCraft's options bar).
+pub const REF_POINT_COMPACT: f32 = 16.0;
+/// Side of the large reference point picker (PhotoCraft's Canvas Size).
+pub const REF_POINT_LARGE: f32 = 72.0;
+/// Side of a reference point picker's square dots.
+pub const REF_POINT_DOT: f32 = 3.5;
 
 /// Length of the marching ants' dashes and gaps, in line widths (PhotoCraft's).
 pub const MARQUEE_DASH: f32 = 4.0;

@@ -112,6 +112,11 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::canvas::guides::stories());
     all.extend(crate::canvas::marquee::stories());
     all.extend(crate::canvas::rulers::stories());
+    all.extend(crate::canvas::transform_box::stories());
+    all.extend(crate::canvas::ref_point::stories());
+    all.extend(crate::canvas::bezier::story::stories());
+    all.extend(crate::canvas::warp::story::stories());
+    all.extend(crate::canvas::pen::story::stories());
     all.extend(crate::edit::stories());
     all.extend(controls::button::stories());
     all.extend(controls::icon_button::stories());
@@ -143,6 +148,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(composites::empty_state::stories());
     all.extend(composites::curve_editor::stories());
     all.extend(composites::gradient::stories());
+    all.extend(crate::canvas::transform_fields::stories());
     all.extend(composites::histogram::stories());
     all.extend(composites::levels_editor::stories());
     all.extend(crate::list::stories());
@@ -169,7 +175,13 @@ const DECLARED: &[&[&str]] = &[
     crate::canvas::story::COMPONENTS,
     crate::canvas::guides::COMPONENTS,
     crate::canvas::marquee::COMPONENTS,
+    crate::canvas::ref_point::COMPONENTS,
+    crate::canvas::transform_fields::COMPONENTS,
     crate::canvas::rulers::COMPONENTS,
+    crate::canvas::transform_box::COMPONENTS,
+    crate::canvas::bezier::story::COMPONENTS,
+    crate::canvas::warp::story::COMPONENTS,
+    crate::canvas::pen::story::COMPONENTS,
     crate::edit::COMPONENTS,
     controls::button::COMPONENTS,
     controls::icon_button::COMPONENTS,

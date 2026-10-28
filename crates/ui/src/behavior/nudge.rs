@@ -20,8 +20,7 @@ pub const BIG_STEP: f64 = 10.0;
 ///
 /// Reads nothing while a text field has focus, a popup is open or a modal layer is above `ui`.
 pub fn read(ui: &Ui, step: f64, big_step: f64) -> Option<Vec2> {
-    let ctx = ui.ctx();
-    if ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())) {
+    if !reads(ui) {
         return None;
     }
     ui.input_mut(|i| {
@@ -32,8 +31,38 @@ pub fn read(ui: &Ui, step: f64, big_step: f64) -> Option<Vec2> {
     })
 }
 
+/// [`read`] that also takes Alt and Alt+Shift, and reports whether Alt was held: an arrow with
+/// Alt moves a path's direction handle alone, without its partner (PhotoCraft's ⌥-drag).
+pub fn read_with_alt(ui: &Ui, step: f64, big_step: f64) -> Option<(Vec2, bool)> {
+    if !reads(ui) {
+        return None;
+    }
+    ui.input_mut(|i| {
+        let at = i.events.iter().position(|e| arrow_with_alt(e).is_some())?;
+        let (dir, shift, alt) = arrow_with_alt(&i.events[at])?;
+        i.events.remove(at);
+        Some((dir * if shift { big_step } else { step }, alt))
+    })
+}
+
+/// Whether the canvas's keys are free: no text field has focus, no popup is open and no modal layer
+/// is above `ui`.
+pub(crate) fn reads(ui: &Ui) -> bool {
+    let ctx = ui.ctx();
+    !(ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())))
+}
+
 /// An arrow key press plain or with Shift: its unit direction and whether Shift is held.
 fn arrow(event: &Event) -> Option<(Vec2, bool)> {
+    match arrow_with_alt(event)? {
+        (dir, shift, false) => Some((dir, shift)),
+        _ => None,
+    }
+}
+
+/// An arrow key press with no modifier but Shift and Alt: its unit direction, whether Shift is
+/// held and whether Alt is.
+fn arrow_with_alt(event: &Event) -> Option<(Vec2, bool, bool)> {
     let Event::Key { key, pressed: true, modifiers, .. } = event else { return None };
     let dir = match key {
         Key::ArrowLeft => Vec2::new(-1.0, 0.0),
@@ -42,11 +71,8 @@ fn arrow(event: &Event) -> Option<(Vec2, bool)> {
         Key::ArrowDown => Vec2::new(0.0, 1.0),
         _ => return None,
     };
-    if modifiers.matches_exact(Modifiers::NONE) {
-        Some((dir, false))
-    } else if modifiers.matches_exact(Modifiers::SHIFT) {
-        Some((dir, true))
-    } else {
-        None
-    }
+    [Modifiers::NONE, Modifiers::SHIFT, Modifiers::ALT, Modifiers::ALT | Modifiers::SHIFT]
+        .into_iter()
+        .find(|&m| modifiers.matches_exact(m))
+        .map(|m| (dir, m.shift, m.alt))
 }

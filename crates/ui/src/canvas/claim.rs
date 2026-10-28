@@ -51,6 +51,12 @@ impl Claim {
         }
     }
 
+    /// The current press on `canvas` when `overlay` owns it.
+    pub(crate) fn owned_press(ctx: &Context, canvas: Id, overlay: Id) -> Option<PrimaryPress> {
+        let claim = ctx.data(|d| d.get_temp::<Claim>(Claim::key(canvas)))?;
+        (claim.owner == overlay && claim.press.holds(ctx)).then_some(claim.press)
+    }
+
     /// Whether `overlay` owns the current press on `canvas`.
     pub fn is_owner(ctx: &Context, canvas: Id, overlay: Id) -> bool {
         Claim::owner(ctx, canvas) == Some(overlay)

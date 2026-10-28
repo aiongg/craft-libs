@@ -151,6 +151,12 @@ fn handle() {
                     .line("cursor", snake(&format!("{:?}", s.cursor)));
             });
         }
+        for shape in [HandleShape::Square, HandleShape::Round] {
+            let s = Handle::selected_style(t, shape);
+            d.group(&format!("selected_{}", shape.name()), |d| {
+                d.line("fill", s.fill).line("stroke", s.stroke);
+            });
+        }
     });
 }
 

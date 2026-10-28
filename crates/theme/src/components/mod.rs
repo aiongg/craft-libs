@@ -7,6 +7,7 @@
 
 mod angle_dial;
 mod badge;
+mod bezier;
 mod button;
 mod check;
 mod color_picker;
@@ -29,6 +30,7 @@ mod panel_header;
 mod progress;
 mod property;
 mod readout;
+mod ref_point;
 mod ruler;
 mod section;
 mod segmented;
@@ -37,6 +39,7 @@ mod swatch;
 mod toast;
 mod toggle_button;
 mod tooltip;
+mod transform;
 
 use std::fmt;
 
@@ -47,6 +50,7 @@ use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef,
 
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
+pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
@@ -69,6 +73,7 @@ pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
+pub use ref_point::{RefPointField, RefPointTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
@@ -77,6 +82,7 @@ pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
+pub use transform::{TransformField, TransformTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -570,6 +576,8 @@ families! {
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// Badges: small labels in a tone.
     badge: BadgeTokens => Badge(BadgeField);
+    /// Paths: outlines, anchors, direction handles and the path being drawn.
+    bezier: BezierTokens => Bezier(BezierField);
     /// Push buttons.
     button: ButtonTokens => Button(ButtonField);
     /// Check boxes, radio buttons and switches.
@@ -614,6 +622,8 @@ families! {
     property: PropertyTokens => Property(PropertyField);
     /// Readouts: the values beside the pointer during a canvas gesture.
     readout: ReadoutTokens => Readout(ReadoutField);
+    /// Reference point pickers: the nine points of a box.
+    ref_point: RefPointTokens => RefPoint(RefPointField);
     /// Rulers along the top and left of a canvas.
     ruler: RulerTokens => Ruler(RulerField);
     /// Section headers: the row, chevron and title of a collapsible section.
@@ -630,4 +640,6 @@ families! {
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);
+    /// Transform boxes and warp meshes.
+    transform: TransformTokens => Transform(TransformField);
 }

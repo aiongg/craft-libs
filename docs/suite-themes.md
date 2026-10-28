@@ -93,7 +93,7 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 | `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill | 4.5 | 7 |
 | `text.on_strong` on `accent.strong` (active menu rows) | 4.5 | 7 |
-| `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo | 3 | 4.5 |
+| `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
 or pinned values in every contrast. A translucent fill is measured over `surface.panel`.

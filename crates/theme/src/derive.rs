@@ -151,8 +151,8 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     }
     let pinned: BTreeSet<ColorToken> = layers.keys().copied().collect();
     // Tokens defined by other tokens follow their pinned values; aliases follow the contrast
-    // pass too. On-solid text and solids taken from other tokens are the pass's own choice, so
-    // they are not re-derived afterwards.
+    // pass too. On-solid text, solids taken from other tokens and aliases that are a pair's
+    // foreground are the pass's own choice, so they are not re-derived afterwards.
     follow(&mut c, &pinned, mode, true);
     let before_pass = c;
     let pass = Pass { pinned: &pinned, high, mode, anchors: &anchors };
@@ -376,21 +376,27 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
     })
 }
 
-/// Sets every unpinned token whose source refers to other tokens; on-solid text and solids taken
-/// from other tokens only when `on_solid`.
+/// Sets every unpinned token whose source refers to other tokens; on-solid text, solids taken
+/// from other tokens and aliases that are a pair's foreground only when `on_solid`.
 fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_solid: bool) {
     for &t in ColorToken::ALL {
         if pinned.contains(&t) {
             continue;
         }
         match values::source(t, mode) {
-            Source::Same(other) => c.set(t, c.get(other)),
+            Source::Same(other) if on_solid || !is_foreground(t) => c.set(t, c.get(other)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
             Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
             Source::OnSolid(solids) if on_solid => c.set(t, best_extreme(c, solids)),
             _ => {}
         }
     }
+}
+
+/// Whether `t` is the foreground of a pair: an alias that is one starts from its target and the
+/// pass may then move it away (`overlay.handle_stroke` from `overlay.stroke`).
+fn is_foreground(t: ColorToken) -> bool {
+    RULES.iter().any(|rule| rule.fgs.contains(&t))
 }
 
 /// `panel` with its OKLCH lightness moved by `amount`, clamped to 0..=1, hue and chroma kept.
