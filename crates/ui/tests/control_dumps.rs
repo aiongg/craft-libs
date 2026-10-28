@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{BezierOverlay, Guides, Readout, RefSize, ReferencePoint, Rulers};
+use craft_ui::canvas::{BezierOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
 };
@@ -581,6 +581,23 @@ fn bezier() {
             d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
         }
         d.line("control_line", s.control_line).line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
+/// The pen draft: the path so far, the rubber band's width and dashes, the anchor looks, the close
+/// cue's anchor, ring and offset, the hit and click slop.
+#[test]
+fn pen() {
+    check("pen.txt", |d, t| {
+        let s = PenDraft::style(t);
+        d.line("draft_line", s.draft_line).line("color", s.color);
+        d.line("rubber_width", s.rubber_width).line("rubber_dash", s.rubber_dash).line("rubber_gap", s.rubber_gap);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control), ("close_anchor", &s.close_anchor)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("close_ring", s.close_ring).line("close_offset", s.close_offset);
+        d.line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
     });
 }
 

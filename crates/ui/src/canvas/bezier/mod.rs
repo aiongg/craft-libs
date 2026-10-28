@@ -959,7 +959,7 @@ fn target_hit(target: &Target) -> Option<BezierHit> {
 }
 
 /// `v` on the nearest 45° ray (PhotoCraft's `Edit::constrain`): its projection there.
-fn constrain(v: Vec2) -> Vec2 {
+pub(super) fn constrain(v: Vec2) -> Vec2 {
     if v.hypot2() == 0.0 {
         return v;
     }
@@ -978,7 +978,7 @@ fn map_cubic(a: Affine, c: CubicBez) -> CubicBez {
 }
 
 /// Strokes a screen-space path as polylines within `tolerance` of its curves.
-fn outline(painter: &Painter, path: BezPath, tolerance: f64, stroke: Stroke) {
+pub(super) fn outline(painter: &Painter, path: BezPath, tolerance: f64, stroke: Stroke) {
     let mut lines: Vec<(Vec<Pos2>, bool)> = Vec::new();
     let pos = |p: Point| Pos2::new(p.x as f32, p.y as f32);
     kurbo::flatten(&path, tolerance, |el| match el {

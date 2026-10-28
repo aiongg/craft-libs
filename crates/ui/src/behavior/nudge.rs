@@ -45,9 +45,9 @@ pub fn read_with_alt(ui: &Ui, step: f64, big_step: f64) -> Option<(Vec2, bool)> 
     })
 }
 
-/// Whether arrows are the canvas's: no text field has focus, no popup is open and no modal layer
+/// Whether the canvas's keys are free: no text field has focus, no popup is open and no modal layer
 /// is above `ui`.
-fn reads(ui: &Ui) -> bool {
+pub(crate) fn reads(ui: &Ui) -> bool {
     let ctx = ui.ctx();
     !(ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())))
 }
