@@ -3,12 +3,13 @@
 
 use egui::accesskit::{self, Role};
 use egui::{
-    Align2, AsIdSalt, Color32, CursorIcon, FontId, Id, IdSalt, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui, WidgetInfo, pos2,
-    vec2,
+    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui, WidgetInfo,
+    pos2, vec2,
 };
 use kurbo::Point;
 
 use super::guides::segment;
+use super::units::tick_snap;
 use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
@@ -39,10 +40,15 @@ pub enum RulerPart {
 #[derive(Clone, Debug, PartialEq)]
 #[must_use = "apply the zero point events to the host's document"]
 pub struct RulersResponse {
-    /// A move of the zero point (document units): Begin, Update, Commit (`changed: false` when it
-    /// was dropped back on the corner) or Cancel. The host applies the Commit.
+    /// The rulers' id: what the host's zero point commands pass to [`Rulers::reset_zero`] and
+    /// [`Rulers::set_zero`].
+    pub id: Id,
+    /// A move of the zero point (document units): a drag's Begin, Update, Commit (`changed: false`
+    /// when it was dropped back on the corner) or Cancel, or the Set of [`Rulers::set_zero`]. The
+    /// host applies the Commit and the Set.
     pub origin: Option<EditEvent<Point>>,
-    /// The corner was double-clicked: the host puts the zero point back at the document's origin.
+    /// The corner was double-clicked, or the host's command asked for it ([`Rulers::reset_zero`]):
+    /// the host puts the zero point back at the document's origin.
     pub reset_origin: bool,
     /// A ruler or the corner was clicked with the secondary button, for the host's units menu.
     pub context: Option<RulerPart>,
@@ -76,11 +82,35 @@ pub struct RulerStyle {
     pub marker: Stroke,
 }
 
+/// The AccessKit names of the rulers, the host's translated text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RulerNames {
+    /// The top ruler ("Horizontal ruler").
+    pub horizontal: String,
+    /// The left ruler ("Vertical ruler").
+    pub vertical: String,
+    /// The corner that holds the zero point ("Ruler origin").
+    pub origin: String,
+}
+
+impl RulerNames {
+    pub fn new(horizontal: impl Into<String>, vertical: impl Into<String>, origin: impl Into<String>) -> Self {
+        Self { horizontal: horizontal.into(), vertical: vertical.into(), origin: origin.into() }
+    }
+}
+
+/// A zero point command of the host's, waiting for the rulers' next pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Command {
+    Reset,
+    Set(Point),
+}
+
 /// The rulers of a canvas: ticks and labels counted from a zero point, level whatever the view's
 /// rotation, a pointer marker, the hand-off of guide drags and the zero point's corner.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, Guides, RulerUnits, Rulers, kurbo::Point};
+/// use craft_ui::canvas::{CanvasView, Guides, RulerNames, RulerUnits, Rulers, kurbo::Point};
 /// use craft_ui::localized::LocaleNumbers;
 /// # egui::__run_test_ui(|ui| {
 /// let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
@@ -88,7 +118,8 @@ pub struct RulerStyle {
 /// let tokens = <craft_ui::theme::Tokens as craft_ui::theme::TokensOf>::of(ui);
 /// let content = Rulers::content_rect(&tokens, full);
 /// let view = CanvasView::new(content, Point::new(200.0, 150.0), 1.0);
-/// let rulers = Rulers::new("rulers", &px, &px).show(ui, full, &view, None);
+/// let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+/// let rulers = Rulers::new("rulers", &px, &px, names).show(ui, full, &view, None);
 /// # let _ = rulers;
 /// # });
 /// ```
@@ -103,7 +134,10 @@ pub struct RulerStyle {
 ///   stays, Esc cancels. Double-click reports [`reset_origin`](RulersResponse::reset_origin).
 ///   [`origin_locked`](Self::origin_locked) turns both off.
 /// - The rulers and the corner are not Tab stops: their functions have keyboard paths in the
-///   host's menus. Each is in the AccessKit tree.
+///   host's menus. The host's Reset Zero Point and Set Zero Point… commands call
+///   [`Rulers::reset_zero`] and [`Rulers::set_zero`], which the rulers report like the corner's
+///   gestures; every item of the host's ruler menu needs such a menu-bar or Preferences route,
+///   since the menu opens from a pointer only. Each part is in the AccessKit tree.
 pub struct Rulers<'a> {
     id_salt: IdSalt,
     units: (&'a RulerUnits, &'a RulerUnits),
@@ -111,7 +145,7 @@ pub struct Rulers<'a> {
     origin_locked: bool,
     interactive: bool,
     snap: Option<Snap<'a>>,
-    names: [String; 3],
+    names: RulerNames,
     policy: EditPolicy,
 }
 
@@ -119,8 +153,9 @@ pub struct Rulers<'a> {
 type Snap<'a> = Box<dyn Fn(Orientation, f64, Modifiers) -> f64 + 'a>;
 
 impl<'a> Rulers<'a> {
-    /// Rulers measuring the x axis in `x` and the y axis in `y`.
-    pub fn new(id_salt: impl AsIdSalt, x: &'a RulerUnits, y: &'a RulerUnits) -> Self {
+    /// Rulers measuring the x axis in `x` and the y axis in `y`, named `names` in the AccessKit
+    /// tree.
+    pub fn new(id_salt: impl AsIdSalt, x: &'a RulerUnits, y: &'a RulerUnits, names: RulerNames) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             units: (x, y),
@@ -128,7 +163,7 @@ impl<'a> Rulers<'a> {
             origin_locked: false,
             interactive: true,
             snap: None,
-            names: ["Horizontal ruler".to_owned(), "Vertical ruler".to_owned(), "Ruler origin".to_owned()],
+            names,
             policy: EditPolicy::default(),
         }
     }
@@ -158,15 +193,25 @@ impl<'a> Rulers<'a> {
         self
     }
 
-    /// The AccessKit names of the top ruler, the left ruler and the corner (translated).
-    pub fn names(mut self, horizontal: impl Into<String>, vertical: impl Into<String>, origin: impl Into<String>) -> Self {
-        self.names = [horizontal.into(), vertical.into(), origin.into()];
-        self
-    }
-
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
+    }
+
+    /// The host's Reset Zero Point command for the rulers `rulers` ([`RulersResponse::id`]): their
+    /// next pass reports [`reset_origin`](RulersResponse::reset_origin), as a double-click on the
+    /// corner does. Nothing while the zero point is locked.
+    pub fn reset_zero(ctx: &Context, rulers: Id) {
+        ctx.data_mut(|d| d.insert_temp(command_key(rulers), Command::Reset));
+        ctx.request_repaint();
+    }
+
+    /// The host's Set Zero Point… command: `point` is the document point the host's dialog took.
+    /// The rulers' next pass reports it as a Set of [`origin`](RulersResponse::origin), after a
+    /// zero point drag in progress ends. Nothing while the zero point is locked.
+    pub fn set_zero(ctx: &Context, rulers: Id, point: Point) {
+        ctx.data_mut(|d| d.insert_temp(command_key(rulers), Command::Set(point)));
+        ctx.request_repaint();
     }
 
     /// The canvas's rect inside the rulers of the area `full`.
@@ -205,7 +250,7 @@ impl<'a> Rulers<'a> {
         let top = ScreenRect::from_min_max(pos2(full.left() + size, full.top()), pos2(full.right(), full.top() + size));
         let left = ScreenRect::from_min_max(pos2(full.left(), full.top() + size), pos2(full.left() + size, full.bottom()));
         let corner = ScreenRect::from_min_size(full.min, vec2(size, size));
-        let mut out = RulersResponse { origin: None, reset_origin: false, context: None };
+        let mut out = RulersResponse { id, origin: None, reset_origin: false, context: None };
 
         let painter = ui.painter_at(full);
         for r in [top, left, corner] {
@@ -238,8 +283,8 @@ impl<'a> Rulers<'a> {
         });
         let enabled = ui.is_enabled();
         for (response, orientation, name, units) in [
-            (&top_response, accesskit::Orientation::Horizontal, &self.names[0], x),
-            (&left_response, accesskit::Orientation::Vertical, &self.names[1], y),
+            (&top_response, accesskit::Orientation::Horizontal, &self.names.horizontal, x),
+            (&left_response, accesskit::Orientation::Vertical, &self.names.vertical, y),
         ] {
             response.widget_info(|| {
                 let mut info = WidgetInfo::labeled(Role::Group, enabled, name);
@@ -249,24 +294,24 @@ impl<'a> Rulers<'a> {
             ctx.accesskit_node_builder(response.id, |node| node.set_orientation(orientation));
         }
         corner_response.widget_info(|| {
-            let mut info = WidgetInfo::labeled(Role::GraphicsObject, enabled, &self.names[2]);
+            let mut info = WidgetInfo::labeled(Role::GraphicsObject, enabled, &self.names.origin);
             info.current_text_value = Some(format!("{}, {}", x.format_value(self.zero.x, 0.0), y.format_value(self.zero.y, 0.0)));
             info
         });
 
-        if self.interactive {
-            if let Some(guides) = guides {
-                for (response, orientation) in [(&top_response, Orientation::Horizontal), (&left_response, Orientation::Vertical)] {
-                    if response.hovered() || response.dragged() {
-                        ctx.set_cursor_icon(resize_cursor(view, orientation.across()));
-                    }
-                    if response.drag_started() {
-                        Guides::drag_from_ruler(&ctx, guides, orientation);
-                    }
+        if self.interactive
+            && let Some(guides) = guides
+        {
+            for (response, orientation) in [(&top_response, Orientation::Horizontal), (&left_response, Orientation::Vertical)] {
+                if response.hovered() || response.dragged() {
+                    ctx.set_cursor_icon(resize_cursor(view, orientation.across()));
+                }
+                if response.drag_started() {
+                    Guides::drag_from_ruler(&ctx, guides, orientation);
                 }
             }
-            self.corner(ui, &style, view, &corner_response, &mut out);
         }
+        self.corner(ui, &style, view, &corner_response, id, &mut out);
         out
     }
 
@@ -342,14 +387,16 @@ impl<'a> Rulers<'a> {
         }
     }
 
-    /// The corner: dragging the zero point out of it, and its double-click.
-    fn corner(&self, ui: &Ui, style: &RulerStyle, view: &CanvasView, corner: &egui::Response, out: &mut RulersResponse) {
+    /// The zero point: dragged out of the corner, reset by its double-click, and the host's
+    /// commands.
+    fn corner(&self, ui: &Ui, style: &RulerStyle, view: &CanvasView, corner: &egui::Response, id: Id, out: &mut RulersResponse) {
         let ctx = ui.ctx();
         let locked = self.origin_locked || !ui.is_enabled();
-        if !locked && (corner.hovered() || corner.dragged()) {
+        let pointer = self.interactive && !locked;
+        if pointer && (corner.hovered() || corner.dragged()) {
             ctx.set_cursor_icon(CursorIcon::Crosshair);
         }
-        if !locked && corner.double_clicked() {
+        if pointer && corner.double_clicked() {
             out.reset_origin = true;
         }
         let running_key = corner.id.with("running");
@@ -360,7 +407,7 @@ impl<'a> Rulers<'a> {
             // Esc or a change by the host ended it; the rest of the drag does nothing.
             running = false;
         }
-        if corner.drag_started() && !locked {
+        if corner.drag_started() && pointer {
             gesture.begin();
             running = gesture.is_active();
         }
@@ -380,6 +427,17 @@ impl<'a> Rulers<'a> {
                 running = false;
             }
         }
+        // A command waits while a drag runs; the lock drops it.
+        let command =
+            (!running).then(|| ctx.data_mut(|d| d.get_temp::<Command>(command_key(id)).inspect(|_| d.remove::<Command>(command_key(id))))).flatten();
+        if let Some(command) = command
+            && !locked
+        {
+            match command {
+                Command::Reset => out.reset_origin = true,
+                Command::Set(point) => gesture.set(round_zero(point)),
+            }
+        }
         ctx.data_mut(|d| d.insert_temp(running_key, running));
         out.origin = gesture.finish();
     }
@@ -389,15 +447,14 @@ impl<'a> Rulers<'a> {
     fn landing(&self, view: &CanvasView, pointer: Pos2, mods: Modifiers, step_min: f32) -> Point {
         let d = view.to_doc(pointer);
         let (x, y) = self.units;
-        let (px, py) = if mods.shift {
+        let (px, py) = if tick_snap(mods) {
             (x.snap_to_tick(d.x, self.zero.x, view.zoom_x(), step_min), y.snap_to_tick(d.y, self.zero.y, view.zoom, step_min))
         } else if let Some(snap) = &self.snap {
             (snap(Orientation::Vertical, d.x, mods), snap(Orientation::Horizontal, d.y, mods))
         } else {
             (d.x, d.y)
         };
-        let round = |v: f64| (v * ZERO_ROUND).round() / ZERO_ROUND;
-        Point::new(round(px), round(py))
+        round_zero(Point::new(px, py))
     }
 
     /// Cross hairs along the document axes through `at`, drawn like guides so they turn with the
@@ -411,6 +468,16 @@ impl<'a> Rulers<'a> {
             }
         }
     }
+}
+
+fn command_key(rulers: Id) -> Id {
+    rulers.with("craft_ui::canvas::Rulers::command")
+}
+
+/// `p` written to the zero point's decimals.
+fn round_zero(p: Point) -> Point {
+    let round = |v: f64| (v * ZERO_ROUND).round() / ZERO_ROUND;
+    Point::new(round(p.x), round(p.y))
 }
 
 /// The components this module has stories for.
@@ -429,12 +496,21 @@ pub(crate) fn stories() -> Vec<Story> {
     }]
 }
 
+/// A ruler menu's commands in the story.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MenuCommand {
+    Units(&'static str),
+    ResetZero,
+    SetZero,
+}
+
 /// Rulers, guides and a marquee on the story document: drag guides out of the rulers (Alt turns
 /// them), drag the corner to move the zero point (Shift snaps, Esc cancels, double-click resets),
-/// drag a marquee on the canvas; right-click a ruler for its unit.
+/// drag a marquee on the canvas; right-click a ruler for its unit and the zero point commands an
+/// app also has in its menu bar.
 fn show_canvas(ui: &mut Ui, args: &mut Args) {
     use super::guides::GuideHost;
-    use super::{Guide, MarqueeDrag, MarqueeShape};
+    use super::{Guide, GuideNames, MarqueeDrag, MarqueeShape};
     use kurbo::Rect;
 
     let tokens = Tokens::of(ui);
@@ -467,11 +543,10 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
         _ => RulerUnits::pixels(numbers),
     };
 
-    let guides = Guides::new("rulers-story-guides", &host.guides)
+    let guides = Guides::new("rulers-story-guides", &host.guides, &units, &units, GuideNames::new("Guides", "Vertical guide", "Horizontal guide"))
         .selected(host.selected)
         .interactive(args.bool("interactive"))
         .bounds(super::story::DOC)
-        .units(&units, &units)
         .zero(zero)
         .readout("X:", "Y:")
         .show(ui, response, view);
@@ -483,25 +558,36 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
         selection = Some(value.rect());
     }
     if let Some(rect) = marquee.rect.or(selection) {
-        MarqueeShape::Rect.marquee(rect).label("Selection").show(ui, view);
+        MarqueeShape::Rect.marquee(rect, "Selection").bounds_value(&units.numbers, &units.unit).show(ui, response, view);
     }
     host.apply(&guides);
 
-    let rulers = Rulers::new("rulers-story", &units, &units)
+    let locked = args.bool("locked");
+    let rulers = Rulers::new("rulers-story", &units, &units, RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin"))
         .zero(zero)
-        .origin_locked(args.bool("locked"))
+        .origin_locked(locked)
         .interactive(args.bool("interactive"))
         .show(ui, full, view, Some(guides.id));
     let open_menu = rulers.context.map(|_| OpenAt::Pointer(ui.input(|i| i.pointer.interact_pos()).unwrap_or(full.min)));
-    let entries: Vec<MenuEntry<&'static str>> =
-        UNIT_NAMES.iter().map(|&name| MenuItem::new(name, name).radio(name == args.choice("units")).into()).collect();
-    if let Some(name) = ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, response).chosen {
-        args.set_choice("units", name);
+    let mut entries: Vec<MenuEntry<MenuCommand>> =
+        UNIT_NAMES.iter().map(|&name| MenuItem::new(name, MenuCommand::Units(name)).radio(name == args.choice("units")).into()).collect();
+    entries.push(MenuEntry::Separator);
+    entries.push(MenuItem::new("Reset Zero Point", MenuCommand::ResetZero).enabled(!locked).into());
+    entries.push(MenuItem::new("Set Zero Point…", MenuCommand::SetZero).enabled(!locked).into());
+    let dialog_key = key.with("set-zero");
+    match ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, response).chosen {
+        Some(MenuCommand::Units(name)) => args.set_choice("units", name),
+        Some(MenuCommand::ResetZero) => Rulers::reset_zero(ui.ctx(), rulers.id),
+        Some(MenuCommand::SetZero) => ui.data_mut(|d| {
+            d.insert_temp(dialog_key, zero);
+        }),
+        None => {}
     }
+    set_zero_dialog(ui, dialog_key, &units, rulers.id);
     if rulers.reset_origin {
         zero = Point::ZERO;
     }
-    if let Some(EditEvent::Commit { value, .. }) = rulers.origin {
+    if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = rulers.origin {
         zero = value;
     }
 
@@ -517,6 +603,49 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
             }
         }
     });
+}
+
+/// The story's Set Zero Point… dialog while its point is in `key`: X and Y in document pixels,
+/// OK hands the point to the rulers.
+fn set_zero_dialog(ui: &mut Ui, key: Id, units: &RulerUnits, rulers: Id) {
+    use crate::controls::{Button, NumberField};
+
+    let Some(mut point) = ui.data(|d| d.get_temp::<Point>(key)) else { return };
+    let mut done = None;
+    let modal = egui::Modal::new(key.with("modal")).show(ui.ctx(), |ui| {
+        ui.label("Set Zero Point");
+        for (label, value) in [("X", &mut point.x), ("Y", &mut point.y)] {
+            let field = NumberField::new(label, label, *value, &units.numbers).show(ui);
+            if let Some(EditEvent::Commit { value: v, .. } | EditEvent::Set { value: v, .. }) = field.event {
+                *value = v;
+            }
+            if field.submitted {
+                done = Some(true);
+            }
+        }
+        ui.horizontal(|ui| {
+            if ui.add(Button::new("OK")).clicked() {
+                done = Some(true);
+            }
+            if ui.add(Button::new("Cancel")).clicked() {
+                done = Some(false);
+            }
+        });
+    });
+    if modal.should_close() && done.is_none() {
+        done = Some(false);
+    }
+    match done {
+        Some(ok) => {
+            if ok {
+                Rulers::set_zero(ui.ctx(), rulers, point);
+            }
+            ui.data_mut(|d| d.remove::<Point>(key));
+        }
+        None => ui.data_mut(|d| {
+            d.insert_temp(key, point);
+        }),
+    }
 }
 
 #[cfg(test)]

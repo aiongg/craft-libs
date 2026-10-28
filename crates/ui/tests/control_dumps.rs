@@ -537,7 +537,7 @@ fn guide() {
         d.line("color", s.color).line("selected", s.selected).line("smart", s.smart);
         d.line("measure_cap", s.measure_cap).line("measure_pad", s.measure_pad).line("measure_radius", s.measure_radius);
         d.line("measure_role", role(s.measure_role)).line("measure_text", s.measure_text);
-        d.line("focus", s.focus).line("focus_offset", s.focus_offset);
+        d.line("focus", s.focus).line("focus_halo", s.focus_halo).line("focus_offset", s.focus_offset);
     });
 }
 

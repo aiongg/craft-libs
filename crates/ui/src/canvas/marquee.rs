@@ -8,7 +8,7 @@ mod tests;
 use std::time::Duration;
 
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Pos2, Rect as ScreenRect, Response, Shape, Stroke, Ui, pos2};
+use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Pos2, Rect as ScreenRect, Response, Sense, Shape, Stroke, Ui, UiBuilder, WidgetInfo, pos2};
 use kurbo::{Point, Rect};
 
 use super::{CanvasView, Claim, Readout};
@@ -99,14 +99,15 @@ pub(crate) struct Path {
     pub closed: bool,
 }
 
-/// An outline over the document: `Marquee::rect(r).look(MarqueeLook::Ants).label("Selection").show(ui,
-/// &view)`.
+/// An outline over the document: `Marquee::rect(r, "Selection").look(MarqueeLook::Ants)
+/// .bounds_value(&numbers, &unit).show(ui, &canvas, &view)`.
 ///
 /// Shapes are given in document space and mapped through the [`CanvasView`] point by point, so a
 /// rotated view draws the hinted rectangle where the release selects (PhotoCraft #2512). It is in
-/// the AccessKit tree as one graphics object named by [`label`](Marquee::label), valued by
-/// [`value`](Marquee::value) or the bounds, and takes no focus or input. With reduced motion the
-/// ants stand still and ask for no repaints.
+/// the AccessKit tree as one graphics object inside the host's canvas node, named by the host's
+/// label and valued by [`value`](Marquee::value) or [`bounds_value`](Marquee::bounds_value), one
+/// of which the host gives. It takes no focus or input. With reduced motion the ants stand still
+/// and ask for no repaints.
 #[derive(Clone, Debug)]
 pub struct Marquee {
     outline: Outline,
@@ -117,29 +118,30 @@ pub struct Marquee {
 }
 
 impl Marquee {
-    fn new(outline: Outline) -> Self {
-        Self { outline, look: MarqueeLook::Ants, label: String::new(), value: None, id_salt: None }
+    fn new(outline: Outline, label: impl Into<String>) -> Self {
+        Self { outline, look: MarqueeLook::Ants, label: label.into(), value: None, id_salt: None }
     }
 
-    /// A rectangle.
-    pub fn rect(rect: Rect) -> Self {
-        Marquee::new(Outline::Rect(rect))
+    /// A rectangle, named `label` (the host's translated text, e.g. "Selection").
+    pub fn rect(rect: Rect, label: impl Into<String>) -> Self {
+        Marquee::new(Outline::Rect(rect), label)
     }
 
-    /// The ellipse inscribed in `rect`.
-    pub fn ellipse(rect: Rect) -> Self {
-        Marquee::new(Outline::Ellipse(rect))
+    /// The ellipse inscribed in `rect`, named `label`.
+    pub fn ellipse(rect: Rect, label: impl Into<String>) -> Self {
+        Marquee::new(Outline::Ellipse(rect), label)
     }
 
-    /// A closed polygon (an open path in the [`Drawing`](MarqueeLook::Drawing) look).
-    pub fn polygon(points: impl IntoIterator<Item = Point>) -> Self {
-        Marquee::new(Outline::Polygon(points.into_iter().collect()))
+    /// A closed polygon (an open path in the [`Drawing`](MarqueeLook::Drawing) look), named
+    /// `label`.
+    pub fn polygon(points: impl IntoIterator<Item = Point>, label: impl Into<String>) -> Self {
+        Marquee::new(Outline::Polygon(points.into_iter().collect()), label)
     }
 
-    /// Separate segments, such as a traced outline's edges. Slanted ends snap to pixel centres in
-    /// the ants look, so the steps of a staircase meet.
-    pub fn segments(segments: impl IntoIterator<Item = (Point, Point)>) -> Self {
-        Marquee::new(Outline::Segments(segments.into_iter().collect()))
+    /// Separate segments, such as a traced outline's edges, named `label`. Slanted ends snap to
+    /// pixel centres in the ants look, so the steps of a staircase meet.
+    pub fn segments(segments: impl IntoIterator<Item = (Point, Point)>, label: impl Into<String>) -> Self {
+        Marquee::new(Outline::Segments(segments.into_iter().collect()), label)
     }
 
     /// How it is drawn; marching ants by default.
@@ -148,14 +150,7 @@ impl Marquee {
         self
     }
 
-    /// The accessible name, the host's translated text, e.g. "Selection".
-    pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
-        self
-    }
-
-    /// The accessible value, the host's translated text. Without it the value is the bounds,
-    /// "W × H (X, Y)", in document units.
+    /// The accessible value, the host's translated text.
     pub fn value(mut self, value: impl Into<String>) -> Self {
         self.value = Some(value.into());
         self
@@ -167,7 +162,7 @@ impl Marquee {
         self
     }
 
-    /// A stable id for a marquee whose position in the call order changes.
+    /// Tells marquees shown on one canvas apart.
     pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
         self.id_salt = Some(IdSalt::new(id_salt));
         self
@@ -212,8 +207,9 @@ impl Marquee {
         }
     }
 
-    /// Draws the outline over the canvas and describes it to assistive technology.
-    pub fn show(self, ui: &mut Ui, view: &CanvasView) {
+    /// Draws the outline over `view` and describes it to assistive technology inside the host's
+    /// `canvas` node.
+    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) {
         let tokens = Tokens::of(ui);
         let style = Marquee::style(&tokens);
         let paths = self.paths(view, self.look);
@@ -247,35 +243,24 @@ impl Marquee {
                 }
             }
         }
-        self.describe(ui, view, &paths);
+        self.describe(ui, canvas, view, &paths);
     }
 
-    fn describe(&self, ui: &mut Ui, view: &CanvasView, paths: &[Path]) {
-        let id = match self.id_salt {
-            Some(salt) => ui.make_persistent_id(salt),
-            None => {
-                let id = ui.next_auto_id();
-                ui.skip_ahead_auto_ids(1);
-                id
-            }
-        };
+    /// The AccessKit node: a hover-only widget over the outline's screen bounds, a child of the
+    /// canvas node.
+    fn describe(&self, ui: &mut Ui, canvas: &Response, view: &CanvasView, paths: &[Path]) {
+        debug_assert!(!self.label.trim().is_empty(), "a marquee needs the host's name");
+        debug_assert!(self.value.is_some(), "a marquee needs the host's value: Marquee::value or Marquee::bounds_value");
+        let id = canvas.id.with("craft_ui::canvas::Marquee").with_salt(self.id_salt.unwrap_or_else(|| IdSalt::new("marquee")));
         let screen = paths.iter().flat_map(|p| p.points.iter().copied()).collect::<Vec<_>>();
         let bounds = ScreenRect::from_points(&screen).intersect(view.rect);
-        let value = self.value.clone().unwrap_or_else(|| bounds_text(self.bounds(), &LocaleNumbers::from_tag("en"), &Unit::default()));
-        ui.ctx().accesskit_node_builder(id, |node| {
-            node.set_role(Role::GraphicsObject);
-            if !self.label.is_empty() {
-                node.set_label(self.label.as_str());
-            }
-            node.set_value(value);
-            if bounds.is_positive() {
-                node.set_bounds(egui::accesskit::Rect {
-                    x0: bounds.min.x.into(),
-                    y0: bounds.min.y.into(),
-                    x1: bounds.max.x.into(),
-                    y1: bounds.max.y.into(),
-                });
-            }
+        let rect = if bounds.is_positive() { bounds } else { ScreenRect::from_center_size(view.rect.center(), egui::Vec2::ZERO) };
+        let nodes = ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
+        let response = nodes.interact(rect, id, Sense::hover());
+        response.widget_info(|| {
+            let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), &self.label);
+            info.current_text_value.clone_from(&self.value);
+            info
         });
     }
 }
@@ -349,11 +334,11 @@ pub enum MarqueeShape {
 }
 
 impl MarqueeShape {
-    /// The marquee that draws `rect` as this shape.
-    pub fn marquee(self, rect: Rect) -> Marquee {
+    /// The marquee named `label` that draws `rect` as this shape.
+    pub fn marquee(self, rect: Rect, label: impl Into<String>) -> Marquee {
         match self {
-            MarqueeShape::Rect => Marquee::rect(rect),
-            MarqueeShape::Ellipse => Marquee::ellipse(rect),
+            MarqueeShape::Rect => Marquee::rect(rect, label),
+            MarqueeShape::Ellipse => Marquee::ellipse(rect, label),
         }
     }
 }
@@ -436,7 +421,7 @@ pub struct MarqueeResponse {
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
 /// let drag = MarqueeDrag::new("rect-marquee").show(ui, &canvas, &view);
 /// if let Some(r) = drag.rect {
-///     Marquee::rect(r).label("Selection").show(ui, &view);
+///     Marquee::rect(r, "Selection").value(format!("{:.0} × {:.0}", r.width(), r.height())).show(ui, &canvas, &view);
 /// }
 /// # });
 /// ```
@@ -504,9 +489,9 @@ impl<'a> MarqueeDrag<'a> {
         self
     }
 
-    /// The marquee that draws `rect` as this gesture's shape.
-    pub fn marquee(&self, rect: Rect) -> Marquee {
-        self.shape.marquee(rect)
+    /// The marquee named `label` that draws `rect` as this gesture's shape.
+    pub fn marquee(&self, rect: Rect, label: impl Into<String>) -> Marquee {
+        self.shape.marquee(rect, label)
     }
 
     fn snapped(&self, p: Point, modifiers: Modifiers) -> Point {
@@ -663,7 +648,8 @@ fn show_drag(ui: &mut Ui, args: &mut Args) {
     // The marquee being dragged stands in for the selection until it commits.
     let shown = result.rect.or(selection);
     if let Some(rect) = shown {
-        shape.marquee(rect).look(look).label("Selection").show(ui, view);
+        let numbers = LocaleNumbers::from_tag("en");
+        shape.marquee(rect, "Selection").look(look).bounds_value(&numbers, &Unit::new("{n} px")).show(ui, response, view);
     }
     if let (Some(rect), Some(pointer)) = (result.rect, response.interact_pointer_pos()) {
         Readout::new("marquee-story-size")

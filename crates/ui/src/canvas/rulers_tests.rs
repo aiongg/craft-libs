@@ -4,9 +4,9 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
-use super::{RulerPart, Rulers};
+use super::{RulerNames, RulerPart, Rulers};
 use crate::canvas::guides::GuideHost;
-use crate::canvas::{CanvasView, GuidePlace, Guides, Orientation, RulerUnits};
+use crate::canvas::{CanvasView, GuideNames, GuidePlace, Guides, Orientation, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
@@ -27,6 +27,9 @@ struct Host {
     resets: usize,
     contexts: Vec<RulerPart>,
     guide_events: Vec<(Option<u64>, EditEvent<GuidePlace>)>,
+    /// The host's Set Zero Point… and Reset Zero Point commands, run after the rulers.
+    set_zero: Option<Point>,
+    reset_zero: bool,
 }
 
 impl Host {
@@ -44,6 +47,8 @@ impl Host {
             resets: 0,
             contexts: Vec::new(),
             guide_events: Vec::new(),
+            set_zero: None,
+            reset_zero: false,
         }
     }
 }
@@ -59,21 +64,28 @@ fn harness(host: Host) -> Harness<'static, Host> {
             let view = CanvasView { rotation: host.rotation, flip_x: host.flip, ..CanvasView::new(content, center, host.zoom) };
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
-            let guides = Guides::new("guides", &host.guides.guides)
+            let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+            let guides = Guides::new("guides", &host.guides.guides, &px, &px, names)
                 .selected(host.guides.selected)
                 .interactive(true)
                 .bounds(Rect::new(0.0, 0.0, f64::from(host.canvas.x), f64::from(host.canvas.y)))
-                .units(&px, &px)
                 .zero(host.zero)
                 .show(ui, &canvas, &view);
             host.guide_events.extend(guides.event.clone());
             host.guides.apply(&guides);
-            let rulers = Rulers::new("rulers", &px, &px).zero(host.zero).origin_locked(host.locked).show(ui, full, &view, Some(guides.id));
+            let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+            let rulers = Rulers::new("rulers", &px, &px, names).zero(host.zero).origin_locked(host.locked).show(ui, full, &view, Some(guides.id));
             host.origin.extend(rulers.origin.clone());
             host.resets += usize::from(rulers.reset_origin);
             host.contexts.extend(rulers.context);
-            if let Some(EditEvent::Commit { value, .. }) = rulers.origin {
+            if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = rulers.origin {
                 host.zero = value;
+            }
+            if let Some(point) = host.set_zero.take() {
+                Rulers::set_zero(ui.ctx(), rulers.id, point);
+            }
+            if std::mem::take(&mut host.reset_zero) {
+                Rulers::reset_zero(ui.ctx(), rulers.id);
             }
         },
         host,
@@ -167,7 +179,13 @@ fn tick_steps_and_labels_follow_photocraft() {
     assert_eq!(pixels.tick_label(12.6, 5.0), "13", "whole pixels");
     assert_eq!(pixels.tick_label(1200.0, 100.0), "1200", "ungrouped");
     assert_eq!(units.tick_label(-0.25, 0.25), "0.25");
-    assert_eq!(units.tick_label(0.5, 0.5), "0.50");
+    assert_eq!(units.tick_label(0.5, 0.5), "0.5");
+    // As many decimals as the step: 2.5-unit steps (millimetres at about 700 %) keep their half.
+    assert_eq!(units.tick_label(2.5, 2.5), "2.5");
+    assert_eq!(units.tick_label(-7.5, 2.5), "7.5");
+    assert_eq!(units.tick_label(5.0, 2.5), "5.0");
+    assert_eq!(units.tick_label(0.75, 0.25), "0.75");
+    assert_eq!(units.tick_label(0.025, 0.025), "0.025");
     assert_eq!(units.tick_label(-30.0, 10.0), "30", "whole when the step is at least 1");
     for step in [100.0, 0.25] {
         let mut v = -1000.0;
@@ -409,6 +427,9 @@ fn the_story_switches_units_from_the_menu_a_secondary_click_opens_at_the_pointer
     }
     h.run_steps(3);
     let inches = h.get_by_label("Inches").rect();
+    // The zero point commands an app also has in its menu bar.
+    h.get_by_label("Reset Zero Point");
+    h.get_by_label("Set Zero Point…");
     assert!((inches.left() - at.x).abs() < 40.0 && inches.top() >= at.y - 2.0, "the menu is at the pointer: {inches:?} for {at:?}");
     assert_eq!(h.get_by_label("Pixels").accesskit_node().data().toggled(), Some(accesskit::Toggled::True), "the current unit is checked");
     let to = inches.center();
@@ -421,4 +442,68 @@ fn the_story_switches_units_from_the_menu_a_secondary_click_opens_at_the_pointer
     h.run_steps(3);
     assert_eq!(h.state().choice("units"), "Inches");
     assert_eq!(h.get_by_label("Horizontal ruler").accesskit_node().data().value(), Some("in"));
+}
+
+/// Queues `events` into one frame, as winit delivers a quick gesture, and runs it.
+fn frame(h: &mut Harness<'_, Host>, events: impl IntoIterator<Item = Event>) {
+    h.input_mut().events.extend(events);
+    h.step();
+}
+
+#[test]
+fn a_quick_zero_point_drag_with_its_press_and_moves_in_one_frame() {
+    let mut h = harness(Host::new());
+    h.run();
+    let (start, target) = (corner(&h), view(&h).to_screen(Point::new(100.0, 40.0)));
+    // egui gives a press to the widget under the frame's last pointer position, so the moves of
+    // the press frame stay on the corner.
+    frame(
+        &mut h,
+        [
+            Event::PointerMoved(start),
+            button(start, true, Modifiers::NONE),
+            Event::PointerMoved(start + vec2(3.0, 3.0)),
+            Event::PointerMoved(start + vec2(5.0, 5.0)),
+        ],
+    );
+    frame(&mut h, [Event::PointerMoved(start + vec2(40.0, 30.0)), Event::PointerMoved(target)]);
+    frame(&mut h, [Event::PointerMoved(target + vec2(1.0, 1.0)), Event::PointerMoved(target), button(target, false, Modifiers::NONE)]);
+    h.run();
+    assert!(near(h.state().zero, Point::new(100.0, 40.0)), "{:?} after {:?}", h.state().zero, kinds(&h));
+    assert_eq!((kinds(&h).first(), kinds(&h).last()), (Some(&"begin"), Some(&"commit")));
+}
+
+#[test]
+fn the_hosts_zero_point_commands_report_like_the_corner() {
+    let mut h = harness(Host { zero: Point::new(100.0, 40.0), ..Host::new() });
+    h.run();
+    h.state_mut().set_zero = Some(Point::new(12.34567, 7.0));
+    h.run();
+    assert_eq!(kinds(&h), ["set"]);
+    assert_eq!(h.state().zero, Point::new(12.346, 7.0), "written to the zero point's decimals");
+    h.state_mut().reset_zero = true;
+    h.run();
+    assert_eq!(h.state().resets, 1);
+    // Locked: the commands do nothing.
+    h.state_mut().locked = true;
+    h.state_mut().set_zero = Some(Point::new(50.0, 50.0));
+    h.state_mut().reset_zero = true;
+    h.run();
+    assert_eq!((kinds(&h).len(), h.state().resets, h.state().zero), (1, 1, Point::new(12.346, 7.0)));
+}
+
+#[test]
+fn left_ruler_labels_sit_at_their_level_positions_in_flipped_and_rotated_views() {
+    let pad = crate::theme::current(&egui::Context::default()).component.ruler.label_pad;
+    for (rotation, flip) in [(0.0, true), (30.0, true), (90.0, false), (90.0, true)] {
+        let host = Host { rotation, flip, zero: Point::new(100.0, 40.0), ..Host::new() };
+        let mut h = harness(host);
+        h.run_steps(2);
+        let v = view(&h);
+        let at = v.to_screen(Point::new(100.0, 40.0));
+        let left: Vec<(String, Pos2)> = labels(&h).into_iter().filter(|(_, p)| p.x < v.rect.min.x && p.y > v.rect.min.y).collect();
+        let first_char = |text: &str, y: f32| left.iter().any(|(t, p)| t == text && (p.y - (y + pad)).abs() < 1.0);
+        assert!(first_char("0", at.y), "rotation {rotation}, flip {flip}: 0 at the zero point's level: {left:?}");
+        assert!(first_char("1", at.y + 100.0), "rotation {rotation}, flip {flip}: 100 below it: {left:?}");
+    }
 }

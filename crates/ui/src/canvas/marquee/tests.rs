@@ -18,7 +18,7 @@ fn a_rotated_view_draws_the_rectangle_where_it_maps() {
     let r = Rect::new(150.0, 100.0, 260.0, 190.0);
     for rotation in [0.0, 30.0, 90.0, -119.0] {
         let view = view(rotation);
-        let paths = Marquee::rect(r).paths(&view, MarqueeLook::Ants);
+        let paths = Marquee::rect(r, "Selection").value("selection").paths(&view, MarqueeLook::Ants);
         assert_eq!(paths.len(), 1);
         assert!(paths[0].closed);
         assert_eq!(paths[0].points, view.quad(r).to_vec(), "rotation {rotation}");
@@ -30,7 +30,7 @@ fn an_ellipse_is_inscribed_in_the_rectangle_however_the_view_turns() {
     let r = Rect::new(150.0, 100.0, 290.0, 200.0);
     for (rotation, flip) in [(0.0, false), (0.0, true), (90.0, false), (30.0, false), (-119.0, true)] {
         let view = CanvasView { flip_x: flip, ..view(rotation) };
-        let points = &Marquee::ellipse(r).paths(&view, MarqueeLook::Ants)[0].points;
+        let points = &Marquee::ellipse(r, "Selection").paths(&view, MarqueeLook::Ants)[0].points;
         assert!(points.len() >= 16 && points.len() <= 256);
         let c = r.center();
         for p in points {
@@ -46,9 +46,9 @@ fn an_ellipse_is_inscribed_in_the_rectangle_however_the_view_turns() {
 fn a_drawn_polygon_is_open_and_traced_segments_are_separate() {
     let view = view(0.0);
     let points = [Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)];
-    assert!(Marquee::polygon(points).paths(&view, MarqueeLook::Ants)[0].closed);
-    assert!(!Marquee::polygon(points).paths(&view, MarqueeLook::Drawing)[0].closed);
-    assert_eq!(Marquee::segments([(points[0], points[1]), (points[1], points[2])]).paths(&view, MarqueeLook::Ants).len(), 2);
+    assert!(Marquee::polygon(points, "Lasso").paths(&view, MarqueeLook::Ants)[0].closed);
+    assert!(!Marquee::polygon(points, "Lasso").paths(&view, MarqueeLook::Drawing)[0].closed);
+    assert_eq!(Marquee::segments([(points[0], points[1]), (points[1], points[2])], "Selection").paths(&view, MarqueeLook::Ants).len(), 2);
 }
 
 /// A context with the suite default, reduced motion or not.
@@ -70,8 +70,9 @@ fn draw(ctx: &Context, time: f64, marquee: Marquee, view: &CanvasView) -> (Vec<S
     let input = RawInput { screen_rect: Some(SCREEN), time: Some(time), ..RawInput::default() };
     let mut marquee = Some(marquee);
     let mut output = ctx.run_ui(input, |ui| {
+        let canvas = ui.allocate_rect(view.rect, Sense::hover());
         if let Some(m) = marquee.take() {
-            m.show(ui, view);
+            m.show(ui, &canvas, view);
         }
     });
     output.textures_delta.clear();
@@ -97,9 +98,12 @@ fn the_ants_cover_the_mapped_rectangle_and_march_until_reduced_motion_stops_them
     // Frames after the first, once the context has settled and asks only for what is drawn.
     let frames = |ctx: &Context| {
         for k in 0..3 {
-            draw(ctx, 0.01 * f64::from(k), Marquee::rect(r), &view);
+            draw(ctx, 0.01 * f64::from(k), Marquee::rect(r, "Selection").value("selection"), &view);
         }
-        (draw(ctx, 0.1, Marquee::rect(r), &view), draw(ctx, 0.4, Marquee::rect(r), &view))
+        (
+            draw(ctx, 0.1, Marquee::rect(r, "Selection").value("selection"), &view),
+            draw(ctx, 0.4, Marquee::rect(r, "Selection").value("selection"), &view),
+        )
     };
     let ((first, _), (later, delay)) = frames(&motion_context(false));
     assert!(!first.is_empty());
@@ -121,7 +125,7 @@ fn the_band_and_the_drawing_looks_use_the_marquee_colours() {
     let view = view(0.0);
     let r = Rect::new(150.0, 100.0, 260.0, 190.0);
     let colours = |look| -> Vec<Color32> {
-        let (shapes, _) = draw(&ctx, 0.0, Marquee::rect(r).look(look), &view);
+        let (shapes, _) = draw(&ctx, 0.0, Marquee::rect(r, "Selection").value("selection").look(look), &view);
         shapes
             .iter()
             .filter_map(|s| match s {
@@ -142,28 +146,49 @@ fn the_band_and_the_drawing_looks_use_the_marquee_colours() {
 }
 
 #[test]
-fn the_marquee_is_a_graphics_object_with_a_name_and_a_value() {
+fn the_marquee_is_a_graphics_object_inside_the_canvas_node_with_the_hosts_name_and_value() {
+    use crate::localized::{LocaleNumbers, Unit};
     let ctx = motion_context(false);
     ctx.enable_accesskit();
     let view = view(0.0);
-    let mut nodes = Vec::new();
+    let numbers = LocaleNumbers::from_tag("de");
+    let unit = Unit::new("{n} px");
+    let mut found = Vec::new();
     for marquee in [
-        Marquee::rect(Rect::new(10.0, 20.0, 110.0, 70.0)).label("Selection"),
-        Marquee::rect(Rect::new(0.0, 0.0, 5.0, 5.0)).label("Named").value("five by five"),
+        Marquee::rect(Rect::new(10.0, 20.0, 110.5, 70.0), "Auswahl").bounds_value(&numbers, &unit),
+        Marquee::rect(Rect::new(0.0, 0.0, 5.0, 5.0), "Named").value("five by five"),
     ] {
         let mut marquee = Some(marquee);
+        let mut canvas_id = Id::NULL;
         let output = ctx.run_ui(RawInput { screen_rect: Some(SCREEN), ..RawInput::default() }, |ui| {
+            let canvas = ui.allocate_rect(view.rect, Sense::click_and_drag());
+            canvas.widget_info(|| egui::WidgetInfo::labeled(egui::accesskit::Role::Canvas, true, "Document"));
+            canvas_id = canvas.id;
             if let Some(m) = marquee.take() {
-                m.show(ui, &view);
+                m.show(ui, &canvas, &view);
             }
         });
         let update = output.platform_output.accesskit_update.clone().expect("accesskit update");
         output.drop_without_applying_deltas();
-        nodes.extend(update.nodes.into_iter().map(|(_, n)| n).filter(|n| n.role() == egui::accesskit::Role::GraphicsObject));
+        let object = update
+            .nodes
+            .iter()
+            .find(|(_, n)| n.role() == egui::accesskit::Role::GraphicsObject)
+            .map(|(id, n)| (*id, n.clone()))
+            .expect("a graphics object");
+        // The object hangs below the canvas node (through egui's container of the child `Ui`).
+        let parent_of = |child: egui::accesskit::NodeId| update.nodes.iter().find(|(_, n)| n.children().contains(&child)).map(|(id, _)| *id);
+        let mut ancestors = Vec::new();
+        let mut at = object.0;
+        while let Some(parent) = parent_of(at) {
+            ancestors.push(parent);
+            at = parent;
+        }
+        assert!(ancestors.contains(&canvas_id.accesskit_id()), "inside the canvas node: {ancestors:?}");
+        found.push((object.1.label().map(str::to_owned), object.1.value().map(str::to_owned)));
     }
-    assert_eq!(nodes[0].label(), Some("Selection"));
-    assert_eq!(nodes[0].value(), Some("100 × 50 (10, 20)"));
-    assert_eq!((nodes[1].label(), nodes[1].value()), (Some("Named"), Some("five by five")));
+    assert_eq!(found[0], (Some("Auswahl".to_owned()), Some("100,5 px × 50 px (10 px, 20 px)".to_owned())));
+    assert_eq!(found[1], (Some("Named".to_owned()), Some("five by five".to_owned())));
 }
 
 #[test]
@@ -398,4 +423,28 @@ fn another_overlay_that_owns_the_press_keeps_the_marquee_out() {
     assert_eq!(out, Some(MarqueeResponse::default()));
     let moved = h.drag(A + vec2(40.0, 30.0));
     assert_eq!((moved.event, moved.rect), (None, None));
+}
+
+#[test]
+fn a_press_and_moves_in_one_frame_begin_the_drag_in_that_frame() {
+    let mut h = Harness::new();
+    let first = h.pass(vec![
+        Event::PointerMoved(A),
+        button(A, true, Modifiers::NONE),
+        Event::PointerMoved(A + vec2(20.0, 10.0)),
+        Event::PointerMoved(A + vec2(40.0, 30.0)),
+    ]);
+    assert!(matches!(first.event, Some(EditEvent::Begin { .. })), "{:?}", first.event);
+    assert_eq!(corners(&first), [100.0, 100.0, 140.0, 130.0]);
+    assert!(h.owned);
+    // Moves and the release in one frame: the commit is at the release.
+    let end = h.pass(vec![
+        Event::PointerMoved(A + vec2(50.0, 40.0)),
+        Event::PointerMoved(A + vec2(60.0, 50.0)),
+        button(A + vec2(60.0, 50.0), false, Modifiers::NONE),
+    ]);
+    match end.event {
+        Some(EditEvent::Commit { value, .. }) => assert_eq!((value.a, value.b), (Point::new(100.0, 100.0), Point::new(160.0, 150.0))),
+        other => panic!("{other:?}"),
+    }
 }
