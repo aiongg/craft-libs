@@ -157,6 +157,38 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
     assert_eq!((c.bar, c.bar_gap, c.hit, c.drag_off), (scaled(8.0), scaled(4.0), scaled(9.0), scaled(12.0)));
 }
 
+#[test]
+fn levels_defaults_come_from_semantic_tokens_and_the_thumb_edge_meets_the_indicator_minimum_in_every_builtin() {
+    let edge = ComponentField::Levels(LevelsField::ThumbEdge);
+    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Levels(_)))).collect();
+    assert_eq!(
+        listed.iter().map(|p| (p.fg, p.bg, p.minimum)).collect::<Vec<_>>(),
+        [(TokenRef::Component(edge), TokenRef::Color(T::SurfacePanel), (3.0, 4.5))]
+    );
+    for theme in builtins() {
+        for a in appearances().into_iter().filter(|a| a.text_size == TextSize::default()) {
+            let r = resolve(theme, a, None);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            let ratio = pair_ratio(&r.tokens, edge, None);
+            assert!(ratio >= min, "{} {a:?}: levels.thumb_edge on surface.panel is {ratio:.2}, needs {min}", theme.id);
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let l = &t.component.levels;
+    assert_eq!((l.thumb_edge, l.disabled_edge), (t.color(T::TextMuted), t.color(T::TextDisabled)));
+    let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
+    assert_eq!(l.ring, States::new(clear, soft, soft, clear));
+    // The Compact sizes scale with the control height.
+    let k = t.size.control.md / 24.0;
+    let scaled = |v: f32| (v * k).round();
+    assert_eq!((l.min_width, l.max_width, l.row, l.bar), (scaled(120.0), scaled(300.0), scaled(14.0), scaled(8.0)));
+    assert_eq!((l.thumb_width, l.thumb_height, l.hit), (scaled(11.0), scaled(9.0), scaled(7.0)));
+    assert_eq!(ComponentField::from_path("levels.ring.hover"), Some(ComponentField::Levels(LevelsField::Ring(State::Hover))));
+    assert_eq!(ComponentField::from_path("levels.thumb_edge"), Some(edge));
+    assert_eq!(ComponentField::from_path("levels.row"), None, "sizes are not overridable");
+}
+
 /// The channel colours a curve is drawn in are checked on `curve.fill`, not only on the surface
 /// it defaults to: a pinned fill that hides them warns, and high contrast moves the fill.
 #[test]

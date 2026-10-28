@@ -609,6 +609,24 @@ pub const CURVE_OTHER_WIDTH: f32 = 1.0;
 /// Opacity of the other channels' curves behind the edited one.
 pub const CURVE_OTHER_ALPHA: f32 = 0.8;
 
+/// The control height the Compact levels editor sizes are set for.
+pub const LEVELS_BASE_CONTROL: f32 = 24.0;
+/// Compact least width of a levels editor (EffectCraft's Effect Controls).
+pub const LEVELS_MIN_WIDTH: f32 = 120.0;
+/// Compact greatest width of a levels editor (PhotoCraft's Levels).
+pub const LEVELS_MAX_WIDTH: f32 = 300.0;
+/// Compact height of a levels editor's row of triangle thumbs.
+pub const LEVELS_ROW: f32 = 14.0;
+/// Compact width of a levels triangle thumb.
+pub const LEVELS_THUMB_WIDTH: f32 = 11.0;
+/// Compact height of a levels triangle thumb.
+pub const LEVELS_THUMB_HEIGHT: f32 = 9.0;
+/// Compact distance from a levels thumb's centre within which a press grabs it: half of a 14 pt
+/// hit area.
+pub const LEVELS_HIT: f32 = 7.0;
+/// Compact thickness of a levels editor's output gradient bar, as a curve editor's bars.
+pub const LEVELS_BAR: f32 = 8.0;
+
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).

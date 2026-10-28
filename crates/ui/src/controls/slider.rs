@@ -433,6 +433,13 @@ impl Track {
         Self { rect, x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
     }
 
+    /// A track on `rect` for thumbs of another look: a thumb centre runs from `inset` inside the
+    /// start to `inset` inside the end, and a press within `reach` of it grabs the thumb. It has
+    /// no bar.
+    pub fn inset(rect: Rect, inset: f32, reach: f32, scale: Scale) -> Self {
+        Self { rect, x0: rect.left() + inset, x1: rect.right() - inset, y: rect.center().y, reach, scale, track_height: 0.0 }
+    }
+
     /// The thumb centre's x for `value`, as [placed](Scale::place).
     pub fn x_of(&self, value: f64) -> f32 {
         egui::lerp(self.x0..=self.x1, self.scale.fraction(self.scale.place(value)))
@@ -556,11 +563,15 @@ pub(crate) struct Sensing {
     pub dragging: bool,
     /// The wheel steps the control; off for one the wheel never steps, so the panel scrolls.
     pub wheel: bool,
+    /// The arrow keys, Page keys and the wheel move the thumb the way they point while its value
+    /// falls to the right (a levels gamma thumb): Right lowers the value, and Home goes to the
+    /// upper bound. Screen-reader requests act on the value as ever.
+    pub falling: bool,
 }
 
 impl Sensing {
     pub fn of(response: &Response) -> Self {
-        Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged(), wheel: true }
+        Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged(), wheel: true, falling: false }
     }
 }
 
@@ -580,6 +591,7 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
         delta += step * field_wheel::notches(ui, id.with("craft_ui::slider::unfocused"), false, rect, sensing.enabled && !sensing.dragging, 10.0);
     }
     let mut to = None;
+    let ends = if sensing.falling { (bounds.1, bounds.0) } else { bounds };
     if focused {
         ui.input_mut(|i| {
             let mut count = |modifiers, key| i.count_and_consume_key(modifiers, key) as f64;
@@ -589,12 +601,15 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
             }
             delta += page * (count(Modifiers::NONE, Key::PageUp) - count(Modifiers::NONE, Key::PageDown));
             if count(Modifiers::NONE, Key::Home) > 0.0 {
-                to = Some(bounds.0);
+                to = Some(ends.0);
             }
             if count(Modifiers::NONE, Key::End) > 0.0 {
-                to = Some(bounds.1);
+                to = Some(ends.1);
             }
         });
+    }
+    if sensing.falling {
+        delta = -delta;
     }
     if sensing.enabled {
         ui.input(|i| {

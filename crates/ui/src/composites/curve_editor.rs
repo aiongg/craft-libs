@@ -993,7 +993,7 @@ impl StrokeEdit<'_> {
 }
 
 /// A gradient bar from `dark` to `light`: left to right, or bottom to top when `vertical`.
-fn gradient(rect: Rect, dark: Color32, light: Color32, vertical: bool) -> Shape {
+pub(super) fn gradient(rect: Rect, dark: Color32, light: Color32, vertical: bool) -> Shape {
     let mut mesh = Mesh::default();
     let (a, b, c, d) = match vertical {
         true => (rect.left_bottom(), rect.right_bottom(), rect.right_top(), rect.left_top()),
@@ -1076,7 +1076,7 @@ fn story_curves(ui: &Ui, key: &str, initial: impl FnOnce() -> Vec<Curve>) -> (Id
 }
 
 /// Sample bins of an image's channel: two hills, the channel's mean shifted by `shift`.
-fn story_bins(shift: f32) -> Vec<u32> {
+pub(super) fn story_bins(shift: f32) -> Vec<u32> {
     (0..256)
         .map(|k| {
             let x = k as f32;
