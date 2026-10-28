@@ -1,8 +1,8 @@
 //! [`Gesture`]: the state machine a value control embeds to report [`EditEvent`]s.
 
-use egui::{Context, EventFilter, Id, Key, Modifiers, Ui};
+use egui::{Context, EventFilter, Id, Key, LayerId, Modifiers, Ui, ViewportId};
 
-use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRate, in_scope, mark_live};
+use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, UpdateRate, in_scope, live};
 
 /// The edit state of one value control: idle, or active with a start value and a [`GestureId`].
 ///
@@ -32,7 +32,8 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRat
 ///         gesture.commit();
 ///     }
 ///     ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, gesture.shown().to_string(), Default::default(), ui.visuals().text_color());
-///     EditResponse { response, event: gesture.finish() }
+///     let event = gesture.finish();
+///     EditResponse::new(response, event)
 /// }
 /// # egui::__run_test_ui(|ui| { let _ = drag_value(ui, 1.0, EditPolicy::default()); });
 /// ```
@@ -43,23 +44,27 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRat
 /// - [`update`](Gesture::update) while active; updates go out at the policy's [`UpdateRate`],
 ///   none with [`on_release_only`](EditPolicy::on_release_only).
 /// - [`commit`](Gesture::commit) on release or Enter, and on focus loss unless the control
-///   [cancels on it](Gesture::cancel_on_focus_loss).
+///   [cancels on it](Gesture::cancel_on_focus_loss). The commit goes out in the same frame and
+///   carries the final value, which an update may not have carried.
 /// - [`load`](Gesture::load) cancels on Esc (and consumes it, so later widgets and the control's
 ///   own commit on egui's `drag_stopped` don't see it) when the policy is
-///   [`cancellable`](EditPolicy::cancellable), and on [`cancel_all`](super::cancel_all).
+///   [`cancellable`](EditPolicy::cancellable) and no modal layer is above the control; on
+///   [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
+///   gesture's updates ([`CancelReason::External`]).
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
-/// - A control that is not drawn in a pass loses its gesture ([`CancelReason::Removed`], see
-///   [`is_live`](super::is_live)) and starts idle when it is drawn again.
+/// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
+///   and starts idle when it is drawn again.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
-/// [`Set`](EditEvent::Set) (nothing when the value didn't change); an update that is due when the
-/// gesture commits goes out first and the commit follows in the next frame (a repaint is
-/// requested). Inside a [`scope`](super::scope) only updates go out.
+/// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
+/// [`scope`](super::scope) only updates go out.
 #[derive(Debug)]
+#[must_use = "finish the gesture to store it and get the frame's event"]
 pub struct Gesture<T> {
     ctx: Context,
     widget: Id,
     key: Id,
+    layer: LayerId,
     /// The host's value this frame.
     host: T,
     policy: EditPolicy,
@@ -70,6 +75,8 @@ pub struct Gesture<T> {
     stored: Stored<T>,
     /// A cancel to report this frame.
     cancelled: Option<Cancelled>,
+    /// A gesture that ended this frame: its live entry goes.
+    ended: Option<GestureId>,
 }
 
 /// The part kept in egui memory between frames.
@@ -77,15 +84,19 @@ pub struct Gesture<T> {
 struct Stored<T> {
     phase: Phase<T>,
     /// A one-shot value not reported yet (it waits a frame when a cancel goes out first).
-    set: Option<T>,
-    /// The pass that last loaded the gesture. A control missing from a pass has been removed:
-    /// its state is dropped, and the host learns of it with [`is_live`](super::is_live).
+    set: Option<(T, Modifiers)>,
+    /// The viewport and its pass that last loaded the gesture. A control missing from a pass has
+    /// been removed: its state is dropped, and the host learns of it with
+    /// [`is_live`](super::is_live).
+    viewport: ViewportId,
     pass: u64,
+    /// Whether the gesture set the focus filter with Esc in it, to put the control's own back.
+    escape_locked: bool,
 }
 
 impl<T> Stored<T> {
-    fn idle(pass: u64) -> Self {
-        Self { phase: Phase::Idle, set: None, pass }
+    fn idle(viewport: ViewportId, pass: u64) -> Self {
+        Self { phase: Phase::Idle, set: None, viewport, pass, escape_locked: false }
     }
 }
 
@@ -93,8 +104,8 @@ impl<T> Stored<T> {
 enum Phase<T> {
     Idle,
     Active(Active<T>),
-    /// Cancelled: show `start` until the host's value is `start` again, or moves away from
-    /// `host`, its value when the gesture was cancelled.
+    /// Cancelled while the host showed the gesture's value: show `start` until the host's value
+    /// is `start` again, or moves away from `host`, its value at the cancel.
     Restoring {
         start: T,
         host: T,
@@ -108,17 +119,20 @@ struct Active<T> {
     generation: u64,
     start: T,
     current: T,
-    /// The value of the last update that went out (`start` before the first).
+    /// The value of the last update that went out (`start` before the first): what the host
+    /// shows.
     reported: T,
     modifiers: Modifiers,
     /// Input time of the last change of `current`.
     changed_at: f64,
     /// Whether `Begin` went out.
     announced: bool,
-    /// Committed; waits for the last update to go out.
+    /// Committed this frame.
     ending: bool,
     /// Whether the control has had focus since the gesture began; losing it then ends the gesture.
     focused: bool,
+    /// Whether the pointer has dragged the control during the gesture.
+    dragged: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -132,20 +146,22 @@ const STATE: &str = "craft_ui::edit::gesture";
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// The gesture state of the control with widget id `id` (its [`egui::Response::id`]), whose
-    /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all) and Esc.
+    /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all), an external
+    /// change of the value, and Esc.
     pub fn load(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
         let ctx = ui.ctx().clone();
         let key = id.with(STATE);
-        let pass = ctx.cumulative_pass_nr();
+        let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
         let stored = match ctx.data(|d| d.get_temp::<Stored<T>>(key)) {
-            Some(stored) if stored.pass + 1 >= pass => Stored { pass, ..stored },
-            _ => Stored::idle(pass),
+            Some(stored) if stored.viewport == viewport && stored.pass + 1 >= pass => Stored { pass, ..stored },
+            _ => Stored::idle(viewport, pass),
         };
         let now = ctx.input(|i| i.time);
         let mut gesture = Self {
             ctx,
             widget: id,
             key,
+            layer: ui.layer_id(),
             host: value.clone(),
             policy,
             scoped: in_scope(ui),
@@ -154,24 +170,28 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             now,
             stored,
             cancelled: None,
+            ended: None,
         };
         gesture.end_restoring();
         gesture.apply_cancel_all();
+        gesture.apply_external();
         gesture.apply_escape();
-        gesture.mark_live();
         gesture
     }
 
     /// Whether losing keyboard focus cancels the gesture ([`CancelReason::FocusLost`]) rather
-    /// than committing it; off by default.
+    /// than committing it; off by default. It also decides how an interrupted typing run ends
+    /// ([`Ending`]).
     pub fn cancel_on_focus_loss(mut self, cancel: bool) -> Self {
         self.cancel_on_focus_loss = cancel;
         self
     }
 
-    /// The control's own focus filter (the keys it keeps while focused). The gesture sets it on
-    /// [`finish`](Gesture::finish), adding Esc while a cancellable gesture is active; the control
-    /// doesn't call [`egui::Memory::set_focus_lock_filter`] itself.
+    /// The control's own focus filter (the keys it keeps while focused). While a cancellable
+    /// gesture is active and the control has focus, [`finish`](Gesture::finish) sets this
+    /// filter with Esc added, and puts it back without Esc when the gesture ends; otherwise it
+    /// leaves the focus filter alone. A control wrapping a widget that sets its own filter (egui's
+    /// `TextEdit` does) passes that widget's filter here and finishes after showing it.
     pub fn event_filter(mut self, filter: EventFilter) -> Self {
         self.filter = filter;
         self
@@ -209,7 +229,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         match &self.stored.phase {
             Phase::Active(a) => &a.current,
             Phase::Restoring { start, .. } => start,
-            Phase::Idle => self.stored.set.as_ref().unwrap_or(&self.host),
+            Phase::Idle => self.stored.set.as_ref().map_or(&self.host, |(value, _)| value),
         }
     }
 
@@ -230,8 +250,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             announced: false,
             ending: false,
             focused: self.ctx.memory(|m| m.has_focus(self.widget)),
+            dragged: self.ctx.is_being_dragged(self.widget),
         });
-        self.mark_live();
     }
 
     /// The gesture's new value and the modifiers held; nothing while idle or once committed.
@@ -254,13 +274,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// Abandons the gesture; the control shows the start value until the host echoes it.
+    /// Abandons the gesture. When the host shows the gesture's value, the control shows the
+    /// start value until the host echoes it.
     pub fn cancel(&mut self, reason: CancelReason) {
         let phase = std::mem::replace(&mut self.stored.phase, Phase::Idle);
         match phase {
             Phase::Active(a) => {
                 self.cancelled = Some(Cancelled { id: a.id, reason, announced: a.announced });
-                if a.announced && !self.scoped {
+                self.ended = Some(a.id);
+                if a.announced && !self.scoped && self.host == a.reported && self.host != a.start {
                     self.stored.phase = Phase::Restoring { start: a.start, host: self.host.clone() };
                 }
             }
@@ -269,7 +291,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// A one-shot change (toggle, arrow-key nudge, wheel step, Enter): a [`Set`](EditEvent::Set)
-    /// when idle and `value` differs from the host's, an update during a gesture.
+    /// with the modifiers held, when idle and `value` differs from the host's; an update during a
+    /// gesture.
     pub fn set(&mut self, value: T) {
         match &self.stored.phase {
             Phase::Active(a) if a.ending => {}
@@ -279,7 +302,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
             Phase::Idle | Phase::Restoring { .. } => {
                 self.stored.phase = Phase::Idle;
-                self.stored.set = (value != self.host).then_some(value);
+                let modifiers = self.ctx.input(|i| i.modifiers);
+                self.stored.set = (value != self.host).then_some((value, modifiers));
             }
         }
     }
@@ -290,15 +314,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         let event = self.resolve();
         self.schedule();
         self.lock_focus();
+        self.record_live();
         let Self { ctx, key, stored, .. } = self;
         ctx.data_mut(|d| d.insert_temp(key, stored));
         event
-    }
-
-    fn mark_live(&self) {
-        if let Some(id) = self.id() {
-            mark_live(&self.ctx, id);
-        }
     }
 
     /// Leaves the restoring state once the host has acted on the cancel.
@@ -320,9 +339,19 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// Cancels when the host's value is no longer the one the gesture reported.
+    fn apply_external(&mut self) {
+        if let Phase::Active(a) = &self.stored.phase
+            && self.host != a.reported
+        {
+            self.cancel(CancelReason::External);
+        }
+    }
+
+    /// Cancels on Esc, unless a modal layer is above the control: Esc then closes the modal.
     fn apply_escape(&mut self) {
         let armed = matches!(&self.stored.phase, Phase::Active(a) if !a.ending) && self.policy.cancellable && !self.scoped;
-        if armed && self.ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+        if armed && self.ctx.memory(|m| m.is_above_modal_layer(self.layer)) && self.ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.cancel(CancelReason::Escape);
         }
     }
@@ -351,43 +380,44 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         {
             return Some(EditEvent::Cancel { id: c.id, reason: c.reason });
         }
-        if let Some(value) = self.stored.set.take() {
+        if let Some((value, modifiers)) = self.stored.set.take() {
             return Some(match self.scoped {
-                true => EditEvent::Update { id: GestureId::next(&self.ctx), value, modifiers: self.ctx.input(|i| i.modifiers) },
-                false => EditEvent::Set { value },
+                true => EditEvent::Update { id: GestureId::next(&self.ctx), value, modifiers },
+                false => EditEvent::Set { value, modifiers },
             });
         }
         let Phase::Active(a) = &mut self.stored.phase else { return None };
-        if !a.announced && !a.ending {
+        if a.ending {
+            return self.end();
+        }
+        if !a.announced {
             a.announced = true;
             if !self.scoped {
                 return Some(EditEvent::Begin { id: a.id });
             }
         }
-        let updates = !self.policy.on_release_only;
-        let unreported = a.current != a.reported;
-        if !a.ending {
-            let due = match self.policy.update {
-                UpdateRate::Debounced(wait) => self.now - a.changed_at >= wait.as_secs_f64(),
-                UpdateRate::Realtime => true,
-            };
-            if !(updates && unreported && due) {
-                return None;
-            }
-            a.reported = a.current.clone();
-            return Some(EditEvent::Update { id: a.id, value: a.current.clone(), modifiers: a.modifiers });
+        let due = match self.policy.update {
+            UpdateRate::Debounced(wait) => self.now - a.changed_at >= wait.as_secs_f64(),
+            UpdateRate::Realtime => true,
+        };
+        if self.policy.on_release_only || a.current == a.reported || !due {
+            return None;
         }
-        // Committed: the last value goes out as an update first (one event per frame).
-        if a.announced && updates && unreported && !self.scoped {
-            a.reported = a.current.clone();
-            return Some(EditEvent::Update { id: a.id, value: a.current.clone(), modifiers: a.modifiers });
-        }
+        a.reported = a.current.clone();
+        Some(EditEvent::Update { id: a.id, value: a.current.clone(), modifiers: a.modifiers })
+    }
+
+    /// The committed gesture's event: its commit, or a set when it began this frame; inside a
+    /// scope, an update with a value the host hasn't seen.
+    fn end(&mut self) -> Option<EditEvent<T>> {
         let Phase::Active(a) = std::mem::replace(&mut self.stored.phase, Phase::Idle) else { return None };
+        self.ended = Some(a.id);
         let changed = a.current != a.start;
+        let modifiers = self.ctx.input(|i| i.modifiers);
         match (self.scoped, a.announced) {
             (true, _) => (a.current != a.reported).then_some(EditEvent::Update { id: a.id, value: a.current, modifiers: a.modifiers }),
-            (false, false) => changed.then_some(EditEvent::Set { value: a.current }),
-            (false, true) => Some(EditEvent::Commit { id: a.id, value: a.current, changed }),
+            (false, false) => changed.then_some(EditEvent::Set { value: a.current, modifiers }),
+            (false, true) => Some(EditEvent::Commit { id: a.id, value: a.current, changed, modifiers }),
         }
     }
 
@@ -398,23 +428,49 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return;
         }
         let Phase::Active(a) = &self.stored.phase else { return };
-        let pending_update = !self.policy.on_release_only && a.current != a.reported;
+        if self.policy.on_release_only || a.current == a.reported {
+            return;
+        }
         match self.policy.update {
-            _ if a.ending || !a.announced => self.ctx.request_repaint(),
-            UpdateRate::Debounced(wait) if pending_update => {
+            UpdateRate::Debounced(wait) => {
                 let left = (wait.as_secs_f64() - (self.now - a.changed_at)).max(0.0);
                 self.ctx.request_repaint_after_secs(left as f32);
             }
-            _ if pending_update => self.ctx.request_repaint(),
-            _ => {}
+            UpdateRate::Realtime => self.ctx.request_repaint(),
         }
     }
 
     /// Keeps the focus on Esc while a cancellable gesture is active, so Esc cancels the gesture
-    /// instead of only dropping the focus.
-    fn lock_focus(&self) {
-        let mut filter = self.filter;
-        filter.escape |= self.is_active() && self.policy.cancellable && !self.scoped;
-        self.ctx.memory_mut(|m| m.set_focus_lock_filter(self.widget, filter));
+    /// instead of dropping the focus; puts the control's own filter back after.
+    fn lock_focus(&mut self) {
+        let focused = self.ctx.memory(|m| m.has_focus(self.widget));
+        let lock = focused && self.is_active() && self.policy.cancellable && !self.scoped;
+        if lock || (focused && self.stored.escape_locked) {
+            let filter = EventFilter { escape: self.filter.escape || lock, ..self.filter };
+            self.ctx.memory_mut(|m| m.set_focus_lock_filter(self.widget, filter));
+        }
+        self.stored.escape_locked = lock;
+    }
+
+    /// Records the active gesture live in this pass with how it ends if interrupted, or drops
+    /// the entry of one that ended.
+    fn record_live(&mut self) {
+        let dragged = self.ctx.is_being_dragged(self.widget);
+        let cancel_on_focus_loss = self.cancel_on_focus_loss;
+        match &mut self.stored.phase {
+            Phase::Active(a) => {
+                a.dragged |= dragged;
+                let ending = match a.focused && !a.dragged && !cancel_on_focus_loss {
+                    true => Ending::Commit { changed: a.reported != a.start },
+                    false => Ending::Cancel,
+                };
+                live::mark(&self.ctx, a.id, ending);
+            }
+            Phase::Idle | Phase::Restoring { .. } => {
+                if let Some(id) = self.ended {
+                    live::forget(&self.ctx, id);
+                }
+            }
+        }
     }
 }

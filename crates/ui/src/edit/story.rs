@@ -9,7 +9,7 @@ use craft_theme::TypeRole;
 use egui::accesskit::Role;
 use egui::{Align2, Event, EventFilter, Key, Modifiers, Response, Sense, Ui, pos2, vec2};
 
-use super::{CancelReason, Cost, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all};
+use super::{CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
@@ -39,7 +39,7 @@ fn policy(args: &Args) -> EditPolicy {
         "debounced 300 ms" => UpdateRate::Debounced(Duration::from_millis(300)),
         _ => UpdateRate::Realtime,
     };
-    EditPolicy { update, cost: Cost::Cheap, cancellable: args.bool("cancellable"), on_release_only: args.bool("on release only") }
+    EditPolicy::default().update(update).cancellable(args.bool("cancellable")).on_release_only(args.bool("on release only"))
 }
 
 /// A document of the story: two fields and an undo history of whole snapshots.
@@ -84,6 +84,10 @@ impl UndoMarks for Doc {
             self.undo.truncate(mark);
         }
     }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -111,18 +115,26 @@ impl State {
         self.log.truncate(LOG_LEN);
     }
 
-    fn handle<T: Debug>(&mut self, control: &str, event: Option<EditEvent<T>>, apply: impl FnMut(&mut Doc, T)) {
+    fn handle<T: Clone + PartialEq + Send + Sync + Debug + 'static>(
+        &mut self,
+        ui: &Ui,
+        control: &str,
+        event: Option<EditEvent<T>>,
+        apply: impl FnMut(&mut Doc, T),
+    ) {
         let Some(event) = event else { return };
         self.log(format!("{control}: {}", describe(&event)));
         let doc = &mut self.docs[self.current % 2];
-        self.host.handle(doc, event, apply);
+        self.host.handle(ui.ctx(), doc, event, apply);
     }
 
-    /// Reverts a gesture whose control is no longer drawn.
+    /// Ends a gesture whose control is no longer drawn.
     fn end_frame(&mut self, ui: &Ui) {
         let doc = &mut self.docs[self.current % 2];
-        if let Some(event) = self.host.end_frame(ui.ctx(), doc) {
-            self.log(format!("host: {}", describe(&event)));
+        match self.host.end_frame(ui.ctx(), doc) {
+            Some(EditEvent::Commit { id, .. }) => self.log(format!("host: {id} removed, kept as one step")),
+            Some(event) => self.log(format!("host: {}", describe(&event))),
+            None => {}
         }
     }
 
@@ -159,10 +171,10 @@ fn describe<T: Debug>(event: &EditEvent<T>) -> String {
         EditEvent::Begin { id } => format!("Begin {id}"),
         EditEvent::Update { id, value, modifiers } if modifiers.is_none() => format!("Update {id} {value:?}"),
         EditEvent::Update { id, value, modifiers } => format!("Update {id} {value:?} ({modifiers:?})"),
-        EditEvent::Commit { id, value, changed: true } => format!("Commit {id} {value:?}"),
-        EditEvent::Commit { id, value, changed: false } => format!("Commit {id} {value:?}, unchanged"),
+        EditEvent::Commit { id, value, changed: true, .. } => format!("Commit {id} {value:?}"),
+        EditEvent::Commit { id, value, changed: false, .. } => format!("Commit {id} {value:?}, unchanged"),
         EditEvent::Cancel { id, reason } => format!("Cancel {id} {reason:?}"),
-        EditEvent::Set { value } => format!("Set {value:?}"),
+        EditEvent::Set { value, .. } => format!("Set {value:?}"),
     }
 }
 
@@ -182,10 +194,10 @@ fn show(ui: &mut Ui, args: &mut Args) {
         Row::new(Gap::Inline).show(ui, |ui| {
             let level = state.doc().level;
             let edit = slider(ui, level, policy);
-            state.handle("slider", edit.event, |doc, value| doc.edit(|d| d.level = value));
+            state.handle(ui, "slider", edit.event, |doc, value| doc.edit(|d| d.level = value));
             let label = state.doc().label.clone();
             let edit = text_field(ui, &label, policy);
-            state.handle("field", edit.event, |doc, value| doc.edit(|d| d.label = value));
+            state.handle(ui, "field", edit.event, |doc, value| doc.edit(|d| d.label = value));
         });
         state.end_frame(ui);
         Row::new(Gap::Inline).show(ui, |ui| {
@@ -258,7 +270,8 @@ pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditRespons
         let x = left + (right - left) * shown / SLIDER_MAX;
         painter.circle_filled(pos2(x, rect.center().y), radius, tokens.color.accent.solid.to_egui());
     }
-    EditResponse { response, event: gesture.finish() }
+    let event = gesture.finish();
+    EditResponse::new(response, event)
 }
 
 /// A fake one-line text field: click to focus, type, Backspace, Enter to commit, Esc to cancel;
@@ -288,7 +301,8 @@ pub(super) fn text_field(ui: &mut Ui, value: &str, policy: EditPolicy) -> EditRe
             ui.painter().vline(text.right() + 1.0, text.y_range(), (1.0, color));
         }
     }
-    EditResponse { response, event: gesture.finish() }
+    let event = gesture.finish();
+    EditResponse::new(response, event)
 }
 
 /// One input event of the focused text field.
