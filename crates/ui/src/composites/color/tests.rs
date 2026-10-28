@@ -323,3 +323,14 @@ fn right_to_left_keeps_the_area_axes() {
     rig.frame(vec![]);
     assert_eq!(rig.area.2, update(id, hsb(240.0, 80.0, 30.0)), "saturation still grows to the right");
 }
+
+/// The area's names follow its axes: across, then down.
+#[test]
+fn each_area_mode_is_named_by_its_two_components() {
+    for mode in AreaMode::ALL {
+        let channels = mode.model().channels();
+        let [across, down] = mode.area();
+        let expected = format!("{} and {}", channels[across].name, channels[down].name.to_lowercase());
+        assert_eq!(mode.name(), expected, "{mode:?}");
+    }
+}

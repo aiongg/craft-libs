@@ -257,9 +257,9 @@ fn hex_field_shows_uppercase_keeps_partial_typing_and_reverts_invalid_text_on_bl
 struct Cmy;
 
 const CMY: [Channel; 3] = [
-    Channel { name: "Cyan", label: "C", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
-    Channel { name: "Magenta", label: "M", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
-    Channel { name: "Yellow", label: "Y", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Cyan", qualified: "CMY cyan", label: "C", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Magenta", qualified: "CMY magenta", label: "M", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Yellow", qualified: "CMY yellow", label: "Y", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
 ];
 
 impl ColorModel for Cmy {
@@ -373,9 +373,8 @@ fn accesskit_names_the_parts_and_dialog_tab_visits_only_the_fields() {
     }
     rig.node(Role::TextInput, "Hex colour");
     rig.node(Role::Button, "Pick screen color");
-    let switch = rig.node(Role::Button, "HSB");
-    assert_eq!(switch.description(), Some("Colour model"), "the model switch");
-    assert_eq!(switch.has_popup(), Some(HasPopup::Menu));
+    let switch = rig.node(Role::Button, "Colour model: HSB");
+    assert_eq!(switch.has_popup(), Some(HasPopup::Menu), "the model switch is named for its purpose and its visible label");
 
     rig.focus(rig.fields.0);
     let mut order = Vec::new();
@@ -416,17 +415,55 @@ fn the_model_switch_menu_switches_the_rows() {
         let b = node.bounds().expect("bounds");
         pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
     };
-    let at = center(rig.node(Role::Button, "HSB"));
+    let at = center(rig.node(Role::Button, "Colour model: HSB"));
     rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
     rig.frame(vec![button(at, false)]);
     rig.settle();
-    assert_eq!(rig.node(Role::Button, "HSB").is_expanded(), Some(true));
+    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
     assert_eq!(rig.node(Role::MenuItemRadio, "HSB").toggled(), Some(Toggled::True), "the current model is checked");
     let at = center(rig.node(Role::MenuItemRadio, "RGB"));
     rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
     rig.frame(vec![button(at, false)]);
     rig.settle();
-    rig.node(Role::Button, "RGB");
+    rig.node(Role::Button, "Colour model: RGB");
     rig.node(Role::SpinButton, "Red");
     assert!(rig.nodes(Role::SpinButton, "Hue").is_empty());
+}
+
+/// A host can hand its translators the keys the picker asks for: every word either layout asks
+/// for, in every area mode, is one [`ColorPicker::keys`] lists.
+#[test]
+fn every_word_the_picker_translates_is_a_listed_key() {
+    let models: Vec<&dyn ColorModel> = craft_theme::builtin_models().into();
+    let listed = ColorPicker::keys(models.iter().copied());
+    let asked = std::cell::RefCell::new(std::collections::BTreeSet::new());
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    for layout in [super::ColorPickerLayout::Compact, super::ColorPickerLayout::Full] {
+        for mut mode in super::AreaMode::ALL {
+            for _ in 0..2 {
+                let output = ctx.run_ui(RawInput::default(), |ui| {
+                    let _ = ColorPicker::new("picker", "Foreground colour", Srgba::rgb(0.2, 0.4, 0.6), &numbers)
+                        .layout(layout)
+                        .models(models.iter().copied())
+                        .mode(&mut mode)
+                        .alpha(true)
+                        .compare(Srgba::rgb(0.5, 0.5, 0.5))
+                        .text(|key| {
+                            asked.borrow_mut().insert(key.to_owned());
+                            key.to_owned()
+                        })
+                        .show(ui);
+                });
+                output.drop_without_applying_deltas();
+            }
+        }
+    }
+    let asked = asked.into_inner();
+    for key in ["OKLCH hue", "HSB hue", "Saturation and brightness", "{label}:", "Colour model: {model}"] {
+        assert!(asked.contains(key), "{key} is asked for");
+    }
+    let unlisted: Vec<_> = asked.iter().filter(|k| !listed.contains(&k.as_str())).collect();
+    assert!(unlisted.is_empty(), "asked for but not listed: {unlisted:?}");
 }

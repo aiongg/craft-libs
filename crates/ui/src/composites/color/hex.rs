@@ -96,9 +96,9 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
         state.cursor.set_char_range(Some(CCursorRange::select_all_str(&codec.format(&value))));
         state.store(ui.ctx(), id);
     }
-    // "#" and six digits, or eight.
-    let limit = if codec.alpha { 9 } else { 7 };
-    let typing = Typing::with_codec(id, label, value, codec).policy(policy).enabled(enabled).char_limit(limit).keep_rejected(false);
+    // No character limit: it would cut pasted text (spaces round it, a "#", eight digits with
+    // the alpha off) into something else before `parse_hex` sees it.
+    let typing = Typing::with_codec(id, label, value, codec).policy(policy).enabled(enabled).keep_rejected(false);
     // The box goes under the text, which `TextEdit` paints as it runs.
     let under = ui.painter().add(Shape::Noop);
     let typed = typing.show(ui, &look);

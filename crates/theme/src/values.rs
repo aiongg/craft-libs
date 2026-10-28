@@ -560,6 +560,11 @@ pub const COLOR_PICKER_MARKER_INNER_WIDTH: f32 = 1.5;
 pub const COLOR_PICKER_MARKER_OUTER_RADIUS: f32 = 6.5;
 /// Compact stroke width of the marker's outer ring.
 pub const COLOR_PICKER_MARKER_OUTER_WIDTH: f32 = 1.0;
+/// The area marker's inner circle: white, as PhotoCraft's, so it shows the colour under it
+/// without a tint.
+pub const COLOR_PICKER_MARKER: Rgba = Rgba::WHITE;
+/// The marker's outer ring: black at alpha 160, as PhotoCraft's.
+pub const COLOR_PICKER_MARKER_HALO: Rgba = Rgba([0, 0, 0, 160]);
 /// Compact width of a strip pointer triangle.
 pub const COLOR_PICKER_POINTER_WIDTH: f32 = 6.0;
 /// Compact height of a strip pointer triangle.

@@ -52,8 +52,8 @@ const MESH: usize = 32;
 ///
 /// The area is not a field: a dialog's [`FieldTab`](crate::behavior::FieldTab) skips it, and
 /// Ctrl+Tab reaches it. The edge (one point of `line.control_edge`) and the focus ring lie
-/// outside its rect; the marker is two rings, `overlay.stroke` inside `overlay.halo`, so one
-/// shows on any colour.
+/// outside its rect; the marker is two rings, `color_picker.marker` (white) inside
+/// `color_picker.marker_halo` (dark), so one shows on any colour and neither tints it.
 #[derive(Clone, Debug)]
 #[must_use = "show the area with `show`"]
 pub struct ColorArea {

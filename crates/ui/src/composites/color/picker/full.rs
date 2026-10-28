@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, CornerRadius, CursorIcon, Id, Layout, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
-use super::{ColorPicker, Edits, Inner, Picked, channel_name, unit_of};
+use super::{ColorPicker, Edits, Inner, Picked, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
 use crate::controls::{Button, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
 use crate::direction;
@@ -96,7 +96,7 @@ impl ColorPicker<'_> {
         {
             *mode = *first;
         }
-        let mut set = RadioSet::new("modes", translate(ColorPicker::TEXTS[5]), mode).enabled(inner.enabled);
+        let mut set = RadioSet::new("modes", translate(texts::FIELD_SHOWS), mode).enabled(inner.enabled);
         for m in &offered {
             set = set.item(*m);
         }
@@ -171,8 +171,10 @@ impl ColorPicker<'_> {
         let hex_width = (2.0 * field.pad_x + text_width(ui, &tokens, TypeRole::Mono, if self.alpha { "#00000000" } else { "#000000" })).ceil();
         top_row(ui, Gap::Section.points(&tokens), |ui| {
             for (c, column) in columns.iter().enumerate().filter(|(c, column)| *c == 0 || !column.is_empty()) {
-                let labels: Vec<Vec<String>> =
-                    column.iter().map(|m| m.channels().iter().map(|ch| translate(&format!("{}:", ch.label))).collect()).collect();
+                let labels: Vec<Vec<String>> = column
+                    .iter()
+                    .map(|m| m.channels().iter().map(|ch| translate(texts::GRID_LABEL).replace("{label}", &translate(ch.label))).collect())
+                    .collect();
                 let mut cell = labels.iter().flatten().map(|l| text_width(ui, &tokens, radio.label, l)).fold(0.0, f32::max);
                 if c == 0 {
                     cell = cell.max(text_width(ui, &tokens, TypeRole::Mono, "#"));
@@ -267,15 +269,15 @@ fn compare(
     let swatch = Swatch::style(tokens, ControlSize::Md);
     ui.allocate_ui_with_layout(vec2(t.compare_width, 0.0), Layout::top_down(Align::Center), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
-        ui.add(Text::new(translate(ColorPicker::TEXTS[6])).role(TypeRole::Caption).content(Content::Muted));
+        ui.add(Text::new(translate(texts::NEW)).role(TypeRole::Caption).content(Content::Muted));
         let (rect, _) = ui.allocate_exact_size(vec2(t.compare_width, t.compare_height), Sense::hover());
         let (new_rect, current_rect) = (rect.split_top_bottom_at_fraction(0.5).0, rect.split_top_bottom_at_fraction(0.5).1);
-        let _ = Interactive::new("compare-new", Role::Image, translate(ColorPicker::TEXTS[8]))
+        let _ = Interactive::new("compare-new", Role::Image, translate(texts::NEW_COLOUR))
             .sense(Sense::hover())
             .value(Swatch::hex(shown.color.to_rgba()))
             .interact_at(ui, new_rect)
             .finish(ui);
-        let restore = translate(ColorPicker::TEXTS[9]);
+        let restore = translate(texts::RESTORE);
         let response = Interactive::new("compare-current", Role::Button, restore.as_str())
             .value(Swatch::hex(current.to_rgba()))
             .state_layer(false)
@@ -297,7 +299,7 @@ fn compare(
         if enabled {
             let _ = response.on_hover_cursor(CursorIcon::PointingHand);
         }
-        ui.add(Text::new(translate(ColorPicker::TEXTS[7])).role(TypeRole::Caption).content(Content::Muted));
+        ui.add(Text::new(translate(texts::CURRENT)).role(TypeRole::Caption).content(Content::Muted));
     });
 }
 

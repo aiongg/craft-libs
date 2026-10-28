@@ -6,6 +6,10 @@
 
 use crate::color::{Hsb, Lab, Oklch, Srgba};
 
+/// The OKLCH chroma below which [`OklchModel`] reads a colour as a grey (chroma 0, hue 0): sRGB
+/// greys convert to a chroma of a few 1e-8, far under the 0.001 its field shows.
+const ACHROMATIC: f64 = 1e-6;
+
 /// The most channels a model has (CMYK).
 pub const MAX_CHANNELS: usize = 4;
 
@@ -14,6 +18,9 @@ pub const MAX_CHANNELS: usize = 4;
 pub struct Channel {
     /// The full name, English: the key a host translates ("Hue"); screen readers read it.
     pub name: &'static str,
+    /// The name beside another model's channel of the same name, English: "HSB hue". A picker
+    /// showing both uses it in place of `name`, as a key of its own.
+    pub qualified: &'static str,
     /// The short label, English: "H".
     pub label: &'static str,
     /// The lowest value of the field.
@@ -108,7 +115,7 @@ pub struct LabModel;
 pub struct OklchModel;
 
 const fn channel(
-    name: &'static str,
+    (name, qualified): (&'static str, &'static str),
     label: &'static str,
     (min, max): (f32, f32),
     unit: &'static str,
@@ -116,28 +123,28 @@ const fn channel(
     step: f32,
     stops: usize,
 ) -> Channel {
-    Channel { name, label, min, max, unit, decimals, step, track_stops: stops }
+    Channel { name, qualified, label, min, max, unit, decimals, step, track_stops: stops }
 }
 
 const HSB_CHANNELS: [Channel; 3] = [
-    channel("Hue", "H", (0.0, 360.0), "°", 0, 1.0, 13),
-    channel("Saturation", "S", (0.0, 100.0), "%", 0, 1.0, 2),
-    channel("Brightness", "B", (0.0, 100.0), "%", 0, 1.0, 2),
+    channel(("Hue", "HSB hue"), "H", (0.0, 360.0), "°", 0, 1.0, 13),
+    channel(("Saturation", "HSB saturation"), "S", (0.0, 100.0), "%", 0, 1.0, 2),
+    channel(("Brightness", "HSB brightness"), "B", (0.0, 100.0), "%", 0, 1.0, 2),
 ];
 const RGB_CHANNELS: [Channel; 3] = [
-    channel("Red", "R", (0.0, 255.0), "", 0, 1.0, 2),
-    channel("Green", "G", (0.0, 255.0), "", 0, 1.0, 2),
-    channel("Blue", "B", (0.0, 255.0), "", 0, 1.0, 2),
+    channel(("Red", "RGB red"), "R", (0.0, 255.0), "", 0, 1.0, 2),
+    channel(("Green", "RGB green"), "G", (0.0, 255.0), "", 0, 1.0, 2),
+    channel(("Blue", "RGB blue"), "B", (0.0, 255.0), "", 0, 1.0, 2),
 ];
 const LAB_CHANNELS: [Channel; 3] = [
-    channel("Lightness", "L", (0.0, 100.0), "", 0, 1.0, 2),
-    channel("Green-red", "a", (-128.0, 127.0), "", 0, 1.0, 9),
-    channel("Blue-yellow", "b", (-128.0, 127.0), "", 0, 1.0, 9),
+    channel(("Lightness", "Lab lightness"), "L", (0.0, 100.0), "", 0, 1.0, 2),
+    channel(("Green-red", "Lab green-red"), "a", (-128.0, 127.0), "", 0, 1.0, 9),
+    channel(("Blue-yellow", "Lab blue-yellow"), "b", (-128.0, 127.0), "", 0, 1.0, 9),
 ];
 const OKLCH_CHANNELS: [Channel; 3] = [
-    channel("Lightness", "L", (0.0, 100.0), "%", 0, 1.0, 9),
-    channel("Chroma", "C", (0.0, 0.4), "", 3, 0.001, 9),
-    channel("Hue", "H", (0.0, 360.0), "°", 0, 1.0, 13),
+    channel(("Lightness", "OKLCH lightness"), "L", (0.0, 100.0), "%", 0, 1.0, 9),
+    channel(("Chroma", "OKLCH chroma"), "C", (0.0, 0.4), "", 3, 0.001, 9),
+    channel(("Hue", "OKLCH hue"), "H", (0.0, 360.0), "°", 0, 1.0, 13),
 ];
 
 impl ColorModel for HsbModel {
@@ -217,6 +224,8 @@ impl ColorModel for OklchModel {
     }
     fn from_srgb(&self, color: Srgba) -> ModelValues {
         let Oklch { l, c, h } = color.to_oklch();
+        // A grey has no hue: chroma under the field's resolution is the matrices' rounding.
+        let (c, h) = if c < ACHROMATIC { (0.0, 0.0) } else { (c, h) };
         ModelValues::new(self.id(), &[(l * 100.0) as f32, c as f32, h as f32])
     }
     fn to_srgb(&self, v: &[f32; MAX_CHANNELS]) -> Srgba {

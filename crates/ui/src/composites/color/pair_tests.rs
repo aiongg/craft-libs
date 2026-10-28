@@ -43,7 +43,7 @@ impl Rig {
 
     fn frame(&mut self, events: Vec<Event>) {
         let input =
-            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 600.0))), time: Some(self.time), events, ..Default::default() };
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 900.0))), time: Some(self.time), events, ..Default::default() };
         self.time += 1.0 / 60.0;
         let numbers = LocaleNumbers::from_tag("en");
         let ctx = self.ctx.clone();
@@ -265,4 +265,77 @@ mod in_a_dialog {
         let well = h.get_by_role_and_label(Role::Button, "Fill colour");
         assert!(well.accesskit_node().is_focused(), "Ctrl+Tab reaches the pair, but focus is on {:?}", focused(&h));
     }
+}
+
+impl Rig {
+    /// Sends a screen reader's `action` to the node named `name`.
+    fn action(&mut self, role: Role, name: &str, action: egui::accesskit::Action) {
+        let target_node = self.nodes.iter().find(|(_, n)| n.role() == role && n.label() == Some(name)).map(|(id, _)| *id).expect("node");
+        let request = egui::accesskit::ActionRequest { action, target_tree: egui::accesskit::TreeId::ROOT, target_node, data: None };
+        self.frame(vec![Event::AccessKitActionRequest(request)]);
+        self.settle();
+    }
+}
+
+/// The model menu in a well's popup is part of the popup: choosing in it by pointer or by keys
+/// leaves the popup open.
+#[test]
+fn choosing_in_a_wells_model_menu_keeps_its_popup_open() {
+    let mut rig = Rig::new(Direction::Ltr);
+    rig.tab_to("Foreground colour");
+    rig.key(Key::Enter);
+    assert_eq!(rig.open, Some(Well::Primary));
+
+    rig.click(rig.bounds("Colour model: HSB").center());
+    assert_eq!(rig.open, Some(Well::Primary), "opening the menu keeps the popup open");
+    let row = rig.node(Role::MenuItemRadio, "RGB").bounds().expect("bounds");
+    rig.click(pos2(((row.x0 + row.x1) / 2.0) as f32, ((row.y0 + row.y1) / 2.0) as f32));
+    assert_eq!(rig.open, Some(Well::Primary), "a click on a row is not outside the popup");
+    rig.node(Role::Button, "Colour model: RGB");
+
+    rig.action(Role::Button, "Colour model: RGB", egui::accesskit::Action::Focus);
+    rig.key(Key::Enter);
+    assert_eq!(rig.node(Role::Button, "Colour model: RGB").is_expanded(), Some(true), "Enter opens the menu");
+    assert_eq!(rig.open, Some(Well::Primary));
+    rig.key(Key::Enter);
+    assert_eq!(rig.open, Some(Well::Primary), "a row chosen by Enter leaves the popup open");
+    rig.node(Role::Button, "Colour model: HSB");
+}
+
+/// The inactive well isn't a Tab stop, but a screen reader can focus it, and that makes it
+/// active.
+#[test]
+fn a_screen_readers_focus_on_the_inactive_well_makes_it_active() {
+    let mut rig = Rig::new(Direction::Ltr);
+    assert_eq!(rig.active, Well::Primary);
+    assert!(rig.node(Role::Button, "Background colour").supports_action(egui::accesskit::Action::Focus), "the inactive well offers Focus");
+    rig.action(Role::Button, "Background colour", egui::accesskit::Action::Focus);
+    assert_eq!(rig.active, Well::Secondary);
+    assert_eq!(rig.focused_name().as_deref(), Some("Background colour"));
+}
+
+/// The gap round the front well is the colour the host says the pair sits on.
+#[test]
+fn the_gap_round_the_front_well_is_the_hosts_backdrop() {
+    fn strokes(shape: &egui::Shape, out: &mut Vec<egui::Color32>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| strokes(s, out)),
+            egui::Shape::Rect(r) => out.push(r.stroke.color),
+            _ => {}
+        }
+    }
+    let toolbar = egui::Color32::from_rgb(0x12, 0x34, 0x56);
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let output = ctx.run_ui(RawInput::default(), |ui| {
+        let wells = [PairWell::new("Foreground colour", Srgba::BLACK), PairWell::new("Background colour", Srgba::WHITE)];
+        let _ = SwatchPair::new("pair", "Colours", wells, &numbers).backdrop(toolbar).show(ui);
+    });
+    let mut colors = Vec::new();
+    for clipped in &output.shapes {
+        strokes(&clipped.shape, &mut colors);
+    }
+    output.drop_without_applying_deltas();
+    assert!(colors.contains(&toolbar), "the gap is drawn in the backdrop's colour");
 }

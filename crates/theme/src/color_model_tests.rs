@@ -112,3 +112,15 @@ fn kept_values_survive_while_they_give_the_same_colour() {
     assert_ne!(kept_or_converted(lab, Srgba::rgb(0.1, 0.2, 0.3), Some(&out)), out);
     assert_eq!(kept_or_converted(hsb, clamped, Some(&out)), hsb.from_srgb(clamped));
 }
+
+#[test]
+fn srgb_greys_have_no_oklch_chroma_or_hue() {
+    let oklch = builtin_models().into_iter().find(|m| m.id() == "oklch").expect("OKLCH");
+    for v in [0u8, 1, 0x40, 0x80, 0xc0, 0xfe, 0xff] {
+        let values = oklch.from_srgb(Rgba::rgb(v, v, v).into());
+        assert_eq!((values.values[1], values.values[2]), (0.0, 0.0), "grey {v:#04x}: C and H");
+    }
+    // A colour of the smallest chroma the field shows keeps its hue.
+    let tinted = oklch.from_srgb(oklch.to_srgb(&[50.0, 0.002, 200.0, 0.0]));
+    assert!((tinted.values[2] - 200.0).abs() < 1.0, "hue {}", tinted.values[2]);
+}

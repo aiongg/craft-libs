@@ -95,8 +95,9 @@ pub struct ColorPickerResponse {
 ///   R, G, B, then "#" and the hex field; L, a, b and the host's models; OKLCH in a column of its
 ///   own when the host turns it on ([`models`](ColorPicker::models); HSB, RGB and Lab
 ///   otherwise). A radio before each built-in channel's label chooses the [`AreaMode`]; it
-///   edits no colour. The hex field takes the focus, its text selected, whenever the layout
-///   shows after a pass without it ([`focus_hex`](ColorPicker::focus_hex)).
+///   edits no colour. The hex field takes the focus, its text selected, when the layout opens:
+///   when it shows after a pass without it ([`focus_hex`](ColorPicker::focus_hex)), unless the
+///   host turns that off ([`focus_on_open`](ColorPicker::focus_on_open)).
 /// - Channel fields: one width in both layouts, the widest value of every built-in channel and
 ///   of the picker's models with its unit ([`NumberField::fit_width`]).
 /// - Edits: every inner control's gesture is the picker's, with the whole colour as its value:
@@ -147,6 +148,7 @@ pub struct ColorPicker<'a> {
     text: Option<Box<Translate<'a>>>,
     policy: EditPolicy,
     enabled: bool,
+    focus_on_open: bool,
 }
 
 /// The host's constraint on every colour reported.
@@ -154,23 +156,60 @@ type Constrain<'a> = dyn Fn(Srgba) -> Srgba + 'a;
 /// The host's translation of the picker's words.
 type Translate<'a> = dyn Fn(&str) -> String + 'a;
 
+/// The picker's own words and templates, English: the keys [`ColorPicker::text`] translates.
+pub(super) mod texts {
+    pub(crate) const OPACITY: &str = "Opacity";
+    pub(crate) const HEX_COLOUR: &str = "Hex colour";
+    /// The model switch's accessible name; `{model}` is the model's translated name.
+    pub(crate) const COLOUR_MODEL: &str = "Colour model: {model}";
+    pub(crate) const NOT_HEX: &str = "Not a hex colour";
+    /// A percentage in a field; `{n}` is the number.
+    pub(crate) const PERCENT: &str = "{n}%";
+    pub(crate) const FIELD_SHOWS: &str = "Field shows";
+    pub(crate) const NEW: &str = "new";
+    pub(crate) const CURRENT: &str = "current";
+    pub(crate) const NEW_COLOUR: &str = "New colour";
+    pub(crate) const RESTORE: &str = "Restore current colour";
+    /// A channel's label in the Full grid; `{label}` is the channel's translated short label.
+    pub(crate) const GRID_LABEL: &str = "{label}:";
+}
+
 impl ColorPicker<'_> {
-    /// The picker's own words, English: the keys [`text`](ColorPicker::text) translates. The
-    /// models' channel and model names go through it too, and the area's name is
-    /// "<across> and <down>" ("Saturation and brightness"). A channel whose name another model
-    /// on show also has is named "<model> <channel>" ("OKLCH hue", "HSB hue").
-    pub const TEXTS: [&'static str; 10] = [
-        "Opacity",
-        "Hex colour",
-        "Colour model",
-        "Not a hex colour",
-        "{n}%",
-        "Field shows",
-        "new",
-        "current",
-        "New colour",
-        "Restore current colour",
+    /// The picker's own words and templates, English: keys [`text`](ColorPicker::text)
+    /// translates. A template's `{placeholder}` stays in its translation, and the picker puts the
+    /// part, translated on its own, in its place. [`keys`](ColorPicker::keys) lists these with
+    /// the words of the models and the area.
+    pub const TEXTS: [&'static str; 11] = [
+        texts::OPACITY,
+        texts::HEX_COLOUR,
+        texts::COLOUR_MODEL,
+        texts::NOT_HEX,
+        texts::PERCENT,
+        texts::FIELD_SHOWS,
+        texts::NEW,
+        texts::CURRENT,
+        texts::NEW_COLOUR,
+        texts::RESTORE,
+        texts::GRID_LABEL,
     ];
+
+    /// Every key a picker offering `models` may ask [`text`](ColorPicker::text) for, each once:
+    /// [`TEXTS`](ColorPicker::TEXTS), the area's names ([`AreaMode::name`]), and for the built-in
+    /// models and `models` the model's name and each channel's name, qualified name
+    /// ([`Channel::qualified`](craft_theme::Channel::qualified), "OKLCH hue") and short label.
+    /// A host gives its translators this list.
+    pub fn keys<'m>(models: impl IntoIterator<Item = &'m dyn ColorModel>) -> Vec<&'static str> {
+        let builtin: [&dyn ColorModel; 4] = builtin_models();
+        let models: Vec<&dyn ColorModel> = builtin.into_iter().chain(models).collect();
+        let words = models.iter().flat_map(|m| std::iter::once(m.name()).chain(m.channels().iter().flat_map(|ch| [ch.name, ch.qualified, ch.label])));
+        let mut keys: Vec<&'static str> = Vec::new();
+        for key in Self::TEXTS.into_iter().chain(AreaMode::ALL.map(AreaMode::name)).chain(words) {
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+        }
+        keys
+    }
 }
 
 impl<'a> ColorPicker<'a> {
@@ -197,6 +236,7 @@ impl<'a> ColorPicker<'a> {
             text: None,
             policy: EditPolicy::default(),
             enabled: true,
+            focus_on_open: true,
         }
     }
 
@@ -276,8 +316,8 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
-    /// Translates the picker's words: [`TEXTS`](ColorPicker::TEXTS) and the models' channel and model names, given
-    /// in English. Unchanged without it.
+    /// Translates the picker's words, given as English keys: those [`keys`](ColorPicker::keys)
+    /// lists. Unchanged without it.
     pub fn text(mut self, translate: impl Fn(&str) -> String + 'a) -> Self {
         self.text = Some(Box::new(translate));
         self
@@ -295,6 +335,14 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
+    /// Whether the Full layout focuses its hex field when it shows after a pass without it (a
+    /// dialog opening, as PhotoCraft's); on by default. A host that shows the picker in a panel
+    /// turns it off, so showing the panel again doesn't take the focus from the canvas.
+    pub fn focus_on_open(mut self, focus: bool) -> Self {
+        self.focus_on_open = focus;
+        self
+    }
+
     /// Gives the picker with id `id` (its [`response`](ColorPickerResponse::edit)'s) the
     /// eyedropper's sample; the picker reports it as a [`Set`](EditEvent::Set) in its next
     /// frame, with its own alpha. A cancelled sample gives nothing.
@@ -304,8 +352,8 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// Focuses the hex field of the picker with id `id` (its [`response`](ColorPickerResponse::edit)'s)
-    /// with its text selected, so typing replaces it. The Full layout does it on the first frame
-    /// it is shown.
+    /// with its text selected, so typing replaces it. The Full layout does it when it opens
+    /// ([`focus_on_open`](ColorPicker::focus_on_open)).
     pub fn focus_hex(ctx: &Context, id: Id) {
         hex::focus(ctx, id);
     }
@@ -330,7 +378,7 @@ impl<'a> ColorPicker<'a> {
         let full = self.layout == ColorPickerLayout::Full;
         let mut state = State::load(ui, id);
         let pass = ui.ctx().cumulative_pass_nr();
-        if full && enabled && state.shown_pass.is_none_or(|p| p + 1 < pass) {
+        if full && enabled && self.focus_on_open && state.shown_pass.is_none_or(|p| p + 1 < pass) {
             ColorPicker::focus_hex(ui.ctx(), id);
         }
         state.shown_pass = Some(pass);
@@ -442,7 +490,7 @@ impl<'a> ColorPicker<'a> {
         constrain: &dyn Fn(Srgba) -> Srgba,
         edits: &mut Edits,
     ) {
-        let name = translate(ColorPicker::TEXTS[0]);
+        let name = translate(texts::OPACITY);
         let opaque = shown.color.with_alpha(1.0);
         let track = Some(vec![opaque.with_alpha(0.0), opaque]);
         let unit = unit_of("%", translate);
@@ -472,8 +520,7 @@ impl<'a> ColorPicker<'a> {
         let model = mode.model();
         let (values, _) = shown.values_in(model);
         let [across, down] = mode.area();
-        let channels = model.channels();
-        let area_name = translate(&format!("{} and {}", channels[across].name, channels[down].name.to_lowercase()));
+        let area_name = translate(mode.name());
         Row::new(Gap::Inline).show(ui, |ui| {
             let area = ColorArea::new("area", area_name, mode, values)
                 .channel_names(channel_name(model, across, visible, translate), channel_name(model, down, visible, translate))
@@ -532,8 +579,8 @@ impl<'a> ColorPicker<'a> {
         enabled: bool,
         edits: &mut Edits,
     ) {
-        let codec = HexCodec { alpha: self.alpha, reason: translate(ColorPicker::TEXTS[3]) };
-        let label = translate(ColorPicker::TEXTS[1]);
+        let codec = HexCodec { alpha: self.alpha, reason: translate(texts::NOT_HEX) };
+        let label = translate(texts::HEX_COLOUR);
         let field = ui
             .allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
                 hex::show(
@@ -577,13 +624,12 @@ fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], t
         .fold(0.0, f32::max)
 }
 
-/// Channel `channel` of `model`'s accessible name, translated: the channel's name, or
-/// "<model> <channel>" ("OKLCH hue") when another of the `visible` models has a channel of that
-/// name.
+/// Channel `channel` of `model`'s accessible name, translated: the channel's name, or its
+/// qualified name ("OKLCH hue") when another of the `visible` models has a channel of that name.
 fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> String {
-    let name = model.channels()[channel].name;
-    let clash = visible.iter().any(|m| m.id() != model.id() && m.channels().iter().any(|ch| ch.name == name));
-    if clash { translate(&format!("{} {}", model.name(), name.to_lowercase())) } else { translate(name) }
+    let ch = model.channels()[channel];
+    let clash = visible.iter().any(|m| m.id() != model.id() && m.channels().iter().any(|other| other.name == ch.name));
+    translate(if clash { ch.qualified } else { ch.name })
 }
 
 /// A Compact slider row: the word label `name`, which scrubs and names the number field at the
@@ -640,15 +686,16 @@ fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
 
 /// The model switch under the rows (PhotoCraft's "HSB/HSL" / "RGB Color" press-menu button): a
 /// button with the current model's name opens a menu of the models, one radio item each. The
-/// button's AccessKit description is "Colour model". Returns the model chosen.
+/// button's accessible name is "Colour model: <model>", which holds its visible label. Returns
+/// the model chosen.
 fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, translate: &dyn Fn(&str) -> String, enabled: bool) -> &'static str {
     let name = models.iter().find(|m| m.id() == current).map_or_else(String::new, |m| translate(m.name()));
     let entries: Vec<MenuEntry<&'static str>> =
         models.iter().map(|m| MenuItem::new(translate(m.name()), m.id()).radio(m.id() == current).into()).collect();
     ui.with_layout(direction::column(ui), |ui| {
+        let label = translate(texts::COLOUR_MODEL).replace("{model}", &name);
         let button = ui.add(Button::new(name).id_salt("model").enabled(enabled));
-        let description = translate(ColorPicker::TEXTS[2]);
-        ui.ctx().accesskit_node_builder(button.id, |node| node.set_description(description));
+        ui.ctx().accesskit_node_builder(button.id, |node| node.set_label(label));
         PressMenu::new(&entries).show(ui, &button).chosen
     })
     .inner
@@ -659,7 +706,7 @@ fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, 
 fn unit_of(unit: &str, translate: &dyn Fn(&str) -> String) -> Unit {
     match unit {
         "" => Unit::default(),
-        "%" => Unit::new(&translate(ColorPicker::TEXTS[4])),
+        "%" => Unit::new(&translate(texts::PERCENT)),
         other => Unit::new(&format!("{{n}}{other}")),
     }
 }
@@ -678,8 +725,8 @@ struct State {
     /// The model of the Compact rows.
     model: Option<&'static str>,
     mode: AreaMode,
-    /// The pass the picker was last shown in: the Full layout focuses the hex field when it shows
-    /// again after a pass without it.
+    /// The pass the picker was last shown in: the Full layout opens when it shows again after a
+    /// pass without it.
     shown_pass: Option<u64>,
 }
 
