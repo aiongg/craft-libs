@@ -184,19 +184,44 @@ fn face_pickers_reinstall_the_fonts_and_the_specimen_renders() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.select("specimens/type/faces");
-    for (ui_face, mono_face) in
-        [("IBM Plex Sans", "IBM Plex Mono"), ("Source Sans 3", "Source Code Pro"), ("System", "IBM Plex Mono"), ("Inter", "JetBrains Mono")]
-    {
+    for (ui_face, mono_face) in [("IBM Plex Sans", "IBM Plex Mono"), ("Source Sans 3", "Source Code Pro"), ("Inter", "JetBrains Mono")] {
         let a = gallery.appearance_mut();
         a.ui_face = ui_face.to_owned();
         a.mono_face = mono_face.to_owned();
         frame(&ctx, &mut gallery);
         frame(&ctx, &mut gallery);
-        if ui_face == craft_ui_gallery::faces::SYSTEM {
-            let offered = craft_ui_gallery::faces::ui_faces().contains(&ui_face);
-            assert_eq!(offered, craft_ui::fonts::system_ui_face().is_some(), "System is offered exactly where it resolves");
-            let kept = if offered { ui_face } else { craft_ui_gallery::faces::UI_FACES[0] };
-            assert_eq!(gallery.appearance_mut().ui_face, kept, "a System pick the machine can't show falls back to the first candidate");
-        }
+    }
+}
+
+#[test]
+fn a_system_pick_installs_the_system_face_where_it_resolves_and_is_kept_where_not() {
+    use craft_ui::fonts::{SYSTEM_UI_REGULAR, system_ui_face};
+    use craft_ui_gallery::faces::{self, SYSTEM, UI_FACES};
+    use egui::FontFamily;
+    if !faces::available() {
+        return; // built without CRAFT_FONTS_DIR
+    }
+    let face = system_ui_face();
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.select("specimens/type/faces");
+    for stored in [SYSTEM, "Retired Sans"] {
+        gallery.appearance_mut().ui_face = stored.to_owned();
+        frame(&ctx, &mut gallery);
+        frame(&ctx, &mut gallery);
+        assert_eq!(gallery.appearance_mut().ui_face, stored, "the stored pick is kept, so it is saved as it was");
+        let definitions = ctx.fonts(|f| f.definitions().clone());
+        let installed = |family: &FontFamily, name: &str| {
+            definitions.families.get(family).is_some_and(|chain| chain.iter().any(|n| n == name)) && definitions.font_data.contains_key(name)
+        };
+        let offered = faces::ui_faces(&ctx).contains(&SYSTEM);
+        assert_eq!(offered, installed(&faces::regular_family(SYSTEM), SYSTEM_UI_REGULAR), "System is offered where its face is installed");
+        assert_eq!(offered, face.is_some());
+        let system_draws = definitions.families[&FontFamily::Proportional].first().map(String::as_str) == Some(SYSTEM_UI_REGULAR);
+        assert_eq!(system_draws, stored == SYSTEM && offered, "{stored}: the system face heads the UI slot exactly where it is picked and offered");
+        let first_candidate = definitions.families[&FontFamily::Proportional].iter().any(|n| n.starts_with(UI_FACES[0]));
+        assert!(first_candidate, "{stored}: the first candidate is installed in the UI slot, behind the system face or in its place");
+        let shown = if stored == SYSTEM && offered { SYSTEM } else { UI_FACES[0] };
+        assert_eq!(faces::shown_ui_face(&ctx, stored), shown);
     }
 }

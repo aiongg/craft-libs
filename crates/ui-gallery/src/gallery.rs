@@ -26,6 +26,8 @@ pub struct Gallery {
     appearance: Appearance,
     /// The appearance `base` and the context's direction and zoom were set for.
     applied: Option<Appearance>,
+    /// Whether the OS's interface face had resolved when the faces were last installed.
+    system_face_applied: bool,
     base: Base,
     selected: Option<String>,
     filter: String,
@@ -58,6 +60,7 @@ impl Gallery {
             base: saved.appearance.base(),
             appearance: saved.appearance,
             applied: None,
+            system_face_applied: false,
             selected,
             filter: saved.filter,
             compare: saved.compare,
@@ -143,19 +146,17 @@ impl Gallery {
     }
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
-        if self.applied.as_ref() != Some(&self.appearance) {
-            if !faces::ui_faces().contains(&self.appearance.ui_face.as_str()) {
-                faces::UI_FACES[0].clone_into(&mut self.appearance.ui_face);
-            }
+        let system_face = faces::system_face(ctx).is_some();
+        if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied {
             let previous = self.applied.replace(self.appearance.clone());
             if previous.as_ref().is_none_or(|p| p.rtl != self.appearance.rtl) {
                 direction::apply(ctx, self.appearance.direction());
             }
-            if faces::available()
-                && previous.as_ref().is_none_or(|p| p.ui_face != self.appearance.ui_face || p.mono_face != self.appearance.mono_face)
-            {
+            let faces_changed = previous.as_ref().is_none_or(|p| p.ui_face != self.appearance.ui_face || p.mono_face != self.appearance.mono_face);
+            if faces::available() && (faces_changed || system_face != self.system_face_applied) {
                 faces::install(ctx, &self.appearance.ui_face, &self.appearance.mono_face);
             }
+            self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
                 icons::set_active(ctx, self.appearance.icon_set());
             }
@@ -195,8 +196,10 @@ impl Gallery {
             ui.checkbox(&mut a.reduced_motion, "Reduced motion");
             segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
             if faces::available() {
-                face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, &faces::ui_faces());
-                face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, faces::MONO_FACES);
+                let ui_shown = faces::shown_ui_face(ui.ctx(), &a.ui_face);
+                face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, ui_shown, &faces::ui_faces(ui.ctx()));
+                let mono_shown = faces::shown_mono_face(&a.mono_face);
+                face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, mono_shown, faces::MONO_FACES);
             }
             let label = ui.label("Icons");
             ComboBox::from_id_salt("gallery.icon_set")
@@ -379,13 +382,17 @@ fn text_size_name(size: TextSize) -> &'static str {
     }
 }
 
-fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, options: &[&str]) {
+/// A face picker showing `shown`, the face in use for the stored pick `value`; choosing an option
+/// stores it.
+fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, shown: &str, options: &[&str]) {
     let label = ui.label(label);
     ComboBox::from_id_salt(id)
-        .selected_text(value.as_str())
+        .selected_text(shown)
         .show_ui(ui, |ui| {
             for option in options {
-                ui.selectable_value(value, (*option).to_owned(), *option);
+                if ui.selectable_label(*option == shown, *option).clicked() {
+                    (*option).clone_into(value);
+                }
             }
         })
         .response
