@@ -1136,12 +1136,12 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![
         Story { id: "controls/select/states", level: Level::Controls, component: "Select", name: "States", args, show: show_states },
         Story {
-            id: "controls/select/preview",
+            id: "controls/select/wheel-steps",
             level: Level::Controls,
             component: "Select",
-            name: "Preview",
+            name: "Wheel steps",
             args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
-            show: show_preview,
+            show: show_wheel_steps,
         },
         Story {
             id: "controls/select/searchable",
@@ -1267,7 +1267,7 @@ impl UndoMarks for BlendDoc {
 }
 
 #[derive(Clone, Debug, Default)]
-struct PreviewState {
+struct WheelStepsState {
     doc: BlendDoc,
     host: GestureHost<BlendDoc>,
     /// Newest first.
@@ -1280,11 +1280,11 @@ const LOG_LEN: usize = 12;
 /// Blend modes under a [`GestureHost`]: a swatch shows the document's colour, which follows the
 /// value while the list is open, Up and Down on the closed box and, with "wheel steps", the wheel
 /// over it; the events newest first and the undo-step count.
-fn show_preview(ui: &mut Ui, args: &mut Args) {
+fn show_wheel_steps(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let wheel_steps = args.bool("wheel steps");
-    let state_id = ui.scope_id().with("select-preview");
-    let mut state = ui.data(|d| d.get_temp::<PreviewState>(state_id)).unwrap_or_default();
+    let state_id = ui.scope_id().with("select-wheel-steps");
+    let mut state = ui.data(|d| d.get_temp::<WheelStepsState>(state_id)).unwrap_or_default();
     Stack::new(Gap::Stack).show(ui, |ui| {
         row(ui, "Blend mode", |ui| {
             let mut mode = state.doc.mode;
