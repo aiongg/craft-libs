@@ -13,7 +13,13 @@
 
 - In full screen there is no inset, no button and no drag.
 - The app draws the bar's background and fills `BarSlots::content` (menus, tabs, search).
+  `BarSlots::content` excludes the reserved ends. `BarSlots::leading_caption` and
+  `trailing_caption` give their widths in points (the macOS inset or the caption buttons on that
+  side, 0 when none), following the UI direction; under RTL the macOS inset is the trailing
+  one, as the lights stay on the physical left.
   `BarSlots::centre_line` is the traffic lights' centre on macOS and the bar's middle elsewhere.
+- `TitleBar::separator(width, color)` draws a hairline along the bar's bottom edge, so the app
+  needs no per-family bar height to place it.
 - Close never closes the window. The bar returns `close_requested`, and the app runs its own quit
   path (the unsaved-documents prompt). Minimize and maximize send their `ViewportCommand`s.
 - Resize zones: 8 pt edges and 12 pt corners, never over a caption button or a control in the

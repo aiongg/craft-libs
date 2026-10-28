@@ -343,7 +343,15 @@ fn native_frame_draws_no_buttons() {
 fn mac_inset_reserves_the_leading_width() {
     let mut w = Win::new(Frame::Inset(MacInset { leading: 78.0, centre_from_top: 14.0 }), 800.0);
     w.frame(vec![]);
-    assert_eq!(w.slots, Some(BarSlots { content: Rect::from_min_max(pos2(78.0, 0.0), pos2(800.0, H)), centre_line: 14.0 }));
+    assert_eq!(
+        w.slots,
+        Some(BarSlots {
+            content: Rect::from_min_max(pos2(78.0, 0.0), pos2(800.0, H)),
+            leading_caption: 78.0,
+            trailing_caption: 0.0,
+            centre_line: 14.0
+        })
+    );
     assert!(w.ctx.read_response(caption_id(Caption::Close)).is_none());
     assert_eq!(w.drag(pos2(400.0, H / 2.0)), 1);
     assert!(resizes(&w.gesture(&[pos2(2.0, 200.0), pos2(8.0, 200.0)])).is_empty(), "AppKit resizes");
@@ -484,4 +492,79 @@ fn resize_zones_stay_until_a_native_hit_test_takes_over() {
     assert!(resizes_from_the_edge(false, false), "Windows captions, no native hit test");
     assert!(!resizes_from_the_edge(true, false), "the app's flag");
     assert!(!resizes_from_the_edge(false, true), "the regions sink");
+}
+
+/// The zones' clip must not be the panel the bar sits in.
+#[test]
+fn resize_zones_work_below_a_top_panel() {
+    let (ctx, edge) = (Context::default(), pos2(798.0, 200.0));
+    let steps =
+        [vec![], vec![Event::PointerMoved(edge)], vec![button(edge, true, PointerButton::Primary)], vec![Event::PointerMoved(edge - vec2(6.0, 0.0))]];
+    let mut cmds = vec![];
+    for (i, events) in steps.into_iter().enumerate() {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))),
+            time: Some(i as f64 * 0.05),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::Panel::top("bar").show(ui, |ui| {
+                TitleBar::new(&windows(), H, colors()).show(ui, |_, _| {});
+            });
+        });
+        out.textures_delta.clear();
+        cmds.extend(commands(out));
+    }
+    assert_eq!(resizes(&cmds), vec![ResizeDirection::East], "{cmds:?}");
+}
+
+fn slots_of(frame: Frame, rtl: bool) -> BarSlots {
+    let mut w = Win::new(frame, 800.0);
+    if rtl {
+        crate::direction::apply(&w.ctx, crate::direction::Direction::Rtl);
+    }
+    w.frame(vec![]);
+    w.frame(vec![]);
+    w.slots.unwrap()
+}
+
+#[test]
+fn bar_slots_report_the_caption_widths() {
+    let w = 3.0 * WINDOWS_BUTTON_WIDTH;
+    let s = slots_of(windows(), false);
+    assert_eq!((s.leading_caption, s.trailing_caption), (0.0, w));
+    assert_eq!((s.content.left(), s.content.right()), (0.0, 800.0 - w));
+
+    let s = slots_of(Frame::Inset(MacInset { leading: 78.0, centre_from_top: 14.0 }), false);
+    assert_eq!((s.leading_caption, s.trailing_caption, s.content.left()), (78.0, 0.0, 78.0));
+
+    let gnome = Frame::Integrated(Captions { family: CaptionFamily::Adwaita, layout: Layout::parse("close:appmenu") });
+    let s = slots_of(gnome.clone(), false);
+    assert!(s.leading_caption > 0.0 && s.trailing_caption == 0.0, "{s:?}");
+    assert_eq!((s.content.left(), s.content.right()), (s.leading_caption, 800.0));
+    // RTL: the physical left side is the trailing one.
+    let s = slots_of(gnome, true);
+    assert!(s.trailing_caption > 0.0 && s.leading_caption == 0.0, "{s:?}");
+    assert_eq!(s.content.left(), s.trailing_caption);
+
+    let s = slots_of(windows(), true);
+    assert_eq!((s.leading_caption, s.trailing_caption), (0.0, w), "the buttons move to the physical left, the trailing end");
+    assert_eq!((s.content.left(), s.content.right()), (w, 800.0));
+}
+
+#[test]
+fn separator_is_a_hairline_on_the_bars_bottom_edge() {
+    let ctx = Context::default();
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))), time: Some(0.0), ..Default::default() };
+    let red = Color32::RED;
+    let mut out = ctx.run_ui(input, |ui| {
+        TitleBar::new(&windows(), H, colors()).separator(1.0, red).show(ui, |_, _| {});
+    });
+    out.textures_delta.clear();
+    let found = out
+        .shapes
+        .iter()
+        .any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == red && r.rect == Rect::from_min_max(pos2(0.0, H - 1.0), pos2(800.0, H))));
+    assert!(found);
 }

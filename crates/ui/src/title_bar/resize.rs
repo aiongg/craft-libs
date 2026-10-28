@@ -119,7 +119,10 @@ pub(crate) fn resize_zones(ui: &mut Ui, holes: &[Rect]) {
     let ctx = ui.ctx().clone();
     let w = ctx.content_rect();
     let layer = LayerId::new(Order::Foreground, Id::unique("title_bar_resize"));
-    let zui = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(w));
+    let mut zui = ui.new_child(egui::UiBuilder::new().layer_id(layer).max_rect(w));
+    // The child inherits the parent's clip, which inside a top panel is the panel: the zones below
+    // the bar would never be hit.
+    zui.set_clip_rect(w);
     for (i, (zone, dir, cursor)) in zones(w).into_iter().enumerate() {
         for (j, piece) in subtract(zone, holes).into_iter().enumerate() {
             // Drag only: the zones take no keyboard focus.

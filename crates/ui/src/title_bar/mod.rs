@@ -44,7 +44,7 @@ pub use colors::CaptionColors;
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 pub use resize::{CORNER, EDGE, release_after_os_resize};
 
-use egui::{Id, Rect, Ui, UiBuilder, ViewportCommand, vec2};
+use egui::{Color32, Id, Rect, Ui, UiBuilder, ViewportCommand, pos2, vec2};
 
 use crate::direction::{self, is_rtl};
 
@@ -70,8 +70,15 @@ impl CaptionRegions for () {}
 /// The parts of the bar the app fills.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarSlots {
-    /// Between the leading inset or buttons and the trailing buttons.
+    /// Between the leading inset or buttons and the trailing buttons: excludes both
+    /// [`leading_caption`](Self::leading_caption) and [`trailing_caption`](Self::trailing_caption).
     pub content: Rect,
+    /// Points reserved at the leading end (the UI direction's start): the macOS inset or the
+    /// caption buttons on that side, 0 when none. On macOS under RTL the lights stay on the
+    /// physical left, so the reservation is the trailing one.
+    pub leading_caption: f32,
+    /// Points reserved at the trailing end: the caption buttons on that side, 0 when none.
+    pub trailing_caption: f32,
     /// The height the bar's controls centre on: the traffic lights' centre under
     /// [`Frame::Inset`], else the bar's middle.
     pub centre_line: f32,
@@ -96,11 +103,12 @@ pub struct TitleBar<'a> {
     icons: Option<&'a CaptionIcons>,
     regions: Option<&'a mut dyn CaptionRegions>,
     native_hit_test: bool,
+    separator: Option<(f32, Color32)>,
 }
 
 impl<'a> TitleBar<'a> {
     pub fn new(frame: &'a Frame, height: f32, colors: CaptionColors) -> Self {
-        Self { frame, height, colors, id: Id::unique("title_bar"), labels: None, icons: None, regions: None, native_hit_test: false }
+        Self { frame, height, colors, id: Id::unique("title_bar"), labels: None, icons: None, regions: None, native_hit_test: false, separator: None }
     }
 
     /// Distinguishes the bars of several windows drawn from one `Ui` tree.
@@ -136,6 +144,14 @@ impl<'a> TitleBar<'a> {
     #[must_use]
     pub fn native_hit_test(mut self, native: bool) -> Self {
         self.native_hit_test = native;
+        self
+    }
+
+    /// A hairline `width` pt thick in `color` along the bar's bottom edge, so the app needs no
+    /// per-family bar height to place it.
+    #[must_use]
+    pub fn separator(mut self, width: f32, color: Color32) -> Self {
+        self.separator = Some((width, color));
         self
     }
 
@@ -177,7 +193,9 @@ impl<'a> TitleBar<'a> {
         });
 
         let mut child = ui.new_child(UiBuilder::new().id_salt(self.id).max_rect(slot).layout(direction::row(ui)));
-        content(&mut child, BarSlots { content: slot, centre_line });
+        let (left_w, right_w) = (slot.min.x - bar.min.x, bar.max.x - slot.max.x);
+        let (leading_caption, trailing_caption) = if is_rtl(ui) { (right_w, left_w) } else { (left_w, right_w) };
+        content(&mut child, BarSlots { content: slot, leading_caption, trailing_caption, centre_line });
         let layer = ui.layer_id();
         let mut holes: Vec<Rect> = ctx.viewport(|v| {
             v.this_pass
@@ -213,6 +231,9 @@ impl<'a> TitleBar<'a> {
             }
         } else if let (Some(regions), true) = (self.regions, titled) {
             regions.drag(bar);
+        }
+        if let Some((width, color)) = self.separator {
+            ui.painter().rect_filled(Rect::from_min_max(pos2(bar.left(), bar.bottom() - width), bar.right_bottom()), 0.0, color);
         }
         TitleBarResponse { caption_clicked: clicked, close_requested: clicked == Some(Caption::Close) }
     }
