@@ -308,7 +308,7 @@ impl Family for CheckTokens {
         let on = |part| ComponentField::Check(CheckField::On { part, state: State::Rest });
         let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
         let backgrounds = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
-        let pair = |fg, bg| ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN };
+        let pair = |fg, bg| ContrastPair { fg: TokenRef::Component(fg), bg, minimum: values::NON_TEXT_MIN };
         let mut out: Vec<_> = backgrounds.map(|bg| pair(on(CheckOnPart::Fill), bg)).into();
         out.extend(backgrounds.map(|bg| pair(off_border, bg)));
         out.push(pair(on(CheckOnPart::Mark), TokenRef::Component(on(CheckOnPart::Fill))));

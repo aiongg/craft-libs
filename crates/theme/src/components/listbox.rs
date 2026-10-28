@@ -186,7 +186,7 @@ impl Family for ListboxTokens {
         let field = ComponentField::Listbox;
         let popup = TokenRef::Color(ColorToken::SurfaceRaised);
         let active = TokenRef::Component(field(ListboxField::ActiveFill));
-        let pair = |fg, bg, minimum| ContrastPair { fg: field(fg), bg, minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum };
         vec![
             pair(ListboxField::Text { disabled: false }, popup, values::TEXT_MIN),
             pair(ListboxField::ChosenText, popup, values::TEXT_MIN),

@@ -266,7 +266,7 @@ impl Family for ButtonTokens {
         for variant in ButtonVariant::ALL {
             for state in [State::Rest, State::Hover, State::Pressed] {
                 let fill = TokenRef::Component(field(variant, ButtonPart::Fill, state));
-                out.push(ContrastPair { fg: field(variant, ButtonPart::Text, state), bg: fill, minimum: values::TEXT_MIN });
+                out.push(ContrastPair { fg: TokenRef::Component(field(variant, ButtonPart::Text, state)), bg: fill, minimum: values::TEXT_MIN });
             }
         }
         out

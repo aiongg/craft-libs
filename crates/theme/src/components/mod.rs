@@ -410,11 +410,12 @@ impl fmt::Display for OverrideError {
 
 impl std::error::Error for OverrideError {}
 
-/// A contrast requirement between a component colour and what it is drawn on.
+/// A contrast requirement between a colour a component draws and what it is drawn on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ContrastPair {
-    /// The foreground field.
-    pub fg: ComponentField,
+    /// The foreground: a component field, or a semantic colour the component draws on a
+    /// component background (a curve's `data.*` channel colours on `curve.fill`).
+    pub fg: TokenRef,
     /// Its background; a translucent one is measured over `surface.panel`.
     pub bg: TokenRef,
     /// Minimum ratio with standard and with high contrast.

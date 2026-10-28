@@ -85,7 +85,7 @@ impl Family for IconButtonTokens {
         [State::Rest, State::Hover, State::Pressed]
             .into_iter()
             .map(|state| ContrastPair {
-                fg: field(ItemPart::Text, state),
+                fg: TokenRef::Component(field(ItemPart::Text, state)),
                 bg: TokenRef::Component(field(ItemPart::Fill, state)),
                 minimum: values::TEXT_MIN,
             })

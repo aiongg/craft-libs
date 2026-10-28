@@ -143,20 +143,20 @@ impl Family for SegmentedTokens {
         let mut out = Vec::new();
         // A resting segment is transparent: its text sits on the track.
         out.push(ContrastPair {
-            fg: field(F::Segment { part: ItemPart::Text, state: State::Rest }),
+            fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state: State::Rest })),
             bg: TokenRef::Component(field(F::Track)),
             minimum: values::TEXT_MIN,
         });
         for state in [State::Hover, State::Pressed] {
             out.push(ContrastPair {
-                fg: field(F::Segment { part: ItemPart::Text, state }),
+                fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state })),
                 bg: TokenRef::Component(field(F::Segment { part: ItemPart::Fill, state })),
                 minimum: values::TEXT_MIN,
             });
         }
         for state in [State::Rest, State::Hover, State::Pressed] {
             out.push(ContrastPair {
-                fg: field(F::Selected { part: ItemPart::Text, state }),
+                fg: TokenRef::Component(field(F::Selected { part: ItemPart::Text, state })),
                 bg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state })),
                 minimum: values::TEXT_MIN,
             });

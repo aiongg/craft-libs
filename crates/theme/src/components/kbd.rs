@@ -104,7 +104,7 @@ impl Family for KbdTokens {
     /// The keys are text on the keycap.
     fn pairs() -> Vec<ContrastPair> {
         vec![ContrastPair {
-            fg: ComponentField::Kbd(KbdField::Text),
+            fg: TokenRef::Component(ComponentField::Kbd(KbdField::Text)),
             bg: TokenRef::Component(ComponentField::Kbd(KbdField::Fill)),
             minimum: values::TEXT_MIN,
         }]

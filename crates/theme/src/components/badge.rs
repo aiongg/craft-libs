@@ -277,7 +277,7 @@ impl Family for BadgeTokens {
             .into_iter()
             .flat_map(|tone| BadgeStyle::ALL.into_iter().map(move |style| (tone, style)))
             .map(|(tone, style)| ContrastPair {
-                fg: field(tone, style, BadgePart::Text),
+                fg: TokenRef::Component(field(tone, style, BadgePart::Text)),
                 bg: TokenRef::Component(field(tone, style, BadgePart::Fill)),
                 minimum: values::TEXT_MIN,
             })

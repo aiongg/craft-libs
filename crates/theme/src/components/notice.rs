@@ -129,7 +129,7 @@ impl Family for NoticeTokens {
             .into_iter()
             .flat_map(|tone| {
                 [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
-                    fg: ComponentField::Notice(NoticeField::Fg(tone)),
+                    fg: TokenRef::Component(ComponentField::Notice(NoticeField::Fg(tone))),
                     bg: TokenRef::Color(bg),
                     minimum: values::TEXT_MIN,
                 })

@@ -347,7 +347,7 @@ impl Family for FieldTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Field;
         let fill = TokenRef::Component(field(FieldField::Color { part: FieldPart::Fill, disabled: false }));
-        let pair = |fg, bg, minimum| ContrastPair { fg: field(fg), bg, minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum };
         vec![
             pair(FieldField::Color { part: FieldPart::Text, disabled: false }, fill, values::TEXT_MIN),
             pair(FieldField::Color { part: FieldPart::Placeholder, disabled: false }, fill, values::TEXT_MIN),

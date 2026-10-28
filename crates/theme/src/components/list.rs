@@ -277,7 +277,7 @@ impl Family for ListTokens {
         let panel = TokenRef::Color(ColorToken::SurfacePanel);
         let raised = TokenRef::Color(ColorToken::SurfaceRaised);
         let component = |f| TokenRef::Component(field(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: field(fg), bg, minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum };
         vec![
             pair(ListField::Text, panel, values::TEXT_MIN),
             pair(ListField::Text, component(ListField::Hover), values::TEXT_MIN),

@@ -197,8 +197,16 @@ impl Family for SwatchTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = |c| ComponentField::Swatch(SwatchField::Color(c));
         vec![
-            ContrastPair { fg: field(SwatchColor::Selected), bg: TokenRef::Color(ColorToken::SurfacePanel), minimum: values::NON_TEXT_MIN },
-            ContrastPair { fg: field(SwatchColor::MixedMark), bg: TokenRef::Component(field(SwatchColor::MixedFill)), minimum: values::NON_TEXT_MIN },
+            ContrastPair {
+                fg: TokenRef::Component(field(SwatchColor::Selected)),
+                bg: TokenRef::Color(ColorToken::SurfacePanel),
+                minimum: values::NON_TEXT_MIN,
+            },
+            ContrastPair {
+                fg: TokenRef::Component(field(SwatchColor::MixedMark)),
+                bg: TokenRef::Component(field(SwatchColor::MixedFill)),
+                minimum: values::NON_TEXT_MIN,
+            },
         ]
     }
 }
