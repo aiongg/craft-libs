@@ -2,18 +2,20 @@
 //! lifecycle ([`crate::edit`]).
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use egui::accesskit::{Invalid, Role};
-use egui::text::CCursorRange;
+use egui::text::{CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
 use egui::{
-    Align2, Color32, Event, EventFilter, FontId, Frame, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, Response, TextEdit, Ui,
-    Vec2, ViewportId,
+    Align2, Color32, Event, EventFilter, FontId, Frame, Galley, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, Rect, Response,
+    TextBuffer, TextEdit, Ui, Vec2, ViewportId,
 };
 
-use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::edit::{EditPolicy, EditResponse, Gesture, GestureId};
 use crate::ime::is_ime_key;
 use crate::primitives::FocusRing;
+use crate::theme::TABULAR_FIGURES;
 
 /// How a field draws the `TextEdit` it runs: the box `TextEdit` covers, the room the field keeps
 /// at each end of the text (icons, a clear button), the font and the colours of the text, the
@@ -33,6 +35,44 @@ pub struct TypingLook {
     pub selection: Color32,
     pub selected_text: Color32,
     pub caret: Color32,
+}
+
+/// How a field writes its value as text and reads typed text back: [`PlainText`] for text,
+/// whose every text is a value; a number field's codec, whose typed text is a draft until the
+/// run commits.
+pub trait Codec {
+    type Value: Clone + PartialEq + Send + Sync + 'static;
+
+    /// Whether every text is a value. Then the typing run reports each change at the policy's
+    /// rate. Otherwise the typed text is a draft: the run reports no updates
+    /// ([`Gesture::hold_updates`]), its value is the draft read back (or the start while the
+    /// draft reads as no value), and its commit carries that value.
+    const DRAFTS_ARE_VALUES: bool = false;
+
+    /// The text the field shows for `value`.
+    fn format(&self, value: &Self::Value) -> String;
+
+    /// The value `text` stands for, typed in a run that began at `start`; or why it stands for
+    /// none, in words for the user.
+    fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, String>;
+}
+
+/// Text as it is: the codec of [`Typing::new`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PlainText;
+
+impl Codec for PlainText {
+    type Value = String;
+
+    const DRAFTS_ARE_VALUES: bool = true;
+
+    fn format(&self, value: &String) -> String {
+        value.clone()
+    }
+
+    fn parse(&self, text: &str, _start: &String) -> Result<String, String> {
+        Ok(text.to_owned())
+    }
 }
 
 /// What Esc does while the field has focus.
@@ -97,11 +137,20 @@ pub enum Escape {
 /// - **Focus**: Tab (or a screen reader) selects the whole text; a click places the caret.
 /// - **Keys of the embedding control**: [`event_filter`](Typing::event_filter) keeps more keys
 ///   with the field while it has the focus (a list's Up and Down, a popup's Esc).
+/// - **Typed values** ([`Typing::with_codec`]): the field shows its value as the [`Codec`] writes
+///   it. Where text is a draft rather than a value (a number), the run reports no updates and
+///   commits the draft read back, so Enter, the focus leaving and a field no longer drawn all
+///   commit the same value. A draft that reads as no value commits nothing (the run ends
+///   unchanged) and stays in the field, [rejected](Typed::rejected) with the codec's reason and
+///   reported invalid, until the user fixes it, Esc restores the value, or the host's value
+///   changes; a field no longer drawn drops it. An embedding control's own input (a drag, a
+///   step) goes through [`Typed::gesture`] and [`Typed::commit_with`].
 #[must_use = "show the field with `show`"]
-pub struct Typing<'a> {
+pub struct Typing<'a, C: Codec = PlainText> {
     id: Id,
     label: &'a str,
-    value: &'a str,
+    value: C::Value,
+    codec: C,
     placeholder: &'a str,
     policy: EditPolicy,
     enabled: bool,
@@ -111,15 +160,25 @@ pub struct Typing<'a> {
     role: Role,
     invalid: bool,
     keys: EventFilter,
+    tabular: bool,
 }
 
 impl<'a> Typing<'a> {
     /// The text `value` in the `TextEdit` with id `id`, named `label` for screen readers.
-    pub fn new(id: Id, label: &'a str, value: &'a str) -> Self {
+    pub fn new(id: Id, label: &'a str, value: &str) -> Self {
+        Self::with_codec(id, label, value.to_owned(), PlainText)
+    }
+}
+
+impl<'a, C: Codec> Typing<'a, C> {
+    /// The value `value`, written and read back by `codec`, in the `TextEdit` with id `id`, named
+    /// `label` for screen readers.
+    pub fn with_codec(id: Id, label: &'a str, value: C::Value, codec: C) -> Self {
         Self {
             id,
             label,
             value,
+            codec,
             placeholder: "",
             policy: EditPolicy::default(),
             enabled: true,
@@ -129,7 +188,15 @@ impl<'a> Typing<'a> {
             role: Role::TextInput,
             invalid: false,
             keys: EventFilter::default(),
+            tabular: false,
         }
+    }
+
+    /// Draws digits with tabular (equal-width) figures, so a number keeps its width as its
+    /// digits change.
+    pub fn tabular(mut self, tabular: bool) -> Self {
+        self.tabular = tabular;
+        self
     }
 
     /// The text shown while the field is empty, which screen readers read too.
@@ -165,14 +232,14 @@ impl<'a> Typing<'a> {
         self
     }
 
-    /// The AccessKit role: `TextInput` by default; `SearchInput` for a search field. A password
-    /// field is a `PasswordInput` whatever this says.
+    /// The AccessKit role: `TextInput` by default; `SearchInput` for a search field,
+    /// `SpinButton` for a number field. A password field is a `PasswordInput` whatever this says.
     pub fn role(mut self, role: Role) -> Self {
         self.role = role;
         self
     }
 
-    /// Reports the value invalid to AccessKit.
+    /// Reports the value invalid to AccessKit; rejected text is reported invalid too.
     pub fn invalid(mut self, invalid: bool) -> Self {
         self.invalid = invalid;
         self
@@ -189,28 +256,46 @@ impl<'a> Typing<'a> {
 
     /// Takes this pass's input, runs `TextEdit` in the field's box at the `Ui`'s cursor, and
     /// reports the field to AccessKit. Paint the box and anything over it, then [`Typed::end`].
-    pub fn show(self, ui: &mut Ui, look: &TypingLook) -> Typed {
+    pub fn show(self, ui: &mut Ui, look: &TypingLook) -> Typed<C> {
         let id = self.id;
         let enabled = self.enabled && ui.is_enabled();
-        let seen = Seen::load(ui, id);
+        let seen = Seen::<C::Value>::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         // A composition goes on only in a field that kept it and the focus since the last pass.
-        let kept = seen.is_some_and(|s| s.composing) && ui.memory(|m| m.owns_ime_events(id));
+        let kept = seen.as_ref().is_some_and(|s| s.composing) && ui.memory(|m| m.owns_ime_events(id));
         let preedit = state.preedit().filter(|_| kept).map(|(range, text)| (range, text.to_owned()));
         take_ime_keys(ui, preedit.is_some());
         let focused = enabled && ui.memory(|m| m.has_focus(id));
         let submitted = focused && ui.input(enter_pressed);
-        let was_focused = seen.is_some_and(|s| s.focused);
+        let was_focused = seen.as_ref().is_some_and(|s| s.focused);
 
-        let mut gesture = Gesture::load(ui, id, &self.value.to_owned(), self.policy).pointer_selects(true).enabled(enabled);
-        if self.escape == Escape::Clear && focused && !gesture.shown().is_empty() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-            clear(ui, &mut gesture);
+        let mut gesture = Gesture::load(ui, id, &self.value, self.policy).pointer_selects(true).enabled(enabled);
+        let seen_text = seen.as_ref().map(|s| s.text);
+        let (draft, rejected) = seen.map_or((None, None), |s| (s.draft, s.rejected));
+        // A run that ended since the last pass ended by a cancel (a commit ends in its own pass):
+        // its text goes, rejected or not.
+        let run_cancelled = draft.as_ref().is_some_and(|d| gesture.id() != Some(d.run));
+        let draft = draft.filter(|_| !run_cancelled);
+        let mut rejected = rejected.filter(|r| !run_cancelled && enabled && r.host == self.value);
+        if rejected.is_some() && draft.is_none() && focused && !gesture.is_active() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+            rejected = None;
+        }
+        if self.escape == Escape::Clear
+            && focused
+            && !self.codec.format(gesture.shown()).is_empty()
+            && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
+        {
+            clear(ui, &self.codec, &mut gesture);
         }
 
-        let shown = gesture.shown().clone();
+        let shown = match (&draft, &rejected) {
+            (Some(d), _) => d.text.clone(),
+            (None, Some(r)) if !gesture.is_active() => r.text.clone(),
+            _ => self.codec.format(gesture.shown()),
+        };
         // Text that isn't what `TextEdit` was left with changed outside it: its undo history and
         // any marked text belong to the text before.
-        let outside = seen.is_none_or(|s| s.text != egui::util::hash(&shown));
+        let outside = seen_text.is_none_or(|text| text != egui::util::hash(&shown));
         let mut buffer = shown.clone();
         if outside {
             state.clear_undoer();
@@ -219,7 +304,8 @@ impl<'a> Typing<'a> {
         }
         state.store(ui.ctx(), id);
 
-        let edit = TextEdit::singleline(&mut buffer)
+        let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, self.password, text.as_str());
+        let mut edit = TextEdit::singleline(&mut buffer)
             .id(id)
             .return_key(None::<KeyboardShortcut>)
             .frame(Frame::NONE.inner_margin(look.margin))
@@ -232,6 +318,9 @@ impl<'a> Typing<'a> {
             .interactive(enabled)
             .password(self.password)
             .char_limit(self.char_limit);
+        if self.tabular {
+            edit = edit.layouter(&mut layouter);
+        }
         let filter = edit.get_event_filter();
         let saved = ui.style().clone();
         let visuals = ui.visuals_mut();
@@ -245,56 +334,111 @@ impl<'a> Typing<'a> {
         let marked = output.state.preedit().map(|(range, _)| range);
         let composing = marked.is_some();
         let text = remove_chars(&buffer, marked);
+        let text_rect = output.galley.rect.translate(output.galley_pos.to_vec2());
         let response = output.response.response;
-        if text != shown {
-            if response.has_focus() {
-                gesture.begin();
-                gesture.update(text.clone(), ui.input(|i| i.modifiers));
-            } else {
-                gesture.set(text.clone());
-            }
+        let mut typed = Typed {
+            id,
+            escape: self.escape,
+            codec: self.codec,
+            host: self.value,
+            was_focused,
+            gesture,
+            response,
+            text,
+            buffer,
+            text_rect,
+            composing,
+            submitted,
+            filter: either(filter, self.keys),
+            draft,
+            rejected,
+            replaced: false,
+        };
+        if typed.text != shown {
+            let text = typed.text.clone();
+            typed.change(ui, text);
         }
-        self.report(ui, enabled);
-        let filter = either(filter, self.keys);
-        Typed { id, escape: self.escape, was_focused, gesture, response, text, buffer, composing, submitted, filter }
+        report(ui, id, self.label, self.role, self.password, self.invalid || typed.rejected.is_some(), enabled);
+        typed
     }
+}
 
-    fn report(&self, ui: &Ui, enabled: bool) {
-        ui.ctx().accesskit_node_builder(self.id, |node| {
-            node.set_label(self.label);
-            if !self.password {
-                node.set_role(self.role);
-            }
-            if self.invalid {
-                node.set_invalid(Invalid::True);
-            }
-            if !enabled {
-                node.clear_read_only();
-                node.set_disabled();
-            }
-        });
+fn report(ui: &Ui, id: Id, label: &str, role: Role, password: bool, invalid: bool, enabled: bool) {
+    ui.ctx().accesskit_node_builder(id, |node| {
+        node.set_label(label);
+        if !password {
+            node.set_role(role);
+        }
+        if invalid {
+            node.set_invalid(Invalid::True);
+        }
+        if !enabled {
+            node.clear_read_only();
+            node.set_disabled();
+        }
+    });
+}
+
+/// The one line `TextEdit` lays out, as its own layouter does, with tabular figures.
+fn tabular_line(ui: &Ui, look: &TypingLook, password: bool, text: &str) -> Arc<Galley> {
+    let text = if password { "\u{2022}".repeat(text.chars().count()) } else { text.to_owned() };
+    let mut job = LayoutJob::simple_singleline(text, look.font.clone(), look.text);
+    job.halign = look.align.x();
+    job.language = ui.language();
+    job.keep_trailing_whitespace = true;
+    let line_height = ui.fonts_mut(|f| f.row_height(&look.font)) + ui.spacing().extra_text_line_spacing;
+    for section in &mut job.sections {
+        section.format.line_height = Some(line_height);
+        section.format.font_features.push(TABULAR_FIGURES, 1);
     }
+    ui.fonts_mut(|f| f.layout_job(job))
 }
 
 /// A field whose `TextEdit` ran this pass, from [`Typing::show`]: paint it, then [`end`](Typed::end).
 #[must_use = "end the field with `end` to get its edit"]
-pub struct Typed {
+pub struct Typed<C: Codec = PlainText> {
     id: Id,
     escape: Escape,
+    codec: C,
+    /// The host's value this pass.
+    host: C::Value,
     /// The field had the focus at the end of the last pass.
     was_focused: bool,
-    gesture: Gesture<String>,
+    gesture: Gesture<C::Value>,
     response: Response,
     text: String,
     /// The text with the marked text in it.
     buffer: String,
+    /// Where the laid-out text is.
+    text_rect: Rect,
     composing: bool,
     submitted: bool,
     /// `TextEdit`'s focus filter with the embedding control's keys.
     filter: EventFilter,
+    /// The typing run's text, where text is a draft.
+    draft: Option<Draft>,
+    rejected: Option<Rejected<C::Value>>,
+    /// The embedding control ended the run with a value of its own.
+    replaced: bool,
 }
 
-impl Typed {
+/// The text of a typing run whose text is a draft.
+#[derive(Clone, Debug)]
+struct Draft {
+    run: GestureId,
+    text: String,
+}
+
+/// Text whose run committed nothing because it read as no value.
+#[derive(Clone, Debug)]
+struct Rejected<T> {
+    text: String,
+    reason: String,
+    /// The host's value when it was rejected; any other drops it.
+    host: T,
+}
+
+impl<C: Codec> Typed<C> {
     /// `TextEdit`'s response; its rect is the field's box.
     pub fn response(&self) -> &Response {
         &self.response
@@ -305,37 +449,138 @@ impl Typed {
         &self.text
     }
 
+    /// Where the laid-out text is, in the field's box (an empty rect at the text's start in an
+    /// empty field): for a unit drawn beside it.
+    pub fn text_rect(&self) -> Rect {
+        self.text_rect
+    }
+
+    /// The value the field stands for this pass: during a typing run its draft read back (the
+    /// start while the draft reads as no value), else what the gesture shows.
+    pub fn value(&self) -> &C::Value {
+        self.gesture.shown()
+    }
+
+    /// Whether a typing run is under way.
+    pub fn is_typing(&self) -> bool {
+        match &self.draft {
+            Some(d) => self.gesture.id() == Some(d.run),
+            None => C::DRAFTS_ARE_VALUES && self.gesture.is_active(),
+        }
+    }
+
+    /// Why the text shown reads as no value, while the field keeps rejected text.
+    pub fn rejected(&self) -> Option<&str> {
+        self.rejected.as_ref().map(|r| r.reason.as_str())
+    }
+
+    /// The field's gesture, for the embedding control's own input: a drag begins, updates and
+    /// commits it. One gesture runs at a time: commit a typing run before beginning another
+    /// (the run's text is read then, as on focus loss).
+    pub fn gesture(&mut self) -> &mut Gesture<C::Value> {
+        &mut self.gesture
+    }
+
+    /// Ends the typing run under way with `value` in place of its text (a step from the typed
+    /// value); without a run, a one-shot change.
+    pub fn commit_with(&mut self, ui: &Ui, value: C::Value) {
+        if self.is_typing() {
+            self.gesture.update(value, ui.input(|i| i.modifiers));
+            self.gesture.commit();
+            self.replaced = true;
+        } else {
+            self.gesture.set(value);
+        }
+    }
+
     /// Clears the text, as Esc does with [`Escape::Clear`], and gives the field the focus: a
     /// clear button's click. The field shows the empty text from the next pass.
     pub fn clear(&mut self, ui: &Ui) {
-        clear(ui, &mut self.gesture);
+        clear(ui, &self.codec, &mut self.gesture);
         ui.memory_mut(|m| m.request_focus(self.id));
         ui.ctx().request_repaint();
     }
 
     /// Commits on Enter, keeps the focus rules and returns this pass's edit.
-    pub fn end(mut self, ui: &Ui) -> EditResponse<String> {
+    pub fn end(self, ui: &Ui) -> EditResponse<C::Value> {
+        self.end_as(ui, |value| value)
+    }
+
+    /// [`end`](Typed::end) for a control that reports its value as another type: `report` maps
+    /// the edit, as [`Gesture::finish_as`] does.
+    pub fn end_as<U: Clone + Send + Sync + 'static>(mut self, ui: &Ui, report: impl Fn(C::Value) -> U) -> EditResponse<U> {
         if self.submitted {
             self.gesture.commit();
         }
         let focused = ui.memory(|m| m.has_focus(self.id));
         if self.composing && !focused {
             // `TextEdit` keeps the marked text as typed once it has lost the focus.
-            self.text = std::mem::take(&mut self.buffer);
-            match self.gesture.is_active() {
-                true => self.gesture.update(self.text.clone(), ui.input(|i| i.modifiers)),
-                false => self.gesture.set(self.text.clone()),
-            }
+            let text = std::mem::take(&mut self.buffer);
+            self.text.clone_from(&text);
+            self.change(ui, text);
+        }
+        if self.gesture.is_active() && !self.is_typing() {
+            // Another gesture (a drag) shows the value as it goes.
+            self.rejected = None;
+        }
+        // A run of drafts ends on Enter or when the focus leaves (the gesture commits it as it
+        // finishes): text that reads as no value stays, rejected.
+        let ending = self.submitted || !focused || self.replaced;
+        if let Some(draft) = self.draft.take_if(|_| ending)
+            && !self.replaced
+            && self.gesture.id() == Some(draft.run)
+            && let Some(start) = self.gesture.start()
+            && let Err(reason) = self.codec.parse(&draft.text, start)
+        {
+            self.rejected = Some(Rejected { text: draft.text, reason, host: self.host.clone() });
         }
         if focused && !self.was_focused && FocusRing::visible(ui.ctx()) {
             select_all(ui, self.id, &self.buffer);
         }
-        // Esc stays with the field while it is the input method's or clears text.
+        // Esc stays with the field while it is the input method's, clears text or restores
+        // rejected text.
         let composing = self.composing && focused;
-        let escape = composing || (self.escape == Escape::Clear && !self.gesture.shown().is_empty());
-        Seen::store(ui, self.id, egui::util::hash(&self.text), focused, composing);
-        let event = self.gesture.event_filter(EventFilter { escape: escape || self.filter.escape, ..self.filter }).finish();
+        let escape = composing || (self.escape == Escape::Clear && !self.codec.format(self.gesture.shown()).is_empty()) || self.rejected.is_some();
+        let seen = Seen::new(ui, egui::util::hash(&self.text), focused, composing, self.draft.take(), self.rejected.take());
+        seen.store(ui, self.id);
+        let event = self.gesture.event_filter(EventFilter { escape: escape || self.filter.escape, ..self.filter }).finish_as(report);
         EditResponse::new(self.response, event).submitted(self.submitted)
+    }
+
+    /// A change of the text to `text`: with the focus, a change of the typing run (which it
+    /// begins); without it (a screen reader's set-value), a one-shot change.
+    fn change(&mut self, ui: &Ui, text: String) {
+        let modifiers = ui.input(|i| i.modifiers);
+        if !self.response.has_focus() && !(self.composing && self.is_typing()) {
+            if let Ok(value) = self.codec.parse(&text, self.gesture.shown()) {
+                self.gesture.set(value);
+            }
+            return;
+        }
+        if !self.gesture.is_active() {
+            self.gesture.begin();
+            if !C::DRAFTS_ARE_VALUES {
+                self.gesture.hold_updates();
+            }
+        }
+        let Some(start) = self.gesture.start().cloned() else { return };
+        match self.codec.parse(&text, &start) {
+            Ok(value) => {
+                self.gesture.update(value, modifiers);
+                self.rejected = None;
+            }
+            Err(reason) => {
+                self.gesture.update(start, modifiers);
+                if let Some(r) = &mut self.rejected {
+                    (r.text, r.reason) = (text.clone(), reason);
+                }
+            }
+        }
+        if !C::DRAFTS_ARE_VALUES
+            && let Some(run) = self.gesture.id()
+        {
+            self.draft = Some(Draft { run, text });
+        }
     }
 }
 
@@ -349,8 +594,8 @@ fn select_all(ui: &Ui, id: Id, text: &str) {
 }
 
 /// What a field kept from its last pass.
-#[derive(Clone, Copy, Debug)]
-struct Seen {
+#[derive(Clone, Debug)]
+struct Seen<T> {
     /// The viewport and its pass that stored it.
     viewport: ViewportId,
     pass: u64,
@@ -359,9 +604,16 @@ struct Seen {
     focused: bool,
     /// A composition was open and the field kept the focus: the marked text goes back in.
     composing: bool,
+    draft: Option<Draft>,
+    rejected: Option<Rejected<T>>,
 }
 
-impl Seen {
+impl<T: Clone + Send + Sync + 'static> Seen<T> {
+    fn new(ui: &Ui, text: u64, focused: bool, composing: bool, draft: Option<Draft>, rejected: Option<Rejected<T>>) -> Self {
+        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
+        Self { viewport, pass, text, focused, composing, draft, rejected }
+    }
+
     /// What field `id` kept, when it was drawn in the last pass of this viewport (or earlier in
     /// this one, as [`Gesture::load`] counts); a field missing from a pass starts afresh.
     fn load(ui: &Ui, id: Id) -> Option<Self> {
@@ -369,9 +621,8 @@ impl Seen {
         ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|s| s.viewport == viewport && s.pass + 1 >= pass)
     }
 
-    fn store(ui: &Ui, id: Id, text: u64, focused: bool, composing: bool) {
-        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
-        ui.data_mut(|d| d.insert_temp(Self::key(id), Self { viewport, pass, text, focused, composing }));
+    fn store(self, ui: &Ui, id: Id) {
+        ui.data_mut(|d| d.insert_temp(Self::key(id), self));
     }
 
     fn key(id: Id) -> Id {
@@ -397,11 +648,12 @@ fn either(a: EventFilter, b: EventFilter) -> EventFilter {
     }
 }
 
-/// Clears the text as one change of the run, committed at once.
-fn clear(ui: &Ui, gesture: &mut Gesture<String>) {
-    let modifiers = ui.input(|i| i.modifiers);
+/// Clears the text as one change of the run, committed at once; nothing where empty text reads
+/// as no value.
+fn clear<C: Codec>(ui: &Ui, codec: &C, gesture: &mut Gesture<C::Value>) {
+    let Ok(empty) = codec.parse("", gesture.shown()) else { return };
     gesture.begin();
-    gesture.update(String::new(), modifiers);
+    gesture.update(empty, ui.input(|i| i.modifiers));
     gesture.commit();
 }
 
