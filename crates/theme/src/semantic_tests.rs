@@ -109,11 +109,11 @@ fn assert_meets_spec(name: &str, r: &Resolved, contrast: Contrast) {
     let min = if high { 4.5 } else { 3.0 };
     for backdrop in [Rgba::BLACK, Rgba::WHITE] {
         let halo = over(t.color(T::OverlayHalo), backdrop);
-        for fg in [T::OverlayStroke, T::OverlayMarquee] {
-            let ratio = contrast_ratio(t.color(fg), halo);
-            assert!(ratio >= min, "{name} {contrast:?}: {} on halo over {backdrop:?} is {ratio:.2}", fg.path());
-        }
+        let ratio = contrast_ratio(t.color(T::OverlayStroke), halo);
+        assert!(ratio >= min, "{name} {contrast:?}: overlay.stroke on halo over {backdrop:?} is {ratio:.2}");
     }
+    let ratio = contrast_ratio(t.color(T::OverlayMarquee), t.color(T::OverlayMarqueeDash));
+    assert!(ratio >= min, "{name} {contrast:?}: overlay.marquee on overlay.marquee_dash is {ratio:.2}");
 }
 
 #[test]
@@ -444,6 +444,33 @@ fn dark_accent_seed_in_light_mode_still_meets_the_overlay_pairs() {
         let r = resolve(&def, app(Mode::Light, contrast), None);
         assert!(r.warnings.is_empty(), "{contrast:?}: {:?}", r.warnings);
     }
+}
+
+/// Guide colours are the user's: a pinned guide colour that vanishes on the panel and the halo is
+/// kept in both contrasts and reported nowhere. The marquee's dashes are a pair, so a pinned
+/// marquee that matches them is fixed in high contrast.
+#[test]
+fn guide_colours_are_exempt_from_the_overlay_pairs() {
+    let mut def = grey_blue();
+    let faint = hex("#202020");
+    let guides = [T::OverlayGuide, T::OverlayGuideSelected, T::OverlaySmartGuide];
+    def.pins.dark = Pins::from_iter(guides.map(|t| (t, faint)).into_iter().chain([(T::OverlayMarquee, hex("#101010"))]));
+    let standard = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    for t in guides {
+        assert_eq!(standard.tokens.color(t), faint, "{}", t.path());
+        assert!(!standard.warnings.iter().any(|w| w.fg == TokenRef::Color(t) || w.bg == TokenRef::Color(t)), "{}: {:?}", t.path(), standard.warnings);
+    }
+    assert!(
+        standard.warnings.iter().any(|w| w.fg == TokenRef::Color(T::OverlayMarquee) && w.bg == TokenRef::Color(T::OverlayMarqueeDash)),
+        "{:?}",
+        standard.warnings
+    );
+    let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
+    for t in guides {
+        assert_eq!(high.tokens.color(t), faint, "{}", t.path());
+    }
+    let ratio = contrast_ratio(high.tokens.color(T::OverlayMarquee), high.tokens.color(T::OverlayMarqueeDash));
+    assert!(ratio >= 4.5, "high contrast fixes the pinned marquee: {ratio:.2}");
 }
 
 #[test]

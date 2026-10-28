@@ -27,7 +27,7 @@ Three layers, each derived from the one before:
 2. **Semantic tokens**: surface, text, line, state, accent, status, overlay, data and caption
    colours; shape, size, space, motion and type tokens. Seeds (neutral, accent, four status
    colours) generate ramps, and ramps fill the tokens.
-3. **Component tokens**: one struct per component family (button, badge, check box, radio button and switch, text and number field, handle, icon button, kbd, list box, progress bar, segmented control, slider, swatch, toggle button, tooltip), with curated overrides.
+3. **Component tokens**: one struct per component family (button, badge, check box, radio button and switch, text and number field, guide, handle, icon button, kbd, list box, marquee, progress bar, readout, ruler, segmented control, slider, swatch, toggle button, tooltip), with curated overrides.
 
 A theme sets **seeds** and may **pin** any colour token (`"surface.panel": "#F0F0F0"`), or a
 component field, per mode. Pins win over derivation. Apps can pin per app (`apps.<id>`).
@@ -35,8 +35,9 @@ component field, per mode. Pins win over derivation. Apps can pin per app (`apps
 ## Contrast
 
 Only text and state indicators have rules: text on surfaces and state fills (4.5, high contrast
-7), and focus rings, accent marks and overlay strokes (3, high contrast 4.5). Hover, pressed,
-dividers, edges and knob faces have none. In standard contrast an unpinned colour is moved to the minimum and
+7), and focus rings, accent marks, overlay strokes on their halo and the marquee on its dashes (3,
+high contrast 4.5). Hover, pressed, dividers, edges and knob faces have none, and neither have
+guide and smart-guide colours, which are the user's choice. In standard contrast an unpinned colour is moved to the minimum and
 a failing pin is kept and reported, with every component pair it makes fail; in high contrast every colour is fixed, pins included.
 
 ## Files, built-ins, selection

@@ -14,12 +14,15 @@
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
+//! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
+//!   canvas overlays.
 
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tab_tests;
 mod key_claim;
 mod listbox;
+pub mod nudge;
 mod radio_selection;
 #[cfg(test)]
 mod tests;

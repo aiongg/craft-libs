@@ -4,6 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
+use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{
     ChannelColor, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
 };
@@ -470,6 +471,7 @@ fn empty_state() {
         d.line("message_role", role(s.message_role)).line("title_role", role(s.title_role)).line("description_role", role(s.description_role));
     });
 }
+
 /// Curve editors: the graph's sizes, the plot, grid and baseline, the curve widths, both point
 /// looks and the hint.
 #[test]
@@ -504,5 +506,59 @@ fn histogram() {
         for (name, color) in ["red", "green", "blue"].into_iter().zip(s.ribbons) {
             d.line(&format!("ribbon.{name}"), color);
         }
+    });
+}
+
+/// Readouts: placement, spacing, frame, and the rows' role and colours.
+#[test]
+fn readout() {
+    check("readout.txt", |d, t| {
+        let s = Readout::style(t);
+        d.line("offset", s.offset).line("pad", s.pad).line("col_gap", s.col_gap).line("row_gap", s.row_gap);
+        d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
+        d.line("role", role(s.role)).line("label", s.label).line("value", s.value);
+    });
+}
+
+/// Guides and smart guides: line, hit and pattern sizes, the colours, the distance label and the
+/// focus lines.
+#[test]
+fn guide() {
+    check("guide.txt", |d, t| {
+        let s = Guides::style(t);
+        d.line("width", s.width)
+            .line("hit", s.hit)
+            .line("dash", s.dash)
+            .line("gap", s.gap)
+            .line("dot_gap", s.dot_gap)
+            .line("dot_radius", s.dot_radius);
+        d.line("color", s.color).line("selected", s.selected).line("smart", s.smart);
+        d.line("measure_cap", s.measure_cap).line("measure_pad", s.measure_pad).line("measure_radius", s.measure_radius);
+        d.line("measure_role", role(s.measure_role)).line("measure_text", s.measure_text);
+        d.line("focus", s.focus).line("focus_offset", s.focus_offset);
+    });
+}
+
+/// Rulers: strip, label and tick sizes, the colours and the pointer marker.
+#[test]
+fn ruler() {
+    check("ruler.txt", |d, t| {
+        let s = Rulers::style(t);
+        d.line("size", s.size).line("label", s.font.size).line("family", format!("{:?}", s.font.family));
+        d.line("label_pitch", s.label_pitch).line("label_pad", s.label_pad).line("step_min", s.step_min);
+        d.line("tick_mid", s.tick_mid).line("tick_minor", s.tick_minor);
+        d.line("fill", s.fill).line("tick", s.tick).line("label_color", s.label).line("marker", s.marker);
+    });
+}
+
+/// Marquees: the ants' colours and march, the band's line and dashes, the drawing look's two
+/// lines, and the click slop.
+#[test]
+fn marquee() {
+    check("marquee.txt", |d, t| {
+        let s = craft_ui::canvas::Marquee::style(t);
+        d.line("light", s.light).line("dark", s.dark).line("dash", s.dash).line("speed", s.speed).line("tick_ms", s.tick_ms).line("march", s.march);
+        d.line("band_line", s.band_line).line("band_dash", s.band_dash).line("band_gap", s.band_gap);
+        d.line("drawing_halo", s.drawing_halo).line("drawing_line", s.drawing_line).line("click_slop", s.click_slop);
     });
 }

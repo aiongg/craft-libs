@@ -217,7 +217,11 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayHandleFill => Fixed(Rgba::WHITE),
         T::OverlayHandleStroke => Same(T::OverlayStroke),
         T::OverlayMarquee => Fixed(Rgba::WHITE),
-        T::OverlayGuide => Oklch(pickf(0.75, 0.60), 0.14, 210.0),
+        T::OverlayMarqueeDash => Fixed(Rgba::BLACK),
+        // Guides sit on the document, not the panel, so they keep one colour in both modes.
+        T::OverlayGuide => Fixed(Rgba::rgb(0x4a, 0xff, 0xff)),
+        T::OverlayGuideSelected => Fixed(Rgba::rgb(0x00, 0x00, 0xff)),
+        T::OverlaySmartGuide => Fixed(Rgba::rgb(0xff, 0x00, 0xff)),
         // Drawn over the document, not the panel, so not anchored.
         T::OverlayGrid => NeutralAlpha(8, 0.5),
         T::DataSeries0 => series(0),
@@ -328,7 +332,8 @@ pub(super) const RULES: &[PairRule] = &[
             TEXT_MIN.1,
         )
     },
-    rule(&[T::OverlayStroke, T::OverlayMarquee], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::OverlayStroke], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::OverlayMarquee], &[Token(T::OverlayMarqueeDash)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     // A curve editor's curve and points in a channel colour, on its plot (`field.fill`, `surface.sunken`).
     rule(
         &[T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow],
@@ -336,6 +341,8 @@ pub(super) const RULES: &[PairRule] = &[
         NON_TEXT_MIN.0,
         NON_TEXT_MIN.1,
     ),
+    // Guide and smart-guide colours have no pair: they are the user's choice, as in the apps'
+    // preferences, and a bare line on an image can't promise a ratio.
 ];
 
 /// The Size-dependent values: sizes, spacing, default shape and type roles.
@@ -527,6 +534,64 @@ pub const HANDLE_HALO: f32 = 1.0;
 /// Side of the square around a handle's centre that takes the pointer, in points: larger than the
 /// handle, so small handles stay easy to hit.
 pub const HANDLE_HIT: f32 = 14.0;
+
+/// Guide line width in points, the same at every Size: guides sit on the document.
+pub const GUIDE_WIDTH: f32 = 1.0;
+/// Distance from a guide, in points, within which the pointer takes it (PhotoCraft's).
+pub const GUIDE_HIT: f32 = 4.0;
+/// Dash length of a dashed guide.
+pub const GUIDE_DASH: f32 = 4.0;
+/// Gap between a dashed guide's dashes.
+pub const GUIDE_GAP: f32 = 3.0;
+/// Gap between a dotted guide's dots.
+pub const GUIDE_DOT_GAP: f32 = 3.0;
+/// Radius of a dotted guide's dots.
+pub const GUIDE_DOT_RADIUS: f32 = 0.6;
+/// Length of the end caps of a smart guide's distance.
+pub const GUIDE_MEASURE_CAP: f32 = 4.0;
+/// Padding of a distance's label, beside and above the text.
+pub const GUIDE_MEASURE_PAD: (f32, f32) = (8.0, 4.0);
+
+/// Length of the marching ants' dashes and gaps, in line widths (PhotoCraft's).
+pub const MARQUEE_DASH: f32 = 4.0;
+/// How fast the ants march, in line widths per second.
+pub const MARQUEE_SPEED: f32 = 10.0;
+/// Milliseconds between the ants' repaints.
+pub const MARQUEE_TICK_MS: u32 = 100;
+/// Dash length of a selection band, in points.
+pub const MARQUEE_BAND_DASH: f32 = 3.0;
+/// Gap between a selection band's dashes.
+pub const MARQUEE_BAND_GAP: f32 = 3.0;
+/// Width of the light line under an outline being drawn.
+pub const MARQUEE_DRAWING_HALO: f32 = 3.0;
+/// Farthest a press may move, in points, and still be a click (PhotoCraft's `is_click`).
+pub const MARQUEE_CLICK_SLOP: f32 = 3.0;
+
+/// Ruler strip thickness in points, the same at every Size (PhotoCraft's, Pro and Studio alike).
+pub const RULER_SIZE: f32 = 16.0;
+/// Ruler label size in points, the same at every Size and Text size.
+pub const RULER_LABEL: f32 = 9.0;
+/// Between the characters of the left ruler's stacked labels.
+pub const RULER_LABEL_PITCH: f32 = 8.5;
+/// Between a top-ruler label and its tick.
+pub const RULER_LABEL_PAD: f32 = 2.0;
+/// Least distance between labelled ticks, in points.
+pub const RULER_STEP_MIN: f32 = 60.0;
+/// Length of the tick halfway between labelled ticks.
+pub const RULER_TICK_MID: f32 = 6.0;
+/// Length of the other minor ticks.
+pub const RULER_TICK_MINOR: f32 = 3.0;
+
+/// The control height the Compact readout sizes are set for.
+pub const READOUT_BASE_CONTROL: f32 = 24.0;
+/// Compact distance from the pointer to a readout's corner, across and down (PhotoCraft's).
+pub const READOUT_OFFSET: (f32, f32) = (16.0, 18.0);
+/// Compact padding of a readout, beside and above the rows.
+pub const READOUT_PAD: (f32, f32) = (7.0, 4.0);
+/// Compact gap between a readout's label and value columns.
+pub const READOUT_COL_GAP: f32 = 12.0;
+/// Compact gap between a readout's rows.
+pub const READOUT_ROW_GAP: f32 = 1.0;
 
 /// Largest corner radius of a check box, in points: `shape.radius.control` up to this, so a
 /// small box keeps square corners and never reads as a radio button.

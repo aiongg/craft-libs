@@ -161,10 +161,16 @@ pub struct OverlayColors {
     pub handle_fill: Rgba,
     /// Outline of handles; follows `stroke` unless pinned.
     pub handle_stroke: Rgba,
-    /// Marquee selection, drawn over `halo`.
+    /// Marching ants and selection bands: the light colour, under `marquee_dash`.
     pub marquee: Rgba,
-    /// Ruler guides.
+    /// The dashes over `marquee`, and the line of an outline being drawn.
+    pub marquee_dash: Rgba,
+    /// Ruler guides, unless the host gives a guide its own colour.
     pub guide: Rgba,
+    /// The selected guide.
+    pub guide_selected: Rgba,
+    /// Smart guides and the distances they measure.
+    pub smart_guide: Rgba,
     /// Canvas grid.
     pub grid: Rgba,
 }
@@ -248,7 +254,18 @@ impl ColorTokens {
             accent: AccentColors { solid: c, hover: c, pressed: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
-            overlay: OverlayColors { stroke: c, halo: c, handle_fill: c, handle_stroke: c, marquee: c, guide: c, grid: c },
+            overlay: OverlayColors {
+                stroke: c,
+                halo: c,
+                handle_fill: c,
+                handle_stroke: c,
+                marquee: c,
+                marquee_dash: c,
+                guide: c,
+                guide_selected: c,
+                smart_guide: c,
+                grid: c,
+            },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
             edge: EdgeColors { light: c, dark: c },
@@ -412,8 +429,14 @@ color_tokens! {
     OverlayHandleStroke = "overlay.handle_stroke" => overlay.handle_stroke;
     /// `overlay.marquee`
     OverlayMarquee = "overlay.marquee" => overlay.marquee;
+    /// `overlay.marquee_dash`
+    OverlayMarqueeDash = "overlay.marquee_dash" => overlay.marquee_dash;
     /// `overlay.guide`
     OverlayGuide = "overlay.guide" => overlay.guide;
+    /// `overlay.guide_selected`
+    OverlayGuideSelected = "overlay.guide_selected" => overlay.guide_selected;
+    /// `overlay.smart_guide`
+    OverlaySmartGuide = "overlay.smart_guide" => overlay.smart_guide;
     /// `overlay.grid`
     OverlayGrid = "overlay.grid" => overlay.grid;
     /// `data.series.0`

@@ -11,15 +11,19 @@ mod check;
 mod curve;
 mod empty_state;
 mod field;
+mod guide;
 mod handle;
 mod histogram;
 mod icon_button;
 mod kbd;
 mod listbox;
+mod marquee;
 mod notice;
 mod panel_header;
 mod progress;
 mod property;
+mod readout;
+mod ruler;
 mod section;
 mod segmented;
 mod slider;
@@ -40,15 +44,19 @@ pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOn
 pub use curve::{CurveField, CurveTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
+pub use marquee::{MarqueeField, MarqueeTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
+pub use readout::{ReadoutField, ReadoutTokens};
+pub use ruler::{RulerField, RulerTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
@@ -554,6 +562,8 @@ families! {
     empty_state: EmptyStateTokens => EmptyState(EmptyStateField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Ruler guides and smart guides.
+    guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
     /// Histograms: the plot height and the fill and backdrop alphas.
@@ -564,6 +574,8 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
+    /// Marching ants, selection bands and outlines being drawn.
+    marquee: MarqueeTokens => Marquee(MarqueeField);
     /// Notices: inline status messages.
     notice: NoticeTokens => Notice(NoticeField);
     /// Panel headers: the title row of a flyout or floating panel.
@@ -572,6 +584,10 @@ families! {
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.
     property: PropertyTokens => Property(PropertyField);
+    /// Readouts: the values beside the pointer during a canvas gesture.
+    readout: ReadoutTokens => Readout(ReadoutField);
+    /// Rulers along the top and left of a canvas.
+    ruler: RulerTokens => Ruler(RulerField);
     /// Section headers: the row, chevron and title of a collapsible section.
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options on a track.

@@ -56,11 +56,11 @@ pub use components::{
     BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BorderColors, BorderState, ButtonColors, ButtonField, ButtonPart,
     ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens, ComponentField,
     ComponentTokens, ControlSize, CurveField, CurveTokens, Dimmed, EmptyStateField, EmptyStateTokens, FieldField, FieldKind, FieldPart, FieldTokens,
-    HandleField, HandleTokens, HistogramField, HistogramTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens,
-    ListboxField, ListboxTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue, PanelHeaderField, PanelHeaderTokens, ProgressField,
-    ProgressTokens, PropertyField, PropertyTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State,
-    States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone,
-    TooltipField, TooltipTokens,
+    GuideField, GuideTokens, HandleField, HandleTokens, HistogramField, HistogramTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart,
+    KbdField, KbdTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue,
+    PanelHeaderField, PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, ReadoutField, ReadoutTokens, RulerField,
+    RulerTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField,
+    SwatchTokens, ThumbColors, ThumbPart, ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};
