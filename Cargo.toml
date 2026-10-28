@@ -73,18 +73,18 @@ hayro-syntax = { path = "vendor/hayro-syntax" }
 hayro-jbig2 = { path = "vendor/hayro-jbig2" }
 hayro-cmap = { path = "vendor/hayro-cmap" }
 hayro-postscript = { path = "vendor/hayro-postscript" }
-ecolor = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-emath = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-epaint = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-epaint_default_fonts = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui-winit = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui-wgpu = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_glow = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_extras = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_kittest = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_system_font_provider = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-eframe = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_demo_lib = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
-egui_inspection = { git = "https://github.com/aiongg/egui.git", rev = "e8cd5cb48d1e4193def2fe7134fed1ee1ad05b71" }
+ecolor = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+emath = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+epaint = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+epaint_default_fonts = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui-winit = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui-wgpu = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_glow = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_extras = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_kittest = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_system_font_provider = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+eframe = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_demo_lib = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
+egui_inspection = { git = "https://github.com/aiongg/egui.git", rev = "34dc5998f48d4d9052236b54c11cbc293d9b7fc2" }
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
