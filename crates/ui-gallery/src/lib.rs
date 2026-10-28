@@ -5,6 +5,7 @@
 //! in compare view.
 
 mod appearance;
+pub mod faces;
 mod gallery;
 mod persist;
 

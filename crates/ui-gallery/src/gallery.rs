@@ -10,6 +10,7 @@ use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
 use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
 
 use crate::appearance::{Appearance, SCALE, builtin};
+use crate::faces;
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -31,7 +32,8 @@ pub struct Gallery {
 impl Gallery {
     pub fn new(storage: Option<&dyn eframe::Storage>) -> Self {
         let saved = Saved::load(storage);
-        let stories = registry();
+        let mut stories = registry();
+        stories.extend(faces::stories());
         let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| stories.first().map(|s| s.id.to_owned()));
         let mut compare_themes: Vec<String> = saved.compare_themes.into_iter().filter(|id| builtin(id).is_some()).collect();
         if compare_themes.is_empty() {
@@ -88,6 +90,11 @@ impl Gallery {
             if previous.as_ref().is_none_or(|p| p.rtl != self.appearance.rtl) {
                 direction::apply(ctx, self.appearance.direction());
             }
+            if faces::available()
+                && previous.as_ref().is_none_or(|p| p.ui_face != self.appearance.ui_face || p.mono_face != self.appearance.mono_face)
+            {
+                faces::install(ctx, &self.appearance.ui_face, &self.appearance.mono_face);
+            }
             ctx.set_zoom_factor(self.appearance.zoom());
             self.base = self.appearance.base();
         }
@@ -114,6 +121,10 @@ impl Gallery {
             }
             ui.checkbox(&mut a.reduced_motion, "Reduced motion");
             segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
+            if faces::available() {
+                face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, faces::UI_FACES);
+                face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, faces::MONO_FACES);
+            }
             ui.label("Scale");
             ui.add(egui::Slider::new(&mut a.scale, SCALE).suffix("%"));
         });
@@ -273,6 +284,15 @@ fn text_size_name(size: TextSize) -> &'static str {
         TextSize::Large => "Large",
         TextSize::Larger => "Larger",
     }
+}
+
+fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, options: &[&str]) {
+    ui.label(label);
+    ComboBox::from_id_salt(id).selected_text(value.as_str()).show_ui(ui, |ui| {
+        for option in options {
+            ui.selectable_value(value, (*option).to_owned(), *option);
+        }
+    });
 }
 
 /// A labelled pair of exclusive choices.

@@ -25,6 +25,10 @@ pub struct Appearance {
     pub rtl: bool,
     /// Interface scale in percent.
     pub scale: u32,
+    /// The candidate interface face in the UI slots (see [`crate::faces`]).
+    pub ui_face: String,
+    /// The candidate monospace face in the mono slot.
+    pub mono_face: String,
 }
 
 impl Default for Appearance {
@@ -38,6 +42,8 @@ impl Default for Appearance {
             reduced_motion: false,
             rtl: false,
             scale: 100,
+            ui_face: crate::faces::UI_FACES[0].to_owned(),
+            mono_face: crate::faces::MONO_FACES[0].to_owned(),
         }
     }
 }

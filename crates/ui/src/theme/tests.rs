@@ -161,3 +161,34 @@ fn install_repaints_only_on_change() {
     assert!(requests.load(Ordering::Relaxed) > 0, "changed base");
     assert_eq!(ctx.theme(), Theme::Light);
 }
+
+#[test]
+fn every_role_maps_to_its_slot_family_size_and_line_height() {
+    use craft_theme::{FontSlot, TypeRole};
+    use egui::{Color32, FontFamily};
+
+    let semibold = FontFamily::Name(crate::fonts::SEMIBOLD.into());
+    let families = FontFamilies { ui: FontFamily::Proportional, ui_semibold: semibold.clone(), mono: FontFamily::Monospace };
+    let appearance =
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let tokens = resolve(&theme("craft.studio"), appearance, None).tokens;
+    let ui_tokens = UiTokens::new(tokens.clone(), appearance, Mode::Light, families.clone());
+    for role in [TypeRole::Caption, TypeRole::Label, TypeRole::Body, TypeRole::BodyStrong, TypeRole::Title, TypeRole::Heading, TypeRole::Mono] {
+        let style = tokens.typography.get(role);
+        let expected = match style.font {
+            FontSlot::Ui => FontFamily::Proportional,
+            FontSlot::UiSemibold => semibold.clone(),
+            FontSlot::Mono => FontFamily::Monospace,
+        };
+        let font = ui_tokens.font(role);
+        assert_eq!((font.size, font.family.clone()), (style.size, expected.clone()), "{role:?}");
+        let format = role_format(&ui_tokens, role, Color32::RED);
+        assert_eq!(format.font_id, font, "{role:?}");
+        assert_eq!(format.line_height, Some(style.line_height), "{role:?}");
+        assert_eq!(format.color, Color32::RED);
+        assert!(format.font_features.is_empty());
+    }
+    // Without a semibold family in the stack, those roles use the proportional family.
+    assert_eq!(FontFamilies::default().family(FontSlot::UiSemibold), &FontFamily::Proportional);
+    assert!(!tabular(egui::TextFormat::default()).font_features.is_empty());
+}
