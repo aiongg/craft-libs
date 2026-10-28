@@ -45,6 +45,7 @@
     "button.primary.text.rest": "#0c0c0e",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
+    "data.scope": "#0e0e0f",
     "line.border": "#28282c",
     "line.control_edge": "#343439",
     "line.divider": "#26262a",

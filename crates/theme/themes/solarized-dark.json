@@ -22,6 +22,7 @@
     "accent.solid": "#268bd2",
     "caption.close_hover": "#dc322f",
     "caption.close_text": "#fdf6e3",
+    "data.scope": "#002b36",
     "line.border": "#00252f",
     "line.control_edge": "#15505f",
     "line.divider": "#00252f",

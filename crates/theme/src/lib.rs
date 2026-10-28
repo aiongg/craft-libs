@@ -56,10 +56,10 @@ pub use components::{
     BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BorderColors, BorderState, ButtonColors, ButtonField, ButtonPart,
     ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens, ComponentField,
     ComponentTokens, ControlSize, CurveField, CurveTokens, Dimmed, FieldField, FieldKind, FieldPart, FieldTokens, HandleField, HandleTokens,
-    IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListboxField, ListboxTokens, OverrideError, OverrideValue,
-    PanelHeaderField, PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, SectionField, SectionTokens, SegmentedField,
-    SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToggleButtonField,
-    ToggleButtonTokens, TooltipField, TooltipTokens,
+    HistogramField, HistogramTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListboxField, ListboxTokens,
+    OverrideError, OverrideValue, PanelHeaderField, PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, SectionField,
+    SectionTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors,
+    ThumbPart, ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

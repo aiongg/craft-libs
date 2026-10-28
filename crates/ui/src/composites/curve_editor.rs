@@ -11,6 +11,7 @@ use egui::{
 use craft_theme::{Rgba, TypeRole};
 
 use super::curve::{Curve, Rules};
+use super::histogram::ChannelColor;
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::KeyClaim;
 use crate::controls::NumberField;
@@ -19,51 +20,6 @@ use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-
-/// The colour a curve channel draws in: its curve, its gradient bars and its histogram.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum ChannelColor {
-    /// A composite or lightness channel (RGB, Gray, CMYK Black, Lab Lightness): the curve in
-    /// `text.normal`, the bars black to white.
-    #[default]
-    Neutral,
-    /// `data.red`.
-    Red,
-    /// `data.green`.
-    Green,
-    /// `data.blue`.
-    Blue,
-}
-
-impl ChannelColor {
-    /// The colour of the channel's curve.
-    pub fn curve(self, tokens: &UiTokens) -> Color32 {
-        match self {
-            ChannelColor::Neutral => tokens.component.curve.point_stroke.to_egui(),
-            other => other.data(tokens).to_egui(),
-        }
-    }
-
-    /// The light end of the channel's gradient bars: white for a neutral channel. Bars show image
-    /// data, so their ends are fixed in every theme.
-    fn bar(self, tokens: &UiTokens) -> Color32 {
-        match self {
-            ChannelColor::Neutral => Rgba::WHITE.to_egui(),
-            other => other.data(tokens).to_egui(),
-        }
-    }
-
-    fn data(self, tokens: &UiTokens) -> Rgba {
-        let data = &tokens.color.data;
-        match self {
-            ChannelColor::Neutral => data.luma,
-            ChannelColor::Red => data.red,
-            ChannelColor::Green => data.green,
-            ChannelColor::Blue => data.blue,
-        }
-    }
-}
 
 /// One channel of a curve dialog: its name ("Red"; the host's text) and colour.
 #[derive(Clone, Debug, PartialEq)]

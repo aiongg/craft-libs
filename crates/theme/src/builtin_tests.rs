@@ -192,3 +192,34 @@ fn pill_radius_is_full_by_default_and_zero_in_classic() {
     assert_eq!(t.shape.radius.pill, 0.0);
     assert_eq!([t.component.badge.radius, t.component.progress.radius, t.component.slider.radius], [0.0; 3]);
 }
+
+/// The edited curve and its points are the cue that shows a curve editor's state: the channel
+/// colours must reach 3:1 on the plot (`field.fill`) in every built-in, mode and contrast.
+#[test]
+fn data_channel_colours_reach_three_to_one_on_the_field_fill() {
+    for theme in builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let fill = t.component.field.fill.rest;
+            let d = t.color.data;
+            for (name, c) in [("red", d.red), ("green", d.green), ("blue", d.blue), ("cyan", d.cyan), ("magenta", d.magenta), ("yellow", d.yellow)] {
+                let ratio = contrast_ratio(c, fill);
+                assert!(ratio >= 3.0, "{} {a:?}: data.{name} {} on field.fill {} is {ratio:.2}", theme.id, c.to_hex(), fill.to_hex());
+            }
+        }
+    }
+}
+
+/// `data.scope` is dark in every theme: #282828, and the values PhotoCraft pins for Studio dark
+/// and Solarized.
+#[test]
+fn data_scope_is_dark_and_pinned_by_studio_and_solarized() {
+    let scope = |id: &str, mode: Mode| {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone();
+        resolve(&theme, semantic_tests::app(mode, Contrast::Standard), None).tokens.color.data.scope.to_hex()
+    };
+    assert_eq!(scope("craft.pro", Mode::Light), "#282828");
+    assert_eq!(scope("craft.pro", Mode::Dark), "#282828");
+    assert_eq!(scope("craft.studio", Mode::Dark), "#0e0e0f");
+    assert_eq!(scope("craft.solarized-dark", Mode::Dark), "#002b36");
+}
