@@ -4,11 +4,11 @@ use std::ops::RangeInclusive;
 
 use craft_theme::{ControlSize, States};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, EventFilter, Id, IdSalt, InteractOptions, Sense, Ui, Vec2, pos2};
+use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Ui, Vec2, pos2};
 
-use super::slider::{KEY_FILTER, Scale, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, with_values};
+use super::slider::{KEY_FILTER, Scale, Sensing, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, tap, with_values};
 use super::{SIZE_NAMES, Slider, size_arg};
-use crate::edit::{self, EditPolicy, EditResponse, Gesture};
+use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Gap, Interactive, Stack, StateLayer};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf};
@@ -30,10 +30,12 @@ use crate::theme::{Tokens, TokensOf};
 ///
 /// - Each thumb is a Tab stop and an AccessKit `Slider` named by its label, whose bounds are the
 ///   range's end and the other thumb: the thumbs can't cross.
-/// - Pointer: a press on a thumb drags it; a press between the thumbs drags both, keeping the
-///   distance between them; a press elsewhere moves the nearer thumb there. Where the thumbs
-///   meet, the drag's direction picks the one that moves. A press focuses the thumb it moves, or
-///   the nearer one.
+/// - Pointer (primary button): a press on a thumb drags it; a press between the thumbs drags
+///   both, keeping the distance between them; a press elsewhere moves the nearer thumb there. Where
+///   the thumbs meet, the drag's direction picks the one that moves. A press focuses the thumb it
+///   moves (the nearer one between the thumbs, and the picked one where they meet), which keeps
+///   the focus after the release. A tap (press and release in one frame) is a
+///   [`Set`](crate::edit::EditEvent::Set) to the value the same press and release would give.
 /// - Keys, the wheel and screen-reader requests move the focused thumb as on a [`Slider`]; Home
 ///   and End go to its bounds.
 #[derive(Clone, Debug)]
@@ -76,7 +78,9 @@ impl RangeSlider {
     /// A range slider showing the host's `(lower, upper)` value in `range`. `labels` name the
     /// lower and the upper thumb (their accessible names), as whole phrases the app translates,
     /// e.g. `("Hue from", "Hue to")`; `id_salt` keeps its gesture, focus and animations when the
-    /// layout around it changes.
+    /// layout around it changes. The value is read in order, lower end first. The range is read
+    /// as [`Slider::new`] reads it (reversed is reordered, bounds must be finite), and a value
+    /// end that isn't a finite number as on a [`Slider`].
     pub fn new(id_salt: impl AsIdSalt, labels: (impl Into<String>, impl Into<String>), value: (f64, f64), range: RangeInclusive<f64>) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -122,77 +126,85 @@ impl RangeSlider {
         let id = ui.make_persistent_id(self.id_salt);
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let response = ui.interact_opt(rect, id, Sense::DRAG, options);
-        let enabled = response.enabled();
+        let sensing = Sensing::of(&response);
         let track = Track::new(rect, &style, scale);
         let salts = (id.with("lower"), id.with("upper"));
         let ids = (Interactive::id_in(ui, salts.0), Interactive::id_in(ui, salts.1));
+        let thumb_id = |lower: bool| if lower { ids.0 } else { ids.1 };
         let host = ordered(self.value);
 
-        let mut gesture = Gesture::load(ui, id, &host, self.policy);
+        // The gesture lives on the track, which takes every press; the focus goes to the thumbs.
+        let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[ids.0, ids.1]).event_filter(KEY_FILTER).enabled(sensing.enabled);
         let at = |values: (f64, f64), x: f32| part_at(&track, values, x);
-        if response.drag_started()
-            && let Some((_, origin)) = pointer(ui)
+        // The thumb to give the focus this frame, once the thumbs have sensed the pointer.
+        let mut focus = None;
+        if response.drag_started_by(PointerButton::Primary)
+            && let Some((_, origin)) = pointer(ui, &response)
         {
-            let (lo, hi) = clamped(&scale, *gesture.shown());
-            let lower = match at((lo, hi), origin.x) {
-                Part::Lower => true,
-                Part::Upper => false,
-                Part::Span | Part::Either => (origin.x - track.x_of(lo)).abs() <= (origin.x - track.x_of(hi)).abs(),
-            };
-            ui.memory_mut(|m| m.request_focus(if lower { ids.0 } else { ids.1 }));
-            gesture.begin();
+            focus = Some(thumb_id(pressed_lower(&track, placed(&scale, *gesture.shown()), origin.x)));
+            if host.0.is_finite() && host.1.is_finite() {
+                gesture.begin();
+            }
         }
         let mut active = None;
-        if response.dragged()
+        if response.dragged_by(PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
-            && let Some((pos, origin)) = pointer(ui)
+            && let Some((pos, origin)) = pointer(ui, &response)
         {
-            let start = clamped(&scale, start);
+            let start = placed(&scale, start);
             let part = at(start, origin.x);
             active = Some(part);
+            if part == Part::Either && pos.x != origin.x {
+                focus = Some(thumb_id(pos.x < origin.x));
+            }
             gesture.update(dragged(&track, &scale, part, start, origin.x, pos.x), ui.input(|i| i.modifiers));
         }
         if response.drag_stopped() {
             gesture.commit();
+            // A release away from the focused thumb would take its focus (egui's click-away).
+            focus = [ids.0, ids.1].into_iter().find(|t| ui.memory(|m| m.has_focus(*t)));
+        }
+        if let Some(at_x) = tap(ui, &response).map(|p| p.x) {
+            let values = placed(&scale, *gesture.shown());
+            focus = Some(thumb_id(pressed_lower(&track, values, at_x)));
+            gesture.set(dragged(&track, &scale, at(values, at_x), values, at_x, at_x));
         }
 
-        let (lo, hi) = clamped(&scale, *gesture.shown());
-        let hovered = response.hovered();
-        if let Some(lo) = stepped(ui, ids.0, enabled, hovered, lo, (scale.min, hi), &scale) {
+        let (lo, hi) = placed(&scale, *gesture.shown());
+        if let Some(lo) = stepped(ui, ids.0, sensing, lo, (scale.min, hi), &scale) {
             gesture.set((lo, hi));
         }
-        let (lo, hi) = clamped(&scale, *gesture.shown());
-        if let Some(hi) = stepped(ui, ids.1, enabled, hovered, hi, (lo, scale.max), &scale) {
+        let (lo, hi) = placed(&scale, *gesture.shown());
+        if let Some(hi) = stepped(ui, ids.1, sensing, hi, (lo, scale.max), &scale) {
             gesture.set((lo, hi));
-        }
-        // While a gesture Esc may cancel is under way, a focused thumb keeps the focus on Esc.
-        if gesture.is_active() && self.policy.cancellable && !edit::in_scope(ui) {
-            for thumb in [ids.0, ids.1].into_iter().filter(|t| ui.memory(|m| m.has_focus(*t))) {
-                ui.memory_mut(|m| m.set_focus_lock_filter(thumb, EventFilter { escape: true, ..KEY_FILTER }));
-            }
         }
 
-        let (lo, hi) = clamped(&scale, *gesture.shown());
+        let (lo, hi) = placed(&scale, *gesture.shown());
         let (x_lo, x_hi) = (track.x_of(lo), track.x_of(hi));
         let thumb_rect = |x: f32| egui::Rect::from_center_size(pos2(x, track.y), Vec2::splat(style.thumb));
         let thumbs = [(salts.0, &self.labels.0, lo, scale.min..=hi, x_lo), (salts.1, &self.labels.1, hi, lo..=scale.max, x_hi)].map(
             |(salt, label, value, bounds, x)| {
                 let sensed = Interactive::new(salt, Role::Slider, label.as_str())
                     .sense(Sense::FOCUSABLE)
-                    .enabled(enabled)
+                    .enabled(sensing.enabled)
                     .state_layer(false)
                     .focus_ring(false)
                     .interact_at(ui, thumb_rect(x));
                 sensed.numeric(value, bounds, scale.key_step()).finish(ui)
             },
         );
+        if let Some(thumb) = focus
+            && !ui.memory(|m| m.has_focus(thumb))
+        {
+            ui.memory_mut(|m| m.request_focus(thumb));
+        }
 
         if ui.is_rect_visible(rect) {
             // The part a press would move lights up while hovered, and the dragged part while pressed.
-            let lit = active.or_else(|| response.hover_pos().filter(|_| hovered).map(|p| at((lo, hi), p.x)));
+            let lit = active.or_else(|| response.hover_pos().map(|p| at((lo, hi), p.x)));
             let (lit_lo, lit_hi, lit_span) = lit.map_or((false, false, false), Part::lights);
             let down = response.is_pointer_button_down_on();
-            let color = |states: &States<Color32>, key: Id, lit: bool| StateLayer::color_of(ui, states, key, enabled, lit, lit && down);
+            let color = |states: &States<Color32>, key: Id, lit: bool| StateLayer::color_of(ui, states, key, sensing.enabled, lit, lit && down);
             paint_track(ui, &style, &track);
             paint_fill(ui, &style, &track, x_lo, x_hi, color(&style.fill, id, lit_span));
             for ((response, x), lit) in thumbs.iter().zip([x_lo, x_hi]).zip([lit_lo, lit_hi]) {
@@ -211,10 +223,18 @@ fn ordered((a, b): (f64, f64)) -> (f64, f64) {
     if a <= b { (a, b) } else { (b, a) }
 }
 
-/// The value in order and in the range, as drawn.
-fn clamped(scale: &Scale, value: (f64, f64)) -> (f64, f64) {
-    let (lo, hi) = ordered(value);
-    (scale.clamp(lo), scale.clamp(hi))
+/// The value in order and in the range, as drawn ([`Scale::place`]).
+fn placed(scale: &Scale, value: (f64, f64)) -> (f64, f64) {
+    ordered((scale.place(value.0), scale.place(value.1)))
+}
+
+/// Whether a press at `x` focuses the lower thumb: the thumb it moves, else the nearer one.
+fn pressed_lower(track: &Track, (lo, hi): (f64, f64), x: f32) -> bool {
+    match part_at(track, (lo, hi), x) {
+        Part::Lower => true,
+        Part::Upper => false,
+        Part::Span | Part::Either => (x - track.x_of(lo)).abs() <= (x - track.x_of(hi)).abs(),
+    }
 }
 
 /// What a press at `x` moves, with the thumbs at `values`.
@@ -237,21 +257,23 @@ fn part_at(track: &Track, (lo, hi): (f64, f64), x: f32) -> Part {
     }
 }
 
-/// The value while dragging `part` from a press at `origin` to `x`, from `start`. The thumbs
-/// don't cross, and the span keeps its width inside the range.
+/// The value while dragging `part` from a press at `origin` to `x`, from `start`
+/// ([`Track::dragged`] for one thumb). The thumbs don't cross, and the span keeps its width
+/// inside the range; a still pointer leaves the value as it is.
 fn dragged(track: &Track, scale: &Scale, part: Part, (lo, hi): (f64, f64), origin: f32, x: f32) -> (f64, f64) {
-    let lower = || (scale.snap(track.value_at(x + track.grab(lo, origin))).min(hi), hi);
-    let upper = || (lo, scale.snap(track.value_at(x + track.grab(hi, origin))).max(lo));
+    let lower = || (track.dragged(lo, origin, x).min(hi), hi);
+    let upper = || (lo, track.dragged(hi, origin, x).max(lo));
     match part {
         Part::Lower => lower(),
         Part::Upper => upper(),
         Part::Either if x < origin => lower(),
         Part::Either if x > origin => upper(),
         Part::Either => (lo, hi),
+        Part::Span if x == origin => (lo, hi),
         Part::Span => {
             let width = hi - lo;
             let lo = scale.snap(lo + track.value_per(x - origin)).min(scale.max - width).max(scale.min);
-            (lo, lo + width)
+            (lo, (lo + width).min(scale.max))
         }
     }
 }

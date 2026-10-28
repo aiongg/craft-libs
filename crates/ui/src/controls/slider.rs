@@ -8,7 +8,10 @@ use std::ops::RangeInclusive;
 use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, Pos2, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use egui::{
+    AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2,
+    pos2, vec2,
+};
 
 use super::{RangeSlider, SIZE_NAMES, size_arg};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks};
@@ -64,8 +67,10 @@ pub struct SliderStyle {
 /// [`Set`](crate::edit::EditEvent::Set). The slider draws the gesture's value, never a copy of
 /// its own, and shows no value text: put a number field beside it.
 ///
-/// - Pointer: a press on the track moves the thumb there; a press on the thumb keeps the offset,
-///   so the value doesn't jump. A press also gives the slider keyboard focus.
+/// - Pointer (primary button): a press on the track moves the thumb there; a press on the thumb
+///   moves it by the pointer's movement, so the value doesn't jump. A press, or a tap (press and
+///   release in one frame, a [`Set`](crate::edit::EditEvent::Set)), gives the slider keyboard
+///   focus.
 /// - Keys, while focused: Right and Up add the step (Shift: ten steps), Left and Down take it
 ///   away, Page Up and Page Down move a tenth of the range, Home and End go to its ends. The
 ///   step is [`step`](Slider::step), or a hundredth of the range.
@@ -73,11 +78,14 @@ pub struct SliderStyle {
 ///   it doesn't scroll; over a slider without focus the wheel scrolls the panel.
 /// - AccessKit: a `Slider` named `label` with its value, bounds and step, which takes increment,
 ///   decrement and set-value requests.
+/// - While a drag is under way, keys, the wheel and screen-reader requests change nothing.
 /// - A slider keeps its geometry right to left ([`Unmirrored::SliderValue`](crate::direction::Unmirrored::SliderValue)):
 ///   the value grows to the right, and the arrow keys act as they are.
 ///
-/// Values snap to multiples of the step from the range's start, when there is a step. A value
-/// outside the range is drawn at the nearer end.
+/// With a step, values snap to its multiples from the range's start, and the range's end is a
+/// stop too when the step doesn't divide the range. A value outside the range is drawn at the
+/// nearer end; a value that isn't a finite number is drawn at the start, and a drag begins no
+/// gesture until the host gives a finite value.
 #[derive(Clone, Debug)]
 #[must_use = "show the slider with `show`"]
 pub struct Slider {
@@ -94,6 +102,9 @@ pub struct Slider {
 impl Slider {
     /// A slider named `label` (its accessible name) showing the host's `value` in `range`;
     /// `id_salt` keeps its gesture, focus and animations when the layout around it changes.
+    /// A reversed range (`100.0..=0.0`) is read in ascending order. Its bounds must be finite: a
+    /// bound that isn't is a debug assertion, and in release builds the range shrinks to the
+    /// finite bound (or 0).
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: f64, range: RangeInclusive<f64>) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -142,27 +153,34 @@ impl Slider {
             .interact(ui, vec2(style.width, style.height));
         let response = sensed.response().clone();
         let track = Track::new(response.rect, &style, scale);
+        let sensing = Sensing::of(&response);
 
-        let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER);
-        if response.drag_started() {
+        let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER).enabled(sensing.enabled);
+        if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            gesture.begin();
+            if self.value.is_finite() {
+                gesture.begin();
+            }
         }
-        if response.dragged()
+        if response.dragged_by(PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
-            && let Some((pos, origin)) = pointer(ui)
+            && let Some((pos, origin)) = pointer(ui, &response)
         {
-            let grab = track.grab(start, origin.x);
-            gesture.update(scale.snap(track.value_at(pos.x + grab)), ui.input(|i| i.modifiers));
+            gesture.update(track.dragged(scale.place(start), origin.x, pos.x), ui.input(|i| i.modifiers));
         }
         if response.drag_stopped() {
             gesture.commit();
         }
-        if let Some(value) = stepped(ui, response.id, response.enabled(), response.hovered(), *gesture.shown(), (scale.min, scale.max), &scale) {
+        if let Some(at) = tap(ui, &response) {
+            response.request_focus();
+            let shown = scale.place(*gesture.shown());
+            gesture.set(track.dragged(shown, at.x, at.x));
+        }
+        if let Some(value) = stepped(ui, response.id, sensing, scale.place(*gesture.shown()), (scale.min, scale.max), &scale) {
             gesture.set(value);
         }
 
-        let shown = scale.clamp(*gesture.shown());
+        let shown = scale.place(*gesture.shown());
         let response = sensed.numeric(shown, scale.min..=scale.max, scale.key_step()).finish(ui);
         if ui.is_rect_visible(response.rect) {
             let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
@@ -212,10 +230,12 @@ pub(super) struct Scale {
 }
 
 impl Scale {
-    /// The range in ascending order; a step that isn't a positive number is none.
+    /// The range in ascending order; a step that isn't a positive number is none. A bound that
+    /// isn't finite debug-asserts, and the range shrinks to the finite bound, or to 0.
     pub fn new(range: &RangeInclusive<f64>, step: Option<f64>) -> Self {
         let (a, b) = (*range.start(), *range.end());
-        let (min, max) = if a <= b { (a, b) } else { (b, a) };
+        debug_assert!(a.is_finite() && b.is_finite(), "a slider's range needs finite bounds, not {a}..={b}");
+        let (min, max) = bounds(a, b);
         Self { min, max, step: step.filter(|s| s.is_finite() && *s > 0.0) }
     }
 
@@ -228,17 +248,40 @@ impl Scale {
         if self.span() > 0.0 { ((value - self.min) / self.span()).clamp(0.0, 1.0) as f32 } else { 0.0 }
     }
 
-    pub fn clamp(&self, value: f64) -> f64 {
-        value.clamp(self.min, self.max)
+    /// Where `value` is drawn: in the range, and at the start when it isn't a finite number.
+    pub fn place(&self, value: f64) -> f64 {
+        if value.is_finite() { value.clamp(self.min, self.max) } else { self.min }
     }
 
-    /// `value` in the range, on a multiple of the step from the start when there is one.
+    /// `value` in the range on the nearest stop, when there is a step: a multiple of the step
+    /// from the start, or the end. A value on a stop stays as it is.
     pub fn snap(&self, value: f64) -> f64 {
-        let value = self.clamp(value);
-        match self.step {
-            Some(step) => self.clamp(self.min + ((value - self.min) / step).round() * step),
-            None => value,
+        let value = self.place(value);
+        let Some(step) = self.step else { return value };
+        let at = (value - self.min) / step;
+        if value == self.max || on_stop(at) {
+            return value;
         }
+        let below = (self.min + at.floor() * step).min(self.max);
+        let above = (below + step).min(self.max);
+        if value - below < above - value { below } else { above }
+    }
+
+    /// `value` moved by `delta` towards the next stops: whole steps from the stop at or beyond
+    /// `value` in the direction of the move, so a value between stops (or the range's end off the
+    /// step grid) goes to the next stop first. Unsnapped and unclamped.
+    fn moved(&self, value: f64, delta: f64) -> f64 {
+        let Some(step) = self.step else { return value + delta };
+        let at = (value - self.min) / step;
+        let steps = (delta / step).round();
+        let from = if on_stop(at) {
+            at.round()
+        } else if steps > 0.0 {
+            at.floor()
+        } else {
+            at.ceil()
+        };
+        self.min + (from + steps) * step
     }
 
     /// One arrow key's change: the step, or a hundredth of the range.
@@ -254,6 +297,22 @@ impl Scale {
             None => page,
         }
     }
+}
+
+/// The bounds `a..=b` in ascending order, falling back to the finite bound (or 0) for one that
+/// isn't finite.
+pub(super) fn bounds(a: f64, b: f64) -> (f64, f64) {
+    match (a.is_finite(), b.is_finite()) {
+        (true, true) => (a.min(b), a.max(b)),
+        (true, false) => (a, a),
+        (false, true) => (b, b),
+        (false, false) => (0.0, 0.0),
+    }
+}
+
+/// Whether a position `at` steps from the start is on a stop, allowing for rounding.
+fn on_stop(at: f64) -> bool {
+    (at - at.round()).abs() < 1e-9
 }
 
 /// Where values sit along a control's rect: a thumb's centre runs from half a thumb inside the
@@ -278,9 +337,9 @@ impl Track {
         Self { rect, x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
     }
 
-    /// The thumb centre's x for `value`.
+    /// The thumb centre's x for `value`, as [placed](Scale::place).
     pub fn x_of(&self, value: f64) -> f32 {
-        egui::lerp(self.x0..=self.x1, self.scale.fraction(value))
+        egui::lerp(self.x0..=self.x1, self.scale.fraction(self.scale.place(value)))
     }
 
     /// The value whose thumb centre is at `x`, unsnapped.
@@ -294,11 +353,23 @@ impl Track {
         if self.x1 > self.x0 { f64::from(dx / (self.x1 - self.x0)) * self.scale.span() } else { 0.0 }
     }
 
-    /// The offset from a press at `x` to the centre of the thumb at `value`, when the press is on
-    /// that thumb, so dragging it doesn't jump; 0 otherwise, so the thumb jumps to the pointer.
-    pub fn grab(&self, value: f64, x: f32) -> f32 {
-        let centre = self.x_of(value);
-        if (x - centre).abs() <= self.reach { centre - x } else { 0.0 }
+    /// Whether a press at `x` is on the thumb at `value`.
+    pub fn on_thumb(&self, value: f64, x: f32) -> bool {
+        (x - self.x_of(value)).abs() <= self.reach
+    }
+
+    /// The value of the thumb at `start` dragged from a press at `origin` to `x`, snapped. A
+    /// press on the thumb moves the value by the pointer's movement, so the thumb doesn't jump
+    /// and a still pointer leaves the value as it is; a press elsewhere puts the thumb under the
+    /// pointer.
+    pub fn dragged(&self, start: f64, origin: f32, x: f32) -> f64 {
+        if !self.on_thumb(start, origin) {
+            self.scale.snap(self.value_at(x))
+        } else if x == origin {
+            start
+        } else {
+            self.scale.snap(start + self.value_per(x - origin))
+        }
     }
 
     /// The track's rect, on the pixel grid.
@@ -308,23 +379,59 @@ impl Track {
     }
 }
 
-/// The pointer now and where its button went down, while it is down.
-pub(super) fn pointer(ui: &Ui) -> Option<(Pos2, Pos2)> {
-    ui.input(|i| i.pointer.interact_pos().zip(i.pointer.press_origin()))
+/// The pointer now and where its button went down, in the coordinates of `response`'s layer,
+/// while `response` is pressed or was released this frame.
+pub(super) fn pointer(ui: &Ui, response: &Response) -> Option<(Pos2, Pos2)> {
+    let pos = response.interact_pointer_pos()?;
+    let origin = ui.input(|i| i.pointer.press_origin())?;
+    Some((pos, to_layer(ui, response, origin)))
+}
+
+/// Where a tap on `response` fell this frame, in its layer's coordinates: a press and release of
+/// the primary button in one frame over the enabled control. egui reports no drag for it.
+pub(super) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
+    if !response.enabled() || !response.hovered() {
+        return None;
+    }
+    let pos = ui.input(|i| {
+        let p = &i.pointer;
+        let tapped = p.button_pressed(PointerButton::Primary) && p.button_released(PointerButton::Primary) && !p.button_down(PointerButton::Primary);
+        p.interact_pos().filter(|_| tapped)
+    })?;
+    Some(to_layer(ui, response, pos))
+}
+
+/// A screen position in the coordinates of `response`'s layer.
+fn to_layer(ui: &Ui, response: &Response, pos: Pos2) -> Pos2 {
+    ui.ctx().layer_transform_from_global(response.layer_id).map_or(pos, |t| t * pos)
+}
+
+/// What a control's response says about this frame's input, for [`stepped`].
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Sensing {
+    pub enabled: bool,
+    /// The pointer is over the control.
+    pub hovered: bool,
+    /// A drag of the control is under way.
+    pub dragging: bool,
+}
+
+impl Sensing {
+    pub fn of(response: &Response) -> Self {
+        Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged() }
+    }
 }
 
 /// The value this frame's keys, wheel and screen-reader requests give the thumb `id` at `value`,
 /// kept within `bounds`; `None` when nothing asked for a change. Keys and the wheel act while the
-/// thumb has focus, the wheel only while the pointer is over the control (`hovered`).
-pub(super) fn stepped(ui: &Ui, id: Id, enabled: bool, hovered: bool, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
-    if !enabled {
-        return None;
-    }
+/// thumb has focus, the wheel only while the pointer is over the control. While a drag is under
+/// way they change nothing; keys and the wheel are still taken.
+pub(super) fn stepped(ui: &Ui, id: Id, sensing: Sensing, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
     let (step, page) = (scale.key_step(), scale.page_step());
-    let mut delta = 0.0;
+    let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
+    let mut delta = wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging);
     let mut to = None;
-    if ui.memory(|m| m.has_focus(id)) {
-        ui.memory_mut(|m| m.set_focus_lock_filter(id, KEY_FILTER));
+    if focused {
         ui.input_mut(|i| {
             let mut count = |modifiers, key| i.count_and_consume_key(modifiers, key) as f64;
             for (key, sign) in [(Key::ArrowRight, 1.0), (Key::ArrowUp, 1.0), (Key::ArrowLeft, -1.0), (Key::ArrowDown, -1.0)] {
@@ -339,42 +446,55 @@ pub(super) fn stepped(ui: &Ui, id: Id, enabled: bool, hovered: bool, value: f64,
                 to = Some(bounds.1);
             }
         });
-        if hovered {
-            delta += wheel(ui, id, step, page);
-        }
     }
-    ui.input(|i| {
-        let requests = |action| i.num_accesskit_action_requests(id, action) as f64;
-        delta += step * (requests(Action::Increment) - requests(Action::Decrement));
-        let set = i.accesskit_action_requests(id, Action::SetValue).filter_map(|r| match r.data {
-            Some(ActionData::NumericValue(v)) => Some(v),
-            _ => None,
+    if sensing.enabled {
+        ui.input(|i| {
+            let requests = |action| i.num_accesskit_action_requests(id, action) as f64;
+            delta += step * (requests(Action::Increment) - requests(Action::Decrement));
+            let set = i.accesskit_action_requests(id, Action::SetValue).filter_map(|r| match r.data {
+                Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v),
+                _ => None,
+            });
+            if let Some(v) = set.last() {
+                to = Some(v);
+            }
         });
-        if let Some(v) = set.last() {
-            to = Some(v);
-        }
-    });
-    if delta == 0.0 && to.is_none() {
+    }
+    if sensing.dragging || (delta == 0.0 && to.is_none()) {
         return None;
     }
-    let target = to.unwrap_or(value.clamp(bounds.0, bounds.1) + delta);
+    let target = to.unwrap_or_else(|| scale.moved(value.clamp(bounds.0, bounds.1), delta));
     Some(scale.snap(target).clamp(bounds.0, bounds.1))
 }
 
-/// The change this frame's wheel makes: a step per line (Shift: ten), a page step per page; the
-/// panel under the slider doesn't scroll. Point deltas (trackpads) count a line per egui's
-/// `line_scroll_speed` points, keeping the remainder for the next frame.
-fn wheel(ui: &Ui, id: Id, step: f64, page: f64) -> f64 {
+/// A slider's (or a thumb's) wheel input between frames.
+#[derive(Clone, Copy, Debug, Default)]
+struct Wheel {
+    /// Lines turned and not yet a whole step.
+    lines: f32,
+    /// The slider acted on a notch that egui is still spreading over frames
+    /// (`smooth_scroll_delta`): the rest of it is the slider's too.
+    taking: bool,
+}
+
+/// The change this frame's wheel makes while it `acts` (the pointer is over the focused slider):
+/// a step per line (Shift: ten), a page step per page. Point deltas (trackpads) count a line per
+/// egui's `line_scroll_speed` points; the fraction of a line left over is kept while the wheel
+/// acts and dropped once it doesn't. The panel under the slider doesn't scroll, for the whole of
+/// each notch the slider acts on, also once the pointer leaves or the focus moves. While `held`
+/// (a drag) the wheel is taken and changes nothing.
+fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: bool) -> f64 {
     let key = id.with("craft_ui::slider::wheel");
     let line = ui.ctx().options(|o| o.input_options.line_scroll_speed).max(1.0);
-    let mut lines = ui.data(|d| d.get_temp::<f32>(key)).unwrap_or(0.0);
-    let mut pages = 0.0;
+    let mut state = ui.data(|d| d.get_temp::<Wheel>(key)).unwrap_or_default();
+    let (mut lines, mut pages, mut turned) = (0.0, 0.0, false);
     ui.input(|i| {
         for event in &i.events {
             if let Event::MouseWheel { unit, delta, modifiers, .. } = event
                 && !modifiers.command
                 && !modifiers.ctrl
             {
+                turned = true;
                 let d = delta.x + delta.y;
                 let times = if modifiers.shift { 10.0 } else { 1.0 };
                 match unit {
@@ -385,10 +505,28 @@ fn wheel(ui: &Ui, id: Id, step: f64, page: f64) -> f64 {
             }
         }
     });
-    let whole = lines.trunc();
-    ui.data_mut(|d| d.insert_temp(key, lines - whole));
-    ui.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
-    step * f64::from(whole) + page * f64::from(pages)
+    let scrolling = ui.input(|i| i.is_scrolling());
+    let mut change = 0.0;
+    if acts {
+        state.taking |= turned;
+        if held {
+            state.lines = 0.0;
+        } else {
+            let all = state.lines + lines;
+            state.lines = all.fract();
+            change = step * f64::from(all.trunc()) + page * f64::from(pages);
+        }
+    } else {
+        state.lines = 0.0;
+        // A notch the slider doesn't act on is the panel's, with whatever is left of an earlier one.
+        state.taking &= !turned;
+    }
+    state.taking &= scrolling || turned;
+    if acts || state.taking {
+        ui.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
+    }
+    ui.data_mut(|d| d.insert_temp(key, state));
+    change
 }
 
 /// Paints the track.

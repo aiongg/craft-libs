@@ -245,6 +245,12 @@ impl<'a> Interactive<'a> {
 
     /// Interacts with `rect` without allocating it in the layout, for an element placed inside a
     /// control's own rect (a slider's thumb); otherwise as [`interact`](Interactive::interact).
+    ///
+    /// Since `rect` isn't allocated, a part of it outside the space the control allocated doesn't
+    /// grow the `Ui` (a scroll area around it doesn't scroll to it), and it is clipped to the
+    /// `Ui`'s clip rect like any widget: neither painted nor hit outside it. An element that
+    /// senses clicks or drags over an earlier widget takes that widget's hits (the later widget
+    /// wins); one that senses only focus, as a slider's thumb, leaves them to the control.
     pub fn interact_at(mut self, ui: &Ui, rect: Rect) -> Sensed {
         // `id_salt` is already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
         let id = ui.make_persistent_id(self.id_salt);

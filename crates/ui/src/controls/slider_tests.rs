@@ -1,18 +1,24 @@
 //! Slider and range-slider behaviour in a headless egui context: the edit gesture of a drag, Esc,
 //! the keys and the wheel, the direction, and the range slider's thumbs.
 
-use egui::{Context, Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, TouchPhase, Ui, pos2, vec2};
+use egui::accesskit::{Action, ActionRequest, TreeId};
+use egui::emath::TSTransform;
+use egui::{
+    Context, Event, Id, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, TouchPhase, Ui, Vec2, pos2, vec2,
+};
 
-use super::slider::{Scale, Track};
+use super::slider::{Scale, Track, bounds};
 use super::{ControlSize, RangeSlider, Slider};
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent, Ending, GestureId};
+use crate::primitives::Interactive;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
 const RANGE: (f64, f64) = (0.0, 100.0);
 
-/// A host with one slider and one range slider in steps of 1 over 0 to 100. It applies every
-/// value it is sent, and puts the start value back on a cancel when `revert` is on.
+/// A host with one slider and one range slider, in steps of 1 over 0 to 100 unless a test
+/// changes them. It applies every value it is sent, and puts the start value back on a cancel
+/// when `revert` is on.
 struct Rig {
     ctx: Context,
     time: f64,
@@ -20,6 +26,15 @@ struct Rig {
     level: f64,
     range: (f64, f64),
     revert: bool,
+    bounds: (f64, f64),
+    step: Option<f64>,
+    enabled: bool,
+    /// The layer's transform: test positions are in the layer's coordinates.
+    to_global: TSTransform,
+    /// The range slider's thumbs.
+    thumbs: (Id, Id),
+    /// `smooth_scroll_delta` left after the controls: what a panel around them would scroll.
+    scroll_left: Vec2,
     /// The host values at the last Begin.
     before: (f64, (f64, f64)),
     tracks: Option<(Track, Track)>,
@@ -42,6 +57,12 @@ impl Rig {
             level: 40.0,
             range: (20.0, 60.0),
             revert: true,
+            bounds: RANGE,
+            step: Some(1.0),
+            enabled: true,
+            to_global: TSTransform::IDENTITY,
+            thumbs: (Id::NULL, Id::NULL),
+            scroll_left: Vec2::ZERO,
             before: (40.0, (20.0, 60.0)),
             tracks: None,
             slider_id: egui::Id::NULL,
@@ -73,21 +94,35 @@ impl Rig {
     }
 
     fn controls(&mut self, ui: &mut Ui) {
+        ui.ctx().set_transform_layer(ui.layer_id(), self.to_global);
         let style = Slider::style(&Tokens::of(ui), ControlSize::Md);
-        let scale = Scale::new(&(RANGE.0..=RANGE.1), Some(1.0));
-        let edit = Slider::new("rig-slider", "Level", self.level, RANGE.0..=RANGE.1).step(1.0).show(ui);
+        let range = self.bounds.0..=self.bounds.1;
+        let scale = Scale::new(&range, self.step);
+        let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone()).enabled(self.enabled);
+        let mut range_slider = RangeSlider::new("rig-range", ("From", "To"), self.range, range).enabled(self.enabled);
+        if let Some(step) = self.step {
+            (slider, range_slider) = (slider.step(step), range_slider.step(step));
+        }
+        let edit = slider.show(ui);
         let slider = Track::new(edit.response.rect, &style, scale);
         self.slider_id = edit.response.id;
         self.level_event.clone_from(&edit.event);
         if let Some(event) = edit.event {
             self.apply(event, |rig| &mut rig.level, |rig| rig.before.0);
         }
-        let edit = RangeSlider::new("rig-range", ("From", "To"), self.range, RANGE.0..=RANGE.1).step(1.0).show(ui);
+        let edit = range_slider.show(ui);
         self.tracks = Some((slider, Track::new(edit.response.rect, &style, scale)));
+        let id = edit.response.id;
+        self.thumbs = (Interactive::id_in(ui, id.with("lower")), Interactive::id_in(ui, id.with("upper")));
         self.range_event.clone_from(&edit.event);
         if let Some(event) = edit.event {
             self.apply(event, |rig| &mut rig.range, |rig| rig.before.1);
         }
+        self.scroll_left = ui.input(|i| i.smooth_scroll_delta);
+    }
+
+    fn has_focus(&self, id: Id) -> bool {
+        self.ctx.memory(|m| m.has_focus(id))
     }
 
     fn apply<T: Clone>(&mut self, event: EditEvent<T>, value: impl Fn(&mut Self) -> &mut T, before: impl Fn(&Self) -> T) {
@@ -115,15 +150,24 @@ impl Rig {
     }
 
     fn press(&mut self, pos: Pos2) {
+        let pos = self.to_global * pos;
         self.frame(vec![Event::PointerMoved(pos), button(pos, true)]);
     }
 
     fn drag(&mut self, pos: Pos2) {
+        let pos = self.to_global * pos;
         self.frame(vec![Event::PointerMoved(pos)]);
     }
 
     fn release(&mut self, pos: Pos2) {
+        let pos = self.to_global * pos;
         self.frame(vec![button(pos, false)]);
+    }
+
+    /// A press and release in one frame.
+    fn tap(&mut self, pos: Pos2) {
+        let pos = self.to_global * pos;
+        self.frame(vec![Event::PointerMoved(pos), button(pos, true), button(pos, false)]);
     }
 
     fn key(&mut self, key: Key) {
@@ -315,8 +359,223 @@ fn where_the_thumbs_meet_the_drag_direction_picks_the_thumb() {
     let id = begin(rig.range_event.clone());
     rig.drag(rig.range_at(60.0, 0.0));
     assert_eq!(rig.range_event, update(id, (50.0, 60.0)));
+    assert!(rig.has_focus(rig.thumbs.1), "the focus goes to the thumb that moves");
     rig.drag(rig.range_at(35.0, 0.0));
     assert_eq!(rig.range_event, update(id, (35.0, 50.0)));
+    assert!(rig.has_focus(rig.thumbs.0));
     rig.release(rig.range_at(35.0, 0.0));
     assert_eq!(rig.range, (35.0, 50.0));
+    assert!(rig.has_focus(rig.thumbs.0));
+}
+
+#[test]
+fn a_still_press_on_a_thumb_leaves_an_inexact_value_as_it_is() {
+    let mut rig = Rig::new();
+    rig.step = None;
+    (rig.level, rig.range) = (33.3, (20.3, 60.7));
+    rig.frame(vec![]);
+    rig.press(rig.level_at(33.3, 3.0));
+    let id = begin(rig.level_event.clone());
+    rig.frame(vec![]);
+    assert_eq!(rig.level_event, None, "no update without a move");
+    rig.release(rig.level_at(33.3, 3.0));
+    assert_eq!(rig.level_event, commit(id, 33.3, false));
+
+    for at in [20.3, 40.0, 60.7] {
+        rig.press(rig.range_at(at, 2.0));
+        let id = begin(rig.range_event.clone());
+        rig.frame(vec![]);
+        assert_eq!(rig.range_event, None, "no update without a move from {at}");
+        rig.release(rig.range_at(at, 2.0));
+        assert_eq!(rig.range_event, commit(id, (20.3, 60.7), false));
+    }
+}
+
+#[test]
+fn range_bounds_that_are_not_finite_fall_back_to_the_finite_bound() {
+    assert_eq!(bounds(100.0, 0.0), (0.0, 100.0));
+    assert_eq!(bounds(f64::NAN, 5.0), (5.0, 5.0));
+    assert_eq!(bounds(-3.0, f64::INFINITY), (-3.0, -3.0));
+    assert_eq!(bounds(f64::NEG_INFINITY, f64::NAN), (0.0, 0.0));
+    let scale = Scale::new(&(0.0..=100.0), Some(1.0));
+    assert_eq!([scale.place(f64::NAN), scale.place(f64::INFINITY), scale.place(150.0)], [0.0, 0.0, 100.0]);
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "finite bounds")]
+fn a_range_bound_that_is_not_finite_is_a_debug_assertion() {
+    let mut rig = Rig::new();
+    rig.bounds = (0.0, f64::NAN);
+    rig.frame(vec![]);
+}
+
+/// A value that isn't a finite number draws at the start and starts no drag; keys, taps and
+/// screen-reader requests give the host a finite value from there.
+#[test]
+fn a_value_that_is_not_finite_draws_at_the_start_and_begins_no_drag() {
+    let mut rig = Rig::new();
+    for value in [f64::NAN, f64::INFINITY] {
+        rig.level = value;
+        rig.frame(vec![]);
+        assert_eq!(rig.reported, Some(0.0));
+        rig.press(rig.level_at(0.0, 0.0));
+        rig.drag(rig.level_at(30.0, 0.0));
+        assert_eq!(rig.level_event, None);
+        rig.release(rig.level_at(30.0, 0.0));
+        assert_eq!(rig.level_event, None);
+        rig.key(Key::ArrowRight);
+        assert_eq!(rig.level_event, set(1.0, Modifiers::NONE));
+    }
+    rig.range = (f64::NAN, 50.0);
+    rig.frame(vec![]);
+    rig.press(rig.range_at(30.0, 0.0));
+    rig.drag(rig.range_at(35.0, 0.0));
+    assert_eq!(rig.range_event, None);
+    rig.release(rig.range_at(35.0, 0.0));
+}
+
+#[test]
+fn disabling_a_slider_mid_drag_cancels_the_drag() {
+    let mut rig = Rig::new();
+    rig.press(rig.level_at(40.0, 0.0));
+    let id = begin(rig.level_event.clone());
+    rig.drag(rig.level_at(60.0, 0.0));
+    rig.press(rig.range_at(20.0, 0.0));
+    rig.enabled = false;
+    rig.drag(rig.level_at(70.0, 0.0));
+    assert_eq!(rig.level_event, Some(EditEvent::Cancel { id, reason: CancelReason::Disabled }));
+    assert_eq!(rig.level, 40.0);
+    rig.release(rig.level_at(70.0, 0.0));
+    assert_eq!(rig.level_event, None);
+}
+
+#[test]
+fn a_tap_sets_the_value_there_and_focuses_the_control() {
+    let mut rig = Rig::new();
+    rig.tap(rig.level_at(70.0, 0.0));
+    assert_eq!(rig.level_event, set(70.0, Modifiers::NONE));
+    assert!(rig.has_focus(rig.slider_id));
+    rig.tap(rig.level_at(70.0, 2.0));
+    assert_eq!(rig.level_event, None, "a tap on the thumb leaves the value");
+
+    rig.tap(rig.range_at(80.0, 0.0));
+    assert_eq!(rig.range_event, set((20.0, 80.0), Modifiers::NONE));
+    assert!(rig.has_focus(rig.thumbs.1));
+    rig.frame(vec![]);
+    rig.key(Key::ArrowRight);
+    assert_eq!(rig.range_event, set((20.0, 81.0), Modifiers::NONE));
+}
+
+#[test]
+fn the_thumb_a_press_focused_keeps_the_focus_after_the_release() {
+    let mut rig = Rig::new();
+    // Between the thumbs, nearer the lower one: a click away from both.
+    rig.press(rig.range_at(35.0, 0.0));
+    let id = begin(rig.range_event.clone());
+    rig.release(rig.range_at(35.0, 0.0));
+    assert_eq!(rig.range_event, commit(id, (20.0, 60.0), false));
+    assert!(rig.has_focus(rig.thumbs.0));
+    rig.key(Key::ArrowRight);
+    assert_eq!(rig.range_event, set((21.0, 60.0), Modifiers::NONE));
+}
+
+#[test]
+fn keys_the_wheel_and_screen_reader_requests_do_nothing_during_a_drag() {
+    let mut rig = Rig::new();
+    rig.press(rig.level_at(40.0, 0.0));
+    let id = begin(rig.level_event.clone());
+    rig.key(Key::End);
+    let increment = Event::AccessKitActionRequest(ActionRequest {
+        action: Action::Increment,
+        target_tree: TreeId::ROOT,
+        target_node: rig.slider_id.accesskit_id(),
+        data: None,
+    });
+    rig.frame(vec![increment]);
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 2.0)]);
+    assert_eq!(rig.level_event, None);
+    rig.release(rig.level_at(40.0, 0.0));
+    assert_eq!(rig.level_event, commit(id, 40.0, false));
+}
+
+#[test]
+fn a_drag_and_a_tap_in_a_scaled_layer_follow_the_pointer() {
+    let mut rig = Rig::new();
+    rig.to_global = TSTransform::from_scaling(2.0);
+    rig.frame(vec![]);
+    rig.press(rig.level_at(40.0, 3.0));
+    let id = begin(rig.level_event.clone());
+    rig.drag(rig.level_at(55.0, 3.0));
+    assert_eq!(rig.level_event, update(id, 55.0));
+    rig.release(rig.level_at(55.0, 3.0));
+    rig.tap(rig.level_at(80.0, 0.0));
+    assert_eq!(rig.level_event, set(80.0, Modifiers::NONE));
+    rig.press(rig.range_at(40.0, 0.0));
+    let id = begin(rig.range_event.clone());
+    let dx = rig.tracks().1.x_of(50.0) - rig.tracks().1.x_of(40.0);
+    rig.drag(rig.range_at(40.0, dx));
+    assert_eq!(rig.range_event, update(id, (30.0, 70.0)));
+}
+
+#[test]
+fn the_range_end_is_a_stop_when_the_step_does_not_divide_the_range() {
+    let mut rig = Rig::new();
+    (rig.bounds, rig.step, rig.level) = ((0.0, 10.0), Some(3.0), 9.0);
+    rig.frame(vec![]);
+    let slider = rig.slider_id;
+    rig.focus(slider);
+    let increment = |rig: &Rig| {
+        Event::AccessKitActionRequest(ActionRequest {
+            action: Action::Increment,
+            target_tree: TreeId::ROOT,
+            target_node: rig.slider_id.accesskit_id(),
+            data: None,
+        })
+    };
+    rig.frame(vec![increment(&rig)]);
+    assert_eq!(rig.level_event, set(10.0, Modifiers::NONE), "an increment inside the bounds changes the value");
+    rig.key(Key::ArrowLeft);
+    assert_eq!(rig.level_event, set(9.0, Modifiers::NONE));
+    rig.key(Key::ArrowLeft);
+    assert_eq!(rig.level_event, set(6.0, Modifiers::NONE));
+    rig.key(Key::End);
+    assert_eq!(rig.level_event, set(10.0, Modifiers::NONE));
+    let scale = Scale::new(&(0.0..=10.0), Some(3.0));
+    assert_eq!([9.4, 9.6, 1.4].map(|v| scale.snap(v)), [9.0, 10.0, 0.0]);
+    assert_eq!(Scale::new(&(0.0..=1.0), Some(0.1)).snap(0.3), 0.3, "a value on a stop stays as it is");
+}
+
+#[test]
+fn the_wheel_takes_its_whole_notch_and_drops_a_fraction_once_the_pointer_leaves() {
+    let mut rig = Rig::new();
+    let slider = rig.slider_id;
+    rig.focus(slider);
+    let (over, away) = (rig.level_at(40.0, 0.0), pos2(700.0, 500.0));
+    let line = rig.ctx.options(|o| o.input_options.line_scroll_speed);
+    rig.drag(over);
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!(rig.level_event, set(41.0, Modifiers::NONE));
+    // egui spreads the notch over frames; the rest isn't the panel's after the pointer leaves.
+    rig.drag(away);
+    assert_eq!(rig.scroll_left, Vec2::ZERO);
+    for _ in 0..30 {
+        rig.frame(vec![]);
+        assert_eq!(rig.scroll_left, Vec2::ZERO);
+    }
+
+    // Half a line, away and back, half a line: the first half is dropped.
+    rig.drag(over);
+    rig.frame(vec![wheel(MouseWheelUnit::Point, line / 2.0)]);
+    assert_eq!(rig.level_event, None);
+    rig.drag(away);
+    rig.drag(over);
+    rig.frame(vec![wheel(MouseWheelUnit::Point, line / 2.0)]);
+    assert_eq!(rig.level_event, None);
+    rig.frame(vec![wheel(MouseWheelUnit::Point, line / 2.0)]);
+    assert_eq!(rig.level_event, set(42.0, Modifiers::NONE));
+}
+
+fn wheel(unit: MouseWheelUnit, delta: f32) -> Event {
+    Event::MouseWheel { unit, delta: vec2(0.0, delta), phase: TouchPhase::Move, source: MouseWheelSource::Wheel, modifiers: Modifiers::NONE }
 }
