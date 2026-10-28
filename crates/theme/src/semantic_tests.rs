@@ -155,9 +155,9 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             .into_iter()
             .collect();
         // The off outline of check boxes, radio buttons and switches is `text.faint`.
-        let off = |part| ComponentField::Check(CheckField::Color { on_off: OnOff::Off, part, state: State::Rest });
+        let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
         for bg in [T::SurfacePanel, T::SurfaceRaised] {
-            expected.push(ContrastCheck { fg: off(CheckPart::Border).into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 3.0 });
+            expected.push(ContrastCheck { fg: off_border.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 3.0 });
         }
         let sunken = t.color(T::SurfaceSunken);
         // Text field placeholders are `text.faint` on the field fill, `surface.sunken`.
@@ -245,7 +245,7 @@ fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
             assert!((want - got).abs() < 0.006, "{mode:?} {token:?}: {got:.3}, curve {want:.3}");
         }
         assert_eq!(t.color(T::StateDisabledFill), panel, "{mode:?}");
-        assert!(e.colors.iter().all(|o| o.pulled_for.is_none()), "{mode:?}: nothing needs a pull");
+        assert!(e.colors.iter().all(|o| !matches!(o.pass_move, Some(PassMove::Pulled(_)))), "{mode:?}: nothing needs a pull");
         assert!(e.resolved.warnings.is_empty(), "{mode:?}: {:?}", e.resolved.warnings);
     }
 }
@@ -266,15 +266,142 @@ fn a_pinned_grey_overrides_its_anchored_value() {
 #[test]
 fn anchoring_leaves_a_theme_without_a_panel_pin_on_the_curve() {
     for mode in [Mode::Light, Mode::Dark] {
-        let e = explain(&grey_blue(), app(mode, Contrast::Standard), None);
-        for o in &e.colors {
-            if let ColorSource::Anchored(n) = o.source {
-                assert_eq!(o.derived, e.ramps.neutral.step(n), "{mode:?} {:?}", o.token);
+        for contrast in [Contrast::Standard, Contrast::High] {
+            let e = explain(&grey_blue(), app(mode, contrast), None);
+            for o in &e.colors {
+                if let ColorSource::Anchored(n) | ColorSource::StateVariant { step: n, .. } = o.source {
+                    assert_eq!(o.value, e.ramps.neutral.step(n), "{mode:?} {contrast:?} {:?}", o.token);
+                    assert_eq!(o.anchoring.map(|a| (a.on, a.steps)), Some((T::SurfacePanel, e.ramps.neutral)), "{mode:?} {contrast:?} {:?}", o.token);
+                }
             }
         }
     }
 }
 
+#[test]
+fn a_panel_pinned_only_for_high_contrast_anchors_the_greys_there() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.high-panel").unwrap();
+    def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, hex("#2a2a2a"))]);
+    let l = |c: Rgba| c.to_oklch().l;
+    let standard = explain(&def, app(Mode::Dark, Contrast::Standard), None);
+    let high = explain(&def, app(Mode::Dark, Contrast::High), None);
+    assert_eq!(standard.color(T::SurfaceRaised).unwrap().derived, standard.ramps.neutral.step(4), "standard: on the curve");
+    let panel = high.resolved.tokens.color(T::SurfacePanel);
+    assert_eq!(panel, hex("#2a2a2a"));
+    for token in [T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::LineDivider] {
+        let o = high.color(token).unwrap();
+        let ColorSource::Anchored(n) = o.source else { panic!("{token:?}") };
+        let want = ramp::DARK_L[n - 1] - ramp::DARK_L[2];
+        assert!((l(o.derived) - l(panel) - want).abs() < 0.006, "{token:?}: {:.3}, curve {want:.3}", l(o.derived) - l(panel));
+    }
+}
+
+/// A state variant keeps its curve distance from its own base when the theme pins the base, so a
+/// pinned selection stays on its side of the panel under the pointer.
+#[test]
+fn a_pinned_state_carries_its_variant() {
+    let gray = crate::builtins().iter().find(|t| t.id.as_str() == "craft.pro-light-gray").unwrap();
+    let e = explain(gray, app(Mode::Light, Contrast::Standard), None);
+    let t = &e.resolved.tokens;
+    let l = |token| t.color(token).to_oklch().l;
+    let (selected, hover, panel) = (l(T::StateSelected), l(T::StateSelectedHover), l(T::SurfacePanel));
+    let want = ramp::LIGHT_L[5] - ramp::LIGHT_L[4];
+    assert!((hover - selected - want).abs() < 0.006, "selected_hover {hover:.3} from selected {selected:.3}, curve {want:.3}");
+    assert!(selected > panel && hover > panel, "both lighter than the {panel:.3} panel");
+    assert_eq!(e.color(T::StateSelectedHover).unwrap().source_words(), "neutral 6, anchored on state.selected");
+
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.pinned-hover").unwrap();
+    def.pins.dark = Pins::from_iter([(T::StateHover, hex("#505050"))]);
+    let t = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
+    let want = ramp::DARK_L[4] - ramp::DARK_L[3];
+    let got = t.color(T::StatePressed).to_oklch().l - hex("#505050").to_oklch().l;
+    assert!((got - want).abs() < 0.006, "pressed from the pinned hover: {got:.3}, curve {want:.3}");
+    let plain = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    assert_eq!(t.color(T::StateSelectedHover), plain.color(T::StateSelectedHover), "an unpinned base leaves its variant on the panel");
+}
+
+/// With a pinned panel the anchored greys are the panel's grey: its hue and chroma.
+#[test]
+fn anchored_greys_take_a_pinned_panels_tint() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.warm-panel").unwrap();
+    let warm = hex("#d4d0c8");
+    def.pins.light = Pins::from_iter([(T::SurfacePanel, warm)]);
+    let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
+    let p = warm.to_oklch();
+    for token in [T::SurfaceRaised, T::StateHover, T::StatePressed, T::LineBorder, T::LineControlEdge] {
+        let o = t.color(token).to_oklch();
+        assert!((o.c - p.c).abs() < 0.004 && (o.h - p.h).abs() < 8.0, "{token:?}: c {:.4} h {:.1}, panel c {:.4} h {:.1}", o.c, o.h, p.c, p.h);
+    }
+}
+
+/// A bevel's edges are the panel lit and shaded, so a theme that pins only a grey panel still
+/// gets a bevel that reads, in either mode.
+#[test]
+fn a_bevel_lights_and_shades_a_pinned_panel() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.bevel-panel").unwrap();
+    def.shape = Some(ShapeSeed { radius: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
+    def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c0c0c0"))]);
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#404040"))]);
+    for mode in [Mode::Light, Mode::Dark] {
+        let t = resolve(&def, app(mode, Contrast::Standard), None).tokens;
+        let (panel, light, dark) = (t.color(T::SurfacePanel), t.color(T::EdgeLight), t.color(T::EdgeDark));
+        let l = |c: Rgba| c.to_oklch().l;
+        assert!((l(light) - l(panel) - values::BEVEL_LIT).abs() < 0.006, "{mode:?}: lit {}", light.to_hex());
+        assert!((l(panel) - l(dark) - values::BEVEL_SHADED).abs() < 0.006, "{mode:?}: shaded {}", dark.to_hex());
+        assert!(
+            contrast_ratio(light, panel) >= 1.5 && contrast_ratio(panel, dark) >= 1.5,
+            "{mode:?}: {} {} {}",
+            light.to_hex(),
+            panel.to_hex(),
+            dark.to_hex()
+        );
+        assert_eq!(t.shape.edge, Edge::Bevel { light, dark, width: 1.0 });
+    }
+}
+
+/// A pull for one pair never breaks another on the same background: a dark focus line and light
+/// text pinned on a mid-tone panel both pass on the pulled raised surface; when no lightness
+/// serves both, the earlier rule (focus) keeps its pair and the text is reported.
+#[test]
+fn a_later_pull_never_breaks_an_earlier_pair() {
+    let focus = hex("#0a246a");
+    let fails = |r: &Resolved, fg: T, bg: T| r.warnings.iter().any(|w| w.fg == fg.into() && w.bg == bg.into());
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.dark-focus").unwrap();
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#747474")), (T::LineFocus, focus), (T::TextNormal, Rgba::WHITE)]);
+    let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert_eq!(e.color(T::SurfaceRaised).unwrap().pass_move, Some(PassMove::Pulled(T::TextNormal)));
+    for bg in [T::SurfaceRaised, T::SurfaceSunken] {
+        assert!(!fails(&e.resolved, T::LineFocus, bg) && !fails(&e.resolved, T::TextNormal, bg), "{bg:?}: {:?}", e.resolved.warnings);
+    }
+
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#6a6a6a")), (T::LineFocus, focus), (T::TextNormal, hex("#f4f4f4"))]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert!(!fails(&r, T::LineFocus, T::SurfaceRaised), "the earlier pair keeps passing: {:?}", r.warnings);
+    assert!(fails(&r, T::TextNormal, T::SurfaceRaised), "{:?}", r.warnings);
+}
+
+/// Every move the explanation names is one the pass made last: a pulled grey lies between its
+/// target and its anchor, never past the anchor.
+#[test]
+fn pulled_greys_lie_between_their_targets_and_anchors() {
+    for theme in crate::builtins() {
+        for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::Default) {
+            let e = explain(theme, a, None);
+            for o in &e.colors {
+                let (Some(PassMove::Pulled(_)), Some(anchoring)) = (o.pass_move, o.anchoring) else { continue };
+                let on = e.color(anchoring.on).unwrap();
+                let (value, target, home) = (o.value.to_oklch().l, o.derived.to_oklch().l, on.contrast_move.unwrap_or(on.value).to_oklch().l);
+                let (lo, hi) = (target.min(home) - 0.005, target.max(home) + 0.005);
+                assert!(lo <= value && value <= hi, "{} {a:?} {:?}: {value:.3} outside {target:.3}..{home:.3}", theme.id, o.token);
+            }
+        }
+    }
+}
 /// Text the theme pins can't move, so an anchored fill under it comes back toward the panel
 /// until the pair passes; a pinned fill stays.
 #[test]
@@ -287,7 +414,7 @@ fn anchored_fills_are_pulled_toward_the_panel_for_pinned_text() {
     let panel = t.color(T::SurfacePanel);
     for bg in [T::SurfaceRaised, T::StateHover, T::StatePressed] {
         let o = e.color(bg).unwrap();
-        assert_eq!(o.pulled_for, Some(T::TextMuted), "{bg:?}");
+        assert_eq!(o.pass_move, Some(PassMove::Pulled(T::TextMuted)), "{bg:?}");
         assert!(contrast_ratio(hex("#d4d4d4"), o.value) >= 4.5, "{bg:?}");
         assert!(o.value.to_oklch().l >= panel.to_oklch().l && o.value.to_oklch().l < o.derived.to_oklch().l, "{bg:?}");
     }
@@ -420,7 +547,7 @@ fn text_between_fills_on_both_sides_keeps_its_best_value() {
 
     // Navy selected, light selected_hover, no surfaces in the rule: text.on_selected takes the
     // candidate with the best lowest ratio.
-    def.pins.light = Pins::from_iter([(T::StateSelected, hex("#0A246A"))]);
+    def.pins.light = Pins::from_iter([(T::StateSelected, hex("#0A246A")), (T::StateSelectedHover, hex("#e8e8f0"))]);
     let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
     let worst =
         |fg: Rgba| [T::StateSelected, T::StateSelectedHover].map(|bg| contrast_ratio(fg, t.color(bg))).into_iter().fold(f64::INFINITY, f64::min);

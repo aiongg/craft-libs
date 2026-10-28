@@ -160,8 +160,8 @@ pub struct ShapeSeed {
     pub edge: Option<EdgeSeed>,
 }
 
-/// A theme's edge style. A bevel's colours are the `edge.light` and `edge.dark` colour tokens,
-/// derived from the neutral ramp unless pinned.
+/// A theme's edge style. A bevel's colours are the `edge.light` and `edge.dark` colour tokens:
+/// `surface.panel` lit and shaded unless pinned.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EdgeSeed {
     /// No edge effect.

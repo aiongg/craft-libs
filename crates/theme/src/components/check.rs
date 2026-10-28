@@ -24,87 +24,106 @@ use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
-/// Whether a check box, radio button or switch is on (checked, mixed or selected) or off.
+/// One coloured part of a check box, radio button or switch indicator while off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum OnOff {
-    /// Unchecked, not selected.
-    Off,
-    /// Checked, mixed or selected.
-    On,
-}
-
-impl OnOff {
-    /// Both, in path order.
-    pub const ALL: [OnOff; 2] = [OnOff::Off, OnOff::On];
-
-    /// The path segment, e.g. `"on"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            OnOff::Off => "off",
-            OnOff::On => "on",
-        }
-    }
-}
-
-/// One coloured part of a check box, radio button or switch.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CheckPart {
+pub enum CheckOffPart {
     /// The inside of the box, circle or track.
     Fill,
     /// The outline of the box, circle or track, over a flat surface's border.
     Border,
-    /// The check or dash, the radio dot; only while on.
+}
+
+impl CheckOffPart {
+    /// Every part, in path order.
+    pub const ALL: [CheckOffPart; 2] = [CheckOffPart::Fill, CheckOffPart::Border];
+
+    /// The path segment, e.g. `"border"`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            CheckOffPart::Fill => "fill",
+            CheckOffPart::Border => "border",
+        }
+    }
+}
+
+/// One coloured part of a check box, radio button or switch indicator while on (checked, mixed
+/// or selected).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum CheckOnPart {
+    /// The inside of the box, circle or track.
+    Fill,
+    /// The outline of the box, circle or track, over a flat surface's border.
+    Border,
+    /// The check or dash, the radio dot. A switch draws none.
     Mark,
 }
 
-impl CheckPart {
+impl CheckOnPart {
     /// Every part, in path order.
-    pub const ALL: [CheckPart; 3] = [CheckPart::Fill, CheckPart::Border, CheckPart::Mark];
-
-    /// The parts with a colour while `on_off`: off has no mark.
-    pub const fn of(on_off: OnOff) -> &'static [CheckPart] {
-        match on_off {
-            OnOff::Off => &[CheckPart::Fill, CheckPart::Border],
-            OnOff::On => &CheckPart::ALL,
-        }
-    }
+    pub const ALL: [CheckOnPart; 3] = [CheckOnPart::Fill, CheckOnPart::Border, CheckOnPart::Mark];
 
     /// The path segment, e.g. `"mark"`.
     pub const fn name(self) -> &'static str {
         match self {
-            CheckPart::Fill => "fill",
-            CheckPart::Border => "border",
-            CheckPart::Mark => "mark",
+            CheckOnPart::Fill => "fill",
+            CheckOnPart::Border => "border",
+            CheckOnPart::Mark => "mark",
         }
     }
 }
 
-/// The colours of the indicator and mark while off or while on, per state.
+/// The colours of the indicator while off, per state. Off has no mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CheckColors {
+pub struct CheckOffColors {
     /// Inside of the box, circle or track.
     pub fill: States<Rgba>,
     /// Outline of the box, circle or track.
     pub border: States<Rgba>,
-    /// Check, dash or dot. Off has no mark: clear, and no path.
-    pub mark: States<Rgba>,
 }
 
-impl CheckColors {
+impl CheckOffColors {
     /// The colours of `part`.
-    pub fn part(&self, part: CheckPart) -> &States<Rgba> {
+    pub fn part(&self, part: CheckOffPart) -> &States<Rgba> {
         match part {
-            CheckPart::Fill => &self.fill,
-            CheckPart::Border => &self.border,
-            CheckPart::Mark => &self.mark,
+            CheckOffPart::Fill => &self.fill,
+            CheckOffPart::Border => &self.border,
         }
     }
 
-    fn part_mut(&mut self, part: CheckPart) -> &mut States<Rgba> {
+    fn part_mut(&mut self, part: CheckOffPart) -> &mut States<Rgba> {
         match part {
-            CheckPart::Fill => &mut self.fill,
-            CheckPart::Border => &mut self.border,
-            CheckPart::Mark => &mut self.mark,
+            CheckOffPart::Fill => &mut self.fill,
+            CheckOffPart::Border => &mut self.border,
+        }
+    }
+}
+
+/// The colours of the indicator and its mark while on, per state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CheckOnColors {
+    /// Inside of the box, circle or track.
+    pub fill: States<Rgba>,
+    /// Outline of the box, circle or track.
+    pub border: States<Rgba>,
+    /// Check, dash or dot.
+    pub mark: States<Rgba>,
+}
+
+impl CheckOnColors {
+    /// The colours of `part`.
+    pub fn part(&self, part: CheckOnPart) -> &States<Rgba> {
+        match part {
+            CheckOnPart::Fill => &self.fill,
+            CheckOnPart::Border => &self.border,
+            CheckOnPart::Mark => &self.mark,
+        }
+    }
+
+    fn part_mut(&mut self, part: CheckOnPart) -> &mut States<Rgba> {
+        match part {
+            CheckOnPart::Fill => &mut self.fill,
+            CheckOnPart::Border => &mut self.border,
+            CheckOnPart::Mark => &mut self.mark,
         }
     }
 }
@@ -133,45 +152,33 @@ pub struct CheckTokens {
     /// Between the switch track's edge and its thumb.
     pub thumb_inset: f32,
     /// Off: `text.faint` outline on `surface.sunken`.
-    pub off: CheckColors,
+    pub off: CheckOffColors,
     /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
     /// and outline with a `state.disabled_fill` mark.
-    pub on: CheckColors,
+    pub on: CheckOnColors,
     /// The switch thumb, off and on: a knob, a `surface.knob` face with a `line.knob_edge`
     /// outline in every enabled state; disabled, a face halfway to `surface.panel` with a
     /// `line.divider` outline.
     pub thumb: ThumbColors,
 }
 
-impl CheckTokens {
-    /// The colours while `on_off`.
-    pub fn colors(&self, on_off: OnOff) -> &CheckColors {
-        match on_off {
-            OnOff::Off => &self.off,
-            OnOff::On => &self.on,
-        }
-    }
-
-    fn colors_mut(&mut self, on_off: OnOff) -> &mut CheckColors {
-        match on_off {
-            OnOff::Off => &mut self.off,
-            OnOff::On => &mut self.on,
-        }
-    }
-}
-
-/// An overridable check field. Paths: `radius`, `<on|off>.<part>.<state>` (no `off.mark`),
-/// `thumb.<part>.<state>`, e.g. `check.on.mark.rest`.
+/// An overridable check field. Paths: `radius`, `off.<fill|border>.<state>`,
+/// `on.<fill|border|mark>.<state>`, `thumb.<part>.<state>`, e.g. `check.on.mark.rest`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckField {
     /// `check.radius`
     Radius,
-    /// `check.<on|off>.<part>.<state>`.
-    Color {
-        /// On or off.
-        on_off: OnOff,
+    /// `check.off.<part>.<state>`.
+    Off {
         /// The part.
-        part: CheckPart,
+        part: CheckOffPart,
+        /// The state.
+        state: State,
+    },
+    /// `check.on.<part>.<state>`.
+    On {
+        /// The part.
+        part: CheckOnPart,
         /// The state.
         state: State,
     },
@@ -184,27 +191,27 @@ pub enum CheckField {
     },
 }
 
-const COLOR_COUNT: usize = (CheckPart::of(OnOff::Off).len() + CheckPart::of(OnOff::On).len()) * State::ALL.len();
-const FIELD_COUNT: usize = 1 + COLOR_COUNT + THUMB_FIELDS.len();
+const STATES: usize = State::ALL.len();
+const OFF_COUNT: usize = CheckOffPart::ALL.len() * STATES;
+const ON_COUNT: usize = CheckOnPart::ALL.len() * STATES;
+const FIELD_COUNT: usize = 1 + OFF_COUNT + ON_COUNT + THUMB_FIELDS.len();
 
 const FIELDS: [CheckField; FIELD_COUNT] = {
     let mut out = [CheckField::Radius; FIELD_COUNT];
-    let mut i = 1;
-    let mut set = 0;
-    while set < OnOff::ALL.len() {
-        let parts = CheckPart::of(OnOff::ALL[set]);
-        let mut j = 0;
-        while j < parts.len() * State::ALL.len() {
-            out[i] = CheckField::Color { on_off: OnOff::ALL[set], part: parts[j / State::ALL.len()], state: State::ALL[j % State::ALL.len()] };
-            i += 1;
-            j += 1;
-        }
-        set += 1;
+    let mut i = 0;
+    while i < OFF_COUNT {
+        out[1 + i] = CheckField::Off { part: CheckOffPart::ALL[i / STATES], state: State::ALL[i % STATES] };
+        i += 1;
+    }
+    let mut j = 0;
+    while j < ON_COUNT {
+        out[1 + OFF_COUNT + j] = CheckField::On { part: CheckOnPart::ALL[j / STATES], state: State::ALL[j % STATES] };
+        j += 1;
     }
     let mut k = 0;
     while k < THUMB_FIELDS.len() {
         let (part, state) = THUMB_FIELDS[k];
-        out[i + k] = CheckField::Thumb { part, state };
+        out[1 + OFF_COUNT + ON_COUNT + k] = CheckField::Thumb { part, state };
         k += 1;
     }
     out
@@ -233,12 +240,8 @@ impl Family for CheckTokens {
             dot: BySize { sm: icon.sm * values::RADIO_DOT_RATIO, md: icon.md * values::RADIO_DOT_RATIO },
             track: BySize { sm: icon.sm * values::SWITCH_ASPECT, md: icon.md * values::SWITCH_ASPECT },
             thumb_inset: values::SWITCH_THUMB_INSET,
-            off: CheckColors {
-                fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill),
-                border: outline,
-                mark: States::new(Rgba::TRANSPARENT, Rgba::TRANSPARENT, Rgba::TRANSPARENT, Rgba::TRANSPARENT),
-            },
-            on: CheckColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
+            off: CheckOffColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline },
+            on: CheckOnColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
             thumb: ThumbColors::knob(c),
         }
     }
@@ -246,7 +249,8 @@ impl Family for CheckTokens {
     fn path(f: CheckField) -> String {
         match f {
             CheckField::Radius => "radius".to_owned(),
-            CheckField::Color { on_off, part, state } => format!("{}.{}.{}", on_off.name(), part.name(), state.name()),
+            CheckField::Off { part, state } => format!("off.{}.{}", part.name(), state.name()),
+            CheckField::On { part, state } => format!("on.{}.{}", part.name(), state.name()),
             CheckField::Thumb { part, state } => format!("thumb.{}", thumb_path(part, state)),
         }
     }
@@ -264,22 +268,26 @@ impl Family for CheckTokens {
         if segments.next().is_some() {
             return None;
         }
-        let on_off = OnOff::ALL.into_iter().find(|o| o.name() == on_off)?;
-        let part = CheckPart::of(on_off).iter().copied().find(|p| p.name() == part)?;
-        Some(CheckField::Color { on_off, part, state: State::from_name(state)? })
+        let state = State::from_name(state)?;
+        match on_off {
+            "off" => Some(CheckField::Off { part: CheckOffPart::ALL.into_iter().find(|p| p.name() == part)?, state }),
+            "on" => Some(CheckField::On { part: CheckOnPart::ALL.into_iter().find(|p| p.name() == part)?, state }),
+            _ => None,
+        }
     }
 
     fn kind(f: CheckField) -> FieldKind {
         match f {
             CheckField::Radius => FieldKind::Length,
-            CheckField::Color { .. } | CheckField::Thumb { .. } => FieldKind::Color,
+            CheckField::Off { .. } | CheckField::On { .. } | CheckField::Thumb { .. } => FieldKind::Color,
         }
     }
 
     fn get(&self, f: CheckField) -> OverrideValue {
         match f {
             CheckField::Radius => OverrideValue::Length(self.radius),
-            CheckField::Color { on_off, part, state } => OverrideValue::Color(self.colors(on_off).part(part).get(state)),
+            CheckField::Off { part, state } => OverrideValue::Color(self.off.part(part).get(state)),
+            CheckField::On { part, state } => OverrideValue::Color(self.on.part(part).get(state)),
             CheckField::Thumb { part, state } => OverrideValue::Color(self.thumb.part(part).get(state)),
         }
     }
@@ -287,9 +295,8 @@ impl Family for CheckTokens {
     fn set(&mut self, f: CheckField, v: OverrideValue) {
         match (f, v) {
             (CheckField::Radius, OverrideValue::Length(r)) => self.radius = r.min(values::CHECK_RADIUS_MAX),
-            (CheckField::Color { on_off, part, state }, OverrideValue::Color(c)) if CheckPart::of(on_off).contains(&part) => {
-                *self.colors_mut(on_off).part_mut(part).get_mut(state) = c
-            }
+            (CheckField::Off { part, state }, OverrideValue::Color(c)) => *self.off.part_mut(part).get_mut(state) = c,
+            (CheckField::On { part, state }, OverrideValue::Color(c)) => *self.on.part_mut(part).get_mut(state) = c,
             (CheckField::Thumb { part, state }, OverrideValue::Color(c)) => *self.thumb.part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}
@@ -298,12 +305,13 @@ impl Family for CheckTokens {
 
     /// At rest only. The on fill comes first: high contrast moves it before the mark drawn on it.
     fn pairs() -> Vec<ContrastPair> {
-        let field = |on_off, part| ComponentField::Check(CheckField::Color { on_off, part, state: State::Rest });
+        let on = |part| ComponentField::Check(CheckField::On { part, state: State::Rest });
+        let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
         let backgrounds = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
         let pair = |fg, bg| ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN };
-        let mut out: Vec<_> = backgrounds.map(|bg| pair(field(OnOff::On, CheckPart::Fill), bg)).into();
-        out.extend(backgrounds.map(|bg| pair(field(OnOff::Off, CheckPart::Border), bg)));
-        out.push(pair(field(OnOff::On, CheckPart::Mark), TokenRef::Component(field(OnOff::On, CheckPart::Fill))));
+        let mut out: Vec<_> = backgrounds.map(|bg| pair(on(CheckOnPart::Fill), bg)).into();
+        out.extend(backgrounds.map(|bg| pair(off_border, bg)));
+        out.push(pair(on(CheckOnPart::Mark), TokenRef::Component(on(CheckOnPart::Fill))));
         out
     }
 }

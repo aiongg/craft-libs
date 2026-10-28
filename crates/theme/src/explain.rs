@@ -3,7 +3,7 @@
 
 use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
-use super::derive::{ContrastCheck, Ramps};
+use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, ShapeTokens, StatusKind, TokenRef};
@@ -44,28 +44,33 @@ pub struct ColorOrigin {
     /// The value before the contrast pass, when the pass changed it. Tokens defined by other
     /// tokens count as changed when they follow a token the pass moved.
     pub contrast_move: Option<Rgba>,
-    /// For an [`Anchored`](ColorSource::Anchored) token the pass pulled toward `surface.panel`,
-    /// the foreground whose pair set how far; `contrast_move` then holds the anchored target.
-    pub pulled_for: Option<ColorToken>,
+    /// For an anchored token ([`Anchored`](ColorSource::Anchored),
+    /// [`StateVariant`](ColorSource::StateVariant)), what it keeps its curve distance from.
+    pub anchoring: Option<Anchoring>,
+    /// How the contrast pass last moved the token as a background, which set its final value;
+    /// `contrast_move` then holds the value before the pass.
+    pub pass_move: Option<PassMove>,
     /// The final value.
     pub value: Rgba,
 }
 
 impl ColorOrigin {
-    /// The derivation rule in words, with the pull when there is one: "neutral 4, anchored on
-    /// surface.panel, pulled toward it for text.muted".
+    /// The derivation rule in words, with the contrast pass's move when there is one: "neutral
+    /// 4, anchored on surface.panel, pulled toward it for text.muted".
     pub fn source_words(&self) -> String {
-        let rule = source_words(self.source);
-        match self.pulled_for {
-            Some(fg) => format!("{rule}, pulled toward it for {}", fg.path()),
+        let rule = source_words(self.source, self.anchoring.map(|a| a.on));
+        match self.pass_move {
+            Some(PassMove::Pulled(fg)) => format!("{rule}, pulled toward it for {}", fg.path()),
+            Some(PassMove::Relaxed(fg)) => format!("{rule}, moved away from {} for high contrast", fg.path()),
+            Some(PassMove::Solid(fg)) => format!("{rule}, moved away from {}", fg.path()),
             None => rule,
         }
     }
 }
 
 /// A derivation rule in words, e.g. "neutral 10", "neutral 4, anchored on surface.panel" or
-/// "accent 9 → 10 at 0.5".
-fn source_words(source: ColorSource) -> String {
+/// "accent 9 → 10 at 0.5". `anchored_on` names what an anchored token keeps its distance from.
+fn source_words(source: ColorSource, anchored_on: Option<ColorToken>) -> String {
     let status = |kind: StatusKind| match kind {
         StatusKind::Good => "good",
         StatusKind::Warn => "warn",
@@ -74,7 +79,13 @@ fn source_words(source: ColorSource) -> String {
     };
     match source {
         ColorSource::Neutral(n) => format!("neutral {n}"),
-        ColorSource::Anchored(n) => format!("neutral {n}, anchored on {}", ColorToken::SurfacePanel.path()),
+        ColorSource::Anchored(n) => format!("neutral {n}, anchored on {}", anchored_on.unwrap_or(ColorToken::SurfacePanel).path()),
+        ColorSource::StateVariant { base, step } => match anchored_on {
+            Some(on) => format!("neutral {step}, anchored on {}", on.path()),
+            None => format!("neutral {step}, anchored on {} when pinned, else {}", base.path(), ColorToken::SurfacePanel.path()),
+        },
+        ColorSource::Lighting(amount) if amount >= 0.0 => format!("{} lit by {amount}", ColorToken::SurfacePanel.path()),
+        ColorSource::Lighting(amount) => format!("{} shaded by {}", ColorToken::SurfacePanel.path(), -amount),
         ColorSource::NeutralAlpha(n, a) => format!("neutral {n} at alpha {a}"),
         ColorSource::Accent(n) => format!("accent {n}"),
         ColorSource::AccentMix { from, to, t } => format!("accent {from} → {to} at {t}"),
@@ -167,7 +178,8 @@ pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
                 derived: steps.color.derived.get(token),
                 pin: steps.color.pins.get(&token).copied(),
                 contrast_move: changed(steps.color.before_pass.get(token), value),
-                pulled_for: steps.color.pulls.get(&token).copied(),
+                anchoring: steps.color.anchors.get(&token).copied(),
+                pass_move: steps.color.moves.get(&token).copied(),
                 value,
             }
         })

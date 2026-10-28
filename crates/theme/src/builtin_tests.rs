@@ -104,8 +104,8 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
 
 /// The marks and outlines of check boxes, radio buttons and switches identify the control and its
 /// state, so every built-in meets their non-text minimum at rest in every appearance, pins
-/// included; a disabled one that is on doesn't look off: its box or track and its mark differ from
-/// an off one's (which has no mark).
+/// included; a disabled one that is on doesn't look off: its box or track differs from an off
+/// one's, and its mark shows on it (off has no mark).
 #[test]
 fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
     for theme in builtins() {
@@ -117,15 +117,8 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
             let c = resolve(theme, a, None).tokens.component.check;
-            for part in [CheckPart::Fill, CheckPart::Mark] {
-                assert_ne!(
-                    c.on.part(part).disabled,
-                    c.off.part(part).disabled,
-                    "{} {a:?}: a disabled {} that is on looks off",
-                    theme.id,
-                    part.name()
-                );
-            }
+            assert_ne!(c.on.fill.disabled, c.off.fill.disabled, "{} {a:?}: a disabled fill that is on looks off", theme.id);
+            assert_ne!(c.on.mark.disabled, c.on.fill.disabled, "{} {a:?}: a disabled mark doesn't show", theme.id);
         }
     }
 }

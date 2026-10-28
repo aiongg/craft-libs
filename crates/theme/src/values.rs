@@ -17,23 +17,40 @@ use ColorToken as T;
 /// Where a colour token's default value comes from: a ramp step, a mix of two steps, a fixed
 /// colour, or other tokens. [`explain`](crate::explain) reports it per token.
 ///
-/// The background greys (surfaces, state fills, lines, bevel edges) are
-/// [`Anchored`](Self::Anchored) on `surface.panel`, so they keep their curve distance from a
-/// panel the theme pins. Text greys stay on the curve and the contrast pass keeps them readable,
-/// moving derived text first and pulling an anchored grey back toward the panel for the pairs
-/// text can't pass by moving.
+/// The background greys (surfaces, state fills, lines) are [`Anchored`](Self::Anchored) on
+/// `surface.panel`, so they keep their curve distance from a panel the theme pins, in the
+/// pinned panel's hue and chroma. A state variant keeps its distance from its own base instead
+/// when the theme pins that base ([`StateVariant`](Self::StateVariant)). Bevel edges are the
+/// panel lit and shaded ([`Lighting`](Self::Lighting)). Text greys stay on the curve and the
+/// contrast pass keeps them readable, moving derived text first and pulling an anchored grey
+/// back toward its anchor for the pairs text can't pass by moving.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ColorSource {
     /// A step (1 to 12) of the neutral ramp.
     Neutral(usize),
     /// A neutral step (1 to 12) at its curve distance from `surface.panel`: the step's lightness
-    /// moved by as much as the panel's value lies from the panel's own step, clamped to 0..=1,
-    /// with the step's hue and chroma. Equal to the step when the panel is not pinned. The
+    /// moved by as much as the panel's value lies from the panel's own step, clamped to 0..=1.
+    /// Hue and chroma are the step's when the panel is not pinned, and the pinned panel's when it
+    /// is: the pin defines the grey family. Equal to the step when the panel is not pinned. The
     /// distance is a target: when a contrast pair on the token fails and its foreground can't
     /// move (pinned) or can't pass by moving, the contrast pass pulls the token's lightness back
     /// toward the panel's, no further than needed and never past it.
     Anchored(usize),
+    /// A state variant of `base` (`state.pressed` of `state.hover`, `state.selected_hover` of
+    /// `state.selected`): neutral step `step` at its curve distance from `base`'s step when the
+    /// theme pins `base`, in the pinned base's hue and chroma, so a pinned base carries its
+    /// variants; the contrast pass pulls it back toward the base. When `base` is not pinned, as
+    /// [`Anchored`](Self::Anchored)`(step)`.
+    StateVariant {
+        /// The state the variant derives from.
+        base: ColorToken,
+        /// The variant's neutral step.
+        step: usize,
+    },
+    /// `surface.panel` lit (a positive amount) or shaded (a negative one), as a bevel's edges:
+    /// its OKLCH lightness moved by the amount, clamped to 0..=1, hue and chroma kept.
+    Lighting(f64),
     /// A neutral step with an alpha (0..=1).
     NeutralAlpha(usize, f64),
     /// A step of the accent ramp.
@@ -104,6 +121,13 @@ const SOLID_HOVER: usize = 10;
 /// `status.<s>.solid_pressed`).
 const SOLID_PRESSED: (usize, usize, f64) = (10, 11, 0.5);
 
+/// How far a bevel's lit edge (`edge.light`) lies above `surface.panel` in OKLCH lightness, in
+/// either mode. Windows 2000's #d4d0c8 face (L 0.86) has a white lit edge.
+pub const BEVEL_LIT: f64 = 0.15;
+/// How far a bevel's shaded edge (`edge.dark`) lies below `surface.panel` in OKLCH lightness, in
+/// either mode: Windows 2000's #808080 shade of its #d4d0c8 face.
+pub const BEVEL_SHADED: f64 = 0.26;
+
 /// The neutral step of `surface.panel` in `mode`: the step every [`ColorSource::Anchored`] token
 /// keeps its distance from.
 pub(super) fn panel_step(mode: Mode) -> usize {
@@ -115,7 +139,7 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
-    use ColorSource::{Accent, AccentMix, Anchored, Fixed, Neutral, NeutralAlpha, Oklch, OnSolid, Same, Status, StatusMix};
+    use ColorSource::{Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, StateVariant, Status, StatusMix};
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
     let pick = |d: usize, l: usize| if dark { d } else { l };
@@ -183,9 +207,10 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::StatusInfoSolidHover => Status(Info, SOLID_HOVER),
         T::StatusInfoSolidPressed => pressed(Info),
         T::StateHover => Anchored(pick(4, 3)),
-        T::StatePressed => Anchored(pick(5, 4)),
+        T::StatePressed => StateVariant { base: T::StateHover, step: pick(5, 4) },
+        // A selection is a state of its own, not a variant of hover.
         T::StateSelected => Anchored(pick(6, 5)),
-        T::StateSelectedHover => Anchored(pick(7, 6)),
+        T::StateSelectedHover => StateVariant { base: T::StateSelected, step: pick(7, 6) },
         T::StateDisabledFill => Same(T::SurfacePanel),
         T::OverlayStroke => Accent(9),
         T::OverlayHalo => Fixed(Rgba::BLACK.with_alpha(alpha(0.6))),
@@ -210,9 +235,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::CaptionCloseHover => Fixed(Rgba::rgb(0xc4, 0x2b, 0x1c)),
         T::CaptionCloseText => Fixed(Rgba::WHITE),
         T::CaptionInactive => Same(T::TextFaint),
-        // The lit edge is lighter than the panel and the shaded one darker, in either mode.
-        T::EdgeLight => Anchored(pick(7, 1)),
-        T::EdgeDark => Anchored(pick(1, 9)),
+        T::EdgeLight => Lighting(BEVEL_LIT),
+        T::EdgeDark => Lighting(-BEVEL_SHADED),
     }
 }
 

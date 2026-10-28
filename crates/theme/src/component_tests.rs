@@ -260,13 +260,14 @@ fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
 
 /// The check pairs, written out independently of the family's list: (fg, bg), at rest only.
 fn check_pairs() -> Vec<(ComponentField, TokenRef)> {
-    let check = |on_off, part| ComponentField::Check(CheckField::Color { on_off, part, state: State::Rest });
+    let on = |part| ComponentField::Check(CheckField::On { part, state: State::Rest });
+    let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
     let mut p = Vec::new();
     for bg in [T::SurfacePanel, T::SurfaceRaised] {
-        p.push((check(OnOff::On, CheckPart::Fill), TokenRef::Color(bg)));
-        p.push((check(OnOff::Off, CheckPart::Border), TokenRef::Color(bg)));
+        p.push((on(CheckOnPart::Fill), TokenRef::Color(bg)));
+        p.push((off_border, TokenRef::Color(bg)));
     }
-    p.push((check(OnOff::On, CheckPart::Mark), TokenRef::Component(check(OnOff::On, CheckPart::Fill))));
+    p.push((on(CheckOnPart::Mark), TokenRef::Component(on(CheckOnPart::Fill))));
     p
 }
 
@@ -306,8 +307,7 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     assert_eq!((c.gap, c.label, c.radius, c.thumb_inset), (t.space.gap.inline, TypeRole::Body, 3.0, 2.0));
     assert_eq!((c.mark, c.dot.md, c.track.md), (BySize { sm: 1.5, md: 2.0 }, t.size.icon.md * 0.4, t.size.icon.md * 2.0));
     let outline = States::new(t.color(T::TextFaint), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled));
-    let clear = Rgba::TRANSPARENT;
-    assert_eq!((c.off.border, c.off.mark), (outline, States::new(clear, clear, clear, clear)));
+    assert_eq!(c.off.border, outline);
     let sunken = t.color(T::SurfaceSunken);
     assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
     assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
@@ -318,16 +318,15 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
 }
 
 /// A disabled switch, check box or radio button that is on must not look off: its track or box
-/// and its mark differ from the off ones (the off set has no mark; a switch thumb is the same off
-/// and on).
+/// differs from the off one, and its mark shows on it (off has no mark; a switch thumb is the
+/// same off and on).
 #[test]
 fn a_disabled_check_that_is_on_differs_from_one_that_is_off() {
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let c = resolve(&def, a, None).tokens.component.check;
-            for part in [CheckPart::Fill, CheckPart::Mark] {
-                assert_ne!(c.on.part(part).disabled, c.off.part(part).disabled, "{} {a:?}: {} looks off", def.name, part.name());
-            }
+            assert_ne!(c.on.fill.disabled, c.off.fill.disabled, "{} {a:?}: the fill looks off", def.name);
+            assert_ne!(c.on.mark.disabled, c.on.fill.disabled, "{} {a:?}: the mark doesn't show", def.name);
         }
     }
 }
@@ -360,6 +359,18 @@ fn button_sizes_follow_the_size_preset() {
     assert_eq!((comfy.label, comfy.radius, comfy.border_width), (TypeRole::Label, Radius::Full.px(), 1.0));
 }
 
+/// An override of any listed colour field reads back as set: no field is listed that the tokens
+/// can't hold.
+#[test]
+fn every_colour_field_holds_its_override() {
+    let mut tokens = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard), None).tokens.component;
+    let value = Rgba([1, 2, 3, 4]);
+    for &f in ComponentField::ALL.iter().filter(|f| f.kind() == FieldKind::Color) {
+        tokens.set(f, OverrideValue::Color(value)).unwrap();
+        assert_eq!(tokens.get(f), OverrideValue::Color(value), "{}", f.path());
+    }
+}
+
 #[test]
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
@@ -389,6 +400,15 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
     }
+    // Every check colour field the types can express is listed, so none lacks a path.
+    for state in State::ALL {
+        let mut check: Vec<_> = CheckOffPart::ALL.map(|part| CheckField::Off { part, state }).into();
+        check.extend(CheckOnPart::ALL.map(|part| CheckField::On { part, state }));
+        check.extend(ThumbPart::ALL.map(|part| CheckField::Thumb { part, state }));
+        for f in check {
+            assert!(ComponentField::ALL.contains(&ComponentField::Check(f)), "{f:?}");
+        }
+    }
     let groups = ["surface", "text", "line", "accent", "status", "state", "overlay", "data", "caption", "edge"];
     let semantic: BTreeSet<_> = ColorToken::ALL.iter().map(|t| t.path().split('.').next().unwrap()).collect();
     assert!(semantic.iter().all(|g| groups.contains(g)), "{semantic:?}");
@@ -408,7 +428,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("segmented.track", ComponentField::Segmented(SegmentedField::Track)),
         ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
         ("check.radius", ComponentField::Check(CheckField::Radius)),
-        ("check.on.mark.hover", ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover })),
+        ("check.on.mark.hover", ComponentField::Check(CheckField::On { part: CheckOnPart::Mark, state: State::Hover })),
+        ("check.off.border.disabled", ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Disabled })),
         ("check.thumb.fill.pressed", ComponentField::Check(CheckField::Thumb { part: ThumbPart::Fill, state: State::Pressed })),
         ("field.radius", ComponentField::Field(FieldField::Radius)),
         ("field.placeholder.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true })),

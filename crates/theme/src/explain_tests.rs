@@ -229,8 +229,15 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
     let e = explain(&def, appearance(Mode::Dark, Contrast::High, Size::Compact), None);
     let raised = e.color(T::SurfaceRaised).unwrap();
     assert_eq!(raised.source, ColorSource::Anchored(4));
-    assert_eq!(raised.pulled_for, Some(T::TextNormal));
+    assert_eq!(raised.pass_move, Some(PassMove::Pulled(T::TextNormal)));
     assert_eq!(raised.contrast_move, Some(raised.derived));
     assert_eq!(raised.source_words(), "neutral 4, anchored on surface.panel, pulled toward it for text.normal");
     assert_eq!(e.color(T::LineDivider).unwrap().source_words(), "neutral 6, anchored on surface.panel");
+    // Text the pull can't serve moves the fill away instead, and the explanation names that move.
+    let selected_hover = e.color(T::StateSelectedHover).unwrap();
+    assert_eq!(selected_hover.pass_move, Some(PassMove::Relaxed(T::TextOnSelected)));
+    assert_eq!(selected_hover.source_words(), "neutral 7, anchored on surface.panel, moved away from text.on_selected for high contrast");
+    assert_eq!(e.color(T::EdgeLight).unwrap().source_words(), "surface.panel lit by 0.15");
+    let anchoring = raised.anchoring.unwrap();
+    assert_eq!((anchoring.on, anchoring.steps.step(4)), (T::SurfacePanel, raised.derived), "the strip holds the target");
 }
