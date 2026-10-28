@@ -28,7 +28,9 @@ struct Host {
     selection: Selection<usize>,
     refuse: Option<usize>,
     copy: bool,
+    tree: bool,
     reorders: Vec<Reordered>,
+    opens: Vec<OpenChange<usize>>,
     dropped: Option<Vec<usize>>,
 }
 
@@ -38,7 +40,7 @@ impl Host {
     }
 
     fn with_rows(rows: Vec<RowInfo<usize>>) -> Self {
-        Host { rows, selection: Selection::only(0), refuse: None, copy: false, reorders: Vec::new(), dropped: None }
+        Host { rows, selection: Selection::only(0), refuse: None, copy: false, tree: false, reorders: Vec::new(), opens: Vec::new(), dropped: None }
     }
 
     fn take(&mut self) -> Vec<Reordered> {
@@ -56,20 +58,25 @@ fn apply(rows: &mut Vec<RowInfo<usize>>, mv: &Move<usize>) {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let Host { rows, selection, refuse, copy, reorders, dropped } = host;
+    let Host { rows, selection, refuse, copy, tree, reorders, opens, dropped } = host;
     let refuse = *refuse;
     let reorder = Reorder::new(Axis::Vertical).copy_with_alt(*copy).accepts(move |mv: &Move<usize>, _| Some(mv.target) != refuse);
     let out = List::new("list", "Layers", rows.as_slice())
         .selection(selection)
         .max_height(LIST_HEIGHT)
         .reorder(reorder)
+        .tree(*tree)
         .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
     for event in out.events {
-        if let ListEvent::Reorder(event) = event {
-            if let EditEvent::Set { value: Some(mv), .. } = &event {
-                apply(rows, mv);
+        match event {
+            ListEvent::Reorder(event) => {
+                if let EditEvent::Set { value: Some(mv), .. } = &event {
+                    apply(rows, mv);
+                }
+                reorders.push(event);
             }
-            reorders.push(event);
+            ListEvent::Open(change) => opens.push(change),
+            _ => {}
         }
     }
     let (_, zone) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover());
@@ -310,6 +317,26 @@ fn stacking_keys_move_the_selection_and_reveal_the_lead() {
     assert!(list(&harness).rect().expand(0.5).contains_rect(row(&harness, 2).rect()), "the lead is revealed at its new place");
     assert_eq!(press(&mut harness, ctrl, Key::CloseBracket), mv(&[2], 29, DropPosition::Before).unwrap(), "Ctrl+] one row toward the start");
     assert_eq!(harness.state().selection, Selection::only(2), "the selection stays");
+}
+
+#[test]
+fn tree_keys_and_stacking_keys_work_together_in_a_tree() {
+    let rows = vec![RowInfo::group(0, true), RowInfo::leaf(1).at_depth(1), RowInfo::leaf(2).at_depth(1), RowInfo::leaf(3)];
+    let mut host = Host::with_rows(rows);
+    host.tree = true;
+    let mut harness = harness(host);
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.key_press(Key::ArrowLeft);
+    harness.run();
+    let close = OpenChange { row: 0, open: false, all: false };
+    assert_eq!(std::mem::take(&mut harness.state_mut().opens), [close], "← closes the group");
+    let ctrl = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
+    harness.key_press_modifiers(ctrl, Key::OpenBracket);
+    harness.run();
+    let events = harness.state_mut().take();
+    assert!(matches!(&events[..], [EditEvent::Set { value: Some(moved), .. }] if *moved == mv(&[0], 3, DropPosition::After).unwrap()), "{events:?}");
+    assert!(harness.state().opens.is_empty());
 }
 
 #[test]

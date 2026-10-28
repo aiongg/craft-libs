@@ -100,7 +100,7 @@ pub(super) fn show_flat(ui: &mut Ui, _: &mut Args) {
     show_story(ui, Preset::Flat);
 }
 
-/// Groups take drops into their middle; double-click or Enter opens and closes a group.
+/// Groups take drops into their middle; their triangles and → and ← open and close them.
 pub(super) fn show_tree(ui: &mut Ui, _: &mut Args) {
     show_story(ui, Preset::Tree);
 }
@@ -307,7 +307,6 @@ fn show_story(ui: &mut Ui, preset: Preset) {
     let shared = ui.data_mut(|d| d.get_temp_mut_or_insert_with(state_id, || Arc::new(Mutex::new(Layers::new(preset)))).clone());
     let mut doc = shared.lock();
     let order = doc.display();
-    let indent = ListRow::<'_, usize>::style(&Tokens::of(ui)).indent;
     let mut reorder = Reorder::new(Axis::Vertical).copy_with_alt(preset == Preset::Copy);
     if preset == Preset::Refused {
         reorder = reorder.accepts(doc.rules());
@@ -315,19 +314,19 @@ fn show_story(ui: &mut Ui, preset: Preset) {
     let mut selection = doc.selection.clone();
     let events = ui
         .allocate_ui(vec2(300.0, 240.0), |ui| {
-            let out =
-                List::new("layers", "Layers", order.as_slice()).selection(&mut selection).reorder(reorder).max_height(240.0).show(ui, |_, &key| {
-                    let layer = doc.at(key).map(|at| &doc.layers[at]);
-                    let (name, depth, group, locked) = layer.map_or(("", 0, false, false), |l| (l.name.as_str(), l.depth, l.group, l.locked));
-                    let mut row = ListRow::new(key, name).indent(depth as f32 * indent);
-                    if group {
-                        row = row.icon(Icon::FolderOpen);
-                    }
-                    if preset == Preset::Refused {
-                        row = row.toggle(ToggleColumn::lock("Lock", locked));
-                    }
-                    row
-                });
+            let list = List::new("layers", "Layers", order.as_slice()).selection(&mut selection).reorder(reorder).max_height(240.0);
+            let out = list.tree(preset == Preset::Tree).show(ui, |_, &key| {
+                let layer = doc.at(key).map(|at| &doc.layers[at]);
+                let (name, group, locked) = layer.map_or(("", false, false), |l| (l.name.as_str(), l.group, l.locked));
+                let mut row = ListRow::new(key, name);
+                if group {
+                    row = row.icon(Icon::FolderOpen);
+                }
+                if preset == Preset::Refused {
+                    row = row.toggle(ToggleColumn::lock("Lock", locked));
+                }
+                row
+            });
             out.events
         })
         .inner;
@@ -347,9 +346,9 @@ fn show_story(ui: &mut Ui, preset: Preset) {
                     doc.layers[at].locked = value.on;
                 }
             }
-            ListEvent::Activate(key) => {
-                if let Some(layer) = doc.at(key).map(|at| &mut doc.layers[at]).filter(|l| l.group) {
-                    layer.open = !layer.open;
+            ListEvent::Open(change) => {
+                for layer in doc.layers.iter_mut().filter(|l| l.group && (change.all || l.key == change.row)) {
+                    layer.open = change.open;
                 }
             }
             _ => {}
