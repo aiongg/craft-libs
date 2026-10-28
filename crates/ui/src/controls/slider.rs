@@ -13,7 +13,7 @@ use egui::{
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
-use super::{RangeSlider, SIZE_NAMES, size_arg};
+use super::{RangeSlider, SIZE_NAMES, field_wheel, size_arg};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
@@ -80,7 +80,10 @@ pub struct SliderStyle {
 ///   away, Page Up and Page Down move a tenth of the range, Home and End go to its ends. The
 ///   step is [`step`](Slider::step), or a hundredth of the range.
 /// - The wheel steps the value while the pointer is over the focused slider, and the panel under
-///   it doesn't scroll; over a slider without focus the wheel scrolls the panel.
+///   it doesn't scroll; over a slider without focus the wheel scrolls the panel, unless
+///   [`wheel_unfocused`](Slider::wheel_unfocused) is on.
+/// - With a [`default_value`](Slider::default_value), a double-click on the track or the thumb
+///   sets it, and so does Ctrl/Cmd+Backspace while focused. A press on the thumb never moves it.
 /// - AccessKit: a `Slider` named `label` with its value, bounds and step, which takes increment,
 ///   decrement and set-value requests.
 /// - While a drag is under way, keys, the wheel and screen-reader requests change nothing.
@@ -102,6 +105,8 @@ pub struct Slider {
     policy: EditPolicy,
     size: ControlSize,
     enabled: bool,
+    default: Option<f64>,
+    wheel_unfocused: bool,
 }
 
 impl Slider {
@@ -120,6 +125,8 @@ impl Slider {
             policy: EditPolicy::default(),
             size: ControlSize::Md,
             enabled: true,
+            default: None,
+            wheel_unfocused: false,
         }
     }
 
@@ -143,6 +150,27 @@ impl Slider {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// The value a double-click on the track or the thumb, or Ctrl/Cmd+Backspace on the focused
+    /// slider, sets (snapped to the step and kept in the range; a value that isn't finite is
+    /// ignored). The first click of the double-click has already moved the thumb, so the reset
+    /// ends the same gesture or is its own [`Set`](crate::edit::EditEvent::Set). A screen reader
+    /// resets through its set-value request as ever.
+    pub fn default_value(mut self, value: f64) -> Self {
+        self.default = Some(value);
+        self
+    }
+
+    /// Whether a wheel gesture that starts over the slider steps it without the slider having
+    /// the focus, as PhotoCraft's dialog sliders do (off by default: in a panel the wheel
+    /// scrolls). The rules are the unfocused number field's: a gesture that started elsewhere
+    /// keeps scrolling over the slider, Alt, Ctrl/Cmd and sideways scrolls stay with the view,
+    /// Shift steps ten. A [`RangeSlider`](crate::controls::RangeSlider) has no such option: its
+    /// two thumbs give a wheel over the track no one value to step.
+    pub fn wheel_unfocused(mut self, on: bool) -> Self {
+        self.wheel_unfocused = on;
         self
     }
 
@@ -173,15 +201,32 @@ impl Slider {
         {
             gesture.update(track.dragged(scale.place(start), origin.x, pos.x), ui.input(|i| i.modifiers));
         }
+        let reset = self.default.filter(|d| d.is_finite()).map(|d| scale.place(d));
+        // The double-click's first click has moved the thumb to the pointer; the second resets.
+        let double = reset.filter(|_| sensing.enabled && sensing.hovered && ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary)));
+        if let Some(value) = double {
+            response.request_focus();
+            gesture.set(value);
+        }
         if response.drag_stopped() {
             gesture.commit();
         }
         if let Some(at) = tap(ui, &response) {
             response.request_focus();
-            let shown = scale.place(*gesture.shown());
-            gesture.set(track.dragged(shown, at.x, at.x));
+            if double.is_none() {
+                let shown = scale.place(*gesture.shown());
+                gesture.set(track.dragged(shown, at.x, at.x));
+            }
         }
-        if let Some(value) = stepped(ui, response.id, sensing, scale.place(*gesture.shown()), (scale.min, scale.max), &scale) {
+        if let Some(value) = reset
+            && sensing.enabled
+            && ui.memory(|m| m.has_focus(response.id))
+            && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Backspace))
+        {
+            gesture.set(value);
+        }
+        let wheel_over = self.wheel_unfocused.then_some(response.rect);
+        if let Some(value) = stepped(ui, response.id, sensing, wheel_over, scale.place(*gesture.shown()), (scale.min, scale.max), &scale) {
             gesture.set(value);
         }
 
@@ -431,11 +476,18 @@ impl Sensing {
 /// The value this frame's keys, wheel and screen-reader requests give the thumb `id` at `value`,
 /// kept within `bounds`; `None` when nothing asked for a change. Keys and the wheel act while the
 /// thumb has focus, the wheel only while the pointer is over the control. While a drag is under
-/// way they change nothing; keys and the wheel are still taken.
-pub(super) fn stepped(ui: &Ui, id: Id, sensing: Sensing, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
+/// way they change nothing; keys and the wheel are still taken. With a `wheel_over` rect, a
+/// thumb without focus takes the wheel gestures that start over that rect too
+/// ([`field_wheel::notches`]).
+pub(super) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
     let (step, page) = (scale.key_step(), scale.page_step());
     let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
     let mut delta = wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging);
+    if let Some(rect) = wheel_over
+        && !focused
+    {
+        delta += step * field_wheel::notches(ui, id.with("craft_ui::slider::unfocused"), false, rect, sensing.enabled && !sensing.dragging);
+    }
     let mut to = None;
     if focused {
         ui.input_mut(|i| {
@@ -598,7 +650,20 @@ pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     let story = |id, name, show| Story { id, level: Level::Controls, component: "Slider", name, args, show };
     vec![
-        story("controls/slider/values", "Values", show_values),
+        Story {
+            id: "controls/slider/values",
+            level: Level::Controls,
+            component: "Slider",
+            name: "Values",
+            args: || {
+                Args::new()
+                    .with_choice("size", SIZE_NAMES, 1)
+                    .with_bool("disabled", false)
+                    .with_bool("default value (50)", false)
+                    .with_bool("wheel unfocused", false)
+            },
+            show: show_values,
+        },
         story("controls/slider/step", "Step", show_step),
         story("controls/slider/disabled", "Disabled", show_disabled),
         story("controls/slider/right-to-left", "Right to left", show_right_to_left),
@@ -646,6 +711,10 @@ pub(super) fn labelled(ui: &mut Ui, label: &str, value: &str, control: impl FnOn
 }
 
 fn slider_row(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>) {
+    slider_row_with(ui, args, salt, label, value, step, |slider| slider);
+}
+
+fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>, more: impl FnOnce(Slider) -> Slider) {
     let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
     let text = format!("{value:.1}");
     labelled(ui, label, &text, |ui| {
@@ -653,7 +722,7 @@ fn slider_row(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mut f64
         if let Some(step) = step {
             slider = slider.step(step);
         }
-        apply(&slider.show(ui), value);
+        apply(&more(slider).show(ui), value);
     });
 }
 
@@ -662,7 +731,11 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "slider-values", [0.0, 50.0, 100.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(values.iter_mut()).enumerate() {
-                slider_row(ui, args, &format!("slider-values-{i}"), label, value, None);
+                let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
+                slider_row_with(ui, args, &format!("slider-values-{i}"), label, value, None, |slider| {
+                    let slider = slider.wheel_unfocused(wheel);
+                    if default { slider.default_value(50.0) } else { slider }
+                });
             }
         });
     });

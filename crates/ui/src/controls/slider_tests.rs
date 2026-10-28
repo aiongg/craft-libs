@@ -29,6 +29,8 @@ struct Rig {
     bounds: (f64, f64),
     step: Option<f64>,
     enabled: bool,
+    default: Option<f64>,
+    wheel_unfocused: bool,
     /// The layer's transform: test positions are in the layer's coordinates.
     to_global: TSTransform,
     /// The range slider's thumbs.
@@ -60,6 +62,8 @@ impl Rig {
             bounds: RANGE,
             step: Some(1.0),
             enabled: true,
+            default: None,
+            wheel_unfocused: false,
             to_global: TSTransform::IDENTITY,
             thumbs: (Id::NULL, Id::NULL),
             scroll_left: Vec2::ZERO,
@@ -98,7 +102,10 @@ impl Rig {
         let style = Slider::style(&Tokens::of(ui), ControlSize::Md);
         let range = self.bounds.0..=self.bounds.1;
         let scale = Scale::new(&range, self.step);
-        let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone()).enabled(self.enabled);
+        let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone()).enabled(self.enabled).wheel_unfocused(self.wheel_unfocused);
+        if let Some(default) = self.default {
+            slider = slider.default_value(default);
+        }
         let mut range_slider = RangeSlider::new("rig-range", ("From", "To"), self.range, range).enabled(self.enabled);
         if let Some(step) = self.step {
             (slider, range_slider) = (slider.step(step), range_slider.step(step));
@@ -578,4 +585,58 @@ fn the_wheel_takes_its_whole_notch_and_drops_a_fraction_once_the_pointer_leaves(
 
 fn wheel(unit: MouseWheelUnit, delta: f32) -> Event {
     Event::MouseWheel { unit, delta: vec2(0.0, delta), phase: TouchPhase::Move, source: MouseWheelSource::Wheel, modifiers: Modifiers::NONE }
+}
+
+/// PhotoCraft's dialog sliders: with `wheel_unfocused` a gesture that starts over the slider
+/// steps it without focus; one that started elsewhere keeps scrolling over it.
+#[test]
+fn an_unfocused_wheel_steps_the_slider_a_gesture_starts_over_when_asked() {
+    let mut rig = Rig::new();
+    let over = rig.level_at(40.0, 0.0);
+    rig.frame(vec![Event::PointerMoved(over)]);
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!((rig.level_event.clone(), rig.level, rig.has_focus(rig.slider_id)), (None, 40.0, false), "off by default: the panel's");
+
+    rig.wheel_unfocused = true;
+    rig.time += 1.0;
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!((rig.level_event.clone(), rig.scroll_left), (set(41.0, Modifiers::NONE), Vec2::ZERO));
+    rig.frame(vec![]);
+    assert!(!rig.has_focus(rig.slider_id));
+
+    // A gesture that starts off the slider scrolls on over it.
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(over + vec2(0.0, 80.0))]);
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    rig.frame(vec![Event::PointerMoved(over), wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!(rig.level, 41.0);
+}
+
+/// A double-click on the track or the thumb resets; so does Ctrl/Cmd+Backspace while focused. A
+/// press on the thumb doesn't move it.
+#[test]
+fn a_double_click_or_ctrl_backspace_sets_the_default_value() {
+    let mut rig = Rig::new();
+    rig.default = Some(25.0);
+    rig.press(rig.level_at(40.0, 3.0));
+    rig.release(rig.level_at(40.0, 3.0));
+    assert_eq!(rig.level, 40.0, "a press on the thumb doesn't jump");
+    rig.press(rig.level_at(40.0, 3.0));
+    rig.release(rig.level_at(40.0, 3.0));
+    assert_eq!(rig.level, 25.0, "the second click on the thumb resets");
+
+    rig.level = 70.0;
+    rig.frame(vec![]);
+    rig.time += 1.0;
+    rig.tap(rig.level_at(90.0, 0.0));
+    assert_eq!(rig.level, 90.0, "one click on the track moves the thumb");
+    rig.tap(rig.level_at(90.0, 0.0));
+    assert_eq!((rig.level_event.clone(), rig.level), (set(25.0, Modifiers::NONE), 25.0), "a double-click on the track");
+
+    rig.level = 60.0;
+    rig.frame(vec![]);
+    rig.modifiers = Modifiers::COMMAND;
+    rig.key(Key::Backspace);
+    assert_eq!(rig.level_event, set(25.0, Modifiers::COMMAND), "the key resets the focused slider");
+    rig.modifiers = Modifiers::NONE;
 }

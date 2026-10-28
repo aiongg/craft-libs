@@ -173,11 +173,11 @@ impl RangeSlider {
         }
 
         let (lo, hi) = placed(&scale, *gesture.shown());
-        if let Some(lo) = stepped(ui, ids.0, sensing, lo, (scale.min, hi), &scale) {
+        if let Some(lo) = stepped(ui, ids.0, sensing, None, lo, (scale.min, hi), &scale) {
             gesture.set((lo, hi));
         }
         let (lo, hi) = placed(&scale, *gesture.shown());
-        if let Some(hi) = stepped(ui, ids.1, sensing, hi, (lo, scale.max), &scale) {
+        if let Some(hi) = stepped(ui, ids.1, sensing, None, hi, (lo, scale.max), &scale) {
             gesture.set((lo, hi));
         }
 
