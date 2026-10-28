@@ -74,6 +74,12 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
         assert_eq!(badges.len(), canvases, "one canvas, or one per compare column");
         assert!(badges.iter().all(|b| *b == items), "{badges:?}");
     }
+    // A dark-only theme draws its dark columns only; its light columns stay empty.
+    gallery.set_compare_themes(&["craft.pro-dark"]);
+    for _ in 0..3 {
+        frame(&ctx, &mut gallery);
+    }
+    assert_eq!(gallery.focus_badges().len(), 2, "dark standard and dark high contrast");
     assert!(craft_ui::inspect::enabled(&ctx));
     gallery.set_tokens(true);
     frame(&ctx, &mut gallery);

@@ -87,6 +87,10 @@ impl Gallery {
         self.compare_high = high;
     }
 
+    pub fn set_compare_themes(&mut self, ids: &[&str]) {
+        self.compare_themes = ids.iter().filter(|id| builtin(id).is_some()).map(|id| (*id).to_owned()).collect();
+    }
+
     /// Shows the token browser instead of the stories.
     pub fn set_tokens(&mut self, tokens: bool) {
         self.tokens = tokens;
@@ -417,6 +421,7 @@ fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut In
 
 /// Rows: the chosen themes. Columns: light and dark in standard contrast, each followed by its
 /// high-contrast column when `high` is set.
+/// A mode the theme doesn't have leaves its column empty.
 fn compare_grid(
     ui: &mut Ui,
     story: &Story,
@@ -436,7 +441,16 @@ fn compare_grid(
         ui.heading(&theme.name);
         ui.columns(columns.len(), |uis| {
             for (ui, &(mode, high)) in uis.iter_mut().zip(columns) {
-                let name = format!("{} {}", if mode == Mode::Dark { "Dark" } else { "Light" }, if high { "high contrast" } else { "standard" });
+                let mode_name = if mode == Mode::Dark { "Dark" } else { "Light" };
+                let name = format!("{mode_name} {}", if high { "high contrast" } else { "standard" });
+                // The label sits on the gallery's background, so it keeps the gallery's colours.
+                ui.label(name.as_str());
+                // A one-variant theme shows its other mode in this column's place; leave it empty
+                // so each column shows what its label says.
+                if theme.variants.mode_for(mode) != mode {
+                    ui.weak(format!("No {} variant", mode_name.to_lowercase()));
+                    continue;
+                }
                 ui.push_id((id, name.as_str()), |ui| {
                     scope(
                         ui,
@@ -447,7 +461,6 @@ fn compare_grid(
                             o.contrast = Some(if high { craft_theme::Contrast::High } else { craft_theme::Contrast::Standard });
                         },
                         |ui| {
-                            ui.label(name.as_str());
                             framed(ui, story, args, inspector.as_deref_mut(), &format!("{} · {name}", theme.name), appearance.rtl);
                         },
                     );
