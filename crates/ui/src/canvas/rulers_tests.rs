@@ -179,13 +179,13 @@ fn tick_steps_and_labels_follow_photocraft() {
     assert_eq!(pixels.tick_label(12.6, 5.0), "13", "whole pixels");
     assert_eq!(pixels.tick_label(1200.0, 100.0), "1200", "ungrouped");
     assert_eq!(units.tick_label(-0.25, 0.25), "0.25");
-    assert_eq!(units.tick_label(0.5, 0.5), "0.5");
-    // As many decimals as the step: 2.5-unit steps (millimetres at about 700 %) keep their half.
+    assert_eq!(units.tick_label(0.5, 0.5), "0.50");
+    assert_eq!(units.tick_label(0.75, 0.25), "0.75");
+    // 2.5-unit steps (millimetres at about 700 %) keep their half, which PhotoCraft rounded away.
     assert_eq!(units.tick_label(2.5, 2.5), "2.5");
     assert_eq!(units.tick_label(-7.5, 2.5), "7.5");
     assert_eq!(units.tick_label(5.0, 2.5), "5.0");
-    assert_eq!(units.tick_label(0.75, 0.25), "0.75");
-    assert_eq!(units.tick_label(0.025, 0.025), "0.025");
+    assert_eq!(units.tick_label(0.075, 0.025), "0.075");
     assert_eq!(units.tick_label(-30.0, 10.0), "30", "whole when the step is at least 1");
     for step in [100.0, 0.25] {
         let mut v = -1000.0;

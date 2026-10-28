@@ -81,11 +81,15 @@ impl RulerUnits {
 
     /// The number a ruler prints at the tick `value` (ruler units from the zero point): the
     /// distance, without a minus sign left of or above the zero point (PhotoCraft's
-    /// `ruler_label`), with as many decimals as the labelled `step` has (none for whole steps and
-    /// whole ticks, one for 2.5, two for 0.25). Written with the host's numbers, ungrouped.
+    /// `ruler_label`). Whole ticks are whole numbers; a step of at least 1 takes the decimals it
+    /// has (none for 5, one for 2.5), a smaller one at least two (PhotoCraft's `0.50`), more when
+    /// it has them (0.025). Written with the host's numbers, ungrouped.
     pub fn tick_label(&self, value: f64, step: f64) -> String {
-        let whole = matches!(self.ticks, Ticks::Decimal { whole: true });
-        let decimals = if whole { 0 } else { step_decimals(step) };
+        let decimals = match self.ticks {
+            Ticks::Decimal { whole: true } => 0,
+            _ if step.abs() < 1.0 => step_decimals(step).max(2),
+            _ => step_decimals(step),
+        };
         let value = if decimals == 0 { value.abs().round() } else { value.abs() };
         self.numbers.clone().ungrouped().format(value, decimals..=decimals)
     }
