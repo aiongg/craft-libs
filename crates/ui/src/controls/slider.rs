@@ -111,6 +111,7 @@ pub struct Slider {
     default: Option<f64>,
     wheel_unfocused: bool,
     track_colors: Option<Vec<Srgba>>,
+    press_waits: bool,
 }
 
 impl Slider {
@@ -132,6 +133,7 @@ impl Slider {
             default: None,
             wheel_unfocused: false,
             track_colors: None,
+            press_waits: false,
         }
     }
 
@@ -179,6 +181,13 @@ impl Slider {
         self
     }
 
+    /// Whether a press waits in this pass ([`press_turn`]): for a slider that is a part of a
+    /// composite reporting through one edit.
+    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
+        self.press_waits = waits;
+        self
+    }
+
     /// Draws the track as a gradient through `stops`, spread evenly from the range's start to its
     /// end, over the checkerboard where a stop is translucent, and without the filled part: the
     /// track of a colour channel (hue, a channel with the others fixed, opacity). The track keeps
@@ -203,9 +212,24 @@ impl Slider {
         let sensing = Sensing::of(&response);
 
         let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER).enabled(sensing.enabled);
+        let tapped = tap(ui, &response);
+        let pressed = response.drag_started_by(PointerButton::Primary).then(|| pointer(ui, &response).map(|(_, origin)| origin)).flatten();
+        let turn = press_turn(ui, response.id, self.press_waits, pressed.or(tapped));
+        if let PressTurn::Held(at) = turn
+            && self.value.is_finite()
+        {
+            gesture.begin();
+            if let Some(start) = gesture.start().copied() {
+                gesture.update(track.dragged(scale.place(start), at.x, at.x), ui.input(|i| i.modifiers));
+            }
+            if !response.dragged_by(PointerButton::Primary) {
+                gesture.commit();
+            }
+        }
+        let waits = matches!(turn, PressTurn::Waits);
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            if self.value.is_finite() {
+            if self.value.is_finite() && !waits {
                 gesture.begin();
             }
         }
@@ -225,9 +249,9 @@ impl Slider {
         if response.drag_stopped() {
             gesture.commit();
         }
-        if let Some(at) = tap(ui, &response) {
+        if let Some(at) = tapped {
             response.request_focus();
-            if double.is_none() {
+            if double.is_none() && !waits {
                 let shown = scale.place(*gesture.shown());
                 gesture.set(track.dragged(shown, at.x, at.x));
             }
@@ -476,6 +500,45 @@ pub(crate) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
         p.interact_pos().filter(|_| tapped)
     })?;
     Some(to_layer(ui, response, pos))
+}
+
+/// When a part of a composite runs a primary press ([`press_turn`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PressTurn {
+    /// The control handles this pass's input as usual.
+    Now,
+    /// A press waits for a later pass: the control takes no pointer input in this one.
+    Waits,
+    /// The press held from an earlier pass, at this position in the control's layer, runs now,
+    /// before this pass's input; a button already up ends it at once.
+    Held(Pos2),
+}
+
+/// The most passes a press waits. The focus it takes ends the gesture that had it in the press
+/// pass or, when that gesture's control is drawn before the pressed one, in the next; the host
+/// has the ending event in the pass after that.
+pub(crate) const PRESS_WAIT: u64 = 2;
+
+/// When control `id` runs a primary press at `press` (this pass's, in its layer's coordinates),
+/// as a part of a composite that reports its parts through one edit. While `waits` (the composite
+/// saw another control's gesture with the focus as this pass began, [`edit::focused_gesture`]:
+/// a typing run in its field), the press waits: the press takes the focus, that control ends its
+/// gesture and the event goes out, and the press runs in the first pass without such a gesture,
+/// against the host's value after it. So the composite drops no event.
+pub(crate) fn press_turn(ui: &Ui, id: Id, waits: bool, press: Option<Pos2>) -> PressTurn {
+    let key = id.with("craft_ui::held_press");
+    let pass = ui.ctx().cumulative_pass_nr();
+    // Since, last pass held, where.
+    let held = ui.data_mut(|d| d.remove_temp::<(u64, u64, Pos2)>(key)).filter(|(_, last, _)| last + 1 == pass);
+    match held.map(|(since, _, at)| (since, at)).or(press.map(|at| (pass, at))) {
+        Some((since, at)) if waits && pass < since + PRESS_WAIT => {
+            ui.data_mut(|d| d.insert_temp(key, (since, pass, at)));
+            ui.ctx().request_repaint();
+            PressTurn::Waits
+        }
+        Some((since, at)) if since < pass => PressTurn::Held(at),
+        _ => PressTurn::Now,
+    }
 }
 
 /// A screen position in the coordinates of `response`'s layer.

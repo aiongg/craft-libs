@@ -5,7 +5,7 @@ use egui::accesskit::{Orientation, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::{AreaMode, ColorArea, ColorPartsStyle, faded, faded_stroke, fraction, scale_of, value_at};
-use crate::controls::slider::{KEY_FILTER, Scale, Sensing, stepped, tap};
+use crate::controls::slider::{KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf, UiTokens};
@@ -47,6 +47,7 @@ pub struct ColorStrip {
     size: Option<Vec2>,
     policy: EditPolicy,
     enabled: bool,
+    press_waits: bool,
 }
 
 impl ColorStrip {
@@ -55,7 +56,16 @@ impl ColorStrip {
     /// around it changes.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, mode: AreaMode, values: ModelValues) -> Self {
         debug_assert_eq!(values.model, mode.model().id(), "the strip's values must be of its mode's model");
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), mode, values, size: None, policy: EditPolicy::default(), enabled: true }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            mode,
+            values,
+            size: None,
+            policy: EditPolicy::default(),
+            enabled: true,
+            press_waits: false,
+        }
     }
 
     /// The strip's size, without its pointers' room; `color_picker.strip_full` by
@@ -73,6 +83,13 @@ impl ColorStrip {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Whether a press waits in this pass ([`press_turn`]): for a part of a colour picker, whose
+    /// fields' typing runs end on the press.
+    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
+        self.press_waits = waits;
         self
     }
 
@@ -111,9 +128,24 @@ impl ColorStrip {
         };
 
         let mut gesture = Gesture::load(ui, response.id, &self.values, self.policy).event_filter(KEY_FILTER).enabled(response.enabled());
+        let tapped = tap(ui, &response);
+        let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
+        let turn = press_turn(ui, response.id, self.press_waits, pressed.or(tapped));
+        if let PressTurn::Held(held) = turn {
+            gesture.begin();
+            if let Some(start) = gesture.start().copied() {
+                gesture.update(at(&start, held.y), ui.input(|i| i.modifiers));
+            }
+            if !response.dragged_by(PointerButton::Primary) {
+                gesture.commit();
+            }
+        }
+        let waits = matches!(turn, PressTurn::Waits);
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            gesture.begin();
+            if !waits {
+                gesture.begin();
+            }
         }
         if response.dragged_by(PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
@@ -124,8 +156,10 @@ impl ColorStrip {
         if response.drag_stopped() {
             gesture.commit();
         }
-        if let Some(pos) = tap(ui, &response) {
+        if tapped.is_some() {
             response.request_focus();
+        }
+        if let Some(pos) = tapped.filter(|_| !waits) {
             let shown = *gesture.shown();
             gesture.set(at(&shown, pos.y));
         }

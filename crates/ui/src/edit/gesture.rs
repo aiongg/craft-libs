@@ -87,6 +87,10 @@ pub struct Gesture<T> {
     cancelled: Option<Cancelled>,
     /// A gesture that ended this frame: its live entry goes.
     ended: Option<GestureId>,
+    /// The value an interruption commits with ([`interrupted_with`](Gesture::interrupted_with)).
+    interrupted: Option<T>,
+    /// A part's run under way ends the gesture this frame ([`ended_by_part`](Gesture::ended_by_part)).
+    by_part: bool,
 }
 
 /// The part kept in egui memory between frames.
@@ -197,6 +201,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             stored,
             cancelled: None,
             ended: None,
+            interrupted: None,
+            by_part: false,
         };
         gesture.end_restoring();
         gesture.apply_cancel_all();
@@ -339,6 +345,24 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// The value the active gesture commits with if its control stops being drawn after this frame,
+    /// in place of its own ([`Ending`], [`unreported`](super::unreported)). For a composite whose
+    /// gesture is a part's typing run: the value that run would end with, as the composite's
+    /// value, so an interruption ends the composite's gesture as the part's would end it. The
+    /// composite gives it again each frame.
+    pub(crate) fn interrupted_with(&mut self, value: T) {
+        if self.is_active() {
+            self.interrupted = Some(value);
+        }
+    }
+
+    /// For a composite whose gesture is a part's typing run, while that run is under way in this
+    /// frame: losing the focus doesn't end the gesture, the part's ending event does. The part
+    /// sees the focus go in the next frame when the control that took it is drawn after it.
+    pub(crate) fn ended_by_part(&mut self) {
+        self.by_part = true;
+    }
+
     /// The gesture's new value and the modifiers held; nothing while idle or once committed.
     pub fn update(&mut self, value: T, modifiers: Modifiers) {
         if let Phase::Active(a) = &mut self.stored.phase
@@ -474,7 +498,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     fn apply_focus(&mut self) {
         let focused = self.focused_owner().is_some();
         let Phase::Active(a) = &mut self.stored.phase else { return };
-        if focused || a.ending {
+        if focused || a.ending || self.by_part {
             a.focused |= focused;
             return;
         }
@@ -580,8 +604,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                 a.dragged |= dragged;
                 let (ending, unreported) = match a.focused && !a.dragged && !cancel_on_focus_loss {
                     true => {
-                        let unreported = (a.current != a.reported).then(|| Arc::new(report(a.current.clone())) as live::Value);
-                        (Ending::Commit { changed: a.current != a.start }, unreported)
+                        let last = self.interrupted.as_ref().unwrap_or(&a.current);
+                        let unreported = (*last != a.reported).then(|| Arc::new(report(last.clone())) as live::Value);
+                        (Ending::Commit { changed: *last != a.start }, unreported)
                     }
                     false => (Ending::Cancel, None),
                 };

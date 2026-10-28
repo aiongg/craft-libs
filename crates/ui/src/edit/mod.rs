@@ -20,7 +20,7 @@
 //!   value even when no update reported it ([`unreported`]: a debounce still waiting, or
 //!   [`on_release_only`](EditPolicy::on_release_only)).
 //! - [`focused_gesture`] is the gesture whose control has the focus: a composite holds a press on
-//!   one of its parts for a pass while another part's gesture ends.
+//!   one of its parts while another part's gesture ends.
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one [`OuterGesture`].
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
@@ -383,10 +383,12 @@ pub fn unreported<T: Clone + 'static>(ctx: &Context, id: GestureId) -> Option<T>
 /// viewport, such as a typing run. A press that takes the focus ends it, as [`ending`] says.
 ///
 /// A composite that reports its parts through one [`EditResponse`] (a curve editor's graph and
-/// its Input field) holds a press on one part for a pass while such a gesture is under way: the
-/// part with the focus sends its ending event in this pass, and the press edits the value the
-/// host has after it, in the next. So the composite drops no event, and the gesture of the press
-/// starts from the value the other one left.
+/// its Input field) holds a press on one part while such a gesture is under way: the press takes
+/// the focus, the part that had it sends its ending event, and the press edits the value the host
+/// has after it, in a later pass. The part with the focus sees it go in the press pass when it is
+/// drawn after the pressed part (the press runs in the next pass), and in the next pass when it is
+/// drawn before (the press waits a pass more). So the composite drops no event, and the gesture
+/// of the press starts from the value the other one left.
 pub fn focused_gesture(ctx: &Context) -> Option<GestureId> {
     live::focused(ctx)
 }
