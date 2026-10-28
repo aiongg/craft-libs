@@ -251,9 +251,8 @@ impl<T> Dialogs<T> {
     }
 
     fn push(&mut self, request: Request, then: T) {
-        #[cfg(target_os = "macos")]
         if self.open.is_some() {
-            macos::raise_panel();
+            self.raise();
         }
         self.queue.push_back((request, then));
         (self.wake)();
@@ -298,6 +297,14 @@ impl<T> Dialogs<T> {
     /// or [`Self::take_answers`]).
     pub fn is_open(&self) -> bool {
         self.open.is_some()
+    }
+
+    /// Brings the open free-standing panel (Open or Folder on macOS) to the front, for a command
+    /// that would show it again. Does nothing elsewhere, where dialogs are modal to the window, and
+    /// on any thread but the main one.
+    pub fn raise(&self) {
+        #[cfg(target_os = "macos")]
+        macos::raise_panel();
     }
 
     /// Requests waiting behind the open dialog.

@@ -35,6 +35,7 @@ impl<T> Dialogs<T> {
     pub fn show_pending<W: HasWindowHandle + HasDisplayHandle>(&mut self, parent: Option<&W>);
     pub fn take_answers(&mut self) -> Vec<(T, Answer)>;
     pub fn is_open(&self) -> bool;
+    pub fn raise(&self);
     pub fn queued(&self) -> usize;
     pub fn set_override(&mut self, answer_with: Option<Override>);
 }
