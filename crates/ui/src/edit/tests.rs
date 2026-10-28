@@ -687,7 +687,7 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert_eq!(pass(false, true, &|g| g.ended_by_part()), None, "the focus went, the part's run goes on");
     let interrupted = |g: &mut Gesture<i32>| {
         g.ended_by_part();
-        g.interrupted_with(5);
+        g.interrupted_as(gesture::Interrupted::Commit(Some(5)));
     };
     assert_eq!(pass(false, true, &interrupted), None);
     let _ = pass(false, false, &|_| {});
@@ -745,7 +745,8 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
 
 /// A part that owns the composite's gesture and isn't drawn ends it as the part's own gesture
 /// ends ([`parts::Edits::feed`]): a typing run commits with its last value, also one no update
-/// carried; a drag cancels. The other parts' gestures are the composite's next ones.
+/// carried; a drag cancels. The other parts' gestures are the composite's next ones. A composite
+/// that isn't drawn ends the same way.
 #[test]
 fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
     let ctx = Context::default();
@@ -798,6 +799,16 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
     let Some(EditEvent::Begin { id: drag }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(None, None), cancel(drag, CancelReason::Removed));
     assert_eq!(host.get(), 7);
+
+    // The whole composite goes during the owner's typing run: the host ends the composite's
+    // gesture as the run would end, with the run's value, although the owner isn't one of the
+    // composite's focus owners.
+    let begun = pass(Some((true, &typed)), None);
+    let Some(EditEvent::Begin { id: run }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(Some((true, &|_| {})), None), None);
+    ctx.run_ui(RawInput::default(), |_| {}).drop_without_applying_deltas();
+    assert!(!is_live(&ctx, run));
+    assert_eq!((ending(&ctx, run), unreported::<i32>(&ctx, run)), (Ending::Commit { changed: true }, Some(40)));
 }
 
 #[test]

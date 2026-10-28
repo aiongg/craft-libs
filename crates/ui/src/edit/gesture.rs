@@ -93,8 +93,9 @@ pub struct Gesture<T> {
     cancelled: Option<Cancelled>,
     /// A gesture that ended this frame: its live entry goes.
     ended: Option<GestureId>,
-    /// The value an interruption commits with ([`interrupted_with`](Gesture::interrupted_with)).
-    interrupted: Option<T>,
+    /// How an interruption ends the gesture, in place of the focus rule
+    /// ([`interrupted_as`](Gesture::interrupted_as)).
+    interrupted: Option<Interrupted<T>>,
     /// A part's run under way ends the gesture this frame ([`ended_by_part`](Gesture::ended_by_part)).
     by_part: bool,
 }
@@ -367,14 +368,14 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// The value the active gesture commits with if its control stops being drawn after this frame,
-    /// in place of its own ([`Ending`], [`unreported`](super::unreported)). For a composite whose
-    /// gesture is a part's typing run: the value that run would end with, as the composite's
-    /// value, so an interruption ends the composite's gesture as the part's would end it. The
-    /// composite gives it again each frame.
-    pub(crate) fn interrupted_with(&mut self, value: T) {
+    /// How the active gesture ends if it is interrupted after this frame (its control stops being
+    /// drawn, or the host ends it), in place of the focus rule of [`Ending`] and
+    /// [`commit_on_interrupt`](Gesture::commit_on_interrupt). For a composite whose gesture is a
+    /// part's: as that part's gesture would end, with its value as the composite's
+    /// ([`unreported`](super::unreported)). The composite gives it again each frame.
+    pub(crate) fn interrupted_as(&mut self, interrupted: Interrupted<T>) {
         if self.is_active() {
-            self.interrupted = Some(value);
+            self.interrupted = Some(interrupted);
         }
     }
 
@@ -653,9 +654,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             Phase::Active(a) if !a.announced => a.dragged |= dragged,
             Phase::Active(a) => {
                 a.dragged |= dragged;
-                let (ending, unreported) = match commit_on_interrupt || (a.focused && !a.dragged && !cancel_on_focus_loss) {
+                let commits = match &self.interrupted {
+                    Some(Interrupted::Commit(_)) => true,
+                    Some(Interrupted::Cancel) => false,
+                    None => commit_on_interrupt || (a.focused && !a.dragged && !cancel_on_focus_loss),
+                };
+                let (ending, unreported) = match commits {
                     true => {
-                        let last = self.interrupted.as_ref().unwrap_or(&a.current);
+                        let last = match &self.interrupted {
+                            Some(Interrupted::Commit(Some(value))) => value,
+                            _ => &a.current,
+                        };
                         let unreported = (*last != a.reported).then(|| Arc::new(report(last.clone())) as live::Value);
                         (Ending::Commit { changed: *last != a.start }, unreported)
                     }
@@ -670,6 +679,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
         }
     }
+}
+
+/// How a composite's gesture ends if it is interrupted, as the part that owns it would end
+/// ([`Gesture::interrupted_as`]).
+#[derive(Clone, Debug)]
+pub(crate) enum Interrupted<T> {
+    /// A commit, with this value in place of the gesture's own when given.
+    Commit(Option<T>),
+    Cancel,
 }
 
 /// Whether this pass's input has a press of Esc that `consume_key(Modifiers::NONE, Key::Escape)`

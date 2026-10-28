@@ -13,8 +13,14 @@
 //! - Inside [`scope`](super::scope) every value is a `set`, so only Updates go out.
 //! - The typing fields are the gesture's [`focus_owners`](Gesture::focus_owners). While the
 //!   owner's typing run is under way, its ending event ends the composite's gesture, also when the
-//!   focus has left the field ([`Gesture::ended_by_part`]); if the composite stops being drawn,
-//!   its gesture ends as that run would ([`Gesture::interrupted_with`]).
+//!   focus has left the field ([`Gesture::ended_by_part`]).
+//! - An interrupted composite gesture ends as its owner's gesture would
+//!   ([`Gesture::interrupted_as`]): when the composite stops being drawn, or the host ends its
+//!   gesture for another one ([`GestureHost`](super::GestureHost)), the host gets the owner's
+//!   ending, a commit with the owner's last value (also one no update carried, as the
+//!   composite's value) or a cancel, whatever the composite's own focus rule would say. A
+//!   popover's picker in the middle of a hex run commits the typed colour although its field is
+//!   not one of the composite's focus owners.
 //! - The composite pushes every part it draws in every pass, with or without an event; a part
 //!   it didn't push wasn't drawn. When the owner wasn't drawn its gesture is over (as for any
 //!   control, [`is_live`](super::is_live)), and the composite's gesture ends as the owner's would
@@ -34,6 +40,7 @@ use std::sync::Arc;
 
 use egui::{Context, Id, Modifiers};
 
+use super::gesture::Interrupted;
 use super::{CancelReason, EditEvent, EditResponse, Ending, Gesture, GestureId};
 use crate::controls::slider::PRESS_WAIT;
 
@@ -253,14 +260,14 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             Some((self.typing.contains(&owner), end?))
         });
         if let Some((typing, end)) = owner_end {
-            // The owner's typing run under way: its ending event ends the composite's gesture,
-            // and an interruption of the composite ends it as the run would.
+            // The owner's typing run under way: its ending event ends the composite's gesture.
             if typing && !matches!(end, End::Cancel) {
                 outer.ended_by_part();
-                if let Some(value) = end.value(&outer) {
-                    outer.interrupted_with(value);
-                }
             }
+            outer.interrupted_as(match &end {
+                End::Cancel => Interrupted::Cancel,
+                end => Interrupted::Commit(end.value(&outer)),
+            });
             state.end = Some(KeptEnd(Arc::new(end)));
         }
         outer

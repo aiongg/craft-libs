@@ -39,6 +39,8 @@ struct Host {
     stop_fields: bool,
     popover: bool,
     location_decimals: usize,
+    /// The editor isn't drawn.
+    hidden: bool,
     /// The popover's picker gets an eyedropper through `color_picker`; the editor's last report
     /// of it, and of the picker's id.
     eyedropper: bool,
@@ -69,6 +71,7 @@ impl Host {
             stop_fields: true,
             popover: false,
             location_decimals: 0,
+            hidden: false,
             eyedropper: false,
             eyedropper_requested: false,
             picker_id: None,
@@ -84,6 +87,9 @@ impl Host {
     }
 
     fn show(&mut self, ui: &mut Ui) {
+        if self.hidden {
+            return;
+        }
         let numbers = LocaleNumbers::from_tag("en");
         let tokens = Tokens::of(ui);
         let style = GradientEditor::style(&tokens);
@@ -919,6 +925,19 @@ fn the_popover_s_hex_run_ends_when_its_picker_goes_and_a_bar_drag_is_a_gesture_o
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#00ff00");
     assert_eq!(harness.state().locations(), [0.0, 0.5, 0.9]);
+
+    // The whole editor goes mid-run: the host ends its gesture as the hex run would, a commit
+    // with the typed colour.
+    let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
+    hex_run(&mut harness, "0000FF");
+    let Some(EditEvent::Begin { id }) = harness.state().events.first().cloned() else { panic!() };
+    harness.state_mut().hidden = true;
+    harness.run();
+    let ctx = harness.ctx.clone();
+    assert!(!crate::edit::is_live(&ctx, id));
+    assert_eq!(crate::edit::ending(&ctx, id), crate::edit::Ending::Commit { changed: true });
+    let kept = crate::edit::unreported::<GradientStops>(&ctx, id).unwrap_or_else(|| harness.state().stops.clone());
+    assert_eq!(kept.color[0].color.to_rgba().to_hex(), "#0000ff");
 }
 
 #[test]
