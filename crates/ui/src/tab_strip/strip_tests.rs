@@ -38,6 +38,8 @@ struct Host {
     /// A drop zone below the strip: the tabs a drag left there.
     zone: Rect,
     dropped: Option<Vec<u32>>,
+    /// Skip drawing the strip in a pass.
+    hidden: bool,
 }
 
 impl Host {
@@ -58,6 +60,7 @@ impl Host {
             dragging_out: None,
             zone: Rect::NOTHING,
             dropped: None,
+            hidden: false,
         }
     }
 
@@ -75,6 +78,9 @@ fn apply(tabs: &mut Vec<Tab<u32>>, mv: &Move<u32>) {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
+    if host.hidden {
+        return;
+    }
     let _ = ui.button("Before");
     let out = ui
         .allocate_ui(vec2(host.width, 0.0), |ui| {
@@ -687,6 +693,42 @@ fn a_drag_ends_on_escape_focus_loss_a_removed_tab_and_a_cleared_payload() {
     DragAndDrop::clear_payload(&harness.ctx);
     harness.run();
     assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Dismissed)), "the app cleared the payload: not an Escape");
+}
+
+#[test]
+fn a_drag_whose_strip_skipped_passes_is_over_and_leaves_no_stale_state() {
+    let mut harness = harness(Host::new(4, 0));
+    grab(&mut harness, "Doc 1");
+    let id = harness.state_mut().take().into_iter().find_map(|event| match event {
+        TabEvent::Reorder(EditEvent::Begin { id, .. }) => Some(id),
+        _ => None,
+    });
+    let id = id.expect("the drag began");
+    assert!(payload(&harness).is_some());
+
+    harness.state_mut().hidden = true;
+    harness.run_steps(3);
+    assert!(!crate::edit::is_live(&harness.ctx, id), "a control not drawn loses its gesture; the gesture host ends it as Removed");
+    harness.state_mut().hidden = false;
+    harness.run();
+    let pos = at(&harness, "Doc 3", 0.5);
+    pointer(&mut harness, pos, None);
+    let events = harness.state_mut().take();
+    assert!(!events.iter().any(|e| matches!(e, TabEvent::Reorder(_))), "the redrawn strip reports nothing for the lost drag: {events:?}");
+    assert!(payload(&harness).is_none(), "the stale payload is cleared");
+    assert!(harness.state().targets.last().is_none_or(Option::is_none), "no target");
+    assert!(drop_line(&harness).is_empty(), "no marker");
+    pointer(&mut harness, pos, Some(false));
+    assert!(harness.state_mut().take().iter().all(|e| !matches!(e, TabEvent::Reorder(_))), "the release of the lost drag does nothing");
+    assert_eq!(order(&harness), [0, 1, 2, 3]);
+
+    harness.run_steps(30);
+    grab(&mut harness, "Doc 2");
+    let begun = harness.state_mut().take().into_iter().find_map(|event| match event {
+        TabEvent::Reorder(EditEvent::Begin { id: new, .. }) => Some(new),
+        _ => None,
+    });
+    assert!(begun.is_some_and(|new| new != id), "a fresh drag begins on its own");
 }
 
 #[test]
