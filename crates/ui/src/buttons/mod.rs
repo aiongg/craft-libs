@@ -1,8 +1,11 @@
-//! Icon buttons with application-supplied colors and painting.
+//! Icon buttons with application-supplied colors and painting. Deprecated:
+//! [`controls::IconButton`](crate::controls::IconButton) takes its colours from the theme.
+#![allow(deprecated, reason = "the deprecated icon buttons' own code and tests")]
 
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
 
 /// The background, border and icon color for one interaction state.
+#[deprecated(note = "use craft_ui::controls::IconButton")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ButtonVisuals {
     pub fill: Color32,
@@ -11,6 +14,7 @@ pub struct ButtonVisuals {
 }
 
 /// A small style adapter, independent of an application's complete theme.
+#[deprecated(note = "use craft_ui::controls::IconButton")]
 #[derive(Clone, Copy, Debug)]
 pub struct IconButtonStyle {
     pub normal: ButtonVisuals,
@@ -45,6 +49,7 @@ impl IconButtonStyle {
 /// use `Ui::push_id` for application-specific identity. The caller paints the icon, attaches
 /// a tooltip if wanted, and dispatches commands from the returned response. Selection is
 /// caller-owned and never toggled implicitly. Parent `Ui` enabled state applies normally.
+#[deprecated(note = "use craft_ui::controls::IconButton")]
 pub struct IconButton<'a> {
     label: &'a str,
     size: Vec2,

@@ -1,5 +1,6 @@
 //! Independent, font-free reference painting for the shared controls' public visual contracts.
 //! Reference paths never call craft-ui or derive their expected rectangles from its responses.
+#![allow(deprecated, reason = "reference painting for the deprecated buttons::IconButton the apps still use")]
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis, SplitSize, split_rect};

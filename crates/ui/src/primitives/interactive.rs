@@ -1,9 +1,9 @@
 //! [`Interactive`]: the hit area, AccessKit node and keyboard activation every control builds on.
 
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, IdSalt, Response, Sense, Ui, Vec2, WidgetInfo, vec2};
+use egui::{AsIdSalt, Color32, Id, IdSalt, Response, Sense, Stroke, Ui, UiBuilder, Vec2, WidgetInfo, vec2};
 
-use super::{Corner, FocusRing, StateLayer, Surface, SurfaceKind};
+use super::{Corner, FocusRing, StateColors, StateLayer, Surface, SurfaceEdge, SurfaceKind};
 use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
@@ -19,6 +19,12 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 /// fill (transparent without one) changing to the hover and pressed fills ([`StateLayer`]); the
 /// surface's border or bevel over it; and the focus ring on a layer above. The caller draws the
 /// content after `show`, between the edge and the ring.
+///
+/// A control with its own colour tokens passes them with [`colors`](Interactive::colors): they
+/// take the place of the surface's fill, the `state.*` fills and the border colour, while the
+/// surface keeps the shape and the edge style (a bevel stays a bevel). A raised surface draws as
+/// [`SurfaceKind::Pressed`] while pressed and while the element is checked or selected, so a
+/// bevelled button presses in.
 #[derive(Debug)]
 pub struct Interactive<'a> {
     id_salt: IdSalt,
@@ -31,6 +37,10 @@ pub struct Interactive<'a> {
     expanded: Option<bool>,
     surface: Option<SurfaceKind>,
     corner: Option<Corner>,
+    colors: Option<StateColors>,
+    on_colors: Option<StateColors>,
+    enabled: bool,
+    busy: bool,
     state_layer: bool,
     focus_ring: bool,
 }
@@ -80,9 +90,19 @@ impl<'a> Interactive<'a> {
             expanded: None,
             surface: None,
             corner: None,
+            colors: None,
+            on_colors: None,
+            enabled: true,
+            busy: false,
             state_layer: true,
             focus_ring: true,
         }
+    }
+
+    /// The id [`show`](Interactive::show) gives an element made with `id_salt` in `ui`, for a
+    /// control that needs it first (to read its focus).
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        ui.make_persistent_id(IdSalt::new(id_salt))
     }
 
     /// What the element responds to; [`Sense::click`] by default.
@@ -149,6 +169,37 @@ impl<'a> Interactive<'a> {
         self
     }
 
+    /// The element's own fill and border colours per state, from its component's tokens, in
+    /// place of the surface's fill, `state.hover`, `state.pressed` and the surface's border colour.
+    /// The disabled colour applies when the element is disabled.
+    pub fn colors(mut self, colors: impl Into<StateColors>) -> Self {
+        self.colors = Some(colors.into());
+        self
+    }
+
+    /// The colours while the element is checked or selected, after this frame's click: a toggle
+    /// button's pressed look, a selected segment. Without them the element keeps
+    /// [`colors`](Interactive::colors).
+    pub fn on_colors(mut self, colors: impl Into<StateColors>) -> Self {
+        self.on_colors = Some(colors.into());
+        self
+    }
+
+    /// Whether the element takes input; on by default, and off in a disabled `Ui`. A disabled
+    /// element senses nothing, reports itself disabled and paints its disabled colours. Unlike a
+    /// disabled `Ui`, it fades nothing: a control with disabled tokens draws its disabled state in
+    /// an enabled `Ui`.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Busy: the element is working (a loading button) and a screen reader says so.
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
+    }
+
     /// Whether the fill changes on hover and press; on by default.
     pub fn state_layer(mut self, paint: bool) -> Self {
         self.state_layer = paint;
@@ -163,9 +214,16 @@ impl<'a> Interactive<'a> {
 
     /// Allocates `size` in the layout and interacts with it.
     pub fn show(mut self, ui: &mut Ui, size: Vec2) -> Response {
+        // `id_salt` is already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
         let id = ui.make_persistent_id(self.id_salt);
         let (_, rect) = ui.allocate_space(size);
-        let mut response = ui.interact(rect, id, self.sense);
+        let mut response = if self.enabled {
+            ui.interact(rect, id, self.sense)
+        } else {
+            // egui disables a widget through its `Ui`; this one alone is, and the `Ui` keeps its
+            // painter unfaded.
+            ui.new_child(UiBuilder::new().max_rect(rect).disabled()).interact(rect, id, self.sense)
+        };
         inspect::record(ui, id, RecordKind::Interactive(self.role), rect, rect);
         // A click changes bound states before they are reported, as egui's check box does.
         let clicked = response.clicked();
@@ -182,14 +240,14 @@ impl<'a> Interactive<'a> {
         if changed {
             response.mark_changed();
         }
-        let enabled = ui.is_enabled();
+        let enabled = response.enabled();
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(self.role, enabled, &self.label);
             info.current_text_value.clone_from(&self.value);
             info.selected = checked;
             info
         });
-        if selected.is_some() || self.expanded.is_some() {
+        if selected.is_some() || self.expanded.is_some() || self.busy {
             ui.ctx().accesskit_node_builder(id, |node| {
                 if let Some(selected) = selected {
                     node.set_selected(selected);
@@ -197,23 +255,40 @@ impl<'a> Interactive<'a> {
                 if let Some(expanded) = self.expanded {
                     node.set_expanded(expanded);
                 }
+                if self.busy {
+                    node.set_busy();
+                }
             });
         }
 
         let tokens = Tokens::of(ui);
-        let surface = self.surface.map(|kind| Surface::style(&tokens, kind));
-        let radius = match (self.corner, surface) {
+        let on = checked == Some(true) || selected == Some(true);
+        let pressed = self.state_layer && enabled && response.is_pointer_button_down_on();
+        let kind = match self.surface {
+            Some(SurfaceKind::Raised) if pressed || on => Some(SurfaceKind::Pressed),
+            kind => kind,
+        };
+        let surface = kind.map(|kind| Surface::style(&tokens, kind));
+        let radius = match (self.corner, self.surface) {
             (Some(corner), _) => corner.radius(&tokens),
-            (None, Some(style)) => style.radius,
+            (None, Some(kind)) => Surface::style(&tokens, kind).radius,
             (None, None) => Corner::Control.radius(&tokens),
         };
         if ui.is_rect_visible(rect) {
-            let fill =
-                if self.state_layer { StateLayer::fill(ui, self.surface, &response) } else { surface.map_or(Color32::TRANSPARENT, |s| s.fill) };
+            let colors = if on { self.on_colors.or(self.colors) } else { self.colors };
+            let fills = colors.map_or_else(|| StateLayer::fills(&tokens, self.surface), |c| c.fill);
+            let still = |states: &craft_theme::States<Color32>| if enabled { states.rest } else { states.disabled };
+            let animated = |states: &craft_theme::States<Color32>| {
+                if self.state_layer { StateLayer::color(ui, states, &response) } else { still(states) }
+            };
+            let fill = animated(&fills);
             match surface {
                 Some(mut style) => {
                     style.fill = fill;
                     style.radius = radius;
+                    if let (SurfaceEdge::Border(stroke), Some(border)) = (style.edge, colors.and_then(|c| c.border)) {
+                        style.edge = SurfaceEdge::Border(Stroke::new(stroke.width, animated(&border)));
+                    }
                     ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
                 }
                 None if fill != Color32::TRANSPARENT => {

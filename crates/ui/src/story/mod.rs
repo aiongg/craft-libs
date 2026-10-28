@@ -22,7 +22,7 @@ mod tests;
 
 pub use args::{Arg, ArgValue, Args};
 
-use crate::primitives;
+use crate::{controls, primitives};
 
 /// Where a story's component sits in the design system, in the order the gallery lists them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -109,6 +109,11 @@ pub fn registry() -> Vec<Story> {
     all.extend(primitives::icon::stories());
     all.extend(primitives::handle::stories());
     all.extend(crate::edit::stories());
+    all.extend(controls::button::stories());
+    all.extend(controls::icon_button::stories());
+    all.extend(controls::toggle_button::stories());
+    all.extend(controls::segmented::stories());
+    all.extend(controls::link::stories());
     all
 }
 
@@ -127,6 +132,11 @@ const DECLARED: &[&[&str]] = &[
     primitives::icon::COMPONENTS,
     primitives::handle::COMPONENTS,
     crate::edit::COMPONENTS,
+    controls::button::COMPONENTS,
+    controls::icon_button::COMPONENTS,
+    controls::toggle_button::COMPONENTS,
+    controls::segmented::COMPONENTS,
+    controls::link::COMPONENTS,
 ];
 
 /// Every component the crate's modules declare, in [`registry`] order.

@@ -1,0 +1,177 @@
+//! [`IconButton`]: a square ghost button that shows only an icon.
+
+use craft_theme::{ButtonVariant, ControlSize, States};
+use egui::accesskit::Role;
+use egui::emath::GuiRounding as _;
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Ui, Widget, vec2};
+
+use super::button::content_color;
+use super::{SIZE_NAMES, icon_size, salt, size_arg};
+use crate::icons::{self, Icon};
+use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
+use crate::story::{Args, Level, Story};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+/// An icon button's sizes and colours, from [`IconButton::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct IconButtonStyle {
+    /// Side of the square: `icon_button.size`.
+    pub side: f32,
+    /// Side of the icon: `icon_button.icon`.
+    pub icon: f32,
+    /// `Corner::Control`: `radius.control`.
+    pub radius: CornerRadius,
+    /// Off: a ghost button's fill, `button.ghost.fill`.
+    pub fill: States<Color32>,
+    /// Off: `button.ghost.text`.
+    pub text: States<Color32>,
+    /// Toggled on: `icon_button.selected.fill`.
+    pub selected_fill: States<Color32>,
+    /// Toggled on: `icon_button.selected.text`.
+    pub selected_text: States<Color32>,
+}
+
+/// A square button showing only an icon: `ui.add(IconButton::new(Icon::Eye, "Show layer"))`.
+///
+/// It looks like a ghost button: transparent until hovered, no edge. The required `label` is its
+/// accessible name and its hover tooltip, since the icon alone names nothing to a screen reader
+/// and may be unclear to anyone. [`toggle`](IconButton::toggle) makes it a toggle button: on, it
+/// shows the selected fill and tints the icon `text.on_selected`, and AccessKit reports it
+/// toggled.
+#[derive(Debug)]
+pub struct IconButton<'a> {
+    icon: Icon,
+    label: String,
+    size: ControlSize,
+    on: Option<&'a mut bool>,
+    enabled: bool,
+    id_salt: Option<IdSalt>,
+}
+
+impl<'a> IconButton<'a> {
+    pub fn new(icon: Icon, label: impl Into<String>) -> Self {
+        Self { icon, label: label.into(), size: ControlSize::Md, on: None, enabled: true, id_salt: None }
+    }
+
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// A toggle: a click flips `on`, and the button reports the new state in the same frame.
+    pub fn toggle(mut self, on: &'a mut bool) -> Self {
+        self.on = Some(on);
+        self
+    }
+
+    /// Whether it takes input; disabled, it draws the disabled colours and keeps its tooltip.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Keeps focus and animations when the layout around it changes; else the `Ui`'s next
+    /// automatic id.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id_salt = Some(IdSalt::new(id_salt));
+        self
+    }
+
+    pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
+        let c = &tokens.component;
+        let ghost = c.button.colors(ButtonVariant::Ghost);
+        IconButtonStyle {
+            side: c.icon_button.size.get(size),
+            icon: c.icon_button.icon.get(size),
+            radius: Corner::Control.radius(tokens),
+            fill: ghost.fill.to_egui(),
+            text: ghost.text.to_egui(),
+            selected_fill: c.icon_button.selected.fill.to_egui(),
+            selected_text: c.icon_button.selected.text.to_egui(),
+        }
+    }
+}
+
+impl Widget for IconButton<'_> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let style = IconButton::style(&Tokens::of(ui), self.size);
+        let mut on = self.on;
+        let mut element = Interactive::new(salt(ui, self.id_salt), Role::Button, self.label.as_str())
+            .colors(StateColors { fill: style.fill, border: None })
+            .on_colors(StateColors { fill: style.selected_fill, border: None })
+            .corner(Corner::Control)
+            .enabled(self.enabled);
+        if let Some(on) = on.as_deref_mut() {
+            element = element.toggle(on);
+        }
+        let response = element.show(ui, vec2(style.side, style.side));
+        // The state after this frame's click, which the fill shows too.
+        let on = on.is_some_and(|on| *on);
+        let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
+        if ui.is_rect_visible(response.rect) {
+            let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
+            icons::paint(ui, rect, self.icon, icon_size(self.size), color);
+        }
+        response.on_hover_text(&self.label).on_disabled_hover_text(&self.label)
+    }
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Icon button"];
+
+const SAMPLES: [(Icon, &str); 5] =
+    [(Icon::Undo, "Undo"), (Icon::Redo, "Redo"), (Icon::Copy, "Copy"), (Icon::Trash, "Delete"), (Icon::Settings, "Settings")];
+
+pub(crate) fn stories() -> Vec<Story> {
+    vec![
+        Story {
+            id: "controls/icon-button/plain",
+            level: Level::Controls,
+            component: "Icon button",
+            name: "Plain",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+            show: show_plain,
+        },
+        Story {
+            id: "controls/icon-button/toggle",
+            level: Level::Controls,
+            component: "Icon button",
+            name: "Toggle",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+            show: show_toggle,
+        },
+    ]
+}
+
+/// A toolbar row of icon buttons; clicks count up.
+fn show_plain(ui: &mut Ui, args: &mut Args) {
+    let size = size_arg(args.choice("size"));
+    let enabled = !args.bool("disabled");
+    let state_id = ui.scope_id().with("icon-button-plain-count");
+    let mut count = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
+    Row::new(Gap::Inline).show(ui, |ui| {
+        for (icon, label) in SAMPLES {
+            if ui.add(IconButton::new(icon, label).size(size).enabled(enabled).id_salt(("icon-button-plain", label))).clicked() {
+                count += 1;
+            }
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, count));
+    ui.add(Text::new(format!("Clicked {count} times")).content(Content::Muted));
+}
+
+/// Visibility and lock toggles, one of each on.
+fn show_toggle(ui: &mut Ui, args: &mut Args) {
+    let size = size_arg(args.choice("size"));
+    let enabled = !args.bool("disabled");
+    let state_id = ui.scope_id().with("icon-button-toggle-state");
+    let (mut visible, mut locked) = ui.data(|d| d.get_temp::<(bool, bool)>(state_id).unwrap_or((true, false)));
+    Row::new(Gap::Inline).show(ui, |ui| {
+        let eye = if visible { Icon::Eye } else { Icon::EyeOff };
+        ui.add(IconButton::new(eye, "Visible").size(size).toggle(&mut visible).enabled(enabled).id_salt("icon-button-visible"));
+        let lock = if locked { Icon::Lock } else { Icon::LockOpen };
+        ui.add(IconButton::new(lock, "Locked").size(size).toggle(&mut locked).enabled(enabled).id_salt("icon-button-locked"));
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, (visible, locked)));
+}

@@ -105,13 +105,16 @@ fn state_fills_replace_the_rest_fill_with_the_hover_easing() {
     let style = StateLayer::style(&t);
     assert_eq!(style.easing, t.motion.hover.easing);
     let raised = Surface::style(&t, SurfaceKind::Raised).fill;
-    for rest in [Color32::TRANSPARENT, raised] {
-        assert_eq!(style.mix(rest, 0.0, 0.0), rest);
-        assert_eq!(style.mix(rest, 1.0, 0.0), style.hover);
-        assert_eq!(style.mix(rest, 1.0, 1.0), style.pressed);
-        assert_eq!(style.mix(rest, 0.0, 1.0), style.pressed);
+    for (surface, rest) in [(None, Color32::TRANSPARENT), (Some(SurfaceKind::Raised), raised)] {
+        let fills = StateLayer::fills(&t, surface);
+        assert_eq!((fills.rest, fills.disabled), (rest, rest), "{surface:?}");
+        assert_eq!(state_layer::mix(&fills, 0.0, 0.0), rest);
+        assert_eq!(state_layer::mix(&fills, 1.0, 0.0), style.hover);
+        assert_eq!(state_layer::mix(&fills, 1.0, 1.0), style.pressed);
+        assert_eq!(state_layer::mix(&fills, 0.0, 1.0), style.pressed);
     }
-    assert_eq!(style.mix(Color32::TRANSPARENT, 0.5, 0.0), style.hover.gamma_multiply(0.5), "a bare element fades in");
+    let bare = StateLayer::fills(&t, None);
+    assert_eq!(state_layer::mix(&bare, 0.5, 0.0), style.hover.gamma_multiply(0.5), "a bare element fades in");
 }
 
 #[test]
@@ -146,7 +149,9 @@ fn only_surface_reads_the_edge_style() {
     let mut found = Vec::new();
     for file in files.iter().filter(|f| **f != root.join("primitives/surface.rs") && **f != root.join("primitives/tests.rs")) {
         for (n, line) in std::fs::read_to_string(file).unwrap().lines().enumerate() {
-            if patterns.iter().any(|p| line.contains(p)) {
+            // Whole names only: `SurfaceEdge::Bevel` is the resolved style, not the theme's.
+            let names = |p: &str| line.match_indices(p).any(|(i, _)| !line[..i].ends_with(|c: char| c.is_alphanumeric() || c == '_'));
+            if patterns.iter().any(|p| names(p)) {
                 found.push(format!("{}:{}: {line}", file.display(), n + 1));
             }
         }

@@ -88,7 +88,8 @@ fn render(stories: &[Story]) -> image::RgbaImage {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(move |ui, args: &mut Vec<Vec<Args>>| sheet(ui, &stories, args), args);
     harness.fit_contents();
-    harness.run();
+    // A loading button's spinner repaints every frame, so the sheet never settles completely.
+    let _ = harness.run_ok();
     harness.render().unwrap()
 }
 

@@ -236,6 +236,7 @@ fn visual_comparisons_detect_color_spacing_and_stroke_mutations() {
 }
 
 #[test]
+#[allow(deprecated, reason = "fits the deprecated buttons::IconButton the apps still use")]
 fn toolbar_fitting_matches_literal_group_and_overflow_positions() {
     use craft_ui::buttons::IconButton;
     use craft_ui::layout::fit_toolbar;

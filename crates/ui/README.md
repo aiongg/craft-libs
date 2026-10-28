@@ -1,12 +1,13 @@
 # Craft UI
 
 `craft-ui` provides small egui components with application-supplied styles. `icons` draws the
-suite's icons; `buttons` paints accessible icon buttons; `tabs` handles tab fitting and
+suite's icons; `buttons` (deprecated) paints icon buttons in application-supplied colours; `tabs` handles tab fitting and
 interaction; `layout` provides toolbar fitting, split geometry and resize handles; `theme` shares widget-state styling.
 `docking` supplies transactional panel moves and an optional docking surface.
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
 `fonts` installs the UI font stack, the same fallback order in every app.
 `primitives` holds the design system's building blocks (surfaces, state layer, focus ring, divider, stack and row, interactive element, text, icon, canvas handle), styled from `theme`'s tokens.
+`controls` holds the design system's controls built on them (button, icon button, toggle button, segmented control, link).
 `inspect` records the primitives' layout boxes and the AccessKit tree for inspector overlays such as the gallery's; off by default.
 `edit` is the edit lifecycle value controls report through: gesture events (begin, update, commit, cancel, one-shot set), the `Gesture` state machine controls embed, and `GestureHost`, which turns the events into undo steps.
 `localized` supplies number fields that write and read the user's region's numbers.
@@ -77,9 +78,10 @@ literal `currentColor` and optional `stroke-width="2"` substitutions, keeps othe
 colors untouched, and uses the existing lossy UTF-8 behavior. General SVG parsing and rasterization
 remain the responsibility of the existing loader.
 
-## Icon buttons
+## Icon buttons (deprecated)
 
-`buttons::IconButton` accepts a label, size and `IconButtonStyle`, and returns `egui::Response`.
+`buttons::IconButton` and `IconButtonStyle` are deprecated and stay until the last app moves to
+`controls::IconButton`, which takes its colours from the theme. `buttons::IconButton` accepts a label, size and `IconButtonStyle`, and returns `egui::Response`.
 `ButtonVisuals` describes fill, border and icon tint for normal, hovered, pressed and selected
 states. Selection wins over press and hover. `pressed: None` keeps ordinary hover/normal styling;
 `Some` supplies a separate press treatment. egui owns pointer capture and click cancellation.

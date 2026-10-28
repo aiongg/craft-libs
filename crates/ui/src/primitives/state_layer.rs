@@ -1,6 +1,6 @@
 //! [`StateLayer`]: the hover and pressed fills of interactive elements.
 
-use craft_theme::Easing;
+use craft_theme::{ButtonColors, Easing, ItemColors, States};
 use egui::{Color32, Rect, Response, Ui, vec2};
 
 use super::{Corner, Surface, SurfaceKind};
@@ -21,11 +21,48 @@ pub struct StateLayerStyle {
     pub easing: Easing,
 }
 
-impl StateLayerStyle {
-    /// The fill `hover` and `pressed` of the way (0 to 1) from `rest` to the hover and pressed
-    /// fills.
-    pub(crate) fn mix(&self, rest: Color32, hover: f32, pressed: f32) -> Color32 {
-        rest.lerp_to_gamma(self.hover, hover).lerp_to_gamma(self.pressed, pressed)
+/// The colours `hover` and `pressed` of the way (0 to 1) from `colors.rest` to the hover and
+/// pressed colours.
+pub(crate) fn mix(colors: &States<Color32>, hover: f32, pressed: f32) -> Color32 {
+    colors.rest.lerp_to_gamma(colors.hover, hover).lerp_to_gamma(colors.pressed, pressed)
+}
+
+/// A component's own fill and border colours per state, from its family's tokens, which
+/// [`Interactive::colors`](super::Interactive::colors) paints in place of the surface's fill, the
+/// `state.*` fills and the surface's border colour. Content colours (`text`) stay with the
+/// component, which tints them with [`StateLayer::color`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StateColors {
+    pub fill: States<Color32>,
+    /// The border's colour; `None` keeps the surface's. A bevel keeps its own colours.
+    pub border: Option<States<Color32>>,
+}
+
+impl StateColors {
+    /// Fills only: the border, if any, stays the surface's.
+    pub fn fill(fill: States<craft_theme::Rgba>) -> Self {
+        Self { fill: fill.to_egui(), border: None }
+    }
+
+    /// The border colours too.
+    pub fn border(mut self, border: States<craft_theme::Rgba>) -> Self {
+        self.border = Some(border.to_egui());
+        self
+    }
+}
+
+/// A button variant's fill and border.
+impl From<&ButtonColors> for StateColors {
+    fn from(c: &ButtonColors) -> Self {
+        Self { fill: c.fill.to_egui(), border: Some(c.border.to_egui()) }
+    }
+}
+
+/// An item's fill; items have no outline.
+impl From<&ItemColors> for StateColors {
+    fn from(c: &ItemColors) -> Self {
+        StateColors::fill(c.fill)
     }
 }
 
@@ -36,6 +73,10 @@ impl StateLayerStyle {
 /// element's edge and content go on top. An element on a [`Surface`] rests at the surface's fill;
 /// one without (a toolbar item) rests transparent. [`Interactive`](super::Interactive) paints it
 /// for its controls. A disabled element keeps its rest fill.
+///
+/// A component with its own colours per state (a button's `fill`, `border` and `text`) runs them
+/// through [`color`](StateLayer::color): one hover and one pressed animation per element move
+/// every part together.
 pub struct StateLayer;
 
 impl StateLayer {
@@ -50,20 +91,33 @@ impl StateLayer {
         }
     }
 
+    /// The fills of an element on `surface` (none: transparent), per state: the surface's fill
+    /// at rest and when disabled, `state.hover` and `state.pressed`.
+    pub fn fills(tokens: &UiTokens, surface: Option<SurfaceKind>) -> States<Color32> {
+        let rest = surface.map_or(Color32::TRANSPARENT, |kind| Surface::style(tokens, kind).fill);
+        let style = StateLayer::style(tokens);
+        States::new(rest, style.hover, style.pressed, rest)
+    }
+
     /// The fill of `response`'s element now: the rest fill of `surface` (transparent without
     /// one), animated to the hover and pressed fills.
     pub fn fill(ui: &Ui, surface: Option<SurfaceKind>, response: &Response) -> Color32 {
-        let tokens = Tokens::of(ui);
-        let rest = surface.map_or(Color32::TRANSPARENT, |kind| Surface::style(&tokens, kind).fill);
+        StateLayer::color(ui, &StateLayer::fills(&Tokens::of(ui), surface), response)
+    }
+
+    /// `colors` for `response`'s element now: its rest colour animated to the hover and pressed
+    /// colours with `motion.hover`, or its disabled colour. Every part of one element (fill,
+    /// border, text) shares the same animation.
+    pub fn color(ui: &Ui, colors: &States<Color32>, response: &Response) -> Color32 {
         if !response.enabled() {
-            return rest;
+            return colors.disabled;
         }
-        let style = StateLayer::style(&tokens);
+        let style = StateLayer::style(&Tokens::of(ui));
         let (ctx, easing) = (ui.ctx(), style.easing.to_egui());
         let animate = |salt: &str, on: bool| ctx.animate_bool_with_time_and_easing(response.id.with(salt), on, style.fade, easing);
         let hover = animate("craft_ui::state_layer::hover", response.hovered());
         let pressed = animate("craft_ui::state_layer::pressed", response.is_pointer_button_down_on());
-        style.mix(rest, hover, pressed)
+        mix(colors, hover, pressed)
     }
 
     /// Paints the state fill of an element without a surface over `rect`, with `corner`'s

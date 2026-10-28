@@ -4,6 +4,7 @@
 //! ⌨, table, detail pane, conflict bar, footer. egui's Tab order is creation order, so the bars
 //! under the table are drawn last even though their height is needed first: the view uses last
 //! frame's height and asks egui to discard a frame whose height changed.
+#![allow(deprecated, reason = "the dialog draws craft_ui::buttons::IconButton until it moves to craft_ui::controls")]
 
 use std::ops::Range;
 use std::sync::Arc;

@@ -35,6 +35,8 @@ pub struct Radii {
     pub popup: CornerRadius,
     pub window: CornerRadius,
     pub panel: CornerRadius,
+    /// Push buttons: `button.radius`, which is `shape.radius.button` unless the theme overrides
+    /// it.
     pub button: CornerRadius,
 }
 
@@ -57,7 +59,7 @@ impl UiTokens {
             popup: corner_radius(r.popup),
             window: corner_radius(r.window),
             panel: corner_radius(r.panel),
-            button: corner_radius(r.button),
+            button: corner_radius(tokens.component.button.radius),
         };
         let e = &tokens.elevation;
         let shadow = Shadows { popup: e.popup.to_egui(), dialog: e.dialog.to_egui(), floating: e.floating.to_egui() };

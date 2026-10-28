@@ -55,7 +55,7 @@ pub use handle::{Handle, HandleShape, HandleStyle};
 pub use icon::{Icon, IconStyle};
 pub use interactive::Interactive;
 pub use stack::{Gap, Pad, Row, Stack};
-pub use state_layer::{StateLayer, StateLayerStyle};
+pub use state_layer::{StateColors, StateLayer, StateLayerStyle};
 pub use surface::{Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};
 pub use text::Text;
 
@@ -140,7 +140,8 @@ pub enum Corner {
     /// Small controls, fields, toolbar items: `radius.control`.
     #[default]
     Control,
-    /// Push buttons: `radius.button`.
+    /// Push and toggle buttons: `button.radius` (`radius.button` unless the theme overrides
+    /// it).
     Button,
     /// Popups and menus: `radius.popup`.
     Popup,

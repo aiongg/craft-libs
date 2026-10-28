@@ -8,6 +8,7 @@
 pub mod buttons;
 pub mod capture;
 pub mod combo;
+pub mod controls;
 pub mod direction;
 pub mod docking;
 pub mod edit;

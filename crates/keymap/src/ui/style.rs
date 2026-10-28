@@ -1,4 +1,5 @@
 //! The dialog's colors and the icon-button style built from them.
+#![allow(deprecated, reason = "the dialog draws craft_ui::buttons::IconButton until it moves to craft_ui::controls")]
 
 use craft_ui::buttons::{ButtonVisuals, IconButtonStyle};
 use craft_ui::layout::ResizeHandleStyle;
