@@ -1,7 +1,7 @@
 //! [`Interactive`]: the hit area, AccessKit node and keyboard activation every control builds on.
 
-use egui::accesskit::{Action, Role};
-use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Key, PointerButton, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
 
 use super::{Corner, FocusRing, StateColors, StateLayer, Surface, SurfaceEdge, SurfaceKind};
 use crate::inspect::{self, RecordKind};
@@ -231,11 +231,9 @@ impl<'a> Interactive<'a> {
         // `id_salt` is already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
         let id = ui.make_persistent_id(self.id_salt);
         let (_, rect) = ui.allocate_space(size);
-        let options = InteractOptions { enabled: self.enabled, ..Default::default() };
+        // A WAI-ARIA link activates on Enter only; Space scrolls.
+        let options = InteractOptions { enabled: self.enabled, activate_on_space: self.report.role != Role::Link, ..Default::default() };
         let mut response = ui.interact_opt(rect, id, self.sense, options);
-        if self.report.role == Role::Link {
-            ignore_space(ui, &mut response);
-        }
         inspect::record(ui, id, RecordKind::Interactive(self.report.role), rect, rect);
         // A click changes bound states before they are reported, as egui's check box does.
         let clicked = response.clicked();
@@ -253,18 +251,6 @@ impl<'a> Interactive<'a> {
             response.mark_changed();
         }
         Sensed { response, checked, selected, report: self.report, look: self.look }
-    }
-}
-
-/// Drops the activation by Space from a focused link's `response`: Enter activates a link, Space
-/// doesn't (WAI-ARIA). egui counts both as a click of a focused widget.
-fn ignore_space(ui: &Ui, response: &mut Response) {
-    let id = response.id;
-    let by_other_means =
-        response.clicked_by(PointerButton::Primary) || ui.input(|i| i.key_pressed(Key::Enter) || i.has_accesskit_action_request(id, Action::Click));
-    if response.clicked() && !by_other_means {
-        // egui's `TextEdit` drops it the same way.
-        response.flags.remove(egui::response::Flags::FAKE_PRIMARY_CLICKED);
     }
 }
 
