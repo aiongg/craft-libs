@@ -4,7 +4,6 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::ops::Range;
 
 use egui::accesskit::{Action, Orientation, Role};
 use egui::os::OperatingSystem;
@@ -181,7 +180,8 @@ type HostArea<'a> = (f32, Box<dyn FnOnce(&mut Ui) + 'a>);
 ///   draws the focus ring while the keyboard is in use.
 /// - **AccessKit.** The strip is a horizontal `TabList` named by the host's label, with
 ///   `active_descendant` the focused tab or button while it has the focus. Each shown tab is a
-///   `Tab` with `selected`, `position_in_set` and `size_of_set` counting the hidden tabs, and the
+///   `Tab` with `selected` and `position_in_set`; the `TabList` carries `size_of_set`, which counts the
+///   hidden tabs (screen readers read it from the container). The tabs take the
 ///   actions Click (activate), Focus and Show Context Menu; its × is a `Button` inside it. The
 ///   overflow button is a `Button` named [`TabStripText::more`] with a menu popup. Hidden tabs
 ///   have no node: their row in the overflow menu reaches them.
@@ -360,6 +360,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
         }
         let bounds = response.rect;
         let active = pass.active_node.filter(|_| now);
+        let set_size = pass.tabs.len();
         ui.ctx().accesskit_node_builder(id, |node| {
             // The `Ui`'s node took its bounds before its rect was known.
             node.set_bounds(egui::accesskit::Rect {
@@ -369,6 +370,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
                 y1: bounds.max.y.into(),
             });
             node.set_orientation(Orientation::Horizontal);
+            node.set_size_of_set(set_size);
             match active {
                 Some(node_id) => node.set_active_descendant(node_id.accesskit_id()),
                 None => node.clear_active_descendant(),
@@ -458,6 +460,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             overflow_width: style.overflow,
         });
         let order: Vec<RowInfo<K>> = plan.shown.iter().map(|placed| RowInfo::leaf(tabs[placed.index].key().clone())).collect();
+        let host_order: Vec<RowInfo<K>> = tabs.iter().map(|tab| RowInfo::leaf(tab.key().clone())).collect();
         self.end_stale_drag(ui.ctx(), state);
         let background = ui.interact(plan.tabs_area, self.id.with("background"), Sense::CLICK | Sense::DRAG);
 
@@ -481,7 +484,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                         self.events.push(TabEvent::ContextMenu(TabMenuRequest { tab: Some(key.clone()), anchor: placed.rect, pointer: None }));
                     }
                     if let Some(&(stack, modifiers)) = keys.reorders.first() {
-                        let mv = self.reorder().key_move(order.as_slice(), std::slice::from_ref(&key), stack, modifiers);
+                        let mv = self.reorder().key_move(host_order.as_slice(), std::slice::from_ref(&key), stack, modifiers);
                         if let (Some(mv), Some(gesture)) = (mv, self.gesture.as_mut().filter(|g| !g.is_active())) {
                             gesture.set(mv);
                         }
@@ -511,7 +514,6 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                 drop_highlight: drop_highlight.as_ref() == Some(key),
                 sense,
                 position: placed.index,
-                size: tabs.len(),
                 text: &text,
                 controls: controls.filter(|_| active),
             };
@@ -540,7 +542,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                 (&text, open_overflow, spot == Some(FocusSpot::Overflow)),
             );
         }
-        self.drag_frame(ui, state, &plan, order.as_slice(), (rect, tear_off));
+        self.drag_frame(ui, state, &plan, (rect, tear_off));
         if let Some(slot) = insertion_marker
             && let Some((tab, left)) = marker_at(&plan, self.rtl, slot)
         {
@@ -605,16 +607,17 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
 
     /// The drag under way: ends it on a release, Esc or focus loss; otherwise resolves the target
     /// and draws its marker, or reports the tab leaving the band.
-    fn drag_frame(&mut self, ui: &Ui, state: &mut State<K>, plan: &StripPlan, order: &[RowInfo<K>], (strip, tear_off): (Rect, bool)) {
+    fn drag_frame(&mut self, ui: &Ui, state: &mut State<K>, plan: &StripPlan, (strip, tear_off): (Rect, bool)) {
         let Some(dragged) = state.drag.take() else { return };
         let ctx = ui.ctx().clone();
         let (released, down, modifiers, pointer) =
             ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
         let zone = pointer.map_or(DragZone::Band, |pos| drag_zone(strip, pos, tear_off, self.style.tear_off));
-        let target = pointer.filter(|_| zone == DragZone::Band).and_then(|pos| {
-            let spans: Vec<Range<f32>> = plan.shown.iter().map(|placed| placed.rect.min.x..placed.rect.max.x).collect();
-            self.reorder().resolve(order, spans.as_slice(), pos.x, std::slice::from_ref(&dragged), modifiers).map(|resolved| resolved.mv)
+        let drop = pointer.filter(|_| zone == DragZone::Band).and_then(|pos| {
+            let slot = plan.slot_at(self.rtl, pos);
+            self.slot_move(plan, &dragged, slot, modifiers).map(|mv| (slot, mv))
         });
+        let target = drop.as_ref().map(|(_, mv)| mv.clone());
         if crate::focus::lost(&ctx) {
             self.end_drag(&ctx, DragEnd::FocusLost, modifiers, true);
         } else if released || !down {
@@ -634,16 +637,30 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             match (zone, pointer) {
                 (DragZone::Outside, Some(pointer)) => self.dragging_out = Some(DragOut { tab: dragged.clone(), pointer }),
                 _ => {
-                    if let Some(mv) = &target
-                        && let Some(rect) = self.tabs.iter().position(|tab| *tab.key() == mv.target).and_then(|index| plan.rect_of(index))
+                    if let Some((slot, _)) = &drop
+                        && let Some((rect, left)) = marker_at(plan, self.rtl, *slot)
                     {
-                        paint_marker(ui, &self.style, rect, (mv.position == DropPosition::Before) != self.rtl);
+                        paint_marker(ui, &self.style, rect, left);
                     }
                     self.drop_target = target;
                 }
             }
             state.drag = Some(dragged);
         }
+    }
+
+    /// The move of `dragged` to the host slot `slot`: before the tab at the slot when it is shown,
+    /// else after the tab before it. `None` for a move that changes nothing, which is the dragged
+    /// tab's own slot and the one after it.
+    fn slot_move(&self, plan: &StripPlan, dragged: &K, slot: usize, modifiers: Modifiers) -> Option<Move<K>> {
+        let from = self.tabs.iter().position(|tab| tab.key() == dragged)?;
+        let copy = self.reorder().copies(modifiers);
+        if !copy && (slot == from || slot == from + 1) {
+            return None;
+        }
+        let (target, position) =
+            if plan.rect_of(slot).is_some() { (slot, DropPosition::Before) } else { (slot.checked_sub(1)?, DropPosition::After) };
+        Some(Move { items: vec![dragged.clone()], target: self.tabs.get(target)?.key().clone(), position, copy })
     }
 
     /// The focus spot on `plan`: the tab or button the state names, the button for a tab moved
