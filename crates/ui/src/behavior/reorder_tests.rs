@@ -300,10 +300,10 @@ fn a_drag_reports_begin_updates_on_target_changes_and_a_commit() {
     let first = mv(&[0], 2, Before);
     let second = mv(&[0], 2, After);
     assert_eq!(gesture.update(None, Modifiers::NONE), None);
-    assert_eq!(gesture.update(Some(first.clone()), Modifiers::NONE), Some(EditEvent::update(id, first.clone(), Modifiers::NONE)));
+    assert_eq!(gesture.update(Some(first.clone()), Modifiers::NONE), Some(EditEvent::update(id, Some(first.clone()), Modifiers::NONE)));
     assert_eq!(gesture.update(Some(first), Modifiers::NONE), None);
-    assert_eq!(gesture.update(Some(second.clone()), Modifiers::ALT), Some(EditEvent::update(id, second.clone(), Modifiers::ALT)));
-    assert_eq!(gesture.finish(DragEnd::Released(Some(second.clone())), Modifiers::NONE), EditEvent::commit(id, second, true, Modifiers::NONE));
+    assert_eq!(gesture.update(Some(second.clone()), Modifiers::ALT), Some(EditEvent::update(id, Some(second.clone()), Modifiers::ALT)));
+    assert_eq!(gesture.finish(DragEnd::Released(Some(second.clone())), Modifiers::NONE), EditEvent::commit(id, Some(second), true, Modifiers::NONE));
 }
 
 #[test]
@@ -322,4 +322,17 @@ fn a_drag_cancels_with_the_reason_it_ended_for() {
         let (id, event) = end(drag_end);
         assert_eq!(event, EditEvent::cancel(id, reason));
     }
+}
+
+#[test]
+fn leaving_every_target_updates_with_none_and_a_release_there_is_dismissed() {
+    let (mut gesture, _) = ReorderGesture::<u32>::begin();
+    let id = gesture.id();
+    let target = mv(&[0], 2, Before);
+    gesture.update(Some(target.clone()), Modifiers::NONE);
+    assert_eq!(gesture.update(None, Modifiers::NONE), Some(EditEvent::update(id, None, Modifiers::NONE)));
+    assert_eq!(gesture.update(None, Modifiers::NONE), None);
+    assert_eq!(gesture.update(Some(target), Modifiers::NONE).map(|e| e.value().is_some()), Some(true));
+    assert_eq!(gesture.update(None, Modifiers::NONE), Some(EditEvent::update(id, None, Modifiers::NONE)));
+    assert_eq!(gesture.finish(DragEnd::Released(None), Modifiers::NONE), EditEvent::cancel(id, CancelReason::Dismissed));
 }

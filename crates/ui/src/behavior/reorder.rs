@@ -190,7 +190,8 @@ pub enum DragEnd<K> {
 /// then `Commit` on a drop on an accepted target or `Cancel` (`Escape`, `FocusLost`, `Removed`, or
 /// `Dismissed` for a release where nothing accepts the rows, which includes a no-op).
 ///
-/// A pointer that leaves every target sends no event: the last `Update` stands until the end.
+/// The value is `None` while the pointer is over no valid target, so a host's live preview
+/// clears; a `Commit` always carries `Some`.
 #[derive(Clone, Debug)]
 pub struct ReorderGesture<K> {
     id: GestureId,
@@ -199,7 +200,7 @@ pub struct ReorderGesture<K> {
 
 impl<K: Clone + PartialEq> ReorderGesture<K> {
     /// A drag that starts now, and its `Begin` event.
-    pub fn begin() -> (Self, EditEvent<Move<K>>) {
+    pub fn begin() -> (Self, EditEvent<Option<Move<K>>>) {
         let id = GestureId::next();
         (Self { id, last: None }, EditEvent::begin(id))
     }
@@ -209,20 +210,20 @@ impl<K: Clone + PartialEq> ReorderGesture<K> {
         self.id
     }
 
-    /// The target under the pointer this frame, if any accepts the rows: an `Update` when it is a
-    /// different move from the last one.
-    pub fn update(&mut self, target: Option<Move<K>>, modifiers: Modifiers) -> Option<EditEvent<Move<K>>> {
+    /// The target under the pointer this frame, if any accepts the rows: an `Update` when it is
+    /// not the same as the last one, with `None` when the pointer left every valid target.
+    pub fn update(&mut self, target: Option<Move<K>>, modifiers: Modifiers) -> Option<EditEvent<Option<Move<K>>>> {
         if target == self.last {
             return None;
         }
         self.last.clone_from(&target);
-        target.map(|mv| EditEvent::update(self.id, mv, modifiers))
+        Some(EditEvent::update(self.id, target, modifiers))
     }
 
     /// The event that ends the drag.
-    pub fn finish(self, end: DragEnd<K>, modifiers: Modifiers) -> EditEvent<Move<K>> {
+    pub fn finish(self, end: DragEnd<K>, modifiers: Modifiers) -> EditEvent<Option<Move<K>>> {
         match end {
-            DragEnd::Released(Some(mv)) => EditEvent::commit(self.id, mv, true, modifiers),
+            DragEnd::Released(Some(mv)) => EditEvent::commit(self.id, Some(mv), true, modifiers),
             DragEnd::Released(None) => EditEvent::cancel(self.id, CancelReason::Dismissed),
             DragEnd::Escape => EditEvent::cancel(self.id, CancelReason::Escape),
             DragEnd::FocusLost => EditEvent::cancel(self.id, CancelReason::FocusLost),
