@@ -9,6 +9,8 @@
 //! - [`Listbox`]: the active option of a listbox whose focus stays on its owner (arrows, Page
 //!   Up and Down, Home, End, type-ahead), used by [`Select`](crate::controls::Select) and
 //!   [`ComboBox`](crate::controls::ComboBox).
+//! - [`ListSelection`]: the selection rules of a list over its display order (click, Shift, Cmd/Ctrl,
+//!   keys), kept in a host-owned [`Selection`].
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
@@ -16,6 +18,9 @@
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tab_tests;
+mod list_selection;
+#[cfg(test)]
+mod list_selection_tests;
 mod listbox;
 mod radio_selection;
 #[cfg(test)]
@@ -23,6 +28,10 @@ mod tests;
 mod typing;
 
 pub use field_tab::FieldTab;
+pub use list_selection::{
+    DisplayOrder, ListKey, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step, TreeMove, first_child, parent,
+    tree_key,
+};
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
 pub use radio_selection::RadioSelection;
