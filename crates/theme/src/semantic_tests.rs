@@ -641,6 +641,38 @@ fn pinned_accent_strong_is_kept() {
     assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::TextOnStrong) && w.bg == TokenRef::Color(T::AccentStrong)), "{:?}", r.warnings);
 }
 
+/// In high contrast a pinned `accent.strong` that white text misses on moves until it carries it.
+#[test]
+fn pinned_accent_strong_moves_in_high_contrast() {
+    let mut def = grey_blue();
+    let light = hex("#78ADF6");
+    def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
+    let (strong, text) = (r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong));
+    assert_ne!(strong, light, "the pin gives way");
+    assert_eq!(text, Rgba::WHITE);
+    assert!(contrast_ratio(text, strong) >= 7.0, "{strong:?}");
+}
+
+/// An unpinned `accent.strong` follows a pinned `accent.solid`: the same colour where white text
+/// passes on it, else moved until white passes.
+#[test]
+fn unpinned_accent_strong_follows_a_pinned_accent_solid() {
+    let mut def = grey_blue();
+    let deep = hex("#1B63E0");
+    def.pins.dark = Pins::from_iter([(T::AccentSolid, deep)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert_eq!(r.tokens.color(T::AccentStrong), deep);
+    let light = hex("#78ADF6");
+    def.pins.dark = Pins::from_iter([(T::AccentSolid, light)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    let (solid, strong, text) = (r.tokens.color(T::AccentSolid), r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong));
+    assert_eq!(solid, light, "the pin stays");
+    assert_ne!(strong, light);
+    assert_eq!(text, Rgba::WHITE);
+    assert!(contrast_ratio(text, strong) >= 4.5, "{strong:?}");
+}
+
 /// A failing pin is reported on its semantic pairs and on every component pair whose default
 /// reads it; the colours stay.
 #[test]
