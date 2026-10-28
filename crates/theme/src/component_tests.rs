@@ -447,7 +447,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 5
             + 1
             + 6
-            + (1 + 14)
+            + (1 + 15)
             + 3
     );
     for &f in ComponentField::ALL {
@@ -827,7 +827,7 @@ fn list_pairs() -> Vec<(ListField, ListField, (f64, f64))> {
         (ListField::Text, ListField::Hover, text),
         (ListField::SelectedText, ListField::Selected, text),
         (ListField::SelectedText, ListField::SelectedHover, text),
-        (ListField::Drop, ListField::Selected, high),
+        (ListField::Drop, ListField::DropHalo, high),
     ]
 }
 
@@ -858,7 +858,7 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((l.row_height, l.thumb.sm, l.thumb.md, l.thumb.lg), (24.0, 18.0, 24.0, 48.0));
     assert_eq!((l.thumb_row(l.thumb.md), l.thumb_row(l.thumb.lg), l.thumb_row(0.0)), (32.0, 56.0, 32.0));
     assert_eq!((l.indent, l.disclosure, l.toggle_column, l.min_label, l.trailing_pad), (14.0, 14.0, 30.0, 64.0, 10.0));
-    assert_eq!((l.radius, l.dividers, l.drop_width), (0.0, true, 2.0));
+    assert_eq!((l.radius, l.dividers, l.drop_width, l.drop_halo_width), (0.0, true, 2.0, 1.0));
     assert_eq!((l.pad_x, l.gap), (compact.space.pad.control, compact.space.gap.inline));
 
     let comfy = at(Size::Comfortable);
@@ -878,6 +878,20 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((l.hover, l.selected, l.selected_hover), (t.color(T::StateHover), t.color(T::StateSelected), t.color(T::StateSelectedHover)));
     assert_eq!((l.divider, l.thumb_border), (t.color(T::LineDivider), t.color(T::LineBorder)));
     assert_eq!((l.ghost_fill, l.ghost_border), (t.color(T::SurfaceRaised), t.color(T::AccentSolid)));
+    assert_eq!((l.drop, l.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
+}
+
+/// The drop marker meets its minimum on its halo in every built-in, mode and contrast.
+#[test]
+fn builtin_drop_markers_meet_their_minimum_on_their_halo() {
+    for theme in builtins() {
+        for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::default()) {
+            let l = resolve(theme, a, None).tokens.component.list;
+            let min = if a.contrast == Contrast::High { values::NON_TEXT_MIN.1 } else { values::NON_TEXT_MIN.0 };
+            let ratio = contrast_ratio(l.drop, l.drop_halo);
+            assert!(ratio >= min, "{} {a:?}: list.drop on list.drop_halo is {ratio:.2}, needs {min}", theme.id);
+        }
+    }
 }
 
 #[test]

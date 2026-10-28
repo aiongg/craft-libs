@@ -566,7 +566,7 @@ fn marquee() {
 }
 
 /// List rows: the heights, thumbnails, columns and gaps, the type roles, the state fills and the
-/// label, icon, divider, thumbnail and drop marker colours, and the drag ghost.
+/// label, icon, divider, thumbnail, drop marker and drop halo colours, and the drag ghost.
 #[test]
 fn list_row() {
     check("list_row.txt", |d, t| {
@@ -585,6 +585,7 @@ fn list_row() {
         d.line("icon", s.icon).line("icon_hover", s.icon_hover);
         d.line("hover", s.hover).line("selected", s.selected).line("selected_hover", s.selected_hover);
         d.line("divider", s.divider.color).line("thumb_border", s.thumb_border).line("drop", s.drop);
+        d.line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
         d.line("ghost_fill", s.ghost_fill).line("ghost_border", s.ghost_border).line("ghost_radius", s.ghost_radius);
     });
 }

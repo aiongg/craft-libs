@@ -159,15 +159,47 @@ fn drop_marks_draw_a_line_on_an_edge_or_an_outline_inside() {
             })
         })
     };
+    let halo = s.drop_halo.width;
     let before = mark(Some(DropMark::Before));
     let line = fills(&before).into_iter().find(|r| r.fill == s.drop).expect("line");
-    assert_eq!((line.rect.height(), line.rect.width(), line.rect.top()), (s.drop_width, 240.0, 0.0));
+    assert_eq!((line.rect.height(), line.rect.width(), line.rect.top()), (s.drop_width, 240.0, halo));
     let after = mark(Some(DropMark::After));
     let line = fills(&after).into_iter().find(|r| r.fill == s.drop).expect("line");
-    assert_eq!((line.rect.height(), line.rect.bottom()), (s.drop_width, s.row_height));
+    assert_eq!((line.rect.height(), line.rect.bottom()), (s.drop_width, s.row_height - halo));
     let into = mark(Some(DropMark::Into));
     assert!(into.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.drop && r.stroke.width == s.drop_width)));
     assert!(fills(&mark(None)).iter().all(|r| r.fill != s.drop));
+}
+
+/// The halo is painted first and covers the marker with `drop_halo.width` to spare on each side
+/// across the line, so the marker never touches a row fill; it stays inside the row.
+#[test]
+fn drop_marks_sit_on_their_halo() {
+    let (ctx, s) = (context(), style());
+    let w = s.drop_halo.width;
+    assert!(w > 0.0 && s.drop_halo.color != s.drop);
+    for mark in [DropMark::Before, DropMark::After, DropMark::Into] {
+        let drawn = shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Layer").selected(true).drop_mark(Some(mark)).show(ui);
+            })
+        });
+        let rects: Vec<_> = drawn.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r) } else { None }).collect();
+        let row = Rect::from_min_size(Pos2::ZERO, vec2(240.0, s.row_height));
+        let is_halo = |r: &&&egui::epaint::RectShape| r.fill == s.drop_halo.color || r.stroke.color == s.drop_halo.color;
+        let is_marker = |r: &&&egui::epaint::RectShape| r.fill == s.drop || r.stroke.color == s.drop;
+        let halo_at = rects.iter().position(|r| is_halo(&r)).unwrap_or_else(|| panic!("{mark:?}: no halo"));
+        let marker_at = rects.iter().position(|r| is_marker(&r)).unwrap_or_else(|| panic!("{mark:?}: no marker"));
+        assert!(halo_at < marker_at, "{mark:?}: the halo is under the marker");
+        let (halo, marker) = (rects[halo_at], rects[marker_at]);
+        assert!(row.contains_rect(halo.rect), "{mark:?}: the halo stays inside the row");
+        if mark == DropMark::Into {
+            assert_eq!((halo.rect, halo.stroke.width), (row, s.drop_width + 2.0 * w));
+            assert_eq!((marker.rect, marker.stroke.width), (row.shrink(w), s.drop_width));
+        } else {
+            assert_eq!(halo.rect.shrink2(vec2(0.0, w)), marker.rect, "{mark:?}");
+        }
+    }
 }
 
 #[test]

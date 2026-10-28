@@ -34,10 +34,12 @@ component field, per mode. Pins win over derivation. Apps can pin per app (`apps
 
 ## Contrast
 
-Only text and state indicators have rules: text on surfaces, state fills and solid fills (4.5, high contrast
-7), and focus rings, accent marks, overlay strokes on their halo and the marquee on its dashes (3,
-high contrast 4.5). Hover, pressed, dividers, edges and knob faces have none, and neither have
-guide and smart-guide colours, which are the user's choice. In standard contrast an unpinned colour is moved to the minimum and
+Text, state indicators, canvas overlays and data graphics have rules: text on surfaces, state fills
+and solid fills (4.5, high contrast 7); focus rings, accent marks and a list's drop marker on its
+halo (3, high contrast 4.5); overlay strokes on their halo and the marquee on its dashes (3, high
+contrast 4.5); and the channel colours a curve editor draws (`data.red`, `data.green`, `data.blue`,
+`data.cyan`, `data.magenta`, `data.yellow`) on `surface.sunken` (3, high contrast 4.5). Hover, pressed, dividers, edges, knob faces and row selection fills have none, and
+neither have guide and smart-guide colours, which are the user's choice. In standard contrast an unpinned colour is moved to the minimum and
 a failing pin is kept and reported, with every component pair it makes fail; in high contrast every colour is fixed, pins included.
 
 ## Files, built-ins, selection

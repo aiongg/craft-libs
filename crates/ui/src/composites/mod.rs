@@ -7,7 +7,6 @@
 //! - [`PropertyRow`]: an inspector row of a short label and a control that fills the width;
 //!   [`PropertyRow::pair`] puts two in a row, and [`PropertyGroup`] gives a section's glyph labels
 //!   one centre.
-//!
 //! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
 //!   Input/Output row of the selected point; the value is a [`Curve`].
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open

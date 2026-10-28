@@ -529,6 +529,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         radius,
         dividers,
         drop_width,
+        drop_halo_width,
         label,
         detail_role,
         text,
@@ -543,6 +544,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         divider,
         thumb_border,
         drop,
+        drop_halo,
         ghost_fill,
         ghost_border,
         ..
@@ -564,6 +566,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.radius", len(*radius));
     out.line("list.dividers", dividers);
     out.line("list.drop_width", len(*drop_width));
+    out.line("list.drop_halo_width", len(*drop_halo_width));
     out.line("list.label", role(*label));
     out.line("list.detail_role", role(*detail_role));
     for (k, c) in [
@@ -579,6 +582,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         ("divider", divider),
         ("thumb.border", thumb_border),
         ("drop", drop),
+        ("drop_halo", drop_halo),
         ("ghost.fill", ghost_fill),
         ("ghost.border", ghost_border),
     ] {

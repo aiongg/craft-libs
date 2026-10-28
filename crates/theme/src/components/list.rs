@@ -1,16 +1,15 @@
 //! Lists: the rows of a list or tree panel (layers, history, channels). Sizes come from the Size
 //! preset; the colours are the neutral state fills of the semantic tokens.
 //!
-//! The drop marker is the only cue that shows where a dragged row lands, so it is measured
-//! against the panel and the selected fill (3:1, 4.5:1 with high contrast). Labels are text on the
-//! panel and on the fills a row takes (4.5:1, 7:1 with high contrast). The fills themselves are
-//! design targets with no minimum. Each pair is measured at rest.
+//! The drop marker is the only cue that shows where a dragged row lands. It is drawn on its own
+//! halo, as canvas overlays are, so it is measured against the halo alone (3:1, 4.5:1 with high
+//! contrast) and reads on any row fill. Labels are text on the panel and on the fills a row takes
+//! (4.5:1, 7:1 with high contrast). The fills themselves are design targets with no minimum. Each
+//! pair is measured at rest.
 
 use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
-use crate::contrast::ensure_contrast;
-use crate::derive::over;
-use crate::tokens::{ColorToken, ColorTokens, ThumbSizes, TokenRef, TypeRole};
+use crate::tokens::{ColorToken, ThumbSizes, TokenRef, TypeRole};
 use crate::values;
 
 /// List and list row tokens.
@@ -47,6 +46,8 @@ pub struct ListTokens {
     pub dividers: bool,
     /// Width of the drop marker line and outline.
     pub drop_width: f32,
+    /// Width of the halo on each side of the drop marker.
+    pub drop_halo_width: f32,
     /// Type role of the label.
     pub label: TypeRole,
     /// Type role of the detail line under the label.
@@ -73,10 +74,10 @@ pub struct ListTokens {
     pub divider: Rgba,
     /// The frame of a thumbnail: `line.border`.
     pub thumb_border: Rgba,
-    /// The drop marker: `accent.solid`, moved in lightness only as far as the 3:1 minimum on the
-    /// panel and the selected fill needs (the selected fill is neutral, so the accent alone may
-    /// fall short of it).
+    /// The drop marker: `accent.solid`.
     pub drop: Rgba,
+    /// The outline under the drop marker that separates it from the row fills: `surface.panel`.
+    pub drop_halo: Rgba,
     /// The drag ghost's fill: `surface.raised`.
     pub ghost_fill: Rgba,
     /// The drag ghost's border: `accent.solid`.
@@ -105,6 +106,7 @@ impl ListTokens {
             ListField::Divider => &mut self.divider,
             ListField::ThumbBorder => &mut self.thumb_border,
             ListField::Drop => &mut self.drop,
+            ListField::DropHalo => &mut self.drop_halo,
             ListField::GhostFill => &mut self.ghost_fill,
             ListField::GhostBorder => &mut self.ghost_border,
         })
@@ -113,7 +115,7 @@ impl ListTokens {
 
 /// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`, `detail`,
 /// `icon`, `icon.hover`, `hover`, `selected`, `selected.hover`, `divider`, `thumb.border`, `drop`,
-/// `ghost.fill`, `ghost.border`, e.g. `list.selected.hover`.
+/// `drop_halo`, `ghost.fill`, `ghost.border`, e.g. `list.selected.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListField {
     /// `list.radius`
@@ -142,6 +144,8 @@ pub enum ListField {
     ThumbBorder,
     /// `list.drop`
     Drop,
+    /// `list.drop_halo`
+    DropHalo,
     /// `list.ghost.fill`
     GhostFill,
     /// `list.ghost.border`
@@ -164,17 +168,11 @@ impl ListField {
             ListField::Divider => "divider",
             ListField::ThumbBorder => "thumb.border",
             ListField::Drop => "drop",
+            ListField::DropHalo => "drop_halo",
             ListField::GhostFill => "ghost.fill",
             ListField::GhostBorder => "ghost.border",
         }
     }
-}
-
-/// `accent.solid` made to meet the non-text minimum on the panel and on the selected fill.
-fn drop_marker(c: &ColorTokens) -> Rgba {
-    let min = values::NON_TEXT_MIN.0;
-    let panel = c.surface.panel;
-    [panel, over(c.state.selected, panel)].into_iter().fold(c.accent.solid, |marker, bg| ensure_contrast(marker, bg, min))
 }
 
 impl Family for ListTokens {
@@ -193,6 +191,7 @@ impl Family for ListTokens {
         ListField::Divider,
         ListField::ThumbBorder,
         ListField::Drop,
+        ListField::DropHalo,
         ListField::GhostFill,
         ListField::GhostBorder,
     ];
@@ -214,6 +213,7 @@ impl Family for ListTokens {
             radius: if list.rounded { s.shape.radius.control } else { 0.0 },
             dividers: list.dividers,
             drop_width: values::LIST_DROP_WIDTH,
+            drop_halo_width: values::LIST_DROP_HALO,
             label: TypeRole::Body,
             detail_role: TypeRole::Caption,
             text: c.text.normal,
@@ -227,7 +227,8 @@ impl Family for ListTokens {
             selected_hover: c.state.selected_hover,
             divider: c.line.divider,
             thumb_border: c.line.border,
-            drop: drop_marker(c),
+            drop: c.accent.solid,
+            drop_halo: c.surface.panel,
             ghost_fill: c.surface.raised,
             ghost_border: c.accent.solid,
         }
@@ -285,8 +286,7 @@ impl Family for ListTokens {
             pair(ListField::Detail, panel, values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::Selected), values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::SelectedHover), values::TEXT_MIN),
-            pair(ListField::Drop, panel, values::NON_TEXT_MIN),
-            pair(ListField::Drop, component(ListField::Selected), values::NON_TEXT_MIN),
+            pair(ListField::Drop, component(ListField::DropHalo), values::NON_TEXT_MIN),
         ]
     }
 }

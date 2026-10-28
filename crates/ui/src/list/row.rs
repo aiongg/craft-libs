@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CornerRadius, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -183,6 +183,8 @@ pub struct ListRowStyle {
     pub thumb_border: Color32,
     /// `list.drop`.
     pub drop: Color32,
+    /// The outline under the drop marker: `list.drop_halo_width` of `list.drop_halo` on each side.
+    pub drop_halo: Stroke,
     /// The drag ghost: `list.ghost.fill`, a 1 pt `list.ghost.border`, `radius.control` corners.
     pub ghost_fill: Color32,
     pub ghost_border: Color32,
@@ -471,6 +473,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
             drop: l.drop.to_egui(),
+            drop_halo: Stroke::new(l.drop_halo_width, l.drop_halo.to_egui()),
             ghost_fill: l.ghost_fill.to_egui(),
             ghost_border: l.ghost_border.to_egui(),
             ghost_radius: tokens.shape.radius.control,
@@ -716,18 +719,23 @@ fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect,
     }
 }
 
+/// The marker on its halo, both inside the row, so a row drawn after this one can't cover the
+/// halo.
 fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
-    let width = style.drop_width;
+    let (width, halo) = (style.drop_width, style.drop_halo);
+    let painter = ui.painter();
+    let band = width + 2.0 * halo.width;
     match mark {
-        DropMark::Before => {
-            ui.painter().rect_filled(Rect::from_min_size(rect.min, vec2(rect.width(), width)), 0.0, style.drop);
-        }
-        DropMark::After => {
-            ui.painter().rect_filled(Rect::from_min_size(pos2(rect.left(), rect.bottom() - width), vec2(rect.width(), width)), 0.0, style.drop);
+        DropMark::Before | DropMark::After => {
+            let top = if mark == DropMark::Before { rect.top() } else { rect.bottom() - band };
+            let band = Rect::from_min_size(pos2(rect.left(), top), vec2(rect.width(), band));
+            painter.rect_filled(band, 0.0, halo.color);
+            painter.rect_filled(band.shrink2(vec2(0.0, halo.width)), 0.0, style.drop);
         }
         DropMark::Into => {
-            let radius: CornerRadius = corner_radius(style.radius);
-            ui.painter().rect_stroke(rect, radius, Stroke::new(width, style.drop), StrokeKind::Inside);
+            painter.rect_stroke(rect, corner_radius(style.radius), Stroke::new(band, halo.color), StrokeKind::Inside);
+            let inner = corner_radius((style.radius - halo.width).max(0.0));
+            painter.rect_stroke(rect.shrink(halo.width), inner, Stroke::new(width, style.drop), StrokeKind::Inside);
         }
     }
 }
