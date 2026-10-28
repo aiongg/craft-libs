@@ -204,8 +204,6 @@ pub(in crate::v2) struct ContrastPair {
     pub bg: TokenRef,
     /// Minimum ratio with standard and with high contrast.
     pub minimum: (f64, f64),
-    /// Whether a failing pair is reported; the others are fixed with high contrast only.
-    pub required: bool,
 }
 
 /// What a family file provides. The `families!` list turns these into [`ComponentTokens`] and

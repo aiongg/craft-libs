@@ -48,10 +48,5 @@
     "surface.sunken": "#ffffff",
     "text.muted": "#404040",
     "text.normal": "#000000"
-  },
-  "high_contrast": {
-    "light": {
-      "surface.panel": "#d8d5ce"
-    }
   }
 }

@@ -99,14 +99,8 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
         p.extend([T::SurfacePanel, T::SurfaceRaised, bg].map(|b| (fg, b, 4.5, 7.0)));
         p.extend(solids.map(|solid| (T::TextOnStatus, solid, 4.5, 7.0)));
     }
-    for fg in [T::LineControlEdge, T::LineFocus] {
-        p.extend(CONTROL_BGS.map(|bg| (fg, bg, 3.0, 4.5)));
-    }
+    p.extend(CONTROL_BGS.map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
     p.push((T::AccentSolid, T::SurfacePanel, 3.0, 4.5));
-    p.push((T::StateHover, T::SurfacePanel, 1.25, 1.5));
-    p.push((T::StatePressed, T::SurfacePanel, 1.5, 2.0));
-    p.push((T::LineDivider, T::SurfaceBackground, 1.3, 2.0));
-    p.push((T::LineDivider, T::SurfacePanel, 1.3, 2.0));
     p
 }
 
@@ -179,24 +173,40 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
 }
 
 #[test]
-fn pinned_target_pairs_are_kept_without_warnings_in_standard_and_fixed_in_high() {
+fn pinned_edge_hover_pressed_and_divider_are_kept_without_warnings() {
     let mut def = grey_blue();
     def.id = ThemeId::parse("test.pinned-targets").unwrap();
     for mode in [Mode::Light, Mode::Dark] {
         let panel = resolve(&def, app(mode, Contrast::Standard), None).tokens.color(T::SurfacePanel);
-        let pins = Pins::from_iter([(T::LineControlEdge, panel), (T::StateHover, panel), (T::LineDivider, panel)]);
+        let pins = Pins::from_iter([(T::LineControlEdge, panel), (T::StateHover, panel), (T::StatePressed, panel), (T::LineDivider, panel)]);
         match mode {
             Mode::Light => def.pins.light = pins,
             Mode::Dark => def.pins.dark = pins,
         }
         let r = resolve(&def, app(mode, Contrast::Standard), None);
-        for t in [T::LineControlEdge, T::StateHover, T::LineDivider] {
+        for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(r.tokens.color(t), panel, "{mode:?} {t:?}");
         }
         assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
         let high = resolve(&def, app(mode, Contrast::High), None);
-        assert!(contrast_ratio(high.tokens.color(T::LineControlEdge), high.tokens.color(T::SurfacePanel)) >= 4.5, "{mode:?}");
-        assert!(contrast_ratio(high.tokens.color(T::StateHover), high.tokens.color(T::SurfacePanel)) >= 1.5, "{mode:?}");
+        for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
+            assert_eq!(high.tokens.color(t), panel, "{mode:?} {t:?} in high contrast");
+        }
+        assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
+    }
+}
+
+#[test]
+fn pinned_mid_tone_panel_with_default_text_has_no_high_contrast_warnings() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.mid-panel").unwrap();
+    // Mid-tones where white (dark mode) or black (light mode) still reaches 7:1.
+    def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#a6a6a6"))]);
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#555555"))]);
+    for mode in [Mode::Light, Mode::Dark] {
+        let r = resolve(&def, app(mode, Contrast::High), None);
+        assert_eq!(r.tokens.color(T::SurfacePanel), if mode == Mode::Light { hex("#a6a6a6") } else { hex("#555555") });
+        assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
     }
 }
 

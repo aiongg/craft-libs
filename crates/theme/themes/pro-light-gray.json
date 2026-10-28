@@ -34,10 +34,5 @@
     "surface.sunken": "#d6d6d6",
     "text.muted": "#343434",
     "text.normal": "#141414"
-  },
-  "high_contrast": {
-    "light": {
-      "surface.panel": "#d4d4d4"
-    }
   }
 }

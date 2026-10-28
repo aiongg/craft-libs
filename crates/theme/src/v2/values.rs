@@ -184,18 +184,10 @@ pub(super) struct PairRule {
     pub high: f64,
     /// The fg is white or black on solid fills; when neither reaches the minimum, the fills move.
     pub on_solid: bool,
-    /// Whether a failing pair is reported. Pairs that are not required (WCAG) are targets: fixed
-    /// for unpinned colours, and with high contrast for every colour, but never reported.
-    pub required: bool,
 }
 
 const fn rule(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, high: f64) -> PairRule {
-    PairRule { fgs, bgs, standard, high, on_solid: false, required: true }
-}
-
-/// A rule whose failures are never reported.
-const fn target(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, high: f64) -> PairRule {
-    PairRule { required: false, ..rule(fgs, bgs, standard, high) }
+    PairRule { fgs, bgs, standard, high, on_solid: false }
 }
 
 /// WCAG AA text minimum. The large-text minimum (3:1) applies to 18.66 px semibold or 24 px
@@ -203,12 +195,6 @@ const fn target(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, h
 pub const TEXT_MIN: (f64, f64) = (4.5, 7.0);
 /// WCAG non-text minimum (control boundaries, focus, indicators, overlays).
 pub const NON_TEXT_MIN: (f64, f64) = (3.0, 4.5);
-/// Design floor for `state.hover` on `surface.panel`.
-pub const HOVER_FLOOR: (f64, f64) = (1.25, 1.5);
-/// Design floor for `state.pressed` on `surface.panel`.
-pub const PRESSED_FLOOR: (f64, f64) = (1.5, 2.0);
-/// Design floor for `line.divider`.
-pub const DIVIDER_FLOOR: (f64, f64) = (1.3, 2.0);
 
 const TEXT_BGS: &[Bg] = &[
     Token(T::SurfaceBackground),
@@ -226,10 +212,6 @@ const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 /// Every contrast pair, in the order the contrast pass fixes them: fills that serve as
 /// backgrounds later (state fills, `accent.solid`) come before the text drawn on them.
 pub(super) const RULES: &[PairRule] = &[
-    target(&[T::StateHover], &[Token(T::SurfacePanel)], HOVER_FLOOR.0, HOVER_FLOOR.1),
-    target(&[T::StatePressed], &[Token(T::SurfacePanel)], PRESSED_FLOOR.0, PRESSED_FLOOR.1),
-    target(&[T::LineDivider], &[Token(T::SurfaceBackground), Token(T::SurfacePanel)], DIVIDER_FLOOR.0, DIVIDER_FLOOR.1),
-    target(&[T::LineControlEdge], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], &[Token(T::SurfacePanel)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),

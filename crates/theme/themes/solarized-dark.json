@@ -32,10 +32,5 @@
     "surface.canvas": "#002b36",
     "surface.panel": "#073642",
     "surface.sunken": "#00252f"
-  },
-  "high_contrast": {
-    "dark": {
-      "surface.panel": "#062e38"
-    }
   }
 }

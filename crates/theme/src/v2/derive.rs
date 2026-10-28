@@ -156,17 +156,40 @@ fn minimum(rule: &PairRule, high: bool) -> f64 {
     if high { rule.high } else { rule.standard }
 }
 
-/// Applies one rule. Pinned foregrounds are left alone unless `high`.
+/// Applies one rule. A pinned foreground is left alone in standard contrast and fixed in high.
 fn fix_rule(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, rule: &PairRule, done: &[PairRule], high: bool) {
     let min = minimum(rule, high);
-    for &fg in rule.fgs {
-        if pinned.contains(&fg) && !high {
-            continue;
+    // A text rule may move a state fill in high contrast when the text alone can't reach `min`.
+    let moves_fills = high && !rule.on_solid;
+    for round in 0..2 {
+        for &fg in rule.fgs {
+            if pinned.contains(&fg) && !high {
+                continue;
+            }
+            if rule.on_solid {
+                fix_on_solid(c, pinned, fg, rule.bgs, min, done, high);
+            } else {
+                fix_fg(c, fg, rule.bgs, min);
+                if moves_fills {
+                    relax_state_fills(c, fg, rule.bgs, min);
+                }
+            }
         }
-        if rule.on_solid {
-            fix_on_solid(c, pinned, fg, rule.bgs, min, done, high);
-        } else {
-            fix_fg(c, fg, rule.bgs, min);
+        // The second round re-fixes foregrounds that a moved fill pushed below the minimum.
+        if round == 0 && !moves_fills {
+            break;
+        }
+    }
+}
+
+/// Moves each state fill among `bgs` that `fg` still fails on, away from `fg`, just far enough.
+fn relax_state_fills(c: &mut ColorTokens, fg: ColorToken, bgs: &[Bg], min: f64) {
+    use ColorToken::{StateHover, StatePressed, StateSelected, StateSelectedHover};
+    for &bg in bgs {
+        let Bg::Token(t @ (StateHover | StatePressed | StateSelected | StateSelectedHover)) = bg else { continue };
+        let f = c.get(fg);
+        if ratio(f, c.get(t)) < min {
+            c.set(t, ensure_contrast(c.get(t), f.with_alpha(255), min));
         }
     }
 }
@@ -235,9 +258,6 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
     for rule in rules {
         let minimum = minimum(rule, high);
         for &fg in rule.fgs {
-            if !rule.required {
-                continue;
-            }
             let f = c.get(fg);
             // Both halo backdrops report as one pair, with the lower ratio.
             let mut seen: Vec<ContrastWarning> = Vec::new();
@@ -261,21 +281,11 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
 /// Applies `theme`'s component overrides in `mode` for `app`: colour pins (the app's and, when
 /// `high`, the high-contrast ones after them), then the mode-independent overrides, the app's
 /// last. Overrides that [`ThemeDef::override_errors`] lists are skipped.
-pub(super) fn component_overrides(
-    comp: &mut ComponentTokens,
-    theme: &ThemeDef,
-    app: Option<&AppId>,
-    mode: Mode,
-    high: bool,
-    color: &ColorTokens,
-) -> BTreeSet<ComponentField> {
-    let mut pinned = BTreeSet::new();
+pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, app: Option<&AppId>, mode: Mode, high: bool, color: &ColorTokens) {
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
     for (t, v) in pins(theme, app, mode, high) {
-        if let TokenRef::Component(f) = t
-            && comp.set(f, OverrideValue::Color(v), color).is_ok()
-        {
-            pinned.insert(f);
+        if let TokenRef::Component(f) = t {
+            let _ = comp.set(f, OverrideValue::Color(v), color);
         }
     }
     let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
@@ -284,26 +294,18 @@ pub(super) fn component_overrides(
             let _ = comp.set(f, v, color);
         }
     }
-    pinned
 }
 
 /// The component contrast pass. Defaults derive from semantic tokens that already passed, so
 /// only pairs with a pinned colour can fail; with standard contrast those are kept and
-/// reported when they are required. With high contrast every failing pair is fixed: the foreground moves first, then
+/// reported. With high contrast every failing pair is fixed: the foreground moves first, then
 /// the background if the foreground alone can't reach the minimum. Returns the pairs that
 /// still fail.
-pub(super) fn component_colors(
-    comp: &mut ComponentTokens,
-    color: &ColorTokens,
-    high: bool,
-    pinned: &BTreeSet<ComponentField>,
-) -> Vec<ContrastWarning> {
+pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastWarning> {
     let pairs = ComponentTokens::pairs();
-    for p in &pairs {
-        if high {
+    if high {
+        for p in &pairs {
             fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
-        } else if !p.required && !pinned.contains(&p.fg) {
-            fix_component_pair(comp, color, p.fg, p.bg, p.minimum.0);
         }
     }
     let mut out = Vec::new();
@@ -311,7 +313,7 @@ pub(super) fn component_colors(
         let minimum = if high { p.minimum.1 } else { p.minimum.0 };
         let (Some(fg), Some(bg)) = (comp.color(p.fg), component_bg(comp, color, p.bg)) else { continue };
         let r = ratio(fg, bg);
-        if p.required && r < minimum {
+        if r < minimum {
             out.push(ContrastWarning { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: r, minimum });
         }
     }
