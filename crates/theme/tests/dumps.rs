@@ -348,6 +348,8 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
         pad_x,
         icon,
         gap,
+        label_gap,
+        help_gap,
         radius,
         role: text_role,
         fill,
@@ -368,6 +370,8 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
     out.line("field.pad_x", len(*pad_x));
     by_size(out, "field.icon", icon);
     out.line("field.gap", len(*gap));
+    out.line("field.label_gap", len(*label_gap));
+    out.line("field.help_gap", len(*help_gap));
     out.line("field.radius", len(*radius));
     out.line("field.role", role(*text_role));
     for (key, d) in [("field.fill", fill), ("field.text", text), ("field.placeholder", placeholder), ("field.unit", unit), ("field.scrub", scrub)] {

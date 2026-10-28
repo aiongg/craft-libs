@@ -1,6 +1,7 @@
 //! Text fields: a sunken box holding one line of editable text, with an optional icon at each
 //! end. The box takes its edge from the `Surface` primitive (a border, or a bevel in Classic);
-//! this family holds its sizes, corners and the colours of the box, the text and the selection.
+//! this family holds its sizes, corners and the colours of the box, the text and the selection,
+//! and the gaps of the `Field` composite that puts a label and help text around a control.
 //!
 //! The text, the placeholder, a number's unit and its scrub label are text on the field's fill
 //! (4.5:1, 7:1 with high contrast), and so is the selected text on the selection. The focused and the invalid edge are the cues
@@ -142,6 +143,11 @@ pub struct FieldTokens {
     pub icon: BySize<f32>,
     /// Between an icon and the text: `space.gap.inline`.
     pub gap: f32,
+    /// Between a form field's label and the control beside it: `space.gap.inline`.
+    pub label_gap: f32,
+    /// Between the control and its help or error text under it, and between a label above the
+    /// control and the control: half `space.gap.inline`, as tight as the apps' captions.
+    pub help_gap: f32,
     /// Corner radius of the box: `shape.radius.control`.
     pub radius: f32,
     /// Type role of the text and the placeholder.
@@ -270,6 +276,8 @@ impl Family for FieldTokens {
             pad_x: s.space.pad.control,
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             gap: s.space.gap.inline,
+            label_gap: s.space.gap.inline,
+            help_gap: s.space.gap.inline / 2.0,
             radius: s.shape.radius.control,
             role: TypeRole::Body,
             fill: Dimmed { rest: c.surface.sunken, disabled: c.state.disabled_fill },
