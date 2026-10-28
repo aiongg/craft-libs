@@ -87,8 +87,9 @@ fn invalid_file_exits_one_with_every_error() {
 fn built_in_theme_files_have_no_errors() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("themes");
     let files: Vec<PathBuf> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
-    assert_eq!(files.len(), 12);
+    assert_eq!(files.len(), craft_theme::builtins().len());
     let out = run(&[], &files.iter().collect::<Vec<_>>());
     assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
-    assert!(stdout(&out).contains("12 file(s) checked: 0 error(s)"), "{}", stdout(&out));
+    let summary = format!("{} file(s) checked: 0 error(s)", files.len());
+    assert!(stdout(&out).contains(&summary), "{}", stdout(&out));
 }
