@@ -110,7 +110,8 @@ fn the_tree_gives_bounds_interactive_nodes_and_labels() {
     let record = records(&ctx).into_iter().find(|r| matches!(r.kind, RecordKind::Interactive(_))).expect("record");
     let item = tree.of(record.id).expect("the item has a node");
     let node = tree.node(item).expect("node");
-    assert!(is_interactive(node) && has_label(node));
+    assert!(is_interactive(node));
+    assert_eq!(tree.name(item).as_deref(), Some("Item"));
     assert_eq!(tree.bounds(item), Some(record.outer));
     let interactive: Vec<_> = tree.interactive(tree.root()).into_iter().filter_map(|id| tree.node(id)?.label().map(str::to_owned)).collect();
     assert_eq!(interactive, ["Item", "Corner"], "the handle takes clicks but not focus");

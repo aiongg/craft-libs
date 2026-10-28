@@ -269,6 +269,21 @@ impl AccessTree {
         self.walk(from).into_iter().map(|(id, _)| id).filter(|id| self.nodes.get(id).is_some_and(is_interactive)).collect()
     }
 
+    /// A node's accessible name, as a screen reader reads it: its label (a text node's value),
+    /// else the texts of the nodes it is labelled by (`Response::labelled_by`), else its
+    /// placeholder. `None` when nothing names it.
+    pub fn name(&self, id: NodeId) -> Option<String> {
+        let node = self.nodes.get(&id)?;
+        if let Some(text) = own_text(node) {
+            return Some(text.to_owned());
+        }
+        let by: Vec<&str> = node.labelled_by().iter().filter_map(|l| self.nodes.get(l).and_then(own_text)).collect();
+        if !by.is_empty() {
+            return Some(by.join(" "));
+        }
+        node.placeholder().filter(|t| !t.trim().is_empty()).map(str::to_owned)
+    }
+
     /// A node's bounds in points.
     pub fn bounds(&self, id: NodeId) -> Option<Rect> {
         let b = self.nodes.get(&id)?.bounds()?;
@@ -281,10 +296,10 @@ pub fn is_interactive(node: &Node) -> bool {
     node.supports_action(Action::Focus) || node.supports_action(Action::Click)
 }
 
-/// Whether `node` has an accessible name: a label, a text node's value, or a placeholder.
-pub fn has_label(node: &Node) -> bool {
-    let named = |text: Option<&str>| text.is_some_and(|t| !t.trim().is_empty());
-    named(node.label()) || (node.role() == Role::Label && named(node.value())) || named(node.placeholder())
+/// The text a node shows as a name: a text node's value, else its label.
+fn own_text(node: &Node) -> Option<&str> {
+    let text = if node.role() == Role::Label { node.value().or(node.label()) } else { node.label() };
+    text.filter(|t| !t.trim().is_empty())
 }
 
 #[cfg(test)]
