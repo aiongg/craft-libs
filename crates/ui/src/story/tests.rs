@@ -58,3 +58,27 @@ fn every_colour_group_renders() {
         ctx.run_ui(RawInput::default(), |ui| (story.show)(ui, &mut args)).drop_without_applying_deltas();
     }
 }
+
+#[test]
+fn every_declared_component_has_a_story() {
+    let stories = registry();
+    let missing: Vec<&str> = components().filter(|c| !stories.iter().any(|s| s.component == *c)).collect();
+    assert!(missing.is_empty(), "components without a story in registry(): {missing:?}");
+
+    // Every module declaring `COMPONENTS` must be in `DECLARED`, or its list is never checked.
+    fn count(dir: &std::path::Path) -> usize {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .map(|path| match path.is_dir() {
+                true => count(&path),
+                false if path.extension().is_some_and(|e| e == "rs") => {
+                    std::fs::read_to_string(&path).unwrap().lines().filter(|l| l.starts_with("pub const COMPONENTS:")).count()
+                }
+                false => 0,
+            })
+            .sum()
+    }
+    let files = count(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")));
+    assert_eq!(files, DECLARED.len(), "a module declares COMPONENTS but is missing from story::DECLARED");
+}

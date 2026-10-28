@@ -5,6 +5,9 @@ use egui::{Id, Ui};
 use super::{Args, Level, Story};
 use crate::ComboBox;
 
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Stock egui"];
+
 pub(super) fn stories() -> Vec<Story> {
     vec![Story {
         id: "foundations/stock-egui/widgets",

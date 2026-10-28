@@ -20,7 +20,6 @@ pub mod panes;
 pub mod printing;
 pub mod story;
 pub mod tabs;
-#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod testing;
 pub mod text;
 pub mod theme;

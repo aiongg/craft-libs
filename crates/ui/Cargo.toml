@@ -71,6 +71,11 @@ required-features = ["native-windows"]
 name = "screens"
 required-features = ["screen-testing"]
 
+# PNG sheets of every story (CRAFT_UI_SHEETS=<dir>).
+[[test]]
+name = "sheets"
+required-features = ["screen-testing"]
+
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "default_fonts"] }

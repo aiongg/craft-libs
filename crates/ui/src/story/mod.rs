@@ -2,7 +2,9 @@
 //!
 //! A [`Story`] has a stable id (`level/component/story`), default [`Args`] and a `show` function.
 //! [`registry`] lists every story of the crate. A component module with stories exposes
-//! `pub fn stories() -> Vec<Story>` and is added to [`registry`] by hand.
+//! `pub fn stories() -> Vec<Story>` and `pub const COMPONENTS: &[&str]` (the
+//! [`Story::component`] names it covers), and is added to [`registry`] and [`components`] by
+//! hand. A test fails when a declared component has no story.
 //!
 //! ```
 //! # egui::__run_test_ui(|ui| {
@@ -95,4 +97,12 @@ pub fn registry() -> Vec<Story> {
     all.extend(colours::stories());
     all.extend(stock_egui::stories());
     all
+}
+
+/// The `COMPONENTS` list of every module with stories, in [`registry`] order.
+const DECLARED: &[&[&str]] = &[colours::COMPONENTS, stock_egui::COMPONENTS];
+
+/// Every component the crate's modules declare, in [`registry`] order.
+pub fn components() -> impl Iterator<Item = &'static str> {
+    DECLARED.iter().flat_map(|list| list.iter().copied())
 }

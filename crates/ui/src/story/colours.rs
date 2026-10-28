@@ -9,6 +9,9 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 /// The groups of [`ColorTokens`](craft_theme::ColorTokens): the first segment of the token paths.
 pub(super) const GROUPS: &[&str] = &["all", "surface", "text", "line", "accent", "status", "state", "overlay", "data", "caption", "edge"];
 
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Colours"];
+
 pub(super) fn stories() -> Vec<Story> {
     vec![Story {
         id: "foundations/colours/semantic",

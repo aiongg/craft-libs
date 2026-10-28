@@ -58,3 +58,44 @@ fn right_to_left_screens_start_at_the_right() {
         assert_eq!(label.min.x < 50.0, !at_right, "{language}: {label:?}");
     }
 }
+
+#[test]
+fn a11y_helpers_on_the_stock_egui_story() {
+    use egui_kittest::Harness;
+
+    use super::a11y;
+    use crate::theme::{Base, install};
+
+    let story = crate::story::registry().into_iter().find(|s| s.id == "foundations/stock-egui/widgets").expect("story");
+    let mut args = story.defaults();
+    // kittest's own check would stop at the unlabelled text field before ours runs.
+    let mut harness = Harness::builder()
+        .with_size([400.0, 400.0])
+        .with_accessibility_check(false)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui(move |ui| (story.show)(ui, &mut args));
+    harness.run();
+
+    let missing = a11y::unlabelled(&harness);
+    assert_eq!(missing.len(), 1, "{missing:?}");
+    assert!(missing[0].starts_with("TextInput"), "{missing:?}");
+
+    let order: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|stop| (stop.role, stop.label)).collect();
+    let labels: Vec<&str> = order.iter().map(|(_, label)| label.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["Button", "Selected", "Small", "Checkbox", "One", "Two", "Three", "Slider", "Slider", "", "Combo box", "Collapsing header", "Hyperlink"]
+    );
+    assert_eq!(order[7].0, Role::Slider);
+    assert_eq!(order[9].0, Role::TextInput);
+
+    // Stock egui shows keyboard focus with the active widget border.
+    let widgets = harness.ctx.global_style().visuals.widgets.clone();
+    assert_ne!(widgets.active.bg_stroke.color, widgets.inactive.bg_stroke.color);
+    assert!(harness.get_by_label("Button").is_focused());
+    a11y::assert_focus_ring(&harness, widgets.active.bg_stroke.color);
+    harness.get_by_label("Small").focus();
+    harness.run();
+    let (_, rings) = a11y::focus_rings(&harness).expect("focus");
+    assert!(rings.iter().all(|ring| ring.stroke.color != widgets.inactive.bg_stroke.color), "{rings:?}");
+}
