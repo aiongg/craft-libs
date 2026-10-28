@@ -303,6 +303,12 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
         self.axis
     }
 
+    /// Whether a drop with `modifiers` held is a copy (Alt, with
+    /// [`copy_with_alt`](Reorder::copy_with_alt)).
+    pub fn copies(&self, modifiers: Modifiers) -> bool {
+        self.copy_with_alt && modifiers.alt
+    }
+
     /// The target of a drag of `dragged` with the pointer at `pointer` along the axis, in the
     /// coordinates of `spans`. `None` when nothing there takes a drop.
     pub fn resolve(
@@ -359,7 +365,7 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
                 }
             }
         };
-        let copy = self.copy_with_alt && modifiers.alt;
+        let copy = self.copies(modifiers);
         let positions = dragged_positions(order, dragged);
         let items: Vec<K> = positions.iter().map(|&p| order.key(p).clone()).collect();
         if items.is_empty() || !drop_changes_something(order, &positions, at, position, copy) {

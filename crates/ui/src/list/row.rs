@@ -175,6 +175,10 @@ pub struct ListRowStyle {
     pub thumb_border: Color32,
     /// `list.drop`.
     pub drop: Color32,
+    /// The drag ghost: `list.ghost.fill`, a 1 pt `list.ghost.border`, `radius.control` corners.
+    pub ghost_fill: Color32,
+    pub ghost_border: Color32,
+    pub ghost_radius: f32,
 }
 
 impl ListRowStyle {
@@ -441,6 +445,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
             drop: l.drop.to_egui(),
+            ghost_fill: l.ghost_fill.to_egui(),
+            ghost_border: l.ghost_border.to_egui(),
+            ghost_radius: tokens.shape.radius.control,
         }
     }
 

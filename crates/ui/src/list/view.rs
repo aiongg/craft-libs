@@ -1,5 +1,5 @@
 //! [`List`]: a list of [`ListRow`]s that lays out only the rows in view, with one focus stop, the
-//! selection rules of [`ListSelection`], rename in place and a context-menu hook.
+//! selection rules of [`ListSelection`], rename in place, drag to reorder and a context-menu hook.
 
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -11,15 +11,19 @@ use egui::containers::scroll_area::ScrollSource;
 use egui::mutex::Mutex;
 use egui::os::OperatingSystem;
 use egui::{
-    Align, AsIdSalt, Context, CornerRadius, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, PointerButton, Pos2, Rect,
-    Response, ScrollArea, Sense, Ui, UiBuilder, vec2,
+    Align, AsIdSalt, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers,
+    PointerButton, Pos2, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, vec2,
 };
 
+use super::drag::{self, Dragging};
 use super::rename;
-use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
+use super::row::{DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
-use crate::behavior::{DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, RowInfo, Selection, SelectionChange, SelectionMode};
+use crate::behavior::{
+    Axis, DisplayOrder, DragEnd, DropPosition, ListDrag, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, ReorderGesture, Resolved,
+    RowInfo, Selection, SelectionChange, SelectionMode, StackKey,
+};
 use crate::edit::{CancelReason, EditEvent, GestureId};
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
@@ -43,6 +47,13 @@ pub enum ListEvent<K> {
     /// What a row reported: toggle column edits (also those of a column's
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
+    /// A move of rows the host makes, in a list that [reorders](List::reorder). A drag reports
+    /// `Begin`, an `Update` whenever the target changes (`None` while the pointer is over no
+    /// target, so a preview clears), then `Commit` with the move on a drop on a target, or
+    /// `Cancel`: `Escape`, `FocusLost` (the window lost focus), `Dismissed` (released anywhere
+    /// else) or `Removed` (the list was not drawn in a pass, or a dragged row left it). A stacking key
+    /// reports `Set`.
+    Reorder(EditEvent<Option<Move<K>>>),
 }
 
 /// A context menu asked for on a list: a secondary click, or the Menu key or Shift+F10 while the
@@ -134,6 +145,13 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 /// - **Toggle sweeps.** The row that took the press of a sweep stays drawn until the release,
 ///   so the gesture ends there; when that row leaves the list the sweep is cancelled with
 ///   [`CancelReason::Removed`].
+/// - **Reorder.** With [`reorder`](List::reorder), a drag of a row moves the selection (the row
+///   alone when it isn't selected) without changing it. The target row shows the drop marker;
+///   a box with the grabbed row's label follows the pointer; the list scrolls while the pointer
+///   is near its top or bottom edge. The drag is egui's [`DragAndDrop`] payload [`ListDrag`], so
+///   other widgets take drops from it (a footer's Delete button). Cmd+] and Cmd+[ (Ctrl+] and
+///   Ctrl+[ off macOS) move the selected rows one row toward the start or end, with Shift to the
+///   start or end. The list reports [`ListEvent::Reorder`]; the host moves the rows.
 /// - **AccessKit.** The list is a `ListBox` named by its label, `multiselectable` in multiple
 ///   mode, with `size_of_set` the number of rows and `active_descendant` the lead row while it
 ///   has the focus. Rows report `position_in_set`; their actions are `Click` (select only it),
@@ -152,6 +170,7 @@ pub struct List<'a, K, O: ?Sized> {
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
+    reorder: Option<Reorder<'a, K>>,
 }
 
 impl<'a, K, O> List<'a, K, O>
@@ -175,6 +194,7 @@ where
             type_ahead: false,
             reveal: None,
             start_rename: None,
+            reorder: None,
         }
     }
 
@@ -266,11 +286,20 @@ where
         self
     }
 
+    /// Rows can be dragged and moved with the stacking keys by the rules of `reorder`, a
+    /// vertical [`Reorder`]: where drops land, which the host refuses, whether Alt copies.
+    pub fn reorder(mut self, reorder: Reorder<'a, K>) -> Self {
+        debug_assert_eq!(reorder.axis(), Axis::Vertical, "a list's rows are stacked vertically");
+        self.reorder = Some(reorder);
+        self
+    }
+
     /// Shows the list across the available width. `row` builds the row at a position, with its
     /// key; it is called for the rows drawn, and for rows a key needs to read (the selected rows'
     /// toggle states, labels for type-ahead).
     pub fn show<'r>(self, ui: &mut Ui, row: impl FnMut(usize, &K) -> ListRow<'r, K>) -> ListOutput<K> {
-        let List { id_salt, label, rows, selection, mode, allow_empty, heights, max_height, can_rename, type_ahead, reveal, start_rename } = self;
+        let List { id_salt, label, rows, selection, mode, allow_empty, heights, max_height, can_rename, type_ahead, reveal, start_rename, reorder } =
+            self;
         let id = ui.make_persistent_id(id_salt);
         let rules = ListSelection::new(mode).allow_empty(allow_empty);
         let mut state = State::<K>::load(ui.ctx(), id);
@@ -297,11 +326,17 @@ where
             can_rename: can_rename.as_deref(),
             focus: false,
             lead_row: None,
+            id,
+            reorder: reorder.as_ref(),
+            target: None,
         };
 
         pass.end_for_gone_rows();
         if let Some(key) = start_rename {
             pass.start_rename(key);
+        }
+        if let Some(key) = pass.state.reveal_next.take() {
+            pass.state.reveal = Some(key);
         }
         if let Some(key) = reveal {
             pass.state.reveal = Some(key);
@@ -315,7 +350,7 @@ where
             menu_key = pass.keys(ui, page, type_ahead, id);
         }
 
-        let scroll_to = pass.scroll_target(&spans);
+        let scroll_to = pass.scroll_target(&spans).or_else(|| pass.drag_scroll(&spans));
         let multiple = mode == SelectionMode::Multiple;
         let builder = UiBuilder::new()
             .scope_id(id)
@@ -339,9 +374,11 @@ where
                 let out = scroll.show_viewport(ui, |ui, viewport| pass.draw(ui, viewport, &spans, focused));
                 pass.state.offset = out.state.clamped_offset().y;
                 pass.state.viewport = Some(out.inner_rect.height());
+                pass.state.view = Some(out.inner_rect);
             })
             .response;
 
+        pass.drag_frame(ui, &style, response.rect.width());
         pass.background(&response);
         if menu_key {
             pass.menu_for_lead(response.rect);
@@ -399,11 +436,28 @@ struct State<K> {
     /// The scope of the `Ui` the rows are drawn in, which their ids derive from.
     rows_scope: Option<Id>,
     focused: bool,
+    drag: Option<Dragging<K>>,
+    /// The scroll area's viewport on the screen in the last frame.
+    view: Option<Rect>,
+    /// A row to scroll into view next frame, once the host has moved it.
+    reveal_next: Option<K>,
 }
 
 impl<K> Default for State<K> {
     fn default() -> Self {
-        Self { own: Selection::default(), renaming: None, sweep: None, offset: 0.0, viewport: None, reveal: None, rows_scope: None, focused: false }
+        Self {
+            own: Selection::default(),
+            renaming: None,
+            sweep: None,
+            offset: 0.0,
+            viewport: None,
+            reveal: None,
+            rows_scope: None,
+            focused: false,
+            drag: None,
+            view: None,
+            reveal_next: None,
+        }
     }
 }
 
@@ -438,6 +492,7 @@ enum Command {
     List(ListKey),
     Toggle(usize),
     Menu,
+    Stack(StackKey, Modifiers),
 }
 
 /// One frame of a list.
@@ -454,6 +509,10 @@ struct Pass<'p, K, O: ?Sized, F> {
     focus: bool,
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
+    id: Id,
+    reorder: Option<&'p Reorder<'p, K>>,
+    /// Where a drag under way drops this frame.
+    target: Option<Resolved<K>>,
 }
 
 impl<'p, 'r, K, O, F> Pass<'p, K, O, F>
@@ -499,6 +558,10 @@ where
             }
             self.events.push(ListEvent::Row(RowEvent::Toggle(EditEvent::cancel(sweep.id, CancelReason::Removed))));
         }
+        let pass = self.ctx.cumulative_pass_nr();
+        if let Some(drag) = self.state.drag.take_if(|drag| drag.pass + 1 < pass || !drag::all_shown(self.rows, &drag.items)) {
+            self.end_drag(drag, DragEnd::Removed, Modifiers::NONE);
+        }
     }
 
     /// Opens the rename of `key` where it can be renamed, committing another open one.
@@ -533,11 +596,13 @@ where
         let mac = matches!(ui.ctx().os(), OperatingSystem::Mac | OperatingSystem::IOS);
         let column_keys = self.column_keys();
         let renames = self.lead_at().is_some_and(|at| self.renamable(self.rows.key(at)));
+        let stacks = self.reorder.is_some();
         let mut commands = Vec::new();
         ui.input_mut(|i| {
             i.events.retain(|event| {
                 let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
-                let command = take_command(*key, *modifiers, mac, &column_keys);
+                let stack = stacks.then(|| StackKey::from_key(*key, *modifiers, mac)).flatten();
+                let command = stack.map(|stack| Command::Stack(stack, *modifiers)).or_else(|| take_command(*key, *modifiers, mac, &column_keys));
                 let keep = match command {
                     Some(Command::List(ListKey::Rename)) => !renames,
                     Some(Command::List(ListKey::ToggleLead)) => typing,
@@ -556,6 +621,7 @@ where
                 Command::List(key) => self.list_key(key, page),
                 Command::Toggle(column) => self.toggle_selected(column),
                 Command::Menu => menu = true,
+                Command::Stack(key, modifiers) => self.stack_key(key, modifiers),
             }
         }
         if let Some(listbox) = &mut listbox {
@@ -662,18 +728,22 @@ where
     }
 
     /// Lays out the rows in view, and those that must stay drawn: the lead while the list has
-    /// the focus (the active descendant), the row being renamed (its field has the focus) and the
-    /// row that took a sweep's press (it ends the sweep).
+    /// the focus (the active descendant), the row being renamed (its field has the focus), the
+    /// row that took a sweep's press (it ends the sweep) and the row a drag grabbed (egui's drag
+    /// state is its).
     fn draw(&mut self, ui: &mut Ui, viewport: Rect, spans: &Spans, focused: bool) {
         let content = ui.max_rect();
         let width = content.width();
         ui.set_min_height(spans.total());
+        self.target = self.drop_target(ui, spans, content.min.y);
         let lead = self.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| self.rows.position(k));
         let mut drawn: Vec<usize> = spans.in_view(viewport.min.y..viewport.max.y).collect();
         drawn.extend(lead.filter(|_| focused));
         drawn.extend(position(self.state.renaming.as_ref().map(|r| &r.key)));
         drawn.extend(position(self.state.sweep.as_ref().map(|s| &s.key)));
+        drawn.extend(position(self.state.drag.as_ref().map(|d| &d.grabbed)));
+        drawn.extend(self.target.as_ref().map(|t| t.at));
         drawn.sort_unstable();
         drawn.dedup();
         let mut rows_ui = ui.new_child(UiBuilder::new().id_salt("rows").max_rect(content).layout(Layout::top_down(Align::Min)));
@@ -697,7 +767,9 @@ where
             }
             _ => false,
         };
-        let out = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).position_in_set(at).show_at(ui, rect);
+        let mark = self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position));
+        let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
+        let out = row.position_in_set(at).show_at(ui, rect);
         if lead {
             self.lead_row = Some((out.response.id, rect));
         }
@@ -729,6 +801,9 @@ where
             && let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers)
         {
             self.apply(change);
+        }
+        if self.reorder.is_some() && self.state.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
+            self.start_drag(at, key);
         }
         if response.secondary_clicked() {
             let request = ContextMenuRequest {
@@ -802,6 +877,109 @@ where
         let anchor = self.lead_row.map_or(list, |(_, rect)| rect);
         let selected = lead.as_ref().is_some_and(|k| self.selection.contains(k));
         self.events.push(ListEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None }));
+    }
+
+    /// A stacking key: the selected rows move one row, or to an end. The lead is revealed next
+    /// frame, once the host has moved it.
+    fn stack_key(&mut self, key: StackKey, modifiers: Modifiers) {
+        let Some(mv) = self.reorder.and_then(|reorder| reorder.key_move(self.rows, &self.selection.items, key, modifiers)) else { return };
+        self.events.push(ListEvent::Reorder(EditEvent::set(Some(mv), modifiers)));
+        self.state.reveal_next = self.lead_at().map(|at| self.rows.key(at).clone());
+    }
+
+    /// Starts a drag of the row `key` at `at`: the selection when it holds the row, else the row.
+    fn start_drag(&mut self, at: usize, key: &K) {
+        let label = (self.build)(at, key).label().to_owned();
+        let payload = ListDrag::new(self.id, self.rows, &self.selection.items, key.clone(), label);
+        let (gesture, begin) = ReorderGesture::begin();
+        let pass = self.ctx.cumulative_pass_nr();
+        self.state.drag = Some(Dragging { gesture, items: payload.items.clone(), grabbed: key.clone(), label: payload.label.clone(), pass });
+        DragAndDrop::set_payload(&self.ctx, payload);
+        self.events.push(ListEvent::Reorder(begin));
+    }
+
+    /// The target of the drag under way, while the pointer is over the rows' viewport; `top` is
+    /// where the rows start on the screen.
+    fn drop_target(&self, ui: &Ui, spans: &Spans, top: f32) -> Option<Resolved<K>> {
+        let (drag, reorder) = (self.state.drag.as_ref()?, self.reorder?);
+        let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
+        if !ui.rect_contains_pointer(ui.clip_rect()) {
+            return None;
+        }
+        reorder.resolve(self.rows, spans, pointer?.y - top, &drag.items, modifiers)
+    }
+
+    /// The scroll offset while a drag is held near the top or bottom edge of the list.
+    fn drag_scroll(&self, spans: &Spans) -> Option<f32> {
+        let (reorder, view) = (self.reorder?, self.state.view?);
+        self.state.drag.as_ref()?;
+        let pointer = self.ctx.pointer_latest_pos()?;
+        let delta = reorder.auto_scroll(pointer, view, self.ctx.input(|i| i.stable_dt));
+        let offset = (self.state.offset + delta).clamp(0.0, (spans.total() - view.height()).max(0.0));
+        if offset == self.state.offset {
+            return None;
+        }
+        self.ctx.request_repaint();
+        Some(offset)
+    }
+
+    /// Ends the drag under way when it was released, Esc was pressed or the window lost the
+    /// focus; otherwise reports a new target, and draws the ghost and the copy cursor.
+    fn drag_frame(&mut self, ui: &Ui, style: &ListRowStyle, width: f32) {
+        let Some(mut drag) = self.state.drag.take() else { return };
+        let ctx = self.ctx.clone();
+        let (released, down, escape, modifiers, pointer) =
+            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.key_pressed(Key::Escape), i.modifiers, i.pointer.latest_pos()));
+        let end = if crate::focus::lost(&ctx) {
+            Some(DragEnd::FocusLost)
+        } else if escape {
+            Some(DragEnd::Escape)
+        } else if released || !down {
+            Some(DragEnd::Released(self.target.as_ref().map(|t| t.mv.clone())))
+        } else if !self.has_payload() {
+            // egui's drag and drop drops the payload on Esc, and takes the key.
+            Some(DragEnd::Escape)
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            self.end_drag(drag, end, modifiers);
+            return;
+        }
+        drag.pass = ctx.cumulative_pass_nr();
+        if let Some(update) = drag.gesture.update(self.target.as_ref().map(|t| t.mv.clone()), modifiers) {
+            self.events.push(ListEvent::Reorder(update));
+        }
+        if self.reorder.is_some_and(|reorder| reorder.copies(modifiers)) {
+            ctx.set_cursor_icon(CursorIcon::Copy);
+        }
+        if let Some(pointer) = pointer {
+            drag::paint_ghost(ui, self.id, style, &drag.label, pointer, width);
+        }
+        self.state.drag = Some(drag);
+    }
+
+    /// Whether egui's drag and drop holds this list's rows.
+    fn has_payload(&self) -> bool {
+        DragAndDrop::payload::<ListDrag<K>>(&self.ctx).is_some_and(|payload| payload.list == self.id)
+    }
+
+    /// Reports the end of a drag. A drop on the list or a cancel clears the payload, so no other
+    /// widget takes it; a release elsewhere leaves it to the widget under the pointer.
+    fn end_drag(&mut self, drag: Dragging<K>, end: DragEnd<K>, modifiers: Modifiers) {
+        if !matches!(end, DragEnd::Released(None)) && self.has_payload() {
+            DragAndDrop::clear_payload(&self.ctx);
+        }
+        self.events.push(ListEvent::Reorder(drag.gesture.finish(end, modifiers)));
+    }
+}
+
+/// The marker of a drop at `position` of its target row.
+fn drop_mark(position: DropPosition) -> DropMark {
+    match position {
+        DropPosition::Before => DropMark::Before,
+        DropPosition::After => DropMark::After,
+        DropPosition::Into => DropMark::Into,
     }
 }
 
