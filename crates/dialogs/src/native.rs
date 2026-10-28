@@ -23,22 +23,36 @@ use crate::{Answer, FileDialog, Kind, Message, MessageButtons, MessageLevel, Mes
 
 type Pending = Pin<Box<dyn Future<Output = Answer> + Send>>;
 
-pub(crate) fn show<W: HasWindowHandle + HasDisplayHandle>(request: Request, parent: Option<&W>, reply: Reply) {
+/// What [`crate::Dialogs`] keeps while a dialog is on screen: on macOS, the free-standing panel to
+/// raise. Other platforms have none.
+pub(crate) type Shown = Option<Panel>;
+#[cfg(target_os = "macos")]
+pub(crate) use crate::macos::Panel;
+#[cfg(not(target_os = "macos"))]
+pub(crate) type Panel = std::convert::Infallible;
+
+pub(crate) fn show<W: HasWindowHandle + HasDisplayHandle>(request: Request, parent: Option<&W>, reply: Reply) -> Shown {
     // rfd quietly drops a parent whose handles it can't get; the checks below need to know.
     let parent = parent.filter(|w| w.window_handle().is_ok() && w.display_handle().is_ok());
     match request {
         Request::File(dialog) => show_file(dialog, parent, reply),
-        Request::Message(message) => show_message(message, parent, reply),
+        Request::Message(message) => {
+            show_message(message, parent, reply);
+            None
+        }
     }
 }
 
-fn show_file<W: HasWindowHandle + HasDisplayHandle>(d: FileDialog, parent: Option<&W>, reply: Reply) {
+fn show_file<W: HasWindowHandle + HasDisplayHandle>(d: FileDialog, parent: Option<&W>, reply: Reply) -> Shown {
     #[cfg(target_os = "macos")]
     let parent = match d.kind {
         Kind::Open { .. } | Kind::Folder => return crate::macos::show_panel(&d, reply),
         Kind::Save => match crate::macos::sheet_parent(parent) {
             Ok(parent) => Some(parent),
-            Err(why) => return reply.send(Answer::Unavailable(why)),
+            Err(why) => {
+                reply.send(Answer::Unavailable(why));
+                return None;
+            }
         },
     };
     let mut dialog = rfd::AsyncFileDialog::new();
@@ -58,7 +72,7 @@ fn show_file<W: HasWindowHandle + HasDisplayHandle>(d: FileDialog, parent: Optio
         dialog = dialog.set_file_name(name);
     }
     // The worker first, so a dialog once shown always has somewhere to answer.
-    let Some(worker) = worker(reply) else { return };
+    let worker = worker(reply)?;
     let one = |file: Option<rfd::FileHandle>| file.map_or(Answer::Cancelled, |f| Answer::Paths(vec![f.path().to_path_buf()]));
     let pending: Pending = match d.kind {
         Kind::Open { multiple: false } => {
@@ -85,6 +99,7 @@ fn show_file<W: HasWindowHandle + HasDisplayHandle>(d: FileDialog, parent: Optio
     };
     // The worker can't be gone: it waits for this. If it were, its reply answers Unavailable.
     let _ = worker.send(pending);
+    None
 }
 
 fn show_message<W: HasWindowHandle + HasDisplayHandle>(m: Message, parent: Option<&W>, reply: Reply) {

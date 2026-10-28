@@ -70,8 +70,10 @@ self.dialogs.show_pending(Some(frame));
 - One dialog shows at a time. A request made while one is open waits and shows when it closes, in
   the order asked.
 - A dialog whose worker ends without answering (it panicked, or its thread couldn't start)
-  answers `Unavailable`, so a dialog never stays open for good. A panic while showing one answers
-  `Unavailable` too, instead of unwinding into winit's handler.
+  answers `Unavailable`. A panic while showing one answers `Unavailable` too, instead of unwinding
+  into winit's handler. Under `panic = "abort"` a panic while showing aborts the app; the crate
+  checks what rfd would otherwise panic on (on macOS, a parent view that isn't in a window) before
+  it calls rfd.
 - `Unavailable` means no dialog could be shown; report it as an error, not as Cancel.
 - `set_override` answers every request without a native dialog, for tests and automation. The
   answers still arrive through `take_answers` after `show_pending`.
@@ -106,5 +108,7 @@ calls in the app.
   picks sets the extension (PhotoCraft, LightCraft, WordCraft have it).
 - Missing-portal probe: tell the user what to install when Linux has no desktop portal and no
   zenity, instead of an empty answer that looks like Cancel.
+- A dialog that never answers (a hung portal) keeps `is_open()` true and the queue waiting. A
+  timeout or a way to give up on it would free the app.
 - wasm: the same API, answering with file contents, without `std::thread`.
 - Android.

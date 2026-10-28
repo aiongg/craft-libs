@@ -122,6 +122,17 @@ fn the_override_answers_every_request_on_a_later_take() {
 }
 
 #[test]
+fn a_panicking_override_answers_unavailable() {
+    let mut dialogs: Dialogs<u32> = Dialogs::new(Arc::new(|| {}));
+    dialogs.set_override(Some(Box::new(|_: &Request| panic!("test override"))));
+    dialogs.ask(FileDialog::open(), 1);
+    dialogs.show_pending(NONE);
+    let answers = dialogs.take_answers();
+    assert!(matches!(answers.as_slice(), [(1, Answer::Unavailable(why))] if why.contains("test override")), "{answers:?}");
+    assert!(!dialogs.is_open());
+}
+
+#[test]
 fn a_worker_that_ends_without_answering_closes_the_dialog() {
     let (mut dialogs, shown, wakes) = held();
     dialogs.ask(FileDialog::open(), "dropped".into());

@@ -221,6 +221,8 @@ enum Show {
 struct Open<T> {
     then: T,
     answer: Receiver<Answer>,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    shown: native::Shown,
 }
 
 /// The app's dialogs: a queue of requests, the one on screen, and the answers not yet taken.
@@ -269,20 +271,20 @@ impl<T> Dialogs<T> {
             let reply = Reply { tx: Some(tx), wake: self.wake.clone() };
             // A panic while showing (rfd's own checks) must not unwind into winit's handler.
             let shown = match &mut self.show {
-                Show::Override(answer_with) => {
-                    reply.send(answer_with(&request));
-                    Ok(())
-                }
+                Show::Override(answer_with) => catch_unwind(AssertUnwindSafe(|| reply.send(answer_with(&request)))).map(|()| None),
                 Show::Native => catch_unwind(AssertUnwindSafe(|| native::show(request, parent, reply))),
                 #[cfg(test)]
-                Show::Custom(show) => catch_unwind(AssertUnwindSafe(|| show(request, reply))),
+                Show::Custom(show) => catch_unwind(AssertUnwindSafe(|| show(request, reply))).map(|()| None),
             };
-            if let Err(panic) = shown {
-                let why = panic_text(panic.as_ref()).unwrap_or(STOPPED);
-                self.answers.push((then, Answer::Unavailable(format!("the dialog couldn't be shown: {why}"))));
-                continue;
-            }
-            self.open = Some(Open { then, answer });
+            let shown = match shown {
+                Ok(shown) => shown,
+                Err(panic) => {
+                    let why = panic_text(panic.as_ref()).unwrap_or(STOPPED);
+                    self.answers.push((then, Answer::Unavailable(format!("the dialog couldn't be shown: {why}"))));
+                    continue;
+                }
+            };
+            self.open = Some(Open { then, answer, shown });
             self.poll();
         }
     }
@@ -300,11 +302,12 @@ impl<T> Dialogs<T> {
     }
 
     /// Brings the open free-standing panel (Open or Folder on macOS) to the front, for a command
-    /// that would show it again. Does nothing elsewhere, where dialogs are modal to the window, and
-    /// on any thread but the main one.
+    /// that would show it again. Does nothing elsewhere, where dialogs are modal to the window.
     pub fn raise(&self) {
         #[cfg(target_os = "macos")]
-        macos::raise_panel();
+        if let Some(panel) = self.open.as_ref().and_then(|open| open.shown.as_ref()) {
+            macos::raise(panel);
+        }
     }
 
     /// Requests waiting behind the open dialog.

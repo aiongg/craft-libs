@@ -11,44 +11,60 @@
 //! (`modal_future.rs:79-118`), so [`sheet_parent`] lets a sheet start only with a parent in a
 //! running app.
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
+use std::ffi::c_void;
 
 use block2::RcBlock;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
-use objc2_app_kit::{NSApplication, NSModalResponse, NSModalResponseOK, NSOpenPanel};
+use objc2_app_kit::{NSApplication, NSModalResponse, NSModalResponseOK, NSOpenPanel, NSView};
 use objc2_foundation::{NSArray, NSString, NSURL};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::{Answer, FileDialog, Kind, Reply};
 
 const NOT_MAIN: &str = "dialogs show from the main thread only";
 
-thread_local! {
-    /// The free-standing panel on screen, on the main thread.
-    static PANEL: RefCell<Option<Retained<NSOpenPanel>>> = const { RefCell::new(None) };
-}
+/// The free-standing panel a [`crate::Dialogs`] has on screen.
+pub(crate) type Panel = Retained<NSOpenPanel>;
 
-/// Brings the free-standing panel to the front, so a request that waits behind it (the user chose
-/// File › Open again from the window) shows where the open dialog is.
-pub(crate) fn raise_panel() {
-    if let Some(panel) = PANEL.with_borrow(Clone::clone) {
-        panel.makeKeyAndOrderFront(None);
-    }
+/// Brings `panel` to the front, so a command that would show it again shows where it is.
+pub(crate) fn raise(panel: &Panel) {
+    panel.makeKeyAndOrderFront(None);
 }
 
 /// The parent a sheet can be shown on, or why there is none.
-pub(crate) fn sheet_parent<W>(parent: Option<&W>) -> Result<&W, String> {
+pub(crate) fn sheet_parent<W: HasWindowHandle>(parent: Option<&W>) -> Result<&W, String> {
     let mtm = MainThreadMarker::new().ok_or(NOT_MAIN)?;
-    if !NSApplication::sharedApplication(mtm).isRunning() {
+    let app = NSApplication::sharedApplication(mtm);
+    if !app.isRunning() {
         return Err("the app isn't running yet, so the dialog can't be shown".into());
     }
-    parent.ok_or_else(|| "no window to show the dialog on".into())
+    let parent = parent.ok_or("no window to show the dialog on")?;
+    // rfd `expect`s the parent's view to be in a window (rfd 0.17.2 `backend/macos/utils.rs:34-46`),
+    // and a panic aborts under `panic = "abort"`. Look for the view among the app's windows.
+    let view = match parent.window_handle().map(|h| h.as_raw()) {
+        Ok(RawWindowHandle::AppKit(h)) => h.ns_view.as_ptr().cast_const(),
+        _ => return Err("the window has no macOS view".into()),
+    };
+    if !app.windows().iter().any(|window| window.contentView().is_some_and(|content| contains(&content, view))) {
+        return Err("the window to show the dialog on isn't on screen".into());
+    }
+    Ok(parent)
+}
+
+/// Whether `view` is `root` or one of its subviews.
+fn contains(root: &NSView, view: *const c_void) -> bool {
+    std::ptr::eq((root as *const NSView).cast(), view) || root.subviews().iter().any(|child| contains(&child, view))
 }
 
 /// Shows an Open or Folder panel that doesn't block the window and answers through `reply` when
 /// it closes. AppKit calls the completion handler on the main thread.
-pub(crate) fn show_panel(d: &FileDialog, reply: Reply) {
-    let Some(mtm) = MainThreadMarker::new() else { return reply.send(Answer::Unavailable(NOT_MAIN.into())) };
+pub(crate) fn show_panel(d: &FileDialog, reply: Reply) -> Option<Panel> {
+    let Some(mtm) = MainThreadMarker::new() else {
+        reply.send(Answer::Unavailable(NOT_MAIN.into()));
+        return None;
+    };
     let panel = NSOpenPanel::openPanel(mtm);
     let folder = d.kind == Kind::Folder;
     panel.setCanChooseFiles(!folder);
@@ -76,7 +92,6 @@ pub(crate) fn show_panel(d: &FileDialog, reply: Reply) {
     let answered = panel.clone();
     let handler = RcBlock::new(move |response: NSModalResponse| {
         let Some(reply) = reply.take() else { return };
-        PANEL.set(None);
         if response != NSModalResponseOK {
             return reply.send(Answer::Cancelled);
         }
@@ -84,5 +99,5 @@ pub(crate) fn show_panel(d: &FileDialog, reply: Reply) {
         reply.send(if paths.is_empty() { Answer::Cancelled } else { Answer::Paths(paths) });
     });
     panel.beginWithCompletionHandler(&handler);
-    PANEL.set(Some(panel));
+    Some(panel)
 }
