@@ -21,6 +21,8 @@
 //!   [`ReferencePoint`]: the 3 × 3 picker of its reference point.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
+//! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
+//!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -41,6 +43,7 @@
 //! # });
 //! ```
 
+pub(crate) mod bezier;
 mod claim;
 mod crisp;
 pub(crate) mod guides;
@@ -61,6 +64,10 @@ mod units;
 mod view;
 
 pub use ::kurbo;
+pub use bezier::{
+    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
+    MAX_ANCHORS, PathEdit, PathSelection,
+};
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
