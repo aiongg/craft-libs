@@ -52,6 +52,7 @@ pub(crate) mod icon_button;
 pub(crate) mod kbd;
 pub(crate) mod link;
 pub(crate) mod number_field;
+mod option_list;
 #[cfg(test)]
 mod number_field_tests;
 pub(crate) mod progress;

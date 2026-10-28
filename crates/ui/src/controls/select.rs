@@ -7,13 +7,15 @@ use std::sync::Arc;
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
-use egui::epaint::RectShape;
-use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Galley, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Sense, Shape, Stroke,
-    StrokeKind, Ui, UiBuilder, Vec2, ViewportId, pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder,
+    pos2, vec2,
 };
 
+use super::option_list::{
+    MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
+    text_galley,
+};
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
 use crate::behavior::{ListOptions, Listbox, take_key};
@@ -23,7 +25,7 @@ use crate::icons::{self, Icon};
 use crate::popup_list::PopupList;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
 /// The rows of a popup list, from [`Select::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -60,7 +62,8 @@ pub struct ListboxStyle {
     pub focus: Stroke,
 }
 
-/// A select's sizes and colours, from [`Select::style`].
+/// A select's sizes and colours, from [`Select::style`]; [`ComboBox`](super::ComboBox) draws
+/// with the same.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
@@ -72,9 +75,6 @@ pub struct SelectStyle {
     /// The popup list's surface: [`SurfaceKind::Popup`].
     pub popup: SurfaceStyle,
 }
-
-/// Rows the popup list shows at most before it scrolls.
-const MAX_ROWS: f32 = 12.0;
 
 /// One of a list of options:
 ///
@@ -315,7 +315,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             .interact_at(ui, rect)
             .finish(ui);
         // A press, or a click whose press and release came in one frame.
-        let pressed = enabled && ui.input(|i| i.pointer.primary_pressed()) && (response.is_pointer_button_down_on() || response.clicked());
+        let pressed = enabled && pressed_on(ui, &response);
         let reader_click = enabled && ui.input(|i| i.has_accesskit_action_request(id, accesskit::Action::Click));
         if action.is_none() && (pressed || reader_click) {
             action = Some(match state.open {
@@ -344,7 +344,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
             let picked = list.show(ui, popup, &mut pass, &mut drawn_active);
-            let released = ui.input(|i| i.pointer.primary_released() || !i.pointer.primary_down());
+            let released = released(ui);
             if let Some(option) = picked {
                 pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
             } else if !open {
@@ -354,21 +354,15 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                     (false, false) => CancelReason::FocusLost,
                 };
                 pass.apply(ui, Action::Close { reason, focus: false }, box_focused);
-            } else if pass.state.pressing && released {
-                // A release elsewhere ends a drag without a choice; one over the box or the list, or
-                // a click, leaves the list open.
-                let pos = ui.input(|i| i.pointer.interact_pos());
-                let in_list = ui.memory(|m| m.area_rect(popup_id)).zip(pos).is_some_and(|(r, p)| r.contains(p));
-                let on_box = pos.is_some_and(|p| response.rect.contains(p));
-                if !in_list && !on_box && !ui.input(|i| i.pointer.any_click()) {
-                    pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: false }, box_focused);
-                }
+            } else if pass.state.pressing && released && released_away(ui, popup_id, response.rect) {
+                pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: false }, box_focused);
             }
             if pass.state.pressing && released {
                 pass.state.pressing = false;
             }
             if pass.state.open {
-                pass.keep_focus(ui, popup_id, box_focused, search_focused);
+                let owner = if box_focused { Some(id) } else { pass.state.search.filter(|_| search_focused) };
+                keep_focus(ui, popup_id, owner);
             }
         }
         if pass.preview
@@ -437,6 +431,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 }
 
 impl Select<'static, ()> {
+    /// The select's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SelectStyle {
         let l = &tokens.component.listbox;
         SelectStyle {
@@ -463,11 +458,6 @@ impl Select<'static, ()> {
             popup: Surface::style(tokens, SurfaceKind::Popup),
         }
     }
-}
-
-/// The id of option `option`'s row in the list of the select `select`.
-fn option_id(select: Id, option: usize) -> Id {
-    select.with(("option", option))
 }
 
 /// The keys the box or the search field keeps from egui while it has the focus: the arrows, and
@@ -550,10 +540,6 @@ fn read_keys<T: Clone + PartialEq>(
 /// What the list keeps between frames.
 #[derive(Clone)]
 struct PopupState<T> {
-    /// The viewport and its pass that last stored the state: a select missing from a pass has
-    /// been removed, and starts closed when it is drawn again (as [`Gesture::load`]).
-    viewport: ViewportId,
-    pass: u64,
     open: bool,
     /// The press that opened the list is still down.
     pressing: bool,
@@ -590,19 +576,17 @@ struct Filter {
 }
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> PopupState<T> {
-    /// The state as the last pass left it, and whether that pass drew the select.
+    /// The state as the last pass left it, and whether that pass drew the select: a select
+    /// missing from a pass has been removed, and starts closed ([`load_kept`]).
     fn load(ui: &Ui, id: Id) -> (Self, bool) {
-        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
-        match ui.data(|d| d.get_temp::<Self>(Self::key(id))) {
-            Some(state) if state.viewport == viewport && state.pass + 1 >= pass => (Self { pass, ..state }, true),
-            _ => (Self::new(viewport, pass), false),
+        match load_kept(ui, Self::key(id)) {
+            Some(state) => (state, true),
+            None => (Self::new(), false),
         }
     }
 
-    fn new(viewport: ViewportId, pass: u64) -> Self {
+    fn new() -> Self {
         Self {
-            viewport,
-            pass,
             open: false,
             pressing: false,
             query: String::new(),
@@ -617,7 +601,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PopupState<T> {
     }
 
     fn store(self, ui: &Ui, id: Id) {
-        ui.data_mut(|d| d.insert_temp(Self::key(id), self));
+        store_kept(ui, Self::key(id), self);
     }
 
     fn key(id: Id) -> Id {
@@ -726,22 +710,6 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
         self.listbox.reset();
         if focus_box {
             ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys()));
-        }
-    }
-
-    /// Keeps the focus with the list when a press inside it took the focus away (a disabled
-    /// option, a group header): egui drops the focus on a click elsewhere.
-    fn keep_focus(&mut self, ui: &Ui, popup: Id, box_focused: bool, search_focused: bool) {
-        let pressed_in = ui.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos()).flatten());
-        let in_list = ui.memory(|m| m.area_rect(popup)).zip(pressed_in).is_some_and(|(r, p)| r.contains(p));
-        let focused = ui.memory(|m| m.focused());
-        if !in_list || focused.is_some() {
-            return;
-        }
-        match (box_focused, search_focused.then_some(self.state.search).flatten()) {
-            (true, _) => ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys())),
-            (false, Some(search)) => ui.memory_mut(|m| m.request_focus(search)),
-            (false, None) => {}
         }
     }
 }
@@ -929,11 +897,8 @@ impl List<'_> {
         drawn_active: &mut Option<usize>,
     ) -> Option<usize> {
         let mut picked = None;
-        let pointer_moved = ui.input(|i| i.pointer.delta() != Vec2::ZERO);
-        let released = ui.input(|i| i.pointer.primary_released());
         let options = pass.options;
-        let pressing = pass.state.pressing;
-        let icons = options.has_icons();
+        let rows = OptionRows::new(ui, &self.style.list, self.size, self.id, options.has_icons(), self.enabled, pass.state.pressing);
         let keys = pass.keys();
         let mut query = pass.state.query.clone();
         let mut cache = pass.state.filter.take();
@@ -969,40 +934,17 @@ impl List<'_> {
         };
         let mut option_row = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
             let text = options.text(option);
-            let enabled = self.enabled && options.enabled(option);
-            let size = vec2(ui.available_width().max(self.row_width(ui, &text, icons)), self.style.list.height);
-            let response = Interactive::with_id(option_id(self.id, option), Role::ListBoxOption, &*text)
-                .sense(Sense::CLICK)
-                .selected(self.chosen == Some(option))
-                .enabled(enabled)
-                .state_layer(false)
-                .focus_ring(false)
-                .interact(ui, size)
-                .finish(ui);
-            if enabled && response.contains_pointer() && (pointer_moved || pressing) {
-                listbox.set_active(Some(option));
-            }
-            if enabled && (response.clicked() || (pressing && released && response.contains_pointer())) {
+            let row = OptionRow { option, text: &text, icon: options.icon(option), chosen: self.chosen == Some(option), enabled: options.enabled(option) };
+            let outcome = rows.show(ui, listbox, &row);
+            if outcome.picked {
                 picked = Some(option);
             }
-            let active = listbox.active() == Some(option);
-            if active {
+            if outcome.active {
                 *drawn_active = Some(option);
             }
-            let look = RowLook {
-                text: &text,
-                icon: options.icon(option),
-                icons,
-                chosen: self.chosen == Some(option),
-                active,
-                focus: active && listbox.keyboard(),
-                enabled,
-            };
-            paint_row(ui, &self.style.list, self.size, response.rect, &look);
-            response.rect
+            outcome.rect
         };
         let row_height = self.style.list.height;
-        let measure = |ui: &Ui| (ui.clip_rect().height() / row_height).floor().max(1.0) as usize;
         match options.source {
             Source::Entries(_) => {
                 let _ = popup.show_ui_with_header(header, |ui, filtered| {
@@ -1010,7 +952,7 @@ impl List<'_> {
                     keep_active_shown(listbox, &shown, filtered.changed);
                     // The popup's first pass measures it unseen; scroll once it shows.
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
-                    page = measure(ui);
+                    page = rows_in_view(ui, row_height);
                     let mut add = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
                         let rect = option_row(ui, option, listbox);
                         if reveal == Some(option) {
@@ -1039,7 +981,7 @@ impl List<'_> {
                 let _ = popup.show_rows_with_header(header, row_height, total, |ui, range, filtered| {
                     let shown = Shown { options, filtered: filtered.shown.as_deref() };
                     keep_active_shown(listbox, &shown, filtered.changed);
-                    page = measure(ui);
+                    page = rows_in_view(ui, row_height);
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     if let Some(at) = reveal.and_then(|option| shown.position(option)) {
                         // The row may be out of view and not laid out: scroll to where it would be.
@@ -1063,14 +1005,6 @@ impl List<'_> {
             ui.ctx().request_repaint();
         }
         picked
-    }
-
-    /// The width a row needs: its text, the check mark and the icon with their gaps, and the
-    /// padding.
-    fn row_width(&self, ui: &Ui, text: &str, icons: bool) -> f32 {
-        let s = &self.style.list;
-        let galley = text_galley(ui, s.label, text, Color32::PLACEHOLDER, f32::INFINITY);
-        2.0 * s.pad_x + text_offset(s, icons) + galley.size().x
     }
 
     fn separator(&self, ui: &mut Ui) {
@@ -1110,67 +1044,6 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
     }
 }
 
-/// How one row is drawn.
-struct RowLook<'r> {
-    text: &'r str,
-    icon: Option<Icon>,
-    /// Every row keeps room for an icon.
-    icons: bool,
-    chosen: bool,
-    active: bool,
-    /// The active row is the keyboard's focus cue.
-    focus: bool,
-    enabled: bool,
-}
-
-/// From a row's reading start to its text, inside the padding: the check mark and, when the list
-/// has icons, an icon, each followed by the gap.
-fn text_offset(s: &ListboxStyle, icons: bool) -> f32 {
-    (s.icon + s.gap) * if icons { 2.0 } else { 1.0 }
-}
-
-fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &RowLook<'_>) {
-    if !ui.is_rect_visible(rect) {
-        return;
-    }
-    let ppp = ui.pixels_per_point();
-    if look.active && look.enabled {
-        ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, s.active_fill);
-    }
-    if look.focus && look.enabled {
-        ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, s.focus, StrokeKind::Inside));
-    }
-    let (text, mark) = match () {
-        () if !look.enabled => (s.text_disabled, s.text_disabled),
-        () if look.active => (s.active_text, s.active_text),
-        () if look.chosen => (s.chosen_text, s.mark),
-        () => (s.text, s.mark),
-    };
-    let forward = direction::forward(ui);
-    let start = direction::start_x(ui, rect) + forward * s.pad_x;
-    let center = |from_start: f32| pos2(start + forward * (from_start + s.icon / 2.0), rect.center().y);
-    let square = |from_start: f32| Rect::from_center_size(center(from_start), vec2(s.icon, s.icon)).round_to_pixels(ppp);
-    if look.chosen {
-        icons::paint(ui, square(0.0), Icon::Check, icon_size(size), mark);
-    }
-    if let Some(icon) = look.icon.filter(|_| look.icons) {
-        icons::paint(ui, square(s.icon + s.gap), icon, icon_size(size), text);
-    }
-    let offset = text_offset(s, look.icons);
-    let galley = text_galley(ui, s.label, look.text, text, f32::INFINITY);
-    let x = start + forward * offset;
-    let x = if direction::is_rtl(ui) { x - galley.size().x } else { x };
-    let pos = pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp);
-    ui.painter().galley(pos, galley, text);
-}
-
-/// `text` in `role` and `color` on one line, cut with an ellipsis past `width`.
-fn text_galley(ui: &Ui, role: TypeRole, text: &str, color: Color32, width: f32) -> Arc<Galley> {
-    let mut job = LayoutJob::single_section(text.to_owned(), role_format(&Tokens::of(ui), role, color));
-    job.wrap = TextWrapping::truncate_at_width(width.max(0.0));
-    ui.painter().layout_job(job)
-}
-
 /// What the closed box shows.
 struct BoxContent<'b> {
     text: Option<&'b str>,
@@ -1195,8 +1068,8 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
     let forward = direction::forward(ui);
     let (text_color, muted) = if content.enabled { (f.text, f.placeholder) } else { (f.text_disabled, f.placeholder_disabled) };
     let square = |x: f32| Rect::from_center_size(pos2(x, rect.center().y), vec2(f.icon, f.icon)).round_to_pixels(ppp);
+    paint_chevron(ui, f, rect, content.size, muted);
     let end = direction::end_x(ui, rect) - forward * (f.pad_x + f.icon / 2.0);
-    icons::paint(ui, square(end), Icon::ChevronDown, icon_size(content.size), muted);
     let mut start = direction::start_x(ui, rect) + forward * f.pad_x;
     if let Some(icon) = content.icon {
         icons::paint(ui, square(start + forward * f.icon / 2.0), icon, icon_size(content.size), text_color);
