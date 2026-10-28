@@ -66,8 +66,8 @@ pub use components::{
     IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListField, ListTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens,
     MenuField, MenuTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue, PanelHeaderField, PanelHeaderTokens, ProgressField,
     ProgressTokens, PropertyField, PropertyTokens, ReadoutField, ReadoutTokens, RulerField, RulerTokens, SectionField, SectionTokens, SegmentedField,
-    SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToastField,
-    ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens,
+    SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart,
+    ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};
@@ -86,6 +86,7 @@ pub use theme::{
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
     IconSizes, LineColors, ListSizes, Motion, MotionTokens, OverlayColors, Pads, RadiusSet, RailSizes, ShapeTokens, SizeTokens, SpaceTokens,
-    StateColors, Status, StatusColors, StatusKind, SurfaceColors, TextColors, ThumbSizes, TokenRef, Tokens, TypeRole, TypeStyle, TypeTokens,
+    StateColors, Status, StatusColors, StatusKind, SurfaceColors, TabSizes, TextColors, ThumbSizes, TokenRef, Tokens, TypeRole, TypeStyle,
+    TypeTokens,
 };
 pub use values::ColorSource;

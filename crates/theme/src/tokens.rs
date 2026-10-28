@@ -680,6 +680,8 @@ pub struct SizeTokens {
     pub panel_header: f32,
     /// Lists and trees.
     pub list: ListSizes,
+    /// Tabs.
+    pub tab: TabSizes,
 }
 
 /// Thumbnail sides of a list row, in logical pixels, for the three user settings.
@@ -714,6 +716,21 @@ pub struct ListSizes {
     /// State fills have `radius.control` corners (flat otherwise).
     pub rounded: bool,
     /// Rows have a divider under them and toggle columns one at their trailing edge.
+    pub dividers: bool,
+}
+
+/// Sizes and looks of tabs that differ by Size preset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TabSizes {
+    /// Height of a strip with Large Tabs.
+    pub height_large: f32,
+    /// Least width of a panel tab before the strip overflows.
+    pub min_width: f32,
+    /// Side of the × hit box.
+    pub close: f32,
+    /// The active and hovered tab's top corners are `radius.control` (square otherwise).
+    pub rounded: bool,
+    /// Document tabs have a divider at their trailing edge.
     pub dividers: bool,
 }
 

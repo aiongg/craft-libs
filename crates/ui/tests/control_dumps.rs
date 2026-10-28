@@ -15,6 +15,7 @@ use craft_ui::controls::{
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
+use craft_ui::tab_strip::Tab;
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
 use egui::Color32;
@@ -588,6 +589,24 @@ fn list_row() {
         d.line("divider", s.divider.color).line("thumb_border", s.thumb_border).line("drop", s.drop);
         d.line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
         d.line("ghost_fill", s.ghost_fill).line("ghost_border", s.ghost_border).line("ghost_radius", s.ghost_radius);
+    });
+}
+
+/// Tabs: the strip's sizes, the type roles, the fills and text colours, the ×, the drop outline and
+/// the progress bar.
+#[test]
+fn tab() {
+    check("tab.txt", |d, t| {
+        let s = Tab::<u8>::style(t);
+        d.line("height", s.height).line("height_large", s.height_large).line("pad_x", s.pad_x).line("gap", s.gap).line("min_width", s.min_width);
+        d.line("close", s.close).line("close_icon", s.close_icon).line("overflow", s.overflow).line("radius", s.radius);
+        d.line("dividers", s.dividers).line("drop_width", s.drop_width).line("progress_height", s.progress_height).line("tear_off", s.tear_off);
+        d.line("icon_size", s.icon_size).line("label_role", role(s.label_role)).line("label_role_large", role(s.label_role_large));
+        d.line("detail_role", role(s.detail_role)).line("close_radius", s.close_radius);
+        d.line("strip", s.strip).line("active", s.active).line("hover", s.hover).line("text", s.text).line("inactive_text", s.inactive_text);
+        d.line("detail", s.detail).line("divider", s.divider.color).line("close_color", s.close_color).line("close_hover", s.close_hover);
+        d.line("close_fill", s.close_fill).line("drop", s.drop).line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
+        d.line("track", s.track).line("fill", s.fill);
     });
 }
 

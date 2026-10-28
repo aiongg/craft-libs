@@ -31,6 +31,7 @@ mod section;
 mod segmented;
 mod slider;
 mod swatch;
+mod tab;
 mod toast;
 mod toggle_button;
 mod tooltip;
@@ -68,6 +69,7 @@ pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
+pub use tab::{TabField, TabTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
@@ -612,6 +614,8 @@ families! {
     slider: SliderTokens => Slider(SliderField);
     /// Colour wells.
     swatch: SwatchTokens => Swatch(SwatchField);
+    /// Tabs: one tab of a document or panel strip.
+    tab: TabTokens => Tab(TabField);
     /// Toasts: cards stacked in a corner of the window.
     toast: ToastTokens => Toast(ToastField);
     /// Toggle buttons that are on and disabled.

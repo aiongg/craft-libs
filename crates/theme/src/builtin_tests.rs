@@ -322,3 +322,19 @@ fn builtin_greys_from_grey_seeds_stay_neutral() {
     }
     assert!(checked >= 4, "ArtCraft and Pro are grey in both modes");
 }
+
+/// A tab's labels, details, ×, and drop marker meet their minimums in every built-in and
+/// appearance, pins included.
+#[test]
+fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
+    for theme in builtins() {
+        for a in appearances() {
+            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
+            assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
+            for p in pairs {
+                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+            }
+        }
+    }
+}

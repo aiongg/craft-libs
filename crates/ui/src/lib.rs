@@ -29,6 +29,7 @@ mod popup_list;
 pub mod primitives;
 pub mod printing;
 pub mod story;
+pub mod tab_strip;
 pub mod tabs;
 pub mod testing;
 pub mod text;
