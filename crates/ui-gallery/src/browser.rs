@@ -152,23 +152,30 @@ impl Browser {
             return;
         };
         ui.heading(selected.path());
-        let source = match selected {
-            TokenRef::Color(t) => e.color(t).map(|o| {
-                color_facts(ui, o);
-                o.source
-            }),
+        let origin = match selected {
+            TokenRef::Color(t) => e.color(t).inspect(|o| color_facts(ui, o)),
             TokenRef::Component(f) => e.field(f).and_then(|o| {
                 field_facts(ui, o);
-                o.reads.and_then(|t| e.color(t)).map(|r| r.source)
+                o.reads.and_then(|t| e.color(t))
             }),
         };
         ui.separator();
         ui.strong("Contrast pairs");
         pairs(ui, e, selected);
-        if let Some((ramp, step, toward)) = source.and_then(|s| e.ramps.steps_of(s)) {
+        let Some(o) = origin else { return };
+        if let Some((ramp, step, toward)) = e.ramps.steps_of(o.source) {
             ui.separator();
-            ui.strong(format!("Ramp ({})", ramp_name(source)));
-            ramp_row(ui, &ramp.0, step, toward);
+            // An anchored token's steps are the ramp moved to its anchor.
+            match o.anchoring {
+                Some(a) => {
+                    ui.strong(format!("Ramp (neutral, anchored on {})", a.on.path()));
+                    ramp_row(ui, &a.steps.0, step, toward);
+                }
+                None => {
+                    ui.strong(format!("Ramp ({})", ramp_name(Some(o.source))));
+                    ramp_row(ui, &ramp.0, step, toward);
+                }
+            }
         }
     }
 }
@@ -305,7 +312,9 @@ fn status_name(kind: StatusKind) -> &'static str {
 
 fn ramp_name(source: Option<ColorSource>) -> String {
     match source {
-        Some(ColorSource::Neutral(_) | ColorSource::Anchored(_) | ColorSource::NeutralAlpha(..)) => "neutral".to_owned(),
+        Some(ColorSource::Neutral(_) | ColorSource::Anchored(_) | ColorSource::StateVariant { .. } | ColorSource::NeutralAlpha(..)) => {
+            "neutral".to_owned()
+        }
         Some(ColorSource::Accent(_) | ColorSource::AccentMix { .. }) => "accent".to_owned(),
         Some(ColorSource::Status(kind, _) | ColorSource::StatusMix { kind, .. }) => format!("status {}", status_name(kind)),
         _ => String::new(),
@@ -350,6 +359,7 @@ mod tests {
         assert_eq!(words(ColorToken::SurfaceRaised), "neutral 1, anchored on surface.panel");
         assert_eq!(words(ColorToken::AccentPressed), "accent 10 → 11 at 0.5");
         assert_eq!(words(ColorToken::CaptionInactive), "= text.faint");
+        assert_eq!(words(ColorToken::EdgeDark), "surface.panel shaded by 0.26");
         assert_eq!(words(ColorToken::TextOnAccent), "white or black on accent.solid");
         assert_eq!(words(ColorToken::TextOnStatus), "white or black on status.good.solid and 11 more solids");
     }
