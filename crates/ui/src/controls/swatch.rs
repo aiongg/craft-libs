@@ -1,7 +1,7 @@
 //! [`Swatch`]: a colour well.
 
 use craft_theme::{ControlSize, Rgba, SwatchTokens};
-use egui::accesskit::Role;
+use egui::accesskit::{Action, Role};
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
@@ -129,8 +129,8 @@ impl Swatch {
         self
     }
 
-    /// Whether the keyboard focus can reach the swatch (Tab, the arrows); a swatch that can't
-    /// still takes clicks.
+    /// Whether Tab reaches the swatch; one that isn't a Tab stop still takes clicks, and offers a
+    /// screen reader the Focus action, which its group handles (a palette moves its stop there).
     pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
         self.tab_stop = tab_stop;
         self
@@ -258,6 +258,9 @@ impl Widget for Swatch {
             element = element.value(Swatch::hex(self.color));
         }
         let response = element.show(ui, vec2(style.side, style.side));
+        if !self.tab_stop && self.enabled {
+            ui.ctx().accesskit_node_builder(response.id, |node| node.add_action(Action::Focus));
+        }
         if ui.is_rect_visible(response.rect) {
             let color = (!self.mixed).then_some(self.color);
             ui.painter().extend(Swatch::shapes(&style, response.rect, color, self.selected, self.enabled, ui.pixels_per_point()));

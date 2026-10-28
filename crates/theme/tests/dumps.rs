@@ -474,6 +474,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         pair_step,
         pair_gap,
         pair_ring,
+        marker,
+        marker_halo,
         ..
     } = p;
     out.line("color_picker.area", len(*area));
@@ -494,6 +496,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.pair_step", len(*pair_step));
     out.line("color_picker.pair_gap", len(*pair_gap));
     out.line("color_picker.pair_ring", len(*pair_ring));
+    out.line("color_picker.marker", hex(*marker));
+    out.line("color_picker.marker_halo", hex(*marker_halo));
 }
 
 fn property_lines(out: &mut Lines, p: &PropertyTokens) {

@@ -4,8 +4,8 @@ use craft_theme::{ControlSize, Srgba};
 use egui::accesskit::{Action, Role};
 use egui::epaint::RectShape;
 use egui::{
-    AsIdSalt, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2,
-    vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2,
+    pos2, vec2,
 };
 
 use super::popover::{self, ColorPopoverResponse};
@@ -100,8 +100,8 @@ pub struct SwatchPairStyle {
 ///
 /// - The host holds the active well ([`active`](SwatchPair::active)) and the colours. A click on
 ///   a well, or an arrow key while one has the focus, makes it active and returns it as
-///   [`SwatchPairResponse::active`]; it is drawn in front, with a gap in the panel's colour
-///   round it. The wells keep their places.
+///   [`SwatchPairResponse::active`]; it is drawn in front, with a gap in the colour the pair sits
+///   on round it ([`backdrop`](SwatchPair::backdrop)). The wells keep their places.
 /// - A double-click, or Enter on the focused well, opens a [`ColorPopover`](super::ColorPopover)
 ///   popup under that well, which edits the well's colour as the popover does; a click outside
 ///   closes it. The response's [`edit`](SwatchPairResponse::edit) is the popup's, for
@@ -128,6 +128,7 @@ pub struct SwatchPair<'a> {
     swap: Option<String>,
     defaults: Option<String>,
     enabled: bool,
+    backdrop: Option<Color32>,
     picker: Option<Box<dyn Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a>>,
 }
 
@@ -172,6 +173,7 @@ impl<'a> SwatchPair<'a> {
             swap: None,
             defaults: None,
             enabled: true,
+            backdrop: None,
             picker: None,
         }
     }
@@ -194,6 +196,13 @@ impl<'a> SwatchPair<'a> {
         self
     }
 
+    /// The colour of the surface the pair sits on, which the gap round the front well shows
+    /// (a toolbar's fill); `surface.panel` without it.
+    pub fn backdrop(mut self, color: Color32) -> Self {
+        self.backdrop = Some(color);
+        self
+    }
+
     /// Whether the pair takes input; a disabled one never opens its popups.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -212,7 +221,7 @@ impl<'a> SwatchPair<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> SwatchPairResponse {
-        let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, picker } = self;
+        let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, backdrop, picker } = self;
         let enabled = enabled && ui.is_enabled();
         let id = ui.make_persistent_id(id_salt);
         let builder = UiBuilder::new().scope_id(id).layout(direction::row(ui)).accessibility_role(Role::Group).accessibility_label(label);
@@ -248,33 +257,22 @@ impl<'a> SwatchPair<'a> {
                     .enabled(enabled)
                     .value(Swatch::hex(spec.color.to_rgba()));
                 sensed.push((well, element.interact_at(ui, rects[index(well)])));
+                // Not a Tab stop, but a screen reader may focus it: that makes it active.
+                if well != now && enabled {
+                    ui.ctx().accesskit_node_builder(ids[index(well)], |node| node.add_action(Action::Focus));
+                }
             }
-            let mut double = None;
             let mut toggled = entered.then_some(focused.map(|i| if i == 0 { Well::Primary } else { Well::Secondary })).flatten();
             for (well, s) in &sensed {
                 let r = s.response();
                 if enabled && r.clicked() && *well != now {
                     now = *well;
                 }
+                // A double-click is reported on the second release, so the popup opens with the
+                // button up and no later release over the well takes the focus back.
                 if enabled && r.double_clicked() {
-                    double = Some(*well);
+                    toggled = Some(*well);
                 }
-            }
-            // The popup opens when the button is up again: a release over the well after the
-            // popup took the focus would hand the focus back to the well.
-            let double_id = id.with("double");
-            double = double.or_else(|| ui.data(|d| d.get_temp::<Well>(double_id)));
-            let down = ui.input(|i| i.pointer.any_down());
-            ui.data_mut(|d| match double {
-                Some(well) if down => {
-                    d.insert_temp(double_id, well);
-                }
-                _ => {
-                    d.remove_temp::<Well>(double_id);
-                }
-            });
-            if !down && let Some(well) = double {
-                toggled = Some(well);
             }
             let activated = now != active;
 
@@ -283,10 +281,11 @@ impl<'a> SwatchPair<'a> {
             let mut anchors: Vec<Response> = finished.into_iter().map(|(_, response)| response).collect();
 
             // Paint the back well, then the front one.
+            let backdrop = backdrop.unwrap_or_else(|| tokens.color.surface.panel.to_egui());
             for well in [now.other(), now] {
                 let spec = &wells[index(well)];
                 let rect = rects[index(well)];
-                paint_well(ui, &swatch, &style, rect, spec, well == now, enabled);
+                paint_well(ui, &swatch, &style, rect, spec, (well == now).then_some(backdrop), enabled);
                 anchors[index(well)] = anchors[index(well)].clone().tooltip(spec.label.as_str());
             }
             for well in [Well::Primary, Well::Secondary] {
@@ -372,16 +371,16 @@ fn roving_target(ui: &Ui, ids: &[Id; 2], focused: Option<usize>) -> Option<usize
     to
 }
 
-/// The shapes of one well: the gap round the front one, then a filled well or a ring.
-fn paint_well(ui: &Ui, swatch: &SwatchStyle, style: &SwatchPairStyle, rect: Rect, spec: &PairWell, front: bool, enabled: bool) {
+/// The shapes of one well: for the front one the gap round it in the `gap` colour, then a filled
+/// well or a ring.
+fn paint_well(ui: &Ui, swatch: &SwatchStyle, style: &SwatchPairStyle, rect: Rect, spec: &PairWell, gap: Option<Color32>, enabled: bool) {
     if !ui.is_rect_visible(rect) {
         return;
     }
     let painter = ui.painter();
     let radius = swatch.radius;
-    if front {
-        let panel = Tokens::of(ui).color.surface.panel.to_egui();
-        painter.add(RectShape::stroke(rect, radius, Stroke::new(style.gap, panel), StrokeKind::Outside));
+    if let Some(gap) = gap {
+        painter.add(RectShape::stroke(rect, radius, Stroke::new(style.gap, gap), StrokeKind::Outside));
     }
     let rgba = spec.color.to_rgba();
     if !spec.ring {

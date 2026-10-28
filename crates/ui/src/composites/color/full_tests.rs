@@ -16,10 +16,10 @@ use crate::theme::{Base, install};
 struct Cmyk;
 
 const CMYK: [Channel; 4] = [
-    Channel { name: "Cyan", label: "C", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
-    Channel { name: "Magenta", label: "M", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
-    Channel { name: "Yellow", label: "Y", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
-    Channel { name: "Black", label: "K", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Cyan", qualified: "CMYK cyan", label: "C", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Magenta", qualified: "CMYK magenta", label: "M", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Yellow", qualified: "CMYK yellow", label: "Y", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
+    Channel { name: "Black", qualified: "CMYK black", label: "K", min: 0.0, max: 100.0, unit: "%", decimals: 1, step: 0.1, track_stops: 2 },
 ];
 
 impl ColorModel for Cmyk {
@@ -63,6 +63,7 @@ struct Rig {
     eight_bit: bool,
     scoped: bool,
     shown: bool,
+    focus_on_open: bool,
     picker: Id,
     field: Id,
     events: Vec<EditEvent<PickedColor>>,
@@ -87,6 +88,7 @@ impl Rig {
             eight_bit: false,
             scoped: false,
             shown: true,
+            focus_on_open: true,
             picker: Id::NULL,
             field: Id::NULL,
             events: Vec::new(),
@@ -113,6 +115,7 @@ impl Rig {
                     .layout(self.layout)
                     .models(self.models.iter().copied())
                     .mode(&mut self.mode)
+                    .focus_on_open(self.focus_on_open)
                     .eyedropper("Pick screen color");
                 if let Some(current) = self.compare {
                     picker = picker.compare(current);
@@ -394,9 +397,9 @@ fn inside_an_edit_scope_the_full_picker_sends_only_updates_and_its_radios_none()
 struct Hsl;
 
 const HSL: [Channel; 3] = [
-    Channel { name: "Hue", label: "H", min: 0.0, max: 360.0, unit: "°", decimals: 0, step: 1.0, track_stops: 13 },
-    Channel { name: "Saturation", label: "S", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
-    Channel { name: "Lightness", label: "L", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
+    Channel { name: "Hue", qualified: "HSL hue", label: "H", min: 0.0, max: 360.0, unit: "°", decimals: 0, step: 1.0, track_stops: 13 },
+    Channel { name: "Saturation", qualified: "HSL saturation", label: "S", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
+    Channel { name: "Lightness", qualified: "HSL lightness", label: "L", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
 ];
 
 impl ColorModel for Hsl {
@@ -484,4 +487,95 @@ fn right_to_left_mirrors_the_full_layout_and_keeps_the_keys_of_area_and_strip() 
     rig.key(Key::ArrowUp);
     rig.settle();
     assert_eq!(rig.value(Role::SpinButton, "Hue"), h + 1.0);
+}
+
+/// A click on the compare swatch's current half ends a typing run in H in the same frame: the
+/// typed value is committed, then the current colour is set.
+#[test]
+#[ignore = "DS-26r2: edit ordering"]
+fn a_restore_click_that_ends_a_typing_run_restores_the_current_colour() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.compare = Some(Srgba::rgb(1.0, 0.0, 0.0));
+    rig.settle();
+    rig.tab_to("Hue");
+    rig.type_text("12");
+    rig.events.clear();
+    let current = rig.rect(Role::Button, "Restore current colour");
+    rig.click(current.center());
+    let kinds = kinds(&rig.events);
+    assert_eq!(kinds.iter().filter(|k| **k == "Commit").count(), 1, "the typed hue is committed: {kinds:?}");
+    assert_eq!(kinds.last(), Some(&"Set"), "then the current colour is set: {kinds:?}");
+    assert_eq!(hex(rig.color), "#ff0000");
+}
+
+/// A tap on the area (press and release in one frame) that ends a partial hex run sets the
+/// tapped colour.
+#[test]
+#[ignore = "DS-26r2: edit ordering"]
+fn an_area_tap_that_ends_a_partial_hex_run_sets_the_tapped_colour() {
+    let start = Srgba::rgb(0.2, 0.4, 0.6);
+    let mut rig = Rig::new(start);
+    rig.tab_to("Hex colour");
+    rig.type_text("AB");
+    let area = rig.rect(Role::Slider, "Saturation and brightness");
+    let at = area.left_top() + vec2(area.width() * 0.9, area.height() * 0.1);
+    let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    rig.frame(vec![Event::PointerMoved(at), button(true), button(false)]);
+    rig.settle();
+    assert_ne!(hex(rig.color), hex(start), "the tap's colour stays: {:?}", kinds(&rig.events));
+}
+
+/// The picker stops being drawn during a typing run in S (the host hides the panel): the draft
+/// is the picker's unreported value, so the host can commit it.
+#[test]
+#[ignore = "DS-26r2: edit ordering"]
+fn an_interrupted_typing_run_leaves_its_draft_unreported() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.tab_to("Saturation");
+    rig.type_text("40");
+    let id = rig.events.iter().find_map(|e| if let EditEvent::Begin { id } = e { Some(*id) } else { None }).expect("the run began");
+    rig.shown = false;
+    rig.frame(vec![]);
+    let draft = edit::unreported::<PickedColor>(&rig.ctx, id).expect("the draft is unreported");
+    let s = HsbModel.from_srgb(draft.color).values[1];
+    assert!((s - 40.0).abs() < 0.5, "S = {s}");
+}
+
+/// Pasted text goes to the hex field whole: eight digits with the alpha off are not a colour,
+/// and a colour copied with spaces round it applies.
+#[test]
+fn pasted_hex_text_is_parsed_whole() {
+    let start = Srgba::rgb(0.2, 0.4, 0.6);
+    let mut rig = Rig::new(start);
+    rig.tab_to("Hex colour");
+    rig.frame(vec![Event::Paste("#AABBCCDD".to_owned())]);
+    rig.settle();
+    assert_eq!(hex(rig.color), hex(start), "eight digits without alpha are not cut to six");
+
+    rig.tab_to("Hex colour");
+    rig.frame(vec![Event::Paste("  #aabbcc ".to_owned())]);
+    rig.settle();
+    assert_eq!(hex(rig.color), "#aabbcc");
+}
+
+/// A host that shows the Full picker in a panel turns the opening focus off: showing the panel
+/// again leaves the focus where it was.
+#[test]
+fn a_picker_shown_again_without_focus_on_open_leaves_the_focus() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.focus_on_open = false;
+    rig.shown = false;
+    rig.settle();
+    rig.ctx.memory_mut(|m| m.request_focus(rig.field));
+    rig.frame(vec![]);
+    rig.shown = true;
+    rig.settle();
+    assert_eq!(rig.focused_name().as_deref(), Some("Before"), "the focus stays in the field before the picker");
+
+    rig.focus_on_open = true;
+    rig.shown = false;
+    rig.settle();
+    rig.shown = true;
+    rig.settle();
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "a dialog's picker takes it when it opens");
 }

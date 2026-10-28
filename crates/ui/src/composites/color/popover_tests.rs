@@ -313,3 +313,76 @@ fn the_popover_and_the_palette_mirror_right_to_left() {
     assert_eq!(rig.focused_name().as_deref(), Some("Red"));
     assert!(rig.palette_events.is_empty(), "the arrows select nothing");
 }
+
+impl Rig {
+    /// Sends a screen reader's `action` to the node named `name`.
+    fn action(&mut self, role: Role, name: &str, action: egui::accesskit::Action) {
+        let target_node = self.nodes.iter().find(|(_, n)| n.role() == role && n.label() == Some(name)).map(|(id, _)| *id).expect("node");
+        let request = egui::accesskit::ActionRequest { action, target_tree: egui::accesskit::TreeId::ROOT, target_node, data: None };
+        self.frame(vec![Event::AccessKitActionRequest(request)]);
+        self.settle();
+    }
+}
+
+/// The model switch's menu opens from inside the popup, so it is part of it: a click on a row
+/// and keys in the menu leave the popup open.
+#[test]
+fn choosing_in_the_model_menu_keeps_the_popover_open() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.click_node(Role::Button, "Fill colour");
+    assert!(rig.open);
+
+    rig.click_node(Role::Button, "Colour model: HSB");
+    assert!(rig.open, "opening the menu keeps the popup open");
+    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
+    rig.click_node(Role::MenuItemRadio, "RGB");
+    assert!(rig.open, "a click on a row is not outside the popup");
+    rig.node(Role::Button, "Colour model: RGB");
+    rig.node(Role::Slider, "Red");
+
+    // From the keyboard: Enter on the switch opens the menu, Down and Enter choose.
+    rig.action(Role::Button, "Colour model: RGB", egui::accesskit::Action::Focus);
+    assert_eq!(rig.focused_name().as_deref(), Some("Colour model: RGB"));
+    rig.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.open, "the menu opened from the keyboard keeps the popup open");
+    assert_eq!(rig.node(Role::Button, "Colour model: RGB").is_expanded(), Some(true));
+    rig.key(Key::ArrowDown, Modifiers::NONE);
+    rig.key(Key::ArrowDown, Modifiers::NONE);
+    rig.key(Key::Enter, Modifiers::NONE);
+    assert!(rig.open, "a row chosen by keys leaves the popup open");
+    rig.node(Role::Button, "Colour model: OKLCH");
+    assert_eq!(rig.color.to_rgba(), Srgba::rgb(0.2, 0.4, 0.6).to_rgba(), "switching models changes no colour");
+
+    // A click outside both closes the popup.
+    rig.click(pos2(480.0, 880.0));
+    assert!(!rig.open);
+}
+
+/// Esc in the open model menu closes the menu only.
+#[test]
+#[ignore = "needs the menus fix: Menu consumes the Esc that closes it"]
+fn esc_in_the_model_menu_closes_only_the_menu() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.click_node(Role::Button, "Fill colour");
+    rig.click_node(Role::Button, "Colour model: HSB");
+    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
+    rig.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(false), "Esc closes the menu");
+    assert!(rig.open, "and leaves the popup open");
+    rig.key(Key::Escape, Modifiers::NONE);
+    assert!(!rig.open, "a second Esc closes the popup");
+}
+
+/// A swatch that isn't the palette's Tab stop offers a screen reader the Focus action, which
+/// moves the stop and the focus there without selecting it.
+#[test]
+fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
+    let mut rig = Rig::new(srgba(SWATCHES[0].1));
+    let teal = rig.node(Role::RadioButton, "Teal");
+    assert!(teal.supports_action(egui::accesskit::Action::Focus), "a swatch that isn't the stop offers Focus");
+    rig.action(Role::RadioButton, "Teal", egui::accesskit::Action::Focus);
+    assert_eq!(rig.focused_name().as_deref(), Some("Teal"));
+    assert_eq!(rig.color.to_rgba(), srgba(SWATCHES[0].1).to_rgba(), "focusing selects nothing");
+    rig.key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.focused_name().as_deref(), Some("Blue"), "the arrows go on from there");
+}

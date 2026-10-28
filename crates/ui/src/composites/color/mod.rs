@@ -94,6 +94,41 @@ impl AreaMode {
     /// The OKLCH modes: L, C, H.
     pub const OKLCH: [AreaMode; 3] = [AreaMode::OklchL, AreaMode::OklchC, AreaMode::OklchH];
 
+    /// Every mode: PhotoCraft's nine, then OKLCH's three.
+    pub const ALL: [AreaMode; 12] = [
+        AreaMode::Hue,
+        AreaMode::Saturation,
+        AreaMode::Brightness,
+        AreaMode::Red,
+        AreaMode::Green,
+        AreaMode::Blue,
+        AreaMode::LabL,
+        AreaMode::LabA,
+        AreaMode::LabB,
+        AreaMode::OklchL,
+        AreaMode::OklchC,
+        AreaMode::OklchH,
+    ];
+
+    /// The area's accessible name, English, its two components across and down: the key a host
+    /// translates ("Saturation and brightness").
+    pub fn name(self) -> &'static str {
+        match self {
+            AreaMode::Hue => "Saturation and brightness",
+            AreaMode::Saturation => "Hue and brightness",
+            AreaMode::Brightness => "Hue and saturation",
+            AreaMode::Red => "Blue and green",
+            AreaMode::Green => "Blue and red",
+            AreaMode::Blue => "Red and green",
+            AreaMode::LabL => "Green-red and blue-yellow",
+            AreaMode::LabA => "Blue-yellow and lightness",
+            AreaMode::LabB => "Green-red and lightness",
+            AreaMode::OklchL => "Hue and chroma",
+            AreaMode::OklchC => "Hue and lightness",
+            AreaMode::OklchH => "Chroma and lightness",
+        }
+    }
+
     /// The model whose values the area and strip edit.
     pub fn model(self) -> &'static dyn ColorModel {
         match self {
@@ -158,12 +193,12 @@ pub struct ColorPartsStyle {
     /// The edge round the area and the strip, outside them: one point of `line.control_edge`.
     pub edge: Stroke,
     /// The area marker's inner circle: `color_picker.marker_inner_radius`, a
-    /// `color_picker.marker_inner_width` stroke of `overlay.stroke`.
+    /// `color_picker.marker_inner_width` stroke of `color_picker.marker` (white).
     pub marker_inner_radius: f32,
     pub marker_inner: Stroke,
     /// The marker's outer ring: `color_picker.marker_outer_radius`, a
-    /// `color_picker.marker_outer_width` stroke of `overlay.halo`. One of the two rings reads on
-    /// any colour.
+    /// `color_picker.marker_outer_width` stroke of `color_picker.marker_halo` (black at alpha
+    /// 160). One of the two rings reads on any colour, and neither tints it.
     pub marker_outer_radius: f32,
     pub marker_outer: Stroke,
     /// A strip pointer triangle, its depth across and its height: `color_picker.pointer_width`
@@ -183,9 +218,9 @@ fn parts_style(tokens: &UiTokens) -> ColorPartsStyle {
         strip: t.strip,
         edge: Stroke::new(1.0, c.line.control_edge.to_egui()),
         marker_inner_radius: t.marker_inner_radius,
-        marker_inner: Stroke::new(t.marker_inner_width, c.overlay.stroke.to_egui()),
+        marker_inner: Stroke::new(t.marker_inner_width, t.marker.to_egui()),
         marker_outer_radius: t.marker_outer_radius,
-        marker_outer: Stroke::new(t.marker_outer_width, c.overlay.halo.to_egui()),
+        marker_outer: Stroke::new(t.marker_outer_width, t.marker_halo.to_egui()),
         pointer: vec2(t.pointer_width, t.pointer_height),
         pointer_color: c.text.normal.to_egui(),
     }
@@ -350,13 +385,11 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
         let style = ColorArea::style(&Tokens::of(ui));
         let height = if compact { style.area_height } else { style.area };
         let strip_width = if compact { style.strip } else { style.strip_full };
-        let [across, down] = mode.area();
         let names = |i: usize| model.channels()[i].name;
         Stack::new(Gap::Stack).show(ui, |ui| {
             Row::new(Gap::Inline).show(ui, |ui| {
-                let label = format!("{} and {}", names(across), names(down).to_lowercase());
                 let edits = [
-                    ColorArea::new("color-parts-area", label, mode, values).size(Vec2::new(style.area, height)).enabled(enabled).show(ui),
+                    ColorArea::new("color-parts-area", mode.name(), mode, values).size(Vec2::new(style.area, height)).enabled(enabled).show(ui),
                     ColorStrip::new("color-parts-strip", names(mode.strip()), mode, values)
                         .size(Vec2::new(strip_width, height))
                         .enabled(enabled)

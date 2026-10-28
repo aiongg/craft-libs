@@ -152,7 +152,9 @@ impl Oklab {
         ]
     }
 
-    /// Polar form. Hue is 0 for exact greys.
+    /// Polar form. Hue is 0 where the chroma is below 1e-9; the matrices' rounding leaves sRGB
+    /// greys a chroma of a few 1e-8 with a hue near 90°, which a picker treats as a grey
+    /// ([`OklchModel`](crate::OklchModel)).
     pub fn to_oklch(self) -> Oklch {
         let c = self.a.hypot(self.b);
         let h = if c < 1e-9 { 0.0 } else { self.b.atan2(self.a).to_degrees().rem_euclid(360.0) };

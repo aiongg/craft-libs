@@ -449,6 +449,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 6
             + (1 + 15)
             + 3
+            // Colour picker: the marker and its halo.
+            + 2
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -890,6 +892,21 @@ fn builtin_drop_markers_meet_their_minimum_on_their_halo() {
             let min = if a.contrast == Contrast::High { values::NON_TEXT_MIN.1 } else { values::NON_TEXT_MIN.0 };
             let ratio = contrast_ratio(l.drop, l.drop_halo);
             assert!(ratio >= min, "{} {a:?}: list.drop on list.drop_halo is {ratio:.2}, needs {min}", theme.id);
+        }
+    }
+}
+
+#[test]
+fn builtin_colour_picker_markers_meet_their_minimum_on_their_halo() {
+    for theme in builtins() {
+        for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::default()) {
+            let tokens = resolve(theme, a, None).tokens;
+            let p = tokens.component.color_picker;
+            let min = if a.contrast == Contrast::High { values::NON_TEXT_MIN.1 } else { values::NON_TEXT_MIN.0 };
+            let halo = over(p.marker_halo, tokens.color.surface.panel);
+            let ratio = contrast_ratio(p.marker, halo);
+            assert!(ratio >= min, "{} {a:?}: color_picker.marker on its halo is {ratio:.2}, needs {min}", theme.id);
+            assert!(p.marker.0[..3].iter().all(|&c| c == p.marker.0[0]), "the marker is achromatic");
         }
     }
 }
