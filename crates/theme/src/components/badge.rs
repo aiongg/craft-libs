@@ -134,8 +134,11 @@ impl BadgeColors {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BadgeTokens {
-    /// Height: the standard icon size, one caption line and a little room.
+    /// Height: the label's line and [`pad_y`](BadgeTokens::pad_y) above and below it, so it
+    /// grows with the Text size setting.
     pub height: f32,
+    /// Above and below the label's line.
+    pub pad_y: f32,
     /// At the start and end of the label: `space.pad.control`.
     pub pad_x: f32,
     /// Corner radius, clamped to half the height; 999 gives a pill.
@@ -203,11 +206,13 @@ impl Family for BadgeTokens {
         let soft = |fill, text, border| BadgeColors { fill, text, border };
         let solid = |fill, text| BadgeColors { fill, text, border: fill };
         let status = |t: &crate::tokens::StatusColors| [soft(t.bg, t.fg, t.border), solid(t.solid, c.text.on_status)];
+        let label = TypeRole::Caption;
         BadgeTokens {
-            height: s.size.icon.md,
+            height: s.typography.get(label).line_height + 2.0 * values::BADGE_PAD_Y,
+            pad_y: values::BADGE_PAD_Y,
             pad_x: s.space.pad.control,
             radius: values::BADGE_RADIUS.px(),
-            label: TypeRole::Caption,
+            label,
             colors: [
                 [soft(c.surface.sunken, c.text.muted, c.line.border), solid(c.text.muted, c.surface.panel)],
                 [soft(c.state.selected, c.text.on_selected, c.state.selected), solid(c.accent.solid, c.text.on_accent)],

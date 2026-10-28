@@ -57,6 +57,8 @@
     "toggle_button.on_disabled.fill": "#bebab2"
   },
   "components": {
+    "badge.radius": 0.0,
+    "progress.radius": 0.0,
     "slider.radius": 0.0
   }
 }

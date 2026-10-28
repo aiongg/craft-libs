@@ -28,10 +28,23 @@ fn builtins_resolve_everywhere_without_warnings_beyond_their_intent() {
             let r = resolve(theme, a, None);
             let high = a.contrast == Contrast::High;
             if high || theme.contrast_intent == ContrastIntent::Standard {
-                assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", theme.id, r.warnings);
+                let reported: Vec<_> = r.warnings.iter().map(|w| (w.fg.path(), w.bg.path())).collect();
+                assert_eq!(reported, known_warnings(theme, a), "{} {a:?}: {:?}", theme.id, r.warnings);
             }
         }
     }
+}
+
+/// The warnings a built-in is known to have. Adwaita dark pins `accent.solid` and
+/// `surface.sunken` 2.74:1 apart, so at standard contrast the slider and progress fills miss the
+/// state indicator minimum on their sunken tracks. The pins are Adwaita's own colours and are kept;
+/// high contrast moves them apart.
+fn known_warnings(theme: &ThemeDef, a: Appearance) -> Vec<(String, String)> {
+    if theme.id.as_str() != "craft.adwaita" || a.mode != Mode::Dark || a.contrast != Contrast::Standard {
+        return Vec::new();
+    }
+    let pair = |fg: &str, bg: &str| (fg.to_owned(), bg.to_owned());
+    vec![pair("progress.fill", "progress.track"), pair("slider.fill.rest", "slider.track")]
 }
 
 /// Links and other accent-coloured text must read as accent, not as body text: a neutral
@@ -84,7 +97,8 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
 }
 
 /// The labels of badges, the keys on keycaps, the progress fill, the swatch selection ring and the
-/// mixed dash meet their minimums in every built-in and appearance, pins included.
+/// mixed dash meet their minimums in every built-in and appearance, pins included, except where a
+/// built-in has a [known warning](known_warnings).
 #[test]
 fn builtin_small_control_pairs_meet_their_minimums() {
     for theme in builtins() {
@@ -98,14 +112,10 @@ fn builtin_small_control_pairs_meet_their_minimums() {
             };
             let pairs: Vec<_> = steps.component_pairs.iter().filter(small).collect();
             assert_eq!(pairs.len(), 12 + 1 + 1 + 2, "{} {a:?}", theme.id);
+            let known = known_warnings(theme, a);
             for p in pairs {
-                // Adwaita dark pins `accent.solid` and `surface.sunken` 2.74:1 apart at standard
-                // contrast, as it does for the slider; high contrast moves them apart.
-                let known = theme.id.as_str() == "craft.adwaita"
-                    && a.mode == Mode::Dark
-                    && a.contrast == Contrast::Standard
-                    && p.fg == TokenRef::Component(ComponentField::Progress(ProgressField::Fill));
-                assert!(known || p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                let warned = known.contains(&(p.fg.path(), p.bg.path()));
+                assert!(warned || p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
         }
     }

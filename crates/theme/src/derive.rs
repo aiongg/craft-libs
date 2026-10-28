@@ -208,7 +208,7 @@ fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
 
 /// `fg` alpha-composited over `bg` (sRGB channel blend, as renderers draw it); the result is
 /// opaque when `bg` is.
-fn over(fg: Rgba, bg: Rgba) -> Rgba {
+pub(crate) fn over(fg: Rgba, bg: Rgba) -> Rgba {
     let a = f64::from(fg.a()) / 255.0;
     let ch = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
     Rgba([ch(0), ch(1), ch(2), bg.a()])
@@ -427,25 +427,19 @@ pub(super) fn component_overrides(
 }
 
 /// The component contrast pass. Defaults derive from semantic tokens that already passed or
-/// were reported by the semantic pass. With standard contrast, failing pairs are kept and those
-/// with a component override (a fg or bg that differs from `defaults`) are reported. With high
-/// contrast every failing pair is fixed: the foreground moves first, then the background if the
-/// foreground alone can't reach the minimum. Returns every pair measured on the result, and
+/// were reported by the semantic pass. With standard contrast, failing pairs are kept and
+/// reported, whatever made them fail: a component pin, or a semantic pin the defaults read. With
+/// high contrast every failing pair is fixed: the foreground moves first, then the background if
+/// the foreground alone can't reach the minimum. Returns every pair measured on the result, and
 /// the pairs that are reported.
-pub(super) fn component_colors(
-    comp: &mut ComponentTokens,
-    defaults: &ComponentTokens,
-    color: &ColorTokens,
-    high: bool,
-) -> (Vec<ContrastCheck>, Vec<ContrastCheck>) {
+pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> (Vec<ContrastCheck>, Vec<ContrastCheck>) {
     if high {
         for p in &ComponentTokens::pairs() {
             fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
         }
     }
     let measured = measure_components(comp, color, high);
-    let overridden = |t: TokenRef| matches!(t, TokenRef::Component(f) if comp.color(f) != defaults.color(f));
-    let warnings = measured.iter().filter(|m| !m.passes() && (high || overridden(m.fg) || overridden(m.bg))).copied().collect();
+    let warnings = measured.iter().filter(|m| !m.passes()).copied().collect();
     (measured, warnings)
 }
 

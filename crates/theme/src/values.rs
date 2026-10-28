@@ -405,6 +405,10 @@ pub const SWITCH_THUMB_INSET: f32 = 2.0;
 pub const SWATCH_RADIUS_MAX: f32 = 4.0;
 /// Width of a swatch's selection ring, drawn outside the well.
 pub const SWATCH_SELECTED_WIDTH: f32 = 2.0;
+/// Between a swatch's well and its selection ring, so the ring doesn't merge with the edge.
+pub const SWATCH_SELECTED_GAP: f32 = 1.0;
+/// Opacity of the black or white ring inside a swatch's edge.
+pub const SWATCH_INNER_EDGE_ALPHA: u8 = 0x80;
 /// The two checkerboard greys behind a translucent swatch in a light theme.
 pub const SWATCH_CHECKER_LIGHT: (Rgba, Rgba) = (Rgba::rgb(255, 255, 255), Rgba::rgb(204, 204, 204));
 /// The two checkerboard greys behind a translucent swatch in a dark theme.
@@ -412,9 +416,13 @@ pub const SWATCH_CHECKER_DARK: (Rgba, Rgba) = (Rgba::rgb(64, 64, 64), Rgba::rgb(
 
 /// Corner radius of a badge: a pill.
 pub const BADGE_RADIUS: Radius = Radius::Full;
+/// Above and below a badge's caption line, in points.
+pub const BADGE_PAD_Y: f32 = 1.0;
 
 /// Largest corner radius of a keycap, in points.
 pub const KBD_RADIUS_MAX: f32 = 3.0;
+/// Above and below a keycap's caption line, in points.
+pub const KBD_PAD_Y: f32 = 1.0;
 
 /// Thickness of a progress bar's track, in points, at every Size.
 pub const PROGRESS_TRACK: f32 = 4.0;

@@ -198,7 +198,13 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
     }
     let preset = values::preset(Size::Compact);
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
-    let defaults = ComponentTokens::defaults(&Semantic { color: &probe, shape: &shape, space: &preset.space, size: &preset.size });
+    let defaults = ComponentTokens::defaults(&Semantic {
+        color: &probe,
+        shape: &shape,
+        space: &preset.space,
+        size: &preset.size,
+        typography: &preset.typography,
+    });
     ComponentField::ALL
         .iter()
         .filter_map(|&f| {

@@ -16,9 +16,9 @@ use crate::AppId;
 pub struct Resolved {
     /// Every semantic and component token.
     pub tokens: Tokens,
-    /// Pairs below their minimum, semantic then component: pinned colours in standard contrast
-    /// (component pairs only where a component colour is overridden), or pairs that no lightness
-    /// move could fix.
+    /// Pairs below their minimum, semantic then component: in standard contrast, pairs that a
+    /// pinned colour makes fail (a component pair also when the pin is a semantic colour its
+    /// default reads), or pairs that no lightness move could fix.
     pub warnings: Vec<ContrastCheck>,
     /// Carried from the theme, for the picker's "Low contrast" label and the built-in check.
     pub contrast_intent: ContrastIntent,
@@ -75,15 +75,17 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     let (hover, open, move_) = values::MOTION_DURATIONS;
 
     let shape = ShapeTokens { radius, edge };
-    let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
-    let defaults = component.clone();
+    let typography = preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING);
+    let mut component =
+        ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size, typography: &typography });
     let high = appearance.contrast == Contrast::High;
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
-    let (component_pairs, component_warnings) = derive::component_colors(&mut component, &defaults, &color, high);
+    let (component_pairs, component_warnings) = derive::component_colors(&mut component, &color, high);
     warnings.extend(component_warnings);
 
     let before = &color_steps.before_pass;
-    let mut component_before = ComponentTokens::defaults(&Semantic { color: before, shape: &shape, space: &preset.space, size: &preset.size });
+    let mut component_before =
+        ComponentTokens::defaults(&Semantic { color: before, shape: &shape, space: &preset.space, size: &preset.size, typography: &typography });
     derive::component_overrides(&mut component_before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);
 
@@ -92,7 +94,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         shape,
         space: preset.space,
         size: preset.size,
-        typography: preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING),
+        typography,
         elevation: ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating) },
         motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
         component,

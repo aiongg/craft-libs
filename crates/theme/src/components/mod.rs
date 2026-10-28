@@ -22,7 +22,7 @@ use std::fmt;
 
 use super::color::Rgba;
 use super::scale::Elevation;
-use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef};
+use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
@@ -44,6 +44,8 @@ pub(crate) struct Semantic<'a> {
     pub shape: &'a ShapeTokens,
     pub space: &'a SpaceTokens,
     pub size: &'a SizeTokens,
+    /// After the Text size setting.
+    pub typography: &'a TypeTokens,
 }
 
 /// The two control sizes a family offers.

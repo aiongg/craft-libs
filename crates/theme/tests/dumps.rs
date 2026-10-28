@@ -429,6 +429,7 @@ fn diff(old: &str, new: &str) -> String {
 
 fn badge_lines(out: &mut Lines, b: &BadgeTokens) {
     out.line("badge.height", len(b.height));
+    out.line("badge.pad_y", len(b.pad_y));
     out.line("badge.pad_x", len(b.pad_x));
     out.line("badge.radius", len(b.radius));
     out.line("badge.label", role(b.label));
@@ -443,8 +444,9 @@ fn badge_lines(out: &mut Lines, b: &BadgeTokens) {
 }
 
 fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
-    let KbdTokens { height, pad_x, label, radius, fill, text, .. } = k;
+    let KbdTokens { height, pad_y, pad_x, label, radius, fill, text, .. } = k;
     out.line("kbd.height", len(*height));
+    out.line("kbd.pad_y", len(*pad_y));
     out.line("kbd.pad_x", len(*pad_x));
     out.line("kbd.label", role(*label));
     out.line("kbd.radius", len(*radius));
@@ -464,6 +466,7 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
     by_size(out, "swatch.size", &s.size);
     out.line("swatch.radius", len(s.radius));
     out.line("swatch.selected_width", len(s.selected_width));
+    out.line("swatch.selected_gap", len(s.selected_gap));
     for color in SwatchColor::ALL {
         out.line(&format!("swatch.{}", color.name()), hex(s.color(color)));
     }

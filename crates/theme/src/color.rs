@@ -93,6 +93,15 @@ impl Rgba {
     }
 }
 
+/// egui's colours are premultiplied, so a translucent one comes back to its straight channels only
+/// as closely as 8 bits allow, and a fully transparent one is transparent black.
+#[cfg(feature = "ecolor")]
+impl From<ecolor::Color32> for Rgba {
+    fn from(c: ecolor::Color32) -> Rgba {
+        Rgba(c.to_srgba_unmultiplied())
+    }
+}
+
 /// Decodes one sRGB channel to linear light.
 pub fn srgb_to_linear(v: u8) -> f64 {
     let c = f64::from(v) / 255.0;

@@ -11,14 +11,18 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct KbdTokens {
-    /// Height of a keycap: the standard icon size, a caption line and a little room.
+    /// Height of a keycap: the keys' line and [`pad_y`](KbdTokens::pad_y) above and below it, so
+    /// it grows with the Text size setting.
     pub height: f32,
+    /// Above and below a keycap's line.
+    pub pad_y: f32,
     /// At the start and end of a keycap's text: `space.gap.inline`. Half of it separates keycaps.
     pub pad_x: f32,
     /// Type role of the keys: Caption, in the interface face. The macOS modifier symbols are not
     /// in the monospace face, and a chord needs no equal widths.
     pub label: TypeRole,
-    /// Corner radius of a keycap: `shape.radius.control`, at most [`values::KBD_RADIUS_MAX`].
+    /// Corner radius of a keycap: `shape.radius.control` or the theme's `kbd.radius`, at most
+    /// [`values::KBD_RADIUS_MAX`].
     pub radius: f32,
     /// Keycap fill: `surface.raised`.
     pub fill: Rgba,
@@ -42,10 +46,12 @@ impl Family for KbdTokens {
     const FIELDS: &'static [KbdField] = &[KbdField::Radius, KbdField::Fill, KbdField::Text];
 
     fn defaults(s: &Semantic<'_>) -> KbdTokens {
+        let label = TypeRole::Caption;
         KbdTokens {
-            height: s.size.icon.md,
+            height: s.typography.get(label).line_height + 2.0 * values::KBD_PAD_Y,
+            pad_y: values::KBD_PAD_Y,
             pad_x: s.space.gap.inline,
-            label: TypeRole::Caption,
+            label,
             radius: s.shape.radius.control.min(values::KBD_RADIUS_MAX),
             fill: s.color.surface.raised,
             text: s.color.text.muted,
@@ -87,7 +93,7 @@ impl Family for KbdTokens {
 
     fn set(&mut self, f: KbdField, v: OverrideValue) {
         match (f, v) {
-            (KbdField::Radius, OverrideValue::Length(r)) => self.radius = r,
+            (KbdField::Radius, OverrideValue::Length(r)) => self.radius = r.min(values::KBD_RADIUS_MAX),
             (KbdField::Fill, OverrideValue::Color(c)) => self.fill = c,
             (KbdField::Text, OverrideValue::Color(c)) => self.text = c,
             // Mismatched kinds are rejected before this is called.
