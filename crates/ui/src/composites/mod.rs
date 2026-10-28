@@ -4,9 +4,12 @@
 //! - [`Field`]: a control with its label (beside it in a label column, or above it), and help or
 //!   error text under it; the control is labelled and described by them in AccessKit.
 //! - [`FieldGroup`]: a form's fields with one label column, as wide as the widest label.
+//! - [`PropertyRow`]: an inspector row of a short label and a control that fills the width;
+//!   [`PropertyRow::pair`] puts two in a row, and [`PropertyGroup`] gives a section's glyph labels
+//!   one centre.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`field.*` for [`Field`]); each has a pure `style` function of
+//! (`field.*` for [`Field`], `property.*` for [`PropertyRow`]); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -27,5 +30,10 @@
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+mod measure;
+pub(crate) mod property_row;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod property_row_tests;
 
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

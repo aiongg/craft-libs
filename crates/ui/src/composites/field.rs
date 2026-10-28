@@ -5,8 +5,9 @@ use std::sync::Arc;
 use craft_theme::TypeRole;
 use egui::accesskit::Invalid;
 use egui::text::{LayoutJob, TextFormat};
-use egui::{AsIdSalt, Color32, Context, Galley, Id, IdSalt, InnerResponse, Label, LayerId, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{AsIdSalt, Color32, Galley, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
+use super::measure;
 use crate::behavior::FieldTab;
 use crate::controls::{Checkbox, NumberField, Select, TextField};
 use crate::direction;
@@ -235,7 +236,7 @@ impl Field {
     }
 }
 
-fn one_line(ui: &Ui, text: String, format: TextFormat) -> Arc<Galley> {
+pub(super) fn one_line(ui: &Ui, text: String, format: TextFormat) -> Arc<Galley> {
     let mut job = LayoutJob::single_section(text, format);
     job.wrap.max_width = f32::INFINITY;
     ui.fonts_mut(|f| f.layout_job(job))
@@ -266,16 +267,6 @@ pub struct FieldGroup {
     id_salt: IdSalt,
 }
 
-/// A group whose fields are being laid out.
-#[derive(Clone, Copy, Debug)]
-struct Collecting {
-    layer: LayerId,
-    /// The column measured on the last pass.
-    column: Option<f32>,
-    /// The widest label so far on this pass.
-    widest: f32,
-}
-
 impl FieldGroup {
     /// A group; `id_salt` keeps its measured column when the layout around it changes.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
@@ -283,38 +274,15 @@ impl FieldGroup {
     }
 
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-        let id = ui.make_persistent_id(self.id_salt).with("field-group-column");
-        let ctx = ui.ctx().clone();
-        let column = ctx.data(|d| d.get_temp::<f32>(id));
-        let stack = collecting_id(&ctx);
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).push(Collecting { layer: ui.layer_id(), column, widest: 0.0 }));
-        let inner = ui.scope_builder(UiBuilder::new().id_salt(self.id_salt), add_contents);
-        let widest = ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).pop()).map_or(0.0, |c| c.widest);
-        if column.is_none_or(|c| (c - widest).abs() > 0.1) {
-            ctx.data_mut(|d| d.insert_temp(id, widest));
-            if column.is_some() || widest > 0.0 {
-                ctx.request_discard("FieldGroup: label column changed");
-            }
-        }
-        inner
+        measure::group(ui, TAG, self.id_salt, add_contents)
     }
 }
 
-fn collecting_id(ctx: &Context) -> Id {
-    Id::unique("craft-ui-field-group-collecting").with(ctx.viewport_id())
-}
+const TAG: &str = "craft-ui-field-group";
 
 /// The label column of a field whose label is `own` wide: its group's, or its own outside one.
 fn column_width(ui: &Ui, own: f32) -> f32 {
-    let layer = ui.layer_id();
-    let stack = collecting_id(ui.ctx());
-    ui.data_mut(|d| match d.get_temp_mut_or_default::<Vec<Collecting>>(stack).last_mut().filter(|g| g.layer == layer) {
-        Some(group) => {
-            group.widest = group.widest.max(own);
-            group.column.unwrap_or(own)
-        }
-        None => own,
-    })
+    measure::column(ui, TAG, own).0
 }
 
 /// The components this module has stories for.

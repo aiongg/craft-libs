@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::Field;
+use craft_ui::composites::{Field, PropertyRow};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -397,5 +397,16 @@ fn field() {
         d.line("label_gap", s.label_gap).line("help_gap", s.help_gap).line("label_band", s.label_band);
         d.line("label_role", role(s.label_role)).line("message_role", role(s.message_role));
         d.line("label", s.label).line("help", s.help).line("error", s.error);
+    });
+}
+
+/// Property rows: the column widths and gaps, and the label's band, role and colour.
+#[test]
+fn property_row() {
+    check("property_row.txt", |d, t| {
+        let s = PropertyRow::style(t, ControlSize::Md);
+        d.line("glyph_width", s.glyph_width).line("word_width", s.word_width).line("min_control", s.min_control);
+        d.line("column_gap", s.column_gap).line("link_width", s.link_width).line("label_gap", s.label_gap).line("label_band", s.label_band);
+        d.line("label_role", role(s.label_role)).line("label", s.label);
     });
 }
