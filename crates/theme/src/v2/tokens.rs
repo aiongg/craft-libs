@@ -1,0 +1,685 @@
+//! Semantic tokens: the resolved values every component reads. Colours, shape, space, sizes,
+//! type roles, elevation and motion, all concrete.
+
+use super::color::Rgba;
+use super::scale::{Easing, Elevation};
+
+/// One value per status: good, warn, bad, info.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Status<T> {
+    /// Success, valid input.
+    pub good: T,
+    /// Caution, unsaved or risky state.
+    pub warn: T,
+    /// Errors and destructive actions.
+    pub bad: T,
+    /// Neutral information.
+    pub info: T,
+}
+
+impl<T> Status<T> {
+    /// The value for `kind`.
+    pub fn get(&self, kind: StatusKind) -> &T {
+        match kind {
+            StatusKind::Good => &self.good,
+            StatusKind::Warn => &self.warn,
+            StatusKind::Bad => &self.bad,
+            StatusKind::Info => &self.info,
+        }
+    }
+
+    /// Applies `f` to each value.
+    pub fn map<U>(&self, mut f: impl FnMut(&T) -> U) -> Status<U> {
+        Status { good: f(&self.good), warn: f(&self.warn), bad: f(&self.bad), info: f(&self.info) }
+    }
+}
+
+/// Names one of the four statuses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum StatusKind {
+    /// Success, valid input.
+    Good,
+    /// Caution, unsaved or risky state.
+    Warn,
+    /// Errors and destructive actions.
+    Bad,
+    /// Neutral information.
+    Info,
+}
+
+/// Window and container backgrounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SurfaceColors {
+    /// The window background.
+    pub background: Rgba,
+    /// Around the document on a canvas; follows `background` unless pinned.
+    pub canvas: Rgba,
+    /// Panels, bars and rails.
+    pub panel: Rgba,
+    /// Popups, menus and dialogs.
+    pub raised: Rgba,
+    /// Fields and wells.
+    pub sunken: Rgba,
+    /// Translucent cover behind modal surfaces.
+    pub scrim: Rgba,
+}
+
+/// Text and glyph colours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextColors {
+    /// Body text.
+    pub normal: Rgba,
+    /// Secondary text.
+    pub muted: Rgba,
+    /// Placeholders and hints; still held to the text minimum.
+    pub faint: Rgba,
+    /// Disabled text; exempt from contrast minimums.
+    pub disabled: Rgba,
+    /// Text on `accent.solid`, `accent.hover` and `accent.pressed`.
+    pub on_accent: Rgba,
+    /// Text on every `status.<s>.solid`.
+    pub on_status: Rgba,
+}
+
+/// Lines and outlines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct LineColors {
+    /// Decorative separators.
+    pub divider: Rgba,
+    /// Container borders.
+    pub border: Rgba,
+    /// The boundary of a control that must be seen to be used (fields, checkboxes).
+    pub control_edge: Rgba,
+    /// Keyboard focus ring.
+    pub focus: Rgba,
+}
+
+/// The accent family.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AccentColors {
+    /// Solid fill: primary buttons, selected indicators.
+    pub solid: Rgba,
+    /// Solid fill under the pointer.
+    pub hover: Rgba,
+    /// Solid fill while pressed.
+    pub pressed: Rgba,
+    /// Tinted background.
+    pub soft: Rgba,
+    /// Accent-coloured text and links.
+    pub text: Rgba,
+}
+
+/// Colours of one status.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StatusColors {
+    /// Text and icons.
+    pub fg: Rgba,
+    /// Tinted background.
+    pub bg: Rgba,
+    /// Border around a `bg` area.
+    pub border: Rgba,
+    /// Solid fill (badges, destructive buttons).
+    pub solid: Rgba,
+}
+
+/// Neutral interaction fills, drawn over `surface.panel`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StateColors {
+    /// Under the pointer.
+    pub hover: Rgba,
+    /// While pressed.
+    pub pressed: Rgba,
+    /// Selected items (neutral, as in pro apps).
+    pub selected: Rgba,
+    /// Selected and under the pointer.
+    pub selected_hover: Rgba,
+    /// Fill of disabled controls.
+    pub disabled_fill: Rgba,
+}
+
+/// Canvas overlays: selection paths, handles, guides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OverlayColors {
+    /// Handles and paths.
+    pub stroke: Rgba,
+    /// The outline drawn under overlays so they read on any image.
+    pub halo: Rgba,
+    /// Inside of handles.
+    pub handle_fill: Rgba,
+    /// Outline of handles; follows `stroke` unless pinned.
+    pub handle_stroke: Rgba,
+    /// Marquee selection, drawn over `halo`.
+    pub marquee: Rgba,
+    /// Ruler guides.
+    pub guide: Rgba,
+    /// Canvas grid.
+    pub grid: Rgba,
+}
+
+/// Chart and histogram colours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DataColors {
+    /// Eight categorical series.
+    pub series: [Rgba; 8],
+    /// Histogram red channel.
+    pub red: Rgba,
+    /// Histogram green channel.
+    pub green: Rgba,
+    /// Histogram blue channel.
+    pub blue: Rgba,
+    /// Histogram luminance.
+    pub luma: Rgba,
+}
+
+/// Custom window caption (title bar) colours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CaptionColors {
+    /// Close button under the pointer.
+    pub close_hover: Rgba,
+    /// Close glyph on `close_hover`.
+    pub close_text: Rgba,
+    /// Caption glyphs of an inactive window; follows `text.faint` unless pinned.
+    pub inactive: Rgba,
+}
+
+/// Bevel colours, used when `shape.edge` is [`Edge::Bevel`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct EdgeColors {
+    /// The lit edge (top and left of a raised surface).
+    pub light: Rgba,
+    /// The shaded edge (bottom and right of a raised surface).
+    pub dark: Rgba,
+}
+
+/// Every semantic colour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ColorTokens {
+    /// Backgrounds.
+    pub surface: SurfaceColors,
+    /// Text.
+    pub text: TextColors,
+    /// Lines.
+    pub line: LineColors,
+    /// Accent.
+    pub accent: AccentColors,
+    /// Statuses.
+    pub status: Status<StatusColors>,
+    /// Interaction fills.
+    pub state: StateColors,
+    /// Canvas overlays.
+    pub overlay: OverlayColors,
+    /// Charts and histograms.
+    pub data: DataColors,
+    /// Window caption.
+    pub caption: CaptionColors,
+    /// Bevel colours.
+    pub edge: EdgeColors,
+}
+
+impl ColorTokens {
+    /// Every colour set to `c`; the starting point that derivation overwrites.
+    pub(super) const fn splat(c: Rgba) -> ColorTokens {
+        let status = StatusColors { fg: c, bg: c, border: c, solid: c };
+        ColorTokens {
+            surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, scrim: c },
+            text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c },
+            line: LineColors { divider: c, border: c, control_edge: c, focus: c },
+            accent: AccentColors { solid: c, hover: c, pressed: c, soft: c, text: c },
+            status: Status { good: status, warn: status, bad: status, info: status },
+            state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
+            overlay: OverlayColors { stroke: c, halo: c, handle_fill: c, handle_stroke: c, marquee: c, guide: c, grid: c },
+            data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c },
+            caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
+            edge: EdgeColors { light: c, dark: c },
+        }
+    }
+}
+
+/// Defines [`ColorToken`] with its paths and the matching [`ColorTokens`] accessors from one
+/// list, so the enum, the paths and the struct fields cannot drift apart.
+macro_rules! color_tokens {
+    ($( #[doc = $doc:literal] $var:ident = $path:literal => $($field:ident).+ $([$idx:literal])? ;)*) => {
+        /// Names one semantic colour. The theme file addresses tokens by [`ColorToken::path`].
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub enum ColorToken {
+            $( #[doc = $doc] $var, )*
+        }
+
+        impl ColorToken {
+            /// Every colour token, in declaration order.
+            pub const ALL: &'static [ColorToken] = &[$(ColorToken::$var),*];
+
+            /// The dotted path, e.g. `"surface.panel"` or `"status.bad.fg"`.
+            pub const fn path(self) -> &'static str {
+                match self { $(ColorToken::$var => $path,)* }
+            }
+
+            /// The token whose [`path`](ColorToken::path) is `path`.
+            pub fn from_path(path: &str) -> Option<ColorToken> {
+                match path { $($path => Some(ColorToken::$var),)* _ => None }
+            }
+        }
+
+        impl ColorTokens {
+            /// The value of one token.
+            pub fn get(&self, token: ColorToken) -> Rgba {
+                match token { $(ColorToken::$var => self.$($field).+ $([$idx])?,)* }
+            }
+
+            /// Replaces the value of one token.
+            pub fn set(&mut self, token: ColorToken, value: Rgba) {
+                match token { $(ColorToken::$var => self.$($field).+ $([$idx])? = value,)* }
+            }
+        }
+    };
+}
+
+color_tokens! {
+    /// `surface.background`
+    SurfaceBackground = "surface.background" => surface.background;
+    /// `surface.canvas`
+    SurfaceCanvas = "surface.canvas" => surface.canvas;
+    /// `surface.panel`
+    SurfacePanel = "surface.panel" => surface.panel;
+    /// `surface.raised`
+    SurfaceRaised = "surface.raised" => surface.raised;
+    /// `surface.sunken`
+    SurfaceSunken = "surface.sunken" => surface.sunken;
+    /// `surface.scrim`
+    SurfaceScrim = "surface.scrim" => surface.scrim;
+    /// `text.normal`
+    TextNormal = "text.normal" => text.normal;
+    /// `text.muted`
+    TextMuted = "text.muted" => text.muted;
+    /// `text.faint`
+    TextFaint = "text.faint" => text.faint;
+    /// `text.disabled`
+    TextDisabled = "text.disabled" => text.disabled;
+    /// `text.on_accent`
+    TextOnAccent = "text.on_accent" => text.on_accent;
+    /// `text.on_status`
+    TextOnStatus = "text.on_status" => text.on_status;
+    /// `line.divider`
+    LineDivider = "line.divider" => line.divider;
+    /// `line.border`
+    LineBorder = "line.border" => line.border;
+    /// `line.control_edge`
+    LineControlEdge = "line.control_edge" => line.control_edge;
+    /// `line.focus`
+    LineFocus = "line.focus" => line.focus;
+    /// `accent.solid`
+    AccentSolid = "accent.solid" => accent.solid;
+    /// `accent.hover`
+    AccentHover = "accent.hover" => accent.hover;
+    /// `accent.pressed`
+    AccentPressed = "accent.pressed" => accent.pressed;
+    /// `accent.soft`
+    AccentSoft = "accent.soft" => accent.soft;
+    /// `accent.text`
+    AccentText = "accent.text" => accent.text;
+    /// `status.good.fg`
+    StatusGoodFg = "status.good.fg" => status.good.fg;
+    /// `status.good.bg`
+    StatusGoodBg = "status.good.bg" => status.good.bg;
+    /// `status.good.border`
+    StatusGoodBorder = "status.good.border" => status.good.border;
+    /// `status.good.solid`
+    StatusGoodSolid = "status.good.solid" => status.good.solid;
+    /// `status.warn.fg`
+    StatusWarnFg = "status.warn.fg" => status.warn.fg;
+    /// `status.warn.bg`
+    StatusWarnBg = "status.warn.bg" => status.warn.bg;
+    /// `status.warn.border`
+    StatusWarnBorder = "status.warn.border" => status.warn.border;
+    /// `status.warn.solid`
+    StatusWarnSolid = "status.warn.solid" => status.warn.solid;
+    /// `status.bad.fg`
+    StatusBadFg = "status.bad.fg" => status.bad.fg;
+    /// `status.bad.bg`
+    StatusBadBg = "status.bad.bg" => status.bad.bg;
+    /// `status.bad.border`
+    StatusBadBorder = "status.bad.border" => status.bad.border;
+    /// `status.bad.solid`
+    StatusBadSolid = "status.bad.solid" => status.bad.solid;
+    /// `status.info.fg`
+    StatusInfoFg = "status.info.fg" => status.info.fg;
+    /// `status.info.bg`
+    StatusInfoBg = "status.info.bg" => status.info.bg;
+    /// `status.info.border`
+    StatusInfoBorder = "status.info.border" => status.info.border;
+    /// `status.info.solid`
+    StatusInfoSolid = "status.info.solid" => status.info.solid;
+    /// `state.hover`
+    StateHover = "state.hover" => state.hover;
+    /// `state.pressed`
+    StatePressed = "state.pressed" => state.pressed;
+    /// `state.selected`
+    StateSelected = "state.selected" => state.selected;
+    /// `state.selected_hover`
+    StateSelectedHover = "state.selected_hover" => state.selected_hover;
+    /// `state.disabled_fill`
+    StateDisabledFill = "state.disabled_fill" => state.disabled_fill;
+    /// `overlay.stroke`
+    OverlayStroke = "overlay.stroke" => overlay.stroke;
+    /// `overlay.halo`
+    OverlayHalo = "overlay.halo" => overlay.halo;
+    /// `overlay.handle_fill`
+    OverlayHandleFill = "overlay.handle_fill" => overlay.handle_fill;
+    /// `overlay.handle_stroke`
+    OverlayHandleStroke = "overlay.handle_stroke" => overlay.handle_stroke;
+    /// `overlay.marquee`
+    OverlayMarquee = "overlay.marquee" => overlay.marquee;
+    /// `overlay.guide`
+    OverlayGuide = "overlay.guide" => overlay.guide;
+    /// `overlay.grid`
+    OverlayGrid = "overlay.grid" => overlay.grid;
+    /// `data.series.0`
+    DataSeries0 = "data.series.0" => data.series[0];
+    /// `data.series.1`
+    DataSeries1 = "data.series.1" => data.series[1];
+    /// `data.series.2`
+    DataSeries2 = "data.series.2" => data.series[2];
+    /// `data.series.3`
+    DataSeries3 = "data.series.3" => data.series[3];
+    /// `data.series.4`
+    DataSeries4 = "data.series.4" => data.series[4];
+    /// `data.series.5`
+    DataSeries5 = "data.series.5" => data.series[5];
+    /// `data.series.6`
+    DataSeries6 = "data.series.6" => data.series[6];
+    /// `data.series.7`
+    DataSeries7 = "data.series.7" => data.series[7];
+    /// `data.red`
+    DataRed = "data.red" => data.red;
+    /// `data.green`
+    DataGreen = "data.green" => data.green;
+    /// `data.blue`
+    DataBlue = "data.blue" => data.blue;
+    /// `data.luma`
+    DataLuma = "data.luma" => data.luma;
+    /// `caption.close_hover`
+    CaptionCloseHover = "caption.close_hover" => caption.close_hover;
+    /// `caption.close_text`
+    CaptionCloseText = "caption.close_text" => caption.close_text;
+    /// `caption.inactive`
+    CaptionInactive = "caption.inactive" => caption.inactive;
+    /// `edge.light`
+    EdgeLight = "edge.light" => edge.light;
+    /// `edge.dark`
+    EdgeDark = "edge.dark" => edge.dark;
+}
+
+/// Corner radii in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RadiusSet {
+    /// Buttons other than pills, fields, small controls.
+    pub control: f32,
+    /// Popups and menus.
+    pub popup: f32,
+    /// Windows and dialogs.
+    pub window: f32,
+    /// Docked panels.
+    pub panel: f32,
+    /// Push buttons; [`Radius::Full`](super::scale::Radius::Full) gives pills.
+    pub button: f32,
+}
+
+/// How surfaces draw their edge. Only the `Surface` primitive reads it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Edge {
+    /// No edge effect.
+    Flat,
+    /// A two-tone bevel: `light` on the lit sides, `dark` on the shaded ones.
+    Bevel {
+        /// The lit edge colour.
+        light: Rgba,
+        /// The shaded edge colour.
+        dark: Rgba,
+        /// Line width in logical pixels.
+        width: f32,
+    },
+}
+
+/// Corner radii and edge style.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ShapeTokens {
+    /// Corner radii.
+    pub radius: RadiusSet,
+    /// Edge style.
+    pub edge: Edge,
+}
+
+/// Gaps between neighbouring elements, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gaps {
+    /// Between items on one line.
+    pub inline: f32,
+    /// Between stacked rows.
+    pub stack: f32,
+    /// Between groups.
+    pub section: f32,
+}
+
+/// Inner padding, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pads {
+    /// Inside controls.
+    pub control: f32,
+    /// Inside panels.
+    pub panel: f32,
+    /// Inside dialogs.
+    pub dialog: f32,
+}
+
+/// Spacing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpaceTokens {
+    /// Gaps.
+    pub gap: Gaps,
+    /// Padding.
+    pub pad: Pads,
+}
+
+/// Control heights, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ControlSizes {
+    /// Small controls.
+    pub sm: f32,
+    /// Standard controls.
+    pub md: f32,
+}
+
+/// Icon sizes, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IconSizes {
+    /// Inline and small-control icons.
+    pub sm: f32,
+    /// Standard icons.
+    pub md: f32,
+    /// Rail and toolbar icons.
+    pub lg: f32,
+}
+
+/// Tool-rail sizes, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RailSizes {
+    /// Rail width.
+    pub width: f32,
+    /// Square button inside the rail.
+    pub button: f32,
+}
+
+/// Bar heights, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BarSizes {
+    /// Window title bar.
+    pub title: f32,
+    /// Tab strip.
+    pub tab: f32,
+    /// Status bar.
+    pub status: f32,
+    /// Tool options bar.
+    pub options: f32,
+}
+
+/// Fixed sizes of controls and chrome.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SizeTokens {
+    /// Control heights.
+    pub control: ControlSizes,
+    /// Icon sizes.
+    pub icon: IconSizes,
+    /// Tool rail.
+    pub rail: RailSizes,
+    /// Bars.
+    pub bar: BarSizes,
+    /// Panel header height.
+    pub panel_header: f32,
+}
+
+/// The font a type role uses. `craft_ui::fonts` maps each slot to a face.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FontSlot {
+    /// The interface face, regular weight.
+    Ui,
+    /// The interface face, semibold.
+    UiSemibold,
+    /// The monospace face.
+    Mono,
+}
+
+/// Size, line height and font of one type role.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TypeStyle {
+    /// Font size in points.
+    pub size: f32,
+    /// Line height in points.
+    pub line_height: f32,
+    /// Font slot (family and weight).
+    pub font: FontSlot,
+}
+
+/// Names one type role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TypeRole {
+    /// Small print, badges.
+    Caption,
+    /// Control labels.
+    Label,
+    /// Body text.
+    Body,
+    /// Emphasised body text.
+    BodyStrong,
+    /// Panel and dialog titles.
+    Title,
+    /// Section headings.
+    Heading,
+    /// Code, numbers in tables.
+    Mono,
+}
+
+/// Every type role.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TypeTokens {
+    /// Small print, badges.
+    pub caption: TypeStyle,
+    /// Control labels.
+    pub label: TypeStyle,
+    /// Body text.
+    pub body: TypeStyle,
+    /// Emphasised body text.
+    pub body_strong: TypeStyle,
+    /// Panel and dialog titles.
+    pub title: TypeStyle,
+    /// Section headings.
+    pub heading: TypeStyle,
+    /// Code, numbers in tables.
+    pub mono: TypeStyle,
+}
+
+impl TypeTokens {
+    /// The style of `role`.
+    pub fn get(&self, role: TypeRole) -> TypeStyle {
+        match role {
+            TypeRole::Caption => self.caption,
+            TypeRole::Label => self.label,
+            TypeRole::Body => self.body,
+            TypeRole::BodyStrong => self.body_strong,
+            TypeRole::Title => self.title,
+            TypeRole::Heading => self.heading,
+            TypeRole::Mono => self.mono,
+        }
+    }
+
+    /// Every size and line height multiplied by `factor` and rounded to `step` points.
+    pub(super) fn scaled(&self, factor: f32, step: f32) -> TypeTokens {
+        let round = |v: f32| (v * factor / step).round() * step;
+        let s = |t: TypeStyle| TypeStyle { size: round(t.size), line_height: round(t.line_height), font: t.font };
+        TypeTokens {
+            caption: s(self.caption),
+            label: s(self.label),
+            body: s(self.body),
+            body_strong: s(self.body_strong),
+            title: s(self.title),
+            heading: s(self.heading),
+            mono: s(self.mono),
+        }
+    }
+}
+
+/// Shadows of floating surfaces.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ElevationTokens {
+    /// Popups and menus.
+    pub popup: Elevation,
+    /// Dialogs.
+    pub dialog: Elevation,
+    /// Floating panels and toolbars.
+    pub floating: Elevation,
+}
+
+/// One animation: how long and along which curve.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Motion {
+    /// Duration in milliseconds; 0 with reduced motion.
+    pub millis: u32,
+    /// Easing curve.
+    pub easing: Easing,
+}
+
+/// Animations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MotionTokens {
+    /// Hover and press feedback.
+    pub hover: Motion,
+    /// Popups, menus and panels opening.
+    pub open: Motion,
+    /// Elements moving within the screen.
+    pub r#move: Motion,
+}
+
+/// Every resolved semantic token.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Tokens {
+    /// Colours.
+    pub color: ColorTokens,
+    /// Corner radii and edge.
+    pub shape: ShapeTokens,
+    /// Gaps and padding.
+    pub space: SpaceTokens,
+    /// Control and chrome sizes.
+    pub size: SizeTokens,
+    /// Type roles.
+    pub typography: TypeTokens,
+    /// Shadows.
+    pub elevation: ElevationTokens,
+    /// Animations.
+    pub motion: MotionTokens,
+}
+
+impl Tokens {
+    /// The value of one colour token.
+    pub fn color(&self, token: ColorToken) -> Rgba {
+        self.color.get(token)
+    }
+}
