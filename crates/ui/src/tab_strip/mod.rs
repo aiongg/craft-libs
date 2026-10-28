@@ -1,10 +1,18 @@
-//! Tabs and tab strips.
+//! Tabs and tab strips: document and panel tabs in one strip.
 //!
 //! - [`Tab`]: one tab as data the host passes each frame (key, label, optional detail text, icon,
 //!   modified mark, closable, progress). [`Tab::show_at`] draws it at a rect in the state a
 //!   strip gives it ([`TabView`]) and reports its × part; `tab.*` are its tokens, dumped from
 //!   [`Tab::style`] ([`TabStyle`]).
+//! - [`layout`]: the pure rules of the strip, with no painting. [`TabKind`] sets the per-kind
+//!   defaults, [`StripPlan`] places the tabs, the overflow button and the host's areas,
+//!   [`StripPlan::slot_at`] and [`StripPlan::tab_at`] resolve a position, [`drag_zone`] tells where
+//!   a tab drag stands, [`reorder_key`] reads the reorder keys and [`step_focus`] moves the keyboard
+//!   focus over the shown tabs and the overflow button.
 
+pub mod layout;
+#[cfg(test)]
+mod layout_tests;
 mod tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tab_tests;
@@ -16,4 +24,8 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
     tab::stories()
 }
 
+pub use layout::{
+    CloseSide, DragZone, FitMode, FocusMove, FocusSpot, OverflowMenu, OverflowPlace, PlacedTab, StripPlan, StripPlanInput, TabKind, close_side,
+    drag_zone, focus_move, focus_spot, reorder_key, step_focus, strip_key,
+};
 pub use tab::{Tab, TabLayout, TabMetrics, TabParts, TabResponse, TabStripText, TabStyle, TabView};
