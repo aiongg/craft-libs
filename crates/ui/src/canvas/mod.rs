@@ -23,6 +23,7 @@
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
+//! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -62,6 +63,7 @@ pub(crate) mod transform_fields;
 mod turn;
 mod units;
 mod view;
+pub(crate) mod warp;
 
 pub use ::kurbo;
 pub use bezier::{
@@ -81,3 +83,4 @@ pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, Transform
 pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
+pub use warp::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpStyle};

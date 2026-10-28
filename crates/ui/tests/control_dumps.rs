@@ -609,6 +609,21 @@ fn transform() {
     });
 }
 
+/// Warp grids: the patch boundaries and thirds, the anchor and handle end looks, the arm, the
+/// reach and the reveal distance.
+#[test]
+fn warp() {
+    check("warp.txt", |d, t| {
+        let s = craft_ui::canvas::WarpGrid::style(t);
+        d.line("line", s.line).line("minor", s.minor);
+        for (key, h) in [("anchor", &s.anchor), ("control", &s.control)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("arm", s.arm).line("hit", s.hit).line("reveal", s.reveal).line("flatten", s.flatten);
+    });
+}
+
 /// List rows: the heights, thumbnails, columns and gaps, the type roles, the state fills and the
 /// label, icon, divider, thumbnail, drop marker and drop halo colours, and the drag ghost.
 #[test]
