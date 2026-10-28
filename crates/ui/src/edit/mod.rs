@@ -351,9 +351,11 @@ pub fn ending(ctx: &Context, id: GestureId) -> Ending {
 
 /// The value an interrupted gesture `id` commits with that no update reported to the host: a
 /// debounced value still waiting, or every change under
-/// [`on_release_only`](EditPolicy::on_release_only). The host applies it before keeping the
+/// [`on_release_only`](EditPolicy::on_release_only) or of a gesture that
+/// [holds its updates](Gesture::hold_updates). The host applies it before keeping the
 /// gesture as one undo step. `None` when the host has seen the last value, when the gesture ends
-/// as a cancel, or when `T` isn't the control's value type.
+/// as a cancel, or when `T` isn't the type the control reports its value in
+/// ([`Gesture::finish_as`]).
 pub fn unreported<T: Clone + 'static>(ctx: &Context, id: GestureId) -> Option<T> {
     live::unreported(ctx, id).and_then(|value| value.downcast_ref::<T>().cloned())
 }

@@ -44,7 +44,8 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 /// - [`begin`](Gesture::begin) on the start of a drag or the first keypress of a typing run;
 ///   the start value is the host's value.
 /// - [`update`](Gesture::update) while active; updates go out at the policy's [`UpdateRate`],
-///   none with [`on_release_only`](EditPolicy::on_release_only).
+///   none with [`on_release_only`](EditPolicy::on_release_only) or for a gesture that
+///   [holds them](Gesture::hold_updates).
 /// - [`commit`](Gesture::commit) on release or Enter, and on focus loss unless the control
 ///   [cancels on it](Gesture::cancel_on_focus_loss). The commit goes out in the same frame and
 ///   carries the final value, which an update may not have carried.
@@ -141,6 +142,8 @@ struct Active<T> {
     focused: bool,
     /// Whether the pointer has dragged the control during the gesture.
     dragged: bool,
+    /// Reports no updates, whatever the policy ([`Gesture::hold_updates`]).
+    held: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -295,7 +298,19 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             ending: false,
             focused: self.focused_owner().is_some(),
             dragged: self.dragged(),
+            held: false,
         });
+    }
+
+    /// Makes the active gesture report no updates, whatever the policy says, as
+    /// [`on_release_only`](EditPolicy::on_release_only) does: its commit carries its value. For a
+    /// gesture whose values in between mean nothing to the host, such as a number field's typing
+    /// run (`-` and `1,` aren't numbers yet), while the control's other gestures report at the
+    /// policy's rate. Lasts until the gesture ends.
+    pub fn hold_updates(&mut self) {
+        if let Phase::Active(a) = &mut self.stored.phase {
+            a.held = true;
+        }
     }
 
     /// The gesture's new value and the modifiers held; nothing while idle or once committed.
@@ -356,15 +371,23 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Stores the state and returns this frame's event.
-    pub fn finish(mut self) -> Option<EditEvent<T>> {
+    pub fn finish(self) -> Option<EditEvent<T>> {
+        self.finish_as(|value| value)
+    }
+
+    /// [`finish`](Gesture::finish) for a control whose events carry its value as another type
+    /// (a number field's blank `None` reported as the host's value): `report` maps this frame's
+    /// event, and the value an interrupted gesture commits with that no update reported, so the
+    /// host gets that value in the type of the events it handles ([`unreported`](super::unreported)).
+    pub fn finish_as<U: Clone + Send + Sync + 'static>(mut self, report: impl Fn(T) -> U) -> Option<EditEvent<U>> {
         self.apply_focus();
         let event = self.resolve();
         self.schedule();
         self.lock_focus();
-        self.record_live();
+        self.record_live(&report);
         let Self { ctx, key, stored, .. } = self;
         ctx.data_mut(|d| d.insert_temp(key, stored));
-        event
+        event.map(|event| event.map(report))
     }
 
     /// Leaves the restoring state once the host has acted on the cancel.
@@ -457,7 +480,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             UpdateRate::Debounced(wait) => self.now - a.changed_at >= wait.as_secs_f64(),
             UpdateRate::Realtime => true,
         };
-        if self.policy.on_release_only || a.current == a.reported || !due {
+        if self.policy.on_release_only || a.held || a.current == a.reported || !due {
             return None;
         }
         a.reported = a.current.clone();
@@ -485,7 +508,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return;
         }
         let Phase::Active(a) = &self.stored.phase else { return };
-        if self.policy.on_release_only || a.current == a.reported {
+        if self.policy.on_release_only || a.held || a.current == a.reported {
             return;
         }
         match self.policy.update {
@@ -514,7 +537,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
 
     /// Records the active gesture live in this pass with how it ends if interrupted (a commit
     /// carries the value no update reported), or drops the entry of one that ended.
-    fn record_live(&mut self) {
+    fn record_live<U: Clone + Send + Sync + 'static>(&mut self, report: &impl Fn(T) -> U) {
         let dragged = self.dragged();
         let cancel_on_focus_loss = self.cancel_on_focus_loss;
         match &mut self.stored.phase {
@@ -522,7 +545,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                 a.dragged |= dragged;
                 let (ending, unreported) = match a.focused && !a.dragged && !cancel_on_focus_loss {
                     true => {
-                        let unreported = (a.current != a.reported).then(|| Arc::new(a.current.clone()) as live::Value);
+                        let unreported = (a.current != a.reported).then(|| Arc::new(report(a.current.clone())) as live::Value);
                         (Ending::Commit { changed: a.current != a.start }, unreported)
                     }
                     false => (Ending::Cancel, None),
