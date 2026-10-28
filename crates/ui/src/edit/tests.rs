@@ -1015,3 +1015,113 @@ fn gesture_ids_grow_across_contexts_and_memory_resets() {
         assert_eq!(doc.now, value);
     }
 }
+
+/// One control editing the first of two values under a [`GestureHost`]; another control (an
+/// options bar) sets the second after it in a frame.
+struct Pad {
+    ctx: Context,
+    doc: Doc<(i32, i32)>,
+    host: GestureHost<Doc<(i32, i32)>>,
+    commit_on_interrupt: bool,
+}
+
+impl Pad {
+    fn new(commit_on_interrupt: bool) -> Self {
+        Self { ctx: Context::default(), doc: Doc::new((0, 0)), host: GestureHost::new(), commit_on_interrupt }
+    }
+
+    fn steps(&self) -> usize {
+        self.doc.undo.len()
+    }
+
+    /// One frame: the control, driven by `drive` when drawn, then the options bar's `set`. Returns
+    /// the control's event and its gesture's id after `drive`.
+    fn frame(&mut self, draw: bool, set: Option<i32>, drive: impl FnOnce(&mut Gesture<i32>)) -> (Option<EditEvent<i32>>, Option<GestureId>) {
+        let (mut out, mut drive) = ((None, None), Some(drive));
+        let output = self.ctx.clone().run_ui(RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            if draw {
+                let mut gesture =
+                    Gesture::load(ui, Id::unique("pad"), &self.doc.now.0, EditPolicy::default()).commit_on_interrupt(self.commit_on_interrupt);
+                if let Some(drive) = drive.take() {
+                    drive(&mut gesture);
+                }
+                out.1 = gesture.id();
+                out.0 = gesture.finish();
+                if let Some(event) = out.0.clone() {
+                    self.host.handle(&ctx, &mut self.doc, event, |doc: &mut Doc<(i32, i32)>, v| doc.apply(|now| now.0 = v));
+                }
+            }
+            if let Some(value) = set {
+                self.host
+                    .handle(&ctx, &mut self.doc, EditEvent::set(value, Modifiers::NONE), |doc: &mut Doc<(i32, i32)>, v| doc.apply(|now| now.1 = v));
+            }
+            self.host.end_frame(&ctx, &mut self.doc);
+        });
+        output.drop_without_applying_deltas();
+        out
+    }
+
+    /// Begins a gesture without the focus (a drag) and has the host show `to`.
+    fn preview(&mut self, to: i32) -> GestureId {
+        let (event, _) = self.frame(true, None, Gesture::begin);
+        let Some(EditEvent::Begin { id }) = event else { panic!("expected Begin, got {event:?}") };
+        assert_eq!(self.frame(true, None, |g| g.update(to, Modifiers::NONE)).0, update(id, to));
+        id
+    }
+}
+
+/// An interrupted gesture of a control that commits on interrupt is kept, where the focus rule
+/// would revert it: when another control sets a value, and when its control is no longer drawn.
+#[test]
+fn commit_on_interrupt_keeps_an_interrupted_gesture() {
+    for commit_on_interrupt in [false, true] {
+        let mut pad = Pad::new(commit_on_interrupt);
+        let id = pad.preview(5);
+        let ending = match commit_on_interrupt {
+            true => Ending::Commit { changed: true },
+            false => Ending::Cancel,
+        };
+        assert_eq!(super::ending(&pad.ctx, id), ending);
+        pad.frame(true, Some(9), |_| {});
+        let kept = if commit_on_interrupt { 5 } else { 0 };
+        assert_eq!(pad.doc.now, (kept, 9), "commit on interrupt: {commit_on_interrupt}");
+        assert_eq!(pad.steps(), if commit_on_interrupt { 2 } else { 1 });
+
+        let mut pad = Pad::new(commit_on_interrupt);
+        pad.preview(5);
+        pad.frame(false, None, |_| {});
+        assert_eq!((pad.doc.now, pad.steps()), ((kept, 0), usize::from(commit_on_interrupt)), "commit on interrupt: {commit_on_interrupt}");
+    }
+}
+
+/// A gesture the host ended for another control's change is over, and its control carries the
+/// input on: the next change begins a new gesture from the host's value, which reaches the
+/// document as a step of its own; a carried-on gesture that ends unchanged reports nothing.
+#[test]
+fn a_control_whose_gesture_the_host_ended_begins_a_new_one_at_its_next_change() {
+    for commit_on_interrupt in [true, false] {
+        let mut pad = Pad::new(commit_on_interrupt);
+        let first = pad.preview(5);
+        // The host ended the gesture: kept, or reverted.
+        let kept = if commit_on_interrupt { 5 } else { 0 };
+        assert_eq!(pad.frame(true, Some(9), |_| {}), (None, Some(first)));
+        assert_eq!(pad.doc.now, (kept, 9));
+        let (event, next) = pad.frame(true, None, |_| {});
+        let next = next.expect("the input goes on");
+        assert!(event.is_none() && next > first, "{event:?} {next}");
+        assert_eq!(pad.frame(true, None, |g| g.update(7, Modifiers::NONE)), (Some(EditEvent::begin(next)), Some(next)));
+        assert_eq!(pad.frame(true, None, |_| {}).0, update(next, 7));
+        assert_eq!(pad.frame(true, None, Gesture::commit).0, commit(next, 7, true));
+        assert_eq!(pad.doc.now, (7, 9));
+        pad.doc.revert_to(pad.steps() - 1);
+        assert_eq!(pad.doc.now, (kept, 9), "commit on interrupt: {commit_on_interrupt}");
+
+        let mut pad = Pad::new(commit_on_interrupt);
+        pad.preview(5);
+        pad.frame(true, Some(9), |_| {});
+        assert_eq!(pad.frame(true, None, Gesture::commit).0, None);
+        assert_eq!(pad.frame(true, None, |_| {}), (None, None));
+        assert_eq!(pad.doc.now, (kept, 9));
+    }
+}

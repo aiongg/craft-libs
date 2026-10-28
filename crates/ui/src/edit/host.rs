@@ -52,7 +52,10 @@ pub trait UndoMarks {
 /// - A dialog's [`OuterGesture`] goes through [`begin_outer`](GestureHost::begin_outer),
 ///   [`commit`](GestureHost::commit) (OK) and [`cancel`](GestureHost::cancel) (Cancel, Esc).
 ///
-/// Once the host has ended a gesture itself, later events for it are ignored.
+/// Once the host has ended a gesture itself, later events for it are ignored. Its control learns
+/// of the end on its next load and carries the input on in a new gesture, which begins at its
+/// next change ([`Gesture`](super::Gesture)): a drag or a pen draft that goes on after another
+/// control's change reaches the document again.
 ///
 /// On undo during a gesture, and before switching documents, the host cancels the
 /// [active](GestureHost::active) gesture against its document and calls
@@ -213,6 +216,7 @@ impl<U: UndoMarks> GestureHost<U> {
             }
             Ending::Commit { changed: false } | Ending::Cancel => doc.revert_to(a.mark),
         }
+        live::end(ctx, a.id);
         self.ended = Some(a.id);
     }
 

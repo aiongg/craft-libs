@@ -129,14 +129,13 @@ impl Family for LevelsTokens {
         }
     }
 
-    /// The thumb edge on the panel (WCAG 1.4.11), 3:1 and 4.5:1 with high contrast: it is what
-    /// shows a black face on a dark panel and a white one on a light panel. The faces are image
-    /// tones and the ring a hover cue, so they have no minimum.
+    /// The thumb edge on the panel and on a raised surface (a dialog; WCAG 1.4.11), 3:1 and 4.5:1
+    /// with high contrast: it is what shows a black face on a dark surface and a white one on a
+    /// light one. The faces are image tones and the ring a hover cue, so they have no minimum.
     fn pairs() -> Vec<ContrastPair> {
-        vec![ContrastPair {
-            fg: TokenRef::Component(ComponentField::Levels(LevelsField::ThumbEdge)),
-            bg: TokenRef::Color(ColorToken::SurfacePanel),
-            minimum: values::NON_TEXT_MIN,
-        }]
+        let edge = TokenRef::Component(ComponentField::Levels(LevelsField::ThumbEdge));
+        [ColorToken::SurfacePanel, ColorToken::SurfaceRaised]
+            .map(|bg| ContrastPair { fg: edge, bg: TokenRef::Color(bg), minimum: values::NON_TEXT_MIN })
+            .to_vec()
     }
 }

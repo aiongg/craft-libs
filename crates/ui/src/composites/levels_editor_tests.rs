@@ -24,6 +24,8 @@ struct Host {
     focus: egui::Color32,
     scoped: bool,
     enabled: bool,
+    /// The host stops drawing the editor.
+    hidden: bool,
     /// [`LevelsEditor::clipping`] after the last frame.
     clip: Option<LevelsClip>,
     undo: Option<Undo>,
@@ -68,6 +70,7 @@ impl Host {
             focus: egui::Color32::TRANSPARENT,
             scoped: false,
             enabled: true,
+            hidden: false,
             clip: None,
             undo: None,
         }
@@ -78,6 +81,10 @@ impl Host {
     }
 
     fn show(&mut self, ui: &mut Ui) {
+        if self.hidden {
+            self.clip = LevelsEditor::clipping(ui.ctx(), self.id);
+            return;
+        }
         let numbers = LocaleNumbers::from_tag("en");
         self.focus = Tokens::of(ui).color.line.focus.to_egui();
         let levels = self.levels;
@@ -281,6 +288,49 @@ fn a_press_on_a_row_during_a_typing_run_commits_the_run_then_drags_from_it() {
     assert_eq!(harness.state().levels, Levels { in_black: 30.0, in_white: 220.0, out_black: 20.0, out_white: 200.0, ..IDENTITY });
 }
 
+/// The input row is drawn before the output fields: its press waits one pass for the typing run's
+/// commit, and begins in the pass after.
+#[test]
+fn a_press_on_the_input_row_during_an_output_field_run_begins_one_pass_after_the_press() {
+    let mut harness = rig(IDENTITY);
+    let field_at = node(&harness, Role::SpinButton, "Output black").rect().center();
+    click(&mut harness, field_at);
+    harness.event(Event::Text("20".into()));
+    harness.run();
+    harness.state_mut().events.clear();
+    let from = thumb(&harness, "Input white");
+    move_to(&mut harness, from);
+    pointer(&mut harness, from, true, Modifiers::NONE);
+    assert_eq!(harness.state().kinds(), ["Commit"], "the press pass ends the run only");
+    harness.step();
+    assert_eq!(harness.state().kinds(), ["Commit", "Begin"], "the press begins one pass later");
+    release(&mut harness, from);
+    assert_eq!(harness.state().levels, Levels { out_black: 20.0, ..IDENTITY });
+}
+
+#[test]
+fn a_thumb_edit_leaves_the_other_values_as_they_are() {
+    let start = Levels { in_black: -10.0, gamma: f64::NAN, in_white: 300.0, out_black: -20.0, out_white: 300.0 };
+    let mut harness = rig(start);
+    let from = thumb(&harness, "Output black");
+    drag(&mut harness, from, from + vec2(40.0, 0.0));
+    let levels = harness.state().levels;
+    assert!(levels.out_black > 0.0, "{levels:?}");
+    assert_eq!(levels.out_white, 300.0, "the other output value stays out of range");
+    assert_eq!((levels.in_black, levels.in_white), (-10.0, 300.0));
+    assert!(levels.gamma.is_nan());
+
+    harness.state_mut().events.clear();
+    node(&harness, Role::Slider, "Input black").focus();
+    harness.run();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    let levels = harness.state().levels;
+    assert_eq!(levels.in_black, 1.0, "a key steps from the thumb as drawn");
+    assert!(levels.gamma.is_nan());
+    assert_eq!((levels.in_white, levels.out_white), (300.0, 300.0));
+}
+
 #[test]
 fn alt_during_an_input_end_drag_reports_which_end_clips() {
     let mut harness = rig(Levels { in_black: 20.0, in_white: 200.0, out_black: 30.0, out_white: 220.0, ..IDENTITY });
@@ -301,6 +351,18 @@ fn alt_during_an_input_end_drag_reports_which_end_clips() {
         harness.run();
         assert_eq!(harness.state().clip, None, "{name}: after the release");
     }
+
+    // An editor hidden during the drag reports no clipping after it.
+    let from = thumb(&harness, "Input black");
+    harness.event(Event::ModifiersChanged(Modifiers::ALT));
+    move_to(&mut harness, from);
+    pointer(&mut harness, from, true, Modifiers::ALT);
+    move_to(&mut harness, from + vec2(6.0, 0.0));
+    move_to(&mut harness, from + vec2(12.0, 0.0));
+    assert_eq!(harness.state().clip, Some(LevelsClip::Shadows));
+    harness.state_mut().hidden = true;
+    harness.run();
+    assert_eq!(harness.state().clip, None, "the host stops drawing the editor");
 }
 
 #[test]
@@ -344,6 +406,17 @@ fn the_group_histogram_thumbs_and_fields_are_in_the_accesskit_tree_in_tab_order(
     harness.run();
     assert_eq!(harness.state().kinds(), ["Set"]);
     assert_eq!(harness.state().levels.gamma, 0.99);
+}
+
+#[test]
+fn a_pressed_thumb_has_the_focus_but_no_focus_ring() {
+    let mut harness = rig(IDENTITY);
+    let ring = harness.state().focus;
+    let from = thumb(&harness, "Input white");
+    press(&mut harness, from);
+    release(&mut harness, from);
+    let (target, rings) = a11y::focus_rings(&harness).expect("the pressed thumb has the focus");
+    assert!(rings.iter().all(|r| r.stroke.color != ring), "a pointer press shows no focus ring at {target:?}: {rings:?}");
 }
 
 #[test]
