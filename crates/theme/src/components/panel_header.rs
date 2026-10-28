@@ -1,7 +1,6 @@
 //! Panel headers: the title row of a flyout or floating panel. Sizes only (no colours): no theme overrides them.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
-use crate::values;
 
 /// Panel headers tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,7 +12,7 @@ pub struct PanelHeaderTokens {
     pub pad: f32,
     /// Between the buttons: `panel_header.gap`.
     pub gap: f32,
-    /// Side of the float, close and menu buttons: `panel_header.button`.
+    /// Side of the menu, float and close buttons (the small control height): `panel_header.button`.
     pub button: f32,
 }
 
@@ -25,15 +24,9 @@ impl Family for PanelHeaderTokens {
     type Field = PanelHeaderField;
     const FIELDS: &'static [PanelHeaderField] = &[];
 
-    /// The height is the size preset's `panel_header`; the buttons scale from their Compact side with the control height.
+    /// The height is the size preset's `panel_header`; the buttons are a small control square, as an `IconButton` of `ControlSize::Sm`.
     fn defaults(s: &Semantic<'_>) -> PanelHeaderTokens {
-        let k = s.size.control.md / values::SECTION_BASE_CONTROL;
-        PanelHeaderTokens {
-            height: s.size.panel_header,
-            pad: s.space.pad.control,
-            gap: s.space.gap.inline,
-            button: (values::PANEL_HEADER_BUTTON * k).round(),
-        }
+        PanelHeaderTokens { height: s.size.panel_header, pad: s.space.pad.control, gap: s.space.gap.inline, button: s.size.control.sm }
     }
 
     fn path(f: PanelHeaderField) -> String {

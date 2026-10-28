@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::{Field, PropertyRow};
+use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -408,5 +408,26 @@ fn property_row() {
         d.line("glyph_width", s.glyph_width).line("word_width", s.word_width).line("min_control", s.min_control);
         d.line("column_gap", s.column_gap).line("link_width", s.link_width).line("label_gap", s.label_gap).line("label_band", s.label_band);
         d.line("label_role", role(s.label_role)).line("label", s.label);
+    });
+}
+
+/// Section headers: the row, chevron and title sizes, the hairline and the colours.
+#[test]
+fn section_header() {
+    check("section_header.txt", |d, t| {
+        let s = SectionHeader::style(t, 1.0);
+        d.line("row_height", s.row_height).line("chevron", s.chevron).line("chevron_box", s.chevron_box).line("title_offset", s.title_offset);
+        d.line("hairline", s.hairline.width).line("hairline_color", s.hairline.color).line("chevron_color", s.chevron_color);
+        d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Panel headers: the height, padding, gap and button size, the title's role and colour.
+#[test]
+fn panel_header() {
+    check("panel_header.txt", |d, t| {
+        let s = PanelHeader::style(t);
+        d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
+        d.line("title_role", role(s.title_role)).line("title", s.title);
     });
 }

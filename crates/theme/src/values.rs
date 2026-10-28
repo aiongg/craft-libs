@@ -464,8 +464,6 @@ pub const SECTION_CHEVRON: f32 = 11.0;
 pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
-/// Compact side of a panel header's float, close and menu buttons (DesignCraft's flyout header).
-pub const PANEL_HEADER_BUTTON: f32 = 18.0;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;

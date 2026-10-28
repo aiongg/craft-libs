@@ -131,6 +131,8 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::number_field::stories());
     all.extend(composites::field::stories());
     all.extend(composites::property_row::stories());
+    all.extend(composites::section_header::stories());
+    all.extend(composites::panel_header::stories());
     all
 }
 
@@ -171,6 +173,8 @@ const DECLARED: &[&[&str]] = &[
     controls::number_field::COMPONENTS,
     composites::field::COMPONENTS,
     composites::property_row::COMPONENTS,
+    composites::section_header::COMPONENTS,
+    composites::panel_header::COMPONENTS,
 ];
 
 /// Every component the crate's modules declare, in [`registry`] order.

@@ -542,7 +542,7 @@ pub(super) fn show_inspector(ui: &mut Ui, args: &mut Args) {
                     |ui, _| number("w", "Width", v.w).show(ui),
                     |ui| {
                         ui.add(
-                            IconButton::new(if v.linked { Icon::Lock } else { Icon::LockOpen }, "Keep proportions")
+                            IconButton::new(if v.linked { Icon::Link } else { Icon::Unlink }, "Link width and height")
                                 .size(ControlSize::Sm)
                                 .toggle(&mut v.linked),
                         )

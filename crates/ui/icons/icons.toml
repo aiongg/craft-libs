@@ -251,6 +251,22 @@ carbon = "link"
 tabler = "link"
 
 [[icon]]
+name = "unlink"
+directional = false
+lucide = "unlink"
+phosphor = "link-break"
+carbon = "unlink"
+tabler = "link-off"
+
+[[icon]]
+name = "float"
+directional = false
+lucide = "external-link"
+phosphor = "arrow-square-out"
+carbon = "launch"
+tabler = "external-link"
+
+[[icon]]
 name = "image"
 directional = false
 lucide = "image"
