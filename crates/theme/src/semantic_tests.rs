@@ -115,6 +115,8 @@ fn assert_meets_spec(name: &str, r: &Resolved, contrast: Contrast) {
     }
     let ratio = contrast_ratio(t.color(T::OverlayMarquee), t.color(T::OverlayMarqueeDash));
     assert!(ratio >= min, "{name} {contrast:?}: overlay.marquee on overlay.marquee_dash is {ratio:.2}");
+    let ratio = contrast_ratio(t.color(T::OverlayHandleStroke), t.color(T::OverlayHandleFill));
+    assert!(ratio >= min, "{name} {contrast:?}: overlay.handle_stroke on overlay.handle_fill is {ratio:.2}");
 }
 
 #[test]
@@ -487,14 +489,32 @@ fn guide_colours_are_exempt_from_the_overlay_pairs() {
 fn pins_replace_defaults_and_aliases_follow() {
     let mut def = grey_blue();
     let bg = hex("#203040");
-    def.pins.dark = Pins::from_iter([(T::SurfaceBackground, bg), (T::OverlayStroke, hex("#ffee00"))]);
+    def.pins.dark = Pins::from_iter([(T::SurfaceBackground, bg), (T::OverlayStroke, hex("#3050c0"))]);
     def.high_contrast.dark = Pins::from_iter([(T::SurfaceBackground, hex("#000000"))]);
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     assert_eq!(r.tokens.color(T::SurfaceBackground), bg);
     assert_eq!(r.tokens.color(T::SurfaceCanvas), bg);
-    assert_eq!(r.tokens.color(T::OverlayHandleStroke), hex("#ffee00"));
+    assert_eq!(r.tokens.color(T::OverlayHandleStroke), hex("#3050c0"));
     let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
     assert_eq!(high.tokens.color(T::SurfaceCanvas), Rgba::BLACK, "high-contrast pins apply over mode pins");
+}
+
+/// The handle outline starts from the overlay stroke, pinned or not, and darkens only as far as
+/// the white handle fill needs: a selected anchor is filled with it, the only mark of selection.
+#[test]
+fn the_handle_outline_reads_on_the_handle_fill_whatever_the_stroke() {
+    let mut def = grey_blue();
+    let pale = hex("#ffee00");
+    def.pins.dark = Pins::from_iter([(T::OverlayStroke, pale)]);
+    for (contrast, min) in [(Contrast::Standard, 3.0), (Contrast::High, 4.5)] {
+        let r = resolve(&def, app(Mode::Dark, contrast), None);
+        let (stroke, outline) = (r.tokens.color(T::OverlayStroke), r.tokens.color(T::OverlayHandleStroke));
+        if contrast == Contrast::Standard {
+            assert_eq!(stroke, pale, "a pinned stroke stays in standard contrast");
+        }
+        let ratio = contrast_ratio(outline, r.tokens.color(T::OverlayHandleFill));
+        assert!(ratio >= min, "{contrast:?}: {} on the fill is {ratio:.2}", outline.to_hex());
+    }
 }
 
 #[test]

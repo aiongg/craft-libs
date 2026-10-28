@@ -274,6 +274,37 @@ fn nudge_reads_one_arrow_along_the_document_axes() {
 }
 
 #[test]
+fn nudge_with_alt_reports_alt_and_takes_alt_shift() {
+    let read = |events: Vec<Event>| {
+        let ctx = Context::default();
+        let mut out = None;
+        let input = RawInput { screen_rect: Some(screen()), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| out = nudge::read_with_alt(ui, nudge::STEP, nudge::BIG_STEP)).drop_without_applying_deltas();
+        out
+    };
+    assert_eq!(read(vec![key(Key::ArrowRight, Modifiers::NONE)]), Some((Vec2::new(1.0, 0.0), false)));
+    assert_eq!(read(vec![key(Key::ArrowUp, Modifiers::SHIFT)]), Some((Vec2::new(0.0, -10.0), false)));
+    assert_eq!(read(vec![key(Key::ArrowLeft, Modifiers::ALT)]), Some((Vec2::new(-1.0, 0.0), true)));
+    assert_eq!(read(vec![key(Key::ArrowDown, Modifiers::ALT | Modifiers::SHIFT)]), Some((Vec2::new(0.0, 10.0), true)));
+    assert_eq!(read(vec![key(Key::ArrowDown, Modifiers::COMMAND)]), None);
+}
+
+#[test]
+fn the_turn_cursor_hides_the_pointer_and_paints_on_the_tooltip_layer() {
+    let ctx = Context::default();
+    crate::theme::install(&ctx, &crate::theme::Base::suite_default());
+    let input = || RawInput { screen_rect: Some(screen()), ..RawInput::default() };
+    let mut out = ctx.run_ui(input(), |ui| super::turn_cursor(ui.ctx(), pos2(100.0, 100.0), vec2(1.0, 1.0)));
+    out.textures_delta.clear();
+    assert_eq!(out.platform_output.cursor_icon, CursorIcon::None);
+    assert!(!out.shapes.is_empty());
+    let mut out = ctx.run_ui(input(), |ui| super::turn_cursor(ui.ctx(), pos2(100.0, 100.0), vec2(0.0, 0.0)));
+    out.textures_delta.clear();
+    assert_eq!(out.platform_output.cursor_icon, CursorIcon::Default, "nothing without a direction");
+    assert!(out.shapes.is_empty());
+}
+
+#[test]
 fn nudge_leaves_a_focused_text_field_its_arrows() {
     let ctx = Context::default();
     let mut text = String::from("abc");

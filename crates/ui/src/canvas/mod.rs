@@ -15,6 +15,9 @@
 //! - [`RulerUnits`]: the ruler unit of a document axis, for ruler ticks and guide values.
 //! - [`Rulers`]: the strips along the top and left of a canvas, with the zero point's corner.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
+//! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
+//! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
+//! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -40,11 +43,14 @@ mod crisp;
 pub(crate) mod guides;
 pub mod hit;
 pub(crate) mod marquee;
+mod part_focus;
+pub mod quad;
 mod readout;
 pub(crate) mod rulers;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+mod turn;
 mod units;
 mod view;
 
@@ -53,7 +59,9 @@ pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
+pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use readout::{Readout, ReadoutStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};

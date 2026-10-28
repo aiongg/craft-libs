@@ -130,6 +130,13 @@ impl Handle {
         HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(h.halo, o.halo.to_egui()), hit: h.hit, cursor }
     }
 
+    /// A selected handle's look: a `Square` or `Round` filled with `overlay.handle_stroke`, as a
+    /// path's selected anchors are (PhotoCraft). A `Rotate` dot is filled already.
+    pub fn selected_style(tokens: &UiTokens, shape: HandleShape) -> HandleStyle {
+        let style = Handle::style(tokens, shape);
+        HandleStyle { fill: tokens.color.overlay.handle_stroke.to_egui(), ..style }
+    }
+
     /// The handle's shapes centred on `center`, snapped to the pixel grid: halo, fill, outline.
     pub fn shapes(tokens: &UiTokens, shape: HandleShape, center: Pos2, pixels_per_point: f32) -> Vec<Shape> {
         Handle::shapes_with(&Handle::style(tokens, shape), shape, center, pixels_per_point)
