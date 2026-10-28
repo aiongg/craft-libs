@@ -7,7 +7,8 @@ interaction; `layout` provides toolbar fitting, split geometry and resize handle
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
 `fonts` installs the UI font stack, the same fallback order in every app.
 `primitives` holds the design system's building blocks (surfaces, state layer, focus ring, divider, stack and row, interactive element, text, icon, canvas handle), styled from `theme`'s tokens.
-`controls` holds the design system's controls built on them (button, icon button, toggle button, segmented control, link, slider, range slider).
+`controls` holds the design system's controls built on them (button, icon button, toggle button, segmented control, link, check box, radio button and radio group, switch, slider, range slider).
+`behavior` holds the keyboard, focus and selection rules that several controls share, such as a radio group's (`RadioSelection`, used by the radio group and the segmented control).
 `inspect` records the primitives' layout boxes and the AccessKit tree for inspector overlays such as the gallery's; off by default.
 `edit` is the edit lifecycle value controls report through: gesture events (begin, update, commit, cancel, one-shot set), the `Gesture` state machine controls embed, and `GestureHost`, which turns the events into undo steps.
 `localized` supplies number fields that write and read the user's region's numbers.

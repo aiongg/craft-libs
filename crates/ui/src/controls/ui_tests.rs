@@ -339,3 +339,158 @@ fn a_focused_slider_and_a_focused_thumb_show_the_focus_ring() {
         a11y::assert_focus_ring(&harness, harness.state().2);
     }
 }
+
+fn toggled<State>(harness: &Harness<'_, State>, label: &str) -> Option<Toggled> {
+    harness.get_by_label(label).accesskit_node().toggled()
+}
+
+#[test]
+fn a_mixed_checkbox_reports_mixed_and_becomes_checked_on_click_and_on_space() {
+    let mut harness = harness().build_ui_state(
+        |ui, state: &mut CheckState| {
+            let _ = Checkbox::new("Visible", state).id_salt("visible").show(ui);
+        },
+        CheckState::Mixed,
+    );
+    harness.run();
+    assert_eq!(harness.get_by_label("Visible").accesskit_node().role(), Role::CheckBox);
+    assert_eq!(toggled(&harness, "Visible"), Some(Toggled::Mixed));
+    harness.get_by_label("Visible").click();
+    harness.step();
+    assert_eq!((*harness.state(), toggled(&harness, "Visible")), (CheckState::Checked, Some(Toggled::True)), "the click's frame");
+    harness.run();
+    harness.get_by_label("Visible").click();
+    harness.run();
+    assert_eq!((*harness.state(), toggled(&harness, "Visible")), (CheckState::Unchecked, Some(Toggled::False)));
+
+    *harness.state_mut() = CheckState::Mixed;
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert!(harness.get_by_label("Visible").is_focused());
+    harness.key_press(Key::Space);
+    harness.run();
+    assert_eq!((*harness.state(), toggled(&harness, "Visible")), (CheckState::Checked, Some(Toggled::True)), "Space");
+}
+
+#[test]
+fn switches_and_radio_buttons_report_their_role_and_state_in_the_click_frame_and_ignore_clicks_when_disabled() {
+    let mut harness = harness().build_ui_state(
+        |ui, (on, unit, locked): &mut (bool, usize, bool)| {
+            let _ = Switch::new("Autosave", on).id_salt("autosave").show(ui);
+            let _ = Radio::new("Pixels", unit, 0).id_salt("px").show(ui);
+            let _ = Radio::new("Inches", unit, 1).id_salt("in").show(ui);
+            let _ = Switch::new("Locked", locked).enabled(false).id_salt("locked").show(ui);
+        },
+        (false, 0, false),
+    );
+    harness.run();
+    a11y::assert_labelled(&harness);
+    let role = |harness: &Harness<'_, _>, label| harness.get_by_label(label).accesskit_node().role();
+    assert_eq!([role(&harness, "Autosave"), role(&harness, "Pixels"), role(&harness, "Locked")], [Role::Switch, Role::RadioButton, Role::Switch]);
+    assert_eq!(toggled(&harness, "Autosave"), Some(Toggled::False));
+    harness.get_by_label("Autosave").click();
+    harness.step();
+    assert_eq!((harness.state().0, toggled(&harness, "Autosave")), (true, Some(Toggled::True)), "the click's frame");
+    harness.run();
+    harness.get_by_label("Inches").click();
+    harness.step();
+    assert_eq!((harness.state().1, toggled(&harness, "Inches")), (1, Some(Toggled::True)), "the click's frame");
+    harness.run();
+    assert_eq!(toggled(&harness, "Pixels"), Some(Toggled::False), "a radio button drawn before the click: the next frame");
+    assert!(harness.get_by_label("Locked").accesskit_node().is_disabled());
+    harness.get_by_label("Locked").click();
+    harness.run();
+    assert!(!harness.state().2, "a disabled switch ignores clicks");
+}
+
+/// A radio group of three options named "Units".
+fn radio_group<'a>() -> Harness<'a, usize> {
+    harness().build_ui_state(
+        |ui, unit: &mut usize| {
+            let _ = RadioGroup::new("units", "Units", unit).item(0, "Pixels").item(1, "Millimetres").item(2, "Inches").show(ui);
+        },
+        0,
+    )
+}
+
+#[test]
+fn a_radio_group_is_one_tab_stop_and_arrows_select_and_report_in_the_same_frame() {
+    let mut harness = radio_group();
+    harness.run();
+    let group = harness.get_by(|n| n.role() == Role::RadioGroup);
+    assert_eq!(group.accesskit_node().label().as_deref(), Some("Units"));
+    let radios: Vec<_> = group.accesskit_node().children().filter(|n| n.role() == Role::RadioButton).map(|n| n.label().unwrap_or_default()).collect();
+    assert_eq!(radios, ["Pixels", "Millimetres", "Inches"]);
+    let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
+    assert_eq!(stops, [(Role::RadioButton, "Pixels".to_owned())]);
+
+    harness.key_press(Key::Tab);
+    harness.run();
+    let checked = |harness: &Harness<'_, usize>| {
+        harness
+            .query_all_by(|n| n.role() == Role::RadioButton && n.toggled() == Some(Toggled::True))
+            .map(|n| n.accesskit_node().label().unwrap_or_default())
+            .collect::<Vec<_>>()
+    };
+    for (key, unit, label) in
+        [(Key::ArrowDown, 1, "Millimetres"), (Key::ArrowRight, 2, "Inches"), (Key::ArrowDown, 0, "Pixels"), (Key::ArrowUp, 2, "Inches")]
+    {
+        harness.event(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+        harness.step();
+        assert_eq!((*harness.state(), checked(&harness)), (unit, vec![label.to_owned()]), "{key:?}: the key's frame");
+        harness.event(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
+        harness.run();
+        assert_eq!(focused_label(&harness).as_deref(), Some(label), "{key:?}: focus follows");
+    }
+    let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
+    assert_eq!(stops, ["Inches"], "the Tab stop follows the selection");
+
+    harness.get_by_label("Millimetres").click();
+    harness.step();
+    assert_eq!((*harness.state(), checked(&harness)), (1, vec!["Millimetres".to_owned()]), "a click: the click's frame");
+}
+
+fn focused_label<State>(harness: &Harness<'_, State>) -> Option<String> {
+    harness.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label())
+}
+
+#[test]
+fn radio_groups_checkboxes_and_switches_mirror_right_to_left() {
+    let mut harness = harness()
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, Direction::Rtl);
+        })
+        .build_ui_state(
+            |ui, unit: &mut usize| {
+                ui.with_layout(direction::column(ui), |ui| {
+                    let _ = RadioGroup::new("units", "Units", unit).item(0, "Pixels").item(1, "Millimetres").item(2, "Inches").show(ui);
+                    let _ = Checkbox::bool("Grid", &mut true).id_salt("grid").show(ui);
+                });
+            },
+            0,
+        );
+    harness.run();
+    let rect = |harness: &Harness<'_, usize>, label: &str| harness.get_by_label(label).rect();
+    let (pixels, inches, grid) = (rect(&harness, "Pixels"), rect(&harness, "Inches"), rect(&harness, "Grid"));
+    assert_eq!(pixels.right(), inches.right(), "options line up at the right");
+    assert_eq!(pixels.right(), grid.right());
+    harness.key_press(Key::Tab);
+    harness.run();
+    for (key, unit) in [(Key::ArrowLeft, 1), (Key::ArrowLeft, 2), (Key::ArrowRight, 1)] {
+        harness.key_press(key);
+        harness.run();
+        assert_eq!(*harness.state(), unit, "{key:?}");
+    }
+}
+
+#[test]
+fn the_radio_group_story_has_one_tab_stop_per_group() {
+    let story = crate::story::registry().into_iter().find(|s| s.id == "controls/radio/groups").unwrap();
+    let mut args = story.defaults();
+    let mut harness = harness().with_size([640.0, 480.0]).build_ui(move |ui| (story.show)(ui, &mut args));
+    harness.run();
+    let order: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
+    assert_eq!(order, [(Role::RadioButton, "Pixels".to_owned()), (Role::RadioButton, "Inches".to_owned())]);
+}

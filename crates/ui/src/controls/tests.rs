@@ -164,6 +164,11 @@ fn a_theme_override_of_the_primary_rest_fill_reaches_the_painted_fill() {
 /// The colours of the vertices nearest the top-left and bottom-right corners of `rect` among
 /// the meshes, i.e. the bevel's two sides.
 fn bevel_corners(shapes: &[Shape], rect: Rect) -> (Color32, Color32) {
+    bevel_at(shapes, rect, rect.left_top(), rect.right_bottom())
+}
+
+/// The colours of the mesh vertices in `rect` nearest `a` and `b`.
+fn bevel_at(shapes: &[Shape], rect: Rect, a: Pos2, b: Pos2) -> (Color32, Color32) {
     let vertices: Vec<&Vertex> = shapes
         .iter()
         .filter_map(|s| match s {
@@ -174,7 +179,7 @@ fn bevel_corners(shapes: &[Shape], rect: Rect) -> (Color32, Color32) {
         .filter(|v| rect.expand(1.0).contains(v.pos))
         .collect();
     let nearest = |corner: Pos2| vertices.iter().min_by(|a, b| a.pos.distance(corner).total_cmp(&b.pos.distance(corner))).unwrap().color;
-    (nearest(rect.left_top()), nearest(rect.right_bottom()))
+    (nearest(a), nearest(b))
 }
 
 #[test]
@@ -259,4 +264,219 @@ fn turning_a_control_off_keeps_the_ids_of_the_widgets_after_it() {
         });
     }
     assert_eq!(ids[0], ids[1], "the next automatic id");
+}
+
+#[test]
+fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
+    for t in every_builtin() {
+        let c = &t.component.check;
+        let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
+        let (off, on) = (IndicatorColors::from(&c.off), IndicatorColors::from(&c.on));
+        let text = |s: State| if s == State::Disabled { t.color.text.disabled.to_egui() } else { t.color.text.normal.to_egui() };
+        for size in SIZES {
+            let b = Checkbox::style(&t, size);
+            assert_eq!((b.height, b.side, b.gap, b.label, b.mark), (c.height.get(size), c.size.get(size), c.gap, c.label, c.mark.get(size)));
+            assert_eq!((b.radius, b.surface, b.off, b.on), (egui::CornerRadius::from(c.radius), sunken, off, on));
+            let r = Radio::style(&t, size);
+            assert_eq!((r.height, r.diameter, r.dot, r.surface, r.off, r.on), (b.height, b.side, c.dot.get(size), sunken, off, on));
+            let s = Switch::style(&t, size);
+            assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
+            assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
+            assert_eq!((s.surface, s.off, s.on), (sunken, off, on));
+            assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
+            for state in State::ALL {
+                assert_eq!([b.text.get(state), r.text.get(state), s.text.get(state)], [text(state); 3], "{state:?}");
+            }
+        }
+    }
+}
+
+/// A context showing the suite default, with reduced motion or not.
+fn motion_context(reduced: bool) -> Context {
+    use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
+    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact };
+    let system = SystemAppearance { reduced_motion: Some(reduced), ..Default::default() };
+    let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), system, &defaults, None, &mut |id| {
+        builtins().iter().find(|t| t.id == *id).cloned()
+    });
+    let ctx = Context::default();
+    install(&ctx, &base);
+    ctx
+}
+
+/// One frame of `add` at `time` with `events`, outside any theme scope: the shapes, flattened.
+fn frame_at(ctx: &Context, time: f64, events: Vec<Event>, add: impl FnOnce(&mut Ui)) -> Vec<Shape> {
+    fn flatten(shape: Shape, out: &mut Vec<Shape>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.into_iter().for_each(|s| flatten(s, out)),
+            shape => out.push(shape),
+        }
+    }
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), time: Some(time), events, ..Default::default() };
+    let mut add = Some(add);
+    let mut output = ctx.run_ui(input, |ui| {
+        if let Some(add) = add.take() {
+            add(ui);
+        }
+    });
+    output.textures_delta.clear();
+    let mut out = Vec::new();
+    for clipped in output.shapes {
+        flatten(clipped.shape, &mut out);
+    }
+    out
+}
+
+#[test]
+fn a_switch_thumb_slides_from_the_reading_start_over_motion_move_and_at_once_with_reduced_motion() {
+    use crate::direction::Direction;
+    let t = tokens_of(&theme("craft.graphite"), Mode::Light);
+    let style = Switch::style(&t, ControlSize::Md);
+    let track = Rect::from_min_size(Pos2::ZERO, vec2(style.width, style.track_height));
+    let reach = style.inset + style.thumb / 2.0;
+    let x = |position, direction| Switch::thumb(&style, track, position, direction).x;
+    assert_eq!([x(0.0, Direction::Ltr), x(0.5, Direction::Ltr), x(1.0, Direction::Ltr)], [reach, style.width / 2.0, style.width - reach]);
+    assert_eq!([x(0.0, Direction::Rtl), x(1.0, Direction::Rtl)], [style.width - reach, reach], "off at the right, right to left");
+
+    let travel = |reduced: bool| {
+        let appearance = Appearance { reduced_motion: reduced, ..t.appearance };
+        let tokens = UiTokens::new(resolve(&theme("craft.graphite"), appearance, None).tokens, appearance, Mode::Light, FontFamilies::default());
+        Switch::style(&tokens, ControlSize::Md).travel
+    };
+    assert!(travel(false) > 0.0);
+    assert_eq!(travel(true), 0.0);
+
+    // Painted: the thumb is the circle with the thumb's radius; one frame after a click it is on
+    // its way, or already at the end with reduced motion.
+    for reduced in [false, true] {
+        let ctx = motion_context(reduced);
+        let (rect, on) = (Cell::new(Rect::NOTHING), Cell::new(false));
+        let thumb_x = |shapes: &[Shape]| {
+            let thumbs: Vec<f32> = shapes
+                .iter()
+                .filter_map(|s| match s {
+                    Shape::Circle(c) if (c.radius - style.thumb / 2.0).abs() < 0.01 => Some(c.center.x),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(thumbs.len(), 1, "one thumb");
+            thumbs[0]
+        };
+        let frame = |time, events| {
+            frame_at(&ctx, time, events, |ui| {
+                let mut value = on.get();
+                let edit = Switch::new("Autosave", &mut value).show(ui);
+                rect.set(edit.response.rect);
+                on.set(value);
+            })
+        };
+        let start = thumb_x(&frame(0.0, vec![]));
+        let center = rect.get().center();
+        frame(0.016, vec![Event::PointerMoved(center), press(center, true)]);
+        frame(0.032, vec![press(center, false)]);
+        assert!(on.get());
+        let next = thumb_x(&frame(0.048, vec![]));
+        let end = thumb_x(&frame(5.0, vec![]));
+        assert!(end > start, "on: at the reading end");
+        if reduced {
+            assert_eq!(next, end, "reduced motion: at once");
+        } else {
+            assert!(start < next && next < end, "{start} < {next} < {end}");
+        }
+    }
+}
+
+#[test]
+fn bevel_themes_sink_check_boxes_radio_buttons_and_switch_tracks() {
+    let classic = theme("craft.classic");
+    let t = tokens_of(&classic, Mode::Light);
+    let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken).edge;
+    let crate::primitives::SurfaceEdge::Bevel { top_left: dark, bottom_right: light, .. } = sunken else { panic!("Classic bevels: {sunken:?}") };
+    let ctx = context();
+    for control in 0..3 {
+        let rect = Cell::new(Rect::NOTHING);
+        let shapes = pass(&ctx, &classic, vec![], |ui| {
+            let response = match control {
+                0 => Checkbox::bool("Grid", &mut true).show(ui).response,
+                1 => Radio::new("Grid", &mut 0, 0).show(ui).response,
+                _ => Switch::new("Grid", &mut false).show(ui).response,
+            };
+            rect.set(response.rect);
+        });
+        let s = Checkbox::style(&t, ControlSize::Md);
+        // The box sits at the left, centred: its rect is the indicator's.
+        let side = if control == 2 { vec2(Switch::style(&t, ControlSize::Md).width, s.side) } else { vec2(s.side, s.side) };
+        let indicator = Rect::from_min_size(egui::pos2(rect.get().left(), rect.get().center().y - side.y / 2.0), side);
+        // Round shapes: the bevel splits at 45 degrees through the corners, so compare the top
+        // and bottom middle.
+        let (top_left, bottom_right) = match control {
+            0 => bevel_corners(&shapes, indicator),
+            _ => bevel_at(&shapes, indicator, indicator.center_top(), indicator.center_bottom()),
+        };
+        assert_eq!((top_left, bottom_right), (dark, light), "control {control}: a sunken indicator, shaded on the top left");
+    }
+}
+
+#[test]
+fn every_change_is_one_set_with_the_modifiers_held_and_a_mixed_box_becomes_checked() {
+    use crate::edit::EditEvent;
+    let graphite = theme("craft.graphite");
+    let ctx = context();
+    let shift = Modifiers::SHIFT;
+    let click = |pos: Pos2| {
+        vec![
+            Event::ModifiersChanged(shift),
+            Event::PointerMoved(pos),
+            Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers: shift },
+            Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: shift },
+        ]
+    };
+    // Each control as a closure over its value, reporting its rect and event as text.
+    let (rect, event) = (Cell::new(Rect::NOTHING), std::cell::RefCell::new(Vec::<String>::new()));
+    let mut check = CheckState::Mixed;
+    let mut flag = false;
+    let mut unit = 0_usize;
+    let mut group = 0_usize;
+    let mut run = |control: usize, events: Vec<Event>| {
+        pass(&ctx, &graphite, events, |ui| {
+            let (response, text) = match control {
+                0 => {
+                    let e = Checkbox::new("Mixed", &mut check).show(ui);
+                    (e.response, e.event.map(|e| format!("{e:?}")))
+                }
+                1 => {
+                    let e = Switch::new("Autosave", &mut flag).show(ui);
+                    (e.response, e.event.map(|e| format!("{e:?}")))
+                }
+                2 => {
+                    let e = Radio::new("Inches", &mut unit, 2).show(ui);
+                    (e.response, e.event.map(|e| format!("{e:?}")))
+                }
+                _ => {
+                    let e = RadioGroup::new("units", "Units", &mut group).item(0, "Pixels").item(1, "Inches").show(ui);
+                    (e.response, e.event.map(|e| format!("{e:?}")))
+                }
+            };
+            rect.set(response.rect);
+            event.borrow_mut().extend(text);
+        });
+    };
+    let expected = [
+        format!("{:?}", EditEvent::set(CheckState::Checked, shift)),
+        format!("{:?}", EditEvent::set(true, shift)),
+        format!("{:?}", EditEvent::set(2_usize, shift)),
+        format!("{:?}", EditEvent::set(1_usize, shift)),
+    ];
+    for (control, expected) in expected.iter().enumerate() {
+        run(control, vec![]);
+        run(control, vec![]);
+        // The radio group's second option is in its lower half.
+        let r = rect.get();
+        let at = if control == 3 { egui::pos2(r.left() + 4.0, r.bottom() - 4.0) } else { egui::pos2(r.left() + 4.0, r.center().y) };
+        event.borrow_mut().clear();
+        run(control, click(at));
+        run(control, vec![]);
+        assert_eq!(*event.borrow(), std::slice::from_ref(expected), "control {control}");
+    }
+    assert_eq!((check, flag, unit, group), (CheckState::Checked, true, 2, 1));
 }

@@ -5,6 +5,10 @@
 //! - [`IconButton`]: a square ghost button showing only an icon, optionally a toggle.
 //! - [`ToggleButton`]: a secondary-looking button that stays pressed while on.
 //! - [`Segmented`]: one of a few options (tool modes) on a track, a WAI-ARIA radio group.
+//! - [`Checkbox`]: a box that is checked, unchecked or mixed ([`CheckState`]).
+//! - [`Radio`] and [`RadioGroup`]: one of several options as radio buttons; the group is a WAI-ARIA
+//!   radio group.
+//! - [`Switch`]: an on/off setting that applies at once.
 //! - [`Link`]: text in `accent.text` that opens a URL or reports a click.
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
@@ -12,7 +16,7 @@
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `slider.*`), so a theme's component overrides reach them; shape and edge come from the
+//! `segmented.*`, `check.*`, `slider.*`), so a theme's component overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens) and its properties, dumped under
@@ -31,13 +35,17 @@
 //! ```
 
 pub(crate) mod button;
+mod check;
+pub(crate) mod checkbox;
 pub(crate) mod icon_button;
 pub(crate) mod link;
+pub(crate) mod radio;
 pub(crate) mod range_slider;
 pub(crate) mod segmented;
 pub(crate) mod slider;
 #[cfg(test)]
 mod slider_tests;
+pub(crate) mod switch;
 #[cfg(test)]
 mod tests;
 pub(crate) mod toggle_button;
@@ -47,12 +55,16 @@ mod ui_tests;
 use egui::{IdSalt, Ui};
 
 pub use button::{Button, ButtonStyle};
+pub use check::IndicatorColors;
+pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use link::{Link, LinkStyle, LinkUnderline};
+pub use radio::{Radio, RadioGroup, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
 pub use slider::{Slider, SliderStyle};
+pub use switch::{Switch, SwitchStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 
 use crate::icons::IconSize;

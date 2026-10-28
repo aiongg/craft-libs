@@ -353,8 +353,8 @@ impl Sensed {
             ui.ctx().accesskit_node_builder(response.id, |node| {
                 if mixed {
                     node.set_toggled(egui::accesskit::Toggled::Mixed);
-                if let Some(Numeric { value, range, step }) = &report.numeric {
                 }
+                if let Some(Numeric { value, range, step }) = &report.numeric {
                     node.set_min_numeric_value(*range.start());
                     node.set_max_numeric_value(*range.end());
                     node.set_numeric_value_step(*step);

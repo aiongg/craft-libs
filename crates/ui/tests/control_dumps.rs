@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::controls::{Button, IconButton, Link, Segmented, Slider, ToggleButton};
+use craft_ui::controls::{Button, Checkbox, IconButton, IndicatorColors, Link, Radio, Segmented, Slider, Switch, ToggleButton};
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -73,6 +73,18 @@ fn surface(d: &mut Dump, key: &str, s: &SurfaceStyle) {
             .line(&format!("{key}.edge.bevel.bottom_right"), bottom_right)
             .line(&format!("{key}.edge.bevel.width"), width),
         other => d.line(&format!("{key}.edge"), format!("{other:?}")),
+    };
+}
+
+/// The edge of a check control's indicator: a flat border's width (its colour is the control's
+/// `border`), or the bevel with its colours.
+fn indicator_edge(d: &mut Dump, s: &SurfaceStyle) {
+    match s.edge {
+        SurfaceEdge::Border(stroke) => d.line("edge.border.width", stroke.width),
+        SurfaceEdge::Bevel { top_left, bottom_right, width } => {
+            d.line("edge.bevel.top_left", top_left).line("edge.bevel.bottom_right", bottom_right).line("edge.bevel.width", width)
+        }
+        other => d.line("edge", format!("{other:?}")),
     };
 }
 
@@ -172,5 +184,70 @@ fn slider() {
         surface(d, "thumb.surface", &s.thumb_surface);
         states(d, "thumb.fill", &s.thumb_fill);
         states(d, "thumb.border", &s.thumb_border);
+    });
+}
+
+fn indicator(d: &mut Dump, key: &str, colors: &IndicatorColors) {
+    states(d, &format!("{key}.fill"), &colors.fill);
+    states(d, &format!("{key}.border"), &colors.border);
+    states(d, &format!("{key}.mark"), &colors.mark);
+}
+
+#[test]
+fn checkbox() {
+    check("checkbox.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Checkbox::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("side", s.side).line("gap", s.gap).line("mark", s.mark).line("label", role(s.label));
+            });
+        }
+        let s = Checkbox::style(t, ControlSize::Md);
+        d.line("radius", s.radius);
+        indicator_edge(d, &s.surface);
+        indicator(d, "off", &s.off);
+        indicator(d, "on", &s.on);
+        states(d, "text", &s.text);
+    });
+}
+
+#[test]
+fn radio() {
+    check("radio.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Radio::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("diameter", s.diameter).line("dot", s.dot).line("gap", s.gap).line("label", role(s.label));
+            });
+        }
+        let s = Radio::style(t, ControlSize::Md);
+        indicator_edge(d, &s.surface);
+        indicator(d, "off", &s.off);
+        indicator(d, "on", &s.on);
+        states(d, "text", &s.text);
+    });
+}
+
+#[test]
+fn switch() {
+    check("switch.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Switch::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height)
+                    .line("width", s.width)
+                    .line("track_height", s.track_height)
+                    .line("thumb", s.thumb)
+                    .line("inset", s.inset)
+                    .line("gap", s.gap)
+                    .line("label", role(s.label));
+            });
+        }
+        let s = Switch::style(t, ControlSize::Md);
+        d.line("travel", s.travel).line("easing", format!("{:?}", s.easing));
+        indicator_edge(d, &s.surface);
+        indicator(d, "off", &s.off);
+        indicator(d, "on", &s.on);
+        states(d, "text", &s.text);
     });
 }
