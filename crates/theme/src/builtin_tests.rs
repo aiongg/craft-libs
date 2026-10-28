@@ -55,3 +55,19 @@ fn builtin_accent_text_is_an_accent_hue() {
 
 /// OKLCH chroma below which a colour reads as grey.
 const ACCENT_TEXT_MIN_CHROMA: f64 = 0.04;
+
+/// The marks and outlines of check boxes, radio buttons and switches identify the control and its
+/// state, so every built-in meets their non-text minimum in every appearance, pins included.
+#[test]
+fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
+    for theme in builtins() {
+        for a in appearances() {
+            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
+            assert_eq!(pairs.len(), 10, "{} {a:?}", theme.id);
+            for p in pairs {
+                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+            }
+        }
+    }
+}

@@ -6,6 +6,7 @@
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
 mod button;
+mod check;
 mod handle;
 mod icon_button;
 mod segmented;
@@ -19,6 +20,7 @@ use super::scale::Elevation;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef};
 
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
+pub use check::{CheckColors, CheckField, CheckPart, CheckTokens, OnOff};
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
@@ -430,6 +432,8 @@ impl ComponentTokens {
 families! {
     /// Push buttons.
     button: ButtonTokens => Button(ButtonField);
+    /// Check boxes, radio buttons and switches.
+    check: CheckTokens => Check(CheckField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
     /// Square icon-only buttons.

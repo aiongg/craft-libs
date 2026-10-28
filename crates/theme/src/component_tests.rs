@@ -150,6 +150,61 @@ fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     }
 }
 
+/// The check pairs, written out independently of the family's list: (fg, bg); `None` as bg means
+/// `surface.panel`.
+fn check_pairs() -> Vec<(ComponentField, Option<ComponentField>)> {
+    let check = |on_off, part, state| ComponentField::Check(CheckField::Color { on_off, part, state });
+    let mut p = vec![(check(OnOff::On, CheckPart::Fill, State::Rest), None)];
+    for s in [State::Rest, State::Hover, State::Pressed] {
+        p.push((check(OnOff::Off, CheckPart::Border, s), None));
+        p.push((check(OnOff::On, CheckPart::Mark, s), Some(check(OnOff::On, CheckPart::Fill, s))));
+        p.push((check(OnOff::Off, CheckPart::Mark, s), Some(check(OnOff::Off, CheckPart::Fill, s))));
+    }
+    p
+}
+
+#[test]
+fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_the_non_text_minimum() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            for (fg, bg) in check_pairs() {
+                let ratio = pair_ratio(&r.tokens, fg, bg);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let c = &t.component.check;
+    assert_eq!(c.height, BySize { sm: t.size.control.sm, md: t.size.control.md });
+    assert_eq!(c.size, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
+    assert_eq!((c.gap, c.label, c.radius, c.thumb_inset), (t.space.gap.inline, TypeRole::Body, 3.0, 2.0));
+    assert_eq!((c.mark, c.dot.md, c.track.md), (BySize { sm: 1.5, md: 2.0 }, t.size.icon.md * 0.4, t.size.icon.md * 2.0));
+    let outline = States::new(t.color(T::TextFaint), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled));
+    assert_eq!((c.off.border, c.off.mark), (outline, outline));
+    let sunken = t.color(T::SurfaceSunken);
+    assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
+    assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::StateDisabledFill)));
+    assert_eq!(c.on.border, States { disabled: t.color(T::TextDisabled), ..c.on.fill });
+    let on_accent = t.color(T::TextOnAccent);
+    assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::TextDisabled)));
+}
+
+#[test]
+fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
+    for (size, radius) in [(Size::Compact, 3.0), (Size::Comfortable, 3.0)] {
+        let t = resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
+        assert!(t.shape.radius.control >= radius);
+        assert_eq!(t.component.check.radius, radius, "{size:?}");
+    }
+    let mut def = grey_blue();
+    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }), edge: None });
+    assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 0.0);
+}
+
 #[test]
 fn button_sizes_follow_the_size_preset() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.button;
@@ -170,7 +225,7 @@ fn button_sizes_follow_the_size_preset() {
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3);
+    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3);
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -193,6 +248,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         ComponentField::from_path("segmented.segment.fill.pressed"),
         Some(ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed }))
     );
+    assert_eq!(ComponentField::from_path("check.radius"), Some(ComponentField::Check(CheckField::Radius)));
+    assert_eq!(
+        ComponentField::from_path("check.on.mark.hover"),
+        Some(ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover }))
     assert_eq!(ComponentField::from_path("slider.radius"), Some(ComponentField::Slider(SliderField::Radius)));
     assert_eq!(ComponentField::from_path("slider.fill.hover"), Some(ComponentField::Slider(SliderField::Fill(State::Hover))));
     assert_eq!(
@@ -225,6 +284,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         "toggle_button.on_disabled",
         "toggle_button.on_disabled.fill.rest",
         "toggle_button.on.fill.disabled",
+        "check.size.md",
+        "check.mixed.mark.rest",
+        "check.on.mark",
+        "check.off.thumb.rest",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }

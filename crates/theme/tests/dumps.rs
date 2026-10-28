@@ -12,9 +12,10 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use craft_theme::{
-    Appearance, BarSizes, ButtonColors, ButtonTokens, BySize, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, Easing, Edge,
-    Elevation, ElevationTokens, FontSlot, Gaps, HandleTokens, IconButtonTokens, IconSizes, ItemColors, Mode, Motion, MotionTokens, Pads, RadiusSet,
-    RailSizes, Rgba, SegmentedTokens, ShapeTokens, Size, SizeTokens, SliderTokens, SpaceTokens, States, TextSize, ThemeDef, ThumbColors,
+    Appearance, BarSizes, ButtonColors, ButtonTokens, BySize, CheckColors, CheckTokens, ColorToken, ComponentTokens, Contrast, ContrastCheck,
+    ControlSizes, Easing, Edge, Elevation, ElevationTokens, FontSlot, Gaps, HandleTokens, IconButtonTokens, IconSizes, ItemColors, Mode, Motion,
+    MotionTokens, Pads, RadiusSet, RailSizes, Rgba, SegmentedTokens, ShapeTokens, Size, SizeTokens, SliderTokens, SpaceTokens, States, TextSize,
+    ThemeDef, ThumbColors,
     ToggleButtonTokens, Tokens, TypeRole, TypeStyle, TypeTokens, Variants, builtins, resolve,
 };
 
@@ -254,8 +255,9 @@ fn states(out: &mut Lines, key: &str, v: &States<Rgba>) {
 }
 
 fn component_lines(out: &mut Lines, c: &ComponentTokens) {
-    let ComponentTokens { button, handle, icon_button, segmented, slider, toggle_button } = c;
+    let ComponentTokens { button, check, handle, icon_button, segmented, slider, toggle_button } = c;
     button_lines(out, button);
+    check_lines(out, check);
     handle_lines(out, handle);
     icon_button_lines(out, icon_button);
     segmented_lines(out, segmented);
@@ -267,6 +269,25 @@ fn item_lines(out: &mut Lines, key: &str, colors: &ItemColors) {
     let ItemColors { fill, text } = colors;
     states(out, &format!("{key}.fill"), fill);
     states(out, &format!("{key}.text"), text);
+}
+
+fn check_lines(out: &mut Lines, c: &CheckTokens) {
+    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, .. } = c;
+    by_size(out, "check.height", height);
+    by_size(out, "check.size", size);
+    out.line("check.gap", len(*gap));
+    out.line("check.label", role(*label));
+    out.line("check.radius", len(*radius));
+    by_size(out, "check.mark", mark);
+    by_size(out, "check.dot", dot);
+    by_size(out, "check.track", track);
+    out.line("check.thumb_inset", len(*thumb_inset));
+    for (key, colors) in [("check.off", off), ("check.on", on)] {
+        let CheckColors { fill, border, mark } = colors;
+        states(out, &format!("{key}.fill"), fill);
+        states(out, &format!("{key}.border"), border);
+        states(out, &format!("{key}.mark"), mark);
+    }
 }
 
 fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {

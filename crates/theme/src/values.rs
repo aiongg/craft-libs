@@ -386,3 +386,17 @@ pub const HANDLE_HALO: f32 = 1.0;
 /// Side of the square around a handle's centre that takes the pointer, in points: larger than the
 /// handle, so small handles stay easy to hit.
 pub const HANDLE_HIT: f32 = 14.0;
+
+/// Largest corner radius of a check box, in points: `shape.radius.control` up to this, so a
+/// small box keeps square corners and never reads as a radio button.
+pub const CHECK_RADIUS_MAX: f32 = 3.0;
+/// Stroke width of a check box's check and dash, in points, at the small and standard sizes.
+pub const CHECK_MARK_SM: f32 = 1.5;
+/// See [`CHECK_MARK_SM`].
+pub const CHECK_MARK_MD: f32 = 2.0;
+/// Diameter of a radio button's dot as a fraction of the circle's.
+pub const RADIO_DOT_RATIO: f32 = 0.4;
+/// Width of a switch's track as a multiple of its height.
+pub const SWITCH_ASPECT: f32 = 2.0;
+/// Between a switch's track edge and its thumb, in points, at every Size.
+pub const SWITCH_THUMB_INSET: f32 = 2.0;
