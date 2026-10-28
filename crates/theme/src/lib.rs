@@ -3,7 +3,8 @@
 //! 12-step colour ramps, fixed scales), the semantic layer built on them (themes as seeds and
 //! pins, derivation with a contrast pass, Size presets, type roles and [`resolve`]), the
 //! component layer built on that (one token struct per component family, with curated
-//! overrides) and the user's selection with its resolution ([`resolve_selection`]).
+//! overrides), the user's selection with its resolution ([`resolve_selection`]), and
+//! [`explain`], which reports how each colour got its value and every contrast pair measured.
 //!
 //! Pure data and functions: no egui, no I/O, no threads. Theme files on disk, the suite folder
 //! and change watching belong to `craft-theme-store`; `craft_ui::theme` turns tokens into egui
@@ -23,6 +24,7 @@ pub mod color;
 mod components;
 pub mod contrast;
 mod derive;
+mod explain;
 pub mod format;
 mod id;
 pub mod ramp;
@@ -37,6 +39,8 @@ mod values;
 mod builtin_tests;
 #[cfg(test)]
 mod component_tests;
+#[cfg(test)]
+mod explain_tests;
 #[cfg(test)]
 mod format_tests;
 #[cfg(test)]
@@ -53,7 +57,8 @@ pub use components::{
     OverrideError, OverrideValue, State, States,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
-pub use derive::ContrastWarning;
+pub use derive::{ContrastWarning, Ramps};
+pub use explain::{ColorOrigin, Explained, FieldOrigin, PairReport, explain};
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve};
@@ -61,9 +66,12 @@ pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
 pub use selection::{
     AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair, resolve_selection,
 };
-pub use theme::{AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants};
+pub use theme::{
+    AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, PinLayer, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants,
+};
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
     IconSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, RadiusSet, RailSizes, ShapeTokens, SizeTokens, SpaceTokens, StateColors,
     Status, StatusColors, StatusKind, SurfaceColors, TextColors, TokenRef, Tokens, TypeRole, TypeStyle, TypeTokens,
 };
+pub use values::ColorSource;

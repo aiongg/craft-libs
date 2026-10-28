@@ -14,9 +14,10 @@ use super::tokens::{
 use Bg::{HaloOver, Token};
 use ColorToken as T;
 
-/// Where a colour token's default value comes from.
+/// Where a colour token's default value comes from: a ramp step, a mix of two steps, a fixed
+/// colour, or other tokens. [`explain`](crate::explain) reports it per token.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum Source {
+pub enum ColorSource {
     /// A step (1 to 12) of the neutral ramp.
     Neutral(usize),
     /// A neutral step with an alpha (0..=1).
@@ -24,11 +25,27 @@ pub(super) enum Source {
     /// A step of the accent ramp.
     Accent(usize),
     /// The accent step `from` moved `t` (0..=1) of the way toward step `to`, in OKLab.
-    AccentMix { from: usize, to: usize, t: f64 },
+    AccentMix {
+        /// The step mixed from.
+        from: usize,
+        /// The step mixed toward.
+        to: usize,
+        /// How far toward `to`, 0..=1.
+        t: f64,
+    },
     /// A step of a status ramp.
     Status(StatusKind, usize),
     /// The status step `from` moved `t` (0..=1) of the way toward step `to`, in OKLab.
-    StatusMix { kind: StatusKind, from: usize, to: usize, t: f64 },
+    StatusMix {
+        /// The status whose ramp is mixed.
+        kind: StatusKind,
+        /// The step mixed from.
+        from: usize,
+        /// The step mixed toward.
+        to: usize,
+        /// How far toward `to`, 0..=1.
+        t: f64,
+    },
     /// A fixed colour.
     Fixed(Rgba),
     /// An OKLCH colour (lightness, chroma, hue), gamut-mapped.
@@ -74,8 +91,8 @@ const SOLID_HOVER: usize = 10;
 const SOLID_PRESSED: (usize, usize, f64) = (10, 11, 0.5);
 
 /// The default source of `token` in `mode`.
-pub(super) fn source(token: ColorToken, mode: Mode) -> Source {
-    use Source::{Accent, AccentMix, Fixed, Neutral, NeutralAlpha, Oklch, OnSolid, Same, Status, StatusMix};
+pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
+    use ColorSource::{Accent, AccentMix, Fixed, Neutral, NeutralAlpha, Oklch, OnSolid, Same, Status, StatusMix};
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
     let pick = |d: usize, l: usize| if dark { d } else { l };

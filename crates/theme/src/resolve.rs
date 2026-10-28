@@ -1,10 +1,12 @@
 //! Resolution: a theme and an appearance to concrete tokens.
 
-use super::components::{ComponentTokens, Semantic};
-use super::derive::{self, ContrastWarning};
+use std::collections::BTreeMap;
+
+use super::components::{ComponentField, ComponentTokens, Semantic};
+use super::derive::{self, ColorSteps, ContrastWarning, Measured};
 use super::ramp::Mode;
 use super::scale::Elevation;
-use super::theme::{Appearance, Contrast, ContrastIntent, ThemeDef};
+use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, ThemeDef};
 use super::tokens::{ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
 use super::values;
 use crate::AppId;
@@ -31,8 +33,26 @@ pub struct Resolved {
 /// then take the theme's component overrides and their own contrast pass. With `app`, that app's
 /// overrides in the theme apply over the theme's own pins and components.
 pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Resolved {
+    resolve_with_steps(theme, appearance, app).0
+}
+
+/// The intermediate values of [`resolve`], which [`explain`](crate::explain) reports.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Steps {
+    pub color: ColorSteps,
+    /// Each pinned component field and the layer whose pin it takes.
+    pub component_pins: BTreeMap<ComponentField, PinLayer>,
+    /// Component tokens after the overrides, before their contrast pass.
+    pub component_before_pass: ComponentTokens,
+    /// Every component pair on the final tokens, failing or not.
+    pub component_pairs: Vec<Measured>,
+}
+
+/// [`resolve`], and the steps on the way.
+pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
     let mode = theme.variants.mode_for(appearance.mode);
-    let (color, mut warnings) = derive::colors(theme, app, mode, appearance.contrast);
+    let (color, color_steps) = derive::colors(theme, app, mode, appearance.contrast);
+    let mut warnings: Vec<ContrastWarning> = color_steps.warnings().collect();
     let preset = values::preset(appearance.size);
 
     let seed = theme.shape;
@@ -55,8 +75,10 @@ pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
     let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
     let defaults = component.clone();
     let high = appearance.contrast == Contrast::High;
-    derive::component_overrides(&mut component, theme, app, mode, high, &color);
-    warnings.extend(derive::component_colors(&mut component, &defaults, &color, high));
+    let component_pins = derive::component_overrides(&mut component, theme, app, mode, high, &color);
+    let component_before_pass = component.clone();
+    let (component_pairs, component_warnings) = derive::component_colors(&mut component, &defaults, &color, high);
+    warnings.extend(component_warnings);
 
     let tokens = Tokens {
         color,
@@ -68,5 +90,6 @@ pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
         motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
         component,
     };
-    Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode }
+    let resolved = Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode };
+    (resolved, Steps { color: color_steps, component_pins, component_before_pass, component_pairs })
 }

@@ -137,6 +137,19 @@ impl ModePins {
     }
 }
 
+/// One set of pins in the order resolution applies them; a later layer wins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PinLayer {
+    /// [`ThemeDef::pins`].
+    Theme,
+    /// The app's [`AppOverrides::pins`].
+    App,
+    /// [`ThemeDef::high_contrast`], with [`Contrast::High`] only.
+    ThemeHighContrast,
+    /// The app's [`AppOverrides::high_contrast`], with [`Contrast::High`] only.
+    AppHighContrast,
+}
+
 /// A theme's own shape. Fields left `None` come from the Size preset.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ShapeSeed {
