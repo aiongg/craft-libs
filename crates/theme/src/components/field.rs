@@ -133,6 +133,9 @@ pub struct FieldTokens {
     pub height: BySize<f32>,
     /// Default width: [`values::FIELD_WIDTH`] control heights. A justified layout stretches it.
     pub width: BySize<f32>,
+    /// A number field's default width: [`values::NUMBER_FIELD_WIDTH`] control heights. A justified
+    /// layout stretches it.
+    pub number_width: BySize<f32>,
     /// Between the box's edge and its text or icon: `space.pad.control`.
     pub pad_x: f32,
     /// Icon size: the icon size of the control size.
@@ -263,6 +266,7 @@ impl Family for FieldTokens {
         FieldTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             width: BySize { sm: values::FIELD_WIDTH * size.control.sm, md: values::FIELD_WIDTH * size.control.md },
+            number_width: BySize { sm: values::NUMBER_FIELD_WIDTH * size.control.sm, md: values::NUMBER_FIELD_WIDTH * size.control.md },
             pad_x: s.space.pad.control,
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             gap: s.space.gap.inline,

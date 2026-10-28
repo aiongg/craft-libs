@@ -319,6 +319,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
     let FieldTokens {
         height,
         width,
+        number_width,
         pad_x,
         icon,
         gap,
@@ -338,6 +339,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
     } = f;
     by_size(out, "field.height", height);
     by_size(out, "field.width", width);
+    by_size(out, "field.number_width", number_width);
     out.line("field.pad_x", len(*pad_x));
     by_size(out, "field.icon", icon);
     out.line("field.gap", len(*gap));
