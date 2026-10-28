@@ -107,7 +107,7 @@ pub struct SelectStyle {
 /// - **The open list is one gesture**, as PhotoCraft's dropdowns: opening the list begins an
 ///   edit gesture, and every option the pointer or the keys make active is an `Update`, so the
 ///   value follows the list live and the chosen row (its check mark, AccessKit `selected`) is the
-///   active one. Choosing commits. Closing without a choice cancels and puts back the value from
+///   active one, but for a search's first match (Searchable below). Choosing commits. Closing without a choice cancels and puts back the value from
 ///   when the list opened: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or a
 ///   press on the box ([`Dismissed`](CancelReason::Dismissed)), the focus leaving the box and the
 ///   list ([`FocusLost`](CancelReason::FocusLost)). A gesture that ends outside the list (an undo,
@@ -135,7 +135,8 @@ pub struct SelectStyle {
 ///   takes the focus when it opens and filters the options as the user types; the arrows, Page
 ///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text. The first match
 ///   becomes active for Enter without changing the value (PhotoCraft's font search applies only
-///   the arrows' steps). While an input method composes in it, the keys are the input method's
+///   the arrows' steps): the active option's ring marks the match, while the check mark and
+///   AccessKit `selected` stay on the value's row. While an input method composes in it, the keys are the input method's
 ///   ([`Typing::composing`](crate::behavior::Typing::composing)).
 ///
 /// The control writes what it reports into the value: updates, commits and sets, and on every
@@ -1078,14 +1079,15 @@ struct Filtered {
 }
 
 /// After a search changed, or when the active option is no longer shown, the first enabled
-/// option shown becomes active; returns whether it did.
+/// option shown becomes active. Returns whether a search made it active: that match waits for
+/// Enter, while an option made active because the last one went applies as any other.
 fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<'_, '_, '_, T>, changed: bool) -> bool {
     let hidden = listbox.active().is_some_and(|a| shown.position(a).is_none());
     if changed || hidden {
         let keyboard = changed || listbox.keyboard();
         listbox.reveal(Listbox::neighbour(shown, None, true), keyboard);
     }
-    changed || hidden
+    changed
 }
 
 /// What the closed box shows.

@@ -715,3 +715,28 @@ fn the_keyboard_draws_the_focus_ring_on_the_active_row_and_the_pointer_only_the_
     harness.run();
     assert_eq!((active(&harness).as_deref(), rings(&harness)), (Some("Overlay"), 0), "the pointer");
 }
+
+#[test]
+fn a_search_s_first_match_is_active_while_the_check_mark_stays_on_the_value() {
+    let mut harness = fonts();
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let selected = |harness: &Harness<'_, Fonts>| -> Vec<String> {
+        harness
+            .query_all_by_role(Role::ListBoxOption)
+            .filter(|n| n.accesskit_node().is_selected() == Some(true))
+            .filter_map(|n| n.accesskit_node().label())
+            .collect()
+    };
+    harness.event(Event::Text("amond 3".into()));
+    harness.run();
+    assert_eq!(active(&harness).as_deref(), Some("Garamond 3"), "the first match is active");
+    assert_eq!((harness.state().value, selected(&harness)), (30, vec!["Garamond 30".to_owned()]), "the value's row keeps the check mark");
+    assert_eq!(harness.get_by_role(Role::ComboBox).accesskit_node().value().as_deref(), Some("Garamond 30"));
+    harness.key_press(Key::ArrowDown);
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    assert_eq!((harness.state().value, selected(&harness)), (31, vec!["Garamond 31".to_owned()]), "the arrows move the value and the mark");
+    assert_eq!(active(&harness).as_deref(), Some("Garamond 31"));
+}
