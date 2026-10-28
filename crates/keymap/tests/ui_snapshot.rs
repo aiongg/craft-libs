@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 use craft_keymap::ui::{DialogState, English, Options, ShortcutsDialog, Text};
 use craft_keymap::{ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Profiles};
+use craft_ui::testing::wgpu_renderer;
 use egui::{Key as EguiKey, Modifiers, Theme, Vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
@@ -228,7 +229,7 @@ fn dialog_screenshots() {
                     .with_pixels_per_point(scale)
                     .with_theme(theme)
                     .with_context_setup(test_fonts::configure)
-                    .wgpu()
+                    .renderer(wgpu_renderer())
                     .build_ui_state(
                         |ui, fx: &mut Fx| {
                             test_fonts::assert_coverage(ui.ctx());

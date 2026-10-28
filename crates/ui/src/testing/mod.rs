@@ -7,11 +7,17 @@
 //!   on a kittest harness.
 //! - [`symbols`] (`screen-testing` feature, desktop): craft-fonts' symbol faces for a kittest
 //!   harness, from `CRAFT_FONTS_DIR`.
+//! - [`wgpu_renderer`] (`screen-testing` feature, desktop): a kittest wgpu renderer on the
+//!   process's one device; use it for every rendering harness.
 
 pub mod dump;
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod a11y;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+mod gpu;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+pub use gpu::wgpu_renderer;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod screens;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]

@@ -32,4 +32,4 @@ egui = ["dep:egui"]
 # The Keyboard Shortcuts dialog.
 ui = ["egui", "dep:craft-ui", "dep:craft-i18n"]
 # Screenshots of the dialog for review (tests/ui_snapshot.rs; needs a GPU or software adapter).
-snapshot = ["ui", "egui_kittest/wgpu"]
+snapshot = ["ui", "egui_kittest/wgpu", "craft-ui/screen-testing"]

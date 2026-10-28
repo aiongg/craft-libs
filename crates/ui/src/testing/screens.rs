@@ -60,7 +60,7 @@ use std::rc::Rc;
 
 use craft_i18n::Direction;
 use egui::{Align, Context, Event, ImeEvent, Layout, Ui, Vec2};
-use egui_kittest::{Harness, SnapshotResults};
+use egui_kittest::{Harness, LazyRenderer, SnapshotResults};
 
 use crate::fonts::{I18nScripts, SystemFonts, UiFonts};
 
@@ -151,6 +151,7 @@ impl Screens {
         let setup = self.setup.clone();
         Harness::builder()
             .with_size(self.size)
+            .renderer(LazyRenderer::new(super::wgpu_renderer))
             .with_context_setup(move |ctx| {
                 fonts.install(ctx);
                 crate::direction::apply(ctx, locale.direction);

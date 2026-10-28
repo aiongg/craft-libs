@@ -1091,6 +1091,7 @@ dependencies = [
  "craft-theme",
  "eframe",
  "egui",
+ "egui-wgpu",
  "egui_extras",
  "egui_kittest",
  "epaint",

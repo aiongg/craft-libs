@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use craft_ui::{
     docking::{Action, DockArea, DockStyle, Floating, Layout, Node, Permissions},
     layout::{SplitAxis, SplitSize},
+    testing::wgpu_renderer,
 };
 use egui::{Color32, Context, Event, FullOutput, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, Stroke, pos2, vec2};
 use egui_kittest::{TestRenderer, wgpu::WgpuTestRenderer};
@@ -62,7 +63,7 @@ impl Harness {
         };
         let mut harness = Self {
             ctx,
-            renderer: WgpuTestRenderer::new(),
+            renderer: wgpu_renderer(),
             layout,
             output: FullOutput::default(),
             width,

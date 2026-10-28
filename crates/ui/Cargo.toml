@@ -26,6 +26,8 @@ skrifa = { version = "0.44", default-features = false, features = ["std"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Screenshot and input tests of an app's screens (the screen-testing feature).
 egui_kittest = { version = "0.37", features = ["snapshot", "wgpu"], optional = true }
+# The version egui_kittest's wgpu renderer uses, for sharing one device (testing::wgpu_renderer).
+egui-wgpu = { version = "0.37", default-features = false, optional = true }
 # The versions egui_system_font_provider 0.37 uses.
 fontique = { version = "0.11.1", default-features = false, features = ["system", "fontconfig-dlopen"], optional = true }
 unicode-script = { version = "0.5.8", optional = true }
@@ -56,7 +58,7 @@ system_fonts = ["dep:fontique", "dep:unicode-script"]
 testing = []
 # craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest
 # (desktop only).
-screen-testing = ["dep:egui_kittest"]
+screen-testing = ["dep:egui_kittest", "dep:egui-wgpu"]
 
 # build.rs reads icons/icons.toml.
 [build-dependencies]
@@ -80,6 +82,14 @@ required-features = ["screen-testing"]
 # PNG sheets of every story (CRAFT_UI_SHEETS=<dir>).
 [[test]]
 name = "sheets"
+required-features = ["screen-testing"]
+
+[[test]]
+name = "visual_regression"
+required-features = ["screen-testing"]
+
+[[test]]
+name = "docking_workflows"
 required-features = ["screen-testing"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
