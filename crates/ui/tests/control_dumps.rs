@@ -443,3 +443,15 @@ fn readout() {
         d.line("role", role(s.role)).line("label", s.label).line("value", s.value);
     });
 }
+
+/// Marquees: the ants' colours and march, the band's line and dashes, the drawing look's two
+/// lines, and the click slop.
+#[test]
+fn marquee() {
+    check("marquee.txt", |d, t| {
+        let s = craft_ui::canvas::Marquee::style(t);
+        d.line("light", s.light).line("dark", s.dark).line("dash", s.dash).line("speed", s.speed).line("tick_ms", s.tick_ms).line("march", s.march);
+        d.line("band_line", s.band_line).line("band_dash", s.band_dash).line("band_gap", s.band_gap);
+        d.line("drawing_halo", s.drawing_halo).line("drawing_line", s.drawing_line).line("click_slop", s.click_slop);
+    });
+}

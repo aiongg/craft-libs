@@ -35,6 +35,7 @@
 mod claim;
 mod crisp;
 pub mod hit;
+pub(crate) mod marquee;
 mod readout;
 pub(crate) mod story;
 #[cfg(test)]
@@ -44,5 +45,6 @@ mod view;
 pub use ::kurbo;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use readout::{Readout, ReadoutStyle};
 pub use view::{CanvasView, resize_cursor};
