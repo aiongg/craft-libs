@@ -1397,7 +1397,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 [[package]]
 name = "ecolor"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "bytemuck",
  "emath",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "eframe"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "accesskit",
  "ahash",
@@ -1466,7 +1466,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1485,7 +1485,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "arboard",
  "block2 0.6.2",
@@ -1507,7 +1507,7 @@ dependencies = [
 [[package]]
 name = "egui_extras"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "ahash",
  "egui",
@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "bytemuck",
  "egui",
@@ -1534,7 +1534,7 @@ dependencies = [
 [[package]]
 name = "egui_kittest"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "dify",
  "eframe",
@@ -1554,7 +1554,7 @@ dependencies = [
 [[package]]
 name = "egui_system_font_provider"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "epaint",
  "fontique",
@@ -1574,7 +1574,7 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "emath"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1667,7 +1667,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1694,7 +1694,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 
 [[package]]
 name = "equivalent"
@@ -7456,9 +7456,9 @@ dependencies = [
 [[patch.unused]]
 name = "egui_demo_lib"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
 
 [[patch.unused]]
 name = "egui_inspection"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=34dc5998f48d4d9052236b54c11cbc293d9b7fc2#34dc5998f48d4d9052236b54c11cbc293d9b7fc2"
+source = "git+https://github.com/aiongg/egui.git?rev=3df896953247a4b59833e91a33a8827589da8ef9#3df896953247a4b59833e91a33a8827589da8ef9"
