@@ -44,8 +44,9 @@ pub(crate) use story::{RATES, describe, policy, stories};
 pub struct GestureId(u64);
 
 impl GestureId {
-    /// The next unused id of `ctx`.
-    fn next(ctx: &Context) -> Self {
+    /// The next unused id of `ctx`: for a gesture that an application's own control reports to a
+    /// [`GestureHost`], and for tests that feed a host events.
+    pub fn new(ctx: &Context) -> Self {
         ctx.data_mut(|d| {
             let next = d.get_temp_mut_or_default::<NextGestureId>(Id::unique(NEXT_GESTURE_ID));
             next.0 += 1;
@@ -87,6 +88,60 @@ pub enum EditEvent<T> {
     /// A one-shot change outside a gesture: a toggle, an arrow-key nudge, a wheel step, Enter.
     #[non_exhaustive]
     Set { value: T, modifiers: Modifiers },
+}
+
+/// Constructors, for an application's own control that reports to a [`GestureHost`] and for
+/// tests that feed one events; the variants are `#[non_exhaustive]`.
+///
+/// ```
+/// use craft_ui::edit::{EditEvent, GestureHost, GestureId, UndoMarks};
+/// use egui::Modifiers;
+///
+/// #[derive(Default)]
+/// struct Doc { value: i32, undo: Vec<i32> }
+/// impl UndoMarks for Doc {
+///     type Mark = usize;
+///     fn undo_mark(&self) -> usize { self.undo.len() }
+///     fn revert_to(&mut self, mark: usize) { if let Some(&v) = self.undo.get(mark) { self.value = v; } self.undo.truncate(mark); }
+///     fn squash_since(&mut self, mark: usize) { self.undo.truncate(mark + 1); }
+/// }
+///
+/// let ctx = egui::Context::default();
+/// let (mut doc, mut host) = (Doc::default(), GestureHost::new());
+/// let apply = |doc: &mut Doc, v| { doc.undo.push(doc.value); doc.value = v; };
+/// let id = GestureId::new(&ctx);
+/// for event in [EditEvent::begin(id), EditEvent::update(id, 1, Modifiers::NONE), EditEvent::update(id, 2, Modifiers::NONE), EditEvent::commit(id, 2, true, Modifiers::NONE)] {
+///     host.handle(&ctx, &mut doc, event, apply);
+/// }
+/// assert_eq!((doc.value, doc.undo.len()), (2, 1));
+/// host.handle(&ctx, &mut doc, EditEvent::set(5, Modifiers::SHIFT), apply);
+/// assert_eq!((doc.value, doc.undo.len()), (5, 2));
+/// ```
+impl<T> EditEvent<T> {
+    /// [`Begin`](EditEvent::Begin).
+    pub fn begin(id: GestureId) -> Self {
+        EditEvent::Begin { id }
+    }
+
+    /// [`Update`](EditEvent::Update).
+    pub fn update(id: GestureId, value: T, modifiers: Modifiers) -> Self {
+        EditEvent::Update { id, value, modifiers }
+    }
+
+    /// [`Commit`](EditEvent::Commit).
+    pub fn commit(id: GestureId, value: T, changed: bool, modifiers: Modifiers) -> Self {
+        EditEvent::Commit { id, value, changed, modifiers }
+    }
+
+    /// [`Cancel`](EditEvent::Cancel).
+    pub fn cancel(id: GestureId, reason: CancelReason) -> Self {
+        EditEvent::Cancel { id, reason }
+    }
+
+    /// [`Set`](EditEvent::Set).
+    pub fn set(value: T, modifiers: Modifiers) -> Self {
+        EditEvent::Set { value, modifiers }
+    }
 }
 
 impl<T> EditEvent<T> {
@@ -320,7 +375,7 @@ pub struct OuterGesture {
 impl OuterGesture {
     /// A new gesture, live in the current pass.
     pub fn begin(ctx: &Context) -> Self {
-        let id = GestureId::next(ctx);
+        let id = GestureId::new(ctx);
         live::mark(ctx, id, Ending::Cancel);
         Self { id }
     }
