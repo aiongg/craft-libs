@@ -85,15 +85,8 @@ impl<'r> OptionRows<'r> {
         }
         let picked = enabled && (response.clicked() || (self.pressing && self.released && response.contains_pointer()));
         let active = listbox.active() == Some(row.option);
-        let look = RowLook {
-            text: row.text,
-            icon: row.icon,
-            icons: self.icons,
-            chosen: row.chosen,
-            active,
-            focus: active && listbox.keyboard(),
-            enabled,
-        };
+        let look =
+            RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, active, focus: active && listbox.keyboard(), enabled };
         paint_row(ui, self.style, self.size, response.rect, &look);
         RowOutcome { rect: response.rect, picked, active }
     }

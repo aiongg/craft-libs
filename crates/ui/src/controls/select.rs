@@ -8,8 +8,8 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder,
-    pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder, pos2,
+    vec2,
 };
 
 use super::option_list::{
@@ -934,7 +934,8 @@ impl List<'_> {
         };
         let mut option_row = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
             let text = options.text(option);
-            let row = OptionRow { option, text: &text, icon: options.icon(option), chosen: self.chosen == Some(option), enabled: options.enabled(option) };
+            let row =
+                OptionRow { option, text: &text, icon: options.icon(option), chosen: self.chosen == Some(option), enabled: options.enabled(option) };
             let outcome = rows.show(ui, listbox, &row);
             if outcome.picked {
                 picked = Some(option);
