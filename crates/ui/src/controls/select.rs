@@ -562,7 +562,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
                 } else {
                     self.gesture.set(value);
                 }
-                self.close(ui, focus && !box_focused);
+                // A click on an option took the focus from the box earlier in this pass.
+                self.close(ui, focus);
             }
         }
     }
