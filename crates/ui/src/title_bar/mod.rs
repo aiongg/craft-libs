@@ -42,6 +42,7 @@ pub use buttons::{
 };
 pub use colors::CaptionColors;
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
+pub use resize::resize_zones_only;
 pub use resize::{CORNER, EDGE, release_after_os_resize};
 
 use egui::{Color32, Id, Rect, Ui, UiBuilder, ViewportCommand, pos2, vec2};

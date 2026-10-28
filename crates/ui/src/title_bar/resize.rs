@@ -113,6 +113,27 @@ pub(crate) fn reshow_cursor_after_os_resize(ctx: &egui::Context) {
     }
 }
 
+/// The edge and corner zones alone, for windows that draw no title bar (an embedder hid its menu
+/// bar on an undecorated window). Only `Integrated` frames get them, as with [`TitleBar`], and not
+/// while maximized or in full screen. `native_hit_test` is true once the window procedure answers
+/// the hit test itself. The zones still avoid other interactive widgets in the layer.
+///
+/// [`TitleBar`]: super::TitleBar
+pub fn resize_zones_only(ui: &mut Ui, frame: &super::Frame, native_hit_test: bool) {
+    let ctx = ui.ctx().clone();
+    let (fullscreen, maximized) = ctx.input(|i| (i.viewport().fullscreen.unwrap_or(false), i.viewport().maximized.unwrap_or(false)));
+    if !matches!(frame, super::Frame::Integrated(_)) || native_hit_test {
+        return;
+    }
+    if !fullscreen && !maximized {
+        let layer = ui.layer_id();
+        let holes: Vec<Rect> =
+            ctx.viewport(|v| v.this_pass.widgets.get_layer(layer).filter(|w| w.sense.interactive()).map(|w| w.interact_rect).collect());
+        resize_zones(ui, &holes);
+    }
+    reshow_cursor_after_os_resize(&ctx);
+}
+
 /// The resize zones above everything else, except over `holes` (the caption buttons and the
 /// bar's controls). A press in one starts an OS resize in that direction.
 pub(crate) fn resize_zones(ui: &mut Ui, holes: &[Rect]) {

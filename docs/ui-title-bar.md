@@ -26,6 +26,9 @@
   bar, on every undecorated window. Once the window procedure answers the hit test itself
   (Windows' `WM_NCHITTEST`), the app turns them off with `TitleBar::native_hit_test(true)` or a
   `CaptionRegions` sink whose `native_hit_test()` returns true. Both are false by default.
+- `resize_zones_only(ui, &frame, native_hit_test)` draws just the zones, for windows that draw no
+  title bar. It applies the same rule as the bar: `Integrated` frames only, and none once the
+  native hit test is set.
 - Until the native Windows hit test (W33) replaces the zones, they take clicks within 8 pt of the
   left, right and bottom edges. Apps keep a few points of margin there for scroll bars and
   status-bar buttons.

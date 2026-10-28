@@ -568,3 +568,32 @@ fn separator_is_a_hairline_on_the_bars_bottom_edge() {
         .any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == red && r.rect == Rect::from_min_max(pos2(0.0, H - 1.0), pos2(800.0, H))));
     assert!(found);
 }
+
+#[test]
+fn zones_alone_resize_without_a_bar() {
+    fn resizes_from_the_edge(frame: &Frame, native: bool) -> bool {
+        let (ctx, edge) = (Context::default(), pos2(2.0, 200.0));
+        let steps = [
+            vec![],
+            vec![Event::PointerMoved(edge)],
+            vec![button(edge, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(edge + vec2(6.0, 0.0))],
+        ];
+        let mut cmds = vec![];
+        for (i, events) in steps.into_iter().enumerate() {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))),
+                time: Some(i as f64 * 0.05),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| resize_zones_only(ui, frame, native));
+            out.textures_delta.clear();
+            cmds.extend(commands(out));
+        }
+        !resizes(&cmds).is_empty()
+    }
+    assert!(resizes_from_the_edge(&windows(), false));
+    assert!(!resizes_from_the_edge(&Frame::Native, false));
+    assert!(!resizes_from_the_edge(&windows(), true));
+}
