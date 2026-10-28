@@ -162,6 +162,13 @@ fn accesskit_reports_a_tree_with_levels_and_expansion_and_takes_expand_and_colla
     assert_eq!(levels[1], ("Background".to_owned(), Some(1), None));
     assert_eq!(levels[2], ("Photos".to_owned(), Some(1), Some(true)));
     assert_eq!(levels[3].1, Some(2));
+    // Each item's set is its siblings: Poster, Guides and Notes at the top; Background, Photos and
+    // Text in Poster; three rows in Photos. The tree itself has no set size.
+    let sets: Vec<_> =
+        harness.query_all_by_role(Role::TreeItem).map(|n| (n.accesskit_node().position_in_set(), n.accesskit_node().size_of_set())).collect();
+    let set = |position| (Some(position), Some(3));
+    assert_eq!(sets, [set(0), set(0), set(1), set(0), set(1), set(2), set(2), set(1), set(2)]);
+    assert_eq!(harness.get_by_role(Role::Tree).accesskit_node().size_of_set(), None);
     let frames = item(&harness, "Frames");
     assert_eq!(frames.accesskit_node().data().is_expanded(), Some(false));
     assert!(frames.accesskit_node().data().supports_action(Action::Expand));
@@ -218,7 +225,7 @@ fn the_tree_story_names_every_control() {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui(move |ui| show_tree(ui, &mut args));
     assert_eq!(a11y::unlabelled(&harness), Vec::<String>::new());
-    assert_eq!(harness.get_by_role(Role::Tree).accesskit_node().size_of_set(), Some(9));
+    assert_eq!(harness.get_by_role(Role::Tree).accesskit_node().size_of_set(), None, "a tree's items carry their sets");
 }
 
 #[test]
@@ -247,4 +254,24 @@ fn the_triangle_has_a_tooltip_with_the_alt_hint() {
     button(&harness, "Expand Poster").hover();
     harness.run_steps(30);
     assert!(harness.query_by_label("Expand  (Alt-click: all groups)").is_some(), "tooltip shows the verb and the hint");
+}
+
+#[test]
+fn names_and_tooltips_follow_the_hosts_patterns() {
+    let text = TreeText {
+        expand: "{row} aufklappen".to_owned(),
+        collapse: "{row} zuklappen".to_owned(),
+        expand_tip: "{row} aufklappen (Alt-Klick: alle Gruppen)".to_owned(),
+        collapse_tip: "{row} zuklappen".to_owned(),
+    };
+    let mut harness =
+        Harness::builder().with_size([320.0, 60.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(move |ui| {
+            let row = ListRow::new(0usize, "Poster").toggle(ToggleColumn::eye("Sichtbarkeit von {row}", true));
+            let _ = TreeRow::new(row, 0, true, false).text(text.clone()).show(ui);
+        });
+    harness.run();
+    assert!(harness.query_by_label("Sichtbarkeit von Poster").is_some(), "the toggle column's name");
+    harness.get_by(|n| n.role() == Role::Button && n.label().as_deref() == Some("Poster aufklappen")).hover();
+    harness.run_steps(30);
+    assert!(harness.query_by_label("Poster aufklappen (Alt-Klick: alle Gruppen)").is_some(), "the triangle's tooltip");
 }

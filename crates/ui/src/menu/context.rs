@@ -103,7 +103,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         if let Some(request) = self.request {
             let pos = match request {
                 OpenAt::Pointer(pos) => pos,
-                OpenAt::Rect(rect) => rect.left_bottom(),
+                OpenAt::Rect(rect) => below_reading_start(ui, rect),
             };
             keyboard = matches!(request, OpenAt::Rect(_));
             ctx.data_mut(|d| d.insert_temp(at, pos));
@@ -118,7 +118,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
             ctx.data_mut(|d| d.insert_temp(at, pos));
             command = Some(SetOpenCommand::Bool(true));
         } else if keyboard {
-            ctx.data_mut(|d| d.insert_temp(at, widget.rect.left_bottom()));
+            ctx.data_mut(|d| d.insert_temp(at, below_reading_start(ui, widget.rect)));
             command = Some(SetOpenCommand::Bool(true));
         } else if widget.clicked_by(egui::PointerButton::Primary) {
             command = Some(SetOpenCommand::Bool(false));
@@ -134,6 +134,12 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         }
         shown
     }
+}
+
+/// Where a menu opened from the keyboard for `rect` goes: below its reading start, the left
+/// edge, or the right edge in a right-to-left layout.
+fn below_reading_start(ui: &Ui, rect: Rect) -> Pos2 {
+    if crate::direction::is_rtl(ui) { rect.right_bottom() } else { rect.left_bottom() }
 }
 
 /// Takes the Menu key or Shift+F10 if one was pressed this pass.

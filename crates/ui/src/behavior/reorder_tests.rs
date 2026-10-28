@@ -292,47 +292,155 @@ fn a_drag_of_a_selected_row_takes_the_selection_in_display_order() {
     assert_eq!(other.items, vec![2]);
 }
 
-#[test]
-fn a_drag_reports_begin_updates_on_target_changes_and_a_commit() {
-    let (mut gesture, begin) = ReorderGesture::<u32>::begin();
-    let id = gesture.id();
-    assert_eq!(begin, EditEvent::begin(id));
-    let first = mv(&[0], 2, Before);
-    let second = mv(&[0], 2, After);
-    assert_eq!(gesture.update(None, Modifiers::NONE), None);
-    assert_eq!(gesture.update(Some(first.clone()), Modifiers::NONE), Some(EditEvent::update(id, Some(first.clone()), Modifiers::NONE)));
-    assert_eq!(gesture.update(Some(first), Modifiers::NONE), None);
-    assert_eq!(gesture.update(Some(second.clone()), Modifiers::ALT), Some(EditEvent::update(id, Some(second.clone()), Modifiers::ALT)));
-    assert_eq!(gesture.finish(DragEnd::Released(Some(second.clone())), Modifiers::NONE), EditEvent::commit(id, Some(second), true, Modifiers::NONE));
+/// Runs one pass in which the control loads its drag gesture, lets `drive` act on it, and
+/// returns the pass's event.
+fn pass(ctx: &egui::Context, drive: impl FnOnce(&mut ReorderGesture<u32>)) -> Option<EditEvent<Move<u32>>> {
+    let (mut event, mut drive) = (None, Some(drive));
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut gesture = ReorderGesture::load(ui, Id::unique("strip"));
+        if let Some(drive) = drive.take() {
+            drive(&mut gesture);
+        }
+        event = gesture.finish();
+    })
+    .drop_without_applying_deltas();
+    event
 }
 
 #[test]
-fn a_drag_cancels_with_the_reason_it_ended_for() {
-    let end = |end| {
-        let (gesture, _) = ReorderGesture::<u32>::begin();
-        let id = gesture.id();
-        (id, gesture.finish(end, Modifiers::NONE))
-    };
+fn a_drag_is_one_gesture_from_begin_to_commit_or_cancel() {
+    let ctx = egui::Context::default();
+    let begin = pass(&ctx, ReorderGesture::begin);
+    let Some(EditEvent::Begin { id }) = begin else { panic!("a begin: {begin:?}") };
+    assert_eq!(pass(&ctx, |_| {}), None, "the target under the pointer is not an edit");
+    let drop = mv(&[0], 2, After);
+    let end = pass(&ctx, |g| g.end(DragEnd::Released(Some(drop.clone())), Modifiers::ALT));
+    assert!(matches!(end, Some(EditEvent::Commit { id: ended, ref value, changed: true, .. }) if ended == id && *value == drop), "{end:?}");
+
     for (drag_end, reason) in [
         (DragEnd::Escape, CancelReason::Escape),
         (DragEnd::FocusLost, CancelReason::FocusLost),
         (DragEnd::Removed, CancelReason::Removed),
         (DragEnd::Released(None), CancelReason::Dismissed),
     ] {
-        let (id, event) = end(drag_end);
-        assert_eq!(event, EditEvent::cancel(id, reason));
+        let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+        assert_eq!(pass(&ctx, |g| g.end(drag_end, Modifiers::NONE)), Some(EditEvent::cancel(id, reason)));
     }
+
+    let set = pass(&ctx, |g| g.set(drop.clone()));
+    assert!(matches!(set, Some(EditEvent::Set { ref value, .. }) if *value == drop), "a key's move: {set:?}");
 }
 
 #[test]
-fn leaving_every_target_updates_with_none_and_a_release_there_is_dismissed() {
-    let (mut gesture, _) = ReorderGesture::<u32>::begin();
-    let id = gesture.id();
-    let target = mv(&[0], 2, Before);
-    gesture.update(Some(target.clone()), Modifiers::NONE);
-    assert_eq!(gesture.update(None, Modifiers::NONE), Some(EditEvent::update(id, None, Modifiers::NONE)));
-    assert_eq!(gesture.update(None, Modifiers::NONE), None);
-    assert_eq!(gesture.update(Some(target), Modifiers::NONE).map(|e| e.value().is_some()), Some(true));
-    assert_eq!(gesture.update(None, Modifiers::NONE), Some(EditEvent::update(id, None, Modifiers::NONE)));
-    assert_eq!(gesture.finish(DragEnd::Released(None), Modifiers::NONE), EditEvent::cancel(id, CancelReason::Dismissed));
+fn a_drag_ends_on_cancel_all_and_on_a_pass_that_skips_its_control() {
+    let ctx = egui::Context::default();
+    let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+    crate::edit::cancel_all(&ctx, CancelReason::External);
+    assert_eq!(pass(&ctx, |g| assert!(!g.is_active())), Some(EditEvent::cancel(id, CancelReason::External)));
+
+    let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+    let mut live = true;
+    ctx.run_ui(egui::RawInput::default(), |ui| live = crate::edit::is_live(ui.ctx(), id)).drop_without_applying_deltas();
+    assert!(!live, "a pass without the control ends the drag");
+    assert_eq!(pass(&ctx, |g| assert!(!g.is_active())), None);
+}
+
+/// A document of row orders with an undo history of whole orders.
+#[derive(Default)]
+struct Orders {
+    rows: Vec<u32>,
+    undo: Vec<Vec<u32>>,
+}
+
+impl crate::edit::UndoMarks for Orders {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(rows) = self.undo.get(mark) {
+            self.rows.clone_from(rows);
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+fn apply_order(doc: &mut Orders, mv: Move<u32>) {
+    doc.undo.push(doc.rows.clone());
+    doc.rows.retain(|r| !mv.items.contains(r));
+    let at = doc.rows.iter().position(|&r| r == mv.target).map_or(doc.rows.len(), |at| at + usize::from(mv.position == After));
+    doc.rows.splice(at..at, mv.items);
+}
+
+type Drive = dyn Fn(&mut ReorderGesture<u32>);
+
+/// One pass of a host: the control (when `drive` is given) and the host's end of frame, which it
+/// returns.
+fn host_pass(ctx: &egui::Context, host: &mut crate::edit::GestureHost<Orders>, doc: &mut Orders, drive: Option<&Drive>) -> Option<EditEvent<()>> {
+    let mut ended = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        if let Some(drive) = drive {
+            let mut gesture = ReorderGesture::load(ui, Id::unique("strip"));
+            drive(&mut gesture);
+            if let Some(event) = gesture.finish() {
+                host.handle(ui.ctx(), doc, event, apply_order);
+            }
+        }
+        ended = host.end_frame(ui.ctx(), doc);
+    })
+    .drop_without_applying_deltas();
+    ended
+}
+
+#[test]
+fn a_gesture_host_makes_a_drop_one_undo_step_and_ends_a_drag_whose_control_went_away() {
+    let ctx = egui::Context::default();
+    let mut host = crate::edit::GestureHost::new();
+    let mut doc = Orders { rows: vec![0, 1, 2], undo: Vec::new() };
+    host_pass(&ctx, &mut host, &mut doc, Some(&ReorderGesture::begin));
+    for _ in 0..3 {
+        assert_eq!(host_pass(&ctx, &mut host, &mut doc, Some(&|_| {})), None, "the drag stays live while its control is drawn");
+    }
+    assert!(host.is_active());
+    host_pass(&ctx, &mut host, &mut doc, Some(&|g| g.end(DragEnd::Released(Some(mv(&[0], 2, After))), Modifiers::NONE)));
+    assert_eq!((doc.rows.as_slice(), doc.undo.len(), host.is_active()), ([1, 2, 0].as_slice(), 1, false), "one undo step");
+
+    host_pass(&ctx, &mut host, &mut doc, Some(&ReorderGesture::begin));
+    let ended = host_pass(&ctx, &mut host, &mut doc, None);
+    assert!(matches!(ended, Some(EditEvent::Cancel { reason: CancelReason::Removed, .. })), "{ended:?}");
+    assert_eq!((doc.rows.as_slice(), doc.undo.len(), host.is_active()), ([1, 2, 0].as_slice(), 1, false));
+}
+
+#[test]
+fn a_group_and_its_child_selected_move_as_the_group() {
+    let rows = tree();
+    // Group 1 and its child 2: the group moves past the next top-level row, not past its child.
+    assert_eq!(key_move(&rows, &[1, 2], StackKey::TowardEnd), Some(mv(&[1], 4, After)));
+    // Group 5 with child 6 is already at the end.
+    assert_eq!(key_move(&rows, &[5, 6], StackKey::ToEnd), None);
+    assert_eq!(key_move(&rows, &[5, 6], StackKey::TowardStart), Some(mv(&[5], 4, Before)));
+    // A drag of both: the same block, so its own slots are no-ops.
+    assert_eq!(drop_at(&rows, 85.0, &[1, 2]), None);
+    assert_eq!(drop_at(&rows, 95.0, &[1, 2]), Some(mv(&[1], 4, After)));
+    let drag = ListDrag::new(Id::unique("tree"), &rows[..], &[2, 1], 1, "One");
+    assert_eq!(drag.items, [1], "the payload holds the group, its child goes with it");
+}
+
+#[test]
+fn into_the_group_the_rows_already_start_is_a_no_op() {
+    let rows = tree();
+    // Row 2 is group 1's first child: into group 1 (its middle, 26..34) changes nothing.
+    assert_eq!(drop_at(&rows, 30.0, &[2]), None);
+    // Its second child goes to the top: a move.
+    assert_eq!(drop_at(&rows, 30.0, &[3]), Some(mv(&[3], 1, Into)));
+    // Both children, first already first: a no-op; a copy still drops.
+    assert_eq!(drop_at(&rows, 30.0, &[2, 3]), None);
+    let copy = Reorder::default().copy_with_alt(true).resolve(&rows[..], &spans(rows.len()), 30.0, &[2], Modifiers::ALT).map(|r| r.mv);
+    assert_eq!(copy, Some(Move { copy: true, ..mv(&[2], 1, Into) }));
 }

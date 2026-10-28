@@ -7,14 +7,22 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::drag::show_flat;
+use crate::direction::{self, Direction};
 use crate::story::Args;
 use crate::theme::{Base, install};
 
 fn harness() -> Harness<'static, Args> {
+    harness_in(Direction::Ltr)
+}
+
+fn harness_in(dir: Direction) -> Harness<'static, Args> {
     let mut harness = Harness::<Args>::builder()
         .with_size([420.0, 420.0])
         .with_step_dt(0.05)
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
         .build_ui_state(show_flat, Args::new());
     harness.run();
     harness
@@ -94,4 +102,37 @@ fn a_row_menu_opens_at_the_pointer_or_the_lead_and_the_list_keeps_the_focus() {
         "choosing Duplicate reports the command"
     );
     assert!(menu_item_rect(&harness, "Rename").is_none(), "and closes the menu");
+}
+
+#[allow(clippy::expect_used)]
+fn lead(harness: &Harness<'_, Args>) -> String {
+    harness.get_by_role(Role::ListBox).accesskit_node().active_descendant().and_then(|n| n.label()).expect("lead")
+}
+
+#[test]
+fn an_open_menu_takes_the_arrows_and_enter_from_the_list() {
+    let mut harness = harness();
+    harness.key_press(Key::Tab);
+    harness.run();
+    let before = lead(&harness);
+    key(&mut harness, Key::F10, Modifiers::SHIFT);
+    assert!(menu_item_rect(&harness, "Rename").is_some(), "Shift+F10 opens the menu");
+    key(&mut harness, Key::ArrowDown, Modifiers::NONE);
+    key(&mut harness, Key::Enter, Modifiers::NONE);
+    assert!(
+        harness.query_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some("Layer 1 copy")).is_some(),
+        "↓ and Enter chose the second item, Duplicate"
+    );
+    assert_eq!(lead(&harness), before, "the lead row stayed");
+}
+
+#[test]
+fn a_keyboard_menu_opens_at_the_reading_start_of_the_row_right_to_left() {
+    let mut harness = harness_in(Direction::Rtl);
+    harness.key_press(Key::Tab);
+    harness.run();
+    let lead_rect = row_rect(&harness, &lead(&harness));
+    key(&mut harness, Key::F10, Modifiers::SHIFT);
+    let rename = menu_item_rect(&harness, "Rename").expect("Shift+F10 opens it");
+    assert!((rename.right() - lead_rect.right()).abs() < 24.0, "at the row's right edge: {rename:?} for {lead_rect:?}");
 }

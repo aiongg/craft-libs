@@ -3,10 +3,10 @@
 
 use std::ops::Range;
 
-use egui::{Id, Key, Modifiers, Pos2, Rect};
+use egui::{Id, Key, Modifiers, Pos2, Rect, Ui};
 
 use super::list_selection::{DisplayOrder, first_child, parent};
-use crate::edit::{CancelReason, EditEvent, GestureId};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 
 /// The axis a list runs along.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -25,16 +25,18 @@ pub enum DropPosition {
     Before,
     /// After the row, in reading order.
     After,
-    /// Into the row, which is a group.
+    /// Into the row, which is a group: as its first children (PhotoCraft).
     Into,
 }
 
 /// A reorder or copy: the rows `items` go to `position` of the row `target`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Move<K> {
-    /// The rows moved, in display order.
+    /// The rows moved, in display order, each with the rows inside it: a row inside another
+    /// moved row is not listed.
     pub items: Vec<K>,
-    /// The row the drop is relative to.
+    /// The row the drop is relative to. It may be one of `items`: rows apart gather at the edge
+    /// of one of them, so a host finds the slot before it takes the rows out.
     pub target: K,
     /// Where the drop lands relative to `target`.
     pub position: DropPosition,
@@ -49,7 +51,7 @@ pub struct ListDrag<K> {
     /// The list the rows come from.
     pub list: Id,
     /// The rows dragged, in display order: the selection when the grabbed row is in it, else the
-    /// grabbed row.
+    /// grabbed row. A row inside another dragged row is not listed; it goes with that row.
     pub items: Vec<K>,
     /// The grabbed row's label, for the ghost.
     pub label: String,
@@ -60,7 +62,7 @@ impl<K: Clone + PartialEq> ListDrag<K> {
     /// order) when it holds `grabbed`, else `grabbed` alone. The selection itself doesn't change.
     pub fn new(list: Id, order: &(impl DisplayOrder<K> + ?Sized), selection: &[K], grabbed: K, label: impl Into<String>) -> Self {
         let items = if selection.contains(&grabbed) {
-            (0..order.len()).map(|at| order.key(at)).filter(|k| selection.contains(k)).cloned().collect()
+            dragged_positions(order, selection).into_iter().map(|at| order.key(at).clone()).collect()
         } else {
             vec![grabbed]
         };
@@ -186,49 +188,97 @@ pub enum DragEnd<K> {
     Removed,
 }
 
-/// The [`EditEvent`] sequence of one drag: `Begin` at the start, `Update` when the target changes,
-/// then `Commit` on a drop on an accepted target or `Cancel` (`Escape`, `FocusLost`, `Removed`, or
-/// `Dismissed` for a release where nothing accepts the rows, which includes a no-op).
+/// The edit lifecycle of one drag of rows, on an [`edit::Gesture`](Gesture): `Begin` at the
+/// start, then `Commit` with the move on a drop on an accepted target, or `Cancel` (`Escape`,
+/// `FocusLost`, `Removed`, or `Dismissed` for a release where nothing accepts the rows, which
+/// includes a no-op); a stacking key's move is a `Set`. The gesture is live while its control
+/// loads it ([`edit::is_live`](crate::edit::is_live)), and Esc and
+/// [`edit::cancel_all`](crate::edit::cancel_all) end it, as for every edit gesture.
 ///
-/// The value is `None` while the pointer is over no valid target, so a host's live preview
-/// clears; a `Commit` always carries `Some`.
-#[derive(Clone, Debug)]
+/// The target under the pointer is not an edit: the control reports it as its own state each
+/// frame (a list's [`ListOutput::drop_target`](crate::list::ListOutput::drop_target)), so a host
+/// may preview it, and nothing reaches the document before the drop.
+///
+/// The control loads the gesture in every pass it is drawn, with a drag under way or not, and
+/// finishes it in the same pass:
+///
+/// ```
+/// use craft_ui::behavior::{DragEnd, ReorderGesture};
+/// # egui::__run_test_ui(|ui| {
+/// let mut gesture = ReorderGesture::<usize>::load(ui, ui.id().with("tabs"));
+/// let (started, released) = (false, false);
+/// if started {
+///     gesture.begin();
+/// }
+/// if gesture.is_active() && released {
+///     gesture.end(DragEnd::Released(None), ui.input(|i| i.modifiers));
+/// }
+/// let event = gesture.finish();
+/// # assert!(event.is_none());
+/// # });
+/// ```
+#[derive(Debug)]
+#[must_use = "finish the gesture to keep it and get the frame's event"]
 pub struct ReorderGesture<K> {
-    id: GestureId,
-    last: Option<Move<K>>,
+    gesture: Gesture<Option<Move<K>>>,
 }
 
-impl<K: Clone + PartialEq> ReorderGesture<K> {
-    /// A drag that starts now, and its `Begin` event.
-    pub fn begin() -> (Self, EditEvent<Option<Move<K>>>) {
-        let id = GestureId::next();
-        (Self { id, last: None }, EditEvent::begin(id))
+impl<K: Clone + PartialEq + Send + Sync + 'static> ReorderGesture<K> {
+    /// The drag gesture of the control with id `id` (a list, a tab strip), as its last pass left
+    /// it. Applies Esc, [`cancel_all`](crate::edit::cancel_all) and a pass that didn't draw the
+    /// control, each of which ends a drag under way.
+    pub fn load(ui: &Ui, id: Id) -> Self {
+        let policy = EditPolicy::default().on_release_only(true);
+        let gesture = Gesture::load(ui, id.with("craft_ui::reorder"), &None, policy).focus_owners(&[]).enabled(ui.is_enabled());
+        Self { gesture }
     }
 
-    /// The gesture's id.
-    pub fn id(&self) -> GestureId {
-        self.id
+    /// Whether a drag is under way.
+    pub fn is_active(&self) -> bool {
+        self.gesture.is_active()
     }
 
-    /// The target under the pointer this frame, if any accepts the rows: an `Update` when it is
-    /// not the same as the last one, with `None` when the pointer left every valid target.
-    pub fn update(&mut self, target: Option<Move<K>>, modifiers: Modifiers) -> Option<EditEvent<Option<Move<K>>>> {
-        if target == self.last {
-            return None;
-        }
-        self.last.clone_from(&target);
-        Some(EditEvent::update(self.id, target, modifiers))
+    /// The drag's id, while one is under way.
+    pub fn id(&self) -> Option<GestureId> {
+        self.gesture.id()
     }
 
-    /// The event that ends the drag.
-    pub fn finish(self, end: DragEnd<K>, modifiers: Modifiers) -> EditEvent<Option<Move<K>>> {
+    /// Starts a drag; nothing while one is under way.
+    pub fn begin(&mut self) {
+        self.gesture.begin();
+    }
+
+    /// Ends the drag under way: a commit for a release over an accepted target, otherwise a
+    /// cancel for the reason.
+    pub fn end(&mut self, end: DragEnd<K>, modifiers: Modifiers) {
         match end {
-            DragEnd::Released(Some(mv)) => EditEvent::commit(self.id, Some(mv), true, modifiers),
-            DragEnd::Released(None) => EditEvent::cancel(self.id, CancelReason::Dismissed),
-            DragEnd::Escape => EditEvent::cancel(self.id, CancelReason::Escape),
-            DragEnd::FocusLost => EditEvent::cancel(self.id, CancelReason::FocusLost),
-            DragEnd::Removed => EditEvent::cancel(self.id, CancelReason::Removed),
+            DragEnd::Released(Some(mv)) => {
+                self.gesture.update(Some(mv), modifiers);
+                self.gesture.commit();
+            }
+            DragEnd::Released(None) => self.gesture.cancel(CancelReason::Dismissed),
+            DragEnd::Escape => self.gesture.cancel(CancelReason::Escape),
+            DragEnd::FocusLost => self.gesture.cancel(CancelReason::FocusLost),
+            DragEnd::Removed => self.gesture.cancel(CancelReason::Removed),
         }
+    }
+
+    /// A move made at once, by a stacking key: a `Set`.
+    pub fn set(&mut self, mv: Move<K>) {
+        self.gesture.set(Some(mv));
+    }
+
+    /// Keeps the gesture and returns this frame's event.
+    pub fn finish(self) -> Option<EditEvent<Move<K>>> {
+        Some(match self.gesture.finish()? {
+            EditEvent::Begin { id } => EditEvent::Begin { id },
+            EditEvent::Cancel { id, reason } => EditEvent::Cancel { id, reason },
+            EditEvent::Commit { id, value: Some(value), changed, modifiers } => EditEvent::Commit { id, value, changed, modifiers },
+            EditEvent::Set { value: Some(value), modifiers } => EditEvent::Set { value, modifiers },
+            // Inside an edit scope, the end of a drag and a key's move.
+            EditEvent::Update { id, value: Some(value), modifiers } => EditEvent::Update { id, value, modifiers },
+            EditEvent::Commit { .. } | EditEvent::Set { .. } | EditEvent::Update { .. } => return None,
+        })
     }
 }
 
@@ -241,9 +291,12 @@ type Accepts<'a, K> = Box<dyn Fn(&Move<K>, Modifiers) -> bool + 'a>;
 ///   `Before`, below it `After`. Other rows: halves.
 /// - The gap between two rows drops before the lower row; the space past the last row drops
 ///   after it.
-/// - A drop that changes nothing has no target: onto the dragged rows, or onto the slot next to
-///   them at the same depth. Neither has a drop into a dragged row or its descendants. Copying
-///   allows the dragged rows' own edges.
+/// - `Into` puts the rows at the top of the group, as its first children.
+/// - A drop that changes nothing has no target: onto the dragged rows, onto the slot next to
+///   them at the same depth, or into their own group when they are its first children already.
+///   Neither has a drop into a dragged row or its descendants. Copying allows the dragged rows'
+///   own edges and their own group.
+/// - The dragged rows are taken without the rows inside another dragged row, which go with it.
 /// - [`accepts`](Reorder::accepts) refuses targets for the host's own rules.
 ///
 /// Horizontal lists follow the reading direction: before and after are left and right, or right
@@ -377,7 +430,8 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
 
     /// The move for a stacking key over the `selected` rows, or `None` when they can't move that
     /// way or the host refuses it. The rows move as one block: from the nearest row beyond the
-    /// block's first (or last) row, so a selection with gaps closes up there.
+    /// block's first (or last) row, so a selection with gaps closes up there. A selected row
+    /// inside another selected row moves with it, so the block never lands inside itself.
     ///
     /// A step past a closed group goes past it; a step onto the children of an open group
     /// enters it as their sibling, and a step from a group's first (last) child leaves the group.
@@ -385,6 +439,7 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
         let len = order.len();
         let positions = dragged_positions(order, selected);
         let (&first, &last) = (positions.first()?, positions.last()?);
+        // The positions are disjoint subtrees in order, so the last one's ends the block.
         let block_end = subtree_end(order, last);
         let packed = is_block(order, &positions);
         let (at, position) = match key {
@@ -409,6 +464,9 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
             }
             _ => return None,
         };
+        if inside_dragged(order, &positions, at) {
+            return None;
+        }
         let items = positions.iter().map(|&p| order.key(p).clone()).collect();
         let mv = Move { items, target: order.key(at).clone(), position, copy: false };
         self.accepts.as_ref().is_none_or(|accepts| accepts(&mv, modifiers)).then_some(mv)
@@ -466,9 +524,19 @@ fn partition_point(len: usize, before: impl Fn(usize) -> bool) -> usize {
     low
 }
 
-/// The display positions of `keys` that are shown, ascending.
+/// The display positions of `keys` that are shown, ascending, without those inside another one's
+/// subtree: each moves with its subtree.
 fn dragged_positions<K: PartialEq>(order: &(impl DisplayOrder<K> + ?Sized), keys: &[K]) -> Vec<usize> {
-    (0..order.len()).filter(|&at| keys.contains(order.key(at))).collect()
+    let mut positions = Vec::new();
+    let mut covered = None;
+    for at in 0..order.len() {
+        if covered.is_some_and(|end| at <= end) || !keys.contains(order.key(at)) {
+            continue;
+        }
+        positions.push(at);
+        covered = Some(subtree_end(order, at));
+    }
+    positions
 }
 
 /// The position of the last row below `at` that belongs to its subtree (`at` for a leaf).
@@ -486,16 +554,25 @@ fn is_block<K>(order: &(impl DisplayOrder<K> + ?Sized), positions: &[usize]) -> 
     positions.windows(2).all(|pair| pair[1] == subtree_end(order, pair[0]) + 1)
 }
 
+/// Whether the row at `at` is a descendant of a dragged row: rows can't go into their own
+/// subtree.
+fn inside_dragged<K>(order: &(impl DisplayOrder<K> + ?Sized), positions: &[usize], at: usize) -> bool {
+    positions.iter().any(|&p| p < at && at <= subtree_end(order, p))
+}
+
 /// Whether dropping `positions` at `position` of row `at` is a drop that takes effect.
 fn drop_changes_something<K>(order: &(impl DisplayOrder<K> + ?Sized), positions: &[usize], at: usize, position: DropPosition, copy: bool) -> bool {
     let dragged = positions.contains(&at);
-    // A row can't go into itself or its own descendants.
-    let inside = positions.iter().any(|&p| p < at && at <= subtree_end(order, p));
-    if inside || (dragged && position == DropPosition::Into) {
+    if inside_dragged(order, positions, at) || (dragged && position == DropPosition::Into) {
         return false;
     }
-    if copy || position == DropPosition::Into || !is_block(order, positions) {
+    if copy || !is_block(order, positions) {
         return true;
+    }
+    if position == DropPosition::Into {
+        // Into puts the rows first in the group: a no-op for its first children.
+        let depth = order.depth(at) + 1;
+        return !(first_child(order, at) == Some(positions[0]) && positions.iter().all(|&p| order.depth(p) == depth));
     }
     let first = positions[0];
     let after_block = subtree_end(order, positions[positions.len() - 1]) + 1;

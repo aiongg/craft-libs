@@ -581,7 +581,8 @@ fn list_row() {
         d.line("radius", s.radius).line("dividers", s.dividers).line("drop_width", s.drop_width).line("icon_size", s.icon_size);
         d.line("label_role", role(s.label_role)).line("detail_role", role(s.detail_role));
         d.line("label_line", s.label_line).line("detail_line", s.detail_line);
-        d.line("text", s.text).line("dimmed", s.dimmed).line("selected_text", s.selected_text).line("detail", s.detail);
+        d.line("text", s.text).line("dimmed", s.dimmed).line("selected_text", s.selected_text).line("selected_dimmed", s.selected_dimmed);
+        d.line("detail", s.detail).line("selected_detail", s.selected_detail);
         d.line("icon", s.icon).line("icon_hover", s.icon_hover);
         d.line("hover", s.hover).line("selected", s.selected).line("selected_hover", s.selected_hover);
         d.line("divider", s.divider.color).line("thumb_border", s.thumb_border).line("drop", s.drop);

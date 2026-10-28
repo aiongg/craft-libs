@@ -9,7 +9,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 use super::row::show_layers;
 use super::*;
 use crate::direction::{self, Direction};
-use crate::edit::EditEvent;
+use crate::edit::{EditEvent, GestureHost, UndoMarks};
 use crate::icons::Icon;
 use crate::story::Args;
 use crate::testing::a11y;
@@ -115,7 +115,7 @@ fn the_selected_row_is_a_fill_only_rounded_in_comfortable() {
 }
 
 #[test]
-fn dividers_belong_to_compact_and_a_dimmed_label_is_faint() {
+fn dividers_belong_to_compact_and_a_dimmed_label_and_detail_take_the_selected_fill_into_account() {
     let ctx = context();
     let s = style();
     let lines = |size| {
@@ -125,7 +125,7 @@ fn dividers_belong_to_compact_and_a_dimmed_label_is_faint() {
                 |o| o.size = Some(size),
                 |ui| {
                     panel(ui, 240.0, |ui| {
-                        let _ = ListRow::new(1u8, "Layer").toggle(ToggleColumn::eye("Visibility", true)).show(ui);
+                        let _ = ListRow::new(1u8, "Layer").toggle(ToggleColumn::eye("Visibility {row}", true)).show(ui);
                     })
                 },
             )
@@ -139,14 +139,24 @@ fn dividers_belong_to_compact_and_a_dimmed_label_is_faint() {
     let label = |dimmed, selected| {
         let drawn = shapes(&ctx, |ui| {
             panel(ui, 240.0, |ui| {
-                let _ = ListRow::new(1u8, "Layer").dimmed(dimmed).selected(selected).show(ui);
+                let _ = ListRow::new(1u8, "Layer").dimmed(dimmed).selected(selected).detail("Smart filter").show(ui);
             })
         });
         label_colors(&drawn)
     };
-    assert_eq!(label(false, false), [s.text]);
-    assert_eq!(label(true, false), [s.dimmed]);
-    assert_eq!(label(false, true), [s.selected_text]);
+    assert_eq!(label(false, false), [s.text, s.detail]);
+    assert_eq!(label(true, false), [s.dimmed, s.detail]);
+    assert_eq!(label(false, true), [s.selected_text, s.selected_detail]);
+    // A hidden layer that is selected: its name and detail read on the selected fill.
+    assert_eq!(label(true, true), [s.selected_dimmed, s.selected_detail]);
+    for text in [s.selected_dimmed, s.selected_detail] {
+        let ratio = craft_theme::contrast::contrast_ratio(to_rgba(text), to_rgba(s.selected));
+        assert!(ratio >= 4.5, "{text:?} on the selected fill is {ratio:.2}");
+    }
+}
+
+fn to_rgba(c: egui::Color32) -> craft_theme::color::Rgba {
+    craft_theme::color::Rgba([c.r(), c.g(), c.b(), c.a()])
 }
 
 #[test]
@@ -236,7 +246,7 @@ fn optional_items_drop_out_before_the_label_gets_too_narrow() {
             panel(ui, width, |ui| {
                 label.set(
                     ListRow::new(1u8, "A layer with a long name")
-                        .toggle(ToggleColumn::eye("Visibility", true))
+                        .toggle(ToggleColumn::eye("Visibility {row}", true))
                         .trailing_item(16.0, |ui| {
                             ui.label("fx");
                         })
@@ -302,8 +312,8 @@ fn a_row_is_a_labelled_list_box_option_and_no_tab_stop() {
         panel(ui, 260.0, |ui| {
             let _ = ListRow::new(1u8, "Layer 1")
                 .detail("Raster layer")
-                .toggle(ToggleColumn::eye("Visibility", true))
-                .toggle(ToggleColumn::lock("Lock", false))
+                .toggle(ToggleColumn::eye("Visibility {row}", true))
+                .toggle(ToggleColumn::lock("Lock {row}", false))
                 .selected(true)
                 .position_in_set(4)
                 .show(ui);
@@ -332,7 +342,7 @@ fn the_row_mirrors_in_a_right_to_left_interface() {
         let harness = harness(dir).build_ui(|ui| {
             panel(ui, 300.0, |ui| {
                 let _ = ListRow::new(1u8, "Layer")
-                    .toggle(ToggleColumn::eye("Visibility", true))
+                    .toggle(ToggleColumn::eye("Visibility {row}", true))
                     .trailing_item(16.0, |ui| {
                         ui.label("fx");
                     })
@@ -358,7 +368,7 @@ struct Sweeps {
 fn sweeping(ui: &mut Ui, state: &mut Sweeps) {
     panel(ui, 240.0, |ui| {
         for row in 0..4 {
-            let out = ListRow::new(row, format!("Row {row}")).toggle(ToggleColumn::eye("Visibility", state.on[row])).show(ui);
+            let out = ListRow::new(row, format!("Row {row}")).toggle(ToggleColumn::eye("Visibility {row}", state.on[row])).show(ui);
             for event in out.events {
                 if let RowEvent::Toggle(event) = event {
                     if let EditEvent::Update { value, .. } | EditEvent::Set { value, .. } = &event {
@@ -376,7 +386,7 @@ fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
 }
 
 /// Presses on the eye cell of `from`, moves down to the cell of `to` in steps, and releases.
-fn sweep(harness: &mut Harness<'_, Sweeps>, from: usize, to: usize, modifiers: Modifiers) {
+fn sweep<S>(harness: &mut Harness<'_, S>, from: usize, to: usize, modifiers: Modifiers) {
     let cell = |row: usize| harness.get_by_label(&format!("Visibility Row {row}")).rect().center();
     let (start, end) = (cell(from), cell(to));
     harness.event(Event::PointerMoved(start));
@@ -413,6 +423,89 @@ fn dragging_down_a_toggle_column_gives_every_row_the_first_clicks_state_as_one_g
     assert_eq!(kinds, ["begin", "update 0", "update 1", "update 3", "commit 0"], "row 2 was already off: no update");
     let ids: Vec<_> = state.events.iter().filter_map(|e| e.id()).collect();
     assert!(ids.windows(2).all(|w| w[0] == w[1]), "one gesture: {ids:?}");
+}
+
+/// Eye states as a document with an undo history of whole states.
+#[derive(Default)]
+struct Eyes {
+    on: [bool; 4],
+    undo: Vec<[bool; 4]>,
+}
+
+impl UndoMarks for Eyes {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(on) = self.undo.get(mark) {
+            self.on = *on;
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+/// Eye columns whose sweeps a `GestureHost` turns into undo steps.
+struct Hosted {
+    doc: Eyes,
+    host: GestureHost<Eyes>,
+}
+
+fn hosted(ui: &mut Ui, state: &mut Hosted) {
+    panel(ui, 240.0, |ui| {
+        for row in 0..4 {
+            let out = ListRow::new(row, format!("Row {row}")).toggle(ToggleColumn::eye("Visibility {row}", state.doc.on[row])).show(ui);
+            for event in out.events {
+                if let RowEvent::Toggle(event) = event {
+                    state.host.handle(ui.ctx(), &mut state.doc, event, |doc: &mut Eyes, edit: ToggleEdit<usize>| {
+                        doc.undo.push(doc.on);
+                        doc.on[edit.row] = edit.on;
+                    });
+                }
+            }
+        }
+    });
+    let _ = state.host.end_frame(ui.ctx(), &mut state.doc);
+}
+
+#[test]
+fn a_gesture_host_keeps_a_sweep_as_one_undo_step_and_cancel_all_reverts_one() {
+    let state = Hosted { doc: Eyes { on: [true; 4], undo: Vec::new() }, host: GestureHost::new() };
+    let mut harness = harness(Direction::Ltr).build_ui_state(hosted, state);
+    sweep(&mut harness, 0, 3, Modifiers::NONE);
+    let state = harness.state();
+    assert_eq!((state.doc.on, state.doc.undo.len(), state.host.is_active()), ([false; 4], 1, false), "the sweep lands as one step");
+
+    let cell = |harness: &Harness<'_, Hosted>, row: usize| harness.get_by_label(&format!("Visibility Row {row}")).rect().center();
+    let (start, end) = (cell(&harness, 0), cell(&harness, 2));
+    harness.event(Event::PointerMoved(start));
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    harness.event(Event::PointerMoved(end));
+    harness.run();
+    assert_eq!(harness.state().doc.on, [true, true, true, false], "rows 0 to 2 swept on");
+    crate::edit::cancel_all(&harness.ctx, crate::edit::CancelReason::External);
+    harness.run();
+    harness.event(button(end, false, Modifiers::NONE));
+    harness.run();
+    let state = harness.state();
+    assert!(!state.host.is_active(), "cancel_all ends the sweep");
+    assert_eq!(state.doc.on, [true, true, true, false], "an external cancel keeps the document as it is");
+    harness.state_mut().doc.on = [false; 4];
+    harness.event(Event::PointerMoved(start));
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    harness.event(button(start, false, Modifiers::NONE));
+    harness.run();
+    assert_eq!((harness.state().doc.on, harness.state().host.is_active()), ([false; 4], false), "Esc cancels and reverts");
 }
 
 #[test]

@@ -26,7 +26,8 @@ use crate::behavior::{
     RowInfo, Selection, SelectionChange, SelectionMode, StackKey, TreeMove, tree_key,
 };
 use crate::direction;
-use crate::edit::{CancelReason, EditEvent, GestureId};
+use crate::edit::{self, EditEvent, GestureId};
+use crate::popup_list;
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf as _};
@@ -53,13 +54,14 @@ pub enum ListEvent<K> {
     /// What a row reported: toggle column edits (also those of a column's
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
-    /// A move of rows the host makes, in a list that [reorders](List::reorder). A drag reports
-    /// `Begin`, an `Update` whenever the target changes (`None` while the pointer is over no
-    /// target, so a preview clears), then `Commit` with the move on a drop on a target, or
-    /// `Cancel`: `Escape`, `FocusLost` (the window lost focus), `Dismissed` (released anywhere
-    /// else) or `Removed` (the list was not drawn in a pass, or a dragged row left it). A stacking key
-    /// reports `Set`.
-    Reorder(EditEvent<Option<Move<K>>>),
+    /// A move of rows the host makes, in a list that [reorders](List::reorder), as one edit
+    /// gesture ([`ReorderGesture`]). A drag reports `Begin`, then `Commit` with the move on a
+    /// drop on a target, or `Cancel`: `Escape`, `FocusLost` (the window lost focus), `Dismissed`
+    /// (released anywhere else), `Removed` (a dragged row left the list), or the reason of a
+    /// [`cancel_all`](crate::edit::cancel_all). A pass that doesn't draw the list ends the drag
+    /// as [`edit::is_live`](crate::edit::is_live) says. Where a drag would drop is
+    /// [`ListOutput::drop_target`], not an edit. A stacking key reports `Set`.
+    Reorder(EditEvent<Move<K>>),
 }
 
 /// A context menu asked for on a list: a secondary click, or the Menu key or Shift+F10 while the
@@ -86,6 +88,10 @@ pub struct ListOutput<K> {
     pub response: Response,
     /// What happened this frame, in order.
     pub events: Vec<ListEvent<K>>,
+    /// While a drag of rows is under way, where it drops this frame: the target the marker
+    /// shows, `None` over no target. A host may preview it; the move itself comes as
+    /// [`ListEvent::Reorder`]'s `Commit`.
+    pub drop_target: Option<Move<K>>,
 }
 
 /// The heights of a list's rows.
@@ -138,10 +144,11 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 ///   list has the focus. Changes are applied to the [selection](List::selection) and reported.
 ///   A key move scrolls the lead into view without animation, only when it is hidden;
 ///   [`reveal`](List::reveal) does the same for the host.
-/// - **Keys.** Enter reports [`ListEvent::Activate`]; F2 renames the lead where the list
+/// - **Keys.** The list's keys pause while a popup is open, so its context menu takes ↑, ↓ and
+///   Enter. Enter reports [`ListEvent::Activate`]; F2 renames the lead where the list
 ///   [renames](List::renamable); a toggle column's [key](super::ToggleColumn::key) toggles it on
-///   the selected rows as one edit gesture; the Menu key and Shift+F10 ask for the context
-///   menu. Type-ahead is off ([`type_ahead`](List::type_ahead)), so single-letter tool keys keep
+///   the selected rows as one edit gesture; the Menu key and Shift+F10 reveal the lead and ask
+///   for its context menu. Type-ahead is off ([`type_ahead`](List::type_ahead)), so single-letter tool keys keep
 ///   working; Cmd/Ctrl+A, Delete and other commands stay the app's.
 /// - **Rename.** A double click on a row's label, F2 or [`start_rename`](List::start_rename)
 ///   opens the row's rename field; one at a time, so starting another commits the open one. Tab
@@ -150,17 +157,19 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 ///   leaves the list.
 /// - **Toggle sweeps.** The row that took the press of a sweep stays drawn until the release,
 ///   so the gesture ends there; when that row leaves the list the sweep is cancelled with
-///   [`CancelReason::Removed`].
+///   [`CancelReason::Removed`](crate::edit::CancelReason::Removed).
 /// - **Reorder.** With [`reorder`](List::reorder), a drag of a row moves the selection (the row
 ///   alone when it isn't selected) without changing it. The target row shows the drop marker;
 ///   a box with the grabbed row's label follows the pointer; the list scrolls while the pointer
 ///   is near its top or bottom edge. The drag is egui's [`DragAndDrop`] payload [`ListDrag`], so
 ///   other widgets take drops from it (a footer's Delete button). Cmd+] and Cmd+[ (Ctrl+] and
 ///   Ctrl+[ off macOS) move the selected rows one row toward the start or end, with Shift to the
-///   start or end. The list reports [`ListEvent::Reorder`]; the host moves the rows.
+///   start or end. The list reports [`ListEvent::Reorder`]; the host moves the rows. The target
+///   under the pointer is [`ListOutput::drop_target`].
 /// - **AccessKit.** The list is a `ListBox` named by its label, `multiselectable` in multiple
 ///   mode, with `size_of_set` the number of rows and `active_descendant` the lead row while it
-///   has the focus. Rows report `position_in_set`; their actions are `Click` (select only it),
+///   has the focus. Rows report `position_in_set` (in a tree, each item its position among its
+///   siblings and their number); their actions are `Click` (select only it),
 ///   `Focus` (make it the lead) and `ScrollIntoView`; the scroll bar is named by
 ///   [`scroll_bar_label`](List::scroll_bar_label).
 #[must_use = "show the list with `show`"]
@@ -382,12 +391,13 @@ where
             id,
             reorder: reorder.as_ref(),
             target: None,
+            drag_gesture: reorder.is_some().then(|| ReorderGesture::load(ui, id)),
             tree,
             tree_text,
             rtl: direction::is_rtl(ui),
         };
 
-        pass.end_for_gone_rows();
+        pass.end_for_gone_rows(ui);
         if let Some(key) = start_rename {
             pass.start_rename(key);
         }
@@ -401,7 +411,8 @@ where
             pass.focus_arrived();
         }
         let mut menu_key = false;
-        if focused && ui.is_enabled() {
+        // An open popup (the list's context menu) takes the keys.
+        if focused && ui.is_enabled() && !popup_list::any_open(ui.ctx()) {
             let page = pass.state.viewport.map_or(1, |h| spans.page(pass.state.offset..pass.state.offset + h));
             menu_key = pass.keys(ui, page, type_ahead, id);
         }
@@ -443,6 +454,9 @@ where
         if pass.focus {
             ui.memory_mut(|m| m.request_focus(id));
         }
+        if let Some(event) = pass.drag_gesture.take().and_then(ReorderGesture::finish) {
+            pass.events.push(ListEvent::Reorder(event));
+        }
         let focused = ui.memory(|m| m.has_focus(id));
         let active = pass.lead_row.map(|(row, _)| row).filter(|_| focused);
         let bounds = response.rect;
@@ -455,7 +469,10 @@ where
                 y1: bounds.max.y.into(),
             });
             node.remove_action(Action::Click);
-            node.set_size_of_set(rows.len());
+            // A tree's sets are each row's siblings, which its items report.
+            if !tree {
+                node.set_size_of_set(rows.len());
+            }
             if multiple {
                 node.set_multiselectable();
             }
@@ -465,6 +482,7 @@ where
             }
         });
         FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && rows.is_empty());
+        let drop_target = pass.state.drag.as_ref().and(pass.target.as_ref()).map(|t| t.mv.clone());
         let events = pass.events;
         if focused {
             ui.memory_mut(|m| {
@@ -474,7 +492,7 @@ where
         state.focused = focused;
         state.own = own;
         state.store(ui.ctx(), id);
-        ListOutput { response, events }
+        ListOutput { response, events, drop_target }
     }
 }
 
@@ -535,7 +553,8 @@ struct Renaming<K> {
     label: String,
 }
 
-/// The row that took the press of a toggle sweep under way.
+/// The row that took the press of a toggle sweep under way; `column` is known from its first
+/// update, in the frame of the press.
 #[derive(Clone)]
 struct SweepOwner<K> {
     key: K,
@@ -575,6 +594,8 @@ struct Pass<'p, K, O: ?Sized, F> {
     reorder: Option<&'p Reorder<'p, K>>,
     /// Where a drag under way drops this frame.
     target: Option<Resolved<K>>,
+    /// The drag's edit gesture, in a list that reorders.
+    drag_gesture: Option<ReorderGesture<K>>,
     tree: bool,
     tree_text: Arc<TreeText>,
     rtl: bool,
@@ -612,20 +633,29 @@ where
         self.state.reveal = self.lead_at().map(|at| self.rows.key(at).clone());
     }
 
-    /// Commits the open rename of a row that left the list, and cancels the sweep of one.
-    fn end_for_gone_rows(&mut self) {
+    /// Commits the open rename of a row that left the list and cancels the sweep and the drag of
+    /// one; forgets a sweep or drag that ended without the list (Esc,
+    /// [`cancel_all`](crate::edit::cancel_all), a pass that didn't draw it).
+    fn end_for_gone_rows(&mut self, ui: &Ui) {
         if let Some(open) = self.state.renaming.take_if(|open| self.rows.position(&open.key).is_none()) {
             self.commit_rename(open, RenameEnd::Removed);
         }
-        if let Some(sweep) = self.state.sweep.take_if(|sweep| self.rows.position(&sweep.key).is_none()) {
-            if let (Some(scope), Some(column)) = (self.state.rows_scope, sweep.column) {
-                toggle::clear_sweep(&self.ctx, scope, column);
+        let sweep_column = |sweep: &SweepOwner<K>| self.state.rows_scope.zip(sweep.column);
+        if let Some(sweep) = self.state.sweep.take()
+            && let Some((scope, column)) = sweep_column(&sweep)
+            && toggle::sweeping(ui, scope, column)
+        {
+            if self.rows.position(&sweep.key).is_some() {
+                self.state.sweep = Some(sweep);
+            } else if let Some(cancel) = toggle::cancel_sweep(ui, scope, column) {
+                self.events.push(ListEvent::Row(RowEvent::Toggle(cancel)));
             }
-            self.events.push(ListEvent::Row(RowEvent::Toggle(EditEvent::cancel(sweep.id, CancelReason::Removed))));
         }
-        let pass = self.ctx.cumulative_pass_nr();
-        if let Some(drag) = self.state.drag.take_if(|drag| drag.pass + 1 < pass || !drag::all_shown(self.rows, &drag.items)) {
-            self.end_drag(drag, DragEnd::Removed, Modifiers::NONE);
+        if !self.drag_gesture.as_ref().is_some_and(ReorderGesture::is_active) && self.state.drag.take().is_some() && self.has_payload() {
+            DragAndDrop::clear_payload(&self.ctx);
+        }
+        if self.state.drag.take_if(|drag| !drag::all_shown(self.rows, &drag.items)).is_some() {
+            self.end_drag(DragEnd::Removed, Modifiers::NONE);
         }
     }
 
@@ -685,8 +715,12 @@ where
         for command in commands {
             match command {
                 Command::List(key) => self.list_key(key, page),
-                Command::Toggle(column) => self.toggle_selected(column),
-                Command::Menu => menu = true,
+                Command::Toggle(column) => self.toggle_selected(column, edit::in_scope(ui)),
+                Command::Menu => {
+                    // The menu opens at the lead's row, so it is scrolled into view first.
+                    self.state.reveal = self.lead_at().map(|at| self.rows.key(at).clone());
+                    menu = true;
+                }
                 Command::Stack(key, modifiers) => self.stack_key(key, modifiers),
                 Command::Tree { right, all } => self.tree_key(right != self.rtl, all),
             }
@@ -743,8 +777,10 @@ where
     }
 
     /// A column's key: the selected rows take the opposite of the lead's state (of the first
-    /// selected row's when the lead isn't selected), as one gesture.
-    fn toggle_selected(&mut self, column: usize) {
+    /// selected row's when the lead isn't selected), as one gesture that begins and ends in this
+    /// frame: `Begin`, an `Update` per row that changes, `Commit`. Inside an edit scope only the
+    /// updates go out, as for every gesture there.
+    fn toggle_selected(&mut self, column: usize, scoped: bool) {
         let chosen: HashSet<&K> = self.selection.items.iter().collect();
         let positions: Vec<usize> = (0..self.rows.len()).filter(|&at| chosen.contains(self.rows.key(at))).collect();
         let lead = self.selection.lead.clone();
@@ -757,17 +793,21 @@ where
         }
         let Some(reference) = states.iter().find(|(key, _)| Some(key) == lead.as_ref()).or(states.first()).cloned() else { return };
         let on = !reference.1;
+        // `edit::Gesture` reports one event a frame, and this gesture has one per row: it ends in
+        // the frame it begins, so it needs no liveness or `cancel_all`.
         let id = GestureId::next();
         let edit = |row: K| ToggleEdit { column, row, on };
-        let mut changed = false;
-        let mut events = vec![EditEvent::begin(id)];
-        for (key, state) in states {
-            if state != on {
-                changed = true;
-                events.push(EditEvent::update(id, edit(key), Modifiers::NONE));
-            }
+        let updates: Vec<_> =
+            states.into_iter().filter(|&(_, state)| state != on).map(|(key, _)| EditEvent::update(id, edit(key), Modifiers::NONE)).collect();
+        let changed = !updates.is_empty();
+        let mut events = Vec::with_capacity(updates.len() + 2);
+        if !scoped {
+            events.push(EditEvent::begin(id));
         }
-        events.push(EditEvent::commit(id, edit(reference.0), changed, Modifiers::NONE));
+        events.extend(updates);
+        if !scoped {
+            events.push(EditEvent::commit(id, edit(reference.0), changed, Modifiers::NONE));
+        }
         self.events.extend(events.into_iter().map(|e| ListEvent::Row(RowEvent::Toggle(e))));
     }
 
@@ -831,7 +871,10 @@ where
                 depth: self.rows.depth(at),
                 group: self.rows.has_children(at),
                 open: self.rows.open(at),
+                siblings: Some(tree::siblings(self.rows, at)),
             });
+        } else {
+            row = row.position_in_set(at);
         }
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
@@ -843,7 +886,7 @@ where
         };
         let mark = self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position));
         let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
-        let out = row.position_in_set(at).show_at(ui, rect);
+        let out = row.show_at(ui, rect);
         if lead {
             self.lead_row = Some((out.response.id, rect));
         }
@@ -1011,7 +1054,8 @@ where
     /// frame, once the host has moved it.
     fn stack_key(&mut self, key: StackKey, modifiers: Modifiers) {
         let Some(mv) = self.reorder.and_then(|reorder| reorder.key_move(self.rows, &self.selection.items, key, modifiers)) else { return };
-        self.events.push(ListEvent::Reorder(EditEvent::set(Some(mv), modifiers)));
+        let Some(gesture) = self.drag_gesture.as_mut().filter(|g| !g.is_active()) else { return };
+        gesture.set(mv);
         self.state.reveal_next = self.lead_at().map(|at| self.rows.key(at).clone());
     }
 
@@ -1019,11 +1063,13 @@ where
     fn start_drag(&mut self, at: usize, key: &K) {
         let label = (self.build)(at, key).label().to_owned();
         let payload = ListDrag::new(self.id, self.rows, &self.selection.items, key.clone(), label);
-        let (gesture, begin) = ReorderGesture::begin();
-        let pass = self.ctx.cumulative_pass_nr();
-        self.state.drag = Some(Dragging { gesture, items: payload.items.clone(), grabbed: key.clone(), label: payload.label.clone(), pass });
+        let Some(gesture) = self.drag_gesture.as_mut() else { return };
+        gesture.begin();
+        if !gesture.is_active() {
+            return;
+        }
+        self.state.drag = Some(Dragging { items: payload.items.clone(), grabbed: key.clone(), label: payload.label.clone() });
         DragAndDrop::set_payload(&self.ctx, payload);
-        self.events.push(ListEvent::Reorder(begin));
     }
 
     /// The target of the drag under way, while the pointer is over the rows' viewport; `top` is
@@ -1052,31 +1098,26 @@ where
     }
 
     /// Ends the drag under way when it was released, Esc was pressed or the window lost the
-    /// focus; otherwise reports a new target, and draws the ghost and the copy cursor.
+    /// focus; otherwise draws the ghost and the copy cursor.
     fn drag_frame(&mut self, ui: &Ui, style: &ListRowStyle, width: f32) {
-        let Some(mut drag) = self.state.drag.take() else { return };
+        let Some(drag) = self.state.drag.take() else { return };
         let ctx = self.ctx.clone();
-        let (released, down, escape, modifiers, pointer) =
-            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.key_pressed(Key::Escape), i.modifiers, i.pointer.latest_pos()));
+        let (released, down, modifiers, pointer) =
+            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
         let end = if crate::focus::lost(&ctx) {
             Some(DragEnd::FocusLost)
-        } else if escape {
-            Some(DragEnd::Escape)
         } else if released || !down {
             Some(DragEnd::Released(self.target.as_ref().map(|t| t.mv.clone())))
         } else if !self.has_payload() {
-            // egui's drag and drop drops the payload on Esc, and takes the key.
+            // egui's drag and drop drops the payload on Esc and takes the key, before the
+            // gesture could see it.
             Some(DragEnd::Escape)
         } else {
             None
         };
         if let Some(end) = end {
-            self.end_drag(drag, end, modifiers);
+            self.end_drag(end, modifiers);
             return;
-        }
-        drag.pass = ctx.cumulative_pass_nr();
-        if let Some(update) = drag.gesture.update(self.target.as_ref().map(|t| t.mv.clone()), modifiers) {
-            self.events.push(ListEvent::Reorder(update));
         }
         if self.reorder.is_some_and(|reorder| reorder.copies(modifiers)) {
             ctx.set_cursor_icon(CursorIcon::Copy);
@@ -1094,11 +1135,13 @@ where
 
     /// Reports the end of a drag. A drop on the list or a cancel clears the payload, so no other
     /// widget takes it; a release elsewhere leaves it to the widget under the pointer.
-    fn end_drag(&mut self, drag: Dragging<K>, end: DragEnd<K>, modifiers: Modifiers) {
+    fn end_drag(&mut self, end: DragEnd<K>, modifiers: Modifiers) {
         if !matches!(end, DragEnd::Released(None)) && self.has_payload() {
             DragAndDrop::clear_payload(&self.ctx);
         }
-        self.events.push(ListEvent::Reorder(drag.gesture.finish(end, modifiers)));
+        if let Some(gesture) = self.drag_gesture.as_mut() {
+            gesture.end(end, modifiers);
+        }
     }
 }
 
@@ -1207,7 +1250,8 @@ pub(super) fn show_rows(ui: &mut Ui, args: &mut Args) {
             list = list.heights(move |at| if at % 4 == 3 { tall } else { plain });
         }
         let out = list.show(ui, |at, &key| {
-            let row = ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility", visible[key]).key(hide)).dimmed(!visible[key]);
+            let row =
+                ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide)).dimmed(!visible[key]);
             if mixed && at % 4 == 3 { row.detail("Smart filter") } else { row }
         });
         for event in out.events {

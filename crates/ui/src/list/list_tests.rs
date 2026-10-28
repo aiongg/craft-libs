@@ -70,7 +70,7 @@ fn show(ui: &mut Ui, host: &mut Host) {
     if let Some(key) = start_rename.take() {
         list = list.start_rename(key);
     }
-    let out = list.show(ui, |_, &key| ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility", visible[key]).key(hide)));
+    let out = list.show(ui, |_, &key| ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide)));
     for event in out.events {
         match &event {
             ListEvent::Row(RowEvent::Toggle(EditEvent::Update { value, .. } | EditEvent::Set { value, .. })) => visible[value.row] = value.on,
@@ -201,6 +201,52 @@ fn mixed_heights_place_each_row_by_its_own_height() {
     key(&mut harness, Modifiers::NONE, Key::End);
     assert!(shown(&harness, 999));
     assert_eq!(row(&harness, 999).rect().height(), 40.0);
+}
+
+/// The top of row `at` in the content of a list whose rows are 20 and 40 high in turn.
+fn mixed_top(at: usize) -> f32 {
+    (at / 2) as f32 * 60.0 + if at % 2 == 1 { 20.0 } else { 0.0 }
+}
+
+/// Whether the pinned row `at` is drawn where its height and the rows above put it, against the
+/// first row in view.
+fn placed(harness: &Harness<'_, Host>, at: usize) -> bool {
+    let list_top = list(harness).rect().top();
+    let Some(&first) = drawn(harness).iter().filter(|&&d| row(harness, d).rect().bottom() > list_top + 0.5).min() else { return false };
+    let (pinned, reference) = (row(harness, at).rect(), row(harness, first).rect());
+    let height = if at % 2 == 1 { 40.0 } else { 20.0 };
+    ((pinned.top() - reference.top()) - (mixed_top(at) - mixed_top(first))).abs() < 0.5 && (pinned.height() - height).abs() < 0.5
+}
+
+#[test]
+fn mixed_heights_keep_pinned_rows_in_place_and_page_by_the_rows_in_view() {
+    let host = || {
+        let mut host = Host::new(1000);
+        host.heights = Some(|at| if at % 2 == 0 { 20.0 } else { 40.0 });
+        host
+    };
+    let mut harness = harness(host());
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::PageDown);
+    assert_eq!(harness.state().selection, Selection::only(7), "rows 0 to 6 fill the 200 points: 20 + 40 + ... + 20");
+    assert!(shown(&harness, 7));
+
+    wheel(&mut harness, -3000.0);
+    assert!(!shown(&harness, 7), "the lead scrolled away");
+    assert!(placed(&harness, 7), "the lead stays drawn at its place");
+
+    let mut harness = self::harness(host());
+    harness.state_mut().start_rename = Some(3);
+    harness.run();
+    wheel(&mut harness, -3000.0);
+    assert!(!shown(&harness, 3) && placed(&harness, 3), "the row being renamed");
+
+    let mut harness = self::harness(host());
+    let start = eye(&harness, 5);
+    button(&mut harness, start, true);
+    wheel(&mut harness, -3000.0);
+    assert!(!shown(&harness, 5) && placed(&harness, 5), "the row that took a sweep's press");
+    button(&mut harness, start, false);
 }
 
 #[test]
@@ -393,6 +439,20 @@ fn a_columns_key_toggles_the_selected_rows_as_one_gesture() {
 }
 
 #[test]
+fn a_columns_key_inside_an_edit_scope_reports_only_its_updates() {
+    let mut host = Host::new(4);
+    host.selection = Selection { items: vec![0, 2], lead: Some(2), anchor: Some(2) };
+    let mut harness = Harness::<Host>::builder()
+        .with_size([320.0, 300.0])
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(|ui, host| crate::edit::scope(ui, |ui| show(ui, host)).inner, host);
+    harness.run();
+    focus(&mut harness);
+    key(&mut harness, Modifiers::COMMAND, Key::Comma);
+    assert_eq!(toggle_events(&harness.state_mut().take_events()), ["update 0 false", "update 2 false"], "a dialog's gesture holds them");
+}
+
+#[test]
 fn context_menus_are_asked_for_with_the_row_and_its_anchor() {
     let menus = |events: Vec<ListEvent<usize>>| -> Vec<ContextMenuRequest<usize>> {
         events.into_iter().filter_map(|e| if let ListEvent::ContextMenu(m) = e { Some(m) } else { None }).collect()
@@ -416,6 +476,17 @@ fn context_menus_are_asked_for_with_the_row_and_its_anchor() {
         assert_eq!((got[0].row, got[0].selected, got[0].pointer), (Some(0), true, None));
         assert!(lead.expand(0.5).contains_rect(got[0].anchor), "anchored at the lead's row");
     }
+
+    let mut harness = self::harness(Host::new(100));
+    focus(&mut harness);
+    wheel(&mut harness, -3000.0);
+    assert!(!shown(&harness, 0), "the lead scrolled away");
+    key(&mut harness, Modifiers::SHIFT, Key::F10);
+    let got = menus(harness.state_mut().take_events());
+    assert_eq!(got.len(), 1);
+    assert!(shown(&harness, 0), "the menu key reveals the lead");
+    let (lead, anchor) = (row(&harness, 0).rect(), got[0].anchor);
+    assert!(lead.expand(0.5).contains_rect(anchor) && anchor.expand(0.5).contains_rect(lead), "anchored at the revealed row: {anchor:?}, {lead:?}");
 }
 
 #[test]

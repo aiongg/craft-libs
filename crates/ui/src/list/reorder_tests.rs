@@ -17,7 +17,7 @@ use crate::theme::{Base, install};
 
 const LIST_HEIGHT: f32 = 200.0;
 
-type Reordered = EditEvent<Option<Move<usize>>>;
+type Reordered = EditEvent<Move<usize>>;
 
 /// How a drag ended: the move dropped, or why it was cancelled.
 type Ending = Result<Move<usize>, CancelReason>;
@@ -30,6 +30,8 @@ struct Host {
     copy: bool,
     tree: bool,
     reorders: Vec<Reordered>,
+    /// The drop targets a drag showed, each change once.
+    targets: Vec<Option<Move<usize>>>,
     opens: Vec<OpenChange<usize>>,
     dropped: Option<Vec<usize>>,
 }
@@ -40,11 +42,25 @@ impl Host {
     }
 
     fn with_rows(rows: Vec<RowInfo<usize>>) -> Self {
-        Host { rows, selection: Selection::only(0), refuse: None, copy: false, tree: false, reorders: Vec::new(), opens: Vec::new(), dropped: None }
+        Host {
+            rows,
+            selection: Selection::only(0),
+            refuse: None,
+            copy: false,
+            tree: false,
+            reorders: Vec::new(),
+            targets: Vec::new(),
+            opens: Vec::new(),
+            dropped: None,
+        }
     }
 
     fn take(&mut self) -> Vec<Reordered> {
         std::mem::take(&mut self.reorders)
+    }
+
+    fn take_targets(&mut self) -> Vec<Option<Move<usize>>> {
+        std::mem::take(&mut self.targets)
     }
 }
 
@@ -58,7 +74,7 @@ fn apply(rows: &mut Vec<RowInfo<usize>>, mv: &Move<usize>) {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let Host { rows, selection, refuse, copy, tree, reorders, opens, dropped } = host;
+    let Host { rows, selection, refuse, copy, tree, reorders, targets, opens, dropped } = host;
     let refuse = *refuse;
     let reorder = Reorder::new(Axis::Vertical).copy_with_alt(*copy).accepts(move |mv: &Move<usize>, _| Some(mv.target) != refuse);
     let out = List::new("list", "Layers", rows.as_slice())
@@ -67,10 +83,14 @@ fn show(ui: &mut Ui, host: &mut Host) {
         .reorder(reorder)
         .tree(*tree)
         .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+    let dragging = DragAndDrop::payload::<ListDrag<usize>>(ui.ctx()).is_some();
+    if (dragging || out.drop_target.is_some()) && targets.last() != Some(&out.drop_target) {
+        targets.push(out.drop_target.clone());
+    }
     for event in out.events {
         match event {
             ListEvent::Reorder(event) => {
-                if let EditEvent::Set { value: Some(mv), .. } = &event {
+                if let EditEvent::Set { value: mv, .. } = &event {
                     apply(rows, mv);
                 }
                 reorders.push(event);
@@ -148,15 +168,19 @@ fn mv(items: &[usize], target: usize, position: DropPosition) -> Option<Move<usi
     Some(Move { items: items.to_vec(), target, position, copy: false })
 }
 
-/// The values of the updates, and how the drag ended.
-fn summary(events: &[Reordered]) -> (Vec<Option<Move<usize>>>, Option<Ending>) {
-    let updates = events.iter().filter_map(|e| if let EditEvent::Update { value, .. } = e { Some(value.clone()) } else { None }).collect();
-    let end = events.iter().find_map(|e| match e {
-        EditEvent::Commit { value: Some(mv), .. } => Some(Ok(mv.clone())),
+/// The drop targets the drag showed since the last call (without the empty start), and how it
+/// ended.
+fn summary(harness: &mut Harness<'_, Host>) -> (Vec<Option<Move<usize>>>, Option<Ending>) {
+    let mut targets = harness.state_mut().take_targets();
+    if targets.first() == Some(&None) {
+        targets.remove(0);
+    }
+    let end = harness.state_mut().take().iter().find_map(|e| match e {
+        EditEvent::Commit { value: mv, .. } => Some(Ok(mv.clone())),
         EditEvent::Cancel { reason, .. } => Some(Err(*reason)),
         _ => None,
     });
-    (updates, end)
+    (targets, end)
 }
 
 #[test]
@@ -174,7 +198,7 @@ fn a_drag_moves_the_selection_and_reports_its_targets() {
     hover_row(&mut harness, 6, 0.25);
     let pos = at(&harness, 6, 0.25);
     button(&mut harness, pos, false);
-    let (updates, end) = summary(&harness.state_mut().take());
+    let (updates, end) = summary(&mut harness);
     assert_eq!(updates, [mv(&[1, 2], 5, DropPosition::After), mv(&[1, 2], 6, DropPosition::Before)], "no target over the dragged rows");
     assert_eq!(end, Some(Ok(mv(&[1, 2], 6, DropPosition::Before).unwrap())));
     assert_eq!(harness.state().selection.items, [2, 1], "a drag doesn't change the selection");
@@ -193,7 +217,7 @@ fn a_drag_moves_the_selection_and_reports_its_targets() {
     assert!(list(&harness).rect().contains(below + vec2(0.0, 40.0)), "empty space below the rows");
     hover(&mut harness, below);
     button(&mut harness, below, false);
-    let (updates, _) = summary(&harness.state_mut().take());
+    let (updates, _) = summary(&mut harness);
     assert_eq!(updates.last(), Some(&mv(&[1], 3, DropPosition::After)), "the space below the last row drops after it");
 }
 
@@ -206,7 +230,7 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     grab(&mut harness, 1);
     harness.key_press(Key::Escape);
     harness.run();
-    assert_eq!(summary(&harness.state_mut().take()).1, Some(Err(CancelReason::Escape)));
+    assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Escape)));
     assert!(payload(&harness).is_none());
     let pos = at(&harness, 1, 0.5);
     button(&mut harness, pos, false);
@@ -215,7 +239,7 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     harness.run_steps(30);
     grab(&mut harness, 1);
     focus_window(&mut harness, false);
-    assert_eq!(summary(&harness.state_mut().take()).1, Some(Err(CancelReason::FocusLost)));
+    assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::FocusLost)));
     focus_window(&mut harness, true);
     let pos = at(&harness, 1, 0.5);
     button(&mut harness, pos, false);
@@ -226,7 +250,7 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     hover_row(&mut harness, 5, 0.75);
     let pos = at(&harness, 5, 0.75);
     button(&mut harness, pos, false);
-    let (updates, end) = summary(&harness.state_mut().take());
+    let (updates, end) = summary(&mut harness);
     assert_eq!(updates, [mv(&[1], 3, DropPosition::After), None], "a refused target has no marker");
     assert_eq!(end, Some(Err(CancelReason::Dismissed)));
 
@@ -234,7 +258,7 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     grab(&mut harness, 1);
     harness.state_mut().rows.retain(|row| row.key != 1);
     harness.run();
-    assert_eq!(summary(&harness.state_mut().take()).1, Some(Err(CancelReason::Removed)), "the dragged row left the list");
+    assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Removed)), "the dragged row left the list");
     let pos = at(&harness, 2, 0.5);
     button(&mut harness, pos, false);
 
@@ -243,7 +267,7 @@ fn a_drag_ends_on_escape_focus_loss_refusal_removal_and_a_drop_elsewhere() {
     let zone = list(&harness).rect().center_bottom() + vec2(0.0, 20.0);
     hover(&mut harness, zone);
     button(&mut harness, zone, false);
-    assert_eq!(summary(&harness.state_mut().take()).1, Some(Err(CancelReason::Dismissed)));
+    assert_eq!(summary(&mut harness).1, Some(Err(CancelReason::Dismissed)));
     assert_eq!(harness.state().dropped, Some(vec![2]), "another widget takes the rows from the payload");
 }
 
@@ -260,7 +284,7 @@ fn alt_copies_with_the_copy_cursor_also_onto_the_dragged_rows_edges() {
     let pos = at(&harness, 3, 0.75);
     button(&mut harness, pos, false);
     let copy = Move { items: vec![3], target: 3, position: DropPosition::After, copy: true };
-    let (updates, end) = summary(&harness.state_mut().take());
+    let (updates, end) = summary(&mut harness);
     assert_eq!(updates, [Some(copy.clone())], "no target on its own edge without Alt");
     assert_eq!(end, Some(Ok(copy)));
 }
@@ -276,7 +300,7 @@ fn a_drag_near_the_bottom_edge_scrolls_and_keeps_the_grabbed_row() {
     assert!(!list_rect.contains_rect(row(&harness, 0).rect()), "scrolled past the grabbed row");
     assert!(harness.query_by_label("Row 0").is_some(), "the grabbed row stays drawn");
     button(&mut harness, edge, false);
-    let Some(Ok(drop)) = summary(&harness.state_mut().take()).1 else { panic!("a drop") };
+    let Some(Ok(drop)) = summary(&mut harness).1 else { panic!("a drop") };
     assert!(drop.target > 10, "dropped among the rows scrolled to: {drop:?}");
 }
 
@@ -291,7 +315,7 @@ fn a_group_row_takes_drops_into_its_middle() {
     hover_row(&mut harness, 1, 0.5);
     let pos = at(&harness, 1, 0.5);
     button(&mut harness, pos, false);
-    let (updates, end) = summary(&harness.state_mut().take());
+    let (updates, end) = summary(&mut harness);
     let (into, before, after) = (mv(&[4], 1, DropPosition::Into), mv(&[4], 1, DropPosition::Before), mv(&[4], 1, DropPosition::After));
     assert_eq!(updates, [into.clone(), before, after, into.clone()]);
     assert_eq!(end, into.map(Ok));
@@ -309,7 +333,7 @@ fn stacking_keys_move_the_selection_and_reveal_the_lead() {
         harness.key_press_modifiers(modifiers, key);
         harness.run();
         let events = harness.state_mut().take();
-        let [EditEvent::Set { value: Some(mv), .. }] = &events[..] else { panic!("one move: {events:?}") };
+        let [EditEvent::Set { value: mv, .. }] = &events[..] else { panic!("one move: {events:?}") };
         mv.clone()
     }
     assert_eq!(press(&mut harness, ctrl, Key::OpenBracket), mv(&[2], 3, DropPosition::After).unwrap(), "Ctrl+[ one row toward the end");
@@ -335,7 +359,7 @@ fn tree_keys_and_stacking_keys_work_together_in_a_tree() {
     harness.key_press_modifiers(ctrl, Key::OpenBracket);
     harness.run();
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [EditEvent::Set { value: Some(moved), .. }] if *moved == mv(&[0], 3, DropPosition::After).unwrap()), "{events:?}");
+    assert!(matches!(&events[..], [EditEvent::Set { value: moved, .. }] if *moved == mv(&[0], 3, DropPosition::After).unwrap()), "{events:?}");
     assert!(harness.state().opens.is_empty());
 }
 

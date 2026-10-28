@@ -1,10 +1,10 @@
 //! Toggle columns of a [`ListRow`](super::ListRow): an eye or lock cell per row, and the sweep.
 
 use egui::accesskit::Role;
-use egui::{Context, Id, KeyboardShortcut, Rect, Sense, Ui};
+use egui::{Id, KeyboardShortcut, Rect, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
-use crate::edit::{CancelReason, EditEvent, GestureId};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::Interactive;
 
@@ -12,7 +12,7 @@ use crate::primitives::Interactive;
 /// pointer), clickable either way.
 #[derive(Clone, Debug)]
 pub struct ToggleColumn {
-    pub(super) label: String,
+    pub(super) name: String,
     pub(super) on_icon: Icon,
     pub(super) off_icon: Icon,
     pub(super) on: bool,
@@ -20,11 +20,11 @@ pub struct ToggleColumn {
 }
 
 impl ToggleColumn {
-    /// A column named `label` ("Visibility"; the button's name is the label and the row's label,
-    /// "Visibility Layer 1") whose state in this row is `on`, drawn with `on_icon`, or `off_icon`
-    /// under the pointer while off.
-    pub fn new(label: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { label: label.into(), on_icon, off_icon, on, key: None }
+    /// A column whose state in this row is `on`, drawn with `on_icon`, or `off_icon` under the
+    /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
+    /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
+    pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
+        Self { name: name.into(), on_icon, off_icon, on, key: None }
     }
 
     /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
@@ -35,29 +35,33 @@ impl ToggleColumn {
         self
     }
 
-    /// The eye column of PhotoCraft's and DesignCraft's layer rows.
-    pub fn eye(label: impl Into<String>, on: bool) -> Self {
-        Self::new(label, Icon::Eye, Icon::EyeOff, on)
+    /// The eye column of PhotoCraft's and DesignCraft's layer rows, `name` as in
+    /// [`new`](ToggleColumn::new).
+    pub fn eye(name: impl Into<String>, on: bool) -> Self {
+        Self::new(name, Icon::Eye, Icon::EyeOff, on)
     }
 
-    /// The lock column.
-    pub fn lock(label: impl Into<String>, on: bool) -> Self {
-        Self::new(label, Icon::Lock, Icon::LockOpen, on)
+    /// The lock column, `name` as in [`new`](ToggleColumn::new).
+    pub fn lock(name: impl Into<String>, on: bool) -> Self {
+        Self::new(name, Icon::Lock, Icon::LockOpen, on)
     }
 }
 
 /// The value of a toggle column's edit: the row and the state it takes.
 ///
 /// A press on a cell sets the cell to the opposite of its state and starts a sweep: every row
-/// the pointer passes over with the button held takes the same state. The sweep is one gesture
-/// ([`EditEvent`]): `Begin` at the press, one `Update` per row swept (the first one the pressed
-/// row), `Commit` on release (the host makes one undo step), `Cancel` with Esc. A screen
-/// reader's click is one `Set`. Updates carry the modifiers held, so Alt-click reports "show only
-/// this layer". The `Commit` carries the pressed row's edit.
+/// the pointer passes over with the button held takes the same state. The sweep is one edit
+/// gesture ([`EditEvent`], run by an [`edit::Gesture`](Gesture), so
+/// [`GestureHost`](crate::edit::GestureHost) takes it): `Begin` at the press, one `Update` per
+/// row swept (the first one the pressed row), `Commit` on release (the host makes one undo step),
+/// `Cancel` with Esc or [`cancel_all`](crate::edit::cancel_all). A screen reader's click is one
+/// `Set`. Updates carry the modifiers held, so Alt-click reports "show only this layer". The
+/// `Commit` carries the pressed row's edit.
 ///
-/// The row that took the press reports the end of the gesture, so it must keep being drawn while
-/// the button is held: a [`List`](super::List) keeps drawing it out of view, and cancels the sweep
-/// with [`CancelReason::Removed`] when the row leaves the list.
+/// The row that took the press keeps the gesture live and reports its end, so it must keep being
+/// drawn while the button is held: a [`List`](super::List) keeps drawing it out of view, and
+/// cancels the sweep with [`CancelReason::Removed`] when the row leaves the list. A pass that
+/// doesn't draw it ends the sweep as [`edit::is_live`](crate::edit::is_live) says.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToggleEdit<K> {
     /// Index of the column in the row's [`ListRow::toggle`](super::ListRow::toggle) order.
@@ -68,7 +72,8 @@ pub struct ToggleEdit<K> {
     pub on: bool,
 }
 
-/// The sweep under way in one column, kept in egui memory under the column's id.
+/// The sweep under way in one column, kept in egui memory under the column's id. Its lifecycle
+/// is the column's [`Gesture`] ([`sweep_gesture`]).
 #[derive(Clone, Debug)]
 struct Sweep {
     id: GestureId,
@@ -97,7 +102,7 @@ pub(super) fn show<K: Clone>(
     events: &mut Vec<RowEvent<K>>,
 ) {
     let id = cell.row_id.with(("toggle", cell.index));
-    let name = format!("{} {}", column.label, cell.row_label);
+    let name = super::tree::with_row(&column.name, cell.row_label);
     let sensed = Interactive::with_id(id, Role::Button, name)
         .sense(Sense::CLICK | Sense::DRAG)
         .checked(column.on)
@@ -105,65 +110,108 @@ pub(super) fn show<K: Clone>(
         .focus_ring(false)
         .interact_at(ui, rect);
     let response = sensed.response().clone();
-    let sweep_id = sweep_id(ui.scope_id(), cell.index);
+    let scope = ui.scope_id();
     let edit = |on| ToggleEdit { column: cell.index, row: cell.key.clone(), on };
-    let (pressed, down, escape, modifiers, pointer, delta) = ui.input(|i| {
-        (
-            i.pointer.primary_pressed(),
-            i.pointer.primary_down(),
-            i.key_pressed(egui::Key::Escape),
-            i.modifiers,
-            i.pointer.latest_pos(),
-            i.pointer.delta(),
-        )
-    });
-    let sweep: Option<Sweep> = ui.data(|d| d.get_temp::<Option<Sweep>>(sweep_id)).flatten();
-    let mut ended = false;
-    let mut started = false;
+    let (pressed, down, modifiers, pointer, delta) =
+        ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_down(), i.modifiers, i.pointer.latest_pos(), i.pointer.delta()));
+    let sweep: Option<Sweep> = ui.data(|d| d.get_temp::<Option<Sweep>>(sweep_id(scope, cell.index))).flatten();
+    let press = response.is_pointer_button_down_on() && pressed && ui.is_enabled();
     let mut report = |event: EditEvent<ToggleEdit<K>>| events.push(RowEvent::Toggle(event));
-    if response.is_pointer_button_down_on() && pressed && ui.is_enabled() {
-        let sweep = Sweep { id: GestureId::next(), owner: id, on: !column.on, seen: vec![id] };
-        report(EditEvent::begin(sweep.id));
-        report(EditEvent::update(sweep.id, edit(sweep.on), modifiers));
-        ui.data_mut(|d| d.insert_temp(sweep_id, Some(sweep)));
-        started = true;
-    } else if let Some(mut sweep) = sweep {
-        if sweep.owner == id {
-            if escape || !down {
-                if escape {
-                    report(EditEvent::cancel(sweep.id, CancelReason::Escape));
-                } else {
-                    report(EditEvent::commit(sweep.id, edit(sweep.on), true, modifiers));
-                }
-                ui.data_mut(|d| d.insert_temp(sweep_id, None::<Sweep>));
-                ended = true;
+    let mut owned = false;
+    if press || sweep.as_ref().is_some_and(|s| s.owner == id) {
+        owned = true;
+        let mut gesture = sweep_gesture(ui, scope, cell.index);
+        let mut kept = None;
+        let mut swept = None;
+        let on = match &sweep {
+            Some(sweep) if !press => sweep.on,
+            _ => !column.on,
+        };
+        if press {
+            gesture.begin();
+            gesture.update(1, modifiers);
+            if let Some(gesture_id) = gesture.id() {
+                kept = Some(Sweep { id: gesture_id, owner: id, on, seen: vec![id] });
+                swept = Some(EditEvent::update(gesture_id, edit(on), modifiers));
             }
-        } else if down && !sweep.seen.contains(&id) && passed_over(rect, pointer, delta) {
-            sweep.seen.push(id);
-            if column.on != sweep.on {
-                report(EditEvent::update(sweep.id, edit(sweep.on), modifiers));
+        } else if gesture.is_active() {
+            // Esc, `cancel_all` and a pass that didn't draw this row end it in `load`.
+            if down {
+                kept = sweep;
+            } else {
+                gesture.commit();
             }
-            ui.data_mut(|d| d.insert_temp(sweep_id, Some(sweep)));
         }
+        if let Some(event) = sweep_event(gesture.finish(), edit(on)) {
+            report(event);
+        }
+        if let Some(update) = swept {
+            report(update);
+        }
+        ui.data_mut(|d| d.insert_temp(sweep_id(scope, cell.index), kept));
+    } else if let Some(mut sweep) = sweep
+        && down
+        && !sweep.seen.contains(&id)
+        && passed_over(rect, pointer, delta)
+    {
+        sweep.seen.push(id);
+        if column.on != sweep.on {
+            report(EditEvent::update(sweep.id, edit(sweep.on), modifiers));
+        }
+        ui.data_mut(|d| d.insert_temp(sweep_id(scope, cell.index), Some(sweep)));
     }
-    // A pointer click ends a sweep on this frame or began one; anything else is a screen
-    // reader's click.
-    if response.clicked() && !started && !ended {
-        report(EditEvent::set(edit(!column.on), modifiers));
+    // A pointer click takes part in a sweep; anything else is a screen reader's click.
+    if response.clicked() && !owned {
+        report(match edit::in_scope(ui) {
+            true => EditEvent::update(GestureId::next(), edit(!column.on), modifiers),
+            false => EditEvent::set(edit(!column.on), modifiers),
+        });
     }
     paint(ui, sensed.finish(ui).rect, column, ui.rect_contains_pointer(rect), style);
 }
 
-/// Where the sweep of `column` among rows shown in a `Ui` whose scope is `scope` is kept: the rows
-/// of one list share it.
+/// Where the sweep of `column` among rows shown in a `Ui` whose scope is `scope` is kept, and its
+/// gesture's id: the rows of one list share it.
 fn sweep_id(scope: Id, column: usize) -> Id {
     scope.with(("list-row-sweep", column))
 }
 
-/// Forgets the sweep under way in `column` of the rows shown in a `Ui` whose scope is `scope`:
+/// The gesture of a sweep in `column`, which the pressed row loads every pass. Its value counts
+/// the rows the sweep set, which no update reports: the rows' edits go out as updates of their
+/// own with its id, several in a pass when the pointer crosses several rows.
+fn sweep_gesture(ui: &Ui, scope: Id, column: usize) -> Gesture<u32> {
+    let policy = EditPolicy::default().on_release_only(true);
+    Gesture::load(ui, sweep_id(scope, column), &0, policy).focus_owners(&[]).enabled(ui.is_enabled())
+}
+
+/// The event of a sweep's gesture as the column reports it: the end carries `edit`, the pressed
+/// row's edit.
+fn sweep_event<K>(event: Option<EditEvent<u32>>, edit: ToggleEdit<K>) -> Option<EditEvent<ToggleEdit<K>>> {
+    match event? {
+        EditEvent::Begin { id } => Some(EditEvent::Begin { id }),
+        EditEvent::Commit { id, changed, modifiers, .. } => Some(EditEvent::Commit { id, value: edit, changed, modifiers }),
+        EditEvent::Cancel { id, reason } => Some(EditEvent::Cancel { id, reason }),
+        // Inside an edit scope only the rows' updates go out.
+        EditEvent::Update { .. } | EditEvent::Set { .. } => None,
+    }
+}
+
+/// Whether the sweep in `column` of the rows shown in a `Ui` whose scope is `scope` is under way:
+/// its row loaded its gesture in this pass or the last.
+pub(super) fn sweeping(ui: &Ui, scope: Id, column: usize) -> bool {
+    Gesture::<u32>::reported(ui, sweep_id(scope, column)).is_some()
+}
+
+/// Cancels the sweep under way in `column` of the rows shown in a `Ui` whose scope is `scope`:
 /// the row that took the press left the list.
-pub(super) fn clear_sweep(ctx: &Context, scope: Id, column: usize) {
-    ctx.data_mut(|d| d.insert_temp(sweep_id(scope, column), None::<Sweep>));
+pub(super) fn cancel_sweep<K>(ui: &Ui, scope: Id, column: usize) -> Option<EditEvent<ToggleEdit<K>>> {
+    let mut gesture = sweep_gesture(ui, scope, column);
+    gesture.cancel(CancelReason::Removed);
+    ui.data_mut(|d| d.insert_temp(sweep_id(scope, column), None::<Sweep>));
+    match gesture.finish()? {
+        EditEvent::Cancel { id, reason } => Some(EditEvent::Cancel { id, reason }),
+        _ => None,
+    }
 }
 
 /// Whether the pointer's path since the last frame crossed `rect`'s column at its rows.

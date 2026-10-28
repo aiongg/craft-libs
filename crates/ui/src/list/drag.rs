@@ -12,7 +12,7 @@ use egui::{Id, LayerId, Order, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, v
 use super::row::{ListRow, ListRowStyle, RowEvent};
 use super::toggle::ToggleColumn;
 use super::view::{List, ListEvent};
-use crate::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Move, Reorder, ReorderGesture, RowInfo, Selection};
+use crate::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
 use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;
@@ -24,14 +24,11 @@ use crate::theme::{Tokens, TokensOf as _, corner_radius, role_format};
 /// A drag of rows under way.
 #[derive(Clone)]
 pub(super) struct Dragging<K> {
-    pub(super) gesture: ReorderGesture<K>,
     /// The rows dragged, in display order.
     pub(super) items: Vec<K>,
     /// The row the pointer grabbed, kept drawn while the drag lasts.
     pub(super) grabbed: K,
     pub(super) label: String,
-    /// The pass the list last drew in.
-    pub(super) pass: u64,
 }
 
 /// Whether every key of `items` is a row of `rows`.
@@ -147,6 +144,8 @@ struct Layers {
     menu_rows: Vec<usize>,
     /// A rename the menu asked for, taken by the next list.
     rename: Option<usize>,
+    /// A drag of layers is under way.
+    dragging: bool,
 }
 
 impl Layers {
@@ -189,7 +188,16 @@ impl Layers {
             Preset::Refused => "Background and locked layers refuse drops",
             Preset::Copy => "Hold Alt while dropping to copy",
         };
-        Layers { next: layers.len(), layers, background, selection: Selection::only(0), last: last.to_owned(), menu_rows: Vec::new(), rename: None }
+        Layers {
+            next: layers.len(),
+            layers,
+            background,
+            selection: Selection::only(0),
+            last: last.to_owned(),
+            menu_rows: Vec::new(),
+            rename: None,
+            dragging: false,
+        }
     }
 
     fn at(&self, key: usize) -> Option<usize> {
@@ -244,13 +252,25 @@ impl Layers {
     }
 
     fn apply(&mut self, mv: &Move<usize>) {
-        let moved: Vec<Vec<Layer>> = if mv.copy {
-            let blocks: Vec<Vec<Layer>> = self.blocks(&mv.items).into_iter().map(|b| self.layers[b].to_vec()).collect();
-            blocks
+        let Some(target) = self.at(mv.target) else { return };
+        // The slot as the document stands, found before the rows leave it: the target may be one
+        // of them (rows apart gather at one of their edges).
+        let (slot, depth) = match mv.position {
+            DropPosition::Before => (target, self.layers[target].depth),
+            DropPosition::After => (self.block(target).end, self.layers[target].depth),
+            DropPosition::Into => {
+                self.layers[target].open = true;
+                (target + 1, self.layers[target].depth + 1)
+            }
+        };
+        let blocks = self.blocks(&mv.items);
+        let (moved, insert): (Vec<Vec<Layer>>, usize) = if mv.copy {
+            let copies = blocks
                 .into_iter()
                 .map(|block| {
-                    block
-                        .into_iter()
+                    self.layers[block]
+                        .iter()
+                        .cloned()
                         .map(|mut layer| {
                             layer.key = self.next;
                             self.next += 1;
@@ -259,18 +279,11 @@ impl Layers {
                         })
                         .collect()
                 })
-                .collect()
+                .collect();
+            (copies, slot)
         } else {
-            self.take(&mv.items)
-        };
-        let Some(target) = self.at(mv.target) else { return };
-        let (insert, depth) = match mv.position {
-            DropPosition::Before => (target, self.layers[target].depth),
-            DropPosition::After => (self.block(target).end, self.layers[target].depth),
-            DropPosition::Into => {
-                self.layers[target].open = true;
-                (target + 1, self.layers[target].depth + 1)
-            }
+            let above: usize = blocks.iter().map(|b| b.end.min(slot).saturating_sub(b.start)).sum();
+            (self.take(&mv.items), slot - above)
         };
         // Each block's top layer lands at `depth`; the layers inside it keep their depth below it.
         let moved = moved.into_iter().flat_map(|block| {
@@ -342,7 +355,7 @@ fn show_story(ui: &mut Ui, preset: Preset) {
     }
     let mut selection = doc.selection.clone();
     let rename = doc.rename.take();
-    let (response, events) = ui
+    let (response, events, drop_target) = ui
         .allocate_ui(vec2(300.0, 240.0), |ui| {
             let mut list = List::new("layers", "Layers", order.as_slice())
                 .selection(&mut selection)
@@ -360,14 +373,23 @@ fn show_story(ui: &mut Ui, preset: Preset) {
                     row = row.icon(Icon::FolderOpen);
                 }
                 if preset == Preset::Refused {
-                    row = row.toggle(ToggleColumn::lock("Lock", locked));
+                    row = row.toggle(ToggleColumn::lock("Lock {row}", locked));
                 }
                 row
             });
-            (out.response, out.events)
+            (out.response, out.events, out.drop_target)
         })
         .inner;
     doc.selection = selection;
+    let dragging = events.iter().fold(doc.dragging, |dragging, event| match event {
+        ListEvent::Reorder(EditEvent::Begin { .. }) => true,
+        ListEvent::Reorder(EditEvent::Commit { .. } | EditEvent::Cancel { .. }) => false,
+        _ => dragging,
+    });
+    if dragging {
+        doc.last = drop_target.map_or_else(|| "No drop here".to_owned(), |mv| format!("Drop to {}", doc.describe(&mv)));
+    }
+    doc.dragging = dragging;
     let mut open_menu = None;
     for event in events {
         match event {
@@ -384,12 +406,9 @@ fn show_story(ui: &mut Ui, preset: Preset) {
                     doc.layers[at].name = text;
                 }
             }
-            ListEvent::Reorder(EditEvent::Commit { value: Some(mv), .. } | EditEvent::Set { value: Some(mv), .. }) => {
+            ListEvent::Reorder(EditEvent::Commit { value: mv, .. } | EditEvent::Set { value: mv, .. }) => {
                 doc.last = format!("Did: {}", doc.describe(&mv));
                 doc.apply(&mv);
-            }
-            ListEvent::Reorder(EditEvent::Update { value, .. }) => {
-                doc.last = value.map_or_else(|| "No drop here".to_owned(), |mv| format!("Drop to {}", doc.describe(&mv)));
             }
             ListEvent::Reorder(EditEvent::Cancel { reason, .. }) => doc.last = format!("Drag cancelled: {reason:?}"),
             ListEvent::Row(RowEvent::Toggle(EditEvent::Update { value, .. } | EditEvent::Set { value, .. })) => {
