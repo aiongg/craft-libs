@@ -726,3 +726,29 @@ fn progress_bars_report_their_fraction_between_0_and_1_and_indeterminate_ones_no
     assert_eq!(numeric(&harness, "Loading").0, Role::ProgressIndicator);
     assert!(harness.get_by_label("Loading").accesskit_node().is_busy());
 }
+
+#[test]
+fn tooltips_show_text_the_shortcut_and_custom_contents_on_enabled_and_disabled_controls() {
+    let mut harness = harness().build_ui(|ui| {
+        let undo = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::Z);
+        ui.horizontal(|ui| {
+            ui.add(Button::new("Undo").id_salt("undo")).tooltip_with("Undo the last change", &undo);
+            ui.add(Button::new("Off").enabled(false).id_salt("off")).tooltip("Not available");
+            ui.add(Button::new("Info").id_salt("info")).tooltip_ui(|ui| {
+                ui.label("Custom contents");
+            });
+        });
+    });
+    harness.run();
+    let shown = |harness: &Harness<'_, ()>, text: &str| harness.query_all_by(|n| n.value().as_deref() == Some(text)).count();
+    harness.get_by_label("Undo").hover();
+    harness.run_steps(4);
+    assert_eq!(shown(&harness, "Undo the last change"), 1);
+    assert_eq!(shown(&harness, "Ctrl+Z"), 1, "the shortcut follows the text in a Kbd");
+    harness.get_by_label("Off").hover();
+    harness.run_steps(4);
+    assert_eq!(shown(&harness, "Not available"), 1, "a disabled control keeps its tooltip");
+    harness.get_by_label("Info").hover();
+    harness.run_steps(4);
+    assert_eq!(shown(&harness, "Custom contents"), 1);
+}

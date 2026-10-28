@@ -10,6 +10,7 @@ use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, TextWrapMode, Ui, Vec2, pos2, vec2};
 
+use super::TooltipExt as _;
 use crate::direction;
 use crate::primitives::{StateLayer, SurfaceEdge, SurfaceStyle};
 use crate::theme::{ToEgui, UiTokens, role_format};
@@ -151,6 +152,6 @@ impl Labelled {
 
     /// `response` with the whole label in a tooltip when it was cut.
     pub(crate) fn tooltip(&self, response: Response, label: &str) -> Response {
-        if self.truncated { response.on_hover_text(label).on_disabled_hover_text(label) } else { response }
+        if self.truncated { response.tooltip(label) } else { response }
     }
 }

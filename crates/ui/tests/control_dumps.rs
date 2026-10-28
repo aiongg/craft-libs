@@ -6,7 +6,7 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, Progress, RadioGroup, Segmented, Slider, Swatch, Switch,
-    ToggleButton,
+    ToggleButton, Tooltip,
 };
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
@@ -304,5 +304,19 @@ fn progress() {
         let s = Progress::style(t);
         d.line("height", s.height).line("radius", s.radius).line("fill", s.fill);
         surface(d, "track", &s.track);
+    });
+}
+
+#[test]
+fn tooltip() {
+    check("tooltip.txt", |d, t| {
+        let s = Tooltip::style(t);
+        d.line("max_width", s.max_width)
+            .line("margin", s.margin)
+            .line("radius", s.radius)
+            .line("shadow", s.shadow)
+            .line("fill", s.fill)
+            .line("border", s.border)
+            .line("text", s.text);
     });
 }

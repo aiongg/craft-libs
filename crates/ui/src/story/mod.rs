@@ -124,6 +124,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::kbd::stories());
     all.extend(controls::spinner::stories());
     all.extend(controls::progress::stories());
+    all.extend(controls::tooltip::stories());
     all
 }
 
@@ -157,6 +158,7 @@ const DECLARED: &[&[&str]] = &[
     controls::kbd::COMPONENTS,
     controls::spinner::COMPONENTS,
     controls::progress::COMPONENTS,
+    controls::tooltip::COMPONENTS,
 ];
 
 /// Every component the crate's modules declare, in [`registry`] order.

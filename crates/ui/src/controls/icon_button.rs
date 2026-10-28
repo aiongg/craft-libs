@@ -5,6 +5,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Ui, Widget, vec2};
 
+use super::TooltipExt as _;
 use super::button::content_color;
 use super::{SIZE_NAMES, icon_size, salt, size_arg};
 use crate::icons::{self, Icon};
@@ -113,7 +114,7 @@ impl Widget for IconButton<'_> {
             let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
             icons::paint(ui, rect, self.icon, icon_size(self.size), color);
         }
-        response.on_hover_text(&self.label).on_disabled_hover_text(&self.label)
+        response.tooltip(&self.label)
     }
 }
 

@@ -19,7 +19,7 @@ use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
 ///   in `ime_composition` the widths and `legacy_visuals`; the widgets' `fg_stroke` widths.
 /// - `Spacing`: `indent`, `interact_size.x`, `slider_width`, `slider_rail_height`, `combo_width`,
 ///   `text_edit_width`, `extra_text_line_spacing`, `icon_width_inner`, `default_area_size`,
-///   `tooltip_width`, `menu_width`, `menu_spacing`, `indent_ends_with_horizontal_line`,
+///   `menu_width`, `menu_spacing`, `indent_ends_with_horizontal_line`,
 ///   `combo_height`, `scroll`.
 /// - `Style`: everything outside `visuals`, `spacing`, `text_styles` and `animation_time`
 ///   (interaction, wrapping, number formatting, scroll animation, debug options, direction).
@@ -49,6 +49,7 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.interact_size.y = size.control.md;
     s.icon_width = size.icon.sm;
     s.icon_spacing = space.gap.inline;
+    s.tooltip_width = tokens.component.tooltip.max_width;
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
     style

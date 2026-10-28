@@ -8,7 +8,7 @@ use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, Vec2, Widget, pos2, vec2};
 
-use super::{SIZE_NAMES, Spinner, icon_size, salt, size_arg};
+use super::{SIZE_NAMES, Spinner, TooltipExt as _, icon_size, salt, size_arg};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Corner, Interactive, Row, Stack, StateColors, StateLayer, SurfaceKind, Text};
@@ -190,7 +190,7 @@ pub(crate) struct Laid {
 impl Laid {
     /// `response` with the whole label in a tooltip when it was cut.
     pub(crate) fn tooltip(&self, response: Response, label: &str) -> Response {
-        if self.truncated { response.on_hover_text(label).on_disabled_hover_text(label) } else { response }
+        if self.truncated { response.tooltip(label) } else { response }
     }
 }
 

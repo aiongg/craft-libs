@@ -8,6 +8,7 @@ use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
+use super::TooltipExt as _;
 use super::button::content_color;
 use super::{SIZE_NAMES, icon_size, size_arg};
 use crate::behavior::RadioSelection;
@@ -195,7 +196,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                     (None, None) => {}
                 }
             }
-            responses.push(if item.icon.is_some() { response.on_hover_text(&item.label).on_disabled_hover_text(&item.label) } else { response });
+            responses.push(if item.icon.is_some() { response.tooltip(&item.label) } else { response });
         }
 
         let mut response = match responses.into_iter().reduce(|all, r| all.union(r)) {

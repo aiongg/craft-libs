@@ -1,15 +1,15 @@
-//! Swatch, Badge, Kbd, Spinner, Progress: styles from tokens and what they paint.
+//! Swatch, Badge, Kbd, Spinner, Progress and Tooltip: styles from tokens and what they paint.
 
 use std::cell::Cell;
 
 use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode};
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Key, KeyboardShortcut, ModifierNames, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportId, vec2};
+use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportId, vec2};
 
-use super::tests::{every_builtin, motion_context, theme, tokens_of};
+use super::tests::{every_builtin, frame_at, motion_context, theme, tokens_of};
 use super::*;
 use crate::icons::IconSize;
-use crate::primitives::{Content, Surface, SurfaceKind};
+use crate::primitives::{Content, Corner, Surface, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
 
 #[test]
@@ -49,6 +49,14 @@ fn small_control_styles_are_their_tokens() {
         let p = Progress::style(&t);
         assert_eq!((p.height, p.fill, p.track.fill), (c.progress.track_height, c.progress.fill.to_egui(), c.progress.track.to_egui()));
         assert_eq!(p.track.edge, Surface::style(&t, SurfaceKind::Sunken).edge);
+
+        let tip = Tooltip::style(&t);
+        assert_eq!(tip.max_width, c.tooltip.max_width);
+        assert_eq!(tip.max_width, t.style.spacing.tooltip_width, "stock tooltips wrap at the same width");
+        assert_eq!((tip.fill, tip.border.color), (t.color.surface.raised.to_egui(), t.color.line.border.to_egui()));
+        assert_eq!((tip.radius, tip.shadow), (Corner::Popup.radius(&t), t.shadow.popup));
+        assert_eq!(tip.margin, crate::theme::margin(t.space.pad.control));
+        assert_eq!(tip.text, t.color.text.normal.to_egui());
     }
 }
 
@@ -234,4 +242,46 @@ fn an_indeterminate_bar_moves_and_stands_still_as_dashes_with_reduced_motion() {
     assert!(!repaint, "reduced motion: no repaint");
     assert_eq!(fills(&still_a), fills(&still_b));
     assert!(fills(&still_a).len() > 1, "a pattern of dashes, not a solid fill");
+}
+
+#[test]
+fn tooltips_draw_the_same_frame_stock_or_helper_and_disabled_controls_keep_theirs() {
+    let tip = Cell::new(None);
+    let hover = |add: &dyn Fn(&mut Ui) -> egui::Response| {
+        let ctx = motion_context(true);
+        ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
+        let rect = Cell::new(Rect::NOTHING);
+        let run = |time: f64, events: Vec<Event>| {
+            frame_at(&ctx, time, events, |ui| {
+                tip.set(Some(Tooltip::style(&Tokens::of(ui))));
+                rect.set(add(ui).rect);
+            })
+        };
+        run(0.0, vec![]);
+        let center = rect.get().center();
+        run(0.1, vec![Event::PointerMoved(center)]);
+        run(0.2, vec![]);
+        run(0.4, vec![])
+    };
+    let frames = |shapes: &[Shape]| -> Vec<(Color32, egui::Stroke, egui::CornerRadius)> {
+        let tip = tip.get().unwrap();
+        shapes
+            .iter()
+            .filter_map(|s| {
+                if let Shape::Rect(r) = s {
+                    (r.fill == tip.fill && !r.stroke.is_empty()).then_some((r.fill, r.stroke, r.corner_radius))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    };
+    let stock = hover(&|ui| ui.add(Button::new("Target").id_salt("tip")).on_hover_text("Moves the layer"));
+    let helper = hover(&|ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer"));
+    let tip = tip.get().unwrap();
+    assert_eq!(frames(&stock), [(tip.fill, tip.border, tip.radius)], "stock: the popup frame from the tokens");
+    assert_eq!(frames(&helper), frames(&stock), "the helper draws the stock frame");
+    // Disabled controls keep theirs.
+    let disabled = hover(&|ui| ui.add(Button::new("Target").enabled(false).id_salt("tip")).tooltip("Moves the layer"));
+    assert_eq!(frames(&disabled), frames(&stock));
 }

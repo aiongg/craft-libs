@@ -12,6 +12,8 @@
 //! - [`Swatch`]: a colour well that reports a click, for the host to open its picker.
 //! - [`Badge`]: a small label in a tone; [`Kbd`]: a key chord in the platform's notation.
 //! - [`Spinner`] and [`Progress`]: indeterminate and determinate progress.
+//! - [`Tooltip`] and [`TooltipExt`]: the look of every tooltip, and the helpers that add one to a
+//!   [`Response`](egui::Response).
 //! - [`Link`]: text in `accent.text` that opens a URL or reports a click.
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
@@ -60,6 +62,7 @@ pub(crate) mod switch;
 #[cfg(test)]
 mod tests;
 pub(crate) mod toggle_button;
+pub(crate) mod tooltip;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod ui_tests;
 
@@ -82,6 +85,7 @@ pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle};
 pub use switch::{Switch, SwitchStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
+pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
 
 use crate::icons::IconSize;
 
