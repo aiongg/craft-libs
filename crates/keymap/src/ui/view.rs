@@ -12,6 +12,7 @@ use std::sync::Arc;
 use craft_ui::ComboBox;
 use craft_ui::buttons::{IconButton, IconButtonStyle};
 use craft_ui::layout::{ResizeHandle, SplitAxis, SplitSize, split_rect};
+#[allow(deprecated)]
 use craft_ui::tabs::{self, Tab};
 use egui::Galley;
 use egui::accesskit::Live;
@@ -507,6 +508,7 @@ impl Draw<'_, '_> {
     }
 
     /// Show as tabs, with the ones that do not fit in a menu.
+    #[allow(deprecated)]
     fn area_tabs(&mut self, ui: &mut Ui) {
         let areas = self.state.areas.clone();
         let pad = ui.spacing().button_padding.x * 2.0;

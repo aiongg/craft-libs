@@ -1,3 +1,6 @@
+// `tabs::Tab` stays tested until docking and the apps move to `TabStrip`.
+#![allow(deprecated)]
+
 use super::*;
 use egui::{Color32, Context, Event, FullOutput, Key, Modifiers, PointerButton, Pos2, RawInput, pos2, vec2};
 

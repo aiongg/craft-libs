@@ -4,6 +4,7 @@
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis, SplitSize, split_rect};
+#[allow(deprecated)]
 use craft_ui::tabs::Tab;
 use egui::{Align, Color32, CornerRadius, Id, Layout, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
@@ -251,6 +252,7 @@ pub fn actual(ui: &mut Ui, case: Case, mutation: Mutation) -> Vec<Response> {
             ui.add_enabled_ui(case.state.enabled(), |ui| {
                 for index in 0..2 {
                     let selected = index == 0 && case.state.selected();
+                    #[allow(deprecated)]
                     let response = if matches!(case.component, Component::Tab) {
                         let rect = Rect::from_min_size(pos2(12.0 + index as f32 * (case.size().x + spacing), 12.0), case.size());
                         Tab::new(Id::unique(("visual-tab", index)), "Tab", selected)
