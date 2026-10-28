@@ -8,7 +8,7 @@ use super::scale::{Duration, Easing, Radius};
 use super::theme::{Size, TextSize};
 use super::tokens::{
     BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, ListSizes, Pads, RadiusSet, RailSizes, SizeTokens, SpaceTokens, StatusKind,
-    ThumbSizes, TypeStyle, TypeTokens,
+    TabSizes, ThumbSizes, TypeStyle, TypeTokens,
 };
 
 use Bg::{HaloOver, Token};
@@ -391,6 +391,7 @@ pub(super) const COMPACT: Preset = Preset {
             rounded: false,
             dividers: true,
         },
+        tab: TabSizes { height_large: 34.0, min_width: 40.0, close: 14.0, rounded: false, dividers: true },
     },
     space: SpaceTokens { gap: Gaps { inline: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -425,6 +426,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
             rounded: true,
             dividers: false,
         },
+        tab: TabSizes { height_large: 38.0, min_width: 44.0, close: 16.0, rounded: true, dividers: false },
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -672,6 +674,17 @@ pub const ANGLE_DIAL_NEEDLE_INSET: f32 = 4.0;
 pub const ANGLE_DIAL_HUB: f32 = 2.0;
 /// Compact radius round the dial's centre within which the pointer changes nothing.
 pub const ANGLE_DIAL_DEAD_ZONE: f32 = 2.0;
+/// Width of a tab strip's drop marker line and outline.
+pub const TAB_DROP_WIDTH: f32 = 2.0;
+/// Width of the halo on each side of a tab strip's drop marker.
+pub const TAB_DROP_HALO: f32 = 1.0;
+/// Height of a tab's progress bar, in points, at every Size.
+pub const TAB_PROGRESS_HEIGHT: f32 = 2.0;
+/// How far outside its strip a tab drag still resolves targets (PhotoCraft's `TEAR_OFF`).
+pub const TAB_TEAR_OFF: f32 = 24.0;
+/// How far a hovered tab's fill moves from the strip toward `state.hover` (OKLab mix; PhotoCraft
+/// draws `hover` at 35 % over the strip).
+pub const TAB_HOVER_MIX: f64 = 0.35;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;

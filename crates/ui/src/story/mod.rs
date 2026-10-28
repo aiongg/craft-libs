@@ -151,6 +151,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::canvas::transform_fields::stories());
     all.extend(composites::histogram::stories());
     all.extend(composites::levels_editor::stories());
+    all.extend(crate::tab_strip::stories());
     all.extend(crate::list::stories());
     all.extend(crate::menu::stories());
     all.extend(crate::menu::bar::stories());
@@ -215,6 +216,7 @@ const DECLARED: &[&[&str]] = &[
     composites::gradient::COMPONENTS,
     composites::histogram::COMPONENTS,
     composites::levels_editor::COMPONENTS,
+    crate::tab_strip::COMPONENTS,
     crate::list::COMPONENTS,
     crate::menu::COMPONENTS,
     crate::menu::bar::COMPONENTS,

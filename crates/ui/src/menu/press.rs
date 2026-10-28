@@ -43,11 +43,12 @@ pub struct PressMenu<'a, T> {
     entries: &'a [MenuEntry<T>],
     size: ControlSize,
     scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
+    focus_owner: Option<(Id, bool)>,
 }
 
 impl<'a, T: Clone> PressMenu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md, scroll_labels: None }
+        Self { entries, size: ControlSize::Md, scroll_labels: None, focus_owner: None }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -63,11 +64,20 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         self
     }
 
+    /// For a button that is a focus position of a widget holding egui's keyboard focus itself (a
+    /// tab strip's overflow button): `open` opens the menu this pass as from the keyboard, and
+    /// Escape gives the focus back to `owner`, the widget's id.
+    pub fn keyboard_owner(mut self, owner: Id, open: bool) -> Self {
+        self.focus_owner = Some((owner, open));
+        self
+    }
+
     /// Opens the menu on `button`'s gestures and draws it while it is open.
     pub fn show(self, ui: &Ui, button: &Response) -> MenuResponse<T> {
         let ctx = ui.ctx();
         let id = Popup::default_response_id(button);
         let open = Popup::is_id_open(ctx, id);
+        let holder = self.focus_owner.map_or(button.id, |(owner, _)| owner);
         // egui drops the focus on Escape before the menu sees the key; a button that held it while
         // the menu was open gets it back when Escape closes the menu.
         let held = id.with("held");
@@ -75,6 +85,9 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         let mut command = None;
         let mut keyboard = false;
         if button.secondary_clicked() {
+            command = Some(SetOpenCommand::Bool(true));
+        } else if button.enabled() && !open && self.focus_owner.is_some_and(|(_, open)| open) {
+            keyboard = true;
             command = Some(SetOpenCommand::Bool(true));
         } else if button.enabled() && pressed_on(ui, button) {
             if !open {
@@ -102,9 +115,9 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         }
         let shown = menu.show(ui, popup);
         if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {
-            button.request_focus();
+            ctx.memory_mut(|m| m.request_focus(holder));
         } else if shown.open {
-            let focused = button.has_focus();
+            let focused = ctx.memory(|m| m.has_focus(holder));
             ctx.data_mut(|d| d.insert_temp(held, focused));
         }
         ctx.accesskit_node_builder(button.id, |n| {

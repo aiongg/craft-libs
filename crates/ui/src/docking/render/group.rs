@@ -397,6 +397,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let elided = galley.elided;
         let tab_id = self.id.with(("tab", panel));
         let pointer_focus = self.pointer_focus(ui, tab_id);
+        // The group strip keeps `tabs::Tab` until it is rebuilt on `TabStrip`.
+        #[allow(deprecated)]
         let response = tabs::Tab::new(tab_id, &label, active)
             .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() })
             .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(1.0, self.style.accent) })

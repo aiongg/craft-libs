@@ -147,6 +147,7 @@ fn squeeze(natural: &[f32], indices: &[usize], total: f32, minimum: f32) -> Vec<
 ///
 /// IDs must be unique in their UI scope and independent of translated labels. Selection remains
 /// caller-owned. `Sense::click()` is the default; use [`Self::sense`] for draggable dock tabs.
+#[deprecated(note = "use craft_ui::tab_strip::TabStrip")]
 pub struct Tab<'a> {
     id: Id,
     label: &'a str,
@@ -155,6 +156,7 @@ pub struct Tab<'a> {
     focus_stroke: Option<Stroke>,
 }
 
+#[allow(deprecated)]
 impl<'a> Tab<'a> {
     pub fn new(id: Id, label: &'a str, selected: bool) -> Self {
         Self { id, label, selected, sense: Sense::click(), focus_stroke: None }
