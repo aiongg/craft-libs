@@ -8,6 +8,7 @@
 mod badge;
 mod button;
 mod check;
+mod field;
 mod handle;
 mod icon_button;
 mod kbd;
@@ -27,6 +28,7 @@ use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef,
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckColors, CheckField, CheckPart, CheckTokens, OnOff};
+pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
@@ -448,6 +450,8 @@ families! {
     button: ButtonTokens => Button(ButtonField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
+    /// Text fields: one line of editable text in a sunken box.
+    field: FieldTokens => Field(FieldField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
     /// Square icon-only buttons.

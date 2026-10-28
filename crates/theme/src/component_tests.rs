@@ -136,6 +136,57 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     );
 }
 
+/// The field pairs, written out independently of the family's list: (fg, bg, minimum), at rest.
+fn field_pairs() -> Vec<(ComponentField, ComponentField, (f64, f64))> {
+    let field = ComponentField::Field;
+    let fill = field(FieldField::Color { part: FieldPart::Fill, disabled: false });
+    vec![
+        (field(FieldField::Color { part: FieldPart::Text, disabled: false }), fill, (4.5, 7.0)),
+        (field(FieldField::Color { part: FieldPart::Placeholder, disabled: false }), fill, (4.5, 7.0)),
+        (field(FieldField::Border(BorderState::Focused)), fill, (3.0, 4.5)),
+        (field(FieldField::Invalid), fill, (3.0, 4.5)),
+        (field(FieldField::SelectedText), field(FieldField::Selection), (4.5, 7.0)),
+    ]
+}
+
+#[test]
+fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
+    let listed: Vec<_> =
+        ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Field(_))).map(|p| (p.fg, p.bg, p.minimum)).collect();
+    let expected: Vec<_> = field_pairs().into_iter().map(|(fg, bg, min)| (fg, TokenRef::Component(bg), min)).collect();
+    assert_eq!(listed, expected);
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            for (fg, bg, (standard, high)) in field_pairs() {
+                let min = if a.contrast == Contrast::High { high } else { standard };
+                let ratio = pair_ratio(&r.tokens, fg, Some(bg));
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let f = &t.component.field;
+    let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
+    assert_eq!((f.height, f.width), (control, BySize { sm: 8.0 * control.sm, md: 8.0 * control.md }));
+    assert_eq!(f.icon, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
+    assert_eq!((f.pad_x, f.gap, f.radius, f.role), (t.space.pad.control, t.space.gap.inline, t.shape.radius.control, TypeRole::Body));
+    assert_eq!(f.fill, Dimmed { rest: t.color(T::SurfaceSunken), disabled: t.color(T::StateDisabledFill) });
+    let border = BorderColors {
+        rest: t.color(T::LineControlEdge),
+        hover: t.color(T::TextFaint),
+        focused: t.color(T::LineFocus),
+        disabled: t.color(T::LineDivider),
+    };
+    assert_eq!(f.border, border);
+    assert_eq!(f.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
+    assert_eq!(f.placeholder, Dimmed { rest: t.color(T::TextFaint), disabled: t.color(T::TextDisabled) });
+    assert_eq!((f.selection, f.selected_text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    assert_eq!((f.caret, f.invalid), (t.color(T::TextNormal), t.color(T::StatusBadFg)));
+}
+
 #[test]
 fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     for def in [grey_blue(), violet()] {
@@ -255,7 +306,10 @@ fn button_sizes_follow_the_size_preset() {
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7);
+    assert_eq!(
+        ComponentField::ALL.len(),
+        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 3 * 2 + 4 + 4)
+    );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -283,6 +337,13 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         ComponentField::from_path("check.on.mark.hover"),
         Some(ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover }))
     );
+    assert_eq!(ComponentField::from_path("field.radius"), Some(ComponentField::Field(FieldField::Radius)));
+    assert_eq!(
+        ComponentField::from_path("field.placeholder.disabled"),
+        Some(ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true }))
+    );
+    assert_eq!(ComponentField::from_path("field.border.focused"), Some(ComponentField::Field(FieldField::Border(BorderState::Focused))));
+    assert_eq!(ComponentField::from_path("field.selection.text"), Some(ComponentField::Field(FieldField::SelectedText)));
     assert_eq!(ComponentField::from_path("slider.radius"), Some(ComponentField::Slider(SliderField::Radius)));
     assert_eq!(ComponentField::from_path("slider.fill.hover"), Some(ComponentField::Slider(SliderField::Fill(State::Hover))));
     assert_eq!(
@@ -335,6 +396,13 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         "swatch.mixed",
         "tooltip.max_width",
         "tooltip.fill",
+        "field.fill",
+        "field.fill.hover",
+        "field.border.pressed",
+        "field.selection",
+        "field.caret.rest",
+        "field.height.md",
+        "field.invalid.rest",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }

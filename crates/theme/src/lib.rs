@@ -53,11 +53,11 @@ mod tests;
 pub use builtins::builtins;
 pub use color::{Oklab, Oklch, Rgba};
 pub use components::{
-    BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant,
-    BySize, CheckColors, CheckField, CheckPart, CheckTokens, ComponentField, ComponentTokens, ControlSize, FieldKind, HandleField, HandleTokens,
-    IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, OnOff, OverrideError, OverrideValue, ProgressField, ProgressTokens,
-    SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart,
-    ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
+    BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BorderColors, BorderState, ButtonColors, ButtonField, ButtonPart,
+    ButtonTokens, ButtonVariant, BySize, CheckColors, CheckField, CheckPart, CheckTokens, ComponentField, ComponentTokens, ControlSize, Dimmed,
+    FieldField, FieldKind, FieldPart, FieldTokens, HandleField, HandleTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField,
+    KbdTokens, OnOff, OverrideError, OverrideValue, ProgressField, ProgressTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State,
+    States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{ContrastCheck, Ramps};

@@ -368,6 +368,9 @@ pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
 /// Between a segmented control's track edge and its segments, in points, at every Size.
 pub const SEGMENTED_INSET: f32 = 2.0;
 
+/// A text field's default width, in control heights of its size.
+pub const FIELD_WIDTH: f32 = 8.0;
+
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.

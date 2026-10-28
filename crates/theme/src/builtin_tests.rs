@@ -69,6 +69,22 @@ fn builtin_accent_text_is_an_accent_hue() {
 /// OKLCH chroma below which a colour reads as grey.
 const ACCENT_TEXT_MIN_CHROMA: f64 = 0.04;
 
+/// The text, placeholder and selected text read on their backgrounds and the focused and invalid
+/// edges show on the field's fill, in every built-in and appearance, pins included.
+#[test]
+fn builtin_field_text_and_state_edges_meet_their_minimums() {
+    for theme in builtins() {
+        for a in appearances() {
+            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_)))).collect();
+            assert_eq!(pairs.len(), 5, "{} {a:?}", theme.id);
+            for p in pairs {
+                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+            }
+        }
+    }
+}
+
 /// The marks and outlines of check boxes, radio buttons and switches identify the control and its
 /// state, so every built-in meets their non-text minimum at rest in every appearance, pins
 /// included; a disabled one that is on doesn't look off.
