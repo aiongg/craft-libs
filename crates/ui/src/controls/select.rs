@@ -1,26 +1,27 @@
 //! [`Select`]: one of a list of options, chosen from a popup list under a field-like box.
 
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use craft_theme::{ControlSize, TypeRole};
-use egui::accesskit::{self, Role};
+use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
+use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Galley, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Sense, Shape, Stroke, Ui,
-    UiBuilder, Vec2, pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Galley, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Sense, Shape, Stroke,
+    StrokeKind, Ui, UiBuilder, Vec2, ViewportId, pos2, vec2,
 };
 
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
-use crate::behavior::{ListOptions, Listbox};
-#[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
-use crate::combo::Menu;
+use crate::behavior::{ListOptions, Listbox, take_key};
 use crate::direction;
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
+use crate::popup_list::PopupList;
+use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 
@@ -54,6 +55,9 @@ pub struct ListboxStyle {
     pub mark: Color32,
     pub group: Color32,
     pub separator: Color32,
+    /// The keyboard's active row, inside its edge: the focus ring's stroke ([`FocusRing::style`],
+    /// `line.focus`).
+    pub focus: Stroke,
 }
 
 /// A select's sizes and colours, from [`Select::style`].
@@ -94,27 +98,34 @@ const MAX_ROWS: f32 = 12.0;
 /// list of the options below it (above it when there is more room there), on the popup surface,
 /// at least as wide as the box. The chosen option has a check mark. It is a WAI-ARIA select-only
 /// combo box: the keyboard focus stays on the box while the list is open, and AccessKit names the
-/// active option as the box's active descendant ([`Listbox`]).
+/// active option as the box's active descendant ([`Listbox`]); the box reports a list box popup
+/// and, while open, the list it controls.
 ///
 /// - **Pointer**: the list opens on the press, so one gesture can press the box, drag onto an
 ///   option and release to choose it. A plain click opens the list and leaves it open for a
 ///   second click; a release over the box keeps it open, a release elsewhere after a drag closes
 ///   it. A press on the box while the list is open closes it.
 /// - **Keys on the closed box**: Down, Up, Alt+Down, Enter and Space open the list on the chosen
-///   option; Home and End open it on the first and last option; typing opens it on the first
-///   option whose text starts with what was typed.
+///   option (Up too, as on macOS, where WAI-ARIA's pattern opens on the first option); Home and
+///   End open it on the first and last option; typing opens it on the first option whose text
+///   starts with what was typed.
 /// - **Keys in the open list**: the arrows, Page Up and Page Down, Home, End and type-ahead move
-///   the active option, skipping disabled ones; Enter, Space, Alt+Up and Tab choose it (Tab then
-///   moves on); Esc closes without a change.
+///   the active option, skipping disabled ones ([`Listbox`]); Enter, Space, Alt+Up and Tab choose
+///   it (Tab then moves the focus on, from the search field too); Esc closes without a change and
+///   keeps the focus on the box. The active option shows the focus ring inside its row while the
+///   keyboard moves it.
 /// - **Searchable** ([`searchable`](Select::searchable)): a search field at the top of the list
 ///   takes the focus when it opens and filters the options as the user types; the arrows, Page
 ///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text.
 /// - **Preview** ([`preview`](Select::preview)): opening the list begins an edit gesture, every
-///   option made active (by the pointer or the keys) is an `Update`, choosing commits, and Esc or
-///   closing the list without a choice cancels. Without preview, a choice is one `Set`.
+///   option made active (by the pointer or the keys) is an `Update`, and choosing commits. Closing
+///   without a choice cancels: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or
+///   a press on the box ([`Dismissed`](CancelReason::Dismissed)), the focus leaving the box and
+///   the list ([`FocusLost`](CancelReason::FocusLost)). A gesture that ends outside the list (an
+///   undo, an external change) closes it. Without preview, a choice is one `Set`.
 ///
-/// The control writes what it reports into the value: updates, commits and sets, and the value
-/// from before the gesture on a cancel.
+/// The control writes what it reports into the value: updates, commits and sets, and on every
+/// cancel but [`External`](CancelReason::External) the value from when the list opened.
 pub struct Select<'a, T> {
     id_salt: IdSalt,
     label: String,
@@ -129,10 +140,11 @@ pub struct Select<'a, T> {
     enabled: bool,
 }
 
-/// `count` options of one height, as (value, text) from `row`.
+/// `count` options of one height, each `value(index)` showing `text(index)`.
 struct Rows<'a, T> {
     count: usize,
-    row: Box<dyn Fn(usize) -> (T, String) + 'a>,
+    value: Box<dyn Fn(usize) -> T + 'a>,
+    text: Box<dyn Fn(usize) -> Cow<'a, str> + 'a>,
 }
 
 enum Source<'a, T> {
@@ -205,10 +217,15 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
-    /// `count` options of one height, from `row(index)` as (value, text), in place of
-    /// [`option`](Select::option)s: a long list (fonts) that lays out only the rows in view.
-    pub fn rows(mut self, count: usize, row: impl Fn(usize) -> (T, String) + 'a) -> Self {
-        self.rows = Some(Rows { count, row: Box::new(row) });
+    /// `count` options of one height in place of [`option`](Select::option)s: a long list
+    /// (fonts) that lays out only the rows in view. Option `index` chooses `value(index)` and
+    /// shows `text(index)`.
+    ///
+    /// The select calls them for what it shows and searches: while the list is closed, the
+    /// chosen option's value and text, a few calls a frame. It looks through every value when the
+    /// value or the count changes, and through every text once per search.
+    pub fn rows<S: Into<Cow<'a, str>>>(mut self, count: usize, value: impl Fn(usize) -> T + 'a, text: impl Fn(usize) -> S + 'a) -> Self {
+        self.rows = Some(Rows { count, value: Box::new(value), text: Box::new(move |index| text(index).into()) });
         self
     }
 
@@ -257,29 +274,36 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let style = Select::style(&tokens, size);
         let id = Interactive::id_in(ui, id_salt);
         let enabled = enabled && ui.is_enabled();
-        let mut state = PopupState::load(ui, id);
         let options = Options::new(&source);
-        let chosen = options.find(value);
+        let (mut state, fresh) = PopupState::load(ui, id);
+        let mut listbox = Listbox::load(ui, id.with("list"));
+        if !fresh {
+            listbox.reset();
+        }
+        let chosen = state.chosen(&options, value);
+        let filtered = if state.open { filter(&mut state.filter, &options, &state.query) } else { None };
+        let shown = Shown { options: &options, filtered: filtered.as_deref() };
+        // The options may have changed since the last frame.
+        if listbox.active().is_some_and(|a| shown.position(a).is_none()) {
+            listbox.set_active(None);
+        }
 
         let box_focused = ui.memory(|m| m.has_focus(id));
         let search_focused = state.search.is_some_and(|s| ui.memory(|m| m.has_focus(s)));
-        let keys = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: state.open };
-        let mut listbox = Listbox::load(ui, id.with("list"));
-        let shown = options.filter(if state.open { &state.query } else { "" });
         let active_before = listbox.active();
         let modifiers = ui.input(|i| i.modifiers);
 
         let mut action = None;
         if enabled && (box_focused || search_focused) {
-            action = read_keys(ui, &mut listbox, &Shown { options: &options, shown: &shown }, &state, box_focused, chosen);
+            action = read_keys(ui, id, &mut listbox, &shown, &state, box_focused, chosen);
         }
-        if !enabled && state.open {
+        let owners: Vec<Id> = std::iter::once(id).chain(state.search).collect();
+        let mut gesture = Gesture::load(ui, id, &*value, policy).enabled(enabled).cancel_on_focus_loss(true).focus_owners(&owners);
+        if state.open && state.gesture.is_some() && gesture.id() != state.gesture {
+            action = Some(Action::Ended);
+        } else if !enabled && state.open {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
-
-        let owners: Vec<Id> = std::iter::once(id).chain(state.search).collect();
-        let mut gesture = Gesture::load(ui, id, &*value, policy).enabled(enabled).cancel_on_focus_loss(true).focus_owners(&owners).event_filter(keys);
-        let start = gesture.start().cloned();
 
         let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width };
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
@@ -294,63 +318,71 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let pressed = enabled && ui.input(|i| i.pointer.primary_pressed()) && (response.is_pointer_button_down_on() || response.clicked());
         let reader_click = enabled && ui.input(|i| i.has_accesskit_action_request(id, accesskit::Action::Click));
         if action.is_none() && (pressed || reader_click) {
-            action = Some(if state.open { Action::Close { reason: CancelReason::FocusLost, focus: pressed } } else { Action::Open(chosen) });
+            action = Some(match state.open {
+                true => Action::Close { reason: CancelReason::Dismissed, focus: pressed },
+                false => Action::Open { active: chosen, keyboard: !pressed },
+            });
             state.pressing = pressed && !state.open;
         }
 
-        let mut ctx =
-            Pass { ui_id: id, keys, preview, modifiers, gesture: &mut gesture, listbox: &mut listbox, state: &mut state, options: &options };
+        let mut pass = Pass { id, preview, modifiers, gesture: &mut gesture, listbox: &mut listbox, state: &mut state, options: &options };
         if let Some(action) = action {
-            ctx.apply(ui, action, box_focused);
+            pass.apply(ui, action, box_focused);
         }
 
+        let popup_id = Popup::default_response_id(&response);
         let mut drawn_active = None;
-        if ctx.state.open {
-            let popup_id = Popup::default_response_id(&response);
+        if pass.state.open {
             let header = search.as_ref().map_or(0.0, |_| style.field.height + style.list.gap);
             let mut open = true;
-            #[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
-            let menu = Menu::new(ui, &response)
+            let owners: Vec<Id> = std::iter::once(id).chain(pass.state.search).collect();
+            let popup = PopupList::new(ui, &response)
                 .open(&mut open)
+                .focus_owners(&owners)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .height(MAX_ROWS * style.list.height + header)
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
-            let picked = list.show(ui, menu, &mut ctx, &mut drawn_active);
+            let picked = list.show(ui, popup, &mut pass, &mut drawn_active);
             let released = ui.input(|i| i.pointer.primary_released() || !i.pointer.primary_down());
             if let Some(option) = picked {
-                ctx.apply(ui, Action::Choose { option, focus: true }, box_focused);
+                pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
             } else if !open {
-                ctx.apply(ui, Action::Close { reason: CancelReason::FocusLost, focus: false }, box_focused);
-            } else if ctx.state.pressing && released {
+                let reason = match ui.input(|i| (i.key_pressed(Key::Escape), i.pointer.any_pressed() || i.pointer.any_click())) {
+                    (true, _) => CancelReason::Escape,
+                    (false, true) => CancelReason::Dismissed,
+                    (false, false) => CancelReason::FocusLost,
+                };
+                pass.apply(ui, Action::Close { reason, focus: false }, box_focused);
+            } else if pass.state.pressing && released {
                 // A release elsewhere ends a drag without a choice; one over the box or the list, or
                 // a click, leaves the list open.
                 let pos = ui.input(|i| i.pointer.interact_pos());
                 let in_list = ui.memory(|m| m.area_rect(popup_id)).zip(pos).is_some_and(|(r, p)| r.contains(p));
                 let on_box = pos.is_some_and(|p| response.rect.contains(p));
                 if !in_list && !on_box && !ui.input(|i| i.pointer.any_click()) {
-                    ctx.apply(ui, Action::Close { reason: CancelReason::FocusLost, focus: false }, box_focused);
+                    pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: false }, box_focused);
                 }
             }
-            if ctx.state.pressing && released {
-                ctx.state.pressing = false;
+            if pass.state.pressing && released {
+                pass.state.pressing = false;
             }
-            if ctx.state.open {
-                ctx.keep_focus(ui, popup_id, box_focused, search_focused);
+            if pass.state.open {
+                pass.keep_focus(ui, popup_id, box_focused, search_focused);
             }
         }
-        if ctx.preview
-            && ctx.gesture.is_active()
-            && let Some(active) = ctx.listbox.active().filter(|a| Some(*a) != active_before)
+        if pass.preview
+            && pass.gesture.is_active()
+            && let Some(active) = pass.listbox.active().filter(|a| Some(*a) != active_before)
         {
-            ctx.gesture.update(options.value(active), modifiers);
+            pass.gesture.update(options.value(active), modifiers);
         }
 
         let open = state.open;
         let search_id = state.search.filter(|_| open);
         listbox.store(ui);
-        state.store(ui, id);
-        let event = gesture.finish();
+        // Built after the frame's action: a list opened in this frame keeps Esc for its box.
+        let event = gesture.event_filter(key_filter(open)).finish();
         let mut response = response;
         match &event {
             Some(EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. }) => *value = v.clone(),
@@ -361,8 +393,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 }
             }
             Some(EditEvent::Cancel { reason, .. }) if *reason != CancelReason::External => {
-                if let Some(start) = start {
-                    *value = start;
+                if let Some(start) = &state.start {
+                    *value = start.clone();
                 }
             }
             _ => {}
@@ -370,8 +402,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         if matches!(event, Some(EditEvent::Set { .. })) {
             response.mark_changed();
         }
+        if !open {
+            state.start = None;
+        }
+        let shown_option = if event.is_some() { state.chosen(&options, value) } else { chosen };
+        state.store(ui, id);
 
-        let shown_option = options.find(value);
         let text = shown_option.map(|o| options.text(o));
         let focused = open || ui.memory(|m| m.has_focus(id));
         paint_box(
@@ -381,8 +417,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             BoxContent { text: text.as_deref(), icon: shown_option.and_then(|o| options.icon(o)), placeholder: &placeholder, size, enabled, focused },
         );
         ui.ctx().accesskit_node_builder(id, |node| {
-            node.set_value(text.clone().unwrap_or_default());
+            node.set_value(text.as_deref().unwrap_or_default());
             node.set_expanded(open);
+            node.set_has_popup(HasPopup::Listbox);
+            match open {
+                true => node.set_controls(vec![popup_id.accesskit_id()]),
+                false => node.clear_controls(),
+            }
             match drawn_active.filter(|_| open) {
                 Some(active) => node.set_active_descendant(option_id(id, active).accesskit_id()),
                 None => node.clear_active_descendant(),
@@ -417,6 +458,7 @@ impl Select<'static, ()> {
                 mark: l.mark.to_egui(),
                 group: l.group.to_egui(),
                 separator: l.separator.to_egui(),
+                focus: FocusRing::style(tokens).stroke,
             },
             popup: Surface::style(tokens, SurfaceKind::Popup),
         }
@@ -428,38 +470,52 @@ fn option_id(select: Id, option: usize) -> Id {
     select.with(("option", option))
 }
 
+/// The keys the box or the search field keeps from egui while it has the focus: the arrows, and
+/// Esc while the list is open.
+fn key_filter(open: bool) -> EventFilter {
+    EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: open }
+}
+
 /// What a frame does to the list.
 #[derive(Clone, Copy, Debug)]
 enum Action {
-    /// Opens the list with this option active.
-    Open(Option<usize>),
+    /// Opens the list with `active` active; `keyboard` when the keyboard opened it.
+    Open { active: Option<usize>, keyboard: bool },
     /// Closes the list without a choice; with `focus`, the box takes the focus.
     Close { reason: CancelReason, focus: bool },
     /// Chooses the option and closes the list; with `focus`, the box takes the focus back.
     Choose { option: usize, focus: bool },
+    /// Closes the list whose preview ended outside it: an external change, an undo
+    /// ([`cancel_all`](edit::cancel_all)), the focus leaving.
+    Ended,
 }
 
 /// The keys of a frame, while the box or the search field has the focus.
 fn read_keys<T: Clone + PartialEq>(
     ui: &Ui,
+    id: Id,
     listbox: &mut Listbox,
     shown: &Shown<'_, '_, '_, T>,
-    state: &PopupState,
+    state: &PopupState<T>,
     on_box: bool,
     chosen: Option<usize>,
 ) -> Option<Action> {
-    let consume = |modifiers, key| ui.input_mut(|i| i.consume_key(modifiers, key));
+    let key = |modifiers, key| take_key(ui, modifiers, key);
     if state.open {
-        let choose = |focus| listbox.active().filter(|&a| shown.options.enabled(a)).map(|option| Action::Choose { option, focus });
-        if consume(Modifiers::NONE, Key::Escape) {
+        let choose = |listbox: &Listbox, focus| listbox.active().filter(|&a| shown.enabled(a)).map(|option| Action::Choose { option, focus });
+        if key(Modifiers::NONE, Key::Escape) {
             return Some(Action::Close { reason: CancelReason::Escape, focus: true });
         }
-        let space = on_box && !listbox.typing(ui) && consume(Modifiers::NONE, Key::Space);
-        if consume(Modifiers::ALT, Key::ArrowUp) || consume(Modifiers::NONE, Key::Enter) || space {
-            return choose(true);
+        let space = on_box && !listbox.typing(ui) && key(Modifiers::NONE, Key::Space);
+        if key(Modifiers::ALT, Key::ArrowUp) || key(Modifiers::NONE, Key::Enter) || space {
+            return choose(listbox, true);
         }
         if ui.input(|i| i.key_pressed(Key::Tab)) {
-            return choose(false);
+            // egui moves the focus on from the box when the box senses later in this pass.
+            if !on_box {
+                ui.memory_mut(|m| m.request_focus(id));
+            }
+            return choose(listbox, false);
         }
         listbox.keys(ui, shown, state.page, on_box);
         if on_box {
@@ -470,29 +526,34 @@ fn read_keys<T: Clone + PartialEq>(
     if !on_box {
         return None;
     }
-    let first = shown.shown.iter().copied().find(|&o| shown.options.enabled(o));
-    let last = shown.shown.iter().rev().copied().find(|&o| shown.options.enabled(o));
+    let enabled_at = |at: usize| Some(shown.option_at(at)).filter(|&o| shown.enabled(o));
+    let first = (0..shown.len()).find_map(enabled_at);
+    let last = (0..shown.len()).rev().find_map(enabled_at);
     let opening = [(Modifiers::ALT, Key::ArrowDown), (Modifiers::NONE, Key::ArrowDown), (Modifiers::NONE, Key::ArrowUp)]
         .into_iter()
         .chain([(Modifiers::NONE, Key::Enter), (Modifiers::NONE, Key::Space)]);
-    for (modifiers, key) in opening {
-        if consume(modifiers, key) {
-            return Some(Action::Open(chosen.or(first)));
+    for (modifiers, k) in opening {
+        if key(modifiers, k) {
+            return Some(Action::Open { active: chosen.or(first), keyboard: true });
         }
     }
-    if consume(Modifiers::NONE, Key::Home) {
-        return Some(Action::Open(first));
+    if key(Modifiers::NONE, Key::Home) {
+        return Some(Action::Open { active: first, keyboard: true });
     }
-    if consume(Modifiers::NONE, Key::End) {
-        return Some(Action::Open(last));
+    if key(Modifiers::NONE, Key::End) {
+        return Some(Action::Open { active: last, keyboard: true });
     }
     listbox.set_active(chosen);
-    listbox.type_ahead(ui, shown).then(|| Action::Open(listbox.active()))
+    listbox.type_ahead(ui, shown).then(|| Action::Open { active: listbox.active(), keyboard: true })
 }
 
 /// What the list keeps between frames.
-#[derive(Clone, Debug, Default)]
-struct PopupState {
+#[derive(Clone)]
+struct PopupState<T> {
+    /// The viewport and its pass that last stored the state: a select missing from a pass has
+    /// been removed, and starts closed when it is drawn again (as [`Gesture::load`]).
+    viewport: ViewportId,
+    pass: u64,
     open: bool,
     /// The press that opened the list is still down.
     pressing: bool,
@@ -503,11 +564,56 @@ struct PopupState {
     search: Option<Id>,
     /// Rows the list shows at once.
     page: usize,
+    /// The preview gesture begun when the list opened, and the value then.
+    gesture: Option<GestureId>,
+    start: Option<T>,
+    /// The option of the value the select last looked for.
+    found: Option<Found<T>>,
+    /// The options the last search left.
+    filter: Option<Filter>,
 }
 
-impl PopupState {
-    fn load(ui: &Ui, id: Id) -> Self {
-        ui.data(|d| d.get_temp::<Self>(Self::key(id))).unwrap_or_default()
+#[derive(Clone)]
+struct Found<T> {
+    value: T,
+    /// How many options there were.
+    count: usize,
+    option: Option<usize>,
+}
+
+#[derive(Clone)]
+struct Filter {
+    /// Trimmed and lowercase.
+    query: String,
+    count: usize,
+    shown: Arc<[usize]>,
+}
+
+impl<T: Clone + PartialEq + Send + Sync + 'static> PopupState<T> {
+    /// The state as the last pass left it, and whether that pass drew the select.
+    fn load(ui: &Ui, id: Id) -> (Self, bool) {
+        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
+        match ui.data(|d| d.get_temp::<Self>(Self::key(id))) {
+            Some(state) if state.viewport == viewport && state.pass + 1 >= pass => (Self { pass, ..state }, true),
+            _ => (Self::new(viewport, pass), false),
+        }
+    }
+
+    fn new(viewport: ViewportId, pass: u64) -> Self {
+        Self {
+            viewport,
+            pass,
+            open: false,
+            pressing: false,
+            query: String::new(),
+            focus_search: false,
+            search: None,
+            page: 0,
+            gesture: None,
+            start: None,
+            found: None,
+            filter: None,
+        }
     }
 
     fn store(self, ui: &Ui, id: Id) {
@@ -517,34 +623,75 @@ impl PopupState {
     fn key(id: Id) -> Id {
         id.with("craft_ui::controls::select")
     }
+
+    /// The option whose value is `value`. Of rows, the one found last time is checked with one
+    /// look at its value; they are looked through again only when the value or their count
+    /// changed, or that row's value did. Entries, built every frame, are looked through every
+    /// frame.
+    fn chosen(&mut self, options: &Options<'_, '_, T>, value: &T) -> Option<usize> {
+        let count = options.len();
+        if options.rows()
+            && let Some(found) = &self.found
+            && found.count == count
+            && found.value == *value
+            && found.option.is_none_or(|o| options.value(o) == *value)
+        {
+            return found.option;
+        }
+        let option = options.find(value);
+        self.found = Some(Found { value: value.clone(), count, option });
+        option
+    }
+}
+
+/// The options whose text contains `query`, ignoring case; `None` (all of them) for an empty
+/// query. Rows come from `cache` when it holds the same query and count; entries, built every
+/// frame, are filtered every frame.
+fn filter<T: Clone + PartialEq>(cache: &mut Option<Filter>, options: &Options<'_, '_, T>, query: &str) -> Option<Arc<[usize]>> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return None;
+    }
+    let count = options.len();
+    if let Some(cached) = cache.as_ref().filter(|c| options.rows() && c.query == query && c.count == count) {
+        return Some(cached.shown.clone());
+    }
+    let shown: Arc<[usize]> = (0..count).filter(|&o| options.text(o).to_lowercase().contains(&query)).collect();
+    *cache = Some(Filter { query, count, shown: shown.clone() });
+    Some(shown)
 }
 
 /// Everything a frame's actions change.
 struct Pass<'f, 's, 'a, T> {
-    ui_id: Id,
-    keys: EventFilter,
+    id: Id,
     preview: bool,
     modifiers: Modifiers,
     gesture: &'f mut Gesture<T>,
     listbox: &'f mut Listbox,
-    state: &'f mut PopupState,
+    state: &'f mut PopupState<T>,
     options: &'f Options<'s, 'a, T>,
 }
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
+    fn keys(&self) -> EventFilter {
+        key_filter(self.state.open)
+    }
+
     fn apply(&mut self, ui: &Ui, action: Action, box_focused: bool) {
         match action {
-            Action::Open(active) => {
+            Action::Open { active, keyboard } => {
                 self.state.open = true;
                 self.state.query.clear();
                 self.state.focus_search = true;
                 self.state.search = None;
-                self.listbox.reveal(active);
+                self.listbox.reveal(active, keyboard);
                 if self.preview {
                     self.gesture.begin();
+                    self.state.gesture = self.gesture.id();
+                    self.state.start = self.gesture.start().cloned();
                 }
                 if !box_focused {
-                    ui.memory_mut(|m| m.request_focus_with_filter(self.ui_id, self.keys));
+                    ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys()));
                 }
                 ui.ctx().request_repaint();
             }
@@ -556,6 +703,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
             }
             Action::Choose { option, focus } => {
                 let value = self.options.value(option);
+                self.state.found = Some(Found { value: value.clone(), count: self.options.len(), option: Some(option) });
                 if self.gesture.is_active() {
                     self.gesture.update(value, self.modifiers);
                     self.gesture.commit();
@@ -565,6 +713,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
                 // A click on an option took the focus from the box earlier in this pass.
                 self.close(ui, focus);
             }
+            Action::Ended => self.close(ui, false),
         }
     }
 
@@ -573,9 +722,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
         self.state.pressing = false;
         self.state.query.clear();
         self.state.search = None;
+        self.state.gesture = None;
         self.listbox.reset();
         if focus_box {
-            ui.memory_mut(|m| m.request_focus_with_filter(self.ui_id, self.keys));
+            ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys()));
         }
     }
 
@@ -589,7 +739,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
             return;
         }
         match (box_focused, search_focused.then_some(self.state.search).flatten()) {
-            (true, _) => ui.memory_mut(|m| m.request_focus_with_filter(self.ui_id, self.keys)),
+            (true, _) => ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys())),
             (false, Some(search)) => ui.memory_mut(|m| m.request_focus(search)),
             (false, None) => {}
         }
@@ -625,17 +775,26 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         }
     }
 
+    /// Whether the options are [`rows`](Select::rows), whose values and texts come from the app's
+    /// functions.
+    fn rows(&self) -> bool {
+        matches!(self.source, Source::Rows(_))
+    }
+
     fn value(&self, option: usize) -> T {
         match self.source {
             Source::Entries(_) => self.choices[option].value.clone(),
-            Source::Rows(rows) => (rows.row)(option).0,
+            Source::Rows(rows) => (rows.value)(option),
         }
     }
 
-    fn text(&self, option: usize) -> String {
+    fn text(&self, option: usize) -> Cow<'s, str> {
         match self.source {
-            Source::Entries(_) => self.choices[option].text.clone(),
-            Source::Rows(rows) => (rows.row)(option).1,
+            Source::Entries(_) => {
+                let choice: &'s Choice<T> = self.choices[option];
+                Cow::Borrowed(choice.text.as_str())
+            }
+            Source::Rows(rows) => (rows.text)(option),
         }
     }
 
@@ -643,8 +802,12 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         self.choices.get(option).and_then(|c| c.icon)
     }
 
+    /// Whether `option` is one of the options and can be chosen.
     fn enabled(&self, option: usize) -> bool {
-        self.choices.get(option).is_none_or(|c| c.enabled)
+        match self.source {
+            Source::Entries(_) => self.choices.get(option).is_some_and(|c| c.enabled),
+            Source::Rows(rows) => option < rows.count,
+        }
     }
 
     /// Whether any option has an icon, so every row keeps room for one.
@@ -652,37 +815,43 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         self.choices.iter().any(|c| c.icon.is_some())
     }
 
-    /// The option whose value is `value`.
+    /// The option whose value is `value`, looking through them all.
     fn find(&self, value: &T) -> Option<usize> {
         match self.source {
             Source::Entries(_) => self.choices.iter().position(|c| c.value == *value),
-            Source::Rows(rows) => (0..rows.count).find(|&i| (rows.row)(i).0 == *value),
+            Source::Rows(rows) => (0..rows.count).find(|&i| (rows.value)(i) == *value),
         }
-    }
-
-    /// The options whose text contains `query`, ignoring case; all of them for an empty query.
-    fn filter(&self, query: &str) -> Vec<usize> {
-        let query = query.trim().to_lowercase();
-        (0..self.len()).filter(|&o| query.is_empty() || self.text(o).to_lowercase().contains(&query)).collect()
     }
 }
 
-/// The options a frame shows, for the [`Listbox`].
+/// The options a frame shows, for the [`Listbox`]: all of them, or the ones a search left.
 struct Shown<'o, 's, 'a, T> {
     options: &'o Options<'s, 'a, T>,
-    shown: &'o [usize],
+    /// Ascending.
+    filtered: Option<&'o [usize]>,
 }
 
 impl<T: Clone + PartialEq> ListOptions for Shown<'_, '_, '_, T> {
-    fn shown(&self) -> &[usize] {
-        self.shown
+    fn len(&self) -> usize {
+        self.filtered.map_or(self.options.len(), <[usize]>::len)
+    }
+
+    fn option_at(&self, at: usize) -> usize {
+        self.filtered.map_or(at, |f| f[at])
+    }
+
+    fn position(&self, option: usize) -> Option<usize> {
+        match self.filtered {
+            None => (option < self.options.len()).then_some(option),
+            Some(filtered) => filtered.binary_search(&option).ok(),
+        }
     }
 
     fn enabled(&self, option: usize) -> bool {
         self.options.enabled(option)
     }
 
-    fn text(&self, option: usize) -> String {
+    fn text(&self, option: usize) -> Cow<'_, str> {
         self.options.text(option)
     }
 }
@@ -696,8 +865,9 @@ enum Line<'s> {
 
 /// The lines showing `shown`: groups with none of their options shown go, and so do separators
 /// while a search filters.
-fn lines<'s, T>(source: &'s Source<'_, T>, shown: &[usize], filtering: bool) -> Vec<Line<'s>> {
-    let Source::Entries(entries) = source else { return shown.iter().map(|&o| Line::Option(o)).collect() };
+fn lines<'s, T: Clone + PartialEq>(source: &'s Source<'_, T>, shown: &Shown<'_, '_, '_, T>) -> Vec<Line<'s>> {
+    let Source::Entries(entries) = source else { return (0..shown.len()).map(|at| Line::Option(shown.option_at(at))).collect() };
+    let filtering = shown.filtered.is_some();
     let mut out = Vec::new();
     let mut group: Option<(&str, Vec<usize>)> = None;
     let mut option = 0;
@@ -711,7 +881,7 @@ fn lines<'s, T>(source: &'s Source<'_, T>, shown: &[usize], filtering: bool) -> 
     for entry in entries {
         match entry {
             Entry::Option(_) => {
-                if shown.contains(&option) {
+                if shown.position(option).is_some() {
                     match &mut group {
                         Some((_, options)) => options.push(option),
                         None => out.push(Line::Option(option)),
@@ -749,13 +919,12 @@ struct List<'l> {
 }
 
 impl List<'_> {
-    /// Shows the list in `menu` and returns the option chosen in it this frame; `drawn_active` is
+    /// Shows the list in `popup` and returns the option chosen in it this frame; `drawn_active` is
     /// the active option when its row was drawn.
-    #[allow(deprecated, reason = "the list is drawn with the popup of combo::Menu, kept until the apps leave it")]
     fn show<T: Clone + PartialEq + Send + Sync + 'static>(
         &self,
         ui: &Ui,
-        menu: Menu<'_>,
+        popup: PopupList<'_>,
         pass: &mut Pass<'_, '_, '_, T>,
         drawn_active: &mut Option<usize>,
     ) -> Option<usize> {
@@ -765,7 +934,9 @@ impl List<'_> {
         let options = pass.options;
         let pressing = pass.state.pressing;
         let icons = options.has_icons();
+        let keys = pass.keys();
         let mut query = pass.state.query.clone();
+        let mut cache = pass.state.filter.take();
         // The field takes the focus once its id is known from the pass before, so the gesture
         // counts it among the select's focus owners from the start.
         let focus_search = pass.state.focus_search && pass.state.search.is_some();
@@ -773,7 +944,6 @@ impl List<'_> {
         let mut focused_search = false;
         let mut page = pass.state.page;
         let listbox = &mut *pass.listbox;
-        let keys = pass.keys;
         let header = |ui: &mut Ui| {
             let before = query.clone();
             if let Some((label, clear)) = self.search {
@@ -795,13 +965,13 @@ impl List<'_> {
             }
             // Rows touch: the row height alone spaces them, as `show_rows` counts it.
             ui.spacing_mut().item_spacing.y = 0.0;
-            Filtered { shown: options.filter(&query), changed: query != before, filtering: !query.trim().is_empty() }
+            Filtered { shown: filter(&mut cache, options, &query), changed: query != before }
         };
         let mut option_row = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
             let text = options.text(option);
             let enabled = self.enabled && options.enabled(option);
             let size = vec2(ui.available_width().max(self.row_width(ui, &text, icons)), self.style.list.height);
-            let response = Interactive::with_id(option_id(self.id, option), Role::ListBoxOption, text.as_str())
+            let response = Interactive::with_id(option_id(self.id, option), Role::ListBoxOption, &*text)
                 .sense(Sense::CLICK)
                 .selected(self.chosen == Some(option))
                 .enabled(enabled)
@@ -819,7 +989,15 @@ impl List<'_> {
             if active {
                 *drawn_active = Some(option);
             }
-            let look = RowLook { text: &text, icon: options.icon(option), icons, chosen: self.chosen == Some(option), active, enabled };
+            let look = RowLook {
+                text: &text,
+                icon: options.icon(option),
+                icons,
+                chosen: self.chosen == Some(option),
+                active,
+                focus: active && listbox.keyboard(),
+                enabled,
+            };
             paint_row(ui, &self.style.list, self.size, response.rect, &look);
             response.rect
         };
@@ -827,8 +1005,9 @@ impl List<'_> {
         let measure = |ui: &Ui| (ui.clip_rect().height() / row_height).floor().max(1.0) as usize;
         match options.source {
             Source::Entries(_) => {
-                let _ = menu.show_ui_with_header(header, |ui, filtered| {
-                    keep_active_shown(listbox, options, &filtered);
+                let _ = popup.show_ui_with_header(header, |ui, filtered| {
+                    let shown = Shown { options, filtered: filtered.shown.as_deref() };
+                    keep_active_shown(listbox, &shown, filtered.changed);
                     // The popup's first pass measures it unseen; scroll once it shows.
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     page = measure(ui);
@@ -838,7 +1017,7 @@ impl List<'_> {
                             ui.scroll_to_rect(rect, None);
                         }
                     };
-                    for line in lines(options.source, &filtered.shown, filtered.filtering) {
+                    for line in lines(options.source, &shown) {
                         match line {
                             Line::Option(option) => add(ui, option, listbox),
                             Line::Separator => self.separator(ui),
@@ -856,26 +1035,26 @@ impl List<'_> {
                 });
             }
             Source::Rows(_) => {
-                let total = |filtered: &Filtered| filtered.shown.len();
-                let _ = menu.show_rows_with_header(header, row_height, total, |ui, range, filtered| {
-                    keep_active_shown(listbox, options, &filtered);
+                let total = |filtered: &Filtered| filtered.shown.as_ref().map_or(options.len(), |shown| shown.len());
+                let _ = popup.show_rows_with_header(header, row_height, total, |ui, range, filtered| {
+                    let shown = Shown { options, filtered: filtered.shown.as_deref() };
+                    keep_active_shown(listbox, &shown, filtered.changed);
                     page = measure(ui);
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
-                    if let Some(p) = reveal.and_then(|option| filtered.shown.iter().position(|&o| o == option)) {
+                    if let Some(at) = reveal.and_then(|option| shown.position(option)) {
                         // The row may be out of view and not laid out: scroll to where it would be.
                         let frame = ui.max_rect();
-                        let y = frame.top() + (p as f32 - range.start as f32) * row_height;
+                        let y = frame.top() + (at as f32 - range.start as f32) * row_height;
                         ui.scroll_to_rect(Rect::from_min_size(pos2(frame.left(), y), vec2(frame.width(), row_height)), None);
                     }
-                    for p in range {
-                        if let Some(&option) = filtered.shown.get(p) {
-                            option_row(ui, option, listbox);
-                        }
+                    for at in range.filter(|&at| at < shown.len()) {
+                        option_row(ui, shown.option_at(at), listbox);
                     }
                 });
             }
         }
         pass.state.query = query;
+        pass.state.filter = cache;
         pass.state.search = search;
         pass.state.page = page;
         if focused_search {
@@ -914,19 +1093,20 @@ impl List<'_> {
 
 /// The options a search leaves shown.
 struct Filtered {
-    shown: Vec<usize>,
+    /// Ascending; `None` while no search filters.
+    shown: Option<Arc<[usize]>>,
     /// The search changed this frame.
     changed: bool,
-    /// A search is under way.
-    filtering: bool,
 }
 
 /// After a search changed, or when the active option is no longer shown, the first enabled
 /// option shown becomes active.
-fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, options: &Options<'_, '_, T>, filtered: &Filtered) {
-    let hidden = listbox.active().is_some_and(|a| !filtered.shown.contains(&a));
-    if filtered.changed || hidden {
-        listbox.reveal(filtered.shown.iter().copied().find(|&o| options.enabled(o)));
+fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<'_, '_, '_, T>, changed: bool) {
+    let hidden = listbox.active().is_some_and(|a| shown.position(a).is_none());
+    if changed || hidden {
+        let first = (0..shown.len()).map(|at| shown.option_at(at)).find(|&o| shown.enabled(o));
+        let keyboard = changed || listbox.keyboard();
+        listbox.reveal(first, keyboard);
     }
 }
 
@@ -938,6 +1118,8 @@ struct RowLook<'r> {
     icons: bool,
     chosen: bool,
     active: bool,
+    /// The active row is the keyboard's focus cue.
+    focus: bool,
     enabled: bool,
 }
 
@@ -954,6 +1136,9 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     let ppp = ui.pixels_per_point();
     if look.active && look.enabled {
         ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, s.active_fill);
+    }
+    if look.focus && look.enabled {
+        ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, s.focus, StrokeKind::Inside));
     }
     let (text, mark) = match () {
         () if !look.enabled => (s.text_disabled, s.text_disabled),
@@ -1238,7 +1423,7 @@ fn show_searchable(ui: &mut Ui, args: &mut Args) {
         row(ui, "Font", |ui| {
             let _ = Select::new("select-font", "Font", &mut choices[0])
                 .size(size)
-                .rows(FONT_STEMS.len() * FONT_STYLES.len(), |i| (i, font(i)))
+                .rows(FONT_STEMS.len() * FONT_STYLES.len(), |i| i, font)
                 .searchable("Search fonts", "Clear")
                 .show(ui);
         });

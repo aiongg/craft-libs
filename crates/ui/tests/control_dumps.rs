@@ -240,6 +240,7 @@ fn select() {
         d.line("text.rest", s.text).line("text.disabled", s.text_disabled);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
         d.line("chosen.text", s.chosen_text).line("mark", s.mark).line("group", s.group).line("separator", s.separator);
+        d.line("focus", s.focus);
         surface(d, "popup", &style.popup);
     });
 }

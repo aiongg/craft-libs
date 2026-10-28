@@ -11,8 +11,7 @@
 //! [`ComboBox::show_ui_with_header`] and [`ComboBox::show_rows_with_header`], and the same on
 //! [`Menu`].
 //!
-//! Both are deprecated: new code uses [`Select`](crate::controls::Select), whose list is drawn
-//! with this module's menu.
+//! Both are deprecated: new code uses [`Select`](crate::controls::Select).
 #![allow(deprecated, reason = "the deprecated combo box and menu's own code and tests")]
 
 use std::cell::RefCell;
@@ -430,12 +429,6 @@ impl<'a> Menu<'a> {
     #[inline]
     pub fn style(self, style: impl Into<StyleModifier>) -> Self {
         Self { list: self.list.style(style) }
-    }
-
-    /// Draws the menu on `surface` (a [`Surface`](crate::primitives::Surface) style, which may
-    /// bevel) instead of egui's popup frame, with the style's menu margin inside it.
-    pub(crate) fn surface(self, surface: crate::primitives::SurfaceStyle) -> Self {
-        Self { list: self.list.surface(surface) }
     }
 
     /// Shows `add` in the menu while it is open, scrolling when it is taller than the menu.

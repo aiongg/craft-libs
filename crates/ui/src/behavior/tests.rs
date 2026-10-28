@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use egui::accesskit::Role;
-use egui::{Id, Sense, vec2};
+use egui::{Event, Id, Key, Modifiers, Sense, vec2};
 
 use super::{ListOptions, Listbox, RadioSelection, TYPE_AHEAD_PAUSE};
 use crate::primitives::Interactive;
@@ -40,26 +42,31 @@ struct Fruit;
 const FRUIT: [&str; 5] = ["Apple", "Apricot", "Banana", "Avocado", "Blueberry"];
 
 impl ListOptions for Fruit {
-    fn shown(&self) -> &[usize] {
-        &[0, 1, 2, 3, 4]
+    fn len(&self) -> usize {
+        FRUIT.len()
+    }
+
+    fn option_at(&self, at: usize) -> usize {
+        at
     }
 
     fn enabled(&self, option: usize) -> bool {
         option != 3
     }
 
-    fn text(&self, option: usize) -> String {
-        FRUIT[option].to_owned()
+    fn text(&self, option: usize) -> Cow<'_, str> {
+        FRUIT[option].into()
     }
 }
 
-/// Types `text` at input time `time` into a listbox that keeps its state in `ctx`; returns the
-/// active option's text.
-fn type_at(ctx: &egui::Context, text: &str, time: f64) -> Option<&'static str> {
+/// Feeds `event` at input time `time` to a listbox over [`Fruit`] that keeps its state in `ctx`,
+/// as keys and type-ahead; returns the active option's text.
+fn feed(ctx: &egui::Context, event: Event, time: f64) -> Option<&'static str> {
     let mut active = None;
-    let input = egui::RawInput { time: Some(time), events: vec![egui::Event::Text(text.to_owned())], ..Default::default() };
+    let input = egui::RawInput { time: Some(time), events: vec![event], ..Default::default() };
     ctx.run_ui(input, |ui| {
         let mut listbox = Listbox::load(ui, Id::unique("fruit"));
+        listbox.keys(ui, &Fruit, 2, true);
         listbox.type_ahead(ui, &Fruit);
         active = listbox.active().map(|o| FRUIT[o]);
         listbox.store(ui);
@@ -67,6 +74,10 @@ fn type_at(ctx: &egui::Context, text: &str, time: f64) -> Option<&'static str> {
     .textures_delta
     .clear();
     active
+}
+
+fn type_at(ctx: &egui::Context, text: &str, time: f64) -> Option<&'static str> {
+    feed(ctx, Event::Text(text.to_owned()), time)
 }
 
 #[test]
@@ -81,4 +92,21 @@ fn type_ahead_matches_a_prefix_cycles_on_a_repeated_letter_skips_disabled_option
     assert_eq!(type_at(&ctx, "b", later + 0.4), Some("Banana"), "and wraps");
     let again = later + 0.4 + TYPE_AHEAD_PAUSE + 0.1;
     assert_eq!(type_at(&ctx, "av", again), Some("Banana"), "\"Avocado\" is disabled: nothing matches, the active option stays");
+}
+
+#[test]
+fn keys_match_their_modifiers_exactly_and_a_move_starts_the_type_ahead_prefix_again() {
+    let ctx = egui::Context::default();
+    let key = |key, modifiers| Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+    let (ctrl, mac_cmd) = (Modifiers::CTRL | Modifiers::COMMAND, Modifiers::MAC_CMD | Modifiers::COMMAND);
+    assert_eq!(feed(&ctx, key(Key::ArrowDown, Modifiers::NONE), 0.0), Some("Apple"));
+    assert_eq!(feed(&ctx, key(Key::ArrowDown, Modifiers::SHIFT), 0.1), Some("Apple"), "Shift+Down is left to a list that selects ranges");
+    assert_eq!(feed(&ctx, key(Key::End, ctrl), 0.2), Some("Blueberry"));
+    assert_eq!(feed(&ctx, key(Key::ArrowUp, ctrl), 0.3), Some("Blueberry"), "Ctrl+Up is not Cmd+Up");
+    assert_eq!(feed(&ctx, key(Key::ArrowUp, mac_cmd), 0.4), Some("Apple"));
+    assert_eq!(feed(&ctx, key(Key::ArrowDown, mac_cmd), 0.5), Some("Blueberry"));
+    assert_eq!(feed(&ctx, key(Key::Home, ctrl), 0.6), Some("Apple"));
+    assert_eq!(type_at(&ctx, "a", 0.7), Some("Apricot"));
+    assert_eq!(feed(&ctx, key(Key::ArrowDown, Modifiers::NONE), 0.8), Some("Banana"));
+    assert_eq!(type_at(&ctx, "b", 0.9), Some("Blueberry"), "\"b\" alone, not \"ab\"");
 }
