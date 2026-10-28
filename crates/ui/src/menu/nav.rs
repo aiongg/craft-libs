@@ -304,12 +304,14 @@ impl Nav {
     }
 
     /// Handles this pass's keys, after every level was drawn. `rtl` swaps ← and →; `mnemonics`
-    /// lets a letter run its row.
-    pub fn keys(&mut self, ctx: &Context, rtl: bool, mnemonics: bool) -> KeyOutcome {
+    /// lets a letter run its row. While `typing` (a text field in the menu has the focus), the
+    /// letters, ← / → and Space are the field's.
+    pub fn keys(&mut self, ctx: &Context, rtl: bool, mnemonics: bool, typing: bool) -> KeyOutcome {
         let mut out = KeyOutcome::default();
         let level = self.level.min(self.rows.len().saturating_sub(1));
         self.level = level;
-        let press = |k: Key| ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
+        let press =
+            |k: Key| !(typing && matches!(k, Key::ArrowLeft | Key::ArrowRight | Key::Space)) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
         let current = self.highlighted(level).and_then(|i| self.rows.get(level)?.get(i)).cloned();
         let (forward, back) = if rtl { (Key::ArrowLeft, Key::ArrowRight) } else { (Key::ArrowRight, Key::ArrowLeft) };
         if press(Key::Escape) {
@@ -339,7 +341,7 @@ impl Nav {
                 Some(Row { widget, enabled: true, submenu: true, .. }) => self.open_sub(ctx, level, widget),
                 _ => {}
             }
-        } else if let Some((key, c)) = mnemonic::letter_pressed(ctx).filter(|_| mnemonics) {
+        } else if let Some((key, c)) = mnemonic::letter_pressed(ctx).filter(|_| mnemonics && !typing) {
             // A letter runs the row with that mnemonic in the level the arrows are in, a text
             // field having the keys or not: the open menu has them.
             let Some(row) = self.rows.get(level).and_then(|rows| rows.iter().find(|r| r.enabled && r.mnemonic == Some(c))).cloned() else {

@@ -8,12 +8,16 @@
 //!   egui [`Popup`](egui::Popup) with its anchor and open state; the menu draws the rows in it,
 //!   tracks the highlight, the pointer heading for a submenu, and the keys, and returns the
 //!   command run ([`MenuResponse`]).
+//! - [`MenuBar`]: a row of titles, each opening a [`Menu`], with PhotoCraft's press-drag-release,
+//!   hover switching, Alt / F10 / Alt+letter, overflow into "⋯" and the Help menu's search field;
+//!   [`bar::is_open`], [`bar::is_focused`] and [`bar::leave_for_shortcut`] for the app's keys.
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
 //!
 //! Menus draw with the list box rows' tokens (`listbox.*`) and their own `menu.*` (least width,
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
 //! function, dumped under `crates/ui/tests/dumps/components/menu.txt`.
 
+pub mod bar;
 mod context;
 mod item;
 mod mnemonic;
@@ -24,6 +28,7 @@ mod row;
 #[cfg(test)]
 mod tests;
 
+pub use bar::{MenuBar, MenuBarLabels, MenuBarResponse};
 pub use context::ContextMenu;
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
