@@ -227,3 +227,42 @@ fn right_to_left_mirrors_the_wells_and_the_arrows() {
     rig.click(at);
     assert_eq!(rig.active, Well::Secondary);
 }
+
+mod in_a_dialog {
+    use egui::accesskit::Role;
+    use egui::{Key, Modifiers};
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+
+    use crate::story::Args;
+    use crate::theme::{Base, install};
+
+    fn focused(h: &Harness<'_, Args>) -> String {
+        h.get_all_by(|_| true).find(|n| n.accesskit_node().is_focused()).and_then(|n| n.accesskit_node().label()).unwrap_or_default()
+    }
+
+    #[test]
+    fn tab_passes_the_pair_in_a_field_scope_and_ctrl_tab_reaches_it() {
+        let story = super::super::pair_stories::stories().into_iter().find(|s| s.id == "composites/color/pair-dialog").expect("the story");
+        let mut h = Harness::<Args>::builder()
+            .with_size([480.0, 320.0])
+            .with_step_dt(1.0 / 60.0)
+            .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+            .build_ui_state(story.show, story.defaults());
+        h.run_steps(3);
+
+        h.key_press(Key::Tab);
+        h.run_steps(3);
+        assert_eq!(focused(&h), "Palette name", "Tab reaches the first field");
+        h.key_press(Key::Tab);
+        h.run_steps(3);
+        assert_eq!(focused(&h), "Notes", "Tab goes to the next field and passes the pair");
+
+        h.get_by_label("Palette name").focus();
+        h.run_steps(3);
+        h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+        h.run_steps(3);
+        let well = h.get_by_role_and_label(Role::Button, "Fill colour");
+        assert!(well.accesskit_node().is_focused(), "Ctrl+Tab reaches the pair, but focus is on {:?}", focused(&h));
+    }
+}

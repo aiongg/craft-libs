@@ -4,7 +4,8 @@ use craft_theme::Srgba;
 use egui::Ui;
 
 use super::{PairWell, SwatchPair, Well};
-use crate::controls::slider;
+use crate::behavior::FieldTab;
+use crate::controls::{TextField, slider};
 use crate::edit;
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Stack, Text};
@@ -27,6 +28,14 @@ pub(super) fn stories() -> Vec<Story> {
             name: "Fill and stroke",
             args: || Args::new().with_bool("buttons", true).with_bool("disabled", false),
             show: |ui, args| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true),
+        },
+        Story {
+            id: "composites/color/pair-dialog",
+            level: Level::Composites,
+            component: "SwatchPair",
+            name: "Dialog (field scope)",
+            args: Args::new,
+            show: show_dialog,
         },
     ]
 }
@@ -65,6 +74,43 @@ fn show(ui: &mut Ui, args: &mut Args, key: &str, names: [&str; 2], stroke_ring: 
         Stack::new(Gap::Stack).show(ui, |ui| {
             ui.add(Text::new(format!("Active: {}", names[*active as usize])).content(Content::Muted));
             ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
+        });
+    });
+}
+
+/// A pair between two text fields in a dialog's [`FieldTab`] scope: Tab goes from field to field
+/// and passes the pair; Ctrl+Tab reaches it.
+fn show_dialog(ui: &mut Ui, _: &mut Args) {
+    let numbers = LocaleNumbers::from_tag("en");
+    let start = (String::from("Spring"), String::from("Warm tones"), Srgba::rgb(0.2, 0.55, 0.8), Srgba::rgb(0.9, 0.35, 0.2));
+    slider::with_values(ui, "pair-dialog", [(start, Well::Primary)], |ui, state| {
+        let ((name, notes, first, second), active) = &mut state[0];
+        FieldTab::new("pair-dialog").show(ui, |ui| {
+            Stack::new(Gap::Stack).show(ui, |ui| {
+                if let Some(text) = TextField::new("pair-dialog-name", "Palette name", name).show(ui).event.and_then(|e| e.value().cloned()) {
+                    *name = text;
+                }
+                let shown = SwatchPair::new(
+                    "pair-dialog-pair",
+                    "Colours",
+                    [PairWell::new("Fill colour", *first), PairWell::new("Stroke colour", *second)],
+                    &numbers,
+                )
+                .active(*active)
+                .swap_button("Swap colours")
+                .picker(|p| p.alpha(false))
+                .show(ui);
+                *active = shown.active;
+                if shown.swap {
+                    std::mem::swap(first, second);
+                }
+                if let Some(p) = shown.edit.event.as_ref().and_then(|e| e.value()) {
+                    *if shown.well == Well::Primary { &mut *first } else { &mut *second } = p.color;
+                }
+                if let Some(text) = TextField::new("pair-dialog-notes", "Notes", notes).show(ui).event.and_then(|e| e.value().cloned()) {
+                    *notes = text;
+                }
+            });
         });
     });
 }
