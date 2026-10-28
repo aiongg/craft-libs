@@ -7,7 +7,8 @@ use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, 
 
 use super::hex::hex_id;
 use super::{ColorPopover, PickedColor, SwatchPalette};
-use crate::edit::EditEvent;
+use crate::direction::{self, Direction};
+use crate::edit::{self, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
 
@@ -32,6 +33,7 @@ struct Rig {
     color: Srgba,
     popover_events: Vec<EditEvent<PickedColor>>,
     palette_events: Vec<EditEvent<Srgba>>,
+    scoped: bool,
     open: bool,
     picker: egui::Id,
     nodes: Vec<(NodeId, Node)>,
@@ -39,8 +41,13 @@ struct Rig {
 
 impl Rig {
     fn new(color: Srgba) -> Self {
+        Self::with(color, Direction::Ltr)
+    }
+
+    fn with(color: Srgba, dir: Direction) -> Self {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
+        direction::apply(&ctx, dir);
         ctx.enable_accesskit();
         let mut rig = Self {
             ctx,
@@ -48,6 +55,7 @@ impl Rig {
             color,
             popover_events: Vec::new(),
             palette_events: Vec::new(),
+            scoped: false,
             open: false,
             picker: egui::Id::NULL,
             nodes: Vec::new(),
@@ -64,7 +72,12 @@ impl Rig {
         let ctx = self.ctx.clone();
         let (mut popover, mut palette) = (None, None);
         let output = ctx.run_ui(input, |ui| {
-            let picked = ColorPopover::new("fill", "Fill colour", self.color, &numbers).show(ui);
+            let widget = ColorPopover::new("fill", "Fill colour", self.color, &numbers);
+            let picked = ui
+                .allocate_ui_with_layout(vec2(ui.available_width(), 24.0), direction::row(ui), |ui| {
+                    if self.scoped { edit::scope(ui, |ui| widget.show(ui)).inner } else { widget.show(ui) }
+                })
+                .inner;
             self.open = picked.open;
             self.picker = picked.picker_id.unwrap_or(egui::Id::NULL);
             popover = picked.edit.event;
@@ -102,6 +115,19 @@ impl Rig {
         self.frame(vec![Event::PointerMoved(at), button(at, true)]);
         self.frame(vec![button(at, false)]);
         self.settle();
+    }
+
+    fn drag(&mut self, from: Pos2, to: Pos2) {
+        self.frame(vec![Event::PointerMoved(from), button(from, true)]);
+        self.frame(vec![Event::PointerMoved(from + vec2(4.0, 0.0))]);
+        self.frame(vec![Event::PointerMoved(to)]);
+        self.frame(vec![button(to, false)]);
+        self.settle();
+    }
+
+    fn bounds(&self, role: Role, name: &str) -> Rect {
+        let b = self.node(role, name).bounds().expect("bounds");
+        Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32))
     }
 
     fn click_node(&mut self, role: Role, name: &str) {
@@ -203,4 +229,42 @@ fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows(
     rig.key(Key::Space, Modifiers::NONE);
     assert_eq!(rig.palette_events.len(), 2, "Space selects the focused swatch");
     assert_eq!(rig.color.to_rgba().to_hex(), "#12a594");
+}
+
+#[test]
+fn a_popover_in_an_edit_scope_sends_only_updates() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.scoped = true;
+    rig.settle();
+    rig.click_node(Role::Button, "Fill colour");
+    assert!(rig.open);
+    let area = rig.bounds(Role::Slider, "Saturation and brightness");
+    rig.drag(area.center(), area.center() + vec2(30.0, 20.0));
+    assert!(!rig.popover_events.is_empty());
+    assert!(rig.popover_events.iter().all(|e| matches!(e, EditEvent::Update { .. })), "{:?}", rig.popover_events);
+    assert_ne!(rig.color.to_rgba().to_hex(), "#336699", "the drag changed the colour");
+}
+
+#[test]
+fn the_popover_and_the_palette_mirror_right_to_left() {
+    let ltr = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    let mut rig = Rig::with(Srgba::rgb(0.2, 0.4, 0.6), Direction::Rtl);
+    assert!(rig.bounds(Role::RadioButton, "Red").center().x > rig.bounds(Role::RadioButton, "Orange").center().x, "the palette starts at the right");
+    assert!(ltr.bounds(Role::RadioButton, "Red").center().x < ltr.bounds(Role::RadioButton, "Orange").center().x);
+
+    // The popup's start edge is under the swatch's start edge: the right edges line up.
+    rig.click_node(Role::Button, "Fill colour");
+    let (swatch, area) = (rig.bounds(Role::Button, "Fill colour"), rig.bounds(Role::Slider, "Saturation and brightness"));
+    assert!(swatch.min.x > 300.0, "the swatch is at the right: {swatch:?}");
+    assert!(area.max.x <= swatch.max.x + 16.0 && area.min.x < swatch.min.x - 100.0, "{swatch:?} {area:?}");
+    rig.key(Key::Escape, Modifiers::NONE);
+    assert!(!rig.open);
+
+    // Left moves on to the next swatch, which sits to the left.
+    rig.tab_to("Red");
+    rig.key(Key::ArrowLeft, Modifiers::NONE);
+    assert_eq!(rig.focused_name().as_deref(), Some("Orange"));
+    rig.key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.focused_name().as_deref(), Some("Red"));
+    assert!(rig.palette_events.is_empty(), "the arrows select nothing");
 }
