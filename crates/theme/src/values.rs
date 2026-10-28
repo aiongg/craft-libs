@@ -523,3 +523,9 @@ pub const PROGRESS_TRACK: f32 = 4.0;
 
 /// Widest a tooltip's text grows before it wraps, in points.
 pub const TOOLTIP_WIDTH: f32 = 320.0;
+
+/// Outer width of a toast card, in points, at every Size.
+pub const TOAST_WIDTH: f32 = 360.0;
+
+/// Widest the column of a centred empty state grows, in points, at every Size.
+pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;

@@ -160,6 +160,13 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
         for bg in [T::SurfacePanel, T::SurfaceRaised] {
             expected.push(ContrastCheck { fg: off_border.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 3.0 });
         }
+        // The inline empty-state message is `text.faint` on the panel.
+        expected.push(ContrastCheck {
+            fg: ComponentField::EmptyState(EmptyStateField::Text).into(),
+            bg: T::SurfacePanel.into(),
+            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
+            minimum: 4.5,
+        });
         let sunken = t.color(T::SurfaceSunken);
         // Text field placeholders are `text.faint` on the field fill, `surface.sunken`.
         let field = |part| ComponentField::Field(FieldField::Color { part, disabled: false });
@@ -167,6 +174,13 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             fg: field(FieldPart::Placeholder).into(),
             bg: field(FieldPart::Fill).into(),
             ratio: contrast_ratio(pin, sunken),
+            minimum: 4.5,
+        });
+        // A toast's "more" line is `text.faint` on the card fill, `surface.raised`.
+        expected.push(ContrastCheck {
+            fg: ComponentField::Toast(ToastField::More).into(),
+            bg: ComponentField::Toast(ToastField::Fill).into(),
+            ratio: contrast_ratio(pin, t.color(T::SurfaceRaised)),
             minimum: 4.5,
         });
         assert_eq!(r.warnings, expected, "{mode:?}");

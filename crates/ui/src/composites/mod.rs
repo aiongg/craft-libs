@@ -12,10 +12,16 @@
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
+//! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
+//!   pause on hover and keyboard focus.
+//! - [`Notice`]: an inline status message in the tone's icon and colour.
+//! - [`EmptyState`]: the message of an empty panel or list, or a centred no-document column.
+//! - [`live`]: live regions, which announce a message once when it appears. [`Tone`] is the
+//!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`]); each has a pure `style` function of
+//! `panel_header.*` for [`PanelHeader`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -33,10 +39,17 @@
 //! # });
 //! ```
 
+pub(crate) mod empty_state;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod empty_state_tests;
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub mod live;
 mod measure;
+pub(crate) mod notice;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod notice_tests;
 pub(crate) mod panel_header;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_header_tests;
@@ -46,8 +59,15 @@ mod property_row_tests;
 pub(crate) mod section_header;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_header_tests;
+pub(crate) mod toast;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod toast_tests;
 
+pub use craft_theme::Tone;
+pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use notice::{Notice, NoticeStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};
 pub use section_header::{SectionHeader, SectionStyle};
+pub use toast::{Toast, ToastEnd, ToastStack, ToastStyle};

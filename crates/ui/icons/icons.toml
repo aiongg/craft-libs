@@ -369,3 +369,19 @@ lucide = "triangle-alert"
 phosphor = "warning"
 carbon = "warning--alt"
 tabler = "alert-triangle"
+
+[[icon]]
+name = "success"
+directional = false
+lucide = "circle-check"
+phosphor = "check-circle"
+carbon = "checkmark--outline"
+tabler = "circle-check"
+
+[[icon]]
+name = "error"
+directional = false
+lucide = "circle-alert"
+phosphor = "warning-circle"
+carbon = "error--outline"
+tabler = "alert-circle"
