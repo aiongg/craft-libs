@@ -3,12 +3,9 @@
 use std::{fmt, io, path::PathBuf, sync::Arc, time::Duration};
 
 use craft_theme::{
-    ThemeId,
-    v2::{
-        Appearance, Contrast, ContrastIntent, Mode, Size, TextSize, ThemeDef, ThemePair, Variants, builtins,
-        format::{self, ErrorKind, FormatError, FormatErrors, MAX_THEME_BYTES},
-        resolve,
-    },
+    Appearance, Contrast, ContrastIntent, Mode, Size, TextSize, ThemeDef, ThemeId, ThemePair, Variants, builtins,
+    format::{self, ErrorKind, FormatError, FormatErrors, MAX_THEME_BYTES},
+    resolve,
 };
 use serde_json::Map;
 
@@ -53,7 +50,7 @@ impl StoreOptions {
         self
     }
 
-    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::v2::AppChoice)),
+    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::AppChoice)),
     /// from its preferences. [`SuiteWatch::open`](crate::SuiteWatch::open) reads their library
     /// files (and the suite's themes in [`last_accepted`](Self::last_accepted)) before
     /// returning, so the first snapshot already has them. A plain `Store` ignores it.
@@ -218,7 +215,7 @@ impl ThemeEntry {
     }
 }
 
-/// The user themes in the library folder, by id. Built-ins come from [`craft_theme::v2::builtins`];
+/// The user themes in the library folder, by id. Built-ins come from [`craft_theme::builtins`];
 /// files in another theme format are skipped.
 #[derive(Clone, Debug, Default)]
 pub struct Library {
@@ -495,7 +492,7 @@ impl Store {
     }
 
     /// A built-in or library theme by id, for
-    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`.
+    /// [`resolve_selection`](craft_theme::resolve_selection)'s `lookup`.
     pub fn theme(&mut self, id: &ThemeId) -> Option<ThemeDef> {
         match builtin(id) {
             Some(t) => Some(t.clone()),

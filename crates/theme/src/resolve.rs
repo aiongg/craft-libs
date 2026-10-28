@@ -1,147 +1,70 @@
-use crate::{CoreRoles, Derived, Mode, SuiteTheme, ThemeId, Variant, derive};
+//! Resolution: a theme and an appearance to concrete tokens.
 
-/// A theme and a mode: the suite's selection, or an app's own.
-///
-/// There is no default: a missing suite selection means the user hasn't picked one, and each app
-/// shows its own [`AppDefaults`] until they do.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Selection {
-    pub theme: ThemeId,
-    pub mode: Mode,
-}
+use super::components::{ComponentTokens, Semantic};
+use super::derive::{self, ContrastWarning};
+use super::ramp::Mode;
+use super::scale::Elevation;
+use super::theme::{Appearance, Contrast, ContrastIntent, ThemeDef};
+use super::tokens::{ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
+use super::values;
+use crate::AppId;
 
-/// What an app shows while it follows the suite and the user hasn't picked a suite theme yet.
-///
-/// Each app states its own, normally [`crate::SUITE_DEFAULT`] with the mode that suits it (the
-/// creative apps Dark; office apps may ship Light).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct AppDefaults {
-    pub theme: ThemeId,
-    pub mode: Mode,
-}
-
-impl AppDefaults {
-    pub fn selection(&self) -> Selection {
-        Selection { theme: self.theme.clone(), mode: self.mode }
-    }
-}
-
-/// An app's choice, kept in the app's own preferences.
-///
-/// No `Default`: an app states what a fresh install and a legacy preference file each become, so
-/// a `#[serde(default)]` can't silently move existing users to the suite.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
-pub enum AppChoice {
-    FollowSuite,
-    /// "Use a different theme in this app".
-    Own(Selection),
-}
-
-impl AppChoice {
-    /// The selection to resolve: the app's own, else the suite's, else the app's defaults when
-    /// the suite has no selection.
-    pub fn effective(&self, suite: Option<&Selection>, defaults: &AppDefaults) -> Selection {
-        match (self, suite) {
-            (AppChoice::Own(own), _) => own.clone(),
-            (AppChoice::FollowSuite, Some(suite)) => suite.clone(),
-            (AppChoice::FollowSuite, None) => defaults.selection(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Resolution {
-    /// Paint the app's own palette in this variant.
-    AppDefault {
-        variant: Variant,
-        why: Option<Fallback>,
-    },
-    Theme(Resolved),
-}
-
-impl Resolution {
-    pub fn variant(&self) -> Variant {
-        match self {
-            Resolution::AppDefault { variant, .. } => *variant,
-            Resolution::Theme(r) => r.variant,
-        }
-    }
-
-    pub fn fallback(&self) -> Option<&Fallback> {
-        match self {
-            Resolution::AppDefault { why, .. } => why.as_ref(),
-            Resolution::Theme(r) => r.note.as_ref(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// The tokens for one theme and appearance, with the contrast pairs that fail.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Resolved {
-    pub theme: ThemeId,
-    pub variant: Variant,
-    pub roles: CoreRoles,
-    pub derived: Derived,
-    pub note: Option<Fallback>,
+    /// Every semantic and component token.
+    pub tokens: Tokens,
+    /// Pairs below their minimum, semantic then component: pinned colours in standard contrast,
+    /// or pairs that no lightness move could fix.
+    pub warnings: Vec<ContrastWarning>,
+    /// Carried from the theme, for the picker's "Low contrast" label and the built-in check.
+    pub contrast_intent: ContrastIntent,
+    /// The mode whose variant was used; differs from the requested mode for single-variant
+    /// themes.
+    pub variant_used: Mode,
 }
 
-/// Why the result differs from what the selection asked for. When several apply, the first listed
-/// here is reported.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fallback {
-    /// No theme has this id (deleted, or from another machine): the app's own palette.
-    UnknownTheme(ThemeId),
-    /// The theme has only this variant and the other was asked for.
-    OnlyVariant(Variant),
-    /// The mode follows the system and the OS gave no answer: the app's fallback variant.
-    SystemSilent,
-}
+/// Resolves `theme` for `appearance`. Colours derive from the theme's seeds and pins for the
+/// mode it has; sizes, spacing and type come from the Size preset and text size; shape comes
+/// from the preset unless the theme has its own. Component tokens derive from the semantic ones,
+/// then take the theme's component overrides and their own contrast pass. With `app`, that app's
+/// overrides in the theme apply over the theme's own pins and components.
+pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Resolved {
+    let mode = theme.variants.mode_for(appearance.mode);
+    let (color, mut warnings) = derive::colors(theme, app, mode, appearance.contrast);
+    let preset = values::preset(appearance.size);
 
-/// Pure. `system` = OS answer; `fallback` = the app's variant when the OS gives none.
-///
-/// `craft.app-default` and unknown ids resolve to [`Resolution::AppDefault`], never to another
-/// named theme. `lookup` is called at most once, with `sel.theme`.
-pub fn resolve(sel: &Selection, system: Option<Variant>, fallback: Variant, lookup: &dyn Fn(&ThemeId) -> Option<SuiteTheme>) -> Resolution {
-    let (wanted, silent) = match sel.mode {
-        Mode::Light => (Variant::Light, false),
-        Mode::Dark => (Variant::Dark, false),
-        Mode::System => (system.unwrap_or(fallback), system.is_none()),
-    };
-    let silent = silent.then_some(Fallback::SystemSilent);
-    if sel.theme.is_app_default() {
-        return Resolution::AppDefault { variant: wanted, why: silent };
-    }
-    let Some(theme) = lookup(&sel.theme) else {
-        return Resolution::AppDefault { variant: wanted, why: Some(Fallback::UnknownTheme(sel.theme.clone())) };
-    };
-    let (variant, roles, note) = match (theme.variant(wanted), theme.variants().next()) {
-        (Some(roles), _) => (wanted, *roles, silent),
-        (None, Some((only, roles))) => (only, *roles, Some(Fallback::OnlyVariant(only))),
-        // A SuiteTheme without variants can't come from `from_maps` or the built-ins; treat it
-        // like a missing theme rather than invent colours.
-        (None, None) => {
-            return Resolution::AppDefault { variant: wanted, why: Some(Fallback::UnknownTheme(sel.theme.clone())) };
+    let seed = theme.shape;
+    let radius = seed.and_then(|s| s.radius).unwrap_or(preset.radius);
+    let edge = seed.and_then(|s| s.edge).map_or(preset.edge, |e| e.resolve(&color));
+
+    let shadow = |level: usize| {
+        let e = Elevation::level(level);
+        match mode {
+            Mode::Light => e,
+            Mode::Dark => Elevation { alpha: (e.alpha * values::DARK_SHADOW_ALPHA_FACTOR).min(1.0), ..e },
         }
     };
-    Resolution::Theme(Resolved { theme: sel.theme.clone(), variant, roles, derived: derive(&roles, variant), note })
-}
+    let (popup, dialog, floating) = values::ELEVATION_LEVELS;
 
-#[cfg(all(test, feature = "serde"))]
-mod tests {
-    use super::*;
+    let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
+    let (hover, open, move_) = values::MOTION_DURATIONS;
 
-    #[test]
-    fn serde_forms() {
-        let own = AppChoice::Own(Selection { theme: ThemeId::app_default(), mode: Mode::Dark });
-        let json = serde_json::to_string(&own).unwrap();
-        assert_eq!(json, r#"{"own":{"theme":"craft.app-default","mode":"dark"}}"#);
-        assert_eq!(serde_json::from_str::<AppChoice>(&json).unwrap(), own);
-        assert_eq!(serde_json::to_string(&AppChoice::FollowSuite).unwrap(), r#""follow_suite""#);
-        assert!(serde_json::from_str::<Selection>(r#"{"theme":"Bad Id","mode":"dark"}"#).is_err());
-        let roles = crate::builtins::graphite::LIGHT;
-        let json = serde_json::to_value(roles).unwrap();
-        assert_eq!(json["text_muted"], "#5e5e66");
-        assert_eq!(serde_json::from_value::<CoreRoles>(json).unwrap(), roles);
-    }
+    let shape = ShapeTokens { radius, edge };
+    let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
+    let high = appearance.contrast == Contrast::High;
+    derive::component_overrides(&mut component, theme, app, mode, high, &color);
+    warnings.extend(derive::component_colors(&mut component, &color, high));
+
+    let tokens = Tokens {
+        color,
+        shape,
+        space: preset.space,
+        size: preset.size,
+        typography: preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING),
+        elevation: ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating) },
+        motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
+        component,
+    };
+    Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode }
 }

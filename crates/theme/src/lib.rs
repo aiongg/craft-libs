@@ -1,36 +1,69 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
-//! The Craft suite's theme contract: theme identity, 13 core colour roles per light and dark
-//! variant, derived interaction states, contrast checks, the built-in themes and resolution of a
-//! selection against what the OS reports.
+//! The Craft design system's theme model: primitives (sRGB and OKLCH colour, WCAG contrast,
+//! 12-step colour ramps, fixed scales), the semantic layer built on them (themes as seeds and
+//! pins, derivation with a contrast pass, Size presets, type roles and [`resolve`]), the
+//! component layer built on that (one token struct per component family, with curated
+//! overrides) and the user's selection with its resolution ([`resolve_selection`]).
 //!
-//! Pure data and functions: no egui, no I/O, no threads. Theme files, the suite folder and change
-//! watching belong to `craft-theme-store`; `craft_ui::theme` turns colours into egui ones.
+//! Pure data and functions: no egui, no I/O, no threads. Theme files on disk, the suite folder
+//! and change watching belong to `craft-theme-store`; `craft_ui::theme` turns tokens into egui
+//! ones.
 //!
 //! ```
-//! use craft_theme::{Mode, Resolution, Selection, ThemeId, Variant, lookup_builtin, resolve};
+//! use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, builtins, resolve};
 //!
-//! let sel = Selection { theme: ThemeId::parse("craft.graphite").unwrap(), mode: Mode::System };
-//! // The OS says dark; the app falls back to light when the OS says nothing.
-//! match resolve(&sel, Some(Variant::Dark), Variant::Light, &lookup_builtin) {
-//!     Resolution::Theme(r) => assert_eq!(r.roles.text.to_hex(), "#ececef"),
-//!     Resolution::AppDefault { .. } => unreachable!(),
-//! }
+//! let theme = builtins().iter().find(|t| t.id.as_str() == "craft.graphite").unwrap();
+//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+//! let resolved = resolve(theme, appearance, None);
+//! assert!(resolved.warnings.is_empty());
 //! ```
 
 mod builtins;
-mod color;
+pub mod color;
+mod components;
 pub mod contrast;
 mod derive;
+pub mod format;
 mod id;
+pub mod ramp;
 mod resolve;
-mod roles;
+pub mod scale;
+pub mod selection;
 mod theme;
-pub mod v2;
+mod tokens;
+mod values;
 
-pub use builtins::{builtin, builtins, lookup_builtin};
-pub use color::Rgba;
-pub use derive::{Derived, derive};
+#[cfg(test)]
+mod builtin_tests;
+#[cfg(test)]
+mod component_tests;
+#[cfg(test)]
+mod format_tests;
+#[cfg(test)]
+mod selection_tests;
+#[cfg(test)]
+mod semantic_tests;
+#[cfg(test)]
+mod tests;
+
+pub use builtins::builtins;
+pub use color::{Oklab, Oklch, Rgba};
+pub use components::{
+    ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, ComponentField, ComponentTokens, ControlSize, FieldKind,
+    OverrideError, OverrideValue, State, States,
+};
+pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
+pub use derive::ContrastWarning;
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
-pub use resolve::{AppChoice, AppDefaults, Fallback, Resolution, Resolved, Selection, resolve};
-pub use roles::{CoreRoles, Mode, Role, Variant};
-pub use theme::{DefinitionError, MissingRole, Origin, RoleMap, SuiteTheme};
+pub use ramp::{Mode, Ramp, RampKind};
+pub use resolve::{Resolved, resolve};
+pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
+pub use selection::{
+    AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair, resolve_selection,
+};
+pub use theme::{AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants};
+pub use tokens::{
+    AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
+    IconSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, RadiusSet, RailSizes, ShapeTokens, SizeTokens, SpaceTokens, StateColors,
+    Status, StatusColors, StatusKind, SurfaceColors, TextColors, TokenRef, Tokens, TypeRole, TypeStyle, TypeTokens,
+};

@@ -3,10 +3,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{
-    ThemeId,
-    v2::{SuiteChoice, ThemeDef, ThemePair},
-};
+use craft_theme::{SuiteChoice, ThemeDef, ThemeId, ThemePair};
 
 use crate::{Accepted, Op, Problem, SelectionChange, Snapshot, StoreError, SuiteWatch, watch::with_library_theme};
 
@@ -150,7 +147,7 @@ impl SuiteClient {
     }
 
     /// A built-in or a loaded library theme, for
-    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`.
+    /// [`resolve_selection`](craft_theme::resolve_selection)'s `lookup`.
     pub fn theme(&self, id: &ThemeId) -> Option<ThemeDef> {
         self.snapshot.theme(id)
     }
@@ -177,7 +174,7 @@ impl SuiteClient {
         self.snapshot.problems.iter().any(|p| matches!(p, Problem::Theme { stem, .. } if stem == id.as_str()))
     }
 
-    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::v2::AppChoice)),
+    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::AppChoice)),
     /// or `None` for the suite's. Sent to the watch only when it changes; a pair of built-ins
     /// counts as `None`.
     pub fn set_app_theme(&mut self, themes: Option<ThemePair>) {

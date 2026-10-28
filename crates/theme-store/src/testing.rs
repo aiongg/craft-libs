@@ -4,7 +4,7 @@
 //! resolves in standard contrast and checks that the pinned tokens equal [`sample_colors`] in
 //! each mode, so the same theme gives the same colours in every app.
 
-use craft_theme::v2::{ColorToken, Mode, Rgba};
+use craft_theme::{ColorToken, Mode, Rgba};
 
 pub const SAMPLE_THEME_ID: &str = "sample.navy-cream";
 

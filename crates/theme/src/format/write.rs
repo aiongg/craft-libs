@@ -6,9 +6,9 @@ use serde_json::{Map, Number, Value};
 
 use super::ThemeFile;
 use super::{SCHEMA, SCHEMA_VERSION};
-use crate::v2::components::{ComponentField, OverrideValue};
-use crate::v2::scale::{Elevation, Radius};
-use crate::v2::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
+use crate::components::{ComponentField, OverrideValue};
+use crate::scale::{Elevation, Radius};
+use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
 
 /// Top-level keys in the order a file lists them; other keys follow, sorted.
 const TOP_ORDER: [&str; 14] = [

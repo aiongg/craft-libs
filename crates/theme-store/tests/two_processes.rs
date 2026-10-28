@@ -4,10 +4,7 @@
 
 use std::{path::Path, process::Command};
 
-use craft_theme::{
-    ThemeId,
-    v2::{ModeChoice, SuiteChoice, ThemePair},
-};
+use craft_theme::{ModeChoice, SuiteChoice, ThemeId, ThemePair};
 use craft_theme_store::{Accepted, SelectionChange, Store, StoreError, StoreOptions, SuiteDir};
 
 const ROLE: &str = "CRAFT_THEME_STORE_TEST_ROLE";

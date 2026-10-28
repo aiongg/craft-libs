@@ -4,8 +4,8 @@
 use std::process::ExitCode;
 
 use craft_theme::AppId;
-use craft_theme::v2::format;
-use craft_theme::v2::{Appearance, Contrast, Mode, Size, TextSize, ThemeDef, Variants, resolve};
+use craft_theme::format;
+use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, ThemeDef, Variants, resolve};
 use serde_json::{Value, json};
 
 const USAGE: &str = "usage: craft-theme check <file>... [--json]";

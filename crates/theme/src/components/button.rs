@@ -2,9 +2,9 @@
 //! no tokens of its own.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
-use crate::v2::color::Rgba;
-use crate::v2::tokens::{ColorTokens, Edge, TokenRef, TypeRole};
-use crate::v2::values;
+use crate::color::Rgba;
+use crate::tokens::{ColorTokens, Edge, TokenRef, TypeRole};
+use crate::values;
 
 /// A button's emphasis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

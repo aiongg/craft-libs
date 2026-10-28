@@ -2,10 +2,7 @@
 
 use std::fmt;
 
-use craft_theme::{
-    ThemeId,
-    v2::{ContrastChoice, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeDef, ThemePair, Variants},
-};
+use craft_theme::{ContrastChoice, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeDef, ThemeId, ThemePair, Variants};
 use serde_json::{Map, Value};
 
 /// The `selection.json` format this crate writes. Version 1 (one theme for both modes) is read
@@ -436,7 +433,7 @@ mod tests {
 
     #[test]
     fn picking_a_single_variant_theme_changes_one_slot() {
-        let builtin = |name: &str| craft_theme::v2::builtins().iter().find(|t| t.id.as_str() == name).unwrap();
+        let builtin = |name: &str| craft_theme::builtins().iter().find(|t| t.id.as_str() == name).unwrap();
         let soft = SelectionChange::pick_theme(builtin("craft.soft-light"));
         assert_eq!(soft, SelectionChange::theme_light(id("craft.soft-light")));
         assert_eq!(SelectionChange::pick_theme(builtin("craft.graphite")), both("craft.graphite"));

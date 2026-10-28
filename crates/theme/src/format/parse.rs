@@ -5,11 +5,11 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Value};
 
 use super::{ErrorKind, FormatError, FormatErrors, MAX_THEME_BYTES, SCHEMA, SCHEMA_VERSION, ThemeFile};
-use crate::v2::color::Rgba;
-use crate::v2::components::{ComponentField, FieldKind, OverrideValue};
-use crate::v2::scale::{Elevation, Radius};
-use crate::v2::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, ThemeDef, Variants};
-use crate::v2::tokens::{ColorToken, RadiusSet, Status, TokenRef};
+use crate::color::Rgba;
+use crate::components::{ComponentField, FieldKind, OverrideValue};
+use crate::scale::{Elevation, Radius};
+use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, ThemeDef, Variants};
+use crate::tokens::{ColorToken, RadiusSet, Status, TokenRef};
 use crate::{AppId, ThemeId};
 
 /// Parses and validates a theme file. Unknown keys are allowed anywhere except in colour and

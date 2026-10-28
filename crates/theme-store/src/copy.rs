@@ -16,7 +16,7 @@ pub(crate) fn copy_id(id: &ThemeId, n: u32) -> Result<ThemeId, IdError> {
 }
 
 /// `bytes` with every top-level `"id"` member's value replaced by `id`, everything else byte for
-/// byte. `bytes` must be a JSON object that [`craft_theme::v2::format::parse`] accepted.
+/// byte. `bytes` must be a JSON object that [`craft_theme::format::parse`] accepted.
 pub(crate) fn replace_top_level_id(bytes: &[u8], id: &ThemeId) -> Option<Vec<u8>> {
     let mut scan = Scanner { bytes, pos: bytes.len() - strip_bom(bytes).len() };
     let mut spans = Vec::new();

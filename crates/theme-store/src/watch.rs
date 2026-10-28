@@ -10,10 +10,7 @@ use std::{
     time::Duration,
 };
 
-use craft_theme::{
-    ThemeId,
-    v2::{SuiteChoice, ThemeDef, ThemePair},
-};
+use craft_theme::{SuiteChoice, ThemeDef, ThemeId, ThemePair};
 
 use crate::{
     Accepted, FileStamp, LibraryFile, Problem, SelectionChange, Store, StoreError, StoreOptions, SuiteDir, ThemeEntry, ThemeRecord,
@@ -96,7 +93,7 @@ impl Snapshot {
     }
 
     /// A built-in theme, an active theme or one of the app's own library themes, for
-    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`. Other library
+    /// [`resolve_selection`](craft_theme::resolve_selection)'s `lookup`. Other library
     /// themes give `None` until the app names them with [`Op::AppTheme`].
     pub fn theme(&self, id: &ThemeId) -> Option<ThemeDef> {
         if let Some(theme) = builtin(id) {

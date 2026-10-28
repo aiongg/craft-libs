@@ -17,7 +17,7 @@ pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVari
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
-pub(in crate::v2) struct Semantic<'a> {
+pub(crate) struct Semantic<'a> {
     pub color: &'a ColorTokens,
     pub shape: &'a ShapeTokens,
     pub space: &'a SpaceTokens,
@@ -197,7 +197,7 @@ impl std::error::Error for OverrideError {}
 
 /// A contrast requirement between a component colour and what it is drawn on.
 #[derive(Clone, Copy, Debug)]
-pub(in crate::v2) struct ContrastPair {
+pub(crate) struct ContrastPair {
     /// The foreground field.
     pub fg: ComponentField,
     /// Its background; a translucent one is measured over `surface.panel`.
@@ -289,7 +289,7 @@ macro_rules! families {
 
         impl ComponentTokens {
             /// Every family's defaults.
-            pub(in crate::v2) fn defaults(s: &Semantic<'_>) -> ComponentTokens {
+            pub(crate) fn defaults(s: &Semantic<'_>) -> ComponentTokens {
                 ComponentTokens { $($name: <$tokens as Family>::defaults(s),)+ }
             }
 
@@ -309,7 +309,7 @@ macro_rules! families {
             }
 
             /// Every family's contrast pairs.
-            pub(in crate::v2) fn pairs() -> Vec<ContrastPair> {
+            pub(crate) fn pairs() -> Vec<ContrastPair> {
                 let mut out = Vec::new();
                 $(out.extend(<$tokens as Family>::pairs());)+
                 out

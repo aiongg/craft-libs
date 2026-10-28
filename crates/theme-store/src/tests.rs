@@ -7,10 +7,8 @@ use std::{
 };
 
 use craft_theme::{
-    IdError, ThemeId,
-    v2::{
-        Appearance, Contrast, ContrastChoice, ContrastIntent, Mode, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemePair, builtins, resolve,
-    },
+    Appearance, Contrast, ContrastChoice, ContrastIntent, IdError, Mode, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeId, ThemePair,
+    builtins, resolve,
 };
 use serde_json::Value;
 
@@ -184,7 +182,7 @@ fn builtins_export_and_parse_back() {
         let renamed = replace_top_level_id(&exported, &id("copy")).unwrap();
         let record = ThemeRecord::parse(&renamed).unwrap();
         assert_eq!(record.theme.id.as_str(), "copy");
-        assert_eq!(record.theme, craft_theme::v2::ThemeDef { id: id("copy"), ..builtin.clone() });
+        assert_eq!(record.theme, craft_theme::ThemeDef { id: id("copy"), ..builtin.clone() });
     }
 }
 

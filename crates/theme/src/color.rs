@@ -1,158 +1,193 @@
-use std::fmt;
+//! sRGB, OKLab and OKLCH colour with conversions and gamut mapping.
+//!
+//! Conversions use Björn Ottosson's OKLab matrices in `f64`, so an sRGB colour survives a round
+//! trip through OKLCH unchanged.
 
-/// An sRGB colour with unmultiplied alpha.
+/// An sRGB colour with 8-bit channels and unmultiplied alpha.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Rgba(pub [u8; 4]);
 
+/// A colour in OKLab: lightness `l` in 0..=1, opponent axes `a` (green-red) and `b` (blue-yellow).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Oklab {
+    /// Perceptual lightness, 0 (black) to 1 (white).
+    pub l: f64,
+    /// Green-red axis.
+    pub a: f64,
+    /// Blue-yellow axis.
+    pub b: f64,
+}
+
+/// A colour in OKLCH: OKLab in polar form. Used for building ramps and moving lightness.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Oklch {
+    /// Perceptual lightness, 0 (black) to 1 (white).
+    pub l: f64,
+    /// Chroma, 0 for greys; sRGB tops out near 0.32.
+    pub c: f64,
+    /// Hue angle in degrees, 0..360.
+    pub h: f64,
+}
+
+/// Linear-light sRGB, each channel 0..=1 when in gamut.
+type Linear = [f64; 3];
+
+/// Slack when testing whether a linear channel is inside 0..=1.
+const GAMUT_EPS: f64 = 1e-6;
+
 impl Rgba {
+    /// Opaque black.
     pub const BLACK: Rgba = Rgba::rgb(0, 0, 0);
-    pub const WHITE: Rgba = Rgba::rgb(0xFF, 0xFF, 0xFF);
+    /// Opaque white.
+    pub const WHITE: Rgba = Rgba::rgb(255, 255, 255);
+    /// Fully transparent.
+    pub const TRANSPARENT: Rgba = Rgba([0, 0, 0, 0]);
 
+    /// An opaque colour from channels.
     pub const fn rgb(r: u8, g: u8, b: u8) -> Rgba {
-        Rgba([r, g, b, 0xFF])
+        Rgba([r, g, b, 255])
     }
 
-    /// An opaque colour from `0xRRGGBB`; higher bits are ignored.
-    pub const fn from_rgb_u32(rgb: u32) -> Rgba {
-        let [_, r, g, b] = rgb.to_be_bytes();
-        Rgba::rgb(r, g, b)
-    }
-
-    pub const fn r(self) -> u8 {
-        self.0[0]
-    }
-
-    pub const fn g(self) -> u8 {
-        self.0[1]
-    }
-
-    pub const fn b(self) -> u8 {
-        self.0[2]
-    }
-
-    pub const fn a(self) -> u8 {
-        self.0[3]
-    }
-
-    pub const fn is_opaque(self) -> bool {
-        self.0[3] == 0xFF
-    }
-
-    /// `#rrggbb` or `#rrggbbaa`, either case; the `#` is optional.
-    pub fn parse_hex(s: &str) -> Option<Rgba> {
-        let digits = s.strip_prefix('#').unwrap_or(s);
-        if !matches!(digits.len(), 6 | 8) || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+    /// Parses `#RRGGBB` or `#RRGGBBAA` (case-insensitive, `#` required).
+    pub fn from_hex(s: &str) -> Option<Rgba> {
+        let digits = s.strip_prefix('#')?;
+        if !digits.is_ascii() || !(digits.len() == 6 || digits.len() == 8) {
             return None;
         }
-        let mut out = [0xFF; 4];
-        for (slot, i) in out.iter_mut().zip((0..digits.len()).step_by(2)) {
-            *slot = u8::from_str_radix(digits.get(i..i + 2)?, 16).ok()?;
+        let mut out = [255u8; 4];
+        for (i, slot) in out.iter_mut().enumerate().take(digits.len() / 2) {
+            *slot = u8::from_str_radix(digits.get(i * 2..i * 2 + 2)?, 16).ok()?;
         }
         Some(Rgba(out))
     }
 
-    /// `#rrggbb` for an opaque colour, `#rrggbbaa` otherwise.
+    /// Lowercase `#rrggbb`, or `#rrggbbaa` when not opaque.
     pub fn to_hex(self) -> String {
         let [r, g, b, a] = self.0;
-        if a == 0xFF { format!("#{r:02x}{g:02x}{b:02x}") } else { format!("#{r:02x}{g:02x}{b:02x}{a:02x}") }
+        if a == 255 { format!("#{r:02x}{g:02x}{b:02x}") } else { format!("#{r:02x}{g:02x}{b:02x}{a:02x}") }
     }
 
-    /// Per-channel interpolation of the encoded values (alpha included), `t` clamped to 0..=1.
-    pub fn lerp_gamma(self, to: Rgba, t: f32) -> Rgba {
-        let t = if t.is_nan() { 0.0 } else { t.clamp(0.0, 1.0) };
-        let mut out = self.0;
-        for (o, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(to.0.iter())) {
-            *o = channel(f32::from(a) + (f32::from(b) - f32::from(a)) * t);
-        }
-        Rgba(out)
+    /// The alpha channel, 0..=255.
+    pub const fn a(self) -> u8 {
+        self.0[3]
     }
 
-    /// Like [`Rgba::lerp_gamma`] with `-t`: the same distance away from `from`, clamped per channel.
-    pub(crate) fn step_away(self, from: Rgba, t: f32) -> Rgba {
-        let mut out = self.0;
-        for (o, (&a, &b)) in out.iter_mut().zip(self.0.iter().zip(from.0.iter())) {
-            *o = channel(f32::from(a) - (f32::from(b) - f32::from(a)) * t);
-        }
-        out[3] = self.0[3];
-        Rgba(out)
+    /// Linear-light channels (alpha ignored).
+    pub fn to_linear(self) -> [f64; 3] {
+        [srgb_to_linear(self.0[0]), srgb_to_linear(self.0[1]), srgb_to_linear(self.0[2])]
     }
 
-    /// This colour painted over `bg` (source-over, mixed in encoded sRGB as egui does).
-    pub fn over(self, bg: Rgba) -> Rgba {
-        let fa = f32::from(self.a()) / 255.0;
-        let ba = f32::from(bg.a()) / 255.0;
-        let out_a = fa + ba * (1.0 - fa);
-        if out_a <= 0.0 {
-            return Rgba([0, 0, 0, 0]);
-        }
-        let mut out = [0; 4];
-        for (o, (&f, &b)) in out.iter_mut().zip(self.0.iter().zip(bg.0.iter())).take(3) {
-            *o = channel((f32::from(f) * fa + f32::from(b) * ba * (1.0 - fa)) / out_a);
-        }
-        out[3] = channel(out_a * 255.0);
-        Rgba(out)
+    /// This colour in OKLab (alpha ignored).
+    pub fn to_oklab(self) -> Oklab {
+        Oklab::from_linear(self.to_linear())
     }
 
-    /// WCAG 2 relative luminance of the colour's RGB, ignoring alpha.
-    pub(crate) fn luminance(self) -> f32 {
-        fn linear(c: u8) -> f32 {
-            let c = f32::from(c) / 255.0;
-            if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
-        }
-        0.2126 * linear(self.r()) + 0.7152 * linear(self.g()) + 0.0722 * linear(self.b())
+    /// This colour in OKLCH (alpha ignored).
+    pub fn to_oklch(self) -> Oklch {
+        self.to_oklab().to_oklch()
+    }
+
+    /// The same colour with a different alpha.
+    pub const fn with_alpha(self, a: u8) -> Rgba {
+        Rgba([self.0[0], self.0[1], self.0[2], a])
     }
 }
 
-fn channel(v: f32) -> u8 {
-    // `as` saturates and maps NaN to 0.
-    (v + 0.5).floor().clamp(0.0, 255.0) as u8
+/// Decodes one sRGB channel to linear light.
+pub fn srgb_to_linear(v: u8) -> f64 {
+    let c = f64::from(v) / 255.0;
+    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
-impl fmt::Display for Rgba {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_hex())
-    }
+/// Encodes linear light as an sRGB value in 0..=1 (not clamped).
+pub fn linear_to_srgb(v: f64) -> f64 {
+    if v <= 0.003_130_8 { v * 12.92 } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Rgba {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&self.to_hex())
-    }
+fn to_u8(v: f64) -> u8 {
+    (v.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for Rgba {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let s = <std::borrow::Cow<'de, str>>::deserialize(d)?;
-        Rgba::parse_hex(&s).ok_or_else(|| serde::de::Error::custom(format!("not a #rrggbb or #rrggbbaa colour: {s:?}")))
-    }
+fn in_gamut(lin: Linear) -> bool {
+    lin.iter().all(|&c| (-GAMUT_EPS..=1.0 + GAMUT_EPS).contains(&c))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hex_round_trip_and_rejects() {
-        assert_eq!(Rgba::parse_hex("#121316"), Some(Rgba::from_rgb_u32(0x121316)));
-        assert_eq!(Rgba::parse_hex("2D81FF80"), Some(Rgba([0x2D, 0x81, 0xFF, 0x80])));
-        assert_eq!(Rgba([0x2D, 0x81, 0xFF, 0x80]).to_hex(), "#2d81ff80");
-        assert_eq!(Rgba::from_rgb_u32(0xABCDEF).to_hex(), "#abcdef");
-        for bad in ["", "#", "#12345", "#1234567", "#12345g", "#+12345", "#ééé", "#123456789"] {
-            assert_eq!(Rgba::parse_hex(bad), None, "{bad}");
+impl Oklab {
+    /// From linear-light sRGB.
+    pub fn from_linear([r, g, b]: [f64; 3]) -> Oklab {
+        let l = (0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b).cbrt();
+        let m = (0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b).cbrt();
+        let s = (0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b).cbrt();
+        Oklab {
+            l: 0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s,
+            a: 1.977_998_495_1 * l - 2.428_592_205_0 * m + 0.450_593_709_9 * s,
+            b: 0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766_0 * s,
         }
     }
 
-    #[test]
-    fn mixing() {
-        let a = Rgba::rgb(0, 100, 200);
-        let b = Rgba::rgb(100, 200, 0);
-        assert_eq!(a.lerp_gamma(b, 0.5), Rgba::rgb(50, 150, 100));
-        assert_eq!(a.lerp_gamma(b, 2.0), b);
-        assert_eq!(a.lerp_gamma(b, f32::NAN), a);
-        assert_eq!(Rgba::rgb(100, 100, 100).step_away(Rgba::rgb(200, 0, 100), 0.5), Rgba::rgb(50, 150, 100));
-        assert_eq!(Rgba([255, 255, 255, 128]).over(Rgba::BLACK), Rgba::rgb(128, 128, 128));
-        assert_eq!(Rgba([0, 0, 0, 0]).over(Rgba([0, 0, 0, 0])), Rgba([0, 0, 0, 0]));
+    /// To linear-light sRGB; channels may fall outside 0..=1 for out-of-gamut colours.
+    pub fn to_linear(self) -> [f64; 3] {
+        let l = (self.l + 0.396_337_777_4 * self.a + 0.215_803_757_3 * self.b).powi(3);
+        let m = (self.l - 0.105_561_345_8 * self.a - 0.063_854_172_8 * self.b).powi(3);
+        let s = (self.l - 0.089_484_177_5 * self.a - 1.291_485_548_0 * self.b).powi(3);
+        [
+            4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s,
+            -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
+            -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
+        ]
+    }
+
+    /// Polar form. Hue is 0 for exact greys.
+    pub fn to_oklch(self) -> Oklch {
+        let c = self.a.hypot(self.b);
+        let h = if c < 1e-9 { 0.0 } else { self.b.atan2(self.a).to_degrees().rem_euclid(360.0) };
+        Oklch { l: self.l, c, h }
+    }
+}
+
+impl Oklch {
+    /// This colour in OKLab.
+    pub fn to_oklab(self) -> Oklab {
+        let (sin, cos) = self.h.to_radians().sin_cos();
+        Oklab { l: self.l, a: self.c * cos, b: self.c * sin }
+    }
+
+    /// Whether the colour is inside the sRGB gamut.
+    pub fn in_gamut(self) -> bool {
+        in_gamut(self.to_oklab().to_linear())
+    }
+
+    /// Maps into sRGB by reducing chroma at fixed lightness and hue (binary search for the
+    /// largest in-gamut chroma, as in CSS Color 4 without its final clip). Lightness is clamped
+    /// to 0..=1 first, so the result is always in gamut.
+    pub fn gamut_map(self) -> Oklch {
+        let l = self.l.clamp(0.0, 1.0);
+        let mut out = Oklch { l, c: self.c.max(0.0), h: self.h };
+        if out.in_gamut() {
+            return out;
+        }
+        let (mut lo, mut hi) = (0.0, out.c);
+        for _ in 0..40 {
+            let mid = 0.5 * (lo + hi);
+            if (Oklch { c: mid, ..out }).in_gamut() {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        out.c = lo;
+        out
+    }
+
+    /// Gamut-maps and encodes as opaque sRGB.
+    pub fn to_rgba(self) -> Rgba {
+        let lin = self.gamut_map().to_oklab().to_linear();
+        Rgba::rgb(to_u8(linear_to_srgb(lin[0])), to_u8(linear_to_srgb(lin[1])), to_u8(linear_to_srgb(lin[2])))
+    }
+}
+
+impl From<Rgba> for Oklch {
+    fn from(c: Rgba) -> Oklch {
+        c.to_oklch()
     }
 }

@@ -11,10 +11,7 @@ use std::{
 };
 
 use craft_atomic::{AtomicFs, NewFilePermissions, RealFs};
-use craft_theme::{
-    ThemeId,
-    v2::{ContrastChoice, ModeChoice, SuiteChoice, TextSize, ThemePair},
-};
+use craft_theme::{ContrastChoice, ModeChoice, SuiteChoice, TextSize, ThemeId, ThemePair};
 
 use super::SuiteClient;
 use crate::{

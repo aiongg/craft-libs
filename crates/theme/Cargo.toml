@@ -1,6 +1,6 @@
 [package]
 name = "craft-theme"
-description = "The Craft apps' suite-theme contract: theme identity, core colour roles, derived states, contrast checks, built-in themes, the v2 theme file format and resolution. No egui. The library does no file I/O; the `craft-theme` binary reads theme files to check them."
+description = "The Craft design system's theme model: colour, scale and token primitives, semantic and component tokens derived from theme seeds and pins, contrast rules, the `craft-design-theme` file format, built-in themes and the suite selection. No egui. The library does no file I/O; the `craft-theme` binary reads theme files to check them."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

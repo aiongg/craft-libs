@@ -10,10 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use craft_theme::{
-    ThemeId,
-    v2::{ContrastChoice, ModeChoice, Selection, Size, TextSize, ThemePair, Variants},
-};
+use craft_theme::{ContrastChoice, ModeChoice, Selection, Size, TextSize, ThemeId, ThemePair, Variants};
 
 use super::{Intervals, Op, OpOutput, SuiteWatch};
 use crate::{

@@ -15,7 +15,7 @@
 //! `craft-theme`.
 //!
 //! ```
-//! use craft_theme::{ThemeId, v2::{AppDefaults, ModeChoice, Size, ThemePair}};
+//! use craft_theme::{ThemeId, AppDefaults, ModeChoice, Size, ThemePair};
 //! use craft_theme_store::{SelectionChange, Store, StoreOptions, SuiteDir};
 //!
 //! let mut store = Store::open(&SuiteDir::memory(), StoreOptions::new("doc 1.0"));
@@ -51,8 +51,8 @@ pub use backend::{FileStamp, LibraryFile};
 pub use client::SuiteClient;
 /// Theme files: [`format::parse`], [`format::write`] and their errors, which
 /// [`StoreError::Format`] carries.
-pub use craft_theme::v2::format;
-pub use craft_theme::v2::format::{FormatError, FormatErrors, MAX_THEME_BYTES};
+pub use craft_theme::format;
+pub use craft_theme::format::{FormatError, FormatErrors, MAX_THEME_BYTES};
 pub use dir::{DirSource, SUITE_DIR_ENV, SuiteDir};
 pub use selection::{Accepted, MAX_SELECTION_BYTES, SELECTION_SCHEMA_VERSION, SelectionChange, SelectionError};
 pub use store::{Imported, LOCK_TIMEOUT, Library, ParseCounts, Problem, Store, StoreError, StoreOptions, ThemeEntry, ThemeRecord};
