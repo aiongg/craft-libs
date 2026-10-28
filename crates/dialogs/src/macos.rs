@@ -24,13 +24,17 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use crate::{Answer, FileDialog, Kind, Reply};
 
 const NOT_MAIN: &str = "dialogs show from the main thread only";
+const NOT_RUNNING: &str = "the app isn't running yet, so the dialog can't be shown";
 
 /// The free-standing panel a [`crate::Dialogs`] has on screen.
 pub(crate) type Panel = Retained<NSOpenPanel>;
 
-/// Brings `panel` to the front, so a command that would show it again shows where it is.
+/// Brings `panel` to the front, so a command that would show it again shows where it is. A panel
+/// that has closed, but whose answer the app hasn't collected yet, stays closed.
 pub(crate) fn raise(panel: &Panel) {
-    panel.makeKeyAndOrderFront(None);
+    if panel.isVisible() {
+        panel.makeKeyAndOrderFront(None);
+    }
 }
 
 /// The parent a sheet can be shown on, or why there is none.
@@ -38,7 +42,7 @@ pub(crate) fn sheet_parent<W: HasWindowHandle>(parent: Option<&W>) -> Result<&W,
     let mtm = MainThreadMarker::new().ok_or(NOT_MAIN)?;
     let app = NSApplication::sharedApplication(mtm);
     if !app.isRunning() {
-        return Err("the app isn't running yet, so the dialog can't be shown".into());
+        return Err(NOT_RUNNING.into());
     }
     let parent = parent.ok_or("no window to show the dialog on")?;
     // rfd `expect`s the parent's view to be in a window (rfd 0.17.2 `backend/macos/utils.rs:34-46`),
@@ -65,6 +69,11 @@ pub(crate) fn show_panel(d: &FileDialog, reply: Reply) -> Option<Panel> {
         reply.send(Answer::Unavailable(NOT_MAIN.into()));
         return None;
     };
+    // Begun before the app runs, the panel would never show or answer.
+    if !NSApplication::sharedApplication(mtm).isRunning() {
+        reply.send(Answer::Unavailable(NOT_RUNNING.into()));
+        return None;
+    }
     let panel = NSOpenPanel::openPanel(mtm);
     let folder = d.kind == Kind::Folder;
     panel.setCanChooseFiles(!folder);
