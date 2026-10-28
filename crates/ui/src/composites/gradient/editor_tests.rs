@@ -977,3 +977,19 @@ fn the_popover_s_picker_takes_the_host_s_setup_and_reports_its_eyedropper() {
     assert_eq!(harness.state().kinds(), ["Set"]);
     assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#ff0000");
 }
+
+#[test]
+fn a_location_run_moves_the_stop_from_where_it_began() {
+    // Two stops at 50 %: typing "5" then "50" on the second passes the first and comes back.
+    let tied = GradientStops::new(vec![stop(0.0, 1), stop(0.5, 2), stop(0.5, 3), stop(1.0, 4)]);
+    let mut harness = rig(tied.clone());
+    select(&mut harness, Some(StopRef::Color(2)));
+    type_into(&mut harness, "Location", "5");
+    assert_eq!((harness.state().locations(), selected(&harness)), (vec![0.0, 0.05, 0.5, 1.0], Some(StopRef::Color(1))));
+    harness.event(Event::Text("0".into()));
+    harness.run();
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().kinds().last(), Some(&"Commit unchanged"), "{:?}", harness.state().kinds());
+    assert_eq!(harness.state().stops, tied);
+    assert_eq!(selected(&harness), Some(StopRef::Color(2)));
+}

@@ -180,11 +180,21 @@ struct State {
     start_selected: Option<StopRef>,
     /// The anchor of the colour popover while it is open ([`GradientEditor::color_popover`]).
     popover: Option<Id>,
+    /// The Location field's run under way.
+    location: Option<fields::LocationRun>,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { selected: Some(StopRef::Color(0)), drag: None, held: None, parts: parts::State::default(), start_selected: None, popover: None }
+        Self {
+            selected: Some(StopRef::Color(0)),
+            drag: None,
+            held: None,
+            parts: parts::State::default(),
+            start_selected: None,
+            popover: None,
+            location: None,
+        }
     }
 }
 

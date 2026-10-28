@@ -13,7 +13,7 @@ use crate::composites::color::{ColorPicker, PickedColor, popover};
 use crate::composites::gradient::{GradientStops, StopRow, StopRows, stops};
 use crate::controls::{IconButton, NumberField, Swatch};
 use crate::direction;
-use crate::edit::{EditEvent, EditPolicy, EditResponse};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, GestureId};
 use crate::icons::Icon;
 use crate::localized::Unit;
 use crate::theme::{Tokens, TokensOf};
@@ -25,6 +25,17 @@ const FIELDS: &str = "craft_ui::gradient_editor::fields";
 pub(super) struct PickerReport {
     pub eyedropper_requested: bool,
     pub picker_id: Option<Id>,
+}
+
+/// The Location field's run under way: the stops as it began and the stop's index in them. Every
+/// value of the run moves that stop from there, as a drag edits the stops at its press, so a run
+/// that passes a neighbour and comes back leaves the stops as they were.
+#[derive(Clone, Debug)]
+pub(super) struct LocationRun {
+    run: GestureId,
+    row: StopRow,
+    index: usize,
+    base: GradientStops,
 }
 
 /// What the number fields of a pass share.
@@ -228,20 +239,28 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         }
     }
 
-    /// The Location field of stop `i` of `row`. The selection follows the stop when it passes a
-    /// neighbour.
+    /// The Location field of stop `i` of `row`. Each value of a run moves the stop from where the
+    /// run began ([`LocationRun`]); the selection follows the stop when it passes a neighbour.
     #[allow(clippy::too_many_arguments)]
     fn location(&self, ui: &mut Ui, row: StopRow, i: usize, stops: &GradientStops, state: &mut State, edits: &mut Edits, look: &Look) {
         let at = locations(stops, row)[i];
         let field = self.number(ui, ("location", row), &self.labels.location, percent(at), 0.0..=100.0, self.location_decimals, look);
+        let event_run = field.event.as_ref().and_then(EditEvent::id);
+        let run = state
+            .location
+            .take()
+            .filter(|r| r.row == row && (Some(r.run) == event_run || edit::is_live(ui.ctx(), r.run)))
+            .or_else(|| event_run.map(|run| LocationRun { run, row, index: i, base: stops.clone() }));
+        let (base, from) = run.as_ref().map_or((stops, i), |r| (&r.base, r.index));
         let rules = &self.rules;
-        let moved = |v: f64| stops::move_to(stops, row, i, (v / 100.0) as f32, rules);
+        let moved = |v: f64| stops::move_to(base, row, from, (v / 100.0) as f32, rules);
         if let Some(v) = field.event.as_ref().and_then(EditEvent::value)
             && let Some((_, j)) = moved(*v)
         {
             state.selected = Some(StopRef::stop(row, j));
         }
         edits.typing(ui.ctx(), &field, |v| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
+        state.location = run;
     }
 
     /// A number field in percent in a row labelled `name`, which scrubs it; `look.width` wide at
