@@ -72,7 +72,10 @@ fn a_chord_is_written_in_each_platforms_notation() {
     let save = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Mac), ["⌘", "S"]);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Nix), ["Ctrl", "S"]);
-    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), "Escape");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), "⎋", "the suite's glyphs for editing keys on a Mac");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp), OperatingSystem::Mac), "↑");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp), OperatingSystem::Nix), "Up");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::PageDown), OperatingSystem::Nix), "Page Down");
     // Keys the caller names are joined with `+` on every platform.
     for os in [OperatingSystem::Mac, OperatingSystem::Nix] {
         assert_eq!(Kbd::keys(&["Shift", "Click"]).text(os), "Shift+Click", "{os:?}");

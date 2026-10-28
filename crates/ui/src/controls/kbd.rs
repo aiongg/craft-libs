@@ -98,7 +98,7 @@ impl Kbd {
     pub fn parts(shortcut: &KeyboardShortcut, os: OperatingSystem) -> Vec<String> {
         let mac = is_mac(os);
         let mut out = modifier_names(&shortcut.modifiers, mac, if mac { &ModifierNames::SYMBOLS } else { &ModifierNames::NAMES });
-        out.push(key_name(shortcut.logical_key));
+        out.push(key_name(shortcut.logical_key, mac));
         out
     }
 
@@ -151,8 +151,54 @@ pub(crate) fn is_mac(os: OperatingSystem) -> bool {
     matches!(os, OperatingSystem::Mac | OperatingSystem::IOS)
 }
 
-fn key_name(key: Key) -> String {
-    key.symbol_or_name().to_owned()
+/// The key as the suite writes it (craft-keymap's `Chord::display`): arrows and editing keys as
+/// Apple's glyphs on a Mac, names elsewhere, punctuation as the character it types.
+fn key_name(key: Key, mac: bool) -> String {
+    if mac {
+        let glyph = match key {
+            Key::ArrowUp => "↑",
+            Key::ArrowDown => "↓",
+            Key::ArrowLeft => "←",
+            Key::ArrowRight => "→",
+            Key::Enter => "⏎",
+            Key::Backspace => "⌫",
+            Key::Delete => "⌦",
+            Key::Escape => "⎋",
+            Key::Tab => "⇥",
+            _ => "",
+        };
+        if !glyph.is_empty() {
+            return glyph.to_owned();
+        }
+    }
+    let name = match key {
+        Key::ArrowUp => "Up",
+        Key::ArrowDown => "Down",
+        Key::ArrowLeft => "Left",
+        Key::ArrowRight => "Right",
+        Key::PageUp => "Page Up",
+        Key::PageDown => "Page Down",
+        Key::Minus => "-",
+        Key::Plus => "+",
+        Key::Equals => "=",
+        Key::Colon => ":",
+        Key::Comma => ",",
+        Key::Period => ".",
+        Key::Semicolon => ";",
+        Key::Backslash => "\\",
+        Key::Slash => "/",
+        Key::Pipe => "|",
+        Key::Questionmark => "?",
+        Key::Exclamationmark => "!",
+        Key::OpenBracket => "[",
+        Key::CloseBracket => "]",
+        Key::OpenCurlyBracket => "{",
+        Key::CloseCurlyBracket => "}",
+        Key::Quote => "'",
+        Key::Backtick => "`",
+        _ => key.name(),
+    };
+    name.to_owned()
 }
 
 impl Widget for Kbd {

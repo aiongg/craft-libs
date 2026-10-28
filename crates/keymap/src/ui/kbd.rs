@@ -20,11 +20,17 @@ pub fn kbd(chord: &Chord, platform: Platform) -> Kbd {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chord::{Key, Mods};
 
     #[test]
     fn a_chord_is_written_like_chord_display_in_each_platforms_order() {
-        for text in ["Cmd+N", "Cmd+Shift+S", "Cmd+Ctrl+Alt+Shift+K", "Ctrl+Alt+Z", "Shift+F5", "G"] {
-            let chord = Chord::parse(text).expect("a chord");
+        let chords = ["Cmd+N", "Cmd+Shift+S", "Cmd+Ctrl+Alt+Shift+K", "Ctrl+Alt+Z"]
+            .into_iter()
+            .map(|text| Chord::parse(text).expect("a chord"))
+            .chain(Key::ALL.iter().map(|&key| Chord { mods: Mods::CMD, key }))
+            .chain(Key::ALL.iter().map(|&key| Chord { mods: Mods::NONE, key }));
+        for chord in chords {
+            let text = chord.to_string();
             for platform in [Platform::Mac, Platform::Windows, Platform::Linux] {
                 let os = match platform {
                     Platform::Mac => OperatingSystem::Mac,
