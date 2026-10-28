@@ -743,6 +743,63 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
 }
 
+/// A part that owns the composite's gesture and isn't drawn ends it as the part's own gesture
+/// ends ([`parts::Edits::feed`]): a typing run commits with its last value, also one no update
+/// carried; a drag cancels. The other parts' gestures are the composite's next ones.
+#[test]
+fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let host = std::cell::Cell::new(0);
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    // Part `a`, when drawn, with or without the focus: a control whose value is a tenth of the
+    // composite's and that reports no updates; part `b` reports the event given.
+    type Part<'a> = Option<(bool, &'a dyn Fn(&mut Gesture<i32>))>;
+    let mut pass = |a: Part, b: Option<EditEvent<i32>>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let mut edits = parts::Edits::<i32>::new(&state);
+            if let Some((focus, act)) = a {
+                let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+                match focus {
+                    true => response.request_focus(),
+                    false => response.surrender_focus(),
+                }
+                let mut gesture = Gesture::load(ui, a_id, &(host.get() / 10), EditPolicy::default().on_release_only(true));
+                act(&mut gesture);
+                edits.push(&EditResponse::new(response, gesture.finish()), |v| v * 10);
+            }
+            let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
+            edits.push(&EditResponse::new(response, b.clone()), |v| v);
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let typed = |g: &mut Gesture<i32>| {
+        g.begin();
+        g.update(4, Modifiers::NONE);
+    };
+    let begun = pass(Some((true, &typed)), None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(Some((true, &|_| {})), None), None);
+    let b = GestureId::next();
+    assert_eq!(pass(None, Some(EditEvent::begin(b))), commit(id, 40, true), "the run's value no update carried");
+    let begun = pass(None, Some(EditEvent::update(b, 7, Modifiers::NONE)));
+    let Some(EditEvent::Begin { id: next }) = begun else { panic!("{begun:?}") };
+    assert_ne!(next, id);
+    assert_eq!(pass(None, Some(EditEvent::commit(b, 7, true, Modifiers::NONE))), commit(next, 7, true));
+
+    let begun = pass(Some((false, &typed)), None);
+    let Some(EditEvent::Begin { id: drag }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(None, None), cancel(drag, CancelReason::Removed));
+    assert_eq!(host.get(), 7);
+}
+
 #[test]
 fn a_drag_whose_control_is_not_drawn_is_removed_and_reverted() {
     let mut rig = Rig::new(EditPolicy::default());
