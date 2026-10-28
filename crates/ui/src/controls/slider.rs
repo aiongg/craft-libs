@@ -218,10 +218,12 @@ impl Slider {
                 gesture.set(track.dragged(shown, at.x, at.x));
             }
         }
+        // Taken during a drag too, which it doesn't change, as the arrows are.
         if let Some(value) = reset
             && sensing.enabled
             && ui.memory(|m| m.has_focus(response.id))
             && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Backspace))
+            && !sensing.dragging
         {
             gesture.set(value);
         }

@@ -622,8 +622,9 @@ fn a_double_click_or_ctrl_backspace_sets_the_default_value() {
     rig.release(rig.level_at(40.0, 3.0));
     assert_eq!(rig.level, 40.0, "a press on the thumb doesn't jump");
     rig.press(rig.level_at(40.0, 3.0));
+    let id = begin(rig.level_event.clone());
     rig.release(rig.level_at(40.0, 3.0));
-    assert_eq!(rig.level, 25.0, "the second click on the thumb resets");
+    assert_eq!((rig.level_event.clone(), rig.level), (commit(id, 25.0, true), 25.0), "the second click on the thumb resets: its gesture commits 25");
 
     rig.level = 70.0;
     rig.frame(vec![]);
@@ -639,4 +640,18 @@ fn a_double_click_or_ctrl_backspace_sets_the_default_value() {
     rig.key(Key::Backspace);
     assert_eq!(rig.level_event, set(25.0, Modifiers::COMMAND), "the key resets the focused slider");
     rig.modifiers = Modifiers::NONE;
+
+    // Keys change nothing during a drag.
+    rig.time += 1.0;
+    rig.press(rig.level_at(25.0, 0.0));
+    let id = begin(rig.level_event.clone());
+    rig.drag(rig.level_at(25.0, 40.0));
+    let dragged = rig.level;
+    assert!(dragged > 25.0 && rig.has_focus(rig.slider_id), "{dragged}");
+    rig.modifiers = Modifiers::COMMAND;
+    rig.key(Key::Backspace);
+    rig.modifiers = Modifiers::NONE;
+    assert_eq!((rig.level_event.clone(), rig.level), (None, dragged), "the reset key during the drag");
+    rig.release(rig.level_at(25.0, 40.0));
+    assert_eq!(rig.level_event, commit(id, dragged, true));
 }
