@@ -26,7 +26,8 @@ pub struct Appearance {
     pub rtl: bool,
     /// Interface scale in percent.
     pub scale: u32,
-    /// The candidate interface face in the UI slots (see [`crate::faces`]).
+    /// The interface face in the UI slots: a candidate or [`crate::faces::SYSTEM`] (see
+    /// [`crate::faces`]).
     pub ui_face: String,
     /// The candidate monospace face in the mono slot.
     pub mono_face: String,

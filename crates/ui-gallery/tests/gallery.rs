@@ -184,11 +184,19 @@ fn face_pickers_reinstall_the_fonts_and_the_specimen_renders() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.select("specimens/type/faces");
-    for (ui_face, mono_face) in [("IBM Plex Sans", "IBM Plex Mono"), ("Source Sans 3", "Source Code Pro"), ("Inter", "JetBrains Mono")] {
+    for (ui_face, mono_face) in
+        [("IBM Plex Sans", "IBM Plex Mono"), ("Source Sans 3", "Source Code Pro"), ("System", "IBM Plex Mono"), ("Inter", "JetBrains Mono")]
+    {
         let a = gallery.appearance_mut();
         a.ui_face = ui_face.to_owned();
         a.mono_face = mono_face.to_owned();
         frame(&ctx, &mut gallery);
         frame(&ctx, &mut gallery);
+        if ui_face == craft_ui_gallery::faces::SYSTEM {
+            let offered = craft_ui_gallery::faces::ui_faces().contains(&ui_face);
+            assert_eq!(offered, craft_ui::fonts::system_ui_face().is_some(), "System is offered exactly where it resolves");
+            let kept = if offered { ui_face } else { craft_ui_gallery::faces::UI_FACES[0] };
+            assert_eq!(gallery.appearance_mut().ui_face, kept, "a System pick the machine can't show falls back to the first candidate");
+        }
     }
 }

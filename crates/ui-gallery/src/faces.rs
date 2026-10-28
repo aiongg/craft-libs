@@ -3,12 +3,14 @@
 //! The faces come from craft-fonts' `fonts/ui-candidates-manifest.txt`, embedded by `build.rs`
 //! when `CRAFT_FONTS_DIR` is set. Every candidate has its own egui family (`face:<name>`, and
 //! `face:<name>:semibold`), so the specimen shows all of them side by side. The appearance bar's
-//! pickers put the chosen faces into the proportional, semibold and monospace slots.
+//! pickers put the chosen faces into the proportional, semibold and monospace slots. On the
+//! desktop the UI face picker also offers the OS's own interface face ("System",
+//! [`craft_ui::fonts::system_ui_face`]) where one resolves.
 
 use std::sync::Arc;
 
-use craft_theme::{Size, TypeRole};
-use craft_ui::fonts::{Family, I18nScripts, SEMIBOLD, SystemFonts, UiFonts};
+use craft_theme::{InterfaceFont, Size, TypeRole};
+use craft_ui::fonts::{Family, I18nScripts, SEMIBOLD, SystemFonts, UiFonts, system_ui_face};
 use craft_ui::story::{Args, Level, Story};
 use craft_ui::theme::{FontFamilies, ToEgui, Tokens, TokensOf, scope, style_for, style_format, tabular};
 use egui::text::LayoutJob;
@@ -28,6 +30,8 @@ pub const COMPONENTS: &[&str] = &["Faces"];
 
 /// Candidate interface faces, in the order of the picker. Only Inter has `tnum`.
 pub const UI_FACES: &[&str] = &["Inter", "IBM Plex Sans", "Source Sans 3"];
+/// The UI face picker's entry for the OS's interface face.
+pub const SYSTEM: &str = "System";
 /// Candidate monospace faces.
 pub const MONO_FACES: &[&str] = &["JetBrains Mono", "IBM Plex Mono", "Source Code Pro"];
 
@@ -36,8 +40,18 @@ pub fn available() -> bool {
     !UI_CANDIDATES.is_empty()
 }
 
+/// The UI face picker's entries: the candidates, then [`SYSTEM`] where the OS's interface face
+/// resolves (not on the web).
+pub fn ui_faces() -> Vec<&'static str> {
+    let mut faces = UI_FACES.to_vec();
+    if system_ui_face().is_some() {
+        faces.push(SYSTEM);
+    }
+    faces
+}
+
 fn has(family: &str) -> bool {
-    UI_CANDIDATES.iter().any(|c| c.family == family)
+    UI_CANDIDATES.iter().any(|c| c.family == family) || (family == SYSTEM && system_ui_face().is_some())
 }
 
 /// The egui family of a candidate's regular face.
@@ -51,13 +65,26 @@ pub fn semibold_family(face: &str) -> FontFamily {
 }
 
 /// Installs the candidates: each in its own families, the chosen UI face in the proportional and
-/// semibold slots and the chosen mono face in the monospace slot. Does nothing without
-/// candidates, so the gallery keeps egui's faces.
+/// semibold slots and the chosen mono face in the monospace slot. [`SYSTEM`] puts the OS's
+/// interface face there through [`InterfaceFont::System`], and the first candidate where it
+/// doesn't resolve. Does nothing without candidates, so the gallery keeps egui's faces.
 pub fn install(ctx: &egui::Context, ui_face: &str, mono_face: &str) {
     if !available() {
         return;
     }
-    let mut fonts = UiFonts::new(&I18nScripts).system_fonts(SystemFonts::Off).family(Family::named(SEMIBOLD).weight(600));
+    let system = system_ui_face();
+    let (ui_face, interface) = match (ui_face, system) {
+        (SYSTEM, Some(_)) => (SYSTEM, InterfaceFont::System),
+        (SYSTEM, None) => (UI_FACES[0], InterfaceFont::Suite),
+        (face, _) => (face, InterfaceFont::Suite),
+    };
+    let mut fonts = UiFonts::new(&I18nScripts).system_fonts(SystemFonts::Off).family(Family::named(SEMIBOLD).weight(600)).interface_font(interface);
+    if let Some(face) = system {
+        fonts = fonts
+            .app_face(&face.regular_name(), face.regular.clone(), &[regular_family(SYSTEM)])
+            .app_face(&face.semibold_name(), face.semibold.clone(), &[semibold_family(SYSTEM)])
+            .family(Family::named(&format!("face:{SYSTEM}:semibold")).weight(600));
+    }
     for c in UI_CANDIDATES {
         let semibold = c.style.eq_ignore_ascii_case("semibold");
         let mono = MONO_FACES.contains(&c.family);
@@ -108,9 +135,9 @@ fn show(ui: &mut Ui, args: &mut Args) {
     }
     let mono = args.choice("group") == "Mono faces";
     let tnum = args.bool("tabular");
-    let faces = if mono { MONO_FACES } else { UI_FACES };
+    let faces = if mono { MONO_FACES.to_vec() } else { ui_faces() };
     ui.columns(faces.len(), |columns| {
-        for (ui, face) in columns.iter_mut().zip(faces) {
+        for (ui, face) in columns.iter_mut().zip(&faces) {
             ui.push_id(face, |ui| column(ui, face, mono, tnum));
         }
     });
@@ -130,7 +157,11 @@ fn column(ui: &mut Ui, face: &str, mono: bool, tnum: bool) {
     let tokens = Tokens::of(ui);
     let families = families_of(ui, face, mono);
     let text = tokens.color.text.normal.to_egui();
-    ui.label(RichText::new(face).font(tokens.font(TypeRole::Title)));
+    let title = match system_ui_face() {
+        Some(system) if face == SYSTEM => format!("{SYSTEM} ({})", system.family),
+        _ => face.to_owned(),
+    };
+    ui.label(RichText::new(title).font(tokens.font(TypeRole::Title)));
     ui.add_space(4.0);
     let roles = [
         (TypeRole::Caption, "Caption"),

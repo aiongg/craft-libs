@@ -144,6 +144,9 @@ impl Gallery {
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
         if self.applied.as_ref() != Some(&self.appearance) {
+            if !faces::ui_faces().contains(&self.appearance.ui_face.as_str()) {
+                faces::UI_FACES[0].clone_into(&mut self.appearance.ui_face);
+            }
             let previous = self.applied.replace(self.appearance.clone());
             if previous.as_ref().is_none_or(|p| p.rtl != self.appearance.rtl) {
                 direction::apply(ctx, self.appearance.direction());
@@ -192,7 +195,7 @@ impl Gallery {
             ui.checkbox(&mut a.reduced_motion, "Reduced motion");
             segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
             if faces::available() {
-                face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, faces::UI_FACES);
+                face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, &faces::ui_faces());
                 face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, faces::MONO_FACES);
             }
             let label = ui.label("Icons");
