@@ -13,11 +13,12 @@
 
 use std::cell::RefCell;
 use std::ops::Range;
+use std::sync::Arc;
 
 use egui::{
     Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, LayerId, NumExt as _, Order,
-    Painter, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, TextStyle, TextWrapMode, Ui, Vec2, WidgetAtom,
-    WidgetInfo,
+    Painter, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, Style, TextStyle, TextWrapMode, Ui, Vec2,
+    WidgetAtom, WidgetInfo,
     class::{ClassName, Classes, HasClasses},
     style::{StyleModifier, WidgetVisuals},
     vec2,
@@ -380,6 +381,8 @@ pub struct Menu<'a> {
     field_id: Id,
     height: f32,
     style: StyleModifier,
+    /// The style of the theme scope the menu opens in, under `style`.
+    scoped: Option<Arc<Style>>,
     close_behavior: PopupCloseBehavior,
     open: Option<&'a mut bool>,
 }
@@ -400,6 +403,7 @@ impl<'a> Menu<'a> {
             field_id: field.id,
             height: ui.spacing().combo_height,
             style: StyleModifier::from(egui::containers::menu::menu_style),
+            scoped: crate::theme::scoped_style(ui),
             close_behavior: PopupCloseBehavior::CloseOnClick,
             open: None,
         }
@@ -505,7 +509,14 @@ impl<'a> Menu<'a> {
         list: impl FnOnce(ScrollArea, &mut Ui, H) -> R,
         footer: Option<impl FnOnce(&mut Ui) -> F>,
     ) -> Option<(R, Option<F>)> {
-        let Self { popup, ctx, field, field_id, height, style, mut close_behavior, open } = self;
+        let Self { popup, ctx, field, field_id, height, style, scoped, mut close_behavior, open } = self;
+        let style = match scoped {
+            Some(scoped) => StyleModifier::new(move |s: &mut Style| {
+                *s = (*scoped).clone();
+                style.apply(s);
+            }),
+            None => style,
+        };
         let id = popup.get_id();
         let popup = match open {
             Some(open) => {

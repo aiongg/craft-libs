@@ -174,6 +174,20 @@ impl LanguageScripts for I18nScripts {
     }
 }
 
+/// The family [`crate::theme`] draws the semibold type roles with (strong body text, titles,
+/// headings): `Family::named(fonts::SEMIBOLD).weight(600)`. Without it, those roles draw with the
+/// proportional family.
+pub const SEMIBOLD: &str = "semibold";
+
+fn families_key() -> egui::Id {
+    egui::Id::unique("craft_ui::fonts::families")
+}
+
+/// The families of the stack last installed in `ctx`, if any.
+pub(crate) fn installed_families(ctx: &egui::Context) -> Option<Arc<[FontFamily]>> {
+    ctx.data(|d| d.get_temp(families_key()))
+}
+
 /// A font family the app uses, beyond what its own faces imply.
 #[derive(Clone, Debug)]
 pub struct Family {
@@ -184,7 +198,7 @@ pub struct Family {
 }
 
 impl Family {
-    /// A named family, e.g. `Family::named("semibold").weight(600)`.
+    /// A named family, e.g. `Family::named(fonts::SEMIBOLD).weight(600)`.
     pub fn named(name: &str) -> Self {
         Self { family: FontFamily::Name(name.into()), weight: 400, lead: None, monospaced: false }
     }
@@ -784,6 +798,8 @@ impl Stack {
     /// [`Self::install`] without fetching; `miss` is asked for characters no face has.
     fn install_faces(&self, ctx: &egui::Context, miss: Option<Arc<dyn FontProvider>>) {
         ctx.set_fonts(self.checked_definitions());
+        let families: Arc<[FontFamily]> = self.definitions.families.keys().cloned().collect();
+        ctx.data_mut(|d| d.insert_temp(families_key(), families));
         let id = egui::Id::unique("craft_ui::fonts::installed");
         let (system, start_index) = self.context_lookup();
         let installed: Option<Arc<Installed>> = ctx.data(|d| d.get_temp(id));

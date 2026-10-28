@@ -291,6 +291,7 @@ fn toolbar_fitting_matches_literal_group_and_overflow_positions() {
 }
 
 #[test]
+#[allow(deprecated, reason = "renders the deprecated WidgetPalette until it is removed")]
 fn widget_palette_renders_all_five_states_with_existing_borders_and_expansion() {
     use craft_ui::theme::WidgetPalette;
     use egui::{CornerRadius, Stroke, StrokeKind, pos2, vec2};

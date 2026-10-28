@@ -1,7 +1,35 @@
-//! Theme mechanisms for egui widgets, with palettes and theme selection owned by applications.
+//! The Craft design system in egui: resolved [`craft_theme`] tokens installed in a context, read
+//! by components, and turned into egui [`Style`](egui::Style)s for stock widgets.
 //!
-//! This module does not store a theme or change global visuals; [`crate::fonts`] installs fonts.
-//! Applications decide their colors, borders, typography, spacing and saved preferences independently.
+//! An app resolves its selection with `craft-theme` (and its store) into a [`Base`] and calls
+//! [`install`] every frame. Components read [`Tokens::of(ui)`](TokensOf::of). [`scope`] shows a
+//! part of the UI with other tokens (a dark panel in a light app, a theme preview), and
+//! [`apply_popup_style`] carries a scope into the popups opened inside it. Without
+//! [`install`], tokens are the suite default theme, so tests and stories need no setup.
+//!
+//! ```
+//! use craft_ui::theme::{Overrides, Tokens, TokensOf, scope};
+//! # egui::__run_test_ui(|ui| {
+//! let tokens = Tokens::of(ui);
+//! ui.label(egui::RichText::new("Body").font(tokens.font(craft_theme::TypeRole::Body)));
+//! scope(ui, |o| o.mode = Some(craft_theme::Mode::Dark), |ui| {
+//!     assert_eq!(Tokens::of(ui).mode, craft_theme::Mode::Dark);
+//! });
+//! # });
+//! ```
+
+mod bridge;
+mod convert;
+mod style;
+#[cfg(test)]
+mod tests;
+mod tokens;
+
+pub use bridge::{Base, Captured, Inputs, Overrides, apply_popup_style, capture, install, scope, scoped_style};
+pub use convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
+pub use craft_theme::Tokens;
+pub use style::style_for;
+pub use tokens::{Radii, Shadows, TokensOf, UiTokens};
 
 use egui::{Color32, CornerRadius, Stroke, style::Widgets};
 
@@ -10,6 +38,7 @@ use egui::{Color32, CornerRadius, Stroke, style::Widgets};
 /// These are rendering inputs, not a theme schema: applications construct them from their own
 /// tokens. In particular, `noninteractive` describes egui's noninteractive widget state, not a
 /// disabled control palette. egui and the application retain their disabled-state behavior.
+#[deprecated(note = "use `craft_ui::theme::install` and `style_for`, which style every widget state from the theme's tokens")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WidgetPalette {
     pub noninteractive: Color32,
@@ -19,6 +48,7 @@ pub struct WidgetPalette {
     pub open: Color32,
 }
 
+#[allow(deprecated, reason = "the deprecated type's own impl")]
 impl WidgetPalette {
     /// Set each state's strong and weak background fill, with a common radius and foreground.
     ///
@@ -42,7 +72,8 @@ impl WidgetPalette {
 }
 
 #[cfg(test)]
-mod tests {
+#[allow(deprecated, reason = "tests the deprecated WidgetPalette")]
+mod palette_tests {
     use super::*;
 
     #[test]

@@ -86,7 +86,12 @@ fn key() -> Id {
 /// Draw the interface on `ctx` in `dir` from the next layout on.
 pub fn apply(ctx: &Context, dir: Direction) {
     ctx.data_mut(|d| d.insert_temp(key(), dir));
-    ctx.all_styles_mut(|style| style.set_right_to_left(dir == Direction::Rtl));
+    ctx.all_styles_mut(|style| set_on(style, dir));
+}
+
+/// Mirror `style` for `dir`, as [`apply`] does to the context's styles.
+pub(crate) fn set_on(style: &mut egui::Style, dir: Direction) {
+    style.set_right_to_left(dir == Direction::Rtl);
 }
 
 /// The suite's egui fork has an inherent `Style::set_right_to_left`; crates.io egui has neither
