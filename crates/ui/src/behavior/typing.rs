@@ -7,7 +7,8 @@ use egui::accesskit::{Invalid, Role};
 use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{
-    Align2, Color32, Event, EventFilter, FontId, Frame, Id, ImeEvent, Key, KeyboardShortcut, Margin, Modifiers, Response, TextEdit, Ui, Vec2,
+    Align2, Color32, Event, EventFilter, FontId, Frame, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, Response, TextEdit, Ui,
+    Vec2, ViewportId,
 };
 
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -74,8 +75,10 @@ pub enum Escape {
 ///
 /// - **Typing run**: focus alone begins nothing. The first change of the text (typing, paste,
 ///   cut, delete, an input method's commit, in-field undo) begins the gesture; every later change
-///   is an update. Enter commits and keeps the focus ([`EditResponse::submitted`]); moving the
-///   focus away commits; a field no longer drawn ends as a commit ([`Ending`](crate::edit::Ending)).
+///   is an update. Enter commits and keeps the focus ([`EditResponse::submitted`]): a plain press,
+///   with no modifier but Shift and not a held key's repeat, so a dialog's OK fires once and
+///   Cmd/Ctrl+Enter stays free (a multi-line field's commit). Moving the focus away commits; a
+///   field no longer drawn ends as a commit with everything typed ([`Ending`](crate::edit::Ending)).
 ///   A screen reader's set-value request without the focus is one [`Set`](crate::edit::EditEvent::Set).
 /// - **Esc**: as [`Escape`] says.
 /// - **Input methods**: marked (pre-edit) text is never part of the value; the value is the
@@ -92,6 +95,8 @@ pub enum Escape {
 ///   ([`CancelReason::External`](crate::edit::CancelReason::External)) and shows the host's
 ///   text; the caret stays where it was, or at the end of a shorter text.
 /// - **Focus**: Tab (or a screen reader) selects the whole text; a click places the caret.
+/// - **Keys of the embedding control**: [`event_filter`](Typing::event_filter) keeps more keys
+///   with the field while it has the focus (a list's Up and Down, a popup's Esc).
 #[must_use = "show the field with `show`"]
 pub struct Typing<'a> {
     id: Id,
@@ -105,6 +110,7 @@ pub struct Typing<'a> {
     escape: Escape,
     role: Role,
     invalid: bool,
+    keys: EventFilter,
 }
 
 impl<'a> Typing<'a> {
@@ -122,6 +128,7 @@ impl<'a> Typing<'a> {
             escape: Escape::Cancel,
             role: Role::TextInput,
             invalid: false,
+            keys: EventFilter::default(),
         }
     }
 
@@ -171,17 +178,28 @@ impl<'a> Typing<'a> {
         self
     }
 
+    /// Keys the embedding control reads while the field has the focus, on top of `TextEdit`'s
+    /// and the run's Esc: egui keeps the focus on them (Tab, the arrows, Esc) and leaves them in
+    /// the input. A searchable combo box keeps Up, Down and Esc for its open list; a number field
+    /// keeps Up and Down for stepping.
+    pub fn event_filter(mut self, filter: EventFilter) -> Self {
+        self.keys = filter;
+        self
+    }
+
     /// Takes this pass's input, runs `TextEdit` in the field's box at the `Ui`'s cursor, and
     /// reports the field to AccessKit. Paint the box and anything over it, then [`Typed::end`].
     pub fn show(self, ui: &mut Ui, look: &TypingLook) -> Typed {
         let id = self.id;
         let enabled = self.enabled && ui.is_enabled();
-        let seen = ui.data(|d| d.get_temp::<Seen>(seen_key(id)));
+        let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
-        let preedit = state.preedit().map(|(range, text)| (range, text.to_owned()));
+        // A composition goes on only in a field that kept it and the focus since the last pass.
+        let kept = seen.is_some_and(|s| s.composing) && ui.memory(|m| m.owns_ime_events(id));
+        let preedit = state.preedit().filter(|_| kept).map(|(range, text)| (range, text.to_owned()));
         take_ime_keys(ui, preedit.is_some());
         let focused = enabled && ui.memory(|m| m.has_focus(id));
-        let submitted = focused && ui.input(|i| i.key_pressed(Key::Enter));
+        let submitted = focused && ui.input(enter_pressed);
         let was_focused = seen.is_some_and(|s| s.focused);
 
         let mut gesture = Gesture::load(ui, id, &self.value.to_owned(), self.policy).pointer_selects(true).enabled(enabled);
@@ -196,7 +214,7 @@ impl<'a> Typing<'a> {
         let mut buffer = shown.clone();
         if outside {
             state.clear_undoer();
-        } else if let Some((range, text)) = preedit.as_ref().filter(|_| seen.is_some_and(|s| s.composing)) {
+        } else if let Some((range, text)) = &preedit {
             insert_chars(&mut buffer, range.start, text);
         }
         state.store(ui.ctx(), id);
@@ -237,6 +255,7 @@ impl<'a> Typing<'a> {
             }
         }
         self.report(ui, enabled);
+        let filter = either(filter, self.keys);
         Typed { id, escape: self.escape, was_focused, gesture, response, text, buffer, composing, submitted, filter }
     }
 
@@ -271,6 +290,7 @@ pub struct Typed {
     buffer: String,
     composing: bool,
     submitted: bool,
+    /// `TextEdit`'s focus filter with the embedding control's keys.
     filter: EventFilter,
 }
 
@@ -313,8 +333,8 @@ impl Typed {
         // Esc stays with the field while it is the input method's or clears text.
         let composing = self.composing && focused;
         let escape = composing || (self.escape == Escape::Clear && !self.gesture.shown().is_empty());
-        ui.data_mut(|d| d.insert_temp(seen_key(self.id), Seen { text: egui::util::hash(&self.text), focused, composing }));
-        let event = self.gesture.event_filter(EventFilter { escape, ..self.filter }).finish();
+        Seen::store(ui, self.id, egui::util::hash(&self.text), focused, composing);
+        let event = self.gesture.event_filter(EventFilter { escape: escape || self.filter.escape, ..self.filter }).finish();
         EditResponse::new(self.response, event).submitted(self.submitted)
     }
 }
@@ -331,6 +351,9 @@ fn select_all(ui: &Ui, id: Id, text: &str) {
 /// What a field kept from its last pass.
 #[derive(Clone, Copy, Debug)]
 struct Seen {
+    /// The viewport and its pass that stored it.
+    viewport: ViewportId,
+    pass: u64,
     /// Hash of the committed text `TextEdit` was left with.
     text: u64,
     focused: bool,
@@ -338,8 +361,40 @@ struct Seen {
     composing: bool,
 }
 
-fn seen_key(id: Id) -> Id {
-    id.with("craft_ui::behavior::typing")
+impl Seen {
+    /// What field `id` kept, when it was drawn in the last pass of this viewport (or earlier in
+    /// this one, as [`Gesture::load`] counts); a field missing from a pass starts afresh.
+    fn load(ui: &Ui, id: Id) -> Option<Self> {
+        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
+        ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|s| s.viewport == viewport && s.pass + 1 >= pass)
+    }
+
+    fn store(ui: &Ui, id: Id, text: u64, focused: bool, composing: bool) {
+        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
+        ui.data_mut(|d| d.insert_temp(Self::key(id), Self { viewport, pass, text, focused, composing }));
+    }
+
+    fn key(id: Id) -> Id {
+        id.with("craft_ui::behavior::typing")
+    }
+}
+
+/// A plain press of Enter: no modifier but Shift (as `consume_key` ignores it), not a held
+/// key's repeat.
+fn enter_pressed(input: &InputState) -> bool {
+    input.events.iter().any(|event| {
+        matches!(event, Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if Modifiers { shift: false, ..*modifiers }.is_none())
+    })
+}
+
+/// The keys of both filters.
+fn either(a: EventFilter, b: EventFilter) -> EventFilter {
+    EventFilter {
+        tab: a.tab || b.tab,
+        horizontal_arrows: a.horizontal_arrows || b.horizontal_arrows,
+        vertical_arrows: a.vertical_arrows || b.vertical_arrows,
+        escape: a.escape || b.escape,
+    }
 }
 
 /// Clears the text as one change of the run, committed at once.

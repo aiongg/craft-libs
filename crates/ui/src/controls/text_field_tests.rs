@@ -1,10 +1,13 @@
 //! Text-field and search-field behaviour in a headless egui context: the typing run, Esc, input
 //! methods, in-field undo, host changes, disabling, and the search field's clearing.
 
-use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, vec2};
+use std::time::Duration;
+
+use egui::{Context, Event, EventFilter, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, vec2};
 
 use super::{SearchField, TextField};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Ending, GestureHost, GestureId, UndoMarks};
+use crate::behavior::{Typing, TypingLook};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Ending, GestureHost, GestureId, UndoMarks, UpdateRate};
 use crate::theme::{Base, install};
 
 /// A host with one field (a search field when `search`) between two egui buttons. It applies
@@ -37,6 +40,8 @@ struct Rig {
     host: GestureHost<Doc>,
     /// What the host ended itself in the last frame.
     ended: Option<EditEvent<()>>,
+    /// The keys pressed that were still in the input after the field.
+    keys_after: Vec<Key>,
 }
 
 impl Rig {
@@ -82,12 +87,25 @@ impl Rig {
             doc: Doc::default(),
             host: GestureHost::new(),
             ended: None,
+            keys_after: Vec::new(),
         };
         rig.frame(vec![]);
         rig
     }
 
-    fn frame(&mut self, events: Vec<Event>) {
+    /// Runs one frame. Every key pressed in it is released at its end, so the next press is no
+    /// repeat; a press marked as a repeat stays down (a held key).
+    fn frame(&mut self, mut events: Vec<Event>) {
+        let releases: Vec<Event> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Key { key, physical_key, pressed: true, repeat: false, modifiers } => {
+                    Some(Event::Key { key: *key, physical_key: *physical_key, pressed: false, repeat: false, modifiers: *modifiers })
+                }
+                _ => None,
+            })
+            .collect();
+        events.extend(releases);
         let input =
             RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(self.time), events, ..Default::default() };
         self.time += 1.0 / 60.0;
@@ -122,6 +140,7 @@ impl Rig {
         } else {
             (self.submitted, self.event) = (false, None);
         }
+        self.keys_after = pressed_keys(ui);
         if self.hosted {
             self.ended = self.host.end_frame(ui.ctx(), &mut self.doc);
             self.value.clone_from(&self.doc.text);
@@ -185,6 +204,10 @@ impl Rig {
         let [a, b] = range.sorted_cursors();
         (a.index.0, b.index.0)
     }
+}
+
+fn pressed_keys(ui: &Ui) -> Vec<Key> {
+    ui.input(|i| i.events.iter().filter_map(|e| if let Event::Key { key, pressed: true, .. } = e { Some(*key) } else { None }).collect())
 }
 
 fn key_event(key: Key, modifiers: Modifiers) -> Event {
@@ -284,6 +307,83 @@ fn a_typing_run_is_one_undo_step_and_a_field_no_longer_drawn_keeps_its_run() {
     rig.frame(vec![]);
     assert_eq!(rig.ended, Some(EditEvent::Commit { id, value: (), changed: true, modifiers: Modifiers::NONE }));
     assert_eq!((rig.doc.text.as_str(), rig.doc.undo.len()), ("abcd", 2));
+}
+
+/// A run whose last text no update reported (reported only on release, or a debounce still
+/// waiting) is kept with all of it when the field is no longer drawn.
+#[test]
+fn a_field_no_longer_drawn_keeps_the_text_no_update_reported_as_one_step() {
+    for policy in [EditPolicy::default().on_release_only(true), EditPolicy::default().update(UpdateRate::Debounced(Duration::from_secs(1)))] {
+        let mut rig = Rig::hosted();
+        rig.policy = policy;
+        rig.focus();
+        rig.type_text("a");
+        let id = begin(rig.event.take());
+        rig.type_text("b");
+        assert_eq!((rig.event.clone(), rig.doc.text.as_str()), (None, ""), "{policy:?}");
+        rig.drawn = false;
+        rig.frame(vec![]);
+        assert_eq!(rig.ended, Some(EditEvent::Commit { id, value: (), changed: true, modifiers: Modifiers::NONE }), "{policy:?}");
+        assert_eq!((rig.doc.text.as_str(), rig.doc.undo.as_slice()), ("ab", &[String::new()][..]), "{policy:?}");
+    }
+}
+
+/// Enter submits and commits only as a plain press: Shift may be held, Cmd/Ctrl may not, and a
+/// held key's repeats don't count.
+#[test]
+fn only_a_plain_enter_press_submits() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    let id = type_run(&mut rig, "a");
+    rig.chord(Modifiers::COMMAND, Key::Enter);
+    assert_eq!((rig.event.clone(), rig.submitted), (None, false), "Cmd/Ctrl+Enter");
+    rig.chord(Modifiers::SHIFT, Key::Enter);
+    assert_eq!((rig.event.clone(), rig.submitted), (commit(id, "a", true), true), "Shift+Enter");
+
+    let id = type_run(&mut rig, "b");
+    let held = Event::Key { key: Key::Enter, physical_key: None, pressed: true, repeat: true, modifiers: Modifiers::NONE };
+    rig.frame(vec![held.clone()]);
+    assert_eq!((rig.event.clone(), rig.submitted), (commit(id, "ab", true), true), "a held Enter's first press");
+    rig.frame(vec![held]);
+    assert!(!rig.submitted, "its repeats");
+}
+
+/// A control embedding the field (a combo box's list, a number field's stepping) keeps the keys
+/// it adds to the focus filter: the field keeps the focus and the keys reach the control.
+#[test]
+fn an_embedding_control_gets_the_keys_it_adds_to_the_focus_filter() {
+    let ctx = Context::default();
+    let id = Id::unique("embedded-field");
+    let look = TypingLook {
+        size: vec2(160.0, 24.0),
+        margin: egui::Margin::symmetric(6, 0),
+        align: egui::Align2::LEFT_CENTER,
+        font: egui::FontId::proportional(12.0),
+        text: egui::Color32::BLACK,
+        placeholder: egui::Color32::GRAY,
+        selection: egui::Color32::LIGHT_BLUE,
+        selected_text: egui::Color32::BLACK,
+        caret: egui::Color32::BLACK,
+    };
+    let keys = EventFilter { vertical_arrows: true, escape: true, ..Default::default() };
+    let frame = |events: Vec<Event>| {
+        let mut after = Vec::new();
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
+        let output = ctx.run_ui(input, |ui| {
+            let typed = Typing::new(id, "Name", "ab").event_filter(keys).show(ui, &look);
+            let _ = typed.end(ui);
+            after = pressed_keys(ui);
+            let _ = ui.button("After");
+        });
+        output.drop_without_applying_deltas();
+        after
+    };
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(vec![]);
+    for key in [Key::ArrowDown, Key::ArrowUp, Key::Escape] {
+        assert_eq!(frame(vec![key_event(key, Modifiers::NONE)]), [key]);
+        assert!(ctx.memory(|m| m.has_focus(id)), "{key:?} keeps the focus");
+    }
 }
 
 /// A document of one text with an undo history of whole snapshots.
@@ -554,6 +654,43 @@ mod ime {
         rig.preedit("に");
         rig.key(Key::Tab);
         assert_eq!(rig.event, Some(EditEvent::Set { value: "aにほに".to_owned(), modifiers: Modifiers::NONE }));
+    }
+
+    /// A field drawn again starts without the composition it had when it went, also when it gets
+    /// the focus in the pass it comes back.
+    #[test]
+    fn a_field_drawn_again_starts_without_its_old_composition() {
+        let mut rig = Rig::new("ab");
+        rig.focus();
+        rig.preedit("にほ");
+        rig.drawn = false;
+        rig.frame(vec![]);
+
+        rig.drawn = true;
+        rig.ctx.memory_mut(|m| m.request_focus(rig.id));
+        rig.key(Key::Backspace);
+        let id = begin(rig.event.take());
+        rig.frame(vec![]);
+        assert_eq!(rig.event, update(id, "a"));
+        assert_eq!(rig.shown.as_deref(), Some("a"));
+        let state = egui::text_edit::TextEditState::load(&rig.ctx, rig.id).expect("state");
+        assert_eq!(state.preedit(), None);
+    }
+
+    /// A field drawn again without the focus leaves the input method's keys to the focused widget.
+    #[test]
+    fn a_field_drawn_again_without_the_focus_takes_no_keys() {
+        let mut rig = Rig::new("ab");
+        rig.focus();
+        rig.preedit("にほ");
+        rig.drawn = false;
+        rig.frame(vec![]);
+
+        rig.drawn = true;
+        rig.ctx.memory_mut(|m| m.request_focus(rig.after_button));
+        let keys = [Key::Space, Key::Backspace, Key::Enter];
+        rig.frame(keys.iter().map(|&key| key_event(key, Modifiers::NONE)).collect());
+        assert_eq!(rig.keys_after, keys);
     }
 
     #[test]

@@ -299,8 +299,10 @@ pub struct EditResponse<T> {
     pub event: Option<EditEvent<T>>,
     /// The user pressed the control's submit key this frame (Enter in a text field), whether or
     /// not the value changed: a search's "find next", a dialog's OK. A change the key ends goes
-    /// out as this frame's [`Commit`](EditEvent::Commit) (or [`Set`](EditEvent::Set)). Controls
-    /// without a submit key never set it.
+    /// out as this frame's [`Commit`](EditEvent::Commit) (or [`Set`](EditEvent::Set)). Only a
+    /// plain press counts: no modifier but Shift, and no repeat of a held key, so a dialog's OK
+    /// fires once and Cmd/Ctrl+Enter stays free (a multi-line field's commit). Controls without
+    /// a submit key never set it.
     pub submitted: bool,
 }
 

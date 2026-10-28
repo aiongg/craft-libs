@@ -533,6 +533,17 @@ fn field_pass(theme: &ThemeDef, invalid: bool, focus: bool) -> (TextFieldStyle, 
     (TextField::style(&tokens_of(theme, Mode::Light), ControlSize::Md), shapes)
 }
 
+/// The rects of the strokes in `color`.
+fn stroke_rects(shapes: &[Shape], color: Color32) -> Vec<Rect> {
+    shapes
+        .iter()
+        .filter_map(|s| match s {
+            Shape::Rect(r) if r.stroke.color == color && r.stroke.width > 0.0 => Some(r.rect),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
 fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours() {
     let flat = theme("craft.pro-light");
@@ -541,7 +552,10 @@ fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours
     let (s, shapes) = field_pass(&flat, true, false);
     assert_eq!(strokes_in(&shapes, s.invalid), [1.0]);
     let (s, shapes) = field_pass(&flat, true, true);
-    assert_eq!(strokes_in(&shapes, s.invalid), [2.0], "focused and invalid: the invalid edge, twice as wide");
+    assert_eq!(strokes_in(&shapes, s.border_focused), [1.0], "focused and invalid: the focused edge");
+    assert_eq!(strokes_in(&shapes, s.invalid), [1.0], "and the invalid colour as a line inside it");
+    let (edge, inner) = (stroke_rects(&shapes, s.border_focused), stroke_rects(&shapes, s.invalid));
+    assert_eq!(inner, [edge[0].shrink(1.0)]);
 
     let classic = theme("craft.classic");
     let (s, shapes) = field_pass(&classic, false, false);
@@ -550,5 +564,7 @@ fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours
     let (s, shapes) = field_pass(&classic, false, true);
     assert_eq!(strokes_in(&shapes, s.border_focused), [1.0], "a focused bevel draws the edge inside it");
     let (s, shapes) = field_pass(&classic, true, true);
-    assert_eq!(strokes_in(&shapes, s.invalid), [2.0]);
+    assert_eq!((strokes_in(&shapes, s.border_focused), strokes_in(&shapes, s.invalid)), (vec![1.0], vec![1.0]));
+    let (edge, inner) = (stroke_rects(&shapes, s.border_focused), stroke_rects(&shapes, s.invalid));
+    assert_eq!(inner, [edge[0].shrink(1.0)], "both inside the bevel, the invalid line innermost");
 }

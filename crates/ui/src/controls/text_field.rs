@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Align2, AsIdSalt, Color32, Id, IdSalt, Key, Modifiers, Rect, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::slider::with_values;
 use super::{IconButton, SIZE_NAMES, icon_size, size_arg};
@@ -89,8 +89,8 @@ pub struct TextFieldStyle {
 /// - [`invalid`](TextField::invalid) draws the edge in `field.invalid` and reports the value
 ///   invalid to AccessKit; the message is the form's.
 /// - The edge turns `field.border.focused` while the field has focus, from the keyboard or the
-///   pointer; an invalid field keeps the invalid colour and draws its edge twice as wide. A
-///   bevelled box (Classic) keeps its bevel and draws these edges inside it.
+///   pointer; a focused invalid field draws the invalid colour as a line inside that edge. A
+///   bevelled box (Classic) keeps its bevel and draws these lines inside it.
 /// - AccessKit: a `TextInput` (a `PasswordInput` with [`password`](TextField::password)) named
 ///   `label`, with its value and placeholder.
 #[derive(Clone, Debug)]
@@ -426,36 +426,50 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
 }
 
 /// The box under the text: the surface in the state's colours, and inside a bevel the focused
-/// or invalid edge.
+/// or invalid edge. A focused invalid field draws the focused edge with the invalid colour as a
+/// line inside it.
 fn box_shapes(ui: &Ui, style: &TextFieldStyle, spec: &Spec<'_>, typed: &Typed, enabled: bool) -> Vec<Shape> {
     let response = typed.response();
     let focused = response.has_focus();
     let mut surface = style.surface;
     surface.fill = if enabled { surface.fill } else { style.fill_disabled };
-    let (color, wide) = match () {
-        () if !enabled => (style.border_disabled, false),
-        () if spec.invalid => (style.invalid, focused),
-        () if focused => (style.border_focused, false),
-        () if response.contains_pointer() => (style.border_hover, false),
-        () => (border_color(&surface), false),
+    let (edge, inner) = match () {
+        () if !enabled => (style.border_disabled, None),
+        () if spec.invalid && focused => (style.border_focused, Some(style.invalid)),
+        () if spec.invalid => (style.invalid, None),
+        () if focused => (style.border_focused, None),
+        () if response.contains_pointer() => (style.border_hover, None),
+        () => (border_color(&surface), None),
     };
     let ppp = ui.pixels_per_point();
+    let rect = response.rect.round_to_pixels(ppp);
+    let radius = surface.radius;
     let mut shapes = Vec::new();
     match surface.edge {
         SurfaceEdge::Border(stroke) => {
-            let width = if wide { 2.0 * stroke.width } else { stroke.width };
-            surface.edge = SurfaceEdge::Border(Stroke::new(width, color));
+            surface.edge = SurfaceEdge::Border(Stroke::new(stroke.width, edge));
             shapes.extend(surface.shapes(response.rect, ppp));
+            if let Some(inner) = inner {
+                shapes.push(line_inside(rect, radius, stroke.width, stroke.width, inner));
+            }
         }
         SurfaceEdge::Bevel { width, .. } if enabled && (focused || spec.invalid) => {
             shapes.extend(surface.shapes(response.rect, ppp));
-            let inner = response.rect.round_to_pixels(ppp).shrink((width * ppp).round().max(1.0) / ppp);
-            let line = if wide { 2.0 } else { 1.0 };
-            shapes.push(Shape::rect_stroke(inner, surface.radius, Stroke::new(line, color), StrokeKind::Inside));
+            let bevel = (width * ppp).round().max(1.0) / ppp;
+            shapes.push(line_inside(rect, radius, bevel, 1.0, edge));
+            if let Some(inner) = inner {
+                shapes.push(line_inside(rect, radius, bevel + 1.0, 1.0, inner));
+            }
         }
         _ => shapes.extend(surface.shapes(response.rect, ppp)),
     }
     shapes
+}
+
+/// A `width` line `inset` inside `rect`, whose corners have `radius`.
+fn line_inside(rect: Rect, radius: CornerRadius, inset: f32, width: f32, color: Color32) -> Shape {
+    let radius = radius - inset.round() as u8;
+    Shape::rect_stroke(rect.shrink(inset), radius, Stroke::new(width, color), StrokeKind::Inside)
 }
 
 fn border_color(surface: &SurfaceStyle) -> Color32 {
