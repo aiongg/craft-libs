@@ -5,10 +5,11 @@
 //!   [`RadioGroup`](crate::controls::RadioGroup), [`RadioSet`](crate::controls::RadioSet) and
 //!   [`Segmented`](crate::controls::Segmented).
 //! - [`Listbox`]: the active option of a listbox whose focus stays on its owner (arrows, Page
-//!   Up and Down, Home, End, type-ahead), used by [`Select`](crate::controls::Select).
+//!   Up and Down, Home, End, type-ahead), used by [`Select`](crate::controls::Select) and
+//!   [`ComboBox`](crate::controls::ComboBox).
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
-//!   typing run, used by [`TextField`](crate::controls::TextField) and
-//!   [`SearchField`](crate::controls::SearchField).
+//!   typing run, used by [`TextField`](crate::controls::TextField),
+//!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
 
 mod listbox;
 mod radio_selection;

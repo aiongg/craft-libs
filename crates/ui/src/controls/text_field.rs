@@ -548,17 +548,17 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A host's text and its value when the gesture under way began, which a cancel puts back.
 #[derive(Clone, Debug, Default)]
-struct Held {
-    text: String,
+pub(super) struct Held {
+    pub text: String,
     start: String,
 }
 
 impl Held {
-    fn new(text: &str) -> Self {
+    pub(super) fn new(text: &str) -> Self {
         Self { text: text.to_owned(), start: text.to_owned() }
     }
 
-    fn apply(&mut self, edit: EditResponse<String>) {
+    pub(super) fn apply(&mut self, edit: EditResponse<String>) {
         match edit.event {
             Some(EditEvent::Begin { .. }) => self.start.clone_from(&self.text),
             Some(EditEvent::Cancel { reason, .. }) if reason != CancelReason::External => self.text.clone_from(&self.start),

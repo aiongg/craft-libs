@@ -22,6 +22,7 @@
 //! - [`NumberField`]: a number in the region's digits, typed, scrubbed, stepped or set on a
 //!   pop-up slider, one edit gesture at a time.
 //! - [`Select`]: one of a list of options, chosen from a popup list under a field-like box.
+//! - [`ComboBox`]: a line of text with a popup list of suggestions that the typed text filters.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
@@ -48,13 +49,16 @@ pub(crate) mod badge;
 pub(crate) mod button;
 mod check;
 pub(crate) mod checkbox;
+pub(crate) mod combo_box;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod combo_box_tests;
 pub(crate) mod icon_button;
 pub(crate) mod kbd;
 pub(crate) mod link;
 pub(crate) mod number_field;
-mod option_list;
 #[cfg(test)]
 mod number_field_tests;
+mod option_list;
 pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
@@ -86,6 +90,7 @@ pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
 pub use button::{Button, ButtonStyle};
 pub use check::IndicatorColors;
 pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
+pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use kbd::{Kbd, KbdStyle};
