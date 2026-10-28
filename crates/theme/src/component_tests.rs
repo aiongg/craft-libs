@@ -270,6 +270,27 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     assert_eq!((l.group, l.separator), (t.color(T::TextMuted), t.color(T::LineDivider)));
 }
 
+/// The active menu row is `accent.strong` with `text.on_strong` (owner, 2026-10-28), the shortcuts are
+/// muted text on the popup surface, and the sizes scale PhotoCraft's Compact ones with the control
+/// height.
+#[test]
+fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
+    let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Menu(_))).map(|p| (p.fg, p.bg)).collect();
+    let active = TokenRef::Component(ComponentField::Menu(MenuField::ActiveFill));
+    let expected =
+        vec![(ComponentField::Menu(MenuField::ActiveText), active), (ComponentField::Menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
+    assert_eq!(listed, expected);
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let t = resolve(&def, a, None).tokens;
+            let m = &t.component.menu;
+            assert_eq!((m.active_fill, m.active_text, m.shortcut), (t.color(T::AccentStrong), t.color(T::TextOnStrong), t.color(T::TextMuted)));
+            let k = t.size.control.md / 24.0;
+            assert_eq!((m.min_width, m.shortcut_gap, m.scroll_strip), ((220.0 * k).round(), (16.0 * k).round(), (16.0 * k).round()), "{a:?}");
+        }
+    }
+}
+
 #[test]
 fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     for def in [grey_blue(), violet()] {
@@ -427,6 +448,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             + 6
             + (1 + 14)
+            + 3
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));

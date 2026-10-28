@@ -59,7 +59,7 @@ impl Ramps {
             Source::AccentMix { from, to, .. } => (&self.accent, from, Some(to)),
             Source::Status(kind, n) => (self.status.get(kind), n, None),
             Source::StatusMix { kind, from, to, .. } => (self.status.get(kind), from, Some(to)),
-            Source::Fixed(_) | Source::Oklch(..) | Source::Same(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
+            Source::Fixed(_) | Source::Oklch(..) | Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
         })
     }
 }
@@ -151,10 +151,11 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     }
     let pinned: BTreeSet<ColorToken> = layers.keys().copied().collect();
     // Tokens defined by other tokens follow their pinned values; aliases follow the contrast
-    // pass too. On-solid text is the pass's own choice, so it is not re-derived afterwards.
+    // pass too. On-solid text and solids taken from other tokens are the pass's own choice, so
+    // they are not re-derived afterwards.
     follow(&mut c, &pinned, mode, true);
     let before_pass = c;
-    let pass = Pass { pinned: &pinned, high, anchors: &anchors };
+    let pass = Pass { pinned: &pinned, high, mode, anchors: &anchors };
     let mut moves = Moves::new();
     for (i, rule) in RULES.iter().enumerate() {
         fix_rule(&mut c, &pass, rule, &RULES[..=i], &mut moves);
@@ -182,8 +183,8 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
     let mut out = *unpinned;
     for &t in ColorToken::ALL {
         let value = match values::source(t, mode) {
-            Source::Same(_) | Source::OnSolid(_) | Source::Lighting(_) if !pinned.contains(&t) => before_pass.get(t),
-            Source::Same(other) => unpinned.get(other),
+            Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) if !pinned.contains(&t) => before_pass.get(t),
+            Source::Same(other) | Source::SolidFrom(other) => unpinned.get(other),
             // Lit like the anchored greys: from the panel's own value, pinned or not.
             Source::Lighting(amount) => lighting(before_pass.surface.panel, amount),
             Source::OnSolid(solids) => best_extreme(unpinned, solids),
@@ -313,6 +314,7 @@ impl Anchor {
 struct Pass<'a> {
     pinned: &'a BTreeSet<ColorToken>,
     high: bool,
+    mode: Mode,
     anchors: &'a Anchors,
 }
 
@@ -370,12 +372,12 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
         Source::StatusMix { kind, from, to, t } => mix(r.status.get(kind).step(from), r.status.get(kind).step(to), t),
         Source::Fixed(c) => c,
         Source::Oklch(l, c, h) => super::color::Oklch { l, c, h }.to_rgba(),
-        Source::Same(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
+        Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
     })
 }
 
-/// Sets every unpinned token whose source refers to other tokens; on-solid text only when
-/// `on_solid`.
+/// Sets every unpinned token whose source refers to other tokens; on-solid text and solids taken
+/// from other tokens only when `on_solid`.
 fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_solid: bool) {
     for &t in ColorToken::ALL {
         if pinned.contains(&t) {
@@ -384,6 +386,7 @@ fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_sol
         match values::source(t, mode) {
             Source::Same(other) => c.set(t, c.get(other)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
+            Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
             Source::OnSolid(solids) if on_solid => c.set(t, best_extreme(c, solids)),
             _ => {}
         }
@@ -457,6 +460,16 @@ fn minimum(rule: &PairRule, high: bool) -> f64 {
 /// the anchored backgrounds it fails on are pulled toward their anchors either way.
 fn fix_rule(c: &mut ColorTokens, pass: &Pass, rule: &PairRule, done: &[PairRule], moves: &mut Moves) {
     let (pinned, high) = (pass.pinned, pass.high);
+    // An unpinned solid taken from another token starts from that token's value as the rules
+    // fixed so far left it.
+    for &b in rule.bgs {
+        if let Bg::Token(t) = b
+            && !pinned.contains(&t)
+            && let Source::SolidFrom(other) = values::source(t, pass.mode)
+        {
+            c.set(t, c.get(other));
+        }
+    }
     let s = Step { pass, bgs: rule.bgs, min: minimum(rule, high), done };
     // A text rule may move a state fill in high contrast when the text alone can't reach `min`.
     let moves_fills = high && !rule.on_solid;

@@ -83,6 +83,10 @@ pub enum ColorSource {
     Oklch(f64, f64, f64),
     /// The final value of another token.
     Same(ColorToken),
+    /// A solid fill taken from another token: that token's value when the contrast pass reaches
+    /// this token's text rule, which then moves the fill's lightness away from its text as far
+    /// as the text needs.
+    SolidFrom(ColorToken),
     /// White or black, whichever has the higher lowest contrast on all of these tokens.
     OnSolid(&'static [ColorToken]),
 }
@@ -139,7 +143,9 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
-    use ColorSource::{Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, StateVariant, Status, StatusMix};
+    use ColorSource::{
+        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, SolidFrom, StateVariant, Status, StatusMix,
+    };
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
     let pick = |d: usize, l: usize| if dark { d } else { l };
@@ -162,6 +168,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::TextFaint => Neutral(10),
         T::TextDisabled => Neutral(9),
         T::TextOnAccent => OnSolid(&[T::AccentSolid]),
+        T::TextOnStrong => Fixed(Rgba::WHITE),
         T::TextOnStatus => OnSolid(STATUS_SOLIDS),
         // `text.normal`'s step, so neutral selections look like the rest of the text.
         T::TextOnSelected => Neutral(12),
@@ -180,6 +187,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::AccentSolid => Accent(9),
         T::AccentHover => Accent(SOLID_HOVER),
         T::AccentPressed => AccentMix { from: pressed_from, to: pressed_to, t: pressed_t },
+        T::AccentStrong => SolidFrom(T::AccentSolid),
         T::AccentSoft => Accent(pick(4, 3)),
         T::AccentText => Accent(11),
         T::StatusGoodFg => Status(Good, 11),
@@ -310,6 +318,8 @@ pub(super) const RULES: &[PairRule] = &[
         on_solid: true,
         ..rule(&[T::TextOnAccent], &[Token(T::AccentSolid), Token(T::AccentHover), Token(T::AccentPressed)], TEXT_MIN.0, TEXT_MIN.1)
     },
+    // After every rule that moves `accent.solid`, which `accent.strong` starts from.
+    PairRule { on_solid: true, ..rule(&[T::TextOnStrong], &[Token(T::AccentStrong)], TEXT_MIN.0, TEXT_MIN.1) },
     PairRule {
         on_solid: true,
         ..rule(
@@ -506,6 +516,15 @@ pub const HISTOGRAM_FILL_ALPHA: f32 = 0.3;
 pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
 /// Width of the RGB ribbons' outlines.
 pub const HISTOGRAM_LINE: f32 = 1.0;
+
+/// The control height the Compact menu sizes are set for.
+pub const MENU_BASE_CONTROL: f32 = 24.0;
+/// Compact least width of a menu (PhotoCraft's).
+pub const MENU_MIN_WIDTH: f32 = 220.0;
+/// Compact least room between a menu row's label and its shortcut or submenu arrow.
+pub const MENU_SHORTCUT_GAP: f32 = 16.0;
+/// Compact height of a menu's scroll strip (PhotoCraft's scroll arrows).
+pub const MENU_SCROLL_STRIP: f32 = 16.0;
 
 /// The control height the Compact section header sizes are set for.
 pub const SECTION_BASE_CONTROL: f32 = 24.0;

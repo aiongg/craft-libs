@@ -81,6 +81,8 @@ pub struct TextColors {
     pub disabled: Rgba,
     /// Text on `accent.solid`, `accent.hover` and `accent.pressed`.
     pub on_accent: Rgba,
+    /// Text on `accent.strong`: white.
+    pub on_strong: Rgba,
     /// Text on every `status.<s>.solid`, `solid_hover` and `solid_pressed`.
     pub on_status: Rgba,
     /// Text on `state.selected` and `state.selected_hover`.
@@ -112,6 +114,10 @@ pub struct AccentColors {
     pub hover: Rgba,
     /// Solid fill while pressed.
     pub pressed: Rgba,
+    /// Solid fill under `text.on_strong` (active menu rows): `accent.solid` with its lightness
+    /// moved away from that text only as far as the text needs to reach its minimum, and
+    /// `accent.solid` itself where the text already does.
+    pub strong: Rgba,
     /// Tinted background.
     pub soft: Rgba,
     /// Accent-coloured text and links.
@@ -249,9 +255,9 @@ impl ColorTokens {
         let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, knob: c, scrim: c },
-            text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c, on_selected: c },
+            text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, focus: c },
-            accent: AccentColors { solid: c, hover: c, pressed: c, soft: c, text: c },
+            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
             overlay: OverlayColors {
@@ -337,6 +343,8 @@ color_tokens! {
     TextDisabled = "text.disabled" => text.disabled;
     /// `text.on_accent`
     TextOnAccent = "text.on_accent" => text.on_accent;
+    /// `text.on_strong`
+    TextOnStrong = "text.on_strong" => text.on_strong;
     /// `text.on_status`
     TextOnStatus = "text.on_status" => text.on_status;
     /// `text.on_selected`
@@ -357,6 +365,8 @@ color_tokens! {
     AccentHover = "accent.hover" => accent.hover;
     /// `accent.pressed`
     AccentPressed = "accent.pressed" => accent.pressed;
+    /// `accent.strong`
+    AccentStrong = "accent.strong" => accent.strong;
     /// `accent.soft`
     AccentSoft = "accent.soft" => accent.soft;
     /// `accent.text`

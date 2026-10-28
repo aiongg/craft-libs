@@ -202,12 +202,12 @@ pub(super) fn paint_chevron(ui: &Ui, f: &TextFieldStyle, rect: Rect, size: Contr
 /// Whether the primary button went down on `response`'s widget in this pass: a press, or a click
 /// whose press and release came in one pass. The list opens on the press, so the same press can
 /// drag onto an option and choose it on release.
-pub(super) fn pressed_on(ui: &Ui, response: &Response) -> bool {
+pub(crate) fn pressed_on(ui: &Ui, response: &Response) -> bool {
     ui.input(|i| i.pointer.primary_pressed()) && (response.is_pointer_button_down_on() || response.clicked())
 }
 
 /// Whether the primary button is up by the end of this pass: the press that opened a list ended.
-pub(super) fn released(ui: &Ui) -> bool {
+pub(crate) fn released(ui: &Ui) -> bool {
     ui.input(|i| i.pointer.primary_released() || !i.pointer.primary_down())
 }
 

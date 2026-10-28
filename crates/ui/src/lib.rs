@@ -23,6 +23,7 @@ pub mod inspect;
 pub mod layout;
 pub mod list;
 pub mod localized;
+pub mod menu;
 pub mod panes;
 mod popup_list;
 pub mod primitives;

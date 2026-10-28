@@ -65,26 +65,30 @@ fn a_chord_is_written_in_each_platforms_notation() {
     let all = Modifiers { alt: true, ctrl: true, shift: true, mac_cmd: true, command: false };
     let chord = KeyboardShortcut::new(all, Key::K);
     let text = |shortcut: &KeyboardShortcut, os| Kbd::new(shortcut).text(os);
-    assert_eq!(text(&chord, OperatingSystem::Mac), "⌃⇧⌥⌘K");
+    assert_eq!(text(&chord, OperatingSystem::Mac), "⌃⌥⇧⌘K", "Apple's order");
     assert_eq!(text(&chord, OperatingSystem::Windows), "Ctrl+Alt+Shift+K");
     assert_eq!(Kbd::parts(&chord, OperatingSystem::Nix), ["Ctrl", "Alt", "Shift", "K"]);
     // `command` is Cmd on macOS and Ctrl elsewhere.
     let save = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Mac), ["⌘", "S"]);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Nix), ["Ctrl", "S"]);
-    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), "Escape");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), "⎋", "the suite's glyphs for editing keys on a Mac");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp), OperatingSystem::Mac), "↑");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp), OperatingSystem::Nix), "Up");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::PageDown), OperatingSystem::Nix), "Page Down");
     // Keys the caller names are joined with `+` on every platform.
     for os in [OperatingSystem::Mac, OperatingSystem::Nix] {
         assert_eq!(Kbd::keys(&["Shift", "Click"]).text(os), "Shift+Click", "{os:?}");
     }
-    // The notation is egui's own.
-    for os in [OperatingSystem::Mac, OperatingSystem::Nix] {
-        let mac = matches!(os, OperatingSystem::Mac);
-        let names = if mac { ModifierNames::SYMBOLS } else { ModifierNames::NAMES };
-        for shortcut in [chord, save] {
-            assert_eq!(text(&shortcut, os), shortcut.format(&names, mac), "{os:?}");
-        }
+    // Elsewhere the notation is egui's own; on a Mac the modifiers take Apple's order, not egui's
+    // ⌃⇧⌥⌘, in the symbols and in the names AccessKit reads.
+    for shortcut in [chord, save] {
+        assert_eq!(text(&shortcut, OperatingSystem::Nix), shortcut.format(&ModifierNames::NAMES, false));
     }
+    let option_shift = KeyboardShortcut::new(Modifiers { alt: true, shift: true, ..Modifiers::COMMAND }, Key::S);
+    assert_eq!(text(&option_shift, OperatingSystem::Mac), "⌥⇧⌘S");
+    assert_eq!(Kbd::new(&chord).spoken(OperatingSystem::Mac), "Ctrl+Option+Shift+Cmd+K");
+    assert_eq!(Kbd::new(&chord).spoken(OperatingSystem::Windows), "Ctrl+Alt+Shift+K");
 }
 
 /// The tokens in effect in `ctx`.

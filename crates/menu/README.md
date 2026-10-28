@@ -6,7 +6,7 @@ shortcuts from craft-keymap, drives a platform `Backend`, and turns the menu's k
 equivalents back into the input egui would have had without it. It depends on egui,
 [`craft-keymap`](../keymap/src/lib.rs) (commands and chords) and [`craft-quit`](../quit/src/lib.rs),
 and on no app. Everything but the macOS backend
-(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`, the egui bar from its `menu_nav.rs` and in-window menu bar.
+(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`, the in-window bar (`MenuBarUi`) converts the menus into `craft_ui::menu::MenuBar` items.
 
 ## The menus
 

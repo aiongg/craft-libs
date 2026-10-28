@@ -81,7 +81,7 @@ impl TooltipExt for Response {
 
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self {
         let text = text.into();
-        let keys = shortcut.format(&egui::ModifierNames::NAMES, super::kbd::is_mac(self.ctx.os()));
+        let keys = Kbd::new(shortcut).spoken(self.ctx.os());
         self.describe_for_accessibility(&text);
         set_shortcut(&self, &keys);
         self.tooltip_ui(|ui| {

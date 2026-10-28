@@ -19,6 +19,7 @@ mod kbd;
 mod list;
 mod listbox;
 mod marquee;
+mod menu;
 mod notice;
 mod panel_header;
 mod progress;
@@ -53,6 +54,7 @@ pub use kbd::{KbdField, KbdTokens};
 pub use list::{ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
+pub use menu::{MenuField, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
@@ -580,6 +582,8 @@ families! {
     listbox: ListboxTokens => Listbox(ListboxField);
     /// Marching ants, selection bands and outlines being drawn.
     marquee: MarqueeTokens => Marquee(MarqueeField);
+    /// Menus: what a menu adds to its list box rows.
+    menu: MenuTokens => Menu(MenuField);
     /// Notices: inline status messages.
     notice: NoticeTokens => Notice(NoticeField);
     /// Panel headers: the title row of a flyout or floating panel.

@@ -84,6 +84,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
     p.extend([T::StateSelected, T::StateSelectedHover].map(|bg| (T::TextOnSelected, bg, 4.5, 7.0)));
     p.extend(CONTROL_BGS.map(|bg| (T::AccentText, bg, 4.5, 7.0)));
     p.extend([T::AccentSolid, T::AccentHover, T::AccentPressed].map(|bg| (T::TextOnAccent, bg, 4.5, 7.0)));
+    p.push((T::TextOnStrong, T::AccentStrong, 4.5, 7.0));
     for (fg, bg, solids) in [
         (T::StatusGoodFg, T::StatusGoodBg, [T::StatusGoodSolid, T::StatusGoodSolidHover, T::StatusGoodSolidPressed]),
         (T::StatusWarnFg, T::StatusWarnBg, [T::StatusWarnSolid, T::StatusWarnSolidHover, T::StatusWarnSolidPressed]),
@@ -622,6 +623,22 @@ fn pinned_on_accent_text_moves_the_unpinned_solids() {
         assert!(relative_luminance(new) < relative_luminance(old), "{} {old:?} -> {new:?}", s.path());
         assert!(contrast_ratio(Rgba::WHITE, new) >= 4.5, "{}", s.path());
     }
+}
+
+/// A pinned `accent.strong` stays in standard contrast: white text that misses on it turns black,
+/// as text on the other solids does, and pinned white text is kept and reported.
+#[test]
+fn pinned_accent_strong_is_kept() {
+    let mut def = grey_blue();
+    let light = hex("#78ADF6");
+    def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert_eq!((r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong)), (light, Rgba::BLACK));
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    def.pins.dark = Pins::from_iter([(T::AccentStrong, light), (T::TextOnStrong, Rgba::WHITE)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert_eq!((r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong)), (light, Rgba::WHITE));
+    assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::TextOnStrong) && w.bg == TokenRef::Color(T::AccentStrong)), "{:?}", r.warnings);
 }
 
 /// A failing pin is reported on its semantic pairs and on every component pair whose default

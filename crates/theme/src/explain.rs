@@ -93,7 +93,7 @@ fn source_words(source: ColorSource, anchored_on: Option<ColorToken>) -> String 
         ColorSource::StatusMix { kind, from, to, t } => format!("status {} {from} → {to} at {t}", status(kind)),
         ColorSource::Fixed(c) => format!("fixed {}", c.to_hex()),
         ColorSource::Oklch(l, c, h) => format!("oklch {l} {c} {h}"),
-        ColorSource::Same(t) => format!("= {}", t.path()),
+        ColorSource::Same(t) | ColorSource::SolidFrom(t) => format!("= {}", t.path()),
         ColorSource::OnSolid([only]) => format!("white or black on {}", only.path()),
         ColorSource::OnSolid(solids) => match solids.first() {
             Some(first) => format!("white or black on {} and {} more solids", first.path(), solids.len() - 1),
