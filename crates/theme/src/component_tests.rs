@@ -321,39 +321,40 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         let head = p.split('.').next().unwrap();
         assert!(!groups.contains(&head), "{p}");
     }
-    assert_eq!(ComponentField::from_path("button.primary.fill.hover"), Some(button(ButtonVariant::Primary, ButtonPart::Fill, State::Hover)));
-    assert_eq!(ComponentField::from_path("button.radius"), Some(ComponentField::Button(ButtonField::Radius)));
-    assert_eq!(
-        ComponentField::from_path("icon_button.selected.text.hover"),
-        Some(ComponentField::IconButton(IconButtonField::Selected { part: ItemPart::Text, state: State::Hover }))
-    );
-    assert_eq!(ComponentField::from_path("segmented.track"), Some(ComponentField::Segmented(SegmentedField::Track)));
-    assert_eq!(
-        ComponentField::from_path("segmented.segment.fill.pressed"),
-        Some(ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed }))
-    );
-    assert_eq!(ComponentField::from_path("check.radius"), Some(ComponentField::Check(CheckField::Radius)));
-    assert_eq!(
-        ComponentField::from_path("check.on.mark.hover"),
-        Some(ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover }))
-    );
-    assert_eq!(ComponentField::from_path("field.radius"), Some(ComponentField::Field(FieldField::Radius)));
-    assert_eq!(
-        ComponentField::from_path("field.placeholder.disabled"),
-        Some(ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true }))
-    );
-    assert_eq!(ComponentField::from_path("field.border.focused"), Some(ComponentField::Field(FieldField::Border(BorderState::Focused))));
-    assert_eq!(ComponentField::from_path("field.selection.text"), Some(ComponentField::Field(FieldField::SelectedText)));
-    assert_eq!(ComponentField::from_path("slider.radius"), Some(ComponentField::Slider(SliderField::Radius)));
-    assert_eq!(ComponentField::from_path("slider.fill.hover"), Some(ComponentField::Slider(SliderField::Fill(State::Hover))));
-    assert_eq!(
-        ComponentField::from_path("slider.thumb.border.disabled"),
-        Some(ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled }))
-    );
-    assert_eq!(
-        ComponentField::from_path("toggle_button.on_disabled.border"),
-        Some(ComponentField::ToggleButton(ToggleButtonField::OnDisabled(ButtonPart::Border)))
-    );
+    assert_eq!(TokenRef::from_path("surface.panel"), Some(TokenRef::Color(T::SurfacePanel)));
+}
+
+#[test]
+fn component_paths_name_their_fields_and_refuse_near_misses() {
+    let named = [
+        ("button.primary.fill.hover", button(ButtonVariant::Primary, ButtonPart::Fill, State::Hover)),
+        ("button.radius", ComponentField::Button(ButtonField::Radius)),
+        ("icon_button.selected.text.hover", ComponentField::IconButton(IconButtonField::Selected { part: ItemPart::Text, state: State::Hover })),
+        ("segmented.track", ComponentField::Segmented(SegmentedField::Track)),
+        ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
+        ("check.radius", ComponentField::Check(CheckField::Radius)),
+        ("check.on.mark.hover", ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover })),
+        ("field.radius", ComponentField::Field(FieldField::Radius)),
+        ("field.placeholder.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true })),
+        ("field.border.focused", ComponentField::Field(FieldField::Border(BorderState::Focused))),
+        ("field.selection.text", ComponentField::Field(FieldField::SelectedText)),
+        ("slider.radius", ComponentField::Slider(SliderField::Radius)),
+        ("slider.fill.hover", ComponentField::Slider(SliderField::Fill(State::Hover))),
+        ("slider.thumb.border.disabled", ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled })),
+        ("toggle_button.on_disabled.border", ComponentField::ToggleButton(ToggleButtonField::OnDisabled(ButtonPart::Border))),
+        (
+            "badge.warn.solid.border",
+            ComponentField::Badge(BadgeField::Color { tone: BadgeTone::Warn, style: BadgeStyle::Solid, part: BadgePart::Border }),
+        ),
+        ("badge.radius", ComponentField::Badge(BadgeField::Radius)),
+        ("kbd.text", ComponentField::Kbd(KbdField::Text)),
+        ("progress.fill", ComponentField::Progress(ProgressField::Fill)),
+        ("swatch.checker.b", ComponentField::Swatch(SwatchField::Color(SwatchColor::CheckerB))),
+        ("swatch.radius", ComponentField::Swatch(SwatchField::Radius)),
+    ];
+    for (path, field) in named {
+        assert_eq!(ComponentField::from_path(path), Some(field), "{path}");
+    }
     for bad in [
         "button.height",
         "button.pad_x.md",
@@ -406,16 +407,6 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }
-    assert_eq!(
-        ComponentField::from_path("badge.warn.solid.border"),
-        Some(ComponentField::Badge(BadgeField::Color { tone: BadgeTone::Warn, style: BadgeStyle::Solid, part: BadgePart::Border }))
-    );
-    assert_eq!(ComponentField::from_path("badge.radius"), Some(ComponentField::Badge(BadgeField::Radius)));
-    assert_eq!(ComponentField::from_path("kbd.text"), Some(ComponentField::Kbd(KbdField::Text)));
-    assert_eq!(ComponentField::from_path("progress.fill"), Some(ComponentField::Progress(ProgressField::Fill)));
-    assert_eq!(ComponentField::from_path("swatch.checker.b"), Some(ComponentField::Swatch(SwatchField::Color(SwatchColor::CheckerB))));
-    assert_eq!(ComponentField::from_path("swatch.radius"), Some(ComponentField::Swatch(SwatchField::Radius)));
-    assert_eq!(TokenRef::from_path("surface.panel"), Some(TokenRef::Color(T::SurfacePanel)));
 }
 
 #[test]

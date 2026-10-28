@@ -166,6 +166,14 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, sunken),
             minimum: 3.0,
         });
+        // Text field placeholders are `text.faint` on the field fill, `surface.sunken`.
+        let field = |part| ComponentField::Field(FieldField::Color { part, disabled: false });
+        expected.push(ContrastCheck {
+            fg: field(FieldPart::Placeholder).into(),
+            bg: field(FieldPart::Fill).into(),
+            ratio: contrast_ratio(pin, sunken),
+            minimum: 4.5,
+        });
         assert_eq!(r.warnings, expected, "{mode:?}");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
