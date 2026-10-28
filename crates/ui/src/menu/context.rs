@@ -5,7 +5,9 @@ use craft_theme::ControlSize;
 use egui::{Key, Modifiers, Popup, PopupAnchor, Pos2, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
+use super::nav::Nav;
 use super::popup::{Menu, MenuResponse};
+use crate::popup_list;
 
 /// A context menu of a widget.
 ///
@@ -45,9 +47,23 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
     /// Opens the menu on `widget`'s gestures and draws it while it is open.
     pub fn show(self, ui: &Ui, widget: &Response) -> MenuResponse<T> {
         let ctx = ui.ctx();
-        let popup = Popup::default_response_id(widget).with("context-menu");
+        let base = Popup::default_response_id(widget).with("context-menu");
+        let mut generation = ctx.data(|d| d.get_temp::<u32>(base)).unwrap_or(0);
+        let mut popup = base.with(generation);
+        let mut open = Popup::is_id_open(ctx, popup);
+        // A secondary press on the widget while the menu is open moves it to the pointer. egui
+        // closes a popup on a click whose press began while it was open, so the menu reopens
+        // under a new id, which no press began in.
+        if open && widget.contains_pointer() && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)) {
+            Popup::close_id(ctx, popup);
+            popup_list::record_open(ctx, popup, false);
+            Nav::forget(ctx, popup);
+            generation = generation.wrapping_add(1);
+            ctx.data_mut(|d| d.insert_temp(base, generation));
+            popup = base.with(generation);
+            open = false;
+        }
         let at = popup.with("at");
-        let open = Popup::is_id_open(ctx, popup);
         let keyboard = widget.has_focus() && !open && opens_from_keyboard(ui);
         let mut command = None;
         if widget.secondary_clicked() {

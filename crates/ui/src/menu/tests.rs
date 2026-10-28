@@ -692,3 +692,25 @@ fn two_press_menus_in_one_frame_keep_their_own_gestures() {
     assert_eq!(o.chosen, ["delta"], "Two's gesture runs Two's row");
     assert!(!o.open[1]);
 }
+
+#[test]
+fn a_secondary_click_while_a_context_menu_is_open_reopens_it_at_the_new_pointer() {
+    let mut o = Owners::new();
+    let target = o.rect("Target");
+    let secondary = |o: &mut Owners, p: Pos2| {
+        o.move_to(p);
+        o.button(egui::PointerButton::Secondary, true);
+        o.button(egui::PointerButton::Secondary, false);
+        o.run(3);
+    };
+    // B is left of the menu opened at A, so the click lands on the widget.
+    let (a, b) = (target.left_center() + vec2(40.0, 0.0), target.left_center() + vec2(4.0, 0.0));
+    secondary(&mut o, a);
+    assert!(o.open[2]);
+    let first = o.rect("Cut").left();
+    secondary(&mut o, b);
+    assert!(o.open[2], "still open");
+    let second = o.rect("Cut").left();
+    assert!((first - second - 36.0).abs() < 1.0, "moved from {first} to {second}");
+    assert_eq!(o.tree.iter().filter(|(_, n)| n.label() == Some("Cut")).count(), 1, "one menu");
+}
