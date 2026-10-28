@@ -12,6 +12,7 @@ mod field;
 mod handle;
 mod icon_button;
 mod kbd;
+mod list;
 mod listbox;
 mod panel_header;
 mod progress;
@@ -36,6 +37,7 @@ pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldT
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use list::{ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
@@ -546,6 +548,8 @@ families! {
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
+    /// Lists: the rows of a list or tree panel.
+    list: ListTokens => List(ListField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
     /// Panel headers: the title row of a flyout or floating panel.

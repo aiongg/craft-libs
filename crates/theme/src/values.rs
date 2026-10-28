@@ -7,8 +7,8 @@ use super::ramp::Mode;
 use super::scale::{Duration, Easing, Radius};
 use super::theme::{Size, TextSize};
 use super::tokens::{
-    BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, Pads, RadiusSet, RailSizes, SizeTokens, SpaceTokens, StatusKind, TypeStyle,
-    TypeTokens,
+    BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, ListSizes, Pads, RadiusSet, RailSizes, SizeTokens, SpaceTokens, StatusKind,
+    ThumbSizes, TypeStyle, TypeTokens,
 };
 
 use Bg::{HaloOver, Token};
@@ -349,6 +349,17 @@ pub(super) const COMPACT: Preset = Preset {
         rail: RailSizes { width: 40.0, button: 30.0 },
         bar: BarSizes { title: 32.0, tab: 26.0, status: 22.0, options: 32.0 },
         panel_header: 28.0,
+        list: ListSizes {
+            thumb: ThumbSizes { sm: 18.0, md: 24.0, lg: 48.0 },
+            thumb_row_min: 32.0,
+            indent: 14.0,
+            disclosure: 14.0,
+            toggle_column: 30.0,
+            min_label: 64.0,
+            trailing_pad: 10.0,
+            rounded: false,
+            dividers: true,
+        },
     },
     space: SpaceTokens { gap: Gaps { inline: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -372,6 +383,17 @@ pub(super) const COMFORTABLE: Preset = Preset {
         rail: RailSizes { width: 50.0, button: 36.0 },
         bar: BarSizes { title: 38.0, tab: 30.0, status: 26.0, options: 38.0 },
         panel_header: 34.0,
+        list: ListSizes {
+            thumb: ThumbSizes { sm: 18.0, md: 34.0, lg: 48.0 },
+            thumb_row_min: 40.0,
+            indent: 18.0,
+            disclosure: 18.0,
+            toggle_column: 36.0,
+            min_label: 80.0,
+            trailing_pad: 12.0,
+            rounded: true,
+            dividers: false,
+        },
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -466,6 +488,11 @@ pub const SECTION_CHEVRON: f32 = 11.0;
 pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
+
+/// Added to a list row's thumbnail side for the row's height.
+pub const LIST_THUMB_PAD: f32 = 8.0;
+/// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).
+pub const LIST_DROP_WIDTH: f32 = 2.0;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
