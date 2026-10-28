@@ -1,6 +1,5 @@
 //! [`Tooltip`] and [`TooltipExt`]: tooltips on the popup surface.
 
-use egui::accesskit::Role;
 use egui::{Frame, KeyboardShortcut, Margin, Response, Shadow, Stroke, Ui};
 
 use super::Kbd;
@@ -69,7 +68,7 @@ pub trait TooltipExt: Sized {
 impl TooltipExt for Response {
     fn tooltip(self, text: impl Into<String>) -> Self {
         let text = text.into();
-        describe(&self, &text, None);
+        self.describe_for_accessibility(&text);
         self.tooltip_ui(|ui| {
             ui.add(Text::new(text));
         })
@@ -78,7 +77,8 @@ impl TooltipExt for Response {
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self {
         let text = text.into();
         let keys = shortcut.format(&egui::ModifierNames::NAMES, super::kbd::is_mac(self.ctx.os()));
-        describe(&self, &text, Some(&keys));
+        self.describe_for_accessibility(&text);
+        set_shortcut(&self, &keys);
         self.tooltip_ui(|ui| {
             ui.with_layout(direction::row(ui).with_main_wrap(true), |ui| {
                 ui.add(Text::new(text));
@@ -97,22 +97,11 @@ impl TooltipExt for Response {
     }
 }
 
-/// The description egui's `on_hover_text` gives, and the keyboard `shortcut` in its spoken names:
-/// only for a widget that already has a node.
-fn describe(response: &Response, text: &str, shortcut: Option<&str>) {
+/// Sets the keyboard `shortcut`, in its spoken names, on a widget that already has a node.
+fn set_shortcut(response: &Response, shortcut: &str) {
     let ctx = &response.ctx;
     if ctx.has_accesskit_node(response.id) {
-        ctx.accesskit_node_builder(response.id, |node| {
-            if let Some(shortcut) = shortcut {
-                node.set_keyboard_shortcut(shortcut);
-            }
-            if node.description().is_none() {
-                node.set_description(text);
-            }
-            if node.role() != Role::Label && node.labelled_by().is_empty() && node.label().is_none_or(str::is_empty) {
-                node.set_label(text);
-            }
-        });
+        ctx.accesskit_node_builder(response.id, |node| node.set_keyboard_shortcut(shortcut));
     }
 }
 
