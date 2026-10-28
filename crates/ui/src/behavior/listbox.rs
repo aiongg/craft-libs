@@ -164,14 +164,8 @@ impl Listbox {
         let last = len - 1;
         let page = page.max(1);
         let target = match step {
-            Step::Next => match at {
-                Some(p) => (p + 1..len).find(enabled),
-                None => (0..len).find(enabled),
-            },
-            Step::Previous => match at {
-                Some(p) => (0..p).rev().find(enabled),
-                None => (0..len).rev().find(enabled),
-            },
+            Step::Next => return self.move_to(Self::neighbour(options, self.state.active, true)),
+            Step::Previous => return self.move_to(Self::neighbour(options, self.state.active, false)),
             Step::PageDown => {
                 let from = at.map_or(0, |p| (p + page).min(last));
                 (from..len).find(enabled).or_else(|| (at.map_or(0, |p| p + 1)..from).rev().find(enabled))
@@ -184,6 +178,22 @@ impl Listbox {
             Step::Last => (0..len).rev().find(enabled),
         };
         self.move_to(target.map(|p| options.option_at(p)))
+    }
+
+    /// The enabled option after `from` among those shown (`next`) or before it, as Down and Up
+    /// move: none past the ends; with `from` none or not shown, the first or the last. A closed
+    /// list's Up and Down and its wheel step the value with it.
+    pub fn neighbour(options: &impl ListOptions, from: Option<usize>, next: bool) -> Option<usize> {
+        let len = options.len();
+        let enabled = |at: &usize| options.enabled(options.option_at(*at));
+        let at = from.and_then(|o| options.position(o));
+        let found = match (at, next) {
+            (Some(p), true) => (p + 1..len).find(enabled),
+            (Some(p), false) => (0..p).rev().find(enabled),
+            (None, true) => (0..len).find(enabled),
+            (None, false) => (0..len).rev().find(enabled),
+        };
+        found.map(|at| options.option_at(at))
     }
 
     /// Applies the characters typed this frame as type-ahead, taking them from the input. A

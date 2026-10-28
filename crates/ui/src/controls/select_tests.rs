@@ -27,7 +27,7 @@ struct Host {
 
 /// Blend modes 0 to 5, with "Overlay" (3) disabled, a separator after "Normal"; Ctrl+Z cancels
 /// every gesture as an undo would.
-fn blend(preview: bool) -> Harness<'static, Host> {
+fn blend() -> Harness<'static, Host> {
     harness().build_ui_state(
         move |ui, host: &mut Host| {
             if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
@@ -36,7 +36,7 @@ fn blend(preview: bool) -> Harness<'static, Host> {
             if host.hidden {
                 return;
             }
-            let mut select = Select::new("blend", "Blend mode", &mut host.value).preview(preview).enabled(!host.disabled);
+            let mut select = Select::new("blend", "Blend mode", &mut host.value).enabled(!host.disabled);
             for (i, mode) in MODES.into_iter().enumerate() {
                 select = select.option(i, mode).option_enabled(i != 3);
                 if i == 0 {
@@ -79,7 +79,7 @@ fn focus_box<State>(harness: &mut Harness<'_, State>) {
 
 #[test]
 fn a_press_dragged_onto_an_option_chooses_it_on_release() {
-    let mut harness = blend(false);
+    let mut harness = blend();
     harness.run();
     let field = harness.get_by_role(Role::ComboBox).rect().center();
     harness.hover_at(field);
@@ -90,17 +90,19 @@ fn a_press_dragged_onto_an_option_chooses_it_on_release() {
     harness.hover_at(screen);
     harness.run();
     assert_eq!(active(&harness).as_deref(), Some("Screen"), "the option under the pointer is active");
+    assert_eq!(harness.state().value, 2, "the value follows the active option");
     harness.event(press(screen, false));
     harness.run();
     assert_eq!(harness.state().value, 2);
-    assert!(matches!(harness.state().events[..], [EditEvent::Set { value: 2, .. }]), "{:?}", harness.state().events);
+    let events = &harness.state().events;
+    assert!(matches!(events[..], [EditEvent::Begin { .. }, .., EditEvent::Commit { value: 2, changed: true, .. }]), "{events:?}");
     assert_eq!(expanded(&harness), Some(false));
     assert!(options(&harness).is_empty(), "the list closed");
 }
 
 #[test]
 fn a_click_opens_the_list_until_a_second_click_and_a_release_on_the_box_keeps_it_open() {
-    let mut harness = blend(false);
+    let mut harness = blend();
     harness.run();
     harness.get_by_role(Role::ComboBox).click();
     harness.run();
@@ -128,14 +130,14 @@ fn a_click_opens_the_list_until_a_second_click_and_a_release_on_the_box_keeps_it
 }
 
 #[test]
-fn keys_move_the_active_option_over_enabled_ones_and_enter_chooses_it() {
-    let mut harness = blend(false);
+fn keys_in_the_open_list_move_the_value_over_enabled_options_and_enter_chooses_it() {
+    let mut harness = blend();
     harness.state_mut().value = 2;
     harness.run();
     focus_box(&mut harness);
-    harness.key_press(Key::ArrowDown);
+    harness.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     harness.run();
-    assert_eq!((expanded(&harness), active(&harness).as_deref()), (Some(true), Some("Screen")), "Down opens on the chosen option");
+    assert_eq!((expanded(&harness), active(&harness).as_deref()), (Some(true), Some("Screen")), "Alt+Down opens on the chosen option");
     let steps = [
         (Key::ArrowDown, "Darken"),
         (Key::ArrowDown, "Lighten"),
@@ -152,37 +154,131 @@ fn keys_move_the_active_option_over_enabled_ones_and_enter_chooses_it() {
         harness.key_press(key);
         harness.run();
         assert_eq!(active(&harness).as_deref(), Some(expected), "{key:?}");
+        assert_eq!(MODES[harness.state().value], expected, "{key:?}: the value follows");
+        assert_eq!(expanded(&harness), Some(true), "{key:?}: the list stays open");
     }
-    assert_eq!(harness.state().value, 2, "moving chooses nothing");
     harness.event(Event::Text("m".into()));
     harness.run();
-    assert_eq!(active(&harness).as_deref(), Some("Multiply"), "type-ahead");
+    assert_eq!((active(&harness).as_deref(), harness.state().value), (Some("Multiply"), 1), "type-ahead");
     harness.key_press(Key::Enter);
     harness.run();
     assert_eq!((harness.state().value, expanded(&harness)), (1, Some(false)));
     assert!(harness.get_by_role(Role::ComboBox).is_focused());
+    let events = std::mem::take(&mut harness.state_mut().events);
+    assert!(matches!(events[..], [EditEvent::Begin { .. }, .., EditEvent::Commit { value: 1, changed: true, .. }]), "one gesture: {events:?}");
+    assert_eq!(events.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).count(), 1, "{events:?}");
 
     harness.event(Event::Text("l".into()));
     harness.run();
     assert_eq!((expanded(&harness), active(&harness).as_deref()), (Some(true), Some("Lighten")), "typing on the closed box opens it");
+    assert_eq!(harness.state().value, 5);
     harness.key_press(Key::Escape);
     harness.run();
-    assert_eq!((harness.state().value, expanded(&harness)), (1, Some(false)), "Esc closes without a change");
+    assert_eq!((harness.state().value, expanded(&harness)), (1, Some(false)), "Esc puts the value back");
     assert!(harness.get_by_role(Role::ComboBox).is_focused(), "and keeps the focus");
 }
 
 #[test]
-fn a_preview_reports_the_active_option_and_commits_the_choice_or_cancels() {
-    let mut harness = blend(true);
+fn up_and_down_on_the_closed_box_step_the_value_and_alt_down_enter_and_space_open_it() {
+    let mut harness = blend();
+    harness.state_mut().value = 2;
     harness.run();
     focus_box(&mut harness);
-    harness.key_press(Key::ArrowDown);
+    let steps =
+        [(Key::ArrowDown, 4), (Key::ArrowDown, 5), (Key::ArrowDown, 5), (Key::ArrowUp, 4), (Key::ArrowUp, 2), (Key::ArrowUp, 1), (Key::ArrowUp, 0)];
+    for (key, expected) in steps {
+        harness.key_press(key);
+        harness.run();
+        assert_eq!((harness.state().value, expanded(&harness)), (expected, Some(false)), "{key:?} steps over the disabled option");
+    }
+    harness.key_press(Key::ArrowUp);
+    harness.run();
+    let events = std::mem::take(&mut harness.state_mut().events);
+    let sets: Vec<_> = events.iter().map(|e| if let EditEvent::Set { value, .. } = e { Some(*value) } else { None }).collect();
+    assert_eq!(sets, [Some(4), Some(5), Some(4), Some(2), Some(1), Some(0)], "a Set a step, none past the ends");
+    for key in [Key::Home, Key::End] {
+        harness.key_press(key);
+        harness.run();
+        assert_eq!((harness.state().value, expanded(&harness)), (0, Some(false)), "{key:?} on the closed box does nothing");
+    }
+    for (modifiers, key) in [(Modifiers::ALT, Key::ArrowDown), (Modifiers::NONE, Key::Enter), (Modifiers::NONE, Key::Space)] {
+        harness.key_press_modifiers(modifiers, key);
+        harness.run();
+        assert_eq!((expanded(&harness), active(&harness).as_deref()), (Some(true), Some("Normal")), "{key:?} opens on the chosen option");
+        harness.key_press(Key::Escape);
+        harness.run();
+    }
+}
+
+/// Blend modes in a panel that scrolls, the select `wheel_steps` or not, at the top.
+fn wheel_panel(wheel_steps: bool) -> Harness<'static, Host> {
+    harness().build_ui_state(
+        move |ui, host: &mut Host| {
+            egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                let mut select = Select::new("blend", "Blend mode", &mut host.value).wheel_steps(wheel_steps);
+                for (i, mode) in MODES.into_iter().enumerate() {
+                    select = select.option(i, mode).option_enabled(i != 3);
+                }
+                if let Some(event) = select.show(ui).event {
+                    host.events.push(event);
+                }
+                ui.add_space(1000.0);
+            });
+        },
+        Host::default(),
+    )
+}
+
+fn wheel(lines: f32) -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, lines),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+#[test]
+fn the_wheel_over_the_closed_box_steps_the_value_only_when_asked_and_then_the_panel_stays() {
+    let mut harness = wheel_panel(true);
+    harness.run();
+    let field = harness.get_by_role(Role::ComboBox).rect();
+    harness.hover_at(field.center());
+    harness.run();
+    let turns = [(-1.0, 1), (-2.0, 4), (-3.0, 5), (1.0, 4), (0.5, 4), (0.5, 2)];
+    for (lines, expected) in turns {
+        harness.event(wheel(lines));
+        harness.run();
+        assert_eq!((harness.state().value, expanded(&harness)), (expected, Some(false)), "{lines} lines");
+    }
+    assert_eq!(harness.get_by_role(Role::ComboBox).rect(), field, "the panel doesn't scroll");
+    let events = &harness.state().events;
+    assert!(events.iter().all(|e| matches!(e, EditEvent::Set { .. })) && events.len() == 5, "{events:?}");
+
+    let mut harness = wheel_panel(false);
+    harness.run();
+    let field = harness.get_by_role(Role::ComboBox).rect();
+    harness.hover_at(field.center());
+    harness.run();
+    harness.event(wheel(-1.0));
+    harness.run();
+    assert_eq!(harness.state().value, 0, "off by default");
+    assert!(harness.get_by_role(Role::ComboBox).rect().top() < field.top(), "the panel scrolls");
+}
+
+#[test]
+fn the_open_list_is_one_gesture_that_commits_the_choice_or_cancels() {
+    let mut harness = blend();
+    harness.run();
+    focus_box(&mut harness);
+    harness.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     harness.run();
     for _ in 0..2 {
         harness.key_press(Key::ArrowDown);
         harness.run();
     }
-    assert_eq!(harness.state().value, 2, "the host shows the preview");
+    assert_eq!(harness.state().value, 2, "the host shows the active option");
     harness.key_press(Key::Escape);
     harness.run();
     let events = std::mem::take(&mut harness.state_mut().events);
@@ -204,7 +300,7 @@ fn a_preview_reports_the_active_option_and_commits_the_choice_or_cancels() {
     harness.run();
     harness.hover_at(option(&harness, "Lighten").rect().center());
     harness.run();
-    assert_eq!(harness.state().value, 5, "the pointer previews too");
+    assert_eq!(harness.state().value, 5, "the pointer moves the value too");
     option(&harness, "Lighten").click();
     harness.run();
     let events = std::mem::take(&mut harness.state_mut().events);
@@ -304,8 +400,10 @@ fn a_search_filters_the_options_and_the_list_takes_its_height_back() {
     assert_eq!(options(&harness), ["Bodoni 7", "Bodoni 17", "Bodoni 27", "Bodoni 37", "Bodoni 47", "Bodoni 57"]);
     assert!(list_height(&harness) < full, "the list shrinks to the matches");
     assert_eq!(active(&harness).as_deref(), Some("Bodoni 7"), "the first match is active");
+    assert_eq!(harness.state().value, 30, "and waits for Enter");
     harness.key_press(Key::ArrowDown);
     harness.run();
+    assert_eq!(harness.state().value, 17, "the arrows move the value");
     let search = harness.get_by_label("Search fonts").accesskit_node().active_descendant().and_then(|n| n.label());
     assert_eq!(search.as_deref(), Some("Bodoni 17"), "the search field names the active option");
     harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
@@ -346,7 +444,7 @@ fn right_to_left_the_list_lines_up_with_the_end_of_the_box() {
 
 #[test]
 fn esc_right_after_a_click_opens_the_list_closes_it_and_keeps_the_focus() {
-    let mut harness = blend(false);
+    let mut harness = blend();
     harness.run();
     harness.get_by_role(Role::ComboBox).click();
     harness.run();
@@ -358,8 +456,8 @@ fn esc_right_after_a_click_opens_the_list_closes_it_and_keeps_the_focus() {
 }
 
 #[test]
-fn closing_a_preview_without_a_choice_reports_why_and_puts_the_value_back() {
-    let mut harness = blend(true);
+fn closing_the_list_without_a_choice_reports_why_and_puts_the_value_back() {
+    let mut harness = blend();
     harness.run();
     let field = harness.get_by_role(Role::ComboBox).rect();
     let outside = field.left_bottom() + egui::vec2(0.0, 400.0);
@@ -372,7 +470,7 @@ fn closing_a_preview_without_a_choice_reports_why_and_puts_the_value_back() {
         harness.run();
         harness.hover_at(option(harness, "Lighten").rect().center());
         harness.run();
-        assert_eq!(harness.state().value, 5, "the host shows the preview");
+        assert_eq!(harness.state().value, 5, "the host shows the active option");
     };
 
     previewing(&mut harness);
@@ -405,16 +503,16 @@ fn closing_a_preview_without_a_choice_reports_why_and_puts_the_value_back() {
     assert_eq!(
         (cancelled(&mut harness), harness.state().value, expanded(&harness)),
         (Some(CancelReason::UndoDuringGesture), 0, Some(false)),
-        "an undo ends the preview and closes the list"
+        "an undo ends the list's gesture and closes the list"
     );
 }
 
 #[test]
 fn a_select_drawn_again_after_a_gap_starts_closed_without_its_gesture() {
-    let mut harness = blend(true);
+    let mut harness = blend();
     harness.run();
     focus_box(&mut harness);
-    harness.key_press(Key::ArrowDown);
+    harness.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     harness.run();
     let first = match harness.state().events[..] {
         [EditEvent::Begin { id }] => id,
@@ -447,13 +545,17 @@ fn options_that_go_while_the_list_is_open_leave_nothing_to_choose() {
     );
     harness.run();
     focus_box(&mut harness);
+    harness.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     harness.key_press(Key::End);
     harness.run();
-    assert_eq!(active(&harness).as_deref(), Some("Lighten"));
+    assert_eq!((active(&harness).as_deref(), harness.state().0), (Some("Lighten"), 5));
     harness.state_mut().1 = 2;
     harness.key_press(Key::Enter);
     harness.run();
-    assert_eq!((harness.state().0, expanded(&harness)), (0, Some(true)), "nothing is chosen");
+    assert_eq!((harness.state().0, expanded(&harness)), (5, Some(true)), "nothing is chosen");
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!((harness.state().0, expanded(&harness)), (0, Some(false)), "Esc puts the value back");
 }
 
 #[test]
@@ -483,6 +585,7 @@ fn an_empty_list_takes_the_keys_and_changes_nothing() {
     focus_box(&mut none);
     none.event(Event::Text("a".into()));
     none.run();
+    none.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     for key in [Key::ArrowDown, Key::End, Key::PageUp] {
         none.key_press(key);
         none.run();

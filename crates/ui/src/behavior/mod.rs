@@ -20,5 +20,5 @@ mod typing;
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
 pub use radio_selection::RadioSelection;
-pub(crate) use typing::take_enter;
 pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};
+pub(crate) use typing::{take_composing_keys, take_enter};

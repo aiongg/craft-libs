@@ -490,6 +490,13 @@ struct Wheel {
 /// each notch the slider acts on, also once the pointer leaves or the focus moves. While `held`
 /// (a drag) the wheel is taken and changes nothing.
 pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: bool) -> f64 {
+    let (lines, pages) = wheel_turns(ui, id, acts, held, 10.0);
+    step * f64::from(lines) + page * f64::from(pages)
+}
+
+/// [`wheel`]'s whole lines and pages turned this frame (up is positive), a notch with Shift
+/// counting `shift` lines: a control that steps through options rather than a range.
+pub(super) fn wheel_turns(ui: &Ui, id: Id, acts: bool, held: bool, shift: f32) -> (f32, f32) {
     let key = id.with("craft_ui::slider::wheel");
     let line = ui.ctx().options(|o| o.input_options.line_scroll_speed).max(1.0);
     let mut state = ui.data(|d| d.get_temp::<Wheel>(key)).unwrap_or_default();
@@ -502,7 +509,7 @@ pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: boo
             {
                 turned = true;
                 let d = delta.x + delta.y;
-                let times = if modifiers.shift { 10.0 } else { 1.0 };
+                let times = if modifiers.shift { shift } else { 1.0 };
                 match unit {
                     MouseWheelUnit::Line => lines += times * d,
                     MouseWheelUnit::Point => lines += times * d / line,
@@ -512,7 +519,7 @@ pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: boo
         }
     });
     let scrolling = ui.input(|i| i.is_scrolling());
-    let mut change = 0.0;
+    let mut turns = (0.0, 0.0);
     if acts {
         state.taking |= turned;
         if held {
@@ -520,7 +527,7 @@ pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: boo
         } else {
             let all = state.lines + lines;
             state.lines = all.fract();
-            change = step * f64::from(all.trunc()) + page * f64::from(pages);
+            turns = (all.trunc(), pages);
         }
     } else {
         state.lines = 0.0;
@@ -532,7 +539,7 @@ pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: boo
         ui.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
     }
     ui.data_mut(|d| d.insert_temp(key, state));
-    change
+    turns
 }
 
 /// Paints the track.

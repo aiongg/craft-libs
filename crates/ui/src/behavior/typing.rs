@@ -188,18 +188,33 @@ impl<'a> Typing<'a> {
     /// composition chooses no option, the Esc that cancels one closes no list. False while the
     /// field doesn't have the focus.
     pub fn composing(ui: &Ui, id: Id) -> bool {
-        if !ui.memory(|m| m.has_focus(id)) {
-            return false;
-        }
-        let state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
-        let mut ime = ImeKeys::new(kept_preedit(ui, id, Seen::load(ui, id).as_ref(), &state).is_some());
-        ui.input(|i| {
+        ime_pass(ui, id, false)
+    }
+}
+
+/// [`Typing::composing`], also taking the keys the input method owns in this pass out of the
+/// input, as the field's `show` does: for an embedding control whose own gesture would read Esc
+/// before the field runs (a select's search field, drawn later in its popup).
+pub(crate) fn take_composing_keys(ui: &Ui, id: Id) -> bool {
+    ime_pass(ui, id, true)
+}
+
+/// Follows field `id`'s input method through this pass's events; with `take`, takes its keys.
+fn ime_pass(ui: &Ui, id: Id, take: bool) -> bool {
+    if !ui.memory(|m| m.has_focus(id)) {
+        return false;
+    }
+    let state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
+    let mut ime = ImeKeys::new(kept_preedit(ui, id, Seen::load(ui, id).as_ref(), &state).is_some());
+    match take {
+        true => ui.input_mut(|i| i.events.retain(|event| !ime.takes(event))),
+        false => ui.input(|i| {
             for event in &i.events {
                 ime.takes(event);
             }
-        });
-        ime.composed
+        }),
     }
+    ime.composed
 }
 
 impl<'a, C: Codec> Typing<'a, C> {

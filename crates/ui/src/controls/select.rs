@@ -16,9 +16,10 @@ use super::option_list::{
     MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
+use super::slider::wheel_turns;
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
-use crate::behavior::{ListOptions, Listbox, Typing, take_key};
+use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
@@ -88,8 +89,10 @@ pub struct SelectStyle {
 ///     .option(Blend::Multiply, "Multiply")
 ///     .option(Blend::Screen, "Screen")
 ///     .show(ui);
+/// // `blend` follows the open list. A host with an undo history hands `edit.event` to its
+/// // `edit::GestureHost`, which makes the list's Begin, Updates and Commit one undo step.
 /// if let Some(blend) = edit.committed() {
-///     // The host applies it; with `preview(true)` it also gets Begin, Update and Cancel.
+///     // Chosen.
 /// }
 /// # });
 /// ```
@@ -101,30 +104,39 @@ pub struct SelectStyle {
 /// active option as the box's active descendant ([`Listbox`]); the box reports a list box popup
 /// and, while open, the list it controls.
 ///
+/// - **The open list is one gesture**, as PhotoCraft's dropdowns: opening the list begins an
+///   edit gesture, and every option the pointer or the keys make active is an `Update`, so the
+///   value follows the list live and the chosen row (its check mark, AccessKit `selected`) is the
+///   active one. Choosing commits. Closing without a choice cancels and puts back the value from
+///   when the list opened: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or a
+///   press on the box ([`Dismissed`](CancelReason::Dismissed)), the focus leaving the box and the
+///   list ([`FocusLost`](CancelReason::FocusLost)). A gesture that ends outside the list (an undo,
+///   an external change) closes it. A host that applies only what is chosen acts on the commit
+///   and leaves the updates to the box.
 /// - **Pointer**: the list opens on the press, so one gesture can press the box, drag onto an
 ///   option and release to choose it. A plain click opens the list and leaves it open for a
 ///   second click; a release over the box keeps it open, a release elsewhere after a drag closes
 ///   it. A press on the box while the list is open closes it. The option under the pointer
 ///   becomes active, so Enter chooses the row the pointer is on, as in a macOS pop-up menu.
-/// - **Keys on the closed box**: Down, Up, Alt+Down, Enter and Space open the list on the chosen
-///   option (Up too, as on macOS, where WAI-ARIA's pattern opens on the first option); Home and
-///   End open it on the first and last option; typing opens it on the first option whose text
-///   starts with what was typed.
+/// - **Keys on the closed box**: Down and Up step the value to the next and previous enabled
+///   option without opening the list, one `Set` each, stopping at the ends (with the value none
+///   of the options, Down goes to the first and Up to the last), as PhotoCraft's font picker
+///   does. Alt+Down, Enter and Space open the list on the chosen option. Typing opens it on the
+///   first option whose text starts with what was typed (no app convention; WAI-ARIA's).
 /// - **Keys in the open list**: the arrows, Page Up and Page Down, Home, End and type-ahead move
-///   the active option, skipping disabled ones ([`Listbox`]); Enter, Space, Alt+Up and Tab choose
-///   it (Tab then moves the focus on, from the search field too); Esc closes without a change and
-///   keeps the focus on the box. The active option shows the focus ring inside its row while the
-///   keyboard moves it.
+///   the active option, skipping disabled ones ([`Listbox`]), and so the value; Enter, Space,
+///   Alt+Up and Tab choose it (Tab then moves the focus on, from the search field too); Esc puts
+///   the value back, closes the list and keeps the focus on the box. The active option shows the
+///   focus ring inside its row while the keyboard moves it.
+/// - **Wheel** ([`wheel_steps`](Select::wheel_steps), off by default): the wheel over the closed
+///   box steps the value one option per notch (Shift too), stopping at the ends, one `Set` a
+///   frame; the panel under it doesn't scroll. PhotoCraft's Layers blend mode does this.
 /// - **Searchable** ([`searchable`](Select::searchable)): a search field at the top of the list
 ///   takes the focus when it opens and filters the options as the user types; the arrows, Page
-///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text. While an input
-///   method composes in it, the keys are the input method's ([`Typing::composing`]).
-/// - **Preview** ([`preview`](Select::preview)): opening the list begins an edit gesture, every
-///   option made active (by the pointer or the keys) is an `Update`, and choosing commits. Closing
-///   without a choice cancels: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or
-///   a press on the box ([`Dismissed`](CancelReason::Dismissed)), the focus leaving the box and
-///   the list ([`FocusLost`](CancelReason::FocusLost)). A gesture that ends outside the list (an
-///   undo, an external change) closes it. Without preview, a choice is one `Set`.
+///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text. The first match
+///   becomes active for Enter without changing the value (PhotoCraft's font search applies only
+///   the arrows' steps). While an input method composes in it, the keys are the input method's
+///   ([`Typing::composing`](crate::behavior::Typing::composing)).
 ///
 /// The control writes what it reports into the value: updates, commits and sets, and on every
 /// cancel but [`External`](CancelReason::External) the value from when the list opened.
@@ -135,7 +147,7 @@ pub struct Select<'a, T> {
     entries: Vec<Entry<T>>,
     rows: Option<Rows<'a, T>>,
     search: Option<(String, String)>,
-    preview: bool,
+    wheel_steps: bool,
     placeholder: String,
     size: ControlSize,
     policy: EditPolicy,
@@ -178,7 +190,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             entries: Vec::new(),
             rows: None,
             search: None,
-            preview: false,
+            wheel_steps: false,
             placeholder: String::new(),
             size: ControlSize::Md,
             policy: EditPolicy::default(),
@@ -238,10 +250,11 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
-    /// Reports the active option as a preview while the list is open (an edit gesture), so the
-    /// host can show it; closing without a choice cancels.
-    pub fn preview(mut self, preview: bool) -> Self {
-        self.preview = preview;
+    /// Whether the wheel over the closed box steps the value, one option per notch; off by
+    /// default, so the wheel scrolls the panel. For a select changed often in place (a layer's
+    /// blend mode).
+    pub fn wheel_steps(mut self, wheel_steps: bool) -> Self {
+        self.wheel_steps = wheel_steps;
         self
     }
 
@@ -256,7 +269,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
-    /// How a preview reports ([`EditPolicy`]); the default reports every update at once.
+    /// How the open list's gesture reports ([`EditPolicy`]); the default reports every update at
+    /// once.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -270,7 +284,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// Shows the box, and the list while it is open, and returns this frame's edit. The response
     /// covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<T> {
-        let Self { id_salt, label, value, entries, rows, search, preview, placeholder, size, policy, enabled } = self;
+        let Self { id_salt, label, value, entries, rows, search, wheel_steps, placeholder, size, policy, enabled } = self;
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
@@ -296,8 +310,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let modifiers = ui.input(|i| i.modifiers);
 
         let mut action = None;
-        // The search field's input method has its keys while it composes.
-        let composing = state.search.is_some_and(|s| Typing::composing(ui, s));
+        // The search field's input method has its keys while it composes; the gesture, loaded
+        // before the field runs, would read its Esc.
+        let composing = state.search.is_some_and(|s| take_composing_keys(ui, s));
         if enabled && (box_focused || search_focused) && !composing {
             action = read_keys(ui, id, &mut listbox, &shown, &state, box_focused, chosen);
         }
@@ -318,6 +333,10 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             .focus_ring(false)
             .interact_at(ui, rect)
             .finish(ui);
+        if wheel_steps && enabled && !state.open {
+            let step = wheel_step(ui, id, &shown, chosen, response.contains_pointer());
+            action = action.or(step);
+        }
         // A press, or a click whose press and release came in one frame.
         let pressed = enabled && pressed_on(ui, &response);
         let reader_click = enabled && ui.input(|i| i.has_accesskit_action_request(id, accesskit::Action::Click));
@@ -329,7 +348,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             state.pressing = pressed && !state.open;
         }
 
-        let mut pass = Pass { id, preview, modifiers, gesture: &mut gesture, listbox: &mut listbox, state: &mut state, options: &options };
+        let mut pass = Pass { id, modifiers, searched: false, gesture: &mut gesture, listbox: &mut listbox, state: &mut state, options: &options };
         if let Some(action) = action {
             pass.apply(ui, action, box_focused);
         }
@@ -369,7 +388,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 keep_focus(ui, popup_id, owner);
             }
         }
-        if pass.preview
+        // The list's value follows the pointer and the keys; a search's first match waits for Enter.
+        if !pass.searched
             && pass.gesture.is_active()
             && let Some(active) = pass.listbox.active().filter(|a| Some(*a) != active_before)
         {
@@ -479,7 +499,9 @@ enum Action {
     Close { reason: CancelReason, focus: bool },
     /// Chooses the option and closes the list; with `focus`, the box takes the focus back.
     Choose { option: usize, focus: bool },
-    /// Closes the list whose preview ended outside it: an external change, an undo
+    /// Sets the value to the option with the list closed: Up, Down or the wheel on the box.
+    Step { option: usize },
+    /// Closes the list whose gesture ended outside it: an external change, an undo
     /// ([`cancel_all`](edit::cancel_all)), the focus leaving.
     Ended,
 }
@@ -520,25 +542,34 @@ fn read_keys<T: Clone + PartialEq>(
     if !on_box {
         return None;
     }
-    let enabled_at = |at: usize| Some(shown.option_at(at)).filter(|&o| shown.enabled(o));
-    let first = (0..shown.len()).find_map(enabled_at);
-    let last = (0..shown.len()).rev().find_map(enabled_at);
-    let opening = [(Modifiers::ALT, Key::ArrowDown), (Modifiers::NONE, Key::ArrowDown), (Modifiers::NONE, Key::ArrowUp)]
-        .into_iter()
-        .chain([(Modifiers::NONE, Key::Enter), (Modifiers::NONE, Key::Space)]);
-    for (modifiers, k) in opening {
-        if key(modifiers, k) {
-            return Some(Action::Open { active: chosen.or(first), keyboard: true });
+    let opening = [(Modifiers::ALT, Key::ArrowDown), (Modifiers::NONE, Key::Enter), (Modifiers::NONE, Key::Space)];
+    if opening.into_iter().any(|(modifiers, k)| key(modifiers, k)) {
+        let first = Listbox::neighbour(shown, None, true);
+        return Some(Action::Open { active: chosen.or(first), keyboard: true });
+    }
+    for (k, next) in [(Key::ArrowDown, true), (Key::ArrowUp, false)] {
+        if key(Modifiers::NONE, k) {
+            return Listbox::neighbour(shown, chosen, next).map(|option| Action::Step { option });
         }
-    }
-    if key(Modifiers::NONE, Key::Home) {
-        return Some(Action::Open { active: first, keyboard: true });
-    }
-    if key(Modifiers::NONE, Key::End) {
-        return Some(Action::Open { active: last, keyboard: true });
     }
     listbox.set_active(chosen);
     listbox.type_ahead(ui, shown).then(|| Action::Open { active: listbox.active(), keyboard: true })
+}
+
+/// The step this frame's wheel over the closed box makes from `chosen` while `hovered`: one
+/// option per notch, stopping at the ends. While hovered, the wheel scrolls nothing else.
+fn wheel_step<T: Clone + PartialEq>(ui: &Ui, id: Id, shown: &Shown<'_, '_, '_, T>, chosen: Option<usize>, hovered: bool) -> Option<Action> {
+    let (lines, pages) = wheel_turns(ui, id, hovered, false, 1.0);
+    // Up is positive: the option before.
+    let notches = lines + pages;
+    let mut to = chosen;
+    for _ in 0..(notches.abs() as usize).min(shown.len()) {
+        match Listbox::neighbour(shown, to, notches < 0.0) {
+            Some(next) => to = Some(next),
+            None => break,
+        }
+    }
+    to.filter(|&to| Some(to) != chosen).map(|option| Action::Step { option })
 }
 
 /// What the list keeps between frames.
@@ -554,7 +585,7 @@ struct PopupState<T> {
     search: Option<Id>,
     /// Rows the list shows at once.
     page: usize,
-    /// The preview gesture begun when the list opened, and the value then.
+    /// The gesture begun when the list opened, and the value then.
     gesture: Option<GestureId>,
     start: Option<T>,
     /// The option of the value the select last looked for.
@@ -652,8 +683,9 @@ fn filter<T: Clone + PartialEq>(cache: &mut Option<Filter>, options: &Options<'_
 /// Everything a frame's actions change.
 struct Pass<'f, 's, 'a, T> {
     id: Id,
-    preview: bool,
     modifiers: Modifiers,
+    /// A search made its first match active in this pass.
+    searched: bool,
     gesture: &'f mut Gesture<T>,
     listbox: &'f mut Listbox,
     state: &'f mut PopupState<T>,
@@ -673,11 +705,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
                 self.state.focus_search = true;
                 self.state.search = None;
                 self.listbox.reveal(active, keyboard);
-                if self.preview {
-                    self.gesture.begin();
-                    self.state.gesture = self.gesture.id();
-                    self.state.start = self.gesture.start().cloned();
-                }
+                self.gesture.begin();
+                self.state.gesture = self.gesture.id();
+                self.state.start = self.gesture.start().cloned();
                 if !box_focused {
                     ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys()));
                 }
@@ -700,6 +730,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
                 }
                 // A click on an option took the focus from the box earlier in this pass.
                 self.close(ui, focus);
+            }
+            Action::Step { option } => {
+                let value = self.options.value(option);
+                self.state.found = Some(Found { value: value.clone(), count: self.options.len(), option: Some(option) });
+                self.gesture.set(value);
             }
             Action::Ended => self.close(ui, false),
         }
@@ -912,6 +947,7 @@ impl List<'_> {
         let mut search = pass.state.search;
         let mut focused_search = false;
         let mut page = pass.state.page;
+        let mut searched = false;
         let listbox = &mut *pass.listbox;
         let header = |ui: &mut Ui| {
             let before = query.clone();
@@ -954,7 +990,7 @@ impl List<'_> {
             Source::Entries(_) => {
                 let _ = popup.show_ui_with_header(header, |ui, filtered| {
                     let shown = Shown { options, filtered: filtered.shown.as_deref() };
-                    keep_active_shown(listbox, &shown, filtered.changed);
+                    searched |= keep_active_shown(listbox, &shown, filtered.changed);
                     // The popup's first pass measures it unseen; scroll once it shows.
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     page = rows_in_view(ui, row_height);
@@ -985,7 +1021,7 @@ impl List<'_> {
                 let total = |filtered: &Filtered| filtered.shown.as_ref().map_or(options.len(), |shown| shown.len());
                 let _ = popup.show_rows_with_header(header, row_height, total, |ui, range, filtered| {
                     let shown = Shown { options, filtered: filtered.shown.as_deref() };
-                    keep_active_shown(listbox, &shown, filtered.changed);
+                    searched |= keep_active_shown(listbox, &shown, filtered.changed);
                     page = rows_in_view(ui, row_height);
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     if let Some(at) = reveal.and_then(|option| shown.position(option)) {
@@ -1004,6 +1040,7 @@ impl List<'_> {
         pass.state.filter = cache;
         pass.state.search = search;
         pass.state.page = page;
+        pass.searched = searched;
         if focused_search {
             pass.state.focus_search = false;
         } else if pass.state.focus_search && self.search.is_some() {
@@ -1039,14 +1076,14 @@ struct Filtered {
 }
 
 /// After a search changed, or when the active option is no longer shown, the first enabled
-/// option shown becomes active.
-fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<'_, '_, '_, T>, changed: bool) {
+/// option shown becomes active; returns whether it did.
+fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<'_, '_, '_, T>, changed: bool) -> bool {
     let hidden = listbox.active().is_some_and(|a| shown.position(a).is_none());
     if changed || hidden {
-        let first = (0..shown.len()).map(|at| shown.option_at(at)).find(|&o| shown.enabled(o));
         let keyboard = changed || listbox.keyboard();
-        listbox.reveal(first, keyboard);
+        listbox.reveal(Listbox::neighbour(shown, None, true), keyboard);
     }
+    changed || hidden
 }
 
 /// What the closed box shows.
@@ -1103,7 +1140,7 @@ pub(crate) fn stories() -> Vec<Story> {
             level: Level::Controls,
             component: "Select",
             name: "Preview",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("preview", true),
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
             show: show_preview,
         },
         Story {
@@ -1203,7 +1240,7 @@ const BLEND_MODES: [(&str, [u8; 3]); 8] = [
     ("Difference", [200, 120, 60]),
 ];
 
-/// The preview story's document: a blend mode and an undo history of whole snapshots.
+/// The blend-mode story's document: a blend mode and an undo history of whole snapshots.
 #[derive(Clone, Debug, Default)]
 struct BlendDoc {
     mode: usize,
@@ -1237,20 +1274,21 @@ struct PreviewState {
     log: VecDeque<String>,
 }
 
-/// Events kept in the preview story's log.
+/// Events kept in the blend-mode story's log.
 const LOG_LEN: usize = 12;
 
 /// Blend modes under a [`GestureHost`]: a swatch shows the document's colour, which follows the
-/// active mode while the list previews; the events newest first and the undo-step count.
+/// value while the list is open, Up and Down on the closed box and, with "wheel steps", the wheel
+/// over it; the events newest first and the undo-step count.
 fn show_preview(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
-    let preview = args.bool("preview");
+    let wheel_steps = args.bool("wheel steps");
     let state_id = ui.scope_id().with("select-preview");
     let mut state = ui.data(|d| d.get_temp::<PreviewState>(state_id)).unwrap_or_default();
     Stack::new(Gap::Stack).show(ui, |ui| {
         row(ui, "Blend mode", |ui| {
             let mut mode = state.doc.mode;
-            let mut select = Select::new("select-blend", "Blend mode", &mut mode).size(size).preview(preview);
+            let mut select = Select::new("select-blend", "Blend mode", &mut mode).size(size).wheel_steps(wheel_steps);
             for (i, (name, _)) in BLEND_MODES.iter().enumerate() {
                 select = select.option(i, *name);
                 if i == 0 || i == 2 || i == 4 {

@@ -54,14 +54,19 @@ struct Host {
 /// A font-size combo box over a document behind a [`GestureHost`], then a button; Ctrl+Z cancels
 /// every gesture as an undo would.
 fn sizes(text: &str) -> Harness<'static, Host> {
+    combo(text, &SIZES)
+}
+
+/// [`sizes`] with `options`.
+fn combo(text: &str, options: &'static [&'static str]) -> Harness<'static, Host> {
     let host = Host { doc: Doc { text: text.to_owned(), undo: Vec::new() }, ..Host::default() };
     harness().build_ui_state(
-        |ui, host: &mut Host| {
+        move |ui, host: &mut Host| {
             if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
                 edit::cancel_all(ui.ctx(), CancelReason::UndoDuringGesture);
             }
             if !host.hidden {
-                let edit = ComboBox::new("size", "Font size", &host.doc.text).options(SIZES).show(ui);
+                let edit = ComboBox::new("size", "Font size", &host.doc.text).options(options.iter().copied()).show(ui);
                 host.submitted |= edit.submitted;
                 if let Some(event) = edit.event {
                     host.events.push(event.clone());
@@ -206,8 +211,10 @@ fn choosing_replaces_the_text_in_one_undo_step_with_the_typing_and_without_a_run
     focus(&mut harness);
     type_text(&mut harness, "1");
     key(&mut harness, Key::ArrowDown);
+    assert_eq!(harness.state().doc.text, "10 pt", "the arrows put the active option's text in at once");
     key(&mut harness, Key::ArrowDown);
-    assert_eq!(active(&harness).as_deref(), Some("12 pt"));
+    assert_eq!((active(&harness).as_deref(), harness.state().doc.text.as_str()), (Some("12 pt"), "12 pt"));
+    assert_eq!(options(&harness), ["10 pt", "12 pt", "14 pt", "18 pt"], "the list keeps the typed text's filter");
     key(&mut harness, Key::Enter);
     harness.run();
     let host = harness.state();
@@ -241,12 +248,14 @@ fn enter_with_no_active_option_commits_the_typed_text_and_closes_the_list() {
     type_text(&mut harness, "1");
     key(&mut harness, Key::ArrowDown);
     assert_eq!(active(&harness).as_deref(), Some("10 pt"));
-    type_text(&mut harness, "2");
+    for _ in 0..3 {
+        key(&mut harness, Key::Backspace);
+    }
     assert_eq!((expanded(&harness), active(&harness)), (Some(true), None), "typing takes the active option back to the text");
     key(&mut harness, Key::Enter);
     let host = harness.state();
     assert!(host.submitted, "Enter submits as in a text field");
-    assert!(matches!(host.events.last(), Some(EditEvent::Commit { value, .. }) if value == "12"), "{:?}", host.events);
+    assert!(matches!(host.events.last(), Some(EditEvent::Commit { value, .. }) if value == "10"), "{:?}", host.events);
     assert_eq!(expanded(&harness), Some(false));
 }
 
@@ -271,7 +280,7 @@ fn esc_closes_the_list_then_cancels_the_run_then_leaves() {
 }
 
 #[test]
-fn tab_commits_the_typed_text_and_moves_on_without_choosing_the_active_option() {
+fn tab_commits_what_the_field_shows_and_moves_on() {
     let mut harness = sizes("");
     harness.run();
     focus(&mut harness);
@@ -280,7 +289,8 @@ fn tab_commits_the_typed_text_and_moves_on_without_choosing_the_active_option() 
     assert_eq!(active(&harness).as_deref(), Some("10 pt"));
     key(&mut harness, Key::Tab);
     harness.run();
-    assert_eq!(harness.state().doc.text, "1", "free text wins");
+    let host = harness.state();
+    assert_eq!((host.doc.text.as_str(), host.doc.undo.len()), ("10 pt", 1));
     assert!(harness.get_by_label("Next").is_focused(), "the focus moved on");
     assert_eq!(expanded(&harness), Some(false));
 }
@@ -343,15 +353,18 @@ fn the_field_is_an_editable_combo_box_that_names_its_list_and_active_option() {
     assert_eq!(node.data().has_popup(), Some(accesskit::HasPopup::Listbox));
     assert!(node.data().controls().is_empty(), "a closed combo box controls nothing");
     focus(&mut harness);
-    key(&mut harness, Key::ArrowDown);
+    key_with(&mut harness, Modifiers::ALT, Key::ArrowDown);
     a11y::assert_labelled(&harness);
     assert_eq!(expanded(&harness), Some(true));
     let list = harness.get_by_role(Role::ListBox).accesskit_node().locate().0;
     assert_eq!(field(&harness).accesskit_node().data().controls(), [list], "the open combo box controls the list");
-    assert_eq!(active(&harness).as_deref(), Some("12 pt"), "Down opens on the option of the field's text");
+    assert_eq!(active(&harness).as_deref(), Some("12 pt"), "Alt+Down opens on the option of the field's text");
+    assert!(option(&harness, "12 pt").accesskit_node().is_selected().unwrap_or(false));
     assert_eq!(options(&harness), SIZES);
     key(&mut harness, Key::ArrowDown);
     assert_eq!(active(&harness).as_deref(), Some("14 pt"));
+    assert!(option(&harness, "14 pt").accesskit_node().is_selected().unwrap_or(false), "the active option's text is the field's, so it is selected");
+    assert_eq!(field(&harness).accesskit_node().value().as_deref(), Some("14 pt"));
     assert!(field_focused(&harness), "the focus stays in the field");
 }
 
@@ -383,15 +396,18 @@ fn right_to_left_the_chevron_is_at_the_left_end_and_the_list_lines_up_with_the_r
 
 #[test]
 fn an_input_method_keeps_its_enter_and_esc_from_the_list() {
-    let mut harness = typed_one();
+    let mut harness = combo("", &["Gill", "Gill Sans", "Helvetica"]);
+    harness.run();
+    focus(&mut harness);
+    type_text(&mut harness, "G");
     key(&mut harness, Key::ArrowDown);
-    assert_eq!(active(&harness).as_deref(), Some("10 pt"));
-    preedit(&mut harness, "2");
+    assert_eq!((active(&harness).as_deref(), harness.state().doc.text.as_str()), (Some("Gill"), "Gill"));
+    preedit(&mut harness, " S");
     assert_eq!(active(&harness), None, "a composition takes the active option back to the text");
     // The platform sends the commit and forwards the Enter that confirmed it.
-    frame_with(&mut harness, [Event::Ime(ImeEvent::Commit("2".to_owned())), key_event(Key::Enter)]);
+    frame_with(&mut harness, [Event::Ime(ImeEvent::Commit(" S".to_owned())), key_event(Key::Enter)]);
     let host = harness.state();
-    assert_eq!(host.doc.text, "12", "the composed text stays");
+    assert_eq!(host.doc.text, "Gill S", "the composed text stays");
     assert!(!host.submitted && commits(host) == 0, "the confirming Enter chooses and commits nothing: {:?}", host.events);
     assert_eq!(expanded(&harness), Some(true));
 
@@ -399,7 +415,7 @@ fn an_input_method_keeps_its_enter_and_esc_from_the_list() {
     preedit(&mut harness, "x");
     frame_with(&mut harness, [Event::Ime(ImeEvent::Preedit { text: String::new(), active_range_chars: None }), key_event(Key::Escape)]);
     assert_eq!(expanded(&harness), Some(true), "the Esc that cancels a composition leaves the list open");
-    assert_eq!(harness.state().doc.text, "12");
+    assert_eq!(harness.state().doc.text, "Gill Sans");
     assert!(field_focused(&harness));
 }
 
@@ -408,10 +424,15 @@ fn a_move_of_the_caret_takes_the_active_option_back_to_the_text() {
     let mut harness = typed_one();
     key(&mut harness, Key::ArrowDown);
     assert_eq!(active(&harness).as_deref(), Some("10 pt"));
+    for caret in [Key::Home, Key::ArrowLeft] {
+        key(&mut harness, caret);
+        assert_eq!((expanded(&harness), active(&harness)), (Some(true), None), "{caret:?}");
+        assert_eq!(harness.state().doc.text, "10 pt", "{caret:?} moves the caret and keeps the text");
+        key(&mut harness, Key::ArrowDown);
+    }
     key(&mut harness, Key::Home);
-    assert_eq!((expanded(&harness), active(&harness)), (Some(true), None));
     key(&mut harness, Key::Enter);
-    assert_submitted(&harness, "1");
+    assert_submitted(&harness, "10 pt");
 }
 
 #[test]
@@ -462,20 +483,29 @@ fn a_list_opened_without_a_run_closes_when_a_click_lands_elsewhere() {
     assert_eq!(expanded(&harness), Some(false), "a click elsewhere closes the list the chevron opened");
 
     focus(&mut harness);
-    key(&mut harness, Key::ArrowDown);
-    assert_eq!(expanded(&harness), Some(true), "Down opens the list");
+    key_with(&mut harness, Modifiers::ALT, Key::ArrowDown);
+    assert_eq!(expanded(&harness), Some(true), "Alt+Down opens the list");
     click_at(&mut harness, away);
-    assert_eq!(expanded(&harness), Some(false), "a click elsewhere closes the list Down opened");
+    assert_eq!(expanded(&harness), Some(false), "a click elsewhere closes the list Alt+Down opened");
     assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
 }
 
 #[test]
-fn alt_down_opens_with_no_option_active_and_alt_up_chooses_the_active_one_or_closes() {
+fn alt_down_opens_on_the_field_s_option_and_alt_up_chooses_the_active_one_or_closes() {
     let mut harness = sizes("12 pt");
     harness.run();
     focus(&mut harness);
     key_with(&mut harness, Modifiers::ALT, Key::ArrowDown);
-    assert_eq!((expanded(&harness), active(&harness)), (Some(true), None), "Alt+Down opens with no option active");
+    assert_eq!((expanded(&harness), active(&harness).as_deref()), (Some(true), Some("12 pt")), "Alt+Down opens on the field's option");
+    key_with(&mut harness, Modifiers::ALT, Key::ArrowUp);
+    assert_eq!(expanded(&harness), Some(false), "Alt+Up chooses it");
+    assert!(harness.state().events.is_empty(), "the same text changes nothing: {:?}", harness.state().events);
+
+    let mut harness = sizes("13 pt");
+    harness.run();
+    focus(&mut harness);
+    key_with(&mut harness, Modifiers::ALT, Key::ArrowDown);
+    assert_eq!((expanded(&harness), active(&harness)), (Some(true), None), "free text has no option to be active");
     key_with(&mut harness, Modifiers::ALT, Key::ArrowUp);
     assert_eq!(expanded(&harness), Some(false), "Alt+Up with none active closes");
     assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
@@ -485,8 +515,72 @@ fn alt_down_opens_with_no_option_active_and_alt_up_chooses_the_active_one_or_clo
     assert_eq!(active(&harness).as_deref(), Some("8 pt"), "Down with none active goes to the first");
     key_with(&mut harness, Modifiers::ALT, Key::ArrowUp);
     harness.run();
-    assert!(matches!(harness.state().events[..], [EditEvent::Set { ref value, .. }] if value == "8 pt"), "{:?}", harness.state().events);
+    let events = &harness.state().events;
+    assert!(
+        matches!(events[..], [EditEvent::Begin { .. }, EditEvent::Update { ref value, .. }, EditEvent::Commit { value: ref last, changed: true, .. }] if value == "8 pt" && last == "8 pt"),
+        "{events:?}"
+    );
     assert_eq!(expanded(&harness), Some(false));
+}
+
+#[test]
+fn esc_in_the_open_list_brings_back_the_text_from_before_the_arrows() {
+    let mut harness = typed_one();
+    key(&mut harness, Key::ArrowDown);
+    key(&mut harness, Key::ArrowDown);
+    assert_eq!(harness.state().doc.text, "12 pt");
+    key(&mut harness, Key::Escape);
+    assert_eq!((harness.state().doc.text.as_str(), expanded(&harness)), ("1", Some(false)), "the typed text comes back and the list closes");
+    assert!(!harness.state().events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "the typing run goes on");
+    type_text(&mut harness, "4");
+    assert_eq!(harness.state().doc.text, "14", "the caret is at the end of the typed text");
+    key(&mut harness, Key::Escape);
+    key(&mut harness, Key::Escape);
+    harness.run();
+    assert!(matches!(harness.state().events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "the next Esc cancels the run");
+    assert_eq!(harness.state().doc.text, "");
+
+    let mut harness = sizes("12 pt");
+    harness.run();
+    focus(&mut harness);
+    key_with(&mut harness, Modifiers::ALT, Key::ArrowDown);
+    key(&mut harness, Key::ArrowDown);
+    assert_eq!(harness.state().doc.text, "14 pt", "the first arrow begins a run");
+    key(&mut harness, Key::Escape);
+    harness.run();
+    let host = harness.state();
+    assert!(
+        matches!(host.events[..], [EditEvent::Begin { .. }, EditEvent::Update { .. }, EditEvent::Cancel { reason: CancelReason::Escape, .. }]),
+        "{:?}",
+        host.events
+    );
+    assert_eq!((host.doc.text.as_str(), host.doc.undo.len(), expanded(&harness)), ("12 pt", 0, Some(false)), "Esc cancels the run the arrows began");
+    assert!(field_focused(&harness));
+}
+
+#[test]
+fn up_and_down_on_the_closed_field_step_the_text_without_opening_the_list() {
+    let mut harness = sizes("24 pt");
+    harness.run();
+    focus(&mut harness);
+    for (k, expected) in [(Key::ArrowDown, "36 pt"), (Key::ArrowDown, "72 pt"), (Key::ArrowDown, "72 pt"), (Key::ArrowUp, "36 pt")] {
+        key(&mut harness, k);
+        harness.run();
+        assert_eq!((harness.state().doc.text.as_str(), expanded(&harness)), (expected, Some(false)), "{k:?}");
+    }
+    let host = harness.state();
+    assert_eq!(host.events.len(), 3, "a Set a step, none past the end: {:?}", host.events);
+    assert!(host.events.iter().all(|e| matches!(e, EditEvent::Set { .. })), "{:?}", host.events);
+    assert!(field_focused(&harness));
+    type_text(&mut harness, "!");
+    assert_eq!(harness.state().doc.text, "36 pt!", "the caret waits at the end of the text");
+
+    let mut harness = sizes("13 pt");
+    harness.run();
+    focus(&mut harness);
+    key(&mut harness, Key::ArrowDown);
+    harness.run();
+    assert_eq!(harness.state().doc.text, "8 pt", "free text steps down to the first option");
 }
 
 #[test]

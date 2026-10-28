@@ -15,9 +15,9 @@ use super::option_list::{
 };
 use super::text_field::{BoxState, Held, field_box};
 use super::{SIZE_NAMES, Select, size_arg};
-use crate::behavior::{ListOptions, Listbox, Typing, TypingLook, take_enter, take_key};
+use crate::behavior::{ListOptions, Listbox, Typed, Typing, TypingLook, take_enter, take_key};
 use crate::direction;
-use crate::edit::{self, EditPolicy, EditResponse, GestureId};
+use crate::edit::{self, CancelReason, EditPolicy, EditResponse, GestureId};
 use crate::popup_list::PopupList;
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
@@ -52,20 +52,27 @@ use crate::theme::{Tokens, TokensOf, margin_x};
 ///   the list closes. Work in the text takes the active option back to it: a change, a move of
 ///   the caret or the selection (Left, Right, Home, End, a press in the text), an input method's
 ///   composition. Enter then commits the typed text.
-/// - **Opened without typing** (the chevron, Down) while no typing run is under way, the list
+/// - **Opened without typing** (the chevron, Alt+Down) while no typing run is under way, the list
 ///   shows every option; the one whose text is the field's has a check mark.
+/// - **The keys in the open list apply live**, as PhotoCraft's font picker: Down, Up, Page Down
+///   and Page Up move the active option and put its text in the field as a change of the typing
+///   run (one that begins the run when none is under way), so the host shows it at once. Enter
+///   (Shift+Enter too, as the field counts it) and Alt+Up choose the active option and close the
+///   list; Enter with none commits the run ([`EditResponse::submitted`]) and closes the list,
+///   Alt+Up with none closes it. Esc brings back the text from before the keys put an option's
+///   in (cancelling the run they began, or changing the typed text's run back) and closes the
+///   list; with nothing put in it only closes the list and the run goes on. The next Esc cancels
+///   the run, and the one after leaves the field. Left, Right, Home and End stay with the caret.
+///   Tab commits what the field shows and moves on. While an input method composes, the keys are
+///   its own ([`Typing::composing`]) and the list reads none.
+/// - **Keys on the closed field**: Up and Down step the text to the option before or after the
+///   field's (with the text none of the options, Down goes to the first and Up to the last),
+///   stopping at the ends, without opening the list: one `Set`, or the commit of the run under
+///   way. Alt+Down opens the list on the field's option.
 /// - **Choosing** an option (a click, the release of a press dragged onto it, Enter on the active
 ///   option) replaces the text and commits the run in that frame, so typing and choosing are one
 ///   undo step; with no run under way the choice is one `Set`. The caret goes to the end of the
-///   chosen text.
-/// - **Keys**: Down opens the list on the option of the field's text (or the first), Alt+Down
-///   opens it with no option active. In the open list, Down, Up, Page Down and Page Up move the
-///   active option; Home and End stay with the text. Enter (Shift+Enter too, as the field
-///   counts it) and Alt+Up choose the active option; Enter with none commits the run
-///   ([`EditResponse::submitted`]) and closes the list, Alt+Up with none closes it. Esc closes
-///   the list and the run goes on; the next Esc cancels the run, and the one after leaves the
-///   field. Tab commits the typed text and moves on: the active option is not chosen. While an
-///   input method composes, the keys are its own ([`Typing::composing`]) and the list reads none.
+///   chosen text, as after each step of the keys.
 /// - **Pointer**: a press on the chevron opens the list, so the same press can drag onto an
 ///   option and choose it on release; a click leaves the list open, and a press on the chevron
 ///   while it is open closes it. A click in the text places the caret and neither opens nor
@@ -156,21 +163,7 @@ impl<'a> ComboBox<'a> {
         }
         let focused = enabled && ui.memory(|m| m.has_focus(id));
 
-        let mut choice = None;
-        if !enabled && state.open {
-            state.close(&mut listbox);
-        } else if focused && Typing::composing(ui, id) {
-            // The input method's keys are its own; its composition takes the active option back
-            // to the text, as typing does.
-            listbox.set_active(None);
-        } else if focused {
-            match read_keys(ui, &mut listbox, &shown, &state, chosen(&options, &state.text)) {
-                Some(KeyAction::Open { active }) => state.open(ui, &mut listbox, active, true),
-                Some(KeyAction::Close) => state.close(&mut listbox),
-                Some(KeyAction::Choose(option)) => choice = Some(option),
-                None => {}
-            }
-        }
+        let (mut choice, keys) = state.keys(ui, id, enabled, &mut listbox, &options, &shown);
 
         // The chevron's end of the box, where a press opens the list rather than placing the caret.
         let end_room = f.pad_x + f.icon + f.gap;
@@ -201,12 +194,20 @@ impl<'a> ComboBox<'a> {
             // Work in the text takes the active option back to it: Enter commits what was typed.
             listbox.set_active(None);
         }
+        // The text the list puts in the field in this pass, which the field shows from the next.
+        let listed = match keys {
+            Some(KeyAction::Moved) => listbox.active().map(|option| state.apply(ui, &mut typed, options[option].clone().into_owned())),
+            Some(KeyAction::Escape) => state.escape(ui, &mut typed, &mut listbox),
+            _ => None,
+        };
 
         let run = if typed.is_typing() { typed.gesture().id() } else { None };
         if state.open && state.run.is_some() && run != state.run {
             state.close(&mut listbox);
         }
         if run.is_some() && typed.text() != state.text {
+            // The user's own text: Esc keeps it.
+            state.before = None;
             state.query = Some(typed.text().to_owned());
             shown = Matches::new(&options, state.query.as_deref());
             // Typing takes the active option back to the text.
@@ -290,7 +291,7 @@ impl<'a> ComboBox<'a> {
             }
         }
 
-        let mut caret = None;
+        let mut caret = listed.as_ref().map(|text| text.chars().count());
         if let Some(option) = choice {
             let text = options[option].clone().into_owned();
             typed.commit_with(ui, text.clone());
@@ -313,7 +314,7 @@ impl<'a> ComboBox<'a> {
         };
         ui.painter().set(under, Shape::Vec(field_box(ui, f, rect, box_state)));
         paint_chevron(ui, f, rect, size, if enabled { f.placeholder } else { f.placeholder_disabled });
-        state.text = typed.text().to_owned();
+        state.text = listed.unwrap_or_else(|| typed.text().to_owned());
         let edit = typed.end(ui);
         if let Some(chars) = caret {
             // The field shows the chosen text from the next frame; the caret waits at its end.
@@ -345,7 +346,7 @@ fn chosen(options: &[Cow<'_, str>], text: &str) -> Option<usize> {
 }
 
 /// The keys the field keeps from egui while it has the focus, on top of `TextEdit`'s: the arrows
-/// (Down opens the list), and Esc while the list is open.
+/// (Up and Down step the value or the list), and Esc while the list is open.
 fn key_filter(open: bool) -> EventFilter {
     EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: open }
 }
@@ -353,17 +354,32 @@ fn key_filter(open: bool) -> EventFilter {
 /// What the keys of a frame do to the list.
 #[derive(Clone, Copy, Debug)]
 enum KeyAction {
-    Open { active: Option<usize> },
+    Open {
+        active: Option<usize>,
+    },
     Close,
     Choose(usize),
+    /// The active option moved: its text goes in the field.
+    Moved,
+    /// Esc in the open list: the text from before the list put any in comes back.
+    Escape,
+    /// Up or Down on the closed field: the option's text goes in the field.
+    Step(usize),
 }
 
 /// The keys of a frame while the field has the focus, read before the field takes the rest.
-fn read_keys(ui: &Ui, listbox: &mut Listbox, shown: &Matches<'_, '_>, state: &ComboState, chosen: Option<usize>) -> Option<KeyAction> {
+fn read_keys(
+    ui: &Ui,
+    listbox: &mut Listbox,
+    options: &[Cow<'_, str>],
+    shown: &Matches<'_, '_>,
+    state: &ComboState,
+    chosen: Option<usize>,
+) -> Option<KeyAction> {
     let key = |modifiers, key| take_key(ui, modifiers, key);
     if state.open {
         if key(Modifiers::NONE, Key::Escape) {
-            return Some(KeyAction::Close);
+            return Some(KeyAction::Escape);
         }
         if let Some(option) = listbox.active()
             && (key(Modifiers::ALT, Key::ArrowUp) || take_enter(ui))
@@ -373,15 +389,19 @@ fn read_keys(ui: &Ui, listbox: &mut Listbox, shown: &Matches<'_, '_>, state: &Co
         if key(Modifiers::ALT, Key::ArrowUp) {
             return Some(KeyAction::Close);
         }
-        listbox.keys(ui, shown, state.page, false);
-        return None;
+        return listbox.keys(ui, shown, state.page, false).then_some(KeyAction::Moved);
     }
-    let alt = key(Modifiers::ALT, Key::ArrowDown);
-    if !alt && !key(Modifiers::NONE, Key::ArrowDown) || shown.is_empty() {
-        return None;
+    if key(Modifiers::ALT, Key::ArrowDown) {
+        let active = chosen.filter(|&c| shown.position(c).is_some());
+        return (!shown.is_empty()).then_some(KeyAction::Open { active });
     }
-    let active = if alt { None } else { chosen.filter(|&c| shown.position(c).is_some()).or(Some(shown.option_at(0))) };
-    Some(KeyAction::Open { active })
+    let all = Matches::new(options, None);
+    for (k, next) in [(Key::ArrowDown, true), (Key::ArrowUp, false)] {
+        if key(Modifiers::NONE, k) {
+            return Listbox::neighbour(&all, chosen, next).map(KeyAction::Step);
+        }
+    }
+    None
 }
 
 /// What the list keeps between frames.
@@ -398,6 +418,16 @@ struct ComboState {
     run: Option<GestureId>,
     /// Rows the list shows at once.
     page: usize,
+    /// The text from before the open list put an option's in, which Esc brings back.
+    before: Option<Before>,
+}
+
+/// The field's text before the open list put an option's in.
+#[derive(Clone)]
+struct Before {
+    text: String,
+    /// The list's first option began the typing run, so Esc cancels it.
+    began_run: bool,
 }
 
 impl ComboState {
@@ -429,7 +459,63 @@ impl ComboState {
         self.open = false;
         self.pressing = false;
         self.run = None;
+        self.before = None;
         listbox.reset();
+    }
+
+    /// Reads the keys of a frame before the field runs and opens, closes or chooses as they
+    /// say; returns the option to choose and what is left for after the field ran.
+    fn keys(
+        &mut self,
+        ui: &Ui,
+        id: Id,
+        enabled: bool,
+        listbox: &mut Listbox,
+        options: &[Cow<'_, str>],
+        shown: &Matches<'_, '_>,
+    ) -> (Option<usize>, Option<KeyAction>) {
+        let focused = enabled && ui.memory(|m| m.has_focus(id));
+        if !enabled && self.open {
+            self.close(listbox);
+        } else if focused && Typing::composing(ui, id) {
+            // The input method's keys are its own; its composition takes the active option back
+            // to the text, as typing does.
+            listbox.set_active(None);
+        } else if focused {
+            match read_keys(ui, listbox, options, shown, self, chosen(options, &self.text)) {
+                Some(KeyAction::Open { active }) => self.open(ui, listbox, active, true),
+                Some(KeyAction::Close) => self.close(listbox),
+                Some(KeyAction::Choose(option) | KeyAction::Step(option)) => return (Some(option), None),
+                other => return (None, other),
+            }
+        }
+        (None, None)
+    }
+
+    /// Puts `text`, the active option's, in the field as a change of the typing run, which it
+    /// begins when none is under way; returns it.
+    fn apply(&mut self, ui: &Ui, typed: &mut Typed, text: String) -> String {
+        let began_run = !typed.is_typing();
+        self.before.get_or_insert_with(|| Before { text: typed.text().to_owned(), began_run });
+        if began_run {
+            typed.gesture().begin();
+        }
+        typed.gesture().update(text.clone(), ui.input(|i| i.modifiers));
+        text
+    }
+
+    /// Esc in the open list: brings back the text from before the list put an option's in
+    /// (cancels the run the list began, or else changes the run back) and closes the list.
+    /// Returns that text, if the list put any in.
+    fn escape(&mut self, ui: &Ui, typed: &mut Typed, listbox: &mut Listbox) -> Option<String> {
+        let before = self.before.take();
+        self.close(listbox);
+        let before = before?;
+        match before.began_run {
+            true => typed.gesture().cancel(CancelReason::Escape),
+            false => typed.gesture().update(before.text.clone(), ui.input(|i| i.modifiers)),
+        }
+        Some(before.text)
     }
 }
 
