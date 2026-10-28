@@ -3,7 +3,7 @@
 use craft_theme::{ButtonVariant, ControlSize, States};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Ui, Widget, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Sense, Ui, Widget, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
@@ -47,12 +47,13 @@ pub struct IconButton<'a> {
     size: ControlSize,
     on: Option<&'a mut bool>,
     enabled: bool,
+    focusable: bool,
     id_salt: Option<IdSalt>,
 }
 
 impl<'a> IconButton<'a> {
     pub fn new(icon: Icon, label: impl Into<String>) -> Self {
-        Self { icon, label: label.into(), size: ControlSize::Md, on: None, enabled: true, id_salt: None }
+        Self { icon, label: label.into(), size: ControlSize::Md, on: None, enabled: true, focusable: true, id_salt: None }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -69,6 +70,13 @@ impl<'a> IconButton<'a> {
     /// Whether it takes input; disabled, it draws the disabled colours and keeps its tooltip.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Whether it takes keyboard focus (a Tab stop); on by default. Off for a button that repeats
+    /// a key of the control it sits in, as a search field's clear button repeats Esc.
+    pub fn focusable(mut self, focusable: bool) -> Self {
+        self.focusable = focusable;
         self
     }
 
@@ -94,11 +102,19 @@ impl<'a> IconButton<'a> {
     }
 }
 
-impl Widget for IconButton<'_> {
-    fn ui(self, ui: &mut Ui) -> Response {
+impl IconButton<'_> {
+    /// Shows the button over `rect` inside a control's own rect, without allocating it in the
+    /// layout ([`Interactive::interact_at`]).
+    pub fn show_at(self, ui: &mut Ui, rect: Rect) -> Response {
+        self.show_in(ui, Some(rect))
+    }
+
+    fn show_in(self, ui: &mut Ui, rect: Option<Rect>) -> Response {
         let style = IconButton::style(&Tokens::of(ui), self.size);
         let mut on = self.on;
+        let sense = if self.focusable { Sense::click() } else { Sense::CLICK };
         let mut element = Interactive::new(salt(ui, self.id_salt), Role::Button, self.label.as_str())
+            .sense(sense)
             .colors(StateColors { fill: style.fill, border: None })
             .on_colors(StateColors { fill: style.selected_fill, border: None })
             .corner(Corner::Control)
@@ -106,7 +122,10 @@ impl Widget for IconButton<'_> {
         if let Some(on) = on.as_deref_mut() {
             element = element.toggle(on);
         }
-        let response = element.show(ui, vec2(style.side, style.side));
+        let response = match rect {
+            Some(rect) => element.interact_at(ui, rect).finish(ui),
+            None => element.show(ui, vec2(style.side, style.side)),
+        };
         // The state after this frame's click, which the fill shows too.
         let on = on.is_some_and(|on| *on);
         let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
@@ -115,6 +134,12 @@ impl Widget for IconButton<'_> {
             icons::paint(ui, rect, self.icon, icon_size(self.size), color);
         }
         response.tooltip(&self.label)
+    }
+}
+
+impl Widget for IconButton<'_> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        self.show_in(ui, None)
     }
 }
 

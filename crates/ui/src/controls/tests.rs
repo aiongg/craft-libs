@@ -486,3 +486,69 @@ fn every_change_is_one_set_with_the_modifiers_held_and_a_mixed_box_becomes_check
     }
     assert_eq!((check, flag, unit, group), (CheckState::Checked, true, 2, 1));
 }
+
+#[test]
+fn text_field_styles_come_from_the_field_tokens() {
+    for t in every_builtin() {
+        let f = &t.component.field;
+        for size in [ControlSize::Sm, ControlSize::Md] {
+            let s = TextField::style(&t, size);
+            assert_eq!((s.height, s.width, s.icon), (f.height.get(size), f.width.get(size), f.icon.get(size)));
+        }
+        let s = TextField::style(&t, ControlSize::Md);
+        assert_eq!((s.pad_x, s.gap, s.role), (f.pad_x, f.gap, f.role));
+        assert_eq!((s.surface.fill, s.surface.radius), (f.fill.rest.to_egui(), crate::theme::corner_radius(f.radius)));
+        if let crate::primitives::SurfaceEdge::Border(stroke) = s.surface.edge {
+            assert_eq!(stroke.color, f.border.rest.to_egui());
+        }
+        let colors = [s.fill_disabled, s.border_hover, s.border_focused, s.border_disabled, s.text, s.text_disabled, s.placeholder];
+        let tokens = [f.fill.disabled, f.border.hover, f.border.focused, f.border.disabled, f.text.rest, f.text.disabled, f.placeholder.rest];
+        assert_eq!(colors, tokens.map(|c| c.to_egui()));
+        let colors = [s.placeholder_disabled, s.selection, s.selected_text, s.caret, s.invalid];
+        assert_eq!(colors, [f.placeholder.disabled, f.selection, f.selected_text, f.caret, f.invalid].map(|c| c.to_egui()));
+    }
+}
+
+/// The edge strokes of `shapes` in `color`, by width.
+fn strokes_in(shapes: &[Shape], color: Color32) -> Vec<f32> {
+    shapes
+        .iter()
+        .filter_map(|s| match s {
+            Shape::Rect(r) if r.stroke.color == color && r.stroke.width > 0.0 => Some(r.stroke.width),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A field in `theme`, focused when `focus`: its style and the shapes of a pass.
+fn field_pass(theme: &ThemeDef, invalid: bool, focus: bool) -> (TextFieldStyle, Vec<Shape>) {
+    let ctx = context();
+    let id = Cell::new(egui::Id::NULL);
+    let show = |ui: &mut Ui| id.set(TextField::new("edge", "Name", "text").invalid(invalid).show(ui).response.id);
+    pass(&ctx, theme, vec![], show);
+    if focus {
+        ctx.memory_mut(|m| m.request_focus(id.get()));
+    }
+    let shapes = pass(&ctx, theme, vec![], show);
+    (TextField::style(&tokens_of(theme, Mode::Light), ControlSize::Md), shapes)
+}
+
+#[test]
+fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours() {
+    let flat = theme("craft.pro-light");
+    let (s, shapes) = field_pass(&flat, false, true);
+    assert_eq!(strokes_in(&shapes, s.border_focused), [1.0], "a focused edge in `field.border.focused`");
+    let (s, shapes) = field_pass(&flat, true, false);
+    assert_eq!(strokes_in(&shapes, s.invalid), [1.0]);
+    let (s, shapes) = field_pass(&flat, true, true);
+    assert_eq!(strokes_in(&shapes, s.invalid), [2.0], "focused and invalid: the invalid edge, twice as wide");
+
+    let classic = theme("craft.classic");
+    let (s, shapes) = field_pass(&classic, false, false);
+    assert!(matches!(s.surface.edge, crate::primitives::SurfaceEdge::Bevel { .. }));
+    assert!(strokes_in(&shapes, s.border_focused).is_empty() && strokes_in(&shapes, s.invalid).is_empty());
+    let (s, shapes) = field_pass(&classic, false, true);
+    assert_eq!(strokes_in(&shapes, s.border_focused), [1.0], "a focused bevel draws the edge inside it");
+    let (s, shapes) = field_pass(&classic, true, true);
+    assert_eq!(strokes_in(&shapes, s.invalid), [2.0]);
+}

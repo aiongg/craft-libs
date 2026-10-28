@@ -18,10 +18,11 @@
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
 //!   [`EditResponse`](crate::edit::EditResponse).
+//! - [`TextField`] and [`SearchField`]: one line of text; a typing run is one edit gesture.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`), so a theme's component
+//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`), so a theme's component
 //! overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
@@ -61,6 +62,9 @@ pub(crate) mod swatch;
 pub(crate) mod switch;
 #[cfg(test)]
 mod tests;
+pub(crate) mod text_field;
+#[cfg(test)]
+mod text_field_tests;
 pub(crate) mod toggle_button;
 pub(crate) mod tooltip;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -84,6 +88,7 @@ pub use slider::{Slider, SliderStyle};
 pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle};
 pub use switch::{Switch, SwitchStyle};
+pub use text_field::{SearchField, TextField, TextFieldStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
 

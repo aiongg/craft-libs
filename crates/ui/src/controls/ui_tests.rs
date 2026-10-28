@@ -825,3 +825,39 @@ fn a_tooltip_shortcut_follows_its_text_in_reading_order() {
     let x = |harness: &Harness<'_, ()>, text: &str| harness.get_by_value(text).rect().center().x;
     assert!(x(&harness, "Ctrl+Z") < x(&harness, "Undo the last change"), "right to left, the shortcut is on the left");
 }
+
+#[test]
+fn text_fields_report_their_role_name_value_placeholder_and_state() {
+    let mut harness = harness().build_ui(|ui| {
+        let _ = TextField::new("name", "Name", "Layer 1").placeholder("Untitled").show(ui);
+        let _ = TextField::new("code", "Code", "x/1").invalid(true).show(ui);
+        let _ = TextField::new("secret", "Password", "hunter2").password(true).show(ui);
+        let _ = TextField::new("locked", "Locked", "").placeholder("Nothing here").enabled(false).show(ui);
+        let _ = SearchField::new("search", "Search layers", "sky", "Clear").placeholder("Search").show(ui);
+    });
+    harness.run();
+    a11y::assert_labelled(&harness);
+    {
+        let name = harness.get_by_label("Name");
+        let name = name.accesskit_node();
+        assert_eq!((name.role(), name.value().as_deref(), name.data().placeholder()), (Role::TextInput, Some("Layer 1"), Some("Untitled")));
+        assert!(!name.is_disabled() && name.data().invalid().is_none());
+        assert_eq!(harness.get_by_label("Code").accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
+        let secret = harness.get_by_label("Password");
+        let secret = secret.accesskit_node();
+        assert_eq!(secret.role(), Role::PasswordInput);
+        assert_ne!(secret.value().as_deref(), Some("hunter2"), "a password is not read out");
+        let locked = harness.get_by_label("Locked");
+        let locked = locked.accesskit_node();
+        assert!(locked.is_disabled() && !locked.is_read_only());
+        assert_eq!(locked.placeholder(), Some("Nothing here"));
+        let search = harness.get_by_label("Search layers");
+        let search = search.accesskit_node();
+        assert_eq!((search.role(), search.value().as_deref()), (Role::SearchInput, Some("sky")));
+        assert_eq!(harness.get_by_label("Clear").accesskit_node().role(), Role::Button);
+    }
+
+    // One Tab stop per enabled field: the clear button and the disabled field are none.
+    let stops: Vec<_> = a11y::tab_order(&mut harness).into_iter().map(|stop| stop.label).collect();
+    assert_eq!(stops, ["Name", "Code", "Password", "Search layers"]);
+}

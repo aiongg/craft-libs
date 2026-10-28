@@ -6,7 +6,7 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, Progress, RadioGroup, Segmented, Slider, Swatch, Switch,
-    ToggleButton, Tooltip,
+    TextField, ToggleButton, Tooltip,
 };
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
@@ -187,6 +187,28 @@ fn slider() {
         surface(d, "thumb.surface", &s.thumb_surface);
         states(d, "thumb.fill", &s.thumb_fill);
         states(d, "thumb.border", &s.thumb_border);
+    });
+}
+
+/// Text fields; search fields draw with the same style and a small icon button.
+#[test]
+fn text_field() {
+    check("text_field.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = TextField::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("width", s.width).line("icon", s.icon);
+            });
+        }
+        let s = TextField::style(t, ControlSize::Md);
+        d.line("pad_x", s.pad_x).line("gap", s.gap).line("role", role(s.role));
+        surface(d, "surface", &s.surface);
+        d.line("fill.disabled", s.fill_disabled);
+        d.line("border.hover", s.border_hover).line("border.focused", s.border_focused).line("border.disabled", s.border_disabled);
+        d.line("text.rest", s.text).line("text.disabled", s.text_disabled);
+        d.line("placeholder.rest", s.placeholder).line("placeholder.disabled", s.placeholder_disabled);
+        d.line("selection.fill", s.selection).line("selection.text", s.selected_text);
+        d.line("caret", s.caret).line("invalid", s.invalid);
     });
 }
 
