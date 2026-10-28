@@ -163,7 +163,10 @@ fn levels_defaults_come_from_semantic_tokens_and_the_thumb_edge_meets_the_indica
     let listed: Vec<_> = ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Levels(_)))).collect();
     assert_eq!(
         listed.iter().map(|p| (p.fg, p.bg, p.minimum)).collect::<Vec<_>>(),
-        [(TokenRef::Component(edge), TokenRef::Color(T::SurfacePanel), (3.0, 4.5))]
+        [
+            (TokenRef::Component(edge), TokenRef::Color(T::SurfacePanel), (3.0, 4.5)),
+            (TokenRef::Component(edge), TokenRef::Color(T::SurfaceRaised), (3.0, 4.5)),
+        ]
     );
     for theme in builtins() {
         for a in appearances().into_iter().filter(|a| a.text_size == TextSize::default()) {
@@ -171,6 +174,9 @@ fn levels_defaults_come_from_semantic_tokens_and_the_thumb_edge_meets_the_indica
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let ratio = pair_ratio(&r.tokens, edge, None);
             assert!(ratio >= min, "{} {a:?}: levels.thumb_edge on surface.panel is {ratio:.2}, needs {min}", theme.id);
+            let raised = r.tokens.color(T::SurfaceRaised);
+            let ratio = contrast_ratio(over(r.tokens.component.color(edge).unwrap(), raised), raised);
+            assert!(ratio >= min, "{} {a:?}: levels.thumb_edge on surface.raised is {ratio:.2}, needs {min}", theme.id);
         }
     }
 

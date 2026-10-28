@@ -126,6 +126,20 @@ pub struct LevelsStyle {
     pub field_gap: f32,
 }
 
+impl From<&LevelsStyle> for ThumbRowStyle {
+    fn from(style: &LevelsStyle) -> Self {
+        Self {
+            height: style.row,
+            thumb: vec2(style.thumb_width, style.thumb_height),
+            hit: style.hit,
+            edge: style.thumb_edge,
+            disabled_edge: style.disabled_edge,
+            ring: style.ring,
+            ring_width: style.ring_width,
+        }
+    }
+}
+
 /// The thumbs' faces: image tones, the same in every theme.
 const FACES: [Color32; 3] = [Color32::BLACK, Color32::from_gray(128), Color32::WHITE];
 
@@ -140,13 +154,13 @@ const CLIP: &str = "craft_ui::levels_clip";
 
 /// The input level the gamma thumb sits at: the level that maps to 50 % grey. `values` are the
 /// input row's (black, gamma, white).
-fn gamma_at(values: &[f64], gamma: f64) -> f64 {
+pub(crate) fn gamma_at(values: &[f64], gamma: f64) -> f64 {
     let (black, white) = (values[0], values[2]);
     black + (white - black) * 0.5f64.powf(gamma)
 }
 
 /// The gamma that puts its thumb at input level `x`.
-fn gamma_from(values: &[f64], x: f64) -> f64 {
+pub(crate) fn gamma_from(values: &[f64], x: f64) -> f64 {
     let (black, white) = (values[0], values[2]);
     let t = ((x - black) / (white - black).max(f64::MIN_POSITIVE)).clamp(GAMMA_T, 1.0 - GAMMA_T);
     t.ln() / 0.5f64.ln()
@@ -323,7 +337,9 @@ impl<'a> LevelsEditor<'a> {
     /// Which input end editor `id` is dragging while Alt is held, as of its last pass: the host
     /// shows the image's clipping for it.
     pub fn clipping(ctx: &Context, id: Id) -> Option<LevelsClip> {
-        ctx.data(|d| d.get_temp::<Option<LevelsClip>>(id.with(CLIP))).flatten()
+        let (clip, pass) = ctx.data(|d| d.get_temp::<(Option<LevelsClip>, u64)>(id.with(CLIP)))?;
+        // An editor that isn't drawn any more (hidden during the drag) reports nothing.
+        clip.filter(|_| pass + 1 >= ctx.cumulative_pass_nr())
     }
 
     pub fn style(tokens: &UiTokens) -> LevelsStyle {
@@ -386,7 +402,7 @@ impl<'a> LevelsEditor<'a> {
         width: f32,
         enabled: bool,
     ) -> (Option<EditEvent<Levels>>, bool, bool) {
-        let rows = ThumbRowStyle::of(tokens);
+        let rows = ThumbRowStyle::from(style);
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
         let levels = *self.levels;
@@ -432,7 +448,8 @@ impl<'a> LevelsEditor<'a> {
             Some(2) if alt => Some(LevelsClip::Highlights),
             _ => None,
         };
-        ui.data_mut(|d| d.insert_temp(id.with(CLIP), clip));
+        let pass = ui.ctx().cumulative_pass_nr();
+        ui.data_mut(|d| d.insert_temp(id.with(CLIP), (clip, pass)));
 
         let level = |field: NumberField<'a>| field.step(self.step).decimals(self.decimals..=self.decimals);
         let [black, gamma, white] = input.values;
@@ -465,6 +482,11 @@ impl<'a> LevelsEditor<'a> {
         ui.spacing_mut().item_spacing.y = 0.0;
         let (bar, _) = ui.allocate_exact_size(vec2(width, style.bar), Sense::hover());
         ui.spacing_mut().item_spacing.y = stack_gap;
+        // The bar spans the thumbs' travel and is painted first: a thumb's ring reaches over it.
+        let bar = Rect::from_x_y_ranges((bar.left() + rows.inset())..=(bar.right() - rows.inset()), bar.y_range());
+        if ui.is_rect_visible(bar) {
+            ui.painter().add(gradient(bar, Rgba::BLACK.to_egui(), self.channel.bar(tokens), false));
+        }
         let thumbs = [
             Thumb::new(self.labels.out_black.as_str(), FACES[0]).default_value(start),
             Thumb::new(self.labels.out_white.as_str(), FACES[2]).default_value(end),
@@ -475,11 +497,6 @@ impl<'a> LevelsEditor<'a> {
             .enabled(enabled)
             .press_waits(waits)
             .show(ui, &rows);
-        let bar = Rect::from_x_y_ranges(output.travel.0..=output.travel.1, bar.y_range());
-        if ui.is_rect_visible(bar) {
-            ui.painter().add(gradient(bar, Rgba::BLACK.to_egui(), self.channel.bar(tokens), false));
-        }
-
         let [out_black, out_white] = output.values;
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w2 = full.min(fields.share(2));
