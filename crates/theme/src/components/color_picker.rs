@@ -1,4 +1,4 @@
-//! Colour picker: the sizes of the area, strip, compare swatch, marker and pointer. Sizes only (no
+//! Colour picker: the sizes of the area, strip, compare swatch, marker, pointer and swatch pair. Sizes only (no
 //! colours: the picker's colours come from the line, overlay and text tokens): they scale with
 //! the control height, and no theme overrides them.
 
@@ -37,6 +37,14 @@ pub struct ColorPickerTokens {
     pub warning_icon: f32,
     /// Size of a warning's chip of the nearest passing colour: `color_picker.warning_chip`.
     pub warning_chip: f32,
+    /// Side of a swatch pair's well: `color_picker.pair_well`.
+    pub pair_well: f32,
+    /// Offset of the back well from the front one, on both axes: `color_picker.pair_step`.
+    pub pair_step: f32,
+    /// Width of the gap around the front well: `color_picker.pair_gap`.
+    pub pair_gap: f32,
+    /// Width of a ring well's band: `color_picker.pair_ring`.
+    pub pair_ring: f32,
 }
 
 /// The colour picker has no overridable field: its sizes come from the code, as every size does.
@@ -68,6 +76,10 @@ impl Family for ColorPickerTokens {
             pointer_height: fine(values::COLOR_PICKER_POINTER_HEIGHT),
             warning_icon: scale(values::COLOR_PICKER_WARNING_ICON),
             warning_chip: scale(values::COLOR_PICKER_WARNING_CHIP),
+            pair_well: scale(values::COLOR_PICKER_PAIR_WELL),
+            pair_step: scale(values::COLOR_PICKER_PAIR_STEP),
+            pair_gap: fine(values::COLOR_PICKER_PAIR_GAP),
+            pair_ring: scale(values::COLOR_PICKER_PAIR_RING),
         }
     }
 

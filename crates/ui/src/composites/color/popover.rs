@@ -2,9 +2,7 @@
 
 use craft_theme::{ControlSize, Srgba};
 use egui::accesskit::{HasPopup, Role};
-use egui::text::CCursorRange;
-use egui::text_edit::TextEditState;
-use egui::{AsIdSalt, Id, IdSalt, Key, LayerId, Modifiers, Order, PopupCloseBehavior, Ui};
+use egui::{AsIdSalt, Id, IdSalt, Key, LayerId, Modifiers, Order, PopupCloseBehavior, Response, Ui};
 
 use super::hex::hex_id;
 use super::{ColorArea, ColorPicker, ColorPickerLayout, ColorPickerResponse, PickedColor};
@@ -99,83 +97,104 @@ impl<'a> ColorPopover<'a> {
         let Self { id_salt, label, color, numbers, size, enabled, picker: setup } = self;
         let enabled = enabled && ui.is_enabled();
         let swatch = ui.add(Swatch::new(id_salt, label.as_str(), color.to_rgba()).size(size).enabled(enabled));
-        let ctx = ui.ctx().clone();
-        let state_id = swatch.id.with("craft_ui::color_popover");
-        let stored = ctx.data(|d| d.get_temp::<Open>(state_id)).filter(|_| enabled).unwrap_or_default();
-        let was_open = stored.open;
-        let mut open = was_open;
-        let mut fresh = stored.fresh;
-        // A frame may run in two passes (the popup's first is measured, then discarded); the
-        // click shows in both.
-        let frame = ctx.cumulative_frame_nr();
-        if swatch.clicked() && enabled {
-            if stored.clicked != Some(frame) {
-                open = !open;
-                fresh = open;
-            }
-            if open {
-                // The key that opened the popup is not the hex field's, which takes the focus at once.
-                ui.input_mut(|i| {
-                    i.consume_key(Modifiers::NONE, Key::Enter);
-                    i.consume_key(Modifiers::NONE, Key::Space);
-                });
-            }
-        }
-        let clicked = if swatch.clicked() { Some(frame) } else { stored.clicked };
+        let toggled = swatch.clicked();
+        popup(ui, swatch, toggled, &label, color, numbers, enabled, setup)
+    }
+}
 
-        let popup = egui::Popup::menu(&swatch);
-        let popup_id = popup.get_id();
-        // A popup's first pass is laid out unseen and takes no focus; the swatch keeps it until then.
-        let laid_out = ctx.read_response(popup_id).is_some();
-        let tokens = Tokens::of(ui);
-        let parts = ColorArea::style(&tokens);
-        let width = parts.area + Gap::Inline.points(&tokens) + parts.strip;
-        let picker_salt = IdSalt::new("picker");
-        let mut shown = None;
-        PopupList::with_popup(popup, ui, &swatch)
-            .open(&mut open)
-            .focus_owners(&[swatch.id])
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .height(f32::INFINITY)
-            .surface(Surface::style(&tokens, SurfaceKind::Popup))
-            .show_ui(|ui| {
-                ui.set_width(width);
-                let hex = hex_id(Interactive::id_in(ui, picker_salt));
-                if fresh && laid_out {
-                    focus_hex(ui, hex, color);
-                }
-                let mut picker = ColorPicker::new("picker", label.as_str(), color, numbers).layout(ColorPickerLayout::Compact).enabled(enabled);
-                if let Some(setup) = setup {
-                    picker = setup(picker);
-                }
-                let response = picker.show(ui);
-                // A gesture the picker cancelled with Esc is not a request to close.
-                if matches!(response.edit.event, Some(EditEvent::Cancel { .. })) {
-                    ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-                }
-                // The popup's first pass may be discarded and measured again: keep asking until
-                // the field has the focus.
-                fresh &= !ui.memory(|m| m.has_focus(hex));
-                shown = Some(response);
-            });
-        ctx.data_mut(|d| d.insert_temp(state_id, Open { open, fresh: fresh && open, clicked }));
-        if was_open && !open && focus_free_or_inside(&ctx, popup_id) {
-            ctx.memory_mut(|m| m.request_focus(swatch.id));
+const STATE: &str = "craft_ui::color_popover";
+
+/// The popup of a colour popover under `anchor`, which the caller has drawn: `toggled` opens it
+/// when closed and closes it when open (the anchor's click, or another gesture of the caller's).
+/// The response's edit carries `anchor`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn popup<'a, 'b>(
+    ui: &mut Ui,
+    swatch: Response,
+    toggled: bool,
+    label: &str,
+    color: Srgba,
+    numbers: &'a LocaleNumbers,
+    enabled: bool,
+    setup: Option<Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'b>>,
+) -> ColorPopoverResponse {
+    let ctx = ui.ctx().clone();
+    let state_id = swatch.id.with(STATE);
+    let stored = ctx.data(|d| d.get_temp::<Open>(state_id)).filter(|_| enabled).unwrap_or_default();
+    let was_open = stored.open;
+    let mut open = was_open;
+    let mut fresh = stored.fresh;
+    // A frame may run in two passes (the popup's first is measured, then discarded); the
+    // click shows in both.
+    let frame = ctx.cumulative_frame_nr();
+    if toggled && enabled {
+        if stored.clicked != Some(frame) {
+            open = !open;
+            fresh = open;
         }
-        ctx.accesskit_node_builder(swatch.id, |node| {
-            node.set_has_popup(HasPopup::Dialog);
-            node.set_expanded(open);
-        });
         if open {
-            ctx.accesskit_node_builder(popup_id, |node| node.set_role(Role::Dialog));
+            // The key that opened the popup is not the hex field's, which takes the focus at once.
+            ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::Enter);
+                i.consume_key(Modifiers::NONE, Key::Space);
+            });
         }
-        match shown {
-            Some(ColorPickerResponse { edit, eyedropper_requested }) => {
-                let picker_id = Some(edit.response.id);
-                ColorPopoverResponse { edit: EditResponse::new(swatch, edit.event), eyedropper_requested, picker_id, open }
+    }
+    let clicked = if toggled { Some(frame) } else { stored.clicked };
+
+    let popup = egui::Popup::menu(&swatch);
+    let popup_id = popup.get_id();
+    // A popup's first pass is laid out unseen and takes no focus; the swatch keeps it until then.
+    let laid_out = ctx.read_response(popup_id).is_some();
+    let tokens = Tokens::of(ui);
+    let parts = ColorArea::style(&tokens);
+    let width = parts.area + Gap::Inline.points(&tokens) + parts.strip;
+    let picker_salt = IdSalt::new("picker");
+    let mut shown = None;
+    PopupList::with_popup(popup, ui, &swatch)
+        .open(&mut open)
+        .focus_owners(&[swatch.id])
+        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+        .height(f32::INFINITY)
+        .surface(Surface::style(&tokens, SurfaceKind::Popup))
+        .show_ui(|ui| {
+            ui.set_width(width);
+            let picker_id = Interactive::id_in(ui, picker_salt);
+            let hex = hex_id(picker_id);
+            if fresh && laid_out {
+                ColorPicker::focus_hex(ui.ctx(), picker_id);
             }
-            None => ColorPopoverResponse { edit: EditResponse::new(swatch, None), eyedropper_requested: false, picker_id: None, open },
+            let mut picker = ColorPicker::new("picker", label, color, numbers).layout(ColorPickerLayout::Compact).enabled(enabled);
+            if let Some(setup) = setup {
+                picker = setup(picker);
+            }
+            let response = picker.show(ui);
+            // A gesture the picker cancelled with Esc is not a request to close.
+            if matches!(response.edit.event, Some(EditEvent::Cancel { .. })) {
+                ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+            }
+            // The popup's first pass may be discarded and measured again: keep asking until
+            // the field has the focus.
+            fresh &= !ui.memory(|m| m.has_focus(hex));
+            shown = Some(response);
+        });
+    ctx.data_mut(|d| d.insert_temp(state_id, Open { open, fresh: fresh && open, clicked }));
+    if was_open && !open && focus_free_or_inside(&ctx, popup_id) {
+        ctx.memory_mut(|m| m.request_focus(swatch.id));
+    }
+    ctx.accesskit_node_builder(swatch.id, |node| {
+        node.set_has_popup(HasPopup::Dialog);
+        node.set_expanded(open);
+    });
+    if open {
+        ctx.accesskit_node_builder(popup_id, |node| node.set_role(Role::Dialog));
+    }
+    match shown {
+        Some(ColorPickerResponse { edit, eyedropper_requested }) => {
+            let picker_id = Some(edit.response.id);
+            ColorPopoverResponse { edit: EditResponse::new(swatch, edit.event), eyedropper_requested, picker_id, open }
         }
+        None => ColorPopoverResponse { edit: EditResponse::new(swatch, None), eyedropper_requested: false, picker_id: None, open },
     }
 }
 
@@ -187,15 +206,6 @@ struct Open {
     fresh: bool,
     /// The frame of the last click on the swatch.
     clicked: Option<u64>,
-}
-
-/// Focuses the hex field `id` with its text selected.
-fn focus_hex(ui: &Ui, id: Id, color: Srgba) {
-    let [r, g, b, _] = color.to_rgba().0;
-    let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
-    state.cursor.set_char_range(Some(CCursorRange::select_all_str(&format!("{r:02X}{g:02X}{b:02X}"))));
-    state.store(ui.ctx(), id);
-    ui.memory_mut(|m| m.request_focus(id));
 }
 
 /// Whether no control has the focus, or the focused one is in the popup `popup`: a close that

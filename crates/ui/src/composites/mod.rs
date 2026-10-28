@@ -54,7 +54,7 @@ mod section_header_tests;
 
 pub use color::{
     AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
-    ColorWarning, PickedColor, SwatchPalette,
+    ColorWarning, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
 };
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};

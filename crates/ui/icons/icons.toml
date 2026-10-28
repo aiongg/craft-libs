@@ -369,3 +369,19 @@ lucide = "triangle-alert"
 phosphor = "warning"
 carbon = "warning--alt"
 tabler = "alert-triangle"
+
+[[icon]]
+name = "swap_colors"
+directional = false
+lucide = "arrow-left-right"
+phosphor = "swap"
+carbon = "arrows--horizontal"
+tabler = "arrows-exchange"
+
+[[icon]]
+name = "default_colors"
+directional = false
+lucide = "squares-subtract"
+phosphor = "subtract-square"
+carbon = "intersect"
+tabler = "layers-subtract"

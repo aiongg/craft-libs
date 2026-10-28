@@ -13,6 +13,10 @@ mod full_stories;
 #[cfg(test)]
 mod full_tests;
 mod hex;
+mod pair;
+mod pair_stories;
+#[cfg(test)]
+mod pair_tests;
 mod palette;
 mod picker;
 #[cfg(test)]
@@ -28,6 +32,7 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
+pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::SwatchPalette;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
@@ -227,7 +232,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "SwatchPair", "SwatchPalette"];
 
 const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
 
@@ -283,6 +288,7 @@ pub(crate) fn stories() -> Vec<Story> {
         },
     ];
     stories.extend(full_stories::stories());
+    stories.extend(pair_stories::stories());
     stories
 }
 

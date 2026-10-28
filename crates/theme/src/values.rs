@@ -498,6 +498,14 @@ pub const COLOR_PICKER_POINTER_HEIGHT: f32 = 8.0;
 pub const COLOR_PICKER_WARNING_ICON: f32 = 13.0;
 /// Compact size of a warning's chip of the nearest passing colour.
 pub const COLOR_PICKER_WARNING_CHIP: f32 = 10.0;
+/// Compact side of a swatch pair's well.
+pub const COLOR_PICKER_PAIR_WELL: f32 = 24.0;
+/// Compact offset of a swatch pair's back well from its front well, on both axes.
+pub const COLOR_PICKER_PAIR_STEP: f32 = 12.0;
+/// Compact width of the gap around a swatch pair's front well.
+pub const COLOR_PICKER_PAIR_GAP: f32 = 2.0;
+/// Compact width of a swatch pair's ring well.
+pub const COLOR_PICKER_PAIR_RING: f32 = 7.0;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;

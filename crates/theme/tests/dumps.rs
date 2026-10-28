@@ -434,6 +434,10 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         pointer_height,
         warning_icon,
         warning_chip,
+        pair_well,
+        pair_step,
+        pair_gap,
+        pair_ring,
         ..
     } = p;
     out.line("color_picker.area", len(*area));
@@ -450,6 +454,10 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.pointer_height", len(*pointer_height));
     out.line("color_picker.warning_icon", len(*warning_icon));
     out.line("color_picker.warning_chip", len(*warning_chip));
+    out.line("color_picker.pair_well", len(*pair_well));
+    out.line("color_picker.pair_step", len(*pair_step));
+    out.line("color_picker.pair_gap", len(*pair_gap));
+    out.line("color_picker.pair_ring", len(*pair_ring));
 }
 
 fn property_lines(out: &mut Lines, p: &PropertyTokens) {
