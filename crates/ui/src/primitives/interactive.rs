@@ -34,7 +34,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 /// for a single element.
 #[derive(Debug)]
 pub struct Interactive<'a> {
-    id_salt: IdSalt,
+    id: IdSource,
     sense: Sense,
     enabled: bool,
     checked: Option<State<'a>>,
@@ -42,6 +42,15 @@ pub struct Interactive<'a> {
     selected: Option<State<'a>>,
     report: Report,
     look: Look,
+}
+
+/// Where an element's id comes from.
+#[derive(Debug)]
+enum IdSource {
+    /// A salt in the `Ui` the element is placed in.
+    Salt(IdSalt),
+    /// The id itself.
+    Id(Id),
 }
 
 /// What [`Sensed::finish`] reports to AccessKit, besides the state.
@@ -108,14 +117,25 @@ impl<'a> Interactive<'a> {
     /// An element with the AccessKit `role` and accessible name `label`; `id_salt` keeps its
     /// focus and animations when the layout around it changes.
     pub fn new(id_salt: impl AsIdSalt, role: Role, label: impl Into<String>) -> Self {
+        Self::with_id_source(IdSource::Salt(IdSalt::new(id_salt)), role, label.into())
+    }
+
+    /// An element with the id `id` wherever it is placed: for an element whose id is needed
+    /// before the `Ui` it sits in exists, e.g. an option of a
+    /// [`RadioSet`](crate::controls::RadioSet).
+    pub fn with_id(id: Id, role: Role, label: impl Into<String>) -> Self {
+        Self::with_id_source(IdSource::Id(id), role, label.into())
+    }
+
+    fn with_id_source(id: IdSource, role: Role, label: String) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            id,
             sense: Sense::click(),
             enabled: true,
             checked: None,
             mixed: false,
             selected: None,
-            report: Report { role, label: label.into(), value: None, numeric: None, expanded: None, busy: false },
+            report: Report { role, label, value: None, numeric: None, expanded: None, busy: false },
             look: Look { surface: None, corner: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
         }
     }
@@ -262,8 +282,11 @@ impl<'a> Interactive<'a> {
     /// senses clicks or drags over an earlier widget takes that widget's hits (the later widget
     /// wins); one that senses only focus, as a slider's thumb, leaves them to the control.
     pub fn interact_at(mut self, ui: &Ui, rect: Rect) -> Sensed {
-        // `id_salt` is already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
-        let id = ui.make_persistent_id(self.id_salt);
+        let id = match self.id {
+            // Already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
+            IdSource::Salt(salt) => ui.make_persistent_id(salt),
+            IdSource::Id(id) => id,
+        };
         // A WAI-ARIA link activates on Enter only; Space scrolls.
         let options = InteractOptions { enabled: self.enabled, activate_on_space: self.report.role != Role::Link, ..Default::default() };
         let mut response = ui.interact_opt(rect, id, self.sense, options);

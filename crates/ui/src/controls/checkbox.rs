@@ -170,7 +170,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
             .state_layer(false)
             .enabled(self.enabled)
             .interact(ui, laid.size);
-        let mut gesture = Gesture::load(ui, sensed.response().id, &*self.value, EditPolicy::default());
+        let mut gesture = Gesture::load(ui, sensed.response().id, &*self.value, EditPolicy::default()).enabled(sensed.response().enabled());
         let clicked = sensed.response().clicked();
         if clicked {
             let next = self.value.toggled();

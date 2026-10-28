@@ -99,7 +99,7 @@ impl<'a> Switch<'a> {
             .state_layer(false)
             .enabled(self.enabled)
             .interact(ui, laid.size);
-        let mut gesture = Gesture::load(ui, sensed.response().id, &*self.on, EditPolicy::default());
+        let mut gesture = Gesture::load(ui, sensed.response().id, &*self.on, EditPolicy::default()).enabled(sensed.response().enabled());
         let clicked = sensed.response().clicked();
         if clicked {
             gesture.set(!*self.on);

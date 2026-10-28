@@ -1,6 +1,7 @@
-//! What [`Checkbox`](super::Checkbox), [`Radio`](super::Radio) and [`Switch`](super::Switch)
-//! share: an indicator at the reading start with the label after it, the indicator drawn on the
-//! sunken [`Surface`](crate::primitives::Surface) in the `check.*` colours.
+//! What [`Checkbox`](super::Checkbox), the radio buttons of [`RadioGroup`](super::RadioGroup) and
+//! [`RadioSet`](super::RadioSet), and [`Switch`](super::Switch) share: an indicator at the reading
+//! start with the label after it, the indicator drawn on the sunken
+//! [`Surface`](crate::primitives::Surface) in the `check.*` colours.
 
 use std::sync::Arc;
 

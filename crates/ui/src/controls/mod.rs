@@ -6,8 +6,8 @@
 //! - [`ToggleButton`]: a secondary-looking button that stays pressed while on.
 //! - [`Segmented`]: one of a few options (tool modes) on a track, a WAI-ARIA radio group.
 //! - [`Checkbox`]: a box that is checked, unchecked or mixed ([`CheckState`]).
-//! - [`Radio`] and [`RadioGroup`]: one of several options as radio buttons; the group is a WAI-ARIA
-//!   radio group.
+//! - [`RadioGroup`] and [`RadioSet`]: one of several options as radio buttons, a WAI-ARIA radio
+//!   group; a set places each option where the layout needs it.
 //! - [`Switch`]: an on/off setting that applies at once.
 //! - [`Link`]: text in `accent.text` that opens a URL or reports a click.
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
@@ -60,7 +60,7 @@ pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use link::{Link, LinkStyle, LinkUnderline};
-pub use radio::{Radio, RadioGroup, RadioStyle};
+pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
 pub use slider::{Slider, SliderStyle};

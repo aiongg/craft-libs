@@ -378,8 +378,10 @@ fn switches_and_radio_buttons_report_their_role_and_state_in_the_click_frame_and
     let mut harness = harness().build_ui_state(
         |ui, (on, unit, locked): &mut (bool, usize, bool)| {
             let _ = Switch::new("Autosave", on).id_salt("autosave").show(ui);
-            let _ = Radio::new("Pixels", unit, 0).id_salt("px").show(ui);
-            let _ = Radio::new("Inches", unit, 1).id_salt("in").show(ui);
+            let mut set = RadioSet::new("units", "Units", unit).item(0).item(1).begin(ui);
+            let _ = set.radio(ui, 0, "Pixels");
+            let _ = set.radio(ui, 1, "Inches");
+            let _ = set.end(ui);
             let _ = Switch::new("Locked", locked).enabled(false).id_salt("locked").show(ui);
         },
         (false, 0, false),
@@ -397,7 +399,6 @@ fn switches_and_radio_buttons_report_their_role_and_state_in_the_click_frame_and
     harness.step();
     assert_eq!((harness.state().1, toggled(&harness, "Inches")), (1, Some(Toggled::True)), "the click's frame");
     harness.run();
-    assert_eq!(toggled(&harness, "Pixels"), Some(Toggled::False), "a radio button drawn before the click: the next frame");
     assert!(harness.get_by_label("Locked").accesskit_node().is_disabled());
     harness.get_by_label("Locked").click();
     harness.run();
@@ -493,4 +494,120 @@ fn the_radio_group_story_has_one_tab_stop_per_group() {
     harness.run();
     let order: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
     assert_eq!(order, [(Role::RadioButton, "Pixels".to_owned()), (Role::RadioButton, "Inches".to_owned())]);
+}
+
+/// Three options of a set named "Units", each in a place of its own with other widgets between
+/// them; the last is disabled.
+fn radio_set<'a>() -> Harness<'a, usize> {
+    harness().build_ui_state(
+        |ui, unit: &mut usize| {
+            let mut set = RadioSet::new("units", "Units", unit).item(0).item(1).item(2).item(3).item_enabled(false).begin(ui);
+            ui.horizontal(|ui| {
+                let _ = set.radio(ui, 0, "Pixels");
+                ui.label(format!("now {unit}"));
+            });
+            let _ = Checkbox::bool("Snap", &mut true).id_salt("snap").show(ui);
+            let _ = set.radio(ui, 1, "Millimetres");
+            ui.horizontal(|ui| {
+                let _ = set.radio(ui, 2, "Inches");
+                let _ = set.radio(ui, 3, "Points");
+            });
+            let _ = set.end(ui);
+        },
+        0,
+    )
+}
+
+#[test]
+fn a_radio_set_selects_in_the_click_frame_and_is_one_tab_stop_with_arrows_across_its_places() {
+    let mut harness = radio_set();
+    harness.run();
+    let group = harness.get_by(|n| n.role() == Role::RadioGroup);
+    assert_eq!(group.accesskit_node().label().as_deref(), Some("Units"));
+    let radios: Vec<_> = group.query_all_by(|n| n.role() == Role::RadioButton).map(|n| n.accesskit_node().label().unwrap_or_default()).collect();
+    assert_eq!(radios, ["Pixels", "Millimetres", "Inches", "Points"], "every option is in the group");
+    let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
+    assert_eq!(stops, [(Role::RadioButton, "Pixels".to_owned()), (Role::CheckBox, "Snap".to_owned())]);
+
+    let checked = |harness: &Harness<'_, usize>| {
+        harness
+            .query_all_by(|n| n.role() == Role::RadioButton && n.toggled() == Some(Toggled::True))
+            .map(|n| n.accesskit_node().label().unwrap_or_default())
+            .collect::<Vec<_>>()
+    };
+    // A click on an option drawn after the selected one, and a screen reader's click on one drawn
+    // before it: both report in their own frame, as does the code between the options.
+    harness.get_by_label("Inches").click();
+    harness.step();
+    assert_eq!((*harness.state(), checked(&harness)), (2, vec!["Inches".to_owned()]), "a click: its frame");
+    assert!(harness.query_by_label("now 2").is_some());
+    harness.run();
+    harness.get_by_label("Pixels").click_accesskit();
+    harness.step();
+    assert_eq!((*harness.state(), checked(&harness)), (0, vec!["Pixels".to_owned()]), "a screen reader's click: its frame");
+    harness.run();
+    harness.get_by_label("Points").click();
+    harness.run();
+    assert_eq!(*harness.state(), 0, "a disabled option ignores clicks");
+
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert_eq!(focused_label(&harness).as_deref(), Some("Pixels"));
+    for (key, unit, label) in
+        [(Key::ArrowDown, 1, "Millimetres"), (Key::ArrowRight, 2, "Inches"), (Key::ArrowDown, 0, "Pixels"), (Key::ArrowUp, 2, "Inches")]
+    {
+        harness.event(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+        harness.step();
+        assert_eq!((*harness.state(), checked(&harness)), (unit, vec![label.to_owned()]), "{key:?}: the key's frame");
+        harness.event(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
+        harness.run();
+        assert_eq!(focused_label(&harness).as_deref(), Some(label), "{key:?}: focus follows");
+    }
+    let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
+    assert_eq!(stops, ["Snap", "Inches"], "the Tab stop follows the selection");
+}
+
+/// Options A to E with B, D and E disabled: the keys and the Tab stop skip them, in a radio group
+/// and in a segmented control.
+#[test]
+fn arrows_home_and_end_skip_disabled_options_and_a_disabled_option_is_never_the_tab_stop() {
+    let options = ["A", "B", "C", "D", "E"];
+    let enabled = |i: usize| i == 0 || i == 2;
+    for segmented in [false, true] {
+        let mut harness = harness().build_ui_state(
+            move |ui, choice: &mut usize| {
+                if segmented {
+                    let mut control = Segmented::new("letters", "Letters", choice);
+                    for (i, label) in options.into_iter().enumerate() {
+                        control = control.item(i, label).item_enabled(enabled(i));
+                    }
+                    control.show(ui);
+                } else {
+                    let mut group = RadioGroup::new("letters", "Letters", choice);
+                    for (i, label) in options.into_iter().enumerate() {
+                        group = group.item(i, label).item_enabled(enabled(i));
+                    }
+                    let _ = group.show(ui);
+                }
+            },
+            1,
+        );
+        harness.run();
+        let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
+        assert_eq!(stops, ["A"], "segmented {segmented}: the first enabled option, not the selected disabled one");
+        assert_eq!(harness.get_by_label("B").accesskit_node().toggled(), Some(Toggled::True), "segmented {segmented}");
+
+        harness.key_press(Key::Tab);
+        harness.run();
+        for (key, choice) in
+            [(Key::ArrowDown, 2), (Key::ArrowDown, 0), (Key::ArrowUp, 2), (Key::Home, 0), (Key::End, 2), (Key::ArrowRight, 0), (Key::ArrowLeft, 2)]
+        {
+            harness.key_press(key);
+            harness.run();
+            assert_eq!((*harness.state(), focused_label(&harness)), (choice, Some(options[choice].to_owned())), "segmented {segmented}: {key:?}");
+        }
+        harness.get_by_label("D").click();
+        harness.run();
+        assert_eq!(*harness.state(), 2, "segmented {segmented}: a disabled option ignores clicks");
+    }
 }

@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::controls::{Button, Checkbox, IconButton, IndicatorColors, Link, Radio, Segmented, Slider, Switch, ToggleButton};
+use craft_ui::controls::{Button, Checkbox, IconButton, IndicatorColors, Link, RadioGroup, Segmented, Slider, Switch, ToggleButton};
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -215,12 +215,12 @@ fn checkbox() {
 fn radio() {
     check("radio.txt", |d, t| {
         for (size, name) in SIZES {
-            let s = Radio::style(t, size);
+            let s = RadioGroup::style(t, size);
             d.group(&format!("size.{name}"), |d| {
                 d.line("height", s.height).line("diameter", s.diameter).line("dot", s.dot).line("gap", s.gap).line("label", role(s.label));
             });
         }
-        let s = Radio::style(t, ControlSize::Md);
+        let s = RadioGroup::style(t, ControlSize::Md);
         indicator_edge(d, &s.surface);
         indicator(d, "off", &s.off);
         indicator(d, "on", &s.on);

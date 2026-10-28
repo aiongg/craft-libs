@@ -2,8 +2,11 @@
 //! patterns, kept apart from how each control looks.
 //!
 //! - [`RadioSelection`]: a radio group's one Tab stop, arrow keys and click selection, used by
-//!   [`RadioGroup`](crate::controls::RadioGroup) and [`Segmented`](crate::controls::Segmented).
+//!   [`RadioGroup`](crate::controls::RadioGroup), [`RadioSet`](crate::controls::RadioSet) and
+//!   [`Segmented`](crate::controls::Segmented).
 
 mod radio_selection;
+#[cfg(test)]
+mod tests;
 
 pub use radio_selection::RadioSelection;

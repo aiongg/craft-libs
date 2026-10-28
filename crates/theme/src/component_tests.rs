@@ -285,6 +285,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(
         ComponentField::from_path("check.on.mark.hover"),
         Some(ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover }))
+    );
     assert_eq!(ComponentField::from_path("slider.radius"), Some(ComponentField::Slider(SliderField::Radius)));
     assert_eq!(ComponentField::from_path("slider.fill.hover"), Some(ComponentField::Slider(SliderField::Fill(State::Hover))));
     assert_eq!(

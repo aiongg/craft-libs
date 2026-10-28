@@ -64,7 +64,8 @@ pub struct SegmentedStyle {
 /// It is a WAI-ARIA radio group: AccessKit `RadioGroup` named `label` with a `RadioButton` per
 /// segment, the selected one checked, with the keys and focus of
 /// [`RadioSelection`](crate::behavior::RadioSelection): one Tab stop, arrows (mirrored in a
-/// right-to-left interface), Home and End. Segments run from the reading start. An icon segment's label is its accessible name and
+/// right-to-left interface), Home and End, skipping disabled segments. Segments run from the
+/// reading start. An icon segment's label is its accessible name and
 /// tooltip, also while disabled.
 #[derive(Debug)]
 pub struct Segmented<'a, T> {
@@ -81,6 +82,7 @@ struct Item<T> {
     value: T,
     label: String,
     icon: Option<Icon>,
+    enabled: bool,
 }
 
 impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
@@ -92,14 +94,23 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
 
     /// A segment showing `label`, which selects `value`.
     pub fn item(mut self, value: T, label: impl Into<String>) -> Self {
-        self.items.push(Item { value, label: label.into(), icon: None });
+        self.items.push(Item { value, label: label.into(), icon: None, enabled: true });
         self
     }
 
     /// A segment showing `icon`, which selects `value`; `label` is its accessible name and
     /// tooltip.
     pub fn icon_item(mut self, value: T, icon: Icon, label: impl Into<String>) -> Self {
-        self.items.push(Item { value, label: label.into(), icon: Some(icon) });
+        self.items.push(Item { value, label: label.into(), icon: Some(icon), enabled: true });
+        self
+    }
+
+    /// Whether the last segment added takes input; the arrow keys, Home and End skip a disabled
+    /// one.
+    pub fn item_enabled(mut self, enabled: bool) -> Self {
+        if let Some(item) = self.items.last_mut() {
+            item.enabled = enabled;
+        }
         self
     }
 
@@ -141,10 +152,10 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                 .accessibility_label(self.label.as_str()),
         );
         group.spacing_mut().item_spacing = Vec2::ZERO;
-        let ids: Vec<_> = (0..count).map(|i| Interactive::id_in(&group, i)).collect();
         let enabled = self.enabled && ui.is_enabled();
+        let items = self.items.iter().enumerate().map(|(i, item)| (Interactive::id_in(&group, i), enabled && item.enabled)).collect();
         let selected = self.items.iter().position(|item| item.value == *self.value);
-        let mut radios = RadioSelection::begin(ui, ids, selected, enabled);
+        let mut radios = RadioSelection::begin(ui, items, selected);
         let sensed: Vec<_> = self
             .items
             .iter()
@@ -155,7 +166,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                     .colors(StateColors { fill: style.fill, border: None })
                     .on_colors(StateColors { fill: style.selected_fill, border: None })
                     .corner(Corner::Control)
-                    .enabled(enabled)
+                    .enabled(enabled && item.enabled)
                     .interact(&mut group, segment)
             })
             .collect();

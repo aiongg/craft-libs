@@ -277,7 +277,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
             let b = Checkbox::style(&t, size);
             assert_eq!((b.height, b.side, b.gap, b.label, b.mark), (c.height.get(size), c.size.get(size), c.gap, c.label, c.mark.get(size)));
             assert_eq!((b.radius, b.surface, b.off, b.on), (egui::CornerRadius::from(c.radius), sunken, off, on));
-            let r = Radio::style(&t, size);
+            let r = RadioGroup::style(&t, size);
             assert_eq!((r.height, r.diameter, r.dot, r.surface, r.off, r.on), (b.height, b.side, c.dot.get(size), sunken, off, on));
             let s = Switch::style(&t, size);
             assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
@@ -398,7 +398,11 @@ fn bevel_themes_sink_check_boxes_radio_buttons_and_switch_tracks() {
         let shapes = pass(&ctx, &classic, vec![], |ui| {
             let response = match control {
                 0 => Checkbox::bool("Grid", &mut true).show(ui).response,
-                1 => Radio::new("Grid", &mut 0, 0).show(ui).response,
+                1 => {
+                    let mut set = RadioSet::new("grid", "Grid", &mut 0).item(0).begin(ui);
+                    let _ = set.radio(ui, 0, "Grid");
+                    set.end(ui).response
+                }
                 _ => Switch::new("Grid", &mut false).show(ui).response,
             };
             rect.set(response.rect);
@@ -449,7 +453,9 @@ fn every_change_is_one_set_with_the_modifiers_held_and_a_mixed_box_becomes_check
                     (e.response, e.event.map(|e| format!("{e:?}")))
                 }
                 2 => {
-                    let e = Radio::new("Inches", &mut unit, 2).show(ui);
+                    let mut set = RadioSet::new("unit", "Unit", &mut unit).item(2).begin(ui);
+                    let _ = set.radio(ui, 0, "Inches");
+                    let e = set.end(ui);
                     (e.response, e.event.map(|e| format!("{e:?}")))
                 }
                 _ => {
