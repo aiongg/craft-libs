@@ -494,14 +494,14 @@ fn curve_editor() {
     });
 }
 
-/// Histograms: the plot's height, box, scope, alphas and outline, and the tone look's colour per channel.
+/// Histograms: the plot's height, box, scope, alphas, outline and marker, and the tone look's colour per channel.
 #[test]
 fn histogram() {
     check("histogram.txt", |d, t| {
         let s = Histogram::style(t);
         d.line("height", s.height).line("fill", s.fill).line("border", s.border).line("scope", s.scope);
         d.line("fill_alpha", s.fill_alpha).line("backdrop_alpha", s.backdrop_alpha).line("line", s.line);
-        d.line("marker", s.marker).line("stale", s.stale);
+        d.line("marker", s.marker).line("marker_alpha", s.marker_alpha).line("marker_width", s.marker_width).line("stale", s.stale);
         for channel in ChannelColor::ALL {
             d.line(&format!("tone.{}", channel.name()), s.tone(channel));
         }

@@ -248,10 +248,42 @@ fn the_dark_modes_tokens_are_available_in_a_light_theme() {
     .drop_without_applying_deltas();
 }
 
+/// The RGB look sits on the dark scope in every theme, so a light theme's histogram outlines its
+/// ribbons in the dark mode's data colours.
+#[test]
+fn a_light_theme_draws_the_dark_modes_ribbons() {
+    let bins: Vec<u32> = (0..64).map(|k| 10 + k % 7).collect();
+    let data = |t: &crate::theme::UiTokens| [t.color.data.red, t.color.data.green, t.color.data.blue].map(|c| c.to_egui());
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        move |ui, colors: &mut Option<([Color32; 3], [Color32; 3])>| {
+            *colors = Some((data(&tokens_in_mode(ui.ctx(), Mode::Dark)), data(&Tokens::of(ui))));
+            let _ = Histogram::new("h", "Histogram").rgb([&bins, &bins, &bins]).show(ui);
+        },
+        None,
+    );
+    harness.ctx.set_theme(ThemePreference::Light);
+    harness.run();
+    let Some((dark, light)) = *harness.state() else { panic!("no pass") };
+    let outlines: Vec<Color32> = harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Path(p) => match p.stroke.color {
+                egui::epaint::ColorMode::Solid(color) => Some(color),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_ne!(dark, light);
+    assert_eq!(outlines, dark, "the ribbons' outlines, red, green and blue");
+}
+
 #[test]
 fn marker_is_a_two_point_band_clipped_to_the_plot() {
     let rect = rect();
-    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, Color32::WHITE)[0] {
+    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, 2.0, Color32::WHITE)[0] {
         egui::Shape::Rect(r) => r.rect,
         other => panic!("{other:?}"),
     };
@@ -260,7 +292,7 @@ fn marker_is_a_two_point_band_clipped_to_the_plot() {
     assert!((middle.center().x - rect.center().x).abs() <= 1.0);
     assert_eq!((middle.top(), middle.bottom()), (rect.top(), rect.bottom()));
     assert!(rect.contains_rect(band(-50.0)) && rect.contains_rect(band(5000.0)));
-    assert!(histogram::marker_shapes(rect, 256, f32::NAN, Color32::WHITE).is_empty());
+    assert!(histogram::marker_shapes(rect, 256, f32::NAN, 2.0, Color32::WHITE).is_empty());
 }
 
 #[test]
@@ -275,6 +307,20 @@ fn one_image_node_named_by_the_label_with_the_channel_as_value() {
     assert_eq!(node.label().as_deref(), Some("Histogram"));
     assert_eq!(node.value().as_deref(), Some("Red channel"));
     assert!(a11y::tab_order(&mut harness).is_empty(), "not a Tab stop");
+}
+
+#[test]
+fn the_id_salt_is_the_histogram_s_id() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, ids: &mut Option<(egui::Id, egui::Id)>| {
+            let response = Histogram::new("levels-hist", "Histogram").tone(&[1u32, 5, 2], ChannelColor::Neutral).show(ui);
+            *ids = Some((response.id, ui.make_persistent_id(egui::IdSalt::new("levels-hist"))));
+        },
+        None,
+    );
+    harness.run();
+    let Some((id, expected)) = *harness.state() else { panic!("no pass") };
+    assert_eq!(id, expected);
 }
 
 #[test]
