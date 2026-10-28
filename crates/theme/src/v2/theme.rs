@@ -208,6 +208,7 @@ pub enum Contrast {
 
 /// The density preset: control heights, padding, gaps, type and default shape.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
 pub enum Size {
     /// Dense, sharper corners (Pro).
     #[default]
@@ -218,6 +219,7 @@ pub enum Size {
 
 /// The text-size setting; scales type roles only.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
 pub enum TextSize {
     /// 0.9×.
     Small,

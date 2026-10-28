@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 
 use super::ThemeDef;
 use super::format;
+use crate::SUITE_DEFAULT;
 
 /// Each built-in's file name (without `.json`) and its text.
 pub(super) const SOURCES: [(&str, &str); 12] = [
@@ -41,4 +42,11 @@ static BUILTINS: LazyLock<Vec<ThemeDef>> = LazyLock::new(|| {
 /// built-in tests rule out.
 pub fn builtins() -> &'static [ThemeDef] {
     &BUILTINS
+}
+
+/// The built-in [`SUITE_DEFAULT`], the last fallback of selection resolution.
+// Its absence is a build defect that the built-in tests catch.
+#[allow(clippy::expect_used)]
+pub(super) fn suite_default() -> &'static ThemeDef {
+    builtins().iter().find(|t| t.id.as_str() == SUITE_DEFAULT).expect("SUITE_DEFAULT is a built-in")
 }
