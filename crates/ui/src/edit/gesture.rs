@@ -17,7 +17,7 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 /// fn drag_value(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditResponse<f32> {
 ///     let (_, rect) = ui.allocate_space(vec2(120.0, 20.0));
 ///     let response = ui.interact(rect, ui.id().with("drag"), Sense::drag());
-///     let mut gesture = Gesture::load(ui, response.id, &value, policy);
+///     let mut gesture = Gesture::load(ui, response.id, &value, policy).enabled(response.enabled());
 ///     if response.drag_started() {
 ///         gesture.begin();
 ///     }
@@ -50,7 +50,8 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   own commit on egui's `drag_stopped` don't see it) when the policy is
 ///   [`cancellable`](EditPolicy::cancellable) and no modal layer is above the control; on
 ///   [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
-///   gesture's updates ([`CancelReason::External`]).
+///   gesture's updates ([`CancelReason::External`]). [`enabled`](Gesture::enabled) cancels when
+///   the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
 ///   and starts idle when it is drawn again.
@@ -69,8 +70,11 @@ pub struct Gesture<T> {
     host: T,
     policy: EditPolicy,
     scoped: bool,
-    filter: EventFilter,
+    /// The widgets whose focus is the control's.
+    owners: Vec<Id>,
+    filter: Option<EventFilter>,
     cancel_on_focus_loss: bool,
+    enabled: bool,
     now: f64,
     stored: Stored<T>,
     /// A cancel to report this frame.
@@ -90,7 +94,7 @@ struct Stored<T> {
     /// [`is_live`](super::is_live).
     viewport: ViewportId,
     pass: u64,
-    /// Whether the gesture set the focus filter with Esc in it, to put the control's own back.
+    /// Whether the gesture set the focus filter with Esc in it, to take Esc out again.
     escape_locked: bool,
 }
 
@@ -165,8 +169,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             host: value.clone(),
             policy,
             scoped: in_scope(ui),
-            filter: EventFilter::default(),
+            owners: vec![id],
+            filter: None,
             cancel_on_focus_loss: false,
+            enabled: true,
             now,
             stored,
             cancelled: None,
@@ -187,13 +193,37 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         self
     }
 
-    /// The control's own focus filter (the keys it keeps while focused). While a cancellable
-    /// gesture is active and the control has focus, [`finish`](Gesture::finish) sets this
-    /// filter with Esc added, and puts it back without Esc when the gesture ends; otherwise it
-    /// leaves the focus filter alone. A control wrapping a widget that sets its own filter (egui's
-    /// `TextEdit` does) passes that widget's filter here and finishes after showing it.
+    /// The control's own focus filter (the keys it keeps while focused). Whenever a
+    /// [focus owner](Gesture::focus_owners) has focus, [`finish`](Gesture::finish) sets this
+    /// filter on it, with Esc added while a cancellable gesture is active outside a
+    /// [`scope`](super::scope). Without a filter of its own the control keeps egui's, and the
+    /// gesture only adds Esc while such a gesture is active and takes it out once after. A control
+    /// wrapping a widget that sets its own filter (egui's `TextEdit` does) passes that widget's
+    /// filter here and finishes after showing it.
     pub fn event_filter(mut self, filter: EventFilter) -> Self {
-        self.filter = filter;
+        self.filter = Some(filter);
+        self
+    }
+
+    /// The widgets whose keyboard focus is the control's; the widget `id` given to
+    /// [`load`](Gesture::load) by default. A control whose gesture lives on one widget while the
+    /// focus goes to others (a range slider's track and its thumbs) names them here. The focus
+    /// rules apply to whichever of them has focus: the end on focus loss (moving the focus between
+    /// owners is no loss), the [focus filter](Gesture::event_filter), and how an interrupted
+    /// gesture ends ([`Ending`]).
+    pub fn focus_owners(mut self, owners: &[Id]) -> Self {
+        self.owners = owners.to_vec();
+        self
+    }
+
+    /// Whether the control is enabled; on by default. Disabling the control cancels its active
+    /// gesture ([`CancelReason::Disabled`]); a disabled control begins no gesture and sets no
+    /// value.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        if !enabled {
+            self.cancel(CancelReason::Disabled);
+        }
         self
     }
 
@@ -233,9 +263,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// Starts a gesture from the host's value; nothing while one is active.
+    /// Starts a gesture from the host's value; nothing while one is active or the control is
+    /// disabled.
     pub fn begin(&mut self) {
-        if self.is_active() {
+        if self.is_active() || !self.enabled {
             return;
         }
         let generation = CancelAll::get(&self.ctx).generation;
@@ -249,7 +280,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             changed_at: self.now,
             announced: false,
             ending: false,
-            focused: self.ctx.memory(|m| m.has_focus(self.widget)),
+            focused: self.focused_owner().is_some(),
             dragged: self.ctx.is_being_dragged(self.widget),
         });
     }
@@ -292,8 +323,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
 
     /// A one-shot change (toggle, arrow-key nudge, wheel step, Enter): a [`Set`](EditEvent::Set)
     /// with the modifiers held, when idle and `value` differs from the host's; an update during a
-    /// gesture.
+    /// gesture; nothing while the control is disabled.
     pub fn set(&mut self, value: T) {
+        if !self.enabled {
+            return;
+        }
         match &self.stored.phase {
             Phase::Active(a) if a.ending => {}
             Phase::Active(a) => {
@@ -356,9 +390,14 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// The focus owner that has focus.
+    fn focused_owner(&self) -> Option<Id> {
+        self.ctx.memory(|m| self.owners.iter().copied().find(|&id| m.has_focus(id)))
+    }
+
     /// Ends the gesture when the control has lost the focus it had during it.
     fn apply_focus(&mut self) {
-        let focused = self.ctx.memory(|m| m.has_focus(self.widget));
+        let focused = self.focused_owner().is_some();
         let Phase::Active(a) = &mut self.stored.phase else { return };
         if focused || a.ending {
             a.focused |= focused;
@@ -440,14 +479,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// Keeps the focus on Esc while a cancellable gesture is active, so Esc cancels the gesture
-    /// instead of dropping the focus; puts the control's own filter back after.
+    /// Sets the control's own filter on the focused owner, with Esc while a cancellable gesture is
+    /// active, so Esc cancels the gesture instead of dropping the focus.
     fn lock_focus(&mut self) {
-        let focused = self.ctx.memory(|m| m.has_focus(self.widget));
-        let lock = focused && self.is_active() && self.policy.cancellable && !self.scoped;
-        if lock || (focused && self.stored.escape_locked) {
-            let filter = EventFilter { escape: self.filter.escape || lock, ..self.filter };
-            self.ctx.memory_mut(|m| m.set_focus_lock_filter(self.widget, filter));
+        let owner = self.focused_owner();
+        let lock = owner.is_some() && self.is_active() && self.policy.cancellable && !self.scoped;
+        if let Some(owner) = owner
+            && (lock || self.filter.is_some() || self.stored.escape_locked)
+        {
+            let own = self.filter.unwrap_or_default();
+            let filter = EventFilter { escape: own.escape || lock, ..own };
+            self.ctx.memory_mut(|m| m.set_focus_lock_filter(owner, filter));
         }
         self.stored.escape_locked = lock;
     }

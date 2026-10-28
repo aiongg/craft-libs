@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use egui::accesskit::Role;
-use egui::{Area, Context, Event, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense, Ui, vec2};
+use egui::{Area, Context, Event, EventFilter, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense, Ui, vec2};
 
 use super::story::{slider, text_field};
 use super::*;
@@ -74,6 +74,7 @@ struct Rig {
     scoped: bool,
     order: Order,
     draw_slider: bool,
+    slider_enabled: bool,
     draw_field: bool,
     /// A dialog's gesture, kept live every frame.
     outer: Option<OuterGesture>,
@@ -114,6 +115,7 @@ impl Rig {
             scoped,
             order,
             draw_slider: true,
+            slider_enabled: true,
             draw_field: true,
             outer: None,
             time: 0.0,
@@ -175,7 +177,8 @@ impl Rig {
             self.text_field(ui);
         }
         if self.draw_slider {
-            let edit = slider(ui, self.doc.now.level, self.policy);
+            let (level, policy) = (self.doc.now.level, self.policy);
+            let edit = ui.add_enabled_ui(self.slider_enabled, |ui| slider(ui, level, policy)).inner;
             self.slider = edit.response.rect;
             self.slider_event.clone_from(&edit.event);
             if let Some(event) = edit.event {
@@ -378,6 +381,79 @@ fn esc_during_a_drag_under_a_modal_goes_to_the_modal() {
     assert_eq!(frame(vec![], true).0, (None, false));
     assert_eq!(frame(vec![], true).0, (None, false));
     assert_eq!(frame(vec![key_event(Key::Escape)], true).0, (commit(id, 50.0, true), true));
+}
+
+#[test]
+fn disabling_a_control_mid_drag_cancels_its_gesture_and_a_disabled_control_begins_none() {
+    let mut rig = Rig::new(EditPolicy::default());
+    let first = begin_id(rig.press(0.0));
+    assert_eq!(rig.drag(10.0), update(first, 50.0));
+    rig.slider_enabled = false;
+    assert_eq!(rig.drag(20.0), cancel(first, CancelReason::Disabled));
+    assert_eq!((rig.level(), rig.steps()), (40.0, 0));
+    assert_eq!(rig.release(20.0), None);
+    assert_eq!(rig.press(0.0), None);
+    assert_eq!(rig.drag(10.0), None);
+    assert_eq!(rig.release(10.0), None);
+
+    // egui hit-tests against the previous pass's widgets: one frame enabled before the press.
+    rig.slider_enabled = true;
+    rig.frame(vec![]);
+    let second = begin_id(rig.press(0.0));
+    assert_ne!(first, second);
+    assert_eq!(rig.drag(5.0), update(second, 45.0));
+}
+
+/// A control whose gesture lives on its own widget while two parts take the focus, as a range
+/// slider's thumbs: the Right key on a focused part adds one as a typing run.
+fn two_part(ui: &mut Ui, value: f32) -> (Option<EditEvent<f32>>, [Id; 2]) {
+    let response = ui.allocate_response(vec2(100.0, 20.0), Sense::hover());
+    let parts = [(); 2].map(|()| ui.allocate_response(vec2(20.0, 20.0), Sense::FOCUSABLE).id);
+    let mut gesture = Gesture::load(ui, response.id, &value, EditPolicy::default())
+        .focus_owners(&parts)
+        .event_filter(EventFilter { horizontal_arrows: true, ..Default::default() });
+    let focused = ui.memory(|m| parts.iter().any(|&part| m.has_focus(part)));
+    if focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+        gesture.begin();
+        let next = gesture.shown() + 1.0;
+        gesture.update(next, Modifiers::NONE);
+    }
+    (gesture.finish(), parts)
+}
+
+#[test]
+fn focus_owners_carry_the_focus_rules_of_a_gesture_on_another_widget() {
+    let ctx = Context::default();
+    let (mut value, mut parts) = (40.0, [Id::NULL; 2]);
+    let mut frame = |events: Vec<Event>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput { events, ..Default::default() }, |ui| {
+            (event, parts) = two_part(ui, value);
+            if let Some(v) = event.as_ref().and_then(EditEvent::value) {
+                value = *v;
+            }
+        });
+        output.drop_without_applying_deltas();
+        (event, parts)
+    };
+    let (_, [first, second]) = frame(vec![]);
+    let has_focus = |id| ctx.memory(|m| m.has_focus(id));
+
+    ctx.memory_mut(|m| m.request_focus(first));
+    let id = begin_id(frame(vec![key_event(Key::ArrowRight)]).0);
+    assert_eq!(frame(vec![]).0, update(id, 41.0));
+    assert_eq!(ending(&ctx, id), Ending::Commit { changed: true }, "a typing run on an owner");
+    // Moving the focus between owners keeps the gesture; Esc cancels and the owner keeps focus.
+    ctx.memory_mut(|m| m.request_focus(second));
+    assert_eq!(frame(vec![]).0, None);
+    assert_eq!(frame(vec![key_event(Key::Escape)]).0, cancel(id, CancelReason::Escape));
+    assert!(has_focus(second));
+
+    // Focus leaving the owners commits the run (from 41: this host keeps a cancelled value).
+    let id = begin_id(frame(vec![key_event(Key::ArrowRight)]).0);
+    assert_eq!(frame(vec![]).0, update(id, 42.0));
+    ctx.memory_mut(|m| m.surrender_focus(second));
+    assert_eq!(frame(vec![]).0, commit(id, 42.0, true));
 }
 
 #[test]

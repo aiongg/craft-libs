@@ -236,7 +236,9 @@ pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditRespons
         .sense(Sense::drag())
         .state_layer(false)
         .show(ui, vec2(CONTROL_WIDTH, tokens.size.control.md));
-    let mut gesture = Gesture::load(ui, response.id, &value, policy).event_filter(EventFilter { horizontal_arrows: true, ..Default::default() });
+    let mut gesture = Gesture::load(ui, response.id, &value, policy)
+        .event_filter(EventFilter { horizontal_arrows: true, ..Default::default() })
+        .enabled(response.enabled());
     if response.drag_started() {
         response.request_focus();
         gesture.begin();
@@ -286,7 +288,7 @@ pub(super) fn text_field(ui: &mut Ui, value: &str, policy: EditPolicy) -> EditRe
     if response.clicked() {
         response.request_focus();
     }
-    let mut gesture = Gesture::load(ui, response.id, &value.to_owned(), policy);
+    let mut gesture = Gesture::load(ui, response.id, &value.to_owned(), policy).enabled(response.enabled());
     if response.has_focus() {
         for event in ui.input(|i| i.events.clone()) {
             type_key(&mut gesture, &event);

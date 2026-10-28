@@ -137,6 +137,8 @@ pub enum CancelReason {
     /// The host's value changed during the gesture other than by its updates (another control
     /// or a command set it). The control shows the host's value; the change stays.
     External,
+    /// The control was disabled during the gesture ([`Gesture::enabled`]).
+    Disabled,
 }
 
 /// How a gesture ends when it is interrupted: its control is no longer drawn, or another gesture
