@@ -455,18 +455,18 @@ fn a_quick_zero_point_drag_with_its_press_and_moves_in_one_frame() {
     let mut h = harness(Host::new());
     h.run();
     let (start, target) = (corner(&h), view(&h).to_screen(Point::new(100.0, 40.0)));
-    // egui gives a press to the widget under the frame's last pointer position, so the moves of
-    // the press frame stay on the corner.
+    // The press frame ends over the canvas; the press is the corner's.
     frame(
         &mut h,
         [
             Event::PointerMoved(start),
             button(start, true, Modifiers::NONE),
-            Event::PointerMoved(start + vec2(3.0, 3.0)),
             Event::PointerMoved(start + vec2(5.0, 5.0)),
+            Event::PointerMoved(start + vec2(40.0, 30.0)),
         ],
     );
-    frame(&mut h, [Event::PointerMoved(start + vec2(40.0, 30.0)), Event::PointerMoved(target)]);
+    assert!(view(&h).rect.contains(start + vec2(40.0, 30.0)));
+    frame(&mut h, [Event::PointerMoved(target)]);
     frame(&mut h, [Event::PointerMoved(target + vec2(1.0, 1.0)), Event::PointerMoved(target), button(target, false, Modifiers::NONE)]);
     h.run();
     assert!(near(h.state().zero, Point::new(100.0, 40.0)), "{:?} after {:?}", h.state().zero, kinds(&h));
