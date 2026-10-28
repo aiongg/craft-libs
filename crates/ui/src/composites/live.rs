@@ -1,13 +1,14 @@
 //! Live regions: a container whose text a screen reader announces when it appears.
 //!
-//! AccessKit inherits `live` from the parent and announces every labelled descendant when it is
+//! AccessKit inherits `live` from the parent and announces every named descendant when it is
 //! added, so a toast would also read out its "Dismiss" button. [`region`] puts the content in a
-//! child container whose `live` is off: only the region's own label (the text of the nodes handed
-//! to [`Labels`]) is announced.
+//! child container whose `live` is off, and names the region by the texts handed to [`Labels`]:
+//! only that name is announced. The region's node id is the caller's, so a region that moves
+//! (a toast whose older neighbour closed) keeps its node and is not announced again.
 
 use craft_theme::Tone;
 use egui::accesskit::{Live, Role};
-use egui::{Id, InnerResponse, Response, Ui, UiBuilder};
+use egui::{Id, InnerResponse, Ui, UiBuilder};
 
 /// How soon an announcement interrupts the screen reader.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,38 +37,53 @@ pub fn for_tone(tone: Tone) -> (Role, Politeness) {
     }
 }
 
-/// The text nodes that name a live region.
+/// The texts that name a live region, in reading order.
 #[derive(Debug, Default)]
-pub struct Labels(Vec<Id>);
+pub struct Labels(Vec<String>);
 
 impl Labels {
-    /// Adds the text `response` drew; the region is announced as its text, in the order added.
-    pub fn add(&mut self, response: &Response) {
-        self.0.push(response.id);
+    /// Adds a text drawn in the region; the region is announced as its texts, in the order added.
+    pub fn add(&mut self, text: impl Into<String>) {
+        self.0.push(text.into());
+    }
+
+    /// The announcement: "title, line, line". A text that already ends in punctuation is
+    /// followed by a space alone.
+    pub fn announcement(&self) -> String {
+        let mut out = String::new();
+        for text in self.0.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
+            if !out.is_empty() {
+                out.push_str(if out.ends_with(['.', ',', ';', ':', '!', '?', '…']) { " " } else { ", " });
+            }
+            out.push_str(text);
+        }
+        out
     }
 }
 
-/// Shows `add_contents` in a live region of `role` (`Status`, `Alert`, ...). The region is named
-/// by the texts the closure adds to the [`Labels`]; everything else drawn inside is silent.
-pub fn region<R>(ui: &mut Ui, role: Role, politeness: Politeness, add_contents: impl FnOnce(&mut Ui, &mut Labels) -> R) -> InnerResponse<R> {
+/// Shows `add_contents` in a live region of `role` (`Status`, `Alert`, ...) whose node id is
+/// `id`. The region is named by the texts the closure adds to the [`Labels`]; everything drawn
+/// inside is silent.
+///
+/// `id` must be unique and must stay with the message across frames: a region whose id changes
+/// is a new node, announced again.
+pub fn region<R>(ui: &mut Ui, id: Id, role: Role, politeness: Politeness, add_contents: impl FnOnce(&mut Ui, &mut Labels) -> R) -> InnerResponse<R> {
     let mut labels = Labels::default();
-    let mut ids = None;
-    let inner = ui.scope_builder(UiBuilder::new().accessibility_role(role), |ui| {
-        let region = ui.unique_id();
-        let silent = ui.scope_builder(UiBuilder::new(), |ui| (ui.unique_id(), add_contents(ui, &mut labels)));
-        let (silent_id, result) = silent.inner;
-        ids = Some((region, silent_id));
+    let mut silent = None;
+    let inner = ui.scope_builder(UiBuilder::new().scope_id(id).accessibility_role(role), |ui| {
+        let inner = ui.scope_builder(UiBuilder::new(), |ui| (ui.unique_id(), add_contents(ui, &mut labels)));
+        let (silent_id, result) = inner.inner;
+        silent = Some(silent_id);
         result
     });
-    if let Some((region, silent)) = ids {
-        let ctx = ui.ctx();
+    let ctx = ui.ctx();
+    if let Some(silent) = silent {
         ctx.accesskit_node_builder(silent, |node| node.set_live(Live::Off));
-        ctx.accesskit_node_builder(region, |node| {
-            node.set_live(politeness.live());
-            for id in &labels.0 {
-                node.push_labelled_by(id.accesskit_id());
-            }
-        });
     }
+    let name = labels.announcement();
+    ctx.accesskit_node_builder(id, |node| {
+        node.set_live(politeness.live());
+        node.set_label(name);
+    });
     inner
 }

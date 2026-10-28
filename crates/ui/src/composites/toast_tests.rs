@@ -18,11 +18,29 @@ struct App {
     toasts: Vec<(u64, Tone, bool, Vec<String>)>,
     auto_hide: Option<Duration>,
     ended: Vec<(u64, ToastEnd)>,
+    /// Draws a "Before" button ahead of the stack.
+    before: bool,
+    /// Where the "Before" button goes; the top left when `None`.
+    before_at: Option<Rect>,
+    /// Whether "Before" was clicked.
+    clicked: bool,
 }
 
 impl App {
     fn new(ids: &[u64], auto_hide: Option<Duration>) -> Self {
-        Self { toasts: ids.iter().map(|id| (*id, Tone::Neutral, false, Vec::new())).collect(), auto_hide, ended: Vec::new() }
+        Self {
+            toasts: ids.iter().map(|id| (*id, Tone::Neutral, false, Vec::new())).collect(),
+            auto_hide,
+            ended: Vec::new(),
+            before: false,
+            before_at: None,
+            clicked: false,
+        }
+    }
+
+    fn with_button_before(mut self) -> Self {
+        self.before = true;
+        self
     }
 }
 
@@ -33,6 +51,14 @@ fn harness(dir: Direction, app: App) -> Harness<'static, App> {
     });
     builder.build_ui_state(
         |ui, app| {
+            if app.before {
+                let button = crate::controls::Button::new("Before");
+                let response = match app.before_at {
+                    Some(rect) => ui.put(rect, button),
+                    None => ui.add(button),
+                };
+                app.clicked |= response.clicked();
+            }
             let toasts = app
                 .toasts
                 .iter()
@@ -106,14 +132,71 @@ fn the_pointer_over_the_stack_pauses_and_leaving_gives_a_fresh_delay() {
     assert_eq!(harness.state().ended, [(1, ToastEnd::Expired)]);
 }
 
+#[allow(clippy::expect_used)]
+fn button<'a>(harness: &'a Harness<'_, App>, label: &'a str) -> Node<'a> {
+    harness.query_by_label(label).expect("button")
+}
+
 #[test]
-fn keyboard_focus_on_dismiss_pauses_the_timer() {
-    let mut harness = harness(Direction::Ltr, App::new(&[1], Some(Duration::from_secs(1))));
+fn keyboard_focus_on_dismiss_pauses_and_leaving_gives_a_fresh_delay() {
+    let mut harness = harness(Direction::Ltr, App::new(&[1], Some(Duration::from_secs(1))).with_button_before());
+    harness.key_press(Key::Tab);
     harness.key_press(Key::Tab);
     steps(&mut harness, 2);
     assert!(dismiss(&harness, 0).is_focused());
     steps(&mut harness, 30);
-    assert!(harness.state().ended.is_empty());
+    assert!(harness.state().ended.is_empty(), "focused time never counts");
+    harness.key_press(Key::Tab);
+    steps(&mut harness, 2);
+    assert!(button(&harness, "Before").is_focused(), "focus left the stack");
+    steps(&mut harness, 7);
+    assert!(harness.state().ended.is_empty(), "a fresh delay starts when focus leaves");
+    steps(&mut harness, 10);
+    assert_eq!(harness.state().ended, [(1, ToastEnd::Expired)]);
+}
+
+#[test]
+fn dismissing_with_the_keyboard_moves_focus_to_the_next_card_then_back() {
+    let mut harness = harness(Direction::Ltr, App::new(&[1, 2], None).with_button_before());
+    harness.key_press(Key::Tab);
+    steps(&mut harness, 2);
+    assert!(button(&harness, "Before").is_focused());
+    harness.key_press(Key::Tab);
+    steps(&mut harness, 2);
+    assert!(dismiss(&harness, 0).is_focused());
+    harness.key_press(Key::Enter);
+    steps(&mut harness, 2);
+    assert_eq!(harness.state().ended, [(1, ToastEnd::Closed)]);
+    assert!(dismiss(&harness, 0).is_focused(), "focus moves to the remaining card");
+    harness.key_press(Key::Enter);
+    steps(&mut harness, 2);
+    assert_eq!(harness.state().ended, [(1, ToastEnd::Closed), (2, ToastEnd::Closed)]);
+    assert!(button(&harness, "Before").is_focused(), "focus returns to where it was before the stack");
+}
+
+#[test]
+fn dismissing_the_newest_card_moves_focus_to_the_previous_one() {
+    let mut harness = harness(Direction::Ltr, App::new(&[1, 2], None));
+    harness.key_press(Key::Tab);
+    harness.key_press(Key::Tab);
+    steps(&mut harness, 2);
+    assert!(dismiss(&harness, 1).is_focused());
+    harness.key_press(Key::Enter);
+    steps(&mut harness, 2);
+    assert_eq!(harness.state().ended, [(2, ToastEnd::Closed)]);
+    assert!(dismiss(&harness, 0).is_focused());
+}
+
+#[test]
+fn closing_an_older_toast_does_not_announce_the_newer_ones_again() {
+    let mut harness = harness(Direction::Ltr, App::new(&[1, 2, 3], None));
+    steps(&mut harness, 2);
+    let before: Vec<_> = [2, 3].map(|id| (card(&harness, id).accesskit_node().id(), card(&harness, id).accesskit_node().label())).into();
+    dismiss(&harness, 0).click();
+    steps(&mut harness, 2);
+    assert_eq!(harness.state().ended, [(1, ToastEnd::Closed)]);
+    let after: Vec<_> = [2, 3].map(|id| (card(&harness, id).accesskit_node().id(), card(&harness, id).accesskit_node().label())).into();
+    assert_eq!(before, after, "same nodes with the same names");
 }
 
 #[test]
@@ -176,6 +259,36 @@ fn the_stack_sits_in_the_bottom_corner_at_the_reading_end() {
 }
 
 #[test]
+fn a_new_toast_is_in_place_the_frame_it_appears() {
+    let tokens = tokens();
+    let [inset_x, inset_y] = tokens.component.toast.inset;
+    let pad = tokens.component.toast.pad;
+    let mut harness = harness(Direction::Ltr, App::new(&[1], None));
+    steps(&mut harness, 3);
+    let lines = (1..=4).map(|n| format!("line {n}")).collect();
+    harness.state_mut().toasts.push((2, Tone::Warn, false, lines));
+    harness.step();
+    // Text and buttons carry the bounds: the first card is one row, "Dismiss" tops the newest.
+    let (first, newest) = (dismiss(&harness, 0).rect(), dismiss(&harness, 1).rect());
+    let last_line = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("line 4")).rect();
+    assert!((last_line.bottom() + pad - (BODY.bottom() - inset_y)).abs() < 1.0, "{last_line:?}");
+    assert!((newest.right() + pad - (BODY.right() - inset_x)).abs() < 1.0, "{newest:?}");
+    let gap = tokens.component.toast.gap;
+    assert!((newest.top() - pad - gap - (first.bottom() + pad)).abs() < 1.0, "{first:?} above {newest:?}");
+}
+
+#[test]
+fn a_click_above_the_cards_reaches_what_is_under_the_column() {
+    let mut app = App::new(&[1], None).with_button_before();
+    app.before_at = Some(Rect::from_min_size(pos2(BODY.right() - 140.0, 40.0), egui::vec2(100.0, 24.0)));
+    let mut harness = harness(Direction::Ltr, app);
+    steps(&mut harness, 3);
+    button(&harness, "Before").click();
+    steps(&mut harness, 2);
+    assert!(harness.state().clicked);
+}
+
+#[test]
 fn a_card_is_a_live_region_per_tone_named_by_its_title_and_lines() {
     let mut app = App::new(&[1, 2], None);
     app.toasts[0] = (1, Tone::Warn, false, vec!["first".into(), "second".into()]);
@@ -185,8 +298,7 @@ fn a_card_is_a_live_region_per_tone_named_by_its_title_and_lines() {
     let warn = card(&harness, 1);
     assert_eq!(warn.accesskit_node().role(), Role::Status);
     assert_eq!(warn.accesskit_node().live(), Live::Polite);
-    let label = warn.accesskit_node().label().expect("label");
-    assert!(label.contains("Toast 1") && label.contains("• first") && label.contains("• second"), "{label}");
+    assert_eq!(warn.accesskit_node().label().as_deref(), Some("Toast 1, first, second"));
     let bad = card(&harness, 2);
     assert_eq!(bad.accesskit_node().role(), Role::Alert);
     assert_eq!(bad.accesskit_node().live(), Live::Assertive);
@@ -202,7 +314,7 @@ fn everything_inside_a_card_is_silent() {
     let live_of = |n: &Node<'_>| n.accesskit_node().live();
     assert_eq!(live_of(&dismiss(&harness, 0)), Live::Off);
     assert_eq!(live_of(&harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Toast 1"))), Live::Off);
-    assert_eq!(live_of(&harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("• line"))), Live::Off);
+    assert_eq!(live_of(&harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("line"))), Live::Off);
 }
 
 #[test]
@@ -211,8 +323,8 @@ fn lines_beyond_eight_become_one_more_line() {
     app.toasts[0].3 = (1..=10).map(|n| format!("w{n}")).collect();
     let mut harness = harness(Direction::Ltr, app);
     steps(&mut harness, 3);
-    assert!(harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("• w8")).is_some());
-    assert!(harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("• w9")).is_none());
+    assert!(harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("w8")).is_some());
+    assert!(harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("w9")).is_none());
     assert!(harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("…and 2 more")).is_some());
 }
 

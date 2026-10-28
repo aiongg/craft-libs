@@ -84,6 +84,25 @@ fn the_column_is_centred_vertically_after_the_first_frame() {
 }
 
 #[test]
+fn two_centred_states_in_one_scope_are_each_centred() {
+    let mut harness = harness([640.0, 400.0], |ui| {
+        ui.columns(2, |columns| {
+            EmptyState::centred("Left").show(&mut columns[0]);
+            EmptyState::centred("Right")
+                .description("Create a new document or open an existing file.")
+                .action(Button::new("Open…"))
+                .show(&mut columns[1]);
+        });
+    });
+    harness.run();
+    let left = harness.get_by(|n| n.role() == Role::Heading && n.label().as_deref() == Some("Left")).rect();
+    assert!((left.center().y - 200.0).abs() < 8.0, "{left:?}");
+    let right = harness.get_by(|n| n.role() == Role::Heading && n.label().as_deref() == Some("Right")).rect();
+    let last = button_rect(&harness, "Open…");
+    assert!(((right.top() + last.bottom()) / 2.0 - 200.0).abs() < 8.0, "{right:?} {last:?}");
+}
+
+#[test]
 fn the_title_is_a_heading_and_names_the_column() {
     let mut harness = harness([640.0, 400.0], centred);
     harness.run();

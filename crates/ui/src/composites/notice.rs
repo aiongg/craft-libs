@@ -3,7 +3,7 @@
 use craft_theme::{Tone, TypeRole};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{Align, Color32, Label, Response, Ui, UiBuilder, vec2};
+use egui::{Align, AsIdSalt, Color32, IdSalt, Label, Response, Ui, UiBuilder, vec2};
 
 use super::live;
 use crate::direction;
@@ -45,19 +45,21 @@ pub struct NoticeStyle {
 ///   after an action: `Status` and polite, or for [`Tone::Bad`] `Alert` and assertive, named by
 ///   the title and message. [`announce`](Notice::announce)`(false)` makes it a plain `Note`
 ///   for permanent text, which would otherwise be read every time its panel appears. The icon is
-///   decorative and has no node.
+///   decorative and has no node. Give a notice drawn after widgets that come and go an
+///   [`id_salt`](Notice::id_salt), so it keeps its node and is not announced again.
 #[must_use = "show the notice with `show`"]
 pub struct Notice {
     message: String,
     title: Option<String>,
     tone: Tone,
     announce: bool,
+    id_salt: Option<IdSalt>,
 }
 
 impl Notice {
     /// An informational notice saying `message`.
     pub fn new(message: impl Into<String>) -> Self {
-        Self { message: message.into(), title: None, tone: Tone::Info, announce: true }
+        Self { message: message.into(), title: None, tone: Tone::Info, announce: true, id_salt: None }
     }
 
     /// A title in the strong type role above the message.
@@ -74,6 +76,13 @@ impl Notice {
     /// Whether a screen reader announces the notice when it appears; on by default.
     pub fn announce(mut self, announce: bool) -> Self {
         self.announce = announce;
+        self
+    }
+
+    /// Keeps the live region's node when widgets before the notice come and go, so it is not
+    /// announced again; else the `Ui`'s next automatic id.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id_salt = Some(IdSalt::new(id_salt));
         self
     }
 
@@ -104,15 +113,19 @@ impl Notice {
                     ui.set_min_width(width);
                     ui.spacing_mut().item_spacing.y = 0.0;
                     if let Some(title) = &self.title {
-                        labels.add(&text(ui, &tokens, style.title_role, style.fg, title));
+                        text(ui, &tokens, style.title_role, style.fg, title);
+                        labels.add(title.as_str());
                     }
-                    labels.add(&text(ui, &tokens, style.message_role, style.fg, &self.message));
+                    text(ui, &tokens, style.message_role, style.fg, &self.message);
+                    labels.add(self.message.as_str());
                 });
             })
         };
         if self.announce {
             let (role, politeness) = live::for_tone(self.tone);
-            live::region(ui, role, politeness, body).response
+            let salt = crate::controls::salt(ui, self.id_salt);
+            let id = ui.make_persistent_id(salt);
+            live::region(ui, id, role, politeness, body).response
         } else {
             let mut ignored = live::Labels::default();
             ui.scope_builder(UiBuilder::new().accessibility_role(Role::Note), |ui| body(ui, &mut ignored)).response

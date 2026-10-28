@@ -3,7 +3,7 @@
 use craft_theme::{ButtonVariant, TypeRole};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{Align, Color32, Label, Layout, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{Align, AsIdSalt, Color32, Id, IdSalt, Label, Layout, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
 use super::live;
 use crate::controls::Button;
@@ -84,17 +84,18 @@ struct Centred<'a> {
 pub struct EmptyState<'a> {
     text: String,
     kind: Kind<'a>,
+    id_salt: Option<IdSalt>,
 }
 
 impl<'a> EmptyState<'a> {
     /// An inline message.
     pub fn new(message: impl Into<String>) -> Self {
-        Self { text: message.into(), kind: Kind::Inline { status: false } }
+        Self { text: message.into(), kind: Kind::Inline { status: false }, id_salt: None }
     }
 
     /// A centred empty state with this title.
     pub fn centred(title: impl Into<String>) -> Self {
-        Self { text: title.into(), kind: Kind::Centred(Box::default()) }
+        Self { text: title.into(), kind: Kind::Centred(Box::default()), id_salt: None }
     }
 
     /// Announces the inline message when it appears. No effect on a centred state.
@@ -142,6 +143,13 @@ impl<'a> EmptyState<'a> {
         self
     }
 
+    /// Keeps the state's own memory (a status message's live region, a centred column's height)
+    /// when widgets before it come and go; else the `Ui`'s next automatic id.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id_salt = Some(IdSalt::new(id_salt));
+        self
+    }
+
     pub fn style(tokens: &UiTokens) -> EmptyStateStyle {
         let e = &tokens.component.empty_state;
         EmptyStateStyle {
@@ -158,12 +166,14 @@ impl<'a> EmptyState<'a> {
     pub fn show(self, ui: &mut Ui) -> EmptyStateResponse {
         let tokens = Tokens::of(ui);
         let style = EmptyState::style(&tokens);
+        let salt = crate::controls::salt(ui, self.id_salt);
+        let id = ui.make_persistent_id(salt);
         match self.kind {
             Kind::Inline { status } => {
-                let response = show_inline(ui, &tokens, &style, &self.text, status);
+                let response = show_inline(ui, &tokens, &style, &self.text, status.then_some(id));
                 EmptyStateResponse { response, actions: Vec::new() }
             }
-            Kind::Centred(centred) => show_centred(ui, &tokens, &style, &self.text, *centred),
+            Kind::Centred(centred) => show_centred(ui, &tokens, &style, &self.text, id, *centred),
         }
     }
 }
@@ -174,14 +184,18 @@ fn label(tokens: &UiTokens, role: TypeRole, color: Color32, text: &str, halign: 
     Label::new(job).wrap()
 }
 
-fn show_inline(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, text: &str, status: bool) -> Response {
+/// The inline message; with `status`, in a live region of that id.
+fn show_inline(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, text: &str, status: Option<Id>) -> Response {
     let column = Layout { cross_justify: false, ..direction::column(ui) };
     ui.scope_builder(UiBuilder::new().layout(column), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.add_space(style.gap);
         let message = label(tokens, style.message_role, style.message, text, direction::start_align(ui));
-        if status {
-            live::region(ui, Role::Status, live::Politeness::Polite, |ui, labels| labels.add(&ui.add(message)));
+        if let Some(id) = status {
+            live::region(ui, id, Role::Status, live::Politeness::Polite, |ui, labels| {
+                ui.add(message);
+                labels.add(text);
+            });
         } else {
             ui.add(message);
         }
@@ -190,11 +204,11 @@ fn show_inline(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, text: &s
     .response
 }
 
-fn show_centred(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: &str, centred: Centred<'_>) -> EmptyStateResponse {
+fn show_centred(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: &str, id: Id, centred: Centred<'_>) -> EmptyStateResponse {
     let area = ui.available_rect_before_wrap();
     let width = area.width().min(style.max_width);
     // Vertical centring needs the column's height: the last pass's, discarded when it changes.
-    let height_id = ui.scope_id().with("empty-state-height");
+    let height_id = id.with("height");
     let height = ui.data(|d| d.get_temp::<f32>(height_id));
     let top = area.top() + height.map_or(0.0, |h| ((area.height() - h) / 2.0).max(0.0));
     let column = Rect::from_min_size(pos2(area.center().x - width / 2.0, top), vec2(width, (area.bottom() - top).max(0.0)));

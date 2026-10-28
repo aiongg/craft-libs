@@ -18,7 +18,7 @@ fn harness<'a>(dir: Direction, show: impl FnMut(&mut egui::Ui) + 'a) -> Harness<
     builder.build_ui(show)
 }
 
-fn region<'a>(harness: &'a Harness<'_, ()>) -> egui_kittest::Node<'a> {
+fn region<'a, S>(harness: &'a Harness<'_, S>) -> egui_kittest::Node<'a> {
     harness.get_by(|n| matches!(n.role(), Role::Status | Role::Alert | Role::Note))
 }
 
@@ -37,8 +37,7 @@ fn the_region_is_status_or_alert_with_its_live_setting() {
         harness.run();
         let node = region(&harness);
         assert_eq!((node.accesskit_node().role(), node.accesskit_node().live()), (role, live), "{tone:?}");
-        let label = node.accesskit_node().label().expect("named by its texts");
-        assert!(label.contains("The title") && label.contains("The message"), "{label}");
+        assert_eq!(node.accesskit_node().label().as_deref(), Some("The title, The message"), "{tone:?}");
         let text = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("The message"));
         assert_eq!(text.accesskit_node().live(), Live::Off, "the text inside is silent");
     }
@@ -56,7 +55,7 @@ fn announce_off_is_a_plain_note() {
 }
 
 #[test]
-fn the_icon_has_no_node_and_neutral_has_no_icon() {
+fn the_icon_has_no_node() {
     let nodes = |tone| {
         let mut harness = harness(Direction::Ltr, move |ui| {
             Notice::new("Message").tone(tone).show(ui);
@@ -83,6 +82,26 @@ fn the_text_starts_after_the_icon_and_neutral_starts_at_the_edge() {
     let (_, rtl_warn) = start(Tone::Warn, Direction::Rtl);
     let (_, rtl_neutral) = start(Tone::Neutral, Direction::Rtl);
     assert!(rtl_warn < rtl_neutral - 10.0, "{rtl_warn} {rtl_neutral}");
+}
+
+#[test]
+fn a_widget_appearing_before_a_notice_keeps_its_region() {
+    let mut harness =
+        Harness::builder().with_size([400.0, 300.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, shown: &mut bool| {
+                if *shown {
+                    ui.label("Appears");
+                }
+                Notice::new("Saved").tone(Tone::Good).id_salt("saved").show(ui);
+            },
+            false,
+        );
+    harness.run();
+    let id = region(&harness).accesskit_node().id();
+    *harness.state_mut() = true;
+    harness.run();
+    assert!(harness.query_by_label("Appears").is_some());
+    assert_eq!(region(&harness).accesskit_node().id(), id);
 }
 
 #[test]
