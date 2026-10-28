@@ -21,6 +21,7 @@ pub mod inspect;
 pub mod layout;
 pub mod localized;
 pub mod panes;
+mod popup_list;
 pub mod primitives;
 pub mod printing;
 pub mod story;
