@@ -790,7 +790,7 @@ fn guide_id(guides: Id, key: u64) -> Id {
 /// The screen ends of a guide at `position` across what the view shows (`visible`, the document
 /// bounds of the canvas rect), limited to `span`: a rotated view turns the guide with the
 /// document (PhotoCraft #3277). `None` when the span is out of view.
-fn segment(view: &CanvasView, visible: Rect, orientation: Orientation, position: f64, span: Option<&Range<f64>>) -> Option<[Pos2; 2]> {
+pub(super) fn segment(view: &CanvasView, visible: Rect, orientation: Orientation, position: f64, span: Option<&Range<f64>>) -> Option<[Pos2; 2]> {
     let (lo, hi) = orientation.flipped().range(visible);
     let (lo, hi) = match span {
         Some(s) => (lo.max(s.start.min(s.end)), hi.min(s.end.max(s.start))),
@@ -985,8 +985,8 @@ impl GuideHost {
     }
 }
 
-/// Guides on the story document: drag them, drag new ones out of the strip above (Alt turns
-/// them), Shift snaps to the ticks; Tab to them, Page Up and Page Down, the arrows and Delete.
+/// Guides on the story document: drag them (new ones come out of the rulers in the Rulers story),
+/// Shift snaps to the ticks; Tab to them, Page Up and Page Down, the arrows and Delete.
 fn show_guides(ui: &mut Ui, args: &mut Args) {
     let key = ui.scope_id().with("guides-story");
     let mut host: GuideHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| {
@@ -1006,10 +1006,6 @@ fn show_guides(ui: &mut Ui, args: &mut Args) {
         g.line = line;
         g.locked = args.bool("locked") && g.key == 2;
     }
-    let tokens = Tokens::of(ui);
-    let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width().clamp(240.0, 720.0), tokens.component.ruler.size), Sense::hover());
-    let ruler = ui.interact(strip, key.with("ruler"), Sense::drag());
-    ui.painter().rect_filled(strip, 0.0, tokens.color.surface.panel.to_egui());
     let canvas = super::story::document(ui, args, "Document");
     let mut guides =
         Guides::new("story-guides", &host.guides).selected(host.selected).interactive(args.bool("interactive")).bounds(super::story::DOC);
@@ -1017,9 +1013,6 @@ fn show_guides(ui: &mut Ui, args: &mut Args) {
         guides = guides.readout("X:", "Y:");
     }
     let response = guides.show(ui, &canvas.response, &canvas.view);
-    if ruler.drag_started() {
-        Guides::drag_from_ruler(ui.ctx(), response.id, Orientation::Horizontal);
-    }
     host.apply(&response);
     ui.data_mut(|d| d.insert_temp(key, host));
 }

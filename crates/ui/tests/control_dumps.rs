@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{Guides, Readout};
+use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -460,6 +460,18 @@ fn guide() {
         d.line("measure_cap", s.measure_cap).line("measure_pad", s.measure_pad).line("measure_radius", s.measure_radius);
         d.line("measure_role", role(s.measure_role)).line("measure_text", s.measure_text);
         d.line("focus", s.focus).line("focus_offset", s.focus_offset);
+    });
+}
+
+/// Rulers: strip, label and tick sizes, the colours and the pointer marker.
+#[test]
+fn ruler() {
+    check("ruler.txt", |d, t| {
+        let s = Rulers::style(t);
+        d.line("size", s.size).line("label", s.font.size).line("family", format!("{:?}", s.font.family));
+        d.line("label_pitch", s.label_pitch).line("label_pad", s.label_pad).line("step_min", s.step_min);
+        d.line("tick_mid", s.tick_mid).line("tick_minor", s.tick_minor);
+        d.line("fill", s.fill).line("tick", s.tick).line("label_color", s.label).line("marker", s.marker);
     });
 }
 

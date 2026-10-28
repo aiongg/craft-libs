@@ -33,17 +33,32 @@ pub(crate) fn args() -> Args {
 pub(crate) struct StoryCanvas {
     pub response: Response,
     pub view: CanvasView,
+    /// The area allocated: the canvas and the margin around its top and left for rulers.
+    pub full: egui::Rect,
 }
 
 /// Draws the story document filling the story's width, centred, under the view the args set,
 /// and senses clicks, drags and keyboard focus on it. Overlays draw over it with `ui.painter_at
 /// (canvas.view.rect)`.
 pub(crate) fn document(ui: &mut Ui, args: &Args, label: &str) -> StoryCanvas {
+    document_in(ui, args, label, 0.0)
+}
+
+/// [`document`] with `margin` points left free above and left of the canvas, for rulers.
+pub(crate) fn document_in(ui: &mut Ui, args: &Args, label: &str, margin: f32) -> StoryCanvas {
     if let Ok(ppp) = args.choice("ppp").parse::<f32>() {
         story::request_pixels_per_point(ui.ctx(), ppp);
     }
-    let size = vec2(ui.available_width().clamp(240.0, 720.0), 360.0);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag() | Sense::FOCUSABLE);
+    let size = vec2((ui.available_width() - margin).clamp(240.0, 720.0), 360.0);
+    let sense = Sense::click_and_drag() | Sense::FOCUSABLE;
+    let (full, rect, response) = if margin > 0.0 {
+        let (full, _) = ui.allocate_exact_size(size + vec2(margin, margin), Sense::hover());
+        let rect = egui::Rect::from_min_max(full.min + vec2(margin, margin), full.max);
+        (full, rect, ui.interact(rect, ui.scope_id().with(("craft_ui::canvas::story", label)), sense))
+    } else {
+        let (rect, response) = ui.allocate_exact_size(size, sense);
+        (rect, rect, response)
+    };
     response.widget_info(|| WidgetInfo::labeled(Role::Canvas, ui.is_enabled(), label));
     // The arrow keys nudge on the canvas instead of moving focus.
     let arrows = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() };
@@ -70,7 +85,7 @@ pub(crate) fn document(ui: &mut Ui, args: &Args, label: &str) -> StoryCanvas {
         }
     }
     FocusRing::paint(ui, rect, Corner::Control, &response);
-    StoryCanvas { response, view }
+    StoryCanvas { response, view, full }
 }
 
 /// The components this module has stories for.

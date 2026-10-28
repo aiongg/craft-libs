@@ -71,6 +71,21 @@ impl RulerUnits {
         format!("{}{number}{}", self.unit.prefix(), self.unit.suffix())
     }
 
+    /// The number a ruler prints at the tick `value` (ruler units from the zero point): the
+    /// distance, without a minus sign left of or above the zero point, as a whole number when
+    /// the labelled `step` is at least 1 or the ticks are whole (pixels), else with two decimals
+    /// (PhotoCraft's `ruler_label`). Written with the host's numbers, ungrouped.
+    pub fn tick_label(&self, value: f64, step: f64) -> String {
+        let whole = matches!(self.ticks, Ticks::Decimal { whole: true });
+        let (value, decimals) = if step >= 1.0 || whole { (value.abs().round(), 0) } else { (value.abs(), 2) };
+        self.numbers.clone().ungrouped().format(value, decimals..=decimals)
+    }
+
+    /// The unit's short name (`px`): the template without its number.
+    pub fn unit_name(&self) -> String {
+        format!("{}{}", self.unit.prefix(), self.unit.suffix()).trim().to_owned()
+    }
+
     /// [`format`](Self::format) for a readout or a value: at least one decimal, so pixels show
     /// tenths (PhotoCraft's `X: 103.2 px`), other units at their `decimals`.
     pub fn format_value(&self, position: f64, zero: f64) -> String {
