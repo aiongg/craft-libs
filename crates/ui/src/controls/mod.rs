@@ -81,6 +81,10 @@ mod tests;
 pub(crate) mod text_field;
 #[cfg(test)]
 mod text_field_tests;
+#[cfg_attr(not(test), expect(dead_code, reason = "the levels editor (DS-28l2) shows the rows"))]
+pub(crate) mod thumb_row;
+#[cfg(test)]
+mod thumb_row_tests;
 pub(crate) mod toggle_button;
 pub(crate) mod tooltip;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]

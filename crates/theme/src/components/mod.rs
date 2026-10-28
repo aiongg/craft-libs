@@ -17,6 +17,7 @@ mod handle;
 mod histogram;
 mod icon_button;
 mod kbd;
+mod levels;
 mod list;
 mod listbox;
 mod marquee;
@@ -54,6 +55,7 @@ pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use levels::{LevelsField, LevelsTokens};
 pub use list::{ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
@@ -584,6 +586,8 @@ families! {
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
+    /// Levels editors: the triangle thumbs and output bar under a histogram.
+    levels: LevelsTokens => Levels(LevelsField);
     /// Lists: the rows of a list or tree panel.
     list: ListTokens => List(ListField);
     /// List boxes: the rows of popup lists.
