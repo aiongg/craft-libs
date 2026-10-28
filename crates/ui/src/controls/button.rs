@@ -67,6 +67,7 @@ pub struct Button {
     icon: Option<Icon>,
     loading: bool,
     enabled: bool,
+    min_width: f32,
     id_salt: Option<IdSalt>,
 }
 
@@ -80,6 +81,7 @@ impl Button {
             icon: None,
             loading: false,
             enabled: true,
+            min_width: 0.0,
             id_salt: None,
         }
     }
@@ -112,6 +114,20 @@ impl Button {
         self
     }
 
+    /// The least width in points; the face stays centred. For buttons that share a width.
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.min_width = width;
+        self
+    }
+
+    /// The width the button takes in a `Ui` with room to spare, before [`min_width`](Button::min_width).
+    pub fn natural_width(&self, ui: &Ui) -> f32 {
+        let tokens = Tokens::of(ui);
+        let style = Button::style(&tokens, self.variant, self.size);
+        let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: self.loading };
+        face.natural_width(ui, &tokens, &style)
+    }
+
     /// Keeps focus and animations when the layout around it changes; else the `Ui`'s next
     /// automatic id.
     pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
@@ -142,7 +158,8 @@ impl Widget for Button {
         let tokens = Tokens::of(ui);
         let style = Button::style(&tokens, self.variant, self.size);
         let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: self.loading };
-        let laid = face.layout(ui, &tokens, &style);
+        let mut laid = face.layout(ui, &tokens, &style);
+        laid.size.x = laid.size.x.max(self.min_width);
         let mut element = Interactive::new(salt(ui, self.id_salt), Role::Button, self.label.as_str())
             .colors(style.colors())
             .corner(Corner::Button)
@@ -195,6 +212,15 @@ impl Laid {
 }
 
 impl Face<'_> {
+    /// The face's width with all the room it needs.
+    pub(crate) fn natural_width(&self, ui: &Ui, tokens: &UiTokens, style: &ButtonStyle) -> f32 {
+        let fixed = 2.0 * style.pad_x + if self.icon.is_some() { style.icon + style.gap } else { 0.0 };
+        let format = role_format(tokens, style.label, Color32::PLACEHOLDER);
+        let mut job = LayoutJob::single_section(self.label.to_owned(), format);
+        job.wrap = TextWrapping::no_max_width();
+        fixed + ui.painter().layout_job(job).size().x
+    }
+
     pub(crate) fn layout(&self, ui: &Ui, tokens: &UiTokens, style: &ButtonStyle) -> Laid {
         let fixed = 2.0 * style.pad_x + if self.icon.is_some() { style.icon + style.gap } else { 0.0 };
         // The text colour depends on the state, known only after the interaction: painted later.

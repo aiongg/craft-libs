@@ -221,8 +221,9 @@ impl Captured {
     }
 }
 
-/// The tokens for `ctx`'s current viewport and theme.
-pub(super) fn current(ctx: &Context) -> Arc<UiTokens> {
+/// The tokens in effect in `ctx`'s current viewport: [`Tokens::of`](super::TokensOf::of) for code
+/// that has no `Ui`, such as a window-level overlay.
+pub fn current(ctx: &Context) -> Arc<UiTokens> {
     let viewport = ctx.viewport_id();
     if let Some(top) = with_state(ctx, |s| s.viewports.get(&viewport).and_then(Viewport::top).map(|e| Arc::clone(&e.tokens))) {
         return top;

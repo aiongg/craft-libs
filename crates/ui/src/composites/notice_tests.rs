@@ -1,0 +1,96 @@
+//! Notice tests: live region per tone, plain notes, the icon and the story.
+
+use egui::Context;
+use egui::accesskit::{Live, Role};
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use egui_kittest::{Harness, HarnessBuilder};
+
+use super::*;
+use crate::direction::{self, Direction};
+use crate::testing::a11y;
+use crate::theme::{Base, install};
+
+fn harness<'a>(dir: Direction, show: impl FnMut(&mut egui::Ui) + 'a) -> Harness<'a, ()> {
+    let builder: HarnessBuilder<()> = Harness::builder().with_size([400.0, 300.0]).with_context_setup(move |ctx: &Context| {
+        install(ctx, &Base::suite_default());
+        direction::apply(ctx, dir);
+    });
+    builder.build_ui(show)
+}
+
+fn region<'a>(harness: &'a Harness<'_, ()>) -> egui_kittest::Node<'a> {
+    harness.get_by(|n| matches!(n.role(), Role::Status | Role::Alert | Role::Note))
+}
+
+#[test]
+fn the_region_is_status_or_alert_with_its_live_setting() {
+    for (tone, role, live) in [
+        (Tone::Info, Role::Status, Live::Polite),
+        (Tone::Good, Role::Status, Live::Polite),
+        (Tone::Warn, Role::Status, Live::Polite),
+        (Tone::Neutral, Role::Status, Live::Polite),
+        (Tone::Bad, Role::Alert, Live::Assertive),
+    ] {
+        let mut harness = harness(Direction::Ltr, move |ui| {
+            Notice::new("The message").title("The title").tone(tone).show(ui);
+        });
+        harness.run();
+        let node = region(&harness);
+        assert_eq!((node.accesskit_node().role(), node.accesskit_node().live()), (role, live), "{tone:?}");
+        let label = node.accesskit_node().label().expect("named by its texts");
+        assert!(label.contains("The title") && label.contains("The message"), "{label}");
+        let text = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("The message"));
+        assert_eq!(text.accesskit_node().live(), Live::Off, "the text inside is silent");
+    }
+}
+
+#[test]
+fn announce_off_is_a_plain_note() {
+    let mut harness = harness(Direction::Ltr, |ui| {
+        Notice::new("Applies at the next launch.").tone(Tone::Warn).announce(false).show(ui);
+    });
+    harness.run();
+    let node = region(&harness);
+    assert_eq!(node.accesskit_node().role(), Role::Note);
+    assert_eq!(node.accesskit_node().live(), Live::Off);
+}
+
+#[test]
+fn the_icon_has_no_node_and_neutral_has_no_icon() {
+    let nodes = |tone| {
+        let mut harness = harness(Direction::Ltr, move |ui| {
+            Notice::new("Message").tone(tone).show(ui);
+        });
+        harness.run();
+        harness.root().children_recursive().count()
+    };
+    assert_eq!(nodes(Tone::Warn), nodes(Tone::Neutral));
+}
+
+#[test]
+fn the_text_starts_after_the_icon_and_neutral_starts_at_the_edge() {
+    let start = |tone, dir| {
+        let mut harness = harness(dir, move |ui| {
+            Notice::new("Message").tone(tone).show(ui);
+        });
+        harness.run();
+        let rect = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Message")).rect();
+        (rect.left(), rect.right())
+    };
+    let (neutral, _) = start(Tone::Neutral, Direction::Ltr);
+    let (warn, _) = start(Tone::Warn, Direction::Ltr);
+    assert!(warn > neutral + 10.0, "{warn} {neutral}");
+    let (_, rtl_warn) = start(Tone::Warn, Direction::Rtl);
+    let (_, rtl_neutral) = start(Tone::Neutral, Direction::Rtl);
+    assert!(rtl_warn < rtl_neutral - 10.0, "{rtl_warn} {rtl_neutral}");
+}
+
+#[test]
+fn the_story_is_labelled_in_both_directions() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let mut args = (notice::stories()[0].args)();
+        let mut harness = harness(dir, move |ui| notice::show_tones(ui, &mut args));
+        harness.run();
+        a11y::assert_labelled(&harness);
+    }
+}

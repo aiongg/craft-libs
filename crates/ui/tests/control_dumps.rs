@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
+use craft_ui::composites::{EmptyState, Field, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -429,5 +429,42 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Toasts: the card's sizes and colours, and each tone's edge and title.
+#[test]
+fn toast() {
+    check("toast.txt", |d, t| {
+        let s = ToastStack::style(t, Tone::Neutral);
+        d.line("width", s.width).line("pad", s.pad).line("inset.x", s.inset[0]).line("inset.y", s.inset[1]).line("gap", s.gap);
+        d.line("radius", s.radius).line("fill", s.fill).line("line", s.line).line("more", s.more).line("icon", s.icon);
+        d.line("title_role", role(s.title_role)).line("line_role", role(s.line_role));
+        for tone in Tone::ALL {
+            let s = ToastStack::style(t, tone);
+            d.line(&format!("{}.edge", tone.name()), s.edge).line(&format!("{}.title", tone.name()), s.title);
+        }
+    });
+}
+
+/// Notices: the icon, gap and type roles, and each tone's colour.
+#[test]
+fn notice() {
+    check("notice.txt", |d, t| {
+        let s = Notice::style(t, Tone::Neutral);
+        d.line("icon_gap", s.icon_gap).line("icon", s.icon).line("title_role", role(s.title_role)).line("message_role", role(s.message_role));
+        for tone in Tone::ALL {
+            d.line(&format!("{}.fg", tone.name()), Notice::style(t, tone).fg);
+        }
+    });
+}
+
+/// Empty states: the column width, gaps, type roles and the inline text colour.
+#[test]
+fn empty_state() {
+    check("empty_state.txt", |d, t| {
+        let s = EmptyState::style(t);
+        d.line("max_width", s.max_width).line("gap", s.gap).line("section_gap", s.section_gap).line("message", s.message);
+        d.line("message_role", role(s.message_role)).line("title_role", role(s.title_role)).line("description_role", role(s.description_role));
     });
 }

@@ -395,6 +395,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 7
             + (1 + 5 * 2 + 4 + 4)
             + (1 + 2 + 6)
+            // Toast: radius, fill, line, more, and edge and title per tone; notice: a colour per tone; empty state: text.
+            + (4 + 2 * 5)
+            + 5
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
