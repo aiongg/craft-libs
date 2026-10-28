@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value};
 
-use super::{ErrorKind, FormatError, FormatErrors, MAX_THEME_BYTES, SCHEMA, SCHEMA_VERSION, ThemeFile};
+use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES, SCHEMA, SCHEMA_VERSION, ThemeFile};
 use crate::color::Rgba;
 use crate::components::{ComponentField, FieldKind, OverrideValue};
 use crate::scale::{Elevation, Radius};
@@ -38,7 +38,7 @@ pub fn parse(bytes: &[u8]) -> Result<ThemeFile, FormatErrors> {
         _ => return stop(&["schema_version"], ErrorKind::BadSchemaVersion),
     }
 
-    let mut p = Parser { errors: Vec::new(), path: Vec::new() };
+    let mut p = Parser::new();
     let theme = p.theme(&raw);
     match theme {
         Some(theme) if p.errors.is_empty() => Ok(ThemeFile { theme, raw }),
@@ -47,12 +47,16 @@ pub fn parse(bytes: &[u8]) -> Result<ThemeFile, FormatErrors> {
 }
 
 /// Collects errors while walking the file; `path` is the position being read.
-struct Parser {
-    errors: Vec<FormatError>,
+pub(super) struct Parser {
+    pub(super) errors: Vec<FormatError>,
     path: Vec<String>,
 }
 
 impl Parser {
+    pub(super) fn new() -> Parser {
+        Parser { errors: Vec::new(), path: Vec::new() }
+    }
+
     fn fail(&mut self, kind: ErrorKind) {
         self.errors.push(FormatError { path: self.path.clone(), kind });
     }
@@ -124,10 +128,12 @@ impl Parser {
                 None
             }
         });
-        self.at("version", |p| {
-            if raw.get("version").is_some_and(|v| v.as_u64().and_then(|n| u32::try_from(n).ok()).is_none()) {
+        let version = self.at("version", |p| match raw.get("version") {
+            None | Some(Value::Null) => 1,
+            Some(v) => v.as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or_else(|| {
                 p.fail(ErrorKind::BadValue { expected: "a non-negative integer" });
-            }
+                1
+            }),
         });
         let variants =
             self.choice(raw, "variants", Variants::Both, &[("both", Variants::Both), ("light", Variants::LightOnly), ("dark", Variants::DarkOnly)]);
@@ -146,6 +152,7 @@ impl Parser {
         Some(ThemeDef {
             name: name.unwrap_or_else(|| id.as_str().to_owned()),
             id,
+            version,
             seeds: seeds?,
             shape: shape?,
             variants,
@@ -234,7 +241,7 @@ impl Parser {
             _ => None,
         };
         if out.is_none() {
-            self.fail(ErrorKind::BadValue { expected: "a length: a number of 0 or more, or \"full\"" });
+            self.fail(ErrorKind::BadValue { expected: LENGTH });
         }
         out
     }
@@ -247,7 +254,7 @@ impl Parser {
             _ => None,
         };
         if width.is_none() {
-            self.fail(ErrorKind::BadValue { expected: "\"flat\" or {\"bevel\": {\"width\": n}} with n above 0" });
+            self.fail(ErrorKind::BadValue { expected: EDGE });
         }
         width.map(|w| EdgeSeed::Bevel { width: w as f32 })
     }
@@ -273,7 +280,7 @@ impl Parser {
         Some(ModePins { light: light?, dark: dark? })
     }
 
-    /// A map of colour paths to colours.
+    /// A map of colour paths to colours. Surfaces must be opaque.
     fn pins(&mut self, m: &Map<String, Value>) -> Option<Pins> {
         let mut pins = Pins::default();
         let mut ok = true;
@@ -290,6 +297,10 @@ impl Parser {
                     return false;
                 }
                 match p.colour(v) {
+                    Some(c) if c.a() < 255 && matches!(token, TokenRef::Color(t) if t.is_opaque_surface()) => {
+                        p.fail(ErrorKind::NotOpaque);
+                        false
+                    }
                     Some(c) => {
                         pins.0.insert(token, c);
                         true
@@ -352,7 +363,7 @@ impl Parser {
     }
 
     /// `{ "level": 0 to 3 }`.
-    fn elevation(&mut self, v: &Value) -> Option<Elevation> {
+    pub(super) fn elevation(&mut self, v: &Value) -> Option<Elevation> {
         let level = v.get("level").and_then(Value::as_u64).filter(|l| *l < Elevation::LEVELS.len() as u64);
         if level.is_none() {
             self.fail(ErrorKind::BadValue { expected: "{\"level\": 0 to 3}" });
@@ -376,10 +387,14 @@ impl Parser {
                         return false;
                     };
                     let pins = p.mode_pins(app, variants);
+                    let high_contrast = match p.optional_object(app, "high_contrast") {
+                        Some(hc) => p.at("high_contrast", |p| p.mode_pins(hc, variants)),
+                        None => Some(ModePins::default()),
+                    };
                     let components = p.components(app);
-                    match (pins, components) {
-                        (Some(pins), Some(components)) => {
-                            out.insert(id, AppOverrides { pins, components });
+                    match (pins, high_contrast, components) {
+                        (Some(pins), Some(high_contrast), Some(components)) => {
+                            out.insert(id, AppOverrides { pins, high_contrast, components });
                             true
                         }
                         _ => false,

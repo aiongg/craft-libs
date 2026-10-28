@@ -96,6 +96,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> Source {
         T::TextDisabled => Neutral(9),
         T::TextOnAccent => OnSolid(&[T::AccentSolid]),
         T::TextOnStatus => OnSolid(STATUS_SOLIDS),
+        // `text.normal`'s step, so neutral selections look like the rest of the text.
+        T::TextOnSelected => Neutral(12),
         T::LineDivider => Neutral(6),
         T::LineBorder => Neutral(7),
         T::LineControlEdge => Neutral(8),
@@ -203,9 +205,8 @@ const TEXT_BGS: &[Bg] = &[
     Token(T::SurfaceSunken),
     Token(T::StateHover),
     Token(T::StatePressed),
-    Token(T::StateSelected),
-    Token(T::StateSelectedHover),
 ];
+const SELECTED_BGS: &[Bg] = &[Token(T::StateSelected), Token(T::StateSelectedHover)];
 const CONTROL_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 
@@ -215,6 +216,7 @@ pub(super) const RULES: &[PairRule] = &[
     rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], &[Token(T::SurfacePanel)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
+    rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::AccentText], CONTROL_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::StatusGoodFg], &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::StatusGoodBg)], TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::StatusWarnFg], &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::StatusWarnBg)], TEXT_MIN.0, TEXT_MIN.1),

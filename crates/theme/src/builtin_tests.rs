@@ -14,7 +14,7 @@ fn builtins_parse_and_round_trip_to_their_files() {
     for ((name, text), theme) in SOURCES.iter().zip(themes) {
         let file = format::parse(text.as_bytes()).unwrap();
         assert_eq!(&file.theme, theme, "{name}");
-        assert_eq!(&format::write(&file), text, "{name}.json is not in the writer's form");
+        assert_eq!(&format::write(&file).unwrap(), text, "{name}.json is not in the writer's form");
         assert_eq!(theme.id.as_str(), format!("craft.{name}"));
     }
     let ids: BTreeSet<_> = themes.iter().map(|t| t.id.as_str()).collect();

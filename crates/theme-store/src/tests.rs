@@ -116,7 +116,7 @@ fn imports_keep_unknown_data_byte_for_byte() {
     let tmp = tempfile::tempdir().unwrap();
     let mut store = open(tmp.path());
     let imported = store.import(SAMPLE_THEME_JSON.as_bytes(), false).unwrap();
-    assert_eq!((imported.record.theme.name.as_str(), imported.record.version), ("Navy and cream", 3));
+    assert_eq!((imported.record.theme.name.as_str(), imported.record.theme.version), ("Navy and cream", 3));
     let stored = fs::read(tmp.path().join("library").join(format!("{SAMPLE_THEME_ID}.json"))).unwrap();
     assert_eq!(stored, SAMPLE_THEME_JSON.as_bytes());
     // A library op writes no suite selection.

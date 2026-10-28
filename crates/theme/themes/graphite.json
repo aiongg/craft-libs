@@ -25,6 +25,7 @@
     "surface.background": "#f1f1f3",
     "surface.panel": "#ffffff",
     "surface.raised": "#ffffff",
+    "text.muted": "#5e5e66",
     "text.normal": "#222226",
     "text.on_accent": "#ffffff"
   },

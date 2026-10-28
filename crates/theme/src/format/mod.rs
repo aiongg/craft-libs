@@ -1,5 +1,6 @@
 //! Theme files: schema `craft-design-theme`, version 1. [`parse`] reads and validates one,
-//! [`write`] produces the stable text form, [`to_file`] wraps a [`ThemeDef`] that has no file.
+//! [`write`] produces the stable text form, [`to_file`] wraps a [`ThemeDef`] that has no file,
+//! and [`ThemeDef::validate`] checks a theme against what [`parse`] accepts.
 //!
 //! The library does no I/O: callers hand over bytes and take back text.
 
@@ -12,6 +13,7 @@ use super::theme::ThemeDef;
 use crate::IdError;
 
 mod parse;
+mod validate;
 mod write;
 
 pub use parse::parse;
@@ -24,26 +26,24 @@ pub const SCHEMA_VERSION: u64 = 1;
 /// Larger theme files are refused without being parsed.
 pub const MAX_THEME_BYTES: usize = 256 * 1024;
 
+/// The expected form of a length, in [`ErrorKind::BadValue`].
+const LENGTH: &str = "a length: a number of 0 or more, or \"full\"";
+/// The expected form of an edge, in [`ErrorKind::BadValue`].
+const EDGE: &str = "\"flat\" or {\"bevel\": {\"width\": n}} with n above 0";
+
 /// A parsed theme file: the theme and the JSON it came from, so that [`write`] keeps unknown keys.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeFile {
-    /// The validated theme.
+    /// The theme. [`write`] refuses one that [`ThemeDef::validate`] rejects.
     pub theme: ThemeDef,
     raw: Map<String, Value>,
 }
 
-impl ThemeFile {
-    /// The theme's own revision (`version` in the file; 1 when absent).
-    pub fn version(&self) -> u32 {
-        self.raw.get("version").and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok()).unwrap_or(1)
-    }
-}
-
-/// A theme file for `theme`, as if it had been parsed from the file [`write`] produces.
-pub fn to_file(theme: &ThemeDef) -> ThemeFile {
-    let mut raw = Map::new();
-    raw.insert("version".to_owned(), Value::from(1));
-    ThemeFile { theme: theme.clone(), raw }
+/// A theme file for `theme`, as if it had been parsed from the file [`write`] produces. Fails
+/// when [`ThemeDef::validate`] does.
+pub fn to_file(theme: &ThemeDef) -> Result<ThemeFile, FormatErrors> {
+    theme.validate()?;
+    Ok(ThemeFile { theme: theme.clone(), raw: Map::new() })
 }
 
 /// What is wrong at one place in a file.
@@ -103,6 +103,8 @@ pub enum ErrorKind {
     },
     /// A colour map for a mode the theme's `variants` leaves out.
     NoSuchMode,
+    /// A translucent colour on a surface (`surface.*` except `surface.scrim`).
+    NotOpaque,
 }
 
 /// One problem in a file, with its JSON path.
@@ -142,6 +144,7 @@ impl FormatError {
             ErrorKind::ColorNotPerMode => "colours are set per mode, in light or dark".to_owned(),
             ErrorKind::WrongKind { expected, found } => format!("expected a {expected:?} value, found {found:?}"),
             ErrorKind::NoSuchMode => "the theme's variants leave this mode out".to_owned(),
+            ErrorKind::NotOpaque => "surfaces must be opaque".to_owned(),
         }
     }
 }

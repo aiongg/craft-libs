@@ -81,6 +81,8 @@ pub struct TextColors {
     pub on_accent: Rgba,
     /// Text on every `status.<s>.solid`, `solid_hover` and `solid_pressed`.
     pub on_status: Rgba,
+    /// Text on `state.selected` and `state.selected_hover`.
+    pub on_selected: Rgba,
 }
 
 /// Lines and outlines.
@@ -228,7 +230,7 @@ impl ColorTokens {
         let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, scrim: c },
-            text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c },
+            text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
@@ -305,6 +307,8 @@ color_tokens! {
     TextOnAccent = "text.on_accent" => text.on_accent;
     /// `text.on_status`
     TextOnStatus = "text.on_status" => text.on_status;
+    /// `text.on_selected`
+    TextOnSelected = "text.on_selected" => text.on_selected;
     /// `line.divider`
     LineDivider = "line.divider" => line.divider;
     /// `line.border`
@@ -439,6 +443,15 @@ pub enum TokenRef {
     Color(ColorToken),
     /// A component field.
     Component(ComponentField),
+}
+
+impl ColorToken {
+    /// Whether this is a surface that text and fills sit on (`surface.*` except `scrim`); those
+    /// must be opaque.
+    pub const fn is_opaque_surface(self) -> bool {
+        use ColorToken::{SurfaceBackground, SurfaceCanvas, SurfacePanel, SurfaceRaised, SurfaceSunken};
+        matches!(self, SurfaceBackground | SurfaceCanvas | SurfacePanel | SurfaceRaised | SurfaceSunken)
+    }
 }
 
 impl TokenRef {

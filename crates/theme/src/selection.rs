@@ -207,7 +207,7 @@ pub fn resolve_selection(
     fallback_mode: Mode,
     defaults: &AppDefaults,
     app: Option<&AppId>,
-    lookup: &dyn Fn(&ThemeId) -> Option<ThemeDef>,
+    lookup: &mut dyn FnMut(&ThemeId) -> Option<ThemeDef>,
 ) -> Shown {
     let mut notices = Vec::new();
     let mode = match sel.mode {

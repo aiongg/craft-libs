@@ -42,9 +42,9 @@ impl Base {
         system: SystemAppearance,
         defaults: &AppDefaults,
         app: Option<&AppId>,
-        lookup: &dyn Fn(&ThemeId) -> Option<ThemeDef>,
+        lookup: &mut dyn FnMut(&ThemeId) -> Option<ThemeDef>,
     ) -> Base {
-        let shown = |mode: Mode| {
+        let mut shown = |mode: Mode| {
             let choice = match mode {
                 Mode::Light => ModeChoice::Light,
                 Mode::Dark => ModeChoice::Dark,
@@ -84,7 +84,7 @@ impl Inputs {
 
 static SUITE_DEFAULT_BASE: LazyLock<Base> = LazyLock::new(|| {
     let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::System, size: Size::default() };
-    Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &builtin)
+    Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut builtin)
 });
 
 fn builtin(id: &ThemeId) -> Option<ThemeDef> {

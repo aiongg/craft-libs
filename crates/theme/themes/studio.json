@@ -34,6 +34,7 @@
     "surface.canvas": "#e2e2e6",
     "surface.panel": "#fcfcfd",
     "surface.sunken": "#f2f2f5",
+    "text.muted": "#60606a",
     "text.normal": "#18181c"
   },
   "dark": {

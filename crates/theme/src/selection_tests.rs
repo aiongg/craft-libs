@@ -30,7 +30,7 @@ fn selection(light: &str, dark: &str, mode: ModeChoice) -> Selection {
 }
 
 fn show(sel: &Selection, system: SystemAppearance) -> Shown {
-    resolve_selection(sel, system, Mode::Light, &defaults(), None, &lookup)
+    resolve_selection(sel, system, Mode::Light, &defaults(), None, &mut lookup)
 }
 
 #[test]
@@ -128,13 +128,13 @@ fn theme_falls_back_to_the_app_default_then_the_suite_default() {
 
     let broken = AppDefaults { theme: ThemePair::same(id("app.missing")), ..defaults() };
     let sel = selection("user.gone", "user.gone", ModeChoice::Light);
-    let shown = resolve_selection(&sel, SystemAppearance::default(), Mode::Light, &broken, None, &lookup);
+    let shown = resolve_selection(&sel, SystemAppearance::default(), Mode::Light, &broken, None, &mut lookup);
     assert_eq!(shown.theme.as_str(), SUITE_DEFAULT);
     assert_eq!(shown.notices, [Fallback::UnknownTheme(id("user.gone")), Fallback::UnknownTheme(id("app.missing"))]);
 
     let sel = selection(APP_DEFAULT, APP_DEFAULT, ModeChoice::Light);
     let none = AppDefaults { theme: ThemePair::same(ThemeId::app_default()), ..defaults() };
-    let shown = resolve_selection(&sel, SystemAppearance::default(), Mode::Light, &none, None, &|_| None);
+    let shown = resolve_selection(&sel, SystemAppearance::default(), Mode::Light, &none, None, &mut |_| None);
     assert_eq!((shown.theme.as_str(), shown.notices.as_slice()), (SUITE_DEFAULT, &[][..]));
 }
 

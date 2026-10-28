@@ -4,8 +4,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Number, Value};
 
-use super::ThemeFile;
-use super::{SCHEMA, SCHEMA_VERSION};
+use super::{FormatErrors, SCHEMA, SCHEMA_VERSION, ThemeFile};
 use crate::components::{ComponentField, OverrideValue};
 use crate::scale::{Elevation, Radius};
 use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
@@ -29,14 +28,16 @@ const TOP_ORDER: [&str; 14] = [
 ];
 
 /// The file as pretty-printed JSON ending in a newline. Known values come from `file.theme`;
-/// unknown keys come from the file that was parsed. Keys are sorted below the top level.
-pub fn write(file: &ThemeFile) -> String {
+/// unknown keys come from the file that was parsed. Keys are sorted below the top level. Fails
+/// with [`ThemeDef::validate`]'s errors, so the text always parses.
+pub fn write(file: &ThemeFile) -> Result<String, FormatErrors> {
+    file.theme.validate()?;
     let mut raw = file.raw.clone();
     update(&mut raw, &file.theme);
     let mut out = String::new();
     emit(&Value::Object(raw), 0, true, &mut out);
     out.push('\n');
-    out
+    Ok(out)
 }
 
 fn update(raw: &mut Map<String, Value>, t: &ThemeDef) {
@@ -44,7 +45,7 @@ fn update(raw: &mut Map<String, Value>, t: &ThemeDef) {
     raw.insert("schema_version".to_owned(), SCHEMA_VERSION.into());
     raw.insert("id".to_owned(), t.id.as_str().into());
     raw.insert("name".to_owned(), t.name.as_str().into());
-    raw.entry("version").or_insert(1.into());
+    raw.insert("version".to_owned(), t.version.into());
     let variants = match t.variants {
         Variants::Both => "both",
         Variants::LightOnly => "light",
@@ -110,6 +111,7 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
 
 fn update_app(app: &mut Map<String, Value>, o: &AppOverrides) {
     mode_maps(app, &o.pins);
+    section(app, "high_contrast", |hc| mode_maps(hc, &o.high_contrast));
     set_map(app, "components", component_map(&o.components));
 }
 
@@ -156,7 +158,7 @@ fn component_map(components: &BTreeMap<ComponentField, OverrideValue>) -> Map<St
     components.iter().map(|(f, v)| (f.path(), override_value(v))).collect()
 }
 
-fn override_value(v: &OverrideValue) -> Value {
+pub(super) fn override_value(v: &OverrideValue) -> Value {
     match *v {
         OverrideValue::Color(c) => c.to_hex().into(),
         OverrideValue::Length(l) => length(l),
@@ -226,5 +228,29 @@ fn emit(v: &Value, depth: usize, top: bool, out: &mut String) {
             out.push(']');
         }
         other => out.push_str(&other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use serde_json::json;
+
+    use super::override_value;
+    use crate::components::OverrideValue;
+    use crate::format::parse::Parser;
+    use crate::scale::Elevation;
+
+    // No component field takes a shadow yet, so the elevation form is checked on its own.
+    #[test]
+    fn elevation_overrides_parse_and_write() {
+        let mut p = Parser::new();
+        assert_eq!(p.elevation(&json!({ "level": 2 })), Some(Elevation::level(2)));
+        assert_eq!(p.elevation(&json!({ "level": 4 })), None);
+        assert_eq!(p.errors.len(), 1);
+        assert_eq!(override_value(&OverrideValue::Elevation(Elevation::level(3))), json!({ "level": 3 }));
+        let near_one = Elevation { blur: Elevation::level(1).blur + 0.5, ..Elevation::level(1) };
+        assert_eq!(override_value(&OverrideValue::Elevation(near_one)), json!({ "level": 1 }));
     }
 }

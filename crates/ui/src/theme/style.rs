@@ -69,7 +69,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     v.dark_mode = dark;
     v.weak_text_color = Some(c.text.muted.to_egui());
     v.widgets = widgets(tokens, &button.secondary);
-    v.selection = Selection { bg_fill: c.state.selected.to_egui(), stroke: stroke(1.0, c.text.normal) };
+    v.selection = Selection { bg_fill: c.state.selected.to_egui(), stroke: stroke(1.0, c.text.on_selected) };
     v.ime_composition.active_underline_stroke.color = c.text.normal.to_egui();
     v.ime_composition.inactive_underline_stroke.color = c.text.muted.to_egui();
     v.hyperlink_color = c.accent.text.to_egui();

@@ -14,8 +14,9 @@ use crate::AppId;
 pub struct Resolved {
     /// Every semantic and component token.
     pub tokens: Tokens,
-    /// Pairs below their minimum, semantic then component: pinned colours in standard contrast,
-    /// or pairs that no lightness move could fix.
+    /// Pairs below their minimum, semantic then component: pinned colours in standard contrast
+    /// (component pairs only where a component colour is overridden), or pairs that no lightness
+    /// move could fix.
     pub warnings: Vec<ContrastWarning>,
     /// Carried from the theme, for the picker's "Low contrast" label and the built-in check.
     pub contrast_intent: ContrastIntent,
@@ -52,9 +53,10 @@ pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
 
     let shape = ShapeTokens { radius, edge };
     let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
+    let defaults = component.clone();
     let high = appearance.contrast == Contrast::High;
     derive::component_overrides(&mut component, theme, app, mode, high, &color);
-    warnings.extend(derive::component_colors(&mut component, &color, high));
+    warnings.extend(derive::component_colors(&mut component, &defaults, &color, high));
 
     let tokens = Tokens {
         color,

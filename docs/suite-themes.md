@@ -25,7 +25,8 @@ derived.
 `resolve(theme, appearance, app)` builds the tokens for one appearance: mode (light, dark),
 contrast (standard, high), size (compact, comfortable), text size (small, default, large and
 larger) and reduced motion. Derivation order, later steps winning: seeds, then ramps, then the theme's pins, then
-the app's pins (`apps.<id>`), then the high-contrast pins.
+the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app's
+(`apps.<id>.high_contrast`).
 
 ## Theme file (`craft-design-theme`, version 1)
 
@@ -42,7 +43,7 @@ the app's pins (`apps.<id>`), then the high-contrast pins.
   "dark":  { "surface.panel": "#535353" },
   "high_contrast": { "light": {}, "dark": {} },
   "components": { "button.radius": 4 },
-  "apps": { "photocraft": { "light": {}, "dark": { "surface.canvas": "#282828" }, "components": {} } }
+  "apps": { "photocraft": { "light": {}, "dark": { "surface.canvas": "#282828" }, "high_contrast": {}, "components": {} } }
 }
 ```
 
@@ -56,14 +57,16 @@ the app's pins (`apps.<id>`), then the high-contrast pins.
 | `contrast_intent` | no | `"standard"` (default) or `"low"`: the theme is meant to be soft, and pickers label it "Low contrast" |
 | `seeds` | yes | `neutral`, `accent` and `status.good/warn/bad/info`, all required |
 | `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs all five keys when present |
-| `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB` or `#RRGGBBAA` |
+| `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB` or `#RRGGBBAA`; surfaces (`surface.*` except `surface.scrim`) must be opaque |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast |
 | `components` | no | non-colour component overrides: a length (number or `"full"`), an edge, or `{ "level": 0-3 }` |
-| `apps` | no | per-app `{ light, dark, components }`, applied over the theme's values for that app |
+| `apps` | no | per-app `{ light, dark, high_contrast, components }`, applied over the theme's values for that app; its `high_contrast` pins apply after the theme's |
 
 - JSON, at most 256 KiB. `schema_version` is the format; `version` is the author's revision.
 - Paths are flat dotted strings (`"button.radius"`), never nested objects.
 - A pin map for a mode the theme lacks is an error when it is not empty.
+- `write` refuses a theme that would not parse back (`ThemeDef::validate`: pins for a missing
+  mode, overrides of the wrong kind, translucent surfaces, negative or non-finite lengths).
 - Unknown keys outside the pin maps are allowed and kept byte for byte when the store rewrites
   the file. An unknown path inside a pin map is an error.
 - A newer `schema_version` is refused and the file left alone. A file with another `schema`
@@ -86,18 +89,26 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 
 | Pair | Standard | High |
 |---|---|---|
-| `text.normal`, `text.muted`, `text.faint` on surfaces and state fills | 4.5 | 7 |
+| `text.normal`, `text.muted`, `text.faint` on surfaces, `state.hover` and `state.pressed` | 4.5 | 7 |
+| `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill | 4.5 | 7 |
 | `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo | 3 | 4.5 |
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
-or pinned values in every contrast.
+or pinned values in every contrast. A translucent fill is measured over `surface.panel`.
+`text.on_selected` defaults to `text.normal`'s ramp step, so a neutral selection looks like the
+rest of the text and a coloured one (a navy or blue selection) gets its own readable text.
 
 | | Standard contrast | High contrast |
 |---|---|---|
 | Unpinned colour that misses | moved to the minimum | moved to the minimum |
 | Pinned colour that misses | kept, reported as a warning | fixed, pins included |
+| Pinned text on solid fills that misses | kept; the unpinned fills under it move | fixed, pins included |
 | State fill under text that cannot reach 7 | n/a | the fill moves away from the text, as far as needed |
+
+In standard contrast a component pair (`button.secondary.text.rest` on its fill) is reported only
+when one of its colours is a component pin; a failing semantic colour is reported once, as the
+semantic pair.
 
 A theme with `contrast_intent: standard` should resolve with no warnings; built-ins do in both
 contrasts, except the soft themes in standard contrast.
@@ -138,7 +149,8 @@ never reaches the others.
 - Each app keeps an `AppChoice { theme, size }` in its own preferences for "use a different
   theme / size in this app"; `apply` lays it over the suite's selection. It has no `Default`:
   the app states what a fresh install shows.
-- `resolve_selection(&selection, system, fallback_mode, &defaults, app, lookup)` returns
+- `resolve_selection(&selection, system, fallback_mode, &defaults, app, lookup)`, with `lookup` a
+  `&mut dyn FnMut(&ThemeId) -> Option<ThemeDef>` (`&mut |id| store.theme(id)`), returns
   `Shown { theme, appearance, resolved, notices }`. `System` mode or contrast uses what the OS
   reports (`SystemAppearance`); with no answer, mode uses `fallback_mode` (notice
   `SystemSilent`) and contrast is standard.

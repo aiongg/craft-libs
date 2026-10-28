@@ -45,6 +45,7 @@
     "line.border": "#424242",
     "line.control_edge": "#686868",
     "line.divider": "#3e3e3e",
+    "state.selected": "#6b6b6b",
     "surface.background": "#424242",
     "surface.canvas": "#282828",
     "surface.panel": "#535353",

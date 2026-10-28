@@ -68,11 +68,15 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     (c, warnings)
 }
 
-/// The mode's pins, then the app's, then the high-contrast pins when `high`; later ones win.
+/// The mode's pins, then the app's, then, when `high`, the theme's and the app's high-contrast
+/// pins; later ones win.
 fn pins<'a>(theme: &'a ThemeDef, app: Option<&AppId>, mode: Mode, high: bool) -> impl Iterator<Item = (TokenRef, Rgba)> + 'a {
-    let app_pins = app.and_then(|a| theme.apps.get(a)).map(|o| o.pins.get(mode));
-    let high_pins = if high { Some(theme.high_contrast.get(mode)) } else { None };
-    std::iter::once(theme.pins.get(mode)).chain(app_pins).chain(high_pins).flat_map(|p: &Pins| p.0.iter().map(|(&t, &v)| (t, v)))
+    let app = app.and_then(|a| theme.apps.get(a));
+    let high_pins = high.then(|| [Some(&theme.high_contrast), app.map(|o| &o.high_contrast)]).into_iter().flatten().flatten();
+    std::iter::once(theme.pins.get(mode))
+        .chain(app.map(|o| o.pins.get(mode)))
+        .chain(high_pins.map(move |p| p.get(mode)))
+        .flat_map(|p: &Pins| p.0.iter().map(|(&t, &v)| (t, v)))
 }
 
 /// The value of a source that needs no other token, or `None` for one that does.
@@ -107,7 +111,7 @@ fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_sol
 
 /// White or black, whichever has the higher lowest ratio on `solids`.
 fn best_extreme(c: &ColorTokens, solids: &[ColorToken]) -> Rgba {
-    let worst = |e: Rgba| solids.iter().map(|&s| contrast_ratio(e, c.get(s))).fold(f64::INFINITY, f64::min);
+    let worst = |e: Rgba| solids.iter().map(|&s| contrast_ratio(e, bg_color(c, Bg::Token(s)))).fold(f64::INFINITY, f64::min);
     if worst(Rgba::WHITE) >= worst(Rgba::BLACK) { Rgba::WHITE } else { Rgba::BLACK }
 }
 
@@ -126,10 +130,11 @@ fn over(fg: Rgba, bg: Rgba) -> Rgba {
     Rgba([ch(0), ch(1), ch(2), bg.a()])
 }
 
-/// The colour a background presents.
+/// The colour a background presents: a translucent token over `surface.panel`, as the
+/// component pass measures it. Surfaces are opaque, so they present themselves.
 fn bg_color(c: &ColorTokens, bg: Bg) -> Rgba {
     match bg {
-        Bg::Token(t) => c.get(t),
+        Bg::Token(t) => over(c.get(t), c.surface.panel),
         Bg::HaloOver(backdrop) => over(c.get(ColorToken::OverlayHalo), backdrop),
     }
 }
@@ -152,6 +157,11 @@ fn worst(c: &ColorTokens, fg: Rgba, bgs: &[Bg]) -> Option<(f64, Rgba)> {
     bgs.iter().map(|&b| bg_color(c, b)).map(|bg| (ratio(fg, bg), bg)).min_by(|x, y| x.0.total_cmp(&y.0))
 }
 
+/// The lowest ratio of `fg` over `bgs`; infinite when there are none.
+fn worst_ratio(c: &ColorTokens, fg: Rgba, bgs: &[Bg]) -> f64 {
+    worst(c, fg, bgs).map_or(f64::INFINITY, |(r, _)| r)
+}
+
 fn minimum(rule: &PairRule, high: bool) -> f64 {
     if high { rule.high } else { rule.standard }
 }
@@ -164,6 +174,10 @@ fn fix_rule(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, rule: &PairRule,
     for round in 0..2 {
         for &fg in rule.fgs {
             if pinned.contains(&fg) && !high {
+                // Pinned on-solid text stays; the unpinned solids under it still move.
+                if rule.on_solid {
+                    move_solids(c, pinned, c.get(fg), rule.bgs, min, false);
+                }
                 continue;
             }
             if rule.on_solid {
@@ -183,20 +197,39 @@ fn fix_rule(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, rule: &PairRule,
 }
 
 /// Moves each state fill among `bgs` that `fg` still fails on, away from `fg`, just far enough.
+/// A translucent fill that moves becomes opaque.
 fn relax_state_fills(c: &mut ColorTokens, fg: ColorToken, bgs: &[Bg], min: f64) {
     use ColorToken::{StateHover, StatePressed, StateSelected, StateSelectedHover};
     for &bg in bgs {
         let Bg::Token(t @ (StateHover | StatePressed | StateSelected | StateSelectedHover)) = bg else { continue };
-        let f = c.get(fg);
-        if ratio(f, c.get(t)) < min {
-            c.set(t, ensure_contrast(c.get(t), f.with_alpha(255), min));
+        let (f, b) = (c.get(fg), bg_color(c, bg));
+        if ratio(f, b) < min {
+            c.set(t, ensure_contrast(b, f.with_alpha(255), min));
+        }
+    }
+}
+
+/// Moves each solid among `bgs` that `text` fails on away from it, just far enough; pinned
+/// solids only when `high`. Moved solids are opaque.
+fn move_solids(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, text: Rgba, bgs: &[Bg], min: f64, high: bool) {
+    for &b in bgs {
+        let (solid, bg) = (bg_token(b), bg_color(c, b));
+        if (high || !pinned.contains(&solid)) && ratio(text, bg) < min {
+            c.set(solid, ensure_contrast(bg, text.with_alpha(255), min));
         }
     }
 }
 
 /// Moves `fg`'s lightness until it passes on every background, fixing against the hardest one
 /// each round. A translucent `fg` that has to move becomes opaque so the move is exact.
+///
+/// When no colour passes everywhere, `fg` ends as the colour with the best lowest ratio among
+/// its value before the pass, each round's value, white and black, preferring the value before
+/// the pass on ties. A candidate with a lower ratio on the surfaces among `bgs` than the value
+/// before the pass is never chosen: text that reads on the surfaces is not traded for a fill.
 fn fix_fg(c: &mut ColorTokens, fg: ColorToken, bgs: &[Bg], min: f64) {
+    let before = c.get(fg);
+    let mut tried = vec![before];
     for _ in 0..MAX_ROUNDS {
         let f = c.get(fg);
         let Some((r, bg)) = worst(c, f, bgs) else { return };
@@ -205,20 +238,31 @@ fn fix_fg(c: &mut ColorTokens, fg: ColorToken, bgs: &[Bg], min: f64) {
         }
         let moved = ensure_contrast(f.with_alpha(255), bg, min);
         if moved == f {
-            return;
+            break;
         }
         c.set(fg, moved);
+        tried.push(moved);
+    }
+    if worst_ratio(c, c.get(fg), bgs) >= min {
+        return;
     }
     // Backgrounds on opposite sides of the foreground (the halo over black and over white) can
     // leave the hue-keeping move short; white or black then reaches the minimum when any colour does.
-    let f = c.get(fg);
-    if worst(c, f, bgs).is_some_and(|(r, _)| r < min) {
-        let reach = |e: Rgba| worst(c, e, bgs).map_or(f64::INFINITY, |(r, _)| r);
-        let best = if reach(Rgba::WHITE) >= reach(Rgba::BLACK) { Rgba::WHITE } else { Rgba::BLACK };
-        if reach(best) >= min {
-            c.set(fg, best);
+    let best = if worst_ratio(c, Rgba::WHITE, bgs) >= worst_ratio(c, Rgba::BLACK, bgs) { Rgba::WHITE } else { Rgba::BLACK };
+    if worst_ratio(c, best, bgs) >= min {
+        c.set(fg, best);
+        return;
+    }
+    let surfaces: Vec<Bg> = bgs.iter().copied().filter(|&b| matches!(b, Bg::Token(t) if t.is_opaque_surface())).collect();
+    let floor = worst_ratio(c, before, &surfaces);
+    let mut keep = (before, worst_ratio(c, before, bgs));
+    for &candidate in tried[1..].iter().chain(&[Rgba::WHITE, Rgba::BLACK]) {
+        let r = worst_ratio(c, candidate, bgs);
+        if r > keep.1 && worst_ratio(c, candidate, &surfaces) >= floor {
+            keep = (candidate, r);
         }
     }
+    c.set(fg, keep.0);
 }
 
 /// Keeps text on solid fills that already passes; otherwise picks white or black. When an extreme can't reach `min` on a fill,
@@ -237,11 +281,7 @@ fn fix_on_solid(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, fg: ColorTok
     for extreme in [preferred, other] {
         let mut trial = *c;
         trial.set(fg, extreme);
-        for &solid in &tokens {
-            if (high || !pinned.contains(&solid)) && ratio(extreme, trial.get(solid)) < min {
-                trial.set(solid, ensure_contrast(trial.get(solid), extreme, min));
-            }
-        }
+        move_solids(&mut trial, pinned, extreme, bgs, min, high);
         let fails = failures(&trial, done, high).len();
         if best.as_ref().is_none_or(|(f, _)| fails < *f) {
             best = Some((fails, trial));
@@ -278,9 +318,9 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
     out
 }
 
-/// Applies `theme`'s component overrides in `mode` for `app`: colour pins (the app's and, when
-/// `high`, the high-contrast ones after them), then the mode-independent overrides, the app's
-/// last. Overrides that [`ThemeDef::override_errors`] lists are skipped.
+/// Applies `theme`'s component overrides in `mode` for `app`: colour pins (in [`pins`] order),
+/// then the mode-independent overrides, the app's last. Overrides that
+/// [`ThemeDef::override_errors`] lists are skipped.
 pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, app: Option<&AppId>, mode: Mode, high: bool, color: &ColorTokens) {
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
     for (t, v) in pins(theme, app, mode, high) {
@@ -296,12 +336,12 @@ pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, 
     }
 }
 
-/// The component contrast pass. Defaults derive from semantic tokens that already passed, so
-/// only pairs with a pinned colour can fail; with standard contrast those are kept and
-/// reported. With high contrast every failing pair is fixed: the foreground moves first, then
-/// the background if the foreground alone can't reach the minimum. Returns the pairs that
-/// still fail.
-pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastWarning> {
+/// The component contrast pass. Defaults derive from semantic tokens that already passed or
+/// were reported by the semantic pass. With standard contrast, failing pairs are kept and those
+/// with a component override (a fg or bg that differs from `defaults`) are reported. With high
+/// contrast every failing pair is fixed: the foreground moves first, then the background if the
+/// foreground alone can't reach the minimum. Returns the pairs that still fail.
+pub(super) fn component_colors(comp: &mut ComponentTokens, defaults: &ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastWarning> {
     let pairs = ComponentTokens::pairs();
     if high {
         for p in &pairs {
@@ -312,8 +352,10 @@ pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, 
     for p in &pairs {
         let minimum = if high { p.minimum.1 } else { p.minimum.0 };
         let (Some(fg), Some(bg)) = (comp.color(p.fg), component_bg(comp, color, p.bg)) else { continue };
+        let overridden = |f: ComponentField| comp.color(f) != defaults.color(f);
+        let own = overridden(p.fg) || matches!(p.bg, TokenRef::Component(b) if overridden(b));
         let r = ratio(fg, bg);
-        if r < minimum {
+        if r < minimum && (high || own) {
             out.push(ContrastWarning { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: r, minimum });
         }
     }

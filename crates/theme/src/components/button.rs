@@ -208,7 +208,8 @@ impl Family for ButtonTokens {
             secondary: ButtonColors {
                 fill: States::new(c.state.hover, c.state.pressed, c.state.selected, c.state.disabled_fill),
                 border: States::new(c.line.border, c.line.control_edge, c.line.control_edge, c.line.divider),
-                text: text(c.text.normal),
+                // The pressed fill is `state.selected`, so its text is the text drawn on it.
+                text: States::new(c.text.normal, c.text.normal, c.text.on_selected, c.text.disabled),
             },
             ghost: ButtonColors { fill: States::new(clear, c.state.hover, c.state.pressed, clear), border: none, text: text(c.text.normal) },
             danger: ButtonColors {

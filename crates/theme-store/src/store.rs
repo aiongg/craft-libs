@@ -138,8 +138,6 @@ pub enum Problem {
 #[derive(Clone, Debug)]
 pub struct ThemeRecord {
     pub theme: ThemeDef,
-    /// The theme's own revision (`version` in the file).
-    pub version: u32,
     /// Contrast pairs below their minimum in standard contrast, over the modes the theme has.
     /// Advisory: they never block an import or a selection.
     pub warnings: usize,
@@ -156,7 +154,7 @@ impl ThemeRecord {
             return Err(id_error(ErrorKind::BadId(e)));
         }
         let warnings = contrast_warnings(&file.theme);
-        Ok(ThemeRecord { version: file.version(), theme: file.theme, warnings, bytes: Arc::from(bytes) })
+        Ok(ThemeRecord { theme: file.theme, warnings, bytes: Arc::from(bytes) })
     }
 }
 
@@ -206,7 +204,7 @@ impl ThemeEntry {
         ThemeEntry {
             id: t.id.clone(),
             name: t.name.clone(),
-            version: record.version,
+            version: t.version,
             theme: t.clone(),
             warnings: record.warnings,
             contrast_intent: t.contrast_intent,
@@ -463,7 +461,8 @@ impl Store {
     /// A theme file for sharing: a library theme's stored bytes, or a built-in written out.
     pub fn export(&self, id: &ThemeId) -> Result<Arc<[u8]>, StoreError> {
         if let Some(theme) = builtin(id) {
-            return Ok(Arc::from(format::write(&format::to_file(theme)).into_bytes()));
+            let text = format::to_file(theme).and_then(|f| format::write(&f)).map_err(StoreError::Format)?;
+            return Ok(Arc::from(text.into_bytes()));
         }
         let bytes = self.backend.read_theme(user_stem(id)?, MAX_THEME_BYTES)?.ok_or_else(|| StoreError::NotFound(id.clone()))?;
         if bytes.len() > MAX_THEME_BYTES {
@@ -492,7 +491,8 @@ impl Store {
     }
 
     /// A built-in or library theme by id, for
-    /// [`resolve_selection`](craft_theme::resolve_selection)'s `lookup`.
+    /// [`resolve_selection`](craft_theme::resolve_selection)'s `lookup`
+    /// (`&mut |id| store.theme(id)`).
     pub fn theme(&mut self, id: &ThemeId) -> Option<ThemeDef> {
         match builtin(id) {
             Some(t) => Some(t.clone()),

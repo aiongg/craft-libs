@@ -14,6 +14,7 @@ fn theme(id: &str, neutral: &str, accent: &str, status: [&str; 4]) -> ThemeDef {
     ThemeDef {
         id: ThemeId::parse(id).unwrap(),
         name: id.to_owned(),
+        version: 1,
         seeds: Seeds {
             neutral: hex(neutral),
             accent: hex(accent),
@@ -70,16 +71,7 @@ pub(super) fn over(fg: Rgba, bg: Rgba) -> Rgba {
     Rgba::rgb(ch(0), ch(1), ch(2))
 }
 
-const TEXT_BGS: [T; 8] = [
-    T::SurfaceBackground,
-    T::SurfacePanel,
-    T::SurfaceRaised,
-    T::SurfaceSunken,
-    T::StateHover,
-    T::StatePressed,
-    T::StateSelected,
-    T::StateSelectedHover,
-];
+const TEXT_BGS: [T; 6] = [T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::StatePressed];
 const CONTROL_BGS: [T; 3] = [T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken];
 
 /// The §3 pairs, written out independently of the pass's own table: (fg, bg, standard, high).
@@ -88,6 +80,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
     for fg in [T::TextNormal, T::TextMuted, T::TextFaint] {
         p.extend(TEXT_BGS.map(|bg| (fg, bg, 4.5, 7.0)));
     }
+    p.extend([T::StateSelected, T::StateSelectedHover].map(|bg| (T::TextOnSelected, bg, 4.5, 7.0)));
     p.extend(CONTROL_BGS.map(|bg| (T::AccentText, bg, 4.5, 7.0)));
     p.extend([T::AccentSolid, T::AccentHover, T::AccentPressed].map(|bg| (T::TextOnAccent, bg, 4.5, 7.0)));
     for (fg, bg, solids) in [
@@ -292,4 +285,91 @@ fn size_presets_text_size_shape_and_motion() {
     assert_eq!((still.motion.hover.millis, still.motion.open.millis, still.motion.r#move.millis), (0, 0, 0));
     assert!(still.elevation.popup.alpha > compact.elevation.popup.alpha, "dark shadows are stronger");
     assert_eq!(compact.elevation.dialog, Elevation::level(3));
+}
+
+#[test]
+fn translucent_state_fill_is_measured_over_the_panel() {
+    let mut def = grey_blue();
+    let derived = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens.color(T::TextNormal);
+    def.pins.dark = Pins::from_iter([(T::StateHover, hex("#ffffff14"))]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(r.tokens.color(T::TextNormal), derived, "text.normal stays light");
+    assert_eq!(r.tokens.color(T::StateHover), hex("#ffffff14"));
+}
+
+#[test]
+fn coloured_selection_leaves_text_normal_alone() {
+    let mut def = grey_blue();
+    let derived = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.color(T::TextNormal);
+    def.pins.light = Pins::from_iter([(T::StateSelected, hex("#0A246A"))]);
+    let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
+    let normal = t.color(T::TextNormal);
+    assert!(relative_luminance(normal) <= relative_luminance(derived), "{normal:?} is lighter than {derived:?}");
+    for bg in [T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken] {
+        assert!(contrast_ratio(normal, t.color(bg)) >= 4.5, "text.normal on {}", bg.path());
+    }
+}
+
+#[test]
+fn text_between_fills_on_both_sides_keeps_its_best_value() {
+    // A navy hover under dark text: no colour passes on the light surfaces and the navy fill,
+    // and moving toward the fill would lose contrast on the surfaces, so text.normal doesn't.
+    let mut def = grey_blue();
+    let derived = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.color(T::TextNormal);
+    def.pins.light = Pins::from_iter([(T::StateHover, hex("#0A246A"))]);
+    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
+    let normal = r.tokens.color(T::TextNormal);
+    assert!(relative_luminance(normal) <= relative_luminance(derived), "{normal:?} is lighter than {derived:?}");
+    for bg in [T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken] {
+        assert!(contrast_ratio(normal, r.tokens.color(bg)) >= 4.5, "text.normal on {}", bg.path());
+    }
+    assert!(r.warnings.iter().any(|w| w.fg == T::TextNormal.into() && w.bg == T::StateHover.into()));
+
+    // Navy selected, light selected_hover, no surfaces in the rule: text.on_selected takes the
+    // candidate with the best lowest ratio.
+    def.pins.light = Pins::from_iter([(T::StateSelected, hex("#0A246A"))]);
+    let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
+    let worst =
+        |fg: Rgba| [T::StateSelected, T::StateSelectedHover].map(|bg| contrast_ratio(fg, t.color(bg))).into_iter().fold(f64::INFINITY, f64::min);
+    let got = worst(t.color(T::TextOnSelected));
+    for other in [derived, Rgba::WHITE, Rgba::BLACK] {
+        assert!(got >= worst(other), "{got:.2} is below {other:?}'s {:.2}", worst(other));
+    }
+}
+
+#[test]
+fn pinned_on_accent_text_moves_the_unpinned_solids() {
+    let mut def = theme("test.light-accent", "#8b8d98", "#78ADF6", ["#30a46c", "#ffc53d", "#e5484d", "#0090ff"]);
+    let solids = [T::AccentSolid, T::AccentHover, T::AccentPressed];
+    let before = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
+    def.pins.dark = Pins::from_iter([(T::TextOnAccent, Rgba::WHITE)]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(r.tokens.color(T::TextOnAccent), Rgba::WHITE);
+    for s in solids {
+        let (old, new) = (before.color(s), r.tokens.color(s));
+        assert!(relative_luminance(new) < relative_luminance(old), "{} {old:?} -> {new:?}", s.path());
+        assert!(contrast_ratio(Rgba::WHITE, new) >= 4.5, "{}", s.path());
+    }
+}
+
+#[test]
+fn pinned_failing_text_gives_only_the_semantic_warnings() {
+    let mut def = grey_blue();
+    let pin = hex("#c8c8c8");
+    def.pins.light = Pins::from_iter([(T::TextNormal, pin)]);
+    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
+    let t = &r.tokens;
+    let expected: Vec<_> = TEXT_BGS
+        .map(|bg| ContrastWarning { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
+        .into_iter()
+        .collect();
+    assert_eq!(r.warnings, expected);
+
+    // A pinned component colour is still reported.
+    let text = ComponentField::from_path("button.secondary.text.rest").unwrap();
+    def.pins.light = Pins::from_iter([(TokenRef::Component(text), pin)]);
+    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
+    assert_eq!(r.warnings.iter().map(|w| w.fg).collect::<Vec<_>>(), [TokenRef::Component(text)]);
 }

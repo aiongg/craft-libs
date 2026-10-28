@@ -15,6 +15,8 @@ pub struct ThemeDef {
     pub id: ThemeId,
     /// Display name.
     pub name: String,
+    /// The author's revision of the theme; 1 for a new theme.
+    pub version: u32,
     /// The colours every token derives from.
     pub seeds: Seeds,
     /// Radius and edge of themes with their own shape (Classic, Breeze); `None` takes the Size
@@ -34,12 +36,15 @@ pub struct ThemeDef {
     pub apps: BTreeMap<AppId, AppOverrides>,
 }
 
-/// What a theme changes for one app. Applied after the theme's pins and before its
-/// high-contrast pins; the components after the theme's components.
+/// What a theme changes for one app. The pins apply after the theme's pins and before its
+/// high-contrast pins, the high-contrast pins after the theme's high-contrast pins, and the
+/// components after the theme's components.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AppOverrides {
     /// Fixed colours per mode.
     pub pins: ModePins,
+    /// Fixed colours per mode used only with [`Contrast::High`].
+    pub high_contrast: ModePins,
     /// Mode-independent component overrides.
     pub components: BTreeMap<ComponentField, OverrideValue>,
 }
@@ -55,7 +60,7 @@ impl ThemeDef {
         pin_errors(own.into_iter().chain(high), &mut out);
         component_errors(&self.components, &mut out);
         for app in self.apps.values() {
-            pin_errors([&app.pins.light, &app.pins.dark], &mut out);
+            pin_errors([&app.pins.light, &app.pins.dark, &app.high_contrast.light, &app.high_contrast.dark], &mut out);
             component_errors(&app.components, &mut out);
         }
         out
