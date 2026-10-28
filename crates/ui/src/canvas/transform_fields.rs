@@ -1,0 +1,483 @@
+//! [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box.
+
+use craft_theme::ControlSize;
+use egui::{Align, Layout, Ui, UiBuilder, vec2};
+use kurbo::{Rect, Vec2};
+
+use super::RulerUnits;
+use super::quad::{BoxState, SKEW_LIMIT};
+use super::story;
+use crate::composites::{PropertyLabel, PropertyRow};
+use crate::controls::{IconButton, NumberField};
+use crate::direction;
+use crate::edit::{EditEvent, EditResponse};
+use crate::icons::Icon;
+use crate::localized::{LocaleNumbers, Unit};
+use crate::primitives::Handle;
+use crate::primitives::HandleShape;
+use crate::story::{Args, Level, Story};
+use crate::theme::{ToEgui, Tokens, TokensOf};
+
+/// The largest position of the box's reference point, in document units (PhotoCraft).
+pub const POSITION_LIMIT: f64 = 300_000.0;
+/// The largest scale a W or H field takes, as a factor (1 000 000 %).
+const SCALE_LIMIT: f64 = 10_000.0;
+/// The largest angle.
+const ANGLE_LIMIT: f64 = 180.0;
+
+/// The unit of the W and H fields.
+// Built once per frame, so the size of the variants costs nothing.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug, Default)]
+pub enum SizeUnit {
+    /// The scale in percent of the box's size before the transform.
+    #[default]
+    Percent,
+    /// The box's length, in the host's units along each axis (the unit its W and H context menu
+    /// picked; PhotoCraft keeps it apart from the rulers').
+    Length { x: RulerUnits, y: RulerUnits },
+}
+
+/// A field's visible label and its accessible name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldLabel {
+    /// The short text beside the field ("W").
+    pub glyph: String,
+    /// The field's accessible name ("Width").
+    pub name: String,
+}
+
+impl FieldLabel {
+    pub fn new(glyph: impl Into<String>, name: impl Into<String>) -> Self {
+        Self { glyph: glyph.into(), name: name.into() }
+    }
+}
+
+/// The host's translated labels of [`TransformFields`]; `Default` is English.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TransformLabels {
+    pub x: FieldLabel,
+    pub y: FieldLabel,
+    pub w: FieldLabel,
+    pub h: FieldLabel,
+    /// The tooltip and name of the aspect link toggle.
+    pub link: String,
+    pub angle: FieldLabel,
+    pub skew_h: FieldLabel,
+    pub skew_v: FieldLabel,
+}
+
+impl Default for TransformLabels {
+    fn default() -> Self {
+        Self {
+            x: FieldLabel::new("X", "X position"),
+            y: FieldLabel::new("Y", "Y position"),
+            w: FieldLabel::new("W", "Width"),
+            h: FieldLabel::new("H", "Height"),
+            link: "Maintain aspect ratio".into(),
+            angle: FieldLabel::new("°", "Angle"),
+            skew_h: FieldLabel::new("H", "Horizontal skew"),
+            skew_v: FieldLabel::new("V", "Vertical skew"),
+        }
+    }
+}
+
+/// One of the fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Field {
+    X,
+    Y,
+    W,
+    H,
+    Angle,
+    SkewH,
+    SkewV,
+}
+
+/// How the fields read and write a box: the box before the transform (`rect`), the units, and
+/// whether W and H are linked.
+#[derive(Clone, Debug)]
+pub(crate) struct Conversion {
+    pub rect: Rect,
+    pub x: RulerUnits,
+    pub y: RulerUnits,
+    pub size: SizeUnit,
+    pub linked: bool,
+}
+
+impl Conversion {
+    /// The length of the box's side before the transform along `axis` (0: W, 1: H).
+    fn side(&self, axis: usize) -> f64 {
+        (if axis == 0 { self.rect.width() } else { self.rect.height() }).abs()
+    }
+
+    /// Field units of the size fields per unit of scale factor.
+    fn per_factor(&self, axis: usize) -> f64 {
+        match &self.size {
+            SizeUnit::Percent => 100.0,
+            SizeUnit::Length { x, y } => self.side(axis).max(1e-9) * if axis == 0 { x.per_doc } else { y.per_doc },
+        }
+    }
+
+    /// The largest scale factor along `axis`: as far as the box stays within the position limit.
+    fn limit(&self, axis: usize) -> f64 {
+        let side = self.side(axis);
+        if side.is_finite() && side >= 1e-6 { (POSITION_LIMIT / side).clamp(1.0, SCALE_LIMIT) } else { SCALE_LIMIT }
+    }
+
+    /// The largest value a field shows or takes.
+    pub fn bound(&self, field: Field) -> f64 {
+        match field {
+            Field::X => POSITION_LIMIT * self.x.per_doc,
+            Field::Y => POSITION_LIMIT * self.y.per_doc,
+            Field::W => self.limit(0) * self.per_factor(0),
+            Field::H => self.limit(1) * self.per_factor(1),
+            Field::Angle => ANGLE_LIMIT,
+            Field::SkewH | Field::SkewV => SKEW_LIMIT,
+        }
+    }
+
+    /// What `field` shows for `state`, whose V skew is `skew_v`.
+    pub fn shown(&self, state: &BoxState, skew_v: f64, field: Field) -> f64 {
+        let parts = state.parts(self.rect, skew_v);
+        match field {
+            Field::X => state.pivot.x * self.x.per_doc,
+            Field::Y => state.pivot.y * self.y.per_doc,
+            Field::W => parts.w * self.per_factor(0),
+            Field::H => parts.h * self.per_factor(1),
+            Field::Angle => parts.angle,
+            Field::SkewH => parts.skew_h,
+            Field::SkewV => skew_v,
+        }
+    }
+
+    /// The box and V skew after `field` is set to `value`: X and Y move the box with its reference
+    /// point; the others scale, turn and skew it about the reference point. Linked, the other
+    /// side of W or H follows by the same factor, each kept within its limit.
+    pub fn edit(&self, state: &BoxState, skew_v: f64, field: Field, value: f64) -> (BoxState, f64) {
+        let now = state.parts(self.rect, skew_v);
+        let mut to = now;
+        match field {
+            Field::X => return (state.moved(Vec2::new(value / self.x.per_doc - state.pivot.x, 0.0)), skew_v),
+            Field::Y => return (state.moved(Vec2::new(0.0, value / self.y.per_doc - state.pivot.y)), skew_v),
+            Field::W | Field::H => {
+                let axis = usize::from(field == Field::H);
+                let factor = value / self.per_factor(axis);
+                if self.linked {
+                    let (side, other) = if axis == 0 { (now.w, now.h) } else { (now.h, now.w) };
+                    let k = factor / nonzero(side);
+                    let cap = (self.limit(axis) / nonzero(side.abs())).min(self.limit(1 - axis) / nonzero(other.abs()));
+                    let k = k.signum() * k.abs().min(cap);
+                    to.w = now.w * k;
+                    to.h = now.h * k;
+                } else if axis == 0 {
+                    to.w = factor;
+                } else {
+                    to.h = factor;
+                }
+            }
+            Field::Angle => to.angle = value,
+            Field::SkewH => to.skew_h = value,
+            Field::SkewV => to.skew_v = value,
+        }
+        (state.with_parts(self.rect, skew_v, to), to.skew_v)
+    }
+}
+
+fn nonzero(v: f64) -> f64 {
+    if v.abs() < 1e-9 { 1e-9_f64.copysign(if v == 0.0 { 1.0 } else { v }) } else { v }
+}
+
+/// The options bar's fields of a transform box: reference point X and Y, W and H with the aspect
+/// link, the angle, and the horizontal and vertical skew.
+///
+/// ```
+/// use craft_ui::canvas::kurbo::Rect;
+/// use craft_ui::canvas::quad::BoxState;
+/// use craft_ui::canvas::{TransformFields, TransformLabels};
+/// # egui::__run_test_ui(|ui| {
+/// let rect = Rect::new(0.0, 0.0, 200.0, 100.0);
+/// let mut state = BoxState::from_rect(rect);
+/// let mut linked = true;
+/// let edit = TransformFields::new("transform-fields", &state, rect, TransformLabels::default()).linked(&mut linked).show(ui);
+/// if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
+///     state = *value;
+/// }
+/// # });
+/// ```
+///
+/// - **Fields** are [`NumberField`]s in [`PropertyRow`] cells, glyph labels as `PropertyRow` has
+///   them. X and Y are the reference point's position in [`units`](Self::units) and move the box
+///   with it; W and H scale it about the reference point, as a percentage of `start_rect` or as
+///   a length ([`size_unit`](Self::size_unit)); the angle and the two skews turn and lean it about
+///   the reference point ([`BoxState::with_parts`]). A flipped box reads as a negative W or H and
+///   keeps its sign. Limits: position ±300 000 document units, angle −180° to 180°, skew ±89°,
+///   scale as far as the box stays within the position limit.
+/// - **Linked** ([`linked`](Self::linked)): W or H also scales the other by the same factor,
+///   each kept within its own limit. The toggle is an `IconButton` between the two.
+/// - **Events.** A field's own gesture (scrub: Begin, Update, Commit; a typing run; an arrow
+///   step: Set) is reported as the same event with the value converted to a [`BoxState`]. Only one
+///   field edits at a time; if two report in a frame the ending one (Commit, Cancel, Set) wins
+///   over an Update and an Update over a Begin.
+/// - **V skew.** The V field is the host's `skew_v` ([`skew_v`](Self::skew_v)): the box does not
+///   hold it (any parallelogram reads with any V skew), so the host keeps it for the session. A
+///   V edit writes the new value to it, and a cancelled V gesture restores it.
+///
+/// The row is not a gesture of its own: the host applies the events as a box session's steps.
+#[must_use = "show the fields with `show`"]
+pub struct TransformFields<'a> {
+    id_salt: egui::IdSalt,
+    state: &'a BoxState,
+    rect: Rect,
+    labels: TransformLabels,
+    x: RulerUnits,
+    y: RulerUnits,
+    size_unit: SizeUnit,
+    linked: Option<&'a mut bool>,
+    skew_v: Option<&'a mut f64>,
+    size: ControlSize,
+    enabled: bool,
+}
+
+impl<'a> TransformFields<'a> {
+    /// The fields of `state`, a box that was `start_rect` before the transform.
+    pub fn new(id_salt: impl std::hash::Hash + std::fmt::Debug, state: &'a BoxState, start_rect: Rect, labels: TransformLabels) -> Self {
+        let pixels = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+        Self {
+            id_salt: egui::IdSalt::new(id_salt),
+            state,
+            rect: start_rect,
+            labels,
+            x: pixels.clone(),
+            y: pixels,
+            size_unit: SizeUnit::Percent,
+            linked: None,
+            skew_v: None,
+            size: ControlSize::Md,
+            enabled: true,
+        }
+    }
+
+    /// The units of X and Y (pixels by default); the first one's number format is the fields'.
+    pub fn units(mut self, x: &RulerUnits, y: &RulerUnits) -> Self {
+        self.x = x.clone();
+        self.y = y.clone();
+        self
+    }
+
+    /// The unit of W and H; percent by default.
+    pub fn size_unit(mut self, unit: SizeUnit) -> Self {
+        self.size_unit = unit;
+        self
+    }
+
+    /// The aspect link, which the host also gives
+    /// [`BoxRules::aspect_linked`](super::quad::BoxRules::aspect_linked). The toggle edits it.
+    pub fn linked(mut self, linked: &'a mut bool) -> Self {
+        self.linked = Some(linked);
+        self
+    }
+
+    /// The V skew the host keeps for the session, in degrees.
+    pub fn skew_v(mut self, skew_v: &'a mut f64) -> Self {
+        self.skew_v = Some(skew_v);
+        self
+    }
+
+    /// The fields' size (`Md` by default).
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// Whether the fields take input.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Shows the row and returns this frame's edit, with the box it gives.
+    pub fn show(self, ui: &mut Ui) -> EditResponse<BoxState> {
+        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled } = self;
+        let id = ui.make_persistent_id(id_salt);
+        let memory = id.with("skew_v");
+        let before_key = id.with("skew_v before");
+        let mut own_skew: f64 = ui.data(|d| d.get_temp(memory)).unwrap_or(0.0);
+        let mut own_link = true;
+        let host_skew = skew_v.is_some();
+        let skew_v = skew_v.unwrap_or(&mut own_skew);
+        let linked = linked.unwrap_or(&mut own_link);
+        let skew_now = *skew_v;
+        let convert = Conversion { rect, x, y, size: size_unit, linked: *linked };
+        let numbers = convert.x.numbers.clone();
+        let state = *state;
+        let enabled = enabled && ui.is_enabled();
+
+        let tokens = Tokens::of(ui);
+        let row_style = PropertyRow::style(&tokens, size);
+        let cell = row_style.glyph_width + row_style.label_gap + NumberField::style(&tokens, size).field.width;
+        let pair = 2.0 * cell + row_style.column_gap;
+        let linked_pair = pair + row_style.link_width + 2.0 * row_style.column_gap;
+        let degrees = Unit::new("{n}\u{b0}");
+        let percent = Unit::new("%");
+
+        // What each field shows: its unit, decimals and the part of the box it reads.
+        let field = |ui: &mut Ui, which: Field, label: &FieldLabel| {
+            let (unit, decimals) = match (which, &convert.size) {
+                (Field::X, _) => (convert.x.unit.clone(), convert.x.decimals),
+                (Field::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
+                (Field::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
+                (Field::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
+                (Field::W | Field::H, SizeUnit::Percent) => (percent.clone(), 1),
+                _ => (degrees.clone(), 2),
+            };
+            let bound = convert.bound(which);
+            NumberField::new((id, which as u8), label.name.clone(), convert.shown(&state, skew_now, which), &numbers)
+                .range(-bound..=bound)
+                .decimals(0..=decimals)
+                .unit(unit)
+                .size(size)
+                .enabled(enabled)
+                .show(ui)
+        };
+        let glyph = |label: &FieldLabel| PropertyLabel::glyph(label.glyph.clone());
+        let group = |ui: &mut Ui, width: f32, add: &mut dyn FnMut(&mut Ui)| {
+            ui.allocate_ui(vec2(width, 0.0), |ui| {
+                ui.set_max_width(width);
+                add(ui);
+            });
+        };
+
+        let mut edits: Vec<(Field, EditResponse<f64>)> = Vec::new();
+        let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) }.with_main_wrap(true);
+        let row = ui.scope_builder(UiBuilder::new().layout(layout), |ui| {
+            group(ui, pair, &mut |ui| {
+                let (a, b) = PropertyRow::pair(glyph(&labels.x), glyph(&labels.y))
+                    .size(size)
+                    .show(ui, |ui, _| field(ui, Field::X, &labels.x), |ui, _| field(ui, Field::Y, &labels.y))
+                    .inner;
+                edits.extend([(Field::X, a), (Field::Y, b)]);
+            });
+            group(ui, linked_pair, &mut |ui| {
+                let (a, _, b) = PropertyRow::pair(glyph(&labels.w), glyph(&labels.h))
+                    .size(size)
+                    .show_linked(
+                        ui,
+                        |ui, _| field(ui, Field::W, &labels.w),
+                        |ui| {
+                            let icon = if *linked { Icon::Link } else { Icon::Unlink };
+                            ui.add(IconButton::new(icon, labels.link.clone()).size(ControlSize::Sm).enabled(enabled).toggle(linked))
+                        },
+                        |ui, _| field(ui, Field::H, &labels.h),
+                    )
+                    .inner;
+                edits.extend([(Field::W, a), (Field::H, b)]);
+            });
+            group(ui, cell, &mut |ui| {
+                let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| field(ui, Field::Angle, &labels.angle)).inner;
+                edits.push((Field::Angle, edit));
+            });
+            group(ui, pair, &mut |ui| {
+                let (a, b) = PropertyRow::pair(glyph(&labels.skew_h), glyph(&labels.skew_v))
+                    .size(size)
+                    .show(ui, |ui, _| field(ui, Field::SkewH, &labels.skew_h), |ui, _| field(ui, Field::SkewV, &labels.skew_v))
+                    .inner;
+                edits.extend([(Field::SkewH, a), (Field::SkewV, b)]);
+            });
+        });
+
+        let (submitted, escaped) = (edits.iter().any(|(_, e)| e.submitted), edits.iter().any(|(_, e)| e.escaped));
+        let rank = |e: &EditEvent<f64>| match e {
+            EditEvent::Commit { .. } | EditEvent::Cancel { .. } | EditEvent::Set { .. } => 0,
+            EditEvent::Update { .. } => 1,
+            _ => 2,
+        };
+        let chosen = edits.into_iter().filter(|(_, e)| e.event.is_some()).min_by_key(|(_, e)| e.event.as_ref().map_or(3, rank));
+        let event = chosen.and_then(|(which, edit)| {
+            let event = edit.event?;
+            if which == Field::SkewV {
+                match &event {
+                    EditEvent::Begin { .. } => ui.data_mut(|d| {
+                        d.insert_temp(before_key, skew_now);
+                    }),
+                    EditEvent::Cancel { .. } => {
+                        if let Some(before) = ui.data(|d| d.get_temp::<f64>(before_key)) {
+                            *skew_v = before;
+                        }
+                    }
+                    _ => {
+                        if let Some(&value) = event.value() {
+                            *skew_v = convert.edit(&state, skew_now, which, value).1;
+                        }
+                    }
+                }
+            }
+            Some(event.map(|value| convert.edit(&state, skew_now, which, value).0))
+        });
+        if !host_skew {
+            let kept = *skew_v;
+            ui.data_mut(|d| d.insert_temp(memory, kept));
+        }
+        EditResponse::new(row.response, event).submitted(submitted).escaped(escaped)
+    }
+}
+
+/// A box with the fields above it and a reference point picker beside them: edit the box with the
+/// fields or pick its reference point.
+fn show_story(ui: &mut Ui, args: &mut Args) {
+    let key = ui.scope_id().with("transform-fields-story");
+    let rect = Rect::new(200.0, 120.0, 440.0, 280.0);
+    let (mut state, mut before, mut skew_v): (BoxState, Option<BoxState>, f64) =
+        ui.data(|d| d.get_temp(key)).unwrap_or((BoxState::from_rect(rect), None, 0.0));
+    let mut linked = args.bool("linked");
+    let numbers = LocaleNumbers::from_tag("en");
+    let size_unit = match args.choice("size unit") {
+        "px" => SizeUnit::Length { x: RulerUnits::pixels(numbers.clone()), y: RulerUnits::pixels(numbers) },
+        _ => SizeUnit::Percent,
+    };
+    ui.horizontal(|ui| {
+        let edit = super::ReferencePoint::new("transform-fields-pivot", state.anchor_of_pivot()).show(ui);
+        if let Some(EditEvent::Set { value: Some(anchor), .. }) = edit.event {
+            state.pivot = state.point_at(anchor);
+        }
+        ui.vertical(|ui| {
+            let edit = TransformFields::new("transform-fields", &state, rect, TransformLabels::default())
+                .size_unit(size_unit)
+                .linked(&mut linked)
+                .skew_v(&mut skew_v)
+                .show(ui);
+            match edit.event {
+                Some(EditEvent::Begin { .. }) => before = Some(state),
+                Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => state = value,
+                Some(EditEvent::Cancel { .. }) => state = before.take().unwrap_or(state),
+                _ => {}
+            }
+        });
+    });
+    let canvas = story::document(ui, args, "Transform fields");
+    let tokens = Tokens::of(ui);
+    let painter = ui.painter_at(canvas.view.rect);
+    let corners = state.quad.map(|p| canvas.view.to_screen(p));
+    let line = egui::Stroke::new(tokens.component.transform.line, tokens.color.overlay.stroke.to_egui());
+    painter.add(egui::Shape::closed_line(corners.to_vec(), line));
+    painter.extend(Handle::shapes(&tokens, HandleShape::Round, canvas.view.to_screen(state.pivot), ui.pixels_per_point()));
+    ui.data_mut(|d| d.insert_temp(key, (state, before, skew_v)));
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["TransformFields"];
+
+pub(crate) fn stories() -> Vec<Story> {
+    vec![Story {
+        id: "composites/transform-fields/box",
+        level: Level::Composites,
+        component: "TransformFields",
+        name: "Box",
+        args: || story::args().with_bool("linked", true).with_choice("size unit", &["%", "px"], 0),
+        show: show_story,
+    }]
+}
+
+#[cfg(test)]
+#[path = "transform_fields_tests.rs"]
+mod tests;
