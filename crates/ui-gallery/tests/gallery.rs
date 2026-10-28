@@ -38,6 +38,23 @@ fn appearance_changes_render() {
     frame(&ctx, &mut gallery);
 }
 
+#[test]
+fn token_browser_renders_in_both_modes_with_a_row_selected() {
+    use craft_theme::{ColorToken, ComponentField, TokenRef};
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.set_tokens(true);
+    let field = ComponentField::from_path("button.primary.text.rest").unwrap();
+    for (dark, selected) in [(false, TokenRef::Color(ColorToken::TextFaint)), (true, TokenRef::Component(field))] {
+        let a = gallery.appearance_mut();
+        a.dark = dark;
+        a.high_contrast = dark;
+        gallery.select_token(selected);
+        frame(&ctx, &mut gallery);
+        frame(&ctx, &mut gallery);
+    }
+}
+
 /// Width of `text` in the candidate face's regular family, with and without `tnum`.
 fn digits_width(ctx: &Context, face: &str, text: &str, tnum: bool) -> f32 {
     use craft_ui::theme::tabular;

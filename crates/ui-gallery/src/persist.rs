@@ -16,6 +16,8 @@ pub struct Saved {
     pub selected: Option<String>,
     pub filter: String,
     pub compare: bool,
+    /// The token browser instead of the stories.
+    pub tokens: bool,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,
     /// Edited args by story id.

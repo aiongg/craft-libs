@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use craft_theme::{Mode, TextSize, builtins};
+use craft_theme::{Mode, TextSize, TokenRef, builtins};
 use craft_ui::ComboBox;
 use craft_ui::direction;
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
@@ -10,6 +10,7 @@ use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
 use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
 
 use crate::appearance::{Appearance, SCALE, builtin};
+use crate::browser::Browser;
 use crate::faces;
 use crate::persist::{self, KEY, Saved};
 
@@ -24,6 +25,9 @@ pub struct Gallery {
     filter: String,
     compare: bool,
     compare_themes: Vec<String>,
+    /// The token browser instead of the stories.
+    tokens: bool,
+    browser: Browser,
     /// Edited args by story id; a story gets its entry when first shown.
     args: HashMap<String, Args>,
     saved_args: HashMap<String, Vec<persist::SavedArg>>,
@@ -48,6 +52,8 @@ impl Gallery {
             filter: saved.filter,
             compare: saved.compare,
             compare_themes,
+            tokens: saved.tokens,
+            browser: Browser::default(),
             args: HashMap::new(),
             saved_args: saved.args,
         }
@@ -64,6 +70,16 @@ impl Gallery {
         self.compare = compare;
     }
 
+    /// Shows the token browser instead of the stories.
+    pub fn set_tokens(&mut self, tokens: bool) {
+        self.tokens = tokens;
+    }
+
+    /// Selects a row of the token browser.
+    pub fn select_token(&mut self, token: TokenRef) {
+        self.browser.select(token);
+    }
+
     pub fn stories(&self) -> &[Story] {
         &self.stories
     }
@@ -78,6 +94,10 @@ impl Gallery {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         Panel::top("gallery.bar").show(ui, |ui| self.appearance_bar(ui));
+        if self.tokens {
+            self.browser.show(ui, &self.base, self.appearance.mode());
+            return;
+        }
         direction::start_panel(&ctx, "gallery.tree").default_size(240.0).show(ui, |ui| self.tree(ui));
         direction::end_panel(&ctx, "gallery.args").default_size(240.0).show(ui, |ui| self.args_panel(ui));
         let frame = Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(Margin::same(12));
@@ -103,7 +123,10 @@ impl Gallery {
 
     fn appearance_bar(&mut self, ui: &mut Ui) {
         let a = &mut self.appearance;
+        let tokens = &mut self.tokens;
         ui.horizontal_wrapped(|ui| {
+            ui.toggle_value(tokens, "Tokens");
+            ui.separator();
             let themes = builtins();
             let current = builtin(&a.theme).map_or(a.theme.as_str(), |t| t.name.as_str()).to_owned();
             ui.label("Theme");
@@ -267,6 +290,7 @@ impl eframe::App for Gallery {
             filter: self.filter.clone(),
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
+            tokens: self.tokens,
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
