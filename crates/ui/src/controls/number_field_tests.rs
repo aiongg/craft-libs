@@ -498,6 +498,20 @@ fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_com
 }
 
 #[test]
+fn esc_drops_text_that_is_no_number_when_the_policy_can_t_cancel() {
+    let mut rig = Rig::with(7.0, |r| r.policy = EditPolicy::default().cancellable(false));
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("abc");
+    rig.key(Key::Escape);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(rig.event, Some(commit(id, 7.0, false)), "the focus leaving commits the run");
+    assert!(!rig.has_focus() && rig.escaped);
+    rig.frame(vec![]);
+    assert_eq!((rig.shown().as_deref(), rig.invalid()), (Some("7"), false), "the text goes with the run");
+}
+
+#[test]
 fn text_that_is_no_number_keeps_the_value_stays_outlined_and_esc_restores() {
     let mut rig = Rig::new(7.0);
     rig.focus();

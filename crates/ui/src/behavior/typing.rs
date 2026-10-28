@@ -683,10 +683,12 @@ impl<C: Codec> Typed<C> {
             self.rejected = None;
         }
         // A run of drafts ends on Enter or when the focus leaves (the gesture commits it as it
-        // finishes): text that reads as no value stays, rejected.
+        // finishes): text that reads as no value stays, rejected, unless Esc ended the run (a
+        // policy that can't cancel commits it).
         let ending = self.submitted || self.commit || !focused || self.replaced;
         if let Some(draft) = self.draft.take_if(|_| ending)
             && !self.replaced
+            && !self.escaped
             && self.gesture.id() == Some(draft.run)
             && let Some(start) = self.gesture.start()
             && let Err(error) = self.codec.parse(&draft.text, start)
