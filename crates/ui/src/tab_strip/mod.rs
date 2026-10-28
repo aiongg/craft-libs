@@ -37,5 +37,5 @@ pub use layout::{
     CloseSide, DragZone, FitMode, FocusMove, FocusSpot, OverflowMenu, OverflowPlace, PlacedTab, StripPlan, StripPlanInput, TabKind, close_side,
     drag_zone, focus_move, focus_spot, reorder_key, step_focus, strip_key,
 };
-pub use strip::{TabEvent, TabMenuRequest, TabStrip, TabStripOutput};
+pub use strip::{DragOut, TabEvent, TabMenuRequest, TabStrip, TabStripOutput};
 pub use tab::{Tab, TabLayout, TabMetrics, TabParts, TabResponse, TabStripText, TabStyle, TabView};

@@ -4,12 +4,14 @@ use std::sync::Arc;
 
 use craft_theme::ControlSize;
 use egui::mutex::Mutex;
-use egui::{Align2, Rect, Ui, vec2};
+use egui::{Align2, DragAndDrop, Pos2, Rect, Ui, vec2};
 
 use super::layout::TabKind;
 use super::strip::{TabEvent, TabMenuRequest, TabStrip};
 use super::tab::{Tab, TabStripText};
+use crate::behavior::{DropPosition, Move};
 use crate::controls::IconButton;
+use crate::edit::EditEvent;
 use crate::icons::Icon;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, PressMenu};
 use crate::story::{Args, Level, Story};
@@ -22,7 +24,7 @@ pub(super) fn stories() -> Vec<Story> {
             level: Level::Composites,
             component: "TabStrip",
             name: "Documents",
-            args: || Args::new().with_number("width", 640.0, 160.0, 1200.0).with_bool("large", false),
+            args: || Args::new().with_number("width", 640.0, 160.0, 1200.0).with_bool("large", false).with_bool("tear_off", true),
             show: show_documents,
         },
         Story {
@@ -32,6 +34,14 @@ pub(super) fn stories() -> Vec<Story> {
             name: "Panels",
             args: || Args::new().with_number("width", 260.0, 120.0, 480.0).with_bool("locked", false),
             show: show_panels,
+        },
+        Story {
+            id: "composites/tab-strip/drops",
+            level: Level::Composites,
+            component: "TabStrip",
+            name: "Drops",
+            args: || Args::new().with_number("width", 480.0, 160.0, 1200.0),
+            show: show_drops,
         },
     ]
 }
@@ -123,11 +133,27 @@ enum DocCommand {
     CloseAll,
 }
 
+/// Moves the item with key `mv.items[0]` next to the one with key `mv.target`, as a host applies
+/// a [`Move`] to its order.
+fn apply_move<T>(items: &mut Vec<T>, key: impl Fn(&T) -> u32, mv: &Move<u32>) {
+    let Some(from) = items.iter().position(|item| mv.items.contains(&key(item))) else { return };
+    let moved = items.remove(from);
+    let Some(target) = items.iter().position(|item| key(item) == mv.target) else {
+        items.insert(from.min(items.len()), moved);
+        return;
+    };
+    let at = if mv.position == DropPosition::After { target + 1 } else { target };
+    items.insert(at, moved);
+}
+
 /// Fourteen documents: modified marks, one opening and one saving with progress, long titles, the
 /// overflow menu of every document, the ×, middle click to close and a context menu with Close,
-/// Close Others and Close All. The line under the strip shows the last event.
+/// Close Others and Close All. Drag a tab to reorder it, or press Cmd+] and Cmd+[ (Ctrl off
+/// macOS, Shift to the ends) on the focused tab; with `tear_off`, a drag past the band shows a log
+/// line and a release there reports the tab leaving. The line under the strip shows the last
+/// event.
 fn show_documents(ui: &mut Ui, args: &mut Args) {
-    let (width, large) = (args.number("width") as f32, args.bool("large"));
+    let (width, large, tear_off) = (args.number("width") as f32, args.bool("large"), args.bool("tear_off"));
     let shared = shared(ui, "tab-strip-documents", Docs::new);
     let mut docs = shared.lock();
     let tabs: Vec<Tab<u32>> = docs
@@ -138,9 +164,19 @@ fn show_documents(ui: &mut Ui, args: &mut Args) {
     let text = TabStripText { more: "More documents".to_owned(), ..TabStripText::default() };
     let out = ui
         .allocate_ui(vec2(width, 0.0), |ui| {
-            TabStrip::new("documents", "Documents", TabKind::Document).selected(&docs.selected).large(large).text(text).show(ui, &tabs)
+            TabStrip::new("documents", "Documents", TabKind::Document)
+                .selected(&docs.selected)
+                .large(large)
+                .tear_off(tear_off)
+                .text(text)
+                .show(ui, &tabs)
         })
         .inner;
+    if let Some(out_of) = &out.dragging_out {
+        docs.last = format!("{} is outside the strip at {}", docs.name(out_of.tab), point(out_of.pointer));
+    } else if let Some(mv) = &out.drop_target {
+        docs.last = format!("Drop {} {} {}", docs.name(mv.items[0]), position(mv.position), docs.name(mv.target));
+    }
     let mut open = None;
     for event in out.events {
         match event {
@@ -159,6 +195,13 @@ fn show_documents(ui: &mut Ui, args: &mut Args) {
                 docs.menu_for = request.tab;
                 open = Some(open_at(&request));
             }
+            TabEvent::Reorder(EditEvent::Commit { value: mv, .. } | EditEvent::Set { value: mv, .. }) => {
+                docs.last = format!("Moved {} {} {}", docs.name(mv.items[0]), position(mv.position), docs.name(mv.target));
+                apply_move(&mut docs.docs, |d| d.key, &mv);
+            }
+            TabEvent::Reorder(EditEvent::Cancel { reason, .. }) => docs.last = format!("Drag cancelled: {reason:?}"),
+            TabEvent::DroppedOut { tab, pointer } => docs.last = format!("{} dropped outside the strip at {}", docs.name(tab), point(pointer)),
+            _ => {}
         }
     }
     let on_tab = docs.menu_for.is_some();
@@ -179,6 +222,18 @@ fn show_documents(ui: &mut Ui, args: &mut Args) {
     let shown = docs.name(docs.selected).to_owned();
     body(ui, width, 120.0, &shown);
     ui.label(docs.last.as_str());
+}
+
+fn position(position: DropPosition) -> &'static str {
+    match position {
+        DropPosition::Before => "before",
+        DropPosition::After => "after",
+        DropPosition::Into => "into",
+    }
+}
+
+fn point(pos: Pos2) -> String {
+    format!("({:.0}, {:.0})", pos.x, pos.y)
 }
 
 struct Group {
@@ -269,6 +324,9 @@ fn show_panels(ui: &mut Ui, args: &mut Args) {
         for event in out.events {
             match event {
                 TabEvent::Activate(key) => state.groups[at].selected = key,
+                TabEvent::Reorder(EditEvent::Commit { value: mv, .. } | EditEvent::Set { value: mv, .. }) => {
+                    apply_move(&mut state.groups[at].panels, |&(key, _)| key, &mv);
+                }
                 TabEvent::DoubleClick(_) => collapse = true,
                 TabEvent::ContextMenu(request) => {
                     state.menu_for = Some((at, request.tab));
@@ -326,4 +384,68 @@ fn apply_panel_command(state: &mut Panels, at: usize, tab: Option<u32>, command:
             state.groups.remove(at);
         }
     }
+}
+
+/// A file dragged from the button over a document strip: the strip draws its drop line at
+/// `slot_at` between tabs, and outlines the tab under the pointer's middle part (a drop onto that
+/// document).
+#[derive(Clone)]
+struct FileDrag;
+
+struct Drops {
+    names: Vec<(u32, &'static str)>,
+    selected: u32,
+    slot: Option<usize>,
+    over: Option<u32>,
+    last: String,
+}
+
+fn show_drops(ui: &mut Ui, args: &mut Args) {
+    let width = args.number("width") as f32;
+    let shared = shared(ui, "tab-strip-drops", || Drops {
+        names: ["Cover", "Chapter 1", "Chapter 2", "Notes"].iter().copied().zip(1..).map(|(name, key)| (key, name)).collect(),
+        selected: 1,
+        slot: None,
+        over: None,
+        last: "Drag the file over the strip".to_owned(),
+    });
+    let mut drops = shared.lock();
+    ui.dnd_drag_source(ui.make_persistent_id("file"), FileDrag, |ui| {
+        ui.label("scan.tif (drag onto the strip)");
+    });
+    let tabs: Vec<Tab<u32>> = drops.names.iter().map(|&(key, name)| Tab::new(key, name)).collect();
+    let out = ui
+        .allocate_ui(vec2(width, 0.0), |ui| {
+            TabStrip::new("drops", "Documents", TabKind::Document)
+                .selected(&drops.selected)
+                .insertion_marker(drops.slot)
+                .drop_highlight(drops.over)
+                .show(ui, &tabs)
+        })
+        .inner;
+    for event in &out.events {
+        if let TabEvent::Activate(key) = event {
+            drops.selected = *key;
+        }
+    }
+    let pointer = ui.input(|i| i.pointer.latest_pos()).filter(|pos| out.response.rect.contains(*pos));
+    let dragging = DragAndDrop::has_payload_of_type::<FileDrag>(ui.ctx());
+    let (slot, over) = match pointer.filter(|_| dragging) {
+        Some(pos) => {
+            let over =
+                out.tab_at(pos).filter(|key| out.tabs.iter().any(|(k, rect)| k == key && rect.shrink2(vec2(rect.width() / 4.0, 0.0)).contains(pos)));
+            (over.is_none().then(|| out.slot_at(pos)), over)
+        }
+        None => (None, None),
+    };
+    if dragging && ui.input(|i| i.pointer.any_released()) && pointer.is_some() {
+        drops.last = match (slot, over) {
+            (_, Some(key)) => format!("Dropped the file onto {}", drops.names.iter().find(|(k, _)| *k == key).map_or("", |(_, n)| n)),
+            (Some(slot), None) => format!("Dropped the file as a new document at {slot}"),
+            _ => String::new(),
+        };
+    }
+    drops.slot = slot;
+    drops.over = over;
+    ui.label(drops.last.as_str());
 }

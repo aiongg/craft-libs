@@ -4,15 +4,22 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::ops::Range;
 
 use egui::accesskit::{Action, Orientation, Role};
+use egui::os::OperatingSystem;
 use egui::{
-    AsIdSalt, CornerRadius, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, Pos2, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2,
+    AsIdSalt, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2,
+    Rect, Response, Sense, Ui, UiBuilder, pos2, vec2,
 };
 
-use super::layout::{FocusMove, FocusSpot, OverflowMenu, StripPlan, StripPlanInput, TabKind, focus_move, focus_spot, step_focus};
+use super::layout::{
+    DragZone, FocusMove, FocusSpot, OverflowMenu, StripPlan, StripPlanInput, TabKind, drag_zone, focus_move, focus_spot, reorder_key, step_focus,
+};
 use super::tab::{Tab, TabStripText, TabStyle, TabView};
+use crate::behavior::{Axis, DragEnd, DropPosition, ListDrag, Move, Reorder, ReorderGesture, RowInfo, StackKey};
 use crate::direction;
+use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::popup_list;
@@ -37,6 +44,23 @@ pub enum TabEvent<K> {
     DoubleClick(Option<K>),
     /// The host's context menu is asked for.
     ContextMenu(TabMenuRequest<K>),
+    /// A tab was moved: a drag of a tab as one edit gesture (`Begin`, then `Commit` with the move
+    /// on a drop, or `Cancel`), or a reorder key's `Set`. The move is relative to a shown tab; the
+    /// host applies it to its order. Where a drag would drop is
+    /// [`TabStripOutput::drop_target`], not an edit.
+    Reorder(EditEvent<Move<K>>),
+    /// A tab drag was released outside the strip's band
+    /// ([`tear_off`](TabStrip::tear_off)), with the pointer at `pointer`. The drag's payload
+    /// ([`ListDrag`] with the strip's id) stays for the widget under the pointer; the host floats
+    /// the tab or leaves it to docking.
+    DroppedOut { tab: K, pointer: Pos2 },
+}
+
+/// A tab dragged out of the strip's band: the tab and where the pointer is.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DragOut<K> {
+    pub tab: K,
+    pub pointer: Pos2,
 }
 
 /// A context menu asked for on a strip: a secondary click, a screen reader's Show Context Menu,
@@ -65,6 +89,12 @@ pub struct TabStripOutput<K> {
     pub events: Vec<TabEvent<K>>,
     /// The shown tabs and their rects, in reading order.
     pub tabs: Vec<(K, Rect)>,
+    /// Where releasing the dragged tab now would drop it; `None` outside a drag, outside the
+    /// band, and where the drop would change nothing.
+    pub drop_target: Option<Move<K>>,
+    /// The dragged tab while the pointer is outside the band, every frame
+    /// ([`tear_off`](TabStrip::tear_off)).
+    pub dragging_out: Option<DragOut<K>>,
     plan: StripPlan,
     rtl: bool,
 }
@@ -98,11 +128,13 @@ struct State<K> {
     focused: bool,
     /// The wheel turned since the last whole notch.
     wheel: f32,
+    /// The tab being dragged.
+    drag: Option<K>,
 }
 
 impl<K: Clone + Send + Sync + 'static> State<K> {
     fn load(ui: &Ui, id: Id) -> Self {
-        ui.data(|d| d.get_temp(id)).unwrap_or(Self { spot: None, focused: false, wheel: 0.0 })
+        ui.data(|d| d.get_temp(id)).unwrap_or(Self { spot: None, focused: false, wheel: 0.0, drag: None })
     }
 
     fn store(self, ui: &Ui, id: Id) {
@@ -166,6 +198,7 @@ pub struct TabStrip<'a, K> {
     reorderable: bool,
     middle_click_closes: bool,
     wheel_selects: bool,
+    tear_off: bool,
     insertion_marker: Option<usize>,
     drop_highlight: Option<K>,
     leading: Option<HostArea<'a>>,
@@ -187,6 +220,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
             reorderable: true,
             middle_click_closes: kind.middle_click_closes(),
             wheel_selects: false,
+            tear_off: false,
             insertion_marker: None,
             drop_highlight: None,
             leading: None,
@@ -228,6 +262,16 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
     /// held.
     pub fn wheel_selects(mut self, selects: bool) -> Self {
         self.wheel_selects = selects;
+        self
+    }
+
+    /// Whether a tab can be dragged out of the strip, off by default. The strip's band is its rect
+    /// grown by `tab.tear_off` on every side: inside it the pointer resolves drop targets (with
+    /// tear-off off, only its position along the strip counts); outside it there is no target and
+    /// no marker, [`dragging_out`](TabStripOutput::dragging_out) names the tab each frame, and a
+    /// release reports [`TabEvent::DroppedOut`].
+    pub fn tear_off(mut self, tear_off: bool) -> Self {
+        self.tear_off = tear_off;
         self
     }
 
@@ -276,7 +320,21 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
         let style = Tab::<K>::style(&Tokens::of(ui));
         let mut state = State::<K>::load(ui, id);
         let focused = ui.memory(|m| m.has_focus(id));
-        let mut pass = Pass { id, rtl, tabs, style, focused, events: Vec::new(), spot_set: false, keep_focus: false, active_node: None };
+        let mut pass = Pass {
+            id,
+            rtl,
+            tabs,
+            style,
+            focused,
+            events: Vec::new(),
+            spot_set: false,
+            keep_focus: false,
+            active_node: None,
+            gesture: Some(ReorderGesture::load(ui, id)),
+            drop_target: None,
+            dragging_out: None,
+            dropped_out: None,
+        };
         let selected = self.selected.clone();
         if focused && !state.focused {
             pass.arrive(&mut state, selected.as_ref());
@@ -288,6 +346,12 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
         let (response, (background, shown, plan)) = (inner.response, inner.inner);
         if pass.keep_focus {
             ui.memory_mut(|m| m.request_focus(id));
+        }
+        if let Some(event) = pass.gesture.take().and_then(ReorderGesture::finish) {
+            pass.events.push(TabEvent::Reorder(event));
+        }
+        if let Some(DragOut { tab, pointer }) = pass.dropped_out.take() {
+            pass.events.push(TabEvent::DroppedOut { tab, pointer });
         }
         let now = ui.memory(|m| m.has_focus(id));
         if now && !state.focused && !pass.spot_set {
@@ -317,7 +381,16 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
         }
         state.focused = now;
         state.store(ui, id);
-        TabStripOutput { response, background, events: pass.events, tabs: shown, plan, rtl }
+        TabStripOutput {
+            response,
+            background,
+            events: pass.events,
+            tabs: shown,
+            drop_target: pass.drop_target,
+            dragging_out: pass.dragging_out,
+            plan,
+            rtl,
+        }
     }
 }
 
@@ -336,6 +409,11 @@ struct Pass<'t, K> {
     keep_focus: bool,
     /// The node of the focused tab or the overflow button.
     active_node: Option<Id>,
+    /// The drag's edit gesture; taken at the end of the pass.
+    gesture: Option<ReorderGesture<K>>,
+    drop_target: Option<Move<K>>,
+    dragging_out: Option<DragOut<K>>,
+    dropped_out: Option<DragOut<K>>,
 }
 
 impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
@@ -352,6 +430,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             reorderable,
             middle_click_closes,
             wheel_selects,
+            tear_off,
             insertion_marker,
             drop_highlight,
             leading,
@@ -378,12 +457,14 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             min_width: style.min_width,
             overflow_width: style.overflow,
         });
+        let order: Vec<RowInfo<K>> = plan.shown.iter().map(|placed| RowInfo::leaf(tabs[placed.index].key().clone())).collect();
+        self.end_stale_drag(ui.ctx(), state);
         let background = ui.interact(plan.tabs_area, self.id.with("background"), Sense::CLICK | Sense::DRAG);
 
         let mut spot = self.spot(state, &plan, selected_at);
         let mut open_overflow = false;
         if self.focused && ui.is_enabled() && !popup_list::any_open(ui.ctx()) {
-            let keys = self.keys(ui);
+            let keys = self.keys(ui, reorderable);
             for mv in keys.moves {
                 if let Some(to) = spot.and_then(|from| step_focus(from, mv, plan.shown.len(), plan.overflow.is_some())) {
                     spot = Some(to);
@@ -397,7 +478,13 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                         self.events.push(TabEvent::Activate(key.clone()));
                     }
                     if keys.menu {
-                        self.events.push(TabEvent::ContextMenu(TabMenuRequest { tab: Some(key), anchor: placed.rect, pointer: None }));
+                        self.events.push(TabEvent::ContextMenu(TabMenuRequest { tab: Some(key.clone()), anchor: placed.rect, pointer: None }));
+                    }
+                    if let Some(&(stack, modifiers)) = keys.reorders.first() {
+                        let mv = self.reorder().key_move(order.as_slice(), std::slice::from_ref(&key), stack, modifiers);
+                        if let (Some(mv), Some(gesture)) = (mv, self.gesture.as_mut().filter(|g| !g.is_active())) {
+                            gesture.set(mv);
+                        }
                     }
                 }
                 Some(FocusSpot::Overflow) => open_overflow = keys.activate,
@@ -438,6 +525,9 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             }
             let closes = middle_click_closes && source.is_closable();
             self.tab_pointer(ui, state, key, &out.tab, out.close.as_ref(), closes);
+            if reorderable && state.drag.is_none() && out.tab.drag_started_by(PointerButton::Primary) {
+                self.start_drag(ui.ctx(), state, order.as_slice(), key, source.label());
+            }
             shown.push((key.clone(), placed.rect));
         }
 
@@ -450,6 +540,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                 (&text, open_overflow, spot == Some(FocusSpot::Overflow)),
             );
         }
+        self.drag_frame(ui, state, &plan, order.as_slice(), (rect, tear_off));
         if let Some(slot) = insertion_marker
             && let Some((tab, left)) = marker_at(&plan, self.rtl, slot)
         {
@@ -467,6 +558,92 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             self.wheel(ui, state, plan.tabs_area, selected_at);
         }
         (background, shown, plan)
+    }
+
+    /// The rules of a strip's drops and keys: tabs side by side in reading order.
+    fn reorder(&self) -> Reorder<'static, K> {
+        Reorder::new(Axis::Horizontal).right_to_left(self.rtl)
+    }
+
+    /// Whether egui's drag and drop holds a tab of this strip.
+    fn has_payload(&self, ctx: &Context) -> bool {
+        DragAndDrop::payload::<ListDrag<K>>(ctx).is_some_and(|payload| payload.list == self.id)
+    }
+
+    /// Ends a drag whose gesture Esc or another cancel ended, or whose tab left the strip.
+    fn end_stale_drag(&mut self, ctx: &Context, state: &mut State<K>) {
+        if !self.gesture.as_ref().is_some_and(ReorderGesture::is_active) && state.drag.take().is_some() && self.has_payload(ctx) {
+            DragAndDrop::clear_payload(ctx);
+        }
+        if state.drag.take_if(|key| !self.tabs.iter().any(|tab| tab.key() == key)).is_some() {
+            self.end_drag(ctx, DragEnd::Removed, Modifiers::NONE, true);
+        }
+    }
+
+    /// Starts a drag of the tab `key`: the payload is that one tab.
+    fn start_drag(&mut self, ctx: &Context, state: &mut State<K>, order: &[RowInfo<K>], key: &K, label: &str) {
+        let payload = ListDrag::new(self.id, order, &[], key.clone(), label);
+        let Some(gesture) = self.gesture.as_mut() else { return };
+        gesture.begin();
+        if !gesture.is_active() {
+            return;
+        }
+        state.drag = Some(key.clone());
+        DragAndDrop::set_payload(ctx, payload);
+    }
+
+    /// Reports the end of a drag. A drop on the strip or a cancel clears the payload so no other
+    /// widget takes it; a release outside the band leaves it to the widget under the pointer.
+    fn end_drag(&mut self, ctx: &Context, end: DragEnd<K>, modifiers: Modifiers, clear: bool) {
+        if clear && self.has_payload(ctx) {
+            DragAndDrop::clear_payload(ctx);
+        }
+        if let Some(gesture) = self.gesture.as_mut() {
+            gesture.end(end, modifiers);
+        }
+    }
+
+    /// The drag under way: ends it on a release, Esc or focus loss; otherwise resolves the target
+    /// and draws its marker, or reports the tab leaving the band.
+    fn drag_frame(&mut self, ui: &Ui, state: &mut State<K>, plan: &StripPlan, order: &[RowInfo<K>], (strip, tear_off): (Rect, bool)) {
+        let Some(dragged) = state.drag.take() else { return };
+        let ctx = ui.ctx().clone();
+        let (released, down, modifiers, pointer) =
+            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
+        let zone = pointer.map_or(DragZone::Band, |pos| drag_zone(strip, pos, tear_off, self.style.tear_off));
+        let target = pointer.filter(|_| zone == DragZone::Band).and_then(|pos| {
+            let spans: Vec<Range<f32>> = plan.shown.iter().map(|placed| placed.rect.min.x..placed.rect.max.x).collect();
+            self.reorder().resolve(order, spans.as_slice(), pos.x, std::slice::from_ref(&dragged), modifiers).map(|resolved| resolved.mv)
+        });
+        if crate::focus::lost(&ctx) {
+            self.end_drag(&ctx, DragEnd::FocusLost, modifiers, true);
+        } else if released || !down {
+            match (zone, pointer) {
+                (DragZone::Outside, Some(pointer)) => {
+                    self.end_drag(&ctx, DragEnd::Released(None), modifiers, false);
+                    self.dropped_out = Some(DragOut { tab: dragged, pointer });
+                }
+                _ => self.end_drag(&ctx, DragEnd::Released(target), modifiers, true),
+            }
+        } else if !self.has_payload(&ctx) {
+            // egui's drag and drop takes Esc and drops the payload before the gesture sees the key.
+            let end = if DragAndDrop::aborted_by_escape(&ctx) { DragEnd::Escape } else { DragEnd::PayloadCleared };
+            self.end_drag(&ctx, end, modifiers, true);
+        } else {
+            ctx.set_cursor_icon(CursorIcon::Grabbing);
+            match (zone, pointer) {
+                (DragZone::Outside, Some(pointer)) => self.dragging_out = Some(DragOut { tab: dragged.clone(), pointer }),
+                _ => {
+                    if let Some(mv) = &target
+                        && let Some(rect) = self.tabs.iter().position(|tab| *tab.key() == mv.target).and_then(|index| plan.rect_of(index))
+                    {
+                        paint_marker(ui, &self.style, rect, (mv.position == DropPosition::Before) != self.rtl);
+                    }
+                    self.drop_target = target;
+                }
+            }
+            state.drag = Some(dragged);
+        }
     }
 
     /// The focus spot on `plan`: the tab or button the state names, the button for a tab moved
@@ -488,12 +665,17 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
     }
 
     /// Takes the strip's keys from this pass's input.
-    fn keys(&self, ui: &Ui) -> StripKeys {
+    fn keys(&self, ui: &Ui, reorderable: bool) -> StripKeys {
         let mut keys = StripKeys::default();
         let rtl = self.rtl;
+        let mac = matches!(ui.ctx().os(), OperatingSystem::Mac | OperatingSystem::IOS);
         ui.input_mut(|i| {
             i.events.retain(|event| {
                 let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
+                if let Some(stack) = reorderable.then(|| reorder_key(*key, *modifiers, mac)).flatten() {
+                    keys.reorders.push((stack, *modifiers));
+                    return false;
+                }
                 if let Some(mv) = focus_move(*key, *modifiers, rtl) {
                     keys.moves.push(mv);
                     return false;
@@ -660,6 +842,8 @@ struct StripKeys {
     moves: Vec<FocusMove>,
     activate: bool,
     menu: bool,
+    /// The reorder keys, read for a strip (`]` is later in reading order).
+    reorders: Vec<(StackKey, Modifiers)>,
 }
 
 /// Where the drop line for `slot` goes on `plan`: the shown tab it lies in and whether the line is
