@@ -181,3 +181,20 @@ fn shape_overrides_apply_and_misplaced_overrides_are_errors() {
     let t = resolve(&bad, app(Mode::Dark, Contrast::Standard), None).tokens;
     assert_eq!(t.component, resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens.component, "invalid overrides are skipped");
 }
+
+#[test]
+fn handle_defaults_are_the_same_at_every_size_and_have_no_overridable_path() {
+    for def in [grey_blue(), violet()] {
+        for size in [Size::Compact, Size::Comfortable] {
+            for mode in [Mode::Light, Mode::Dark] {
+                let t = resolve(&def, Appearance { size, ..app(mode, Contrast::High) }, None).tokens;
+                assert_eq!(t.component.handle, HandleTokens { size: 8.0, stroke: 1.0, halo: 1.0 }, "{} {size:?} {mode:?}", def.name);
+            }
+        }
+    }
+    assert!(ComponentField::ALL.iter().all(|f| !matches!(f, ComponentField::Handle(_))));
+    for path in ["handle.size", "handle.stroke", "handle.halo", "handle"] {
+        assert_eq!(ComponentField::from_path(path), None, "{path}");
+        assert_eq!(TokenRef::from_path(path), None, "{path}");
+    }
+}

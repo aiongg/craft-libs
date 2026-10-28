@@ -5,6 +5,7 @@
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
 mod button;
+mod handle;
 
 use std::fmt;
 
@@ -14,6 +15,7 @@ use super::theme::EdgeSeed;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef};
 
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
+pub use handle::{HandleField, HandleTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -251,8 +253,20 @@ macro_rules! families {
             /// overridden.
             pub const ALL: &'static [ComponentField] = &{
                 const COUNT: usize = 0 $(+ <$tokens as Family>::FIELDS.len())+;
-                // Any field fills the array until the loops overwrite every slot.
-                let mut out = [[$(ComponentField::$var(<$tokens as Family>::FIELDS[0])),+][0]; COUNT];
+                // The first field of the first family that has one fills the array until the
+                // loops overwrite every slot. Families may have no field (`HandleField`).
+                #[allow(clippy::panic, reason = "evaluated at compile time: the list fails to build")]
+                const FILL: ComponentField = {
+                    let mut fill = None;
+                    $(if fill.is_none() && !<$tokens as Family>::FIELDS.is_empty() {
+                        fill = Some(ComponentField::$var(<$tokens as Family>::FIELDS[0]));
+                    })+
+                    match fill {
+                        Some(f) => f,
+                        None => panic!("no component family has an overridable field"),
+                    }
+                };
+                let mut out = [FILL; COUNT];
                 let mut i = 0;
                 $({
                     let fields = <$tokens as Family>::FIELDS;
@@ -331,4 +345,6 @@ impl ComponentTokens {
 families! {
     /// Push buttons.
     button: ButtonTokens => Button(ButtonField);
+    /// Canvas handles.
+    handle: HandleTokens => Handle(HandleField);
 }

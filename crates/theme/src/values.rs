@@ -364,3 +364,11 @@ pub const MOTION_EASING: Easing = Easing::Standard;
 pub const BUTTON_PAD_X_MD: f32 = 2.0;
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
+
+/// Canvas handle side or diameter in points, the same at every Size: handles sit on the
+/// document, not in the chrome.
+pub const HANDLE_SIZE: f32 = 8.0;
+/// Handle outline width ([`Stroke::W1`](super::scale::Stroke::W1)).
+pub const HANDLE_STROKE: f32 = 1.0;
+/// Width of the halo drawn around a handle so it reads on any image.
+pub const HANDLE_HALO: f32 = 1.0;

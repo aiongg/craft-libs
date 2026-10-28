@@ -39,6 +39,8 @@
     "button.secondary.text.pressed": "#000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
+    "edge.dark": "#404040",
+    "edge.light": "#ffffff",
     "line.border": "#808080",
     "line.control_edge": "#808080",
     "line.divider": "#808080",

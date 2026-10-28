@@ -196,3 +196,6 @@ button.danger.text.rest = #000000ff
 button.danger.text.hover = #000000ff
 button.danger.text.pressed = #000000ff
 button.danger.text.disabled = #b8b8b8ff
+handle.size = 8
+handle.stroke = 1
+handle.halo = 1

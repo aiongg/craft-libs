@@ -33,3 +33,25 @@ fn builtins_resolve_everywhere_without_warnings_beyond_their_intent() {
         }
     }
 }
+
+/// Links and other accent-coloured text must read as accent, not as body text: a neutral
+/// `accent.text` (PhotoCraft's `accent_text`, the content colour on `accent_soft`, is white in
+/// several dark themes) draws hyperlinks like plain text. High contrast is left out: 7:1 on a
+/// mid-grey surface leaves room only for near-white text.
+#[test]
+fn builtin_accent_text_is_an_accent_hue() {
+    let mut low = Vec::new();
+    for theme in builtins() {
+        for a in appearances().into_iter().filter(|a| a.contrast == Contrast::Standard) {
+            let t = resolve(theme, a, None).tokens;
+            let chroma = t.color(ColorToken::AccentText).to_oklch().c;
+            if chroma < ACCENT_TEXT_MIN_CHROMA {
+                low.push(format!("{} {a:?}: {chroma:.3}", theme.id));
+            }
+        }
+    }
+    assert!(low.is_empty(), "accent.text is near grey:\n{}", low.join("\n"));
+}
+
+/// OKLCH chroma below which a colour reads as grey.
+const ACCENT_TEXT_MIN_CHROMA: f64 = 0.04;

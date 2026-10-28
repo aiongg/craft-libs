@@ -53,8 +53,8 @@ mod tests;
 pub use builtins::builtins;
 pub use color::{Oklab, Oklch, Rgba};
 pub use components::{
-    ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, ComponentField, ComponentTokens, ControlSize, FieldKind,
-    OverrideError, OverrideValue, State, States,
+    ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, ComponentField, ComponentTokens, ControlSize, FieldKind, HandleField,
+    HandleTokens, OverrideError, OverrideValue, State, States,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{ContrastCheck, Ramps};
