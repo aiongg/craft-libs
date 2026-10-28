@@ -1015,6 +1015,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-theme"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "craft-theme-store"
+version = "0.1.0"
+dependencies = [
+ "craft-atomic",
+ "craft-theme",
+ "dirs",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "craft-ui"
 version = "0.1.0"
 dependencies = [
@@ -1070,10 +1091,18 @@ dependencies = [
 name = "craft-window"
 version = "0.1.0"
 dependencies = [
+ "craft-atomic",
+ "craft-settings",
+ "eframe",
  "egui",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "serde",
+ "serde_json",
+ "tempfile",
  "wayland-client",
+ "winit",
 ]
 
 [[package]]
@@ -1326,6 +1355,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_glow",
+ "glow",
  "glutin",
  "glutin-winit",
  "image",
