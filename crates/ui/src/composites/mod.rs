@@ -9,6 +9,9 @@
 //!   one centre.
 //! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
 //!   Input/Output row of the selected point; the value is a [`Curve`].
+//! - [`GradientStops`], [`GradientRamp`] and [`GradientSwatch`]: the value of a gradient stop bar
+//!   with its stop rules ([`gradient::stops`]), the paint of a gradient over the checkerboard, and
+//!   a well that shows one.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
@@ -56,6 +59,7 @@ mod empty_state_tests;
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub mod gradient;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod histogram_tests;
@@ -86,6 +90,10 @@ pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use gradient::{
+    ColorStop, GradientRamp, GradientRampStyle, GradientStops, GradientSwatch, OpacityStop, Sampler as StopSampler, StopRow, StopRows, StopRules,
+    default_sampler,
+};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
 pub use notice::{Notice, NoticeStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};

@@ -208,6 +208,16 @@ impl Swatch {
                 out.push(Shape::Rect(RectShape::filled(well, radius, color.to_egui())));
             }
         }
+        out.extend(Swatch::rings(style, rect, style.inner_edge(color), selected, enabled, pixels_per_point));
+        out
+    }
+
+    /// The two one-point rings of a swatch whose outline is `rect`, the inner one in `inner`, and
+    /// the selection ring when `selected`; a disabled well fades its rings.
+    pub(crate) fn rings(style: &SwatchStyle, rect: Rect, inner: Color32, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
+        let rect = rect.round_to_pixels(pixels_per_point);
+        let well = rect.shrink(style.inset);
+        let radius = style.radius;
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
         let inner_radius = CornerRadius {
             nw: radius.nw.saturating_sub(1),
@@ -215,8 +225,7 @@ impl Swatch {
             sw: radius.sw.saturating_sub(1),
             se: radius.se.saturating_sub(1),
         };
-        let inner = fade(style.inner_edge(color));
-        out.push(Shape::Rect(RectShape::stroke(well.shrink(1.0), inner_radius, Stroke::new(1.0, inner), StrokeKind::Inside)));
+        let mut out = vec![Shape::Rect(RectShape::stroke(well.shrink(1.0), inner_radius, Stroke::new(1.0, fade(inner)), StrokeKind::Inside))];
         out.push(Shape::Rect(RectShape::stroke(well, radius, Stroke::new(1.0, fade(style.edge)), StrokeKind::Inside)));
         if selected {
             out.push(Shape::Rect(RectShape::stroke(rect, Swatch::outline_radius(style), style.selected, StrokeKind::Inside)));
