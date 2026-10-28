@@ -6,6 +6,7 @@
 //! Pure data and functions, like the rest of the crate. This module replaces the pilot model at
 //! the crate root once the rest of the design system lands.
 
+mod builtins;
 pub mod color;
 mod components;
 pub mod contrast;
@@ -19,6 +20,8 @@ mod tokens;
 mod values;
 
 #[cfg(test)]
+mod builtin_tests;
+#[cfg(test)]
 mod component_tests;
 #[cfg(test)]
 mod format_tests;
@@ -27,6 +30,7 @@ mod semantic_tests;
 #[cfg(test)]
 mod tests;
 
+pub use builtins::builtins;
 pub use color::{Oklab, Oklch, Rgba};
 pub use components::{
     ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, ComponentField, ComponentTokens, ControlSize, FieldKind,

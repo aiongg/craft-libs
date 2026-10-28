@@ -1,0 +1,38 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "craft.pro-light",
+  "name": "Pro Light",
+  "version": 1,
+  "variants": "light",
+  "contrast_intent": "standard",
+  "seeds": {
+    "accent": "#378ef0",
+    "neutral": "#f0f0f0",
+    "status": {
+      "bad": "#ec5b62",
+      "good": "#4e712e",
+      "info": "#378ef0",
+      "warn": "#e8b046"
+    }
+  },
+  "shape": null,
+  "light": {
+    "accent.soft": "#d6d6d6",
+    "accent.text": "#1062c4",
+    "caption.close_hover": "#c42b1c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#d6d6d6",
+    "line.control_edge": "#bababa",
+    "line.divider": "#d6d6d6",
+    "state.hover": "#e2e2e2",
+    "state.pressed": "#cecece",
+    "state.selected": "#cccccc",
+    "surface.background": "#e2e2e2",
+    "surface.canvas": "#d6d6d6",
+    "surface.panel": "#f0f0f0",
+    "surface.sunken": "#ffffff",
+    "text.muted": "#404040",
+    "text.normal": "#141414"
+  }
+}

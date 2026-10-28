@@ -1,0 +1,44 @@
+//! The built-in themes: twelve `craft-design-theme` files in `crates/theme/themes/`, embedded in
+//! the binary and parsed once.
+
+use std::sync::LazyLock;
+
+use super::ThemeDef;
+use super::format;
+
+/// Each built-in's file name (without `.json`) and its text.
+pub(super) const SOURCES: [(&str, &str); 12] = [
+    ("artcraft", include_str!("../../themes/artcraft.json")),
+    ("pro-dark", include_str!("../../themes/pro-dark.json")),
+    ("pro-light-gray", include_str!("../../themes/pro-light-gray.json")),
+    ("pro-light", include_str!("../../themes/pro-light.json")),
+    ("graphite", include_str!("../../themes/graphite.json")),
+    ("studio", include_str!("../../themes/studio.json")),
+    ("solarized-dark", include_str!("../../themes/solarized-dark.json")),
+    ("adwaita", include_str!("../../themes/adwaita.json")),
+    ("breeze", include_str!("../../themes/breeze.json")),
+    ("classic", include_str!("../../themes/classic.json")),
+    ("soft-dark", include_str!("../../themes/soft-dark.json")),
+    ("soft-light", include_str!("../../themes/soft-light.json")),
+];
+
+// An invalid embedded file is a build defect that the built-in tests catch.
+#[allow(clippy::panic)]
+static BUILTINS: LazyLock<Vec<ThemeDef>> = LazyLock::new(|| {
+    SOURCES
+        .iter()
+        .map(|(name, text)| match format::parse(text.as_bytes()) {
+            Ok(file) => file.theme,
+            Err(errors) => {
+                let list: Vec<String> = errors.0.iter().map(ToString::to_string).collect();
+                panic!("built-in theme {name}.json is invalid: {}", list.join("; "))
+            }
+        })
+        .collect()
+});
+
+/// The built-in themes, in picker order. Panics if an embedded file is invalid, which the
+/// built-in tests rule out.
+pub fn builtins() -> &'static [ThemeDef] {
+    &BUILTINS
+}

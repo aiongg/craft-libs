@@ -1,0 +1,41 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "craft.soft-light",
+  "name": "Soft Light",
+  "version": 1,
+  "variants": "light",
+  "contrast_intent": "low",
+  "seeds": {
+    "accent": "#6e80d8",
+    "neutral": "#f0eef3",
+    "status": {
+      "bad": "#a62c3e",
+      "good": "#4e712e",
+      "info": "#6e80d8",
+      "warn": "#8c4800"
+    }
+  },
+  "shape": null,
+  "light": {
+    "accent.soft": "#6e80d82c",
+    "accent.solid": "#6e80d8",
+    "accent.text": "#2e3a92",
+    "button.primary.fill.rest": "#5062be",
+    "button.primary.text.rest": "#ffffff",
+    "caption.close_hover": "#c83c48",
+    "caption.close_text": "#ffffff",
+    "line.border": "#d0cdd7",
+    "line.control_edge": "#bebbc9",
+    "line.divider": "#d2cfda",
+    "state.hover": "#e4e2ea",
+    "state.pressed": "#d4d1dd",
+    "surface.background": "#e2e0e7",
+    "surface.canvas": "#dad8e0",
+    "surface.panel": "#f0eef3",
+    "surface.sunken": "#faf9fc",
+    "text.faint": "#504e60",
+    "text.muted": "#3e3c4c",
+    "text.normal": "#2c2a38"
+  }
+}

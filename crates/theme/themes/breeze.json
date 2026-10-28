@@ -1,0 +1,70 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "craft.breeze",
+  "name": "Breeze",
+  "version": 1,
+  "variants": "both",
+  "contrast_intent": "standard",
+  "seeds": {
+    "accent": "#3aace8",
+    "neutral": "#1d2126",
+    "status": {
+      "bad": "#e36f7b",
+      "good": "#85dc6a",
+      "info": "#3aace8",
+      "warn": "#f47806"
+    }
+  },
+  "shape": {
+    "edge": "flat",
+    "radius": {
+      "button": 5.0,
+      "control": 5.0,
+      "panel": 5.0,
+      "popup": 5.0,
+      "window": 5.0
+    }
+  },
+  "light": {
+    "accent.soft": "#3aace830",
+    "accent.text": "#1e5e88",
+    "button.primary.fill.rest": "#237ab4",
+    "button.primary.text.rest": "#ffffff",
+    "caption.close_hover": "#d5333c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#cbd0d5",
+    "line.control_edge": "#b8bfc6",
+    "line.divider": "#d6dade",
+    "state.hover": "#e2e6eb",
+    "state.pressed": "#d0d6dd",
+    "surface.background": "#e0e3e7",
+    "surface.canvas": "#dbdee2",
+    "surface.panel": "#eceef1",
+    "surface.sunken": "#f9fafc",
+    "text.faint": "#515a64",
+    "text.muted": "#363f48",
+    "text.normal": "#21252a"
+  },
+  "dark": {
+    "accent.soft": "#3aace828",
+    "accent.solid": "#3aace8",
+    "accent.text": "#50b8ee",
+    "button.primary.fill.rest": "#1e76b0",
+    "button.primary.text.rest": "#ffffff",
+    "caption.close_hover": "#d5333c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#34383d",
+    "line.control_edge": "#44494f",
+    "line.divider": "#2e3236",
+    "state.hover": "#32363b",
+    "state.pressed": "#3a3f45",
+    "surface.background": "#1a1d22",
+    "surface.canvas": "#111418",
+    "surface.panel": "#1d2126",
+    "surface.sunken": "#262a30",
+    "text.faint": "#a4aab1",
+    "text.muted": "#c8ced5",
+    "text.normal": "#fafbfd"
+  }
+}

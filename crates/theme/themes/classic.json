@@ -1,0 +1,57 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "craft.classic",
+  "name": "Classic",
+  "version": 1,
+  "variants": "light",
+  "contrast_intent": "standard",
+  "seeds": {
+    "accent": "#0a246a",
+    "neutral": "#d4d0c8",
+    "status": {
+      "bad": "#a00000",
+      "good": "#4e712e",
+      "info": "#0a246a",
+      "warn": "#806000"
+    }
+  },
+  "shape": {
+    "edge": {
+      "bevel": {
+        "width": 1.0
+      }
+    },
+    "radius": {
+      "button": 0.0,
+      "control": 0.0,
+      "panel": 0.0,
+      "popup": 0.0,
+      "window": 0.0
+    }
+  },
+  "light": {
+    "accent.soft": "#0a246a",
+    "accent.solid": "#0a246a",
+    "button.primary.fill.rest": "#d4d0c8",
+    "button.primary.text.rest": "#000000",
+    "caption.close_hover": "#c42b1c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#808080",
+    "line.control_edge": "#808080",
+    "line.divider": "#808080",
+    "state.hover": "#e2ded6",
+    "state.pressed": "#bebab2",
+    "surface.background": "#d4d0c8",
+    "surface.canvas": "#808080",
+    "surface.panel": "#d4d0c8",
+    "surface.sunken": "#ffffff",
+    "text.muted": "#404040",
+    "text.normal": "#000000"
+  },
+  "high_contrast": {
+    "light": {
+      "surface.panel": "#d8d5ce"
+    }
+  }
+}

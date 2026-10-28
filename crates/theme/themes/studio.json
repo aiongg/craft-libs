@@ -1,0 +1,58 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "craft.studio",
+  "name": "Studio",
+  "version": 1,
+  "variants": "both",
+  "contrast_intent": "standard",
+  "seeds": {
+    "accent": "#8b7cf6",
+    "neutral": "#1a1a1c",
+    "status": {
+      "bad": "#f06060",
+      "good": "#85dc6a",
+      "info": "#8b7cf6",
+      "warn": "#f0be5a"
+    }
+  },
+  "shape": null,
+  "light": {
+    "accent.soft": "#6c5ce724",
+    "accent.solid": "#6c5ce7",
+    "accent.text": "#5040c8",
+    "button.primary.fill.rest": "#141418",
+    "button.primary.text.rest": "#fafafc",
+    "caption.close_hover": "#c42b1c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#dedee4",
+    "line.control_edge": "#d6d6dc",
+    "line.divider": "#e2e2e8",
+    "state.hover": "#e8e8ed",
+    "state.pressed": "#dcdce2",
+    "surface.background": "#f0f0f3",
+    "surface.canvas": "#e2e2e6",
+    "surface.panel": "#fcfcfd",
+    "surface.sunken": "#f2f2f5",
+    "text.normal": "#18181c"
+  },
+  "dark": {
+    "accent.soft": "#8b7cf62e",
+    "accent.solid": "#8b7cf6",
+    "accent.text": "#d6d0ff",
+    "button.primary.fill.rest": "#f6f6f8",
+    "button.primary.text.rest": "#0c0c0e",
+    "caption.close_hover": "#c42b1c",
+    "caption.close_text": "#ffffff",
+    "line.border": "#28282c",
+    "line.control_edge": "#343439",
+    "line.divider": "#26262a",
+    "state.hover": "#2c2c30",
+    "state.pressed": "#38383e",
+    "surface.background": "#111112",
+    "surface.canvas": "#0e0e0f",
+    "surface.panel": "#1a1a1c",
+    "surface.sunken": "#232326",
+    "text.normal": "#ececf0"
+  }
+}
