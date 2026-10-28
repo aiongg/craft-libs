@@ -11,7 +11,8 @@ use craft_ui::icons::{self, IconSet};
 use craft_ui::inspect;
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
-use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
+use egui::containers::menu::{MenuButton, MenuConfig};
+use egui::{CentralPanel, Frame, Margin, Panel, PopupCloseBehavior, ScrollArea, Ui};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -30,6 +31,7 @@ pub struct Gallery {
     filter: String,
     compare: bool,
     compare_themes: Vec<String>,
+    compare_high: bool,
     /// The token browser instead of the stories.
     tokens: bool,
     browser: Browser,
@@ -60,6 +62,7 @@ impl Gallery {
             filter: saved.filter,
             compare: saved.compare,
             compare_themes,
+            compare_high: saved.compare_high,
             tokens: saved.tokens,
             browser: Browser::default(),
             inspect: saved.inspect,
@@ -78,6 +81,10 @@ impl Gallery {
 
     pub fn set_compare(&mut self, compare: bool) {
         self.compare = compare;
+    }
+
+    pub fn set_compare_high(&mut self, high: bool) {
+        self.compare_high = high;
     }
 
     /// Shows the token browser instead of the stories.
@@ -280,7 +287,9 @@ impl Gallery {
             ui.selectable_value(&mut self.compare, false, "Canvas");
             ui.selectable_value(&mut self.compare, true, "Compare");
             if self.compare {
-                ui.menu_button("Themes", |ui| {
+                // Stays open while themes are ticked; a click outside closes it.
+                let config = MenuConfig::new().close_behavior(PopupCloseBehavior::CloseOnClickOutside);
+                MenuButton::new("Themes").config(config).ui(ui, |ui| {
                     for theme in builtins() {
                         let id = theme.id.as_str();
                         let mut on = self.compare_themes.iter().any(|t| t == id);
@@ -293,6 +302,7 @@ impl Gallery {
                         }
                     }
                 });
+                ui.checkbox(&mut self.compare_high, "Show high contrast variants");
             }
         });
         ui.separator();
@@ -303,11 +313,12 @@ impl Gallery {
         let appearance = self.appearance.clone();
         let themes = self.compare_themes.clone();
         let compare = self.compare;
+        let high = self.compare_high;
         let args = args_of(&mut self.args, &self.saved_args, &story);
         let inspector = inspecting.then_some(&mut self.inspector);
         ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
             if compare {
-                compare_grid(ui, &story, args, &appearance, &themes, inspector);
+                compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
             } else {
                 canvas(ui, &story, args, &appearance, inspector);
             }
@@ -331,6 +342,7 @@ impl eframe::App for Gallery {
             filter: self.filter.clone(),
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
+            compare_high: self.compare_high,
             tokens: self.tokens,
             inspect: self.inspect,
             args: saved_args,
@@ -403,16 +415,27 @@ fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut In
     }
 }
 
-/// Rows: the chosen themes. Columns: light and dark, each in standard and high contrast.
-fn compare_grid(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, themes: &[String], mut inspector: Option<&mut Inspector>) {
-    const COLUMNS: [(Mode, bool); 4] = [(Mode::Light, false), (Mode::Light, true), (Mode::Dark, false), (Mode::Dark, true)];
+/// Rows: the chosen themes. Columns: light and dark in standard contrast, each followed by its
+/// high-contrast column when `high` is set.
+fn compare_grid(
+    ui: &mut Ui,
+    story: &Story,
+    args: &mut Args,
+    appearance: &Appearance,
+    themes: &[String],
+    high: bool,
+    mut inspector: Option<&mut Inspector>,
+) {
+    const ALL: [(Mode, bool); 4] = [(Mode::Light, false), (Mode::Light, true), (Mode::Dark, false), (Mode::Dark, true)];
+    const STANDARD: [(Mode, bool); 2] = [(Mode::Light, false), (Mode::Dark, false)];
+    let columns: &[(Mode, bool)] = if high { &ALL } else { &STANDARD };
     for id in themes {
         let Some(theme) = builtin(id) else {
             continue;
         };
         ui.heading(&theme.name);
-        ui.columns(COLUMNS.len(), |columns| {
-            for (ui, (mode, high)) in columns.iter_mut().zip(COLUMNS) {
+        ui.columns(columns.len(), |uis| {
+            for (ui, &(mode, high)) in uis.iter_mut().zip(columns) {
                 let name = format!("{} {}", if mode == Mode::Dark { "Dark" } else { "Light" }, if high { "high contrast" } else { "standard" });
                 ui.push_id((id, name.as_str()), |ui| {
                     scope(

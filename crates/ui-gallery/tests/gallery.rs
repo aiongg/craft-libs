@@ -62,14 +62,16 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
     gallery.select("primitives/focus-ring/focus");
     gallery.set_inspect(true);
     let items: Vec<String> = (1..=4).map(|i| format!("Item {i}")).collect();
-    for compare in [false, true] {
+    // Canvas, compare in standard contrast, compare with the high-contrast columns.
+    for (compare, high, canvases) in [(false, false, 1), (true, false, 2), (true, true, 4)] {
         gallery.set_compare(compare);
+        gallery.set_compare_high(high);
         // The first pass turns AccessKit on, the second builds the tree, the third draws it.
         for _ in 0..3 {
             frame(&ctx, &mut gallery);
         }
         let badges = gallery.focus_badges();
-        assert_eq!(badges.len(), if compare { 4 } else { 1 }, "one canvas, or one per compare column");
+        assert_eq!(badges.len(), canvases, "one canvas, or one per compare column");
         assert!(badges.iter().all(|b| *b == items), "{badges:?}");
     }
     assert!(craft_ui::inspect::enabled(&ctx));

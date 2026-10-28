@@ -22,6 +22,8 @@ pub struct Saved {
     pub inspect: bool,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,
+    /// The compare grid's high-contrast columns.
+    pub compare_high: bool,
     /// Edited args by story id.
     pub args: HashMap<String, Vec<SavedArg>>,
 }
