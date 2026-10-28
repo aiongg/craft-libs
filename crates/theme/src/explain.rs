@@ -259,6 +259,7 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
         shape: &shape,
         space: &preset.space,
         size: &preset.size,
+        preset: Size::Compact,
         typography: &preset.typography,
     });
     ComponentField::ALL

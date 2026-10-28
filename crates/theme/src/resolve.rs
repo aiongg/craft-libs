@@ -78,16 +78,28 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
 
     let shape = ShapeTokens { radius, edge };
     let typography = preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING);
-    let mut component =
-        ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size, typography: &typography });
+    let mut component = ComponentTokens::defaults(&Semantic {
+        color: &color,
+        shape: &shape,
+        space: &preset.space,
+        size: &preset.size,
+        preset: appearance.size,
+        typography: &typography,
+    });
     let high = appearance.contrast == Contrast::High;
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &color, high);
     warnings.extend(component_warnings);
 
     let before = &color_steps.before_pass;
-    let mut component_before =
-        ComponentTokens::defaults(&Semantic { color: before, shape: &shape, space: &preset.space, size: &preset.size, typography: &typography });
+    let mut component_before = ComponentTokens::defaults(&Semantic {
+        color: before,
+        shape: &shape,
+        space: &preset.space,
+        size: &preset.size,
+        preset: appearance.size,
+        typography: &typography,
+    });
     derive::component_overrides(&mut component_before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);
 

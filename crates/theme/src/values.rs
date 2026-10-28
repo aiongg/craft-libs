@@ -725,5 +725,22 @@ pub const TOOLTIP_WIDTH: f32 = 320.0;
 /// Outer width of a toast card, in points, at every Size.
 pub const TOAST_WIDTH: f32 = 360.0;
 
+/// Between a toast card's edge and its content, in points: Compact, Comfortable.
+pub const fn toast_pad(size: Size) -> f32 {
+    match size {
+        Size::Compact => 10.0,
+        Size::Comfortable => 12.0,
+    }
+}
+
+/// From the host rect's reading-end edge and from its bottom edge to the toast stack, in points:
+/// Compact, Comfortable.
+pub const fn toast_inset(size: Size) -> [f32; 2] {
+    match size {
+        Size::Compact => [16.0, 12.0],
+        Size::Comfortable => [20.0, 16.0],
+    }
+}
+
 /// Widest the column of a centred empty state grows, in points, at every Size.
 pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;

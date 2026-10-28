@@ -13,10 +13,10 @@ use crate::values;
 pub struct ToastTokens {
     /// Outer width of a card: `toast.width`.
     pub width: f32,
-    /// Between a card's edge and its content: `toast.pad`, half a small control.
+    /// Between a card's edge and its content: `toast.pad`, 10 (Comfortable 12).
     pub pad: f32,
     /// From the host rect's edge at the reading end and from its bottom edge to the stack:
-    /// `toast.inset`, `space.pad.dialog` and `space.gap.section`.
+    /// `toast.inset`, 16 and 12 (Comfortable 20 and 16).
     pub inset: [f32; 2],
     /// Between cards: `space.gap.stack`.
     pub gap: f32,
@@ -33,8 +33,9 @@ pub struct ToastTokens {
 }
 
 impl ToastTokens {
-    /// The card's outline for `tone`: `status.<tone>.fg`; neutral is `line.border`. A bevel theme
-    /// keeps its bevel.
+    /// The card's outline for `tone`: `status.<tone>.fg`; neutral is `line.border`. Only a card
+    /// whose popup surface has a border draws it: a bevel theme keeps its bevel, and a theme whose
+    /// popups have no edge draws none, so the tone shows in the icon and the title alone.
     pub fn edge(&self, tone: Tone) -> Rgba {
         self.edge[tone as usize]
     }
@@ -87,8 +88,8 @@ impl Family for ToastTokens {
         let c = s.color;
         ToastTokens {
             width: values::TOAST_WIDTH,
-            pad: s.size.control.sm / 2.0,
-            inset: [s.space.pad.dialog, s.space.gap.section],
+            pad: values::toast_pad(s.preset),
+            inset: values::toast_inset(s.preset),
             gap: s.space.gap.stack,
             radius: s.shape.radius.popup,
             fill: c.surface.raised,
