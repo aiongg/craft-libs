@@ -8,7 +8,7 @@ use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES,
 use crate::color::Rgba;
 use crate::components::{ComponentField, FieldKind, OverrideValue};
 use crate::scale::{Elevation, Radius};
-use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, ThemeDef, Variants};
+use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, SeedOverrides, Seeds, ShapeSeed, ThemeDef, Variants};
 use crate::tokens::{ColorToken, RadiusSet, Status, TokenRef};
 use crate::{AppId, ThemeId};
 
@@ -141,9 +141,10 @@ impl Parser {
             self.choice(raw, "contrast_intent", ContrastIntent::Standard, &[("standard", ContrastIntent::Standard), ("low", ContrastIntent::Low)]);
         let seeds = self.seeds(raw);
         let shape = self.shape(raw);
-        let pins = self.mode_pins(raw, variants);
+        let pins = self.mode_pins(raw, variants, true);
+        let mode_seeds = self.mode_seeds(raw, variants);
         let high_contrast = match self.optional_object(raw, "high_contrast") {
-            Some(hc) => self.at("high_contrast", |p| p.mode_pins(hc, variants)),
+            Some(hc) => self.at("high_contrast", |p| p.mode_pins(hc, variants, false)),
             None => Some(ModePins::default()),
         };
         let components = self.components(raw);
@@ -154,6 +155,7 @@ impl Parser {
             id,
             version,
             seeds: seeds?,
+            mode_seeds: mode_seeds?,
             shape: shape?,
             variants,
             pins: pins?,
@@ -261,7 +263,7 @@ impl Parser {
 
     /// The `light` and `dark` maps of `obj`. A map for a mode `variants` leaves out is an error
     /// unless it is empty.
-    fn mode_pins(&mut self, obj: &Map<String, Value>, variants: Variants) -> Option<ModePins> {
+    fn mode_pins(&mut self, obj: &Map<String, Value>, variants: Variants, allow_seeds: bool) -> Option<ModePins> {
         let map = |p: &mut Self, key: &str, present: bool| {
             let m = p.optional_object(obj, key);
             p.at(key, |p| match m {
@@ -271,7 +273,7 @@ impl Parser {
                     }
                     Some(Pins::default())
                 }
-                Some(m) => p.pins(m),
+                Some(m) => p.pins(m, allow_seeds),
                 None => Some(Pins::default()),
             })
         };
@@ -280,11 +282,59 @@ impl Parser {
         Some(ModePins { light: light?, dark: dark? })
     }
 
+    /// The `seeds` object of the theme's `light` and `dark` maps: any seed field it names replaces
+    /// the theme's value in that mode.
+    fn mode_seeds(&mut self, obj: &Map<String, Value>, variants: Variants) -> Option<ModeSeeds> {
+        let one = |p: &mut Self, key: &str, present: bool| -> Option<SeedOverrides> {
+            let Some(Value::Object(map)) = obj.get(key) else { return Some(SeedOverrides::default()) };
+            let Some(seeds) = p.at(key, |p| p.optional_object(map, "seeds")) else { return Some(SeedOverrides::default()) };
+            p.at(key, |p| {
+                p.at("seeds", |p| {
+                    if !present && !seeds.is_empty() {
+                        p.fail(ErrorKind::NoSuchMode);
+                        return None;
+                    }
+                    let neutral = p.optional_colour(seeds, "neutral");
+                    let accent = p.optional_colour(seeds, "accent");
+                    let status = match p.optional_object(seeds, "status") {
+                        None => Some(Status { good: None, warn: None, bad: None, info: None }),
+                        Some(st) => p.at("status", |p| {
+                            let good = p.optional_colour(st, "good");
+                            let warn = p.optional_colour(st, "warn");
+                            let bad = p.optional_colour(st, "bad");
+                            let info = p.optional_colour(st, "info");
+                            Some(Status { good: good?, warn: warn?, bad: bad?, info: info? })
+                        }),
+                    };
+                    Some(SeedOverrides { neutral: neutral?, accent: accent?, status: status? })
+                })
+            })
+        };
+        let light = one(self, "light", variants != Variants::DarkOnly);
+        let dark = one(self, "dark", variants != Variants::LightOnly);
+        Some(ModeSeeds { light: light?, dark: dark? })
+    }
+
+    /// `Some(None)` when `key` is absent; `None` when it is present and not a colour.
+    fn optional_colour(&mut self, obj: &Map<String, Value>, key: &str) -> Option<Option<Rgba>> {
+        match obj.get(key) {
+            None | Some(Value::Null) => Some(None),
+            Some(v) => self.at(key, |p| p.colour(v)).map(Some),
+        }
+    }
+
     /// A map of colour paths to colours. Surfaces must be opaque.
-    fn pins(&mut self, m: &Map<String, Value>) -> Option<Pins> {
+    fn pins(&mut self, m: &Map<String, Value>, allow_seeds: bool) -> Option<Pins> {
         let mut pins = Pins::default();
         let mut ok = true;
         for (key, v) in m {
+            if key == "seeds" {
+                if !allow_seeds {
+                    self.at(key, |p| p.fail(ErrorKind::SeedsNotAllowed));
+                    ok = false;
+                }
+                continue;
+            }
             ok &= self.at(key, |p| {
                 let Some(token) = TokenRef::from_path(key) else {
                     p.fail(ErrorKind::UnknownToken);
@@ -385,9 +435,9 @@ impl Parser {
                         p.fail(ErrorKind::WrongType { expected: "an object" });
                         return false;
                     };
-                    let pins = p.mode_pins(app, variants);
+                    let pins = p.mode_pins(app, variants, false);
                     let high_contrast = match p.optional_object(app, "high_contrast") {
-                        Some(hc) => p.at("high_contrast", |p| p.mode_pins(hc, variants)),
+                        Some(hc) => p.at("high_contrast", |p| p.mode_pins(hc, variants, false)),
                         None => Some(ModePins::default()),
                     };
                     let components = p.components(app);

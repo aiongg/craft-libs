@@ -19,6 +19,8 @@ pub struct ThemeDef {
     pub version: u32,
     /// The colours every token derives from.
     pub seeds: Seeds,
+    /// Per-mode seeds that replace the matching `seeds` fields in that mode.
+    pub mode_seeds: ModeSeeds,
     /// Radius and edge of themes with their own shape (Classic, Breeze); `None` takes the Size
     /// preset's.
     pub shape: Option<ShapeSeed>,
@@ -50,6 +52,21 @@ pub struct AppOverrides {
 }
 
 impl ThemeDef {
+    /// The seeds `mode` derives from: the theme's `seeds` with that mode's overrides applied.
+    pub fn seeds_for(&self, mode: Mode) -> Seeds {
+        let o = self.mode_seeds.get(mode);
+        Seeds {
+            neutral: o.neutral.unwrap_or(self.seeds.neutral),
+            accent: o.accent.unwrap_or(self.seeds.accent),
+            status: Status {
+                good: o.status.good.unwrap_or(self.seeds.status.good),
+                warn: o.status.warn.unwrap_or(self.seeds.status.warn),
+                bad: o.status.bad.unwrap_or(self.seeds.status.bad),
+                info: o.status.info.unwrap_or(self.seeds.status.info),
+            },
+        }
+    }
+
     /// Every override that resolution skips, in the theme and in its app overrides: a pin on a
     /// component field that is not a colour, a colour in `components`, or a value of the wrong
     /// kind there.
@@ -99,6 +116,43 @@ pub struct Seeds {
     pub accent: Rgba,
     /// One hue per status.
     pub status: Status<Rgba>,
+}
+
+/// Seeds one mode replaces; a field left `None` keeps the theme's value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct SeedOverrides {
+    /// Replaces the neutral seed.
+    pub neutral: Option<Rgba>,
+    /// Replaces the accent seed.
+    pub accent: Option<Rgba>,
+    /// Replaces individual status seeds.
+    pub status: Status<Option<Rgba>>,
+}
+
+impl SeedOverrides {
+    /// Whether no field is overridden.
+    pub fn is_empty(&self) -> bool {
+        *self == SeedOverrides::default()
+    }
+}
+
+/// Seed overrides for each mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ModeSeeds {
+    /// Used in light mode.
+    pub light: SeedOverrides,
+    /// Used in dark mode.
+    pub dark: SeedOverrides,
+}
+
+impl ModeSeeds {
+    /// The overrides of `mode`.
+    pub fn get(&self, mode: Mode) -> &SeedOverrides {
+        match mode {
+            Mode::Light => &self.light,
+            Mode::Dark => &self.dark,
+        }
+    }
 }
 
 /// Fixed colours for some semantic tokens and component colour fields.

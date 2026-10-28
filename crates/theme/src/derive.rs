@@ -121,7 +121,7 @@ impl ColorSteps {
 /// anchors' values, pins, then the contrast pass, which may pull anchored greys back toward their
 /// anchors. Returns the colours and the steps on the way, with every pair measured on the result.
 pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast: Contrast) -> (ColorTokens, ColorSteps) {
-    let seeds = &theme.seeds;
+    let seeds = &theme.seeds_for(mode);
     let ramps = Ramps {
         neutral: Ramp::from_seed(seeds.neutral, mode, RampKind::Neutral),
         accent: Ramp::from_seed(seeds.accent, mode, RampKind::Chromatic),

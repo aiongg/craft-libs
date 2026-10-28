@@ -18,8 +18,6 @@
   },
   "shape": null,
   "light": {
-    "accent.hover": "#5f6fc4",
-    "accent.pressed": "#5f6fbe",
     "accent.soft": "#6e80d82c",
     "accent.solid": "#6e80d8",
     "accent.text": "#2e3a92",
@@ -27,49 +25,28 @@
     "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#c83c48",
     "caption.close_text": "#ffffff",
-    "data.luma": "#272628",
     "line.border": "#d0cdd7",
     "line.control_edge": "#bebbc9",
     "line.divider": "#d2cfda",
-    "line.focus": "#6e80d8",
-    "overlay.grid": "#abaaae80",
-    "overlay.handle_stroke": "#a7b9ff",
-    "overlay.stroke": "#a7b9ff",
+    "seeds": {
+      "accent": "#6e80d8",
+      "neutral": "#f0eef3",
+      "status": {
+        "bad": "#a62c3e",
+        "good": "#4e712e",
+        "info": "#6e80d8",
+        "warn": "#8c4800"
+      }
+    },
     "state.hover": "#e4e2ea",
     "state.pressed": "#d4d1dd",
-    "status.bad.bg": "#ffe8e8",
-    "status.bad.border": "#ffa4a8",
-    "status.bad.fg": "#96323e",
-    "status.bad.solid": "#a62c3e",
-    "status.bad.solid_hover": "#a12a3c",
-    "status.bad.solid_pressed": "#9c2e3d",
-    "status.good.bg": "#e7f3de",
-    "status.good.border": "#adcd95",
-    "status.good.fg": "#4b6831",
-    "status.good.solid": "#4e712e",
-    "status.good.solid_hover": "#4c6e2d",
-    "status.good.solid_pressed": "#4c6b2f",
-    "status.info.border": "#adbdff",
-    "status.info.fg": "#49579d",
-    "status.info.solid": "#6070c7",
-    "status.info.solid_hover": "#5f6fc4",
-    "status.info.solid_pressed": "#5463b0",
-    "status.warn.bg": "#ffeadc",
-    "status.warn.border": "#efb286",
-    "status.warn.fg": "#7f4715",
-    "status.warn.solid": "#8c4800",
-    "status.warn.solid_hover": "#884600",
-    "status.warn.solid_pressed": "#84470c",
     "surface.background": "#e2e0e7",
     "surface.canvas": "#dad8e0",
     "surface.panel": "#f0eef3",
     "surface.sunken": "#faf9fc",
-    "text.disabled": "#87858a",
     "text.faint": "#504e60",
     "text.muted": "#3e3c4c",
-    "text.normal": "#2c2a38",
-    "text.on_selected": "#272628",
-    "text.on_status": "#ffffff"
+    "text.normal": "#2c2a38"
   },
   "dark": {
     "accent.soft": "#8a9ae830",
@@ -91,12 +68,5 @@
     "text.faint": "#bebece",
     "text.muted": "#d4d4e0",
     "text.normal": "#eeeef6"
-  },
-  "high_contrast": {
-    "light": {
-      "overlay.grid": "#abaaae80",
-      "overlay.handle_stroke": "#dce3ff",
-      "status.info.solid": "#4452a5"
-    }
   }
 }

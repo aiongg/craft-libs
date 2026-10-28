@@ -71,7 +71,8 @@ pub use selection::{
     AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair, resolve_selection,
 };
 pub use theme::{
-    AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, PinLayer, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants,
+    AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, PinLayer, Pins, SeedOverrides, Seeds, ShapeSeed, Size,
+    TextSize, ThemeDef, Variants,
 };
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,

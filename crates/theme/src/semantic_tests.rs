@@ -20,6 +20,7 @@ fn theme(id: &str, neutral: &str, accent: &str, status: [&str; 4]) -> ThemeDef {
             accent: hex(accent),
             status: Status { good: hex(status[0]), warn: hex(status[1]), bad: hex(status[2]), info: hex(status[3]) },
         },
+        mode_seeds: ModeSeeds::default(),
         shape: None,
         variants: Variants::Both,
         pins: ModePins::default(),

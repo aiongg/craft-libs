@@ -21,6 +21,11 @@ impl ThemeDef {
             c.at("shape", |c| c.shape(shape));
         }
         c.mode_pins(&self.pins, self.variants);
+        for (key, mode) in [("light", Mode::Light), ("dark", Mode::Dark)] {
+            if self.variants.mode_for(mode) != mode && !self.mode_seeds.get(mode).is_empty() {
+                c.at(key, |c| c.at("seeds", |c| c.fail(ErrorKind::NoSuchMode)));
+            }
+        }
         c.at("high_contrast", |c| c.mode_pins(&self.high_contrast, self.variants));
         c.at("components", |c| c.components(&self.components));
         c.at("apps", |c| {

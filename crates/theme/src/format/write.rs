@@ -7,7 +7,7 @@ use serde_json::{Map, Number, Value};
 use super::{FormatErrors, SCHEMA, SCHEMA_VERSION, ThemeFile};
 use crate::components::{ComponentField, OverrideValue};
 use crate::scale::{Elevation, Radius};
-use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
+use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, ShapeSeed, ThemeDef, Variants};
 
 /// Top-level keys in the order a file lists them; other keys follow, sorted.
 const TOP_ORDER: [&str; 14] = [
@@ -77,6 +77,7 @@ fn update(raw: &mut Map<String, Value>, t: &ThemeDef) {
     }
 
     mode_maps(raw, &t.pins);
+    mode_seed_maps(raw, &t.mode_seeds);
     section(raw, "high_contrast", |hc| mode_maps(hc, &t.high_contrast));
     set_map(raw, "components", component_map(&t.components));
 
@@ -113,6 +114,33 @@ fn update_app(app: &mut Map<String, Value>, o: &AppOverrides) {
     mode_maps(app, &o.pins);
     section(app, "high_contrast", |hc| mode_maps(hc, &o.high_contrast));
     set_map(app, "components", component_map(&o.components));
+}
+
+/// Writes each mode's seed overrides as `seeds` inside its pin map, after `mode_maps`.
+fn mode_seed_maps(dst: &mut Map<String, Value>, seeds: &ModeSeeds) {
+    for (key, o) in [("light", &seeds.light), ("dark", &seeds.dark)] {
+        if o.is_empty() {
+            continue;
+        }
+        with_object(dst, key, |map| {
+            let mut s = Map::new();
+            if let Some(c) = o.neutral {
+                s.insert("neutral".to_owned(), c.to_hex().into());
+            }
+            if let Some(c) = o.accent {
+                s.insert("accent".to_owned(), c.to_hex().into());
+            }
+            let st = o.status;
+            let status: Map<String, Value> = [("good", st.good), ("warn", st.warn), ("bad", st.bad), ("info", st.info)]
+                .into_iter()
+                .filter_map(|(k, c)| Some((k.to_owned(), c?.to_hex().into())))
+                .collect();
+            if !status.is_empty() {
+                s.insert("status".to_owned(), Value::Object(status));
+            }
+            map.insert("seeds".to_owned(), Value::Object(s));
+        });
+    }
 }
 
 fn mode_maps(dst: &mut Map<String, Value>, pins: &ModePins) {

@@ -7,7 +7,7 @@ use super::scale::{Easing, Elevation};
 use super::theme::EdgeSeed;
 
 /// One value per status: good, warn, bad, info.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Status<T> {
     /// Success, valid input.
     pub good: T,

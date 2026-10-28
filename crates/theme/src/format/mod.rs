@@ -103,6 +103,8 @@ pub enum ErrorKind {
     },
     /// A colour map for a mode the theme's `variants` leaves out.
     NoSuchMode,
+    /// `seeds` in a map that does not take them (high-contrast and app maps).
+    SeedsNotAllowed,
     /// A translucent colour on a surface (`surface.*` except `surface.scrim`).
     NotOpaque,
 }
@@ -144,6 +146,7 @@ impl FormatError {
             ErrorKind::ColorNotPerMode => "colours are set per mode, in light or dark".to_owned(),
             ErrorKind::WrongKind { expected, found } => format!("expected a {expected:?} value, found {found:?}"),
             ErrorKind::NoSuchMode => "the theme's variants leave this mode out".to_owned(),
+            ErrorKind::SeedsNotAllowed => "seeds are set in the theme's own light and dark maps only".to_owned(),
             ErrorKind::NotOpaque => "surfaces must be opaque".to_owned(),
         }
     }

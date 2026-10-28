@@ -25,15 +25,15 @@
     "line.border": "#d6d6d6",
     "line.control_edge": "#bababa",
     "line.divider": "#d6d6d6",
+    "seeds": {
+      "neutral": "#f0f0f0",
+      "status": {
+        "good": "#4e712e"
+      }
+    },
     "state.hover": "#e2e2e2",
     "state.pressed": "#cecece",
     "state.selected": "#cccccc",
-    "status.good.bg": "#e7f3de",
-    "status.good.border": "#adcd95",
-    "status.good.fg": "#4b6831",
-    "status.good.solid": "#5b7f3b",
-    "status.good.solid_hover": "#5c7e3d",
-    "status.good.solid_pressed": "#5e7e41",
     "surface.background": "#e2e2e2",
     "surface.canvas": "#d6d6d6",
     "surface.panel": "#f0f0f0",
@@ -57,12 +57,5 @@
     "surface.panel": "#323232",
     "surface.sunken": "#242424",
     "text.normal": "#dedede"
-  },
-  "high_contrast": {
-    "light": {
-      "status.good.solid": "#7aa05b",
-      "status.good.solid_hover": "#7ba05d",
-      "status.good.solid_pressed": "#7d9f61"
-    }
   }
 }

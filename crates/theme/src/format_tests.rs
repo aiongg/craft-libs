@@ -327,3 +327,35 @@ fn write_refuses_what_parse_rejects() {
         ]
     );
 }
+
+#[test]
+fn a_mode_map_overrides_seeds_field_by_field() {
+    let mut v = json!({
+        "schema": "craft-design-theme", "schema_version": 1, "id": "test.modeseeds",
+        "seeds": { "neutral": "#323232", "accent": "#378ef0",
+                   "status": { "good": "#85dc6a", "warn": "#e8b046", "bad": "#ec5b62", "info": "#378ef0" } },
+        "light": { "seeds": { "neutral": "#f0f0f0", "status": { "good": "#4e712e" } } }
+    });
+    let t = parse_value(&v).unwrap().theme;
+    let light = t.seeds_for(Mode::Light);
+    assert_eq!((light.neutral, light.accent, light.status.good, light.status.warn), (hex("#f0f0f0"), hex("#378ef0"), hex("#4e712e"), hex("#e8b046")));
+    assert_eq!(t.seeds_for(Mode::Dark), t.seeds);
+    let neutral = |mode| {
+        let a = appearance(mode);
+        resolve(&t, a, None).tokens.color(ColorToken::SurfacePanel)
+    };
+    assert_ne!(neutral(Mode::Light), neutral(Mode::Dark));
+    let plain = ThemeDef { mode_seeds: ModeSeeds::default(), ..t.clone() };
+    let dark = appearance(Mode::Dark);
+    assert_eq!(resolve(&t, dark, None), resolve(&plain, dark, None));
+
+    let file = format::to_file(&t).unwrap();
+    assert_eq!(format::parse(format::write(&file).unwrap().as_bytes()).unwrap().theme, t);
+
+    v["high_contrast"] = json!({ "light": { "seeds": { "accent": "#000000" } } });
+    assert_eq!(errors(&v), ["high_contrast.light.seeds: seeds are set in the theme's own light and dark maps only"]);
+}
+
+fn appearance(mode: Mode) -> Appearance {
+    Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
+}
