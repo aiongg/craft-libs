@@ -87,6 +87,7 @@ mod model;
 #[cfg(target_os = "macos")]
 pub mod mac;
 
+#[allow(deprecated)]
 pub use bar::{BarStyle, Labeled, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};

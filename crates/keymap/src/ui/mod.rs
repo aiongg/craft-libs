@@ -16,6 +16,7 @@ use crate::keymap::{Bindable, Binding, Keymap};
 use crate::profiles::{Builtins, ProfileError, Profiles};
 
 mod capture;
+mod kbd;
 mod rows;
 mod state;
 mod style;
@@ -23,6 +24,7 @@ pub mod summary;
 mod text;
 mod view;
 
+pub use kbd::kbd;
 pub use state::DialogState;
 pub use style::DialogStyle;
 pub use text::{English, I18nText, PLURALS, STRINGS, Text, trigger_text};
