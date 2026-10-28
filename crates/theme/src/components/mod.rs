@@ -8,6 +8,7 @@
 mod badge;
 mod button;
 mod check;
+mod curve;
 mod field;
 mod handle;
 mod icon_button;
@@ -32,6 +33,7 @@ use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef,
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
+pub use curve::{CurveField, CurveTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
@@ -538,6 +540,8 @@ families! {
     button: ButtonTokens => Button(ButtonField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
+    /// Curve editors: the graph, points and gradient bars of a tone curve.
+    curve: CurveTokens => Curve(CurveField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
     /// Canvas handles.

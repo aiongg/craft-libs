@@ -467,6 +467,29 @@ pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
 
+/// The control height the Compact curve editor sizes are set for.
+pub const CURVE_BASE_CONTROL: f32 = 24.0;
+/// Compact least side of a curve editor's graph, bars included (PhotoCraft's Curves).
+pub const CURVE_MIN_SIDE: f32 = 120.0;
+/// Compact greatest side of a curve editor's graph, bars included.
+pub const CURVE_MAX_SIDE: f32 = 300.0;
+/// Compact inset of a curve's value area inside its plot, so the end points' handles stay inside.
+pub const CURVE_PAD: f32 = 5.0;
+/// Compact thickness of a curve editor's gradient bars.
+pub const CURVE_BAR: f32 = 8.0;
+/// Compact gap between a curve's plot and its gradient bars.
+pub const CURVE_BAR_GAP: f32 = 4.0;
+/// Compact radius around a curve point's centre that takes a press.
+pub const CURVE_HIT: f32 = 9.0;
+/// Compact distance outside the plot past which a dragged interior point is removed.
+pub const CURVE_DRAG_OFF: f32 = 12.0;
+/// Width of the edited curve, in points, at every Size.
+pub const CURVE_WIDTH: f32 = 1.5;
+/// Width of the other channels' curves behind the edited one, in points, at every Size.
+pub const CURVE_OTHER_WIDTH: f32 = 1.0;
+/// Opacity of the other channels' curves behind the edited one.
+pub const CURVE_OTHER_ALPHA: f32 = 0.8;
+
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.
