@@ -57,8 +57,8 @@ fn check(file: &str, mut each: impl FnMut(&mut Dump, &UiTokens)) {
 #[test]
 fn surface() {
     check("surface.txt", |d, t| {
-        for kind in SurfaceKind::ALL {
-            let s = Surface::style(kind, t);
+        for &kind in SurfaceKind::ALL {
+            let s = Surface::style(t, kind);
             d.group(kind.name(), |d| {
                 d.line("fill", s.fill).line("radius", s.radius).line("shadow", s.shadow);
                 match s.edge {
@@ -67,6 +67,7 @@ fn surface() {
                     SurfaceEdge::Bevel { top_left, bottom_right, width } => {
                         d.line("edge.bevel.top_left", top_left).line("edge.bevel.bottom_right", bottom_right).line("edge.bevel.width", width)
                     }
+                    other => d.line("edge", format!("{other:?}")),
                 };
             });
         }
@@ -77,7 +78,7 @@ fn surface() {
 fn state_layer() {
     check("state_layer.txt", |d, t| {
         let s = StateLayer::style(t);
-        d.line("hover", s.hover).line("pressed", s.pressed).line("fade", s.fade);
+        d.line("hover", s.hover).line("pressed", s.pressed).line("fade", s.fade).line("easing", snake(&format!("{:?}", s.easing)));
     });
 }
 
@@ -101,10 +102,10 @@ fn divider() {
 #[test]
 fn stack() {
     check("stack.txt", |d, t| {
-        for gap in Gap::ALL {
+        for &gap in Gap::ALL {
             d.line(&format!("gap.{}", gap.name()), gap.points(t));
         }
-        for pad in Pad::ALL {
+        for &pad in Pad::ALL {
             d.line(&format!("pad.{}", pad.name()), pad.points(t));
         }
     });
@@ -117,7 +118,7 @@ fn text() {
             let f = Text::format(t, role, Content::Normal);
             d.line(&format!("role.{name}.font"), &f.font_id).line(&format!("role.{name}.line_height"), f.line_height);
         }
-        for content in Content::ALL {
+        for &content in Content::ALL {
             d.line(&format!("content.{}", content.name()), Text::format(t, TypeRole::Body, content).color);
         }
     });
@@ -130,7 +131,7 @@ fn icon() {
             let s = Icon::style(t, size, Content::Normal);
             d.line(&format!("size.{name}.points"), s.points).line(&format!("size.{name}.stroke"), s.stroke);
         }
-        for content in Content::ALL {
+        for &content in Content::ALL {
             d.line(&format!("content.{}", content.name()), Icon::style(t, IconSize::Md, content).color);
         }
     });
@@ -139,13 +140,14 @@ fn icon() {
 #[test]
 fn handle() {
     check("handle.txt", |d, t| {
-        for shape in HandleShape::ALL {
-            let s = Handle::style(shape, t);
+        for &shape in HandleShape::ALL {
+            let s = Handle::style(t, shape);
             d.group(shape.name(), |d| {
                 d.line("size", s.size)
                     .line("fill", s.fill)
                     .line("stroke", s.stroke)
                     .line("halo", s.halo)
+                    .line("hit", s.hit)
                     .line("cursor", snake(&format!("{:?}", s.cursor)));
             });
         }

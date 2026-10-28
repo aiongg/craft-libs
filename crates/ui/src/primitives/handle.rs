@@ -1,13 +1,15 @@
 //! [`Handle`]: canvas handles for selections, paths and transforms.
 
+use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, vec2};
+use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
 
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// What a handle does, which sets its shape and pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum HandleShape {
     /// Corners and anchors that resize or move: a square.
     Square,
@@ -19,7 +21,7 @@ pub enum HandleShape {
 
 impl HandleShape {
     /// Every shape, in declaration order.
-    pub const ALL: [HandleShape; 3] = [HandleShape::Square, HandleShape::Round, HandleShape::Rotate];
+    pub const ALL: &'static [HandleShape] = &[HandleShape::Square, HandleShape::Round, HandleShape::Rotate];
 
     /// The name in story args and dumps.
     pub const fn name(self) -> &'static str {
@@ -33,6 +35,7 @@ impl HandleShape {
 
 /// A handle's look, from [`Handle::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HandleStyle {
     /// Side or diameter in points: `handle.size`.
     pub size: f32,
@@ -43,23 +46,46 @@ pub struct HandleStyle {
     /// The outline outside `size`: `handle.halo` of `overlay.halo`, so the handle reads on any
     /// image.
     pub halo: Stroke,
+    /// Side of the square that takes the pointer, centred on the handle: `handle.hit`.
+    pub hit: f32,
     /// The pointer over the handle.
     pub cursor: CursorIcon,
 }
 
-/// A canvas handle at a point: `Handle::new(HandleShape::Square).show(ui, center)` draws it and
-/// returns its drag response. Handles stay out of the layout and the Tab order: the canvas they
-/// sit on owns keyboard editing.
-#[derive(Clone, Copy, Debug)]
+/// A canvas handle at a point: `Handle::new(HandleShape::Square, "Top left corner").show(ui,
+/// center)` draws it and returns its response, to clicks and drags by default.
+///
+/// Handles stay out of the layout and the Tab order: the canvas they sit on owns keyboard
+/// editing. Each is in the AccessKit tree as a graphics object with its label and, when the canvas
+/// gives one, its [`value`](Handle::value).
+#[derive(Clone, Debug)]
 pub struct Handle {
     shape: HandleShape,
+    label: String,
+    value: Option<String>,
+    sense: Sense,
     id_salt: Option<IdSalt>,
     cursor: Option<CursorIcon>,
 }
 
 impl Handle {
-    pub fn new(shape: HandleShape) -> Self {
-        Self { shape, id_salt: None, cursor: None }
+    /// A handle of `shape` whose accessible name is `label`, e.g. `"Top left corner"`.
+    pub fn new(shape: HandleShape, label: impl Into<String>) -> Self {
+        Self { shape, label: label.into(), value: None, sense: Sense::CLICK | Sense::DRAG, id_salt: None, cursor: None }
+    }
+
+    /// The position a screen reader reads after the label, in the document's units, e.g.
+    /// `"120, 48 px"`.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// What the handle responds to; clicks and drags by default. A handle never takes keyboard
+    /// focus, so [`Sense::FOCUSABLE`] is ignored.
+    pub fn sense(mut self, sense: Sense) -> Self {
+        self.sense = sense;
+        self
     }
 
     /// A stable id for a handle whose position in the call order changes, e.g. one of a path's
@@ -75,7 +101,7 @@ impl Handle {
         self
     }
 
-    pub fn style(shape: HandleShape, tokens: &UiTokens) -> HandleStyle {
+    pub fn style(tokens: &UiTokens, shape: HandleShape) -> HandleStyle {
         let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
         let (fill, stroke) = match shape {
             HandleShape::Square | HandleShape::Round => (o.handle_fill, Stroke::new(h.stroke, o.handle_stroke.to_egui())),
@@ -85,12 +111,12 @@ impl Handle {
             HandleShape::Square | HandleShape::Round => CursorIcon::Move,
             HandleShape::Rotate => CursorIcon::Alias,
         };
-        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(h.halo, o.halo.to_egui()), cursor }
+        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(h.halo, o.halo.to_egui()), hit: h.hit, cursor }
     }
 
     /// The handle's shapes centred on `center`, snapped to the pixel grid: halo, fill, outline.
-    pub fn shapes(shape: HandleShape, center: Pos2, tokens: &UiTokens, pixels_per_point: f32) -> Vec<Shape> {
-        let style = Handle::style(shape, tokens);
+    pub fn shapes(tokens: &UiTokens, shape: HandleShape, center: Pos2, pixels_per_point: f32) -> Vec<Shape> {
+        let style = Handle::style(tokens, shape);
         let body = Rect::from_center_size(center, vec2(style.size, style.size)).round_to_pixels(pixels_per_point);
         let halo = body.expand(style.halo.width);
         match shape {
@@ -110,10 +136,10 @@ impl Handle {
         }
     }
 
-    /// Draws the handle at `center` and senses drags on it and its halo.
+    /// Draws the handle at `center` and senses the pointer on the `handle.hit` square around it.
     pub fn show(self, ui: &mut Ui, center: Pos2) -> Response {
         let tokens = Tokens::of(ui);
-        let style = Handle::style(self.shape, &tokens);
+        let style = Handle::style(&tokens, self.shape);
         let id = match self.id_salt {
             Some(salt) => ui.make_persistent_id(salt),
             None => {
@@ -122,11 +148,15 @@ impl Handle {
                 id
             }
         };
-        let side = style.size + 2.0 * style.halo.width;
-        let rect = Rect::from_center_size(center, vec2(side, side));
-        let response = ui.interact(rect, id, Sense::DRAG);
+        let rect = Rect::from_center_size(center, vec2(style.hit, style.hit));
+        let response = ui.interact(rect, id, self.sense - Sense::FOCUSABLE);
+        response.widget_info(|| {
+            let mut info = WidgetInfo::labeled(Role::GraphicsObject, ui.is_enabled(), &self.label);
+            info.current_text_value.clone_from(&self.value);
+            info
+        });
         if ui.is_rect_visible(rect) {
-            ui.painter().extend(Handle::shapes(self.shape, center, &tokens, ui.pixels_per_point()));
+            ui.painter().extend(Handle::shapes(&tokens, self.shape, center, ui.pixels_per_point()));
         }
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(self.cursor.unwrap_or(style.cursor));
@@ -155,7 +185,10 @@ fn show(ui: &mut Ui, _: &mut Args) {
         let shape = HandleShape::ALL[i % 3];
         let strip = if i < 3 { top } else { bottom };
         let base = strip.left_center() + vec2(strip.width() * (i % 3 + 1) as f32 / 4.0, 0.0);
-        let response = Handle::new(shape).id_salt(("handle-story", i)).show(ui, base + *offset);
+        let label = format!("{} handle {}", shape.name(), i / 3 + 1);
+        let position = base + *offset;
+        let response =
+            Handle::new(shape, label).value(format!("{:.0}, {:.0}", position.x, position.y)).id_salt(("handle-story", i)).show(ui, position);
         *offset += response.drag_delta();
     }
     ui.data_mut(|d| d.insert_temp(offsets_id, offsets));

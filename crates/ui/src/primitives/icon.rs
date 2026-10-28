@@ -10,6 +10,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// An icon's size and colour, from [`Icon::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct IconStyle {
     /// Side of the icon's square, in points: `size.icon.*`.
     pub points: f32,

@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use craft_theme::{Appearance, Contrast, Edge, Mode, Size, TextSize, TypeRole, builtins, resolve};
+use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{Color32, Context, CornerRadius, RawInput, Rect, Shape, Stroke, TextureId, Ui, ViewportId, pos2, vec2};
 
@@ -51,30 +52,76 @@ fn surface_style_per_kind_flat_and_bevelled() {
         (K::Dialog, c.surface.raised, t.radius.window, border(c.line.border), Some(t.shadow.dialog)),
     ];
     for (kind, fill, radius, edge, shadow) in expected {
-        assert_eq!(Surface::style(kind, &t), SurfaceStyle { fill: fill.to_egui(), radius, edge, shadow }, "{kind:?}");
+        let style = Surface::style(&t, kind);
+        assert_eq!((style.fill, style.radius, style.edge, style.shadow), (fill.to_egui(), radius, edge, shadow), "{kind:?}");
     }
 
     let classic = tokens("craft.classic", Mode::Light);
     let Edge::Bevel { light, dark, width } = classic.shape.edge else { panic!("Classic bevels: {:?}", classic.shape.edge) };
     let (light, dark) = (light.to_egui(), dark.to_egui());
     assert_ne!(dark, classic.color.surface.panel.to_egui(), "the shaded edge shows on the panel");
-    for kind in K::ALL {
+    for &kind in K::ALL {
         let want = match kind {
             K::Background | K::Panel => SurfaceEdge::None,
             K::Raised | K::Popup | K::Dialog => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
             K::Sunken | K::Pressed => SurfaceEdge::Bevel { top_left: dark, bottom_right: light, width },
         };
-        assert_eq!(Surface::style(kind, &classic).edge, want, "{kind:?}");
+        assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");
     }
 
     // A bevel draws no outline: a fill and a mesh inside the rect, lit and shaded halves.
     let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 20.0));
-    let drawn = Surface::style(K::Raised, &classic).shapes(rect, 1.0);
+    let drawn = Surface::style(&classic, K::Raised).shapes(rect, 1.0);
     let [Shape::Rect(RectShape { stroke, .. }), Shape::Mesh(mesh)] = &drawn[..] else { panic!("{drawn:?}") };
     assert_eq!(*stroke, Stroke::NONE);
     assert!(mesh.vertices.iter().all(|v| rect.contains(v.pos)), "{:?}", mesh.vertices);
     assert!(mesh.vertices.iter().any(|v| v.color == light && v.pos == rect.min), "lit top left");
     assert!(mesh.vertices.iter().any(|v| v.color == dark && v.pos == rect.max), "shaded bottom right");
+}
+
+/// The bevel's inner outline is whole physical pixels inside the rect, at least one, at any scale.
+#[test]
+fn a_bevel_is_whole_physical_pixels_wide() {
+    let classic = tokens("craft.classic", Mode::Light);
+    let mut style = Surface::style(&classic, SurfaceKind::Raised);
+    style.radius = CornerRadius::ZERO;
+    let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 20.0));
+    for (width, ppp, pixels) in [(1.0, 1.0, 1.0), (1.0, 1.5, 2.0), (1.0, 1.25, 1.0), (0.4, 1.0, 1.0), (2.0, 1.5, 3.0)] {
+        let SurfaceEdge::Bevel { top_left, bottom_right, .. } = style.edge else { panic!("{:?}", style.edge) };
+        style.edge = SurfaceEdge::Bevel { top_left, bottom_right, width };
+        let drawn = style.shapes(rect, ppp);
+        let Some(Shape::Mesh(mesh)) = drawn.last() else { panic!("{drawn:?}") };
+        let left = rect.round_to_pixels(ppp).left();
+        let inner = mesh.vertices.iter().map(|v| v.pos.x).filter(|&x| x > left).fold(f32::INFINITY, f32::min);
+        assert!(((inner - left) * ppp - pixels).abs() < 1e-3, "{width} pt at {ppp}x: {} px", (inner - left) * ppp);
+    }
+}
+
+/// State fills replace the rest fill: fully hovered is `state.hover` whatever the rest fill, and
+/// pressed is `state.pressed`; at rest the element keeps its own fill.
+#[test]
+fn state_fills_replace_the_rest_fill_with_the_hover_easing() {
+    let t = tokens("craft.graphite", Mode::Light);
+    let style = StateLayer::style(&t);
+    assert_eq!(style.easing, t.motion.hover.easing);
+    let raised = Surface::style(&t, SurfaceKind::Raised).fill;
+    for rest in [Color32::TRANSPARENT, raised] {
+        assert_eq!(style.mix(rest, 0.0, 0.0), rest);
+        assert_eq!(style.mix(rest, 1.0, 0.0), style.hover);
+        assert_eq!(style.mix(rest, 1.0, 1.0), style.pressed);
+        assert_eq!(style.mix(rest, 0.0, 1.0), style.pressed);
+    }
+    assert_eq!(style.mix(Color32::TRANSPARENT, 0.5, 0.0), style.hover.gamma_multiply(0.5), "a bare element fades in");
+}
+
+#[test]
+fn corners_are_their_radius_tokens_and_surfaces_have_theirs() {
+    let t = tokens("craft.studio", Mode::Light);
+    let r = &t.radius;
+    assert_eq!(Corner::ALL.iter().map(|c| c.radius(&t)).collect::<Vec<_>>(), [r.control, r.button, r.popup, r.window, r.panel]);
+    for &kind in SurfaceKind::ALL {
+        assert_eq!(Surface::style(&t, kind).radius, kind.corner().map_or(CornerRadius::ZERO, |c| c.radius(&t)), "{kind:?}");
+    }
 }
 
 /// Decision "Bevel": the edge style is read only by the `Surface` primitive, so no other source
@@ -170,9 +217,9 @@ fn content_colours_are_their_tokens() {
     let t = tokens("craft.studio", Mode::Dark);
     let c = &t.color;
     let want = [c.text.normal, c.text.muted, c.text.faint, c.text.disabled, c.accent.text, c.text.on_accent, c.text.on_status, c.text.on_selected];
-    assert_eq!(Content::ALL.map(|content| content.color(&t)), want);
-    assert_eq!(&Content::ALL.map(Content::name)[..], CONTENT_NAMES);
-    for content in Content::ALL {
+    assert_eq!(Content::ALL.iter().map(|content| content.color(&t)).collect::<Vec<_>>(), want);
+    assert_eq!(Content::ALL.iter().map(|c| c.name()).collect::<Vec<_>>(), CONTENT_NAMES);
+    for &content in Content::ALL {
         assert_eq!(Content::from_name(content.name()), Some(content));
         assert_eq!(Text::format(&t, TypeRole::Label, content).color, content.color(&t).to_egui());
     }
@@ -182,13 +229,14 @@ fn content_colours_are_their_tokens() {
 fn handles_are_the_token_size_with_a_halo_outside() {
     let t = tokens("craft.artcraft", Mode::Dark);
     let (h, o) = (t.component.handle, &t.color.overlay);
-    let drawn = Handle::shapes(HandleShape::Square, pos2(20.3, 20.6), &t, 1.0);
+    let drawn = Handle::shapes(&t, HandleShape::Square, pos2(20.3, 20.6), 1.0);
     let [Shape::Rect(halo), Shape::Rect(body), Shape::Rect(outline)] = &drawn[..] else { panic!("{drawn:?}") };
     assert_eq!(body.rect.size(), vec2(h.size, h.size));
     assert_eq!(body.rect.min, body.rect.min.round(), "on the pixel grid");
     assert_eq!(halo.rect, body.rect.expand(h.halo));
     assert_eq!((halo.fill, body.fill), (o.halo.to_egui(), o.handle_fill.to_egui()));
     assert_eq!(outline.stroke, Stroke::new(h.stroke, o.handle_stroke.to_egui()));
-    assert_eq!(Handle::style(HandleShape::Rotate, &t).fill, o.handle_stroke.to_egui());
-    assert_ne!(Handle::style(HandleShape::Rotate, &t).cursor, Handle::style(HandleShape::Round, &t).cursor);
+    assert_eq!(Handle::style(&t, HandleShape::Rotate).fill, o.handle_stroke.to_egui());
+    assert_ne!(Handle::style(&t, HandleShape::Rotate).cursor, Handle::style(&t, HandleShape::Round).cursor);
+    assert_eq!(Handle::style(&t, HandleShape::Square).hit, h.hit);
 }

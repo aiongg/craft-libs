@@ -1,6 +1,6 @@
 //! Token values to egui values. Every conversion the bridge makes is here.
 
-use craft_theme::{Elevation, FontSlot, Rgba, TypeStyle};
+use craft_theme::{Easing, Elevation, FontSlot, Rgba, TypeStyle};
 use egui::{Color32, Context, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke};
 
 use crate::fonts;
@@ -16,6 +16,18 @@ impl ToEgui for Rgba {
     fn to_egui(self) -> Color32 {
         let [r, g, b, a] = self.0;
         Color32::from_rgba_unmultiplied(r, g, b, a)
+    }
+}
+
+/// The curve as an egui easing function, for `Context::animate_bool_with_time_and_easing`.
+impl ToEgui for Easing {
+    type Egui = fn(f32) -> f32;
+    fn to_egui(self) -> fn(f32) -> f32 {
+        match self {
+            Easing::Standard => |t| Easing::Standard.at(t),
+            Easing::Enter => |t| Easing::Enter.at(t),
+            Easing::Exit => |t| Easing::Exit.at(t),
+        }
     }
 }
 

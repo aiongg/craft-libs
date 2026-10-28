@@ -9,6 +9,7 @@ use crate::theme::{Tokens, TokensOf, margin};
 
 /// The space between neighbouring items: `space.gap.*`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Gap {
     /// Between items on one line.
     Inline,
@@ -20,7 +21,7 @@ pub enum Gap {
 
 impl Gap {
     /// Every gap, smallest first.
-    pub const ALL: [Gap; 3] = [Gap::Inline, Gap::Stack, Gap::Section];
+    pub const ALL: &'static [Gap] = &[Gap::Inline, Gap::Stack, Gap::Section];
 
     /// The name in story args and dumps.
     pub const fn name(self) -> &'static str {
@@ -44,6 +45,7 @@ impl Gap {
 
 /// Padding inside a container: `space.pad.*`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Pad {
     /// Inside controls.
     Control,
@@ -55,7 +57,7 @@ pub enum Pad {
 
 impl Pad {
     /// Every padding, smallest first.
-    pub const ALL: [Pad; 3] = [Pad::Control, Pad::Panel, Pad::Dialog];
+    pub const ALL: &'static [Pad] = &[Pad::Control, Pad::Panel, Pad::Dialog];
 
     /// The name in story args and dumps.
     pub const fn name(self) -> &'static str {
@@ -178,12 +180,12 @@ pub(crate) fn stories() -> Vec<Story> {
 
 fn gap_arg(args: &Args) -> Gap {
     let name = args.choice("gap");
-    Gap::ALL.into_iter().find(|g| g.name() == name).unwrap_or(Gap::Stack)
+    Gap::ALL.iter().copied().find(|g| g.name() == name).unwrap_or(Gap::Stack)
 }
 
 fn pad_arg(args: &Args) -> Option<Pad> {
     let name = args.choice("pad");
-    Pad::ALL.into_iter().find(|p| p.name() == name)
+    Pad::ALL.iter().copied().find(|p| p.name() == name)
 }
 
 fn show_stack(ui: &mut Ui, args: &mut Args) {

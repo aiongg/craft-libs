@@ -5,11 +5,13 @@ use egui::emath::GuiRounding as _;
 use egui::epaint::{Mesh, RectShape};
 use egui::{Color32, CornerRadius, InnerResponse, Painter, Pos2, Rect, Shadow, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
+use super::Corner;
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// What a surface is, which sets every part of its look.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SurfaceKind {
     /// The window behind everything: `surface.background`, no edge.
     Background,
@@ -30,7 +32,7 @@ pub enum SurfaceKind {
 
 impl SurfaceKind {
     /// Every kind, in declaration order.
-    pub const ALL: [SurfaceKind; 7] = [
+    pub const ALL: &'static [SurfaceKind] = &[
         SurfaceKind::Background,
         SurfaceKind::Panel,
         SurfaceKind::Raised,
@@ -52,10 +54,22 @@ impl SurfaceKind {
             SurfaceKind::Dialog => "dialog",
         }
     }
+
+    /// The corners: `None` for the square `Background`.
+    pub const fn corner(self) -> Option<Corner> {
+        match self {
+            SurfaceKind::Background => None,
+            SurfaceKind::Panel => Some(Corner::Panel),
+            SurfaceKind::Raised | SurfaceKind::Sunken | SurfaceKind::Pressed => Some(Corner::Control),
+            SurfaceKind::Popup => Some(Corner::Popup),
+            SurfaceKind::Dialog => Some(Corner::Window),
+        }
+    }
 }
 
 /// A surface's edge, resolved from the theme's edge style.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum SurfaceEdge {
     /// Nothing around the fill.
     None,
@@ -63,11 +77,13 @@ pub enum SurfaceEdge {
     Border(Stroke),
     /// A two-tone bevel inside the rect: `top_left` on the top and left sides, `bottom_right` on
     /// the bottom and right, meeting on the diagonals of the top-right and bottom-left corners.
+    /// `width` is in points; it is drawn rounded to whole physical pixels, at least one.
     Bevel { top_left: Color32, bottom_right: Color32, width: f32 },
 }
 
 /// Everything a surface draws, from [`Surface::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SurfaceStyle {
     pub fill: Color32,
     pub radius: CornerRadius,
@@ -78,6 +94,7 @@ pub struct SurfaceStyle {
 
 impl SurfaceStyle {
     /// The shapes of the surface over `rect`, snapped to the pixel grid: shadow, fill, edge.
+    /// A bevel is whole physical pixels wide.
     pub fn shapes(&self, rect: Rect, pixels_per_point: f32) -> Vec<Shape> {
         let rect = rect.round_to_pixels(pixels_per_point);
         let mut out = Vec::with_capacity(3);
@@ -88,7 +105,10 @@ impl SurfaceStyle {
         match self.edge {
             SurfaceEdge::None => {}
             SurfaceEdge::Border(stroke) => out.push(Shape::Rect(RectShape::stroke(rect, self.radius, stroke, StrokeKind::Inside))),
-            SurfaceEdge::Bevel { top_left, bottom_right, width } => out.push(Shape::mesh(bevel(rect, self.radius, width, top_left, bottom_right))),
+            SurfaceEdge::Bevel { top_left, bottom_right, width } => {
+                let width = (width * pixels_per_point).round().max(1.0) / pixels_per_point;
+                out.push(Shape::mesh(bevel(rect, self.radius, width, top_left, bottom_right)));
+            }
         }
         out
     }
@@ -112,7 +132,7 @@ impl Surface {
     }
 
     /// The look of `kind` in `tokens`.
-    pub fn style(kind: SurfaceKind, tokens: &UiTokens) -> SurfaceStyle {
+    pub fn style(tokens: &UiTokens, kind: SurfaceKind) -> SurfaceStyle {
         use SurfaceKind as K;
         let c = &tokens.color;
         let fill = match kind {
@@ -122,13 +142,7 @@ impl Surface {
             K::Sunken => c.surface.sunken,
             K::Pressed => c.state.pressed,
         };
-        let radius = match kind {
-            K::Background => CornerRadius::ZERO,
-            K::Panel => tokens.radius.panel,
-            K::Raised | K::Sunken | K::Pressed => tokens.radius.control,
-            K::Popup => tokens.radius.popup,
-            K::Dialog => tokens.radius.window,
-        };
+        let radius = kind.corner().map_or(CornerRadius::ZERO, |corner| corner.radius(tokens));
         let shadow = match kind {
             K::Popup => Some(tokens.shadow.popup),
             K::Dialog => Some(tokens.shadow.dialog),
@@ -152,7 +166,7 @@ impl Surface {
 
     /// Draws the surface over `rect`.
     pub fn paint(painter: &Painter, rect: Rect, kind: SurfaceKind, tokens: &UiTokens) {
-        painter.extend(Surface::style(kind, tokens).shapes(rect, painter.pixels_per_point()));
+        painter.extend(Surface::style(tokens, kind).shapes(rect, painter.pixels_per_point()));
     }
 
     /// Shows `add_contents` on the surface, which takes the contents' size. Pad with
@@ -161,7 +175,7 @@ impl Surface {
         let tokens = Tokens::of(ui);
         let slot = ui.painter().add(Shape::Noop);
         let inner = ui.scope(add_contents);
-        let shapes = Surface::style(self.kind, &tokens).shapes(inner.response.rect, ui.pixels_per_point());
+        let shapes = Surface::style(&tokens, self.kind).shapes(inner.response.rect, ui.pixels_per_point());
         ui.painter().set(slot, Shape::Vec(shapes));
         inner
     }
@@ -251,7 +265,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 fn kind_arg(args: &Args) -> SurfaceKind {
     let name = args.choice("kind");
-    SurfaceKind::ALL.into_iter().find(|k| k.name() == name).unwrap_or(SurfaceKind::Raised)
+    SurfaceKind::ALL.iter().copied().find(|k| k.name() == name).unwrap_or(SurfaceKind::Raised)
 }
 
 fn show_kind(ui: &mut Ui, args: &mut Args) {
@@ -263,7 +277,7 @@ fn show_kind(ui: &mut Ui, args: &mut Args) {
 fn show_surfaces(ui: &mut Ui, _: &mut Args) {
     Surface::new(SurfaceKind::Background).show(ui, |ui| {
         super::Stack::new(super::Gap::Stack).pad(super::Pad::Panel).show(ui, |ui| {
-            for kind in SurfaceKind::ALL {
+            for &kind in SurfaceKind::ALL {
                 sample(ui, kind);
             }
         });

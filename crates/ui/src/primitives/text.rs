@@ -111,7 +111,7 @@ fn show_contents(ui: &mut Ui, _: &mut Args) {
     let tokens = Tokens::of(ui);
     let c = &tokens.color;
     super::Stack::new(super::Gap::Inline).show(ui, |ui| {
-        for content in Content::ALL {
+        for &content in Content::ALL {
             let fill = match content {
                 Content::OnAccent => Some(c.accent.solid),
                 Content::OnStatus => Some(c.status.bad.solid),

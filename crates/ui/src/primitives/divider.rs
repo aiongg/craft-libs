@@ -8,6 +8,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// A divider's line, from [`Divider::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DividerStyle {
     /// `line.divider`, one physical pixel wide.
     pub stroke: Stroke,
