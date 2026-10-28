@@ -46,13 +46,13 @@ fn harness(dir: Direction, app: App) -> Harness<'static, App> {
 }
 
 /// The tokens of the suite's default theme.
-#[allow(clippy::expect_used)]
 fn tokens() -> std::sync::Arc<crate::theme::UiTokens> {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     crate::theme::current(&ctx)
 }
 
+#[allow(clippy::expect_used)]
 fn dismiss<'a>(harness: &'a Harness<'_, App>, n: usize) -> Node<'a> {
     harness.get_all_by_label("Dismiss").nth(n).expect("dismiss button")
 }
