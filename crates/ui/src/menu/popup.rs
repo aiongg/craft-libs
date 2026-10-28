@@ -279,14 +279,23 @@ impl Draw<'_> {
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let items: Vec<(usize, &MenuItem<T>)> = entries.iter().enumerate().filter_map(|(i, e)| Some((i, e.item()?))).collect();
         let labels: Vec<&str> = items.iter().map(|(_, it)| it.label()).collect();
-        // Mnemonics are unique within the level, separators aside.
-        let (shown, keys) = if self.mnemonics {
-            let english: Vec<Option<&str>> = items.iter().map(|(_, it)| it.english_of()).collect();
-            let preferred: Vec<Option<char>> = items.iter().map(|(_, it)| it.preferred()).collect();
-            mnemonic::localized(&labels, &english, &preferred)
-        } else {
-            (labels.iter().map(|l| (*l).to_owned()).collect(), vec![None; items.len()])
-        };
+        // Mnemonics are unique within the level, separators and rows without one aside.
+        let mut shown: Vec<String> = labels.iter().map(|l| (*l).to_owned()).collect();
+        let mut keys = vec![None; items.len()];
+        if self.mnemonics {
+            let keyed: Vec<usize> = (0..items.len()).filter(|&k| items.get(k).is_some_and(|(_, it)| it.takes_mnemonic())).collect();
+            let of = |k: &usize| items.get(*k).map(|(_, it)| *it);
+            let labels: Vec<&str> = keyed.iter().filter_map(of).map(MenuItem::label).collect();
+            let english: Vec<Option<&str>> = keyed.iter().filter_map(of).map(MenuItem::english_of).collect();
+            let preferred: Vec<Option<char>> = keyed.iter().filter_map(of).map(MenuItem::preferred).collect();
+            let (keyed_shown, keyed_keys) = mnemonic::localized(&labels, &english, &preferred);
+            for ((k, text), key) in keyed.iter().zip(keyed_shown).zip(keyed_keys) {
+                if let (Some(s), Some(m)) = (shown.get_mut(*k), keys.get_mut(*k)) {
+                    *s = text;
+                    *m = key;
+                }
+            }
+        }
         let content = |k: usize, it: &'_ MenuItem<T>| -> (String, Option<char>) {
             (shown.get(k).cloned().unwrap_or_else(|| it.label().to_owned()), keys.get(k).copied().flatten())
         };

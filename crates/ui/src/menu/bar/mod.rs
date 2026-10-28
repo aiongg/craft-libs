@@ -126,7 +126,8 @@ pub struct MenuBar<'a, T> {
     size: ControlSize,
     labels: Option<&'a MenuBarLabels>,
     fit: Option<f32>,
-    search: Option<usize>,
+    /// The Help menu's index, and how its search tells commands apart.
+    search: Option<(usize, search::Same<T>)>,
     keyboard: bool,
     text_editing: bool,
 }
@@ -223,8 +224,14 @@ impl<'a, T: Clone> MenuBar<'a, T> {
     /// shown with its path ("Image › Adjustments › Levels…"); a click, ↓ then Enter, or Enter in
     /// the field runs one. The field has the keys while focused, so letters type into it. A menu
     /// moved into "⋯" has no field.
-    pub fn help_search(mut self, index: usize) -> Self {
-        self.search = Some(index);
+    ///
+    /// A command in several menus is listed once, at its best match: hence `T: PartialEq`, the
+    /// only place the bar compares commands.
+    pub fn help_search(mut self, index: usize) -> Self
+    where
+        T: PartialEq,
+    {
+        self.search = Some((index, T::eq));
         self
     }
 
@@ -273,7 +280,8 @@ impl<'a, T: Clone> MenuBar<'a, T> {
             state.keys.off();
         }
         let underline = keys_on && state.keys.show_underlines(&ctx);
-        let mut search = self.search.map(|_| Search::load(&ctx, self.id));
+        let mut search = self.search.map(|(_, same)| Search::load(&ctx, self.id, same));
+        let help = self.search.map(|(i, _)| i);
 
         let height = style.rows.height;
         let mut chosen = None;
@@ -311,7 +319,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
                 let entries: &[MenuEntry<T>] = match top {
                     Top::Menu(i) => {
                         let children = self.menus.get(i).and_then(MenuItem::children).unwrap_or(&[]);
-                        owned = match search.as_mut().filter(|_| shows && self.search == Some(i)) {
+                        owned = match search.as_mut().filter(|_| shows && help == Some(i)) {
                             Some(search) => {
                                 search.begin(&ctx, popup_id, self.menus);
                                 let entries = search.entries(children);

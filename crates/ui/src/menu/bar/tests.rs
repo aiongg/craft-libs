@@ -501,3 +501,46 @@ fn the_help_search_lists_matches_takes_typing_and_runs_a_match() {
     b.typed("zzz");
     assert!(b.tree.iter().any(|(_, n)| n.value() == Some("No matching commands")));
 }
+
+#[test]
+fn the_help_search_lists_a_command_in_several_menus_once() {
+    let mut menus = sample();
+    menus[2] = MenuItem::submenu("View", vec![MenuItem::submenu("History", vec![item("Undo", "edit.undo")]).into()]);
+    let mut b = Bar::new(menus, vec2(800.0, 600.0));
+    b.search = Some(3);
+    b.click("Help");
+    b.typed("undo");
+    assert!(b.shown("Edit › Undo"), "listed at its first place in menu order");
+    assert!(!b.shown("View › History › Undo"), "and only once");
+}
+
+#[test]
+fn search_matches_take_no_mnemonics_and_leave_the_help_rows_their_letters() {
+    let mut menus = sample();
+    menus.insert(3, MenuItem::submenu("Arrange", vec![item("Report Layout", "arrange.report")]));
+    menus[4] = MenuItem::submenu("Help", vec![item("About", "help.about"), item("Report a Bug", "help.bug")]);
+    let mut b = Bar::new(menus, vec2(800.0, 600.0));
+    b.search = Some(4);
+    let key = |b: &Bar, label: &str| b.node(label).and_then(|n| n.access_key()).map(str::to_owned);
+    b.click("Help");
+    let letters = (key(&b, "About"), key(&b, "Report a Bug"));
+    assert_eq!(letters, (Some("A".to_owned()), Some("R".to_owned())));
+    b.typed("rep");
+    assert!(b.shown("Arrange › Report Layout") && b.shown("Help › Report a Bug"));
+    let check = |b: &Bar, what: &str| {
+        assert_eq!((key(b, "About"), key(b, "Report a Bug")), letters, "Help's rows keep their letters ({what})");
+        assert_eq!(key(b, "Arrange › Report Layout"), None, "a match has no mnemonic ({what})");
+        assert_eq!(key(b, "Help › Report a Bug"), None, "a match has no mnemonic ({what})");
+    };
+    check(&b, "field focused");
+    b.ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
+    b.run(3);
+    assert!(!b.ctx.text_edit_focused());
+    check(&b, "field not focused");
+    b.letter('a');
+    assert_eq!(b.take(), ["help.about"], "A runs About, not the Arrange match");
+}

@@ -35,6 +35,7 @@ struct Found<'m, T> {
 /// The search field of one pass.
 pub(super) struct Search<'m, T> {
     id: Id,
+    same: Same<T>,
     state: State,
     found: Vec<Found<'m, T>>,
     submitted: bool,
@@ -77,9 +78,12 @@ fn commands<'m, T>(entries: &'m [MenuEntry<T>], path: &mut Vec<&'m MenuItem<T>>,
     }
 }
 
+/// Whether two commands are the same command.
+pub(super) type Same<T> = fn(&T, &T) -> bool;
+
 /// The commands under `menus` matching `query`, best first and in menu order within a rank, at
-/// most [`MAX_RESULTS`].
-fn matches<'m, T>(menus: &'m [MenuItem<T>], query: &str) -> Vec<Found<'m, T>> {
+/// most [`MAX_RESULTS`]. A command in several menus is listed once, at its best match.
+fn matches<'m, T>(menus: &'m [MenuItem<T>], query: &str, same: Same<T>) -> Vec<Found<'m, T>> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return Vec::new();
@@ -98,7 +102,17 @@ fn matches<'m, T>(menus: &'m [MenuItem<T>], query: &str) -> Vec<Found<'m, T>> {
         })
         .collect();
     hits.sort_by_key(|(r, i, _)| (*r, *i));
-    hits.into_iter().take(MAX_RESULTS).map(|(_, _, f)| f).collect()
+    let mut found: Vec<Found<'m, T>> = Vec::with_capacity(MAX_RESULTS);
+    for (_, _, f) in hits {
+        let listed = |f: &Found<'m, T>, g: &Found<'m, T>| f.item.command().zip(g.item.command()).is_some_and(|(a, b)| same(a, b));
+        if !found.iter().any(|g| listed(&f, g)) {
+            found.push(f);
+        }
+        if found.len() == MAX_RESULTS {
+            break;
+        }
+    }
+    found
 }
 
 /// The keys the field leaves to the menu: ↑ / ↓ move its highlight, Esc closes it.
@@ -107,10 +121,10 @@ fn keys() -> EventFilter {
 }
 
 impl<'m, T: Clone> Search<'m, T> {
-    /// The field of the bar `bar`, as the last pass left it.
-    pub fn load(ctx: &egui::Context, bar: Id) -> Self {
+    /// The field of the bar `bar`, as the last pass left it; `same` tells commands apart.
+    pub fn load(ctx: &egui::Context, bar: Id, same: Same<T>) -> Self {
         let id = bar.with("search");
-        Self { id, state: ctx.data(|d| d.get_temp(id)).unwrap_or_default(), found: Vec::new(), submitted: false }
+        Self { id, same, state: ctx.data(|d| d.get_temp(id)).unwrap_or_default(), found: Vec::new(), submitted: false }
     }
 
     /// The Help menu `popup` shows this pass: a fresh opening starts empty, with the field
@@ -119,7 +133,7 @@ impl<'m, T: Clone> Search<'m, T> {
         if ctx.read_response(popup).is_none() {
             self.state = State { query: String::new(), focus: true };
         }
-        self.found = matches(menus, &self.state.query);
+        self.found = matches(menus, &self.state.query, self.same);
     }
 
     /// The Help menu's entries: the matches, a separator, then `help`. `None` without matches.
@@ -130,7 +144,7 @@ impl<'m, T: Clone> Search<'m, T> {
         let rows = self.found.iter().filter_map(|f| {
             let mut trail = f.path.clone();
             trail.push(f.item.label());
-            let mut row = MenuItem::new(trail.join(PATH_SEPARATOR), f.item.command()?.clone()).enabled(f.item.is_enabled());
+            let mut row = MenuItem::new(trail.join(PATH_SEPARATOR), f.item.command()?.clone()).enabled(f.item.is_enabled()).without_mnemonic();
             if let Some(kbd) = f.item.shortcut_of() {
                 row = row.shortcut(kbd.clone());
             }
@@ -214,11 +228,12 @@ mod tests {
             ),
             MenuItem::submenu("Select", vec![MenuItem::new("All", 3).into(), MenuItem::new("Level Horizon", 4).into()]),
         ];
-        let found: Vec<(String, u8)> = matches(&menus, " LEV ").iter().map(|f| (f.path.join(PATH_SEPARATOR), *f.item.command().unwrap())).collect();
+        let found: Vec<(String, u8)> =
+            matches(&menus, " LEV ", u8::eq).iter().map(|f| (f.path.join(PATH_SEPARATOR), *f.item.command().unwrap())).collect();
         assert_eq!(found, [("Image › Adjustments".to_owned(), 2), ("Select".to_owned(), 4)]);
-        let by_path: Vec<u8> = matches(&menus, "adjust").iter().map(|f| *f.item.command().unwrap()).collect();
+        let by_path: Vec<u8> = matches(&menus, "adjust", u8::eq).iter().map(|f| *f.item.command().unwrap()).collect();
         assert_eq!(by_path, [1, 2], "a menu title matches every command under it");
         let many: Vec<MenuItem<usize>> = vec![MenuItem::submenu("Many", (0..40).map(|i| MenuItem::new(format!("Row {i}"), i).into()).collect())];
-        assert_eq!(matches(&many, "row").len(), MAX_RESULTS);
+        assert_eq!(matches(&many, "row", usize::eq).len(), MAX_RESULTS);
     }
 }

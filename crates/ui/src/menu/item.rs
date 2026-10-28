@@ -83,6 +83,8 @@ pub struct MenuItem<T> {
     kind: ItemKind,
     enabled: bool,
     mnemonic: Option<char>,
+    /// Takes part in its level's mnemonics.
+    keyed: bool,
     action: Action<T>,
 }
 
@@ -99,7 +101,7 @@ impl<T> MenuItem<T> {
     }
 
     fn with_action(label: String, action: Action<T>) -> Self {
-        Self { label, english: None, icon: None, shortcut: None, kind: ItemKind::Plain, enabled: true, mnemonic: None, action }
+        Self { label, english: None, icon: None, shortcut: None, kind: ItemKind::Plain, enabled: true, mnemonic: None, keyed: true, action }
     }
 
     /// An icon before the label. Every row of a menu that has an icon keeps room for one.
@@ -191,6 +193,17 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn preferred(&self) -> Option<char> {
         self.mnemonic
+    }
+
+    /// A row without a mnemonic that takes no letter from the other rows of its level (a menu
+    /// bar's search matches).
+    pub(crate) fn without_mnemonic(mut self) -> Self {
+        self.keyed = false;
+        self
+    }
+
+    pub(crate) fn takes_mnemonic(&self) -> bool {
+        self.keyed
     }
 
     pub(crate) fn english_of(&self) -> Option<&str> {
