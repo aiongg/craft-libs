@@ -178,7 +178,7 @@ fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
 
     // A colour equal to the panel: the inner ring stands out from it by a measured ratio, in a
     // light and a dark theme.
-    for (id, mode) in [("craft.graphite", Mode::Light), ("craft.pro-dark", Mode::Dark)] {
+    for (id, mode) in [("craft.graphite", Mode::Light), ("craft.pro", Mode::Dark)] {
         let t = tokens_of(&theme(id), mode);
         let style = Swatch::style(&t, ControlSize::Md);
         let panel = t.color.surface.panel;

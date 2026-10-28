@@ -98,8 +98,8 @@ fn links_underline_at_rest_only_when_accent_text_is_close_to_normal_text() {
         assert_eq!(style.underline == LinkUnderline::Always, close);
         assert_eq!((style.color, style.stroke.color), (t.color.accent.text.to_egui(), t.color.accent.text.to_egui()));
     }
-    // Pro Light's link blue is 3.13:1 against its text; most themes' accent text is closer.
-    let pro = theme("craft.pro-light");
+    // Pro's light link blue is 3.13:1 against its text; most themes' accent text is closer.
+    let pro = theme("craft.pro");
     let light = tokens_of(&pro, Mode::Light);
     let ratio = contrast_ratio(light.color.accent.text, light.color.text.normal);
     assert_eq!(Link::style(&light).underline, LinkUnderline::Hover, "{ratio:.2}");
@@ -641,7 +641,7 @@ fn stroke_rects(shapes: &[Shape], color: Color32) -> Vec<Rect> {
 
 #[test]
 fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours() {
-    let flat = theme("craft.pro-light");
+    let flat = theme("craft.pro");
     let (s, shapes) = field_pass(&flat, false, true);
     assert_eq!(strokes_in(&shapes, s.border_focused), [1.0], "a focused edge in `field.border.focused`");
     let (s, shapes) = field_pass(&flat, true, false);

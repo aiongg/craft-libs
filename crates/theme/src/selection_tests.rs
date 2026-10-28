@@ -16,7 +16,7 @@ fn lookup(id: &ThemeId) -> Option<ThemeDef> {
 }
 
 fn defaults() -> AppDefaults {
-    AppDefaults { theme: ThemePair { light: id("craft.pro-light"), dark: id("craft.pro-dark") }, mode: ModeChoice::Dark, size: Size::Compact }
+    AppDefaults { theme: ThemePair { light: id("craft.pro"), dark: id("craft.pro") }, mode: ModeChoice::Dark, size: Size::Compact }
 }
 
 fn selection(light: &str, dark: &str, mode: ModeChoice) -> Selection {
@@ -44,8 +44,8 @@ fn picking_a_single_variant_theme_sets_only_its_slot() {
     assert_eq!((suite.theme_light.as_ref(), suite.theme_dark.as_ref()), (Some(&id("craft.studio")), Some(&id("craft.studio"))));
 
     let mut pair = defaults().theme;
-    pair.pick(&builtin("craft.soft-light"));
-    assert_eq!(pair, ThemePair { light: id("craft.soft-light"), dark: id("craft.pro-dark") });
+    pair.pick(&builtin("craft.pro-light-gray"));
+    assert_eq!(pair, ThemePair { light: id("craft.pro-light-gray"), dark: id("craft.pro") });
     pair.pick(&builtin("craft.graphite"));
     assert_eq!(pair, ThemePair::same(id("craft.graphite")));
 }
@@ -76,7 +76,7 @@ fn app_choice_over_suite_over_defaults_per_field() {
     assert_eq!(
         followed,
         Selection {
-            theme: ThemePair { light: id("craft.pro-light"), dark: id("craft.studio") },
+            theme: ThemePair { light: id("craft.pro"), dark: id("craft.studio") },
             mode: ModeChoice::Dark,
             contrast: ContrastChoice::High,
             size: Size::Compact,
@@ -120,10 +120,10 @@ fn theme_falls_back_to_the_app_default_then_the_suite_default() {
     assert_eq!(shown.resolved, resolve(&builtin("craft.solarized-dark"), shown.appearance, None));
 
     let shown = show(&selection("craft.studio", APP_DEFAULT, ModeChoice::Dark), SystemAppearance::default());
-    assert_eq!((shown.theme.as_str(), shown.notices.as_slice()), ("craft.pro-dark", &[][..]));
+    assert_eq!((shown.theme.as_str(), shown.notices.as_slice()), ("craft.pro", &[][..]));
 
     let shown = show(&selection("user.gone", "craft.studio", ModeChoice::Light), SystemAppearance::default());
-    assert_eq!(shown.theme.as_str(), "craft.pro-light");
+    assert_eq!(shown.theme.as_str(), "craft.pro");
     assert_eq!(shown.notices, [Fallback::UnknownTheme(id("user.gone"))]);
 
     let broken = AppDefaults { theme: ThemePair::same(id("app.missing")), ..defaults() };
@@ -140,9 +140,9 @@ fn theme_falls_back_to_the_app_default_then_the_suite_default() {
 
 #[test]
 fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
-    let sel = selection("craft.soft-dark", "craft.pro-dark", ModeChoice::System);
+    let sel = selection("craft.solarized-dark", "craft.pro", ModeChoice::System);
     let shown = show(&sel, SystemAppearance::default());
-    assert_eq!(shown.theme.as_str(), "craft.soft-dark");
+    assert_eq!(shown.theme.as_str(), "craft.solarized-dark");
     assert_eq!((shown.appearance.mode, shown.resolved.variant_used), (Mode::Light, Mode::Dark));
     assert_eq!(shown.notices, [Fallback::SystemSilent, Fallback::OnlyVariant(Mode::Dark)]);
 }
@@ -151,7 +151,7 @@ fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
 #[test]
 fn serde_forms_round_trip() {
     let sel = Selection {
-        theme: ThemePair { light: id("craft.pro-light"), dark: ThemeId::app_default() },
+        theme: ThemePair { light: id("craft.pro"), dark: ThemeId::app_default() },
         mode: ModeChoice::System,
         contrast: ContrastChoice::High,
         size: Size::Comfortable,
@@ -160,7 +160,7 @@ fn serde_forms_round_trip() {
     let json = serde_json::to_string(&sel).unwrap();
     assert_eq!(
         json,
-        r#"{"theme":{"light":"craft.pro-light","dark":"craft.app-default"},"mode":"system","contrast":"high","size":"comfortable","text_size":"larger"}"#
+        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","size":"comfortable","text_size":"larger"}"#
     );
     assert_eq!(serde_json::from_str::<Selection>(&json).unwrap(), sel);
 

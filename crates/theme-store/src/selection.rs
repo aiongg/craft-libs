@@ -400,19 +400,15 @@ mod tests {
     fn each_new_field_merges_on_its_own() {
         let base = choice(Some("craft.artcraft"), None);
         // Another app set the dark slot, contrast and text size; this one the light slot and size.
-        let disk = SuiteChoice {
-            theme_dark: Some(id("craft.pro-dark")),
-            contrast: Some(ContrastChoice::High),
-            text_size: Some(TextSize::Large),
-            ..base.clone()
-        };
-        let mine = SelectionChange::theme_light(id("craft.pro-light")).then(SelectionChange::size(Size::Comfortable));
+        let disk =
+            SuiteChoice { theme_dark: Some(id("craft.pro")), contrast: Some(ContrastChoice::High), text_size: Some(TextSize::Large), ..base.clone() };
+        let mine = SelectionChange::theme_light(id("craft.pro-light-gray")).then(SelectionChange::size(Size::Comfortable));
         let merged = merge(&base, &disk, &mine).unwrap();
         assert_eq!(
             merged,
             SuiteChoice {
-                theme_light: Some(id("craft.pro-light")),
-                theme_dark: Some(id("craft.pro-dark")),
+                theme_light: Some(id("craft.pro-light-gray")),
+                theme_dark: Some(id("craft.pro")),
                 mode: None,
                 contrast: Some(ContrastChoice::High),
                 size: Some(Size::Comfortable),
@@ -434,12 +430,12 @@ mod tests {
     #[test]
     fn picking_a_single_variant_theme_changes_one_slot() {
         let builtin = |name: &str| craft_theme::builtins().iter().find(|t| t.id.as_str() == name).unwrap();
-        let soft = SelectionChange::pick_theme(builtin("craft.soft-light"));
-        assert_eq!(soft, SelectionChange::theme_light(id("craft.soft-light")));
+        let soft = SelectionChange::pick_theme(builtin("craft.pro-light-gray"));
+        assert_eq!(soft, SelectionChange::theme_light(id("craft.pro-light-gray")));
         assert_eq!(SelectionChange::pick_theme(builtin("craft.graphite")), both("craft.graphite"));
         let shown = soft.applied_to(&choice(Some("craft.graphite"), None));
-        assert_eq!((shown.theme_light, shown.theme_dark), (Some(id("craft.soft-light")), Some(id("craft.graphite"))));
-        assert_eq!(soft.picked().collect::<Vec<_>>(), [&id("craft.soft-light")]);
+        assert_eq!((shown.theme_light, shown.theme_dark), (Some(id("craft.pro-light-gray")), Some(id("craft.graphite"))));
+        assert_eq!(soft.picked().collect::<Vec<_>>(), [&id("craft.pro-light-gray")]);
     }
 
     #[test]
@@ -513,13 +509,12 @@ mod tests {
         let v1 = br#"{"schema_version":1,"revision":6,"library_revision":1,"suite":{"theme":"user.navy","mode":"system","x":2}}"#;
         let doc = parse_selection(v1).unwrap();
         assert_eq!(doc.accepted.suite, choice(Some("user.navy"), Some(ModeChoice::System)));
-        let next =
-            Accepted { suite: SelectionChange::theme_dark(id("craft.pro-dark")).applied_to(&doc.accepted.suite), revision: 7, library_revision: 1 };
+        let next = Accepted { suite: SelectionChange::theme_dark(id("craft.pro")).applied_to(&doc.accepted.suite), revision: 7, library_revision: 1 };
         let mut raw = doc.raw;
         let out = render_selection(&mut raw, &next, "t");
         let back: Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(back["schema_version"], 2);
-        assert_eq!(back["suite"], json!({"theme": {"light": "user.navy", "dark": "craft.pro-dark"}, "mode": "system", "x": 2}));
+        assert_eq!(back["suite"], json!({"theme": {"light": "user.navy", "dark": "craft.pro"}, "mode": "system", "x": 2}));
         assert_eq!(parse_selection(&out).unwrap().accepted, next);
         // Each version's own theme form only.
         assert!(matches!(parse_selection(br#"{"schema_version":1,"suite":{"theme":{"light":"user.navy"}}}"#), Err(SelectionError::Corrupt(_))));
@@ -537,10 +532,10 @@ mod tests {
         let mode_only = parse_selection(br#"{"schema_version":2,"suite":{"mode":"dark"}}"#).unwrap();
         assert_eq!(mode_only.accepted.suite, choice(None, Some(ModeChoice::Dark)));
         let mut raw = mode_only.raw;
-        let light_only = SuiteChoice { theme_light: Some(id("craft.soft-light")), ..SuiteChoice::default() };
+        let light_only = SuiteChoice { theme_light: Some(id("craft.soft")), ..SuiteChoice::default() };
         let out = render_selection(&mut raw, &Accepted { suite: light_only, revision: 1, library_revision: 0 }, "t");
         let written: Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(written["suite"], json!({"theme": {"light": "craft.soft-light"}}));
+        assert_eq!(written["suite"], json!({"theme": {"light": "craft.soft"}}));
         for bad in [
             &br#"{"revision":1}"#[..],
             b"[1]",

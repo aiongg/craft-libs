@@ -211,7 +211,7 @@ pub enum ContrastIntent {
     /// Meets the standard minimums except where pins say otherwise.
     #[default]
     Standard,
-    /// Deliberately soft (Soft Dark, Soft Light); the picker labels it.
+    /// Deliberately soft (Soft); the picker labels it.
     Low,
 }
 

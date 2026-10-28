@@ -382,7 +382,7 @@ fn an_app_theme_named_at_open_is_in_the_first_snapshot() {
     store_with_sample(tmp.path());
     let sample = id(SAMPLE_THEME_ID);
     // The light slot is a built-in: only the library theme is read.
-    let pair = ThemePair { light: id("craft.pro-light"), dark: sample.clone() };
+    let pair = ThemePair { light: id("craft.pro"), dark: sample.clone() };
     let store = Store::open(&SuiteDir::at(tmp.path()), options().app_theme(Some(pair.clone())));
     // Built without a worker or a first poll: only what open reads itself.
     let (_, watch) = SuiteWatch::build(store, Box::new(|| {}));
@@ -555,7 +555,7 @@ fn each_suite_slot_follows_its_own_library_theme() {
     assert_eq!(stems, ["one", "two"]);
 
     // A built-in in the light slot: only the dark slot's theme is left to follow.
-    write_selection(tmp.path(), &missing.accepted, SelectionChange::theme_light(id("craft.pro-light")));
+    write_selection(tmp.path(), &missing.accepted, SelectionChange::theme_light(id("craft.pro")));
     watch.poll_once(false);
     assert_eq!(ids(&watch.snapshot().active), ["two"]);
 }

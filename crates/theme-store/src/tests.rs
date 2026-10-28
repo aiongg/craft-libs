@@ -373,12 +373,12 @@ fn the_new_fields_merge_one_by_one_across_stores() {
     let base = a.update(&Accepted::default(), whole("craft.graphite", ModeChoice::Dark)).unwrap();
     b.load_selection().unwrap();
     // Each app changes other fields on the same base: all of them land.
-    b.update(&base, SelectionChange::theme_light(id("craft.soft-light")).then(SelectionChange::contrast(ContrastChoice::High))).unwrap();
+    b.update(&base, SelectionChange::theme_light(id("craft.soft")).then(SelectionChange::contrast(ContrastChoice::High))).unwrap();
     let merged = a.update(&base, SelectionChange::size(Size::Comfortable).then(SelectionChange::text_size(TextSize::Large))).unwrap();
     assert_eq!(
         merged.suite,
         SuiteChoice {
-            theme_light: Some(id("craft.soft-light")),
+            theme_light: Some(id("craft.soft")),
             theme_dark: Some(id("craft.graphite")),
             mode: Some(ModeChoice::Dark),
             contrast: Some(ContrastChoice::High),
@@ -387,7 +387,7 @@ fn the_new_fields_merge_one_by_one_across_stores() {
         }
     );
     // The same field on the stale base: a conflict, field by field.
-    for change in [SelectionChange::theme_light(id("craft.pro-light")), SelectionChange::contrast(ContrastChoice::Standard)] {
+    for change in [SelectionChange::theme_light(id("craft.pro")), SelectionChange::contrast(ContrastChoice::Standard)] {
         assert!(matches!(a.update(&base, change.clone()), Err(StoreError::Conflict { .. })), "{change:?}");
     }
     let disk = selection_json(tmp.path());

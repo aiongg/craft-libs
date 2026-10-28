@@ -75,7 +75,7 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
         assert!(badges.iter().all(|b| *b == items), "{badges:?}");
     }
     // A dark-only theme draws its dark columns only; its light columns stay empty.
-    gallery.set_compare_themes(&["craft.pro-dark"]);
+    gallery.set_compare_themes(&["craft.pro-light-gray"]);
     for _ in 0..3 {
         frame(&ctx, &mut gallery);
     }
