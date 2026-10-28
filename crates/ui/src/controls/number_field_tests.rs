@@ -23,6 +23,11 @@ struct Rig {
     unit: Unit,
     mixed: bool,
     scrub: bool,
+    /// A label before the field scrubs it.
+    outside: bool,
+    /// The button before the field and the outside label.
+    button: Id,
+    label: Rect,
     popup: bool,
     arithmetic: bool,
     drawn: bool,
@@ -61,6 +66,9 @@ impl Rig {
             unit: Unit::default(),
             mixed: false,
             scrub: false,
+            outside: false,
+            button: Id::NULL,
+            label: Rect::NOTHING,
             popup: false,
             arithmetic: false,
             drawn: true,
@@ -120,7 +128,8 @@ impl Rig {
     }
 
     fn controls(&mut self, ui: &mut Ui) {
-        let _ = ui.button("Before");
+        self.button = ui.button("Before").id;
+        let label = self.outside.then(|| ui.label("Width"));
         if !self.drawn {
             self.event = None;
             if self.hosted {
@@ -142,6 +151,10 @@ impl Rig {
         }
         if self.popup {
             field = field.popup_slider("Width slider");
+        }
+        if let Some(label) = &label {
+            self.label = label.rect;
+            field = field.scrub_by(label);
         }
         if self.arithmetic {
             field = field.or_parse(sum);
@@ -601,4 +614,18 @@ fn focus_first_field_selects_the_text_so_typing_replaces_it() {
     rig.type_text("3");
     rig.key(Key::Enter);
     assert_eq!(rig.value, 3.0);
+}
+
+#[test]
+fn a_label_before_the_field_scrubs_it_and_is_no_tab_stop() {
+    let mut rig = Rig::with(10.0, |r| r.outside = true);
+    let n = rig.events.len();
+    rig.drag(rig.label.center(), &[10.0, 14.0], Modifiers::NONE, true);
+    let events = since(&rig, n);
+    let id = begin_id(&events);
+    assert_eq!(events.last(), Some(&commit(id, 24.0, true)));
+    rig.ctx.memory_mut(|m| m.request_focus(rig.button));
+    rig.frame(vec![]);
+    rig.key(Key::Tab);
+    assert!(rig.has_focus(), "Tab goes from the button to the field");
 }
