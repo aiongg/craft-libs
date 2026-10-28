@@ -51,7 +51,7 @@ pub enum RecordKind {
     Stack,
     /// [`Row::show`](crate::primitives::Row::show).
     Row,
-    /// [`Interactive::show`](crate::primitives::Interactive::show) with this AccessKit role.
+    /// [`Interactive`](crate::primitives::Interactive) with this AccessKit role.
     Interactive(Role),
     /// [`Handle::show`](crate::primitives::Handle::show).
     Handle,

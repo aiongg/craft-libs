@@ -172,3 +172,109 @@ fn a_link_with_a_url_opens_it_on_click() {
     let opened: Vec<&OutputCommand> = harness.output().platform_output.commands.iter().filter(|c| matches!(c, OutputCommand::OpenUrl(_))).collect();
     assert_eq!(opened, [&OutputCommand::OpenUrl(egui::OpenUrl::same_tab(URL))]);
 }
+
+#[test]
+fn a_link_activates_on_enter_but_not_space() {
+    let mut harness = harness().build_ui_state(
+        |ui, clicks: &mut u32| {
+            if ui.add(Link::new("Details").id_salt("details")).clicked() {
+                *clicks += 1;
+            }
+        },
+        0,
+    );
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert!(harness.get_by_label("Details").is_focused());
+    harness.key_press(Key::Space);
+    harness.run();
+    assert_eq!(*harness.state(), 0, "Space");
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(*harness.state(), 1, "Enter");
+}
+
+#[test]
+fn a_loading_button_is_busy_and_ignores_clicks_enter_and_space() {
+    let mut harness = harness().build_ui_state(
+        |ui, clicks: &mut u32| {
+            if ui.add(Button::new("Export").loading(true).id_salt("export")).clicked() {
+                *clicks += 1;
+            }
+        },
+        0,
+    );
+    // The spinner never settles: run a fixed number of frames.
+    harness.run_steps(2);
+    assert!(harness.get_by_label("Export").accesskit_node().is_busy());
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    assert!(harness.get_by_label("Export").is_focused(), "a loading button keeps its Tab stop");
+    for key in [Key::Enter, Key::Space] {
+        harness.key_press(key);
+        harness.run_steps(2);
+    }
+    harness.get_by_label("Export").click();
+    harness.run_steps(2);
+    assert_eq!(*harness.state(), 0);
+}
+
+#[test]
+fn focus_follows_the_selection_of_a_focused_segmented_control() {
+    let mut harness = segmented();
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert_eq!(focused(&harness).as_deref(), Some("New"));
+    harness.get_by_label("Subtract").click();
+    harness.run();
+    assert_eq!((*harness.state(), focused(&harness).as_deref()), (2, Some("Subtract")), "a click");
+    *harness.state_mut() = 1;
+    harness.run();
+    assert_eq!(focused(&harness).as_deref(), Some("Add"), "a change from outside");
+}
+
+#[test]
+fn arrow_keys_in_consecutive_frames_stay_in_the_segmented_control() {
+    let mut harness = harness().build_ui_state(
+        |ui, choice: &mut usize| {
+            ui.horizontal(|ui| {
+                Segmented::new("combine", "Combine", choice).item(0, "New").item(1, "Add").item(2, "Subtract").show(ui);
+                ui.add(Button::new("Next").id_salt("next"));
+            });
+        },
+        0,
+    );
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    // Key downs in two consecutive frames: the second comes in the frame after the first moved
+    // focus. (`key_press` spends a frame on each key up.)
+    let arrow = |pressed| egui::Event::Key { key: Key::ArrowRight, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
+    for _ in 0..2 {
+        harness.event(arrow(true));
+        harness.step();
+    }
+    harness.event(arrow(false));
+    harness.run();
+    assert_eq!((*harness.state(), focused(&harness).as_deref()), (2, Some("Subtract")));
+}
+
+#[test]
+fn a_disabled_segmented_control_keeps_its_radio_buttons_in_the_group_and_its_tooltips() {
+    let mut harness = harness().build_ui_state(
+        |ui, choice: &mut usize| {
+            Segmented::new("tool", "Tool", choice).icon_item(0, Icon::Move, "Move").icon_item(1, Icon::Hand, "Hand").enabled(false).show(ui);
+        },
+        0,
+    );
+    harness.run();
+    let group = harness.get_by(|n| n.role() == Role::RadioGroup);
+    let children: Vec<_> = group.accesskit_node().children().map(|n| (n.role(), n.label().unwrap_or_default(), n.is_disabled())).collect();
+    assert_eq!(children, [(Role::RadioButton, "Move".to_owned(), true), (Role::RadioButton, "Hand".to_owned(), true)]);
+    harness.get_by_label("Hand").hover();
+    harness.run_steps(4);
+    let named = harness.query_all_by(|n| n.label().as_deref() == Some("Hand") || n.value().as_deref() == Some("Hand")).count();
+    assert_eq!(named, 2, "the tooltip shows the label");
+}

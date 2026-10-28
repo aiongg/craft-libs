@@ -73,7 +73,10 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
             assert_eq!(toggle.on_fill.get(State::Rest), pressed, "on, the toggle rests pressed");
             assert_eq!(toggle.on_fill.get(State::Hover), pressed);
             assert_eq!(toggle.on_text.get(State::Rest), c.button.secondary.text.pressed.to_egui());
-            assert_eq!(toggle.on_fill.get(State::Disabled), c.button.secondary.fill.disabled.to_egui());
+            let on_disabled = [&toggle.on_fill, &toggle.on_border, &toggle.on_text].map(|s| s.get(State::Disabled));
+            let tokens = craft_theme::ButtonPart::ALL.map(|part| c.toggle_button.on_disabled(part).to_egui());
+            assert_eq!(on_disabled, tokens, "on and disabled: toggle_button.on_disabled.*");
+            assert_ne!(toggle.on_fill.get(State::Disabled), toggle.off.fill.get(State::Disabled), "on and disabled still looks on");
 
             let s = Segmented::style(&t, size);
             let seg = &c.segmented;
@@ -199,8 +202,25 @@ fn bevel_themes_bevel_buttons_and_press_them_in() {
 
 #[test]
 fn loading_keeps_the_width_and_does_not_activate() {
-    let ctx = context();
     let graphite = theme("craft.graphite");
+    // The spinner takes the icon's place, or the label's without an icon.
+    for icon in [Some(crate::icons::Icon::Save), None] {
+        let ctx = context();
+        let width = |loading: bool| {
+            let width = Cell::new(0.0);
+            pass(&ctx, &graphite, vec![], |ui| {
+                let mut button = Button::new("Export").loading(loading);
+                if let Some(icon) = icon {
+                    button = button.icon(icon);
+                }
+                width.set(ui.add(button).rect.width());
+            });
+            width.get()
+        };
+        assert_eq!(width(true), width(false), "loading keeps the width with icon {icon:?}");
+    }
+
+    let ctx = context();
     let (rect, clicks) = (Cell::new(Rect::NOTHING), Cell::new(0));
     let frame = |loading: bool, events| {
         pass(&ctx, &graphite, events, |ui| {
@@ -223,4 +243,20 @@ fn loading_keeps_the_width_and_does_not_activate() {
         frame(false, events);
     }
     assert_eq!(clicks.get(), 1, "the same click activates when idle");
+}
+
+#[test]
+fn turning_a_control_off_keeps_the_ids_of_the_widgets_after_it() {
+    let ctx = context();
+    let graphite = theme("craft.graphite");
+    let mut ids = Vec::new();
+    for enabled in [true, false] {
+        pass(&ctx, &graphite, vec![], |ui| {
+            ui.add(Button::new("Export").enabled(enabled));
+            let mut choice = 0;
+            Segmented::new("mode", "Mode", &mut choice).item(0, "New").item(1, "Add").enabled(enabled).show(ui);
+            ids.push(ui.add(egui::Button::new("Next")).id);
+        });
+    }
+    assert_eq!(ids[0], ids[1], "the next automatic id");
 }

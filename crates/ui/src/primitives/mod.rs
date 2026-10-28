@@ -53,7 +53,7 @@ pub use divider::{Divider, DividerStyle};
 pub use focus_ring::{FocusRing, FocusRingStyle};
 pub use handle::{Handle, HandleShape, HandleStyle};
 pub use icon::{Icon, IconStyle};
-pub use interactive::Interactive;
+pub use interactive::{Interactive, Sensed};
 pub use stack::{Gap, Pad, Row, Stack};
 pub use state_layer::{StateColors, StateLayer, StateLayerStyle};
 pub use surface::{Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};

@@ -19,7 +19,6 @@ impl ToEgui for Rgba {
     }
 }
 
-/// The curve as an egui easing function, for `Context::animate_bool_with_time_and_easing`.
 /// A component's colours per state, e.g. `button.primary.fill`.
 impl ToEgui for States<Rgba> {
     type Egui = States<Color32>;
@@ -28,6 +27,7 @@ impl ToEgui for States<Rgba> {
     }
 }
 
+/// The curve as an egui easing function, for `Context::animate_bool_with_time_and_easing`.
 impl ToEgui for Easing {
     type Egui = fn(f32) -> f32;
     fn to_egui(self) -> fn(f32) -> f32 {

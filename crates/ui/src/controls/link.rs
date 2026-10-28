@@ -54,7 +54,7 @@ pub struct LinkStyle {
 /// `accent.text` is too close to `text.normal` to tell apart by colour. With a
 /// [`url`](Link::url) a click opens it (in a new tab with a modifier held or a middle click, on
 /// the web); without one the caller acts on [`clicked`](Response::clicked). AccessKit role
-/// `Link`, with the URL. Enter activates it, as it does a button.
+/// `Link`, with the URL. Enter activates it and Space doesn't, as in a browser (WAI-ARIA).
 #[derive(Clone, Debug)]
 pub struct Link {
     label: String,
