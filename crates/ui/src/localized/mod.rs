@@ -171,7 +171,7 @@ fn read(numbers: &LocaleNumbers, unit: &Unit, fallback: Option<&Fallback<'_>>, t
 }
 
 /// Text that may still become a number as the user types (`-`, `1,`): not marked while editing.
-fn incomplete(text: &str, error: NumberError) -> bool {
+pub(crate) fn incomplete(text: &str, error: NumberError) -> bool {
     match error {
         NumberError::Empty => true,
         NumberError::Separator => text.trim_end().ends_with(['.', ',', '٫', '٬', '\'', '’', '．', '，']),

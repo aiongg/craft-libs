@@ -513,8 +513,9 @@ error tooltips come from the catalog rows keyed by `localized::MESSAGES` (Englis
 missing). `localized::Unit` spells a unit around a number (`{n} px`, Turkish `%{n}`).
 
 `controls::NumberField` is the panel and dialog field. It reports through the edit lifecycle
-(`edit`): a typing run is one gesture read on commit; text it can't read stays, outlined, with the
-reason in a tooltip.
+(`edit`): a typing run is one gesture read on commit. Text that can't become a number is outlined
+as it is typed, with the reason in a tooltip; text the commit can't read stays, outlined. Its
+default width is `field.number_width`.
 
 ```rust
 let label = ui.add(Text::new(i18n.t(lang, "Width")));
@@ -530,9 +531,9 @@ let edit = NumberField::new("width", i18n.t(lang, "Width"), width, &numbers)
   step a point, Shift ten, Alt a tenth as fast; a drag is one gesture and Esc puts the value back.
 - Arrow keys, the wheel over the focused field and screen-reader increments step to the next
   multiple of `step` (5.1 up to 6, down to 5); Shift steps ten, Ctrl/Cmd a tenth where the
-  decimals show it.
+  decimals show it. Text that isn't a number takes no step and stays.
 - `.or_parse(reader)` reads what the locale can't (arithmetic, timecodes); `.popup_slider(name)`
-  adds a ▾ that opens a slider.
+  adds a ▾ that opens a slider over the range, which must be finite.
 - `.mixed(true)` shows a blank field for values that differ between objects; a typed number is a
   change even when it equals the host's value, which is where scrubs and steps start.
 - `localized::focus_first_field(ctx, true)` when a dialog opens: the first enabled field drawn

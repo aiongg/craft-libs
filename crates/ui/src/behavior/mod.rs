@@ -14,4 +14,4 @@ mod tests;
 mod typing;
 
 pub use radio_selection::RadioSelection;
-pub use typing::{Codec, Escape, PlainText, Typed, Typing, TypingLook};
+pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};

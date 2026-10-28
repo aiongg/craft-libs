@@ -53,8 +53,18 @@ pub trait Codec {
     fn format(&self, value: &Self::Value) -> String;
 
     /// The value `text` stands for, typed in a run that began at `start`; or why it stands for
-    /// none, in words for the user.
-    fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, String>;
+    /// none.
+    fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>;
+}
+
+/// Why text reads as no value, from [`Codec::parse`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NotAValue {
+    /// In words for the user: the invalid field's tooltip.
+    pub reason: String,
+    /// The text may still become a value as the user types on (`-`, `1,`): a typing run doesn't
+    /// mark it invalid. A commit rejects it all the same.
+    pub partial: bool,
 }
 
 /// Text as it is: the codec of [`Typing::new`].
@@ -70,7 +80,7 @@ impl Codec for PlainText {
         value.clone()
     }
 
-    fn parse(&self, text: &str, _start: &String) -> Result<String, String> {
+    fn parse(&self, text: &str, _start: &String) -> Result<String, NotAValue> {
         Ok(text.to_owned())
     }
 }
@@ -140,11 +150,13 @@ pub enum Escape {
 /// - **Typed values** ([`Typing::with_codec`]): the field shows its value as the [`Codec`] writes
 ///   it. Where text is a draft rather than a value (a number), the run reports no updates and
 ///   commits the draft read back, so Enter, the focus leaving and a field no longer drawn all
-///   commit the same value. A draft that reads as no value commits nothing (the run ends
-///   unchanged) and stays in the field, [rejected](Typed::rejected) with the codec's reason and
-///   reported invalid, until the user fixes it, Esc restores the value, or the host's value
-///   changes; a field no longer drawn drops it. An embedding control's own input (a drag, a
-///   step) goes through [`Typed::gesture`] and [`Typed::commit_with`].
+///   commit the same value. A draft that can't become a value is marked invalid as it is typed
+///   ([`Typed::rejected`]; text that still may, [`NotAValue::partial`], is not). A draft that
+///   reads as no value commits nothing (the run ends unchanged) and stays in the field, rejected
+///   with the codec's reason and reported invalid, until the user fixes it, Esc restores the
+///   value, or the host's value changes; a field no longer drawn drops it. An embedding
+///   control's own input (a drag, a step) goes through [`Typed::gesture`],
+///   [`Typed::commit_with`] and [`Typed::commit`].
 #[must_use = "show the field with `show`"]
 pub struct Typing<'a, C: Codec = PlainText> {
     id: Id,
@@ -334,7 +346,8 @@ impl<'a, C: Codec> Typing<'a, C> {
         let marked = output.state.preedit().map(|(range, _)| range);
         let composing = marked.is_some();
         let text = remove_chars(&buffer, marked);
-        let text_rect = output.galley.rect.translate(output.galley_pos.to_vec2());
+        // `galley_pos` is where the text starts; a right-aligned galley's rect starts left of 0.
+        let text_rect = Rect::from_min_size(output.galley_pos, output.galley.size());
         let response = output.response.response;
         let mut typed = Typed {
             id,
@@ -353,12 +366,13 @@ impl<'a, C: Codec> Typing<'a, C> {
             draft,
             rejected,
             replaced: false,
+            commit: false,
         };
         if typed.text != shown {
             let text = typed.text.clone();
             typed.change(ui, text);
         }
-        report(ui, id, self.label, self.role, self.password, self.invalid || typed.rejected.is_some(), enabled);
+        report(ui, id, self.label, self.role, self.password, self.invalid || typed.rejected().is_some(), enabled);
         typed
     }
 }
@@ -420,6 +434,8 @@ pub struct Typed<C: Codec = PlainText> {
     rejected: Option<Rejected<C::Value>>,
     /// The embedding control ended the run with a value of its own.
     replaced: bool,
+    /// The embedding control ended the run as Enter does.
+    commit: bool,
 }
 
 /// The text of a typing run whose text is a draft.
@@ -427,6 +443,8 @@ pub struct Typed<C: Codec = PlainText> {
 struct Draft {
     run: GestureId,
     text: String,
+    /// Why the text reads as no value.
+    error: Option<NotAValue>,
 }
 
 /// Text whose run committed nothing because it read as no value.
@@ -469,9 +487,29 @@ impl<C: Codec> Typed<C> {
         }
     }
 
-    /// Why the text shown reads as no value, while the field keeps rejected text.
+    /// Why the text shown reads as no value, while it is marked invalid: rejected text the field
+    /// keeps, or a typing run's draft that can't become a value (one that still may, `-` or
+    /// `1,`, isn't marked).
     pub fn rejected(&self) -> Option<&str> {
-        self.rejected.as_ref().map(|r| r.reason.as_str())
+        match (&self.rejected, self.draft()) {
+            (Some(r), _) => Some(r.reason.as_str()),
+            (None, Some(d)) => d.error.as_ref().filter(|e| !e.partial).map(|e| e.reason.as_str()),
+            (None, None) => None,
+        }
+    }
+
+    /// Whether the text shown reads as a value: not while the field keeps rejected text or a
+    /// typing run's draft reads as none (`-` included). A step from the text needs one.
+    pub fn reads_as_value(&self) -> bool {
+        match self.draft() {
+            Some(d) => d.error.is_none(),
+            None => self.rejected.is_none(),
+        }
+    }
+
+    /// The draft of the typing run under way.
+    fn draft(&self) -> Option<&Draft> {
+        self.draft.as_ref().filter(|d| self.gesture.id() == Some(d.run))
     }
 
     /// The field's gesture, for the embedding control's own input: a drag begins, updates and
@@ -479,6 +517,13 @@ impl<C: Codec> Typed<C> {
     /// (the run's text is read then, as on focus loss).
     pub fn gesture(&mut self) -> &mut Gesture<C::Value> {
         &mut self.gesture
+    }
+
+    /// Ends the typing run under way as Enter does, without [`submitted`](EditResponse::submitted):
+    /// its text read back commits, or, when it reads as no value, the run ends unchanged and the
+    /// text stays, rejected. Nothing without a run.
+    pub fn commit(&mut self) {
+        self.commit = self.is_typing();
     }
 
     /// Ends the typing run under way with `value` in place of its text (a step from the typed
@@ -509,7 +554,7 @@ impl<C: Codec> Typed<C> {
     /// [`end`](Typed::end) for a control that reports its value as another type: `report` maps
     /// the edit, as [`Gesture::finish_as`] does.
     pub fn end_as<U: Clone + Send + Sync + 'static>(mut self, ui: &Ui, report: impl Fn(C::Value) -> U) -> EditResponse<U> {
-        if self.submitted {
+        if self.submitted || self.commit {
             self.gesture.commit();
         }
         let focused = ui.memory(|m| m.has_focus(self.id));
@@ -525,14 +570,14 @@ impl<C: Codec> Typed<C> {
         }
         // A run of drafts ends on Enter or when the focus leaves (the gesture commits it as it
         // finishes): text that reads as no value stays, rejected.
-        let ending = self.submitted || !focused || self.replaced;
+        let ending = self.submitted || self.commit || !focused || self.replaced;
         if let Some(draft) = self.draft.take_if(|_| ending)
             && !self.replaced
             && self.gesture.id() == Some(draft.run)
             && let Some(start) = self.gesture.start()
-            && let Err(reason) = self.codec.parse(&draft.text, start)
+            && let Err(error) = self.codec.parse(&draft.text, start)
         {
-            self.rejected = Some(Rejected { text: draft.text, reason, host: self.host.clone() });
+            self.rejected = Some(Rejected { text: draft.text, reason: error.reason, host: self.host.clone() });
         }
         if focused && !self.was_focused && FocusRing::visible(ui.ctx()) {
             select_all(ui, self.id, &self.buffer);
@@ -564,22 +609,22 @@ impl<C: Codec> Typed<C> {
             }
         }
         let Some(start) = self.gesture.start().cloned() else { return };
-        match self.codec.parse(&text, &start) {
+        // The run's draft carries any mark from here.
+        self.rejected = None;
+        let error = match self.codec.parse(&text, &start) {
             Ok(value) => {
                 self.gesture.update(value, modifiers);
-                self.rejected = None;
+                None
             }
-            Err(reason) => {
+            Err(error) => {
                 self.gesture.update(start, modifiers);
-                if let Some(r) = &mut self.rejected {
-                    (r.text, r.reason) = (text.clone(), reason);
-                }
+                Some(error)
             }
-        }
+        };
         if !C::DRAFTS_ARE_VALUES
             && let Some(run) = self.gesture.id()
         {
-            self.draft = Some(Draft { run, text });
+            self.draft = Some(Draft { run, text, error });
         }
     }
 }

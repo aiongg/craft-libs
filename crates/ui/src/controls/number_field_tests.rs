@@ -2,12 +2,15 @@
 //! scrubbing, keys and the wheel, locales, units, mixed values, the pop-up slider and AccessKit.
 
 use egui::accesskit::{Action, ActionData, ActionRequest, Node, Role, TreeId};
-use egui::{Context, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, pos2, vec2};
+use egui::epaint::{ClippedShape, Shape};
+use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, pos2, vec2};
 
-use super::NumberField;
+use super::{NumberField, SIZE_NAMES, number_field};
 use crate::behavior::{Typing, TypingLook};
-use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
+use crate::direction::{self, Direction};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
 use crate::localized::{LocaleNumbers, Unit, focus_first_field};
+use crate::story::Args;
 use crate::theme::{Base, install};
 
 /// A host with one number field after an egui button. It applies every value it is sent and
@@ -31,6 +34,9 @@ struct Rig {
     popup: bool,
     arithmetic: bool,
     drawn: bool,
+    enabled: bool,
+    /// What the host makes of a value it is sent (a host that snaps).
+    adjust: fn(f64) -> f64,
     policy: EditPolicy,
     id: Id,
     rect: Rect,
@@ -40,6 +46,9 @@ struct Rig {
     /// The field's AccessKit node and its children's roles in the last update.
     node: Option<Node>,
     children: Vec<Role>,
+    /// The pop-up slider's bounds while it is open.
+    slider: Option<Rect>,
+    cursor: CursorIcon,
     /// Whether the value lives in `doc` behind `host`.
     hosted: bool,
     doc: Doc,
@@ -72,6 +81,8 @@ impl Rig {
             popup: false,
             arithmetic: false,
             drawn: true,
+            enabled: true,
+            adjust: |v| v,
             policy: EditPolicy::default(),
             id: Id::NULL,
             rect: Rect::NOTHING,
@@ -79,6 +90,8 @@ impl Rig {
             events: Vec::new(),
             node: None,
             children: Vec::new(),
+            slider: None,
+            cursor: CursorIcon::Default,
             hosted: false,
             doc: Doc::default(),
             host: GestureHost::new(),
@@ -114,6 +127,7 @@ impl Rig {
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| self.controls(ui));
         let update = output.platform_output.accesskit_update.clone();
+        self.cursor = output.platform_output.cursor_icon;
         output.drop_without_applying_deltas();
         if let Some(update) = update {
             let id = self.id.accesskit_id();
@@ -124,6 +138,12 @@ impl Rig {
                 .filter_map(|child| update.nodes.iter().find(|(n, _)| *n == child).map(|(_, node)| node.role()))
                 .collect();
             self.node = node;
+            self.slider = update
+                .nodes
+                .iter()
+                .find(|(_, n)| n.role() == Role::Slider)
+                .and_then(|(_, n)| n.bounds())
+                .map(|b| Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32)));
         }
     }
 
@@ -145,6 +165,7 @@ impl Rig {
             .decimals(self.decimals.0..=self.decimals.1)
             .unit(self.unit.clone())
             .mixed(self.mixed)
+            .enabled(self.enabled)
             .policy(self.policy);
         if self.scrub {
             field = field.scrub_label("W");
@@ -187,7 +208,7 @@ impl Rig {
             EditEvent::Cancel { .. } => self.value = self.before,
             other => {
                 if let Some(&v) = other.value() {
-                    self.value = v;
+                    self.value = (self.adjust)(v);
                 }
             }
         }
@@ -628,4 +649,178 @@ fn a_label_before_the_field_scrubs_it_and_is_no_tab_stop() {
     rig.frame(vec![]);
     rig.key(Key::Tab);
     assert!(rig.has_focus(), "Tab goes from the button to the field");
+}
+
+fn wheel_notch() -> Event {
+    Event::MouseWheel {
+        unit: MouseWheelUnit::Line,
+        delta: vec2(0.0, 1.0),
+        modifiers: Modifiers::NONE,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+    }
+}
+
+#[test]
+fn text_that_cannot_become_a_number_is_marked_as_it_is_typed() {
+    let mut rig = Rig::with(7.0, |r| r.numbers = LocaleNumbers::from_tag("de"));
+    rig.focus();
+    rig.type_text("-");
+    assert!(!rig.invalid(), "`-` may still become a number");
+    rig.type_text("1,");
+    assert!(!rig.invalid(), "nor may `-1,`");
+    rig.type_text("x");
+    assert!(rig.invalid(), "`-1,x` can't");
+    rig.key(Key::Backspace);
+    assert!(!rig.invalid());
+    rig.type_text("5");
+    rig.key(Key::Enter);
+    assert_eq!((rig.value, rig.invalid()), (-1.5, false));
+}
+
+#[test]
+fn a_step_on_text_that_is_no_number_keeps_the_text_and_the_value() {
+    let mut rig = Rig::new(7.0);
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("12x");
+    let id = begin_id(&since(&rig, n));
+    rig.key(Key::ArrowUp);
+    assert_eq!(rig.event, Some(commit(id, 7.0, false)), "the run ends as on Enter");
+    rig.frame(vec![]);
+    assert_eq!((rig.value, rig.shown().as_deref(), rig.invalid(), rig.has_focus()), (7.0, Some("12x"), true, true));
+
+    // Kept, rejected text takes no step either, from the arrows or the wheel.
+    let n = rig.events.len();
+    rig.key(Key::ArrowDown);
+    rig.frame(vec![Event::PointerMoved(rig.rect.center()), wheel_notch()]);
+    rig.frame(vec![]);
+    assert_eq!(since(&rig, n), []);
+    assert_eq!((rig.value, rig.shown().as_deref(), rig.invalid()), (7.0, Some("12x"), true));
+}
+
+#[test]
+fn an_undo_mid_scrub_leaves_the_reverted_value_until_the_release() {
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.hosted = true;
+    });
+    let at = rig.handle();
+    rig.drag(at, &[10.0, 20.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 30.0);
+    // Cmd+Z outside the field during a gesture, as the event-log story does it.
+    let id = rig.host.active().expect("a scrub under way");
+    rig.host.cancel(&mut rig.doc, id);
+    rig.value = rig.doc.value;
+    edit::cancel_all(&rig.ctx, CancelReason::UndoDuringGesture);
+    let n = rig.events.len();
+    for dx in [30.0, 40.0, 50.0] {
+        rig.frame(vec![Event::PointerMoved(at + vec2(dx, 0.0))]);
+        assert_eq!(rig.value, 10.0);
+    }
+    rig.frame(vec![pointer(at + vec2(50.0, 0.0), false)]);
+    let events = since(&rig, n);
+    assert!(events.iter().all(|e| matches!(e, EditEvent::Cancel { .. })), "{events:?}");
+    assert_eq!((rig.value, rig.doc.undo.len()), (10.0, 0));
+}
+
+#[test]
+fn a_host_that_snaps_a_scrub_cancels_it_once() {
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.adjust = |v| (v / 4.0).floor() * 4.0;
+    });
+    let n = rig.events.len();
+    rig.drag(rig.handle(), &[10.0, 20.0, 30.0, 40.0, 50.0], Modifiers::NONE, true);
+    let events = since(&rig, n);
+    let begins = events.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).count();
+    assert_eq!(begins, 1, "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Cancel { reason: CancelReason::External, .. })), "{events:?}");
+    assert_eq!(rig.value, 28.0);
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "a pop-up slider needs a finite range")]
+fn a_popup_slider_without_a_finite_range_is_a_debug_assertion() {
+    let _ = Rig::with(5.0, |r| r.popup = true);
+}
+
+#[test]
+fn a_drag_inside_the_open_popup_slider_is_one_gesture_and_one_undo_step() {
+    let mut rig = Rig::with(50.0, |r| {
+        r.range = (0.0, 100.0);
+        r.popup = true;
+        r.hosted = true;
+    });
+    let arrow = pos2(rig.rect.right() - 8.0, rig.rect.center().y);
+    rig.frame(vec![Event::PointerMoved(arrow), pointer(arrow, true)]);
+    rig.frame(vec![pointer(arrow, false)]);
+    rig.frame(vec![]);
+    let slider = rig.slider.expect("the pop-up slider is open");
+    let n = rig.events.len();
+    rig.drag(slider.center(), &[10.0, 20.0, 30.0], Modifiers::NONE, true);
+    let events = since(&rig, n);
+    let id = begin_id(&events);
+    assert_eq!(events.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).count(), 1, "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { id: c, changed: true, .. }) if *c == id), "{events:?}");
+    assert!(rig.value > 50.0, "{}", rig.value);
+    assert_eq!(rig.doc.undo.len(), 1);
+}
+
+#[test]
+fn a_disabled_field_shows_no_scrub_cursor_and_takes_no_scrub() {
+    let mut rig = Rig::with(10.0, |r| r.scrub = true);
+    rig.frame(vec![Event::PointerMoved(rig.handle())]);
+    assert_eq!(rig.cursor, CursorIcon::ResizeHorizontal);
+
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.enabled = false;
+    });
+    rig.frame(vec![Event::PointerMoved(rig.handle())]);
+    assert_eq!(rig.cursor, CursorIcon::Default);
+    let n = rig.events.len();
+    rig.drag(rig.handle(), &[10.0, 20.0], Modifiers::NONE, true);
+    assert_eq!((since(&rig, n), rig.value), (vec![], 10.0));
+}
+
+/// The texts the right-to-left story paints in `dir`, German digits: each one's text and rect.
+fn right_to_left_story(dir: Direction) -> Vec<(String, Rect)> {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    direction::apply(&ctx, dir);
+    let story = number_field::stories().into_iter().find(|s| s.id == "controls/number-field/right-to-left").expect("the story");
+    let mut args = Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", &["en", "de", "ar-EG"], 1);
+    let mut texts = Vec::new();
+    for _ in 0..2 {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), ..Default::default() };
+        let output = ctx.run_ui(input, |ui| (story.show)(ui, &mut args));
+        texts.clear();
+        let mut shapes: Vec<Shape> = output.shapes.iter().map(|ClippedShape { shape, .. }| shape.clone()).collect();
+        while let Some(shape) = shapes.pop() {
+            match shape {
+                Shape::Vec(inner) => shapes.extend(inner),
+                Shape::Text(t) => texts.push((t.galley.text().to_owned(), t.galley.rect.translate(t.pos.to_vec2()))),
+                _ => {}
+            }
+        }
+        output.drop_without_applying_deltas();
+    }
+    texts
+}
+
+#[test]
+fn right_to_left_keeps_the_digits_the_unit_and_the_scrub_label_in_place() {
+    let parts = |dir| {
+        let texts = right_to_left_story(dir);
+        let find = |text: &str| texts.iter().find(|(t, _)| t == text).map(|(_, r)| *r).unwrap_or_else(|| panic!("{text} in {texts:?}"));
+        (find("W"), find("12,5"), find(" cm"))
+    };
+    let (w, digits, unit) = parts(Direction::Rtl);
+    assert!(w.right() < digits.left(), "the scrub label at the left: {w:?} {digits:?}");
+    assert!((unit.left() - digits.right()).abs() < 0.5, "the unit after the digits: {digits:?} {unit:?}");
+    let (ltr_w, ltr_digits, ltr_unit) = parts(Direction::Ltr);
+    let from_w = |w: Rect, r: Rect| r.min - w.min;
+    assert_eq!((from_w(w, digits), from_w(w, unit)), (from_w(ltr_w, ltr_digits), from_w(ltr_w, ltr_unit)));
 }

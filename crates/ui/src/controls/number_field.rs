@@ -18,10 +18,10 @@ use egui::{
 use super::slider::{Scale, Track, labelled, pointer, wheel, with_values};
 use super::text_field::field_box;
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
-use crate::behavior::{Codec, Typed, Typing, TypingLook};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
+use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::localized::{LocaleNumbers, Unit, first_field_id, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
@@ -30,7 +30,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct NumberFieldStyle {
-    /// The box, the text and the selection: [`TextField::style`].
+    /// The box, the text and the selection: [`TextField::style`], `field.number_width` wide.
     pub field: TextFieldStyle,
     /// The unit: `field.unit.rest` and `field.unit.disabled`.
     pub unit: Color32,
@@ -84,19 +84,22 @@ enum Handle {
 ///   and the focus leaving commit the text read back: [`LocaleNumbers::parse`] with the unit
 ///   taken off, then the app's [`or_parse`](NumberField::or_parse); rounded to the most decimals
 ///   shown (half away from zero) and clamped to the range. The text as the field shows it stands
-///   for the value itself, decimals the field doesn't show included. Text that isn't a number
-///   commits nothing: it stays in the field with the invalid edge and the reason as tooltip,
-///   until the user fixes it or Esc restores the value. Esc during a run cancels it.
+///   for the value itself, decimals the field doesn't show included. Text that can't become a
+///   number gets the invalid edge and the reason as tooltip as it is typed (`-` and `1,` don't).
+///   Text that isn't a number commits nothing: it stays in the field, marked, until the user
+///   fixes it or Esc restores the value. Esc during a run cancels it.
 /// - **Scrubbing**: a horizontal drag on the [scrub label](NumberField::scrub_label) or
 ///   [icon](NumberField::scrub_icon) inside the field, or on a label outside it
 ///   ([`scrub_by`](NumberField::scrub_by)), moves a step per point; Shift ten steps, Alt a tenth
 ///   as fast. A drag is one gesture: Esc cancels it, a still pointer leaves the value exactly as
-///   it was. A drag on the text selects it.
+///   it was; once the gesture is cancelled (Esc, an undo, the host's own change) the drag does
+///   nothing more until the release. A drag on the text selects it.
 /// - **Keys and the wheel**: Up and Down step the focused field, as does the wheel over it;
 ///   Shift steps ten, Cmd/Ctrl a tenth where the decimals show it. A plain or fine step goes to
 ///   the next multiple of its size (by 1, 5.1 goes up to 6 and down to 5). Each frame's steps are
 ///   one [`Set`](EditEvent::Set); during a typing run they step from the typed value and the
-///   run's commit carries the result.
+///   run's commit carries the result. Text that isn't a number takes no step: an arrow ends the
+///   run as Enter does (the text stays, marked) and the wheel scrolls the panel.
 /// - **Pop-up slider** ([`popup_slider`](NumberField::popup_slider)): a ▾ at the field's end
 ///   opens a [`Slider`] below it; pressing the ▾ and dragging moves the value at once, as far as
 ///   the slider would, and closes it on release. A drag on either is one gesture.
@@ -209,8 +212,11 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// A ▾ at the field's end that opens a [`Slider`] over the range, which must be finite.
-    /// `name` (translated by the app) is the ▾'s tooltip and accessible name.
+    /// A ▾ at the field's end that opens a [`Slider`] over the range. `name` (translated by the
+    /// app) is the ▾'s tooltip and accessible name.
+    ///
+    /// The slider needs a finite [`range`](NumberField::range): without one this is a debug
+    /// assertion, and release builds draw no ▾.
     pub fn popup_slider(mut self, name: impl Into<String>) -> Self {
         self.popup = Some(name.into());
         self
@@ -248,8 +254,10 @@ impl<'a> NumberField<'a> {
 
     pub fn style(tokens: &UiTokens, size: ControlSize) -> NumberFieldStyle {
         let f = &tokens.component.field;
+        let mut field = TextField::style(tokens, size);
+        field.width = f.number_width.get(size);
         NumberFieldStyle {
-            field: TextField::style(tokens, size),
+            field,
             unit: f.unit.rest.to_egui(),
             unit_disabled: f.unit.disabled.to_egui(),
             scrub: f.scrub.rest.to_egui(),
@@ -258,12 +266,16 @@ impl<'a> NumberField<'a> {
     }
 
     /// Shows the field and returns this frame's edit. The response covers the box.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
+    pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
+        let bounds = ordered(&self.range);
+        if !(bounds.0.is_finite() && bounds.1.is_finite()) {
+            debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");
+            self.popup = None;
+        }
         let tokens = Tokens::of(ui);
         let style = NumberField::style(&tokens, self.size);
         let enabled = self.enabled && ui.is_enabled();
         let id = Interactive::id_in(ui, self.id_salt);
-        let bounds = ordered(&self.range);
         let host = (!self.mixed && self.value.is_finite()).then_some(self.value);
         let codec = Numbers { numbers: self.numbers, decimals: self.decimals.clone(), unit: &self.unit, fallback: self.fallback.as_deref(), bounds };
         let font = tokens.font(style.field.role);
@@ -369,38 +381,36 @@ impl<'n> Input<'n> {
             {
                 // A typing run ends as the focus leaves, its text read before the first step.
                 ui.memory_mut(|m| m.surrender_focus(self.id));
-                ui.data_mut(|d| d.insert_temp(key, Scrub { last_x: origin.x, steps: 0.0 }));
+                ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0 }));
             }
             if drag.dragged_by(PointerButton::Primary)
-                && !typed.is_typing()
-                && let Some(mut scrub) = ui.data(|d| d.get_temp::<Scrub>(key))
                 && let Some((pos, _)) = pointer(ui, drag)
+                && let Some(mut scrub) = ui.data(|d| d.get_temp::<Scrub>(key))
+                && scrub.press.under_way(typed)
             {
+                let m = self.modifiers;
+                let rate = if m.shift {
+                    10.0
+                } else if m.alt {
+                    0.1
+                } else {
+                    1.0
+                };
+                scrub.steps += f64::from(pos.x - scrub.last_x) * STEPS_PER_POINT * rate;
+                scrub.last_x = pos.x;
+                let n = scrub.steps.trunc();
+                scrub.steps -= n;
                 let gesture = typed.gesture();
-                gesture.begin();
-                if gesture.is_active() {
-                    let m = self.modifiers;
-                    let rate = if m.shift {
-                        10.0
-                    } else if m.alt {
-                        0.1
-                    } else {
-                        1.0
-                    };
-                    scrub.steps += f64::from(pos.x - scrub.last_x) * STEPS_PER_POINT * rate;
-                    scrub.last_x = pos.x;
-                    let n = scrub.steps.trunc();
-                    scrub.steps -= n;
-                    if n != 0.0 {
-                        let from = gesture.shown().unwrap_or(self.base);
-                        gesture.update(Some(self.codec.settle(from + n * self.step)), m);
-                    }
-                    ui.data_mut(|d| d.insert_temp(key, scrub));
+                if n != 0.0 {
+                    let from = gesture.shown().unwrap_or(self.base);
+                    gesture.update(Some(self.codec.settle(from + n * self.step)), m);
                 }
+                ui.data_mut(|d| d.insert_temp(key, scrub));
             }
-            if drag.drag_stopped() {
-                ui.data_mut(|d| d.remove::<Scrub>(key));
-                self.end_drag(typed);
+            if drag.drag_stopped()
+                && let Some(scrub) = ui.data_mut(|d| d.remove_temp::<Scrub>(key))
+            {
+                scrub.press.release(typed);
             }
         }
     }
@@ -428,18 +438,20 @@ impl<'n> Input<'n> {
         let arrow = arrow.tooltip(name);
         let (lo, hi) = self.codec.bounds;
         let scale = Scale::new(&(lo..=hi), (self.step > 0.0).then_some(self.step));
+        let arrow_press = self.id.with("craft_ui::number_field::popup_press");
         if arrow.drag_started_by(PointerButton::Primary) {
             Popup::open_id(ui.ctx(), popup_id);
             ui.memory_mut(|m| m.surrender_focus(self.id));
+            ui.data_mut(|d| d.insert_temp(arrow_press, Press::default()));
         }
         if arrow.dragged_by(PointerButton::Primary)
-            && !typed.is_typing()
             && let Some((pos, origin)) = pointer(ui, &arrow)
+            && let Some(mut press) = ui.data(|d| d.get_temp::<Press>(arrow_press))
+            && press.under_way(typed)
         {
             let slider = Slider::style(&tokens, field.size);
             let track = Track::new(Rect::from_min_size(at.min, vec2(slider.width, slider.height)), &slider, scale);
             let gesture = typed.gesture();
-            gesture.begin();
             if let Some(start) = gesture.start().copied() {
                 let dx = pos.x - origin.x;
                 // A still pointer leaves the value as it was.
@@ -450,10 +462,13 @@ impl<'n> Input<'n> {
                 };
                 gesture.update(to, self.modifiers);
             }
+            ui.data_mut(|d| d.insert_temp(arrow_press, press));
         }
         if arrow.drag_stopped() {
             Popup::close_id(ui.ctx(), popup_id);
-            self.end_drag(typed);
+            if let Some(press) = ui.data_mut(|d| d.remove_temp::<Press>(arrow_press)) {
+                press.release(typed);
+            }
         }
         let mut slider = Slider::new(self.id.with("craft_ui::number_field::slider"), name, typed.value().unwrap_or(self.base), lo..=hi)
             .size(field.size)
@@ -467,49 +482,58 @@ impl<'n> Input<'n> {
             .anchor(rect)
             .align(RectAlign::BOTTOM_END)
             .align_alternatives(&[RectAlign::TOP_END]);
-        // Inside a scope the slider reports updates only, which the field's gesture carries.
+        // Inside a scope the slider reports updates only, which the field's gesture carries: a
+        // drag on it as one gesture, a tap or a key as one change.
         let Some(inner) = popup.show(|ui| edit::scope(ui, |ui| slider.show(ui)).inner) else { return false };
         let edit = inner.inner;
-        let stopped = edit.response.drag_stopped();
+        let drag = &edit.response;
+        let slider_press = self.id.with("craft_ui::number_field::slider_press");
+        if drag.drag_started_by(PointerButton::Primary) {
+            ui.data_mut(|d| d.insert_temp(slider_press, Press::default()));
+        }
+        let mut press = ui.data(|d| d.get_temp::<Press>(slider_press));
+        let dragging = press.is_some() && (drag.dragged() || drag.drag_stopped());
         match edit.event.as_ref().and_then(EditEvent::value) {
-            Some(&value) if typed.is_typing() => typed.commit_with(ui, Some(self.codec.settle(value))),
+            Some(&value) if typed.is_typing() || !dragging => typed.commit_with(ui, Some(self.codec.settle(value))),
             Some(&value) => {
-                let gesture = typed.gesture();
-                if !stopped {
-                    gesture.begin();
-                }
-                gesture.update(Some(self.codec.settle(value)), self.modifiers);
-                if !edit.response.dragged() {
-                    gesture.commit();
+                if let Some(press) = &mut press
+                    && press.under_way(typed)
+                {
+                    typed.gesture().update(Some(self.codec.settle(value)), self.modifiers);
                 }
             }
-            None if stopped => self.end_drag(typed),
             None => {}
+        }
+        if let Some(press) = press {
+            if drag.drag_stopped() {
+                ui.data_mut(|d| d.remove::<Press>(slider_press));
+                press.release(typed);
+            } else {
+                ui.data_mut(|d| d.insert_temp(slider_press, press));
+            }
         }
         true
     }
 
-    /// Commits the drag under way, unless a typing run is.
-    fn end_drag(&self, typed: &mut Typed<Numbers<'n>>) {
-        if !typed.is_typing() {
-            typed.gesture().commit();
-        }
-    }
-
     /// This frame's `arrows`, wheel notches and screen-reader requests, as one change: during a
-    /// drag, none.
+    /// drag, none. Text that isn't a number takes no step: the typing run ends as on Enter, the
+    /// text stays rejected, and the wheel is the panel's.
     fn step(&self, ui: &Ui, typed: &mut Typed<Numbers<'n>>, arrows: &[(Modifiers, f64)], stepping: bool, enabled: bool, places: usize) {
         let response = typed.response().clone();
         let dragging = typed.gesture().is_active() && !typed.is_typing();
         let focused = enabled && response.has_focus();
+        let reads = typed.reads_as_value();
         let mut to = None;
         if stepping {
-            let notches = wheel(ui, self.id, 1.0, 10.0, focused && response.contains_pointer(), dragging);
+            let notches = wheel(ui, self.id, 1.0, 10.0, focused && reads && response.contains_pointer(), dragging);
             let requests = ui.input(|i| {
                 i.num_accesskit_action_requests(self.id, Action::Increment) as f64
                     - i.num_accesskit_action_requests(self.id, Action::Decrement) as f64
             });
-            if !arrows.is_empty() || notches != 0.0 || requests != 0.0 {
+            let steps = !arrows.is_empty() || notches != 0.0 || requests != 0.0;
+            if steps && !reads {
+                typed.commit();
+            } else if steps {
                 let from = typed.value().unwrap_or(self.base);
                 let v = arrows.iter().fold(from, |v, &(modifiers, n)| stepped(v, self.step, places, modifiers, n));
                 to = Some([notches, requests].into_iter().filter(|n| *n != 0.0).fold(v, |v, n| stepped(v, self.step, places, Modifiers::NONE, n)));
@@ -538,9 +562,38 @@ impl<'n> Input<'n> {
     }
 }
 
+/// A press on a scrub handle, the ▾ or the pop-up slider, until its release.
+#[derive(Clone, Copy, Debug, Default)]
+struct Press {
+    /// The gesture the press began; none before it begins.
+    gesture: Option<GestureId>,
+}
+
+impl Press {
+    /// Begins the press's gesture, once and when no typing run is under way (a run the press
+    /// ended commits first); whether that gesture is under way. One that has ended (a cancel)
+    /// leaves the press with nothing to do until its release.
+    fn under_way(&mut self, typed: &mut Typed<Numbers<'_>>) -> bool {
+        if self.gesture.is_none() && !typed.is_typing() {
+            let gesture = typed.gesture();
+            gesture.begin();
+            self.gesture = gesture.id();
+        }
+        self.gesture.is_some() && typed.gesture().id() == self.gesture
+    }
+
+    /// Commits the press's gesture on release, while it is under way.
+    fn release(self, typed: &mut Typed<Numbers<'_>>) {
+        if self.gesture.is_some() && typed.gesture().id() == self.gesture {
+            typed.gesture().commit();
+        }
+    }
+}
+
 /// A scrub under way.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct Scrub {
+    press: Press,
     /// The pointer's x when the steps were last counted (the press, at first: the points moved
     /// before egui starts the drag count too).
     last_x: f32,
@@ -580,7 +633,7 @@ impl Codec for Numbers<'_> {
         value.filter(|v| v.is_finite()).map_or_else(String::new, |v| self.numbers.format(v, self.decimals.clone()))
     }
 
-    fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, String> {
+    fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
         let bare = self.unit.strip(text);
         // The text as shown stands for the value itself, with the decimals it doesn't show.
         if start.is_some() && bare == self.format(start) {
@@ -593,7 +646,10 @@ impl Codec for Numbers<'_> {
         let read = self.numbers.parse(bare);
         match read.as_ref().ok().copied().or_else(|| self.fallback.and_then(|f| f(text))).filter(|v| v.is_finite()) {
             Some(v) => Ok(Some(self.settle(v))),
-            None => Err(self.numbers.describe(read.err().unwrap_or(craft_i18n::NumberError::TooLarge))),
+            None => {
+                let error = read.err().unwrap_or(craft_i18n::NumberError::TooLarge);
+                Err(NotAValue { reason: self.numbers.describe(error), partial: incomplete(bare, error) })
+            }
         }
     }
 }
