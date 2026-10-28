@@ -34,6 +34,7 @@ struct Rig {
     popover_events: Vec<EditEvent<PickedColor>>,
     palette_events: Vec<EditEvent<Srgba>>,
     scoped: bool,
+    palette_width: f32,
     open: bool,
     picker: egui::Id,
     nodes: Vec<(NodeId, Node)>,
@@ -56,6 +57,7 @@ impl Rig {
             popover_events: Vec::new(),
             palette_events: Vec::new(),
             scoped: false,
+            palette_width: 500.0,
             open: false,
             picker: egui::Id::NULL,
             nodes: Vec::new(),
@@ -83,7 +85,13 @@ impl Rig {
             popover = picked.edit.event;
             ui.text_edit_singleline(&mut String::from("elsewhere"));
             let swatches = SWATCHES.map(|(name, rgb)| (name, srgba(rgb)));
-            palette = SwatchPalette::new("palette", "Swatches", self.color, swatches).show(ui).event;
+            let width = self.palette_width;
+            palette = ui
+                .scope(|ui| {
+                    ui.set_max_width(width);
+                    SwatchPalette::new("palette", "Swatches", self.color, swatches).show(ui).event
+                })
+                .inner;
         });
         for event in [popover.as_ref().and_then(|e| e.value().copied())].into_iter().flatten() {
             self.color = event.color;
@@ -213,22 +221,59 @@ fn the_palette_is_a_radio_group_that_selects_by_click_and_moves_focus_by_arrows(
         assert_eq!(node.toggled() == Some(Toggled::True), name == "Green", "{name}: only the colour in use is checked");
     }
 
-    rig.click_node(Role::RadioButton, "Blue");
-    assert_eq!(rig.palette_events.len(), 1);
-    assert!(matches!(rig.palette_events[0], EditEvent::Set { .. }), "a click is one Set");
-    assert_eq!(rig.node(Role::RadioButton, "Blue").toggled(), Some(Toggled::True));
+    // One Tab stop: Tab enters on the colour in use and the next Tab leaves.
+    rig.tab_to("Green");
+    let swatch_focused = |rig: &Rig| rig.nodes.iter().any(|(_, n)| n.role() == Role::RadioButton && n.label() == rig.focused_name().as_deref());
+    assert!(swatch_focused(&rig));
+    rig.key(Key::Tab, Modifiers::NONE);
+    assert!(!swatch_focused(&rig), "Tab leaves the palette");
+    rig.key(Key::Tab, Modifiers::SHIFT);
+    assert_eq!(rig.focused_name().as_deref(), Some("Green"), "Shift+Tab comes back to the selected swatch");
 
-    // Every swatch is a Tab stop; arrows move the focus without selecting.
-    rig.tab_to("Blue");
+    // Arrows move through the swatches without selecting; Home and End go to the ends.
     rig.key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.focused_name().as_deref(), Some("Teal"));
+    rig.key(Key::Home, Modifiers::NONE);
+    assert_eq!(rig.focused_name().as_deref(), Some("Red"));
+    rig.key(Key::End, Modifiers::NONE);
     assert_eq!(rig.focused_name().as_deref(), Some("Violet"));
     rig.key(Key::ArrowLeft, Modifiers::NONE);
-    rig.key(Key::ArrowLeft, Modifiers::NONE);
-    assert_eq!(rig.focused_name().as_deref(), Some("Teal"));
-    assert_eq!(rig.palette_events.len(), 1, "no selection by moving");
+    assert_eq!(rig.focused_name().as_deref(), Some("Blue"));
+    assert!(rig.palette_events.is_empty(), "no selection by moving");
     rig.key(Key::Space, Modifiers::NONE);
-    assert_eq!(rig.palette_events.len(), 2, "Space selects the focused swatch");
-    assert_eq!(rig.color.to_rgba().to_hex(), "#12a594");
+    assert_eq!(rig.palette_events.len(), 1, "Space selects the focused swatch");
+    assert!(matches!(rig.palette_events[0], EditEvent::Set { .. }), "one Set");
+    assert_eq!(rig.node(Role::RadioButton, "Blue").toggled(), Some(Toggled::True));
+
+    rig.click_node(Role::RadioButton, "Orange");
+    assert_eq!(rig.palette_events.len(), 2, "a click is one Set");
+    assert_eq!(rig.color.to_rgba().to_hex(), "#f76b15");
+}
+
+#[test]
+fn the_palette_arrows_walk_the_wrapped_grid() {
+    // Three to a row: Red Orange Green / Teal Blue Violet.
+    let mut rig = Rig::new(srgba(SWATCHES[2].1));
+    rig.palette_width = 80.0;
+    rig.settle();
+    assert!(rig.bounds(Role::RadioButton, "Teal").min.y > rig.bounds(Role::RadioButton, "Red").min.y, "the palette wrapped");
+    rig.tab_to("Green");
+    let steps = [
+        (Key::ArrowDown, "Violet"),
+        (Key::ArrowUp, "Green"),
+        (Key::ArrowUp, "Green"),
+        (Key::ArrowRight, "Teal"),
+        (Key::ArrowLeft, "Green"),
+        (Key::ArrowLeft, "Orange"),
+        (Key::ArrowDown, "Blue"),
+        (Key::ArrowRight, "Violet"),
+        (Key::ArrowRight, "Violet"),
+    ];
+    for (key, expected) in steps {
+        rig.key(key, Modifiers::NONE);
+        assert_eq!(rig.focused_name().as_deref(), Some(expected), "{key:?}");
+    }
+    assert!(rig.palette_events.is_empty());
 }
 
 #[test]

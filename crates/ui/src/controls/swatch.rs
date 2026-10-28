@@ -4,7 +4,7 @@ use craft_theme::{ControlSize, Rgba, SwatchTokens};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
-use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
 
 use super::{SIZE_NAMES, size_arg};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
@@ -75,6 +75,8 @@ pub struct Swatch {
     /// A radio button of a group: whether it is the checked one, and its place in the set.
     radio: Option<bool>,
     position: Option<usize>,
+    /// Whether keyboard focus can reach it; a palette keeps one swatch a stop.
+    tab_stop: bool,
     enabled: bool,
     id_salt: IdSalt,
 }
@@ -89,6 +91,7 @@ impl Swatch {
             selected: false,
             radio: None,
             position: None,
+            tab_stop: true,
             enabled: true,
             id_salt: IdSalt::new(id_salt),
         }
@@ -123,6 +126,13 @@ impl Swatch {
     /// The swatch's place in its group, from 0, for a screen reader.
     pub(crate) fn position_in_set(mut self, index: usize) -> Self {
         self.position = Some(index);
+        self
+    }
+
+    /// Whether the keyboard focus can reach the swatch (Tab, the arrows); a swatch that can't
+    /// still takes clicks.
+    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
         self
     }
 
@@ -235,6 +245,9 @@ impl Widget for Swatch {
             .focus_ring(false)
             .selected(self.selected)
             .enabled(self.enabled);
+        if !self.tab_stop {
+            element = element.sense(Sense::CLICK);
+        }
         if let Some(checked) = self.radio {
             element = element.checked(checked);
         }
