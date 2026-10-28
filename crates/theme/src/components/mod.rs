@@ -13,8 +13,10 @@ mod handle;
 mod icon_button;
 mod kbd;
 mod listbox;
+mod panel_header;
 mod progress;
 mod property;
+mod section;
 mod segmented;
 mod slider;
 mod swatch;
@@ -35,8 +37,10 @@ pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
+pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
+pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
@@ -544,10 +548,14 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
+    /// Panel headers: the title row of a flyout or floating panel.
+    panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.
     property: PropertyTokens => Property(PropertyField);
+    /// Section headers: the row, chevron and title of a collapsible section.
+    section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options on a track.
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
