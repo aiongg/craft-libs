@@ -3,7 +3,15 @@
 
 use std::ops::RangeInclusive;
 
+use egui::Modifiers;
+
 use crate::localized::{LocaleNumbers, Unit};
+
+/// Whether a drag snaps to the ruler's ticks: Shift held, whatever else is (PhotoCraft's guides
+/// and zero point).
+pub(super) fn tick_snap(modifiers: Modifiers) -> bool {
+    modifiers.shift
+}
 
 /// How a ruler divides its unit at a zoom.
 #[derive(Clone, Copy, Debug)]
@@ -72,12 +80,17 @@ impl RulerUnits {
     }
 
     /// The number a ruler prints at the tick `value` (ruler units from the zero point): the
-    /// distance, without a minus sign left of or above the zero point, as a whole number when
-    /// the labelled `step` is at least 1 or the ticks are whole (pixels), else with two decimals
-    /// (PhotoCraft's `ruler_label`). Written with the host's numbers, ungrouped.
+    /// distance, without a minus sign left of or above the zero point (PhotoCraft's
+    /// `ruler_label`). Whole ticks are whole numbers; a step of at least 1 takes the decimals it
+    /// has (none for 5, one for 2.5), a smaller one at least two (PhotoCraft's `0.50`), more when
+    /// it has them (0.025). Written with the host's numbers, ungrouped.
     pub fn tick_label(&self, value: f64, step: f64) -> String {
-        let whole = matches!(self.ticks, Ticks::Decimal { whole: true });
-        let (value, decimals) = if step >= 1.0 || whole { (value.abs().round(), 0) } else { (value.abs(), 2) };
+        let decimals = match self.ticks {
+            Ticks::Decimal { whole: true } => 0,
+            _ if step.abs() < 1.0 => step_decimals(step).max(2),
+            _ => step_decimals(step),
+        };
+        let value = if decimals == 0 { value.abs().round() } else { value.abs() };
         self.numbers.clone().ungrouped().format(value, decimals..=decimals)
     }
 
@@ -92,6 +105,17 @@ impl RulerUnits {
         let decimals = self.decimals.max(1);
         self.format(position, zero, decimals..=decimals)
     }
+}
+
+/// The decimals that write `step` exactly, up to 6.
+fn step_decimals(step: f64) -> usize {
+    let step = step.abs();
+    (0..6)
+        .find(|&d| {
+            let scaled = step * 10f64.powi(d as i32);
+            (scaled - scaled.round()).abs() <= 1e-6 * scaled.max(1.0)
+        })
+        .unwrap_or(6)
 }
 
 /// The smallest of 1, 2, 2.5 and 5 × 10ⁿ at least `min`; whole steps (no 2.5, at least 1) with

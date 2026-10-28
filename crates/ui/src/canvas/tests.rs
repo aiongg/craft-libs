@@ -201,6 +201,46 @@ fn a_claim_holds_from_the_press_through_the_release_pass() {
     });
 }
 
+#[test]
+fn a_claim_belongs_to_its_primary_press() {
+    let ctx = Context::default();
+    let canvas = Id::unique("claim-canvas");
+    let (guides, tool) = (Id::unique("guides"), Id::unique("tool"));
+    let at = pos2(100.0, 100.0);
+    let secondary = |pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    pass(&ctx, vec![Event::PointerMoved(at)], |_| {});
+    // The press frame runs a second pass (a sizing pass): the claim neither ends nor goes to
+    // another overlay there.
+    let mut passes = 0;
+    ctx.run_ui(RawInput { screen_rect: Some(screen()), events: vec![button(at, true)], ..RawInput::default() }, |ui| {
+        passes += 1;
+        let ctx = ui.ctx();
+        if passes == 1 {
+            assert!(Claim::take(ctx, canvas, guides));
+            ctx.request_discard("test");
+        } else {
+            assert!(Claim::is_owner(ctx, canvas, guides), "the second pass keeps the claim");
+            assert!(!Claim::take(ctx, canvas, tool));
+        }
+    })
+    .drop_without_applying_deltas();
+    assert_eq!(passes, 2);
+    // A secondary press and release while the primary is held leave the claim alone.
+    pass(&ctx, vec![secondary(true)], |ctx| {
+        assert!(Claim::is_owner(ctx, canvas, guides), "a right-click during the drag");
+        assert!(!Claim::take(ctx, canvas, tool));
+    });
+    pass(&ctx, vec![Event::PointerMoved(at + vec2(10.0, 0.0))], |ctx| assert!(Claim::is_owner(ctx, canvas, guides)));
+    pass(&ctx, vec![secondary(false)], |ctx| assert!(Claim::is_owner(ctx, canvas, guides)));
+    pass(&ctx, vec![Event::PointerMoved(at + vec2(20.0, 0.0))], |ctx| assert!(Claim::is_owner(ctx, canvas, guides)));
+    pass(&ctx, vec![button(at + vec2(20.0, 0.0), false)], |ctx| assert!(Claim::is_owner(ctx, canvas, guides)));
+    // A claim nobody looked at while its press ended and a new one began: gone.
+    pass(&ctx, vec![button(at, true)], |ctx| assert!(Claim::take(ctx, canvas, guides)));
+    pass(&ctx, vec![button(at, false)], |_| {});
+    pass(&ctx, vec![button(at, true)], |_| {});
+    pass(&ctx, vec![Event::PointerMoved(at + vec2(5.0, 0.0))], |ctx| assert_eq!(Claim::owner(ctx, canvas), None, "a press nobody saw begin"));
+}
+
 fn key(key: Key, modifiers: Modifiers) -> Event {
     Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
 }

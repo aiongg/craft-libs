@@ -4,7 +4,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
-use super::{Guide, GuideHost, GuidePlace, Guides, Orientation};
+use super::{Guide, GuideHost, GuideNames, GuidePlace, Guides, Orientation};
 use crate::canvas::{CanvasView, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
@@ -21,10 +21,23 @@ struct Host {
     clicked: Vec<(u64, Modifiers, Point)>,
     /// A ruler drag to hand to the guides in the next pass.
     ruler: Option<Orientation>,
+    interactive: bool,
+    /// The host skips the guides (another tool, guides hidden).
+    hidden: bool,
 }
 
 fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
-    let host = Host { guides: GuideHost::new(guides), rotation, zero: Point::ZERO, view: None, events: Vec::new(), clicked: Vec::new(), ruler: None };
+    let host = Host {
+        guides: GuideHost::new(guides),
+        rotation,
+        zero: Point::ZERO,
+        view: None,
+        events: Vec::new(),
+        clicked: Vec::new(),
+        ruler: None,
+        interactive: true,
+        hidden: false,
+    };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             ui.add_space(40.0);
@@ -32,12 +45,15 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             let view = CanvasView { rotation: host.rotation, ..CanvasView::new(rect, Point::new(200.0, 150.0), 1.0) };
             host.view = Some(view);
+            if host.hidden {
+                return;
+            }
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
-            let response = Guides::new("guides", &host.guides.guides)
+            let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+            let response = Guides::new("guides", &host.guides.guides, &px, &px, names)
                 .selected(host.guides.selected)
-                .interactive(true)
+                .interactive(host.interactive)
                 .bounds(Rect::new(0.0, 0.0, 400.0, 300.0))
-                .units(&px, &px)
                 .zero(host.zero)
                 .show(ui, &canvas, &view);
             if let Some(orientation) = host.ruler.take() {
@@ -204,8 +220,11 @@ fn press_ruler(h: &mut Harness<'_, Host>, orientation: Orientation) -> Pos2 {
     let ruler = Pos2::new(view(h).rect.center().x, view(h).rect.top() - 8.0);
     h.event(Event::PointerMoved(ruler));
     h.event(button(ruler, true, Modifiers::NONE));
-    h.state_mut().ruler = Some(orientation);
     h.run();
+    // The ruler hands the drag over once it starts; the guides take it in their next pass.
+    h.state_mut().ruler = Some(orientation);
+    h.step();
+    h.step();
     ruler
 }
 
@@ -312,6 +331,7 @@ fn painted(h: &Harness<'_, Host>, color: Color32) -> usize {
             Shape::Vec(shapes) => shapes.iter().map(|s| count(s, color)).sum(),
             Shape::Mesh(mesh) => usize::from(!mesh.vertices.is_empty() && mesh.vertices.iter().all(|v| v.color == color)),
             Shape::LineSegment { stroke, .. } => usize::from(stroke.color == color),
+            Shape::Rect(rect) => usize::from(rect.stroke.color == color && rect.stroke.width > 0.0),
             _ => 0,
         }
     }
@@ -367,4 +387,148 @@ fn descendants(node: egui_kittest::kittest::AccessKitNode<'_>) -> Vec<egui_kitte
 /// The role and name of the node AccessKit reports focused.
 fn focused(h: &Harness<'_, Host>) -> Option<(Role, String)> {
     h.query_by(|n| n.is_focused()).map(|n| (n.accesskit_node().role(), n.accesskit_node().label().unwrap_or_default()))
+}
+
+/// Queues `events` into one frame, as winit delivers a quick gesture, and runs it.
+fn frame(h: &mut Harness<'_, Host>, events: impl IntoIterator<Item = Event>) {
+    h.input_mut().events.extend(events);
+    h.step();
+}
+
+#[test]
+fn a_quick_drag_in_one_frame_reports_under_the_guide_it_took() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0), Guide::new(2, Orientation::Horizontal, 100.0)], 0.0);
+    h.state_mut().guides.selected = Some(2);
+    h.run();
+    let from = screen(&h, Point::new(100.0, 200.0));
+    let to = from + vec2(40.0, 0.0);
+    frame(
+        &mut h,
+        [Event::PointerMoved(from), button(from, true, Modifiers::NONE), Event::PointerMoved(from + vec2(20.0, 0.0)), Event::PointerMoved(to)],
+    );
+    frame(&mut h, [button(to, false, Modifiers::NONE)]);
+    h.run();
+    assert!(events(&h).iter().all(|(key, ..)| *key == Some(1)), "{:?}", events(&h));
+    assert_eq!(last(&h), Some((Some(1), "commit", place(Orientation::Vertical, 140.0))));
+    assert_eq!(positions(&h), [(1, Orientation::Vertical, 140.0), (2, Orientation::Horizontal, 100.0)]);
+
+    // Press, moves and release in one frame.
+    h.state_mut().events.clear();
+    h.state_mut().guides.selected = Some(2);
+    h.run();
+    let (from, to) = (screen(&h, Point::new(140.0, 200.0)), screen(&h, Point::new(170.0, 200.0)));
+    frame(&mut h, [Event::PointerMoved(from), button(from, true, Modifiers::NONE), Event::PointerMoved(to), button(to, false, Modifiers::NONE)]);
+    h.run();
+    assert!(events(&h).iter().all(|(key, ..)| *key == Some(1)), "{:?}", events(&h));
+    assert_eq!(positions(&h), [(1, Orientation::Vertical, 170.0), (2, Orientation::Horizontal, 100.0)]);
+}
+
+#[test]
+fn a_ruler_drag_the_guides_missed_the_end_of_does_nothing_later() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0)], 0.0);
+    h.run();
+    // The ruler hands a drag over; the host hides the guides before they show again.
+    let ruler = Pos2::new(view(&h).rect.center().x, view(&h).rect.top() - 8.0);
+    frame(&mut h, [Event::PointerMoved(ruler), button(ruler, true, Modifiers::NONE)]);
+    h.state_mut().ruler = Some(Orientation::Horizontal);
+    frame(&mut h, []);
+    h.state_mut().hidden = true;
+    frame(&mut h, [button(ruler, false, Modifiers::NONE)]);
+    h.run();
+    h.state_mut().hidden = false;
+    let over = screen(&h, Point::new(200.0, 150.0));
+    frame(&mut h, [Event::PointerMoved(over)]);
+    h.run();
+    assert!(events(&h).is_empty(), "{:?}", events(&h));
+    assert_eq!(positions(&h), [(1, Orientation::Vertical, 100.0)]);
+
+    // A guide drag whose release the guides missed: over, and the next press is free.
+    let from = screen(&h, Point::new(100.0, 200.0));
+    frame(&mut h, [Event::PointerMoved(from), button(from, true, Modifiers::NONE), Event::PointerMoved(from + vec2(30.0, 0.0))]);
+    h.state_mut().hidden = true;
+    frame(&mut h, [button(from + vec2(30.0, 0.0), false, Modifiers::NONE)]);
+    let other = screen(&h, Point::new(300.0, 250.0));
+    frame(&mut h, [Event::PointerMoved(other), button(other, true, Modifiers::NONE)]);
+    h.state_mut().hidden = false;
+    let before = events(&h).len();
+    frame(&mut h, [Event::PointerMoved(other + vec2(5.0, 0.0))]);
+    frame(&mut h, [button(other + vec2(5.0, 0.0), false, Modifiers::NONE)]);
+    h.run();
+    assert_eq!(events(&h).len(), before, "no event after the missed release: {:?}", events(&h));
+}
+
+#[test]
+fn shift_snaps_a_guide_out_of_a_ruler_while_alt_turns_it() {
+    let mut h = harness(Vec::new(), 0.0);
+    h.run();
+    press_ruler(&mut h, Orientation::Horizontal);
+    let to = screen(&h, Point::new(143.0, 80.0));
+    frame(&mut h, [Event::ModifiersChanged(Modifiers::SHIFT | Modifiers::ALT), Event::PointerMoved(to)]);
+    frame(&mut h, [button(to, false, Modifiers::SHIFT | Modifiers::ALT)]);
+    frame(&mut h, [Event::ModifiersChanged(Modifiers::NONE)]);
+    h.run();
+    assert_eq!(positions(&h), [(1, Orientation::Vertical, 140.0)]);
+}
+
+#[test]
+fn a_press_off_the_guides_deselects_whatever_the_tool_and_one_on_a_guide_keeps_it() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0)], 0.0);
+    h.state_mut().guides.selected = Some(1);
+    h.state_mut().interactive = false;
+    h.run();
+    let on = screen(&h, Point::new(100.0, 200.0));
+    click(&mut h, on);
+    assert_eq!(h.state().guides.selected, Some(1), "a brush press on the guide");
+    assert!(events(&h).is_empty(), "takes nothing");
+    let off = screen(&h, Point::new(250.0, 200.0));
+    click(&mut h, off);
+    assert_eq!(h.state().guides.selected, None, "a brush press elsewhere");
+}
+
+#[test]
+fn the_focus_stays_visible_after_delete_and_on_a_guide_out_of_view() {
+    let mut h = harness(
+        vec![
+            Guide::new(1, Orientation::Vertical, 100.0),
+            Guide::new(2, Orientation::Vertical, 200.0),
+            Guide::new(3, Orientation::Horizontal, 1000.0),
+        ],
+        0.0,
+    );
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    let style = super::Guides::style(&current(&h.ctx));
+    assert_eq!(h.state().guides.selected, Some(1));
+    assert_eq!(painted(&h, style.focus.color), 2, "two lines beside guide 1");
+    assert_eq!(painted(&h, style.focus_halo.color), 2, "each on a halo");
+    h.key_press(Key::Delete);
+    h.run();
+    assert_eq!(h.state().guides.selected, Some(2), "Delete selects the next guide");
+    assert_eq!(painted(&h, style.focus.color), 2, "and its focus lines show");
+    h.key_press(Key::PageDown);
+    h.run();
+    assert_eq!(h.state().guides.selected, Some(3));
+    assert_eq!(painted(&h, style.focus.color), 1, "the guide is out of view: the ring goes round the canvas");
+    h.key_press(Key::Delete);
+    h.run();
+    assert_eq!(h.state().guides.selected, Some(2), "the last one deleted: the previous");
+}
+
+#[test]
+fn guide_nodes_follow_the_keyboard_order() {
+    let mut h = harness(
+        vec![
+            Guide::new(1, Orientation::Horizontal, 50.0),
+            Guide { locked: true, ..Guide::new(2, Orientation::Vertical, 300.0) },
+            Guide::new(3, Orientation::Vertical, 100.0),
+            Guide::new(4, Orientation::Horizontal, 20.0),
+        ],
+        0.0,
+    );
+    h.run();
+    let group = h.get_by_label("Guides");
+    let values: Vec<String> =
+        descendants(group.accesskit_node()).into_iter().filter(|n| n.role() == Role::GraphicsObject).map(|n| n.value().unwrap_or_default()).collect();
+    assert_eq!(values, ["100.0 px", "300.0 px", "20.0 px", "50.0 px"]);
 }

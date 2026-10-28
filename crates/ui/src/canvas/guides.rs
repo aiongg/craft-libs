@@ -13,10 +13,11 @@ use kurbo::{Point, Rect, Vec2};
 
 use craft_theme::{Rgba, TypeRole, contrast_ratio};
 
+use super::claim::PrimaryPress;
+use super::units::tick_snap;
 use super::{CanvasView, Claim, Readout, RulerUnits, crisp_shape, hit, resize_cursor};
 use crate::behavior::nudge;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
-use crate::localized::LocaleNumbers;
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -190,8 +191,28 @@ pub struct GuideStyle {
     pub measure_text: Color32,
     /// The lines beside the focused guide: the focus ring's stroke.
     pub focus: Stroke,
+    /// Under each focus line, so it reads on any image: `overlay.halo`, `handle.halo` wider than
+    /// the line on each side.
+    pub focus_halo: Stroke,
     /// From the guide's edge to the focus lines: the focus ring's offset.
     pub focus_offset: f32,
+}
+
+/// The AccessKit names of the guides, the host's translated text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuideNames {
+    /// The group of guides ("Guides").
+    pub group: String,
+    /// A vertical guide ("Vertical guide").
+    pub vertical: String,
+    /// A horizontal guide ("Horizontal guide").
+    pub horizontal: String,
+}
+
+impl GuideNames {
+    pub fn new(group: impl Into<String>, vertical: impl Into<String>, horizontal: impl Into<String>) -> Self {
+        Self { group: group.into(), vertical: vertical.into(), horizontal: horizontal.into() }
+    }
 }
 
 /// The host's snapping of a guide ([`Guides::snap`]).
@@ -231,8 +252,8 @@ struct Drag {
     /// The orientation the ruler makes, before Alt.
     base: Orientation,
     start: GuidePlace,
-    /// Where the press went down.
-    press: Pos2,
+    /// The press that drives the drag.
+    press: PrimaryPress,
     /// Whether the gesture began: past the click distance, or out of a ruler.
     began: bool,
 }
@@ -241,12 +262,15 @@ struct Drag {
 /// AccessKit tree.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, Guide, Guides, Orientation, kurbo::Point};
+/// use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits, kurbo::Point};
+/// use craft_ui::localized::LocaleNumbers;
 /// # egui::__run_test_ui(|ui| {
 /// let guides = vec![Guide::new(1, Orientation::Vertical, 120.0), Guide::new(2, Orientation::Horizontal, 80.0)];
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
-/// let response = Guides::new("guides", &guides).selected(Some(1)).interactive(true).show(ui, &canvas, &view);
+/// let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+/// let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+/// let response = Guides::new("guides", &guides, &px, &px, names).selected(Some(1)).interactive(true).show(ui, &canvas, &view);
 /// if !response.claimed {
 ///     // the tool's input
 /// }
@@ -258,12 +282,13 @@ struct Drag {
 /// - A press within `guide.hit` of an unlocked guide takes it ([`Claim`]); past 0.5 points it
 ///   drags, and the release commits where it is, or removes the guide over a ruler or outside the
 ///   [bounds](Self::bounds). A release within 0.5 points is a click, which selects. A press
-///   elsewhere on the canvas deselects. Esc cancels a drag.
+///   off the guides deselects, whatever the tool. Esc cancels a drag.
 /// - Shift snaps to the ruler's ticks, otherwise the host's [`snap`](Self::snap) places the guide.
 /// - The guides are one Tab stop. Page Up and Page Down select the previous or next guide
 ///   (vertical guides left to right, then horizontal top to bottom), the arrow keys nudge the
-///   selected one across its axis ([`nudge::read`]), Delete and Backspace remove it. With
-///   keyboard focus two `line.focus` lines run beside the selected guide.
+///   selected one across its axis ([`nudge::read`]), Delete and Backspace remove it and select
+///   the next. With keyboard focus two `line.focus` lines on `overlay.halo` run beside the
+///   selected guide; with no selected guide in view the focus ring goes round the canvas.
 /// - Selection is the host's: it passes [`selected`](Self::selected) and applies
 ///   [`select`](GuidesResponse::select).
 pub struct Guides<'a> {
@@ -273,17 +298,18 @@ pub struct Guides<'a> {
     interactive: bool,
     bounds: Option<Rect>,
     snap: Option<Snap<'a>>,
-    units: Option<(&'a RulerUnits, &'a RulerUnits)>,
+    units: (&'a RulerUnits, &'a RulerUnits),
     zero: Point,
     readout: Option<(String, String)>,
-    label: String,
-    names: (String, String),
+    names: GuideNames,
     steps: (f64, f64),
     policy: EditPolicy,
 }
 
 impl<'a> Guides<'a> {
-    pub fn new(id_salt: impl AsIdSalt, guides: &'a [Guide]) -> Self {
+    /// The host's `guides`, measured in the ruler units `x` and `y` (for the readout, the
+    /// AccessKit values and the snap to ticks) and named `names` in the AccessKit tree.
+    pub fn new(id_salt: impl AsIdSalt, guides: &'a [Guide], x: &'a RulerUnits, y: &'a RulerUnits, names: GuideNames) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             guides,
@@ -291,11 +317,10 @@ impl<'a> Guides<'a> {
             interactive: false,
             bounds: None,
             snap: None,
-            units: None,
+            units: (x, y),
             zero: Point::ZERO,
             readout: None,
-            label: "Guides".to_owned(),
-            names: ("Vertical guide".to_owned(), "Horizontal guide".to_owned()),
+            names,
             steps: (nudge::STEP, nudge::BIG_STEP),
             policy: EditPolicy::default(),
         }
@@ -328,13 +353,6 @@ impl<'a> Guides<'a> {
         self
     }
 
-    /// The ruler units of the x and y axes, for the readout, the AccessKit values and the snap to
-    /// ticks; document pixels without.
-    pub fn units(mut self, x: &'a RulerUnits, y: &'a RulerUnits) -> Self {
-        self.units = Some((x, y));
-        self
-    }
-
     /// The document point the rulers count from.
     pub fn zero(mut self, zero: Point) -> Self {
         self.zero = zero;
@@ -345,18 +363,6 @@ impl<'a> Guides<'a> {
     /// guide and `y` for a horizontal one ("X:", "Y:", translated).
     pub fn readout(mut self, x: impl Into<String>, y: impl Into<String>) -> Self {
         self.readout = Some((x.into(), y.into()));
-        self
-    }
-
-    /// The AccessKit name of the guides' group, translated.
-    pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
-        self
-    }
-
-    /// The AccessKit names of a vertical and a horizontal guide, translated.
-    pub fn guide_names(mut self, vertical: impl Into<String>, horizontal: impl Into<String>) -> Self {
-        self.names = (vertical.into(), horizontal.into());
         self
     }
 
@@ -373,6 +379,7 @@ impl<'a> Guides<'a> {
 
     pub fn style(tokens: &UiTokens) -> GuideStyle {
         let (g, o) = (&tokens.component.guide, &tokens.color.overlay);
+        let halo = tokens.component.handle.halo;
         let ring = FocusRing::style(tokens);
         let smart: Rgba = o.smart_guide;
         let text = if contrast_ratio(Rgba::BLACK, smart) >= contrast_ratio(Rgba::WHITE, smart) { Color32::BLACK } else { Color32::WHITE };
@@ -392,6 +399,7 @@ impl<'a> Guides<'a> {
             measure_role: TypeRole::Caption,
             measure_text: text,
             focus: ring.stroke,
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * halo, o.halo.to_egui()),
             focus_offset: ring.offset,
         }
     }
@@ -402,8 +410,11 @@ impl<'a> Guides<'a> {
     /// from their next pass until the release, wherever the pointer goes. Alt held turns the guide
     /// the other way (PhotoCraft #5698). Released over the canvas and inside the bounds the drag
     /// commits with no key and the host adds the guide; elsewhere it is cancelled.
+    ///
+    /// The drag belongs to the primary press in progress: if the guides are not shown again before
+    /// that press ends, it is dropped. Without a primary press it does nothing.
     pub fn drag_from_ruler(ctx: &Context, guides: Id, orientation: Orientation) {
-        let press = ctx.input(|i| i.pointer.press_origin().or_else(|| i.pointer.latest_pos())).unwrap_or(Pos2::ZERO);
+        let Some(press) = PrimaryPress::current(ctx) else { return };
         let start = GuidePlace { orientation, position: None };
         ctx.data_mut(|d| d.insert_temp(drag_key(guides), Drag { key: None, base: orientation, start, press, began: false }));
     }
@@ -413,14 +424,7 @@ impl<'a> Guides<'a> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
-        let default_units;
-        let units = match self.units {
-            Some(units) => units,
-            None => {
-                default_units = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
-                (&default_units, &default_units)
-            }
-        };
+        let units = self.units;
         let order = self.keyboard_order();
         let visible = view.visible();
         let pass = Pass {
@@ -436,11 +440,17 @@ impl<'a> Guides<'a> {
             tab_stop: self.interactive && !order.is_empty(),
         };
         let group = ui.interact(view.rect, id, if pass.tab_stop { Sense::FOCUSABLE } else { Sense::hover() });
-        group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &self.label));
+        group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &self.names.group));
         let focused = pass.tab_stop && group.has_focus();
         let mut out = GuidesResponse { id, event: None, clicked: None, double_clicked: None, select: None, context: None, claimed: false };
 
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id)));
+        // A drag whose press ended while the guides were not shown is dropped. A gesture it began
+        // ended then too: a gesture is over once its control misses a pass.
+        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
+        // The press comes first, so that a drag starting in this pass reports under its own guide.
+        if drag.is_none() {
+            drag = self.press(ui, &pass, focused, &mut out);
+        }
         let reported = Gesture::<GuidePlace>::reported(ui, id).map(|(_, value)| value);
         let target = match drag {
             Some(d) => d.key,
@@ -448,11 +458,9 @@ impl<'a> Guides<'a> {
         };
         let mut gesture = Gesture::load(ui, id, &self.host_value(drag, reported), self.policy).focus_owners(&[]).enabled(ui.is_enabled());
         if drag.is_some_and(|d| d.began) && !gesture.is_active() {
-            // Esc, a change by the host or `cancel_all` ended it; the press stays claimed.
+            // Esc, a change by the host, `cancel_all` or a missed pass ended it; the press stays
+            // claimed.
             drag = None;
-        }
-        if drag.is_none() {
-            drag = self.press(ui, &pass, focused, &mut out);
         }
         let mut live = None;
         if let Some(d) = drag {
@@ -502,19 +510,25 @@ impl<'a> Guides<'a> {
         }
     }
 
-    /// A press on the canvas: takes the guide under it, or deselects.
+    /// A press on the canvas: takes the guide under it while interactive; a press off the guides
+    /// deselects, whatever the tool (PhotoCraft).
     fn press(&self, ui: &Ui, pass: &Pass<'_>, focused: bool, out: &mut GuidesResponse) -> Option<Drag> {
-        let press = pass.ctx.input(|i| i.pointer.primary_pressed().then(|| i.pointer.press_origin()).flatten())?;
-        if !(pass.view.rect.contains(press) && pass.canvas.contains_pointer()) {
+        if !pass.ctx.input(|i| i.pointer.primary_pressed()) {
             return None;
         }
-        if let Some(i) = self.guide_at(&pass.segments, press, pass.style.hit).filter(|_| self.interactive)
+        let press = PrimaryPress::current(&pass.ctx)?;
+        if !(pass.view.rect.contains(press.origin) && pass.canvas.contains_pointer()) {
+            return None;
+        }
+        let on = self.guide_at(&pass.segments, press.origin, pass.style.hit);
+        if let Some(i) = on
+            && self.interactive
             && Claim::take(&pass.ctx, pass.canvas.id, pass.id)
         {
             let g = &self.guides[i];
             return Some(Drag { key: Some(g.key), base: g.orientation, start: g.place(), press, began: false });
         }
-        if self.selected.is_some() {
+        if on.is_none() && self.selected.is_some() {
             out.select = Some(None);
         }
         if focused {
@@ -549,7 +563,7 @@ impl<'a> Guides<'a> {
             let raw = view.to_doc(pointer);
             let position = self.snapped(orientation, orientation.position(raw), mods, pass);
             outside = !view.rect.contains(pointer) || !self.inside_bounds(orientation, position);
-            let across = (orientation.position(raw) - orientation.position(view.to_doc(d.press))).abs() * orientation.zoom(view);
+            let across = (orientation.position(raw) - orientation.position(view.to_doc(d.press.origin))).abs() * orientation.zoom(view);
             moved = outside || across >= CLICK;
             if !d.began && moved {
                 gesture.begin();
@@ -580,7 +594,7 @@ impl<'a> Guides<'a> {
                     gesture.update(d.start, mods);
                     gesture.commit();
                 }
-                let point = at.map_or_else(|| view.to_doc(d.press), |(_, raw, _)| raw);
+                let point = at.map_or_else(|| view.to_doc(d.press.origin), |(_, raw, _)| raw);
                 out.clicked = Some((key, mods, point));
                 out.select = Some(Some(key));
             }
@@ -649,23 +663,31 @@ impl<'a> Guides<'a> {
                 }
             }
         }
-        if focused
-            && FocusRing::visible(&pass.ctx)
-            && let Some([a, b]) = focus_segment
-        {
-            let along = (b - a).normalized();
-            let normal = vec2(-along.y, along.x) * (style.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
-            let ppp = painter.pixels_per_point();
-            painter.add(crisp_shape(a + normal, b + normal, style.focus, ppp));
-            painter.add(crisp_shape(a - normal, b - normal, style.focus, ppp));
+        if !(focused && FocusRing::visible(&pass.ctx)) {
+            return;
+        }
+        match focus_segment {
+            Some([a, b]) => {
+                let along = (b - a).normalized();
+                let normal = vec2(-along.y, along.x) * (style.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
+                let ppp = painter.pixels_per_point();
+                for side in [normal, -normal] {
+                    painter.add(crisp_shape(a + side, b + side, style.focus_halo, ppp));
+                    painter.add(crisp_shape(a + side, b + side, style.focus, ppp));
+                }
+            }
+            // No selected guide in view: the ring goes round the group, the canvas.
+            None => FocusRing::paint_if(ui, pass.view.rect, CornerRadius::ZERO, true),
         }
     }
 
-    /// AccessKit: a group of guide objects; the selected one is its active descendant.
+    /// AccessKit: a group of guide objects in keyboard order; the selected one is its active
+    /// descendant.
     fn nodes(&self, ui: &mut Ui, pass: &Pass<'_>, selected: Option<u64>) {
         let (id, view) = (pass.id, pass.view);
         let nodes = ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(id));
-        for (g, seg) in self.guides.iter().zip(&pass.segments) {
+        for i in self.sorted() {
+            let (g, seg) = (&self.guides[i], &pass.segments[i]);
             let rect = match *seg {
                 Some([a, b]) => egui::Rect::from_two_pos(a, b).expand(pass.style.hit),
                 None => {
@@ -673,7 +695,7 @@ impl<'a> Guides<'a> {
                 }
             };
             let response = nodes.interact(rect, guide_id(id, g.key), Sense::hover());
-            let name = if g.orientation == Orientation::Vertical { &self.names.0 } else { &self.names.1 };
+            let name = if g.orientation == Orientation::Vertical { &self.names.vertical } else { &self.names.horizontal };
             response.widget_info(|| {
                 let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), name);
                 info.current_text_value = Some(pass.units(g.orientation).format_value(g.position, g.orientation.position(self.zero)));
@@ -705,10 +727,13 @@ impl<'a> Guides<'a> {
         {
             out.select = Some(Some(key));
         }
-        let Some(guide) = current.and_then(|c| self.find(order[c])) else { return };
+        let Some(c) = current else { return };
+        let Some(guide) = self.find(order[c]) else { return };
         let delete = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace));
         if delete {
             gesture.set(GuidePlace { orientation: guide.orientation, position: None });
+            // The keys keep a guide to act on: the next one, or the previous after the last.
+            out.select = Some(order.get(c + 1).or_else(|| c.checked_sub(1).and_then(|p| order.get(p))).copied());
             return;
         }
         if let Some(moved) = nudge::read(ui, self.steps.0, self.steps.1) {
@@ -729,15 +754,21 @@ impl<'a> Guides<'a> {
         self.selected.and_then(|k| self.find(k)).filter(|g| !g.locked)
     }
 
-    /// The unlocked guides in keyboard order: vertical guides left to right, then horizontal ones
-    /// top to bottom.
-    fn keyboard_order(&self) -> Vec<u64> {
-        let mut unlocked: Vec<&Guide> = self.guides.iter().filter(|g| !g.locked).collect();
-        unlocked.sort_by(|a, b| {
+    /// The indices of all guides in keyboard order: vertical guides left to right, then horizontal
+    /// ones top to bottom.
+    fn sorted(&self) -> Vec<usize> {
+        let mut indices: Vec<usize> = (0..self.guides.len()).collect();
+        indices.sort_by(|&a, &b| {
+            let (a, b) = (&self.guides[a], &self.guides[b]);
             let rank = |g: &Guide| u8::from(g.orientation == Orientation::Horizontal);
             rank(a).cmp(&rank(b)).then(a.position.total_cmp(&b.position))
         });
-        unlocked.into_iter().map(|g| g.key).collect()
+        indices
+    }
+
+    /// The unlocked guides' keys in keyboard order.
+    fn keyboard_order(&self) -> Vec<u64> {
+        self.sorted().into_iter().map(|i| &self.guides[i]).filter(|g| !g.locked).map(|g| g.key).collect()
     }
 
     /// The unlocked guide nearest `pointer` within `hit` points of its drawn line; of equal
@@ -764,7 +795,7 @@ impl<'a> Guides<'a> {
 
     /// `position` snapped: to the ruler's minor ticks with Shift, otherwise by the host.
     fn snapped(&self, orientation: Orientation, position: f64, mods: Modifiers, pass: &Pass<'_>) -> f64 {
-        if mods.shift_only() {
+        if tick_snap(mods) {
             let zoom = orientation.zoom(pass.view);
             pass.units(orientation).snap_to_tick(position, orientation.position(self.zero), zoom, pass.step_min)
         } else if let Some(snap) = &self.snap {
@@ -788,15 +819,45 @@ fn guide_id(guides: Id, key: u64) -> Id {
 }
 
 /// The screen ends of a guide at `position` across what the view shows (`visible`, the document
-/// bounds of the canvas rect), limited to `span`: a rotated view turns the guide with the
-/// document (PhotoCraft #3277). `None` when the span is out of view.
+/// bounds of the canvas rect), limited to `span` and to the canvas rect: a rotated view turns the
+/// guide with the document (PhotoCraft #3277). `None` when the guide is out of view.
 pub(super) fn segment(view: &CanvasView, visible: Rect, orientation: Orientation, position: f64, span: Option<&Range<f64>>) -> Option<[Pos2; 2]> {
     let (lo, hi) = orientation.flipped().range(visible);
     let (lo, hi) = match span {
         Some(s) => (lo.max(s.start.min(s.end)), hi.min(s.end.max(s.start))),
         None => (lo, hi),
     };
-    (lo <= hi).then(|| [view.to_screen(orientation.point(position, lo)), view.to_screen(orientation.point(position, hi))])
+    if lo > hi {
+        return None;
+    }
+    let (a, b) = (view.to_screen(orientation.point(position, lo)), view.to_screen(orientation.point(position, hi)));
+    // Half a point of slack keeps a guide on the canvas's edge, which rounding may put just
+    // outside.
+    clip(view.rect.expand(0.5), a, b)
+}
+
+/// The part of the segment from `a` to `b` inside `rect`, if any (Liang–Barsky).
+fn clip(rect: egui::Rect, a: Pos2, b: Pos2) -> Option<[Pos2; 2]> {
+    let d = b - a;
+    let (mut t0, mut t1) = (0.0_f32, 1.0_f32);
+    for (p, q) in [(-d.x, a.x - rect.min.x), (d.x, rect.max.x - a.x), (-d.y, a.y - rect.min.y), (d.y, rect.max.y - a.y)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+            continue;
+        }
+        let t = q / p;
+        if p < 0.0 {
+            t0 = t0.max(t);
+        } else {
+            t1 = t1.min(t);
+        }
+        if t0 > t1 {
+            return None;
+        }
+    }
+    Some([a + d * t0, a + d * t1])
 }
 
 /// One guide line from `a` to `b` in `color`: solid and dashed lines crisp on the pixel grid.
@@ -1007,8 +1068,12 @@ fn show_guides(ui: &mut Ui, args: &mut Args) {
         g.locked = args.bool("locked") && g.key == 2;
     }
     let canvas = super::story::document(ui, args, "Document");
-    let mut guides =
-        Guides::new("story-guides", &host.guides).selected(host.selected).interactive(args.bool("interactive")).bounds(super::story::DOC);
+    let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
+    let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+    let mut guides = Guides::new("story-guides", &host.guides, &px, &px, names)
+        .selected(host.selected)
+        .interactive(args.bool("interactive"))
+        .bounds(super::story::DOC);
     if args.bool("readout") {
         guides = guides.readout("X:", "Y:");
     }

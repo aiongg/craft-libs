@@ -15,7 +15,8 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 pub(crate) const DOC: Rect = Rect::new(0.0, 0.0, 640.0, 400.0);
 /// Side of a checkerboard square.
 const SQUARE: f64 = 40.0;
-/// The `ppp` arg: the gallery's own scale, or a fixed number of pixels per point.
+/// The `ppp` arg: the gallery's own scale, or a fixed number of pixels per point for the whole
+/// gallery.
 const PPP: &[&str] = &["gallery", "1", "1.25", "1.5", "2"];
 
 /// The story canvas's args: `zoom` in percent of device pixels per document pixel (PhotoCraft's

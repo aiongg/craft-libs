@@ -225,3 +225,41 @@ fn a_system_pick_installs_the_system_face_where_it_resolves_and_is_kept_where_no
         assert_eq!(faces::shown_ui_face(&ctx, stored), shown);
     }
 }
+
+#[test]
+fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.select("primitives/canvas/document");
+    let run = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| {
+        let mut input = RawInput::default();
+        input.viewports.entry(input.viewport_id).or_default().native_pixels_per_point = Some(1.0);
+        ctx.run_ui(input, |ui| {
+            gallery.show(ui);
+            // A story's request is read at the end of the pass it is made in, so it is made after
+            // `show` here and read by the next frame's `show`.
+            if let Some(ppp) = ppp {
+                craft_ui::story::request_pixels_per_point(ui.ctx(), ppp);
+            }
+        })
+        .drop_without_applying_deltas();
+    };
+    // A zoom set in one pass takes effect at the start of the next, and a request is read one
+    // frame after it is made.
+    let settle = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| (0..3).for_each(|_| run(ctx, gallery, ppp));
+    settle(&ctx, &mut gallery, None);
+    let own = ctx.zoom_factor();
+    // egui's Ctrl +/− sets the zoom factor; the gallery leaves it.
+    ctx.set_zoom_factor(own * 1.1);
+    settle(&ctx, &mut gallery, None);
+    assert!((ctx.zoom_factor() - own * 1.1).abs() < 1e-4, "keyboard zoom kept: {}", ctx.zoom_factor());
+    // A story asks for 2 pixels per point: applied once, then left alone too.
+    settle(&ctx, &mut gallery, Some(2.0));
+    assert!((ctx.zoom_factor() - 2.0).abs() < 1e-4, "the story's scale: {}", ctx.zoom_factor());
+    ctx.set_zoom_factor(2.2);
+    settle(&ctx, &mut gallery, Some(2.0));
+    assert!((ctx.zoom_factor() - 2.2).abs() < 1e-4, "keyboard zoom over the story's scale kept: {}", ctx.zoom_factor());
+    // The request ends: back to the appearance bar's scale.
+    settle(&ctx, &mut gallery, None);
+    assert!((ctx.zoom_factor() - own).abs() < 1e-4, "back to the gallery's scale: {}", ctx.zoom_factor());
+}
