@@ -359,3 +359,17 @@ fn a_mode_map_overrides_seeds_field_by_field() {
 fn appearance(mode: Mode) -> Appearance {
     Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
+
+#[test]
+fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
+    let mut def = grey_blue();
+    let radius = |pill| ShapeSeed { radius: Some(RadiusSet { control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }), edge: None };
+    let written = |def: &ThemeDef| -> Value { serde_json::from_str(&format::write(&format::to_file(def).unwrap()).unwrap()).unwrap() };
+    def.shape = Some(radius(Radius::Full.px()));
+    assert!(written(&def)["shape"]["radius"].get("pill").is_none());
+    def.shape = Some(radius(0.0));
+    let w = written(&def);
+    assert_eq!(w["shape"]["radius"]["pill"], 0.0);
+    let back = format::parse(serde_json::to_string(&w).unwrap().as_bytes()).unwrap().theme;
+    assert_eq!(back.shape.unwrap().radius.unwrap().pill, 0.0);
+}

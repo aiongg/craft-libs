@@ -100,10 +100,14 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
     }
     if let Some(r) = s.radius {
         with_object(shape, "radius", |radius| {
-            for (key, v) in
-                [("control", r.control), ("popup", r.popup), ("window", r.window), ("panel", r.panel), ("button", r.button), ("pill", r.pill)]
-            {
+            for (key, v) in [("control", r.control), ("popup", r.popup), ("window", r.window), ("panel", r.panel), ("button", r.button)] {
                 radius.insert(key.to_owned(), length(v));
+            }
+            // `pill` defaults to full, so only a set value is written.
+            if r.pill == crate::scale::Radius::Full.px() {
+                radius.remove("pill");
+            } else {
+                radius.insert("pill".to_owned(), length(r.pill));
             }
         });
     }
