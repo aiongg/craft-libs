@@ -18,6 +18,7 @@
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
+//! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -50,6 +51,7 @@ pub(crate) mod rulers;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+pub(crate) mod transform_box;
 mod turn;
 mod units;
 mod view;
@@ -62,6 +64,7 @@ pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, Ma
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use readout::{Readout, ReadoutStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
 pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};

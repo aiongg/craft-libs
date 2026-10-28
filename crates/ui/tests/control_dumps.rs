@@ -565,6 +565,19 @@ fn marquee() {
     });
 }
 
+/// Transform boxes: the box line, the reach of handles, the rotate zones and a click, the
+/// reference point's sizes and lines, and the focus line round the whole box.
+#[test]
+fn transform() {
+    check("transform.txt", |d, t| {
+        let s = craft_ui::canvas::TransformBox::style(t);
+        d.line("line", s.line).line("handle_size", s.handle.size).line("hit", s.hit).line("rotate_reach", s.rotate_reach);
+        d.line("band_inner", s.band_inner).line("band_outer", s.band_outer).line("click_slop", s.click_slop);
+        d.line("pivot_radius", s.pivot_radius).line("pivot_arm", s.pivot_arm).line("pivot", s.pivot).line("pivot_halo", s.pivot_halo);
+        d.line("focus", s.focus).line("focus_halo", s.focus_halo).line("focus_offset", s.focus_offset);
+    });
+}
+
 /// List rows: the heights, thumbnails, columns and gaps, the type roles, the state fills and the
 /// label, icon, divider, thumbnail, drop marker and drop halo colours, and the drag ghost.
 #[test]
