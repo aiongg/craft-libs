@@ -51,6 +51,10 @@ struct Bar {
     chosen: Vec<&'static str>,
     /// Where a label after a shrunk bar starts.
     after: Option<f32>,
+    /// An Esc was left in the input after the bar, in some pass.
+    escape_after: bool,
+    /// [`crate::menu::any_open`] as the last pass began, before the bar was drawn.
+    open_before: bool,
 }
 
 impl Bar {
@@ -73,6 +77,8 @@ impl Bar {
             tree: Vec::new(),
             chosen: Vec::new(),
             after: None,
+            escape_after: false,
+            open_before: false,
         };
         b.run(3);
         b
@@ -94,7 +100,10 @@ impl Bar {
         let (menus, fit, search, keyboard) = (&self.menus, self.fit, self.search, self.keyboard);
         let mut chosen = None;
         let mut after = None;
+        let mut escape = false;
+        let mut open_before = false;
         let mut full = self.ctx.run_ui(raw, |ui| {
+            open_before = crate::menu::any_open(ui.ctx());
             let mut bar = MenuBar::new(menus).keyboard(keyboard);
             if let Some(i) = search {
                 bar = bar.help_search(i);
@@ -108,12 +117,15 @@ impl Bar {
                 }
                 None => chosen = bar.show(ui).chosen,
             }
+            escape = ui.input(|i| i.key_pressed(Key::Escape));
         });
         full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
             self.tree = update.nodes;
         }
         self.after = after;
+        self.escape_after |= escape;
+        self.open_before = open_before;
         self.chosen.extend(chosen);
     }
 
@@ -395,20 +407,88 @@ fn titles_take_preferred_letters_and_letterless_titles_show_their_english_key() 
     assert!(b.shown("Grid"), "View took its W");
 }
 
+/// Without mnemonics (a Mac, a browser on a Mac) Option types, so Alt leaves the bar alone, but
+/// F10 still puts the keyboard on it: the in-window bar is the only one there.
 #[test]
-fn without_mnemonics_alt_and_f10_leave_the_bar_alone() {
+fn without_mnemonics_alt_leaves_the_bar_alone_and_f10_still_reaches_it() {
     let mut b = Bar::wide();
     b.ctx.set_os(egui::os::OperatingSystem::Mac);
     b.alt_tap();
-    b.key(Key::F10);
-    assert!(b.focus().is_none() && !is_focused(&b.ctx), "Alt and F10 leave the bar alone on a Mac");
+    assert!(b.focus().is_none() && !is_focused(&b.ctx), "an Alt tap leaves the bar alone on a Mac");
     b.key_with(Key::F, Modifiers::ALT);
     assert!(!b.open(), "Option+F types");
     assert_eq!(b.title("File").and_then(|n| n.access_key()), None);
+    b.key(Key::F10);
+    assert_eq!(b.focus(), Some(0), "F10 puts the keyboard on File");
+    b.key(Key::ArrowRight);
+    b.key(Key::ArrowDown);
+    assert!(b.shown("Undo") && b.focus().is_none(), "→ and ↓ open Edit");
+    b.key(Key::Escape);
+    b.key(Key::F10);
+    b.key(Key::F10);
+    assert!(b.focus().is_none(), "F10 again leaves the bar");
+
     b.ctx.set_os(egui::os::OperatingSystem::Nix);
     b.keyboard = false;
     b.alt_tap();
+    b.key(Key::F10);
     assert!(b.focus().is_none(), "nor while a dialog has the keys");
+}
+
+/// PDFCraft leaves full screen on an Esc nothing else took: the Esc that closes a bar's menu is
+/// the menu's.
+#[test]
+fn the_escape_that_closes_a_menu_is_not_read_after_the_bar() {
+    let mut b = Bar::wide();
+    b.click("File");
+    b.escape_after = false;
+    b.key(Key::Escape);
+    assert!(!b.open() && !b.escape_after, "the menu closed and took the key");
+    b.key(Key::Escape);
+    assert!(b.escape_after, "with no menu open, Esc goes on");
+}
+
+#[test]
+fn the_lit_row_of_a_bar_menu_is_its_menus_active_descendant() {
+    let mut b = Bar::wide();
+    b.key(Key::F10);
+    b.key(Key::ArrowDown);
+    let id = |b: &Bar, label: &str| b.tree.iter().find(|(_, n)| n.label() == Some(label)).map(|(id, _)| *id);
+    assert_eq!(crate::menu::tests::active_in_menu(&b.tree), id(&b, "New"));
+    b.key(Key::ArrowDown);
+    assert_eq!(crate::menu::tests::active_in_menu(&b.tree), id(&b, "Open…"));
+}
+
+/// Two bars in one window: the second, with no menu open, doesn't hide the first one's open menu
+/// from [`is_open`].
+#[test]
+fn is_open_sees_the_open_menu_of_either_bar() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let (one, two) = (sample(), sample());
+    let mut tree = Vec::new();
+    let mut frame = |events: Vec<Event>| {
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
+        let mut full = ctx.run_ui(raw, |ui| {
+            let _ = MenuBar::new(&one).id(Id::unique("one")).show(ui);
+            let _ = MenuBar::new(&two).id(Id::unique("two")).show(ui);
+        });
+        full.textures_delta.clear();
+        if let Some(update) = full.platform_output.accesskit_update {
+            tree = update.nodes;
+        }
+        tree.clone()
+    };
+    let tree = frame(Vec::new());
+    let file = tree.iter().find(|(_, n)| n.label() == Some("File")).and_then(|(_, n)| n.bounds()).expect("File");
+    let p = pos2((file.x0 + 10.0) as f32, ((file.y0 + file.y1) / 2.0) as f32);
+    let button = |pressed| Event::PointerButton { pos: p, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(vec![Event::PointerMoved(p), button(true), button(false)]);
+    for _ in 0..3 {
+        frame(Vec::new());
+    }
+    assert!(is_open(&ctx), "the first bar's File menu is open");
 }
 
 #[test]
@@ -543,4 +623,174 @@ fn search_matches_take_no_mnemonics_and_leave_the_help_rows_their_letters() {
     check(&b, "field not focused");
     b.letter('a');
     assert_eq!(b.take(), ["help.about"], "A runs About, not the Arrange match");
+}
+
+impl Bar {
+    /// The state of the first title's menu.
+    fn nav(&self) -> crate::menu::nav::Nav {
+        let popup = Id::unique("craft-ui-menu-bar").with(("title", 0)).with("popup");
+        crate::menu::nav::Nav::load(&self.ctx, popup, false)
+    }
+
+    /// Whether the row `label` lies wholly in the visible part of menu level `level`, itself in the
+    /// window.
+    fn visible(&self, level: usize, label: &str) -> bool {
+        let Some(view) = self.nav().views.get(level).copied() else { return false };
+        let Some(b) = self.node(label).and_then(accesskit::Node::bounds) else { return false };
+        let row = Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32));
+        view.expand(0.5).contains_rect(row) && self.ctx.content_rect().expand(0.5).contains_rect(view)
+    }
+
+    fn wheel(&mut self, dy: f32) {
+        self.events.push(Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: vec2(0.0, dy),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+        });
+        self.run(2);
+    }
+}
+
+/// A menu far taller than its 300 pt window, open.
+fn open_tall() -> Bar {
+    let rows = (0..60).map(|i| item(&format!("Item {i}"), "tall")).collect();
+    let mut b = Bar::new(vec![MenuItem::submenu("Long", rows)], vec2(600.0, 300.0));
+    b.click("Long");
+    b.run(3);
+    assert_eq!(b.nav().rows.first().map(Vec::len), Some(60));
+    b
+}
+
+#[test]
+fn a_tall_menu_stays_in_the_window_below_the_bar_and_shows_scroll_strips() {
+    let b = open_tall();
+    let view = b.nav().views[0];
+    assert!(!b.visible(0, "Item 59"), "the menu overflows");
+    assert!(view.bottom() <= 300.0 && view.top() >= b.rect("Long").bottom(), "{view:?}");
+    assert!(b.shown("Scroll menu down") && b.shown("Scroll menu up"));
+}
+
+#[test]
+fn every_row_of_a_tall_menu_is_reachable_with_the_arrow_keys() {
+    let mut b = open_tall();
+    for i in 0..60 {
+        b.key(Key::ArrowDown);
+        // The scroll lands a pass after the row is revealed.
+        b.run(2);
+        assert_eq!(b.nav().highlighted(0), Some(i));
+        assert!(b.visible(0, &format!("Item {i}")), "row {i} is scrolled into view");
+    }
+    b.key(Key::ArrowDown);
+    b.run(2);
+    assert_eq!(b.nav().highlighted(0), Some(0));
+    assert!(b.visible(0, "Item 0"), "↓ wraps to the first row, scrolling back up");
+}
+
+#[test]
+fn the_wheel_scrolls_a_tall_menu_over_its_rows_and_its_strips() {
+    let mut b = open_tall();
+    let view = b.nav().views[0];
+    b.move_to(view.center());
+    for _ in 0..60 {
+        if b.visible(0, "Item 59") {
+            break;
+        }
+        b.wheel(-60.0);
+    }
+    assert!(b.visible(0, "Item 59"), "the wheel reaches the last row");
+    assert!(b.open(), "the menu stays open while scrolling");
+    // At the end the ▼ strip is dead, so resting on it scrolls nothing; the wheel there does.
+    let strip = b.rect("Scroll menu down");
+    b.move_to(strip.center());
+    b.run(10);
+    assert!(b.visible(0, "Item 59"));
+    b.wheel(120.0);
+    assert!(!b.visible(0, "Item 59"), "the wheel over a strip scrolls the menu");
+}
+
+#[test]
+fn resting_on_the_scroll_strips_scrolls() {
+    let mut b = open_tall();
+    let strip = b.rect("Scroll menu down");
+    b.move_to(strip.center());
+    for _ in 0..240 {
+        if b.visible(0, "Item 59") {
+            break;
+        }
+        b.frame();
+    }
+    assert!(b.visible(0, "Item 59"), "resting on ▼ scrolls to the end");
+    let strip = b.rect("Scroll menu up");
+    b.move_to(strip.center());
+    for _ in 0..240 {
+        if b.visible(0, "Item 0") {
+            break;
+        }
+        b.frame();
+    }
+    assert!(b.visible(0, "Item 0"), "resting on ▲ scrolls back to the top");
+}
+
+/// A submenu taller than the room below its row scrolls between the bar and the window's bottom,
+/// rather than egui sliding it up over the bar's titles.
+#[test]
+fn a_tall_submenu_never_covers_the_bar() {
+    let rows = (0..60).map(|i| item(&format!("More {i}"), "more")).collect();
+    let menu = MenuItem::submenu("Long", vec![item("First", "first"), MenuItem::submenu("More", rows).into()]);
+    let mut b = Bar::new(vec![menu], vec2(600.0, 300.0));
+    b.click("Long");
+    b.key(Key::ArrowDown);
+    b.key(Key::ArrowDown);
+    b.key(Key::ArrowRight);
+    b.run(3);
+    let view = b.nav().views.get(1).copied().unwrap_or(Rect::NOTHING);
+    assert!(b.shown("More 0") && !b.visible(1, "More 59"), "the submenu is open and overflows");
+    assert!(view.top() >= b.rect("Long").bottom() - 0.5 && view.bottom() <= 300.0, "{view:?}");
+}
+
+/// A menu reopened scrolled down has rows scrolled out of view above it, over the bar: the press
+/// on the title that reopens it doesn't open the submenu of the hidden row under the pointer, and
+/// its release leaves the menu open.
+#[test]
+fn a_row_scrolled_out_of_view_under_the_title_opens_no_submenu() {
+    let rows = (0..60).map(|i| MenuItem::submenu(format!("Sub {i}"), vec![item(&format!("Leaf {i}"), "leaf")]).into()).collect();
+    let mut b = Bar::new(vec![MenuItem::submenu("Long", rows)], vec2(600.0, 300.0));
+    b.click("Long");
+    let view = b.nav().views[0];
+    b.move_to(view.center());
+    for _ in 0..60 {
+        if b.visible(0, "Sub 59") {
+            break;
+        }
+        b.wheel(-60.0);
+    }
+    assert!(b.visible(0, "Sub 59"));
+    b.click("Long");
+    assert!(!b.open(), "a press on the open title closes the menu");
+    let p = b.point("Long");
+    b.move_to(p);
+    b.button(true);
+    b.run(3);
+    assert!(b.open(), "the press reopens it");
+    assert!(!b.nav().views[0].contains(p), "the title is outside the menu's view");
+    assert!(!b.tree.iter().any(|(_, n)| n.label().is_some_and(|l| l.starts_with("Leaf"))), "no submenu opened under the title");
+    b.button(false);
+    b.run(3);
+    assert!(b.open(), "the release on the title leaves the menu open");
+}
+
+/// `any_open` is true while a bar's menu is open, as the app's shortcut handling reads it before
+/// drawing the bar.
+#[test]
+fn any_open_is_true_while_a_bar_menu_is_open() {
+    let mut b = Bar::wide();
+    assert!(!b.open_before);
+    b.click("File");
+    assert!(b.open_before, "File is open");
+    b.key(Key::Escape);
+    assert!(!b.open_before, "closed");
+    b.key(Key::F10);
+    assert!(!b.open_before, "the focused bar with no menu open is is_focused's, not any_open's");
 }

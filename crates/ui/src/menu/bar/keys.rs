@@ -1,12 +1,12 @@
-//! The bar from the keyboard, as a Windows menu bar: a tap on Alt (or F10) puts the keyboard on
+//! The bar from the keyboard, as a Windows menu bar: F10 (or a tap on Alt) puts the keyboard on
 //! the bar (the first title lit; ← / → move along it, ↓ / Enter / Space open the lit menu, a
 //! title's letter opens it, Esc or a click leaves), and Alt+letter opens the menu with that
 //! mnemonic straight away. An open menu has its own keys ([`Menu`](crate::menu::Menu)).
 //!
 //! Mnemonics are underlined while Alt is held, the bar is focused or a menu was opened from the
-//! keyboard; a menu opened with the mouse shows none until Alt is pressed, as Windows does. None
-//! of this runs where menus have no [`mnemonics`](crate::menu::mnemonics) (macOS): Option is a
-//! typing key there.
+//! keyboard; a menu opened with the mouse shows none until Alt is pressed, as Windows does. Where
+//! menus have no [`mnemonics`](crate::menu::mnemonics) (macOS), Option is a typing key: Alt taps
+//! and Alt+letter are left alone there, and F10 alone reaches the bar.
 
 use egui::{Event, Id, Key, Modifiers, Popup};
 
@@ -116,17 +116,19 @@ impl Keys {
         }
     }
 
-    /// Off: no mnemonics here, or a dialog or the shortcut recorder has the keys. Forgets the
-    /// focus and any tap in progress.
+    /// Off: a dialog or the shortcut recorder has the keys, or the native bar runs beside this
+    /// one. Forgets the focus and any tap in progress.
     pub fn off(&mut self) {
         *self = Keys { buttons_held: self.buttons_held, ..Keys::default() };
     }
 
     /// Handles this pass's keys, after the menus were drawn and took theirs. `tops` are the
-    /// titles' popup ids and `mnemonics` their letters, both in reading order; `open` is whether
-    /// a menu is open; `typing` whether a text field has the keys. Sets `keyboard` when a menu
-    /// opens from the keys.
-    pub fn keys(&mut self, ctx: &egui::Context, tops: &[Id], mnemonics: &[Option<char>], open: bool, typing: bool, keyboard: &mut bool) {
+    /// titles' popup ids and `mnemonics` their letters, both in reading order; `alt` whether Alt
+    /// taps and Alt+letter drive the bar (menus have mnemonics here); `open` is whether a menu is
+    /// open; `typing` whether a text field has the keys. Sets `keyboard` when a menu opens from
+    /// the keys.
+    #[allow(clippy::too_many_arguments)]
+    pub fn keys(&mut self, ctx: &egui::Context, tops: &[Id], mnemonics: &[Option<char>], alt: bool, open: bool, typing: bool, keyboard: &mut bool) {
         if tops.is_empty() {
             return;
         }
@@ -171,6 +173,8 @@ impl Keys {
                 _ => {}
             }
         }
+        // Option types on a Mac: no tap there.
+        let tap = tap && alt;
         if events.iter().any(|e| matches!(e, Event::PointerButton { pressed: true, .. })) {
             self.focus = None;
             self.underline = false;
@@ -186,7 +190,7 @@ impl Keys {
             }
         };
         // Alt+letter opens that menu, open or not (an open one switches), as on Windows.
-        let alt_letter = events.iter().find_map(|e| match e {
+        let alt_letter = events.iter().filter(|_| alt).find_map(|e| match e {
             Event::Key { key, pressed: true, modifiers, .. } if modifiers.alt && !modifiers.command && !modifiers.ctrl => {
                 key_char(*key).map(|c| (*key, c))
             }

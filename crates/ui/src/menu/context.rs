@@ -1,13 +1,13 @@
 //! [`ContextMenu`]: a [`Menu`] at the pointer on a secondary click, and under the focused widget on
 //! the Menu key or Shift+F10.
 
+use std::borrow::Cow;
+
 use craft_theme::ControlSize;
 use egui::{Key, Modifiers, Popup, PopupAnchor, Pos2, Rect, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
-use super::nav::Nav;
 use super::popup::{Menu, MenuResponse};
-use crate::popup_list;
 
 /// A context menu of a widget.
 ///
@@ -26,13 +26,16 @@ use crate::popup_list;
 /// focus (so it must be focusable), the Menu key and Shift+F10 open it with its top left at the
 /// widget's bottom left; the first enabled row is highlighted and the mnemonics are underlined.
 /// The widget keeps the focus, and the menu takes its keys as [`Menu`] does. A primary click on
-/// the widget closes it, as does any click outside.
+/// the widget closes it, as does any click outside. A secondary click elsewhere on the widget
+/// while the menu is open moves it there, starting over with nothing highlighted. Esc closes it
+/// and gives the widget the focus back.
 #[must_use = "You should call .show"]
 pub struct ContextMenu<'a, T> {
     entries: &'a [MenuEntry<T>],
     size: ControlSize,
     request: Option<OpenAt>,
     own_gestures: bool,
+    scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
 }
 
 /// Where a host asks a [`ContextMenu`] to open this pass.
@@ -47,7 +50,7 @@ pub enum OpenAt {
 
 impl<'a, T: Clone> ContextMenu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md, request: None, own_gestures: true }
+        Self { entries, size: ControlSize::Md, request: None, own_gestures: true, scroll_labels: None }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -72,60 +75,56 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         self
     }
 
+    /// The accessible names of a tall menu's scroll strips, translated; "Scroll menu up" and
+    /// "Scroll menu down" by default.
+    pub fn scroll_labels(mut self, up: impl Into<Cow<'a, str>>, down: impl Into<Cow<'a, str>>) -> Self {
+        self.scroll_labels = Some((up.into(), down.into()));
+        self
+    }
+
     /// Opens the menu on `widget`'s gestures and draws it while it is open.
     pub fn show(self, ui: &Ui, widget: &Response) -> MenuResponse<T> {
         let ctx = ui.ctx();
-        let base = Popup::default_response_id(widget).with("context-menu");
-        let mut generation = ctx.data(|d| d.get_temp::<u32>(base)).unwrap_or(0);
-        let mut popup = base.with(generation);
-        let mut open = Popup::is_id_open(ctx, popup);
+        let popup = Popup::default_response_id(widget).with("context-menu");
+        let open = Popup::is_id_open(ctx, popup);
         // egui drops the focus on Escape before the menu sees the key; a widget that held it
         // while the menu was open gets it back when Escape closes the menu.
-        let held = base.with("held");
+        let held = popup.with("held");
         let escaped = open && ctx.input(|i| i.key_pressed(Key::Escape));
-        // A secondary press on the widget while the menu is open moves it to the pointer. egui
-        // closes a popup on a click whose press began while it was open, so the menu reopens
-        // under a new id, which no press began in.
-        let secondary_press =
-            self.own_gestures && widget.contains_pointer() && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary));
-        if open && (secondary_press || self.request.is_some()) {
-            Popup::close_id(ctx, popup);
-            popup_list::record_open(ctx, popup, false);
-            Nav::forget(ctx, popup);
-            generation = generation.wrapping_add(1);
-            ctx.data_mut(|d| d.insert_temp(base, generation));
-            popup = base.with(generation);
-            open = false;
-        }
-        let at = popup.with("at");
         let mut keyboard = self.own_gestures && widget.has_focus() && !open && opens_from_keyboard(ui);
         let mut command = None;
+        // Where the menu opens, or moves to while open, this pass.
+        let mut place = None;
         if let Some(request) = self.request {
-            let pos = match request {
+            place = Some(match request {
                 OpenAt::Pointer(pos) => pos,
                 OpenAt::Rect(rect) => rect.left_bottom(),
-            };
+            });
             keyboard = matches!(request, OpenAt::Rect(_));
-            ctx.data_mut(|d| d.insert_temp(at, pos));
-            command = Some(SetOpenCommand::Bool(true));
         } else if !self.own_gestures {
             // Only the host's requests open it; a click on the widget still closes it.
             if widget.clicked_by(egui::PointerButton::Primary) {
                 command = Some(SetOpenCommand::Bool(false));
             }
         } else if widget.secondary_clicked() {
-            let pos = ctx.input(|i| i.pointer.interact_pos()).unwrap_or(widget.rect.left_bottom());
-            ctx.data_mut(|d| d.insert_temp(at, pos));
-            command = Some(SetOpenCommand::Bool(true));
+            place = Some(ctx.input(|i| i.pointer.interact_pos()).unwrap_or(widget.rect.left_bottom()));
         } else if keyboard {
-            ctx.data_mut(|d| d.insert_temp(at, widget.rect.left_bottom()));
-            command = Some(SetOpenCommand::Bool(true));
+            place = Some(widget.rect.left_bottom());
         } else if widget.clicked_by(egui::PointerButton::Primary) {
             command = Some(SetOpenCommand::Bool(false));
         }
+        let at = popup.with("at");
+        if let Some(pos) = place {
+            ctx.data_mut(|d| d.insert_temp(at, pos));
+            command = Some(SetOpenCommand::Bool(true));
+        }
         let pos = ctx.data(|d| d.get_temp::<Pos2>(at)).unwrap_or(widget.rect.left_bottom());
         let anchored = Popup::menu(widget).id(popup).anchor(PopupAnchor::Position(pos)).open_memory(command);
-        let shown = Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).show(ui, anchored);
+        let mut menu = Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).restart(open && place.is_some());
+        if let Some((up, down)) = self.scroll_labels {
+            menu = menu.scroll_labels(up, down);
+        }
+        let shown = menu.show(ui, anchored);
         if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {
             widget.request_focus();
         } else if shown.open {

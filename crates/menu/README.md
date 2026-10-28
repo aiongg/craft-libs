@@ -117,8 +117,12 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
   across other rows. A menu taller than the window scrolls, with the wheel or by resting on the
   ▲ and ▼ arrows.
 - **Keys, while a menu is open:** ↑ and ↓ move the highlight, → opens a submenu or the next
-  menu, ← closes the submenu or opens the previous menu, ↩ and Space run the item, Esc closes.
-  `craft_menu::bar::is_open(ctx)` tells the app's shortcut handling to wait meanwhile.
+  menu, ← closes the submenu or opens the previous menu, ↩ and Space run the item, Esc closes
+  (and is taken, so the app doesn't also act on it). Other typing goes nowhere while a menu is
+  open. `craft_ui::menu::any_open(ctx)` is true while any menu is open (the bar's, a context
+  menu, a press menu): the app's single-key shortcuts wait meanwhile, since an app that handles
+  them before drawing its menus would otherwise see the keys first. `craft_menu::bar::is_open(ctx)`
+  answers for the bar alone.
 - **Keyboard access (Windows, Linux, web):** a tap on Alt alone, or F10, puts the keyboard on
   the bar: the first title is lit, ← and → move along the titles, ↓, ↩ and Space open the lit
   menu, Esc, a second tap or a click leaves. Alt+letter opens the menu with that mnemonic, and
@@ -135,9 +139,10 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
   F7) leaves the bar and runs. While a dialog is open or a shortcut is being recorded (`Gate`),
   Alt, F10 and the letters leave the bar alone. While a text field has the keys, a tap on Alt
   still focuses the bar, as on Windows, but a letter without Alt goes on to the field (and takes
-  the keyboard off the bar) unless a menu is open. On `Target::Mac`, and on `Target::Web` in a
-  browser on a Mac (`ctx.os()`), the bar has no mnemonics and Alt does nothing: Option is a typing
-  key there.
+  the keyboard off the bar) unless a menu is open. On `Target::Web` in a browser on a Mac
+  (`ctx.os()`), the bar has no mnemonics and Alt does nothing, since Option is a typing key there;
+  F10 still puts the keyboard on the bar, which is the only menu bar there. On `Target::Mac` the
+  native bar has the keys, and this one takes none.
 - **Items:** disabled items, and the items the `Gate` forbids (`Gate::allows`), are greyed and
   never run. Check items show ✓, the selected radio item a dot, and the shortcut column shows
   every shortcut, the display-only ones too, in the target's names (⌘ glyphs on `Target::Mac`,

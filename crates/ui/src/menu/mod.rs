@@ -12,6 +12,8 @@
 //!   hover switching, Alt / F10 / Alt+letter, overflow into "⋯" and the Help menu's search field;
 //!   [`bar::is_open`], [`bar::is_focused`] and [`bar::leave_for_shortcut`] for the app's keys.
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
+//! - [`any_open`]: whether any menu is open, for the app's single-key shortcuts, which wait
+//!   meanwhile.
 //!
 //! Menus draw with the list box rows' tokens (`listbox.*`) and their own `menu.*` (least width,
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
@@ -33,11 +35,11 @@ pub use context::{ContextMenu, OpenAt};
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;
-pub use popup::{Menu, MenuResponse};
+pub use popup::{Menu, MenuResponse, any_open};
 pub use press::PressMenu;
 pub use row::MenuStyle;
 
-use egui::{Id, Key, KeyboardShortcut, Modifiers, Popup, Ui};
+use egui::{Id, Key, KeyboardShortcut, Modifiers, Ui};
 
 use crate::controls::{Button, Kbd, SIZE_NAMES, size_arg};
 use crate::icons::Icon;
@@ -161,7 +163,7 @@ fn show_menus(ui: &mut Ui, args: &mut Args) {
     Row::new(Gap::Section).show(ui, |ui| {
         for (label, entries) in [("Edit", &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
-            let shown = Menu::new(entries).size(size).show(ui, Popup::menu(&button));
+            let shown = PressMenu::new(entries).size(size).show(ui, &button);
             if let Some(command) = shown.chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }

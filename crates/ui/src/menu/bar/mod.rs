@@ -3,9 +3,9 @@
 //!
 //! A press on a title opens its menu (releasing over a row runs it), a second press or Esc closes
 //! it, and while one is open the pointer moving onto another title opens that one. ← and → at a
-//! menu's top level open the neighbouring menu. Where menus have
-//! [`mnemonics`](super::mnemonics), a tap on Alt or F10 puts the keyboard on the bar and Alt+letter
-//! opens a menu at once ([`keys`]). Titles that don't fit move into a trailing "⋯" menu, or all of
+//! menu's top level open the neighbouring menu. F10 puts the keyboard on the bar, and where menus
+//! have [`mnemonics`](super::mnemonics) a tap on Alt does too and Alt+letter opens a menu at once
+//! ([`keys`]). Titles that don't fit move into a trailing "⋯" menu, or all of
 //! them into one "Menu". The Help menu can start with a search field over every command of the bar
 //! ([`search`]).
 
@@ -95,14 +95,20 @@ impl Default for MenuBarLabels {
 ///
 /// Keys: an open menu has the [`Menu`](super::Menu)'s keys, and ← / → at its top level open the
 /// neighbouring menu, wrapping (mirrored right to left, where the titles run from the right).
-/// Where menus have [`mnemonics`](super::mnemonics) (not on macOS):
 ///
-/// - a tap on Alt, or F10, puts the keyboard on the bar: the first title is lit, ← / → move,
-///   ↓, Enter and Space open the lit menu, a title's letter opens it, Esc, a second tap or a
-///   click leaves;
-/// - Alt+letter opens the menu with that mnemonic at once, also while another one is open;
-/// - a menu opened from the keyboard lights its first enabled row, and the mnemonics are
-///   underlined while Alt is held, the bar has the keyboard or a menu was opened from it;
+/// - F10 puts the keyboard on the bar: the first title is lit, ← / → move, ↓, Enter and Space
+///   open the lit menu, Esc, F10 again or a click leaves. A menu opened from the keyboard lights
+///   its first enabled row. This works on every platform, a browser on a Mac included: the bar is
+///   the app's only menu bar wherever it is drawn. An app that draws it beside the native macOS
+///   bar turns its keys off with [`keyboard`](MenuBar::keyboard).
+///
+/// Where menus have [`mnemonics`](super::mnemonics) (not on macOS, where Option types):
+///
+/// - a tap on Alt puts the keyboard on the bar as F10 does, and a second tap leaves;
+/// - a title's letter on the focused bar opens it, and Alt+letter opens the menu with that
+///   mnemonic at once, also while another one is open;
+/// - the mnemonics are underlined while Alt is held, the bar has the keyboard or a menu was
+///   opened from it;
 /// - titles take their preferred letter where the label has it, else the first unused one; a
 ///   title without a Latin letter shows its English label's letter after it, "文件(F)".
 ///
@@ -169,12 +175,29 @@ fn open_id() -> Id {
     Id::unique("craft-ui-menu-bar-open")
 }
 
+/// The bars with a menu open, each with the last pass it was seen open in.
+#[derive(Clone, Debug, Default)]
+struct OpenBars(Vec<(Id, u64)>);
+
 /// Whether a menu of a bar is open. The app leaves the keys to it meanwhile: its shortcuts wait
 /// until the menu closes. Only while the bar is still drawn: an app that hides it with a menu open
-/// (full screen) gets its keys back.
+/// (full screen) gets its keys back. [`any_open`](super::any_open) also covers context and press
+/// menus.
 pub fn is_open(ctx: &egui::Context) -> bool {
     let pass = ctx.cumulative_pass_nr();
-    ctx.data(|d| d.get_temp::<u64>(open_id())).is_some_and(|seen| seen + 2 >= pass)
+    ctx.data(|d| d.get_temp::<OpenBars>(open_id())).is_some_and(|bars| bars.0.iter().any(|&(_, seen)| seen + 2 >= pass))
+}
+
+/// Records whether the bar `bar` has a menu open after this pass, beside the other bars.
+fn record_open(ctx: &egui::Context, bar: Id, open: bool) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let bars = &mut d.get_temp_mut_or_default::<OpenBars>(open_id()).0;
+        bars.retain(|&(id, seen)| id != bar && seen + 2 >= pass);
+        if open {
+            bars.push((bar, pass));
+        }
+    });
 }
 
 impl<'a, T: Clone> MenuBar<'a, T> {
@@ -235,8 +258,9 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         self
     }
 
-    /// Whether the bar takes Alt, F10 and Alt+letter; on by default. Off while a dialog or a
-    /// shortcut recorder has the keys. Menus open from the pointer either way.
+    /// Whether the bar takes F10, Alt and Alt+letter; on by default. Off while a dialog or a
+    /// shortcut recorder has the keys, and where the native macOS bar runs beside this one. Menus
+    /// open from the pointer either way.
     pub fn keyboard(mut self, on: bool) -> Self {
         self.keyboard = on;
         self
@@ -260,7 +284,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         let mut state: BarState = ctx.data(|d| d.get_temp(self.id)).unwrap_or_default();
         state.keys.take_leave(&ctx);
         let mnemonics = mnemonic::mnemonics(&ctx);
-        let keys_on = mnemonics && self.keyboard;
+        let keys_on = self.keyboard;
         let titles = Titles { menus: self.menus, labels, tokens: &tokens, style: &style, mnemonics };
 
         let room = self.fit.map_or(ui.available_width(), |max| max.min(ui.available_width())).max(0.0);
@@ -279,7 +303,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         } else {
             state.keys.off();
         }
-        let underline = keys_on && state.keys.show_underlines(&ctx);
+        let underline = keys_on && mnemonics && state.keys.show_underlines(&ctx);
         let mut search = self.search.map(|(_, same)| Search::load(&ctx, self.id, same));
         let help = self.search.map(|(i, _)| i);
 
@@ -402,7 +426,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         }
         if keys_on {
             let typing = self.text_editing || ctx.text_edit_focused();
-            state.keys.keys(&ctx, &popups, &letters, shown_open.is_some(), typing, &mut state.keyboard);
+            state.keys.keys(&ctx, &popups, &letters, mnemonics, shown_open.is_some(), typing, &mut state.keyboard);
         }
         // The press-drag gesture ends with the button (its release was handled by the rows).
         if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
@@ -411,15 +435,8 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         let open = popups.iter().any(|id| Popup::is_id_open(&ctx, *id));
         let focused = state.keys.focus.is_some();
         state.keys.store_focus(&ctx);
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|d| {
-            if open {
-                d.insert_temp(open_id(), pass);
-            } else {
-                d.remove::<u64>(open_id());
-            }
-            d.insert_temp(self.id, state);
-        });
+        record_open(&ctx, self.id, open);
+        ctx.data_mut(|d| d.insert_temp(self.id, state));
         MenuBarResponse { chosen, open, focused, response: bar.response }
     }
 }

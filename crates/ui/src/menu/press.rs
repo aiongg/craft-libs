@@ -1,9 +1,11 @@
 //! [`PressMenu`]: a [`Menu`] from a button, opened on the press so one gesture can press the
 //! button, drag onto a row and release to run it (PhotoCraft's `press_menu`).
 
+use std::borrow::Cow;
+
 use craft_theme::ControlSize;
 use egui::accesskit::HasPopup;
-use egui::{Id, Key, Modifiers, Popup, Response, SetOpenCommand, Ui};
+use egui::{Id, Key, Modifiers, PointerButton, Popup, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
 use super::popup::{Menu, MenuResponse};
@@ -32,17 +34,20 @@ fn gesture() -> Id {
 /// menu follows the pointer while the press is held: releasing on an enabled row runs it,
 /// releasing on the button or on nothing leaves the menu open, as does a plain click. A secondary
 /// click opens it too, and Enter or Space on the focused button opens it from the keyboard (the
-/// first enabled row highlighted); with the menu open those keys are the menu's. The button is a
-/// menu button for AccessKit (`has_popup` menu, `expanded` while the menu is open).
+/// first enabled row highlighted); with the menu open those keys are the menu's. Esc closes it and
+/// gives the button the focus back. The button is a menu button for AccessKit (`has_popup` menu,
+/// `expanded` while the menu is open); an AccessKit click opens the menu as from the keyboard, or
+/// closes it when open.
 #[must_use = "You should call .show"]
 pub struct PressMenu<'a, T> {
     entries: &'a [MenuEntry<T>],
     size: ControlSize,
+    scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
 }
 
 impl<'a, T: Clone> PressMenu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md }
+        Self { entries, size: ControlSize::Md, scroll_labels: None }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -51,11 +56,22 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         self
     }
 
+    /// The accessible names of a tall menu's scroll strips, translated; "Scroll menu up" and
+    /// "Scroll menu down" by default.
+    pub fn scroll_labels(mut self, up: impl Into<Cow<'a, str>>, down: impl Into<Cow<'a, str>>) -> Self {
+        self.scroll_labels = Some((up.into(), down.into()));
+        self
+    }
+
     /// Opens the menu on `button`'s gestures and draws it while it is open.
     pub fn show(self, ui: &Ui, button: &Response) -> MenuResponse<T> {
         let ctx = ui.ctx();
         let id = Popup::default_response_id(button);
         let open = Popup::is_id_open(ctx, id);
+        // egui drops the focus on Escape before the menu sees the key; a button that held it while
+        // the menu was open gets it back when Escape closes the menu.
+        let held = id.with("held");
+        let escaped = open && ctx.input(|i| i.key_pressed(Key::Escape));
         let mut command = None;
         let mut keyboard = false;
         if button.secondary_clicked() {
@@ -65,16 +81,32 @@ impl<'a, T: Clone> PressMenu<'a, T> {
                 ctx.data_mut(|d| d.insert_temp(gesture(), id));
             }
             command = Some(SetOpenCommand::Bool(!open));
-        } else if !open && button.enabled() && button.has_focus() && button.clicked() {
-            // The key that clicked the button must not also run the menu's first row.
-            keyboard = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter) | i.consume_key(Modifiers::NONE, Key::Space));
-            if keyboard {
+        } else if button.enabled() && button.clicked() && !button.clicked_by(PointerButton::Primary) {
+            // Enter or Space on the focused button, or an AccessKit click. With the menu open the
+            // keys are the menu's.
+            let key = ctx.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Space));
+            if !open {
+                // The key that clicked the button must not also run the menu's first row.
+                ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter) | i.consume_key(Modifiers::NONE, Key::Space));
+                keyboard = true;
                 command = Some(SetOpenCommand::Bool(true));
+            } else if !key {
+                command = Some(SetOpenCommand::Bool(false));
             }
         }
         let owner = ctx.data(|d| d.get_temp::<Id>(gesture())) == Some(id);
         let popup = Popup::menu(button).open_memory(command);
-        let shown = Menu::new(self.entries).size(self.size).pressing(owner).opened_by_keyboard(keyboard).show(ui, popup);
+        let mut menu = Menu::new(self.entries).size(self.size).pressing(owner).opened_by_keyboard(keyboard);
+        if let Some((up, down)) = self.scroll_labels {
+            menu = menu.scroll_labels(up, down);
+        }
+        let shown = menu.show(ui, popup);
+        if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {
+            button.request_focus();
+        } else if shown.open {
+            let focused = button.has_focus();
+            ctx.data_mut(|d| d.insert_temp(held, focused));
+        }
         ctx.accesskit_node_builder(button.id, |n| {
             n.set_has_popup(HasPopup::Menu);
             n.set_expanded(shown.open);

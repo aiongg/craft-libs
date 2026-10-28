@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use craft_theme::ControlSize;
 use egui::containers::menu::{MenuConfig, MenuState, SubMenu};
 use egui::style::StyleModifier;
-use egui::{Align, Id, Layout, Popup, PopupCloseBehavior, PopupKind, Response, Sense, Ui, UiKind, UiStackInfo, Vec2, vec2};
+use egui::{Align, Id, Key, Layout, Modifiers, Popup, PopupCloseBehavior, PopupKind, Response, Sense, Ui, UiKind, UiStackInfo, Vec2, vec2};
 
 use super::item::{MenuEntry, MenuItem, at_path};
 use super::mnemonic;
@@ -20,19 +20,25 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 ///
 /// ```
 /// use craft_ui::menu::{Menu, MenuEntry, MenuItem};
-/// use egui::Popup;
+/// use egui::{PointerButton, Popup, SetOpenCommand};
 /// # egui::__run_test_ui(|ui| {
 /// let entries: Vec<MenuEntry<&str>> = vec![MenuItem::new("Copy", "copy").into(), MenuItem::new("Paste", "paste").into()];
 /// let button = ui.button("Edit");
-/// let shown = Menu::new(&entries).show(ui, Popup::menu(&button));
+/// // Only a pointer click toggles the menu: Enter and Space are the open menu's.
+/// let toggle = button.clicked_by(PointerButton::Primary).then_some(SetOpenCommand::Toggle);
+/// let shown = Menu::new(&entries).show(ui, Popup::menu(&button).open_memory(toggle));
 /// if let Some(command) = shown.chosen {
 ///     // Run it.
 /// }
 /// # });
 /// ```
 ///
-/// The owner makes the egui [`Popup`]: its id, where it hangs and when it opens (egui's popup
-/// memory, [`Popup::open_memory`]). The menu sets the rest (kind, layout, look, close behaviour)
+/// [`PressMenu`](super::PressMenu), [`ContextMenu`](super::ContextMenu) and
+/// [`MenuBar`](super::MenuBar) own a menu each; a `Menu` alone is for other owners. The owner
+/// makes the egui [`Popup`]: its id, where it hangs and when it opens (egui's popup memory,
+/// [`Popup::open_memory`]). egui's [`Popup::menu`] toggles on any click of its button, Enter and
+/// Space on the focused button included, so an owner whose button keeps the focus toggles on
+/// pointer clicks only, as above. The menu sets the rest (kind, layout, look, close behaviour)
 /// and draws in it, so a context menu, a press menu and a menu bar each open one from their own
 /// anchor and gesture. Its state (the highlighted row per level, the pointer heading for a
 /// submenu) lives in egui memory under the popup's id, and starts fresh each time it opens.
@@ -55,17 +61,23 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 ///
 /// Keys: ↑ / ↓ move the highlight over enabled rows and wrap; → opens a submenu and ← closes one
 /// (mirrored right to left); Enter and Space run the highlighted row or open its submenu; Esc
-/// closes every level. Where menus have [`mnemonics`](super::mnemonics), a letter runs the row
-/// with that mnemonic in the level the keys are in (or opens its submenu); the mnemonics are
-/// underlined while Alt is held or after the menu was opened from the keyboard. Keys that would
+/// closes every level, and the menu takes that Esc, so whatever holds the menu (a popover, a
+/// dialog, an app that leaves full screen on Esc) stays as it was. Where menus have
+/// [`mnemonics`](super::mnemonics), a letter runs the row with that mnemonic in the level the
+/// keys are in (or opens its submenu); the mnemonics are underlined while Alt is held or after
+/// the menu was opened from the keyboard. Other typing (letters without a row, every letter where
+/// menus have no mnemonics, digits, punctuation) goes nowhere while the menu is open, as in a
+/// native menu: it reaches neither a field nor the app's single-key shortcuts. Keys that would
 /// leave the menu at its top level (← there, → on a row without a submenu) are reported in
 /// [`MenuResponse::step`] for a menu bar.
 ///
 /// AccessKit: the popup is a `Menu`; rows are `MenuItem`, `MenuItemCheckBox` or `MenuItemRadio`,
 /// named by their label without the mark, with `toggled`, the mnemonic as access key and the
 /// shortcut as `keyboard_shortcut`; submenu rows report a menu popup and whether it is
-/// `expanded`. While open, the menu is recorded with the other open popup lists, so FieldTab
-/// and other key readers leave its keys alone.
+/// `expanded`. The highlighted row is the `active_descendant` of its level's `Menu` node and of
+/// the widget that has the keyboard focus (the owner's button or widget, or a field under a menu
+/// bar), so a screen reader names each row the keys move to. While open, the menu is recorded
+/// with the other open popup lists, so FieldTab and other key readers leave its keys alone.
 #[must_use = "You should call .show"]
 pub struct Menu<'a, T> {
     entries: &'a [MenuEntry<T>],
@@ -76,6 +88,7 @@ pub struct Menu<'a, T> {
     scroll_up: Cow<'a, str>,
     scroll_down: Cow<'a, str>,
     header: Option<&'a mut dyn FnMut(&mut Ui) -> bool>,
+    restart: bool,
 }
 
 /// What a menu did in a pass, from [`Menu::show`].
@@ -90,8 +103,8 @@ pub struct MenuResponse<T> {
     /// A key asked for the neighbouring menu of a bar: ← at the top level, or → on a row without
     /// a submenu. The menu stays open; a bar opens the other one.
     pub step: Option<MenuStep>,
-    /// The highlighted row in the level the keys move in, for the owner's AccessKit
-    /// `active_descendant`.
+    /// The highlighted row in the level the keys move in (the menu has made it the AccessKit
+    /// `active_descendant`).
     pub active: Option<Id>,
     /// The popup's response while it is shown.
     pub popup: Option<Response>,
@@ -108,6 +121,7 @@ impl<'a, T: Clone> Menu<'a, T> {
             scroll_up: Cow::Borrowed("Scroll menu up"),
             scroll_down: Cow::Borrowed("Scroll menu down"),
             header: None,
+            restart: false,
         }
     }
 
@@ -154,22 +168,41 @@ impl<'a, T: Clone> Menu<'a, T> {
         self
     }
 
+    /// The owner moved the open menu this pass (a context menu's secondary click elsewhere on its
+    /// widget): it starts over where it now hangs, with nothing highlighted and no submenu open,
+    /// and the click that moved it doesn't close it.
+    pub(crate) fn restart(mut self, restart: bool) -> Self {
+        self.restart = restart;
+        self
+    }
+
     /// Draws the menu in `popup` while the popup is open, and handles its keys.
     pub fn show(self, ui: &Ui, popup: Popup<'_>) -> MenuResponse<T> {
         let ctx = ui.ctx().clone();
         let id = popup.get_id();
-        let fresh = ctx.read_response(id).is_none();
+        let shown_before = ctx.read_response(id).is_some();
         let tokens = Tokens::of(ui);
         let style = MenuStyle::new(&tokens, self.size);
         let modifier = popup_style(ui);
-        let config = MenuConfig::new().close_behavior(PopupCloseBehavior::CloseOnClickOutside).style(modifier.clone());
+        // A click that moved the menu is not one that closes it.
+        let close = if self.restart { PopupCloseBehavior::IgnoreClicks } else { PopupCloseBehavior::CloseOnClickOutside };
+        let config = MenuConfig::new().close_behavior(close).style(modifier.clone());
         let mnemonics = mnemonic::mnemonics(&ctx);
-        let mut nav = Nav::load(&ctx, id, fresh);
-        if fresh && self.keyboard {
+        let mut nav = Nav::load(&ctx, id, !shown_before);
+        if self.restart {
+            if let Some(root) = nav.root(0) {
+                MenuState::from_id(&ctx, root, |s| s.open_item = None);
+            }
+            nav = Nav::load(&ctx, id, true);
+        }
+        if (!shown_before || self.restart) && self.keyboard {
             nav.highlight_first(0);
             nav.underline = true;
         }
         nav.top_limit = self.top_limit;
+        nav.edge = tokens.space.gap.stack;
+        // egui closes the popup on Esc but leaves the key in the input.
+        let escape = shown_before && ctx.input(|i| i.key_pressed(Key::Escape));
         let underline = mnemonics && (nav.underline || ctx.input(|i| i.modifiers.alt));
         let released = ctx.input(|i| i.pointer.primary_released());
         let mut draw = Draw {
@@ -192,23 +225,37 @@ impl<'a, T: Clone> Menu<'a, T> {
             .kind(PopupKind::Menu)
             .layout(Layout::top_down(Align::Min))
             .style(modifier)
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .close_behavior(close)
             .info(UiStackInfo::new(UiKind::Menu).with_tag_value(MenuConfig::MENU_CONFIG_TAG, config))
             .show(|ui| draw.level(ui, 1, id, &[], self.entries, &mut nav));
         let mut chosen = draw.chosen;
         let mut open = shown.as_ref().is_some_and(|r| !r.response.should_close());
         let mut step = None;
+        if escape && shown.is_some() {
+            ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+        }
         if open {
             let keys = nav.keys(&ctx, crate::direction::is_rtl(&ctx), mnemonics, draw.typing);
             chosen = chosen.or(keys.run);
             step = keys.step;
-            if keys.close || chosen.is_some() {
+            if chosen.is_some() {
                 Popup::close_id(&ctx, id);
                 open = false;
             }
         }
         popup_list::record_open(&ctx, id, open);
+        record_open(&ctx, id, open);
         let active = nav.active().filter(|_| open);
+        if let Some((row, menu)) = active {
+            // AccessKit's focus is egui's: the widget that keeps it while the menu has the keys
+            // names the row, and so does the menu it belongs to.
+            let row = row.accesskit_id();
+            ctx.accesskit_node_builder(menu, |n| n.set_active_descendant(row));
+            if let Some(focused) = ctx.memory(|m| m.focused()) {
+                ctx.accesskit_node_builder(focused, |n| n.set_active_descendant(row));
+            }
+        }
+        let active = active.map(|(row, _)| row);
         if open {
             nav.store(&ctx, id);
         } else {
@@ -222,6 +269,40 @@ impl<'a, T: Clone> Menu<'a, T> {
             popup: shown.map(|r| r.response),
         }
     }
+}
+
+fn open_menus_id() -> Id {
+    Id::unique("craft-ui-open-menus")
+}
+
+/// The menus open at the end of a pass: each popup id with that pass.
+#[derive(Clone, Debug, Default)]
+struct OpenMenus(Vec<(Id, u64)>);
+
+/// Records whether the menu `popup` is open after this pass.
+fn record_open(ctx: &egui::Context, popup: Id, open: bool) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let menus = &mut d.get_temp_mut_or_default::<OpenMenus>(open_menus_id()).0;
+        menus.retain(|&(id, at)| id != popup && at + 1 >= pass);
+        if open {
+            menus.push((popup, pass));
+        }
+    });
+}
+
+/// Whether a menu is open: a [`ContextMenu`](super::ContextMenu), a
+/// [`PressMenu`](super::PressMenu), a [`MenuBar`](super::MenuBar)'s or another owner's [`Menu`],
+/// as it was at the end of the last pass (or this one, once the menu has been drawn).
+///
+/// An open menu has the keyboard: it takes the typing keys it is drawn after, but an app that
+/// handles its single-key shortcuts (B for a brush, [ and ] for its size) before drawing its
+/// menus skips them while this is true, as native menus swallow those keys. Command shortcuts
+/// (Ctrl+S) may run; [`bar::leave_for_shortcut`](super::bar::leave_for_shortcut) covers a menu
+/// bar that has the keyboard with no menu open.
+pub fn any_open(ctx: &egui::Context) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<OpenMenus>(open_menus_id())).is_some_and(|m| m.0.iter().any(|&(_, at)| at + 1 >= pass))
 }
 
 impl Menu<'static, ()> {
