@@ -290,3 +290,35 @@ fn data_scope_is_dark_and_pinned_by_studio_and_solarized() {
     assert_eq!(scope("craft.studio", Mode::Dark), "#0e0e0f");
     assert_eq!(scope("craft.solarized-dark", Mode::Dark), "#002b36");
 }
+
+/// A theme whose neutral seed and neutral pins are greys derives every neutral token as a grey:
+/// `r == g == b`, with no one-step tint from the contrast pass.
+#[test]
+fn builtin_greys_from_grey_seeds_stay_neutral() {
+    use values::ColorSource as S;
+    let is_grey = |c: Rgba| c.0[0] == c.0[1] && c.0[1] == c.0[2];
+    let mut checked = 0;
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let neutral: Vec<ColorToken> = ColorToken::ALL
+                .iter()
+                .copied()
+                .filter(|&t| matches!(values::source(t, mode), S::Neutral(_) | S::Anchored(_) | S::StateVariant { .. } | S::Lighting(_)))
+                .collect();
+            let seed = theme.mode_seeds.get(mode).neutral.unwrap_or(theme.seeds.neutral);
+            let pins = [theme.pins.get(mode), theme.high_contrast.get(mode)];
+            if !is_grey(seed) || neutral.iter().any(|&t| pins.iter().any(|p| p.get(t).is_some_and(|c| !is_grey(c)))) {
+                continue;
+            }
+            checked += 1;
+            for contrast in [Contrast::Standard, Contrast::High] {
+                let a = Appearance { mode, contrast, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
+                let tokens = resolve(theme, a, None).tokens;
+                for &t in &neutral {
+                    assert!(is_grey(tokens.color(t)), "{} {mode:?} {contrast:?} {}: {:?}", theme.id, t.path(), tokens.color(t));
+                }
+            }
+        }
+    }
+    assert!(checked >= 4, "ArtCraft and Pro are grey in both modes");
+}

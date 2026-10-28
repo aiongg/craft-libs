@@ -55,6 +55,32 @@ fn known_oklch_values() {
 }
 
 #[test]
+fn srgb_greys_have_no_chroma_or_hue() {
+    for v in 0..=255u8 {
+        let grey = Rgba::rgb(v, v, v);
+        let o = grey.to_oklch();
+        assert_eq!((o.c, o.h), (0.0, 0.0), "{grey:?}");
+        assert_eq!(grey.to_oklch().to_rgba(), grey);
+    }
+}
+
+/// A lightness search stops where the contrast test flips, which for a colour with any residual
+/// tint lies between the points where its channels round to their next 8-bit value.
+#[test]
+fn contrast_moves_keep_greys_neutral() {
+    let is_grey = |c: Rgba| c.0[0] == c.0[1] && c.0[1] == c.0[2];
+    for fg in (0..=255u8).step_by(3) {
+        for bg in [0x00, 0x28, 0x42, 0x53, 0x80, 0xd6, 0xe2, 0xf0, 0xff] {
+            let (fg, bg) = (Rgba::rgb(fg, fg, fg), Rgba::rgb(bg, bg, bg));
+            for min in [3.0, 4.5, 7.0] {
+                let out = ensure_contrast(fg, bg, min);
+                assert!(is_grey(out), "{fg:?} on {bg:?} at {min}: {out:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn srgb_oklch_round_trip_is_exact() {
     for s in SAMPLES {
         let c = hex(s);

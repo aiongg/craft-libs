@@ -6,10 +6,6 @@
 
 use crate::color::{Hsb, Lab, Oklch, Srgba};
 
-/// The OKLCH chroma below which [`OklchModel`] reads a colour as a grey (chroma 0, hue 0): sRGB
-/// greys convert to a chroma of a few 1e-8, far under the 0.001 its field shows.
-const ACHROMATIC: f64 = 1e-6;
-
 /// The most channels a model has (CMYK).
 pub const MAX_CHANNELS: usize = 4;
 
@@ -110,7 +106,8 @@ pub struct RgbModel;
 /// CIE Lab, D50, Bradford-adapted.
 #[derive(Clone, Copy, Debug)]
 pub struct LabModel;
-/// OKLCH: lightness in percent, chroma 0..=0.4, hue in degrees.
+/// OKLCH: lightness in percent, chroma 0..=0.4, hue in degrees. A grey reads as chroma 0 and
+/// hue 0 ([`ACHROMATIC`](crate::color::ACHROMATIC)).
 #[derive(Clone, Copy, Debug)]
 pub struct OklchModel;
 
@@ -224,8 +221,6 @@ impl ColorModel for OklchModel {
     }
     fn from_srgb(&self, color: Srgba) -> ModelValues {
         let Oklch { l, c, h } = color.to_oklch();
-        // A grey has no hue: chroma under the field's resolution is the matrices' rounding.
-        let (c, h) = if c < ACHROMATIC { (0.0, 0.0) } else { (c, h) };
         ModelValues::new(self.id(), &[(l * 100.0) as f32, c as f32, h as f32])
     }
     fn to_srgb(&self, v: &[f32; MAX_CHANNELS]) -> Srgba {

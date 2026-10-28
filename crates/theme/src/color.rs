@@ -2,8 +2,9 @@
 //!
 //! [`Srgba`] is the float colour the pickers edit; [`Hsb`] and [`Lab`] are its other spaces.
 //!
-//! Conversions use Björn Ottosson's OKLab matrices in `f64`, so an sRGB colour survives a round
-//! trip through OKLCH unchanged.
+//! Conversions use Björn Ottosson's OKLab matrices at the full `f64` precision of CSS Color 4, so
+//! sRGB white has lightness 1, an sRGB grey has no chroma beyond `f64` rounding, and an sRGB
+//! colour survives a round trip through OKLCH unchanged.
 
 /// An sRGB colour with 8-bit channels and unmultiplied alpha.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -36,6 +37,15 @@ type Linear = [f64; 3];
 
 /// Slack when testing whether a linear channel is inside 0..=1.
 const GAMUT_EPS: f64 = 1e-6;
+
+/// The OKLCH chroma below which a colour is a grey, which [`Oklab::to_oklch`] gives chroma 0 and
+/// hue 0. sRGB greys convert to a chroma of `f64` rounding (up to about 1e-15) in an arbitrary
+/// hue, and colour derivation keeps a colour's hue and chroma while it moves the lightness: a
+/// lightness search that stops where a contrast test flips lands between the points where the
+/// channels of a tinted colour round to their next 8-bit value, so a residual tint becomes a step
+/// in one channel. Every 8-bit colour that is not a grey has a chroma above 0.001 (`#feffff`
+/// has the least), the resolution of a picker's chroma field.
+pub const ACHROMATIC: f64 = 1e-6;
 
 impl Rgba {
     /// Opaque black.
@@ -130,35 +140,35 @@ fn in_gamut(lin: Linear) -> bool {
 impl Oklab {
     /// From linear-light sRGB.
     pub fn from_linear([r, g, b]: [f64; 3]) -> Oklab {
-        let l = (0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b).cbrt();
-        let m = (0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b).cbrt();
-        let s = (0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b).cbrt();
+        let l = (0.412_221_469_470_762_9 * r + 0.536_332_537_261_734_9 * g + 0.051_445_993_267_502_2 * b).cbrt();
+        let m = (0.211_903_495_817_825_1 * r + 0.680_699_550_645_234_4 * g + 0.107_396_953_536_940_6 * b).cbrt();
+        let s = (0.088_302_459_190_056_4 * r + 0.281_718_839_136_121_5 * g + 0.629_978_701_673_822_2 * b).cbrt();
         Oklab {
-            l: 0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s,
-            a: 1.977_998_495_1 * l - 2.428_592_205_0 * m + 0.450_593_709_9 * s,
-            b: 0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766_0 * s,
+            l: 0.210_454_268_309_314 * l + 0.793_617_774_702_305_4 * m - 0.004_072_043_011_619_3 * s,
+            a: 1.977_998_532_431_168_4 * l - 2.428_592_242_048_58 * m + 0.450_593_709_617_411 * s,
+            b: 0.025_904_042_465_547_8 * l + 0.782_771_712_457_529_6 * m - 0.808_675_754_923_077_4 * s,
         }
     }
 
     /// To linear-light sRGB; channels may fall outside 0..=1 for out-of-gamut colours.
     pub fn to_linear(self) -> [f64; 3] {
-        let l = (self.l + 0.396_337_777_4 * self.a + 0.215_803_757_3 * self.b).powi(3);
-        let m = (self.l - 0.105_561_345_8 * self.a - 0.063_854_172_8 * self.b).powi(3);
-        let s = (self.l - 0.089_484_177_5 * self.a - 1.291_485_548_0 * self.b).powi(3);
+        let l = (self.l + 0.396_337_777_376_174_9 * self.a + 0.215_803_757_309_913_6 * self.b).powi(3);
+        let m = (self.l - 0.105_561_345_815_658_6 * self.a - 0.063_854_172_825_813_3 * self.b).powi(3);
+        let s = (self.l - 0.089_484_177_529_811_9 * self.a - 1.291_485_548_019_409_2 * self.b).powi(3);
         [
-            4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s,
-            -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
-            -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
+            4.076_741_636_075_958 * l - 3.307_711_539_258_063 * m + 0.230_969_903_182_104_3 * s,
+            -1.268_437_973_285_031_5 * l + 2.609_757_349_287_688 * m - 0.341_319_376_002_657 * s,
+            -0.004_196_076_138_675_6 * l - 0.703_418_617_935_936_3 * m + 1.707_614_694_074_611_7 * s,
         ]
     }
 
-    /// Polar form. Hue is 0 where the chroma is below 1e-9; the matrices' rounding leaves sRGB
-    /// greys a chroma of a few 1e-8 with a hue near 90°, which a picker treats as a grey
-    /// ([`OklchModel`](crate::OklchModel)).
+    /// Polar form. A colour with chroma below [`ACHROMATIC`] is a grey, with chroma 0 and hue 0.
     pub fn to_oklch(self) -> Oklch {
         let c = self.a.hypot(self.b);
-        let h = if c < 1e-9 { 0.0 } else { self.b.atan2(self.a).to_degrees().rem_euclid(360.0) };
-        Oklch { l: self.l, c, h }
+        if c < ACHROMATIC {
+            return Oklch { l: self.l, c: 0.0, h: 0.0 };
+        }
+        Oklch { l: self.l, c, h: self.b.atan2(self.a).to_degrees().rem_euclid(360.0) }
     }
 }
 
