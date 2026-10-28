@@ -182,6 +182,14 @@ pub struct DataColors {
     pub blue: Rgba,
     /// Histogram luminance.
     pub luma: Rgba,
+    /// Curve and histogram cyan channel (CMYK Cyan).
+    pub cyan: Rgba,
+    /// Curve and histogram magenta channel (CMYK Magenta, Lab a).
+    pub magenta: Rgba,
+    /// Curve and histogram yellow channel (CMYK Yellow, Lab b).
+    pub yellow: Rgba,
+    /// The plot behind an RGB histogram: dark in every theme.
+    pub scope: Rgba,
 }
 
 /// Custom window caption (title bar) colours.
@@ -241,7 +249,7 @@ impl ColorTokens {
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
             overlay: OverlayColors { stroke: c, halo: c, handle_fill: c, handle_stroke: c, marquee: c, guide: c, grid: c },
-            data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c },
+            data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
             edge: EdgeColors { light: c, dark: c },
         }
@@ -432,6 +440,14 @@ color_tokens! {
     DataBlue = "data.blue" => data.blue;
     /// `data.luma`
     DataLuma = "data.luma" => data.luma;
+    /// `data.cyan`
+    DataCyan = "data.cyan" => data.cyan;
+    /// `data.magenta`
+    DataMagenta = "data.magenta" => data.magenta;
+    /// `data.yellow`
+    DataYellow = "data.yellow" => data.yellow;
+    /// `data.scope`
+    DataScope = "data.scope" => data.scope;
     /// `caption.close_hover`
     CaptionCloseHover = "caption.close_hover" => caption.close_hover;
     /// `caption.close_text`

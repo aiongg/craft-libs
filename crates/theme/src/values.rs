@@ -232,6 +232,10 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::DataGreen => Fixed(if dark { Rgba::rgb(0x50, 0xe0, 0x50) } else { Rgba::rgb(0x20, 0xa0, 0x20) }),
         T::DataBlue => Fixed(if dark { Rgba::rgb(0x50, 0x80, 0xff) } else { Rgba::rgb(0x20, 0x50, 0xd0) }),
         T::DataLuma => Neutral(12),
+        T::DataCyan => Fixed(if dark { Rgba::rgb(0x28, 0xc8, 0xe6) } else { Rgba::rgb(0x08, 0x73, 0x88) }),
+        T::DataMagenta => Fixed(if dark { Rgba::rgb(0xe1, 0x46, 0xc8) } else { Rgba::rgb(0xb0, 0x24, 0x9a) }),
+        T::DataYellow => Fixed(if dark { Rgba::rgb(0xeb, 0xd2, 0x28) } else { Rgba::rgb(0x7a, 0x64, 0x00) }),
+        T::DataScope => Fixed(Rgba::rgb(0x28, 0x28, 0x28)),
         T::CaptionCloseHover => Fixed(Rgba::rgb(0xc4, 0x2b, 0x1c)),
         T::CaptionCloseText => Fixed(Rgba::WHITE),
         T::CaptionInactive => Same(T::TextFaint),
@@ -325,6 +329,13 @@ pub(super) const RULES: &[PairRule] = &[
         )
     },
     rule(&[T::OverlayStroke, T::OverlayMarquee], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    // A curve editor's curve and points in a channel colour, on its plot (`field.fill`, `surface.sunken`).
+    rule(
+        &[T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow],
+        &[Token(T::SurfaceSunken)],
+        NON_TEXT_MIN.0,
+        NON_TEXT_MIN.1,
+    ),
 ];
 
 /// The Size-dependent values: sizes, spacing, default shape and type roles.
@@ -455,6 +466,17 @@ pub const PROPERTY_MIN_CONTROL: f32 = 36.0;
 pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
+
+/// The control height the Compact histogram height is set for.
+pub const HISTOGRAM_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a histogram plot (PhotoCraft's panel).
+pub const HISTOGRAM_HEIGHT: f32 = 100.0;
+/// Alpha of the RGB ribbons' fills (PhotoCraft's 0.3).
+pub const HISTOGRAM_FILL_ALPHA: f32 = 0.3;
+/// Alpha of the tone look behind a curve: PhotoCraft's grey 88 / 190 at 0.75 reads as a faint grey.
+pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
+/// Width of the RGB ribbons' outlines.
+pub const HISTOGRAM_LINE: f32 = 1.0;
 
 /// The control height the Compact section header sizes are set for.
 pub const SECTION_BASE_CONTROL: f32 = 24.0;

@@ -1,0 +1,648 @@
+//! [`Histogram`]: a plot of bins, one tone channel or RGB ribbons.
+
+use craft_theme::Mode;
+use egui::accesskit::Role;
+use egui::{Color32, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+
+use crate::direction;
+use crate::icons::{self, Icon, IconSize};
+use crate::story::{Args, Level, Story};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, tokens_in_mode};
+
+/// The colour of a channel in curves and histograms: a data token.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ChannelColor {
+    /// The composite, CMYK Black and Lab Lightness: `data.luma` (`text.muted` in a histogram).
+    #[default]
+    Neutral,
+    /// `data.red`.
+    Red,
+    /// `data.green`.
+    Green,
+    /// `data.blue`.
+    Blue,
+    /// `data.cyan`.
+    Cyan,
+    /// `data.magenta`, also Lab a.
+    Magenta,
+    /// `data.yellow`, also Lab b.
+    Yellow,
+}
+
+impl ChannelColor {
+    /// Every channel colour, in declaration order.
+    pub const ALL: [ChannelColor; 7] = [
+        ChannelColor::Neutral,
+        ChannelColor::Red,
+        ChannelColor::Green,
+        ChannelColor::Blue,
+        ChannelColor::Cyan,
+        ChannelColor::Magenta,
+        ChannelColor::Yellow,
+    ];
+
+    /// The channel's data token in `tokens`.
+    pub fn color(self, tokens: &UiTokens) -> Color32 {
+        let d = &tokens.color.data;
+        match self {
+            ChannelColor::Neutral => d.luma,
+            ChannelColor::Red => d.red,
+            ChannelColor::Green => d.green,
+            ChannelColor::Blue => d.blue,
+            ChannelColor::Cyan => d.cyan,
+            ChannelColor::Magenta => d.magenta,
+            ChannelColor::Yellow => d.yellow,
+        }
+        .to_egui()
+    }
+
+    /// The name in story args and dumps.
+    pub const fn name(self) -> &'static str {
+        match self {
+            ChannelColor::Neutral => "neutral",
+            ChannelColor::Red => "red",
+            ChannelColor::Green => "green",
+            ChannelColor::Blue => "blue",
+            ChannelColor::Cyan => "cyan",
+            ChannelColor::Magenta => "magenta",
+            ChannelColor::Yellow => "yellow",
+        }
+    }
+}
+
+/// How tall the bins are drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum HistogramScale {
+    /// The tallest bin (the tallest interior bin of an RGB plot, whose edge bins are clipped
+    /// pixels) at 1/1.1 of the height: Photoshop's and PhotoCraft's.
+    #[default]
+    Peak,
+    /// Camera Raw's: the 95th-percentile column at two thirds of the height; taller spikes run
+    /// off the top.
+    Typical,
+}
+
+/// How a [`HistogramData`] is drawn by [`Histogram::paint`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum HistogramLook {
+    /// One channel as a filled area in its colour.
+    Tone,
+    /// The tone look at `histogram.backdrop_alpha`, to sit behind a curve.
+    Backdrop,
+    /// Three overlapping ribbons: filled bands with exact overlap colours and an outline each.
+    Rgb,
+}
+
+/// A count a histogram's bin holds.
+pub trait BinCount: Copy {
+    /// The count as a height before scaling.
+    fn height(self) -> f32;
+}
+
+impl BinCount for u32 {
+    fn height(self) -> f32 {
+        self as f32
+    }
+}
+
+impl BinCount for u64 {
+    fn height(self) -> f32 {
+        self as f32
+    }
+}
+
+/// The bins of a histogram and how tall they are drawn.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistogramData {
+    plot: Plot,
+    scale: HistogramScale,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum Plot {
+    Tone { bins: Vec<f32>, channel: ChannelColor },
+    Rgb([Vec<f32>; 3]),
+}
+
+impl HistogramData {
+    /// One channel's bins, drawn across the plot width, in `channel`'s colour.
+    pub fn tone<B: BinCount>(bins: &[B], channel: ChannelColor) -> Self {
+        Self { plot: Plot::Tone { bins: bins.iter().map(|b| b.height()).collect(), channel }, scale: HistogramScale::Peak }
+    }
+
+    /// Red, green and blue bins, drawn as ribbons. The three slices should have one length.
+    pub fn rgb<B: BinCount>(channels: [&[B]; 3]) -> Self {
+        Self { plot: Plot::Rgb(channels.map(|c| c.iter().map(|b| b.height()).collect())), scale: HistogramScale::Peak }
+    }
+
+    /// How tall the bins are drawn; [`HistogramScale::Peak`] by default.
+    pub fn scale(mut self, scale: HistogramScale) -> Self {
+        self.scale = scale;
+        self
+    }
+}
+
+/// A histogram's look, from [`Histogram::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct HistogramStyle {
+    /// Height of the plot: `histogram.height`.
+    pub height: f32,
+    /// The tone plot's box: `field.fill`.
+    pub fill: Color32,
+    /// The box's edge: `field.border.rest`.
+    pub border: Color32,
+    /// The plot behind RGB ribbons: `data.scope`, dark in every theme.
+    pub scope: Color32,
+    /// The tone look's colour per [`ChannelColor`], in [`ChannelColor::ALL`] order: the data
+    /// tokens, `text.muted` for neutral. Read it with [`tone`](HistogramStyle::tone).
+    pub tones: [Color32; 7],
+    /// The ribbons' colours, from the tokens passed to [`Histogram::style`]: `data.red`,
+    /// `data.green`, `data.blue`. [`Histogram::show`] reads them from the dark mode's tokens, since
+    /// the scope is dark in every theme.
+    pub ribbons: [Color32; 3],
+    /// Alpha of the ribbons' fills: `histogram.fill_alpha`.
+    pub fill_alpha: f32,
+    /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
+    pub backdrop_alpha: f32,
+    /// Width of the ribbons' outlines: `histogram.line`.
+    pub line: f32,
+    /// The marker on the tone look: `text.normal` at [`MARKER_ALPHA`].
+    pub marker: Color32,
+    /// The stale mark: `status.warn.fg`.
+    pub stale: Color32,
+}
+
+impl HistogramStyle {
+    /// The tone look's colour for `channel`.
+    pub fn tone(&self, channel: ChannelColor) -> Color32 {
+        self.tones[channel as usize]
+    }
+}
+
+/// Alpha of the marker band.
+const MARKER_ALPHA: f32 = 0.4;
+/// Width of the marker band, in points.
+const MARKER_WIDTH: f32 = 2.0;
+
+/// A plot of bins: one tone channel (Levels, the Histogram panel) or red, green and blue ribbons
+/// (Camera Raw). It is not interactive and not focusable.
+///
+/// ```
+/// use craft_ui::composites::{ChannelColor, Histogram};
+/// # egui::__run_test_ui(|ui| {
+/// let bins = [0u32, 4, 9, 20, 9, 4, 0];
+/// Histogram::new("levels", "Histogram").tone(&bins, ChannelColor::Red).value("Red channel").show(ui);
+/// # });
+/// ```
+///
+/// - **Bins:** any count, drawn across the plot width, each bin centred in its slot.
+/// - **Tone look:** a filled area on `field.fill` with `field.border.rest`, in the channel's data
+///   token (`text.muted` for neutral).
+/// - **RGB look:** the bins smoothed for display with the five-bin binomial kernel (the two edge
+///   bins pinned), one shared scale, fills at `histogram.fill_alpha` whose overlaps take the
+///   channel-wise maximum of the channel colours, and a `histogram.line` outline per channel.
+///   The plot sits on `data.scope` and draws the dark mode's `data.red`, `green` and `blue`.
+/// - **Marker:** a 2 pt band at a level; **stale:** a warning icon at the top trailing corner
+///   with a tooltip.
+/// - **AccessKit:** one `Image` node named by the label, whose value is [`value`](Histogram::value).
+#[must_use = "show the histogram with `show`"]
+pub struct Histogram {
+    id_salt: egui::IdSalt,
+    label: String,
+    data: Option<HistogramData>,
+    value: Option<String>,
+    marker: Option<f32>,
+    stale: bool,
+    stale_label: String,
+    height: Option<f32>,
+}
+
+impl Histogram {
+    /// An empty histogram named `label`. `id_salt` is its id.
+    pub fn new(id_salt: impl egui::AsIdSalt, label: impl Into<String>) -> Self {
+        Self {
+            id_salt: egui::IdSalt::new(id_salt),
+            label: label.into(),
+            data: None,
+            value: None,
+            marker: None,
+            stale: false,
+            stale_label: "Cached data".to_owned(),
+            height: None,
+        }
+    }
+
+    /// One channel in the tone look.
+    pub fn tone<B: BinCount>(mut self, bins: &[B], channel: ChannelColor) -> Self {
+        self.data = Some(HistogramData::tone(bins, channel));
+        self
+    }
+
+    /// Three channels in the RGB look.
+    pub fn rgb<B: BinCount>(mut self, channels: [&[B]; 3]) -> Self {
+        self.data = Some(HistogramData::rgb(channels));
+        self
+    }
+
+    /// How tall the bins are drawn; [`HistogramScale::Peak`] by default.
+    pub fn scale(mut self, scale: HistogramScale) -> Self {
+        self.data = self.data.map(|d| d.scale(scale));
+        self
+    }
+
+    /// A marker at `level`, a position in bins (a bin's centre is its index): the sampled pixel's
+    /// tone in PhotoCraft.
+    pub fn marker(mut self, level: Option<f32>) -> Self {
+        self.marker = level;
+        self
+    }
+
+    /// Marks the data as older than the image: a warning icon at the top trailing corner.
+    pub fn stale(mut self, stale: bool) -> Self {
+        self.stale = stale;
+        self
+    }
+
+    /// The stale mark's tooltip and accessible name; "Cached data" by default. The host
+    /// translates it.
+    pub fn stale_label(mut self, label: impl Into<String>) -> Self {
+        self.stale_label = label.into();
+        self
+    }
+
+    /// What a screen reader reads after the label, e.g. "Red channel".
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// The plot's height in points; `histogram.height` by default.
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// The look in `tokens`. The ribbon colours are those of `tokens`; [`show`](Histogram::show)
+    /// uses the dark mode's.
+    pub fn style(tokens: &UiTokens) -> HistogramStyle {
+        let (h, d) = (&tokens.component.histogram, &tokens.color.data);
+        HistogramStyle {
+            height: h.height,
+            fill: tokens.component.field.fill.rest.to_egui(),
+            border: tokens.component.field.border.rest.to_egui(),
+            scope: d.scope.to_egui(),
+            tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
+            ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
+            fill_alpha: h.fill_alpha,
+            backdrop_alpha: h.backdrop_alpha,
+            line: h.line,
+            marker: tokens.color.text.normal.to_egui().gamma_multiply(MARKER_ALPHA),
+            stale: tokens.color.status.warn.fg.to_egui(),
+        }
+    }
+
+    /// Draws `data` in `look` into `rect` with `painter`: no box, no layout, no interaction, nothing
+    /// in the AccessKit tree. A curve editor paints [`HistogramLook::Backdrop`] behind its curve.
+    /// `data` that doesn't fit the look (RGB data in the tone look) and a degenerate `rect` draw
+    /// nothing. [`HistogramLook::Rgb`] draws the colours of `tokens`: pass the dark mode's, as
+    /// [`show`](Histogram::show) does.
+    pub fn paint(painter: &Painter, rect: Rect, data: &HistogramData, look: HistogramLook, tokens: &UiTokens) {
+        painter.extend(plot_shapes(rect, data, look, &Histogram::style(tokens)));
+    }
+
+    /// Shows the histogram across the available width. The response senses nothing.
+    pub fn show(self, ui: &mut Ui) -> egui::Response {
+        let tokens = Tokens::of(ui);
+        let mut style = Histogram::style(&tokens);
+        let rgb = matches!(self.data, Some(HistogramData { plot: Plot::Rgb(_), .. }));
+        if rgb {
+            style.ribbons = Histogram::style(&tokens_in_mode(ui, Mode::Dark)).ribbons;
+        }
+        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), self.height.unwrap_or(style.height)), Sense::hover());
+        let id = ui.make_persistent_id(self.id_salt);
+        response.widget_info(|| {
+            let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label);
+            info.current_text_value.clone_from(&self.value);
+            info
+        });
+        if !ui.is_rect_visible(rect) {
+            return response;
+        }
+        let painter = ui.painter().with_clip_rect(rect);
+        painter.rect_filled(rect, 0.0, if rgb { style.scope } else { style.fill });
+        if let Some(data) = &self.data {
+            let look = if rgb { HistogramLook::Rgb } else { HistogramLook::Tone };
+            painter.extend(plot_shapes(rect, data, look, &style));
+            if let Some(level) = self.marker {
+                let color = if rgb { overlap(&style.ribbons, 0b111).gamma_multiply(MARKER_ALPHA) } else { style.marker };
+                painter.extend(marker_shapes(rect, data.bin_count(), level, color));
+            }
+        }
+        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, style.border), StrokeKind::Inside);
+        if self.stale {
+            let side = IconSize::Sm.points(&tokens);
+            let gap = tokens.space.gap.inline;
+            let x = direction::end_x(ui, rect) - direction::forward(ui) * (gap + side / 2.0);
+            let mark = Rect::from_center_size(pos2(x, rect.top() + gap + side / 2.0), vec2(side, side));
+            icons::paint(ui, mark, Icon::Warning, IconSize::Sm, style.stale);
+            let stale = ui.interact(mark, id.with("stale"), Sense::hover());
+            stale.widget_info(|| WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.stale_label));
+            stale.on_hover_text(&self.stale_label);
+        }
+        response
+    }
+}
+
+impl HistogramData {
+    fn bin_count(&self) -> usize {
+        match &self.plot {
+            Plot::Tone { bins, .. } => bins.len(),
+            Plot::Rgb(channels) => channels[0].len(),
+        }
+    }
+}
+
+/// The colour of the area under every channel of `mask` (bit `c` for channel `c`): the
+/// channel-wise maximum of their colours, which doesn't depend on drawing order.
+pub(super) fn overlap(colors: &[Color32; 3], mask: u8) -> Color32 {
+    let (mut r, mut g, mut b) = (0, 0, 0);
+    for (c, color) in colors.iter().enumerate() {
+        if mask & (1 << c) != 0 {
+            (r, g, b) = (r.max(color.r()), g.max(color.g()), b.max(color.b()));
+        }
+    }
+    Color32::from_rgb(r, g, b)
+}
+
+fn usable(rect: Rect) -> bool {
+    rect.is_finite() && rect.is_positive() && rect.size().is_finite()
+}
+
+/// The shapes of `data` in `look` inside `rect`.
+pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook, style: &HistogramStyle) -> Vec<Shape> {
+    if !usable(rect) {
+        return Vec::new();
+    }
+    match (&data.plot, look) {
+        (Plot::Tone { bins, channel }, HistogramLook::Tone | HistogramLook::Backdrop) => {
+            let color = style.tone(*channel);
+            let color = if look == HistogramLook::Backdrop { color.gamma_multiply(style.backdrop_alpha) } else { color };
+            vec![Shape::mesh(tone_mesh(rect, &tone_heights(bins, data.scale), color))]
+        }
+        (Plot::Rgb(channels), HistogramLook::Rgb) => {
+            let heights = rgb_heights(channels, data.scale);
+            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &style.ribbons, style.fill_alpha))];
+            for (values, color) in heights.iter().zip(style.ribbons) {
+                if values.iter().any(|&v| v > 0.0) {
+                    shapes.push(Shape::line(outline(rect, values), Stroke::new(style.line, color)));
+                }
+            }
+            shapes
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The marker band at bin position `level`, snapped to whole points and clipped to `rect`.
+pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, color: Color32) -> Vec<Shape> {
+    if !usable(rect) || bins == 0 || !level.is_finite() {
+        return Vec::new();
+    }
+    let x = rect.left() + ((level + 0.5) / bins as f32).clamp(0.0, 1.0) * rect.width();
+    let left = (x - MARKER_WIDTH / 2.0).round();
+    let band = Rect::from_min_max(pos2(left, rect.top()), pos2(left + MARKER_WIDTH, rect.bottom())).intersect(rect);
+    vec![Shape::rect_filled(band, 0.0, color)]
+}
+
+/// `v / scale` clamped to 1 for every bin.
+fn normalized(bins: &[f32], scale: f32) -> Vec<f32> {
+    bins.iter().map(|&v| (v / scale).min(1.0)).collect()
+}
+
+/// The 95th-percentile column of the interior columns (every bin but the two edges), whose
+/// 1.5 times is the height of the full plot in [`HistogramScale::Typical`].
+fn typical(columns: impl Iterator<Item = f32>) -> f32 {
+    let mut columns: Vec<f32> = columns.collect();
+    columns.sort_unstable_by(f32::total_cmp);
+    columns.get(columns.len() * 95 / 100).copied().unwrap_or(0.0) * 1.5
+}
+
+fn interior(bins: &[f32]) -> &[f32] {
+    bins.get(1..bins.len().saturating_sub(1)).unwrap_or(&[])
+}
+
+/// Heights in `0..=1` of one channel's bins.
+pub(super) fn tone_heights(bins: &[f32], scale: HistogramScale) -> Vec<f32> {
+    let tallest = bins.iter().copied().fold(0.0f32, f32::max);
+    let mut top = tallest.max(1.0) * 1.1;
+    if scale == HistogramScale::Typical {
+        let typical = typical(interior(bins).iter().copied());
+        if typical > 0.0 {
+            top = top.min(typical);
+        }
+    }
+    normalized(bins, top)
+}
+
+/// The display smoothing of an RGB channel: a five-bin binomial kernel (1 4 6 4 1)/16 on the
+/// interior bins; the two edge bins are pinned and kept out of their neighbours' averages.
+fn smooth(bins: &[f32]) -> Vec<f32> {
+    let n = bins.len();
+    if n < 3 {
+        return bins.to_vec();
+    }
+    let sample = |j: usize| bins[j.clamp(1, n - 2)];
+    (0..n)
+        .map(|i| {
+            if i == 0 || i == n - 1 {
+                bins[i]
+            } else {
+                (sample(i.saturating_sub(2)) + 4.0 * sample(i - 1) + 6.0 * bins[i] + 4.0 * sample(i + 1) + sample(i + 2)) / 16.0
+            }
+        })
+        .collect()
+}
+
+/// Heights in `0..=1` of the three channels, on one scale. Edge bins are clipped pixels: they
+/// don't set the scale unless the interior is empty, and are capped at the top.
+pub(super) fn rgb_heights(channels: &[Vec<f32>; 3], scale: HistogramScale) -> [Vec<f32>; 3] {
+    let curves = channels.each_ref().map(|c| smooth(c));
+    let interior_peak = curves.iter().flat_map(|c| interior(c).iter().copied()).fold(0.0f32, f32::max);
+    let peak = if interior_peak > 0.0 { interior_peak } else { curves.iter().flatten().copied().fold(0.0f32, f32::max) };
+    let mut top = if peak > 0.0 { peak * 1.1 } else { 1.0 };
+    if scale == HistogramScale::Typical {
+        let n = curves[0].len();
+        let columns = (1..n.saturating_sub(1)).map(|i| curves.iter().map(|c| c.get(i).copied().unwrap_or(0.0)).fold(0.0f32, f32::max));
+        let typical = typical(columns);
+        if typical > 0.0 {
+            top = top.min(typical);
+        }
+    }
+    curves.map(|c| normalized(&c, top))
+}
+
+/// The top edge of a plot: flat from the left to the first bin's centre, straight between
+/// centres, flat from the last to the right.
+pub(super) fn outline(rect: Rect, heights: &[f32]) -> Vec<Pos2> {
+    let n = heights.len();
+    let y = |h: f32| rect.bottom() - h * rect.height();
+    let mut points = Vec::with_capacity(n + 2);
+    let (Some(&first), Some(&last)) = (heights.first(), heights.last()) else { return points };
+    points.push(pos2(rect.left(), y(first)));
+    points.extend(heights.iter().enumerate().map(|(i, &h)| pos2(rect.left() + (i as f32 + 0.5) / n as f32 * rect.width(), y(h))));
+    points.push(pos2(rect.right(), y(last)));
+    points
+}
+
+/// One mesh of vertical strips under `heights`: no anti-aliasing feather, so no seams between bins.
+pub(super) fn tone_mesh(rect: Rect, heights: &[f32], color: Color32) -> Mesh {
+    let mut mesh = Mesh::default();
+    for pair in outline(rect, heights).windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let i = mesh.vertices.len() as u32;
+        for p in [pos2(a.x, rect.bottom()), a, b, pos2(b.x, rect.bottom())] {
+            mesh.colored_vertex(p, color);
+        }
+        mesh.add_triangle(i, i + 1, i + 2);
+        mesh.add_triangle(i, i + 2, i + 3);
+    }
+    mesh
+}
+
+fn quad(mesh: &mut Mesh, rect: Rect, x: [f32; 2], bottom: [f32; 2], top: [f32; 2], color: Color32) {
+    let i = mesh.vertices.len() as u32;
+    for (x, height) in [(x[0], bottom[0]), (x[0], top[0]), (x[1], top[1]), (x[1], bottom[1])] {
+        mesh.colored_vertex(pos2(x, rect.bottom() - height * rect.height()), color);
+    }
+    mesh.add_triangle(i, i + 1, i + 2);
+    mesh.add_triangle(i, i + 2, i + 3);
+}
+
+/// One span between two bin centres, split where two channels' edges cross so each piece has a
+/// fixed channel order: the band under k channels is drawn once, in their overlap colour, so the
+/// result doesn't depend on drawing order and has no cracks.
+fn span(mesh: &mut Mesh, rect: Rect, x: [f32; 2], a: [f32; 3], b: [f32; 3], fill: &dyn Fn(u8) -> Color32) {
+    let mut cuts = [0.0f32, 1.0, 1.0, 1.0, 1.0];
+    let mut n = 2;
+    for (i, (ai, bi)) in a.iter().zip(&b).enumerate() {
+        for (aj, bj) in a.iter().zip(&b).skip(i + 1) {
+            let denominator = (bi - ai) - (bj - aj);
+            if denominator.abs() > f32::EPSILON {
+                let crossing = (aj - ai) / denominator;
+                if crossing > 0.0
+                    && crossing < 1.0
+                    && let Some(cut) = cuts.get_mut(n)
+                {
+                    *cut = crossing;
+                    n += 1;
+                }
+            }
+        }
+    }
+    let Some(cuts) = cuts.get_mut(..n) else { return };
+    cuts.sort_unstable_by(f32::total_cmp);
+    for cut in cuts.windows(2) {
+        let (start, end) = (cut[0], cut[1]);
+        if end <= start {
+            continue;
+        }
+        let left = std::array::from_fn::<_, 3, _>(|c| a[c] + (b[c] - a[c]) * start);
+        let right = std::array::from_fn::<_, 3, _>(|c| a[c] + (b[c] - a[c]) * end);
+        let mut order = [(0usize, 1u8), (1, 2), (2, 4)];
+        order.sort_unstable_by(|(i, _), (j, _)| (left[*i] + right[*i]).total_cmp(&(left[*j] + right[*j])));
+        let x = [x[0] + (x[1] - x[0]) * start, x[0] + (x[1] - x[0]) * end];
+        let mut floor = [0.0; 2];
+        let mut mask = 0b111;
+        for (channel, bit) in order {
+            let top = [left[channel], right[channel]];
+            if top[0] > floor[0] || top[1] > floor[1] {
+                quad(mesh, rect, x, floor, top, fill(mask));
+            }
+            floor = top;
+            mask &= !bit;
+        }
+    }
+}
+
+/// The ribbons' fills.
+pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>; 3], colors: &[Color32; 3], fill_alpha: f32) -> Mesh {
+    let mut mesh = Mesh::default();
+    let n = heights[0].len();
+    if n == 0 || heights.iter().any(|h| h.len() != n) {
+        return mesh;
+    }
+    let fill = |mask: u8| overlap(colors, mask).gamma_multiply(fill_alpha);
+    let at = |i: usize| std::array::from_fn::<_, 3, _>(|c| heights[c][i]);
+    let mut previous_x = rect.left();
+    let mut previous = at(0);
+    for i in 0..n {
+        let x = rect.left() + (i as f32 + 0.5) / n as f32 * rect.width();
+        let next = at(i);
+        span(&mut mesh, rect, [previous_x, x], previous, next, &fill);
+        previous_x = x;
+        previous = next;
+    }
+    span(&mut mesh, rect, [previous_x, rect.right()], previous, previous, &fill);
+    mesh
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Histogram"];
+
+pub(crate) fn stories() -> Vec<Story> {
+    const CHANNELS: &[&str] = &["neutral", "red", "green", "blue", "cyan", "magenta", "yellow"];
+    const SCALES: &[&str] = &["peak", "typical"];
+    let tone = || {
+        Args::new().with_choice("channel", CHANNELS, 1).with_bool("stale", false).with_bool("marker", true).with_number("width", 256.0, 80.0, 400.0)
+    };
+    let rgb = || Args::new().with_choice("scale", SCALES, 0).with_bool("marker", false).with_number("width", 256.0, 80.0, 400.0);
+    vec![
+        Story { id: "composites/histogram/tone", level: Level::Composites, component: "Histogram", name: "Tone", args: tone, show: show_tone },
+        Story { id: "composites/histogram/rgb", level: Level::Composites, component: "Histogram", name: "RGB", args: rgb, show: show_rgb },
+    ]
+}
+
+/// A bell curve of `count` pixels around `centre` with spread `width`, over 256 bins.
+fn bell(centre: f32, width: f32, count: f32) -> Vec<u32> {
+    (0..256).map(|i| (count * (-((i as f32 - centre) / width).powi(2) / 2.0).exp()) as u32).collect()
+}
+
+fn channel_of(name: &str) -> ChannelColor {
+    ChannelColor::ALL.into_iter().find(|c| c.name() == name).unwrap_or_default()
+}
+
+pub(super) fn show_tone(ui: &mut Ui, args: &mut Args) {
+    let width = args.number("width") as f32;
+    let channel = channel_of(args.choice("channel"));
+    let bins = bell(90.0, 30.0, 9000.0).iter().zip(bell(190.0, 14.0, 6000.0)).map(|(a, b)| a + b).collect::<Vec<_>>();
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_max_width(width);
+        let marker = args.bool("marker").then_some(128.0);
+        Histogram::new("story-tone", "Histogram")
+            .tone(&bins, channel)
+            .value(format!("{} channel", channel.name()))
+            .marker(marker)
+            .stale(args.bool("stale"))
+            .show(ui);
+    });
+}
+
+pub(super) fn show_rgb(ui: &mut Ui, args: &mut Args) {
+    let width = args.number("width") as f32;
+    let scale = if args.choice("scale") == "typical" { HistogramScale::Typical } else { HistogramScale::Peak };
+    let (mut r, mut g, mut b) = (bell(100.0, 36.0, 9000.0), bell(120.0, 40.0, 8000.0), bell(150.0, 30.0, 7000.0));
+    // Clipped pixels at both ends, far above the interior.
+    for (bins, edges) in [(&mut r, (60_000, 9000)), (&mut g, (30_000, 2000)), (&mut b, (20_000, 40_000))] {
+        bins[0] = edges.0;
+        bins[255] = edges.1;
+    }
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_max_width(width);
+        let marker = args.bool("marker").then_some(100.0);
+        Histogram::new("story-rgb", "RGB histogram").rgb([&r, &g, &b]).scale(scale).value("Red, green and blue channels").marker(marker).show(ui);
+    });
+}

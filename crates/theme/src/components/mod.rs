@@ -10,6 +10,7 @@ mod button;
 mod check;
 mod field;
 mod handle;
+mod histogram;
 mod icon_button;
 mod kbd;
 mod listbox;
@@ -34,6 +35,7 @@ pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVari
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use handle::{HandleField, HandleTokens};
+pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
@@ -542,6 +544,8 @@ families! {
     field: FieldTokens => Field(FieldField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
+    /// Histograms: the plot height and the fill and backdrop alphas.
+    histogram: HistogramTokens => Histogram(HistogramField);
     /// Square icon-only buttons.
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Key chords and keycaps.

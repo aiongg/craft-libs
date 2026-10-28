@@ -10,12 +10,13 @@
 //!
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
+//! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`]); each has a pure `style` function of
+//! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`]); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -36,6 +37,9 @@
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub(crate) mod histogram;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod histogram_tests;
 mod measure;
 pub(crate) mod panel_header;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -48,6 +52,7 @@ pub(crate) mod section_header;
 mod section_header_tests;
 
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};
 pub use section_header::{SectionHeader, SectionStyle};
