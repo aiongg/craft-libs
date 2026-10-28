@@ -8,11 +8,12 @@ use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Ve
 use super::hex::{self, HexCodec};
 use super::{AreaMode, ColorArea, ColorStrip};
 use crate::composites::PropertyRow;
-use crate::controls::{IconButton, NumberField, Select, Slider};
+use crate::controls::{Button, IconButton, NumberField, Slider};
 use crate::direction;
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
+use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Gap, Interactive, Row, Text};
 use crate::theme::{Tokens, TokensOf};
 pub use full::ColorWarning;
@@ -637,19 +638,21 @@ fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::top_down_justified(Align::Min)), add).inner
 }
 
-// TODO(DS-22): the model switch is a `PressMenu` button under the rows (PhotoCraft's "HSB/HSL" /
-// "RGB Color"); a `Select` stands in for it.
-/// The model menu; the model chosen.
+/// The model switch under the rows (PhotoCraft's "HSB/HSL" / "RGB Color" press-menu button): a
+/// button with the current model's name opens a menu of the models, one radio item each. The
+/// button's AccessKit description is "Colour model". Returns the model chosen.
 fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, translate: &dyn Fn(&str) -> String, enabled: bool) -> &'static str {
-    let mut chosen = current;
+    let name = models.iter().find(|m| m.id() == current).map_or_else(String::new, |m| translate(m.name()));
+    let entries: Vec<MenuEntry<&'static str>> =
+        models.iter().map(|m| MenuItem::new(translate(m.name()), m.id()).radio(m.id() == current).into()).collect();
     ui.with_layout(direction::column(ui), |ui| {
-        let mut select = Select::new("model", translate(ColorPicker::TEXTS[2]), &mut chosen).enabled(enabled);
-        for m in models {
-            select = select.option(m.id(), translate(m.name()));
-        }
-        let _ = select.show(ui);
-    });
-    chosen
+        let button = ui.add(Button::new(name).id_salt("model").enabled(enabled));
+        let description = translate(ColorPicker::TEXTS[2]);
+        ui.ctx().accesskit_node_builder(button.id, |node| node.set_description(description));
+        PressMenu::new(&entries).show(ui, &button).chosen
+    })
+    .inner
+    .unwrap_or(current)
 }
 
 /// A channel's unit as a number field shows it: the template for "°" or "%", none otherwise.

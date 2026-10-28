@@ -2,6 +2,7 @@
 //! button, drag onto a row and release to run it (PhotoCraft's `press_menu`).
 
 use craft_theme::ControlSize;
+use egui::accesskit::HasPopup;
 use egui::{Id, Key, Modifiers, Popup, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
@@ -31,7 +32,8 @@ fn gesture() -> Id {
 /// menu follows the pointer while the press is held: releasing on an enabled row runs it,
 /// releasing on the button or on nothing leaves the menu open, as does a plain click. A secondary
 /// click opens it too, and Enter or Space on the focused button opens it from the keyboard (the
-/// first enabled row highlighted); with the menu open those keys are the menu's.
+/// first enabled row highlighted); with the menu open those keys are the menu's. The button is a
+/// menu button for AccessKit (`has_popup` menu, `expanded` while the menu is open).
 #[must_use = "You should call .show"]
 pub struct PressMenu<'a, T> {
     entries: &'a [MenuEntry<T>],
@@ -73,6 +75,10 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         let owner = ctx.data(|d| d.get_temp::<Id>(gesture())) == Some(id);
         let popup = Popup::menu(button).open_memory(command);
         let shown = Menu::new(self.entries).size(self.size).pressing(owner).opened_by_keyboard(keyboard).show(ui, popup);
+        ctx.accesskit_node_builder(button.id, |n| {
+            n.set_has_popup(HasPopup::Menu);
+            n.set_expanded(shown.open);
+        });
         // The gesture ends with the press; its release was handled in the pass above.
         if owner && (released(ui) || !shown.open) {
             ctx.data_mut(|d| d.remove::<Id>(gesture()));

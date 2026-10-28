@@ -2,7 +2,7 @@
 //! picker's gestures, an edit scope, AccessKit and the dialog Tab order.
 
 use craft_theme::{Channel, ColorModel, DefaultOn, LabModel, MAX_CHANNELS, ModelValues, Rgba, Srgba};
-use egui::accesskit::{Node, NodeId, Role};
+use egui::accesskit::{HasPopup, Node, NodeId, Role, Toggled};
 use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
 
 use super::hex::hex_id;
@@ -373,7 +373,9 @@ fn accesskit_names_the_parts_and_dialog_tab_visits_only_the_fields() {
     }
     rig.node(Role::TextInput, "Hex colour");
     rig.node(Role::Button, "Pick screen color");
-    assert!(!rig.nodes(Role::ComboBox, "Colour model").is_empty(), "the model switch");
+    let switch = rig.node(Role::Button, "HSB");
+    assert_eq!(switch.description(), Some("Colour model"), "the model switch");
+    assert_eq!(switch.has_popup(), Some(HasPopup::Menu));
 
     rig.focus(rig.fields.0);
     let mut order = Vec::new();
@@ -403,4 +405,28 @@ fn constrained_drags_stay_one_gesture_and_samples_arrive_as_sets() {
     rig.settle();
     assert_eq!(rig.events.iter().map(kind).collect::<Vec<_>>(), ["Set"]);
     assert_eq!(hex(rig.color), "#ff990080", "the sample, snapped, with the picker's alpha");
+}
+
+/// The model switch is a press menu: a click on the button opens the models as radio items, and
+/// a click on one switches the rows to it.
+#[test]
+fn the_model_switch_menu_switches_the_rows() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    let center = |node: &Node| {
+        let b = node.bounds().expect("bounds");
+        pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
+    };
+    let at = center(rig.node(Role::Button, "HSB"));
+    rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
+    rig.frame(vec![button(at, false)]);
+    rig.settle();
+    assert_eq!(rig.node(Role::Button, "HSB").is_expanded(), Some(true));
+    assert_eq!(rig.node(Role::MenuItemRadio, "HSB").toggled(), Some(Toggled::True), "the current model is checked");
+    let at = center(rig.node(Role::MenuItemRadio, "RGB"));
+    rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
+    rig.frame(vec![button(at, false)]);
+    rig.settle();
+    rig.node(Role::Button, "RGB");
+    rig.node(Role::SpinButton, "Red");
+    assert!(rig.nodes(Role::SpinButton, "Hue").is_empty());
 }
