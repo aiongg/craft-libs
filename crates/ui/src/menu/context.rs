@@ -119,7 +119,8 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
             command = Some(SetOpenCommand::Bool(true));
         }
         let pos = ctx.data(|d| d.get_temp::<Pos2>(at)).unwrap_or(widget.rect.left_bottom());
-        let anchored = Popup::menu(widget).id(popup).anchor(PopupAnchor::Position(pos)).open_memory(command);
+        // It runs from the point in the reading direction: leftwards in a right-to-left layout.
+        let anchored = Popup::menu(widget).id(popup).anchor(PopupAnchor::Position(pos)).align(crate::direction::below(ui)).open_memory(command);
         let mut menu = Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).restart(open && place.is_some());
         if let Some((up, down)) = self.scroll_labels {
             menu = menu.scroll_labels(up, down);

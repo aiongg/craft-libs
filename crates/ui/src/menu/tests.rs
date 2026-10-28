@@ -502,6 +502,8 @@ struct Owners {
     pass: u64,
     /// [`any_open`] as the last pass began, before the menus were drawn.
     open_before: bool,
+    /// Space before the owners.
+    indent: f32,
 }
 
 impl Owners {
@@ -529,6 +531,7 @@ impl Owners {
             shown_in: [0; 3],
             pass: 0,
             open_before: false,
+            indent: 0.0,
         };
         o.run(3);
         o
@@ -552,9 +555,11 @@ impl Owners {
         let mut open_before = false;
         let focus = self.focus.take();
         let entries = &self.entries;
+        let indent = self.indent;
         let mut full = self.ctx.run_ui(raw, |ui| {
             open_before = any_open(ui.ctx());
             ui.horizontal(|ui| {
+                ui.add_space(indent);
                 let one = ui.add(crate::controls::Button::new("One"));
                 let two = ui.add(crate::controls::Button::new("Two"));
                 let target = ui.add(crate::controls::Button::new("Target"));
@@ -731,6 +736,30 @@ fn the_menu_key_and_shift_f10_open_a_context_menu_at_the_focused_widget() {
         assert_eq!(o.chosen, ["copy"], "first row lit on opening, then one step down");
         assert!(!o.open[2]);
     }
+}
+
+/// Right to left, a context menu runs leftwards from its point, though there is room on the right.
+#[test]
+fn right_to_left_a_context_menu_ends_at_its_point() {
+    let mut o = Owners::new();
+    crate::direction::apply(&o.ctx, crate::direction::Direction::Rtl);
+    o.indent = 400.0;
+    o.focus = Some(2);
+    o.run(2);
+    let target = o.rect("Target");
+    assert!(target.right() < 700.0, "room on the right: {target:?}");
+    o.key(Key::F10, Modifiers::SHIFT);
+    let cut = o.rect("Cut");
+    assert!((cut.right() - target.right()).abs() < 10.0 && cut.top() >= target.bottom() - 1.0, "{cut:?} under {target:?}");
+    o.key(Key::Escape, Modifiers::NONE);
+    let p = target.center();
+    o.move_to(p);
+    o.button(egui::PointerButton::Secondary, true);
+    o.button(egui::PointerButton::Secondary, false);
+    o.run(3);
+    assert!(o.open[2]);
+    let cut = o.rect("Cut");
+    assert!((cut.right() - p.x).abs() < 10.0, "{cut:?} ends at {p:?}");
 }
 
 #[test]
