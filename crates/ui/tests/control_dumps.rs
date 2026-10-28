@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::controls::{Button, IconButton, Link, Segmented, ToggleButton};
+use craft_ui::controls::{Button, IconButton, Link, Segmented, Slider, ToggleButton};
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -152,5 +152,25 @@ fn link() {
     check("link.txt", |d, t| {
         let s = Link::style(t);
         d.line("color", s.color).line("underline", s.underline.name()).line("stroke", s.stroke);
+    });
+}
+
+/// [`RangeSlider`](craft_ui::controls::RangeSlider) draws with the same style.
+#[test]
+fn slider() {
+    check("slider.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Slider::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("width", s.width).line("thumb", s.thumb);
+            });
+        }
+        let s = Slider::style(t, ControlSize::Md);
+        d.line("track_height", s.track_height);
+        surface(d, "track", &s.track);
+        states(d, "fill", &s.fill);
+        surface(d, "thumb.surface", &s.thumb_surface);
+        states(d, "thumb.fill", &s.thumb_fill);
+        states(d, "thumb.border", &s.thumb_border);
     });
 }

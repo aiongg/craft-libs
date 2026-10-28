@@ -1,7 +1,9 @@
 //! [`Interactive`]: the hit area, AccessKit node and keyboard activation every control builds on.
 
-use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
+use std::ops::RangeInclusive;
+
+use egui::accesskit::{Action, Role};
+use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Rect, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
 
 use super::{Corner, FocusRing, StateColors, StateLayer, Surface, SurfaceEdge, SurfaceKind};
 use crate::inspect::{self, RecordKind};
@@ -47,8 +49,17 @@ struct Report {
     role: Role,
     label: String,
     value: Option<String>,
+    numeric: Option<Numeric>,
     expanded: Option<bool>,
     busy: bool,
+}
+
+/// A numeric value with its bounds, for sliders.
+#[derive(Clone, Debug)]
+struct Numeric {
+    value: f64,
+    range: RangeInclusive<f64>,
+    step: f64,
 }
 
 /// How [`Sensed::finish`] paints.
@@ -102,7 +113,7 @@ impl<'a> Interactive<'a> {
             enabled: true,
             checked: None,
             selected: None,
-            report: Report { role, label: label.into(), value: None, expanded: None, busy: false },
+            report: Report { role, label: label.into(), value: None, numeric: None, expanded: None, busy: false },
             look: Look { surface: None, corner: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
         }
     }
@@ -227,10 +238,16 @@ impl<'a> Interactive<'a> {
 
     /// Allocates `size` in the layout and interacts with it: a click changes bound states. The
     /// element is reported and painted by [`Sensed::finish`].
-    pub fn interact(mut self, ui: &mut Ui, size: Vec2) -> Sensed {
+    pub fn interact(self, ui: &mut Ui, size: Vec2) -> Sensed {
+        let (_, rect) = ui.allocate_space(size);
+        self.interact_at(ui, rect)
+    }
+
+    /// Interacts with `rect` without allocating it in the layout, for an element placed inside a
+    /// control's own rect (a slider's thumb); otherwise as [`interact`](Interactive::interact).
+    pub fn interact_at(mut self, ui: &Ui, rect: Rect) -> Sensed {
         // `id_salt` is already `IdSalt::new(..)` of the caller's salt, as `id_in` takes it.
         let id = ui.make_persistent_id(self.id_salt);
-        let (_, rect) = ui.allocate_space(size);
         // A WAI-ARIA link activates on Enter only; Space scrolls.
         let options = InteractOptions { enabled: self.enabled, activate_on_space: self.report.role != Role::Link, ..Default::default() };
         let mut response = ui.interact_opt(rect, id, self.sense, options);
@@ -285,6 +302,15 @@ impl Sensed {
         self
     }
 
+    /// A numeric value, as settled after sensing, with the bounds it may take and the step of one
+    /// increment, for a [`Role::Slider`]. A screen reader reads them, and may ask for an
+    /// increment, a decrement (offered while the value is inside its bounds) or a value; the
+    /// control reads those requests from the input.
+    pub fn numeric(mut self, value: f64, range: RangeInclusive<f64>, step: f64) -> Self {
+        self.report.numeric = Some(Numeric { value, range, step });
+        self
+    }
+
     /// Reports the element to AccessKit and paints its fill, edge and focus ring. The caller
     /// draws the content after it.
     pub fn finish(self, ui: &Ui) -> Response {
@@ -293,11 +319,26 @@ impl Sensed {
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(report.role, enabled, &report.label);
             info.current_text_value.clone_from(&report.value);
+            info.value = report.numeric.as_ref().map(|n| n.value);
             info.selected = checked;
             info
         });
-        if selected.is_some() || report.expanded.is_some() || report.busy {
+        if selected.is_some() || report.numeric.is_some() || report.expanded.is_some() || report.busy {
             ui.ctx().accesskit_node_builder(response.id, |node| {
+                if let Some(Numeric { value, range, step }) = &report.numeric {
+                    node.set_min_numeric_value(*range.start());
+                    node.set_max_numeric_value(*range.end());
+                    node.set_numeric_value_step(*step);
+                    if enabled {
+                        node.add_action(Action::SetValue);
+                        if value < range.end() {
+                            node.add_action(Action::Increment);
+                        }
+                        if value > range.start() {
+                            node.add_action(Action::Decrement);
+                        }
+                    }
+                }
                 if let Some(selected) = selected {
                     node.set_selected(selected);
                 }

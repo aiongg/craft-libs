@@ -278,3 +278,64 @@ fn a_disabled_segmented_control_keeps_its_radio_buttons_in_the_group_and_its_too
     let named = harness.query_all_by(|n| n.label().as_deref() == Some("Hand") || n.value().as_deref() == Some("Hand")).count();
     assert_eq!(named, 2, "the tooltip shows the label");
 }
+
+/// A slider at 40 in steps of 5 and a range slider at 20 to 60, as the host applies them, and the
+/// focus ring colour.
+type Sliders = (f64, (f64, f64), egui::Color32);
+
+fn sliders<'a>() -> Harness<'a, Sliders> {
+    harness().build_ui_state(
+        |ui, (level, range, ring): &mut Sliders| {
+            *ring = crate::theme::ToEgui::to_egui(<crate::theme::Tokens as crate::theme::TokensOf>::of(ui).color.line.focus);
+            let edit = Slider::new("opacity", "Opacity", *level, 0.0..=100.0).step(5.0).show(ui);
+            if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
+                *level = *value;
+            }
+            let edit = RangeSlider::new("levels", ("Levels from", "Levels to"), *range, 0.0..=100.0).show(ui);
+            if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
+                *range = *value;
+            }
+        },
+        (40.0, (20.0, 60.0), egui::Color32::TRANSPARENT),
+    )
+}
+
+#[test]
+fn sliders_report_their_value_bounds_and_step_and_take_screen_reader_requests() {
+    let mut harness = sliders();
+    harness.run();
+    a11y::assert_labelled(&harness);
+    let numeric = |harness: &Harness<'_, Sliders>, label: &str| {
+        let node = harness.get_by_label(label).accesskit_node();
+        (node.role(), node.numeric_value(), node.min_numeric_value(), node.max_numeric_value(), node.numeric_value_step())
+    };
+    assert_eq!(numeric(&harness, "Opacity"), (Role::Slider, Some(40.0), Some(0.0), Some(100.0), Some(5.0)));
+    // Each thumb's bounds stop at the other thumb; without a step a key moves a hundredth.
+    assert_eq!(numeric(&harness, "Levels from"), (Role::Slider, Some(20.0), Some(0.0), Some(60.0), Some(1.0)));
+    assert_eq!(numeric(&harness, "Levels to"), (Role::Slider, Some(60.0), Some(20.0), Some(100.0), Some(1.0)));
+    let order: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|stop| stop.label).collect();
+    assert_eq!(order, ["Opacity", "Levels from", "Levels to"]);
+
+    harness.get_by_label("Opacity").increment_accesskit();
+    harness.run();
+    assert_eq!(harness.state().0, 45.0);
+    harness.get_by_label("Levels to").set_value_accesskit(30.0);
+    harness.run();
+    assert_eq!(harness.state().1, (20.0, 30.0));
+    harness.get_by_label("Levels to").set_value_accesskit(10.0);
+    harness.run();
+    assert_eq!(harness.state().1, (20.0, 20.0), "the upper thumb can't pass the lower");
+    assert_eq!(numeric(&harness, "Levels from").3, Some(20.0));
+}
+
+#[test]
+fn a_focused_slider_and_a_focused_thumb_show_the_focus_ring() {
+    let mut harness = sliders();
+    harness.run();
+    for label in ["Opacity", "Levels from", "Levels to"] {
+        harness.key_press(Key::Tab);
+        harness.run();
+        assert!(harness.get_by_label(label).is_focused(), "{label}");
+        a11y::assert_focus_ring(&harness, harness.state().2);
+    }
+}

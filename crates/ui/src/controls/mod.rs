@@ -6,10 +6,13 @@
 //! - [`ToggleButton`]: a secondary-looking button that stays pressed while on.
 //! - [`Segmented`]: one of a few options (tool modes) on a track, a WAI-ARIA radio group.
 //! - [`Link`]: text in `accent.text` that opens a URL or reports a click.
+//! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
+//!   report through the edit lifecycle ([`crate::edit`]) and return an
+//!   [`EditResponse`](crate::edit::EditResponse).
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`), so a theme's component overrides reach them; shape and edge come from the
+//! `segmented.*`, `slider.*`), so a theme's component overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens) and its properties, dumped under
@@ -30,7 +33,11 @@
 pub(crate) mod button;
 pub(crate) mod icon_button;
 pub(crate) mod link;
+pub(crate) mod range_slider;
 pub(crate) mod segmented;
+pub(crate) mod slider;
+#[cfg(test)]
+mod slider_tests;
 #[cfg(test)]
 mod tests;
 pub(crate) mod toggle_button;
@@ -43,7 +50,9 @@ pub use button::{Button, ButtonStyle};
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use link::{Link, LinkStyle, LinkUnderline};
+pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
+pub use slider::{Slider, SliderStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 
 use crate::icons::IconSize;

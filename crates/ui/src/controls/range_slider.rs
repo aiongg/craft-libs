@@ -1,0 +1,292 @@
+//! [`RangeSlider`]: a lower and an upper value on one track.
+
+use std::ops::RangeInclusive;
+
+use craft_theme::{ControlSize, States};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Color32, EventFilter, Id, IdSalt, InteractOptions, Sense, Ui, Vec2, pos2};
+
+use super::slider::{KEY_FILTER, Scale, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, with_values};
+use super::{SIZE_NAMES, Slider, size_arg};
+use crate::edit::{self, EditPolicy, EditResponse, Gesture};
+use crate::primitives::{FocusRing, Gap, Interactive, Stack, StateLayer};
+use crate::story::{Args, Level, Story};
+use crate::theme::{Tokens, TokensOf};
+
+/// A range within a range, set with two thumbs on one track:
+///
+/// ```
+/// use craft_ui::controls::RangeSlider;
+/// # egui::__run_test_ui(|ui| { let mut hue = (40.0, 160.0);
+/// let edit = RangeSlider::new("hue", ("Hue from", "Hue to"), hue, 0.0..=360.0).step(1.0).show(ui);
+/// if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
+///     hue = *value;
+/// }
+/// # });
+/// ```
+///
+/// It works as a [`Slider`] with two thumbs, the part between them filled, and reports both values
+/// as one `(lower, upper)` through the edit lifecycle.
+///
+/// - Each thumb is a Tab stop and an AccessKit `Slider` named by its label, whose bounds are the
+///   range's end and the other thumb: the thumbs can't cross.
+/// - Pointer: a press on a thumb drags it; a press between the thumbs drags both, keeping the
+///   distance between them; a press elsewhere moves the nearer thumb there. Where the thumbs
+///   meet, the drag's direction picks the one that moves. A press focuses the thumb it moves, or
+///   the nearer one.
+/// - Keys, the wheel and screen-reader requests move the focused thumb as on a [`Slider`]; Home
+///   and End go to its bounds.
+#[derive(Clone, Debug)]
+#[must_use = "show the range slider with `show`"]
+pub struct RangeSlider {
+    id_salt: IdSalt,
+    labels: (String, String),
+    value: (f64, f64),
+    range: RangeInclusive<f64>,
+    step: Option<f64>,
+    policy: EditPolicy,
+    size: ControlSize,
+    enabled: bool,
+}
+
+/// What a press at a point moves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Part {
+    Lower,
+    Upper,
+    /// Both thumbs, by the same amount: a press between them.
+    Span,
+    /// Thumbs that meet under the press: the drag's direction picks one.
+    Either,
+}
+
+impl Part {
+    /// Whether the part moves the lower thumb, the upper one and the span between them.
+    fn lights(self) -> (bool, bool, bool) {
+        match self {
+            Part::Lower => (true, false, false),
+            Part::Upper => (false, true, false),
+            Part::Span => (true, true, true),
+            Part::Either => (true, true, false),
+        }
+    }
+}
+
+impl RangeSlider {
+    /// A range slider showing the host's `(lower, upper)` value in `range`. `labels` name the
+    /// lower and the upper thumb (their accessible names), as whole phrases the app translates,
+    /// e.g. `("Hue from", "Hue to")`; `id_salt` keeps its gesture, focus and animations when the
+    /// layout around it changes.
+    pub fn new(id_salt: impl AsIdSalt, labels: (impl Into<String>, impl Into<String>), value: (f64, f64), range: RangeInclusive<f64>) -> Self {
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            labels: (labels.0.into(), labels.1.into()),
+            value,
+            range,
+            step: None,
+            policy: EditPolicy::default(),
+            size: ControlSize::Md,
+            enabled: true,
+        }
+    }
+
+    /// The step values snap to, as [`Slider::step`].
+    pub fn step(mut self, step: f64) -> Self {
+        self.step = Some(step);
+        self
+    }
+
+    /// How the gesture reports ([`EditPolicy`]).
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Shows the range slider and returns this frame's edit event, with the value as
+    /// `(lower, upper)`. The response covers the track.
+    pub fn show(self, ui: &mut Ui) -> EditResponse<(f64, f64)> {
+        let tokens = Tokens::of(ui);
+        let style = Slider::style(&tokens, self.size);
+        let scale = Scale::new(&self.range, self.step);
+        let (_, rect) = ui.allocate_space(Vec2::new(style.width, style.height));
+        let id = ui.make_persistent_id(self.id_salt);
+        let options = InteractOptions { enabled: self.enabled, ..Default::default() };
+        let response = ui.interact_opt(rect, id, Sense::DRAG, options);
+        let enabled = response.enabled();
+        let track = Track::new(rect, &style, scale);
+        let salts = (id.with("lower"), id.with("upper"));
+        let ids = (Interactive::id_in(ui, salts.0), Interactive::id_in(ui, salts.1));
+        let host = ordered(self.value);
+
+        let mut gesture = Gesture::load(ui, id, &host, self.policy);
+        let at = |values: (f64, f64), x: f32| part_at(&track, values, x);
+        if response.drag_started()
+            && let Some((_, origin)) = pointer(ui)
+        {
+            let (lo, hi) = clamped(&scale, *gesture.shown());
+            let lower = match at((lo, hi), origin.x) {
+                Part::Lower => true,
+                Part::Upper => false,
+                Part::Span | Part::Either => (origin.x - track.x_of(lo)).abs() <= (origin.x - track.x_of(hi)).abs(),
+            };
+            ui.memory_mut(|m| m.request_focus(if lower { ids.0 } else { ids.1 }));
+            gesture.begin();
+        }
+        let mut active = None;
+        if response.dragged()
+            && let Some(start) = gesture.start().copied()
+            && let Some((pos, origin)) = pointer(ui)
+        {
+            let start = clamped(&scale, start);
+            let part = at(start, origin.x);
+            active = Some(part);
+            gesture.update(dragged(&track, &scale, part, start, origin.x, pos.x), ui.input(|i| i.modifiers));
+        }
+        if response.drag_stopped() {
+            gesture.commit();
+        }
+
+        let (lo, hi) = clamped(&scale, *gesture.shown());
+        let hovered = response.hovered();
+        if let Some(lo) = stepped(ui, ids.0, enabled, hovered, lo, (scale.min, hi), &scale) {
+            gesture.set((lo, hi));
+        }
+        let (lo, hi) = clamped(&scale, *gesture.shown());
+        if let Some(hi) = stepped(ui, ids.1, enabled, hovered, hi, (lo, scale.max), &scale) {
+            gesture.set((lo, hi));
+        }
+        // While a gesture Esc may cancel is under way, a focused thumb keeps the focus on Esc.
+        if gesture.is_active() && self.policy.cancellable && !edit::in_scope(ui) {
+            for thumb in [ids.0, ids.1].into_iter().filter(|t| ui.memory(|m| m.has_focus(*t))) {
+                ui.memory_mut(|m| m.set_focus_lock_filter(thumb, EventFilter { escape: true, ..KEY_FILTER }));
+            }
+        }
+
+        let (lo, hi) = clamped(&scale, *gesture.shown());
+        let (x_lo, x_hi) = (track.x_of(lo), track.x_of(hi));
+        let thumb_rect = |x: f32| egui::Rect::from_center_size(pos2(x, track.y), Vec2::splat(style.thumb));
+        let thumbs = [(salts.0, &self.labels.0, lo, scale.min..=hi, x_lo), (salts.1, &self.labels.1, hi, lo..=scale.max, x_hi)].map(
+            |(salt, label, value, bounds, x)| {
+                let sensed = Interactive::new(salt, Role::Slider, label.as_str())
+                    .sense(Sense::FOCUSABLE)
+                    .enabled(enabled)
+                    .state_layer(false)
+                    .focus_ring(false)
+                    .interact_at(ui, thumb_rect(x));
+                sensed.numeric(value, bounds, scale.key_step()).finish(ui)
+            },
+        );
+
+        if ui.is_rect_visible(rect) {
+            // The part a press would move lights up while hovered, and the dragged part while pressed.
+            let lit = active.or_else(|| response.hover_pos().filter(|_| hovered).map(|p| at((lo, hi), p.x)));
+            let (lit_lo, lit_hi, lit_span) = lit.map_or((false, false, false), Part::lights);
+            let down = response.is_pointer_button_down_on();
+            let color = |states: &States<Color32>, key: Id, lit: bool| StateLayer::color_of(ui, states, key, enabled, lit, lit && down);
+            paint_track(ui, &style, &track);
+            paint_fill(ui, &style, &track, x_lo, x_hi, color(&style.fill, id, lit_span));
+            for ((response, x), lit) in thumbs.iter().zip([x_lo, x_hi]).zip([lit_lo, lit_hi]) {
+                let fill = color(&style.thumb_fill, response.id, lit);
+                let border = color(&style.thumb_border, response.id, lit);
+                let rect = paint_thumb(ui, &style, pos2(x, track.y), fill, border);
+                FocusRing::paint_radius(ui, rect, style.thumb_surface.radius, response);
+            }
+        }
+        EditResponse::new(response, gesture.finish())
+    }
+}
+
+/// The value with its lower end first.
+fn ordered((a, b): (f64, f64)) -> (f64, f64) {
+    if a <= b { (a, b) } else { (b, a) }
+}
+
+/// The value in order and in the range, as drawn.
+fn clamped(scale: &Scale, value: (f64, f64)) -> (f64, f64) {
+    let (lo, hi) = ordered(value);
+    (scale.clamp(lo), scale.clamp(hi))
+}
+
+/// What a press at `x` moves, with the thumbs at `values`.
+fn part_at(track: &Track, (lo, hi): (f64, f64), x: f32) -> Part {
+    let (x_lo, x_hi) = (track.x_of(lo), track.x_of(hi));
+    let (d_lo, d_hi) = ((x - x_lo).abs(), (x - x_hi).abs());
+    if d_lo.min(d_hi) <= track.reach {
+        return match d_lo.partial_cmp(&d_hi) {
+            Some(std::cmp::Ordering::Less) => Part::Lower,
+            Some(std::cmp::Ordering::Greater) => Part::Upper,
+            _ => Part::Either,
+        };
+    }
+    if x > x_lo && x < x_hi {
+        Part::Span
+    } else if x <= x_lo {
+        Part::Lower
+    } else {
+        Part::Upper
+    }
+}
+
+/// The value while dragging `part` from a press at `origin` to `x`, from `start`. The thumbs
+/// don't cross, and the span keeps its width inside the range.
+fn dragged(track: &Track, scale: &Scale, part: Part, (lo, hi): (f64, f64), origin: f32, x: f32) -> (f64, f64) {
+    let lower = || (scale.snap(track.value_at(x + track.grab(lo, origin))).min(hi), hi);
+    let upper = || (lo, scale.snap(track.value_at(x + track.grab(hi, origin))).max(lo));
+    match part {
+        Part::Lower => lower(),
+        Part::Upper => upper(),
+        Part::Either if x < origin => lower(),
+        Part::Either if x > origin => upper(),
+        Part::Either => (lo, hi),
+        Part::Span => {
+            let width = hi - lo;
+            let lo = scale.snap(lo + track.value_per(x - origin)).min(scale.max - width).max(scale.min);
+            (lo, lo + width)
+        }
+    }
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Range slider"];
+
+pub(crate) fn stories() -> Vec<Story> {
+    vec![Story {
+        id: "controls/range-slider/range",
+        level: Level::Controls,
+        component: "Range slider",
+        name: "Range",
+        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+        show,
+    }]
+}
+
+/// A continuous range and one in steps of 5.
+fn show(ui: &mut Ui, args: &mut Args) {
+    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+    with_values(ui, "range-slider", [(20.0, 60.0), (25.0, 75.0)], |ui, values| {
+        Stack::new(Gap::Stack).show(ui, |ui| {
+            for (i, (name, value)) in ["Levels", "Steps of 5"].into_iter().zip(values.iter_mut()).enumerate() {
+                let text = format!("{:.1} to {:.1}", value.0, value.1);
+                labelled(ui, name, &text, |ui| {
+                    let mut slider = RangeSlider::new(("range-slider", i), (format!("{name} from"), format!("{name} to")), *value, 0.0..=100.0)
+                        .size(size)
+                        .enabled(enabled);
+                    if i == 1 {
+                        slider = slider.step(5.0);
+                    }
+                    apply(&slider.show(ui), value);
+                });
+            }
+        });
+    });
+}

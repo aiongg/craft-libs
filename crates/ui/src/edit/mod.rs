@@ -36,7 +36,7 @@ use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiSta
 
 pub use gesture::Gesture;
 pub use host::{GestureHost, UndoMarks};
-pub(crate) use story::stories;
+pub(crate) use story::{RATES, describe, policy, stories};
 
 /// One gesture, unique within its [`Context`]: a new gesture never reuses an earlier id, and a
 /// later gesture has a greater id.

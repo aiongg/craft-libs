@@ -1,7 +1,7 @@
 //! [`StateLayer`]: the hover and pressed fills of interactive elements.
 
 use craft_theme::{ButtonColors, Easing, ItemColors, States};
-use egui::{Color32, Rect, Response, Ui, vec2};
+use egui::{Color32, Id, Rect, Response, Ui, vec2};
 
 use super::{Corner, Surface, SurfaceKind};
 use crate::story::{Args, Level, Story};
@@ -109,14 +109,20 @@ impl StateLayer {
     /// colours with `motion.hover`, or its disabled colour. Every part of one element (fill,
     /// border, text) shares the same animation.
     pub fn color(ui: &Ui, colors: &States<Color32>, response: &Response) -> Color32 {
-        if !response.enabled() {
+        StateLayer::color_of(ui, colors, response.id, response.enabled(), response.hovered(), response.is_pointer_button_down_on())
+    }
+
+    /// [`StateLayer::color`] for a part of a control that has no response of its own (a range
+    /// slider's thumb), hovered and pressed as the control works out; `id` keys its animation.
+    pub(crate) fn color_of(ui: &Ui, colors: &States<Color32>, id: Id, enabled: bool, hovered: bool, pressed: bool) -> Color32 {
+        if !enabled {
             return colors.disabled;
         }
         let style = StateLayer::style(&Tokens::of(ui));
         let (ctx, easing) = (ui.ctx(), style.easing.to_egui());
-        let animate = |salt: &str, on: bool| ctx.animate_bool_with_time_and_easing(response.id.with(salt), on, style.fade, easing);
-        let hover = animate("craft_ui::state_layer::hover", response.hovered());
-        let pressed = animate("craft_ui::state_layer::pressed", response.is_pointer_button_down_on());
+        let animate = |salt: &str, on: bool| ctx.animate_bool_with_time_and_easing(id.with(salt), on, style.fade, easing);
+        let hover = animate("craft_ui::state_layer::hover", hovered);
+        let pressed = animate("craft_ui::state_layer::pressed", pressed);
         mix(colors, hover, pressed)
     }
 

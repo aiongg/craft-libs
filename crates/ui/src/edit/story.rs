@@ -14,7 +14,7 @@ use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceK
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
-const RATES: &[&str] = &["realtime", "debounced 300 ms"];
+pub(crate) const RATES: &[&str] = &["realtime", "debounced 300 ms"];
 
 /// Events kept in the log.
 const LOG_LEN: usize = 20;
@@ -33,8 +33,9 @@ pub(crate) fn stories() -> Vec<Story> {
     }]
 }
 
-/// The story's policy for both controls.
-fn policy(args: &Args) -> EditPolicy {
+/// The story's policy for its controls, from the `update rate`, `cancellable` and `on release
+/// only` args.
+pub(crate) fn policy(args: &Args) -> EditPolicy {
     let update = match args.choice("update rate") {
         "debounced 300 ms" => UpdateRate::Debounced(Duration::from_millis(300)),
         _ => UpdateRate::Realtime,
@@ -166,7 +167,7 @@ impl State {
 }
 
 /// One log line, e.g. `Update #3 42 (shift)`.
-fn describe<T: Debug>(event: &EditEvent<T>) -> String {
+pub(crate) fn describe<T: Debug>(event: &EditEvent<T>) -> String {
     match event {
         EditEvent::Begin { id } => format!("Begin {id}"),
         EditEvent::Update { id, value, modifiers } if modifiers.is_none() => format!("Update {id} {value:?}"),

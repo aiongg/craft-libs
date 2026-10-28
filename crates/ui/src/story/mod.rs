@@ -114,6 +114,8 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::toggle_button::stories());
     all.extend(controls::segmented::stories());
     all.extend(controls::link::stories());
+    all.extend(controls::slider::stories());
+    all.extend(controls::range_slider::stories());
     all
 }
 
@@ -137,6 +139,8 @@ const DECLARED: &[&[&str]] = &[
     controls::toggle_button::COMPONENTS,
     controls::segmented::COMPONENTS,
     controls::link::COMPONENTS,
+    controls::slider::COMPONENTS,
+    controls::range_slider::COMPONENTS,
 ];
 
 /// Every component the crate's modules declare, in [`registry`] order.
