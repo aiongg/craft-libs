@@ -9,6 +9,8 @@
 //! - [`Listbox`]: the active option of a listbox whose focus stays on its owner (arrows, Page
 //!   Up and Down, Home, End, type-ahead), used by [`Select`](crate::controls::Select) and
 //!   [`ComboBox`](crate::controls::ComboBox).
+//! - [`KeyClaim`]: the keys a focused control edits with (a curve editor's Delete), which the
+//!   app's shortcut dispatch leaves to it.
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
@@ -16,6 +18,7 @@
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tab_tests;
+mod key_claim;
 mod listbox;
 mod radio_selection;
 #[cfg(test)]
@@ -23,6 +26,7 @@ mod tests;
 mod typing;
 
 pub use field_tab::FieldTab;
+pub use key_claim::KeyClaim;
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
 pub use radio_selection::RadioSelection;

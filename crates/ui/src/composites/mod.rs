@@ -8,8 +8,11 @@
 //!   [`PropertyRow::pair`] puts two in a row, and [`PropertyGroup`] gives a section's glyph labels
 //!   one centre.
 //!
+//! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
+//!   Input/Output row of the selected point; the value is a [`Curve`].
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
+//! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
 //! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
@@ -20,8 +23,8 @@
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
+//! (`curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
+//! `panel_header.*` for [`PanelHeader`], `histogram.*` for [`Histogram`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -39,12 +42,19 @@
 //! # });
 //! ```
 
+pub(crate) mod curve;
+pub(crate) mod curve_editor;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod curve_editor_tests;
 pub(crate) mod empty_state;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod empty_state_tests;
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub(crate) mod histogram;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod histogram_tests;
 pub mod live;
 mod measure;
 pub(crate) mod notice;
@@ -64,8 +74,11 @@ pub(crate) mod toast;
 mod toast_tests;
 
 pub use craft_theme::Tone;
+pub use curve::Curve;
+pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
 pub use notice::{Notice, NoticeStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

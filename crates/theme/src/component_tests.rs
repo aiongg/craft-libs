@@ -131,6 +131,32 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));
 }
 
+#[test]
+fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indicator_minimum() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            let (stroke, fill) = (ComponentField::Curve(CurveField::PointStroke), ComponentField::Curve(CurveField::Fill));
+            let ratio = pair_ratio(&r.tokens, stroke, Some(fill));
+            assert!(ratio >= min, "{} {a:?}: the point outline on the plot is {ratio:.2}, needs {min}", def.name);
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let c = &t.component.curve;
+    assert_eq!((c.fill, c.border), (t.component.field.fill.rest, t.component.field.border.rest));
+    assert_eq!((c.grid, c.baseline), (t.color(T::LineDivider), t.color(T::LineBorder)));
+    assert_eq!((c.point_fill, c.point_stroke), (t.color(T::SurfaceSunken), t.color(T::TextNormal)));
+    assert_eq!((c.width, c.other_width, c.other_alpha), (1.5, 1.0, 0.8));
+    // The Compact sizes scale with the control height.
+    let k = t.size.control.md / 24.0;
+    let scaled = |v: f32| (v * k).round();
+    assert_eq!((c.min_side, c.max_side, c.pad), (scaled(120.0), scaled(300.0), scaled(5.0)));
+    assert_eq!((c.bar, c.bar_gap, c.hit, c.drag_off), (scaled(8.0), scaled(4.0), scaled(9.0), scaled(12.0)));
+}
+
 /// The knob look of slider and switch thumbs: `surface.knob` with a `line.knob_edge` outline while
 /// enabled; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
 fn knob(t: &Tokens) -> ThumbColors {
@@ -399,6 +425,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + (4 + 2 * 5)
             + 5
             + 1
+            + 6
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -442,6 +469,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("field.unit.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Unit, disabled: true })),
         ("field.scrub.rest", ComponentField::Field(FieldField::Color { part: FieldPart::Scrub, disabled: false })),
         ("slider.radius", ComponentField::Slider(SliderField::Radius)),
+        ("curve.point_stroke", ComponentField::Curve(CurveField::PointStroke)),
         ("slider.fill.hover", ComponentField::Slider(SliderField::Fill(State::Hover))),
         ("slider.thumb.border.disabled", ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled })),
         ("slider.ring.hover", ComponentField::Slider(SliderField::Ring(State::Hover))),

@@ -4,7 +4,9 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::{EmptyState, Field, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone};
+use craft_ui::composites::{
+    ChannelColor, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
+};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -466,5 +468,41 @@ fn empty_state() {
         let s = EmptyState::style(t);
         d.line("max_width", s.max_width).line("gap", s.gap).line("section_gap", s.section_gap).line("message", s.message);
         d.line("message_role", role(s.message_role)).line("title_role", role(s.title_role)).line("description_role", role(s.description_role));
+    });
+}
+/// Curve editors: the graph's sizes, the plot, grid and baseline, the curve widths, both point
+/// looks and the hint.
+#[test]
+fn curve_editor() {
+    check("curve_editor.txt", |d, t| {
+        let s = CurveEditor::style(t);
+        d.line("min_side", s.min_side).line("max_side", s.max_side).line("pad", s.pad).line("bar", s.bar).line("bar_gap", s.bar_gap);
+        d.line("hit", s.hit).line("drag_off", s.drag_off);
+        d.line("fill", s.fill).line("border", s.border.width).line("border_color", s.border.color);
+        d.line("grid", s.grid.width).line("grid_color", s.grid.color).line("baseline", s.baseline.width).line("baseline_color", s.baseline.color);
+        d.line("width", s.width).line("other_width", s.other_width).line("other_alpha", s.other_alpha);
+        for (key, p) in [("point", &s.point), ("selected", &s.selected)] {
+            d.line(&format!("{key}.size"), p.size).line(&format!("{key}.fill"), p.fill);
+            d.line(&format!("{key}.stroke"), p.stroke.width).line(&format!("{key}.stroke_color"), p.stroke.color);
+            d.line(&format!("{key}.halo"), p.halo.width).line(&format!("{key}.halo_color"), p.halo.color);
+        }
+        d.line("hint_role", role(s.hint_role)).line("hint", s.hint);
+    });
+}
+
+/// Histograms: the plot's height, box, scope, alphas and outline, and the tone look's colour per channel.
+#[test]
+fn histogram() {
+    check("histogram.txt", |d, t| {
+        let s = Histogram::style(t);
+        d.line("height", s.height).line("fill", s.fill).line("border", s.border).line("scope", s.scope);
+        d.line("fill_alpha", s.fill_alpha).line("backdrop_alpha", s.backdrop_alpha).line("line", s.line);
+        d.line("marker", s.marker).line("stale", s.stale);
+        for channel in ChannelColor::ALL {
+            d.line(&format!("tone.{}", channel.name()), s.tone(channel));
+        }
+        for (name, color) in ["red", "green", "blue"].into_iter().zip(s.ribbons) {
+            d.line(&format!("ribbon.{name}"), color);
+        }
     });
 }

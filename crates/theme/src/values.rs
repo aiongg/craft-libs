@@ -232,6 +232,10 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::DataGreen => Fixed(if dark { Rgba::rgb(0x50, 0xe0, 0x50) } else { Rgba::rgb(0x20, 0xa0, 0x20) }),
         T::DataBlue => Fixed(if dark { Rgba::rgb(0x50, 0x80, 0xff) } else { Rgba::rgb(0x20, 0x50, 0xd0) }),
         T::DataLuma => Neutral(12),
+        T::DataCyan => Fixed(if dark { Rgba::rgb(0x28, 0xc8, 0xe6) } else { Rgba::rgb(0x08, 0x73, 0x88) }),
+        T::DataMagenta => Fixed(if dark { Rgba::rgb(0xe1, 0x46, 0xc8) } else { Rgba::rgb(0xb0, 0x24, 0x9a) }),
+        T::DataYellow => Fixed(if dark { Rgba::rgb(0xeb, 0xd2, 0x28) } else { Rgba::rgb(0x7a, 0x64, 0x00) }),
+        T::DataScope => Fixed(Rgba::rgb(0x28, 0x28, 0x28)),
         T::CaptionCloseHover => Fixed(Rgba::rgb(0xc4, 0x2b, 0x1c)),
         T::CaptionCloseText => Fixed(Rgba::WHITE),
         T::CaptionInactive => Same(T::TextFaint),
@@ -325,6 +329,13 @@ pub(super) const RULES: &[PairRule] = &[
         )
     },
     rule(&[T::OverlayStroke, T::OverlayMarquee], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    // A curve editor's curve and points in a channel colour, on its plot (`field.fill`, `surface.sunken`).
+    rule(
+        &[T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow],
+        &[Token(T::SurfaceSunken)],
+        NON_TEXT_MIN.0,
+        NON_TEXT_MIN.1,
+    ),
 ];
 
 /// The Size-dependent values: sizes, spacing, default shape and type roles.
@@ -456,6 +467,17 @@ pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
+/// The control height the Compact histogram height is set for.
+pub const HISTOGRAM_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a histogram plot (PhotoCraft's panel).
+pub const HISTOGRAM_HEIGHT: f32 = 100.0;
+/// Alpha of the RGB ribbons' fills (PhotoCraft's 0.3).
+pub const HISTOGRAM_FILL_ALPHA: f32 = 0.3;
+/// Alpha of the tone look behind a curve: PhotoCraft's grey 88 / 190 at 0.75 reads as a faint grey.
+pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
+/// Width of the RGB ribbons' outlines.
+pub const HISTOGRAM_LINE: f32 = 1.0;
+
 /// The control height the Compact section header sizes are set for.
 pub const SECTION_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a section header row (PhotoCraft's).
@@ -466,6 +488,29 @@ pub const SECTION_CHEVRON: f32 = 11.0;
 pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
+
+/// The control height the Compact curve editor sizes are set for.
+pub const CURVE_BASE_CONTROL: f32 = 24.0;
+/// Compact least side of a curve editor's graph, bars included (PhotoCraft's Curves).
+pub const CURVE_MIN_SIDE: f32 = 120.0;
+/// Compact greatest side of a curve editor's graph, bars included.
+pub const CURVE_MAX_SIDE: f32 = 300.0;
+/// Compact inset of a curve's value area inside its plot, so the end points' handles stay inside.
+pub const CURVE_PAD: f32 = 5.0;
+/// Compact thickness of a curve editor's gradient bars.
+pub const CURVE_BAR: f32 = 8.0;
+/// Compact gap between a curve's plot and its gradient bars.
+pub const CURVE_BAR_GAP: f32 = 4.0;
+/// Compact radius around a curve point's centre that takes a press.
+pub const CURVE_HIT: f32 = 9.0;
+/// Compact distance outside the plot past which a dragged interior point is removed.
+pub const CURVE_DRAG_OFF: f32 = 12.0;
+/// Width of the edited curve, in points, at every Size.
+pub const CURVE_WIDTH: f32 = 1.5;
+/// Width of the other channels' curves behind the edited one, in points, at every Size.
+pub const CURVE_OTHER_WIDTH: f32 = 1.0;
+/// Opacity of the other channels' curves behind the edited one.
+pub const CURVE_OTHER_ALPHA: f32 = 0.8;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
