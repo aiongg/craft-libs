@@ -3,9 +3,12 @@
 
 use std::sync::Arc;
 
-use craft_theme::{SuiteTheme, ThemeId};
+use craft_theme::{
+    ThemeId,
+    v2::{SuiteChoice, ThemeDef, ThemePair},
+};
 
-use crate::{Accepted, Op, Problem, SelectionChange, Snapshot, StoreError, SuiteChoice, SuiteWatch};
+use crate::{Accepted, Op, Problem, SelectionChange, Snapshot, StoreError, SuiteWatch, watch::with_library_theme};
 
 /// A change sent to the watch and not answered yet.
 #[derive(Clone, Debug)]
@@ -32,7 +35,7 @@ pub struct SuiteClient {
     queued: Option<SelectionChange>,
     conflict: Option<(Accepted, SelectionChange)>,
     failure: Option<(SelectionChange, StoreError)>,
-    app_theme: Option<ThemeId>,
+    app_theme: Option<ThemePair>,
     /// Open couldn't read `selection.json`: changes wait in the queue for the worker's first
     /// snapshot instead of merging against a state nobody read.
     hold: bool,
@@ -99,7 +102,7 @@ impl SuiteClient {
         }
     }
 
-    /// The user changed the suite's theme or mode. Notices about earlier changes are cleared.
+    /// The user changed fields of the suite's selection. Notices about earlier changes are cleared.
     pub fn change(&mut self, change: SelectionChange) {
         self.dismiss();
         self.submit(change);
@@ -115,7 +118,7 @@ impl SuiteClient {
         }
         self.queued = Some(match self.queued.take() {
             None => change,
-            Some(queued) => SelectionChange { theme: change.theme.or(queued.theme), mode: change.mode.or(queued.mode) },
+            Some(queued) => queued.then(change),
         });
     }
 
@@ -126,8 +129,8 @@ impl SuiteClient {
     }
 
     /// The suite choice to show: the accepted one with the changes on their way applied. A
-    /// picked library theme the snapshot hasn't loaded yet shows only once it has, so the app
-    /// never falls back to its own palette in between.
+    /// picked library theme the snapshot hasn't loaded yet shows in its slot only once it has,
+    /// so the app never falls back to its own palette in between.
     pub fn shown(&self) -> SuiteChoice {
         let accepted = &self.snapshot.accepted.suite;
         let mut shown = accepted.clone();
@@ -137,19 +140,23 @@ impl SuiteClient {
         if let Some(queued) = &self.queued {
             shown = queued.applied_to(&shown);
         }
-        if shown.theme.as_ref().is_some_and(|id| self.is_loading(id)) {
-            shown.theme = accepted.theme.clone();
+        if shown.theme_light.as_ref().is_some_and(|id| self.is_loading(id)) {
+            shown.theme_light = accepted.theme_light.clone();
+        }
+        if shown.theme_dark.as_ref().is_some_and(|id| self.is_loading(id)) {
+            shown.theme_dark = accepted.theme_dark.clone();
         }
         shown
     }
 
-    /// A built-in or a loaded library theme, for [`craft_theme::resolve`]'s `lookup`.
-    pub fn theme(&self, id: &ThemeId) -> Option<SuiteTheme> {
+    /// A built-in or a loaded library theme, for
+    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`.
+    pub fn theme(&self, id: &ThemeId) -> Option<ThemeDef> {
         self.snapshot.theme(id)
     }
 
     /// Any built-in or library theme, for a preview card ([`Snapshot::preview`]).
-    pub fn preview(&self, id: &ThemeId) -> Option<SuiteTheme> {
+    pub fn preview(&self, id: &ThemeId) -> Option<ThemeDef> {
         self.snapshot.preview(id)
     }
 
@@ -161,21 +168,23 @@ impl SuiteClient {
     }
 
     fn is_requested(&self, id: &ThemeId) -> bool {
-        let picked = |c: &SelectionChange| c.theme.as_ref() == Some(id);
-        self.app_theme.as_ref() == Some(id) || self.pending.as_ref().is_some_and(|p| picked(&p.change)) || self.queued.as_ref().is_some_and(picked)
+        let picked = |c: &SelectionChange| c.picked().any(|p| p == id);
+        let own = self.app_theme.as_ref().is_some_and(|p| p.light == *id || p.dark == *id);
+        own || self.pending.as_ref().is_some_and(|p| picked(&p.change)) || self.queued.as_ref().is_some_and(picked)
     }
 
     fn has_problem(&self, id: &ThemeId) -> bool {
         self.snapshot.problems.iter().any(|p| matches!(p, Problem::Theme { stem, .. } if stem == id.as_str()))
     }
 
-    /// The library theme the app uses for its own choice, or `None` for the suite's or a
-    /// built-in. Sent to the watch only when it changes.
-    pub fn set_app_theme(&mut self, id: Option<ThemeId>) {
-        let id = id.filter(|id| !id.is_builtin());
-        if id != self.app_theme {
-            self.app_theme = id.clone();
-            self.watch.request(Op::AppTheme(id));
+    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::v2::AppChoice)),
+    /// or `None` for the suite's. Sent to the watch only when it changes; a pair of built-ins
+    /// counts as `None`.
+    pub fn set_app_theme(&mut self, themes: Option<ThemePair>) {
+        let themes = with_library_theme(themes);
+        if themes != self.app_theme {
+            self.app_theme = themes.clone();
+            self.watch.request(Op::AppTheme(themes));
         }
     }
 

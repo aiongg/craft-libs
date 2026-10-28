@@ -4,14 +4,21 @@
 
 use std::{path::Path, process::Command};
 
-use craft_theme::{Mode, Selection, ThemeId};
+use craft_theme::{
+    ThemeId,
+    v2::{ModeChoice, SuiteChoice, ThemePair},
+};
 use craft_theme_store::{Accepted, SelectionChange, Store, StoreError, StoreOptions, SuiteDir};
 
 const ROLE: &str = "CRAFT_THEME_STORE_TEST_ROLE";
 const DIR: &str = "CRAFT_THEME_STORE_TEST_DIR";
 const UPDATES: u64 = 200;
-const THEMES: [&str; 2] = ["craft.graphite", "craft.high-contrast"];
-const MODES: [Mode; 2] = [Mode::Light, Mode::Dark];
+const THEMES: [&str; 2] = ["craft.graphite", "craft.studio"];
+const MODES: [ModeChoice; 2] = [ModeChoice::Light, ModeChoice::Dark];
+
+fn both(theme: &str) -> SelectionChange {
+    SelectionChange::themes(ThemePair::same(ThemeId::parse(theme).unwrap()))
+}
 
 #[test]
 fn two_processes_keep_every_update() {
@@ -22,9 +29,7 @@ fn two_processes_keep_every_update() {
     let tmp = tempfile::tempdir().unwrap();
     // Both children start from an existing selection, so neither takes the no-base path.
     let mut store = Store::open(&SuiteDir::at(tmp.path()), StoreOptions::new("parent"));
-    store
-        .update(&Accepted::default(), SelectionChange::whole(Selection { theme: ThemeId::parse("craft.artcraft").unwrap(), mode: Mode::System }))
-        .unwrap();
+    store.update(&Accepted::default(), both("craft.artcraft").then(SelectionChange::mode(ModeChoice::System))).unwrap();
 
     let exe = std::env::current_exe().unwrap();
     let children: Vec<_> = ["theme", "mode"]
@@ -48,7 +53,8 @@ fn two_processes_keep_every_update() {
     let last = (UPDATES - 1) as usize % 2;
     let accepted = store.accepted();
     assert_eq!(accepted.revision, 1 + 2 * UPDATES);
-    assert_eq!(accepted.suite, craft_theme_store::SuiteChoice::from(Selection { theme: ThemeId::parse(THEMES[last]).unwrap(), mode: MODES[last] }));
+    let theme = Some(ThemeId::parse(THEMES[last]).unwrap());
+    assert_eq!(accepted.suite, SuiteChoice { theme_light: theme.clone(), theme_dark: theme, mode: Some(MODES[last]), ..SuiteChoice::default() });
 }
 
 /// Each update changes one field relative to this child's own last write, which is stale for
@@ -62,7 +68,7 @@ fn child(role: &str, dir: &Path) {
     for i in 0..UPDATES as usize {
         let base = store.accepted().clone();
         let mine = match role {
-            "theme" => SelectionChange::theme(ThemeId::parse(THEMES[i % 2]).unwrap()),
+            "theme" => both(THEMES[i % 2]),
             _ => SelectionChange::mode(MODES[i % 2]),
         };
         loop {

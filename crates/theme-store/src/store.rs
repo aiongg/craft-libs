@@ -2,13 +2,20 @@
 
 use std::{fmt, io, path::PathBuf, sync::Arc, time::Duration};
 
-use craft_theme::{CoreRoles, Origin, SuiteTheme, ThemeId, builtin};
+use craft_theme::{
+    ThemeId,
+    v2::{
+        Appearance, Contrast, ContrastIntent, Mode, Size, TextSize, ThemeDef, ThemePair, Variants, builtins,
+        format::{self, ErrorKind, FormatError, FormatErrors, MAX_THEME_BYTES},
+        resolve,
+    },
+};
 use serde_json::Map;
 
 use crate::{
     SuiteDir,
     backend::{Backend, FileStamp, LibraryFile, Lock, LockError, Memory, WriteError},
-    format::{FormatError, MAX_THEME_BYTES, ThemeRecord, copy_id, parse_theme, replace_top_level_id, theme_to_json},
+    copy::{copy_id, replace_top_level_id},
     selection::{Accepted, MAX_SELECTION_BYTES, SelectionChange, SelectionDoc, SelectionError, merge, parse_selection, render_selection, salvage},
 };
 
@@ -23,7 +30,7 @@ pub struct StoreOptions {
     written_by: String,
     lock_timeout: Duration,
     last: Option<Accepted>,
-    app_theme: Option<ThemeId>,
+    app_theme: Option<ThemePair>,
     #[cfg(not(target_arch = "wasm32"))]
     fs: Option<Box<dyn craft_atomic::AtomicFs + Send + Sync>>,
 }
@@ -46,17 +53,17 @@ impl StoreOptions {
         self
     }
 
-    /// The state to show until `selection.json` has been read, and while it is damaged or from a
-    /// newer build: the copy the app saved in its own preferences.
-    /// The library theme the app uses for its own choice, from its preferences.
-    /// [`SuiteWatch::open`](crate::SuiteWatch::open) reads it (and the suite theme in
-    /// [`last_accepted`](Self::last_accepted)) before returning, so the first snapshot already
-    /// has it. A plain `Store` ignores it.
-    pub fn app_theme(mut self, id: Option<ThemeId>) -> Self {
-        self.app_theme = id;
+    /// The themes the app uses for its own choice ([`AppChoice::theme`](craft_theme::v2::AppChoice)),
+    /// from its preferences. [`SuiteWatch::open`](crate::SuiteWatch::open) reads their library
+    /// files (and the suite's themes in [`last_accepted`](Self::last_accepted)) before
+    /// returning, so the first snapshot already has them. A plain `Store` ignores it.
+    pub fn app_theme(mut self, themes: Option<ThemePair>) -> Self {
+        self.app_theme = themes;
         self
     }
 
+    /// The state to show until `selection.json` has been read, and while it is damaged or from a
+    /// newer build: the copy the app saved in its own preferences.
     pub fn last_accepted(mut self, last: Accepted) -> Self {
         self.last = Some(last);
         self
@@ -88,10 +95,14 @@ pub enum StoreError {
     Selection(SelectionError),
     Io(Arc<io::Error>),
     /// The theme file was refused.
-    Format(FormatError),
+    Format(FormatErrors),
+    /// A library file whose `id` isn't its file name (`<id>.json`).
+    FileName {
+        id: ThemeId,
+    },
     /// A library theme has this id already; import it as a copy to keep both.
     IdExists(ThemeId),
-    /// The suite selection uses this theme.
+    /// The suite selection uses this theme, in either mode.
     InUse(ThemeId),
     NotFound(ThemeId),
     /// Built-in themes can't be deleted.
@@ -126,19 +137,69 @@ pub enum Problem {
     },
 }
 
-/// One library theme, as a theme picker lists it, with its colours for a preview card.
+/// A parsed theme file and the bytes it came from.
+#[derive(Clone, Debug)]
+pub struct ThemeRecord {
+    pub theme: ThemeDef,
+    /// The theme's own revision (`version` in the file).
+    pub version: u32,
+    /// Contrast pairs below their minimum in standard contrast, over the modes the theme has.
+    /// Advisory: they never block an import or a selection.
+    pub warnings: usize,
+    /// The file exactly as stored, unknown keys included.
+    pub bytes: Arc<[u8]>,
+}
+
+impl ThemeRecord {
+    /// Parses a user theme file ([`format::parse`]). Its id must be one users can create: the
+    /// `craft.` prefix is reserved for built-ins.
+    pub fn parse(bytes: &[u8]) -> Result<ThemeRecord, FormatErrors> {
+        let file = format::parse(bytes)?;
+        if let Err(e) = ThemeId::parse_user(file.theme.id.as_str()) {
+            return Err(id_error(ErrorKind::BadId(e)));
+        }
+        let warnings = contrast_warnings(&file.theme);
+        Ok(ThemeRecord { version: file.version(), theme: file.theme, warnings, bytes: Arc::from(bytes) })
+    }
+}
+
+fn contrast_warnings(theme: &ThemeDef) -> usize {
+    let modes: &[Mode] = match theme.variants {
+        Variants::Both => &[Mode::Light, Mode::Dark],
+        Variants::LightOnly => &[Mode::Light],
+        Variants::DarkOnly => &[Mode::Dark],
+    };
+    let appearance =
+        |mode| Appearance { mode, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
+    modes.iter().map(|&mode| resolve(theme, appearance(mode), None).warnings.len()).sum()
+}
+
+fn id_error(kind: ErrorKind) -> FormatErrors {
+    FormatErrors(vec![FormatError { path: vec!["id".to_owned()], kind }])
+}
+
+/// A file in another theme format, such as the pilot's `craft-theme`: the library skips it.
+pub(crate) fn is_other_schema(error: &StoreError) -> bool {
+    matches!(error, StoreError::Format(e) if matches!(e.file_level(), Some(ErrorKind::OtherSchema { .. })))
+}
+
+/// A built-in theme by id.
+pub(crate) fn builtin(id: &ThemeId) -> Option<&'static ThemeDef> {
+    builtins().iter().find(|t| t.id == *id)
+}
+
+/// One library theme, as a theme picker lists it, with what a preview card resolves.
 #[derive(Clone, Debug)]
 pub struct ThemeEntry {
     pub id: ThemeId,
     pub name: String,
     pub version: u32,
-    pub has_light: bool,
-    pub has_dark: bool,
-    /// Each variant's colours, with roles the file left out filled from built-in Graphite.
-    pub light: Option<CoreRoles>,
-    pub dark: Option<CoreRoles>,
-    /// Filled roles plus contrast findings ([`ThemeRecord::diagnostic_count`]).
-    pub diagnostics: usize,
+    /// The parsed theme; [`ThemeDef::variants`] says which modes it has.
+    pub theme: ThemeDef,
+    /// [`ThemeRecord::warnings`].
+    pub warnings: usize,
+    /// A low-contrast theme is labelled so in the picker.
+    pub contrast_intent: ContrastIntent,
     pub stamp: FileStamp,
 }
 
@@ -148,23 +209,17 @@ impl ThemeEntry {
         ThemeEntry {
             id: t.id.clone(),
             name: t.name.clone(),
-            version: t.version,
-            has_light: t.light.is_some(),
-            has_dark: t.dark.is_some(),
-            light: t.light,
-            dark: t.dark,
-            diagnostics: record.diagnostic_count(),
+            version: record.version,
+            theme: t.clone(),
+            warnings: record.warnings,
+            contrast_intent: t.contrast_intent,
             stamp,
         }
     }
-
-    /// The theme as [`craft_theme::resolve`] takes it, for a preview.
-    pub fn theme(&self) -> SuiteTheme {
-        SuiteTheme { id: self.id.clone(), name: self.name.clone(), version: self.version, light: self.light, dark: self.dark, origin: Origin::User }
-    }
 }
 
-/// The user themes in the library folder, by id. Built-ins come from [`craft_theme::builtins`].
+/// The user themes in the library folder, by id. Built-ins come from [`craft_theme::v2::builtins`];
+/// files in another theme format are skipped.
 #[derive(Clone, Debug, Default)]
 pub struct Library {
     pub entries: Vec<ThemeEntry>,
@@ -185,6 +240,8 @@ pub struct Imported {
 pub struct ParseCounts {
     pub selection: u64,
     pub themes: u64,
+    /// Theme files in another format (the pilot's `craft-theme`), counted in `themes` too.
+    pub other_schema: u64,
 }
 
 /// The last bytes of `selection.json` this store saw and what they parsed to, so unchanged bytes
@@ -221,7 +278,7 @@ pub struct Store {
     moved_aside: Vec<PathBuf>,
     counts: ParseCounts,
     /// From [`StoreOptions::app_theme`], for the watch.
-    pub(crate) app_theme: Option<ThemeId>,
+    pub(crate) app_theme: Option<ThemePair>,
 }
 
 impl Store {
@@ -322,11 +379,10 @@ impl Store {
             self.accepted = disk.accepted.clone();
             return Ok(disk.accepted);
         }
-        if let Some(theme) = &change.theme
-            && !theme.is_builtin()
-            && self.theme_stamp(theme)?.is_none()
-        {
-            return Err(StoreError::NotFound(theme.clone()));
+        for theme in change.picked() {
+            if !theme.is_builtin() && self.theme_stamp(theme)?.is_none() {
+                return Err(StoreError::NotFound(theme.clone()));
+            }
         }
         let next = Accepted { suite: merged, revision: disk.accepted.revision.saturating_add(1), ..disk.accepted.clone() };
         self.commit(&disk, next)
@@ -360,8 +416,8 @@ impl Store {
             Err(_) => {}
         }
         for n in 2..=MAX_COPIES {
-            let copy = copy_id(&id, n).map_err(|e| StoreError::Format(e.into()))?;
-            let bytes = replace_top_level_id(&record.bytes, &copy).ok_or(StoreError::Format(FormatError::MissingId))?;
+            let copy = copy_id(&id, n).map_err(|e| StoreError::Format(id_error(ErrorKind::BadId(e))))?;
+            let bytes = replace_top_level_id(&record.bytes, &copy).ok_or_else(|| StoreError::Format(id_error(ErrorKind::Missing)))?;
             let copied = self.parse_theme_counted(&bytes).map_err(StoreError::Format)?;
             match self.backend.create_theme(copy.as_str(), &bytes) {
                 Ok(()) => return Ok(copied),
@@ -372,8 +428,8 @@ impl Store {
         Err(StoreError::IdExists(id))
     }
 
-    /// Removes a library theme. The suite selection's theme can't be deleted; per-app choices
-    /// that name it fall back to the app default when they resolve.
+    /// Removes a library theme. A theme in either slot of the suite selection can't be deleted;
+    /// per-app choices that name it fall back to the app default when they resolve.
     ///
     /// The file is renamed to a hidden name first and removed only once `selection.json` records
     /// the deletion, so a failed write puts it back.
@@ -385,7 +441,8 @@ impl Store {
         let _lock = self.lock()?;
         let base = self.accepted.clone();
         let disk = self.read_for_write(&base)?;
-        if disk.accepted.suite.theme.as_ref() == Some(id) {
+        let suite = &disk.accepted.suite;
+        if suite.theme_light.as_ref() == Some(id) || suite.theme_dark.as_ref() == Some(id) {
             return Err(StoreError::InUse(id.clone()));
         }
         match self.backend.hide_theme(stem) {
@@ -409,11 +466,12 @@ impl Store {
     /// A theme file for sharing: a library theme's stored bytes, or a built-in written out.
     pub fn export(&self, id: &ThemeId) -> Result<Arc<[u8]>, StoreError> {
         if let Some(theme) = builtin(id) {
-            return Ok(Arc::from(theme_to_json(theme).into_bytes()));
+            return Ok(Arc::from(format::write(&format::to_file(theme)).into_bytes()));
         }
         let bytes = self.backend.read_theme(user_stem(id)?, MAX_THEME_BYTES)?.ok_or_else(|| StoreError::NotFound(id.clone()))?;
         if bytes.len() > MAX_THEME_BYTES {
-            return Err(StoreError::Format(FormatError::TooLarge { len: bytes.len() }));
+            let too_large = FormatError { path: Vec::new(), kind: ErrorKind::TooLarge { len: bytes.len() } };
+            return Err(StoreError::Format(FormatErrors(vec![too_large])));
         }
         Ok(Arc::from(bytes))
     }
@@ -436,8 +494,9 @@ impl Store {
         }
     }
 
-    /// A built-in or library theme by id, for [`craft_theme::resolve`]'s `lookup`.
-    pub fn theme(&mut self, id: &ThemeId) -> Option<SuiteTheme> {
+    /// A built-in or library theme by id, for
+    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`.
+    pub fn theme(&mut self, id: &ThemeId) -> Option<ThemeDef> {
         match builtin(id) {
             Some(t) => Some(t.clone()),
             None if id.is_builtin() => None,
@@ -445,7 +504,8 @@ impl Store {
         }
     }
 
-    /// Lists and parses every library file. Files that can't be used are problems, not errors.
+    /// Lists and parses every library file. Files that can't be used are problems, not errors;
+    /// files in another theme format are skipped.
     pub fn library(&mut self) -> Library {
         let files = match self.backend.list() {
             Ok(files) => files,
@@ -457,6 +517,7 @@ impl Store {
                 Ok(Some(record)) => library.entries.push(ThemeEntry::new(&record, file.stamp)),
                 // Removed since the listing.
                 Ok(None) => {}
+                Err(error) if is_other_schema(&error) => {}
                 Err(error) => library.problems.push(Problem::Theme { stem: file.stem, error }),
             }
         }
@@ -469,14 +530,20 @@ impl Store {
         };
         let record = self.parse_theme_counted(&bytes).map_err(StoreError::Format)?;
         if record.theme.id.as_str() != stem {
-            return Err(StoreError::Format(FormatError::FileName { id: record.theme.id.as_str().to_owned() }));
+            return Err(StoreError::FileName { id: record.theme.id });
         }
         Ok(Some(record))
     }
 
-    fn parse_theme_counted(&mut self, bytes: &[u8]) -> Result<ThemeRecord, FormatError> {
+    fn parse_theme_counted(&mut self, bytes: &[u8]) -> Result<ThemeRecord, FormatErrors> {
         self.counts.themes += 1;
-        parse_theme(bytes)
+        let parsed = ThemeRecord::parse(bytes);
+        if let Err(e) = &parsed
+            && matches!(e.file_level(), Some(ErrorKind::OtherSchema { .. }))
+        {
+            self.counts.other_schema += 1;
+        }
+        parsed
     }
 
     fn lock(&self) -> Result<Lock, StoreError> {
@@ -579,8 +646,9 @@ impl fmt::Display for StoreError {
             StoreError::Selection(e) => e.fmt(f),
             StoreError::Io(e) => e.fmt(f),
             StoreError::Format(e) => e.fmt(f),
+            StoreError::FileName { id } => write!(f, "the theme's id {id} doesn't match its file name; it should be {id}.json"),
             StoreError::IdExists(id) => write!(f, "a theme with the id {id} is already installed"),
-            StoreError::InUse(id) => write!(f, "{id} is the suite theme; choose another theme before deleting it"),
+            StoreError::InUse(id) => write!(f, "{id} is a suite theme; choose another theme before deleting it"),
             StoreError::NotFound(id) => write!(f, "there is no theme {id}"),
             StoreError::BuiltIn(id) => write!(f, "{id} is a built-in theme and can't be deleted"),
             StoreError::Lost => f.write_str("the result of this change was lost; it may not have been saved"),

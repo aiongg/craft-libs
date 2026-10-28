@@ -12,7 +12,7 @@ default = []
 # `SAMPLE_THEME_JSON` and its expected colours for app adapter tests, and a fault-injecting
 # file system for write-failure tests.
 testing = []
-# serde for `Accepted` and `SuiteChoice`, which apps keep in their preferences.
+# serde for `Accepted`, which apps keep in their preferences, and craft-theme's selection types in it.
 serde = ["dep:serde", "craft-theme/serde"]
 
 [dependencies]

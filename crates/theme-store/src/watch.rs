@@ -10,9 +10,15 @@ use std::{
     time::Duration,
 };
 
-use craft_theme::{SuiteTheme, ThemeId, builtin};
+use craft_theme::{
+    ThemeId,
+    v2::{SuiteChoice, ThemeDef, ThemePair},
+};
 
-use crate::{Accepted, FileStamp, LibraryFile, Problem, SelectionChange, Store, StoreError, StoreOptions, SuiteDir, ThemeEntry, ThemeRecord};
+use crate::{
+    Accepted, FileStamp, LibraryFile, Problem, SelectionChange, Store, StoreError, StoreOptions, SuiteDir, ThemeEntry, ThemeRecord,
+    store::{builtin, is_other_schema},
+};
 
 /// How often the worker checks `selection.json`'s stamp (length, modification time, file
 /// identity) and the stamps of the themes in use.
@@ -43,10 +49,10 @@ pub enum Op {
     /// Re-lists the library now, for a theme picker that opens. Unchanged files are not read.
     /// No result: a new snapshot follows only if something changed.
     Rescan,
-    /// The library theme the app uses for its own choice ("Use a different theme in this app"),
-    /// kept parsed in [`Snapshot::app_theme`]; `None` when it uses the suite's or a built-in.
-    /// Send it when that choice changes. No result: the same id again does nothing.
-    AppTheme(Option<ThemeId>),
+    /// The themes the app uses for its own choice ("Use a different theme in this app"); their
+    /// library ones are kept parsed in [`Snapshot::app_theme`]. `None` when it uses the suite's.
+    /// Send it when that choice changes. No result: the same pair again does nothing.
+    AppTheme(Option<ThemePair>),
 }
 
 /// What a successful [`Op`] returns.
@@ -67,12 +73,12 @@ pub struct Snapshot {
     pub accepted: Accepted,
     /// The library themes, by file name.
     pub index: Arc<[ThemeEntry]>,
-    /// The suite selection's theme when it is a library theme: the last version that parsed,
-    /// kept while its file is missing, damaged or unreadable.
-    pub active: Option<ThemeRecord>,
-    /// The theme named by [`Op::AppTheme`]: the last version that parsed, or `None` once its
-    /// file is deleted, so the app falls back to its default.
-    pub app_theme: Option<ThemeRecord>,
+    /// The suite selection's library themes, light slot first and each once: the last version
+    /// that parsed, kept while its file is missing, damaged or unreadable.
+    pub active: Vec<ThemeRecord>,
+    /// The library themes named by [`Op::AppTheme`], light slot first and each once: the last
+    /// version that parsed, gone once its file is deleted, so the app falls back to its default.
+    pub app_theme: Vec<ThemeRecord>,
     pub problems: Vec<Problem>,
     /// The latest operation results by request id, oldest first, at most [`RESULTS_KEPT`].
     pub results: Arc<[(u64, Result<OpOutput, StoreError>)]>,
@@ -89,23 +95,23 @@ impl Snapshot {
         self.results.last()
     }
 
-    /// A built-in theme, the active theme or the app's own library theme, for
-    /// [`craft_theme::resolve`]'s `lookup`. Other library themes give `None` until the app
-    /// names them with [`Op::AppTheme`].
-    pub fn theme(&self, id: &ThemeId) -> Option<SuiteTheme> {
+    /// A built-in theme, an active theme or one of the app's own library themes, for
+    /// [`resolve_selection`](craft_theme::v2::resolve_selection)'s `lookup`. Other library
+    /// themes give `None` until the app names them with [`Op::AppTheme`].
+    pub fn theme(&self, id: &ThemeId) -> Option<ThemeDef> {
         if let Some(theme) = builtin(id) {
             return Some(theme.clone());
         }
-        [&self.active, &self.app_theme].into_iter().flatten().find(|r| r.theme.id == *id).map(|r| r.theme.clone())
+        self.active.iter().chain(&self.app_theme).find(|r| r.theme.id == *id).map(|r| r.theme.clone())
     }
 
-    /// Any theme the suite knows, for a preview card: a built-in, the active or app theme, or
-    /// a library theme in [`index`](Self::index), with no file read or [`Op::Export`].
-    pub fn preview(&self, id: &ThemeId) -> Option<SuiteTheme> {
+    /// Any theme the suite knows, for a preview card: a built-in, an active or app theme, or a
+    /// library theme in [`index`](Self::index), with no file read or [`Op::Export`].
+    pub fn preview(&self, id: &ThemeId) -> Option<ThemeDef> {
         self.theme(id).or_else(|| {
             // The index is sorted by file name, and a library file's name is its id.
             let at = self.index.binary_search_by(|e| e.id.as_str().cmp(id.as_str())).ok()?;
-            self.index.get(at).map(ThemeEntry::theme)
+            self.index.get(at).map(|e| e.theme.clone())
         })
     }
 }
@@ -134,7 +140,7 @@ impl Snapshot {
 pub struct SuiteWatch {
     shared: Arc<Shared>,
     /// From [`StoreOptions::app_theme`]: already requested.
-    app_theme: Option<ThemeId>,
+    app_theme: Option<ThemePair>,
     /// Whether open read `selection.json`, so generation 0 holds the disk state.
     selection_read: bool,
     next_request: AtomicU64,
@@ -171,8 +177,8 @@ impl SuiteWatch {
         self.selection_read
     }
 
-    /// The app theme from [`StoreOptions::app_theme`], already requested at open.
-    pub(crate) fn initial_app_theme(&self) -> Option<&ThemeId> {
+    /// The app's themes from [`StoreOptions::app_theme`], already requested at open.
+    pub(crate) fn initial_app_theme(&self) -> Option<&ThemePair> {
         self.app_theme.as_ref()
     }
 
@@ -227,7 +233,7 @@ impl SuiteWatch {
         });
         let watch = SuiteWatch {
             shared: Arc::clone(&shared),
-            app_theme: app_theme.filter(|id| !id.is_builtin()),
+            app_theme: with_library_theme(app_theme),
             selection_read,
             next_request: AtomicU64::new(0),
             #[cfg(not(target_arch = "wasm32"))]
@@ -415,38 +421,115 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// A library file as last read: its stamp and what it gave.
+/// A library file as last read: its stamp and what it gave; `Ok(None)` for a file in another
+/// theme format, which the index skips.
 struct Cached {
     stamp: FileStamp,
-    entry: Result<ThemeEntry, Problem>,
+    entry: Result<Option<ThemeEntry>, Problem>,
 }
 
 impl Cached {
-    /// Read failures other than a file that doesn't parse are retried: another process may
-    /// hold the file for a moment.
+    /// Read failures other than a file that can't be used as it is are retried: another
+    /// process may hold the file for a moment.
     fn retry(&self) -> bool {
-        matches!(&self.entry, Err(Problem::Theme { error, .. }) if !matches!(error, StoreError::Format(_)))
+        matches!(&self.entry, Err(Problem::Theme { error, .. }) if !is_defect(error))
+    }
+}
+
+/// A file that won't read differently until it changes: it doesn't parse or is misnamed.
+fn is_defect(error: &StoreError) -> bool {
+    matches!(error, StoreError::Format(_) | StoreError::FileName { .. })
+}
+
+/// `themes` when it names a library theme; built-ins need no file.
+pub(crate) fn with_library_theme(themes: Option<ThemePair>) -> Option<ThemePair> {
+    themes.filter(|p| !p.light.is_builtin() || !p.dark.is_builtin())
+}
+
+fn suite_slots(suite: &SuiteChoice) -> [Option<&ThemeId>; 2] {
+    [suite.theme_light.as_ref(), suite.theme_dark.as_ref()]
+}
+
+fn pair_slots(pair: Option<&ThemePair>) -> [Option<&ThemeId>; 2] {
+    [pair.map(|p| &p.light), pair.map(|p| &p.dark)]
+}
+
+/// The library themes in use for one purpose, the suite's or the app's own: one [`Tracked`]
+/// per distinct id.
+struct Followed {
+    themes: Vec<Tracked>,
+    /// Keep the last record that parsed when the file goes missing: the suite's themes. The
+    /// app's own themes clear instead, so the app falls back to its default.
+    keep_missing: bool,
+}
+
+impl Followed {
+    fn new(keep_missing: bool) -> Self {
+        Followed { themes: Vec::new(), keep_missing }
+    }
+
+    /// Follows the library themes among `slots`, each once; a theme still in use keeps its
+    /// state. Built-ins need no file. Returns whether the ids changed.
+    fn follow(&mut self, slots: [Option<&ThemeId>; 2]) -> bool {
+        let mut wanted: Vec<&ThemeId> = Vec::new();
+        for id in slots.into_iter().flatten().filter(|id| !id.is_builtin()) {
+            if !wanted.contains(&id) {
+                wanted.push(id);
+            }
+        }
+        if self.themes.iter().map(|t| &t.id).eq(wanted.iter().copied()) {
+            return false;
+        }
+        let mut old = std::mem::take(&mut self.themes);
+        self.themes = wanted
+            .into_iter()
+            .map(|id| match old.iter().position(|t| t.id == *id) {
+                Some(at) => old.swap_remove(at),
+                None => Tracked::new(id.clone(), self.keep_missing),
+            })
+            .collect();
+        true
+    }
+
+    fn preload(&mut self, store: &mut Store) {
+        for tracked in &mut self.themes {
+            tracked.preload(store);
+        }
+    }
+
+    fn offer(&mut self, record: &ThemeRecord, stamp: FileStamp) -> bool {
+        self.themes.iter_mut().fold(false, |changed, t| t.offer(record, stamp) | changed)
+    }
+
+    fn refresh(&mut self, store: &mut Store) -> bool {
+        self.themes.iter_mut().fold(false, |changed, t| t.refresh(store) | changed)
+    }
+
+    fn records(&self) -> Vec<ThemeRecord> {
+        self.themes.iter().filter_map(|t| t.record.clone()).collect()
+    }
+
+    fn problems(&self) -> impl Iterator<Item = &Problem> {
+        self.themes.iter().filter_map(|t| t.problem.as_ref())
     }
 }
 
 /// A library theme in use, re-read only when its stamp changes. I/O errors are retried on the
 /// next check; a file that doesn't parse is read again only once it changes.
-#[derive(Default)]
 struct Tracked {
-    id: Option<ThemeId>,
+    id: ThemeId,
     /// The stamp of the last read; `None` with `read` set means the file was missing.
     stamp: Option<FileStamp>,
     read: bool,
     record: Option<ThemeRecord>,
     problem: Option<Problem>,
-    /// Keep the last record that parsed when the file goes missing: the suite's theme. The
-    /// app's own theme clears instead, so the app falls back to its default.
+    /// See [`Followed::keep_missing`].
     keep_missing: bool,
 }
 
 impl Tracked {
-    fn suite() -> Self {
-        Tracked { keep_missing: true, ..Tracked::default() }
+    fn new(id: ThemeId, keep_missing: bool) -> Self {
+        Tracked { id, stamp: None, read: false, record: None, problem: None, keep_missing }
     }
 
     /// One read at open, before the first snapshot. A failure leaves the slot unread, for the
@@ -459,19 +542,9 @@ impl Tracked {
         }
     }
 
-    /// Built-ins need no file. Returns whether the id changed.
-    fn follow(&mut self, id: Option<&ThemeId>) -> bool {
-        let id = id.filter(|id| !id.is_builtin());
-        if self.id.as_ref() == id {
-            return false;
-        }
-        *self = Tracked { id: id.cloned(), keep_missing: self.keep_missing, ..Tracked::default() };
-        true
-    }
-
     /// A record read by the library listing, so the same file isn't parsed twice.
     fn offer(&mut self, record: &ThemeRecord, stamp: FileStamp) -> bool {
-        if self.id.as_ref() != Some(&record.theme.id) || (self.read && self.stamp == Some(stamp)) {
+        if self.id != record.theme.id || (self.read && self.stamp == Some(stamp)) {
             return false;
         }
         self.stamp = Some(stamp);
@@ -483,9 +556,7 @@ impl Tracked {
 
     /// Returns whether anything changed.
     fn refresh(&mut self, store: &mut Store) -> bool {
-        let Some(id) = self.id.clone() else {
-            return false;
-        };
+        let id = self.id.clone();
         let problem = |error: StoreError| Some(Problem::Theme { stem: id.as_str().to_owned(), error });
         let stamp = match store.theme_stamp(&id) {
             Ok(stamp) => stamp,
@@ -512,7 +583,7 @@ impl Tracked {
                 self.problem = None;
                 true
             }
-            Err(e @ StoreError::Format(_)) => {
+            Err(e) if is_defect(&e) => {
                 self.stamp = stamp;
                 self.read = true;
                 set_problem(&mut self.problem, problem(e));
@@ -548,8 +619,8 @@ struct Engine {
     index: Arc<[ThemeEntry]>,
     file_problems: Vec<Problem>,
     library_problem: Option<Problem>,
-    suite_theme: Tracked,
-    app_theme: Tracked,
+    suite_theme: Followed,
+    app_theme: Followed,
     watcher_problem: Option<Problem>,
     results: VecDeque<(u64, Result<OpOutput, StoreError>)>,
     changed: bool,
@@ -568,27 +639,26 @@ impl Engine {
             index: Arc::from([]),
             file_problems: Vec::new(),
             library_problem: None,
-            suite_theme: Tracked::suite(),
-            app_theme: Tracked::default(),
+            suite_theme: Followed::new(true),
+            app_theme: Followed::new(false),
             watcher_problem: None,
             results: VecDeque::new(),
             changed: false,
         }
     }
 
-    /// Reads `selection.json`, the app's own theme and the suite's theme (if they are library
-    /// themes), so the first snapshot has the real accepted state and changes made in the first
+    /// Reads `selection.json`, the app's own themes and the suite's themes (the library ones),
+    /// so the first snapshot has the real accepted state and changes made in the first
     /// frame merge against it. No library listing: open stays cheap. A failed selection read
     /// keeps the last accepted state; the worker retries it. Returns whether the selection was
     /// read (a missing file counts as read).
-    fn preload(&mut self, app_theme: Option<&ThemeId>) -> bool {
+    fn preload(&mut self, app_theme: Option<&ThemePair>) -> bool {
         self.check_selection(false);
         let read = self.selection_stamp.is_some();
         self.accepted = self.store.accepted().clone();
-        self.app_theme.follow(app_theme);
+        self.app_theme.follow(pair_slots(app_theme));
         self.app_theme.preload(&mut self.store);
-        let suite = self.accepted.suite.theme.clone();
-        self.suite_theme.follow(suite.as_ref());
+        self.suite_theme.follow(suite_slots(&self.accepted.suite));
         self.suite_theme.preload(&mut self.store);
         read
     }
@@ -611,8 +681,8 @@ impl Engine {
                 self.settle(true);
                 return;
             }
-            Op::AppTheme(theme) => {
-                self.changed |= self.app_theme.follow(theme.as_ref());
+            Op::AppTheme(themes) => {
+                self.changed |= self.app_theme.follow(pair_slots(themes.as_ref()));
                 self.settle(false);
                 return;
             }
@@ -683,8 +753,7 @@ impl Engine {
             self.accepted = self.store.accepted().clone();
             self.changed = true;
         }
-        let suite = self.accepted.suite.theme.clone();
-        self.changed |= self.suite_theme.follow(suite.as_ref());
+        self.changed |= self.suite_theme.follow(suite_slots(&self.accepted.suite));
         if rescan || self.listed != Some(self.accepted.library_revision) {
             self.list_library();
         } else {
@@ -747,13 +816,13 @@ impl Engine {
 
     fn read_library_file(&mut self, file: &LibraryFile) -> Option<Cached> {
         // A theme in use, read already (at open, or since): not parsed twice.
-        for tracked in [&self.suite_theme, &self.app_theme] {
+        for tracked in self.suite_theme.themes.iter().chain(&self.app_theme.themes) {
             if let Some(record) = &tracked.record
                 && tracked.read
                 && tracked.stamp == Some(file.stamp)
                 && record.theme.id.as_str() == file.stem
             {
-                return Some(Cached { stamp: file.stamp, entry: Ok(ThemeEntry::new(record, file.stamp)) });
+                return Some(Cached { stamp: file.stamp, entry: Ok(Some(ThemeEntry::new(record, file.stamp))) });
             }
         }
         let entry = match self.store.load_stem(&file.stem) {
@@ -761,8 +830,9 @@ impl Engine {
             Ok(Some(record)) => {
                 self.changed |= self.suite_theme.offer(&record, file.stamp);
                 self.changed |= self.app_theme.offer(&record, file.stamp);
-                Ok(ThemeEntry::new(&record, file.stamp))
+                Ok(Some(ThemeEntry::new(&record, file.stamp)))
             }
+            Err(error) if is_other_schema(&error) => Ok(None),
             Err(error) => Err(Problem::Theme { stem: file.stem.clone(), error }),
         };
         Some(Cached { stamp: file.stamp, entry })
@@ -775,9 +845,9 @@ impl Engine {
         let mut problems = Vec::new();
         for stem in stems {
             match self.files.get(stem).map(|c| &c.entry) {
-                Some(Ok(entry)) => entries.push(entry.clone()),
+                Some(Ok(Some(entry))) => entries.push(entry.clone()),
                 Some(Err(problem)) => problems.push(problem.clone()),
-                None => {}
+                Some(Ok(None)) | None => {}
             }
         }
         self.index = Arc::from(entries);
@@ -789,9 +859,11 @@ impl Engine {
         let mut problems: Vec<Problem> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         // A broken theme in use is also a broken library file; list it once.
-        let all = [&self.watcher_problem, &self.selection_problem, &self.library_problem, &self.suite_theme.problem, &self.app_theme.problem]
+        let all = [&self.watcher_problem, &self.selection_problem, &self.library_problem]
             .into_iter()
             .flatten()
+            .chain(self.suite_theme.problems())
+            .chain(self.app_theme.problems())
             .chain(&self.file_problems);
         for problem in all {
             if seen.insert(problem.to_string()) {
@@ -801,8 +873,8 @@ impl Engine {
         Snapshot {
             accepted: self.accepted.clone(),
             index: Arc::clone(&self.index),
-            active: self.suite_theme.record.clone(),
-            app_theme: self.app_theme.record.clone(),
+            active: self.suite_theme.records(),
+            app_theme: self.app_theme.records(),
             problems,
             results: self.results.iter().cloned().collect(),
             generation,

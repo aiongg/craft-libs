@@ -1,104 +1,81 @@
 //! Shared fixtures for app adapter tests (feature `testing`).
 //!
 //! Every app writes [`SAMPLE_THEME_JSON`] into a temporary suite folder, follows the suite,
-//! resolves and checks that its core-mapped tokens equal [`sample_roles`] in each variant, so the
-//! same theme gives the same core colours in every app.
+//! resolves in standard contrast and checks that the pinned tokens equal [`sample_colors`] in
+//! each mode, so the same theme gives the same colours in every app.
 
-use craft_theme::{CoreRoles, Rgba, Role, Variant};
+use craft_theme::v2::{ColorToken, Mode, Rgba};
 
 pub const SAMPLE_THEME_ID: &str = "sample.navy-cream";
 
-/// A complete theme with both variants and unknown keys at the top level, in a variant and under
-/// `apps`, which the store must keep byte for byte.
+/// A theme with both variants, pins in each mode, and unknown keys at the top level, in
+/// `seeds` and under `apps`, which the store must keep byte for byte.
 pub const SAMPLE_THEME_JSON: &str = r##"{
-  "schema": "craft-theme",
+  "schema": "craft-design-theme",
   "schema_version": 1,
   "id": "sample.navy-cream",
   "name": "Navy and cream",
   "version": 3,
   "author": { "name": "Craft test fixtures", "url": null },
-  "light": {
-    "background": "#F2F1EE", "surface": "#FBFAF7", "raised": "#FFFFFF",
-    "text": "#1B2340", "text_muted": "#4A5068", "line": "#D9D6CC",
-    "accent": "#1F4E9C", "on_accent": "#FFFFFF", "selection": "#D6E0F2",
-    "focus": "#1F4E9C", "good": "#2E7D32", "warn": "#9A6700", "bad": "#B3261E",
+  "variants": "both",
+  "seeds": {
+    "accent": "#1F4E9C",
+    "neutral": "#161C30",
+    "status": { "good": "#2E7D32", "warn": "#9A6700", "bad": "#B3261E", "info": "#1F4E9C" },
     "sparkle": "#123456"
   },
-  "dark": {
-    "background": "#0F1424", "surface": "#161C30", "raised": "#1E2540",
-    "text": "#F2EAD8", "text_muted": "#C4BCA8", "line": "#2C3452",
-    "accent": "#E8C27A", "on_accent": "#1B1606", "selection": "#2F3A63",
-    "focus": "#E8C27A", "good": "#7CC47F", "warn": "#E0B34A", "bad": "#F08A80"
+  "light": {
+    "surface.background": "#F2F1EE", "surface.panel": "#FBFAF7", "surface.raised": "#FFFFFF",
+    "text.normal": "#1B2340", "text.muted": "#4A5068", "line.border": "#D9D6CC",
+    "accent.solid": "#1F4E9C", "text.on_accent": "#FFFFFF", "state.selected": "#D6E0F2",
+    "line.focus": "#1F4E9C"
   },
-  "apps": { "pdfcraft": { "tokens_version": 1, "titlebar": "#101010" } },
+  "dark": {
+    "surface.background": "#0F1424", "surface.panel": "#161C30", "surface.raised": "#1E2540",
+    "text.normal": "#F2EAD8", "text.muted": "#C4BCA8", "line.border": "#2C3452",
+    "accent.solid": "#E8C27A", "text.on_accent": "#1B1606", "state.selected": "#2F3A63",
+    "line.focus": "#E8C27A"
+  },
+  "apps": { "pdfcraft": { "tokens_version": 1, "dark": { "surface.canvas": "#101010" } } },
   "family": {}
 }
 "##;
 
-/// The sample's light roles, lower-case `#rrggbb`, in [`Role::ALL`] order.
-pub const SAMPLE_LIGHT: [(Role, &str); 13] = [
-    (Role::Background, "#f2f1ee"),
-    (Role::Surface, "#fbfaf7"),
-    (Role::Raised, "#ffffff"),
-    (Role::Text, "#1b2340"),
-    (Role::TextMuted, "#4a5068"),
-    (Role::Line, "#d9d6cc"),
-    (Role::Accent, "#1f4e9c"),
-    (Role::OnAccent, "#ffffff"),
-    (Role::Selection, "#d6e0f2"),
-    (Role::Focus, "#1f4e9c"),
-    (Role::Good, "#2e7d32"),
-    (Role::Warn, "#9a6700"),
-    (Role::Bad, "#b3261e"),
+/// The sample's light pins, lower-case `#rrggbb`.
+pub const SAMPLE_LIGHT: [(ColorToken, &str); 10] = [
+    (ColorToken::SurfaceBackground, "#f2f1ee"),
+    (ColorToken::SurfacePanel, "#fbfaf7"),
+    (ColorToken::SurfaceRaised, "#ffffff"),
+    (ColorToken::TextNormal, "#1b2340"),
+    (ColorToken::TextMuted, "#4a5068"),
+    (ColorToken::LineBorder, "#d9d6cc"),
+    (ColorToken::AccentSolid, "#1f4e9c"),
+    (ColorToken::TextOnAccent, "#ffffff"),
+    (ColorToken::StateSelected, "#d6e0f2"),
+    (ColorToken::LineFocus, "#1f4e9c"),
 ];
 
-/// The sample's dark roles, lower-case `#rrggbb`, in [`Role::ALL`] order.
-pub const SAMPLE_DARK: [(Role, &str); 13] = [
-    (Role::Background, "#0f1424"),
-    (Role::Surface, "#161c30"),
-    (Role::Raised, "#1e2540"),
-    (Role::Text, "#f2ead8"),
-    (Role::TextMuted, "#c4bca8"),
-    (Role::Line, "#2c3452"),
-    (Role::Accent, "#e8c27a"),
-    (Role::OnAccent, "#1b1606"),
-    (Role::Selection, "#2f3a63"),
-    (Role::Focus, "#e8c27a"),
-    (Role::Good, "#7cc47f"),
-    (Role::Warn, "#e0b34a"),
-    (Role::Bad, "#f08a80"),
+/// The sample's dark pins, lower-case `#rrggbb`.
+pub const SAMPLE_DARK: [(ColorToken, &str); 10] = [
+    (ColorToken::SurfaceBackground, "#0f1424"),
+    (ColorToken::SurfacePanel, "#161c30"),
+    (ColorToken::SurfaceRaised, "#1e2540"),
+    (ColorToken::TextNormal, "#f2ead8"),
+    (ColorToken::TextMuted, "#c4bca8"),
+    (ColorToken::LineBorder, "#2c3452"),
+    (ColorToken::AccentSolid, "#e8c27a"),
+    (ColorToken::TextOnAccent, "#1b1606"),
+    (ColorToken::StateSelected, "#2f3a63"),
+    (ColorToken::LineFocus, "#e8c27a"),
 ];
 
-/// The sample's roles in `variant`, for comparing with an app's tokens.
-pub fn sample_roles(variant: Variant) -> CoreRoles {
-    let table = match variant {
-        Variant::Light => &SAMPLE_LIGHT,
-        Variant::Dark => &SAMPLE_DARK,
+/// The sample's pinned colours in `mode`, for comparing with an app's tokens.
+pub fn sample_colors(mode: Mode) -> Vec<(ColorToken, Rgba)> {
+    let table = match mode {
+        Mode::Light => &SAMPLE_LIGHT,
+        Mode::Dark => &SAMPLE_DARK,
     };
-    let mut roles = black_roles();
-    for &(role, hex) in table {
-        roles.set(role, Rgba::parse_hex(hex).unwrap_or(Rgba::BLACK));
-    }
-    roles
-}
-
-fn black_roles() -> CoreRoles {
-    let b = Rgba::BLACK;
-    CoreRoles {
-        background: b,
-        surface: b,
-        raised: b,
-        text: b,
-        text_muted: b,
-        line: b,
-        accent: b,
-        on_accent: b,
-        selection: b,
-        focus: b,
-        good: b,
-        warn: b,
-        bad: b,
-    }
+    table.iter().map(|&(token, hex)| (token, Rgba::from_hex(hex).unwrap_or(Rgba::BLACK))).collect()
 }
 
 #[cfg(not(target_arch = "wasm32"))]

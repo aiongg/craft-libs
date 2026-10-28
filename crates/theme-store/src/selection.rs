@@ -2,43 +2,17 @@
 
 use std::fmt;
 
-use craft_theme::{AppDefaults, Mode, Selection, ThemeId};
+use craft_theme::{
+    ThemeId,
+    v2::{ContrastChoice, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeDef, ThemePair, Variants},
+};
 use serde_json::{Map, Value};
 
-/// The `selection.json` format this crate reads and writes.
-pub const SELECTION_SCHEMA_VERSION: u64 = 1;
+/// The `selection.json` format this crate writes. Version 1 (one theme for both modes) is read
+/// too and upgraded by the next write.
+pub const SELECTION_SCHEMA_VERSION: u64 = 2;
 /// Larger selection files are refused without being parsed.
 pub const MAX_SELECTION_BYTES: usize = 64 * 1024;
-
-/// The suite's choice as `selection.json` holds it. Each field is set once a user picks it in
-/// some app; until then every app shows its own default for that field.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
-pub struct SuiteChoice {
-    pub theme: Option<ThemeId>,
-    pub mode: Option<Mode>,
-}
-
-impl SuiteChoice {
-    /// Nothing chosen yet.
-    pub fn is_empty(&self) -> bool {
-        self.theme.is_none() && self.mode.is_none()
-    }
-
-    /// What an app that follows the suite shows: the chosen fields, and the app's defaults for
-    /// the rest. With nothing chosen this is `defaults.selection()`, so
-    /// `choice.effective(Some(&suite.with_defaults(&defaults)), &defaults)` is the same as
-    /// passing `None` for an empty choice.
-    pub fn with_defaults(&self, defaults: &AppDefaults) -> Selection {
-        Selection { theme: self.theme.clone().unwrap_or_else(|| defaults.theme.clone()), mode: self.mode.unwrap_or(defaults.mode) }
-    }
-}
-
-impl From<Selection> for SuiteChoice {
-    fn from(s: Selection) -> Self {
-        SuiteChoice { theme: Some(s.theme), mode: Some(s.mode) }
-    }
-}
 
 /// `selection.json` as last read or written by this store. With feature `serde`, apps save it in
 /// their preferences (`last_suite`) and pass it back with
@@ -46,7 +20,7 @@ impl From<Selection> for SuiteChoice {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct Accepted {
-    /// Empty until some app writes a choice: no file, no `suite` key, or neither field in it.
+    /// Empty until some app writes a choice: no file, no `suite` key, or no field in it.
     pub suite: SuiteChoice,
     /// Goes up by one with every write of `selection.json`.
     pub revision: u64,
@@ -65,42 +39,99 @@ impl Accepted {
 /// out keep what `selection.json` holds, chosen or not.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SelectionChange {
-    pub theme: Option<ThemeId>,
-    pub mode: Option<Mode>,
+    pub theme_light: Option<ThemeId>,
+    pub theme_dark: Option<ThemeId>,
+    pub mode: Option<ModeChoice>,
+    pub contrast: Option<ContrastChoice>,
+    pub size: Option<Size>,
+    pub text_size: Option<TextSize>,
 }
 
 impl SelectionChange {
-    pub fn theme(theme: ThemeId) -> Self {
-        SelectionChange { theme: Some(theme), mode: None }
+    pub fn theme_light(theme: ThemeId) -> Self {
+        SelectionChange { theme_light: Some(theme), ..SelectionChange::default() }
     }
 
-    pub fn mode(mode: Mode) -> Self {
-        SelectionChange { theme: None, mode: Some(mode) }
+    pub fn theme_dark(theme: ThemeId) -> Self {
+        SelectionChange { theme_dark: Some(theme), ..SelectionChange::default() }
     }
 
-    pub fn with_theme(mut self, theme: ThemeId) -> Self {
-        self.theme = Some(theme);
-        self
+    /// Both theme slots.
+    pub fn themes(pair: ThemePair) -> Self {
+        SelectionChange { theme_light: Some(pair.light), theme_dark: Some(pair.dark), ..SelectionChange::default() }
     }
 
-    pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.mode = Some(mode);
-        self
+    /// The user picked `theme`: both slots if it has both variants, else its own mode's slot, as
+    /// [`SuiteChoice::pick_theme`].
+    pub fn pick_theme(theme: &ThemeDef) -> Self {
+        let id = || Some(theme.id.clone());
+        match theme.variants {
+            Variants::Both => SelectionChange { theme_light: id(), theme_dark: id(), ..SelectionChange::default() },
+            Variants::LightOnly => SelectionChange { theme_light: id(), ..SelectionChange::default() },
+            Variants::DarkOnly => SelectionChange { theme_dark: id(), ..SelectionChange::default() },
+        }
     }
 
-    /// Both fields, for a control that sets theme and mode together. After a conflict, "Apply
-    /// mine" resends the original change (returned in the conflict) with the disk state as base.
+    pub fn mode(mode: ModeChoice) -> Self {
+        SelectionChange { mode: Some(mode), ..SelectionChange::default() }
+    }
+
+    pub fn contrast(contrast: ContrastChoice) -> Self {
+        SelectionChange { contrast: Some(contrast), ..SelectionChange::default() }
+    }
+
+    pub fn size(size: Size) -> Self {
+        SelectionChange { size: Some(size), ..SelectionChange::default() }
+    }
+
+    pub fn text_size(text_size: TextSize) -> Self {
+        SelectionChange { text_size: Some(text_size), ..SelectionChange::default() }
+    }
+
+    /// Every field, for a control that sets the whole selection. After a conflict, "Apply mine"
+    /// resends the original change (returned in the conflict) with the disk state as base.
     pub fn whole(selection: Selection) -> Self {
-        SelectionChange { theme: Some(selection.theme), mode: Some(selection.mode) }
+        SelectionChange {
+            theme_light: Some(selection.theme.light),
+            theme_dark: Some(selection.theme.dark),
+            mode: Some(selection.mode),
+            contrast: Some(selection.contrast),
+            size: Some(selection.size),
+            text_size: Some(selection.text_size),
+        }
+    }
+
+    /// This change followed by `later`: `later`'s fields replace this one's where set.
+    pub fn then(self, later: SelectionChange) -> Self {
+        SelectionChange {
+            theme_light: later.theme_light.or(self.theme_light),
+            theme_dark: later.theme_dark.or(self.theme_dark),
+            mode: later.mode.or(self.mode),
+            contrast: later.contrast.or(self.contrast),
+            size: later.size.or(self.size),
+            text_size: later.text_size.or(self.text_size),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.theme.is_none() && self.mode.is_none()
+        *self == SelectionChange::default()
     }
 
     /// `choice` with this change applied: what the app shows until the write returns.
     pub fn applied_to(&self, choice: &SuiteChoice) -> SuiteChoice {
-        SuiteChoice { theme: self.theme.clone().or_else(|| choice.theme.clone()), mode: self.mode.or(choice.mode) }
+        SuiteChoice {
+            theme_light: self.theme_light.clone().or_else(|| choice.theme_light.clone()),
+            theme_dark: self.theme_dark.clone().or_else(|| choice.theme_dark.clone()),
+            mode: self.mode.or(choice.mode),
+            contrast: self.contrast.or(choice.contrast),
+            size: self.size.or(choice.size),
+            text_size: self.text_size.or(choice.text_size),
+        }
+    }
+
+    /// The themes this change picks, light slot first.
+    pub(crate) fn picked(&self) -> impl Iterator<Item = &ThemeId> {
+        self.theme_light.iter().chain(&self.theme_dark)
     }
 }
 
@@ -110,10 +141,15 @@ impl SelectionChange {
 /// A field the change leaves alone keeps disk's value, chosen or not, and never conflicts. A
 /// changed field conflicts only when disk holds a chosen value other than mine and base's:
 /// another app chose that field after the caller's read. A field unchosen on disk takes mine.
+/// Each theme slot is a field of its own.
 pub(crate) fn merge(base: &SuiteChoice, disk: &SuiteChoice, change: &SelectionChange) -> Option<SuiteChoice> {
     Some(SuiteChoice {
-        theme: merge_field(base.theme.as_ref(), disk.theme.as_ref(), change.theme.as_ref())?,
+        theme_light: merge_field(base.theme_light.as_ref(), disk.theme_light.as_ref(), change.theme_light.as_ref())?,
+        theme_dark: merge_field(base.theme_dark.as_ref(), disk.theme_dark.as_ref(), change.theme_dark.as_ref())?,
         mode: merge_field(base.mode.as_ref(), disk.mode.as_ref(), change.mode.as_ref())?,
+        contrast: merge_field(base.contrast.as_ref(), disk.contrast.as_ref(), change.contrast.as_ref())?,
+        size: merge_field(base.size.as_ref(), disk.size.as_ref(), change.size.as_ref())?,
+        text_size: merge_field(base.text_size.as_ref(), disk.text_size.as_ref(), change.text_size.as_ref())?,
     })
 }
 
@@ -168,16 +204,16 @@ pub(crate) fn parse_selection(bytes: &[u8]) -> Result<SelectionDoc, SelectionErr
     let Value::Object(raw) = value else {
         return Err(corrupt("not a JSON object"));
     };
-    match raw.get("schema_version").and_then(Value::as_u64) {
-        Some(SELECTION_SCHEMA_VERSION) => {}
+    let version = match raw.get("schema_version").and_then(Value::as_u64) {
+        Some(v @ 1..=SELECTION_SCHEMA_VERSION) => v,
         Some(v) if v > SELECTION_SCHEMA_VERSION => return Err(SelectionError::TooNew { schema_version: v }),
-        _ => return Err(corrupt("\"schema_version\" is missing or not 1")),
-    }
+        _ => return Err(corrupt("\"schema_version\" is missing or not 1 or 2")),
+    };
     let revision = counter(&raw, "revision")?;
     let library_revision = counter(&raw, "library_revision")?;
     let suite = match raw.get("suite") {
         None | Some(Value::Null) => SuiteChoice::default(),
-        Some(Value::Object(suite)) => parse_suite(suite)?,
+        Some(Value::Object(suite)) => parse_suite(suite, version)?,
         Some(_) => return Err(corrupt("\"suite\" is not an object")),
     };
     Ok(SelectionDoc { accepted: Accepted { suite, revision, library_revision }, raw })
@@ -190,53 +226,94 @@ fn counter(raw: &Map<String, Value>, key: &str) -> Result<u64, SelectionError> {
     }
 }
 
-fn parse_suite(suite: &Map<String, Value>) -> Result<SuiteChoice, SelectionError> {
-    let theme = match suite.get("theme") {
-        None | Some(Value::Null) => None,
-        Some(Value::String(s)) => Some(ThemeId::parse(s).map_err(|e| corrupt(&format!("\"suite.theme\": {e}")))?),
-        Some(_) => return Err(corrupt("\"suite.theme\" is not a string")),
+/// Version 1 has one theme id for both modes; version 2 an object with a `light` and a `dark`
+/// slot, each optional.
+fn parse_suite(suite: &Map<String, Value>, version: u64) -> Result<SuiteChoice, SelectionError> {
+    let (theme_light, theme_dark) = match suite.get("theme") {
+        None | Some(Value::Null) => (None, None),
+        Some(Value::String(s)) if version == 1 => {
+            let id = theme_id(s, "suite.theme")?;
+            (Some(id.clone()), Some(id))
+        }
+        Some(_) if version == 1 => return Err(corrupt("\"suite.theme\" is not a string")),
+        Some(Value::Object(pair)) => (theme_slot(pair, "light")?, theme_slot(pair, "dark")?),
+        Some(_) => return Err(corrupt("\"suite.theme\" is not an object")),
     };
-    let mode = match suite.get("mode") {
-        None | Some(Value::Null) => None,
-        Some(v) => Some(v.as_str().and_then(mode_from_key).ok_or_else(|| corrupt("\"suite.mode\" is not system, light or dark"))?),
-    };
-    Ok(SuiteChoice { theme, mode })
+    Ok(SuiteChoice {
+        theme_light,
+        theme_dark,
+        mode: choice_field(suite, "mode", &MODES)?,
+        contrast: choice_field(suite, "contrast", &CONTRASTS)?,
+        size: choice_field(suite, "size", &SIZES)?,
+        text_size: choice_field(suite, "text_size", &TEXT_SIZES)?,
+    })
+}
+
+fn theme_slot(pair: &Map<String, Value>, key: &str) -> Result<Option<ThemeId>, SelectionError> {
+    match pair.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) => theme_id(s, &format!("suite.theme.{key}")).map(Some),
+        Some(_) => Err(corrupt(&format!("\"suite.theme.{key}\" is not a string"))),
+    }
+}
+
+fn theme_id(s: &str, at: &str) -> Result<ThemeId, SelectionError> {
+    ThemeId::parse(s).map_err(|e| corrupt(&format!("\"{at}\": {e}")))
+}
+
+/// Each choice's name in the file, as craft-theme's serde writes it.
+const MODES: [(ModeChoice, &str); 3] = [(ModeChoice::System, "system"), (ModeChoice::Light, "light"), (ModeChoice::Dark, "dark")];
+const CONTRASTS: [(ContrastChoice, &str); 3] =
+    [(ContrastChoice::System, "system"), (ContrastChoice::Standard, "standard"), (ContrastChoice::High, "high")];
+const SIZES: [(Size, &str); 2] = [(Size::Compact, "compact"), (Size::Comfortable, "comfortable")];
+const TEXT_SIZES: [(TextSize, &str); 4] =
+    [(TextSize::Small, "small"), (TextSize::Default, "default"), (TextSize::Large, "large"), (TextSize::Larger, "larger")];
+
+fn choice_field<T: Copy>(suite: &Map<String, Value>, key: &str, names: &[(T, &str)]) -> Result<Option<T>, SelectionError> {
+    match suite.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v.as_str().and_then(|s| names.iter().find(|(_, n)| *n == s)).map(|(c, _)| Some(*c)).ok_or_else(|| {
+            let list: Vec<&str> = names.iter().map(|(_, n)| *n).collect();
+            corrupt(&format!("\"suite.{key}\" is not {}", list.join(", ")))
+        }),
+    }
+}
+
+fn choice_name<T: PartialEq>(names: &[(T, &'static str)], value: &T) -> Value {
+    names.iter().find(|(c, _)| c == value).map_or(Value::Null, |(_, n)| Value::from(*n))
 }
 
 fn corrupt(why: &str) -> SelectionError {
     SelectionError::Corrupt(why.to_owned())
 }
 
-pub(crate) fn mode_from_key(s: &str) -> Option<Mode> {
-    match s {
-        "system" => Some(Mode::System),
-        "light" => Some(Mode::Light),
-        "dark" => Some(Mode::Dark),
-        _ => None,
-    }
-}
-
-pub(crate) fn mode_key(mode: Mode) -> &'static str {
-    match mode {
-        Mode::System => "system",
-        Mode::Light => "light",
-        Mode::Dark => "dark",
-    }
-}
-
-/// `raw` (the object last read from disk, or empty) with the known fields set to `next`. Fields
-/// nobody chose are left out; with none chosen, `suite` stays as it was.
+/// `raw` (the object last read from disk, or empty) with the known fields set to `next`, as
+/// version 2. Fields nobody chose are left out; with none chosen, `suite` stays as it was.
 pub(crate) fn render_selection(raw: &mut Map<String, Value>, next: &Accepted, written_by: &str) -> Vec<u8> {
     raw.insert("schema_version".into(), SELECTION_SCHEMA_VERSION.into());
     raw.insert("revision".into(), next.revision.into());
     raw.insert("library_revision".into(), next.library_revision.into());
-    if !next.suite.is_empty() {
+    let s = &next.suite;
+    if !s.is_empty() {
         let mut suite = match raw.remove("suite") {
             Some(Value::Object(suite)) => suite,
             _ => Map::new(),
         };
-        set_or_remove(&mut suite, "theme", next.suite.theme.as_ref().map(|t| t.as_str().into()));
-        set_or_remove(&mut suite, "mode", next.suite.mode.map(|m| mode_key(m).into()));
+        let theme = (s.theme_light.is_some() || s.theme_dark.is_some()).then(|| {
+            // A version 1 string becomes the object; unknown keys in an object stay.
+            let mut pair = match suite.remove("theme") {
+                Some(Value::Object(pair)) => pair,
+                _ => Map::new(),
+            };
+            set_or_remove(&mut pair, "light", s.theme_light.as_ref().map(|t| t.as_str().into()));
+            set_or_remove(&mut pair, "dark", s.theme_dark.as_ref().map(|t| t.as_str().into()));
+            Value::Object(pair)
+        });
+        set_or_remove(&mut suite, "theme", theme);
+        set_or_remove(&mut suite, "mode", s.mode.map(|c| choice_name(&MODES, &c)));
+        set_or_remove(&mut suite, "contrast", s.contrast.map(|c| choice_name(&CONTRASTS, &c)));
+        set_or_remove(&mut suite, "size", s.size.map(|c| choice_name(&SIZES, &c)));
+        set_or_remove(&mut suite, "text_size", s.text_size.map(|c| choice_name(&TEXT_SIZES, &c)));
         raw.insert("suite".into(), Value::Object(suite));
     }
     raw.insert("written_by".into(), written_by.into());
@@ -271,46 +348,107 @@ impl std::error::Error for SelectionError {}
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
-    fn sel(theme: &str, mode: Mode) -> Selection {
-        Selection { theme: ThemeId::parse(theme).unwrap(), mode }
+    fn id(s: &str) -> ThemeId {
+        ThemeId::parse(s).unwrap()
     }
 
-    fn choice(theme: Option<&str>, mode: Option<Mode>) -> SuiteChoice {
-        SuiteChoice { theme: theme.map(|t| ThemeId::parse(t).unwrap()), mode }
+    fn sel(theme: &str, mode: ModeChoice) -> Selection {
+        Selection { theme: ThemePair::same(id(theme)), mode, contrast: ContrastChoice::System, size: Size::Compact, text_size: TextSize::Default }
+    }
+
+    fn choice(theme: Option<&str>, mode: Option<ModeChoice>) -> SuiteChoice {
+        SuiteChoice { theme_light: theme.map(id), theme_dark: theme.map(id), mode, ..SuiteChoice::default() }
+    }
+
+    fn both(theme: &str) -> SelectionChange {
+        SelectionChange::themes(ThemePair::same(id(theme)))
     }
 
     #[test]
     fn merge_table() {
-        let graphite = || SelectionChange::theme(ThemeId::parse("craft.graphite").unwrap());
-        let base = choice(Some("craft.artcraft"), Some(Mode::System));
-        let dark_disk = choice(Some("craft.artcraft"), Some(Mode::Dark));
+        let base = choice(Some("craft.artcraft"), Some(ModeChoice::System));
+        let dark_disk = choice(Some("craft.artcraft"), Some(ModeChoice::Dark));
         // Only mine changed / another app changed the other field.
-        assert_eq!(merge(&base, &base, &graphite()), Some(choice(Some("craft.graphite"), Some(Mode::System))));
-        assert_eq!(merge(&base, &dark_disk, &graphite()), Some(choice(Some("craft.graphite"), Some(Mode::Dark))));
+        assert_eq!(merge(&base, &base, &both("craft.graphite")), Some(choice(Some("craft.graphite"), Some(ModeChoice::System))));
+        assert_eq!(merge(&base, &dark_disk, &both("craft.graphite")), Some(choice(Some("craft.graphite"), Some(ModeChoice::Dark))));
         // Same field: equal value is fine; a different value written elsewhere conflicts.
-        assert_eq!(merge(&base, &dark_disk, &SelectionChange::mode(Mode::Dark)), Some(dark_disk.clone()));
-        assert_eq!(merge(&base, &dark_disk, &SelectionChange::mode(Mode::Light)), None);
+        assert_eq!(merge(&base, &dark_disk, &SelectionChange::mode(ModeChoice::Dark)), Some(dark_disk.clone()));
+        assert_eq!(merge(&base, &dark_disk, &SelectionChange::mode(ModeChoice::Light)), None);
         // "Apply mine" resends the change on the disk state as base.
-        assert_eq!(merge(&dark_disk, &dark_disk, &SelectionChange::mode(Mode::Light)), Some(choice(Some("craft.artcraft"), Some(Mode::Light))));
+        assert_eq!(
+            merge(&dark_disk, &dark_disk, &SelectionChange::mode(ModeChoice::Light)),
+            Some(choice(Some("craft.artcraft"), Some(ModeChoice::Light)))
+        );
         // Nothing chosen: a change writes only its own field.
         let none = SuiteChoice::default();
-        assert_eq!(merge(&none, &none, &graphite()), Some(choice(Some("craft.graphite"), None)));
+        assert_eq!(merge(&none, &none, &both("craft.graphite")), Some(choice(Some("craft.graphite"), None)));
         // Two apps on a fresh install, one choosing the theme, the other the mode: no conflict.
         let theme_only = choice(Some("craft.graphite"), None);
-        assert_eq!(merge(&none, &theme_only, &SelectionChange::mode(Mode::Light)), Some(choice(Some("craft.graphite"), Some(Mode::Light))));
+        assert_eq!(
+            merge(&none, &theme_only, &SelectionChange::mode(ModeChoice::Light)),
+            Some(choice(Some("craft.graphite"), Some(ModeChoice::Light)))
+        );
         // Another app chose the same field first: equal is fine, different conflicts.
-        assert_eq!(merge(&none, &theme_only, &graphite()), Some(theme_only.clone()));
-        assert_eq!(merge(&none, &theme_only, &SelectionChange::theme(ThemeId::parse("craft.artcraft").unwrap())), None);
+        assert_eq!(merge(&none, &theme_only, &both("craft.graphite")), Some(theme_only.clone()));
+        assert_eq!(merge(&none, &theme_only, &both("craft.artcraft")), None);
         // A file that lost a field: the change writes into it.
-        assert_eq!(merge(&base, &none, &SelectionChange::mode(Mode::Dark)), Some(choice(None, Some(Mode::Dark))));
+        assert_eq!(merge(&base, &none, &SelectionChange::mode(ModeChoice::Dark)), Some(choice(None, Some(ModeChoice::Dark))));
+    }
+
+    #[test]
+    fn each_new_field_merges_on_its_own() {
+        let base = choice(Some("craft.artcraft"), None);
+        // Another app set the dark slot, contrast and text size; this one the light slot and size.
+        let disk = SuiteChoice {
+            theme_dark: Some(id("craft.pro-dark")),
+            contrast: Some(ContrastChoice::High),
+            text_size: Some(TextSize::Large),
+            ..base.clone()
+        };
+        let mine = SelectionChange::theme_light(id("craft.pro-light")).then(SelectionChange::size(Size::Comfortable));
+        let merged = merge(&base, &disk, &mine).unwrap();
+        assert_eq!(
+            merged,
+            SuiteChoice {
+                theme_light: Some(id("craft.pro-light")),
+                theme_dark: Some(id("craft.pro-dark")),
+                mode: None,
+                contrast: Some(ContrastChoice::High),
+                size: Some(Size::Comfortable),
+                text_size: Some(TextSize::Large),
+            }
+        );
+        // The same field changed elsewhere conflicts, one field at a time.
+        for change in [
+            SelectionChange::theme_dark(id("craft.studio")),
+            SelectionChange::contrast(ContrastChoice::Standard),
+            SelectionChange::text_size(TextSize::Small),
+        ] {
+            assert_eq!(merge(&base, &disk, &change), None, "{change:?}");
+        }
+        let sized = SuiteChoice { size: Some(Size::Compact), ..base.clone() };
+        assert_eq!(merge(&base, &sized, &SelectionChange::size(Size::Comfortable)), None);
+    }
+
+    #[test]
+    fn picking_a_single_variant_theme_changes_one_slot() {
+        let builtin = |name: &str| craft_theme::v2::builtins().iter().find(|t| t.id.as_str() == name).unwrap();
+        let soft = SelectionChange::pick_theme(builtin("craft.soft-light"));
+        assert_eq!(soft, SelectionChange::theme_light(id("craft.soft-light")));
+        assert_eq!(SelectionChange::pick_theme(builtin("craft.graphite")), both("craft.graphite"));
+        let shown = soft.applied_to(&choice(Some("craft.graphite"), None));
+        assert_eq!((shown.theme_light, shown.theme_dark), (Some(id("craft.soft-light")), Some(id("craft.graphite"))));
+        assert_eq!(soft.picked().collect::<Vec<_>>(), [&id("craft.soft-light")]);
     }
 
     #[test]
     fn damaged_counters_are_salvaged() {
         let base = Accepted { suite: choice(Some("craft.graphite"), None), revision: 3, library_revision: 9 };
-        let bytes = br#"{"schema_version":1,"revision":41,"library_revision":2,"suite":{"theme":5}}"#;
+        let bytes = br#"{"schema_version":2,"revision":41,"library_revision":2,"suite":{"theme":5}}"#;
         assert_eq!(salvage(Some(bytes), &base), Accepted { suite: base.suite.clone(), revision: 41, library_revision: 9 });
         assert_eq!(salvage(Some(b"{ not json"), &base), base);
     }
@@ -318,7 +456,9 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn accepted_round_trips_through_serde() {
-        let accepted = Accepted { suite: choice(None, Some(Mode::Dark)), revision: 4, library_revision: 1 };
+        let suite =
+            SuiteChoice { theme_dark: Some(id("user.navy")), mode: Some(ModeChoice::Dark), size: Some(Size::Comfortable), ..SuiteChoice::default() };
+        let accepted = Accepted { suite, revision: 4, library_revision: 1 };
         let json = serde_json::to_string(&accepted).unwrap();
         assert_eq!(serde_json::from_str::<Accepted>(&json).unwrap(), accepted);
         assert_eq!(serde_json::from_str::<Accepted>("{}").unwrap(), Accepted::default());
@@ -326,45 +466,99 @@ mod tests {
 
     #[test]
     fn unknown_keys_survive_a_rewrite() {
-        let text = br#"{"schema_version":1,"revision":4,"library_revision":2,"extra":{"a":[1]},
-            "suite":{"theme":"user.navy","mode":"light","later":true},"written_by":"x"}"#;
+        let text = br#"{"schema_version":2,"revision":4,"library_revision":2,"extra":{"a":[1]},
+            "suite":{"theme":{"light":"user.navy","dark":"user.navy","later":1},"mode":"light","later":true},"written_by":"x"}"#;
         let doc = parse_selection(text).unwrap();
         assert_eq!(doc.accepted.revision, 4);
-        assert_eq!(doc.accepted.suite, sel("user.navy", Mode::Light).into());
-        let next = Accepted { suite: sel("craft.graphite", Mode::Dark).into(), revision: 5, library_revision: 2 };
+        assert_eq!(doc.accepted.suite, choice(Some("user.navy"), Some(ModeChoice::Light)));
+        let whole = Selection {
+            contrast: ContrastChoice::High,
+            size: Size::Comfortable,
+            text_size: TextSize::Larger,
+            ..sel("craft.graphite", ModeChoice::Dark)
+        };
+        let next = Accepted { suite: whole.into(), revision: 5, library_revision: 2 };
         let mut raw = doc.raw;
         let out = render_selection(&mut raw, &next, "test 1.0");
         let back: Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(back["extra"], serde_json::json!({"a": [1]}));
+        assert_eq!(back["extra"], json!({"a": [1]}));
         assert_eq!(back["suite"]["later"], true);
+        assert_eq!(
+            back["suite"],
+            json!({
+                "theme": {"light": "craft.graphite", "dark": "craft.graphite", "later": 1},
+                "mode": "dark", "contrast": "high", "size": "comfortable", "text_size": "larger", "later": true
+            })
+        );
         assert_eq!(back["written_by"], "test 1.0");
         assert_eq!(parse_selection(&out).unwrap().accepted, next);
     }
 
+    #[cfg(feature = "serde")]
+    #[test]
+    fn choice_names_match_craft_themes_serde() {
+        for (c, name) in MODES {
+            assert_eq!(serde_json::to_value(c).unwrap(), name);
+        }
+        for (c, name) in CONTRASTS {
+            assert_eq!(serde_json::to_value(c).unwrap(), name);
+        }
+        for (c, name) in SIZES {
+            assert_eq!(serde_json::to_value(c).unwrap(), name);
+        }
+        for (c, name) in TEXT_SIZES {
+            assert_eq!(serde_json::to_value(c).unwrap(), name);
+        }
+    }
+
+    #[test]
+    fn version_1_is_read_into_both_slots_and_upgraded_on_write() {
+        let v1 = br#"{"schema_version":1,"revision":6,"library_revision":1,"suite":{"theme":"user.navy","mode":"system","x":2}}"#;
+        let doc = parse_selection(v1).unwrap();
+        assert_eq!(doc.accepted.suite, choice(Some("user.navy"), Some(ModeChoice::System)));
+        let next =
+            Accepted { suite: SelectionChange::theme_dark(id("craft.pro-dark")).applied_to(&doc.accepted.suite), revision: 7, library_revision: 1 };
+        let mut raw = doc.raw;
+        let out = render_selection(&mut raw, &next, "t");
+        let back: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(back["schema_version"], 2);
+        assert_eq!(back["suite"], json!({"theme": {"light": "user.navy", "dark": "craft.pro-dark"}, "mode": "system", "x": 2}));
+        assert_eq!(parse_selection(&out).unwrap().accepted, next);
+        // Each version's own theme form only.
+        assert!(matches!(parse_selection(br#"{"schema_version":1,"suite":{"theme":{"light":"user.navy"}}}"#), Err(SelectionError::Corrupt(_))));
+        assert!(matches!(parse_selection(br#"{"schema_version":2,"suite":{"theme":"user.navy"}}"#), Err(SelectionError::Corrupt(_))));
+    }
+
     #[test]
     fn no_suite_key_means_no_selection_and_bad_fields_are_corrupt() {
-        let bare = parse_selection(br#"{"schema_version":1,"library_revision":3}"#).unwrap();
+        let bare = parse_selection(br#"{"schema_version":2,"library_revision":3}"#).unwrap();
         assert_eq!(bare.accepted, Accepted { suite: SuiteChoice::default(), revision: 0, library_revision: 3 });
         let mut raw = bare.raw;
         let out = render_selection(&mut raw, &Accepted { suite: SuiteChoice::default(), revision: 1, library_revision: 4 }, "t");
         assert!(serde_json::from_slice::<Value>(&out).unwrap().get("suite").is_none());
-        // One field chosen: the other is left out.
-        let mode_only = parse_selection(br#"{"schema_version":1,"suite":{"mode":"dark"}}"#).unwrap();
-        assert_eq!(mode_only.accepted.suite, choice(None, Some(Mode::Dark)));
+        // One field chosen: the others are left out, and so is an unchosen slot.
+        let mode_only = parse_selection(br#"{"schema_version":2,"suite":{"mode":"dark"}}"#).unwrap();
+        assert_eq!(mode_only.accepted.suite, choice(None, Some(ModeChoice::Dark)));
         let mut raw = mode_only.raw;
-        let out = render_selection(&mut raw, &Accepted { suite: choice(Some("craft.graphite"), None), revision: 1, library_revision: 0 }, "t");
+        let light_only = SuiteChoice { theme_light: Some(id("craft.soft-light")), ..SuiteChoice::default() };
+        let out = render_selection(&mut raw, &Accepted { suite: light_only, revision: 1, library_revision: 0 }, "t");
         let written: Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(written["suite"], serde_json::json!({"theme": "craft.graphite"}));
+        assert_eq!(written["suite"], json!({"theme": {"light": "craft.soft-light"}}));
         for bad in [
             &br#"{"revision":1}"#[..],
             b"[1]",
             b"{",
+            br#"{"schema_version":2,"suite":{"mode":"auto"}}"#,
+            br#"{"schema_version":2,"suite":{"contrast":"max"}}"#,
+            br#"{"schema_version":2,"suite":{"size":1}}"#,
+            br#"{"schema_version":2,"suite":{"text_size":"huge"}}"#,
+            br#"{"schema_version":2,"suite":{"theme":{"light":"A"}}}"#,
+            br#"{"schema_version":2,"suite":{"theme":{"dark":7}}}"#,
             br#"{"schema_version":1,"suite":{"theme":"craft.graphite","mode":"auto"}}"#,
-            br#"{"schema_version":1,"suite":{"theme":"A","mode":"dark"}}"#,
             br#"{"schema_version":1,"suite":{"theme":7}}"#,
         ] {
             assert!(matches!(parse_selection(bad), Err(SelectionError::Corrupt(_))), "{}", String::from_utf8_lossy(bad));
         }
-        assert_eq!(parse_selection(br#"{"schema_version":2,"suite":7}"#).unwrap_err(), SelectionError::TooNew { schema_version: 2 });
+        assert_eq!(parse_selection(br#"{"schema_version":3,"suite":7}"#).unwrap_err(), SelectionError::TooNew { schema_version: 3 });
     }
 }
