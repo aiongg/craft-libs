@@ -191,6 +191,54 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
     assert_eq!((f.caret, f.invalid), (t.color(T::TextNormal), t.color(T::StatusBadFg)));
 }
 
+fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
+    let popup = TokenRef::Color(T::SurfaceRaised);
+    let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
+    vec![
+        (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
+        (ListboxField::ChosenText, popup, (4.5, 7.0)),
+        (ListboxField::Group, popup, (4.5, 7.0)),
+        (ListboxField::ActiveText, active, (4.5, 7.0)),
+        (ListboxField::Mark, popup, (3.0, 4.5)),
+        (ListboxField::Mark, active, (3.0, 4.5)),
+    ]
+}
+
+#[test]
+fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
+    let listed: Vec<_> =
+        ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, ComponentField::Listbox(_))).map(|p| (p.fg, p.bg, p.minimum)).collect();
+    let expected: Vec<_> = listbox_pairs().into_iter().map(|(fg, bg, min)| (ComponentField::Listbox(fg), bg, min)).collect();
+    assert_eq!(listed, expected);
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            for (fg, bg, (standard, high)) in listbox_pairs() {
+                let min = if a.contrast == Contrast::High { high } else { standard };
+                let bg = match bg {
+                    TokenRef::Color(token) => t.color(token),
+                    TokenRef::Component(field) => over(t.component.color(field).unwrap(), t.color(T::SurfaceRaised)),
+                };
+                let ratio = contrast_ratio(over(t.component.color(ComponentField::Listbox(fg)).unwrap(), bg), bg);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, ComponentField::Listbox(fg).path());
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let l = &t.component.listbox;
+    assert_eq!(l.height, BySize { sm: t.size.control.sm, md: t.size.control.md });
+    assert_eq!(l.icon, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
+    assert_eq!((l.pad_x, l.gap, l.separator_pad, l.radius), (t.space.pad.control, t.space.gap.inline, t.space.gap.inline, t.shape.radius.control));
+    assert_eq!((l.label, l.group_label), (TypeRole::Body, TypeRole::Caption));
+    assert_eq!(l.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
+    assert_eq!((l.active_fill, l.active_text), (t.color(T::StateHover), t.color(T::TextNormal)));
+    assert_eq!((l.chosen_text, l.mark), (t.color(T::TextNormal), t.color(T::TextNormal)));
+    assert_eq!((l.group, l.separator), (t.color(T::TextMuted), t.color(T::LineDivider)));
+}
+
 #[test]
 fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     for def in [grey_blue(), violet()] {
@@ -312,7 +360,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 5 * 2 + 4 + 4)
+        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 5 * 2 + 4 + 4) + (1 + 2 + 6)
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -357,6 +405,11 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("progress.fill", ComponentField::Progress(ProgressField::Fill)),
         ("swatch.checker.b", ComponentField::Swatch(SwatchField::Color(SwatchColor::CheckerB))),
         ("swatch.radius", ComponentField::Swatch(SwatchField::Radius)),
+        ("listbox.radius", ComponentField::Listbox(ListboxField::Radius)),
+        ("listbox.text.disabled", ComponentField::Listbox(ListboxField::Text { disabled: true })),
+        ("listbox.active.fill", ComponentField::Listbox(ListboxField::ActiveFill)),
+        ("listbox.chosen.text", ComponentField::Listbox(ListboxField::ChosenText)),
+        ("listbox.mark", ComponentField::Listbox(ListboxField::Mark)),
     ];
     for (path, field) in named {
         assert_eq!(ComponentField::from_path(path), Some(field), "{path}");
@@ -412,6 +465,14 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "field.invalid.rest",
         "field.unit",
         "field.scrub.hover",
+        "listbox.height.md",
+        "listbox.text",
+        "listbox.active",
+        "listbox.active.fill.rest",
+        "listbox.chosen.fill",
+        "listbox.mark.rest",
+        "listbox.group.text",
+        "listbox.separator_pad",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }
