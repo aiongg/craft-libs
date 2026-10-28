@@ -259,10 +259,11 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
 }
 
 fn handle_lines(out: &mut Lines, h: &HandleTokens) {
-    let HandleTokens { size, stroke, halo } = h;
+    let HandleTokens { size, stroke, halo, hit, .. } = h;
     out.line("handle.size", len(*size));
     out.line("handle.stroke", len(*stroke));
     out.line("handle.halo", len(*halo));
+    out.line("handle.hit", len(*hit));
 }
 
 fn button_lines(out: &mut Lines, b: &ButtonTokens) {

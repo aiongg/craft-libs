@@ -372,3 +372,6 @@ pub const HANDLE_SIZE: f32 = 8.0;
 pub const HANDLE_STROKE: f32 = 1.0;
 /// Width of the halo drawn around a handle so it reads on any image.
 pub const HANDLE_HALO: f32 = 1.0;
+/// Side of the square around a handle's centre that takes the pointer, in points: larger than the
+/// handle, so small handles stay easy to hit.
+pub const HANDLE_HIT: f32 = 14.0;

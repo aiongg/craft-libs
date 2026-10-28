@@ -21,6 +21,18 @@ const SAMPLES: [&str; 20] = [
 ];
 
 #[test]
+fn easing_curves_run_from_zero_to_one_as_their_css_cubic_beziers() {
+    for easing in [Easing::Standard, Easing::Enter, Easing::Exit] {
+        assert!(near(easing.at(0.0).into(), 0.0, 1e-4) && near(easing.at(1.0).into(), 1.0, 1e-4), "{easing:?}");
+        let samples: Vec<f32> = (0..=20).map(|i| easing.at(i as f32 / 20.0)).collect();
+        assert!(samples.windows(2).all(|w| w[0] <= w[1]), "{easing:?} rises: {samples:?}");
+    }
+    // Values from the CSS definition (x(s) = t solved for s, then y(s)).
+    assert!(near(Easing::Standard.at(0.5).into(), 0.878, 0.005), "{}", Easing::Standard.at(0.5));
+    assert!(Easing::Exit.at(0.5) < 0.5, "exit starts slowly");
+}
+
+#[test]
 fn hex_parse_and_format() {
     assert_eq!(hex("#FF8000").0, [255, 128, 0, 255]);
     assert_eq!(hex("#ff800080").to_hex(), "#ff800080");

@@ -8,6 +8,7 @@ use crate::values;
 
 /// Handle tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HandleTokens {
     /// Side of a square handle, diameter of a round one, in points.
     pub size: f32,
@@ -15,6 +16,8 @@ pub struct HandleTokens {
     pub stroke: f32,
     /// Halo width, drawn outside `size`.
     pub halo: f32,
+    /// Side of the pointer target, centred on the handle.
+    pub hit: f32,
 }
 
 /// Handles have no overridable field: their sizes come from the code, as every size does.
@@ -26,7 +29,7 @@ impl Family for HandleTokens {
     const FIELDS: &'static [HandleField] = &[];
 
     fn defaults(_: &Semantic<'_>) -> HandleTokens {
-        HandleTokens { size: values::HANDLE_SIZE, stroke: values::HANDLE_STROKE, halo: values::HANDLE_HALO }
+        HandleTokens { size: values::HANDLE_SIZE, stroke: values::HANDLE_STROKE, halo: values::HANDLE_HALO, hit: values::HANDLE_HIT }
     }
 
     fn path(f: HandleField) -> String {

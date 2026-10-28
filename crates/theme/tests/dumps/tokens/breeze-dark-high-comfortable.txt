@@ -199,3 +199,4 @@ button.danger.text.disabled = #1d2126ff
 handle.size = 8
 handle.stroke = 1
 handle.halo = 1
+handle.hit = 14

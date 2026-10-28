@@ -187,6 +187,25 @@ impl Easing {
             Easing::Exit => [0.3, 0.0, 1.0, 1.0],
         }
     }
+
+    /// The curve's progress at time `t` (both 0 to 1), as CSS `cubic-bezier` computes it.
+    pub fn at(self, t: f32) -> f32 {
+        let [x1, y1, x2, y2] = self.bezier();
+        // One coordinate of the curve with control values `a` and `b` at parameter `s`.
+        let curve = |a: f32, b: f32, s: f32| ((1.0 - 3.0 * b + 3.0 * a) * s + (3.0 * b - 6.0 * a)) * s * s + 3.0 * a * s;
+        let t = t.clamp(0.0, 1.0);
+        // x is monotonic in s on [0, 1] for CSS curves (x1, x2 in 0..=1), so bisection finds s.
+        let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
+        for _ in 0..24 {
+            let mid = (lo + hi) / 2.0;
+            if curve(x1, x2, mid) < t {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        curve(y1, y2, (lo + hi) / 2.0)
+    }
 }
 
 /// Opacity primitives.
