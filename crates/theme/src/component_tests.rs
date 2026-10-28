@@ -100,6 +100,42 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
 }
 
+/// The decided contrast scope: the filled part is an accent state indicator, 3:1 on the track
+/// (4.5:1 with high contrast).
+#[test]
+fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_minimum() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            let track = ComponentField::Slider(SliderField::Track);
+            for s in [State::Rest, State::Hover, State::Pressed] {
+                let fill = ComponentField::Slider(SliderField::Fill(s));
+                let ratio = pair_ratio(&r.tokens, fill, Some(track));
+                assert!(ratio >= min, "{} {a:?}: {} on the track is {ratio:.2}, needs {min}", def.name, fill.path());
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let s = &t.component.slider;
+    let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
+    assert_eq!((s.height, s.thumb), (control, BySize { sm: t.size.icon.sm, md: t.size.icon.md }));
+    assert_eq!(s.width, BySize { sm: 6.0 * control.sm, md: 6.0 * control.md });
+    assert_eq!((s.track_height, s.radius), (4.0, Radius::Full.px()));
+    assert_eq!(s.track, t.color(T::SurfaceSunken));
+    assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    let edge = t.color(T::LineControlEdge);
+    assert_eq!(
+        s.thumb_colors,
+        ThumbColors {
+            fill: States::new(t.color(T::SurfaceRaised), t.color(T::StateHover), t.color(T::StatePressed), t.color(T::StateDisabledFill)),
+            border: States::new(edge, edge, edge, t.color(T::LineDivider)),
+        }
+    );
+}
+
 #[test]
 fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
     for def in [grey_blue(), violet()] {
@@ -134,7 +170,7 @@ fn button_sizes_follow_the_size_preset() {
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 3);
+    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3);
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -157,6 +193,12 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         ComponentField::from_path("segmented.segment.fill.pressed"),
         Some(ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed }))
     );
+    assert_eq!(ComponentField::from_path("slider.radius"), Some(ComponentField::Slider(SliderField::Radius)));
+    assert_eq!(ComponentField::from_path("slider.fill.hover"), Some(ComponentField::Slider(SliderField::Fill(State::Hover))));
+    assert_eq!(
+        ComponentField::from_path("slider.thumb.border.disabled"),
+        Some(ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled }))
+    );
     assert_eq!(
         ComponentField::from_path("toggle_button.on_disabled.border"),
         Some(ComponentField::ToggleButton(ToggleButtonField::OnDisabled(ButtonPart::Border)))
@@ -175,6 +217,11 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         "segmented.inset",
         "segmented.track.rest",
         "segmented.selected.fill",
+        "slider.thumb",
+        "slider.thumb.text.rest",
+        "slider.fill",
+        "slider.track.rest",
+        "slider.height.md",
         "toggle_button.on_disabled",
         "toggle_button.on_disabled.fill.rest",
         "toggle_button.on.fill.disabled",
