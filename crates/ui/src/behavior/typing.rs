@@ -159,7 +159,9 @@ pub enum Escape {
 /// - **Host changes**: a host value other than the last reported cancels the run
 ///   ([`CancelReason::External`](crate::edit::CancelReason::External)) and shows the host's
 ///   text; the caret stays where it was, or at the end of a shorter text.
-/// - **Focus**: Tab (or a screen reader) selects the whole text; a click places the caret.
+/// - **Focus**: Tab (or a screen reader) selects the whole text; a click places the caret. An
+///   enabled field is a stop of the [`FieldTab`](super::FieldTab) scope it is in, which a
+///   dialog's Tab visits.
 /// - **Keys of the embedding control**: [`event_filter`](Typing::event_filter) keeps more keys
 ///   with the field while it has the focus (a list's Up and Down, a popup's Esc).
 /// - **Typed values** ([`Typing::with_codec`]): the field shows its value as the [`Codec`] writes
@@ -332,6 +334,9 @@ impl<'a, C: Codec> Typing<'a, C> {
     pub fn show(self, ui: &mut Ui, look: &TypingLook) -> Typed<C> {
         let id = self.id;
         let enabled = self.enabled && ui.is_enabled();
+        if enabled {
+            super::FieldTab::register(ui, id);
+        }
         let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         let caret = state.cursor.char_range();

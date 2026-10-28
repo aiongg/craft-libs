@@ -62,11 +62,11 @@ pub struct SegmentedStyle {
 /// ```
 ///
 /// Equal-width segments sit on a sunken track; the selected one shows `segmented.selected.*`.
-/// It is a WAI-ARIA radio group: AccessKit `RadioGroup` named `label` with a `RadioButton` per
-/// segment, the selected one checked, with the keys and focus of
-/// [`RadioSelection`](crate::behavior::RadioSelection): one Tab stop, arrows (mirrored in a
-/// right-to-left interface), Home and End, skipping disabled segments. Segments run from the
-/// reading start. An icon segment's label is its accessible name and
+/// It is a radio group: AccessKit `RadioGroup` named `label`, with the number of segments, and a
+/// `RadioButton` per segment, the selected one checked, each at its position in the set. Keys and
+/// focus are [`RadioSelection`](crate::behavior::RadioSelection)'s, as PhotoCraft's and
+/// DesignCraft's segments: each enabled segment a Tab stop, the arrows move the focus without
+/// selecting, Enter, Space or a click selects. Segments run from the reading start. An icon segment's label is its accessible name and
 /// tooltip, also while disabled.
 #[derive(Debug)]
 pub struct Segmented<'a, T> {
@@ -106,8 +106,8 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
         self
     }
 
-    /// Whether the last segment added takes input; the arrow keys, Home and End skip a disabled
-    /// one.
+    /// Whether the last segment added takes input; a disabled one takes no focus, so Tab and the
+    /// arrow keys pass over it.
     pub fn item_enabled(mut self, enabled: bool) -> Self {
         if let Some(item) = self.items.last_mut() {
             item.enabled = enabled;
@@ -156,14 +156,15 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
         let enabled = self.enabled && ui.is_enabled();
         let items = self.items.iter().enumerate().map(|(i, item)| (Interactive::id_in(&group, i), enabled && item.enabled)).collect();
         let selected = self.items.iter().position(|item| item.value == *self.value);
-        let mut radios = RadioSelection::begin(ui, items, selected);
+        let mut radios = RadioSelection::new(items, selected);
+        radios.report_size(ui, group.unique_id());
         let sensed: Vec<_> = self
             .items
             .iter()
             .enumerate()
             .map(|(i, item)| {
                 Interactive::new(i, Role::RadioButton, item.label.as_str())
-                    .sense(radios.sense(i))
+                    .position_in_set(i)
                     .colors(StateColors { fill: style.fill, border: None })
                     .on_colors(StateColors { fill: style.selected_fill, border: None })
                     .corner(Corner::Control)
@@ -171,7 +172,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                     .interact(&mut group, segment)
             })
             .collect();
-        radios.sensed(ui, &sensed);
+        radios.sensed(&sensed);
         let selected = radios.selected();
         if let Some(i) = selected.filter(|_| radios.changed()) {
             *self.value = self.items[i].value.clone();

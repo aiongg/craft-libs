@@ -15,7 +15,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 ///
 /// With a click sense (the default) it takes keyboard focus, and Enter and Space activate it
 /// while it has focus: [`Response::clicked`] is true for them as for a pointer click, and for a
-/// screen reader's click. A [`Role::Link`] activates on Enter only, as a WAI-ARIA link does.
+/// screen reader's click.
 ///
 /// [`show`](Interactive::show) paints, in order: the fill, which is the [`surface`](Interactive::surface)'s
 /// fill (transparent without one) changing to the hover and pressed fills ([`StateLayer`]); the
@@ -62,6 +62,8 @@ struct Report {
     numeric: Option<Numeric>,
     expanded: Option<bool>,
     busy: bool,
+    /// Zero-based, for an item of a group whose node reports the set's size.
+    position: Option<usize>,
 }
 
 /// A numeric value with its bounds, for sliders.
@@ -135,7 +137,7 @@ impl<'a> Interactive<'a> {
             checked: None,
             mixed: false,
             selected: None,
-            report: Report { role, label, value: None, numeric: None, expanded: None, busy: false },
+            report: Report { role, label, value: None, numeric: None, expanded: None, busy: false, position: None },
             look: Look { surface: None, corner: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
         }
     }
@@ -243,6 +245,14 @@ impl<'a> Interactive<'a> {
         self
     }
 
+    /// The element's place in its group, from 0, for a radio button, segment or tab: a screen
+    /// reader reads it with the set's size, which the group's own node reports
+    /// ([`RadioSelection::report_size`](crate::behavior::RadioSelection::report_size)).
+    pub fn position_in_set(mut self, index: usize) -> Self {
+        self.report.position = Some(index);
+        self
+    }
+
     /// Busy: the element is working (a loading button) and a screen reader says so.
     pub fn busy(mut self, busy: bool) -> Self {
         self.report.busy = busy;
@@ -287,8 +297,7 @@ impl<'a> Interactive<'a> {
             IdSource::Salt(salt) => ui.make_persistent_id(salt),
             IdSource::Id(id) => id,
         };
-        // A WAI-ARIA link activates on Enter only; Space scrolls.
-        let options = InteractOptions { enabled: self.enabled, activate_on_space: self.report.role != Role::Link, ..Default::default() };
+        let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let mut response = ui.interact_opt(rect, id, self.sense, options);
         inspect::record(ui, id, RecordKind::Interactive(self.report.role), rect, rect);
         // A click changes bound states before they are reported, as egui's check box does.
@@ -372,7 +381,7 @@ impl Sensed {
             info.selected = checked;
             info
         });
-        if mixed || selected.is_some() || report.numeric.is_some() || report.expanded.is_some() || report.busy {
+        if mixed || selected.is_some() || report.numeric.is_some() || report.expanded.is_some() || report.busy || report.position.is_some() {
             ui.ctx().accesskit_node_builder(response.id, |node| {
                 if mixed {
                     node.set_toggled(egui::accesskit::Toggled::Mixed);
@@ -399,6 +408,9 @@ impl Sensed {
                 }
                 if report.busy {
                     node.set_busy();
+                }
+                if let Some(position) = report.position {
+                    node.set_position_in_set(position);
                 }
             });
         }

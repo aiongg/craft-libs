@@ -31,11 +31,16 @@ pub struct TooltipStyle {
 /// The look of every tooltip, stock egui's `on_hover_text` and the [`TooltipExt`] helpers alike:
 /// the popup surface with the body type role and `text.normal`. egui draws tooltips with the
 /// `Style` that [`style_for`](crate::theme::style_for) generates, which popups and menus share, so
-/// this look is theirs and a tooltip has no colours or shape of its own.
+/// this look is theirs and a tooltip has no colours or shape of its own. A tooltip shows after the
+/// pointer rests [`Tooltip::DELAY`] on its control.
 #[derive(Clone, Copy, Debug)]
 pub struct Tooltip;
 
 impl Tooltip {
+    /// Seconds the pointer rests on a control before its tooltip shows, as in PhotoCraft:
+    /// `interaction.tooltip_delay` in [`style_for`](crate::theme::style_for).
+    pub const DELAY: f32 = 0.35;
+
     pub fn style(tokens: &UiTokens) -> TooltipStyle {
         let frame = Frame::popup(&tokens.style);
         TooltipStyle {

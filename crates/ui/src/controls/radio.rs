@@ -1,5 +1,5 @@
-//! [`RadioGroup`] and [`RadioSet`]: one of several options, as round radio buttons in a WAI-ARIA
-//! radio group.
+//! [`RadioGroup`] and [`RadioSet`]: one of several options, as round radio buttons in a radio
+//! group.
 
 use std::sync::Arc;
 
@@ -73,7 +73,7 @@ struct Choice<T> {
     enabled: bool,
 }
 
-/// A list of radio buttons choosing one value, a WAI-ARIA radio group:
+/// A list of radio buttons choosing one value, a radio group:
 ///
 /// ```
 /// # use craft_ui::controls::RadioGroup;
@@ -88,11 +88,12 @@ struct Choice<T> {
 /// ```
 ///
 /// The options run top down from the reading start. AccessKit reports a `RadioGroup` named
-/// `label` (not drawn: the form shows its own heading) with a `RadioButton` per option, the
-/// selected one toggled, after this frame's click or key. Keys and focus are
-/// [`RadioSelection`]'s: one Tab stop, arrows (mirrored in a right-to-left interface), Home and
-/// End, skipping disabled options. A change is one [`Set`](crate::edit::EditEvent::Set) with the
-/// modifiers held. Options placed apart, each beside its own field, belong in a [`RadioSet`].
+/// `label` (not drawn: the form shows its own heading) and the number of options, with a
+/// `RadioButton` per option, the selected one toggled after this frame's click or key, and its
+/// position in the set. Keys and focus are [`RadioSelection`]'s: each enabled option a Tab stop,
+/// the arrows move the focus without selecting, Enter, Space or a click selects. A change is one
+/// [`Set`](crate::edit::EditEvent::Set) with the modifiers held. Options placed apart, each beside
+/// its own field, belong in a [`RadioSet`].
 #[derive(Debug)]
 pub struct RadioGroup<'a, T> {
     id_salt: IdSalt,
@@ -116,8 +117,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
         self
     }
 
-    /// Whether the last option added takes input; the arrow keys, Home and End skip a disabled
-    /// one, and it draws `check.*.disabled`.
+    /// Whether the last option added takes input; a disabled one takes no focus, so Tab and the
+    /// arrow keys pass over it, and it draws `check.*.disabled`.
     pub fn item_enabled(mut self, enabled: bool) -> Self {
         if let Some(item) = self.items.last_mut() {
             item.enabled = enabled;
@@ -152,7 +153,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
             let laid: Vec<_> = self.items.iter().map(|item| Labelled::layout(group, &tokens, &style.layout(), &item.label)).collect();
             let items = self.items.iter().enumerate().map(|(i, item)| (Interactive::id_in(group, i), enabled && item.enabled)).collect();
             let selected = self.items.iter().position(|item| item.value == *self.value);
-            let mut radios = RadioSelection::begin(group, items, selected);
+            let mut radios = RadioSelection::new(items, selected);
+            radios.report_size(group, group.unique_id());
             let sensed: Vec<_> = self
                 .items
                 .iter()
@@ -160,13 +162,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
                 .enumerate()
                 .map(|(i, (item, laid))| {
                     Interactive::new(i, Role::RadioButton, item.label.as_str())
-                        .sense(radios.sense(i))
+                        .position_in_set(i)
                         .state_layer(false)
                         .enabled(enabled && item.enabled)
                         .interact(group, laid.size)
                 })
                 .collect();
-            radios.sensed(group, &sensed);
+            radios.sensed(&sensed);
             let selected = radios.selected();
             let responses: Vec<_> = sensed
                 .into_iter()
@@ -213,7 +215,7 @@ impl RadioGroup<'static, ()> {
 }
 
 /// Radio buttons choosing one value, each placed where the layout needs it (an option followed
-/// by its own field), as one WAI-ARIA radio group:
+/// by its own field), as one radio group:
 ///
 /// ```
 /// # use craft_ui::controls::RadioSet;
@@ -232,10 +234,11 @@ impl RadioGroup<'static, ()> {
 /// [`begin`](RadioSet::begin) takes this frame's keys and click and applies the change to the
 /// value before any option is drawn, so every option, and the code between them, sees the new
 /// selection in the frame of the click. Each option's id comes from the set's `id_salt`, not
-/// from where it sits. Keys and focus are [`RadioSelection`]'s, as in a [`RadioGroup`]: one Tab
-/// stop, arrows (mirrored in a right-to-left interface), Home and End, skipping disabled
-/// options. AccessKit reports a `RadioGroup` named `label` where `begin` runs, with every option
-/// a `RadioButton` inside it. [`end`](PreparedRadioSet::end) reports a change as one
+/// from where it sits. Keys and focus are [`RadioSelection`]'s, as in a [`RadioGroup`]: each
+/// enabled option a Tab stop, the arrows move the focus (to whatever control sits that way)
+/// without selecting, Enter, Space or a click selects. AccessKit reports a `RadioGroup` named
+/// `label`, with the number of options, where `begin` runs, with every option a `RadioButton`
+/// inside it, at its position in the set. [`end`](PreparedRadioSet::end) reports a change as one
 /// [`Set`](crate::edit::EditEvent::Set) with the modifiers held.
 #[derive(Debug)]
 pub struct RadioSet<'a, T> {
@@ -260,8 +263,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioSet<'a, T> {
         self
     }
 
-    /// Whether the last option added takes input; the arrow keys, Home and End skip a disabled
-    /// one, and it draws `check.*.disabled`.
+    /// Whether the last option added takes input; a disabled one takes no focus, so Tab and the
+    /// arrow keys pass over it, and it draws `check.*.disabled`.
     pub fn item_enabled(mut self, enabled: bool) -> Self {
         if let Some(item) = self.items.last_mut() {
             item.enabled = enabled;
@@ -292,7 +295,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioSet<'a, T> {
         let enabled = self.enabled && ui.is_enabled();
         let items: Vec<_> = self.items.iter().enumerate().map(|(i, item)| (id.with(i), enabled && item.enabled)).collect();
         let selected = self.items.iter().position(|item| item.value == *self.value);
-        let mut radios = RadioSelection::begin(ui, items.clone(), selected);
+        let mut radios = RadioSelection::new(items.clone(), selected);
+        radios.report_size(ui, id);
         radios.click_from_input(ui);
         let mut gesture = Gesture::load(ui, id, &*self.value, EditPolicy::default()).enabled(enabled);
         let chosen = radios.selected().filter(|_| radios.changed());
@@ -331,13 +335,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     pub fn radio(&mut self, ui: &mut Ui, index: usize, label: &str) -> Response {
         let (id, enabled) = self.items[index];
         let selected = self.radios.selected() == Some(index);
-        let sense = self.radios.sense(index);
         let (tokens, style) = (&self.tokens, &self.style);
         let response = ui
             .scope_builder(UiBuilder::new().accessibility_parent(self.id), |ui| {
                 let laid = Labelled::layout(ui, tokens, &style.layout(), label);
-                let sensed =
-                    Interactive::with_id(id, Role::RadioButton, label).sense(sense).state_layer(false).enabled(enabled).interact(ui, laid.size);
+                let sensed = Interactive::with_id(id, Role::RadioButton, label)
+                    .position_in_set(index)
+                    .state_layer(false)
+                    .enabled(enabled)
+                    .interact(ui, laid.size);
                 laid.tooltip(paint(ui, style, &laid, sensed, selected), label)
             })
             .inner;

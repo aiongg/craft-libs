@@ -4,10 +4,10 @@
 //!   and a loading state.
 //! - [`IconButton`]: a square ghost button showing only an icon, optionally a toggle.
 //! - [`ToggleButton`]: a secondary-looking button that stays pressed while on.
-//! - [`Segmented`]: one of a few options (tool modes) on a track, a WAI-ARIA radio group.
+//! - [`Segmented`]: one of a few options (tool modes) on a track, a radio group.
 //! - [`Checkbox`]: a box that is checked, unchecked or mixed ([`CheckState`]).
-//! - [`RadioGroup`] and [`RadioSet`]: one of several options as radio buttons, a WAI-ARIA radio
-//!   group; a set places each option where the layout needs it.
+//! - [`RadioGroup`] and [`RadioSet`]: one of several options as radio buttons, a radio group;
+//!   a set places each option where the layout needs it.
 //! - [`Switch`]: an on/off setting that applies at once.
 //! - [`Swatch`]: a colour well that reports a click, for the host to open its picker.
 //! - [`Badge`]: a small label in a tone; [`Kbd`]: a key chord in the platform's notation.

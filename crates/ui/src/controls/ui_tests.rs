@@ -102,35 +102,58 @@ fn segmented_controls_are_radio_groups_with_the_selected_segment_checked() {
     assert_eq!((*harness.state(), checked(&harness)), (2, vec!["Subtract".to_owned()]), "every segment reports the click in its frame");
 }
 
-#[test]
-fn a_segmented_control_is_one_tab_stop_and_arrows_move_the_selection() {
-    let mut harness = segmented();
-    harness.run();
-    let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
-    assert_eq!(stops, [(Role::RadioButton, "New".to_owned())]);
+/// A radio button as AccessKit reports it: label, position in the set, checked.
+type RadioItem = (String, Option<usize>, bool);
 
-    harness.key_press(Key::Tab);
+/// The set size of the group named `group`, and its radio buttons in order.
+fn radio_items<State>(harness: &Harness<'_, State>, group: &str) -> (Option<usize>, Vec<RadioItem>) {
+    let group = harness.get_by(|n| n.role() == Role::RadioGroup && n.label().as_deref() == Some(group));
+    let items = group
+        .query_all_by(|n| n.role() == Role::RadioButton)
+        .map(|n| {
+            let n = n.accesskit_node();
+            (n.label().unwrap_or_default(), n.position_in_set(), n.toggled() == Some(Toggled::True))
+        })
+        .collect();
+    (group.accesskit_node().size_of_set(), items)
+}
+
+/// A key down and its frame, then the key up.
+fn press_in_frame<State>(harness: &mut Harness<'_, State>, key: Key, check: impl FnOnce(&Harness<'_, State>)) {
+    harness.event(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+    harness.step();
+    check(harness);
+    harness.event(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
     harness.run();
-    assert_eq!(focused(&harness).as_deref(), Some("New"));
-    for (key, choice, label) in [
-        (Key::ArrowRight, 1, "Add"),
-        (Key::ArrowDown, 2, "Subtract"),
-        (Key::ArrowRight, 0, "New"),
-        (Key::ArrowLeft, 2, "Subtract"),
-        (Key::ArrowUp, 1, "Add"),
-        (Key::Home, 0, "New"),
-        (Key::End, 2, "Subtract"),
-    ] {
-        harness.key_press(key);
-        harness.run();
-        assert_eq!((*harness.state(), focused(&harness).as_deref()), (choice, Some(label)), "{key:?}");
-    }
-    let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
-    assert_eq!(stops, ["Subtract"], "the Tab stop follows the selection");
 }
 
 #[test]
-fn arrows_follow_the_reading_direction_right_to_left() {
+fn each_segment_is_a_tab_stop_arrows_move_the_focus_and_space_or_enter_selects() {
+    let mut harness = segmented();
+    harness.run();
+    let item = |label: &str, at, on| (label.to_owned(), Some(at), on);
+    assert_eq!(radio_items(&harness, "Combine"), (Some(3), vec![item("New", 0, true), item("Add", 1, false), item("Subtract", 2, false)]));
+    let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
+    let stop = |label: &str| (Role::RadioButton, label.to_owned());
+    assert_eq!(stops, [stop("New"), stop("Add"), stop("Subtract")]);
+    assert_eq!(focused(&harness).as_deref(), Some("New"), "Tab came round to the first");
+    for (key, choice, label) in [
+        (Key::ArrowRight, 0, "Add"),
+        (Key::Space, 1, "Add"),
+        (Key::ArrowRight, 1, "Subtract"),
+        (Key::Enter, 2, "Subtract"),
+        (Key::ArrowLeft, 2, "Add"),
+        (Key::Home, 2, "Add"),
+        (Key::End, 2, "Add"),
+    ] {
+        press_in_frame(&mut harness, key, |harness| assert_eq!(*harness.state(), choice, "{key:?}: the key's frame"));
+        assert_eq!(focused(&harness).as_deref(), Some(label), "{key:?}");
+    }
+    assert_eq!(radio_items(&harness, "Combine").1, [item("New", 0, false), item("Add", 1, false), item("Subtract", 2, true)]);
+}
+
+#[test]
+fn arrows_move_the_focus_by_where_the_segments_sit_right_to_left() {
     let mut harness = harness()
         .with_context_setup(|ctx| {
             install(ctx, &Base::suite_default());
@@ -147,16 +170,19 @@ fn arrows_follow_the_reading_direction_right_to_left() {
     assert!(x(&harness, "New") > x(&harness, "Add"), "segments start at the right");
     harness.key_press(Key::Tab);
     harness.run();
-    for (key, choice) in [(Key::ArrowLeft, 1), (Key::ArrowLeft, 2), (Key::ArrowRight, 1)] {
+    for (key, label) in [(Key::ArrowLeft, "Add"), (Key::ArrowLeft, "Subtract"), (Key::ArrowRight, "Add")] {
         harness.key_press(key);
         harness.run();
-        assert_eq!(*harness.state(), choice, "{key:?}");
+        assert_eq!((*harness.state(), focused(&harness).as_deref()), (0, Some(label)), "{key:?}");
     }
 }
 
 #[test]
-fn the_segmented_stories_have_one_tab_stop_per_control() {
-    for (id, stops) in [("controls/segmented/text", ["New", "Subtract"]), ("controls/segmented/icons", ["Move", "Brush"])] {
+fn every_segment_of_the_segmented_stories_is_a_tab_stop() {
+    for (id, stops) in [
+        ("controls/segmented/text", ["New", "Add", "Subtract", "New", "Add", "Subtract", "Intersect", "Exclude"]),
+        ("controls/segmented/icons", ["Move", "Hand", "Brush", "Move", "Hand", "Brush", "Eraser", "Eyedropper"]),
+    ] {
         let story = crate::story::registry().into_iter().find(|s| s.id == id).unwrap();
         let mut args = story.defaults();
         let mut harness = harness().build_ui(move |ui| (story.show)(ui, &mut args));
@@ -182,7 +208,7 @@ fn a_link_with_a_url_opens_it_on_click() {
 }
 
 #[test]
-fn a_link_activates_on_enter_but_not_space() {
+fn a_link_activates_on_enter_and_space() {
     let mut harness = harness().build_ui_state(
         |ui, clicks: &mut u32| {
             if ui.add(Link::new("Details").id_salt("details")).clicked() {
@@ -197,10 +223,10 @@ fn a_link_activates_on_enter_but_not_space() {
     assert!(harness.get_by_label("Details").is_focused());
     harness.key_press(Key::Space);
     harness.run();
-    assert_eq!(*harness.state(), 0, "Space");
+    assert_eq!(*harness.state(), 1, "Space");
     harness.key_press(Key::Enter);
     harness.run();
-    assert_eq!(*harness.state(), 1, "Enter");
+    assert_eq!(*harness.state(), 2, "Enter");
 }
 
 #[test]
@@ -229,22 +255,7 @@ fn a_loading_button_is_busy_and_ignores_clicks_enter_and_space() {
 }
 
 #[test]
-fn focus_follows_the_selection_of_a_focused_segmented_control() {
-    let mut harness = segmented();
-    harness.run();
-    harness.key_press(Key::Tab);
-    harness.run();
-    assert_eq!(focused(&harness).as_deref(), Some("New"));
-    harness.get_by_label("Subtract").click();
-    harness.run();
-    assert_eq!((*harness.state(), focused(&harness).as_deref()), (2, Some("Subtract")), "a click");
-    *harness.state_mut() = 1;
-    harness.run();
-    assert_eq!(focused(&harness).as_deref(), Some("Add"), "a change from outside");
-}
-
-#[test]
-fn arrow_keys_in_consecutive_frames_stay_in_the_segmented_control() {
+fn arrow_keys_in_consecutive_frames_move_on_past_the_last_segment() {
     let mut harness = harness().build_ui_state(
         |ui, choice: &mut usize| {
             ui.horizontal(|ui| {
@@ -257,16 +268,19 @@ fn arrow_keys_in_consecutive_frames_stay_in_the_segmented_control() {
     harness.run();
     harness.key_press(Key::Tab);
     harness.run();
-    // Key downs in two consecutive frames: the second comes in the frame after the first moved
-    // focus. (`key_press` spends a frame on each key up.)
+    // Key downs in consecutive frames: each comes in the frame after the last moved focus.
+    // (`key_press` spends a frame on each key up.)
     let arrow = |pressed| egui::Event::Key { key: Key::ArrowRight, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
     for _ in 0..2 {
         harness.event(arrow(true));
         harness.step();
     }
+    assert_eq!((*harness.state(), focused(&harness).as_deref()), (0, Some("Subtract")));
+    harness.event(arrow(true));
+    harness.step();
     harness.event(arrow(false));
     harness.run();
-    assert_eq!((*harness.state(), focused(&harness).as_deref()), (2, Some("Subtract")));
+    assert_eq!((*harness.state(), focused(&harness).as_deref()), (0, Some("Next")), "the arrows go on to the next control");
 }
 
 #[test]
@@ -424,40 +438,31 @@ fn radio_group<'a>() -> Harness<'a, usize> {
 }
 
 #[test]
-fn a_radio_group_is_one_tab_stop_and_arrows_select_and_report_in_the_same_frame() {
+fn each_radio_button_is_a_tab_stop_arrows_move_the_focus_and_space_or_enter_selects_in_the_key_s_frame() {
     let mut harness = radio_group();
     harness.run();
-    let group = harness.get_by(|n| n.role() == Role::RadioGroup);
-    assert_eq!(group.accesskit_node().label().as_deref(), Some("Units"));
-    let radios: Vec<_> = group.accesskit_node().children().filter(|n| n.role() == Role::RadioButton).map(|n| n.label().unwrap_or_default()).collect();
-    assert_eq!(radios, ["Pixels", "Millimetres", "Inches"]);
-    let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
-    assert_eq!(stops, [(Role::RadioButton, "Pixels".to_owned())]);
-
-    harness.key_press(Key::Tab);
-    harness.run();
-    let checked = |harness: &Harness<'_, usize>| {
-        harness
-            .query_all_by(|n| n.role() == Role::RadioButton && n.toggled() == Some(Toggled::True))
-            .map(|n| n.accesskit_node().label().unwrap_or_default())
-            .collect::<Vec<_>>()
-    };
-    for (key, unit, label) in
-        [(Key::ArrowDown, 1, "Millimetres"), (Key::ArrowRight, 2, "Inches"), (Key::ArrowDown, 0, "Pixels"), (Key::ArrowUp, 2, "Inches")]
-    {
-        harness.event(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
-        harness.step();
-        assert_eq!((*harness.state(), checked(&harness)), (unit, vec![label.to_owned()]), "{key:?}: the key's frame");
-        harness.event(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
-        harness.run();
-        assert_eq!(focused_label(&harness).as_deref(), Some(label), "{key:?}: focus follows");
-    }
+    let item = |label: &str, at, on| (label.to_owned(), Some(at), on);
+    assert_eq!(radio_items(&harness, "Units"), (Some(3), vec![item("Pixels", 0, true), item("Millimetres", 1, false), item("Inches", 2, false)]));
     let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
-    assert_eq!(stops, ["Inches"], "the Tab stop follows the selection");
+    assert_eq!(stops, ["Pixels", "Millimetres", "Inches"]);
+    assert_eq!(focused_label(&harness).as_deref(), Some("Pixels"), "Tab came round to the first");
+    let checked = |harness: &Harness<'_, usize>| radio_items(harness, "Units").1.into_iter().filter(|i| i.2).map(|i| i.0).collect::<Vec<_>>();
+    for (key, unit, label) in [
+        (Key::ArrowDown, 0, "Millimetres"),
+        (Key::Space, 1, "Millimetres"),
+        (Key::ArrowDown, 1, "Inches"),
+        (Key::Enter, 2, "Inches"),
+        (Key::ArrowUp, 2, "Millimetres"),
+    ] {
+        press_in_frame(&mut harness, key, |harness| {
+            assert_eq!(checked(harness), [["Pixels", "Millimetres", "Inches"][unit]], "{key:?}: the key's frame");
+        });
+        assert_eq!((*harness.state(), focused_label(&harness).as_deref()), (unit, Some(label)), "{key:?}");
+    }
 
-    harness.get_by_label("Millimetres").click();
+    harness.get_by_label("Pixels").click();
     harness.step();
-    assert_eq!((*harness.state(), checked(&harness)), (1, vec!["Millimetres".to_owned()]), "a click: the click's frame");
+    assert_eq!((*harness.state(), checked(&harness)), (0, vec!["Pixels".to_owned()]), "a click: the click's frame");
 }
 
 fn focused_label<State>(harness: &Harness<'_, State>) -> Option<String> {
@@ -485,23 +490,16 @@ fn radio_groups_checkboxes_and_switches_mirror_right_to_left() {
     let (pixels, inches, grid) = (rect(&harness, "Pixels"), rect(&harness, "Inches"), rect(&harness, "Grid"));
     assert_eq!(pixels.right(), inches.right(), "options line up at the right");
     assert_eq!(pixels.right(), grid.right());
-    harness.key_press(Key::Tab);
-    harness.run();
-    for (key, unit) in [(Key::ArrowLeft, 1), (Key::ArrowLeft, 2), (Key::ArrowRight, 1)] {
-        harness.key_press(key);
-        harness.run();
-        assert_eq!(*harness.state(), unit, "{key:?}");
-    }
 }
 
 #[test]
-fn the_radio_group_story_has_one_tab_stop_per_group() {
+fn every_enabled_option_of_the_radio_group_story_is_a_tab_stop() {
     let story = crate::story::registry().into_iter().find(|s| s.id == "controls/radio/groups").unwrap();
     let mut args = story.defaults();
     let mut harness = harness().with_size([640.0, 480.0]).build_ui(move |ui| (story.show)(ui, &mut args));
     harness.run();
-    let order: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
-    assert_eq!(order, [(Role::RadioButton, "Pixels".to_owned()), (Role::RadioButton, "Inches".to_owned())]);
+    let order: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
+    assert_eq!(order, ["Pixels", "Millimetres", "Inches", "Pixels", "Millimetres", "Inches", "Picas"], "Points is disabled");
 }
 
 /// Three options of a set named "Units", each in a place of its own with other widgets between
@@ -527,22 +525,23 @@ fn radio_set<'a>() -> Harness<'a, usize> {
 }
 
 #[test]
-fn a_radio_set_selects_in_the_click_frame_and_is_one_tab_stop_with_arrows_across_its_places() {
+fn a_radio_set_selects_in_the_click_or_key_s_frame_and_each_of_its_places_is_a_tab_stop() {
     let mut harness = radio_set();
     harness.run();
-    let group = harness.get_by(|n| n.role() == Role::RadioGroup);
-    assert_eq!(group.accesskit_node().label().as_deref(), Some("Units"));
-    let radios: Vec<_> = group.query_all_by(|n| n.role() == Role::RadioButton).map(|n| n.accesskit_node().label().unwrap_or_default()).collect();
-    assert_eq!(radios, ["Pixels", "Millimetres", "Inches", "Points"], "every option is in the group");
+    let item = |label: &str, at, on| (label.to_owned(), Some(at), on);
+    assert_eq!(
+        radio_items(&harness, "Units"),
+        (Some(4), vec![item("Pixels", 0, true), item("Millimetres", 1, false), item("Inches", 2, false), item("Points", 3, false)]),
+        "every option is in the group"
+    );
     let stops: Vec<(Role, String)> = a11y::tab_order(&mut harness).into_iter().map(|s| (s.role, s.label)).collect();
-    assert_eq!(stops, [(Role::RadioButton, "Pixels".to_owned()), (Role::CheckBox, "Snap".to_owned())]);
+    let stop = |role, label: &str| (role, label.to_owned());
+    assert_eq!(
+        stops,
+        [stop(Role::RadioButton, "Pixels"), stop(Role::CheckBox, "Snap"), stop(Role::RadioButton, "Millimetres"), stop(Role::RadioButton, "Inches")]
+    );
 
-    let checked = |harness: &Harness<'_, usize>| {
-        harness
-            .query_all_by(|n| n.role() == Role::RadioButton && n.toggled() == Some(Toggled::True))
-            .map(|n| n.accesskit_node().label().unwrap_or_default())
-            .collect::<Vec<_>>()
-    };
+    let checked = |harness: &Harness<'_, usize>| radio_items(harness, "Units").1.into_iter().filter(|i| i.2).map(|i| i.0).collect::<Vec<_>>();
     // A click on an option drawn after the selected one, and a screen reader's click on one drawn
     // before it: both report in their own frame, as does the code between the options.
     harness.get_by_label("Inches").click();
@@ -561,24 +560,20 @@ fn a_radio_set_selects_in_the_click_frame_and_is_one_tab_stop_with_arrows_across
     harness.key_press(Key::Tab);
     harness.run();
     assert_eq!(focused_label(&harness).as_deref(), Some("Pixels"));
+    // The arrows go by place: the check box between the options takes the focus on the way.
     for (key, unit, label) in
-        [(Key::ArrowDown, 1, "Millimetres"), (Key::ArrowRight, 2, "Inches"), (Key::ArrowDown, 0, "Pixels"), (Key::ArrowUp, 2, "Inches")]
+        [(Key::ArrowDown, 0, "Snap"), (Key::ArrowDown, 0, "Millimetres"), (Key::ArrowDown, 0, "Inches"), (Key::Space, 2, "Inches")]
     {
-        harness.event(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
-        harness.step();
-        assert_eq!((*harness.state(), checked(&harness)), (unit, vec![label.to_owned()]), "{key:?}: the key's frame");
-        harness.event(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
-        harness.run();
-        assert_eq!(focused_label(&harness).as_deref(), Some(label), "{key:?}: focus follows");
+        press_in_frame(&mut harness, key, |harness| assert_eq!(*harness.state(), unit, "{key:?}: the key's frame"));
+        assert_eq!(focused_label(&harness).as_deref(), Some(label), "{key:?}");
     }
-    let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
-    assert_eq!(stops, ["Snap", "Inches"], "the Tab stop follows the selection");
+    assert!(harness.query_by_label("now 2").is_some());
 }
 
-/// Options A to E with B, D and E disabled: the keys and the Tab stop skip them, in a radio group
+/// Options A to E with B, D and E disabled: Tab and the arrows pass over them, in a radio group
 /// and in a segmented control.
 #[test]
-fn arrows_home_and_end_skip_disabled_options_and_a_disabled_option_is_never_the_tab_stop() {
+fn tab_and_the_arrows_pass_over_disabled_options_and_home_and_end_do_nothing() {
     let options = ["A", "B", "C", "D", "E"];
     let enabled = |i: usize| i == 0 || i == 2;
     for segmented in [false, true] {
@@ -602,17 +597,16 @@ fn arrows_home_and_end_skip_disabled_options_and_a_disabled_option_is_never_the_
         );
         harness.run();
         let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|s| s.label).collect();
-        assert_eq!(stops, ["A"], "segmented {segmented}: the first enabled option, not the selected disabled one");
+        assert_eq!(stops, ["A", "C"], "segmented {segmented}: the enabled options, not the selected disabled one");
         assert_eq!(harness.get_by_label("B").accesskit_node().toggled(), Some(Toggled::True), "segmented {segmented}");
-
-        harness.key_press(Key::Tab);
-        harness.run();
-        for (key, choice) in
-            [(Key::ArrowDown, 2), (Key::ArrowDown, 0), (Key::ArrowUp, 2), (Key::Home, 0), (Key::End, 2), (Key::ArrowRight, 0), (Key::ArrowLeft, 2)]
+        assert_eq!(focused_label(&harness).as_deref(), Some("A"), "segmented {segmented}: Tab came round to the first");
+        let (next, previous) = if segmented { (Key::ArrowRight, Key::ArrowLeft) } else { (Key::ArrowDown, Key::ArrowUp) };
+        for (key, choice, focus) in
+            [(next, 1, "C"), (next, 1, "C"), (Key::Home, 1, "C"), (Key::Space, 2, "C"), (previous, 2, "A"), (Key::End, 2, "A")]
         {
             harness.key_press(key);
             harness.run();
-            assert_eq!((*harness.state(), focused_label(&harness)), (choice, Some(options[choice].to_owned())), "segmented {segmented}: {key:?}");
+            assert_eq!((*harness.state(), focused_label(&harness)), (choice, Some(focus.to_owned())), "segmented {segmented}: {key:?}");
         }
         harness.get_by_label("D").click();
         harness.run();
@@ -810,6 +804,25 @@ fn tooltips_show_text_the_shortcut_and_custom_contents_on_enabled_and_disabled_c
     harness.get_by_label("Info").hover();
     harness.run_steps(4);
     assert_eq!(shown(&harness, "Custom contents"), 1);
+}
+
+#[test]
+fn a_tooltip_shows_after_the_pointer_rests_for_the_theme_s_delay() {
+    let mut harness =
+        Harness::builder().with_size([320.0, 160.0]).with_step_dt(0.05).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(
+            |ui| {
+                ui.add(Button::new("Save").id_salt("save")).tooltip("Save the document");
+            },
+        );
+    harness.run();
+    assert_eq!(harness.ctx.global_style().interaction.tooltip_delay, Tooltip::DELAY);
+    let shown = |harness: &Harness<'_, ()>| harness.query_all_by(|n| n.value().as_deref() == Some("Save the document")).count();
+    // The first step takes the move; each one after it is 0.05 s later.
+    harness.get_by_label("Save").hover();
+    harness.run_steps(7);
+    assert_eq!(shown(&harness), 0, "0.3 s");
+    harness.run_steps(2);
+    assert_eq!(shown(&harness), 1, "0.4 s");
 }
 
 #[test]

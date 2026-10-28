@@ -22,8 +22,8 @@ use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
 ///   `menu_width`, `menu_spacing`, `indent_ends_with_horizontal_line`,
 ///   `combo_height`, `scroll`.
 /// - `Style`: everything outside `visuals`, `spacing`, `text_styles` and `animation_time`
-///   (interaction, wrapping, number formatting, scroll animation, debug options, direction).
-///   `TextStyle::Name` styles are not added.
+///   (interaction but `tooltip_delay`, wrapping, number formatting, scroll animation, debug
+///   options, direction). `TextStyle::Name` styles are not added.
 pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     let mut style = Style { visuals: visuals(tokens), ..Style::default() };
 
@@ -52,6 +52,7 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.tooltip_width = tokens.component.tooltip.max_width;
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
+    style.interaction.tooltip_delay = crate::controls::Tooltip::DELAY;
     style
 }
 
