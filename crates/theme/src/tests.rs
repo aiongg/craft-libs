@@ -128,3 +128,26 @@ fn neutral_ramp_is_nearly_grey() {
         }
     }
 }
+
+#[test]
+fn neutral_ramp_lightness_comes_from_the_curve_for_any_seed() {
+    for seed in ["#000000", "#ffffff", "#808080", "#535353", "#d4d0c8", "#3e63dd"] {
+        let seed = hex(seed);
+        let s = seed.to_oklch();
+        for (mode, curve) in [(Mode::Light, &ramp::LIGHT_L), (Mode::Dark, &ramp::DARK_L)] {
+            let ramp = Ramp::from_seed(seed, mode, RampKind::Neutral);
+            let ls: Vec<f64> = ramp.0.iter().map(|c| c.to_oklch().l).collect();
+            for (i, l) in ls.iter().enumerate() {
+                assert!((l - curve[i]).abs() < 5e-3, "{seed:?} {mode:?} step {}: {l}", i + 1);
+            }
+            for w in ls.windows(2) {
+                assert!((w[0] < w[1]) == (mode == Mode::Dark), "{seed:?} {mode:?} {ls:?}");
+            }
+            let n9 = ramp.step(9).to_oklch();
+            assert!(n9.c <= s.c.min(ramp::NEUTRAL_MAX_CHROMA) + 2e-3);
+            if s.c > 0.01 && s.l > 0.1 && s.l < 0.95 {
+                assert!(hue_gap(n9.h, s.h) < 15.0, "{seed:?} {mode:?}");
+            }
+        }
+    }
+}
