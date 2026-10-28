@@ -12,6 +12,7 @@ use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
+use craft_ui::list::ListRow;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -560,5 +561,29 @@ fn marquee() {
         d.line("light", s.light).line("dark", s.dark).line("dash", s.dash).line("speed", s.speed).line("tick_ms", s.tick_ms).line("march", s.march);
         d.line("band_line", s.band_line).line("band_dash", s.band_dash).line("band_gap", s.band_gap);
         d.line("drawing_halo", s.drawing_halo).line("drawing_line", s.drawing_line).line("click_slop", s.click_slop);
+    });
+}
+
+/// List rows: the heights, thumbnails, columns and gaps, the type roles, the state fills and the
+/// label, icon, divider, thumbnail and drop marker colours, and the drag ghost.
+#[test]
+fn list_row() {
+    check("list_row.txt", |d, t| {
+        let s = ListRow::<u8>::style(t);
+        d.line("row_height", s.row_height).line("thumb.sm", s.thumb.sm).line("thumb.md", s.thumb.md).line("thumb.lg", s.thumb.lg);
+        d.line("thumb_pad", s.thumb_pad).line("thumb_row_min", s.thumb_row_min).line("pad_x", s.pad_x).line("gap", s.gap);
+        d.line("indent", s.indent)
+            .line("disclosure", s.disclosure)
+            .line("toggle_column", s.toggle_column)
+            .line("min_label", s.min_label)
+            .line("trailing_pad", s.trailing_pad);
+        d.line("radius", s.radius).line("dividers", s.dividers).line("drop_width", s.drop_width).line("icon_size", s.icon_size);
+        d.line("label_role", role(s.label_role)).line("detail_role", role(s.detail_role));
+        d.line("label_line", s.label_line).line("detail_line", s.detail_line);
+        d.line("text", s.text).line("dimmed", s.dimmed).line("selected_text", s.selected_text).line("detail", s.detail);
+        d.line("icon", s.icon).line("icon_hover", s.icon_hover);
+        d.line("hover", s.hover).line("selected", s.selected).line("selected_hover", s.selected_hover);
+        d.line("divider", s.divider.color).line("thumb_border", s.thumb_border).line("drop", s.drop);
+        d.line("ghost_fill", s.ghost_fill).line("ghost_border", s.ghost_border).line("ghost_radius", s.ghost_radius);
     });
 }

@@ -21,6 +21,7 @@ pub mod icons;
 pub mod ime;
 pub mod inspect;
 pub mod layout;
+pub mod list;
 pub mod localized;
 pub mod panes;
 mod popup_list;

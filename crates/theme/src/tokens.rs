@@ -668,6 +668,43 @@ pub struct SizeTokens {
     pub bar: BarSizes,
     /// Panel header height.
     pub panel_header: f32,
+    /// Lists and trees.
+    pub list: ListSizes,
+}
+
+/// Thumbnail sides of a list row, in logical pixels, for the three user settings.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ThumbSizes {
+    /// Small.
+    pub sm: f32,
+    /// Medium.
+    pub md: f32,
+    /// Large.
+    pub lg: f32,
+}
+
+/// Sizes and looks of list rows that differ by Size preset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ListSizes {
+    /// Thumbnail sides.
+    pub thumb: ThumbSizes,
+    /// Least height of a row with a thumbnail.
+    pub thumb_row_min: f32,
+    /// Indent of one tree level.
+    pub indent: f32,
+    /// Width of the disclosure column.
+    pub disclosure: f32,
+    /// Width of one toggle column (eye, lock).
+    pub toggle_column: f32,
+    /// Least width of a row's label before optional trailing items drop out and the indent
+    /// shrinks.
+    pub min_label: f32,
+    /// Room kept at a row's trailing edge for an overlay scroll bar.
+    pub trailing_pad: f32,
+    /// State fills have `radius.control` corners (flat otherwise).
+    pub rounded: bool,
+    /// Rows have a divider under them and toggle columns one at their trailing edge.
+    pub dividers: bool,
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.

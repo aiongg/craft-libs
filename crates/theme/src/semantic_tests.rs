@@ -176,6 +176,15 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, sunken),
             minimum: 4.5,
         });
+        // A list row's dimmed label and its detail line are `text.faint` on the panel.
+        for f in [ListField::Dimmed, ListField::Detail] {
+            expected.push(ContrastCheck {
+                fg: ComponentField::List(f).into(),
+                bg: T::SurfacePanel.into(),
+                ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
+                minimum: 4.5,
+            });
+        }
         // A toast's "more" line is `text.faint` on the card fill, `surface.raised`.
         expected.push(ContrastCheck {
             fg: ComponentField::Toast(ToastField::More).into(),

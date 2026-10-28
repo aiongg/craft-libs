@@ -426,6 +426,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 5
             + 1
             + 6
+            + (1 + 14)
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -796,4 +797,72 @@ fn tooltips_have_a_width_and_no_overridable_path() {
     let t = resolve(&grey_blue(), app(Mode::Light, Contrast::High), None).tokens;
     assert_eq!(t.component.tooltip.max_width, 320.0);
     assert!(ComponentField::ALL.iter().all(|f| !matches!(f, ComponentField::Tooltip(_))));
+}
+
+fn list_pairs() -> Vec<(ListField, ListField, (f64, f64))> {
+    let (text, high) = ((4.5, 7.0), (3.0, 4.5));
+    vec![
+        (ListField::Text, ListField::Hover, text),
+        (ListField::SelectedText, ListField::Selected, text),
+        (ListField::SelectedText, ListField::SelectedHover, text),
+        (ListField::Drop, ListField::Selected, high),
+    ]
+}
+
+/// The drop marker, the only cue of where a drop lands, and the labels meet their minimums in
+/// every appearance; the fills they sit on are design targets.
+#[test]
+fn list_pairs_meet_their_minimums_in_every_appearance() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| !matches!(w.fg, TokenRef::Component(ComponentField::List(_)))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            for (fg, bg, (standard, high)) in list_pairs() {
+                let min = if a.contrast == Contrast::High { high } else { standard };
+                let bg = over(t.component.color(ComponentField::List(bg)).unwrap(), t.color(T::SurfacePanel));
+                let ratio = contrast_ratio(over(t.component.color(ComponentField::List(fg)).unwrap(), bg), bg);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, ComponentField::List(fg).path());
+            }
+        }
+    }
+}
+
+#[test]
+fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
+    let compact = at(Size::Compact);
+    let l = &compact.component.list;
+    assert_eq!((l.row_height, l.thumb.sm, l.thumb.md, l.thumb.lg), (24.0, 18.0, 24.0, 48.0));
+    assert_eq!((l.thumb_row(l.thumb.md), l.thumb_row(l.thumb.lg), l.thumb_row(0.0)), (32.0, 56.0, 32.0));
+    assert_eq!((l.indent, l.disclosure, l.toggle_column, l.min_label, l.trailing_pad), (14.0, 14.0, 30.0, 64.0, 10.0));
+    assert_eq!((l.radius, l.dividers, l.drop_width), (0.0, true, 2.0));
+    assert_eq!((l.pad_x, l.gap), (compact.space.pad.control, compact.space.gap.inline));
+
+    let comfy = at(Size::Comfortable);
+    let l = &comfy.component.list;
+    assert_eq!((l.row_height, l.thumb.sm, l.thumb.md, l.thumb.lg), (30.0, 18.0, 34.0, 48.0));
+    assert_eq!((l.thumb_row(l.thumb.md), l.thumb_row(l.thumb.sm)), (42.0, 40.0));
+    assert_eq!((l.indent, l.disclosure, l.toggle_column, l.min_label, l.trailing_pad), (18.0, 18.0, 36.0, 80.0, 12.0));
+    assert_eq!((l.radius, l.dividers), (comfy.shape.radius.control, false));
+
+    let t = &comfy;
+    let l = &t.component.list;
+    assert_eq!(
+        (l.text, l.dimmed, l.selected_text, l.detail),
+        (t.color(T::TextNormal), t.color(T::TextFaint), t.color(T::TextOnSelected), t.color(T::TextFaint))
+    );
+    assert_eq!((l.icon, l.icon_hover), (t.color(T::TextMuted), t.color(T::TextNormal)));
+    assert_eq!((l.hover, l.selected, l.selected_hover), (t.color(T::StateHover), t.color(T::StateSelected), t.color(T::StateSelectedHover)));
+    assert_eq!((l.divider, l.thumb_border), (t.color(T::LineDivider), t.color(T::LineBorder)));
+    assert_eq!((l.ghost_fill, l.ghost_border), (t.color(T::SurfaceRaised), t.color(T::AccentSolid)));
+}
+
+#[test]
+fn a_list_radius_override_replaces_the_size_default() {
+    let mut def = grey_blue();
+    def.components.insert(ComponentField::List(ListField::Radius), OverrideValue::Length(2.0));
+    assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.list.radius, 2.0);
+    assert_eq!(ComponentField::from_path("list.selected.hover"), Some(ComponentField::List(ListField::SelectedHover)));
+    assert_eq!(ComponentField::from_path("list.row_height"), None);
 }

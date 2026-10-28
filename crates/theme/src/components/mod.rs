@@ -16,6 +16,7 @@ mod handle;
 mod histogram;
 mod icon_button;
 mod kbd;
+mod list;
 mod listbox;
 mod marquee;
 mod notice;
@@ -49,6 +50,7 @@ pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use list::{ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
@@ -572,6 +574,8 @@ families! {
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
+    /// Lists: the rows of a list or tree panel.
+    list: ListTokens => List(ListField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
     /// Marching ants, selection bands and outlines being drawn.
