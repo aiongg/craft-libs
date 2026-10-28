@@ -1,22 +1,24 @@
-//! Colour derivation: seeds to ramps, ramps to tokens, pins, then the contrast pass.
+//! Colour derivation: seeds to ramps, ramps to tokens, pins, then the contrast pass; and the
+//! same for component colours: overrides, then their own contrast pass.
 
 use std::collections::BTreeSet;
 
 use super::color::{Oklab, Rgba};
+use super::components::{ComponentField, ComponentTokens, FieldKind, OverrideValue};
 use super::contrast::{contrast_ratio, ensure_contrast};
 use super::ramp::{Mode, Ramp, RampKind};
-use super::theme::{Contrast, ThemeDef};
-use super::tokens::{ColorToken, ColorTokens, Status};
+use super::theme::{Contrast, Pins, ThemeDef};
+use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, PairRule, RULES, Source};
 
 /// A contrast pair that is below its minimum after derivation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContrastWarning {
-    /// The foreground token.
-    pub fg: ColorToken,
-    /// The background token. Overlay pairs name `overlay.halo` and report the lower of the
-    /// ratios over black and over white.
-    pub bg: ColorToken,
+    /// The foreground token or field.
+    pub fg: TokenRef,
+    /// The background token or field. Overlay pairs name `overlay.halo` and report the lower of
+    /// the ratios over black and over white.
+    pub bg: TokenRef,
     /// The measured ratio.
     pub ratio: f64,
     /// The required ratio.
@@ -48,13 +50,11 @@ pub(super) fn colors(theme: &ThemeDef, mode: Mode, contrast: Contrast) -> (Color
     for &t in ColorToken::ALL {
         c.set(t, direct(&ramps, values::source(t, mode)).unwrap_or(Rgba::BLACK));
     }
-    let mut pins: Vec<_> = theme.pins.get(mode).0.iter().collect();
-    if high {
-        pins.extend(theme.high_contrast.get(mode).0.iter());
-    }
-    for (&t, &v) in pins {
-        c.set(t, v);
-        pinned.insert(t);
+    for (t, v) in pins(theme, mode, high) {
+        if let TokenRef::Color(t) = t {
+            c.set(t, v);
+            pinned.insert(t);
+        }
     }
     // Tokens defined by other tokens follow their pinned values; aliases follow the contrast
     // pass too. On-solid text is the pass's own choice, so it is not re-derived afterwards.
@@ -67,6 +67,12 @@ pub(super) fn colors(theme: &ThemeDef, mode: Mode, contrast: Contrast) -> (Color
     (c, warnings)
 }
 
+/// The mode's pins, then the high-contrast pins when `high`.
+fn pins(theme: &ThemeDef, mode: Mode, high: bool) -> impl Iterator<Item = (TokenRef, Rgba)> + '_ {
+    let high_pins = if high { Some(theme.high_contrast.get(mode)) } else { None };
+    std::iter::once(theme.pins.get(mode)).chain(high_pins).flat_map(|p: &Pins| p.0.iter().map(|(&t, &v)| (t, v)))
+}
+
 /// The value of a source that needs no other token, or `None` for one that does.
 fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
     Some(match src {
@@ -75,6 +81,7 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
         Source::Accent(n) => r.accent.step(n),
         Source::AccentMix { from, to, t } => mix(r.accent.step(from), r.accent.step(to), t),
         Source::Status(kind, n) => r.status.get(kind).step(n),
+        Source::StatusMix { kind, from, to, t } => mix(r.status.get(kind).step(from), r.status.get(kind).step(to), t),
         Source::Fixed(c) => c,
         Source::Oklch(l, c, h) => super::color::Oklch { l, c, h }.to_rgba(),
         Source::Same(_) | Source::OnSolid(_) => return None,
@@ -224,14 +231,79 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
                 if r >= minimum {
                     continue;
                 }
-                let bg = bg_token(bg);
+                let bg = TokenRef::Color(bg_token(bg));
                 match seen.iter_mut().find(|w| w.bg == bg) {
                     Some(w) => w.ratio = w.ratio.min(r),
-                    None => seen.push(ContrastWarning { fg, bg, ratio: r, minimum }),
+                    None => seen.push(ContrastWarning { fg: TokenRef::Color(fg), bg, ratio: r, minimum }),
                 }
             }
             out.extend(seen);
         }
     }
     out
+}
+
+/// Applies `theme`'s component overrides in `mode`: colour pins (and high-contrast pins when
+/// `high`), then the mode-independent overrides. Overrides that
+/// [`ThemeDef::override_errors`] lists are skipped.
+pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, mode: Mode, high: bool, color: &ColorTokens) {
+    // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
+    for (t, v) in pins(theme, mode, high) {
+        if let TokenRef::Component(f) = t {
+            let _ = comp.set(f, OverrideValue::Color(v), color);
+        }
+    }
+    for (&f, &v) in &theme.components {
+        if f.kind() != FieldKind::Color {
+            let _ = comp.set(f, v, color);
+        }
+    }
+}
+
+/// The component contrast pass. Defaults derive from semantic tokens that already passed, so
+/// only pairs with a pinned colour can fail; with standard contrast those are kept and
+/// reported. With high contrast every failing pair is fixed: the foreground moves first, then
+/// the background if the foreground alone can't reach the minimum. Returns the pairs that
+/// still fail.
+pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastWarning> {
+    let pairs = ComponentTokens::pairs();
+    if high {
+        for p in &pairs {
+            fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
+        }
+    }
+    let mut out = Vec::new();
+    for p in &pairs {
+        let minimum = if high { p.minimum.1 } else { p.minimum.0 };
+        let (Some(fg), Some(bg)) = (comp.color(p.fg), component_bg(comp, color, p.bg)) else { continue };
+        let r = ratio(fg, bg);
+        if r < minimum {
+            out.push(ContrastWarning { fg: TokenRef::Component(p.fg), bg: p.bg, ratio: r, minimum });
+        }
+    }
+    out
+}
+
+/// The colour a component pair's background presents: translucent fills over `surface.panel`.
+fn component_bg(comp: &ComponentTokens, color: &ColorTokens, bg: TokenRef) -> Option<Rgba> {
+    let c = match bg {
+        TokenRef::Color(t) => color.get(t),
+        TokenRef::Component(f) => comp.color(f)?,
+    };
+    Some(over(c, color.surface.panel))
+}
+
+/// Moves `fg`, then a component `bg`, until the pair reaches `min`. Moved colours are opaque.
+fn fix_component_pair(comp: &mut ComponentTokens, color: &ColorTokens, fg: ComponentField, bg: TokenRef, min: f64) {
+    let (Some(f), Some(b)) = (comp.color(fg), component_bg(comp, color, bg)) else { return };
+    if ratio(f, b) >= min {
+        return;
+    }
+    let moved = ensure_contrast(f.with_alpha(255), b, min);
+    let _ = comp.set(fg, OverrideValue::Color(moved), color);
+    if let TokenRef::Component(bg) = bg
+        && ratio(moved, b) < min
+    {
+        let _ = comp.set(bg, OverrideValue::Color(ensure_contrast(b, moved, min)), color);
+    }
 }

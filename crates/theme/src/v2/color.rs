@@ -40,6 +40,8 @@ impl Rgba {
     pub const BLACK: Rgba = Rgba::rgb(0, 0, 0);
     /// Opaque white.
     pub const WHITE: Rgba = Rgba::rgb(255, 255, 255);
+    /// Fully transparent.
+    pub const TRANSPARENT: Rgba = Rgba([0, 0, 0, 0]);
 
     /// An opaque colour from channels.
     pub const fn rgb(r: u8, g: u8, b: u8) -> Rgba {

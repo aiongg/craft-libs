@@ -27,6 +27,8 @@ pub(super) enum Source {
     AccentMix { from: usize, to: usize, t: f64 },
     /// A step of a status ramp.
     Status(StatusKind, usize),
+    /// The status step `from` moved `t` (0..=1) of the way toward step `to`, in OKLab.
+    StatusMix { kind: StatusKind, from: usize, to: usize, t: f64 },
     /// A fixed colour.
     Fixed(Rgba),
     /// An OKLCH colour (lightness, chroma, hue), gamut-mapped.
@@ -50,17 +52,37 @@ pub const DATA_L: (f64, f64) = (0.72, 0.56);
 pub const DATA_C: f64 = 0.15;
 
 /// The status solids that `text.on_status` must read on.
-const STATUS_SOLIDS: &[ColorToken] =
-    &[ColorToken::StatusGoodSolid, ColorToken::StatusWarnSolid, ColorToken::StatusBadSolid, ColorToken::StatusInfoSolid];
+const STATUS_SOLIDS: &[ColorToken] = &[
+    T::StatusGoodSolid,
+    T::StatusGoodSolidHover,
+    T::StatusGoodSolidPressed,
+    T::StatusWarnSolid,
+    T::StatusWarnSolidHover,
+    T::StatusWarnSolidPressed,
+    T::StatusBadSolid,
+    T::StatusBadSolidHover,
+    T::StatusBadSolidPressed,
+    T::StatusInfoSolid,
+    T::StatusInfoSolidHover,
+    T::StatusInfoSolidPressed,
+];
+
+/// The ramp step of a solid fill under the pointer (`accent.hover`, `status.<s>.solid_hover`).
+const SOLID_HOVER: usize = 10;
+/// A pressed solid fill: step `.0` moved `.2` of the way toward step `.1` (`accent.pressed`,
+/// `status.<s>.solid_pressed`).
+const SOLID_PRESSED: (usize, usize, f64) = (10, 11, 0.5);
 
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> Source {
-    use Source::{Accent, AccentMix, Fixed, Neutral, NeutralAlpha, Oklch, OnSolid, Same, Status};
+    use Source::{Accent, AccentMix, Fixed, Neutral, NeutralAlpha, Oklch, OnSolid, Same, Status, StatusMix};
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
     let pick = |d: usize, l: usize| if dark { d } else { l };
     let pickf = |d: f64, l: f64| if dark { d } else { l };
     let series = |i: usize| Oklch(pickf(DATA_L.0, DATA_L.1), DATA_C, DATA_HUES[i]);
+    let (pressed_from, pressed_to, pressed_t) = SOLID_PRESSED;
+    let pressed = |kind| StatusMix { kind, from: pressed_from, to: pressed_to, t: pressed_t };
     match token {
         T::SurfaceBackground => Neutral(pick(2, 3)),
         T::SurfaceCanvas => Same(T::SurfaceBackground),
@@ -79,26 +101,34 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> Source {
         T::LineControlEdge => Neutral(8),
         T::LineFocus => Accent(9),
         T::AccentSolid => Accent(9),
-        T::AccentHover => Accent(10),
-        T::AccentPressed => AccentMix { from: 10, to: 11, t: 0.5 },
+        T::AccentHover => Accent(SOLID_HOVER),
+        T::AccentPressed => AccentMix { from: pressed_from, to: pressed_to, t: pressed_t },
         T::AccentSoft => Accent(pick(4, 3)),
         T::AccentText => Accent(11),
         T::StatusGoodFg => Status(Good, 11),
         T::StatusGoodBg => Status(Good, 3),
         T::StatusGoodBorder => Status(Good, 7),
         T::StatusGoodSolid => Status(Good, 9),
+        T::StatusGoodSolidHover => Status(Good, SOLID_HOVER),
+        T::StatusGoodSolidPressed => pressed(Good),
         T::StatusWarnFg => Status(Warn, 11),
         T::StatusWarnBg => Status(Warn, 3),
         T::StatusWarnBorder => Status(Warn, 7),
         T::StatusWarnSolid => Status(Warn, 9),
+        T::StatusWarnSolidHover => Status(Warn, SOLID_HOVER),
+        T::StatusWarnSolidPressed => pressed(Warn),
         T::StatusBadFg => Status(Bad, 11),
         T::StatusBadBg => Status(Bad, 3),
         T::StatusBadBorder => Status(Bad, 7),
         T::StatusBadSolid => Status(Bad, 9),
+        T::StatusBadSolidHover => Status(Bad, SOLID_HOVER),
+        T::StatusBadSolidPressed => pressed(Bad),
         T::StatusInfoFg => Status(Info, 11),
         T::StatusInfoBg => Status(Info, 3),
         T::StatusInfoBorder => Status(Info, 7),
         T::StatusInfoSolid => Status(Info, 9),
+        T::StatusInfoSolidHover => Status(Info, SOLID_HOVER),
+        T::StatusInfoSolidPressed => pressed(Info),
         T::StateHover => Neutral(pick(4, 3)),
         T::StatePressed => Neutral(pick(5, 4)),
         T::StateSelected => Neutral(pick(6, 5)),
@@ -206,7 +236,20 @@ pub(super) const RULES: &[PairRule] = &[
         on_solid: true,
         ..rule(
             &[T::TextOnStatus],
-            &[Token(T::StatusGoodSolid), Token(T::StatusWarnSolid), Token(T::StatusBadSolid), Token(T::StatusInfoSolid)],
+            &[
+                Token(T::StatusGoodSolid),
+                Token(T::StatusGoodSolidHover),
+                Token(T::StatusGoodSolidPressed),
+                Token(T::StatusWarnSolid),
+                Token(T::StatusWarnSolidHover),
+                Token(T::StatusWarnSolidPressed),
+                Token(T::StatusBadSolid),
+                Token(T::StatusBadSolidHover),
+                Token(T::StatusBadSolidPressed),
+                Token(T::StatusInfoSolid),
+                Token(T::StatusInfoSolidHover),
+                Token(T::StatusInfoSolidPressed),
+            ],
             TEXT_MIN.0,
             TEXT_MIN.1,
         )
@@ -304,3 +347,8 @@ pub const DARK_SHADOW_ALPHA_FACTOR: f32 = 1.5;
 pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Duration::Normal, Duration::Normal);
 /// Easing for every semantic motion.
 pub const MOTION_EASING: Easing = Easing::Standard;
+
+/// Button padding at the standard size, as a multiple of `pad.control`.
+pub const BUTTON_PAD_X_MD: f32 = 2.0;
+/// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
+pub const BUTTON_BORDER_WIDTH: f32 = 1.0;

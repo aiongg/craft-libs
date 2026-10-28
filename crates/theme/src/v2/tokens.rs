@@ -1,8 +1,10 @@
-//! Semantic tokens: the resolved values every component reads. Colours, shape, space, sizes,
-//! type roles, elevation and motion, all concrete.
+//! Semantic tokens: the resolved values component tokens derive from. Colours, shape, space,
+//! sizes, type roles, elevation and motion, all concrete.
 
 use super::color::Rgba;
+use super::components::{ComponentField, ComponentTokens};
 use super::scale::{Easing, Elevation};
+use super::theme::EdgeSeed;
 
 /// One value per status: good, warn, bad, info.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -77,7 +79,7 @@ pub struct TextColors {
     pub disabled: Rgba,
     /// Text on `accent.solid`, `accent.hover` and `accent.pressed`.
     pub on_accent: Rgba,
-    /// Text on every `status.<s>.solid`.
+    /// Text on every `status.<s>.solid`, `solid_hover` and `solid_pressed`.
     pub on_status: Rgba,
 }
 
@@ -120,6 +122,10 @@ pub struct StatusColors {
     pub border: Rgba,
     /// Solid fill (badges, destructive buttons).
     pub solid: Rgba,
+    /// Solid fill under the pointer.
+    pub solid_hover: Rgba,
+    /// Solid fill while pressed.
+    pub solid_pressed: Rgba,
 }
 
 /// Neutral interaction fills, drawn over `surface.panel`.
@@ -219,7 +225,7 @@ pub struct ColorTokens {
 impl ColorTokens {
     /// Every colour set to `c`; the starting point that derivation overwrites.
     pub(super) const fn splat(c: Rgba) -> ColorTokens {
-        let status = StatusColors { fg: c, bg: c, border: c, solid: c };
+        let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, scrim: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c },
@@ -325,6 +331,10 @@ color_tokens! {
     StatusGoodBorder = "status.good.border" => status.good.border;
     /// `status.good.solid`
     StatusGoodSolid = "status.good.solid" => status.good.solid;
+    /// `status.good.solid_hover`
+    StatusGoodSolidHover = "status.good.solid_hover" => status.good.solid_hover;
+    /// `status.good.solid_pressed`
+    StatusGoodSolidPressed = "status.good.solid_pressed" => status.good.solid_pressed;
     /// `status.warn.fg`
     StatusWarnFg = "status.warn.fg" => status.warn.fg;
     /// `status.warn.bg`
@@ -333,6 +343,10 @@ color_tokens! {
     StatusWarnBorder = "status.warn.border" => status.warn.border;
     /// `status.warn.solid`
     StatusWarnSolid = "status.warn.solid" => status.warn.solid;
+    /// `status.warn.solid_hover`
+    StatusWarnSolidHover = "status.warn.solid_hover" => status.warn.solid_hover;
+    /// `status.warn.solid_pressed`
+    StatusWarnSolidPressed = "status.warn.solid_pressed" => status.warn.solid_pressed;
     /// `status.bad.fg`
     StatusBadFg = "status.bad.fg" => status.bad.fg;
     /// `status.bad.bg`
@@ -341,6 +355,10 @@ color_tokens! {
     StatusBadBorder = "status.bad.border" => status.bad.border;
     /// `status.bad.solid`
     StatusBadSolid = "status.bad.solid" => status.bad.solid;
+    /// `status.bad.solid_hover`
+    StatusBadSolidHover = "status.bad.solid_hover" => status.bad.solid_hover;
+    /// `status.bad.solid_pressed`
+    StatusBadSolidPressed = "status.bad.solid_pressed" => status.bad.solid_pressed;
     /// `status.info.fg`
     StatusInfoFg = "status.info.fg" => status.info.fg;
     /// `status.info.bg`
@@ -349,6 +367,10 @@ color_tokens! {
     StatusInfoBorder = "status.info.border" => status.info.border;
     /// `status.info.solid`
     StatusInfoSolid = "status.info.solid" => status.info.solid;
+    /// `status.info.solid_hover`
+    StatusInfoSolidHover = "status.info.solid_hover" => status.info.solid_hover;
+    /// `status.info.solid_pressed`
+    StatusInfoSolidPressed = "status.info.solid_pressed" => status.info.solid_pressed;
     /// `state.hover`
     StateHover = "state.hover" => state.hover;
     /// `state.pressed`
@@ -409,6 +431,43 @@ color_tokens! {
     EdgeDark = "edge.dark" => edge.dark;
 }
 
+/// Names a colour of either layer: a semantic colour token or a component colour field. Theme
+/// files address both by [`TokenRef::path`]; component paths never start with a semantic group.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TokenRef {
+    /// A semantic colour.
+    Color(ColorToken),
+    /// A component field.
+    Component(ComponentField),
+}
+
+impl TokenRef {
+    /// The dotted path, e.g. `"surface.panel"` or `"button.primary.fill.hover"`.
+    pub fn path(self) -> String {
+        match self {
+            TokenRef::Color(t) => t.path().to_owned(),
+            TokenRef::Component(f) => f.path(),
+        }
+    }
+
+    /// The token or field whose [`path`](TokenRef::path) is `path`.
+    pub fn from_path(path: &str) -> Option<TokenRef> {
+        ColorToken::from_path(path).map(TokenRef::Color).or_else(|| ComponentField::from_path(path).map(TokenRef::Component))
+    }
+}
+
+impl From<ColorToken> for TokenRef {
+    fn from(t: ColorToken) -> TokenRef {
+        TokenRef::Color(t)
+    }
+}
+
+impl From<ComponentField> for TokenRef {
+    fn from(f: ComponentField) -> TokenRef {
+        TokenRef::Component(f)
+    }
+}
+
 /// Corner radii in logical pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RadiusSet {
@@ -438,6 +497,16 @@ pub enum Edge {
         /// Line width in logical pixels.
         width: f32,
     },
+}
+
+impl Edge {
+    /// The seed this edge resolves from; a bevel drops its colours.
+    pub fn seed(self) -> EdgeSeed {
+        match self {
+            Edge::Flat => EdgeSeed::Flat,
+            Edge::Bevel { width, .. } => EdgeSeed::Bevel { width },
+        }
+    }
 }
 
 /// Corner radii and edge style.
@@ -658,7 +727,7 @@ pub struct MotionTokens {
     pub r#move: Motion,
 }
 
-/// Every resolved semantic token.
+/// Every resolved token: the semantic layer and the component layer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tokens {
     /// Colours.
@@ -675,6 +744,8 @@ pub struct Tokens {
     pub elevation: ElevationTokens,
     /// Animations.
     pub motion: MotionTokens,
+    /// Per-family component tokens, derived from the fields above.
+    pub component: ComponentTokens,
 }
 
 impl Tokens {

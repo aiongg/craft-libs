@@ -1,12 +1,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use crate::ThemeId;
 use ColorToken as T;
 
-fn hex(s: &str) -> Rgba {
+pub(super) fn hex(s: &str) -> Rgba {
     Rgba::from_hex(s).unwrap()
 }
 
@@ -23,15 +23,16 @@ fn theme(id: &str, neutral: &str, accent: &str, status: [&str; 4]) -> ThemeDef {
         variants: Variants::Both,
         pins: ModePins::default(),
         high_contrast: ModePins::default(),
+        components: BTreeMap::new(),
         contrast_intent: ContrastIntent::Standard,
     }
 }
 
-fn grey_blue() -> ThemeDef {
+pub(super) fn grey_blue() -> ThemeDef {
     theme("test.grey-blue", "#8b8d98", "#3e63dd", ["#30a46c", "#ffc53d", "#e5484d", "#0090ff"])
 }
 
-fn violet() -> ThemeDef {
+pub(super) fn violet() -> ThemeDef {
     theme("test.violet", "#7a6b9e", "#9b30ff", ["#00c853", "#ffab00", "#ff1744", "#2979ff"])
 }
 
@@ -44,7 +45,7 @@ fn pinned_faint() -> ThemeDef {
     t
 }
 
-fn appearances() -> Vec<Appearance> {
+pub(super) fn appearances() -> Vec<Appearance> {
     let mut out = Vec::new();
     for mode in [Mode::Light, Mode::Dark] {
         for contrast in [Contrast::Standard, Contrast::High] {
@@ -58,11 +59,11 @@ fn appearances() -> Vec<Appearance> {
     out
 }
 
-fn app(mode: Mode, contrast: Contrast) -> Appearance {
+pub(super) fn app(mode: Mode, contrast: Contrast) -> Appearance {
     Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
 
-fn over(fg: Rgba, bg: Rgba) -> Rgba {
+pub(super) fn over(fg: Rgba, bg: Rgba) -> Rgba {
     let a = f64::from(fg.a()) / 255.0;
     let ch = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
     Rgba::rgb(ch(0), ch(1), ch(2))
@@ -88,14 +89,14 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
     }
     p.extend(CONTROL_BGS.map(|bg| (T::AccentText, bg, 4.5, 7.0)));
     p.extend([T::AccentSolid, T::AccentHover, T::AccentPressed].map(|bg| (T::TextOnAccent, bg, 4.5, 7.0)));
-    for (fg, bg, solid) in [
-        (T::StatusGoodFg, T::StatusGoodBg, T::StatusGoodSolid),
-        (T::StatusWarnFg, T::StatusWarnBg, T::StatusWarnSolid),
-        (T::StatusBadFg, T::StatusBadBg, T::StatusBadSolid),
-        (T::StatusInfoFg, T::StatusInfoBg, T::StatusInfoSolid),
+    for (fg, bg, solids) in [
+        (T::StatusGoodFg, T::StatusGoodBg, [T::StatusGoodSolid, T::StatusGoodSolidHover, T::StatusGoodSolidPressed]),
+        (T::StatusWarnFg, T::StatusWarnBg, [T::StatusWarnSolid, T::StatusWarnSolidHover, T::StatusWarnSolidPressed]),
+        (T::StatusBadFg, T::StatusBadBg, [T::StatusBadSolid, T::StatusBadSolidHover, T::StatusBadSolidPressed]),
+        (T::StatusInfoFg, T::StatusInfoBg, [T::StatusInfoSolid, T::StatusInfoSolidHover, T::StatusInfoSolidPressed]),
     ] {
         p.extend([T::SurfacePanel, T::SurfaceRaised, bg].map(|b| (fg, b, 4.5, 7.0)));
-        p.push((T::TextOnStatus, solid, 4.5, 7.0));
+        p.extend(solids.map(|solid| (T::TextOnStatus, solid, 4.5, 7.0)));
     }
     for fg in [T::LineControlEdge, T::LineFocus] {
         p.extend(CONTROL_BGS.map(|bg| (fg, bg, 3.0, 4.5)));
@@ -161,8 +162,10 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
         let t = &r.tokens;
         assert_eq!(t.color(T::TextFaint), pin);
         assert_eq!(t.color(T::CaptionInactive), pin, "caption.inactive follows the pinned text.faint");
-        let expected: Vec<_> =
-            TEXT_BGS.map(|bg| ContrastWarning { fg: T::TextFaint, bg, ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 }).into_iter().collect();
+        let expected: Vec<_> = TEXT_BGS
+            .map(|bg| ContrastWarning { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
+            .into_iter()
+            .collect();
         assert_eq!(r.warnings, expected, "{mode:?}");
 
         let high = resolve(&def, app(mode, Contrast::High));

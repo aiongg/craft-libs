@@ -3,8 +3,9 @@
 use std::collections::BTreeMap;
 
 use super::color::Rgba;
+use super::components::{ComponentField, FieldKind, OverrideError, OverrideValue};
 use super::ramp::Mode;
-use super::tokens::{ColorToken, RadiusSet, Status};
+use super::tokens::{ColorTokens, Edge, RadiusSet, Status, TokenRef};
 use crate::ThemeId;
 
 /// A theme: seeds to derive from, values that override the derivation, and an optional shape.
@@ -21,12 +22,40 @@ pub struct ThemeDef {
     pub shape: Option<ShapeSeed>,
     /// Which modes the theme has.
     pub variants: Variants,
-    /// Fixed values per mode, replacing derived ones.
+    /// Fixed colours per mode, semantic and component, replacing derived ones.
     pub pins: ModePins,
-    /// Fixed values used only with [`Contrast::High`], applied over `pins`.
+    /// Fixed colours used only with [`Contrast::High`], applied over `pins`.
     pub high_contrast: ModePins,
+    /// Mode-independent component overrides (radii, edges, shadows). Colours go in the pins.
+    pub components: BTreeMap<ComponentField, OverrideValue>,
     /// Whether the theme is meant to have low contrast.
     pub contrast_intent: ContrastIntent,
+}
+
+impl ThemeDef {
+    /// Every override that resolution skips: a pin on a component field that is not a colour, a
+    /// colour in `components`, or a value of the wrong kind there.
+    pub fn override_errors(&self) -> Vec<OverrideError> {
+        let mut out = Vec::new();
+        for pins in [&self.pins.light, &self.pins.dark, &self.high_contrast.light, &self.high_contrast.dark] {
+            for &key in pins.0.keys() {
+                if let TokenRef::Component(field) = key
+                    && field.kind() != FieldKind::Color
+                {
+                    out.push(OverrideError::PinNotColor(field));
+                }
+            }
+        }
+        for (&field, value) in &self.components {
+            let (expected, found) = (field.kind(), value.kind());
+            if expected == FieldKind::Color {
+                out.push(OverrideError::ColorNotPerMode(field));
+            } else if expected != found {
+                out.push(OverrideError::WrongKind { field, expected, found });
+            }
+        }
+        out
+    }
 }
 
 /// Seed colours. Each one becomes a 12-step ramp per mode.
@@ -40,20 +69,20 @@ pub struct Seeds {
     pub status: Status<Rgba>,
 }
 
-/// Fixed colours for some tokens.
+/// Fixed colours for some semantic tokens and component colour fields.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Pins(pub BTreeMap<ColorToken, Rgba>);
+pub struct Pins(pub BTreeMap<TokenRef, Rgba>);
 
 impl Pins {
     /// The pinned value of `token`, if any.
-    pub fn get(&self, token: ColorToken) -> Option<Rgba> {
-        self.0.get(&token).copied()
+    pub fn get(&self, token: impl Into<TokenRef>) -> Option<Rgba> {
+        self.0.get(&token.into()).copied()
     }
 }
 
-impl FromIterator<(ColorToken, Rgba)> for Pins {
-    fn from_iter<I: IntoIterator<Item = (ColorToken, Rgba)>>(iter: I) -> Pins {
-        Pins(iter.into_iter().collect())
+impl<K: Into<TokenRef>> FromIterator<(K, Rgba)> for Pins {
+    fn from_iter<I: IntoIterator<Item = (K, Rgba)>>(iter: I) -> Pins {
+        Pins(iter.into_iter().map(|(k, v)| (k.into(), v)).collect())
     }
 }
 
@@ -96,6 +125,16 @@ pub enum EdgeSeed {
         /// Line width in logical pixels.
         width: f32,
     },
+}
+
+impl EdgeSeed {
+    /// The edge this seed gives, a bevel taking `edge.light` and `edge.dark` from `color`.
+    pub fn resolve(self, color: &ColorTokens) -> Edge {
+        match self {
+            EdgeSeed::Flat => Edge::Flat,
+            EdgeSeed::Bevel { width } => Edge::Bevel { light: color.edge.light, dark: color.edge.dark, width },
+        }
+    }
 }
 
 /// Which modes a theme has.
