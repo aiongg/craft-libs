@@ -67,12 +67,14 @@ pub struct Handle {
     sense: Sense,
     id_salt: Option<IdSalt>,
     cursor: Option<CursorIcon>,
+    look: Option<HandleStyle>,
+    selected: Option<bool>,
 }
 
 impl Handle {
     /// A handle of `shape` whose accessible name is `label`, e.g. `"Top left corner"`.
     pub fn new(shape: HandleShape, label: impl Into<String>) -> Self {
-        Self { shape, label: label.into(), value: None, sense: Sense::CLICK | Sense::DRAG, id_salt: None, cursor: None }
+        Self { shape, label: label.into(), value: None, sense: Sense::CLICK | Sense::DRAG, id_salt: None, cursor: None, look: None, selected: None }
     }
 
     /// The position a screen reader reads after the label, in the document's units, e.g.
@@ -102,6 +104,19 @@ impl Handle {
         self
     }
 
+    /// Colours and sizes of the caller's own, in place of the `overlay.*` look: a handle that sits
+    /// in a control rather than on a canvas, e.g. a curve editor's points.
+    pub fn look(mut self, style: HandleStyle) -> Self {
+        self.look = Some(style);
+        self
+    }
+
+    /// Whether the handle is the selected one of its set, for a screen reader.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = Some(selected);
+        self
+    }
+
     pub fn style(tokens: &UiTokens, shape: HandleShape) -> HandleStyle {
         let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
         let (fill, stroke) = match shape {
@@ -117,18 +132,33 @@ impl Handle {
 
     /// The handle's shapes centred on `center`, snapped to the pixel grid: halo, fill, outline.
     pub fn shapes(tokens: &UiTokens, shape: HandleShape, center: Pos2, pixels_per_point: f32) -> Vec<Shape> {
-        let style = Handle::style(tokens, shape);
+        Handle::shapes_with(&Handle::style(tokens, shape), shape, center, pixels_per_point)
+    }
+
+    /// [`Handle::shapes`] in `style`'s colours and sizes. A halo or outline of no width is left
+    /// out.
+    pub fn shapes_with(style: &HandleStyle, shape: HandleShape, center: Pos2, pixels_per_point: f32) -> Vec<Shape> {
         let body = Rect::from_center_size(center, vec2(style.size, style.size)).round_to_pixels(pixels_per_point);
         let halo = body.expand(style.halo.width);
         match shape {
-            HandleShape::Square => vec![
-                Shape::rect_filled(halo, 0.0, style.halo.color),
-                Shape::rect_filled(body, 0.0, style.fill),
-                Shape::rect_stroke(body, 0.0, style.stroke, StrokeKind::Inside),
-            ],
+            HandleShape::Square => {
+                let mut out = Vec::with_capacity(3);
+                if style.halo.width > 0.0 {
+                    out.push(Shape::rect_filled(halo, 0.0, style.halo.color));
+                }
+                out.push(Shape::rect_filled(body, 0.0, style.fill));
+                if style.stroke.width > 0.0 {
+                    out.push(Shape::rect_stroke(body, 0.0, style.stroke, StrokeKind::Inside));
+                }
+                out
+            }
             HandleShape::Round | HandleShape::Rotate => {
                 let (c, r) = (body.center(), body.width() / 2.0);
-                let mut out = vec![Shape::circle_filled(c, r + style.halo.width, style.halo.color), Shape::circle_filled(c, r, style.fill)];
+                let mut out = Vec::with_capacity(3);
+                if style.halo.width > 0.0 {
+                    out.push(Shape::circle_filled(c, r + style.halo.width, style.halo.color));
+                }
+                out.push(Shape::circle_filled(c, r, style.fill));
                 if style.stroke.width > 0.0 {
                     out.push(Shape::circle_stroke(c, r - style.stroke.width / 2.0, style.stroke));
                 }
@@ -140,7 +170,7 @@ impl Handle {
     /// Draws the handle at `center` and senses the pointer on the `handle.hit` square around it.
     pub fn show(self, ui: &mut Ui, center: Pos2) -> Response {
         let tokens = Tokens::of(ui);
-        let style = Handle::style(&tokens, self.shape);
+        let style = self.look.unwrap_or_else(|| Handle::style(&tokens, self.shape));
         let id = match self.id_salt {
             Some(salt) => ui.make_persistent_id(salt),
             None => {
@@ -157,8 +187,11 @@ impl Handle {
             info.current_text_value.clone_from(&self.value);
             info
         });
+        if let Some(selected) = self.selected {
+            ui.ctx().accesskit_node_builder(id, |node| node.set_selected(selected));
+        }
         if ui.is_rect_visible(rect) {
-            ui.painter().extend(Handle::shapes(&tokens, self.shape, center, ui.pixels_per_point()));
+            ui.painter().extend(Handle::shapes_with(&style, self.shape, center, ui.pixels_per_point()));
         }
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(self.cursor.unwrap_or(style.cursor));

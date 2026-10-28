@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
+use craft_ui::composites::{CurveEditor, Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -429,5 +429,25 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Curve editors: the graph's sizes, the plot, grid and baseline, the curve widths, both point
+/// looks and the hint.
+#[test]
+fn curve_editor() {
+    check("curve_editor.txt", |d, t| {
+        let s = CurveEditor::style(t);
+        d.line("min_side", s.min_side).line("max_side", s.max_side).line("pad", s.pad).line("bar", s.bar).line("bar_gap", s.bar_gap);
+        d.line("hit", s.hit).line("drag_off", s.drag_off);
+        d.line("fill", s.fill).line("border", s.border.width).line("border_color", s.border.color);
+        d.line("grid", s.grid.width).line("grid_color", s.grid.color).line("baseline", s.baseline.width).line("baseline_color", s.baseline.color);
+        d.line("width", s.width).line("other_width", s.other_width).line("other_alpha", s.other_alpha);
+        for (key, p) in [("point", &s.point), ("selected", &s.selected)] {
+            d.line(&format!("{key}.size"), p.size).line(&format!("{key}.fill"), p.fill);
+            d.line(&format!("{key}.stroke"), p.stroke.width).line(&format!("{key}.stroke_color"), p.stroke.color);
+            d.line(&format!("{key}.halo"), p.halo.width).line(&format!("{key}.halo_color"), p.halo.color);
+        }
+        d.line("hint_role", role(s.hint_role)).line("hint", s.hint);
     });
 }
