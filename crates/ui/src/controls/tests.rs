@@ -9,7 +9,7 @@ use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Re
 
 use super::*;
 use crate::primitives::{Corner, SurfaceKind};
-use crate::theme::{Base, FontFamilies, ToEgui, UiTokens, install, scope};
+use crate::theme::{Base, FontFamilies, ToEgui, Tokens, TokensOf as _, UiTokens, install, scope};
 
 pub(super) fn theme(id: &str) -> ThemeDef {
     builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone()
@@ -272,6 +272,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
         let c = &t.component.check;
         let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
         let (off, on) = (IndicatorColors::from(&c.off), IndicatorColors::from(&c.on));
+        assert_eq!((off.mark, on.mark), (None, Some(c.on.mark.to_egui())), "off has no mark");
         let text = |s: State| if s == State::Disabled { t.color.text.disabled.to_egui() } else { t.color.text.normal.to_egui() };
         for size in SIZES {
             let b = Checkbox::style(&t, size);
@@ -282,7 +283,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
             let s = Switch::style(&t, size);
             assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
             assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
-            assert_eq!((s.surface, s.off, s.on), (sunken, off, on));
+            assert_eq!((s.surface, s.off, s.on.fill, s.on.border, s.on.mark), (sunken, off, on.fill, on.border, None));
             assert_eq!((s.thumb_fill, s.thumb_border), (c.thumb.fill.to_egui(), c.thumb.border.to_egui()));
             assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
             for state in State::ALL {
@@ -293,29 +294,87 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
 }
 
 /// Slider and switch thumbs are knobs in both modes: a light `surface.knob` face (Classic: its
-/// bevelled panel grey) on the knob surface, round on a switch, and a slider thumb's ring is
-/// `accent.soft` while hovered or pressed.
+/// bevelled panel grey) on the knob surface, round on a switch. A slider thumb's ring is the
+/// theme's `slider.ring`, `accent.soft` while hovered or pressed unless the theme pins it (Classic
+/// pins it clear).
 #[test]
 fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
-    for t in every_builtin() {
-        let c = &t.color;
-        let face = c.surface.knob.to_egui();
-        let knob = crate::primitives::Surface::style(&t, SurfaceKind::Knob);
-        if matches!(knob.edge, crate::primitives::SurfaceEdge::Border(_)) {
-            assert!(c.surface.knob.to_oklch().l > 0.9, "{:?}: the knob face {} is light", t.mode, c.surface.knob.to_hex());
-        }
-        let (soft, clear) = (c.accent.soft.to_egui(), Color32::TRANSPARENT);
-        for size in SIZES {
-            let s = Slider::style(&t, size);
-            assert_eq!([s.thumb_fill.rest, s.thumb_fill.hover, s.thumb_fill.pressed], [face; 3], "{:?}", t.mode);
-            assert_eq!((s.thumb_surface.fill, s.thumb_surface.edge, s.thumb_surface.shadow), (face, knob.edge, knob.shadow));
-            assert_eq!((s.ring, s.ring_width), (craft_theme::States::new(clear, soft, soft, clear), 2.0));
-            let w = Switch::style(&t, size);
-            assert_eq!([w.thumb_fill.rest, w.thumb_fill.hover, w.thumb_fill.pressed], [face; 3], "{:?}", t.mode);
-            assert_eq!((w.thumb_surface.fill, w.thumb_surface.edge, w.thumb_surface.shadow), (face, knob.edge, knob.shadow));
-            assert_eq!(w.thumb_surface.radius, egui::CornerRadius::from(w.thumb / 2.0));
+    let mut defaults = 0;
+    for def in builtins() {
+        let pins_ring = [&def.pins.light, &def.pins.dark].iter().any(|p| p.0.keys().any(|k| k.path().starts_with("slider.ring.")));
+        for mode in [Mode::Light, Mode::Dark] {
+            let t = tokens_of(def, mode);
+            let c = &t.color;
+            let face = c.surface.knob.to_egui();
+            let knob = crate::primitives::Surface::style(&t, SurfaceKind::Knob);
+            if matches!(knob.edge, crate::primitives::SurfaceEdge::Border(_)) {
+                assert!(c.surface.knob.to_oklch().l > 0.9, "{} {mode:?}: the knob face {} is light", def.id, c.surface.knob.to_hex());
+            }
+            let ring = t.component.slider.ring.to_egui();
+            if !pins_ring {
+                let (soft, clear) = (c.accent.soft.to_egui(), Color32::TRANSPARENT);
+                assert_eq!(ring, craft_theme::States::new(clear, soft, soft, clear), "{} {mode:?}: the default ring", def.id);
+                defaults += 1;
+            }
+            for size in SIZES {
+                let s = Slider::style(&t, size);
+                assert_eq!([s.thumb_fill.rest, s.thumb_fill.hover, s.thumb_fill.pressed], [face; 3], "{} {mode:?}", def.id);
+                assert_eq!((s.thumb_surface.fill, s.thumb_surface.edge, s.thumb_surface.shadow), (face, knob.edge, knob.shadow));
+                assert_eq!((s.ring, s.ring_width), (ring, t.component.slider.ring_width));
+                let w = Switch::style(&t, size);
+                assert_eq!([w.thumb_fill.rest, w.thumb_fill.hover, w.thumb_fill.pressed], [face; 3], "{} {mode:?}", def.id);
+                assert_eq!((w.thumb_surface.fill, w.thumb_surface.edge, w.thumb_surface.shadow), (face, knob.edge, knob.shadow));
+                assert_eq!(w.thumb_surface.radius, egui::CornerRadius::from(w.thumb / 2.0));
+            }
         }
     }
+    assert!(defaults > 0, "some built-in keeps the default ring");
+    let classic = tokens_of(&theme("craft.classic"), Mode::Light);
+    assert_eq!(
+        classic.component.slider.ring.to_egui(),
+        craft_theme::States::new(Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT)
+    );
+}
+
+/// A disabled knob lies flat: no shadow under a slider, range-slider or switch thumb. A slider's
+/// ring paints only while the slider is hovered or pressed.
+#[test]
+fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() {
+    let shadows = |shapes: &[Shape]| shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.blur_width > 0.0)).count();
+    for enabled in [true, false] {
+        let ctx = context();
+        let shapes = frame_at(&ctx, 0.0, vec![], |ui| {
+            let _ = Slider::new("knob.slider", "Opacity", 0.5, 0.0..=1.0).enabled(enabled).show(ui);
+            let _ = RangeSlider::new("knob.range", ("From", "To"), (0.2, 0.8), 0.0..=1.0).enabled(enabled).show(ui);
+            let mut on = true;
+            let _ = Switch::new("Autosave", &mut on).enabled(enabled).show(ui);
+        });
+        assert_eq!(shadows(&shapes), if enabled { 4 } else { 0 }, "enabled: {enabled}");
+    }
+
+    let ctx = context();
+    let (rect, style) = (Cell::new(Rect::NOTHING), Cell::new(None));
+    let frame = |time, events| {
+        frame_at(&ctx, time, events, |ui| {
+            style.set(Some(Slider::style(&Tokens::of(ui), ControlSize::Md)));
+            rect.set(Slider::new("knob.ring", "Opacity", 0.5, 0.0..=1.0).show(ui).response.rect);
+        })
+    };
+    let rings = |shapes: &[Shape], color: Color32| {
+        let width = style.get().map_or(0.0, |s: SliderStyle| s.ring_width);
+        shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.stroke.color == color && r.stroke.width == width)).count()
+    };
+    let rest = frame(0.0, vec![]);
+    let ring = style.get().map(|s| s.ring).expect("the slider is styled");
+    assert_ne!(ring.hover, Color32::TRANSPARENT, "the suite default has a ring");
+    assert_eq!((rings(&rest, ring.hover), rings(&rest, ring.pressed)), (0, 0), "no ring at rest");
+    let center = rect.get().center();
+    frame(0.016, vec![Event::PointerMoved(center)]);
+    assert_eq!(rings(&frame(5.0, vec![]), ring.hover), 1, "a ring while hovered");
+    frame(5.016, vec![press(center, true)]);
+    assert_eq!(rings(&frame(10.0, vec![]), ring.pressed), 1, "a ring while pressed");
+    frame(10.016, vec![press(center, false), Event::PointerGone]);
+    assert_eq!(rings(&frame(15.0, vec![]), ring.hover), 0, "none once the pointer leaves");
 }
 
 /// A context showing the suite default, with reduced motion or not.

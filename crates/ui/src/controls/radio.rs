@@ -57,8 +57,8 @@ fn paint(ui: &Ui, style: &RadioStyle, laid: &Labelled, sensed: Sensed, on: bool)
         let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
         let round = CornerRadius::from(style.diameter / 2.0);
         ui.painter().extend(indicator_shapes(ui, &style.surface, rect, round, paint));
-        if on {
-            ui.painter().circle_filled(rect.center(), style.dot / 2.0, paint.mark);
+        if let Some(dot) = paint.mark {
+            ui.painter().circle_filled(rect.center(), style.dot / 2.0, dot);
         }
         laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));
     }

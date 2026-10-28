@@ -251,7 +251,9 @@ fn select() {
 fn indicator(d: &mut Dump, key: &str, colors: &IndicatorColors) {
     states(d, &format!("{key}.fill"), &colors.fill);
     states(d, &format!("{key}.border"), &colors.border);
-    states(d, &format!("{key}.mark"), &colors.mark);
+    if let Some(mark) = &colors.mark {
+        states(d, &format!("{key}.mark"), mark);
+    }
 }
 
 #[test]

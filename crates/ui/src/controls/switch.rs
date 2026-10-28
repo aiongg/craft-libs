@@ -37,9 +37,9 @@ pub struct SwitchStyle {
     /// The sunken surface the track draws on, for its edge (a border, or a bevel in bevel
     /// themes); the fill and the round ends are the track's own.
     pub surface: SurfaceStyle,
-    /// Off: `check.off.*` (no mark).
+    /// Off: `check.off.*`.
     pub off: IndicatorColors,
-    /// On: `check.on.*`; the mark isn't drawn.
+    /// On: `check.on.*` without the mark; the thumb's place shows the state.
     pub on: IndicatorColors,
     /// The thumb's shape: a round knob [`Surface`] (its border, or bevel, and the knob shadow);
     /// a disabled thumb has no shadow.
@@ -153,7 +153,7 @@ impl<'a> Switch<'a> {
             label: c.label,
             surface: Surface::style(tokens, SurfaceKind::Sunken),
             off: IndicatorColors::from(&c.off),
-            on: IndicatorColors::from(&c.on),
+            on: IndicatorColors { mark: None, ..IndicatorColors::from(&c.on) },
             thumb_surface: knob(thumb_surface, c.thumb.fill.rest.to_egui(), c.thumb.border.rest.to_egui(), true),
             thumb_fill: c.thumb.fill.to_egui(),
             thumb_border: c.thumb.border.to_egui(),

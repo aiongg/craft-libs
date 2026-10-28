@@ -191,7 +191,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
             let on = state != CheckState::Unchecked;
             let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
             ui.painter().extend(indicator_shapes(ui, &style.surface, rect, style.radius, paint));
-            if let Some(mark) = mark(rect, state, style.mark, paint.mark) {
+            if let Some(mark) = paint.mark.and_then(|color| mark(rect, state, style.mark, color)) {
                 ui.painter().add(mark);
             }
             laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));

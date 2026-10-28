@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{CheckColors, States, TypeRole};
+use craft_theme::{CheckOffColors, CheckOnColors, States, TypeRole};
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, TextWrapMode, Ui, Vec2, pos2, vec2};
@@ -25,13 +25,19 @@ pub struct IndicatorColors {
     /// Outline of the box, circle or track, over a flat surface's border; a bevel keeps its
     /// colours.
     pub border: States<Color32>,
-    /// Check, dash, dot or thumb.
-    pub mark: States<Color32>,
+    /// Check, dash or dot; `None` while off, which has no mark. A switch draws none.
+    pub mark: Option<States<Color32>>,
 }
 
-impl From<&CheckColors> for IndicatorColors {
-    fn from(c: &CheckColors) -> Self {
-        Self { fill: c.fill.to_egui(), border: c.border.to_egui(), mark: c.mark.to_egui() }
+impl From<&CheckOffColors> for IndicatorColors {
+    fn from(c: &CheckOffColors) -> Self {
+        Self { fill: c.fill.to_egui(), border: c.border.to_egui(), mark: None }
+    }
+}
+
+impl From<&CheckOnColors> for IndicatorColors {
+    fn from(c: &CheckOnColors) -> Self {
+        Self { fill: c.fill.to_egui(), border: c.border.to_egui(), mark: Some(c.mark.to_egui()) }
     }
 }
 
@@ -40,7 +46,7 @@ impl From<&CheckColors> for IndicatorColors {
 pub(crate) struct Paint {
     pub fill: Color32,
     pub border: Color32,
-    pub mark: Color32,
+    pub mark: Option<Color32>,
 }
 
 impl Paint {
@@ -48,7 +54,7 @@ impl Paint {
         Self {
             fill: StateLayer::color(ui, &colors.fill, response),
             border: StateLayer::color(ui, &colors.border, response),
-            mark: StateLayer::color(ui, &colors.mark, response),
+            mark: colors.mark.as_ref().map(|mark| StateLayer::color(ui, mark, response)),
         }
     }
 }
