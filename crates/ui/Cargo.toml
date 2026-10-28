@@ -16,6 +16,8 @@ craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["ecolor"] }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }
+# Document geometry of canvas overlays (`canvas::kurbo`): the version DesignCraft and VectorCraft use.
+kurbo = { workspace = true }
 log = "0.4"
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }

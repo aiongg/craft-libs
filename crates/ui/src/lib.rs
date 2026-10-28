@@ -7,6 +7,7 @@
 
 pub mod behavior;
 pub mod buttons;
+pub mod canvas;
 pub mod capture;
 pub mod combo;
 pub mod composites;

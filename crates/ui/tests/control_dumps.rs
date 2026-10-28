@@ -4,6 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
+use craft_ui::canvas::Readout;
 use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -429,5 +430,16 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Readouts: placement, spacing, frame, and the rows' role and colours.
+#[test]
+fn readout() {
+    check("readout.txt", |d, t| {
+        let s = Readout::style(t);
+        d.line("offset", s.offset).line("pad", s.pad).line("col_gap", s.col_gap).line("row_gap", s.row_gap);
+        d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
+        d.line("role", role(s.role)).line("label", s.label).line("value", s.value);
     });
 }

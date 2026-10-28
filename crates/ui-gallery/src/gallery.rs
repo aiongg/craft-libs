@@ -124,6 +124,25 @@ impl Gallery {
 
     /// Draws one frame of the gallery.
     pub fn show(&mut self, ui: &mut Ui) {
+        self.show_panels(ui);
+        self.apply_story_scale(ui.ctx());
+    }
+
+    /// The scale for the next pass: the one a story requested in this pass
+    /// ([`story::request_pixels_per_point`](craft_ui::story::request_pixels_per_point)), else the
+    /// appearance bar's.
+    fn apply_story_scale(&self, ctx: &egui::Context) {
+        let requested = craft_ui::story::take_pixels_per_point_request(ctx);
+        let zoom = match (requested, ctx.native_pixels_per_point()) {
+            (Some(ppp), Some(native)) if native > 0.0 => ppp / native,
+            _ => self.appearance.zoom(),
+        };
+        if (ctx.zoom_factor() - zoom).abs() > 1e-4 {
+            ctx.set_zoom_factor(zoom);
+        }
+    }
+
+    fn show_panels(&mut self, ui: &mut Ui) {
         self.apply_appearance(ui.ctx());
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);

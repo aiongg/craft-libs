@@ -26,6 +26,7 @@ mod style;
 mod tests;
 mod tokens;
 
+pub(crate) use bridge::current;
 pub use bridge::{Base, Captured, Inputs, Overrides, apply_popup_style, capture, install, scope, scoped_style};
 pub use convert::{FontFamilies, ToEgui, corner_radius, margin, margin_x, stroke};
 pub use craft_theme::Tokens;

@@ -108,6 +108,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(primitives::text::stories());
     all.extend(primitives::icon::stories());
     all.extend(primitives::handle::stories());
+    all.extend(crate::canvas::story::stories());
     all.extend(crate::edit::stories());
     all.extend(controls::button::stories());
     all.extend(controls::icon_button::stories());
@@ -150,6 +151,7 @@ const DECLARED: &[&[&str]] = &[
     primitives::text::COMPONENTS,
     primitives::icon::COMPONENTS,
     primitives::handle::COMPONENTS,
+    crate::canvas::story::COMPONENTS,
     crate::edit::COMPONENTS,
     controls::button::COMPONENTS,
     controls::icon_button::COMPONENTS,
@@ -180,4 +182,21 @@ const DECLARED: &[&[&str]] = &[
 /// Every component the crate's modules declare, in [`registry`] order.
 pub fn components() -> impl Iterator<Item = &'static str> {
     DECLARED.iter().flat_map(|list| list.iter().copied())
+}
+
+fn pixels_per_point_key() -> egui::Id {
+    egui::Id::unique("craft_ui::story::pixels_per_point")
+}
+
+/// Asks the gallery to draw at `pixels_per_point` while the story calling this shows, so canvas
+/// stories can show device-pixel drawing at a scale other than the screen's. The request holds for
+/// the pass it is made in; the gallery reads it with [`take_pixels_per_point_request`] at the end
+/// of the pass and returns to its own scale once no story makes it.
+pub fn request_pixels_per_point(ctx: &egui::Context, pixels_per_point: f32) {
+    ctx.data_mut(|d| d.insert_temp(pixels_per_point_key(), pixels_per_point));
+}
+
+/// The scale a story requested in this pass, if one did; clears the request.
+pub fn take_pixels_per_point_request(ctx: &egui::Context) -> Option<f32> {
+    ctx.data_mut(|d| d.remove_temp::<f32>(pixels_per_point_key()))
 }

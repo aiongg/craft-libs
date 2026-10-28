@@ -1098,6 +1098,7 @@ dependencies = [
  "fontique",
  "image",
  "js-sys",
+ "kurbo 0.13.1",
  "log",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
