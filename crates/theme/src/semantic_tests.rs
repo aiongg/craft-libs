@@ -212,9 +212,87 @@ fn pinned_mid_tone_panel_with_default_text_has_no_high_contrast_warnings() {
     def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#555555"))]);
     for mode in [Mode::Light, Mode::Dark] {
         let r = resolve(&def, app(mode, Contrast::High), None);
-        assert_eq!(r.tokens.color(T::SurfacePanel), if mode == Mode::Light { hex("#a6a6a6") } else { hex("#555555") });
+        let panel = r.tokens.color(T::SurfacePanel);
+        assert_eq!(panel, if mode == Mode::Light { hex("#a6a6a6") } else { hex("#555555") });
         assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
+        // The raised surface's anchored target lies above the panel; the pull for 7:1 text
+        // stops short of the panel, never past it.
+        assert!(r.tokens.color(T::SurfaceRaised).to_oklch().l >= panel.to_oklch().l, "{mode:?}");
     }
+}
+
+/// The background greys a theme doesn't pin.
+const ANCHORED: [T; 8] =
+    [T::SurfaceBackground, T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::StatePressed, T::StateSelected, T::LineDivider, T::LineControlEdge];
+
+#[test]
+fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
+    let plain = grey_blue();
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.panel-only").unwrap();
+    def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c4c4c4"))]);
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a"))]);
+    let l = |c: Rgba| c.to_oklch().l;
+    for mode in [Mode::Light, Mode::Dark] {
+        let curve = resolve(&plain, app(mode, Contrast::Standard), None).tokens;
+        let e = explain(&def, app(mode, Contrast::Standard), None);
+        let t = &e.resolved.tokens;
+        let panel = t.color(T::SurfacePanel);
+        for token in ANCHORED {
+            let want = l(curve.color(token)) - l(curve.color(T::SurfacePanel));
+            let got = l(t.color(token)) - l(panel);
+            // Both distances are measured on 8-bit colours.
+            assert!((want - got).abs() < 0.006, "{mode:?} {token:?}: {got:.3}, curve {want:.3}");
+        }
+        assert_eq!(t.color(T::StateDisabledFill), panel, "{mode:?}");
+        assert!(e.colors.iter().all(|o| o.pulled_for.is_none()), "{mode:?}: nothing needs a pull");
+        assert!(e.resolved.warnings.is_empty(), "{mode:?}: {:?}", e.resolved.warnings);
+    }
+}
+
+#[test]
+fn a_pinned_grey_overrides_its_anchored_value() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.panel-and-raised").unwrap();
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a")), (T::SurfaceRaised, hex("#202020")), (T::StateHover, hex("#4a4a4a"))]);
+    let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
+    for (token, value) in [(T::SurfaceRaised, "#202020"), (T::StateHover, "#4a4a4a")] {
+        let o = e.color(token).unwrap();
+        assert_eq!(o.value, hex(value), "{token:?}");
+        assert_ne!(o.derived, o.value, "{token:?}: the anchored value is what the pin replaces");
+    }
+}
+
+#[test]
+fn anchoring_leaves_a_theme_without_a_panel_pin_on_the_curve() {
+    for mode in [Mode::Light, Mode::Dark] {
+        let e = explain(&grey_blue(), app(mode, Contrast::Standard), None);
+        for o in &e.colors {
+            if let ColorSource::Anchored(n) = o.source {
+                assert_eq!(o.derived, e.ramps.neutral.step(n), "{mode:?} {:?}", o.token);
+            }
+        }
+    }
+}
+
+/// Text the theme pins can't move, so an anchored fill under it comes back toward the panel
+/// until the pair passes; a pinned fill stays.
+#[test]
+fn anchored_fills_are_pulled_toward_the_panel_for_pinned_text() {
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.pinned-muted").unwrap();
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#535353")), (T::TextMuted, hex("#d4d4d4")), (T::StateSelected, hex("#6b6b6b"))]);
+    let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
+    let t = &e.resolved.tokens;
+    let panel = t.color(T::SurfacePanel);
+    for bg in [T::SurfaceRaised, T::StateHover, T::StatePressed] {
+        let o = e.color(bg).unwrap();
+        assert_eq!(o.pulled_for, Some(T::TextMuted), "{bg:?}");
+        assert!(contrast_ratio(hex("#d4d4d4"), o.value) >= 4.5, "{bg:?}");
+        assert!(o.value.to_oklch().l >= panel.to_oklch().l && o.value.to_oklch().l < o.derived.to_oklch().l, "{bg:?}");
+    }
+    assert_eq!(t.color(T::StateSelected), hex("#6b6b6b"));
+    assert!(e.resolved.warnings.is_empty(), "{:?}", e.resolved.warnings);
 }
 
 #[test]

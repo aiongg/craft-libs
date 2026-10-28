@@ -1,12 +1,13 @@
-//! Colour derivation: seeds to ramps, ramps to tokens, pins, then the contrast pass; and the
-//! same for component colours: overrides, then their own contrast pass.
+//! Colour derivation: seeds to ramps, ramps to tokens, the background greys anchored on the
+//! panel, pins, then the contrast pass; and the same for component colours: overrides, then
+//! their own contrast pass.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Rgba};
 use super::components::{ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue};
 use super::contrast::{contrast_ratio, ensure_contrast};
-use super::ramp::{Mode, Ramp, RampKind};
+use super::ramp::{self, Mode, Ramp, RampKind};
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, ColorSource as Source, PairRule, RULES};
@@ -53,7 +54,7 @@ impl Ramps {
     /// moves toward; `None` for sources that use no ramp.
     pub fn steps_of(&self, source: Source) -> Option<(&Ramp, usize, Option<usize>)> {
         Some(match source {
-            Source::Neutral(n) | Source::NeutralAlpha(n, _) => (&self.neutral, n, None),
+            Source::Neutral(n) | Source::Anchored(n) | Source::NeutralAlpha(n, _) => (&self.neutral, n, None),
             Source::Accent(n) => (&self.accent, n, None),
             Source::AccentMix { from, to, .. } => (&self.accent, from, Some(to)),
             Source::Status(kind, n) => (self.status.get(kind), n, None),
@@ -73,6 +74,9 @@ pub(super) struct ColorSteps {
     pub pins: BTreeMap<ColorToken, PinLayer>,
     /// After pins, before the contrast pass.
     pub before_pass: ColorTokens,
+    /// Each anchored background the contrast pass pulled toward the panel, with the foreground
+    /// whose pair set how far.
+    pub pulls: BTreeMap<ColorToken, ColorToken>,
     /// Every pair of [`RULES`] on `before_pass`.
     pub pairs_before: Vec<ContrastCheck>,
     /// The same pairs on the final colours.
@@ -86,8 +90,9 @@ impl ColorSteps {
     }
 }
 
-/// Derives every colour of `theme` in `mode`: ramp defaults, pins, then the contrast pass.
-/// Returns the colours and the steps on the way, with every pair measured on the result.
+/// Derives every colour of `theme` in `mode`: ramp defaults, anchored greys moved to the
+/// panel's value, pins, then the contrast pass, which may pull anchored greys back toward the
+/// panel. Returns the colours and the steps on the way, with every pair measured on the result.
 pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast: Contrast) -> (ColorTokens, ColorSteps) {
     let seeds = &theme.seeds;
     let ramps = Ramps {
@@ -101,9 +106,17 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     for &t in ColorToken::ALL {
         c.set(t, direct(&ramps, values::source(t, mode)).unwrap_or(Rgba::BLACK));
     }
+    let pins: Vec<_> = pins(theme, app, mode, high).collect();
+    let panel = pins.iter().rev().find(|(_, t, _)| *t == TokenRef::Color(ColorToken::SurfacePanel)).map_or(c.surface.panel, |&(_, _, v)| v);
+    let anchor = Anchor::new(&ramps, seeds.neutral, panel, mode);
+    for &t in ColorToken::ALL {
+        if let Source::Anchored(n) = values::source(t, mode) {
+            c.set(t, anchor.target(n));
+        }
+    }
     let unpinned = c;
     let mut layers = BTreeMap::new();
-    for (layer, t, v) in pins(theme, app, mode, high) {
+    for (layer, t, v) in pins {
         if let TokenRef::Color(t) = t {
             c.set(t, v);
             layers.insert(t, layer);
@@ -114,8 +127,10 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     // pass too. On-solid text is the pass's own choice, so it is not re-derived afterwards.
     follow(&mut c, &pinned, mode, true);
     let before_pass = c;
+    let pass = Pass { pinned: &pinned, high, anchor };
+    let mut pulls = BTreeMap::new();
     for (i, rule) in RULES.iter().enumerate() {
-        fix_rule(&mut c, &pinned, rule, &RULES[..=i], high);
+        fix_rule(&mut c, &pass, rule, &RULES[..=i], &mut pulls);
     }
     follow(&mut c, &pinned, mode, false);
     let steps = ColorSteps {
@@ -123,6 +138,7 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
         derived: derived_values(&unpinned, &before_pass, &pinned, mode),
         pins: layers,
         before_pass,
+        pulls,
         pairs_before: measure(&before_pass, RULES, high),
         pairs: measure(&c, RULES, high),
     };
@@ -163,10 +179,66 @@ fn pins<'a>(theme: &'a ThemeDef, app: Option<&AppId>, mode: Mode, high: bool) ->
     })
 }
 
-/// The value of a source that needs no other token, or `None` for one that does.
+/// `surface.panel` as the anchor of the [`Anchored`](Source::Anchored) greys.
+#[derive(Clone, Copy, Debug)]
+struct Anchor {
+    seed: Rgba,
+    mode: Mode,
+    /// How far the panel's lightness lies from the panel's step on the curve. A panel equal to
+    /// its ramp step lies on the curve, which leaves the anchored steps as they are.
+    shift: f64,
+}
+
+impl Anchor {
+    fn new(ramps: &Ramps, seed: Rgba, panel: Rgba, mode: Mode) -> Anchor {
+        let step = values::panel_step(mode);
+        let shift = if panel == ramps.neutral.step(step) { 0.0 } else { panel.to_oklch().l - ramp::curve(mode)[step - 1] };
+        Anchor { seed, mode, shift }
+    }
+
+    /// Anchored step `n` at its curve distance from the panel.
+    fn target(&self, n: usize) -> Rgba {
+        self.at(n, ramp::curve(self.mode)[n.clamp(1, 12) - 1] + self.shift)
+    }
+
+    /// The panel's lightness.
+    fn panel(&self) -> f64 {
+        ramp::curve(self.mode)[values::panel_step(self.mode) - 1] + self.shift
+    }
+
+    /// Anchored step `n` with lightness `l`.
+    fn at(&self, n: usize, l: f64) -> Rgba {
+        ramp::neutral_at(self.seed, n, l)
+    }
+}
+
+/// What the contrast pass may move.
+struct Pass<'a> {
+    pinned: &'a BTreeSet<ColorToken>,
+    high: bool,
+    anchor: Anchor,
+}
+
+impl Pass<'_> {
+    /// The anchored step of a background the pass may pull toward the panel: an unpinned
+    /// [`Anchored`](Source::Anchored) token.
+    fn pullable(&self, bg: Bg) -> Option<(ColorToken, usize)> {
+        let Bg::Token(t) = bg else { return None };
+        match values::source(t, self.anchor.mode) {
+            Source::Anchored(n) if !self.pinned.contains(&t) => Some((t, n)),
+            _ => None,
+        }
+    }
+}
+
+/// Bisection steps when pulling an anchored background toward the panel; finer than a channel step.
+const PULL_STEPS: usize = 24;
+
+/// The value of a source that needs no other token, or `None` for one that does. An
+/// [`Anchored`](Source::Anchored) source gives its ramp step; [`anchor`] moves it.
 fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
     Some(match src {
-        Source::Neutral(n) => r.neutral.step(n),
+        Source::Neutral(n) | Source::Anchored(n) => r.neutral.step(n),
         Source::NeutralAlpha(n, a) => r.neutral.step(n).with_alpha(values::alpha(a)),
         Source::Accent(n) => r.accent.step(n),
         Source::AccentMix { from, to, t } => mix(r.accent.step(from), r.accent.step(to), t),
@@ -250,24 +322,28 @@ fn minimum(rule: &PairRule, high: bool) -> f64 {
     if high { rule.high } else { rule.standard }
 }
 
-/// Applies one rule. A pinned foreground is left alone in standard contrast and fixed in high.
-fn fix_rule(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, rule: &PairRule, done: &[PairRule], high: bool) {
+/// Applies one rule. A pinned foreground is left alone in standard contrast and fixed in high;
+/// the anchored backgrounds it fails on are pulled toward the panel either way.
+fn fix_rule(c: &mut ColorTokens, pass: &Pass, rule: &PairRule, done: &[PairRule], pulls: &mut BTreeMap<ColorToken, ColorToken>) {
+    let (pinned, high) = (pass.pinned, pass.high);
     let min = minimum(rule, high);
     // A text rule may move a state fill in high contrast when the text alone can't reach `min`.
     let moves_fills = high && !rule.on_solid;
     for round in 0..2 {
         for &fg in rule.fgs {
             if pinned.contains(&fg) && !high {
-                // Pinned on-solid text stays; the unpinned solids under it still move.
+                // Pinned text stays; the unpinned solids or anchored greys under it still move.
                 if rule.on_solid {
                     move_solids(c, pinned, c.get(fg), rule.bgs, min, false);
+                } else {
+                    pull(c, pass, fg, rule.bgs, min, pulls);
                 }
                 continue;
             }
             if rule.on_solid {
                 fix_on_solid(c, pinned, fg, rule.bgs, min, done, high);
             } else {
-                fix_fg(c, fg, rule.bgs, min);
+                fix_text(c, pass, fg, rule.bgs, min, pulls);
                 if moves_fills {
                     relax_state_fills(c, fg, rule.bgs, min);
                 }
@@ -277,6 +353,58 @@ fn fix_rule(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, rule: &PairRule,
         if round == 0 && !moves_fills {
             break;
         }
+    }
+}
+
+/// Fixes `fg` on `bgs`, moving the text first so the theme's greys stay where they are, then
+/// pulling the anchored backgrounds it still fails on toward the panel. When that leaves pairs
+/// failing, it also tries fixing the text only on the backgrounds that can't be pulled and
+/// pulling the rest, and keeps whichever leaves fewer pairs failing. Text between a pinned fill
+/// and an anchored one needs that: the colour best on both may pass on neither, while the colour
+/// that passes on the pinned fill passes on the other once it is pulled.
+fn fix_text(c: &mut ColorTokens, pass: &Pass, fg: ColorToken, bgs: &[Bg], min: f64, pulls: &mut BTreeMap<ColorToken, ColorToken>) {
+    let failing = |c: &ColorTokens| bgs.iter().filter(|&&b| ratio(c.get(fg), bg_color(c, b)) < min).count();
+    let trial = |fixed: &[Bg]| {
+        let (mut t, mut p) = (*c, BTreeMap::new());
+        fix_fg(&mut t, fg, fixed, min);
+        pull(&mut t, pass, fg, bgs, min, &mut p);
+        (failing(&t), t, p)
+    };
+    let mut best = trial(bgs);
+    if best.0 > 0 {
+        let fixed: Vec<Bg> = bgs.iter().copied().filter(|&b| pass.pullable(b).is_none()).collect();
+        let other = trial(&fixed);
+        if other.0 < best.0 {
+            best = other;
+        }
+    }
+    *c = best.1;
+    pulls.extend(best.2);
+}
+
+/// Pulls each unpinned anchored background among `bgs` that `fg` fails on toward the panel's
+/// lightness, along its own hue and chroma, just far enough. A background `fg` fails on even at
+/// the panel's lightness stays: the pair would fail on the panel too.
+fn pull(c: &mut ColorTokens, pass: &Pass, fg: ColorToken, bgs: &[Bg], min: f64, pulls: &mut BTreeMap<ColorToken, ColorToken>) {
+    let f = c.get(fg);
+    for &bg in bgs {
+        let Some((t, n)) = pass.pullable(bg) else { continue };
+        if ratio(f, bg_color(c, bg)) >= min {
+            continue;
+        }
+        let a = &pass.anchor;
+        let (from, to) = (c.get(t).to_oklch().l, a.panel());
+        let passes = |x: f64| ratio(f, a.at(n, from + (to - from) * x)) >= min;
+        if !passes(1.0) {
+            continue;
+        }
+        let (mut lo, mut hi) = (0.0, 1.0);
+        for _ in 0..PULL_STEPS {
+            let mid = (lo + hi) / 2.0;
+            if passes(mid) { hi = mid } else { lo = mid }
+        }
+        c.set(t, a.at(n, from + (to - from) * hi));
+        pulls.insert(t, fg);
     }
 }
 

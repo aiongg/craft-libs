@@ -61,22 +61,19 @@ impl Ramp {
             RampKind::Neutral => s.c.min(NEUTRAL_MAX_CHROMA),
             RampKind::Chromatic => s.c,
         };
-        let curve = match mode {
-            Mode::Light => &LIGHT_L,
-            Mode::Dark => &DARK_L,
-        };
+        let curve = curve(mode);
         let mut out = [Rgba::BLACK; 12];
         for (i, slot) in out.iter_mut().enumerate() {
             let step = i + 1;
-            let c = chroma * CHROMA_FACTOR[i];
             if kind == RampKind::Neutral {
-                *slot = Oklch { l: curve[i], c, h: s.h }.to_rgba();
+                *slot = neutral(s, i, curve[i]);
                 continue;
             }
             if step == 9 {
                 *slot = seed.with_alpha(255);
                 continue;
             }
+            let c = chroma * CHROMA_FACTOR[i];
             let gap = MIN_STEP_GAP * step.abs_diff(9) as f64;
             // Light ramps fall with the step number and dark ones rise, so `above` marks the
             // steps that must be lighter than step 9.
@@ -86,4 +83,24 @@ impl Ramp {
         }
         Ramp(out)
     }
+}
+
+/// The lightness curve of `mode`, step 1 first.
+pub(crate) const fn curve(mode: Mode) -> &'static [f64; 12] {
+    match mode {
+        Mode::Light => &LIGHT_L,
+        Mode::Dark => &DARK_L,
+    }
+}
+
+/// Step `step` (1 to 12) of the neutral ramp from `seed` with lightness `l`, clamped to 0..=1;
+/// hue and chroma as [`Ramp::from_seed`] gives the step. With the curve's lightness it equals
+/// the ramp's step.
+pub(crate) fn neutral_at(seed: Rgba, step: usize, l: f64) -> Rgba {
+    neutral(seed.to_oklch(), step.clamp(1, 12) - 1, l.clamp(0.0, 1.0))
+}
+
+/// The neutral colour at index `i` with lightness `l`, from the seed's OKLCH.
+fn neutral(seed: Oklch, i: usize, l: f64) -> Rgba {
+    Oklch { l, c: seed.c.min(NEUTRAL_MAX_CHROMA) * CHROMA_FACTOR[i], h: seed.h }.to_rgba()
 }

@@ -6,7 +6,7 @@ use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{ContrastCheck, Ramps};
 use super::resolve::{self, Resolved};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
-use super::tokens::{ColorToken, ColorTokens, ShapeTokens, TokenRef};
+use super::tokens::{ColorToken, ColorTokens, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
 use crate::AppId;
 
@@ -44,8 +44,51 @@ pub struct ColorOrigin {
     /// The value before the contrast pass, when the pass changed it. Tokens defined by other
     /// tokens count as changed when they follow a token the pass moved.
     pub contrast_move: Option<Rgba>,
+    /// For an [`Anchored`](ColorSource::Anchored) token the pass pulled toward `surface.panel`,
+    /// the foreground whose pair set how far; `contrast_move` then holds the anchored target.
+    pub pulled_for: Option<ColorToken>,
     /// The final value.
     pub value: Rgba,
+}
+
+impl ColorOrigin {
+    /// The derivation rule in words, with the pull when there is one: "neutral 4, anchored on
+    /// surface.panel, pulled toward it for text.muted".
+    pub fn source_words(&self) -> String {
+        let rule = source_words(self.source);
+        match self.pulled_for {
+            Some(fg) => format!("{rule}, pulled toward it for {}", fg.path()),
+            None => rule,
+        }
+    }
+}
+
+/// A derivation rule in words, e.g. "neutral 10", "neutral 4, anchored on surface.panel" or
+/// "accent 9 → 10 at 0.5".
+fn source_words(source: ColorSource) -> String {
+    let status = |kind: StatusKind| match kind {
+        StatusKind::Good => "good",
+        StatusKind::Warn => "warn",
+        StatusKind::Bad => "bad",
+        StatusKind::Info => "info",
+    };
+    match source {
+        ColorSource::Neutral(n) => format!("neutral {n}"),
+        ColorSource::Anchored(n) => format!("neutral {n}, anchored on {}", ColorToken::SurfacePanel.path()),
+        ColorSource::NeutralAlpha(n, a) => format!("neutral {n} at alpha {a}"),
+        ColorSource::Accent(n) => format!("accent {n}"),
+        ColorSource::AccentMix { from, to, t } => format!("accent {from} → {to} at {t}"),
+        ColorSource::Status(kind, n) => format!("status {} {n}", status(kind)),
+        ColorSource::StatusMix { kind, from, to, t } => format!("status {} {from} → {to} at {t}", status(kind)),
+        ColorSource::Fixed(c) => format!("fixed {}", c.to_hex()),
+        ColorSource::Oklch(l, c, h) => format!("oklch {l} {c} {h}"),
+        ColorSource::Same(t) => format!("= {}", t.path()),
+        ColorSource::OnSolid([only]) => format!("white or black on {}", only.path()),
+        ColorSource::OnSolid(solids) => match solids.first() {
+            Some(first) => format!("white or black on {} and {} more solids", first.path(), solids.len() - 1),
+            None => "white or black".to_owned(),
+        },
+    }
 }
 
 /// How a component colour field got its value.
@@ -124,6 +167,7 @@ pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
                 derived: steps.color.derived.get(token),
                 pin: steps.color.pins.get(&token).copied(),
                 contrast_move: changed(steps.color.before_pass.get(token), value),
+                pulled_for: steps.color.pulls.get(&token).copied(),
                 value,
             }
         })

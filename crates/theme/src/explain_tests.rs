@@ -221,3 +221,16 @@ fn reads_are_what_both_probes_agree_on() {
     assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, Some(T::AccentHover))]), [(f, None)]);
     assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, None)]), [(f, None)]);
 }
+
+#[test]
+fn a_pulled_anchored_token_names_its_target_and_the_pair() {
+    let mut def = unpinned();
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, Rgba::from_hex("#555555").unwrap())]);
+    let e = explain(&def, appearance(Mode::Dark, Contrast::High, Size::Compact), None);
+    let raised = e.color(T::SurfaceRaised).unwrap();
+    assert_eq!(raised.source, ColorSource::Anchored(4));
+    assert_eq!(raised.pulled_for, Some(T::TextNormal));
+    assert_eq!(raised.contrast_move, Some(raised.derived));
+    assert_eq!(raised.source_words(), "neutral 4, anchored on surface.panel, pulled toward it for text.normal");
+    assert_eq!(e.color(T::LineDivider).unwrap().source_words(), "neutral 6, anchored on surface.panel");
+}
