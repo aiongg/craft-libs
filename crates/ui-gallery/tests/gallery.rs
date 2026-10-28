@@ -56,6 +56,29 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
 }
 
 #[test]
+fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.select("primitives/focus-ring/focus");
+    gallery.set_inspect(true);
+    let items: Vec<String> = (1..=4).map(|i| format!("Item {i}")).collect();
+    for compare in [false, true] {
+        gallery.set_compare(compare);
+        // The first pass turns AccessKit on, the second builds the tree, the third draws it.
+        for _ in 0..3 {
+            frame(&ctx, &mut gallery);
+        }
+        let badges = gallery.focus_badges();
+        assert_eq!(badges.len(), if compare { 4 } else { 1 }, "one canvas, or one per compare column");
+        assert!(badges.iter().all(|b| *b == items), "{badges:?}");
+    }
+    assert!(craft_ui::inspect::enabled(&ctx));
+    gallery.set_tokens(true);
+    frame(&ctx, &mut gallery);
+    assert!(!craft_ui::inspect::enabled(&ctx), "the token browser has no inspector");
+}
+
+#[test]
 fn the_icon_set_picker_sets_the_active_set() {
     use craft_ui::icons::{self, IconSet};
     let ctx = Context::default();

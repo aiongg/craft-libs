@@ -18,6 +18,8 @@ pub struct Saved {
     pub compare: bool,
     /// The token browser instead of the stories.
     pub tokens: bool,
+    /// The inspector overlay on the story canvas.
+    pub inspect: bool,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,
     /// Edited args by story id.

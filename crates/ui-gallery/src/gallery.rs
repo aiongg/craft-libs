@@ -1,11 +1,13 @@
 //! The gallery app.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use craft_theme::{Mode, TextSize, TokenRef, builtins};
 use craft_ui::ComboBox;
 use craft_ui::direction;
 use craft_ui::icons::{self, IconSet};
+use craft_ui::inspect;
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
 use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
@@ -13,6 +15,7 @@ use egui::{CentralPanel, Frame, Margin, Panel, ScrollArea, Ui};
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
 use crate::faces;
+use crate::inspector::Inspector;
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -29,6 +32,9 @@ pub struct Gallery {
     /// The token browser instead of the stories.
     tokens: bool,
     browser: Browser,
+    /// The inspector over the story.
+    inspect: bool,
+    inspector: Inspector,
     /// Edited args by story id; a story gets its entry when first shown.
     args: HashMap<String, Args>,
     saved_args: HashMap<String, Vec<persist::SavedArg>>,
@@ -55,6 +61,8 @@ impl Gallery {
             compare_themes,
             tokens: saved.tokens,
             browser: Browser::default(),
+            inspect: saved.inspect,
+            inspector: Inspector::default(),
             args: HashMap::new(),
             saved_args: saved.args,
         }
@@ -76,6 +84,16 @@ impl Gallery {
         self.tokens = tokens;
     }
 
+    /// Draws the inspector over the story.
+    pub fn set_inspect(&mut self, inspect: bool) {
+        self.inspect = inspect;
+    }
+
+    /// The labels of the focus-order badges of each canvas the inspector drew in the last frame.
+    pub fn focus_badges(&self) -> Vec<Vec<String>> {
+        self.inspector.cells().iter().map(|c| c.badges.clone()).collect()
+    }
+
     /// Selects a row of the token browser.
     pub fn select_token(&mut self, token: TokenRef) {
         self.browser.select(token);
@@ -95,14 +113,21 @@ impl Gallery {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         Panel::top("gallery.bar").show(ui, |ui| self.appearance_bar(ui));
+        let inspecting = self.inspect && !self.tokens;
+        inspect::set_enabled(&ctx, inspecting);
         if self.tokens {
             self.browser.show(ui, &self.base, self.appearance.mode());
             return;
         }
         direction::start_panel(&ctx, "gallery.tree").default_size(240.0).show(ui, |ui| self.tree(ui));
-        direction::end_panel(&ctx, "gallery.args").default_size(240.0).show(ui, |ui| self.args_panel(ui));
+        if inspecting {
+            self.inspector.begin(&ctx, Arc::clone(&tokens));
+            direction::end_panel(&ctx, "gallery.inspect").default_size(320.0).show(ui, |ui| self.inspector.panel(ui));
+        } else {
+            direction::end_panel(&ctx, "gallery.args").default_size(240.0).show(ui, |ui| self.args_panel(ui));
+        }
         let frame = Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(Margin::same(12));
-        CentralPanel::default().frame(frame).show(ui, |ui| self.centre(ui));
+        CentralPanel::default().frame(frame).show(ui, |ui| self.centre(ui, inspecting));
     }
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
@@ -128,8 +153,10 @@ impl Gallery {
     fn appearance_bar(&mut self, ui: &mut Ui) {
         let a = &mut self.appearance;
         let tokens = &mut self.tokens;
+        let inspect = &mut self.inspect;
         ui.horizontal_wrapped(|ui| {
             ui.toggle_value(tokens, "Tokens");
+            ui.add_enabled_ui(!*tokens, |ui| ui.toggle_value(inspect, "Inspect"));
             ui.separator();
             let themes = builtins();
             let current = builtin(&a.theme).map_or(a.theme.as_str(), |t| t.name.as_str()).to_owned();
@@ -200,11 +227,7 @@ impl Gallery {
 
     /// The args of `story`, from the saved values on first use.
     fn args_of(&mut self, story: &Story) -> &mut Args {
-        let saved = &self.saved_args;
-        self.args.entry(story.id.to_owned()).or_insert_with(|| match saved.get(story.id) {
-            Some(values) => persist::restore_args(story.defaults(), values),
-            None => story.defaults(),
-        })
+        args_of(&mut self.args, &self.saved_args, story)
     }
 
     fn args_panel(&mut self, ui: &mut Ui) {
@@ -245,7 +268,7 @@ impl Gallery {
         });
     }
 
-    fn centre(&mut self, ui: &mut Ui) {
+    fn centre(&mut self, ui: &mut Ui, inspecting: bool) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.compare, false, "Canvas");
             ui.selectable_value(&mut self.compare, true, "Compare");
@@ -273,12 +296,13 @@ impl Gallery {
         let appearance = self.appearance.clone();
         let themes = self.compare_themes.clone();
         let compare = self.compare;
-        let args = self.args_of(&story);
+        let args = args_of(&mut self.args, &self.saved_args, &story);
+        let inspector = inspecting.then_some(&mut self.inspector);
         ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
             if compare {
-                compare_grid(ui, &story, args, &appearance, &themes);
+                compare_grid(ui, &story, args, &appearance, &themes, inspector);
             } else {
-                canvas(ui, &story, args, &appearance);
+                canvas(ui, &story, args, &appearance, inspector);
             }
         });
     }
@@ -301,10 +325,19 @@ impl eframe::App for Gallery {
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             tokens: self.tokens,
+            inspect: self.inspect,
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
     }
+}
+
+/// The args of `story` in `args`, from the saved values on first use.
+fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<persist::SavedArg>>, story: &Story) -> &'a mut Args {
+    args.entry(story.id.to_owned()).or_insert_with(|| match saved.get(story.id) {
+        Some(values) => persist::restore_args(story.defaults(), values),
+        None => story.defaults(),
+    })
 }
 
 fn matches(story: &Story, filter: &str) -> bool {
@@ -338,20 +371,29 @@ fn segmented(ui: &mut Ui, label: &str, value: &mut bool, options: [(&str, bool);
 }
 
 /// The story on `surface.background` under the bar's appearance.
-fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance) {
-    scope(ui, |o| appearance.overrides(o), |ui| framed(ui, story, args));
+fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, inspector: Option<&mut Inspector>) {
+    scope(ui, |o| appearance.overrides(o), |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
 }
 
-fn framed(ui: &mut Ui, story: &Story, args: &mut Args) {
-    let fill = Tokens::of(ui).color.surface.background.to_egui();
-    Frame::new().fill(fill).inner_margin(Margin::same(16)).show(ui, |ui| {
+/// The story in its frame, with the inspector over it when there is one.
+fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
+    let tokens = Tokens::of(ui);
+    let fill = tokens.color.surface.background.to_egui();
+    let framed = Frame::new().fill(fill).inner_margin(Margin::same(16)).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
-        ui.push_id(story.id, |ui| (story.show)(ui, args));
+        ui.push_id(story.id, |ui| {
+            (story.show)(ui, args);
+            ui.unique_id()
+        })
+        .inner
     });
+    if let Some(inspector) = inspector {
+        inspector.overlay(ui, name.to_owned(), framed.response.rect, framed.inner.accesskit_id(), tokens.size.control.sm, rtl);
+    }
 }
 
 /// Rows: the chosen themes. Columns: light and dark, each in standard and high contrast.
-fn compare_grid(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, themes: &[String]) {
+fn compare_grid(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, themes: &[String], mut inspector: Option<&mut Inspector>) {
     const COLUMNS: [(Mode, bool); 4] = [(Mode::Light, false), (Mode::Light, true), (Mode::Dark, false), (Mode::Dark, true)];
     for id in themes {
         let Some(theme) = builtin(id) else {
@@ -372,7 +414,7 @@ fn compare_grid(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appear
                         },
                         |ui| {
                             ui.label(name.as_str());
-                            framed(ui, story, args);
+                            framed(ui, story, args, inspector.as_deref_mut(), &format!("{} · {name}", theme.name), appearance.rtl);
                         },
                     );
                 });
