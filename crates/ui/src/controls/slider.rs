@@ -9,8 +9,8 @@ use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2,
-    pos2, vec2,
+    AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Response, Sense, Stroke,
+    StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
 use super::{RangeSlider, SIZE_NAMES, size_arg};
@@ -37,13 +37,18 @@ pub struct SliderStyle {
     pub track: SurfaceStyle,
     /// The filled part, from the start to the value: `slider.fill`.
     pub fill: States<Color32>,
-    /// A thumb's shape: a raised [`Surface`] (its border, or bevel) with `slider.radius` corners
-    /// clamped to half its side. Its fill and border colour change with the state.
+    /// A thumb's shape: a knob [`Surface`] (its border, or bevel, and the knob shadow) with
+    /// `slider.radius` corners clamped to half its side. Its fill and border colour change with
+    /// the state; a disabled thumb has no shadow.
     pub thumb_surface: SurfaceStyle,
     /// `slider.thumb.fill`.
     pub thumb_fill: States<Color32>,
     /// `slider.thumb.border`; a bevel keeps its own colours.
     pub thumb_border: States<Color32>,
+    /// The ring round a thumb, outside its edge: `slider.ring`.
+    pub ring: States<Color32>,
+    /// `slider.ring_width`.
+    pub ring_width: f32,
 }
 
 /// A value in a range, set by dragging along a track:
@@ -187,7 +192,9 @@ impl Slider {
             paint_track(ui, &style, &track);
             let x = track.x_of(shown);
             paint_fill(ui, &style, &track, track.rect.left(), x, color(&style.fill));
-            paint_thumb(ui, &style, pos2(x, track.y), color(&style.thumb_fill), color(&style.thumb_border));
+            let paint =
+                ThumbPaint { fill: color(&style.thumb_fill), border: color(&style.thumb_border), ring: color(&style.ring), enabled: sensing.enabled };
+            paint_thumb(ui, &style, pos2(x, track.y), paint);
         }
         EditResponse::new(response, gesture.finish())
     }
@@ -198,12 +205,9 @@ impl Slider {
         let mut track = Surface::style(tokens, SurfaceKind::Sunken);
         track.fill = s.track.to_egui();
         track.radius = corner_radius(s.radius.min(s.track_height / 2.0));
-        let mut thumb_surface = Surface::style(tokens, SurfaceKind::Raised);
-        thumb_surface.fill = s.thumb_colors.fill.rest.to_egui();
+        let mut thumb_surface = Surface::style(tokens, SurfaceKind::Knob);
         thumb_surface.radius = corner_radius(s.radius.min(thumb / 2.0));
-        if let SurfaceEdge::Border(stroke) = thumb_surface.edge {
-            thumb_surface.edge = SurfaceEdge::Border(Stroke::new(stroke.width, s.thumb_colors.border.rest.to_egui()));
-        }
+        let thumb_surface = knob(thumb_surface, s.thumb_colors.fill.rest.to_egui(), s.thumb_colors.border.rest.to_egui(), true);
         SliderStyle {
             height: s.height.get(size),
             width: s.width.get(size),
@@ -214,6 +218,8 @@ impl Slider {
             thumb_surface,
             thumb_fill: s.thumb_colors.fill.to_egui(),
             thumb_border: s.thumb_colors.border.to_egui(),
+            ring: s.ring.to_egui(),
+            ring_width: s.ring_width,
         }
     }
 }
@@ -544,17 +550,38 @@ pub(super) fn paint_fill(ui: &Ui, style: &SliderStyle, track: &Track, from: f32,
     }
 }
 
+/// A thumb's colours now, from its state.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ThumbPaint {
+    pub fill: Color32,
+    pub border: Color32,
+    pub ring: Color32,
+    pub enabled: bool,
+}
+
 /// Paints a thumb centred on `center` and returns its rect.
-pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, fill: Color32, border: Color32) -> Rect {
+pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, paint: ThumbPaint) -> Rect {
     let ppp = ui.pixels_per_point();
     let rect = Rect::from_center_size(center, Vec2::splat(style.thumb)).round_to_pixels(ppp);
-    let mut surface = style.thumb_surface;
+    let surface = knob(style.thumb_surface, paint.fill, paint.border, paint.enabled);
+    ui.painter().extend(surface.shapes(rect, ppp));
+    if paint.ring != Color32::TRANSPARENT {
+        ui.painter().rect_stroke(rect, surface.radius, Stroke::new(style.ring_width, paint.ring), StrokeKind::Outside);
+    }
+    rect
+}
+
+/// A knob surface (a slider or switch thumb) with these colours; a bevel keeps its own. A
+/// disabled knob lies flat, so it never stands out more than an enabled one.
+pub(super) fn knob(mut surface: SurfaceStyle, fill: Color32, border: Color32, enabled: bool) -> SurfaceStyle {
     surface.fill = fill;
     if let SurfaceEdge::Border(stroke) = surface.edge {
         surface.edge = SurfaceEdge::Border(Stroke::new(stroke.width, border));
     }
-    ui.painter().extend(surface.shapes(rect, ppp));
-    rect
+    if !enabled {
+        surface.shadow = None;
+    }
+    surface
 }
 
 /// The components this module has stories for.

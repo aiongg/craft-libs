@@ -185,8 +185,11 @@ fn slider() {
         surface(d, "track", &s.track);
         states(d, "fill", &s.fill);
         surface(d, "thumb.surface", &s.thumb_surface);
+        d.line("thumb.surface.shadow", s.thumb_surface.shadow);
         states(d, "thumb.fill", &s.thumb_fill);
         states(d, "thumb.border", &s.thumb_border);
+        states(d, "ring", &s.ring);
+        d.line("ring_width", s.ring_width);
     });
 }
 
@@ -306,6 +309,10 @@ fn switch() {
         indicator_edge(d, &s.surface);
         indicator(d, "off", &s.off);
         indicator(d, "on", &s.on);
+        surface(d, "thumb.surface", &s.thumb_surface);
+        d.line("thumb.surface.shadow", s.thumb_surface.shadow);
+        states(d, "thumb.fill", &s.thumb_fill);
+        states(d, "thumb.border", &s.thumb_border);
         states(d, "text", &s.text);
     });
 }

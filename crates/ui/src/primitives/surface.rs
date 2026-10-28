@@ -29,6 +29,9 @@ pub enum SurfaceKind {
     Popup,
     /// Dialogs: `surface.raised` with the dialog shadow.
     Dialog,
+    /// A knob that rides on a track (slider and switch thumbs): `surface.knob` with the knob
+    /// shadow, outlined with `line.knob_edge` or bevelled out. Controls give it their own corners.
+    Knob,
 }
 
 impl SurfaceKind {
@@ -41,6 +44,7 @@ impl SurfaceKind {
         SurfaceKind::Pressed,
         SurfaceKind::Popup,
         SurfaceKind::Dialog,
+        SurfaceKind::Knob,
     ];
 
     /// The name in story args and dumps, e.g. `"popup"`.
@@ -53,6 +57,7 @@ impl SurfaceKind {
             SurfaceKind::Pressed => "pressed",
             SurfaceKind::Popup => "popup",
             SurfaceKind::Dialog => "dialog",
+            SurfaceKind::Knob => "knob",
         }
     }
 
@@ -61,7 +66,7 @@ impl SurfaceKind {
         match self {
             SurfaceKind::Background => None,
             SurfaceKind::Panel => Some(Corner::Panel),
-            SurfaceKind::Raised | SurfaceKind::Sunken | SurfaceKind::Pressed => Some(Corner::Control),
+            SurfaceKind::Raised | SurfaceKind::Sunken | SurfaceKind::Pressed | SurfaceKind::Knob => Some(Corner::Control),
             SurfaceKind::Popup => Some(Corner::Popup),
             SurfaceKind::Dialog => Some(Corner::Window),
         }
@@ -89,7 +94,7 @@ pub struct SurfaceStyle {
     pub fill: Color32,
     pub radius: CornerRadius,
     pub edge: SurfaceEdge,
-    /// Drawn under the fill.
+    /// Drawn under the fill; `None` where the elevation casts none.
     pub shadow: Option<Shadow>,
 }
 
@@ -119,8 +124,8 @@ impl SurfaceStyle {
 /// [`Surface::paint`] draws it over a given rect.
 ///
 /// Components ask for a kind, never for a fill or a border. With the theme's
-/// [`Edge::Bevel`], raised, popup and dialog surfaces are lit on the top and left, sunken and
-/// pressed ones on the bottom and right, and none has a border. The bevel is lighting, so it
+/// [`Edge::Bevel`], raised, popup, dialog and knob surfaces are lit on the top and left, sunken
+/// and pressed ones on the bottom and right, and none has a border. The bevel is lighting, so it
 /// does not mirror in a right-to-left interface.
 #[derive(Clone, Copy, Debug)]
 pub struct Surface {
@@ -142,20 +147,24 @@ impl Surface {
             K::Raised | K::Popup | K::Dialog => c.surface.raised,
             K::Sunken => c.surface.sunken,
             K::Pressed => c.state.pressed,
+            K::Knob => c.surface.knob,
         };
         let radius = kind.corner().map_or(CornerRadius::ZERO, |corner| corner.radius(tokens));
         let shadow = match kind {
             K::Popup => Some(tokens.shadow.popup),
             K::Dialog => Some(tokens.shadow.dialog),
+            K::Knob => Some(tokens.shadow.knob),
             _ => None,
-        };
+        }
+        .filter(|shadow| shadow.color.a() > 0);
         // Container and control outlines are one point wide.
         let width = craft_theme::Stroke::W1.width(1.0);
         let edge = match (tokens.shape.edge, kind) {
             (_, K::Background | K::Panel) => SurfaceEdge::None,
             (Edge::Flat, K::Raised | K::Popup | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Sunken | K::Pressed) => SurfaceEdge::Border(Stroke::new(width, c.line.control_edge.to_egui())),
-            (Edge::Bevel { light, dark, width }, K::Raised | K::Popup | K::Dialog) => {
+            (Edge::Flat, K::Knob) => SurfaceEdge::Border(Stroke::new(width, c.line.knob_edge.to_egui())),
+            (Edge::Bevel { light, dark, width }, K::Raised | K::Popup | K::Dialog | K::Knob) => {
                 SurfaceEdge::Bevel { top_left: light.to_egui(), bottom_right: dark.to_egui(), width }
             }
             (Edge::Bevel { light, dark, width }, K::Sunken | K::Pressed) => {
@@ -243,7 +252,7 @@ fn bevel(rect: Rect, radius: CornerRadius, width: f32, top_left: Color32, bottom
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Surface"];
 
-const KIND_NAMES: &[&str] = &["background", "panel", "raised", "sunken", "pressed", "popup", "dialog"];
+const KIND_NAMES: &[&str] = &["background", "panel", "raised", "sunken", "pressed", "popup", "dialog", "knob"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -288,6 +297,19 @@ fn show_surfaces(ui: &mut Ui, _: &mut Args) {
 }
 
 fn sample(ui: &mut Ui, kind: SurfaceKind) {
+    if kind == SurfaceKind::Knob {
+        // A knob carries no text: a round one at the icon size, named beside it.
+        super::Row::new(super::Gap::Inline).show(ui, |ui| {
+            let tokens = Tokens::of(ui);
+            let side = tokens.size.icon.md;
+            let (rect, _) = ui.allocate_exact_size(vec2(side, side), egui::Sense::hover());
+            let mut style = Surface::style(&tokens, kind);
+            style.radius = crate::theme::corner_radius(side / 2.0);
+            ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
+            ui.add(super::Text::new(kind.name()));
+        });
+        return;
+    }
     Surface::new(kind).show(ui, |ui| {
         super::Stack::new(super::Gap::Inline).pad(super::Pad::Control).show(ui, |ui| {
             ui.set_min_width(160.0);

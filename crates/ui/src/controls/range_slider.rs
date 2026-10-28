@@ -6,7 +6,9 @@ use craft_theme::{ControlSize, States};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Ui, Vec2, pos2};
 
-use super::slider::{KEY_FILTER, Scale, Sensing, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, tap, with_values};
+use super::slider::{
+    KEY_FILTER, Scale, Sensing, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, tap, with_values,
+};
 use super::{SIZE_NAMES, Slider, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Gap, Interactive, Stack, StateLayer};
@@ -208,9 +210,13 @@ impl RangeSlider {
             paint_track(ui, &style, &track);
             paint_fill(ui, &style, &track, x_lo, x_hi, color(&style.fill, id, lit_span));
             for ((response, x), lit) in thumbs.iter().zip([x_lo, x_hi]).zip([lit_lo, lit_hi]) {
-                let fill = color(&style.thumb_fill, response.id, lit);
-                let border = color(&style.thumb_border, response.id, lit);
-                let rect = paint_thumb(ui, &style, pos2(x, track.y), fill, border);
+                let paint = ThumbPaint {
+                    fill: color(&style.thumb_fill, response.id, lit),
+                    border: color(&style.thumb_border, response.id, lit),
+                    ring: color(&style.ring, response.id, lit),
+                    enabled: sensing.enabled,
+                };
+                let rect = paint_thumb(ui, &style, pos2(x, track.y), paint);
                 FocusRing::paint_radius(ui, rect, style.thumb_surface.radius, response);
             }
         }

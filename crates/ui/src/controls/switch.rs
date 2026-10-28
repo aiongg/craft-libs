@@ -3,15 +3,16 @@
 use craft_theme::{ControlSize, Easing, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Pos2, Rect, Ui, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Pos2, Rect, Ui, Vec2, pos2, vec2};
 
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, indicator_shapes, label_colors};
 use super::checkbox::LONG_LABEL;
+use super::slider::knob;
 use super::{SIZE_NAMES, salt, size_arg};
 use crate::direction::{self, Direction};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
-use crate::primitives::{Divider, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle};
+use crate::primitives::{Divider, Gap, Interactive, Stack, StateLayer, Surface, SurfaceKind, SurfaceStyle};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -36,10 +37,17 @@ pub struct SwitchStyle {
     /// The sunken surface the track draws on, for its edge (a border, or a bevel in bevel
     /// themes); the fill and the round ends are the track's own.
     pub surface: SurfaceStyle,
-    /// Off: `check.off.*`; the mark is the thumb.
+    /// Off: `check.off.*` (no mark).
     pub off: IndicatorColors,
-    /// On: `check.on.*`.
+    /// On: `check.on.*`; the mark isn't drawn.
     pub on: IndicatorColors,
+    /// The thumb's shape: a round knob [`Surface`] (its border, or bevel, and the knob shadow);
+    /// a disabled thumb has no shadow.
+    pub thumb_surface: SurfaceStyle,
+    /// `check.thumb.fill`, the same off and on.
+    pub thumb_fill: States<Color32>,
+    /// `check.thumb.border`; a bevel keeps its own colours.
+    pub thumb_border: States<Color32>,
     /// The label: `text.normal`, `text.disabled`.
     pub text: States<Color32>,
     /// How long the thumb takes to cross, in seconds: `motion.move`, none with reduced motion.
@@ -56,7 +64,8 @@ pub struct SwitchStyle {
 /// held. AccessKit reports a `Switch` named by the label, toggled, after this frame's click.
 ///
 /// The track sits at the reading start on a sunken [`Surface`] with round ends: `check.off.*`
-/// with an outline and a `check.off.mark` thumb, or `check.on.*` with a `check.on.mark` thumb.
+/// with an outline, or `check.on.*`. The thumb is a knob, the same off and on, so the track's
+/// colour and the thumb's place show the state.
 #[derive(Debug)]
 pub struct Switch<'a> {
     label: String,
@@ -117,8 +126,11 @@ impl<'a> Switch<'a> {
             let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
             let round = CornerRadius::from(style.track_height / 2.0);
             ui.painter().extend(indicator_shapes(ui, &style.surface, track, round, paint));
-            let thumb = Switch::thumb(&style, track, position, if direction::is_rtl(ui) { Direction::Rtl } else { Direction::Ltr });
-            ui.painter().circle_filled(thumb.round_to_pixels(ui.pixels_per_point()), style.thumb / 2.0, paint.mark);
+            let center = Switch::thumb(&style, track, position, if direction::is_rtl(ui) { Direction::Rtl } else { Direction::Ltr });
+            let ppp = ui.pixels_per_point();
+            let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
+            let thumb = knob(style.thumb_surface, color(&style.thumb_fill), color(&style.thumb_border), response.enabled());
+            ui.painter().extend(thumb.shapes(Rect::from_center_size(center, Vec2::splat(style.thumb)).round_to_pixels(ppp), ppp));
             laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));
         }
         EditResponse::new(laid.tooltip(response, &self.label), gesture.finish())
@@ -128,17 +140,23 @@ impl<'a> Switch<'a> {
         let c = &tokens.component.check;
         let track_height = c.size.get(size);
         let motion = tokens.motion.r#move;
+        let thumb = track_height - 2.0 * c.thumb_inset;
+        let mut thumb_surface = Surface::style(tokens, SurfaceKind::Knob);
+        thumb_surface.radius = CornerRadius::from(thumb / 2.0);
         SwitchStyle {
             height: c.height.get(size),
             width: c.track.get(size),
             track_height,
-            thumb: track_height - 2.0 * c.thumb_inset,
+            thumb,
             inset: c.thumb_inset,
             gap: c.gap,
             label: c.label,
             surface: Surface::style(tokens, SurfaceKind::Sunken),
             off: IndicatorColors::from(&c.off),
             on: IndicatorColors::from(&c.on),
+            thumb_surface: knob(thumb_surface, c.thumb.fill.rest.to_egui(), c.thumb.border.rest.to_egui(), true),
+            thumb_fill: c.thumb.fill.to_egui(),
+            thumb_border: c.thumb.border.to_egui(),
             text: label_colors(tokens),
             travel: motion.millis as f32 / 1000.0,
             easing: motion.easing,

@@ -5,7 +5,7 @@ use craft_theme::{
     resolve,
 };
 use egui::epaint::Vertex;
-use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Shape, Ui, vec2};
+use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Shape, Ui, Vec2, vec2};
 
 use super::*;
 use crate::primitives::{Corner, SurfaceKind};
@@ -283,10 +283,37 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
             assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
             assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
             assert_eq!((s.surface, s.off, s.on), (sunken, off, on));
+            assert_eq!((s.thumb_fill, s.thumb_border), (c.thumb.fill.to_egui(), c.thumb.border.to_egui()));
             assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
             for state in State::ALL {
                 assert_eq!([b.text.get(state), r.text.get(state), s.text.get(state)], [text(state); 3], "{state:?}");
             }
+        }
+    }
+}
+
+/// Slider and switch thumbs are knobs in both modes: a light `surface.knob` face (Classic: its
+/// bevelled panel grey) on the knob surface, round on a switch, and a slider thumb's ring is
+/// `accent.soft` while hovered or pressed.
+#[test]
+fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
+    for t in every_builtin() {
+        let c = &t.color;
+        let face = c.surface.knob.to_egui();
+        let knob = crate::primitives::Surface::style(&t, SurfaceKind::Knob);
+        if matches!(knob.edge, crate::primitives::SurfaceEdge::Border(_)) {
+            assert!(c.surface.knob.to_oklch().l > 0.9, "{:?}: the knob face {} is light", t.mode, c.surface.knob.to_hex());
+        }
+        let (soft, clear) = (c.accent.soft.to_egui(), Color32::TRANSPARENT);
+        for size in SIZES {
+            let s = Slider::style(&t, size);
+            assert_eq!([s.thumb_fill.rest, s.thumb_fill.hover, s.thumb_fill.pressed], [face; 3], "{:?}", t.mode);
+            assert_eq!((s.thumb_surface.fill, s.thumb_surface.edge, s.thumb_surface.shadow), (face, knob.edge, knob.shadow));
+            assert_eq!((s.ring, s.ring_width), (craft_theme::States::new(clear, soft, soft, clear), 2.0));
+            let w = Switch::style(&t, size);
+            assert_eq!([w.thumb_fill.rest, w.thumb_fill.hover, w.thumb_fill.pressed], [face; 3], "{:?}", t.mode);
+            assert_eq!((w.thumb_surface.fill, w.thumb_surface.edge, w.thumb_surface.shadow), (face, knob.edge, knob.shadow));
+            assert_eq!(w.thumb_surface.radius, egui::CornerRadius::from(w.thumb / 2.0));
         }
     }
 }
@@ -346,8 +373,8 @@ fn a_switch_thumb_slides_from_the_reading_start_over_motion_move_and_at_once_wit
     assert!(travel(false) > 0.0);
     assert_eq!(travel(true), 0.0);
 
-    // Painted: the thumb is the circle with the thumb's radius; one frame after a click it is on
-    // its way, or already at the end with reduced motion.
+    // Painted: the thumb is the knob's face, a filled square of the thumb's side; one frame after
+    // a click it is on its way, or already at the end with reduced motion.
     for reduced in [false, true] {
         let ctx = motion_context(reduced);
         let (rect, on) = (Cell::new(Rect::NOTHING), Cell::new(false));
@@ -355,7 +382,11 @@ fn a_switch_thumb_slides_from_the_reading_start_over_motion_move_and_at_once_wit
             let thumbs: Vec<f32> = shapes
                 .iter()
                 .filter_map(|s| match s {
-                    Shape::Circle(c) if (c.radius - style.thumb / 2.0).abs() < 0.01 => Some(c.center.x),
+                    Shape::Rect(r)
+                        if r.blur_width == 0.0 && r.fill != Color32::TRANSPARENT && (r.rect.size() - Vec2::splat(style.thumb)).length() < 0.01 =>
+                    {
+                        Some(r.rect.center().x)
+                    }
                     _ => None,
                 })
                 .collect();
@@ -412,10 +443,15 @@ fn bevel_themes_sink_check_boxes_radio_buttons_and_switch_tracks() {
         let side = if control == 2 { vec2(Switch::style(&t, ControlSize::Md).width, s.side) } else { vec2(s.side, s.side) };
         let indicator = Rect::from_min_size(egui::pos2(rect.get().left(), rect.get().center().y - side.y / 2.0), side);
         // Round shapes: the bevel splits at 45 degrees through the corners, so compare the top
-        // and bottom middle.
+        // and bottom middle; on the switch, right of the middle, clear of the raised thumb at the
+        // start.
         let (top_left, bottom_right) = match control {
             0 => bevel_corners(&shapes, indicator),
-            _ => bevel_at(&shapes, indicator, indicator.center_top(), indicator.center_bottom()),
+            1 => bevel_at(&shapes, indicator, indicator.center_top(), indicator.center_bottom()),
+            _ => {
+                let x = indicator.center().x + indicator.width() / 8.0;
+                bevel_at(&shapes, indicator, egui::pos2(x, indicator.top()), egui::pos2(x, indicator.bottom()))
+            }
         };
         assert_eq!((top_left, bottom_right), (dark, light), "control {control}: a sunken indicator, shaded on the top left");
     }
