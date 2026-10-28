@@ -9,7 +9,7 @@ third-party dependencies. Enable only the services a host uses.
 | default | Typed dialog outcomes; no backend or toolkit. |
 | `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
 | `egui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
-| `appearance` | Linux/BSD XDG desktop preference observation, owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
+| `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
 
 
@@ -72,6 +72,18 @@ precedence, absence of both answers releases the native pin, and `sync_window_th
 It does not change styles or theme preference. Hosts whose custom palette is manual but whose
 native window follows System keep observation active for the native window. Native decoration
 rendering still depends on the window manager and requires visible acceptance testing.
+
+### Contrast and reduced motion
+
+`Watcher::contrast()` (`Contrast::Standard` or `High`) and `Watcher::reduced_motion()` follow the
+portal's `org.freedesktop.appearance` `contrast` and `reduced-motion` keys. Without a
+`reduced-motion` key, GNOME's `org.gnome.desktop.interface` `enable-animations` stands in. Both
+are read beside the theme, so `wait_first` returns with them, and a change runs the same wake
+callback. `None` means no answer yet or no such key; the `gsettings` fallback doesn't read them.
+macOS and Windows have no watcher (their settings need platform bindings, and the crate forbids
+`unsafe`). On the web, `browser_contrast()` and `browser_reduced_motion()` evaluate the
+`prefers-contrast: more` and `prefers-reduced-motion: reduce` media queries on each call, with
+no change notification.
 
 ## Browser downloads
 

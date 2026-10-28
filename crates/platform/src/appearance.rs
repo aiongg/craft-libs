@@ -1,4 +1,5 @@
-//! Desktop colour preference and GNOME's window-button layout through the XDG Settings portal.
+//! Desktop colour, contrast and motion preferences and GNOME's window-button layout through the
+//! XDG Settings portal, plus the browser's contrast and motion media queries on the web.
 //!
 //! Derived from PdfCraft's activation-safe subscription and GNOME schema fallback,
 //! CADCraft's BSD support, and ArtCraft Launcher's ReadOne/Read compatibility.
@@ -20,8 +21,21 @@ pub enum Theme {
     Light,
 }
 
+/// Desktop contrast preference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Contrast {
+    /// The desktop has no contrast preference.
+    Standard,
+    /// The desktop requests higher contrast.
+    High,
+}
+
 struct Shared {
     value: AtomicU8,
+    /// 0 unknown, 1 standard, 2 high.
+    contrast: AtomicU8,
+    /// 0 unknown, 1 animations allowed, 2 reduced motion.
+    motion: AtomicU8,
     active: AtomicBool,
     /// True once the source has answered, found no answer, or been cancelled.
     settled: Mutex<bool>,
@@ -59,6 +73,26 @@ impl Shared {
         if changed && self.active.load(Ordering::Acquire) {
             (self.wake)();
         }
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_code(&self, slot: &AtomicU8, code: u8) {
+        if slot.swap(code, Ordering::AcqRel) != code && self.active.load(Ordering::Acquire) {
+            (self.wake)();
+        }
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_contrast(&self, contrast: Contrast) {
+        self.publish_code(
+            &self.contrast,
+            match contrast {
+                Contrast::Standard => 1,
+                Contrast::High => 2,
+            },
+        );
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_motion(&self, reduced: bool) {
+        self.publish_code(&self.motion, if reduced { 2 } else { 1 });
     }
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     fn publish_layout(&self, layout: String) {
@@ -121,6 +155,35 @@ impl Watcher {
     pub fn button_layout(&self) -> Option<String> {
         self.shared.layout.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
+    /// The desktop's contrast preference, from the portal's `org.freedesktop.appearance`
+    /// `contrast`. `None` until the portal answers, when it has no such key, and on targets
+    /// without a desktop watcher.
+    ///
+    /// It comes over the same connection as the theme, a change runs the same wake callback, and
+    /// [`Watcher::wait_first`] returns after the first read of it. macOS and Windows have no
+    /// watcher: reading their settings needs platform bindings, and this crate forbids `unsafe`.
+    /// On the web use [`browser_contrast`].
+    pub fn contrast(&self) -> Option<Contrast> {
+        match self.shared.contrast.load(Ordering::Acquire) {
+            1 => Some(Contrast::Standard),
+            2 => Some(Contrast::High),
+            _ => None,
+        }
+    }
+    /// Whether the desktop asks for reduced motion, from the portal's `org.freedesktop.appearance`
+    /// `reduced-motion`, or GNOME's `org.gnome.desktop.interface` `enable-animations` (inverted)
+    /// when the portal has no `reduced-motion` key. `None` until one answers, when neither key
+    /// exists, and on targets without a desktop watcher.
+    ///
+    /// Wake and [`Watcher::wait_first`] behave as for [`Watcher::contrast`]. On the web use
+    /// [`browser_reduced_motion`].
+    pub fn reduced_motion(&self) -> Option<bool> {
+        match self.shared.motion.load(Ordering::Acquire) {
+            1 => Some(false),
+            2 => Some(true),
+            _ => None,
+        }
+    }
     /// Block until the first answer is known, then return it; at most `timeout`.
     ///
     /// Returns early, with `current()`, when the portal is absent and the `gsettings` fallback
@@ -149,6 +212,8 @@ impl Watcher {
         let gnome = is_gnome(std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref());
         let shared = Arc::new(Shared {
             value: AtomicU8::new(0),
+            contrast: AtomicU8::new(0),
+            motion: AtomicU8::new(0),
             active: AtomicBool::new(active),
             settled: Mutex::new(false),
             settled_changed: Condvar::new(),
@@ -194,6 +259,25 @@ impl Drop for Watcher {
     }
 }
 
+/// The browser's `prefers-contrast: more` media query: `None` outside a browser window or when
+/// the browser doesn't know the feature. The query runs on each call; there is no change
+/// notification, so read it when building a frame.
+#[cfg(target_arch = "wasm32")]
+pub fn browser_contrast() -> Option<Contrast> {
+    media_matches("(prefers-contrast: more)").map(|more| if more { Contrast::High } else { Contrast::Standard })
+}
+/// The browser's `prefers-reduced-motion: reduce` media query, read like [`browser_contrast`].
+#[cfg(target_arch = "wasm32")]
+pub fn browser_reduced_motion() -> Option<bool> {
+    media_matches("(prefers-reduced-motion: reduce)")
+}
+#[cfg(target_arch = "wasm32")]
+fn media_matches(query: &str) -> Option<bool> {
+    let list = web_sys::window()?.match_media(query).ok()??;
+    // A browser that doesn't know the feature serializes the query as `not all`.
+    (list.media() != "not all").then(|| list.matches())
+}
+
 /// Whether a colon-separated `XDG_CURRENT_DESKTOP` value names GNOME.
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 fn is_gnome(desktop: Option<&str>) -> bool {
@@ -202,8 +286,8 @@ fn is_gnome(desktop: Option<&str>) -> bool {
 
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod portal {
-    use super::{Shared, Theme};
-    use futures_lite::StreamExt;
+    use super::{Contrast, Shared, Theme};
+    use futures_lite::{StreamExt, future::zip};
     use std::{sync::Arc, time::Duration};
     use zbus::zvariant::{OwnedValue, Value};
     const DEST: &str = "org.freedesktop.portal.Desktop";
@@ -214,6 +298,9 @@ mod portal {
     const KEY: &str = "color-scheme";
     const WM: &str = "org.gnome.desktop.wm.preferences";
     const LAYOUT_KEY: &str = "button-layout";
+    const CONTRAST_KEY: &str = "contrast";
+    const MOTION_KEY: &str = "reduced-motion";
+    const ANIMATIONS_KEY: &str = "enable-animations";
     const TIMEOUT: Duration = Duration::from_secs(2);
 
     // Outer None means unknown/malformed; Some(None) is an explicit no-preference answer.
@@ -246,6 +333,28 @@ mod portal {
     }
     fn reply(namespace: &str, value: &Value<'_>, legacy: bool, gnome: bool) -> Option<Option<Theme>> {
         decode(namespace, unwrap_legacy(value, legacy)?, gnome)
+    }
+    // `None` means malformed. The portal spec treats unknown values as 0, no preference.
+    fn decode_contrast(namespace: &str, value: &Value<'_>) -> Option<Contrast> {
+        match (namespace, value) {
+            (STANDARD, Value::U32(n)) => Some(if *n == 1 { Contrast::High } else { Contrast::Standard }),
+            _ => None,
+        }
+    }
+    fn contrast_reply(value: &Value<'_>, legacy: bool) -> Option<Contrast> {
+        decode_contrast(STANDARD, unwrap_legacy(value, legacy)?)
+    }
+    // Whether motion is reduced: the portal's `reduced-motion` (1 reduced; other values are no
+    // preference) or GNOME's `enable-animations` boolean, inverted. `None` means malformed.
+    fn decode_motion(namespace: &str, value: &Value<'_>) -> Option<bool> {
+        match (namespace, value) {
+            (STANDARD, Value::U32(n)) => Some(*n == 1),
+            (GNOME, Value::Bool(enabled)) => Some(!enabled),
+            _ => None,
+        }
+    }
+    fn motion_reply(namespace: &str, value: &Value<'_>, legacy: bool) -> Option<bool> {
+        decode_motion(namespace, unwrap_legacy(value, legacy)?)
     }
     // `None` means malformed. Any string is an answer, the empty one included: what the buttons
     // mean, and what an unusable layout falls back to, is craft-window's call.
@@ -377,13 +486,98 @@ mod portal {
         Setting(zbus::Result<zbus::Message>),
         Owner(zbus::Result<zbus::Message>),
     }
+    /// The latest valid answer from each source of a setting that combines two namespaces.
+    struct Answers {
+        standard: Option<Option<Theme>>,
+        gnome: Option<Option<Theme>>,
+        motion: Option<bool>,
+        gnome_motion: Option<bool>,
+    }
+    impl Answers {
+        fn publish_motion(&self, shared: &Shared) {
+            if let Some(reduced) = self.motion.or(self.gnome_motion) {
+                shared.publish_motion(reduced);
+            }
+        }
+        /// Apply one `SettingChanged`; malformed values and other settings change nothing.
+        fn apply(&mut self, shared: &Shared, namespace: &str, key: &str, value: &Value<'_>) {
+            match (namespace, key) {
+                (WM, LAYOUT_KEY) => {
+                    if let Some(layout) = decode_layout(value) {
+                        shared.publish_layout(layout);
+                    }
+                }
+                (STANDARD, CONTRAST_KEY) => {
+                    if let Some(contrast) = decode_contrast(namespace, value) {
+                        shared.publish_contrast(contrast);
+                    }
+                }
+                (STANDARD, MOTION_KEY) | (GNOME, ANIMATIONS_KEY) => {
+                    let Some(reduced) = decode_motion(namespace, value) else { return };
+                    if namespace == STANDARD {
+                        self.motion = Some(reduced);
+                    } else {
+                        self.gnome_motion = Some(reduced);
+                    }
+                    self.publish_motion(shared);
+                }
+                (STANDARD | GNOME, KEY) => {
+                    let Some(answer) = decode(namespace, value, shared.gnome) else { return };
+                    if namespace == STANDARD {
+                        self.standard = Some(answer);
+                    } else {
+                        self.gnome = Some(answer);
+                    }
+                    if let Some(answer) = combined(self.standard, self.gnome) {
+                        shared.publish(answer);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    async fn subscribe(connection: &zbus::Connection, rule: zbus::Result<zbus::MatchRule<'static>>, capacity: usize) -> Option<zbus::MessageStream> {
+        bounded(zbus::MessageStream::for_match_rule(rule.ok()?, connection, Some(capacity))).await?.ok()
+    }
+    async fn next_event(settings: &mut [zbus::MessageStream], owners: &mut zbus::MessageStream) -> Option<Event> {
+        let setting = futures_lite::future::poll_fn(|cx| {
+            for stream in settings.iter_mut() {
+                if let std::task::Poll::Ready(message) = stream.poll_next(cx) {
+                    return std::task::Poll::Ready(message.map(Event::Setting));
+                }
+            }
+            std::task::Poll::Pending
+        });
+        futures_lite::future::race(setting, async { owners.next().await.map(Event::Owner) }).await
+    }
     async fn watch_connection(shared: &Shared, fallbacks: &mut Fallbacks, connected: &mut bool, connection: zbus::Connection) -> Option<()> {
         // MatchRule installs before activation: unlike a proxy subscription it needs no current owner.
-        let mut changes = bounded(zbus::MessageStream::for_match_rule(rule(KEY).ok()?, &connection, Some(64))).await?.ok()?;
-        let mut layouts = bounded(zbus::MessageStream::for_match_rule(rule(LAYOUT_KEY).ok()?, &connection, Some(8))).await?.ok()?;
-        let mut owners = bounded(zbus::MessageStream::for_match_rule(owner_rule().ok()?, &connection, Some(8))).await?.ok()?;
-        let mut standard = read(&connection, STANDARD, shared.gnome).await;
-        let mut gnome = read(&connection, GNOME, shared.gnome).await;
+        let mut settings = [
+            subscribe(&connection, rule(KEY), 64).await?,
+            subscribe(&connection, rule(LAYOUT_KEY), 8).await?,
+            subscribe(&connection, rule(CONTRAST_KEY), 8).await?,
+            subscribe(&connection, rule(MOTION_KEY), 8).await?,
+            subscribe(&connection, rule(ANIMATIONS_KEY), 8).await?,
+        ];
+        let mut owners = subscribe(&connection, owner_rule(), 8).await?;
+        // Concurrent reads, so contrast and motion are known by the time the theme settles
+        // `wait_first` without adding round trips before it.
+        let ((standard, gnome), (contrast, (motion, gnome_motion))) = zip(
+            zip(read(&connection, STANDARD, shared.gnome), read(&connection, GNOME, shared.gnome)),
+            zip(
+                read_with(&connection, STANDARD, CONTRAST_KEY, contrast_reply),
+                zip(
+                    read_with(&connection, STANDARD, MOTION_KEY, |value, legacy| motion_reply(STANDARD, value, legacy)),
+                    read_with(&connection, GNOME, ANIMATIONS_KEY, |value, legacy| motion_reply(GNOME, value, legacy)),
+                ),
+            ),
+        )
+        .await;
+        let mut answers = Answers { standard, gnome, motion, gnome_motion };
+        if let Some(contrast) = contrast {
+            shared.publish_contrast(contrast);
+        }
+        answers.publish_motion(shared);
         match combined(standard, gnome) {
             Some(answer) => {
                 *connected = true;
@@ -401,12 +595,7 @@ mod portal {
             None => fallbacks.layout(shared).await,
         }
         loop {
-            let event = futures_lite::future::race(
-                futures_lite::future::race(async { changes.next().await.map(Event::Setting) }, async { layouts.next().await.map(Event::Setting) }),
-                async { owners.next().await.map(Event::Owner) },
-            )
-            .await?;
-            let message = match event {
+            let message = match next_event(&mut settings, &mut owners).await? {
                 Event::Owner(message) => {
                     // Activation is already covered by the initial read. Loss/replacement reconnects.
                     if let Ok((_, old, _)) = message.ok()?.body().deserialize::<(String, String, String)>()
@@ -418,24 +607,8 @@ mod portal {
                 }
                 Event::Setting(message) => message.ok()?,
             };
-            let Ok((namespace, key, value)) = message.body().deserialize::<(String, String, OwnedValue)>() else { continue };
-            if (namespace.as_str(), key.as_str()) == (WM, LAYOUT_KEY) {
-                if let Some(layout) = decode_layout(&value) {
-                    shared.publish_layout(layout);
-                }
-                continue;
-            }
-            if key != KEY {
-                continue;
-            }
-            let Some(answer) = decode(&namespace, &value, shared.gnome) else { continue };
-            match namespace.as_str() {
-                STANDARD => standard = Some(answer),
-                GNOME => gnome = Some(answer),
-                _ => continue,
-            }
-            if let Some(answer) = combined(standard, gnome) {
-                shared.publish(answer);
+            if let Ok((namespace, key, value)) = message.body().deserialize::<(String, String, OwnedValue)>() {
+                answers.apply(shared, &namespace, &key, &value);
             }
         }
     }
@@ -524,7 +697,7 @@ mod portal {
 
         use super::{GNOME, STANDARD, combined, decode, reply};
         use crate::appearance::is_gnome;
-        use crate::appearance::{Theme, Watcher};
+        use crate::appearance::{Contrast, Theme, Watcher};
         use std::{
             sync::{Arc, atomic::Ordering},
             time::Duration,
@@ -573,6 +746,65 @@ mod portal {
         }
         fn spawn_idle(source: impl FnOnce(Arc<crate::appearance::Shared>) + Send + 'static) -> Result<Watcher, &'static str> {
             Watcher::spawn(false, || {}, move |shared| async move { source(shared) }).ok_or("worker creation failed")
+        }
+        #[test]
+        fn contrast_and_motion_decode_portal_and_gnome_values_and_reject_malformed_ones() {
+            use super::{contrast_reply, decode_contrast, decode_motion, motion_reply};
+            assert_eq!(decode_contrast(STANDARD, &Value::U32(0)), Some(Contrast::Standard));
+            assert_eq!(decode_contrast(STANDARD, &Value::U32(1)), Some(Contrast::High));
+            // Unknown values are no preference, as the portal spec says.
+            assert_eq!(decode_contrast(STANDARD, &Value::U32(7)), Some(Contrast::Standard));
+            assert_eq!(decode_contrast(STANDARD, &Value::I32(1)), None);
+            assert_eq!(decode_contrast(STANDARD, &Value::Bool(true)), None);
+            assert_eq!(decode_contrast(STANDARD, &Value::from("high")), None);
+            assert_eq!(decode_contrast(GNOME, &Value::U32(1)), None);
+            assert_eq!(contrast_reply(&Value::Value(Box::new(Value::U32(1))), true), Some(Contrast::High));
+            assert_eq!(contrast_reply(&Value::U32(1), true), None);
+            assert_eq!(contrast_reply(&Value::Value(Box::new(Value::U32(1))), false), None);
+
+            assert_eq!(decode_motion(STANDARD, &Value::U32(0)), Some(false));
+            assert_eq!(decode_motion(STANDARD, &Value::U32(1)), Some(true));
+            assert_eq!(decode_motion(STANDARD, &Value::U32(9)), Some(false));
+            assert_eq!(decode_motion(STANDARD, &Value::Bool(true)), None);
+            assert_eq!(decode_motion(GNOME, &Value::Bool(false)), Some(true));
+            assert_eq!(decode_motion(GNOME, &Value::Bool(true)), Some(false));
+            assert_eq!(decode_motion(GNOME, &Value::U32(0)), None);
+            assert_eq!(decode_motion(GNOME, &Value::from("false")), None);
+            assert_eq!(decode_motion("org.example.other", &Value::U32(1)), None);
+            assert_eq!(motion_reply(GNOME, &Value::Value(Box::new(Value::Bool(false))), true), Some(true));
+            assert_eq!(motion_reply(STANDARD, &Value::U32(1), true), None);
+            assert_eq!(motion_reply(STANDARD, &Value::U32(1), false), Some(true));
+        }
+        #[test]
+        fn contrast_and_motion_stay_unknown_until_published_and_wake_only_on_change() -> Result<(), Box<dyn std::error::Error>> {
+            let watcher = spawn_idle(|shared| shared.publish(Some(Theme::Dark)))?;
+            assert_eq!(watcher.wait_first(Duration::from_secs(2)), Some(Theme::Dark));
+            assert_eq!(watcher.contrast(), None);
+            assert_eq!(watcher.reduced_motion(), None);
+
+            let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let observed = Arc::clone(&wakes);
+            let watcher = Watcher::spawn(
+                true,
+                move || {
+                    observed.fetch_add(1, Ordering::Relaxed);
+                },
+                |_| futures_lite::future::pending::<()>(),
+            )
+            .ok_or("worker creation failed")?;
+            watcher.shared.publish_contrast(Contrast::High);
+            watcher.shared.publish_contrast(Contrast::High);
+            watcher.shared.publish_motion(true);
+            watcher.shared.publish_motion(true);
+            assert_eq!(watcher.contrast(), Some(Contrast::High));
+            assert_eq!(watcher.reduced_motion(), Some(true));
+            assert_eq!(wakes.load(Ordering::Relaxed), 2);
+            watcher.shared.publish_contrast(Contrast::Standard);
+            watcher.shared.publish_motion(false);
+            assert_eq!(watcher.contrast(), Some(Contrast::Standard));
+            assert_eq!(watcher.reduced_motion(), Some(false));
+            assert_eq!(wakes.load(Ordering::Relaxed), 4);
+            Ok(())
         }
         #[test]
         fn wait_first_returns_at_once_after_a_publish() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,6 +1,6 @@
 //! Private-bus regression based on PdfCraft's queued-update test (storytold/pdfcraft#881).
-use super::{DEST, Fallbacks, GNOME, IFACE, KEY, LAYOUT_KEY, PATH, STANDARD, WM, watch_connection};
-use crate::appearance::{Theme, Watcher};
+use super::{ANIMATIONS_KEY, CONTRAST_KEY, DEST, Fallbacks, GNOME, IFACE, KEY, LAYOUT_KEY, MOTION_KEY, PATH, STANDARD, WM, watch_connection};
+use crate::appearance::{Contrast, Theme, Watcher};
 use std::time::Duration;
 use zbus::zvariant::{OwnedValue, Value};
 
@@ -37,9 +37,9 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
     }
     #[zbus::interface(name = "org.freedesktop.portal.Settings")]
     impl Settings {
-        async fn read(&self, namespace: &str, _key: &str) -> zbus::fdo::Result<OwnedValue> {
-            if namespace != STANDARD {
-                return Err(zbus::fdo::Error::InvalidArgs("unknown namespace".into()));
+        async fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+            if (namespace, key) != (STANDARD, KEY) {
+                return Err(zbus::fdo::Error::InvalidArgs("unknown setting".into()));
             }
             self.captured.send(()).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
             self.released.recv().await.map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
@@ -96,8 +96,12 @@ fn legacy_read_keeps_queued_signals_and_drop_cancels_idle_subscription() -> Resu
     struct ModernSettings(u32);
     #[zbus::interface(name = "org.freedesktop.portal.Settings")]
     impl ModernSettings {
-        fn read_one(&self, namespace: &str, _key: &str) -> zbus::fdo::Result<OwnedValue> {
-            if namespace == STANDARD { Ok(OwnedValue::from(self.0)) } else { Err(zbus::fdo::Error::InvalidArgs("unknown namespace".into())) }
+        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+            if (namespace, key) == (STANDARD, KEY) {
+                Ok(OwnedValue::from(self.0))
+            } else {
+                Err(zbus::fdo::Error::InvalidArgs("unknown setting".into()))
+            }
         }
     }
     let client = futures_lite::future::block_on(zbus::connection::Builder::address(address.trim())?.build())?;
@@ -205,5 +209,61 @@ fn button_layout_is_read_and_followed_on_the_theme_connection() -> Result<(), Bo
     let before = std::time::Instant::now();
     drop(tracker);
     assert!(before.elapsed() < Duration::from_secs(1));
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires dbus-daemon; private session bus only"]
+fn contrast_and_gnome_animations_settle_with_the_theme_and_follow_signals() -> Result<(), Box<dyn std::error::Error>> {
+    // A portal without `reduced-motion`: GNOME's `enable-animations` stands in until it appears.
+    struct Settings;
+    #[zbus::interface(name = "org.freedesktop.portal.Settings")]
+    impl Settings {
+        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+            match (namespace, key) {
+                (STANDARD, KEY) => Ok(OwnedValue::from(2u32)),
+                (STANDARD, CONTRAST_KEY) => Ok(OwnedValue::from(1u32)),
+                (GNOME, ANIMATIONS_KEY) => Ok(OwnedValue::from(false)),
+                _ => Err(zbus::fdo::Error::InvalidArgs("unknown setting".into())),
+            }
+        }
+    }
+    let (_daemon, address) = private_bus("craft-appearance-a11y-test")?;
+    let server = futures_lite::future::block_on(zbus::connection::Builder::address(address.as_str())?.name(DEST)?.serve_at(PATH, Settings)?.build())?;
+    let client = futures_lite::future::block_on(zbus::connection::Builder::address(address.as_str())?.build())?;
+    let (woke, wakes) = std::sync::mpsc::channel();
+    let tracker = Watcher::spawn(
+        false,
+        move || {
+            let _ = woke.send(());
+        },
+        move |shared| async move {
+            let _ = watch_connection(&shared, &mut Fallbacks::used(), &mut false, client).await;
+        },
+    )
+    .ok_or("could not start observer")?;
+    assert_eq!(tracker.wait_first(Duration::from_secs(2)), Some(Theme::Light));
+    assert_eq!(tracker.contrast(), Some(Contrast::High));
+    assert_eq!(tracker.reduced_motion(), Some(true));
+    tracker.set_active(true);
+    let emit = |namespace: &str, key: &str, value: Value<'_>| {
+        futures_lite::future::block_on(server.emit_signal(None::<&str>, PATH, IFACE, "SettingChanged", &(namespace, key, value)))
+    };
+    emit(GNOME, ANIMATIONS_KEY, Value::Bool(true))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.reduced_motion(), Some(false));
+    // The portal key, once it answers, wins over GNOME's.
+    emit(STANDARD, MOTION_KEY, Value::U32(1))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.reduced_motion(), Some(true));
+    emit(GNOME, ANIMATIONS_KEY, Value::Bool(true))?;
+    emit(STANDARD, CONTRAST_KEY, Value::from("high"))?;
+    assert!(wakes.recv_timeout(Duration::from_millis(100)).is_err());
+    assert_eq!(tracker.reduced_motion(), Some(true));
+    assert_eq!(tracker.contrast(), Some(Contrast::High));
+    emit(STANDARD, CONTRAST_KEY, Value::U32(0))?;
+    wakes.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(tracker.contrast(), Some(Contrast::Standard));
+    drop(tracker);
     Ok(())
 }
