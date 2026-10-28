@@ -1,5 +1,5 @@
 use egui::accesskit::Role;
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
+use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Vec2};
@@ -7,7 +7,7 @@ use kurbo::{Point, Vec2};
 use super::story::PenHost;
 use super::{PenDraft, PenNames, PenResponse};
 use crate::canvas::{CanvasView, EditPath, EditSubpath, Guide, GuideNames, Guides, Knot, KnotRef, Orientation, RulerUnits};
-use crate::edit::{self, CancelReason, EditEvent, Ending};
+use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
 
@@ -466,9 +466,11 @@ fn a_quick_drag_in_one_frame_pulls_the_handles() {
     assert_eq!(draft(&h).knots[1], Knot::smooth(doc(160.0, 60.0), doc(200.0, 90.0)));
 }
 
+/// An interrupted draft commits, whatever had the keyboard focus, and losing the focus leaves it
+/// open.
 #[test]
-fn an_interrupted_draft_commits_only_when_the_canvas_had_focus() {
-    for (focus, ending) in [(true, Ending::Commit { changed: true }), (false, Ending::Cancel)] {
+fn an_interrupted_draft_commits_and_focus_loss_leaves_it_open() {
+    for focus in [true, false] {
         let mut h = harness(Vec::new());
         h.state_mut().focus = focus;
         h.run();
@@ -476,13 +478,135 @@ fn an_interrupted_draft_commits_only_when_the_canvas_had_focus() {
             click_doc(&mut h, x, y);
         }
         let id = h.state().events.iter().find_map(|e| e.id()).expect("begun");
-        assert_eq!(edit::ending(&h.ctx, id), ending, "focused canvas: {focus}");
+        assert_eq!(edit::ending(&h.ctx, id), Ending::Commit { changed: true }, "focused canvas: {focus}");
+        // The focus goes to an options-bar field.
+        h.state_mut().focus = false;
+        h.ctx.memory_mut(|m| m.request_focus(Id::unique("options-bar field")));
+        h.run();
+        assert!(!kinds(&h).iter().any(|k| ["commit", "cancel", "set"].contains(k)), "focused canvas: {focus}: {:?}", kinds(&h));
+        click_doc(&mut h, 160.0, 160.0);
+        assert_eq!(draft(&h).knots.len(), 3, "focused canvas: {focus}");
         // The host stops showing the pen: its gesture is no longer live.
         h.state_mut().hidden = true;
         h.run();
         h.run();
         assert!(!edit::is_live(&h.ctx, id));
-        assert_eq!(edit::ending(&h.ctx, id), ending);
+        assert_eq!(edit::ending(&h.ctx, id), Ending::Commit { changed: true });
+    }
+}
+
+/// A document with the path being drawn and the options bar's stroke width; its undo history
+/// holds whole snapshots.
+#[derive(Clone, Debug, Default)]
+struct Drawing {
+    path: EditSubpath,
+    width: f32,
+    undo: Vec<(EditSubpath, f32)>,
+}
+
+impl Drawing {
+    /// Changes the document as one undo step.
+    fn edit(&mut self, f: impl FnOnce(&mut Self)) {
+        self.undo.push((self.path.clone(), self.width));
+        f(self);
+    }
+}
+
+impl UndoMarks for Drawing {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some((path, width)) = self.undo.get(mark).cloned() {
+            (self.path, self.width) = (path, width);
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+/// The pen under a [`GestureHost`], beside an options bar whose stroke width is set before or
+/// after the pen in a frame.
+struct Hosted {
+    doc: Drawing,
+    host: GestureHost<Drawing>,
+    /// The width the options bar sets in the next frame, and whether it comes before the pen.
+    set_width: Option<(f32, bool)>,
+    /// The draft was finished: the host no longer hands it in.
+    finished: bool,
+    view: Option<CanvasView>,
+}
+
+fn hosted() -> Harness<'static, Hosted> {
+    let state = Hosted { doc: Drawing { width: 1.0, ..Drawing::default() }, host: GestureHost::new(), set_width: None, finished: false, view: None };
+    Harness::<Hosted>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, s: &mut Hosted| {
+            let ctx = ui.ctx().clone();
+            let options_bar = |s: &mut Hosted, before: bool| {
+                if let Some((width, _)) = s.set_width.take_if(|(_, first)| *first == before) {
+                    s.host.handle(&ctx, &mut s.doc, EditEvent::set(width, Modifiers::NONE), |doc: &mut Drawing, w| doc.edit(|d| d.width = w));
+                }
+            };
+            options_bar(s, true);
+            ui.add_space(40.0);
+            let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag());
+            let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
+            s.view = Some(view);
+            let draft = (!s.finished && !s.doc.path.knots.is_empty()).then(|| s.doc.path.clone());
+            let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
+            let r = PenDraft::new("pen", draft.as_ref(), names).show(ui, &canvas, &view);
+            if let Some(event) = r.event {
+                s.finished |= matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. });
+                s.host.handle(&ctx, &mut s.doc, event, |doc: &mut Drawing, path| doc.edit(|d| d.path = path));
+            }
+            options_bar(s, false);
+            s.host.end_frame(&ctx, &mut s.doc);
+        },
+        state,
+    )
+}
+
+/// An options-bar change during a draft keeps the anchors so far as one undo step, and the
+/// anchors after it reach the document too, whether the bar comes before or after the pen.
+#[test]
+fn a_change_in_the_options_bar_during_a_draft_keeps_every_anchor() {
+    for before in [true, false] {
+        let mut h = hosted();
+        h.run();
+        let click_at = |h: &mut Harness<'_, Hosted>, x: f64, y: f64| {
+            let at = h.state().view.expect("drawn").to_screen(doc(x, y));
+            h.event(Event::PointerMoved(at));
+            h.event(button(at, true, Modifiers::NONE));
+            h.run();
+            h.event(button(at, false, Modifiers::NONE));
+            h.run();
+        };
+        click_at(&mut h, 60.0, 60.0);
+        click_at(&mut h, 160.0, 60.0);
+        h.state_mut().set_width = Some((4.0, before));
+        h.run();
+        click_at(&mut h, 160.0, 160.0);
+        h.key_press(Key::Enter);
+        h.run();
+
+        let anchors = |d: &Drawing| d.path.knots.iter().map(|k| k.anchor).collect::<Vec<_>>();
+        let s = h.state();
+        assert!(s.finished, "bar before the pen: {before}");
+        assert_eq!(anchors(&s.doc), [doc(60.0, 60.0), doc(160.0, 60.0), doc(160.0, 160.0)], "bar before the pen: {before}");
+        assert_eq!(s.doc.width, 4.0);
+        // Three steps: the first two anchors, the width, the last anchor.
+        let mut d = s.doc.clone();
+        assert_eq!(d.undo.len(), 3, "bar before the pen: {before}");
+        d.revert_to(2);
+        assert_eq!((anchors(&d).len(), d.width), (2, 4.0), "bar before the pen: {before}");
+        d.revert_to(1);
+        assert_eq!((anchors(&d).len(), d.width), (2, 1.0), "bar before the pen: {before}");
     }
 }
 
