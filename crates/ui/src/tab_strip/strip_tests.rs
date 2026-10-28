@@ -354,10 +354,15 @@ fn accesskit_names_the_tab_list_and_its_tabs_and_takes_their_actions() {
     let list = strip(&harness);
     let node = list.accesskit_node();
     assert_eq!((node.label().as_deref(), node.orientation()), (Some("Documents"), Some(Orientation::Horizontal)));
+    assert_eq!(node.size_of_set(), Some(12), "the container carries the set size, hidden tabs counted");
     assert_eq!(node.active_descendant().map(|n| n.id()), None, "no active descendant without the focus");
     let modified = tab(&harness, "Doc 1, RGB/8, modified");
     let node = modified.accesskit_node();
-    assert_eq!((node.is_selected(), node.position_in_set(), node.size_of_set()), (Some(false), Some(1), Some(12)), "the set counts hidden tabs");
+    assert_eq!(
+        (node.is_selected(), node.position_in_set(), node.size_of_set()),
+        (Some(false), Some(1), None),
+        "the tab has its position; the strip has the size"
+    );
     assert!(tab(&harness, "Doc 0").accesskit_node().is_selected() == Some(true));
     let close = button(&harness, "Close Doc 1");
     let tab_id = modified.accesskit_node().id();
@@ -531,8 +536,8 @@ fn a_drag_moves_a_tab_to_a_half_of_another_and_after_the_last_shown_tab() {
     let pos = at(&harness, "Doc 2", 0.75);
     pointer(&mut harness, pos, Some(false));
     let (targets, end) = summary(&mut harness);
-    assert_eq!(targets, [mv(0, 1, DropPosition::After), mv(0, 2, DropPosition::After)]);
-    assert_eq!(end, Some(Ok(mv(0, 2, DropPosition::After))));
+    assert_eq!(targets, [mv(0, 2, DropPosition::Before), mv(0, 3, DropPosition::Before)], "a slot between tabs is always before the next tab");
+    assert_eq!(end, Some(Ok(mv(0, 3, DropPosition::Before))));
     assert_eq!(order(&harness), [1, 2, 0, 3]);
     assert!(payload(&harness).is_none(), "a drop on the strip takes the payload");
     assert_eq!(harness.state().dropped, None);
@@ -579,6 +584,72 @@ fn a_drop_that_changes_nothing_has_no_target_and_drops_nothing() {
     assert!(targets.is_empty());
     assert_eq!(end, Some(Err(CancelReason::Dismissed)));
     assert_eq!(order(&harness), [0, 1, 2, 3]);
+    assert!(payload(&harness).is_none(), "the drop took the payload");
+}
+
+#[test]
+fn a_drop_across_hidden_tabs_is_a_move_even_when_the_shown_tabs_are_adjacent() {
+    let mut host = Host::new(10, 0);
+    host.width = 300.0;
+    let mut harness = harness(host);
+    let shown = harness.state().shown.len();
+    assert!((3..10).contains(&shown), "the strip overflows");
+    // Shown tabs are 0..shown-1 plus the selected one; select the last tab so a hidden run lies between.
+    harness.state_mut().selected = 9;
+    harness.run_steps(5);
+    let shown: Vec<u32> = harness.state().shown.iter().map(|(key, _)| *key).collect();
+    let (&before, &last) = (&shown[shown.len() - 2], shown.last().unwrap());
+    assert!(last - before > 1, "hidden tabs lie between the last two shown: {shown:?}");
+    grab(&mut harness, &format!("Doc {before}"));
+    let pos = at(&harness, &format!("Doc {last}"), 0.25);
+    pointer(&mut harness, pos, None);
+    assert_eq!(harness.state().targets.last(), Some(&Some(mv(before, last, DropPosition::Before))));
+    pointer(&mut harness, pos, Some(false));
+    assert_eq!(summary(&mut harness).1, Some(Ok(mv(before, last, DropPosition::Before))));
+    assert_eq!(order(&harness).iter().position(|&k| k == before), Some(last as usize - 1));
+}
+
+/// The x of the drop line painted this frame: the rect filled with the `tab.drop` colour.
+fn drop_line(harness: &Harness<'_, Host>) -> Vec<Rect> {
+    fn collect(shape: &egui::Shape, colour: Color32, found: &mut Vec<Rect>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, colour, found)),
+            egui::Shape::Rect(rect) if rect.fill == colour => found.push(rect.rect),
+            _ => {}
+        }
+    }
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut colour = Color32::TRANSPARENT;
+    ctx.run_ui(egui::RawInput::default(), |ui| colour = Tab::<u32>::style(&Tokens::of(ui)).drop).drop_without_applying_deltas();
+    let mut found = Vec::new();
+    harness.output().shapes.iter().for_each(|clipped| collect(&clipped.shape, colour, &mut found));
+    found
+}
+
+#[test]
+fn a_slot_between_two_tabs_draws_one_drop_line_from_either_side() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let mut harness = harness_in(Host::new(4, 0), dir);
+        grab(&mut harness, "Doc 0");
+        let mut lines = Vec::new();
+        // The two halves of the boundary between Doc 1 and Doc 2, in reading order.
+        let (end_of_one, start_of_two) = if dir == Direction::Ltr { (0.75, 0.25) } else { (0.25, 0.75) };
+        for (label, share) in [("Doc 1", end_of_one), ("Doc 2", start_of_two)] {
+            let pos = at(&harness, label, share);
+            pointer(&mut harness, pos, None);
+            let found = drop_line(&harness);
+            assert_eq!(found.len(), 1, "{dir:?} {label}: one drop line");
+            lines.push(found[0]);
+        }
+        assert_eq!(lines[0], lines[1], "{dir:?}: the same placement on both sides of the boundary");
+        let two = tab(&harness, "Doc 2").rect();
+        let edge = if dir == Direction::Ltr { two.left() } else { two.right() };
+        assert!(
+            (lines[0].min.x - edge).abs() < 8.0 && lines[0].max.x > two.min.x && lines[0].min.x < two.max.x,
+            "{dir:?}: inside Doc 2 at its start edge"
+        );
+    }
 }
 
 #[test]
@@ -702,6 +773,45 @@ fn the_reorder_keys_move_the_focused_tab_later_or_earlier_and_keep_the_focus() {
 }
 
 #[test]
+fn the_reorder_keys_run_over_every_tab_including_hidden_ones() {
+    let mut host = Host::new(10, 0);
+    host.width = 300.0;
+    let mut harness = harness(host);
+    let shown = harness.state().shown.len();
+    assert!(shown < 10, "the strip overflows");
+    focus(&mut harness);
+    let last_shown = format!("Doc {}", shown - 1);
+    tab(&harness, &last_shown).focus();
+    harness.run();
+    harness.run();
+    let event = press(&mut harness, Modifiers::CTRL, Key::CloseBracket);
+    assert_eq!(set_value(event), Some(mv(shown as u32 - 1, shown as u32, DropPosition::After)), "] moves past the last shown tab");
+    assert_eq!(order(&harness)[shown], shown as u32 - 1, "it lands among the hidden tabs");
+
+    let mut host = Host::new(10, 0);
+    host.width = 300.0;
+    let mut harness = self::harness(host);
+    focus(&mut harness);
+    let event = press(&mut harness, Modifiers::CTRL | Modifiers::SHIFT, Key::CloseBracket);
+    assert_eq!(set_value(event), Some(mv(0, 9, DropPosition::After)), "Shift+] reaches the true end");
+    assert_eq!(order(&harness).last(), Some(&0));
+}
+
+#[test]
+fn command_and_the_brackets_reorder_on_macos() {
+    let mut harness = Harness::<Host>::builder()
+        .with_size([480.0, 300.0])
+        .with_os(egui::os::OperatingSystem::Mac)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(show, Host::new(4, 1));
+    harness.run();
+    focus(&mut harness);
+    let event = press(&mut harness, Modifiers::MAC_CMD, Key::CloseBracket);
+    assert_eq!(set_value(event), Some(mv(1, 2, DropPosition::After)));
+    assert_eq!(order(&harness), [0, 2, 1, 3]);
+}
+
+#[test]
 fn right_to_left_targets_and_keys_follow_the_reading_direction() {
     let mut harness = harness_in(Host::new(4, 0), Direction::Rtl);
     assert!(tab(&harness, "Doc 0").rect().center().x > tab(&harness, "Doc 3").rect().center().x, "tabs read from the right");
@@ -710,7 +820,7 @@ fn right_to_left_targets_and_keys_follow_the_reading_direction() {
     let pos = at(&harness, "Doc 2", 0.25);
     pointer(&mut harness, pos, None);
     pointer(&mut harness, pos, Some(false));
-    assert_eq!(summary(&mut harness).1, Some(Ok(mv(0, 2, DropPosition::After))));
+    assert_eq!(summary(&mut harness).1, Some(Ok(mv(0, 3, DropPosition::Before))));
     assert_eq!(order(&harness), [1, 2, 0, 3]);
 
     harness.run_steps(30);

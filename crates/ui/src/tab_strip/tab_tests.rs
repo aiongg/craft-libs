@@ -125,7 +125,6 @@ fn view<'a>(strip: egui::Id, text: &'a TabStripText, active: bool) -> TabView<'a
         drop_highlight: false,
         sense: Sense::CLICK,
         position: 2,
-        size: 9,
         text,
         controls: None,
     }
@@ -176,7 +175,7 @@ fn a_tab_is_a_labelled_tab_with_a_close_button_inside_and_no_tab_stop() {
     let node = harness.get_by_role(Role::Tab);
     let access = node.accesskit_node();
     assert_eq!(access.label().as_deref(), Some("Photo, RGB/8, modified"));
-    assert_eq!((access.is_selected(), access.position_in_set(), access.size_of_set()), (Some(true), Some(2), Some(9)));
+    assert_eq!((access.is_selected(), access.position_in_set(), access.size_of_set()), (Some(true), Some(2), None));
     let close = harness.get_by_label("Close Photo");
     assert_eq!(close.accesskit_node().role(), Role::Button);
     let ancestors: Vec<_> = std::iter::successors(close.accesskit_node().parent(), |n| n.parent()).map(|n| n.id()).collect();
