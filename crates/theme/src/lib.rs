@@ -25,6 +25,7 @@ mod id;
 mod resolve;
 mod roles;
 mod theme;
+pub mod v2;
 
 pub use builtins::{builtin, builtins, lookup_builtin};
 pub use color::Rgba;
