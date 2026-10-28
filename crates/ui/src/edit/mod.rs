@@ -15,7 +15,10 @@
 //! - [`EditPolicy`] says how often a control reports updates and whether Esc cancels.
 //! - [`cancel_all`] cancels every active gesture, e.g. on a document switch or an undo.
 //! - A gesture whose control is no longer drawn is over; the host learns of it with [`is_live`]
-//!   and ends it as [`ending`] says, or lets [`GestureHost::end_frame`] do that.
+//!   and ends it as [`ending`] says, or lets [`GestureHost::end_frame`] do that. A typing run
+//!   ends as a commit (closing a panel ends editing and keeps the text), with the control's last
+//!   value even when no update reported it ([`unreported`]: a debounce still waiting, or
+//!   [`on_release_only`](EditPolicy::on_release_only)).
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one [`OuterGesture`].
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
@@ -193,13 +196,15 @@ pub enum CancelReason {
 /// How a gesture ends when it is interrupted: its control is no longer drawn, or another gesture
 /// begins at the host. It follows the control's focus-loss rule: a typing run (a gesture whose
 /// control has the focus, not a drag) commits unless the control
-/// [cancels on focus loss](Gesture::cancel_on_focus_loss); a drag cancels. A debounced value the
-/// host hasn't seen yet is lost.
+/// [cancels on focus loss](Gesture::cancel_on_focus_loss); a drag cancels. A commit ends with the
+/// control's last value: when no update reported it (a debounce still waiting,
+/// [`on_release_only`](EditPolicy::on_release_only)), the host applies it first ([`unreported`]),
+/// so the run is still one undo step with everything typed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Ending {
-    /// The host keeps the value it has seen as one undo step; `changed` is false when that value
-    /// is the start value, so the host reverts instead.
+    /// The host keeps the control's last value as one undo step; `changed` is false when that
+    /// value is the start value, so the host reverts instead.
     Commit { changed: bool },
     /// The host reverts the gesture.
     Cancel,
@@ -217,7 +222,8 @@ pub struct EditPolicy {
     /// Whether Esc cancels a gesture. Without it, Esc ends a drag as a commit.
     pub cancellable: bool,
     /// No [`Update`](EditEvent::Update)s: the host sees only the [`Commit`](EditEvent::Commit)
-    /// with the final value.
+    /// with the final value. A typing run interrupted before its commit (its control no longer
+    /// drawn, another gesture begun) still ends with the typed value ([`Ending`]).
     pub on_release_only: bool,
 }
 
@@ -265,7 +271,8 @@ pub enum UpdateRate {
     /// An update in every frame the value changes (egui delivers input once per frame).
     Realtime,
     /// An update once the value has held still for the duration; changes within it coalesce into
-    /// one update, and a value still waiting at the end goes out with the commit. Timed by egui's
+    /// one update, and a value still waiting at the end goes out with the commit, or with the
+    /// [`Ending`] of an interrupted typing run. Timed by egui's
     /// input time ([`egui::InputState::time`]), so the integration sets [`egui::RawInput::time`]
     /// every frame (eframe does).
     Debounced(Duration),
@@ -340,6 +347,15 @@ pub fn ending(ctx: &Context, id: GestureId) -> Ending {
     live::ending(ctx, id).unwrap_or(Ending::Cancel)
 }
 
+/// The value an interrupted gesture `id` commits with that no update reported to the host: a
+/// debounced value still waiting, or every change under
+/// [`on_release_only`](EditPolicy::on_release_only). The host applies it before keeping the
+/// gesture as one undo step. `None` when the host has seen the last value, when the gesture ends
+/// as a cancel, or when `T` isn't the control's value type.
+pub fn unreported<T: Clone + 'static>(ctx: &Context, id: GestureId) -> Option<T> {
+    live::unreported(ctx, id).and_then(|value| value.downcast_ref::<T>().cloned())
+}
+
 /// Every active gesture of `ctx` reports [`Cancel`](EditEvent::Cancel) with `reason` on its next
 /// frame. The host calls it on a document switch, or on undo during a gesture (instead of
 /// undoing a step). Gestures that begin after the call are not affected.
@@ -382,7 +398,7 @@ impl OuterGesture {
     /// A new gesture, live in the current pass.
     pub fn begin(ctx: &Context) -> Self {
         let id = GestureId::next();
-        live::mark(ctx, id, Ending::Cancel);
+        live::mark(ctx, id, Ending::Cancel, None);
         Self { id }
     }
 
@@ -392,7 +408,7 @@ impl OuterGesture {
 
     /// Marks the gesture live in this pass; call it every frame the dialog is shown.
     pub fn keep(self, ui: &Ui) {
-        live::mark(ui.ctx(), self.id, Ending::Cancel);
+        live::mark(ui.ctx(), self.id, Ending::Cancel, None);
     }
 }
 

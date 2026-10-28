@@ -121,7 +121,7 @@ impl State {
         ui: &Ui,
         control: &str,
         event: Option<EditEvent<T>>,
-        apply: impl FnMut(&mut Doc, T),
+        apply: impl Fn(&mut Doc, T) + Send + Sync + 'static,
     ) {
         let Some(event) = event else { return };
         self.log(format!("{control}: {}", describe(&event)));

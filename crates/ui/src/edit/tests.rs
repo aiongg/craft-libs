@@ -650,18 +650,30 @@ fn a_drag_whose_control_is_not_drawn_is_removed_and_reverted() {
     assert_eq!((rig.level(), rig.steps()), (40.0, 0));
 }
 
+/// Closing a panel ends editing and keeps the text: the host gets one step with everything typed,
+/// also when no update reported the last of it.
 #[test]
-fn a_typing_run_whose_field_is_not_drawn_is_kept_as_one_step() {
-    let mut rig = Rig::new(EditPolicy::default());
-    let id = rig.typing_run();
-    rig.type_text("y");
-    assert_eq!((rig.label(), rig.steps()), ("Layer 1xy", 2));
+fn a_typing_run_whose_field_is_not_drawn_is_kept_as_one_step_with_everything_typed() {
+    let policies = [
+        EditPolicy::default(),
+        EditPolicy::default().on_release_only(true),
+        EditPolicy::default().update(UpdateRate::Debounced(Duration::from_secs(1))),
+    ];
+    for policy in policies {
+        let mut rig = Rig::new(policy);
+        rig.focus_field();
+        rig.type_text("x");
+        let Some(EditEvent::Begin { id }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
+        rig.type_text("y");
 
-    rig.draw_field = false;
-    rig.frame(vec![]);
-    assert_eq!(rig.removed, commit(id, (), true));
-    assert_eq!((rig.label(), rig.steps()), ("Layer 1xy", 1));
-    assert!(!rig.host.is_active());
+        rig.draw_field = false;
+        rig.frame(vec![]);
+        assert_eq!(rig.removed, commit(id, (), true), "{policy:?}");
+        assert_eq!((rig.label(), rig.steps()), ("Layer 1xy", 1), "{policy:?}");
+        assert!(!rig.host.is_active());
+        rig.doc.revert_to(0);
+        assert_eq!(rig.label(), "Layer 1", "{policy:?}");
+    }
 }
 
 /// A control driven by direct calls, for the display rules.
@@ -780,22 +792,23 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     let update = |id, value| EditEvent::Update { id, value, modifiers: Modifiers::NONE };
     let set = |value| EditEvent::Set { value, modifiers: Modifiers::NONE };
 
-    // A typing run (recorded by its control as one to keep), then a set from another control.
+    // A typing run (recorded by its control as one to keep, ending with a value no update
+    // carried), then a set from another control.
     let run = GestureId::next();
-    live::mark(&ctx, run, Ending::Commit { changed: true });
+    live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)));
     for event in [EditEvent::Begin { id: run }, update(run, 1), update(run, 2), set(9)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
     assert_eq!((doc.now, doc.undo.len()), (9, 2));
     assert!(!host.is_active());
-    host.handle(&ctx, &mut doc, EditEvent::Commit { id: run, value: 3, changed: true, modifiers: Modifiers::NONE }, Doc::set);
+    host.handle(&ctx, &mut doc, EditEvent::Commit { id: run, value: 4, changed: true, modifiers: Modifiers::NONE }, Doc::set);
     assert_eq!((doc.now, doc.undo.len()), (9, 2));
     doc.revert_to(1);
-    assert_eq!(doc.now, 2);
+    assert_eq!(doc.now, 3);
 
     // A drag (recorded as one to revert), then a set.
     let drag = GestureId::next();
-    live::mark(&ctx, drag, Ending::Cancel);
+    live::mark(&ctx, drag, Ending::Cancel, None);
     for event in [EditEvent::Begin { id: drag }, update(drag, 5), set(7)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }

@@ -1,5 +1,7 @@
 //! [`Gesture`]: the state machine a value control embeds to report [`EditEvent`]s.
 
+use std::sync::Arc;
+
 use egui::{Context, EventFilter, Id, Key, LayerId, Modifiers, Ui, ViewportId};
 
 use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, UpdateRate, in_scope, live};
@@ -54,7 +56,8 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
-///   and starts idle when it is drawn again.
+///   and starts idle when it is drawn again; the host ends the gesture as [`Ending`] says, a
+///   typing run with the control's last value.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
@@ -509,19 +512,22 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         self.stored.escape_locked = lock;
     }
 
-    /// Records the active gesture live in this pass with how it ends if interrupted, or drops
-    /// the entry of one that ended.
+    /// Records the active gesture live in this pass with how it ends if interrupted (a commit
+    /// carries the value no update reported), or drops the entry of one that ended.
     fn record_live(&mut self) {
         let dragged = self.dragged();
         let cancel_on_focus_loss = self.cancel_on_focus_loss;
         match &mut self.stored.phase {
             Phase::Active(a) => {
                 a.dragged |= dragged;
-                let ending = match a.focused && !a.dragged && !cancel_on_focus_loss {
-                    true => Ending::Commit { changed: a.reported != a.start },
-                    false => Ending::Cancel,
+                let (ending, unreported) = match a.focused && !a.dragged && !cancel_on_focus_loss {
+                    true => {
+                        let unreported = (a.current != a.reported).then(|| Arc::new(a.current.clone()) as live::Value);
+                        (Ending::Commit { changed: a.current != a.start }, unreported)
+                    }
+                    false => (Ending::Cancel, None),
                 };
-                live::mark(&self.ctx, a.id, ending);
+                live::mark(&self.ctx, a.id, ending, unreported);
             }
             Phase::Idle | Phase::Restoring { .. } => {
                 if let Some(id) = self.ended {

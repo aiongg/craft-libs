@@ -732,7 +732,7 @@ impl LogState {
         ui: &Ui,
         control: &str,
         event: Option<EditEvent<T>>,
-        apply: impl FnMut(&mut LogDoc, T),
+        apply: impl Fn(&mut LogDoc, T) + Send + Sync + 'static,
     ) {
         let Some(event) = event else { return };
         self.log(format!("{control}: {}", edit::describe(&event)));

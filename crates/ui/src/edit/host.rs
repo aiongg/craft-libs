@@ -33,7 +33,7 @@ pub trait UndoMarks {
 /// Turns the controls' events into undo steps, for an application without interaction types of
 /// its own: one per document, one gesture at a time.
 ///
-/// - `Begin` takes an undo mark.
+/// - `Begin` takes an undo mark, and keeps the event's `apply` for the gesture's value.
 /// - `Update` applies the preview value as an ordinary edit (it may record steps).
 /// - `Commit` applies its value when the last update didn't carry it, then folds the gesture's
 ///   edits into one undo step ([`UndoMarks::squash_since`]); an unchanged commit reverts to the
@@ -43,7 +43,10 @@ pub trait UndoMarks {
 ///   back the change.
 /// - `Set` applies the value: one undo step.
 /// - A `Begin` or `Set` while another gesture is under way first ends that gesture as its
-///   control recorded ([`Ending`]): a typing run is kept as one step, a drag is reverted.
+///   control recorded ([`Ending`]): a typing run is kept as one step, a drag is reverted. A
+///   typing run's value that no update reported ([`unreported`](super::unreported): a debounce
+///   still waiting, [`on_release_only`](super::EditPolicy::on_release_only)) is applied first,
+///   with the `apply` given with its `Begin`, so the step holds everything typed.
 /// - [`end_frame`](GestureHost::end_frame), called every pass after the controls, ends a gesture
 ///   whose control was not drawn, the same way.
 /// - A dialog's [`OuterGesture`] goes through [`begin_outer`](GestureHost::begin_outer),
@@ -59,19 +62,25 @@ pub trait UndoMarks {
 ///
 /// [`handle`]: GestureHost::handle
 pub struct GestureHost<U: UndoMarks> {
-    active: Option<Under<U::Mark>>,
+    active: Option<Under<U>>,
     /// The newest gesture the host ended before its control did. Ids grow, and one gesture is
     /// under way at a time, so events for it and every earlier gesture are stale.
     ended: Option<GestureId>,
 }
 
 /// The gesture under way.
-struct Under<M> {
+struct Under<U: UndoMarks> {
     id: GestureId,
-    mark: M,
+    mark: U::Mark,
     /// The value of its last update the host applied.
     last: Option<Arc<dyn Any + Send + Sync>>,
+    /// The `apply` given with its `Begin`, for a value the host holds without its type; `None`
+    /// for a dialog's gesture.
+    apply: Option<Apply<U>>,
 }
+
+/// Applies a value of the gesture's value type; ignores one of another type.
+type Apply<U> = Arc<dyn Fn(&mut U, &(dyn Any + Send + Sync)) + Send + Sync>;
 
 impl<U: UndoMarks> GestureHost<U> {
     pub fn new() -> Self {
@@ -88,21 +97,31 @@ impl<U: UndoMarks> GestureHost<U> {
         self.active.is_some()
     }
 
-    /// Applies one event; `apply` makes the edit for a value and records its undo step.
+    /// Applies one event; `apply` makes the edit for a value and records its undo step. The host
+    /// keeps the `apply` of a `Begin` until the gesture ends, to apply a value of an interrupted
+    /// typing run that no update reported, so `apply` is `'static` and reaches what it changes
+    /// through the document.
     pub fn handle<T: Clone + PartialEq + Send + Sync + 'static>(
         &mut self,
         ctx: &Context,
         doc: &mut U,
         event: EditEvent<T>,
-        mut apply: impl FnMut(&mut U, T),
-    ) {
+        apply: impl Fn(&mut U, T) + Send + Sync + 'static,
+    ) where
+        U: 'static,
+    {
         if event.id().is_some_and(|id| self.ended.is_some_and(|ended| id <= ended)) {
             return;
         }
         match event {
             EditEvent::Begin { id } => {
                 self.interrupt(ctx, doc);
-                self.active = Some(Under { id, mark: doc.undo_mark(), last: None });
+                let apply: Apply<U> = Arc::new(move |doc, value| {
+                    if let Some(value) = value.downcast_ref::<T>() {
+                        apply(doc, value.clone());
+                    }
+                });
+                self.active = Some(Under { id, mark: doc.undo_mark(), last: None, apply: Some(apply) });
             }
             EditEvent::Set { value, .. } => {
                 self.interrupt(ctx, doc);
@@ -140,7 +159,7 @@ impl<U: UndoMarks> GestureHost<U> {
     /// way as its control recorded.
     pub fn begin_outer(&mut self, ctx: &Context, doc: &mut U, outer: OuterGesture) {
         self.interrupt(ctx, doc);
-        self.active = Some(Under { id: outer.id(), mark: doc.undo_mark(), last: None });
+        self.active = Some(Under { id: outer.id(), mark: doc.undo_mark(), last: None, apply: None });
     }
 
     /// Ends gesture `id`, keeping its edits as one undo step (a dialog's OK). Returns whether it
@@ -162,13 +181,14 @@ impl<U: UndoMarks> GestureHost<U> {
 
     /// Call once per pass of every viewport, after its controls: when the active gesture belongs
     /// to this viewport and its control was not drawn ([`is_live`](super::is_live)), ends it as
-    /// its control recorded ([`Ending`]) and returns what it applied: a `Commit` (the value the
-    /// host has seen) or a `Cancel` with [`CancelReason::Removed`]. The events carry no value.
+    /// its control recorded ([`Ending`]) and returns what it applied: a `Commit` (with the
+    /// control's last value, applied first when no update reported it) or a `Cancel` with
+    /// [`CancelReason::Removed`]. The events carry no value.
     pub fn end_frame(&mut self, ctx: &Context, doc: &mut U) -> Option<EditEvent<()>> {
         let id = self.active()?;
         let live::Judged::Removed(ending) = live::judge(ctx, id) else { return None };
+        self.end(ctx, doc, ending);
         live::forget(ctx, id);
-        self.end(doc, ending);
         Some(match ending {
             Ending::Commit { changed } => EditEvent::Commit { id, value: (), changed, modifiers: Modifiers::NONE },
             Ending::Cancel => EditEvent::Cancel { id, reason: CancelReason::Removed },
@@ -178,20 +198,25 @@ impl<U: UndoMarks> GestureHost<U> {
     /// Ends the gesture under way as its control recorded, before another one starts.
     fn interrupt(&mut self, ctx: &Context, doc: &mut U) {
         if let Some(id) = self.active() {
-            self.end(doc, super::ending(ctx, id));
+            self.end(ctx, doc, super::ending(ctx, id));
         }
     }
 
-    fn end(&mut self, doc: &mut U, ending: Ending) {
+    fn end(&mut self, ctx: &Context, doc: &mut U, ending: Ending) {
         let Some(a) = self.active.take() else { return };
         match ending {
-            Ending::Commit { changed: true } => doc.squash_since(a.mark),
+            Ending::Commit { changed: true } => {
+                if let (Some(apply), Some(value)) = (&a.apply, live::unreported(ctx, a.id)) {
+                    apply(doc, &*value);
+                }
+                doc.squash_since(a.mark);
+            }
             Ending::Commit { changed: false } | Ending::Cancel => doc.revert_to(a.mark),
         }
         self.ended = Some(a.id);
     }
 
-    fn take(&mut self, id: GestureId) -> Option<Under<U::Mark>> {
+    fn take(&mut self, id: GestureId) -> Option<Under<U>> {
         match self.active.take() {
             Some(a) if a.id == id => Some(a),
             other => {
@@ -210,7 +235,7 @@ impl<U: UndoMarks> Default for GestureHost<U> {
 
 impl<U: UndoMarks<Mark: Clone>> Clone for GestureHost<U> {
     fn clone(&self) -> Self {
-        let active = self.active.as_ref().map(|a| Under { id: a.id, mark: a.mark.clone(), last: a.last.clone() });
+        let active = self.active.as_ref().map(|a| Under { id: a.id, mark: a.mark.clone(), last: a.last.clone(), apply: a.apply.clone() });
         Self { active, ended: self.ended }
     }
 }

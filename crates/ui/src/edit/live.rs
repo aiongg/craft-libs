@@ -1,18 +1,38 @@
 //! Which gestures' controls were drawn, per viewport: how a gesture whose control is gone is
 //! found, and how it ends.
 
+use std::any::Any;
+use std::sync::Arc;
+
 use egui::{Context, Id, ViewportId};
 
 use super::{Ending, GestureId};
 
+/// A gesture's value, whatever the control's value type.
+pub(super) type Value = Arc<dyn Any + Send + Sync>;
+
 /// One active gesture: the viewport its control is drawn in, the last pass of that viewport that
-/// drew it, and how it ends if it is interrupted.
-#[derive(Clone, Copy, Debug)]
+/// drew it, how it ends if it is interrupted, and the value it ends with when the host hasn't
+/// seen it.
+#[derive(Clone)]
 struct Entry {
     id: GestureId,
     viewport: ViewportId,
     pass: u64,
     ending: Ending,
+    unreported: Option<Value>,
+}
+
+impl std::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entry")
+            .field("id", &self.id)
+            .field("viewport", &self.viewport)
+            .field("pass", &self.pass)
+            .field("ending", &self.ending)
+            .field("unreported", &self.unreported.is_some())
+            .finish()
+    }
 }
 
 /// The active gestures of a context. Small: one entry per gesture under way.
@@ -34,12 +54,20 @@ pub(super) enum Judged {
 }
 
 impl Live {
-    /// Records that `id`'s control was drawn in `pass` of `viewport`, and how the gesture ends if
-    /// interrupted. Drops entries whose viewport has finished a pass without them and has had
-    /// the pass after it to judge them.
-    pub(super) fn mark(&mut self, id: GestureId, viewport: ViewportId, pass: u64, ending: Ending, pass_for: impl Fn(ViewportId) -> u64) {
+    /// Records that `id`'s control was drawn in `pass` of `viewport`, how the gesture ends if
+    /// interrupted, and the value it ends with that no update reported. Drops entries whose
+    /// viewport has finished a pass without them and has had the pass after it to judge them.
+    pub(super) fn mark(
+        &mut self,
+        id: GestureId,
+        viewport: ViewportId,
+        pass: u64,
+        ending: Ending,
+        unreported: Option<Value>,
+        pass_for: impl Fn(ViewportId) -> u64,
+    ) {
         self.entries.retain(|e| e.id == id || e.pass + 1 >= pass_for(e.viewport));
-        let entry = Entry { id, viewport, pass, ending };
+        let entry = Entry { id, viewport, pass, ending, unreported };
         match self.entries.iter_mut().find(|e| e.id == id) {
             Some(e) => *e = entry,
             None => self.entries.push(entry),
@@ -67,6 +95,10 @@ impl Live {
         self.entries.iter().find(|e| e.id == id).map(|e| e.ending)
     }
 
+    pub(super) fn unreported(&self, id: GestureId) -> Option<Value> {
+        self.entries.iter().find(|e| e.id == id).and_then(|e| e.unreported.clone())
+    }
+
     /// A copy: judging reads pass numbers, which egui's data lock can't be held for.
     fn get(ctx: &Context) -> Self {
         ctx.data(|d| d.get_temp::<Self>(Id::unique(LIVE_GESTURES))).unwrap_or_default()
@@ -79,11 +111,12 @@ impl Live {
 
 const LIVE_GESTURES: &str = "craft_ui::edit::live_gestures";
 
-/// Marks gesture `id` live in the current pass of the current viewport.
-pub(super) fn mark(ctx: &Context, id: GestureId, ending: Ending) {
+/// Marks gesture `id` live in the current pass of the current viewport, ending as `ending` with
+/// `unreported` if interrupted.
+pub(super) fn mark(ctx: &Context, id: GestureId, ending: Ending, unreported: Option<Value>) {
     let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
     let mut live = Live::get(ctx);
-    live.mark(id, viewport, pass, ending, |v| ctx.cumulative_pass_nr_for(v));
+    live.mark(id, viewport, pass, ending, unreported, |v| ctx.cumulative_pass_nr_for(v));
     live.put(ctx);
 }
 
@@ -102,6 +135,10 @@ pub(super) fn ending(ctx: &Context, id: GestureId) -> Option<Ending> {
     Live::get(ctx).ending(id)
 }
 
+pub(super) fn unreported(ctx: &Context, id: GestureId) -> Option<Value> {
+    Live::get(ctx).unreported(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,7 +151,7 @@ mod tests {
         let mut live = Live::default();
         // The root viewport draws the gesture's control in its pass 3; the child is at pass 10.
         let passes = |root: u64| move |v: ViewportId| if v == ViewportId::ROOT { root } else { 10 };
-        live.mark(gesture, ViewportId::ROOT, 3, ending, passes(3));
+        live.mark(gesture, ViewportId::ROOT, 3, ending, None, passes(3));
 
         assert_eq!(live.judge(gesture, ViewportId::ROOT, passes(3)), Judged::Live);
         // The child's passes don't count for it, whether the root is mid-pass or done with it.
@@ -125,9 +162,9 @@ mod tests {
         assert_eq!(live.judge(gesture, child, passes(5)), Judged::Elsewhere { live: false });
 
         // Many child passes keep it; the root's pass after the one that judged it drops it.
-        live.mark(other, child, 11, Ending::Cancel, passes(4));
+        live.mark(other, child, 11, Ending::Cancel, None, passes(4));
         assert_eq!(live.ending(gesture), Some(ending));
-        live.mark(other, child, 12, Ending::Cancel, passes(5));
+        live.mark(other, child, 12, Ending::Cancel, None, passes(5));
         assert_eq!(live.ending(gesture), None);
         assert_eq!(live.judge(gesture, ViewportId::ROOT, passes(5)), Judged::Removed(Ending::Cancel));
     }
