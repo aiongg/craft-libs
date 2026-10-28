@@ -18,6 +18,8 @@
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
+//! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
+//!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -38,6 +40,7 @@
 //! # });
 //! ```
 
+pub(crate) mod bezier;
 mod claim;
 mod crisp;
 pub(crate) mod guides;
@@ -55,6 +58,10 @@ mod units;
 mod view;
 
 pub use ::kurbo;
+pub use bezier::{
+    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
+    MAX_ANCHORS, PathEdit, PathSelection,
+};
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};

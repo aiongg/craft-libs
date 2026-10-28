@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{Guides, Readout, Rulers};
+use craft_ui::canvas::{BezierOverlay, Guides, Readout, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
 };
@@ -550,6 +550,21 @@ fn ruler() {
         d.line("label_pitch", s.label_pitch).line("label_pad", s.label_pad).line("step_min", s.step_min);
         d.line("tick_mid", s.tick_mid).line("tick_minor", s.tick_minor);
         d.line("fill", s.fill).line("tick", s.tick).line("label_color", s.label).line("marker", s.marker);
+    });
+}
+
+/// Paths: outline and selected segment widths, the default path colour, the anchor, selected
+/// anchor and handle end looks, the handle line, hit, click slop and flattening tolerance.
+#[test]
+fn bezier() {
+    check("bezier.txt", |d, t| {
+        let s = BezierOverlay::style(t);
+        d.line("line", s.line).line("selected_segment", s.selected_segment).line("color", s.color);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
     });
 }
 

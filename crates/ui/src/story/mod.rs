@@ -112,6 +112,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::canvas::guides::stories());
     all.extend(crate::canvas::marquee::stories());
     all.extend(crate::canvas::rulers::stories());
+    all.extend(crate::canvas::bezier::story::stories());
     all.extend(crate::edit::stories());
     all.extend(controls::button::stories());
     all.extend(controls::icon_button::stories());
@@ -167,6 +168,7 @@ const DECLARED: &[&[&str]] = &[
     crate::canvas::guides::COMPONENTS,
     crate::canvas::marquee::COMPONENTS,
     crate::canvas::rulers::COMPONENTS,
+    crate::canvas::bezier::story::COMPONENTS,
     crate::edit::COMPONENTS,
     controls::button::COMPONENTS,
     controls::icon_button::COMPONENTS,
