@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::builtins::SOURCES;
+use super::builtins::{SOURCES, suite_default};
 use super::format;
 use super::semantic_tests::appearances;
 use super::*;
@@ -104,14 +104,15 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
 
 /// The marks and outlines of check boxes, radio buttons and switches identify the control and its
 /// state, so every built-in meets their non-text minimum at rest in every appearance, pins
-/// included; a disabled one that is on doesn't look off.
+/// included; a disabled one that is on doesn't look off: its box or track and its mark differ from
+/// an off one's (which has no mark).
 #[test]
 fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
     for theme in builtins() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
-            assert_eq!(pairs.len(), 6, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 5, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -152,4 +153,36 @@ fn builtin_small_control_pairs_meet_their_minimums() {
             }
         }
     }
+}
+
+/// Knobs are light in both modes: `surface.knob` is near white (dark mode: about 236/255) and
+/// takes a tinted neutral's tint; a light knob has a `line.control_edge` outline and a dark-mode
+/// one none, and both cast the knob shadow. Classic draws its knob as a bevelled panel-grey
+/// surface with no shadow.
+#[test]
+fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
+    let at = |theme: &ThemeDef, mode| resolve(theme, Appearance { mode, ..semantic_tests::app(Mode::Light, Contrast::Standard) }, None).tokens;
+    for mode in [Mode::Light, Mode::Dark] {
+        let t = at(suite_default(), mode);
+        let knob = t.color(ColorToken::SurfaceKnob);
+        let lightness = knob.to_oklch().l;
+        assert!(lightness >= 0.93, "{mode:?}: surface.knob {} has lightness {lightness:.3}", knob.to_hex());
+        let edge = t.color(ColorToken::LineKnobEdge);
+        match mode {
+            Mode::Light => assert_eq!(edge, t.color(ColorToken::LineControlEdge)),
+            Mode::Dark => assert_eq!(edge.a(), 0, "dark knobs have no outline"),
+        }
+        assert_eq!(t.elevation.knob.offset, Elevation::level(values::KNOB_ELEVATION).offset, "{mode:?}");
+        assert!(t.elevation.knob.alpha > 0.0, "{mode:?}");
+
+        let tinted = at(&semantic_tests::grey_blue(), mode).color(ColorToken::SurfaceKnob).to_oklch();
+        assert!(tinted.c > 0.001 && (240.0..300.0).contains(&tinted.h), "{mode:?}: {tinted:?} takes the blue-grey neutral's tint");
+    }
+
+    let classic = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
+    let t = at(classic, Mode::Light);
+    assert_eq!(t.color(ColorToken::SurfaceKnob), t.color(ColorToken::SurfacePanel));
+    assert_eq!(t.elevation.knob, Elevation::level(0));
+    assert_eq!(TokenRef::from_path("surface.knob"), Some(TokenRef::Color(ColorToken::SurfaceKnob)));
+    assert_eq!(TokenRef::from_path("line.knob_edge"), Some(TokenRef::Color(ColorToken::LineKnobEdge)));
 }

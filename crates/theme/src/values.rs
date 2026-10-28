@@ -107,6 +107,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::SurfacePanel => Neutral(pick(3, 2)),
         T::SurfaceRaised => Neutral(pick(4, 1)),
         T::SurfaceSunken => Neutral(1),
+        // Near white in both modes (dark: about 236/255), as macOS, GNOME and PhotoCraft knobs.
+        T::SurfaceKnob => Neutral(pick(12, 1)),
         T::SurfaceScrim => Fixed(Rgba::BLACK.with_alpha(alpha(pickf(0.5, 0.35)))),
         T::TextNormal => Neutral(12),
         T::TextMuted => Neutral(11),
@@ -119,6 +121,14 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::LineDivider => Neutral(6),
         T::LineBorder => Neutral(7),
         T::LineControlEdge => Neutral(8),
+        // A light knob needs an outline on a light panel; on a dark one its face is the edge.
+        T::LineKnobEdge => {
+            if dark {
+                Fixed(Rgba::TRANSPARENT)
+            } else {
+                Same(T::LineControlEdge)
+            }
+        }
         T::LineFocus => Accent(9),
         T::AccentSolid => Accent(9),
         T::AccentHover => Accent(SOLID_HOVER),
@@ -352,6 +362,13 @@ pub const TYPE_ROUNDING: f32 = 0.5;
 
 /// Elevation levels (DS-01 primitives) for popups, dialogs and floating surfaces.
 pub const ELEVATION_LEVELS: (usize, usize, usize) = (2, 3, 2);
+/// Elevation level of a knob on a track (`elevation.knob`) with a flat edge.
+pub const KNOB_ELEVATION: usize = 1;
+/// How far a disabled knob's face moves from `surface.knob` toward `surface.panel`, 0..=1: far
+/// enough to recede in both modes, short of vanishing on the panel in dark mode.
+pub const KNOB_DISABLED: f64 = 0.5;
+/// Width of the ring round a slider thumb while hovered or pressed, in points.
+pub const KNOB_RING: f32 = 2.0;
 /// Shadow alpha multiplier in dark mode, where shadows need more weight to show.
 pub const DARK_SHADOW_ALPHA_FACTOR: f32 = 1.5;
 

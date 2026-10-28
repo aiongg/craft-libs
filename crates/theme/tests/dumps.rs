@@ -214,8 +214,8 @@ fn type_lines(out: &mut Lines, t: &TypeTokens) {
 }
 
 fn elevation_lines(out: &mut Lines, e: &ElevationTokens) {
-    let ElevationTokens { popup, dialog, floating } = e;
-    for (k, level) in [("popup", popup), ("dialog", dialog), ("floating", floating)] {
+    let ElevationTokens { popup, dialog, floating, knob } = e;
+    for (k, level) in [("popup", popup), ("dialog", dialog), ("floating", floating), ("knob", knob)] {
         let Elevation { offset: [x, y], blur, spread, alpha } = level;
         out.line(&format!("elevation.{k}.offset"), format!("{} {}", len(*x), len(*y)));
         out.line(&format!("elevation.{k}.blur"), len(*blur));
@@ -294,7 +294,7 @@ fn item_lines(out: &mut Lines, key: &str, colors: &ItemColors) {
 }
 
 fn check_lines(out: &mut Lines, c: &CheckTokens) {
-    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, .. } = c;
+    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, thumb, .. } = c;
     by_size(out, "check.height", height);
     by_size(out, "check.size", size);
     out.line("check.gap", len(*gap));
@@ -304,12 +304,20 @@ fn check_lines(out: &mut Lines, c: &CheckTokens) {
     by_size(out, "check.dot", dot);
     by_size(out, "check.track", track);
     out.line("check.thumb_inset", len(*thumb_inset));
-    for (key, colors) in [("check.off", off), ("check.on", on)] {
-        let CheckColors { fill, border, mark } = colors;
-        states(out, &format!("{key}.fill"), fill);
-        states(out, &format!("{key}.border"), border);
-        states(out, &format!("{key}.mark"), mark);
-    }
+    let CheckColors { fill, border, .. } = off;
+    states(out, "check.off.fill", fill);
+    states(out, "check.off.border", border);
+    let CheckColors { fill, border, mark } = on;
+    states(out, "check.on.fill", fill);
+    states(out, "check.on.border", border);
+    states(out, "check.on.mark", mark);
+    thumb_lines(out, "check.thumb", thumb);
+}
+
+fn thumb_lines(out: &mut Lines, key: &str, colors: &ThumbColors) {
+    let ThumbColors { fill, border } = colors;
+    states(out, &format!("{key}.fill"), fill);
+    states(out, &format!("{key}.border"), border);
 }
 
 fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
@@ -377,7 +385,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
 }
 
 fn slider_lines(out: &mut Lines, s: &SliderTokens) {
-    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, .. } = s;
+    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, ring, ring_width, .. } = s;
     by_size(out, "slider.height", height);
     by_size(out, "slider.width", width);
     by_size(out, "slider.thumb", thumb);
@@ -385,9 +393,9 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
     out.line("slider.radius", len(*radius));
     out.line("slider.track", hex(*track));
     states(out, "slider.fill", fill);
-    let ThumbColors { fill, border } = thumb_colors;
-    states(out, "slider.thumb.fill", fill);
-    states(out, "slider.thumb.border", border);
+    thumb_lines(out, "slider.thumb", thumb_colors);
+    states(out, "slider.ring", ring);
+    out.line("slider.ring_width", len(*ring_width));
 }
 
 fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {

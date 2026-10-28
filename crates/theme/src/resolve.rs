@@ -7,7 +7,7 @@ use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
 use super::scale::Elevation;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, ThemeDef};
-use super::tokens::{ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
+use super::tokens::{Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
 use super::values;
 use crate::AppId;
 
@@ -70,6 +70,8 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         }
     };
     let (popup, dialog, floating) = values::ELEVATION_LEVELS;
+    // A bevel is the relief of a raised control, so a bevelled knob lies flat.
+    let knob = shadow(if matches!(edge, Edge::Bevel { .. }) { 0 } else { values::KNOB_ELEVATION });
 
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;
@@ -95,7 +97,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         space: preset.space,
         size: preset.size,
         typography,
-        elevation: ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating) },
+        elevation: ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating), knob },
         motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
         component,
     };

@@ -126,14 +126,19 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     assert_eq!((s.track_height, s.radius), (4.0, Radius::Full.px()));
     assert_eq!(s.track, t.color(T::SurfaceSunken));
     assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
-    let edge = t.color(T::LineControlEdge);
-    assert_eq!(
-        s.thumb_colors,
-        ThumbColors {
-            fill: States::new(t.color(T::SurfaceRaised), t.color(T::StateHover), t.color(T::StatePressed), t.color(T::StateDisabledFill)),
-            border: States::new(edge, edge, edge, t.color(T::LineDivider)),
-        }
-    );
+    assert_eq!(s.thumb_colors, knob(&t));
+    let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
+    assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));
+}
+
+/// The knob look of slider and switch thumbs: `surface.knob` with a `line.knob_edge` outline while
+/// enabled; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
+fn knob(t: &Tokens) -> ThumbColors {
+    let (face, edge) = (t.color(T::SurfaceKnob), t.color(T::LineKnobEdge));
+    ThumbColors {
+        fill: States::new(face, face, face, crate::derive::mix(face, t.color(T::SurfacePanel), 0.5)),
+        border: States::new(edge, edge, edge, t.color(T::LineDivider)),
+    }
 }
 
 /// The field pairs, written out independently of the family's list: (fg, bg, minimum), at rest.
@@ -261,9 +266,7 @@ fn check_pairs() -> Vec<(ComponentField, TokenRef)> {
         p.push((check(OnOff::On, CheckPart::Fill), TokenRef::Color(bg)));
         p.push((check(OnOff::Off, CheckPart::Border), TokenRef::Color(bg)));
     }
-    for on_off in OnOff::ALL {
-        p.push((check(on_off, CheckPart::Mark), TokenRef::Component(check(on_off, CheckPart::Fill))));
-    }
+    p.push((check(OnOff::On, CheckPart::Mark), TokenRef::Component(check(OnOff::On, CheckPart::Fill))));
     p
 }
 
@@ -303,17 +306,20 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     assert_eq!((c.gap, c.label, c.radius, c.thumb_inset), (t.space.gap.inline, TypeRole::Body, 3.0, 2.0));
     assert_eq!((c.mark, c.dot.md, c.track.md), (BySize { sm: 1.5, md: 2.0 }, t.size.icon.md * 0.4, t.size.icon.md * 2.0));
     let outline = States::new(t.color(T::TextFaint), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled));
-    assert_eq!((c.off.border, c.off.mark), (outline, outline));
+    let clear = Rgba::TRANSPARENT;
+    assert_eq!((c.off.border, c.off.mark), (outline, States::new(clear, clear, clear, clear)));
     let sunken = t.color(T::SurfaceSunken);
     assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
     assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
     assert_eq!(c.on.border, c.on.fill);
     let on_accent = t.color(T::TextOnAccent);
     assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::StateDisabledFill)));
+    assert_eq!(c.thumb, knob(&t));
 }
 
 /// A disabled switch, check box or radio button that is on must not look off: its track or box
-/// and its thumb or mark differ from the off ones.
+/// and its mark differ from the off ones (the off set has no mark; a switch thumb is the same off
+/// and on).
 #[test]
 fn a_disabled_check_that_is_on_differs_from_one_that_is_off() {
     for def in [grey_blue(), violet()] {
@@ -360,7 +366,24 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 5 * 2 + 4 + 4) + (1 + 2 + 6)
+        1 + 4 * 3 * 4
+            + 1
+            + (2 + 3) * 4
+            + 2 * 4
+            + 2 * 4
+            + 1
+            + 2 * 2 * 4
+            + 2
+            + 4
+            + 2 * 4
+            + 4
+            + 3
+            + (1 + 6 * 2 * 3)
+            + 3
+            + 3
+            + 7
+            + (1 + 5 * 2 + 4 + 4)
+            + (1 + 2 + 6)
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -386,6 +409,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
         ("check.radius", ComponentField::Check(CheckField::Radius)),
         ("check.on.mark.hover", ComponentField::Check(CheckField::Color { on_off: OnOff::On, part: CheckPart::Mark, state: State::Hover })),
+        ("check.thumb.fill.pressed", ComponentField::Check(CheckField::Thumb { part: ThumbPart::Fill, state: State::Pressed })),
         ("field.radius", ComponentField::Field(FieldField::Radius)),
         ("field.placeholder.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true })),
         ("field.border.focused", ComponentField::Field(FieldField::Border(BorderState::Focused))),
@@ -395,6 +419,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("slider.radius", ComponentField::Slider(SliderField::Radius)),
         ("slider.fill.hover", ComponentField::Slider(SliderField::Fill(State::Hover))),
         ("slider.thumb.border.disabled", ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled })),
+        ("slider.ring.hover", ComponentField::Slider(SliderField::Ring(State::Hover))),
         ("toggle_button.on_disabled.border", ComponentField::ToggleButton(ToggleButtonField::OnDisabled(ButtonPart::Border))),
         (
             "badge.warn.solid.border",
@@ -433,6 +458,9 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "slider.fill",
         "slider.track.rest",
         "slider.height.md",
+        "slider.ring",
+        "slider.ring_width",
+        "slider.thumb.ring.hover",
         "toggle_button.on_disabled",
         "toggle_button.on_disabled.fill.rest",
         "toggle_button.on.fill.disabled",
@@ -440,6 +468,9 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "check.mixed.mark.rest",
         "check.on.mark",
         "check.off.thumb.rest",
+        "check.off.mark.rest",
+        "check.thumb.mark.rest",
+        "check.thumb.fill",
         "badge.good",
         "badge.good.soft",
         "badge.good.soft.glow",

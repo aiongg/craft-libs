@@ -36,7 +36,7 @@ pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
-pub use slider::{SliderField, SliderTokens, ThumbColors, ThumbPart};
+pub use slider::{SliderField, SliderTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
@@ -231,6 +231,86 @@ const ITEM_FIELDS: [(ItemPart, State); 8] = {
     let mut i = 0;
     while i < 8 {
         out[i] = (ItemPart::ALL[i / 4], State::ALL[i % 4]);
+        i += 1;
+    }
+    out
+};
+
+/// One coloured part of a knob that rides on a track: a slider or switch thumb.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ThumbPart {
+    /// The face.
+    Fill,
+    /// The outline; a bevel keeps its own colours.
+    Border,
+}
+
+impl ThumbPart {
+    /// Every part, in path order.
+    pub const ALL: [ThumbPart; 2] = [ThumbPart::Fill, ThumbPart::Border];
+
+    /// The path segment, e.g. `"fill"`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            ThumbPart::Fill => "fill",
+            ThumbPart::Border => "border",
+        }
+    }
+}
+
+/// The colours of a knob that rides on a track, per state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ThumbColors {
+    /// Face.
+    pub fill: States<Rgba>,
+    /// Outline.
+    pub border: States<Rgba>,
+}
+
+impl ThumbColors {
+    /// The colours of `part`.
+    pub fn part(&self, part: ThumbPart) -> &States<Rgba> {
+        match part {
+            ThumbPart::Fill => &self.fill,
+            ThumbPart::Border => &self.border,
+        }
+    }
+
+    fn part_mut(&mut self, part: ThumbPart) -> &mut States<Rgba> {
+        match part {
+            ThumbPart::Fill => &mut self.fill,
+            ThumbPart::Border => &mut self.border,
+        }
+    }
+
+    /// The knob look: a `surface.knob` face with a `line.knob_edge` outline in every enabled
+    /// state. Disabled, it recedes toward the panel in both modes: its face is
+    /// [`KNOB_DISABLED`](crate::values::KNOB_DISABLED) of the way from `surface.knob` to
+    /// `surface.panel`, with a `line.divider` outline.
+    fn knob(c: &ColorTokens) -> ThumbColors {
+        let (face, edge) = (c.surface.knob, c.line.knob_edge);
+        let disabled = crate::derive::mix(face, c.surface.panel, crate::values::KNOB_DISABLED);
+        ThumbColors { fill: States::new(face, face, face, disabled), border: States::new(edge, edge, edge, c.line.divider) }
+    }
+}
+
+/// The path of a thumb colour after its set's name: `fill.rest`.
+fn thumb_path(part: ThumbPart, state: State) -> String {
+    format!("{}.{}", part.name(), state.name())
+}
+
+/// The part and state of a thumb colour path after its set's name.
+fn thumb_from_path(path: &str) -> Option<(ThumbPart, State)> {
+    let (part, state) = path.split_once('.')?;
+    Some((ThumbPart::ALL.into_iter().find(|p| p.name() == part)?, State::from_name(state)?))
+}
+
+/// Every (part, state) of a thumb colour set, in path order, for a family's `FIELDS`.
+const THUMB_FIELDS: [(ThumbPart, State); 8] = {
+    let mut out = [(ThumbPart::Fill, State::Rest); 8];
+    let mut i = 0;
+    while i < 8 {
+        out[i] = (ThumbPart::ALL[i / 4], State::ALL[i % 4]);
         i += 1;
     }
     out

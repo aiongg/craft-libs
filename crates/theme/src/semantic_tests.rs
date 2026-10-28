@@ -154,18 +154,12 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             .map(|bg| ContrastCheck { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
             .into_iter()
             .collect();
-        // The outline and the off thumb of check boxes, radio buttons and switches are `text.faint`.
+        // The off outline of check boxes, radio buttons and switches is `text.faint`.
         let off = |part| ComponentField::Check(CheckField::Color { on_off: OnOff::Off, part, state: State::Rest });
         for bg in [T::SurfacePanel, T::SurfaceRaised] {
             expected.push(ContrastCheck { fg: off(CheckPart::Border).into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 3.0 });
         }
         let sunken = t.color(T::SurfaceSunken);
-        expected.push(ContrastCheck {
-            fg: off(CheckPart::Mark).into(),
-            bg: off(CheckPart::Fill).into(),
-            ratio: contrast_ratio(pin, sunken),
-            minimum: 3.0,
-        });
         // Text field placeholders are `text.faint` on the field fill, `surface.sunken`.
         let field = |part| ComponentField::Field(FieldField::Color { part, disabled: false });
         expected.push(ContrastCheck {

@@ -1,18 +1,25 @@
 //! Check boxes, radio buttons and switches. Each has an indicator (a box, a circle, a track) that
-//! takes its edge from the `Surface` primitive's sunken surface, and a mark that shows the state:
-//! the check or dash, the radio dot, the switch thumb. This family holds their sizes and the
-//! colours of the indicator and mark while off and while on (checked, mixed, selected).
+//! takes its edge from the `Surface` primitive's sunken surface. A check box or radio button that
+//! is on shows a mark (the check or dash, the radio dot); a switch shows its state by its track
+//! and where its thumb sits, a knob that is the same while off and on. This family holds their
+//! sizes and the colours of the indicator while off and while on (checked, mixed, selected), of
+//! the mark, and of the switch thumb.
 //!
-//! The mark and the off outline are the cues that identify the control and its state, so they
-//! have the WCAG non-text minimum (3:1, 4.5:1 with high contrast) at rest: the mark against the
-//! indicator's fill, and the off outline and the on fill against the control backgrounds
-//! (`surface.panel` and `surface.raised`). Hover and pressed colours have no minimum.
+//! The mark, the on fill and the off outline are the cues that identify the control and its
+//! state, so they have the WCAG non-text minimum (3:1, 4.5:1 with high contrast) at rest: the
+//! mark against the on fill, and the off outline and the on fill against the control backgrounds
+//! (`surface.panel` and `surface.raised`). Hover and pressed colours have no minimum, and neither
+//! has the switch thumb: where its face is close to the track, its outline or shadow gives the
+//! edge.
 //!
 //! A disabled control that is on keeps an on look: a `text.disabled` fill with a
 //! `state.disabled_fill` mark, the reverse of off's `state.disabled_fill` fill with a
-//! `text.disabled` outline and thumb.
+//! `text.disabled` outline.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
+use super::{
+    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
+    thumb_from_path, thumb_path,
+};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
@@ -46,13 +53,21 @@ pub enum CheckPart {
     Fill,
     /// The outline of the box, circle or track, over a flat surface's border.
     Border,
-    /// The check or dash, the radio dot, the switch thumb.
+    /// The check or dash, the radio dot; only while on.
     Mark,
 }
 
 impl CheckPart {
     /// Every part, in path order.
     pub const ALL: [CheckPart; 3] = [CheckPart::Fill, CheckPart::Border, CheckPart::Mark];
+
+    /// The parts with a colour while `on_off`: off has no mark.
+    pub const fn of(on_off: OnOff) -> &'static [CheckPart] {
+        match on_off {
+            OnOff::Off => &[CheckPart::Fill, CheckPart::Border],
+            OnOff::On => &CheckPart::ALL,
+        }
+    }
 
     /// The path segment, e.g. `"mark"`.
     pub const fn name(self) -> &'static str {
@@ -71,7 +86,7 @@ pub struct CheckColors {
     pub fill: States<Rgba>,
     /// Outline of the box, circle or track.
     pub border: States<Rgba>,
-    /// Check, dash, dot or thumb. Off, only a switch draws one (its thumb).
+    /// Check, dash or dot. Off has no mark: clear, and no path.
     pub mark: States<Rgba>,
 }
 
@@ -117,11 +132,15 @@ pub struct CheckTokens {
     pub track: BySize<f32>,
     /// Between the switch track's edge and its thumb.
     pub thumb_inset: f32,
-    /// Off: `text.faint` outline on `surface.sunken`; a switch's thumb in `text.faint`.
+    /// Off: `text.faint` outline on `surface.sunken`.
     pub off: CheckColors,
     /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
     /// and outline with a `state.disabled_fill` mark.
     pub on: CheckColors,
+    /// The switch thumb, off and on: a knob, a `surface.knob` face with a `line.knob_edge`
+    /// outline in every enabled state; disabled, a face halfway to `surface.panel` with a
+    /// `line.divider` outline.
+    pub thumb: ThumbColors,
 }
 
 impl CheckTokens {
@@ -141,8 +160,8 @@ impl CheckTokens {
     }
 }
 
-/// An overridable check field. Paths: `radius`, `<on|off>.<part>.<state>`, e.g.
-/// `check.on.mark.rest`.
+/// An overridable check field. Paths: `radius`, `<on|off>.<part>.<state>` (no `off.mark`),
+/// `thumb.<part>.<state>`, e.g. `check.on.mark.rest`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckField {
     /// `check.radius`
@@ -156,19 +175,37 @@ pub enum CheckField {
         /// The state.
         state: State,
     },
+    /// `check.thumb.<part>.<state>`: the switch thumb.
+    Thumb {
+        /// The part.
+        part: ThumbPart,
+        /// The state.
+        state: State,
+    },
 }
 
-const FIELD_COUNT: usize = 1 + OnOff::ALL.len() * CheckPart::ALL.len() * State::ALL.len();
+const COLOR_COUNT: usize = (CheckPart::of(OnOff::Off).len() + CheckPart::of(OnOff::On).len()) * State::ALL.len();
+const FIELD_COUNT: usize = 1 + COLOR_COUNT + THUMB_FIELDS.len();
 
 const FIELDS: [CheckField; FIELD_COUNT] = {
     let mut out = [CheckField::Radius; FIELD_COUNT];
-    let per_set = CheckPart::ALL.len() * State::ALL.len();
-    let mut i = 0;
-    while i < FIELD_COUNT - 1 {
-        let (set, rest) = (i / per_set, i % per_set);
-        out[1 + i] =
-            CheckField::Color { on_off: OnOff::ALL[set], part: CheckPart::ALL[rest / State::ALL.len()], state: State::ALL[rest % State::ALL.len()] };
-        i += 1;
+    let mut i = 1;
+    let mut set = 0;
+    while set < OnOff::ALL.len() {
+        let parts = CheckPart::of(OnOff::ALL[set]);
+        let mut j = 0;
+        while j < parts.len() * State::ALL.len() {
+            out[i] = CheckField::Color { on_off: OnOff::ALL[set], part: parts[j / State::ALL.len()], state: State::ALL[j % State::ALL.len()] };
+            i += 1;
+            j += 1;
+        }
+        set += 1;
+    }
+    let mut k = 0;
+    while k < THUMB_FIELDS.len() {
+        let (part, state) = THUMB_FIELDS[k];
+        out[i + k] = CheckField::Thumb { part, state };
+        k += 1;
     }
     out
 };
@@ -181,7 +218,7 @@ impl Family for CheckTokens {
         let (c, size) = (s.color, s.size);
         let icon = BySize { sm: size.icon.sm, md: size.icon.md };
         // `text.faint` meets the text minimum on every surface and state fill, so the outline
-        // and the off thumb meet the non-text minimum wherever the control sits.
+        // meets the non-text minimum wherever the control sits.
         let outline = States::new(c.text.faint, c.text.muted, c.text.muted, c.text.disabled);
         let sunken = c.surface.sunken;
         let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
@@ -196,8 +233,13 @@ impl Family for CheckTokens {
             dot: BySize { sm: icon.sm * values::RADIO_DOT_RATIO, md: icon.md * values::RADIO_DOT_RATIO },
             track: BySize { sm: icon.sm * values::SWITCH_ASPECT, md: icon.md * values::SWITCH_ASPECT },
             thumb_inset: values::SWITCH_THUMB_INSET,
-            off: CheckColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline, mark: outline },
+            off: CheckColors {
+                fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill),
+                border: outline,
+                mark: States::new(Rgba::TRANSPARENT, Rgba::TRANSPARENT, Rgba::TRANSPARENT, Rgba::TRANSPARENT),
+            },
             on: CheckColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
+            thumb: ThumbColors::knob(c),
         }
     }
 
@@ -205,6 +247,7 @@ impl Family for CheckTokens {
         match f {
             CheckField::Radius => "radius".to_owned(),
             CheckField::Color { on_off, part, state } => format!("{}.{}.{}", on_off.name(), part.name(), state.name()),
+            CheckField::Thumb { part, state } => format!("thumb.{}", thumb_path(part, state)),
         }
     }
 
@@ -212,22 +255,24 @@ impl Family for CheckTokens {
         if path == "radius" {
             return Some(CheckField::Radius);
         }
+        if let Some(rest) = path.strip_prefix("thumb.") {
+            let (part, state) = thumb_from_path(rest)?;
+            return Some(CheckField::Thumb { part, state });
+        }
         let mut segments = path.split('.');
         let (on_off, part, state) = (segments.next()?, segments.next()?, segments.next()?);
         if segments.next().is_some() {
             return None;
         }
-        Some(CheckField::Color {
-            on_off: OnOff::ALL.into_iter().find(|o| o.name() == on_off)?,
-            part: CheckPart::ALL.into_iter().find(|p| p.name() == part)?,
-            state: State::from_name(state)?,
-        })
+        let on_off = OnOff::ALL.into_iter().find(|o| o.name() == on_off)?;
+        let part = CheckPart::of(on_off).iter().copied().find(|p| p.name() == part)?;
+        Some(CheckField::Color { on_off, part, state: State::from_name(state)? })
     }
 
     fn kind(f: CheckField) -> FieldKind {
         match f {
             CheckField::Radius => FieldKind::Length,
-            CheckField::Color { .. } => FieldKind::Color,
+            CheckField::Color { .. } | CheckField::Thumb { .. } => FieldKind::Color,
         }
     }
 
@@ -235,13 +280,17 @@ impl Family for CheckTokens {
         match f {
             CheckField::Radius => OverrideValue::Length(self.radius),
             CheckField::Color { on_off, part, state } => OverrideValue::Color(self.colors(on_off).part(part).get(state)),
+            CheckField::Thumb { part, state } => OverrideValue::Color(self.thumb.part(part).get(state)),
         }
     }
 
     fn set(&mut self, f: CheckField, v: OverrideValue) {
         match (f, v) {
             (CheckField::Radius, OverrideValue::Length(r)) => self.radius = r.min(values::CHECK_RADIUS_MAX),
-            (CheckField::Color { on_off, part, state }, OverrideValue::Color(c)) => *self.colors_mut(on_off).part_mut(part).get_mut(state) = c,
+            (CheckField::Color { on_off, part, state }, OverrideValue::Color(c)) if CheckPart::of(on_off).contains(&part) => {
+                *self.colors_mut(on_off).part_mut(part).get_mut(state) = c
+            }
+            (CheckField::Thumb { part, state }, OverrideValue::Color(c)) => *self.thumb.part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}
         }
@@ -254,7 +303,7 @@ impl Family for CheckTokens {
         let pair = |fg, bg| ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN };
         let mut out: Vec<_> = backgrounds.map(|bg| pair(field(OnOff::On, CheckPart::Fill), bg)).into();
         out.extend(backgrounds.map(|bg| pair(field(OnOff::Off, CheckPart::Border), bg)));
-        out.extend(OnOff::ALL.map(|on_off| pair(field(on_off, CheckPart::Mark), TokenRef::Component(field(on_off, CheckPart::Fill)))));
+        out.push(pair(field(OnOff::On, CheckPart::Mark), TokenRef::Component(field(OnOff::On, CheckPart::Fill))));
         out
     }
 }

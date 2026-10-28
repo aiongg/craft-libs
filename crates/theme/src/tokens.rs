@@ -62,6 +62,8 @@ pub struct SurfaceColors {
     pub raised: Rgba,
     /// Fields and wells.
     pub sunken: Rgba,
+    /// The face of a knob that rides on a track: slider and switch thumbs. Light in both modes.
+    pub knob: Rgba,
     /// Translucent cover behind modal surfaces.
     pub scrim: Rgba,
 }
@@ -94,6 +96,9 @@ pub struct LineColors {
     pub border: Rgba,
     /// The boundary of a control that must be seen to be used (fields, checkboxes).
     pub control_edge: Rgba,
+    /// The outline of a `surface.knob` face; clear where the face stands out on its own (dark
+    /// mode).
+    pub knob_edge: Rgba,
     /// Keyboard focus ring.
     pub focus: Rgba,
 }
@@ -229,9 +234,9 @@ impl ColorTokens {
     pub(super) const fn splat(c: Rgba) -> ColorTokens {
         let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
-            surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, scrim: c },
+            surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, knob: c, scrim: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_status: c, on_selected: c },
-            line: LineColors { divider: c, border: c, control_edge: c, focus: c },
+            line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
@@ -293,6 +298,8 @@ color_tokens! {
     SurfaceRaised = "surface.raised" => surface.raised;
     /// `surface.sunken`
     SurfaceSunken = "surface.sunken" => surface.sunken;
+    /// `surface.knob`
+    SurfaceKnob = "surface.knob" => surface.knob;
     /// `surface.scrim`
     SurfaceScrim = "surface.scrim" => surface.scrim;
     /// `text.normal`
@@ -315,6 +322,8 @@ color_tokens! {
     LineBorder = "line.border" => line.border;
     /// `line.control_edge`
     LineControlEdge = "line.control_edge" => line.control_edge;
+    /// `line.knob_edge`
+    LineKnobEdge = "line.knob_edge" => line.knob_edge;
     /// `line.focus`
     LineFocus = "line.focus" => line.focus;
     /// `accent.solid`
@@ -446,11 +455,11 @@ pub enum TokenRef {
 }
 
 impl ColorToken {
-    /// Whether this is a surface that text and fills sit on (`surface.*` except `scrim`); those
-    /// must be opaque.
+    /// Whether this is a surface that text and fills sit on, or a knob that covers them
+    /// (`surface.*` except `scrim`); those must be opaque.
     pub const fn is_opaque_surface(self) -> bool {
-        use ColorToken::{SurfaceBackground, SurfaceCanvas, SurfacePanel, SurfaceRaised, SurfaceSunken};
-        matches!(self, SurfaceBackground | SurfaceCanvas | SurfacePanel | SurfaceRaised | SurfaceSunken)
+        use ColorToken::{SurfaceBackground, SurfaceCanvas, SurfaceKnob, SurfacePanel, SurfaceRaised, SurfaceSunken};
+        matches!(self, SurfaceBackground | SurfaceCanvas | SurfacePanel | SurfaceRaised | SurfaceSunken | SurfaceKnob)
     }
 }
 
@@ -718,6 +727,8 @@ pub struct ElevationTokens {
     pub dialog: Elevation,
     /// Floating panels and toolbars.
     pub floating: Elevation,
+    /// Knobs on a track (`surface.knob`); level 0 in bevel themes, whose bevel draws the relief.
+    pub knob: Elevation,
 }
 
 /// One animation: how long and along which curve.

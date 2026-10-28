@@ -200,7 +200,7 @@ fn best_extreme(c: &ColorTokens, solids: &[ColorToken]) -> Rgba {
 }
 
 /// Linear interpolation in OKLab, opaque.
-fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
+pub(crate) fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
     let (a, b) = (a.to_oklab(), b.to_oklab());
     let lerp = |x: f64, y: f64| x + (y - x) * t;
     Oklab { l: lerp(a.l, b.l), a: lerp(a.a, b.a), b: lerp(a.b, b.b) }.to_oklch().to_rgba()

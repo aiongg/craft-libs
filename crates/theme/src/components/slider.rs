@@ -1,59 +1,15 @@
 //! Sliders: a sunken track, the part from the start to the value filled in the accent colour, and
-//! a raised thumb on the value. The track and thumb take their edges from the `Surface` primitive
-//! (a border, or a bevel in Classic); this family holds their sizes, corners and colours.
+//! a knob on the value. The track and thumb take their edges from the `Surface` primitive (a
+//! border, or a bevel in Classic) and the thumb its shadow from `elevation.knob`; this family
+//! holds their sizes, corners and colours.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
+use super::{
+    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
+    thumb_from_path, thumb_path,
+};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
-
-/// One coloured part of a slider's thumb.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ThumbPart {
-    /// The face.
-    Fill,
-    /// The outline; a bevel keeps its own colours.
-    Border,
-}
-
-impl ThumbPart {
-    /// Every part, in path order.
-    pub const ALL: [ThumbPart; 2] = [ThumbPart::Fill, ThumbPart::Border];
-
-    /// The path segment, e.g. `"fill"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            ThumbPart::Fill => "fill",
-            ThumbPart::Border => "border",
-        }
-    }
-}
-
-/// The colours of a slider's thumb, per state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ThumbColors {
-    /// Face.
-    pub fill: States<Rgba>,
-    /// Outline.
-    pub border: States<Rgba>,
-}
-
-impl ThumbColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: ThumbPart) -> &States<Rgba> {
-        match part {
-            ThumbPart::Fill => &self.fill,
-            ThumbPart::Border => &self.border,
-        }
-    }
-
-    fn part_mut(&mut self, part: ThumbPart) -> &mut States<Rgba> {
-        match part {
-            ThumbPart::Fill => &mut self.fill,
-            ThumbPart::Border => &mut self.border,
-        }
-    }
-}
 
 /// Slider tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -75,13 +31,18 @@ pub struct SliderTokens {
     /// The filled part, from the start to the value: an accent state indicator (`accent.solid`,
     /// `accent.hover`, `accent.pressed`; `text.disabled` when disabled).
     pub fill: States<Rgba>,
-    /// The thumb: a raised face (`surface.raised`, then `state.hover` and `state.pressed`) with a
-    /// `line.control_edge` outline.
+    /// The thumb: a knob, a `surface.knob` face with a `line.knob_edge` outline in every
+    /// enabled state; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
     pub thumb_colors: ThumbColors,
+    /// The ring round the thumb: clear at rest and when disabled, `accent.soft` while hovered or
+    /// pressed.
+    pub ring: States<Rgba>,
+    /// Width of the ring: [`values::KNOB_RING`].
+    pub ring_width: f32,
 }
 
 /// An overridable slider field. Paths: `radius`, `track`, `fill.<state>`,
-/// `thumb.<part>.<state>`, e.g. `slider.thumb.border.hover`.
+/// `thumb.<part>.<state>`, `ring.<state>`, e.g. `slider.thumb.border.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SliderField {
     /// `slider.radius`
@@ -97,9 +58,11 @@ pub enum SliderField {
         /// The state.
         state: State,
     },
+    /// `slider.ring.<state>`
+    Ring(State),
 }
 
-const FIELD_COUNT: usize = 2 + State::ALL.len() + ThumbPart::ALL.len() * State::ALL.len();
+const FIELD_COUNT: usize = 2 + State::ALL.len() + THUMB_FIELDS.len() + State::ALL.len();
 
 const FIELDS: [SliderField; FIELD_COUNT] = {
     let mut out = [SliderField::Radius; FIELD_COUNT];
@@ -110,9 +73,15 @@ const FIELDS: [SliderField; FIELD_COUNT] = {
         i += 1;
     }
     let mut j = 0;
-    while j < ThumbPart::ALL.len() * State::ALL.len() {
-        out[2 + State::ALL.len() + j] = SliderField::Thumb { part: ThumbPart::ALL[j / State::ALL.len()], state: State::ALL[j % State::ALL.len()] };
+    while j < THUMB_FIELDS.len() {
+        let (part, state) = THUMB_FIELDS[j];
+        out[2 + State::ALL.len() + j] = SliderField::Thumb { part, state };
         j += 1;
+    }
+    let mut k = 0;
+    while k < State::ALL.len() {
+        out[2 + State::ALL.len() + THUMB_FIELDS.len() + k] = SliderField::Ring(State::ALL[k]);
+        k += 1;
     }
     out
 };
@@ -124,6 +93,7 @@ impl SliderTokens {
             SliderField::Track => Some(&mut self.track),
             SliderField::Fill(state) => Some(self.fill.get_mut(state)),
             SliderField::Thumb { part, state } => Some(self.thumb_colors.part_mut(part).get_mut(state)),
+            SliderField::Ring(state) => Some(self.ring.get_mut(state)),
         }
     }
 }
@@ -134,7 +104,7 @@ impl Family for SliderTokens {
 
     fn defaults(s: &Semantic<'_>) -> SliderTokens {
         let (c, size) = (s.color, s.size);
-        let edge = c.line.control_edge;
+        let (clear, soft) = (Rgba::TRANSPARENT, c.accent.soft);
         SliderTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             width: BySize { sm: values::SLIDER_WIDTH * size.control.sm, md: values::SLIDER_WIDTH * size.control.md },
@@ -143,10 +113,9 @@ impl Family for SliderTokens {
             radius: values::SLIDER_RADIUS.px(),
             track: c.surface.sunken,
             fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled),
-            thumb_colors: ThumbColors {
-                fill: States::new(c.surface.raised, c.state.hover, c.state.pressed, c.state.disabled_fill),
-                border: States::new(edge, edge, edge, c.line.divider),
-            },
+            thumb_colors: ThumbColors::knob(c),
+            ring: States::new(clear, soft, soft, clear),
+            ring_width: values::KNOB_RING,
         }
     }
 
@@ -155,7 +124,8 @@ impl Family for SliderTokens {
             SliderField::Radius => "radius".to_owned(),
             SliderField::Track => "track".to_owned(),
             SliderField::Fill(state) => format!("fill.{}", state.name()),
-            SliderField::Thumb { part, state } => format!("thumb.{}.{}", part.name(), state.name()),
+            SliderField::Thumb { part, state } => format!("thumb.{}", thumb_path(part, state)),
+            SliderField::Ring(state) => format!("ring.{}", state.name()),
         }
     }
 
@@ -168,8 +138,11 @@ impl Family for SliderTokens {
         if let Some(state) = path.strip_prefix("fill.") {
             return State::from_name(state).map(SliderField::Fill);
         }
-        let (part, state) = path.strip_prefix("thumb.")?.split_once('.')?;
-        Some(SliderField::Thumb { part: ThumbPart::ALL.into_iter().find(|p| p.name() == part)?, state: State::from_name(state)? })
+        if let Some(state) = path.strip_prefix("ring.") {
+            return State::from_name(state).map(SliderField::Ring);
+        }
+        let (part, state) = thumb_from_path(path.strip_prefix("thumb.")?)?;
+        Some(SliderField::Thumb { part, state })
     }
 
     fn kind(f: SliderField) -> FieldKind {
@@ -185,6 +158,7 @@ impl Family for SliderTokens {
             SliderField::Track => OverrideValue::Color(self.track),
             SliderField::Fill(state) => OverrideValue::Color(self.fill.get(state)),
             SliderField::Thumb { part, state } => OverrideValue::Color(self.thumb_colors.part(part).get(state)),
+            SliderField::Ring(state) => OverrideValue::Color(self.ring.get(state)),
         }
     }
 
@@ -202,7 +176,8 @@ impl Family for SliderTokens {
     }
 
     /// The filled part against the track: an accent state indicator (WCAG 1.4.11), 3:1 and 4.5:1
-    /// with high contrast. The thumb's outline is a control edge, a design target.
+    /// with high contrast. The thumb is neither text nor a state indicator, so it has no minimum:
+    /// where its face is close to the fill under it, its outline or shadow gives the edge.
     fn pairs() -> Vec<ContrastPair> {
         let field = |f| ComponentField::Slider(f);
         [State::Rest, State::Hover, State::Pressed]
