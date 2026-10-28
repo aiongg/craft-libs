@@ -440,6 +440,20 @@ pub const FIELD_WIDTH: f32 = 8.0;
 /// a short unit and a scrub label inside the field.
 pub const NUMBER_FIELD_WIDTH: f32 = 4.0;
 
+/// The control height the Compact property row widths are set for; other sizes scale them by
+/// their control height over this.
+pub const PROPERTY_BASE_CONTROL: f32 = 24.0;
+/// Compact width of a glyph label's column (W, H, X, Y).
+pub const PROPERTY_GLYPH_WIDTH: f32 = 22.0;
+/// Compact width of a word label's column (Opacity, Angle).
+pub const PROPERTY_WORD_WIDTH: f32 = 72.0;
+/// Compact width under which a property row's control is not drawn.
+pub const PROPERTY_MIN_CONTROL: f32 = 36.0;
+/// Compact gap between the two columns of a pair row.
+pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
+/// Compact width of the slot between a pair's columns.
+pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
+
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.

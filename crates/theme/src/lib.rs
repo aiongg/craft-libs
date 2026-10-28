@@ -57,8 +57,8 @@ pub use components::{
     ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens, ComponentField,
     ComponentTokens, ControlSize, Dimmed, FieldField, FieldKind, FieldPart, FieldTokens, HandleField, HandleTokens, IconButtonField,
     IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListboxField, ListboxTokens, OverrideError, OverrideValue, ProgressField,
-    ProgressTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors,
-    ThumbPart, ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
+    ProgressTokens, PropertyField, PropertyTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor,
+    SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

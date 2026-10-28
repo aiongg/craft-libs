@@ -14,6 +14,7 @@ mod icon_button;
 mod kbd;
 mod listbox;
 mod progress;
+mod property;
 mod segmented;
 mod slider;
 mod swatch;
@@ -35,6 +36,7 @@ pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use progress::{ProgressField, ProgressTokens};
+pub use property::{PropertyField, PropertyTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
@@ -544,6 +546,8 @@ families! {
     listbox: ListboxTokens => Listbox(ListboxField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
+    /// Property rows: the label, control and column widths of an inspector row.
+    property: PropertyTokens => Property(PropertyField);
     /// Segmented controls: one of a few options on a track.
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
