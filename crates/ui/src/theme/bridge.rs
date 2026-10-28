@@ -102,6 +102,7 @@ fn suite_default_theme() -> &'static ThemeDef {
 /// requests a repaint when anything changed.
 pub fn install(ctx: &Context, base: &Base) {
     crate::primitives::focus_ring::track_modality(ctx);
+    crate::inspect::track(ctx);
     let env = Env::of(ctx);
     let unchanged = with_state(ctx, |s| s.installed.as_ref().is_some_and(|i| i.env == env && i.base == *base));
     if unchanged {

@@ -4,6 +4,7 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Sense, Ui, Vec2, WidgetInfo, vec2};
 
 use super::{Corner, FocusRing, StateLayer, Surface, SurfaceKind};
+use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
@@ -165,6 +166,7 @@ impl<'a> Interactive<'a> {
         let id = ui.make_persistent_id(self.id_salt);
         let (_, rect) = ui.allocate_space(size);
         let mut response = ui.interact(rect, id, self.sense);
+        inspect::record(ui, id, RecordKind::Interactive(self.role), rect, rect);
         // A click changes bound states before they are reported, as egui's check box does.
         let clicked = response.clicked();
         let mut changed = false;

@@ -14,6 +14,7 @@ mod focus;
 pub mod fonts;
 pub mod icons;
 pub mod ime;
+pub mod inspect;
 pub mod layout;
 pub mod localized;
 pub mod panes;

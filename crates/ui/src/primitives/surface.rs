@@ -6,6 +6,7 @@ use egui::epaint::{Mesh, RectShape};
 use egui::{Color32, CornerRadius, InnerResponse, Painter, Pos2, Rect, Shadow, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
 use super::Corner;
+use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -177,6 +178,8 @@ impl Surface {
         let inner = ui.scope(add_contents);
         let shapes = Surface::style(&tokens, self.kind).shapes(inner.response.rect, ui.pixels_per_point());
         ui.painter().set(slot, Shape::Vec(shapes));
+        let rect = inner.response.rect;
+        inspect::record(ui, inner.response.id, RecordKind::Surface(self.kind), rect, rect);
         inner
     }
 }

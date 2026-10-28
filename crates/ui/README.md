@@ -7,6 +7,7 @@ interaction; `layout` provides toolbar fitting, split geometry and resize handle
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
 `fonts` installs the UI font stack, the same fallback order in every app.
 `primitives` holds the design system's building blocks (surfaces, state layer, focus ring, divider, stack and row, interactive element, text, icon, canvas handle), styled from `theme`'s tokens.
+`inspect` records the primitives' layout boxes and the AccessKit tree for inspector overlays such as the gallery's; off by default.
 `localized` supplies number fields that write and read the user's region's numbers.
 The current delivery covers nine creative apps (DesignCraft, VectorCraft, PhotoCraft, FilmCraft, EffectCraft, CADCraft, PDFCraft, LightCraft and SoundCraft); prior basic and office adapters are separate. The [suite audit](../../docs/ui-components-audit.md#adoption-and-acceptance)
 records their scope and acceptance limits. Assets (font files included), complete themes, localization

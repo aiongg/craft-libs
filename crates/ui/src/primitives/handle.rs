@@ -4,6 +4,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
 
+use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -150,6 +151,7 @@ impl Handle {
         };
         let rect = Rect::from_center_size(center, vec2(style.hit, style.hit));
         let response = ui.interact(rect, id, self.sense - Sense::FOCUSABLE);
+        inspect::record(ui, id, RecordKind::Handle, rect, Rect::from_center_size(center, vec2(style.size, style.size)));
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(Role::GraphicsObject, ui.is_enabled(), &self.label);
             info.current_text_value.clone_from(&self.value);

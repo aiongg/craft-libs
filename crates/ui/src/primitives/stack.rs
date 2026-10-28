@@ -1,9 +1,10 @@
 //! [`Stack`] and [`Row`]: layouts with token gaps and padding.
 
 use craft_theme::Tokens as ThemeTokens;
-use egui::{Frame, InnerResponse, Ui, vec2};
+use egui::{Frame, InnerResponse, Margin, Ui, vec2};
 
 use crate::direction;
+use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf, margin};
 
@@ -100,7 +101,7 @@ impl Stack {
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let tokens = Tokens::of(ui);
         let gap = self.gap.points(&tokens);
-        padded(ui, self.pad, |ui| {
+        padded(ui, self.pad, RecordKind::Stack, |ui| {
             ui.with_layout(direction::column(ui), |ui| {
                 ui.spacing_mut().item_spacing.y = gap;
                 add_contents(ui)
@@ -132,7 +133,7 @@ impl Row {
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let tokens = Tokens::of(ui);
         let gap = self.gap.points(&tokens);
-        padded(ui, self.pad, |ui| {
+        padded(ui, self.pad, RecordKind::Row, |ui| {
             // As `ui.horizontal`: one control high to start with, so items centre on the row.
             let size = vec2(ui.available_size_before_wrap().x, ui.spacing().interact_size.y);
             ui.allocate_ui_with_layout(size, direction::row(ui), |ui| {
@@ -144,11 +145,17 @@ impl Row {
     }
 }
 
-fn padded<R>(ui: &mut Ui, pad: Option<Pad>, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-    match pad {
-        Some(pad) => Frame::new().inner_margin(margin(pad.points(&Tokens::of(ui)))).show(ui, add_contents),
-        None => ui.scope(add_contents),
-    }
+fn padded<R>(ui: &mut Ui, pad: Option<Pad>, kind: RecordKind, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+    let (inner, inset) = match pad {
+        Some(pad) => {
+            let inset = margin(pad.points(&Tokens::of(ui)));
+            (Frame::new().inner_margin(inset).show(ui, add_contents), inset)
+        }
+        None => (ui.scope(add_contents), Margin::ZERO),
+    };
+    let rect = inner.response.rect;
+    inspect::record(ui, inner.response.id, kind, rect, rect - inset);
+    inner
 }
 
 /// The components this module has stories for.
