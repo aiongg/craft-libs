@@ -362,7 +362,8 @@ impl<'a, C: Codec> Typing<'a, C> {
             text_rect,
             composing,
             submitted,
-            filter: either(filter, self.keys),
+            filter,
+            keys: self.keys,
             draft,
             rejected,
             replaced: false,
@@ -427,8 +428,10 @@ pub struct Typed<C: Codec = PlainText> {
     text_rect: Rect,
     composing: bool,
     submitted: bool,
-    /// `TextEdit`'s focus filter with the embedding control's keys.
+    /// `TextEdit`'s focus filter.
     filter: EventFilter,
+    /// The embedding control's keys.
+    keys: EventFilter,
     /// The typing run's text, where text is a draft.
     draft: Option<Draft>,
     rejected: Option<Rejected<C::Value>>,
@@ -519,6 +522,17 @@ impl<C: Codec> Typed<C> {
         &mut self.gesture
     }
 
+    /// Whether a plain Enter press commits the run in this pass ([`EditResponse::submitted`]).
+    pub fn submitted(&self) -> bool {
+        self.submitted
+    }
+
+    /// Replaces the keys given with [`Typing::event_filter`]: the embedding control's keys
+    /// changed after the field ran in this pass (a list that opened or closed).
+    pub fn set_event_filter(&mut self, filter: EventFilter) {
+        self.keys = filter;
+    }
+
     /// Ends the typing run under way as Enter does, without [`submitted`](EditResponse::submitted):
     /// its text read back commits, or, when it reads as no value, the run ends unchanged and the
     /// text stays, rejected. Nothing without a run.
@@ -588,7 +602,8 @@ impl<C: Codec> Typed<C> {
         let escape = composing || (self.escape == Escape::Clear && !self.codec.format(self.gesture.shown()).is_empty()) || self.rejected.is_some();
         let seen = Seen::new(ui, egui::util::hash(&self.text), focused, composing, self.draft.take(), self.rejected.take());
         seen.store(ui, self.id);
-        let event = self.gesture.event_filter(EventFilter { escape: escape || self.filter.escape, ..self.filter }).finish_as(report);
+        let filter = either(self.filter, self.keys);
+        let event = self.gesture.event_filter(EventFilter { escape: escape || filter.escape, ..filter }).finish_as(report);
         EditResponse::new(self.response, event).submitted(self.submitted)
     }
 
