@@ -12,9 +12,9 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use craft_theme::{
-    Appearance, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BorderColors, ButtonColors, ButtonTokens, BySize, CheckOffColors,
-    CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, CurveTokens, Dimmed, Easing,
-    Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FontSlot, Gaps, GradientEditorTokens, GuideTokens, HandleTokens,
+    AngleDialTokens, Appearance, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BorderColors, ButtonColors, ButtonTokens, BySize,
+    CheckOffColors, CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, Contrast, ContrastCheck, ControlSizes, CurveTokens,
+    Dimmed, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FontSlot, Gaps, GradientEditorTokens, GuideTokens, HandleTokens,
     HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuTokens, Mode,
     Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, Rgba,
     RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, Size, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens,
@@ -272,6 +272,7 @@ fn states(out: &mut Lines, key: &str, v: &States<Rgba>) {
 
 fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     let ComponentTokens {
+        angle_dial,
         badge,
         button,
         check,
@@ -303,6 +304,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         toggle_button,
         tooltip,
     } = c;
+    angle_dial_lines(out, angle_dial);
     badge_lines(out, badge);
     button_lines(out, button);
     check_lines(out, check);
@@ -607,6 +609,19 @@ fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
     out.line("panel_header.pad", len(*pad));
     out.line("panel_header.gap", len(*gap));
     out.line("panel_header.button", len(*button));
+}
+
+fn angle_dial_lines(out: &mut Lines, t: &AngleDialTokens) {
+    let AngleDialTokens { size, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill, .. } = t;
+    out.line("angle_dial.size", len(*size));
+    out.line("angle_dial.needle_width", len(*needle_width));
+    out.line("angle_dial.needle_inset", len(*needle_inset));
+    out.line("angle_dial.hub", len(*hub));
+    out.line("angle_dial.dead_zone", len(*dead_zone));
+    out.line("angle_dial.face", hex(*face));
+    out.line("angle_dial.edge", hex(*edge));
+    out.line("angle_dial.needle", hex(*needle));
+    out.line("angle_dial.hub_fill", hex(*hub_fill));
 }
 
 fn curve_lines(out: &mut Lines, t: &CurveTokens) {

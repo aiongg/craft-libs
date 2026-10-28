@@ -10,8 +10,8 @@ use craft_ui::composites::{
     Tone,
 };
 use craft_ui::controls::{
-    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
-    Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
+    AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
+    Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
@@ -323,6 +323,17 @@ fn switch() {
         states(d, "thumb.fill", &s.thumb_fill);
         states(d, "thumb.border", &s.thumb_border);
         states(d, "text", &s.text);
+    });
+}
+
+/// Angle dials: the face, edge, needle, hub and dead zone, and the gap to the field.
+#[test]
+fn angle_dial() {
+    check("angle_dial.txt", |d, t| {
+        let s = AngleDial::style(t);
+        d.line("size", s.size).line("face", s.face).line("edge", s.edge.width).line("edge_color", s.edge.color).line("edge_active", s.edge_active);
+        d.line("needle", s.needle.width).line("needle_color", s.needle.color).line("needle_inset", s.needle_inset);
+        d.line("hub", s.hub).line("hub_fill", s.hub_fill).line("dead_zone", s.dead_zone).line("gap", s.gap);
     });
 }
 

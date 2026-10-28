@@ -5,6 +5,7 @@
 //!
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
+mod angle_dial;
 mod badge;
 mod button;
 mod check;
@@ -43,6 +44,7 @@ use super::scale::Elevation;
 use super::theme::Size;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
+pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
@@ -562,6 +564,8 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Angle dials: the round face and needle that point in a direction.
+    angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// Badges: small labels in a tone.
     badge: BadgeTokens => Badge(BadgeField);
     /// Push buttons.

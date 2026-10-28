@@ -640,6 +640,19 @@ pub const LIST_DROP_HALO: f32 = 1.0;
 /// selected fill (OKLab mix), before their contrast minimum.
 pub const LIST_SELECTED_QUIET: f64 = 0.4;
 
+/// The control height the Compact angle dial sizes are set for.
+pub const ANGLE_DIAL_BASE_CONTROL: f32 = 24.0;
+/// Compact diameter of an angle dial's face (PhotoCraft's `angle_dial_row`).
+pub const ANGLE_DIAL_SIZE: f32 = 42.0;
+/// Compact width of an angle dial's needle.
+pub const ANGLE_DIAL_NEEDLE_WIDTH: f32 = 2.0;
+/// Compact distance from the dial's edge to the needle's tip.
+pub const ANGLE_DIAL_NEEDLE_INSET: f32 = 4.0;
+/// Compact radius of the dot at the dial's centre.
+pub const ANGLE_DIAL_HUB: f32 = 2.0;
+/// Compact radius round the dial's centre within which the pointer changes nothing.
+pub const ANGLE_DIAL_DEAD_ZONE: f32 = 2.0;
+
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.

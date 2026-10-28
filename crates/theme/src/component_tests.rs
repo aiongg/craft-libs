@@ -196,6 +196,30 @@ fn a_pinned_curve_fill_is_checked_against_the_channel_colours() {
     assert!(ratio >= 4.5 && !warned(&r), "{ratio:.2}: {:?}", r.warnings);
 }
 
+#[test]
+fn angle_dial_defaults_come_from_semantic_tokens_and_the_needle_meets_the_face() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            let (needle, face) = (ComponentField::AngleDial(AngleDialField::Needle), ComponentField::AngleDial(AngleDialField::Face));
+            let ratio = pair_ratio(&r.tokens, needle, Some(face));
+            assert!(ratio >= min, "{} {a:?}: the needle on the face is {ratio:.2}, needs {min}", def.name);
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let d = &t.component.angle_dial;
+    assert_eq!((d.face, d.edge), (t.color(T::SurfaceSunken), t.color(T::LineControlEdge)));
+    assert_eq!((d.needle, d.hub_fill), (t.color(T::AccentSolid), t.color(T::TextMuted)));
+    // The Compact sizes scale with the control height.
+    let k = t.size.control.md / 24.0;
+    let scaled = |v: f32| (v * k).round();
+    assert_eq!((d.size, d.needle_width, d.needle_inset), (scaled(42.0), scaled(2.0), scaled(4.0)));
+    assert_eq!((d.hub, d.dead_zone), (scaled(2.0), scaled(2.0)));
+}
+
 /// The knob look of slider and switch thumbs: `surface.knob` with a `line.knob_edge` outline while
 /// enabled; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
 fn knob(t: &Tokens) -> ThumbColors {
@@ -498,6 +522,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2
             // Gradient editor: edge, marker edge and selected.
             + 3
+            // Angle dial: face, edge, needle and hub.
+            + 4
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
