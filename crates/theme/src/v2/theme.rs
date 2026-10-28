@@ -6,7 +6,7 @@ use super::color::Rgba;
 use super::components::{ComponentField, FieldKind, OverrideError, OverrideValue};
 use super::ramp::Mode;
 use super::tokens::{ColorTokens, Edge, RadiusSet, Status, TokenRef};
-use crate::ThemeId;
+use crate::{AppId, ThemeId};
 
 /// A theme: seeds to derive from, values that override the derivation, and an optional shape.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,31 +30,58 @@ pub struct ThemeDef {
     pub components: BTreeMap<ComponentField, OverrideValue>,
     /// Whether the theme is meant to have low contrast.
     pub contrast_intent: ContrastIntent,
+    /// Per-app overrides, applied over the theme's own values when resolving for that app.
+    pub apps: BTreeMap<AppId, AppOverrides>,
+}
+
+/// What a theme changes for one app. Applied after the theme's pins and before its
+/// high-contrast pins; the components after the theme's components.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AppOverrides {
+    /// Fixed colours per mode.
+    pub pins: ModePins,
+    /// Mode-independent component overrides.
+    pub components: BTreeMap<ComponentField, OverrideValue>,
 }
 
 impl ThemeDef {
-    /// Every override that resolution skips: a pin on a component field that is not a colour, a
-    /// colour in `components`, or a value of the wrong kind there.
+    /// Every override that resolution skips, in the theme and in its app overrides: a pin on a
+    /// component field that is not a colour, a colour in `components`, or a value of the wrong
+    /// kind there.
     pub fn override_errors(&self) -> Vec<OverrideError> {
         let mut out = Vec::new();
-        for pins in [&self.pins.light, &self.pins.dark, &self.high_contrast.light, &self.high_contrast.dark] {
-            for &key in pins.0.keys() {
-                if let TokenRef::Component(field) = key
-                    && field.kind() != FieldKind::Color
-                {
-                    out.push(OverrideError::PinNotColor(field));
-                }
-            }
-        }
-        for (&field, value) in &self.components {
-            let (expected, found) = (field.kind(), value.kind());
-            if expected == FieldKind::Color {
-                out.push(OverrideError::ColorNotPerMode(field));
-            } else if expected != found {
-                out.push(OverrideError::WrongKind { field, expected, found });
-            }
+        let high = [&self.high_contrast.light, &self.high_contrast.dark];
+        let own = [&self.pins.light, &self.pins.dark];
+        pin_errors(own.into_iter().chain(high), &mut out);
+        component_errors(&self.components, &mut out);
+        for app in self.apps.values() {
+            pin_errors([&app.pins.light, &app.pins.dark], &mut out);
+            component_errors(&app.components, &mut out);
         }
         out
+    }
+}
+
+fn pin_errors<'a>(pins: impl IntoIterator<Item = &'a Pins>, out: &mut Vec<OverrideError>) {
+    for pins in pins {
+        for &key in pins.0.keys() {
+            if let TokenRef::Component(field) = key
+                && field.kind() != FieldKind::Color
+            {
+                out.push(OverrideError::PinNotColor(field));
+            }
+        }
+    }
+}
+
+fn component_errors(components: &BTreeMap<ComponentField, OverrideValue>, out: &mut Vec<OverrideError>) {
+    for (&field, value) in components {
+        let (expected, found) = (field.kind(), value.kind());
+        if expected == FieldKind::Color {
+            out.push(OverrideError::ColorNotPerMode(field));
+        } else if expected != found {
+            out.push(OverrideError::WrongKind { field, expected, found });
+        }
     }
 }
 

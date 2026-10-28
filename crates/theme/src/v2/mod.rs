@@ -10,6 +10,7 @@ pub mod color;
 mod components;
 pub mod contrast;
 mod derive;
+pub mod format;
 pub mod ramp;
 mod resolve;
 pub mod scale;
@@ -19,6 +20,8 @@ mod values;
 
 #[cfg(test)]
 mod component_tests;
+#[cfg(test)]
+mod format_tests;
 #[cfg(test)]
 mod semantic_tests;
 #[cfg(test)]
@@ -34,7 +37,7 @@ pub use derive::ContrastWarning;
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve};
 pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
-pub use theme::{Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants};
+pub use theme::{AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, ModePins, Pins, Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants};
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
     IconSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, RadiusSet, RailSizes, ShapeTokens, SizeTokens, SpaceTokens, StateColors,

@@ -30,7 +30,7 @@ pub mod v2;
 pub use builtins::{builtin, builtins, lookup_builtin};
 pub use color::Rgba;
 pub use derive::{Derived, derive};
-pub use id::{APP_DEFAULT, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
+pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use resolve::{AppChoice, AppDefaults, Fallback, Resolution, Resolved, Selection, resolve};
 pub use roles::{CoreRoles, Mode, Role, Variant};
 pub use theme::{DefinitionError, MissingRole, Origin, RoleMap, SuiteTheme};

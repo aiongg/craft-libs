@@ -10,6 +10,7 @@ use super::ramp::{Mode, Ramp, RampKind};
 use super::theme::{Contrast, Pins, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, PairRule, RULES, Source};
+use crate::AppId;
 
 /// A contrast pair that is below its minimum after derivation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,7 +37,7 @@ struct Ramps {
 
 /// Derives every colour of `theme` in `mode`: ramp defaults, pins, then the contrast pass.
 /// Returns the colours and the pairs that still fail.
-pub(super) fn colors(theme: &ThemeDef, mode: Mode, contrast: Contrast) -> (ColorTokens, Vec<ContrastWarning>) {
+pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast: Contrast) -> (ColorTokens, Vec<ContrastWarning>) {
     let seeds = &theme.seeds;
     let ramps = Ramps {
         neutral: Ramp::from_seed(seeds.neutral, mode, RampKind::Neutral),
@@ -50,7 +51,7 @@ pub(super) fn colors(theme: &ThemeDef, mode: Mode, contrast: Contrast) -> (Color
     for &t in ColorToken::ALL {
         c.set(t, direct(&ramps, values::source(t, mode)).unwrap_or(Rgba::BLACK));
     }
-    for (t, v) in pins(theme, mode, high) {
+    for (t, v) in pins(theme, app, mode, high) {
         if let TokenRef::Color(t) = t {
             c.set(t, v);
             pinned.insert(t);
@@ -67,10 +68,11 @@ pub(super) fn colors(theme: &ThemeDef, mode: Mode, contrast: Contrast) -> (Color
     (c, warnings)
 }
 
-/// The mode's pins, then the high-contrast pins when `high`.
-fn pins(theme: &ThemeDef, mode: Mode, high: bool) -> impl Iterator<Item = (TokenRef, Rgba)> + '_ {
+/// The mode's pins, then the app's, then the high-contrast pins when `high`; later ones win.
+fn pins<'a>(theme: &'a ThemeDef, app: Option<&AppId>, mode: Mode, high: bool) -> impl Iterator<Item = (TokenRef, Rgba)> + 'a {
+    let app_pins = app.and_then(|a| theme.apps.get(a)).map(|o| o.pins.get(mode));
     let high_pins = if high { Some(theme.high_contrast.get(mode)) } else { None };
-    std::iter::once(theme.pins.get(mode)).chain(high_pins).flat_map(|p: &Pins| p.0.iter().map(|(&t, &v)| (t, v)))
+    std::iter::once(theme.pins.get(mode)).chain(app_pins).chain(high_pins).flat_map(|p: &Pins| p.0.iter().map(|(&t, &v)| (t, v)))
 }
 
 /// The value of a source that needs no other token, or `None` for one that does.
@@ -243,17 +245,18 @@ fn failures(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastWarn
     out
 }
 
-/// Applies `theme`'s component overrides in `mode`: colour pins (and high-contrast pins when
-/// `high`), then the mode-independent overrides. Overrides that
-/// [`ThemeDef::override_errors`] lists are skipped.
-pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, mode: Mode, high: bool, color: &ColorTokens) {
+/// Applies `theme`'s component overrides in `mode` for `app`: colour pins (the app's and, when
+/// `high`, the high-contrast ones after them), then the mode-independent overrides, the app's
+/// last. Overrides that [`ThemeDef::override_errors`] lists are skipped.
+pub(super) fn component_overrides(comp: &mut ComponentTokens, theme: &ThemeDef, app: Option<&AppId>, mode: Mode, high: bool, color: &ColorTokens) {
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
-    for (t, v) in pins(theme, mode, high) {
+    for (t, v) in pins(theme, app, mode, high) {
         if let TokenRef::Component(f) = t {
             let _ = comp.set(f, OverrideValue::Color(v), color);
         }
     }
-    for (&f, &v) in &theme.components {
+    let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
+    for (&f, &v) in theme.components.iter().chain(app_components.into_iter().flatten()) {
         if f.kind() != FieldKind::Color {
             let _ = comp.set(f, v, color);
         }

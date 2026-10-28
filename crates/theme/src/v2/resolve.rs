@@ -7,6 +7,7 @@ use super::scale::Elevation;
 use super::theme::{Appearance, Contrast, ContrastIntent, ThemeDef};
 use super::tokens::{ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
 use super::values;
+use crate::AppId;
 
 /// The tokens for one theme and appearance, with the contrast pairs that fail.
 #[derive(Clone, Debug, PartialEq)]
@@ -26,10 +27,11 @@ pub struct Resolved {
 /// Resolves `theme` for `appearance`. Colours derive from the theme's seeds and pins for the
 /// mode it has; sizes, spacing and type come from the Size preset and text size; shape comes
 /// from the preset unless the theme has its own. Component tokens derive from the semantic ones,
-/// then take the theme's component overrides and their own contrast pass.
-pub fn resolve(theme: &ThemeDef, appearance: Appearance) -> Resolved {
+/// then take the theme's component overrides and their own contrast pass. With `app`, that app's
+/// overrides in the theme apply over the theme's own pins and components.
+pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Resolved {
     let mode = theme.variants.mode_for(appearance.mode);
-    let (color, mut warnings) = derive::colors(theme, mode, appearance.contrast);
+    let (color, mut warnings) = derive::colors(theme, app, mode, appearance.contrast);
     let preset = values::preset(appearance.size);
 
     let seed = theme.shape;
@@ -51,7 +53,7 @@ pub fn resolve(theme: &ThemeDef, appearance: Appearance) -> Resolved {
     let shape = ShapeTokens { radius, edge };
     let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
     let high = appearance.contrast == Contrast::High;
-    derive::component_overrides(&mut component, theme, mode, high, &color);
+    derive::component_overrides(&mut component, theme, app, mode, high, &color);
     warnings.extend(derive::component_colors(&mut component, &color, high));
 
     let tokens = Tokens {

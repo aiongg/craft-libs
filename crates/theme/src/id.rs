@@ -36,19 +36,54 @@ const DEVICE_NAMES: [&str; 22] = [
     "lpt6", "lpt7", "lpt8", "lpt9",
 ];
 
+/// The form shared by theme and app ids.
+fn check_form(s: &str) -> Result<(), IdError> {
+    if !(2..=MAX_LEN).contains(&s.len()) {
+        return Err(IdError::Length);
+    }
+    let mut chars = s.chars();
+    if !chars.next().is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        return Err(IdError::Start);
+    }
+    if let Some(c) = chars.find(|&c| !(c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))) {
+        return Err(IdError::Char(c));
+    }
+    Ok(())
+}
+
+/// An app's stable identity, the key of a theme's per-app overrides: the same form as a
+/// [`ThemeId`], `[a-z0-9][a-z0-9._-]{1,63}`, without the reserved prefix or device-name rules.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AppId(Arc<str>);
+
+impl AppId {
+    /// Checks the form.
+    pub fn parse(s: &str) -> Result<Self, IdError> {
+        check_form(s)?;
+        Ok(AppId(Arc::from(s)))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for AppId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&*self.0, f)
+    }
+}
+
+impl fmt::Display for AppId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 impl ThemeId {
     /// Checks the form only; [`IdError::Reserved`] comes from [`ThemeId::parse_user`].
     pub fn parse(s: &str) -> Result<Self, IdError> {
-        if !(2..=MAX_LEN).contains(&s.len()) {
-            return Err(IdError::Length);
-        }
-        let mut chars = s.chars();
-        if !chars.next().is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
-            return Err(IdError::Start);
-        }
-        if let Some(c) = chars.find(|&c| !(c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))) {
-            return Err(IdError::Char(c));
-        }
+        check_form(s)?;
         Ok(ThemeId(Arc::from(s)))
     }
 
@@ -153,6 +188,17 @@ mod tests {
         assert_eq!(ThemeId::parse("a b"), Err(IdError::Char(' ')));
         assert_eq!(ThemeId::parse("a/b"), Err(IdError::Char('/')));
         assert_eq!(ThemeId::parse("aé"), Err(IdError::Char('é')));
+    }
+
+    #[test]
+    fn app_ids_follow_the_theme_id_form() {
+        for ok in ["ab", "photocraft", "film.craft_2"] {
+            assert_eq!(AppId::parse(ok).map(|id| id.as_str().to_owned()), Ok(ok.to_owned()), "{ok}");
+        }
+        for bad in ["", "a", "Ab", "-ab", "a b"] {
+            assert_eq!(AppId::parse(bad).err(), ThemeId::parse(bad).err(), "{bad}");
+        }
+        assert!(AppId::parse("craft.x").is_ok() && AppId::parse("con").is_ok());
     }
 
     #[test]

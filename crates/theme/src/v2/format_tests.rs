@@ -1,0 +1,255 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use serde_json::{Value, json};
+
+use super::format::{self, ErrorKind, FormatErrors, ThemeFile};
+use super::semantic_tests::{app, grey_blue, hex};
+use super::*;
+use crate::AppId;
+use ColorToken as T;
+
+/// A valid file that uses every section, with unknown keys at several levels.
+fn full() -> Value {
+    json!({
+        "schema": "craft-design-theme", "schema_version": 1,
+        "x_top": { "list": [1, 2, { "k": null }] },
+        "id": "test.full", "name": "Full", "version": 3,
+        "variants": "both", "contrast_intent": "low",
+        "seeds": {
+            "neutral": "#535353", "accent": "#78ADF6", "x_seed": "kept",
+            "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6", "x_status": 1 }
+        },
+        "shape": {
+            "radius": { "control": 3, "popup": 4, "window": 6, "panel": 0, "button": "full", "x_radius": 1 },
+            "edge": { "bevel": { "width": 1 } }, "x_shape": true
+        },
+        "light": { "surface.panel": "#F0F0F0", "button.primary.fill.rest": "#1062C4" },
+        "dark": { "surface.panel": "#535353" },
+        "high_contrast": { "light": { "text.normal": "#000000" }, "dark": {}, "x_hc": "kept" },
+        "components": { "button.radius": 4.5, "button.edge": "flat" },
+        "apps": {
+            "photocraft": {
+                "light": {}, "dark": { "surface.canvas": "#282828AA" },
+                "components": { "button.radius": "full" }, "x_app": [true]
+            },
+            "x_app_entry": {}
+        }
+    })
+}
+
+fn bytes(v: &Value) -> Vec<u8> {
+    serde_json::to_vec(v).unwrap()
+}
+
+fn parse_value(v: &Value) -> Result<ThemeFile, FormatErrors> {
+    format::parse(&bytes(v))
+}
+
+fn errors(v: &Value) -> Vec<String> {
+    parse_value(v).unwrap_err().0.iter().map(ToString::to_string).collect()
+}
+
+#[test]
+fn round_trip_keeps_values_and_unknown_keys() {
+    let file = parse_value(&full()).unwrap();
+    let t = &file.theme;
+    assert_eq!((t.id.as_str(), t.name.as_str(), file.version()), ("test.full", "Full", 3));
+    assert_eq!((t.variants, t.contrast_intent), (Variants::Both, ContrastIntent::Low));
+    assert_eq!(t.seeds.accent, hex("#78adf6"));
+    let shape = t.shape.unwrap();
+    assert_eq!(shape.radius.unwrap().button, 999.0);
+    assert_eq!(shape.edge, Some(EdgeSeed::Bevel { width: 1.0 }));
+    assert_eq!(t.pins.light.get(T::SurfacePanel), Some(hex("#f0f0f0")));
+    assert_eq!(t.high_contrast.light.get(T::TextNormal), Some(hex("#000000")));
+    assert_eq!(t.components.len(), 2);
+    let photo = &t.apps[&AppId::parse("photocraft").unwrap()];
+    assert_eq!(photo.pins.dark.get(T::SurfaceCanvas), Some(hex("#282828aa")));
+    assert_eq!(photo.components.values().next(), Some(&OverrideValue::Length(999.0)));
+
+    let text = format::write(&file);
+    let written: Value = serde_json::from_str(&text).unwrap();
+    let orig = full();
+    for (path, expected) in [
+        ("/x_top", &orig["x_top"]),
+        ("/seeds/x_seed", &orig["seeds"]["x_seed"]),
+        ("/seeds/status/x_status", &orig["seeds"]["status"]["x_status"]),
+        ("/shape/x_shape", &orig["shape"]["x_shape"]),
+        ("/shape/radius/x_radius", &orig["shape"]["radius"]["x_radius"]),
+        ("/high_contrast/x_hc", &orig["high_contrast"]["x_hc"]),
+        ("/apps/photocraft/x_app", &orig["apps"]["photocraft"]["x_app"]),
+        ("/apps/x_app_entry", &orig["apps"]["x_app_entry"]),
+        ("/version", &json!(3)),
+        ("/components/button.radius", &json!(4.5)),
+        ("/shape/radius/button", &json!("full")),
+        ("/dark/surface.panel", &json!("#535353")),
+    ] {
+        assert_eq!(written.pointer(path), Some(expected), "{path}");
+    }
+    assert!(text.starts_with("{\n  \"schema\": \"craft-design-theme\",\n  \"schema_version\": 1,\n  \"id\""), "{text}");
+    let again = format::parse(text.as_bytes()).unwrap();
+    assert_eq!(again.theme, file.theme);
+    assert_eq!(format::write(&again), text, "writing is stable");
+}
+
+#[test]
+fn write_follows_the_theme_not_the_old_file() {
+    let mut file = parse_value(&full()).unwrap();
+    file.theme.shape = None;
+    file.theme.pins.dark = Pins::default();
+    file.theme.apps.clear();
+    file.theme.name = "Renamed".to_owned();
+    let written: Value = serde_json::from_str(&format::write(&file)).unwrap();
+    assert_eq!(written["shape"], Value::Null);
+    assert_eq!(written["dark"], json!({}));
+    assert_eq!(written["name"], "Renamed");
+    assert_eq!(written["apps"], json!({}));
+    assert_eq!(written["x_top"], full()["x_top"]);
+}
+
+#[test]
+fn defaults_and_exported_themes() {
+    let min = json!({
+        "schema": "craft-design-theme", "schema_version": 1, "id": "test.min",
+        "seeds": { "neutral": "#535353", "accent": "#78ADF6",
+                   "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6" } }
+    });
+    let t = parse_value(&min).unwrap().theme;
+    assert_eq!((t.name.as_str(), t.variants, t.contrast_intent), ("test.min", Variants::Both, ContrastIntent::Standard));
+    assert!(t.shape.is_none() && t.apps.is_empty() && t.components.is_empty());
+
+    let mut def = grey_blue();
+    def.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
+    def.shape = Some(ShapeSeed { radius: None, edge: Some(EdgeSeed::Flat) });
+    let file = format::to_file(&def);
+    let text = format::write(&file);
+    assert_eq!(format::parse(text.as_bytes()).unwrap().theme, def);
+    assert!(!text.contains("\"high_contrast\"") && !text.contains("\"apps\""), "empty sections are left out:\n{text}");
+}
+
+#[test]
+fn file_level_errors() {
+    let pilot = format::parse(br#"{"schema":"craft-theme","schema_version":1}"#).unwrap_err();
+    assert_eq!(pilot.file_level(), Some(&ErrorKind::OtherSchema { schema: "craft-theme".to_owned() }));
+    let big = vec![b' '; format::MAX_THEME_BYTES + 1];
+    assert_eq!(format::parse(&big).unwrap_err().file_level(), Some(&ErrorKind::TooLarge { len: format::MAX_THEME_BYTES + 1 }));
+    assert!(matches!(format::parse(b"{").unwrap_err().file_level(), Some(ErrorKind::Json(_))));
+    assert_eq!(format::parse(b"[]").unwrap_err().file_level(), Some(&ErrorKind::NotObject));
+    let mut v = full();
+    v["schema_version"] = json!(2);
+    assert_eq!(parse_value(&v).unwrap_err().file_level(), Some(&ErrorKind::TooNew { schema_version: 2 }));
+    for bad in [json!(0), json!("1"), json!(1.5)] {
+        v["schema_version"] = bad;
+        assert_eq!(parse_value(&v).unwrap_err().file_level(), Some(&ErrorKind::BadSchemaVersion));
+    }
+    assert_eq!(errors(&json!({ "schema_version": 1 })), ["schema: missing"]);
+    let mut with_bom = b"\xEF\xBB\xBF".to_vec();
+    with_bom.extend(bytes(&full()));
+    assert!(format::parse(&with_bom).is_ok());
+}
+
+#[test]
+fn every_field_error_has_its_path() {
+    let cases: [(&str, Value, &str); 20] = [
+        ("/dark/surface.panel", json!("nope"), "dark.\"surface.panel\": not a colour"),
+        ("/light/surface.nothing", json!("#ffffff"), "light.\"surface.nothing\": unknown token"),
+        ("/light/button.radius", json!("#ffffff"), "light.\"button.radius\": not a colour field; set it in components"),
+        (
+            "/components/button.primary.fill.rest",
+            json!("#ffffff"),
+            "components.\"button.primary.fill.rest\": colours are set per mode, in light or dark",
+        ),
+        ("/components/surface.panel", json!("#ffffff"), "components.\"surface.panel\": colours are set per mode, in light or dark"),
+        ("/components/button.radius", json!("flat"), "components.\"button.radius\": expected a Length value, found Edge"),
+        ("/components/button.edge", json!(4), "components.\"button.edge\": expected a Edge value, found Length"),
+        ("/components/button.nope", json!(4), "components.\"button.nope\": unknown token"),
+        ("/components/button.radius", json!(-1), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
+        ("/components/button.radius", json!({ "x": 1 }), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
+        ("/id", json!("Bad Id"), "id: a theme id starts with a-z or 0-9"),
+        ("/id", json!(4), "id: expected a string"),
+        ("/seeds", json!(4), "seeds: expected an object"),
+        ("/seeds/status/good", json!("red"), "seeds.status.good: not a colour"),
+        ("/shape/radius/panel", Value::Null, "shape.radius.panel: missing"),
+        ("/shape/edge", json!({ "bevel": { "width": 0 } }), "shape.edge: expected \"flat\" or {\"bevel\": {\"width\": n}} with n above 0"),
+        ("/variants", json!("blue"), "variants: expected one of the listed names"),
+        ("/version", json!(-1), "version: expected a non-negative integer"),
+        ("/apps/photocraft/dark/surface.canvas", json!(1), "apps.photocraft.dark.\"surface.canvas\": not a colour"),
+        (
+            "/apps/photocraft/components/button.radius",
+            json!("flat"),
+            "apps.photocraft.components.\"button.radius\": expected a Length value, found Edge",
+        ),
+    ];
+    for (pointer, value, expected) in cases {
+        let mut v = full();
+        let (parent, key) = pointer.rsplit_once('/').unwrap();
+        v.pointer_mut(parent).unwrap().as_object_mut().unwrap().insert(key.to_owned(), value);
+        assert_eq!(errors(&v), [expected], "{pointer}");
+    }
+
+    let mut v = full();
+    v["seeds"].as_object_mut().unwrap().remove("accent");
+    v["apps"]["Bad App"] = json!({});
+    v["variants"] = json!("light");
+    v["dark"] = json!({ "surface.panel": "#535353" });
+    let got = errors(&v);
+    assert_eq!(got.len(), 4, "{got:?}");
+    assert_eq!(got[0], "seeds.accent: missing");
+    assert_eq!(got[1], "dark: the theme's variants leave this mode out");
+    assert!(got[2].starts_with("apps.Bad App: not an app id"), "{got:?}");
+    assert_eq!(got[3], "apps.photocraft.dark: the theme's variants leave this mode out");
+}
+
+#[test]
+fn errors_are_reported_together() {
+    let mut v = full();
+    v["id"] = json!("Bad");
+    v["seeds"]["neutral"] = json!("grey");
+    v["dark"]["surface.panel"] = json!("nope");
+    v["components"]["button.radius"] = json!("flat");
+    assert_eq!(
+        errors(&v),
+        [
+            "id: a theme id starts with a-z or 0-9",
+            "seeds.neutral: not a colour",
+            "dark.\"surface.panel\": not a colour",
+            "components.\"button.radius\": expected a Length value, found Edge",
+        ]
+    );
+}
+
+#[test]
+fn empty_map_for_a_missing_mode_is_accepted() {
+    let mut v = full();
+    v["variants"] = json!("dark");
+    v["light"] = json!({});
+    v["high_contrast"]["light"] = json!({});
+    v["apps"]["photocraft"]["light"] = json!({});
+    assert!(parse_value(&v).is_ok());
+}
+
+#[test]
+fn app_overrides_apply_only_to_that_app() {
+    let photo = AppId::parse("photocraft").unwrap();
+    let other = AppId::parse("filmcraft").unwrap();
+    let mut def = grey_blue();
+    def.pins.dark = Pins::from_iter([(T::SurfaceRaised, hex("#303030"))]);
+    def.components.insert(ComponentField::from_path("button.radius").unwrap(), OverrideValue::Length(2.0));
+    def.apps.insert(
+        photo.clone(),
+        AppOverrides {
+            pins: ModePins { light: Pins::default(), dark: Pins::from_iter([(T::SurfaceRaised, hex("#404040"))]) },
+            components: [(ComponentField::from_path("button.radius").unwrap(), OverrideValue::Length(9.0))].into_iter().collect(),
+        },
+    );
+    assert!(def.override_errors().is_empty());
+    let dark = app(Mode::Dark, Contrast::Standard);
+    let raised = |a: Option<&AppId>| resolve(&def, dark, a).tokens.color(T::SurfaceRaised);
+    assert_eq!(raised(None), hex("#303030"));
+    assert_eq!(raised(Some(&photo)), hex("#404040"));
+    assert_eq!(raised(Some(&other)), hex("#303030"));
+    let radius = |a: Option<&AppId>| resolve(&def, dark, a).tokens.component.button.radius;
+    assert_eq!((radius(None), radius(Some(&photo)), radius(Some(&other))), (2.0, 9.0, 2.0));
+    // Light mode has no app pin.
+    let light = app(Mode::Light, Contrast::Standard);
+    assert_eq!(resolve(&def, light, Some(&photo)).tokens.color, resolve(&def, light, None).tokens.color);
+}

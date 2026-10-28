@@ -33,7 +33,7 @@ fn pair_ratio(t: &Tokens, fg: ComponentField, bg: Option<ComponentField>) -> f64
 fn button_defaults_meet_every_minimum() {
     for def in [grey_blue(), violet()] {
         for a in appearances() {
-            let r = resolve(&def, a);
+            let r = resolve(&def, a, None);
             let t = &r.tokens;
             assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             for (fg, bg, std, hi) in button_pairs() {
@@ -44,7 +44,7 @@ fn button_defaults_meet_every_minimum() {
         }
     }
 
-    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard)).tokens;
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
     let b = &t.component.button;
     assert_eq!(b.primary.fill.hover, t.color(T::AccentHover));
     assert_eq!(b.danger.fill.pressed, t.color(T::StatusBadSolidPressed));
@@ -55,7 +55,7 @@ fn button_defaults_meet_every_minimum() {
 
 #[test]
 fn button_sizes_follow_the_size_preset() {
-    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }).tokens.component.button;
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.button;
     let compact = at(Size::Compact);
     assert_eq!((compact.height.sm, compact.height.md), (20.0, 24.0));
     assert_eq!((compact.pad_x.sm, compact.pad_x.md), (10.0, 12.0));
@@ -95,7 +95,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
 
 #[test]
 fn every_field_reads_back_and_kinds_are_checked() {
-    let r = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard));
+    let r = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard), None);
     let mut c = r.tokens.component.clone();
     for &f in ComponentField::ALL {
         let v = c.get(f);
@@ -119,7 +119,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
     def.pins.light = Pins::from_iter([(text, pin)]);
     def.pins.dark = Pins::from_iter([(text, pin)]);
     for mode in [Mode::Light, Mode::Dark] {
-        let r = resolve(&def, app(mode, Contrast::Standard));
+        let r = resolve(&def, app(mode, Contrast::Standard), None);
         let t = &r.tokens;
         assert_eq!(t.component.color(text), Some(pin));
         assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
@@ -127,7 +127,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         assert_eq!(r.warnings, vec![ContrastWarning { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
         assert_eq!(r.warnings[0].fg.path(), "button.primary.text.rest");
 
-        let high = resolve(&def, app(mode, Contrast::High));
+        let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
         assert_ne!(high.tokens.component.color(text), Some(pin));
         assert!(pair_ratio(&high.tokens, text, Some(fill)) >= 7.0);
@@ -138,9 +138,9 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
     let ghost_fill = button(ButtonVariant::Ghost, ButtonPart::Fill, State::Hover);
     let mut def = grey_blue();
     def.high_contrast.light = Pins::from_iter([(ghost_text, hex("#787878")), (ghost_fill, hex("#777777"))]);
-    let standard = resolve(&def, app(Mode::Light, Contrast::Standard));
+    let standard = resolve(&def, app(Mode::Light, Contrast::Standard), None);
     assert!(standard.warnings.is_empty(), "high-contrast pins apply only with high contrast");
-    let high = resolve(&def, app(Mode::Light, Contrast::High));
+    let high = resolve(&def, app(Mode::Light, Contrast::High), None);
     assert!(high.warnings.is_empty(), "{:?}", high.warnings);
     let c = &high.tokens.component;
     assert_ne!(c.color(ghost_fill), Some(hex("#777777")));
@@ -157,7 +157,7 @@ fn shape_overrides_apply_and_misplaced_overrides_are_errors() {
     def.components.insert(edge, OverrideValue::Edge(EdgeSeed::Bevel { width: 1.0 }));
     assert_eq!(def.override_errors(), vec![]);
     for mode in [Mode::Light, Mode::Dark] {
-        let t = resolve(&def, app(mode, Contrast::High)).tokens;
+        let t = resolve(&def, app(mode, Contrast::High), None).tokens;
         let b = &t.component.button;
         assert_eq!(b.radius, 4.0);
         assert_eq!(b.edge, Edge::Bevel { light: t.color(T::EdgeLight), dark: t.color(T::EdgeDark), width: 1.0 });
@@ -178,6 +178,6 @@ fn shape_overrides_apply_and_misplaced_overrides_are_errors() {
         ]
     );
     assert_eq!(OverrideError::ColorNotPerMode(fill).to_string(), "button.primary.fill.rest: colours are set per mode");
-    let t = resolve(&bad, app(Mode::Dark, Contrast::Standard)).tokens;
-    assert_eq!(t.component, resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard)).tokens.component, "invalid overrides are skipped");
+    let t = resolve(&bad, app(Mode::Dark, Contrast::Standard), None).tokens;
+    assert_eq!(t.component, resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens.component, "invalid overrides are skipped");
 }

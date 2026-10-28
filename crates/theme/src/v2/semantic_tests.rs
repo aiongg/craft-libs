@@ -25,6 +25,7 @@ fn theme(id: &str, neutral: &str, accent: &str, status: [&str; 4]) -> ThemeDef {
         high_contrast: ModePins::default(),
         components: BTreeMap::new(),
         contrast_intent: ContrastIntent::Standard,
+        apps: BTreeMap::new(),
     }
 }
 
@@ -142,7 +143,7 @@ fn samples_resolve_and_derived_tokens_meet_every_minimum() {
     for def in [grey_blue(), violet(), pinned_faint()] {
         let pinned = def.id == pinned_faint().id;
         for a in appearances() {
-            let r = resolve(&def, a);
+            let r = resolve(&def, a, None);
             assert_eq!(r.variant_used, a.mode);
             if pinned && a.contrast == Contrast::Standard {
                 continue;
@@ -158,7 +159,7 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
     let def = pinned_faint();
     for mode in [Mode::Light, Mode::Dark] {
         let pin = def.pins.get(mode).get(T::TextFaint).unwrap();
-        let r = resolve(&def, app(mode, Contrast::Standard));
+        let r = resolve(&def, app(mode, Contrast::Standard), None);
         let t = &r.tokens;
         assert_eq!(t.color(T::TextFaint), pin);
         assert_eq!(t.color(T::CaptionInactive), pin, "caption.inactive follows the pinned text.faint");
@@ -168,7 +169,7 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             .collect();
         assert_eq!(r.warnings, expected, "{mode:?}");
 
-        let high = resolve(&def, app(mode, Contrast::High));
+        let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
         assert_ne!(high.tokens.color(T::TextFaint), pin);
         for bg in TEXT_BGS {
@@ -183,11 +184,11 @@ fn pins_replace_defaults_and_aliases_follow() {
     let bg = hex("#203040");
     def.pins.dark = Pins::from_iter([(T::SurfaceBackground, bg), (T::OverlayStroke, hex("#ffee00"))]);
     def.high_contrast.dark = Pins::from_iter([(T::SurfaceBackground, hex("#000000"))]);
-    let r = resolve(&def, app(Mode::Dark, Contrast::Standard));
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     assert_eq!(r.tokens.color(T::SurfaceBackground), bg);
     assert_eq!(r.tokens.color(T::SurfaceCanvas), bg);
     assert_eq!(r.tokens.color(T::OverlayHandleStroke), hex("#ffee00"));
-    let high = resolve(&def, app(Mode::Dark, Contrast::High));
+    let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
     assert_eq!(high.tokens.color(T::SurfaceCanvas), Rgba::BLACK, "high-contrast pins apply over mode pins");
 }
 
@@ -195,18 +196,18 @@ fn pins_replace_defaults_and_aliases_follow() {
 fn single_variant_theme_resolves_both_modes() {
     let mut def = violet();
     def.variants = Variants::DarkOnly;
-    let dark = resolve(&def, app(Mode::Dark, Contrast::Standard));
-    let light = resolve(&def, app(Mode::Light, Contrast::Standard));
+    let dark = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
+    let light = resolve(&def, app(Mode::Light, Contrast::Standard), None);
     assert_eq!(light.variant_used, Mode::Dark);
     assert_eq!(light.tokens, dark.tokens);
     def.variants = Variants::LightOnly;
-    assert_eq!(resolve(&def, app(Mode::Dark, Contrast::High)).variant_used, Mode::Light);
+    assert_eq!(resolve(&def, app(Mode::Dark, Contrast::High), None).variant_used, Mode::Light);
 }
 
 #[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
-    let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }).tokens;
+    let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
     let compact = at(Size::Compact, TextSize::Default);
     let comfy = at(Size::Comfortable, TextSize::Default);
 
@@ -241,12 +242,12 @@ fn size_presets_text_size_shape_and_motion() {
         edge: Some(EdgeSeed::Bevel { width: 1.0 }),
     });
     classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);
-    let t = resolve(&classic, Appearance { size: Size::Comfortable, ..app(Mode::Light, Contrast::Standard) }).tokens;
+    let t = resolve(&classic, Appearance { size: Size::Comfortable, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
     assert_eq!(t.shape.radius.control, 0.0);
     assert_eq!(t.shape.edge, Edge::Bevel { light: Rgba::WHITE, dark: t.color(T::EdgeDark), width: 1.0 });
 
     assert_eq!((compact.motion.hover.millis, compact.motion.open.millis), (80, 150));
-    let still = resolve(&def, Appearance { reduced_motion: true, ..app(Mode::Dark, Contrast::Standard) }).tokens;
+    let still = resolve(&def, Appearance { reduced_motion: true, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
     assert_eq!((still.motion.hover.millis, still.motion.open.millis, still.motion.r#move.millis), (0, 0, 0));
     assert!(still.elevation.popup.alpha > compact.elevation.popup.alpha, "dark shadows are stronger");
     assert_eq!(compact.elevation.dialog, Elevation::level(3));
