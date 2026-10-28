@@ -181,7 +181,8 @@ struct OpenBars(Vec<(Id, u64)>);
 
 /// Whether a menu of a bar is open. The app leaves the keys to it meanwhile: its shortcuts wait
 /// until the menu closes. Only while the bar is still drawn: an app that hides it with a menu open
-/// (full screen) gets its keys back.
+/// (full screen) gets its keys back. [`any_open`](super::any_open) also covers context and press
+/// menus.
 pub fn is_open(ctx: &egui::Context) -> bool {
     let pass = ctx.cumulative_pass_nr();
     ctx.data(|d| d.get_temp::<OpenBars>(open_id())).is_some_and(|bars| bars.0.iter().any(|&(_, seen)| seen + 2 >= pass))

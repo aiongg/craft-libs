@@ -53,6 +53,8 @@ struct Bar {
     after: Option<f32>,
     /// An Esc was left in the input after the bar, in some pass.
     escape_after: bool,
+    /// [`crate::menu::any_open`] as the last pass began, before the bar was drawn.
+    open_before: bool,
 }
 
 impl Bar {
@@ -76,6 +78,7 @@ impl Bar {
             chosen: Vec::new(),
             after: None,
             escape_after: false,
+            open_before: false,
         };
         b.run(3);
         b
@@ -98,7 +101,9 @@ impl Bar {
         let mut chosen = None;
         let mut after = None;
         let mut escape = false;
+        let mut open_before = false;
         let mut full = self.ctx.run_ui(raw, |ui| {
+            open_before = crate::menu::any_open(ui.ctx());
             let mut bar = MenuBar::new(menus).keyboard(keyboard);
             if let Some(i) = search {
                 bar = bar.help_search(i);
@@ -120,6 +125,7 @@ impl Bar {
         }
         self.after = after;
         self.escape_after |= escape;
+        self.open_before = open_before;
         self.chosen.extend(chosen);
     }
 
@@ -773,4 +779,18 @@ fn a_row_scrolled_out_of_view_under_the_title_opens_no_submenu() {
     b.button(false);
     b.run(3);
     assert!(b.open(), "the release on the title leaves the menu open");
+}
+
+/// `any_open` is true while a bar's menu is open, as the app's shortcut handling reads it before
+/// drawing the bar.
+#[test]
+fn any_open_is_true_while_a_bar_menu_is_open() {
+    let mut b = Bar::wide();
+    assert!(!b.open_before);
+    b.click("File");
+    assert!(b.open_before, "File is open");
+    b.key(Key::Escape);
+    assert!(!b.open_before, "closed");
+    b.key(Key::F10);
+    assert!(!b.open_before, "the focused bar with no menu open is is_focused's, not any_open's");
 }

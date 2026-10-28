@@ -119,7 +119,10 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
 - **Keys, while a menu is open:** ↑ and ↓ move the highlight, → opens a submenu or the next
   menu, ← closes the submenu or opens the previous menu, ↩ and Space run the item, Esc closes
   (and is taken, so the app doesn't also act on it). Other typing goes nowhere while a menu is
-  open. `craft_menu::bar::is_open(ctx)` tells the app's shortcut handling to wait meanwhile.
+  open. `craft_ui::menu::any_open(ctx)` is true while any menu is open (the bar's, a context
+  menu, a press menu): the app's single-key shortcuts wait meanwhile, since an app that handles
+  them before drawing its menus would otherwise see the keys first. `craft_menu::bar::is_open(ctx)`
+  answers for the bar alone.
 - **Keyboard access (Windows, Linux, web):** a tap on Alt alone, or F10, puts the keyboard on
   the bar: the first title is lit, ← and → move along the titles, ↓, ↩ and Space open the lit
   menu, Esc, a second tap or a click leaves. Alt+letter opens the menu with that mnemonic, and

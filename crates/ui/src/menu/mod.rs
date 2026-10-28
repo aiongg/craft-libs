@@ -12,6 +12,8 @@
 //!   hover switching, Alt / F10 / Alt+letter, overflow into "⋯" and the Help menu's search field;
 //!   [`bar::is_open`], [`bar::is_focused`] and [`bar::leave_for_shortcut`] for the app's keys.
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
+//! - [`any_open`]: whether any menu is open, for the app's single-key shortcuts, which wait
+//!   meanwhile.
 //!
 //! Menus draw with the list box rows' tokens (`listbox.*`) and their own `menu.*` (least width,
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
@@ -33,7 +35,7 @@ pub use context::{ContextMenu, OpenAt};
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;
-pub use popup::{Menu, MenuResponse};
+pub use popup::{Menu, MenuResponse, any_open};
 pub use press::PressMenu;
 pub use row::MenuStyle;
 

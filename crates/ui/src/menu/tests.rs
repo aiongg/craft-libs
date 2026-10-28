@@ -500,6 +500,8 @@ struct Owners {
     /// The pass each owner's menu was last shown in, and the last pass.
     shown_in: [u64; 3],
     pass: u64,
+    /// [`any_open`] as the last pass began, before the menus were drawn.
+    open_before: bool,
 }
 
 impl Owners {
@@ -526,6 +528,7 @@ impl Owners {
             after: Vec::new(),
             shown_in: [0; 3],
             pass: 0,
+            open_before: false,
         };
         o.run(3);
         o
@@ -546,9 +549,11 @@ impl Owners {
         let mut after = Vec::new();
         let mut shown_in = self.shown_in;
         let mut pass = 0;
+        let mut open_before = false;
         let focus = self.focus.take();
         let entries = &self.entries;
         let mut full = self.ctx.run_ui(raw, |ui| {
+            open_before = any_open(ui.ctx());
             ui.horizontal(|ui| {
                 let one = ui.add(crate::controls::Button::new("One"));
                 let two = ui.add(crate::controls::Button::new("Two"));
@@ -583,6 +588,7 @@ impl Owners {
         self.after.extend(after);
         self.shown_in = shown_in;
         self.pass = pass;
+        self.open_before = open_before;
     }
 
     fn run(&mut self, frames: usize) {
@@ -959,4 +965,24 @@ fn context_and_press_menus_name_their_scroll_strips() {
         // The closed menu's layer still covers the window for one pass's hit tests.
         frame(Vec::new());
     }
+}
+
+/// An app reads `any_open` before drawing its menus, to skip its single-key shortcuts: it is true
+/// while a press menu or a context menu is open, and false once Esc has closed it.
+#[test]
+fn any_open_is_true_while_a_press_or_context_menu_is_open() {
+    let mut o = Owners::new();
+    assert!(!o.open_before && !any_open(&o.ctx));
+    o.press("One");
+    o.release();
+    assert!(o.open[0] && o.open_before, "press menu");
+    o.key(Key::Escape, Modifiers::NONE);
+    assert!(!o.open_before, "closed");
+
+    o.focus = Some(2);
+    o.run(2);
+    o.key(Key::F10, Modifiers::SHIFT);
+    assert!(o.open[2] && o.open_before, "context menu");
+    o.key(Key::Escape, Modifiers::NONE);
+    assert!(!o.open_before, "closed");
 }

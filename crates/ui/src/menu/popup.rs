@@ -244,6 +244,7 @@ impl<'a, T: Clone> Menu<'a, T> {
             }
         }
         popup_list::record_open(&ctx, id, open);
+        record_open(&ctx, id, open);
         let active = nav.active().filter(|_| open);
         if let Some((row, menu)) = active {
             // AccessKit's focus is egui's: the widget that keeps it while the menu has the keys
@@ -268,6 +269,40 @@ impl<'a, T: Clone> Menu<'a, T> {
             popup: shown.map(|r| r.response),
         }
     }
+}
+
+fn open_menus_id() -> Id {
+    Id::unique("craft-ui-open-menus")
+}
+
+/// The menus open at the end of a pass: each popup id with that pass.
+#[derive(Clone, Debug, Default)]
+struct OpenMenus(Vec<(Id, u64)>);
+
+/// Records whether the menu `popup` is open after this pass.
+fn record_open(ctx: &egui::Context, popup: Id, open: bool) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let menus = &mut d.get_temp_mut_or_default::<OpenMenus>(open_menus_id()).0;
+        menus.retain(|&(id, at)| id != popup && at + 1 >= pass);
+        if open {
+            menus.push((popup, pass));
+        }
+    });
+}
+
+/// Whether a menu is open: a [`ContextMenu`](super::ContextMenu), a
+/// [`PressMenu`](super::PressMenu), a [`MenuBar`](super::MenuBar)'s or another owner's [`Menu`],
+/// as it was at the end of the last pass (or this one, once the menu has been drawn).
+///
+/// An open menu has the keyboard: it takes the typing keys it is drawn after, but an app that
+/// handles its single-key shortcuts (B for a brush, [ and ] for its size) before drawing its
+/// menus skips them while this is true, as native menus swallow those keys. Command shortcuts
+/// (Ctrl+S) may run; [`bar::leave_for_shortcut`](super::bar::leave_for_shortcut) covers a menu
+/// bar that has the keyboard with no menu open.
+pub fn any_open(ctx: &egui::Context) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<OpenMenus>(open_menus_id())).is_some_and(|m| m.0.iter().any(|&(_, at)| at + 1 >= pass))
 }
 
 impl Menu<'static, ()> {

@@ -15,7 +15,10 @@ use egui::{Id, Ui};
 use crate::model::Builtin;
 use crate::{Gate, Item, ItemKind, MenuBar, Node, Target};
 
-pub use craft_ui::menu::bar::{is_focused, is_open, leave_for_shortcut};
+/// Whether a menu of the bar is open; [`craft_ui::menu::any_open`] answers for every menu (the
+/// bar's, context menus, press menus), and the app's single-key shortcuts wait while it is true.
+pub use craft_ui::menu::bar::is_open;
+pub use craft_ui::menu::bar::{is_focused, leave_for_shortcut};
 
 /// A row or title, as the bar names it to the app's mnemonic hooks ([`MenuBarUi::english`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
