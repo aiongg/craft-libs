@@ -34,7 +34,7 @@ component field, per mode. Pins win over derivation. Apps can pin per app (`apps
 
 ## Contrast
 
-Only text and state indicators have rules: text on surfaces and state fills (4.5, high contrast
+Only text and state indicators have rules: text on surfaces, state fills and solid fills (4.5, high contrast
 7), and focus rings, accent marks and overlay strokes (3, high contrast 4.5). Hover, pressed,
 dividers, edges and knob faces have none. In standard contrast an unpinned colour is moved to the minimum and
 a failing pin is kept and reported, with every component pair it makes fail; in high contrast every colour is fixed, pins included.

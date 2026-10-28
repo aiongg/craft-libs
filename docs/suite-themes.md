@@ -92,12 +92,18 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 | `text.normal`, `text.muted`, `text.faint` on surfaces, `state.hover` and `state.pressed` | 4.5 | 7 |
 | `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill | 4.5 | 7 |
+| `text.on_strong` on `accent.strong` (active menu rows) | 4.5 | 7 |
 | `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo | 3 | 4.5 |
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
 or pinned values in every contrast. A translucent fill is measured over `surface.panel`.
 `text.on_selected` defaults to `text.normal`'s ramp step, so a neutral selection looks like the
 rest of the text and a coloured one (a navy or blue selection) gets its own readable text.
+`text.on_strong` is white, and `accent.strong` is `accent.solid` with only its OKLCH lightness
+moved, as far as white text needs to reach the minimum: the accent itself where white already
+reads on it, a slightly deeper accent where it doesn't (Pro's dark #378EF0 becomes #1B77D7). A
+pinned `accent.strong` stays in standard contrast; unpinned text on it turns black where white
+misses, as on the other solid fills, and pinned text that misses is reported.
 
 | | Standard contrast | High contrast |
 |---|---|---|

@@ -118,6 +118,40 @@ fn builtin_menu_text_meets_its_minimum() {
     }
 }
 
+/// `text.on_strong` is white and reads on `accent.strong` in every built-in and appearance;
+/// `accent.strong` is `accent.solid` where white already reads on it, and otherwise `accent.solid`
+/// with only its lightness moved (Pro's dark #378EF0 deepens, Graphite's light accent stays).
+#[test]
+fn builtin_accent_strong_carries_white_text() {
+    for theme in builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
+            let (solid, strong, text) = (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentStrong), t.color(ColorToken::TextOnStrong));
+            let at = format!("{} {a:?}", theme.id);
+            assert_eq!(text, Rgba::WHITE, "{at}");
+            assert!(contrast_ratio(text, strong) >= min, "{at}: {:.2}", contrast_ratio(text, strong));
+            if contrast_ratio(text, solid) >= min {
+                assert_eq!(strong, solid, "{at}");
+            } else {
+                let (s, g) = (solid.to_oklch(), strong.to_oklch());
+                assert!(g.l < s.l, "{at}: {solid:?} -> {strong:?}");
+                assert!((g.h - s.h).abs() < 2.0, "{at}: hue {:.1} -> {:.1}", s.h, g.h);
+            }
+        }
+    }
+    let strong = |id: &str, mode| {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+        let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+        (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentStrong))
+    };
+    let (solid, deeper) = strong("craft.pro", Mode::Dark);
+    assert_eq!(solid, Rgba::rgb(0x37, 0x8e, 0xf0));
+    assert!(relative_luminance(deeper) < relative_luminance(solid), "{deeper:?}");
+    let (solid, same) = strong("craft.graphite", Mode::Light);
+    assert_eq!(same, solid);
+}
+
 /// The marks and outlines of check boxes, radio buttons and switches identify the control and its
 /// state, so every built-in meets their non-text minimum at rest in every appearance, pins
 /// included; a disabled one that is on doesn't look off: its box or track differs from an off

@@ -2,8 +2,9 @@
 //! (`listbox.*`: height, padding, icon room, text, marks and separators); this family holds what a
 //! menu adds: its least width, the gap before a row's shortcut or submenu arrow, the scroll strips
 //! of a menu taller than the window, and the active row's colours. The active row (under the
-//! pointer, or moved to with the keys) is filled with the accent, as in PhotoCraft Pro and macOS;
-//! the menu keeps the keyboard focus, so that fill is the visible focus.
+//! pointer, or moved to with the keys) is filled with the accent, as in PhotoCraft Pro and macOS:
+//! `accent.strong`, deepened where white text on `accent.solid` would miss its minimum. The menu
+//! keeps the keyboard focus, so that fill is the visible focus.
 //!
 //! The active text (with its mark and shortcut) is text on the active fill, and the shortcuts are
 //! text on the popup surface (4.5:1, 7:1 with high contrast). Each pair is measured at rest.
@@ -23,9 +24,9 @@ pub struct MenuTokens {
     pub shortcut_gap: f32,
     /// Height of the ▲ / ▼ strip at either end of a menu that scrolls: `menu.scroll_strip`.
     pub scroll_strip: f32,
-    /// Behind the active row: `accent.solid`.
+    /// Behind the active row: `accent.strong`.
     pub active_fill: Rgba,
-    /// The active row's text, mark, shortcut and arrow: `text.on_accent`.
+    /// The active row's text, mark, shortcut and arrow: `text.on_strong`.
     pub active_text: Rgba,
     /// A row's shortcut: `text.muted`.
     pub shortcut: Rgba,
@@ -57,8 +58,8 @@ impl Family for MenuTokens {
             min_width: scale(values::MENU_MIN_WIDTH),
             shortcut_gap: scale(values::MENU_SHORTCUT_GAP),
             scroll_strip: scale(values::MENU_SCROLL_STRIP),
-            active_fill: c.accent.solid,
-            active_text: c.text.on_accent,
+            active_fill: c.accent.strong,
+            active_text: c.text.on_strong,
             shortcut: c.text.muted,
         }
     }
