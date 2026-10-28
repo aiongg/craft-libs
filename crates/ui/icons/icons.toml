@@ -1,0 +1,355 @@
+# The suite's icons by meaning, and each candidate set's file for them (without `.svg`).
+#
+# `build.rs` turns this into `craft_ui::icons::Icon` and `IconSet`. A name without a file in a
+# set, or a file a set folder holds but no icon lists, fails the build. Sources and licences:
+# ATTRIBUTION.md.
+#
+# `directional`: mirrored in a right-to-left interface (arrows of reading order, undo, redo).
+# `kind`: "stroke" sets get their stroke width rewritten to the suite's drawn width; "fill" sets
+# render as drawn. `stroke_width` is the set's own width in view-box units.
+
+[[set]]
+id = "lucide"
+title = "Lucide"
+licence = "ISC"
+kind = "stroke"
+stroke_width = 2.0
+
+[[set]]
+id = "phosphor"
+title = "Phosphor (regular)"
+licence = "MIT"
+kind = "fill"
+
+[[set]]
+id = "carbon"
+title = "IBM Carbon"
+licence = "Apache-2.0"
+kind = "fill"
+
+[[set]]
+id = "tabler"
+title = "Tabler (outline)"
+licence = "MIT"
+kind = "stroke"
+stroke_width = 2.0
+
+[[icon]]
+name = "close"
+directional = false
+lucide = "x"
+phosphor = "x"
+carbon = "close"
+tabler = "x"
+
+[[icon]]
+name = "chevron_down"
+directional = false
+lucide = "chevron-down"
+phosphor = "caret-down"
+carbon = "chevron--down"
+tabler = "chevron-down"
+
+[[icon]]
+name = "chevron_up"
+directional = false
+lucide = "chevron-up"
+phosphor = "caret-up"
+carbon = "chevron--up"
+tabler = "chevron-up"
+
+[[icon]]
+name = "chevron_left"
+directional = true
+lucide = "chevron-left"
+phosphor = "caret-left"
+carbon = "chevron--left"
+tabler = "chevron-left"
+
+[[icon]]
+name = "chevron_right"
+directional = true
+lucide = "chevron-right"
+phosphor = "caret-right"
+carbon = "chevron--right"
+tabler = "chevron-right"
+
+[[icon]]
+name = "chevrons_left"
+directional = true
+lucide = "chevrons-left"
+phosphor = "caret-double-left"
+carbon = "double-chevron--left"
+tabler = "chevrons-left"
+
+[[icon]]
+name = "chevrons_right"
+directional = true
+lucide = "chevrons-right"
+phosphor = "caret-double-right"
+carbon = "double-chevron--right"
+tabler = "chevrons-right"
+
+[[icon]]
+name = "more"
+directional = false
+lucide = "ellipsis"
+phosphor = "dots-three"
+carbon = "overflow-menu--horizontal"
+tabler = "dots"
+
+[[icon]]
+name = "plus"
+directional = false
+lucide = "plus"
+phosphor = "plus"
+carbon = "add"
+tabler = "plus"
+
+[[icon]]
+name = "minus"
+directional = false
+lucide = "minus"
+phosphor = "minus"
+carbon = "subtract"
+tabler = "minus"
+
+[[icon]]
+name = "check"
+directional = false
+lucide = "check"
+phosphor = "check"
+carbon = "checkmark"
+tabler = "check"
+
+[[icon]]
+name = "search"
+directional = false
+lucide = "search"
+phosphor = "magnifying-glass"
+carbon = "search"
+tabler = "search"
+
+[[icon]]
+name = "zoom_in"
+directional = false
+lucide = "zoom-in"
+phosphor = "magnifying-glass-plus"
+carbon = "zoom--in"
+tabler = "zoom-in"
+
+[[icon]]
+name = "settings"
+directional = false
+lucide = "settings"
+phosphor = "gear"
+carbon = "settings"
+tabler = "settings"
+
+[[icon]]
+name = "trash"
+directional = false
+lucide = "trash"
+phosphor = "trash"
+carbon = "trash-can"
+tabler = "trash"
+
+[[icon]]
+name = "copy"
+directional = false
+lucide = "copy"
+phosphor = "copy"
+carbon = "copy"
+tabler = "copy"
+
+[[icon]]
+name = "save"
+directional = false
+lucide = "save"
+phosphor = "floppy-disk"
+carbon = "save"
+tabler = "device-floppy"
+
+[[icon]]
+name = "folder_open"
+directional = false
+lucide = "folder-open"
+phosphor = "folder-open"
+carbon = "folder--open"
+tabler = "folder-open"
+
+[[icon]]
+name = "new_file"
+directional = false
+lucide = "file-plus"
+phosphor = "file-plus"
+carbon = "document--add"
+tabler = "file-plus"
+
+[[icon]]
+name = "undo"
+directional = true
+lucide = "undo-2"
+phosphor = "arrow-u-up-left"
+carbon = "undo"
+tabler = "arrow-back-up"
+
+[[icon]]
+name = "redo"
+directional = true
+lucide = "redo-2"
+phosphor = "arrow-u-up-right"
+carbon = "redo"
+tabler = "arrow-forward-up"
+
+[[icon]]
+name = "eye"
+directional = false
+lucide = "eye"
+phosphor = "eye"
+carbon = "view"
+tabler = "eye"
+
+[[icon]]
+name = "eye_off"
+directional = false
+lucide = "eye-off"
+phosphor = "eye-slash"
+carbon = "view--off"
+tabler = "eye-off"
+
+[[icon]]
+name = "lock"
+directional = false
+lucide = "lock"
+phosphor = "lock"
+carbon = "locked"
+tabler = "lock"
+
+[[icon]]
+name = "lock_open"
+directional = false
+lucide = "lock-open"
+phosphor = "lock-open"
+carbon = "unlocked"
+tabler = "lock-open"
+
+[[icon]]
+name = "layers"
+directional = false
+lucide = "layers"
+phosphor = "stack"
+carbon = "layers"
+tabler = "stack-2"
+
+[[icon]]
+name = "link"
+directional = false
+lucide = "link"
+phosphor = "link"
+carbon = "link"
+tabler = "link"
+
+[[icon]]
+name = "image"
+directional = false
+lucide = "image"
+phosphor = "image"
+carbon = "image"
+tabler = "photo"
+
+[[icon]]
+name = "text"
+directional = false
+lucide = "type"
+phosphor = "text-t"
+carbon = "text--font"
+tabler = "typography"
+
+[[icon]]
+name = "square"
+directional = false
+lucide = "square"
+phosphor = "square"
+carbon = "square--outline"
+tabler = "square"
+
+[[icon]]
+name = "circle"
+directional = false
+lucide = "circle"
+phosphor = "circle"
+carbon = "circle--outline"
+tabler = "circle"
+
+[[icon]]
+name = "move"
+directional = false
+lucide = "move"
+phosphor = "arrows-out-cardinal"
+carbon = "move"
+tabler = "arrows-move"
+
+[[icon]]
+name = "hand"
+directional = false
+lucide = "hand"
+phosphor = "hand"
+carbon = "touch--1"
+tabler = "hand-stop"
+
+[[icon]]
+name = "rotate_cw"
+directional = false
+lucide = "rotate-cw"
+phosphor = "arrow-clockwise"
+carbon = "rotate--clockwise"
+tabler = "rotate-clockwise"
+
+[[icon]]
+name = "brush"
+directional = false
+lucide = "brush"
+phosphor = "paint-brush"
+carbon = "paint-brush"
+tabler = "brush"
+
+[[icon]]
+name = "pencil"
+directional = false
+lucide = "pencil"
+phosphor = "pencil-simple"
+carbon = "edit"
+tabler = "pencil"
+
+[[icon]]
+name = "eraser"
+directional = false
+lucide = "eraser"
+phosphor = "eraser"
+carbon = "erase"
+tabler = "eraser"
+
+[[icon]]
+name = "eyedropper"
+directional = false
+lucide = "pipette"
+phosphor = "eyedropper"
+carbon = "eyedropper"
+tabler = "color-picker"
+
+[[icon]]
+name = "info"
+directional = false
+lucide = "info"
+phosphor = "info"
+carbon = "information"
+tabler = "info-circle"
+
+[[icon]]
+name = "warning"
+directional = false
+lucide = "triangle-alert"
+phosphor = "warning"
+carbon = "warning--alt"
+tabler = "alert-triangle"

@@ -96,11 +96,12 @@ pub fn registry() -> Vec<Story> {
     let mut all = Vec::new();
     all.extend(colours::stories());
     all.extend(stock_egui::stories());
+    all.extend(crate::icons::stories());
     all
 }
 
 /// The `COMPONENTS` list of every module with stories, in [`registry`] order.
-const DECLARED: &[&[&str]] = &[colours::COMPONENTS, stock_egui::COMPONENTS];
+const DECLARED: &[&[&str]] = &[colours::COMPONENTS, stock_egui::COMPONENTS, crate::icons::COMPONENTS];
 
 /// Every component the crate's modules declare, in [`registry`] order.
 pub fn components() -> impl Iterator<Item = &'static str> {

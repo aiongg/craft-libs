@@ -1,7 +1,7 @@
 # Craft UI
 
-`craft-ui` provides small egui components with application-supplied styles. `icons` prepares
-embedded SVG catalogs; `buttons` paints accessible icon buttons; `tabs` handles tab fitting and
+`craft-ui` provides small egui components with application-supplied styles. `icons` draws the
+suite's icons; `buttons` paints accessible icon buttons; `tabs` handles tab fitting and
 interaction; `layout` provides toolbar fitting, split geometry and resize handles; `theme` shares widget-state styling.
 `docking` supplies transactional panel moves and an optional docking surface.
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
@@ -9,9 +9,28 @@ interaction; `layout` provides toolbar fitting, split geometry and resize handle
 `localized` supplies number fields that write and read the user's region's numbers.
 The current delivery covers nine creative apps (DesignCraft, VectorCraft, PhotoCraft, FilmCraft, EffectCraft, CADCraft, PDFCraft, LightCraft and SoundCraft); prior basic and office adapters are separate. The [suite audit](../../docs/ui-components-audit.md#adoption-and-acceptance)
 records their scope and acceptance limits. Assets (font files included), complete themes, localization
-and command handling remain in each application. No icons, fonts or application engines are bundled.
+and command handling remain in each application. The suite's icons are bundled (`icons/`, with
+their licences in `icons/ATTRIBUTION.md`); fonts and application engines are not.
 
-## SVG catalogs
+## Icons
+
+```rust
+use craft_ui::icons::{self, Icon, IconSize};
+
+fn close_glyph(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
+    icons::paint(ui, rect, Icon::Close, IconSize::Md, ui.visuals().text_color());
+}
+```
+
+`icons/icons.toml` lists the icons by meaning and each candidate set's file for them; `build.rs`
+embeds the files and generates `Icon` and `IconSet`. Icons rasterise once per pixel size with `resvg`
+and are tinted when drawn. `icons::set_active` picks the set for a context (Lucide by default); the
+gallery's `specimens/icons/compare` story shows the four candidates side by side.
+
+## SVG catalogs (deprecated)
+
+`SvgIconSet` serves an app's own SVG files through egui's image loaders. Use `Icon` instead.
 
 ```rust
 use std::sync::OnceLock;

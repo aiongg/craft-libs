@@ -17,6 +17,8 @@ craft-theme = { workspace = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }
 log = "0.4"
+# Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
+resvg = { version = "0.45.1", default-features = false }
 serde = { version = "1", features = ["derive"], optional = true }
 # Same version as epaint's, for reading a face's character map.
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
@@ -55,6 +57,10 @@ testing = []
 # craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest
 # (desktop only).
 screen-testing = ["dep:egui_kittest"]
+
+# build.rs reads icons/icons.toml.
+[build-dependencies]
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 
 [dev-dependencies]
 # serde: the IME tests read events that only the suite's egui fork has from JSON.

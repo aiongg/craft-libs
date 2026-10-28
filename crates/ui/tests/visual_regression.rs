@@ -353,6 +353,7 @@ fn widget_palette_renders_all_five_states_with_existing_borders_and_expansion() 
 }
 
 #[test]
+#[allow(deprecated, reason = "checks the deprecated SvgIconSet the apps still use")]
 fn svg_preparation_matches_literal_raster_references_at_all_scales() {
     use craft_ui::icons::{SvgIconSet, SvgStyle};
     use egui::{

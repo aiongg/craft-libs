@@ -1100,9 +1100,11 @@ dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "resvg",
  "serde",
  "serde_json",
  "skrifa 0.44.0",
+ "toml",
  "unicode-script",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -5720,10 +5722,12 @@ version = "1.1.8+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
 dependencies = [
+ "indexmap",
  "serde_core",
  "serde_spanned",
  "toml_datetime",
  "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 
