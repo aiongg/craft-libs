@@ -12,7 +12,8 @@ pub struct PropertyTokens {
     pub glyph_width: f32,
     /// Width of the label column of a word label (Opacity, Angle): `property.word_width`.
     pub word_width: f32,
-    /// The narrowest a control is drawn before a redundant label hides: `property.min_control`.
+    /// The least width a control is drawn at; a row narrower than its label and this hides a
+    /// redundant label or cuts an essential one: `property.min_control`.
     pub min_control: f32,
     /// Between the two columns of a pair row: `property.column_gap`.
     pub column_gap: f32,

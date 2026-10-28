@@ -447,7 +447,9 @@ pub const PROPERTY_BASE_CONTROL: f32 = 24.0;
 pub const PROPERTY_GLYPH_WIDTH: f32 = 22.0;
 /// Compact width of a word label's column (Opacity, Angle).
 pub const PROPERTY_WORD_WIDTH: f32 = 72.0;
-/// Compact width under which a property row's control is not drawn.
+/// Compact least width of a property row's control. A narrower row hides a redundant label, then
+/// cuts an essential one; a row too narrow even for the control alone still draws it this wide and
+/// overflows.
 pub const PROPERTY_MIN_CONTROL: f32 = 36.0;
 /// Compact gap between the two columns of a pair row.
 pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
