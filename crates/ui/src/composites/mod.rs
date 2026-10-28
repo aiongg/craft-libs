@@ -52,7 +52,10 @@ pub(crate) mod section_header;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_header_tests;
 
-pub use color::{AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorStrip, ColorWarning, PickedColor};
+pub use color::{
+    AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
+    ColorWarning, PickedColor, SwatchPalette,
+};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

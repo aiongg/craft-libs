@@ -4,7 +4,7 @@ use craft_theme::{ControlSize, Rgba, SwatchTokens};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
-use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, IdSalt, Rect, Response, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
 
 use super::{SIZE_NAMES, size_arg};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
@@ -72,6 +72,11 @@ pub struct Swatch {
     size: ControlSize,
     mixed: bool,
     selected: bool,
+    /// A radio button of a group: whether it is the checked one, and its place in the set.
+    radio: Option<bool>,
+    position: Option<usize>,
+    /// Whether keyboard focus can reach it; a palette keeps one swatch a stop.
+    tab_stop: bool,
     enabled: bool,
     id_salt: IdSalt,
 }
@@ -84,6 +89,9 @@ impl Swatch {
             size: ControlSize::Md,
             mixed: false,
             selected: false,
+            radio: None,
+            position: None,
+            tab_stop: true,
             enabled: true,
             id_salt: IdSalt::new(id_salt),
         }
@@ -104,6 +112,33 @@ impl Swatch {
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self
+    }
+
+    /// A radio button of a group of swatches ([`SwatchPalette`](crate::composites::SwatchPalette)):
+    /// AccessKit `RadioButton`, checked when `checked`, which also puts the selection ring round
+    /// the well. Keys and focus between the swatches are the group's.
+    pub fn radio(mut self, checked: bool) -> Self {
+        self.radio = Some(checked);
+        self.selected = checked;
+        self
+    }
+
+    /// The swatch's place in its group, from 0, for a screen reader.
+    pub(crate) fn position_in_set(mut self, index: usize) -> Self {
+        self.position = Some(index);
+        self
+    }
+
+    /// Whether the keyboard focus can reach the swatch (Tab, the arrows); a swatch that can't
+    /// still takes clicks.
+    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
+        self
+    }
+
+    /// The id a swatch made with `id_salt` has in `ui`.
+    pub(crate) fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        Interactive::id_in(ui, IdSalt::new(id_salt))
     }
 
     /// Whether it takes clicks; a disabled swatch keeps its colour and fades its rings.
@@ -204,11 +239,21 @@ fn grow(radius: CornerRadius, by: f32) -> CornerRadius {
 impl Widget for Swatch {
     fn ui(self, ui: &mut Ui) -> Response {
         let style = Swatch::style(&Tokens::of(ui), self.size);
-        let mut element = Interactive::new(self.id_salt, Role::Button, self.label.as_str())
+        let role = if self.radio.is_some() { Role::RadioButton } else { Role::Button };
+        let mut element = Interactive::new(self.id_salt, role, self.label.as_str())
             .state_layer(false)
             .focus_ring(false)
             .selected(self.selected)
             .enabled(self.enabled);
+        if !self.tab_stop {
+            element = element.sense(Sense::CLICK);
+        }
+        if let Some(checked) = self.radio {
+            element = element.checked(checked);
+        }
+        if let Some(position) = self.position {
+            element = element.position_in_set(position);
+        }
         if !self.mixed {
             element = element.value(Swatch::hex(self.color));
         }
