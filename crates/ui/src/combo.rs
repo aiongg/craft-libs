@@ -16,9 +16,9 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use egui::{
-    Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, LayerId, NumExt as _, Order,
-    Painter, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, Style, TextStyle, TextWrapMode, Ui, Vec2,
-    WidgetAtom, WidgetInfo,
+    Align, Align2, AsIdSalt, Atom, AtomExt as _, Atoms, Context, Direction, Frame, Id, IdSalt, InnerResponse, IntoAtoms, LayerId, Margin,
+    NumExt as _, Order, Painter, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Sense, Shape, Style, TextStyle,
+    TextWrapMode, Ui, Vec2, WidgetAtom, WidgetInfo,
     class::{ClassName, Classes, HasClasses},
     style::{StyleModifier, WidgetVisuals},
     vec2,
@@ -26,6 +26,8 @@ use egui::{
 };
 
 pub use egui::IconPainter;
+
+use crate::primitives::{SurfaceEdge, SurfaceStyle};
 
 /// egui's [`egui::ComboBox`] with a menu that grows when its contents do.
 ///
@@ -385,6 +387,8 @@ pub struct Menu<'a> {
     scoped: Option<Arc<Style>>,
     close_behavior: PopupCloseBehavior,
     open: Option<&'a mut bool>,
+    /// Drawn behind the menu in place of egui's popup frame.
+    surface: Option<SurfaceStyle>,
 }
 
 impl<'a> Menu<'a> {
@@ -406,6 +410,7 @@ impl<'a> Menu<'a> {
             scoped: crate::theme::scoped_style(ui),
             close_behavior: PopupCloseBehavior::CloseOnClick,
             open: None,
+            surface: None,
         }
     }
 
@@ -448,6 +453,13 @@ impl<'a> Menu<'a> {
     #[inline]
     pub fn style(mut self, style: impl Into<StyleModifier>) -> Self {
         self.style = style.into();
+        self
+    }
+
+    /// Draws the menu on `surface` (a [`Surface`](crate::primitives::Surface) style, which may
+    /// bevel) instead of egui's popup frame, with the style's menu margin inside it.
+    pub(crate) fn surface(mut self, surface: SurfaceStyle) -> Self {
+        self.surface = Some(surface);
         self
     }
 
@@ -509,7 +521,7 @@ impl<'a> Menu<'a> {
         list: impl FnOnce(ScrollArea, &mut Ui, H) -> R,
         footer: Option<impl FnOnce(&mut Ui) -> F>,
     ) -> Option<(R, Option<F>)> {
-        let Self { popup, ctx, field, field_id, height, style, scoped, mut close_behavior, open } = self;
+        let Self { popup, ctx, field, field_id, height, style, scoped, mut close_behavior, open, surface } = self;
         let style = match scoped {
             Some(scoped) => StyleModifier::new(move |s: &mut Style| {
                 *s = (*scoped).clone();
@@ -552,8 +564,13 @@ impl<'a> Menu<'a> {
         };
         let mut popup_style = (*ctx.global_style()).clone();
         style.apply(&mut popup_style);
-        let frame = Frame::popup(&popup_style).total_margin().sum().y;
-        let height = height.min(room - frame).max(0.0);
+        // A surface's edge is drawn inside its rect, so the margin keeps the contents off it.
+        let frame = match &surface {
+            Some(surface) => Frame::NONE.inner_margin(popup_style.spacing.menu_margin + Margin::same(edge_width(surface).ceil() as i8)),
+            None => Frame::popup(&popup_style),
+        };
+        let height = height.min(room - frame.total_margin().sum().y).max(0.0);
+        let popup = if surface.is_some() { popup.frame(Frame::NONE) } else { popup };
         let inner = popup
             .align(align)
             .align_alternatives(&[])
@@ -567,43 +584,54 @@ impl<'a> Menu<'a> {
                 if remeasure && !settled {
                     ui.multiply_opacity(0.0);
                 }
-                ui.set_min_width(ui.available_width());
-                // The popup offers last pass's height. Offer the full height instead: the scroll
-                // area takes what the header and footer leave of it, then shrinks to the list.
-                ui.set_max_height(height);
-                let header = header(ui);
-                // The footer comes after the list; keep the room it took last pass.
-                let footer_height = ui.data(|d| d.get_temp::<f32>(footer_id));
-                let footer_room = if footer.is_some() { footer_height.unwrap_or(0.0) + ui.spacing().item_spacing.y } else { 0.0 };
-                // Labels widen a narrow menu rather than wrap early, as in egui's combo box. A
-                // list left with no room keeps ScrollArea's minimum scrolled height.
-                ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
-                let list = list(ScrollArea::vertical().max_height((ui.available_height() - footer_room).max(0.0)), ui, header);
-                let footer = footer.map(|footer| {
-                    let top = ui.cursor().top();
-                    let f = footer(ui);
-                    let height = ui.min_rect().bottom() - top;
-                    let changed = footer_height.is_none_or(|h| (h - height).abs() > 0.5);
-                    if !changed && remeasures > 0 {
-                        ui.data_mut(|d| d.remove::<u8>(count_id));
+                let contents = |ui: &mut Ui| {
+                    ui.set_min_width(ui.available_width());
+                    // The popup offers last pass's height. Offer the full height instead: the scroll
+                    // area takes what the header and footer leave of it, then shrinks to the list.
+                    ui.set_max_height(height);
+                    let header = header(ui);
+                    // The footer comes after the list; keep the room it took last pass.
+                    let footer_height = ui.data(|d| d.get_temp::<f32>(footer_id));
+                    let footer_room = if footer.is_some() { footer_height.unwrap_or(0.0) + ui.spacing().item_spacing.y } else { 0.0 };
+                    // Labels widen a narrow menu rather than wrap early, as in egui's combo box. A
+                    // list left with no room keeps ScrollArea's minimum scrolled height.
+                    ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
+                    let list = list(ScrollArea::vertical().max_height((ui.available_height() - footer_room).max(0.0)), ui, header);
+                    let footer = footer.map(|footer| {
+                        let top = ui.cursor().top();
+                        let f = footer(ui);
+                        let height = ui.min_rect().bottom() - top;
+                        let changed = footer_height.is_none_or(|h| (h - height).abs() > 0.5);
+                        if !changed && remeasures > 0 {
+                            ui.data_mut(|d| d.remove::<u8>(count_id));
+                        }
+                        if changed {
+                            // Recorded even past the cap, so "unchanged" means unchanged since the last pass.
+                            ui.data_mut(|d| d.insert_temp(footer_id, height));
+                        }
+                        if changed && remeasures < 2 {
+                            // The list took the wrong room: lay the menu out again next pass. Not a
+                            // discarded pass: the header's side effects (focusing a search field on
+                            // open) would run twice.
+                            ui.data_mut(|d| {
+                                d.insert_temp(remeasure_id, true);
+                                d.insert_temp(count_id, remeasures + 1);
+                            });
+                            ui.ctx().request_repaint();
+                        }
+                        f
+                    });
+                    (list, footer)
+                };
+                match surface {
+                    Some(surface) => {
+                        let slot = ui.painter().add(Shape::Noop);
+                        let inner = frame.show(ui, contents);
+                        ui.painter().set(slot, Shape::Vec(surface.shapes(inner.response.rect, ui.pixels_per_point())));
+                        inner.inner
                     }
-                    if changed {
-                        // Recorded even past the cap, so "unchanged" means unchanged since the last pass.
-                        ui.data_mut(|d| d.insert_temp(footer_id, height));
-                    }
-                    if changed && remeasures < 2 {
-                        // The list took the wrong room: lay the menu out again next pass. Not a
-                        // discarded pass: the header's side effects (focusing a search field on
-                        // open) would run twice.
-                        ui.data_mut(|d| {
-                            d.insert_temp(remeasure_id, true);
-                            d.insert_temp(count_id, remeasures + 1);
-                        });
-                        ui.ctx().request_repaint();
-                    }
-                    f
-                });
-                (list, footer)
+                    None => contents(ui),
+                }
             })
             .map(|r| r.inner);
         if inner.is_some() {
@@ -621,6 +649,15 @@ fn rows_list<H, R>(
     move |scroll, ui, h| {
         let total = total_rows(&h);
         scroll.show_rows(ui, row_height, total, |ui, range| rows(ui, range, h)).inner
+    }
+}
+
+/// The width of a surface's edge, which it draws inside its rect.
+fn edge_width(surface: &SurfaceStyle) -> f32 {
+    match surface.edge {
+        SurfaceEdge::Border(stroke) => stroke.width,
+        SurfaceEdge::Bevel { width, .. } => width,
+        _ => 0.0,
     }
 }
 

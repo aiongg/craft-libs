@@ -16,7 +16,7 @@ use egui::{
 };
 
 use super::slider::{Scale, Track, labelled, pointer, wheel, with_values};
-use super::text_field::field_box;
+use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, GestureId, UndoMarks};
@@ -338,7 +338,7 @@ impl<'a> NumberField<'a> {
 
         let invalid = self.invalid || typed.rejected().is_some();
         report(ui.ctx(), &typed, bounds, &self.unit, stepping.then_some(self.step));
-        ui.painter().set(under, Shape::Vec(field_box(ui, &style.field, &response, invalid, enabled)));
+        ui.painter().set(under, Shape::Vec(field_box(ui, &style.field, response.rect, BoxState::of(&response, enabled, invalid))));
         parts.paint(ui, &self, rect, typed.text_rect(), !typed.text().is_empty());
         if let Some(reason) = typed.rejected().map(str::to_owned) {
             if focused && !popup_open {

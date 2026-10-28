@@ -6,7 +6,9 @@ use std::collections::VecDeque;
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{
+    Align2, AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
+};
 
 use super::slider::with_values;
 use super::{IconButton, SIZE_NAMES, icon_size, size_arg};
@@ -191,6 +193,7 @@ impl<'a> TextField<'a> {
             policy: self.policy,
             password: self.password,
             char_limit: self.char_limit,
+            keys: EventFilter::default(),
         };
         show_field(ui, &spec)
     }
@@ -260,6 +263,7 @@ pub struct SearchField<'a> {
     size: ControlSize,
     policy: EditPolicy,
     enabled: bool,
+    keys: EventFilter,
 }
 
 impl<'a> SearchField<'a> {
@@ -275,6 +279,7 @@ impl<'a> SearchField<'a> {
             size: ControlSize::Md,
             policy: EditPolicy::default().cancellable(false),
             enabled: true,
+            keys: EventFilter::default(),
         }
     }
 
@@ -300,6 +305,13 @@ impl<'a> SearchField<'a> {
         self
     }
 
+    /// Keys an embedding control reads while the field has the focus: a popup list's arrows
+    /// and Esc ([`Typing::event_filter`]).
+    pub(crate) fn keys(mut self, keys: EventFilter) -> Self {
+        self.keys = keys;
+        self
+    }
+
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
         let spec = Spec {
@@ -315,6 +327,7 @@ impl<'a> SearchField<'a> {
             policy: self.policy,
             password: false,
             char_limit: usize::MAX,
+            keys: self.keys,
         };
         show_field(ui, &spec)
     }
@@ -336,6 +349,8 @@ struct Spec<'a> {
     policy: EditPolicy,
     password: bool,
     char_limit: usize,
+    /// The embedding control's keys.
+    keys: EventFilter,
 }
 
 /// Where the parts of a field go: the room kept at the reading start and end of the text, and
@@ -404,12 +419,13 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         .password(spec.password)
         .char_limit(spec.char_limit)
         .escape(escape)
-        .role(role);
+        .role(role)
+        .event_filter(spec.keys);
     // The box goes under the text, which `TextEdit` paints as it runs.
     let under = ui.painter().add(Shape::Noop);
     let mut typed = typing.show(ui, &look);
     let rect = typed.response().rect;
-    ui.painter().set(under, Shape::Vec(field_box(ui, &style, typed.response(), spec.invalid, enabled)));
+    ui.painter().set(under, Shape::Vec(field_box(ui, &style, rect, BoxState::of(typed.response(), enabled, spec.invalid))));
     if let Some(icon) = spec.leading {
         icons::paint(ui, layout.leading(ui, &style, rect).round_to_pixels(ui.pixels_per_point()), icon, icon_size(spec.size), look.placeholder);
     }
@@ -425,11 +441,28 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
     typed.end(ui)
 }
 
-/// The box under the text: the surface in the state's colours, and inside a bevel the focused
+/// What a field-like box shows: [`TextField`]'s, `NumberField`'s, and a closed `Select`'s
+/// (focused while it has the focus or its list is open).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct BoxState {
+    pub enabled: bool,
+    pub focused: bool,
+    pub hovered: bool,
+    pub invalid: bool,
+}
+
+impl BoxState {
+    /// The state of a field whose box is `response`'s widget.
+    pub(super) fn of(response: &Response, enabled: bool, invalid: bool) -> Self {
+        Self { enabled, focused: response.has_focus(), hovered: response.contains_pointer(), invalid }
+    }
+}
+
+/// A field's box over `rect`: the surface in the state's colours, and inside a bevel the focused
 /// or invalid edge. A focused invalid field draws the focused edge with the invalid colour as a
 /// line inside it.
-pub(super) fn field_box(ui: &Ui, style: &TextFieldStyle, response: &Response, invalid: bool, enabled: bool) -> Vec<Shape> {
-    let focused = response.has_focus();
+pub(super) fn field_box(ui: &Ui, style: &TextFieldStyle, rect: Rect, state: BoxState) -> Vec<Shape> {
+    let BoxState { enabled, focused, hovered, invalid } = state;
     let mut surface = style.surface;
     surface.fill = if enabled { surface.fill } else { style.fill_disabled };
     let (edge, inner) = match () {
@@ -437,30 +470,30 @@ pub(super) fn field_box(ui: &Ui, style: &TextFieldStyle, response: &Response, in
         () if invalid && focused => (style.border_focused, Some(style.invalid)),
         () if invalid => (style.invalid, None),
         () if focused => (style.border_focused, None),
-        () if response.contains_pointer() => (style.border_hover, None),
+        () if hovered => (style.border_hover, None),
         () => (border_color(&surface), None),
     };
     let ppp = ui.pixels_per_point();
-    let rect = response.rect.round_to_pixels(ppp);
+    let snapped = rect.round_to_pixels(ppp);
     let radius = surface.radius;
     let mut shapes = Vec::new();
     match surface.edge {
         SurfaceEdge::Border(stroke) => {
             surface.edge = SurfaceEdge::Border(Stroke::new(stroke.width, edge));
-            shapes.extend(surface.shapes(response.rect, ppp));
+            shapes.extend(surface.shapes(rect, ppp));
             if let Some(inner) = inner {
-                shapes.push(line_inside(rect, radius, stroke.width, stroke.width, inner));
+                shapes.push(line_inside(snapped, radius, stroke.width, stroke.width, inner));
             }
         }
         SurfaceEdge::Bevel { width, .. } if enabled && (focused || invalid) => {
-            shapes.extend(surface.shapes(response.rect, ppp));
+            shapes.extend(surface.shapes(rect, ppp));
             let bevel = (width * ppp).round().max(1.0) / ppp;
-            shapes.push(line_inside(rect, radius, bevel, 1.0, edge));
+            shapes.push(line_inside(snapped, radius, bevel, 1.0, edge));
             if let Some(inner) = inner {
-                shapes.push(line_inside(rect, radius, bevel + 1.0, 1.0, inner));
+                shapes.push(line_inside(snapped, radius, bevel + 1.0, 1.0, inner));
             }
         }
-        _ => shapes.extend(surface.shapes(response.rect, ppp)),
+        _ => shapes.extend(surface.shapes(rect, ppp)),
     }
     shapes
 }

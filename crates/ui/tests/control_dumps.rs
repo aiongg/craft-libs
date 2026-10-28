@@ -5,8 +5,8 @@
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::controls::{
-    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Slider,
-    Swatch, Switch, TextField, ToggleButton, Tooltip,
+    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
+    Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
@@ -220,6 +220,27 @@ fn number_field() {
         let s = NumberField::style(t, ControlSize::Md);
         d.line("unit.rest", s.unit).line("unit.disabled", s.unit_disabled);
         d.line("scrub.rest", s.scrub).line("scrub.disabled", s.scrub_disabled);
+    });
+}
+
+/// Selects: the popup list's rows and surface; the closed box is a text field's.
+#[test]
+fn select() {
+    check("select.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Select::style(t, size).list;
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("icon", s.icon);
+            });
+        }
+        let style = Select::style(t, ControlSize::Md);
+        let s = style.list;
+        d.line("pad_x", s.pad_x).line("gap", s.gap).line("separator_pad", s.separator_pad);
+        d.line("label", role(s.label)).line("group_label", role(s.group_label)).line("radius", s.radius);
+        d.line("text.rest", s.text).line("text.disabled", s.text_disabled);
+        d.line("active.fill", s.active_fill).line("active.text", s.active_text);
+        d.line("chosen.text", s.chosen_text).line("mark", s.mark).line("group", s.group).line("separator", s.separator);
+        surface(d, "popup", &style.popup);
     });
 }
 

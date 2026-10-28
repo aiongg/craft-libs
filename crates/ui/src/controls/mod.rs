@@ -21,10 +21,11 @@
 //! - [`TextField`] and [`SearchField`]: one line of text; a typing run is one edit gesture.
 //! - [`NumberField`]: a number in the region's digits, typed, scrubbed, stepped or set on a
 //!   pop-up slider, one edit gesture at a time.
+//! - [`Select`]: one of a list of options, chosen from a popup list under a field-like box.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`), so a theme's component
+//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`, `listbox.*`), so a theme's component
 //! overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
@@ -57,6 +58,9 @@ pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
 pub(crate) mod segmented;
+pub(crate) mod select;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod select_tests;
 pub(crate) mod slider;
 #[cfg(test)]
 mod slider_tests;
@@ -90,6 +94,7 @@ pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
+pub use select::{ListboxStyle, Select, SelectStyle};
 pub use slider::{Slider, SliderStyle};
 pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle};
