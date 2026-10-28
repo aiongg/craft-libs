@@ -111,9 +111,6 @@ impl<'a> GradientSwatch<'a> {
     }
 }
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["GradientSwatch"];
-
 pub(crate) fn stories() -> Vec<Story> {
     vec![Story {
         id: "composites/gradient/swatch",

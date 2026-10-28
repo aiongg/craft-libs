@@ -6,7 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{Guides, Readout, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack, Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, Notice, PanelHeader, PropertyRow, SectionHeader, ToastStack,
+    Tone,
 };
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -491,6 +492,19 @@ fn curve_editor() {
             d.line(&format!("{key}.halo"), p.halo.width).line(&format!("{key}.halo_color"), p.halo.color);
         }
         d.line("hint_role", role(s.hint_role)).line("hint", s.hint);
+    });
+}
+
+/// Gradient editors: the bar's sizes, the ramp's checkerboard and edge, the marker colours and
+/// the drop line.
+#[test]
+fn gradient_editor() {
+    check("gradient_editor.txt", |d, t| {
+        let s = GradientEditor::style(t);
+        d.line("ramp_height", s.ramp_height).line("inset", s.inset).line("marker", s.marker).line("pointer", s.pointer).line("diamond", s.diamond);
+        d.line("hit", s.hit).line("diamond_hit", s.diamond_hit).line("tear_off", s.tear_off).line("drop_line", s.drop_line);
+        d.line("checker_a", s.ramp.checker[0]).line("checker_b", s.ramp.checker[1]).line("cell", s.ramp.cell).line("edge", s.ramp.edge);
+        d.line("marker_edge", s.marker_edge).line("hovered", s.hovered).line("selected", s.selected).line("drop", s.drop);
     });
 }
 

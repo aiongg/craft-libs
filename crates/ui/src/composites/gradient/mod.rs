@@ -1,5 +1,6 @@
 //! The gradient stop bar's parts: [`GradientStops`], the value, with the stop rules in [`stops`];
-//! [`GradientRamp`], the paint; and [`GradientSwatch`], a well that shows a gradient.
+//! [`GradientRamp`], the paint; [`GradientSwatch`], a well that shows a gradient; and
+//! [`GradientEditor`], the stop bar that edits the stops.
 //!
 //! Colour stops and opacity stops live in two rows ([`StopRows::Split`], PhotoCraft) or in one,
 //! the opacity being the colour's alpha ([`StopRows::Combined`], DesignCraft and VectorCraft).
@@ -9,6 +10,10 @@
 //!
 //! Colours are the `swatch.*` tokens; the bar's own are `gradient_editor.*`.
 
+mod editor;
+mod editor_stories;
+#[cfg(test)]
+mod editor_tests;
 mod ramp;
 pub mod stops;
 #[cfg(test)]
@@ -18,8 +23,17 @@ mod swatch;
 mod swatch_tests;
 mod value;
 
+pub use editor::{GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, StopDrop, StopRef};
 pub use ramp::{GradientRamp, GradientRampStyle};
 pub use stops::{Sampler, StopRules, default_sampler};
 pub use swatch::GradientSwatch;
-pub(crate) use swatch::{COMPONENTS, stories};
 pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["GradientSwatch", "GradientEditor"];
+
+pub(crate) fn stories() -> Vec<crate::story::Story> {
+    let mut all = swatch::stories();
+    all.extend(editor_stories::stories());
+    all
+}
