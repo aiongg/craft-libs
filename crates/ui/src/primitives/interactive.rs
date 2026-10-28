@@ -359,6 +359,13 @@ impl Sensed {
         self
     }
 
+    /// The value text, as settled after sensing: what a screen reader reads as the value of an
+    /// element whose value is not one number (a colour area's two components).
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.report.value = Some(value.into());
+        self
+    }
+
     /// A numeric value, as settled after sensing, with the bounds it may take and the step of one
     /// increment, for a [`Role::Slider`]. A screen reader reads them, and may ask for an
     /// increment, a decrement (offered while the value is inside its bounds) or a value; the

@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
+use craft_ui::composites::{ColorArea, Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
     Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
@@ -429,5 +429,23 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+#[test]
+fn color_parts() {
+    check("color_parts.txt", |d, t| {
+        let s = ColorArea::style(t);
+        d.line("area", s.area)
+            .line("area_height", s.area_height)
+            .line("strip_full", s.strip_full)
+            .line("strip", s.strip)
+            .line("edge", s.edge)
+            .line("marker_inner_radius", s.marker_inner_radius)
+            .line("marker_inner", s.marker_inner)
+            .line("marker_outer_radius", s.marker_outer_radius)
+            .line("marker_outer", s.marker_outer)
+            .line("pointer", s.pointer)
+            .line("pointer_color", s.pointer_color);
     });
 }
