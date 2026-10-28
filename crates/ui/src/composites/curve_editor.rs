@@ -10,8 +10,9 @@ use egui::{
 
 use craft_theme::{Rgba, TypeRole};
 
+use super::Histogram;
 use super::curve::{Curve, Rules};
-use super::histogram::ChannelColor;
+use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::KeyClaim;
 use crate::controls::NumberField;
@@ -50,6 +51,10 @@ pub struct CurveLabels {
     pub graph_value: String,
     /// The graph's accessible value without channels: "{n} points".
     pub graph_points: String,
+    /// The accessible value of a drawn curve: "{channel}, drawn".
+    pub graph_drawn: String,
+    /// The accessible value of a drawn curve without channels: "Drawn".
+    pub drawn: String,
     /// The unit of a value in percent ([`CurveEditor::percent`]): "{n}%".
     pub percent: String,
 }
@@ -63,6 +68,8 @@ impl Default for CurveLabels {
             point_value: "Input {x}, Output {y}".into(),
             graph_value: "{channel}, {n} points".into(),
             graph_points: "{n} points".into(),
+            graph_drawn: "{channel}, drawn".into(),
+            drawn: "Drawn".into(),
             percent: "{n}%".into(),
         }
     }
@@ -120,6 +127,10 @@ struct State {
     channel: Option<usize>,
     selected: Option<usize>,
     drag: Option<Drag>,
+    /// The last level a pencil stroke under way drew to.
+    stroke: Option<[f32; 2]>,
+    /// Where the previous pencil stroke ended: Shift+press continues from it.
+    end: Option<[f32; 2]>,
 }
 
 /// The point a press captured.
@@ -206,6 +217,9 @@ pub struct CurveEditor<'a> {
     policy: EditPolicy,
     labels: CurveLabels,
     enabled: bool,
+    pencil: bool,
+    histogram: Option<&'a HistogramData>,
+    overlays: &'a [Curve],
 }
 
 impl<'a> CurveEditor<'a> {
@@ -229,6 +243,9 @@ impl<'a> CurveEditor<'a> {
             policy: EditPolicy::default(),
             labels: CurveLabels::default(),
             enabled: true,
+            pencil: false,
+            histogram: None,
+            overlays: &[],
         }
     }
 
@@ -307,6 +324,30 @@ impl<'a> CurveEditor<'a> {
         self
     }
 
+    /// The host's pencil mode: a press-drag-release draws a [`Curve::Map`] with straight segments
+    /// between pointer samples, and Shift+press continues in a straight line from the previous
+    /// stroke's end. The points are hidden and no key but Esc (which cancels a stroke) does
+    /// anything. A [`Curve::Points`] value is drawn from its samples.
+    pub fn pencil(mut self, pencil: bool) -> Self {
+        self.pencil = pencil;
+        self
+    }
+
+    /// The active channel's histogram, drawn behind the curve in its backdrop look across the
+    /// value area.
+    pub fn histogram(mut self, data: &'a HistogramData) -> Self {
+        self.histogram = Some(data);
+        self
+    }
+
+    /// The curve of every channel, in the order of [`channels`](CurveEditor::channels): the other
+    /// channels' curves draw behind the active one in their channel colours. Identity curves are
+    /// skipped, and the host passes them only for the composite channel, as Photoshop shows them.
+    pub fn overlays(mut self, curves: &'a [Curve]) -> Self {
+        self.overlays = curves;
+        self
+    }
+
     /// The graph's widget id for `id_salt` in `ui`, as [`selected`](CurveEditor::selected) and
     /// [`select`](CurveEditor::select) take it; also the response's id.
     pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
@@ -321,7 +362,7 @@ impl<'a> CurveEditor<'a> {
     /// Selects point `index` of editor `id` (the host's click on the image), in the channel the
     /// editor shows next.
     pub fn select(ctx: &Context, id: Id, index: Option<usize>) {
-        ctx.data_mut(|d| d.insert_temp(id.with(STATE), State { channel: None, selected: index, drag: None }));
+        ctx.data_mut(|d| d.insert_temp(id.with(STATE), State { channel: None, selected: index, ..State::default() }));
     }
 
     pub fn style(tokens: &UiTokens) -> CurveStyle {
@@ -407,24 +448,34 @@ impl<'a> CurveEditor<'a> {
         let response = graph_ui.response();
         let enabled = response.enabled();
 
-        let mut gesture = Gesture::load(ui, id, self.curve, self.policy).event_filter(KEY_FILTER).enabled(enabled);
+        let filter = if self.pencil { egui::EventFilter::default() } else { KEY_FILTER };
+        let mut gesture = Gesture::load(ui, id, self.curve, self.policy).event_filter(filter).enabled(enabled);
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
         if state.channel.is_some_and(|c| c != self.channel) {
             state.selected = None;
             state.drag = None;
+            state.stroke = None;
+            state.end = None;
         }
         state.channel = Some(self.channel);
-        if let Some(drag) = state.drag
-            && !gesture.is_active()
-        {
+        if !gesture.is_active() {
             // Cancelled (Esc, an undo, an external change): the selection goes back too.
-            state.selected = drag.before;
-            state.drag = None;
+            if let Some(drag) = state.drag.take() {
+                state.selected = drag.before;
+            }
+            state.stroke = None;
         }
 
         let rules = Rules { levels: self.levels, max_points: self.max_points };
-        let mut points = gesture.shown().points().map(<[_]>::to_vec);
-        if let Some(points) = points.as_mut() {
+        let mut points = gesture.shown().points().map(<[_]>::to_vec).filter(|_| !self.pencil);
+        if self.pencil {
+            state.selected = None;
+            state.drag = None;
+            if enabled {
+                let outputs = Curve::drawn(gesture.shown(), |points| self.samples(points), self.levels);
+                StrokeEdit { gesture: &mut gesture, state: &mut state, outputs, map }.pointer(ui, &response);
+            }
+        } else if let Some(points) = points.as_mut() {
             state.selected = state.selected.filter(|&i| i < points.len());
             if enabled {
                 let mut edit = PointEdit { gesture: &mut gesture, points, state: &mut state, rules, map, style };
@@ -452,14 +503,17 @@ impl<'a> CurveEditor<'a> {
             self.paint_curve(&graph_ui, &shown, map, color.curve(&tokens), style.width);
         }
         let point_ids = match shown.points() {
-            Some(points) => self.points(&mut graph_ui, style, map, points, selected),
-            None => Vec::new(),
+            Some(points) if !self.pencil => self.points(&mut graph_ui, style, map, points, selected),
+            _ => Vec::new(),
         };
         drop(graph_ui);
         FocusRing::paint_radius(ui, plot, CornerRadius::ZERO, &response);
 
         let n = shown.points().map_or(0, <[_]>::len);
+        let drawn = self.pencil || shown.points().is_none();
         let value = match channel {
+            Some(c) if drawn => fill(&self.labels.graph_drawn, &[("channel", &c.label)]),
+            None if drawn => self.labels.drawn.clone(),
             Some(c) => fill(&self.labels.graph_value, &[("channel", &c.label), ("n", &self.numbers.format(n as f64, 0..=0))]),
             None => fill(&self.labels.graph_points, &[("n", &self.numbers.format(n as f64, 0..=0))]),
         };
@@ -474,7 +528,7 @@ impl<'a> CurveEditor<'a> {
                 None => node.clear_active_descendant(),
             }
         });
-        (EditResponse::new(response, event), shown.points().map(<[_]>::to_vec), selected)
+        (EditResponse::new(response, event), points, selected)
     }
 
     /// The output of every input level through `points`: the host's sampler or a monotone cubic.
@@ -485,12 +539,25 @@ impl<'a> CurveEditor<'a> {
         }
     }
 
-    /// The plot, grid, baseline, border and gradient bars. The seam for the histogram behind the
-    /// curve and the other channels' curves is between the plot fill and the grid.
+    /// The indices of the channels whose curves draw behind the active one: every channel with a
+    /// curve in the overlays but the active one, unless it is the identity.
+    pub(super) fn other_channels(&self) -> Vec<usize> {
+        (0..self.overlays.len().min(self.channels.len())).filter(|&i| i != self.channel && !self.overlays[i].is_identity(self.levels)).collect()
+    }
+
+    /// The plot, the histogram, the other channels' curves, the grid, baseline, border and
+    /// gradient bars.
     fn paint_backdrop(&self, ui: &Ui, style: &CurveStyle, plot: Rect, map: Map, color: ChannelColor, tokens: &UiTokens) {
         let painter = ui.painter().with_clip_rect(ui.clip_rect());
         painter.rect_filled(plot, 0.0, style.fill);
         let area = map.area;
+        if let Some(data) = self.histogram {
+            Histogram::paint(&painter, area, data, HistogramLook::Backdrop, tokens);
+        }
+        for i in self.other_channels() {
+            let color = self.channels[i].color.curve(tokens).gamma_multiply(style.other_alpha);
+            self.paint_curve(ui, &self.overlays[i], map, color, style.other_width);
+        }
         for i in 1..4 {
             let f = i as f32 / 4.0;
             let x = area.left() + f * area.width();
@@ -810,6 +877,53 @@ impl PointEdit<'_, '_> {
     }
 }
 
+/// One frame's pencil stroke: the pointer draws straight segments into a map of outputs.
+struct StrokeEdit<'g> {
+    gesture: &'g mut Gesture<Curve>,
+    state: &'g mut State,
+    outputs: Vec<f32>,
+    map: Map,
+}
+
+impl StrokeEdit<'_> {
+    /// Press, drag and release as one gesture; a Shift press starts at the previous stroke's end.
+    fn pointer(&mut self, ui: &Ui, response: &Response) {
+        let down = response.is_pointer_button_down_on();
+        let press = down && ui.input(|i| i.pointer.primary_pressed());
+        if press && let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
+            response.request_focus();
+            let at = self.map.value_at(pos);
+            let from = match ui.input(|i| i.modifiers.shift) {
+                true => self.state.end.unwrap_or(at),
+                false => at,
+            };
+            self.gesture.begin();
+            self.state.stroke = Some(at);
+            self.draw(ui, from, at);
+        }
+        let released = ui.input(|i| i.pointer.primary_released());
+        if !press
+            && (down || released)
+            && let Some(last) = self.state.stroke
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            let at = self.map.value_at(pos);
+            self.state.stroke = Some(at);
+            self.draw(ui, last, at);
+        }
+        if self.state.stroke.is_some() && !down {
+            self.state.end = self.state.stroke.take();
+            self.gesture.commit();
+        }
+    }
+
+    fn draw(&mut self, ui: &Ui, from: [f32; 2], to: [f32; 2]) {
+        if Curve::pencil_line(&mut self.outputs, from, to, self.map.levels) {
+            self.gesture.update(Curve::Map(self.outputs.clone()), ui.input(|i| i.modifiers));
+        }
+    }
+}
+
 /// A gradient bar from `dark` to `light`: left to right, or bottom to top when `vertical`.
 fn gradient(rect: Rect, dark: Color32, light: Color32, vertical: bool) -> Shape {
     let mut mesh = Mesh::default();
@@ -839,6 +953,8 @@ pub(crate) fn stories() -> Vec<Story> {
             args: || {
                 Args::new()
                     .with_choice("channel", &["RGB", "Red", "Green", "Blue"], 0)
+                    .with_bool("pencil", false)
+                    .with_bool("histogram", true)
                     .with_bool("fields", true)
                     .with_number("width", 300.0, 120.0, 400.0)
                     .with_choice("values", &["levels", "percent"], 0)
@@ -891,8 +1007,27 @@ fn story_curves(ui: &Ui, key: &str, initial: impl FnOnce() -> Vec<Curve>) -> (Id
     (id, curves)
 }
 
-/// PhotoCraft's Curves on an RGB image: a channel per arg, a hint, the fields in levels or
-/// percent.
+/// Sample bins of an image's channel: two hills, the channel's mean shifted by `shift`.
+fn story_bins(shift: f32) -> Vec<u32> {
+    (0..256)
+        .map(|k| {
+            let x = k as f32;
+            let hill = |mean: f32, spread: f32, height: f32| height * (-((x - mean) / spread).powi(2)).exp();
+            (hill(70.0 + shift, 28.0, 900.0) + hill(180.0 - shift, 40.0, 600.0) + 20.0) as u32
+        })
+        .collect()
+}
+
+/// A drawn curve as the story host's points again: every 32nd level and the end.
+fn story_points(map: &[f32]) -> Curve {
+    let last = map.len().saturating_sub(1);
+    let mut points: Vec<[f32; 2]> = (0..last).step_by(32).map(|k| [k as f32, map[k]]).collect();
+    points.push([last as f32, map.get(last).copied().unwrap_or(255.0)]);
+    Curve::Points(points)
+}
+
+/// PhotoCraft's Curves on an RGB image: a channel per arg, the other channels' curves and a
+/// histogram behind the RGB curve, a pencil mode, a hint, the fields in levels or percent.
 fn show_curves(ui: &mut Ui, args: &mut Args) {
     let channels = [
         CurveChannel::new("RGB", ChannelColor::Neutral),
@@ -909,13 +1044,28 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
         curves
     });
     let width = args.number("width") as f32;
+    let pencil = args.bool("pencil");
+    if !pencil && let Curve::Map(map) = &host.curves[channel] {
+        host.curves[channel] = story_points(map);
+    }
+    let bins = story_bins([0.0, 0.0, 12.0, -12.0][channel]);
+    let data = HistogramData::tone(&bins, channels[channel].color);
+    let overlays = if channel == 0 { host.curves.clone() } else { Vec::new() };
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let mut editor = CurveEditor::new("curves", "Curve", &host.curves[channel], &numbers)
             .channels(&channels)
             .channel(channel)
+            .overlays(&overlays)
+            .pencil(pencil)
             .fields(args.bool("fields"))
-            .hint("Click to add a point · drag off or Ctrl-click or Delete to remove");
+            .hint(match pencil {
+                true => "Drag to draw · Shift-click for a straight line from the last stroke · Esc cancels",
+                false => "Click to add a point · drag off or Ctrl-click or Delete to remove",
+            });
+        if args.bool("histogram") {
+            editor = editor.histogram(&data);
+        }
         if args.choice("values") == "percent" {
             editor = editor.percent();
         }

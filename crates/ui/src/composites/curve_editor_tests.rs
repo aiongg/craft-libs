@@ -32,6 +32,7 @@ struct Host {
     /// An Esc press reached the host after the editor.
     escape_seen: bool,
     width: f32,
+    pencil: bool,
 }
 
 impl Host {
@@ -49,6 +50,7 @@ impl Host {
             scoped: false,
             escape_seen: false,
             width: 300.0,
+            pencil: false,
         }
     }
 
@@ -59,7 +61,11 @@ impl Host {
         self.pad = CurveEditor::style(&tokens).pad;
         self.focus = tokens.color.line.focus.to_egui();
         let curve = self.curve.clone();
-        let editor = CurveEditor::new("curve", "Curve", &curve, &numbers).channels(&channels).channel(self.channel).max_points(self.max_points);
+        let editor = CurveEditor::new("curve", "Curve", &curve, &numbers)
+            .channels(&channels)
+            .channel(self.channel)
+            .max_points(self.max_points)
+            .pencil(self.pencil);
         let width = self.width;
         let scoped = self.scoped;
         let edit = ui
@@ -89,6 +95,14 @@ impl Host {
                 }
             }
             self.events.push(event);
+        }
+    }
+
+    /// The drawn curve's outputs.
+    fn drawn(&self) -> Vec<f32> {
+        match &self.curve {
+            Curve::Map(map) => map.clone(),
+            Curve::Points(_) => Vec::new(),
         }
     }
 
@@ -537,4 +551,98 @@ fn a_press_and_release_in_one_frame_adds_a_point_in_one_gesture() {
     harness.run();
     assert_eq!(harness.state().kinds(), ["Begin", "Commit"]);
     assert_eq!(harness.state().points()[1], [64.0, 200.0]);
+}
+
+fn pencil_rig() -> Harness<'static, Host> {
+    let mut host = Host::new(&[]);
+    host.curve = Curve::Map((0..256).map(|k| k as f32).collect());
+    host.pencil = true;
+    harness(host, Direction::Ltr)
+}
+
+#[test]
+fn a_pencil_stroke_is_one_gesture_that_draws_straight_segments_between_samples() {
+    let mut harness = pencil_rig();
+    let from = harness.state().at([20.0, 200.0]);
+    press(&mut harness, from);
+    let mid = harness.state().at([60.0, 100.0]);
+    move_to(&mut harness, mid);
+    let to = harness.state().at([100.0, 100.0]);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds.first(), Some(&"Begin"));
+    assert_eq!(kinds.last(), Some(&"Commit"));
+    assert!(kinds[1..kinds.len() - 1].iter().all(|k| *k == "Update"), "{kinds:?}");
+    let map = harness.state().drawn();
+    assert_eq!((map[20], map[60], map[100]), (200.0, 100.0, 100.0));
+    assert_eq!(map[40], 150.0, "straight between the samples");
+    assert_eq!((map[10], map[150]), (10.0, 150.0), "outside the stroke stays");
+}
+
+#[test]
+fn shift_press_continues_in_a_straight_line_from_the_previous_stroke() {
+    let mut harness = pencil_rig();
+    let start = harness.state().at([20.0, 200.0]);
+    press(&mut harness, start);
+    release(&mut harness, start);
+    harness.state_mut().events.clear();
+    let to = harness.state().at([120.0, 100.0]);
+    move_to(&mut harness, to);
+    pointer(&mut harness, to, PointerButton::Primary, true, Modifiers::SHIFT);
+    release(&mut harness, to);
+    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit"], "its own gesture");
+    let map = harness.state().drawn();
+    assert_eq!((map[20], map[70], map[120]), (200.0, 150.0, 100.0));
+}
+
+#[test]
+fn esc_cancels_a_pencil_stroke_and_the_before_curve_comes_back() {
+    let mut harness = pencil_rig();
+    let before = harness.state().drawn();
+    let from = harness.state().at([20.0, 200.0]);
+    press(&mut harness, from);
+    let to = harness.state().at([80.0, 40.0]);
+    move_to(&mut harness, to);
+    move_to(&mut harness, to);
+    assert_ne!(harness.state().drawn(), before);
+    harness.key_press(Key::Escape);
+    harness.step();
+    let rest = harness.state().at([120.0, 10.0]);
+    move_to(&mut harness, rest);
+    release(&mut harness, rest);
+    assert_eq!(harness.state().kinds().last(), Some(&"Cancel"));
+    assert_eq!(harness.state().drawn(), before);
+}
+
+#[test]
+fn pencil_mode_hides_the_points_ignores_keys_and_reads_as_drawn() {
+    let mut harness = pencil_rig();
+    let at = harness.state().at([100.0, 100.0]);
+    click_with(&mut harness, at, PointerButton::Primary, Modifiers::NONE);
+    harness.state_mut().events.clear();
+    for k in [Key::ArrowUp, Key::Insert, Key::Delete, Key::Plus] {
+        key(&mut harness, Modifiers::NONE, k);
+    }
+    assert!(harness.state().events.is_empty(), "{:?}", harness.state().kinds());
+    assert_eq!(harness.query_all_by_role(Role::GraphicsObject).count(), 0);
+    assert_eq!(graph(&harness).value().as_deref(), Some("RGB, drawn"));
+    assert_eq!(harness.query_all_by_label("Input").count(), 0, "no fields for a drawn curve");
+}
+
+#[test]
+fn other_channels_draw_behind_unless_active_or_unchanged() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let channels = [
+        CurveChannel::new("RGB", ChannelColor::Neutral),
+        CurveChannel::new("Red", ChannelColor::Red),
+        CurveChannel::new("Green", ChannelColor::Green),
+        CurveChannel::new("Blue", ChannelColor::Blue),
+    ];
+    let bent = Curve::Points(vec![[0.0, 0.0], [128.0, 160.0], [255.0, 255.0]]);
+    let curves = [bent.clone(), bent.clone(), Curve::identity(255.0), Curve::Map((0..256).map(|k| (k as f32 + 9.0).min(255.0)).collect())];
+    let editor = |active: usize| CurveEditor::new("c", "Curve", &curves[active], &numbers).channels(&channels).channel(active).overlays(&curves);
+    assert_eq!(editor(0).other_channels(), [1, 3], "the identity green and the active composite are skipped");
+    assert_eq!(editor(1).other_channels(), [0, 3]);
+    assert!(CurveEditor::new("c", "Curve", &curves[0], &numbers).channels(&channels).other_channels().is_empty(), "no overlays, none drawn");
 }

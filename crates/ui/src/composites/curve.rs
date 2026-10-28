@@ -36,6 +36,45 @@ impl Curve {
         }
     }
 
+    /// A drawn curve of `levels + 1` outputs from `curve`: a [`Curve::Map`] as it is (resized),
+    /// points through `samples`.
+    pub(crate) fn drawn(curve: &Curve, samples: impl FnOnce(&[[f32; 2]]) -> Vec<f32>, levels: f32) -> Vec<f32> {
+        let count = levels.max(1.0).round() as usize + 1;
+        let mut map = match curve {
+            Curve::Map(map) => map.clone(),
+            Curve::Points(points) => samples(points),
+        };
+        let from = map.len();
+        map.resize(count, 0.0);
+        for (k, o) in map.iter_mut().enumerate().skip(from) {
+            *o = k as f32;
+        }
+        map
+    }
+
+    /// Draws a straight line from `from` to `to` (levels) into `map`, one output per input level,
+    /// whole levels (PhotoCraft's `pencil_line`). Returns whether `map` changed.
+    pub(crate) fn pencil_line(map: &mut [f32], from: [f32; 2], to: [f32; 2], levels: f32) -> bool {
+        if !from.iter().chain(to.iter()).all(|v| v.is_finite()) || map.is_empty() {
+            return false;
+        }
+        let clamp = |q: [f32; 2]| [q[0].round().clamp(0.0, levels), q[1].round().clamp(0.0, levels)];
+        let (a, b) = (clamp(from), clamp(to));
+        let (lo, hi) = if a[0] <= b[0] { (a, b) } else { (b, a) };
+        let mut changed = false;
+        for x in lo[0] as usize..=hi[0] as usize {
+            let t = if hi[0] > lo[0] { (x as f32 - lo[0]) / (hi[0] - lo[0]) } else { 1.0 };
+            let y = (lo[1] + t * (hi[1] - lo[1])).round();
+            if let Some(slot) = map.get_mut(x)
+                && *slot != y
+            {
+                *slot = y;
+                changed = true;
+            }
+        }
+        changed
+    }
+
     /// The output level of every input level `0..=levels` through `points` on a monotone cubic
     /// (Fritsch–Carlson), which never overshoots between points; constant outside the end
     /// points. Camera Raw's interpolation, and the editor's default sampler.
@@ -216,5 +255,26 @@ mod tests {
         assert_eq!(Rules::between(&points, Some(0), &samples), Some([25.0, 25.0]));
         assert_eq!(Rules::between(&points, Some(2), &samples), Some([153.0, 153.0]), "the last point looks back");
         assert_eq!(Rules::between(&points, None, &samples), Some([153.0, 153.0]));
+    }
+
+    #[test]
+    fn a_pencil_line_writes_one_output_per_level_and_a_vertical_one_the_last_value() {
+        let mut map: Vec<f32> = (0..256).map(|k| k as f32).collect();
+        assert!(Curve::pencil_line(&mut map, [10.0, 100.0], [20.0, 200.0], 255.0));
+        assert_eq!((map[10], map[15], map[20]), (100.0, 150.0, 200.0));
+        assert_eq!((map[9], map[21]), (9.0, 21.0), "outside the line stays");
+        assert!(Curve::pencil_line(&mut map, [30.0, 5.0], [30.0, 90.0], 255.0));
+        assert_eq!(map[30], 90.0);
+        assert!(Curve::pencil_line(&mut map, [250.0, 0.0], [300.0, f32::MAX], 255.0), "clamped to the levels");
+        assert_eq!(map[255], 255.0);
+        assert!(!Curve::pencil_line(&mut map, [f32::NAN, 0.0], [1.0, 1.0], 255.0));
+    }
+
+    #[test]
+    fn a_drawn_curve_has_one_output_per_level() {
+        let from_points = Curve::drawn(&Curve::Points(vec![[0.0, 10.0], [255.0, 10.0]]), |p| Curve::monotone(p, 255.0), 255.0);
+        assert!(from_points.len() == 256 && from_points.iter().all(|&v| v == 10.0));
+        let short = Curve::drawn(&Curve::Map(vec![5.0, 6.0]), |_| Vec::new(), 255.0);
+        assert_eq!((short.len(), short[1], short[200]), (256, 6.0, 200.0), "a short map is completed with the identity");
     }
 }
