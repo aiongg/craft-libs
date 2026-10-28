@@ -29,7 +29,7 @@ mod row;
 mod tests;
 
 pub use bar::{MenuBar, MenuBarLabels, MenuBarResponse};
-pub use context::ContextMenu;
+pub use context::{ContextMenu, OpenAt};
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;

@@ -931,6 +931,8 @@ where
             self.start_drag(at, key);
         }
         if response.secondary_clicked() {
+            // egui drops the focus on a click outside the list's own widget, here on the release.
+            self.focus = true;
             let request = ContextMenuRequest {
                 row: Some(key.clone()),
                 selected: self.selection.contains(key),
@@ -991,6 +993,7 @@ where
             self.apply(change);
         }
         if response.secondary_clicked() {
+            self.focus = true;
             let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos() };
             self.events.push(ListEvent::ContextMenu(request));
         }

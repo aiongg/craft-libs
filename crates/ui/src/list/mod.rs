@@ -21,6 +21,8 @@
 //! Rows draw with the `list.*` component tokens; [`ListRow::style`] is a pure function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod context_menu_tests;
 mod drag;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;

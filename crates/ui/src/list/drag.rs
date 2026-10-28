@@ -17,6 +17,7 @@ use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf as _, corner_radius, role_format};
 
@@ -142,6 +143,10 @@ struct Layers {
     background: Option<usize>,
     selection: Selection<usize>,
     last: String,
+    /// The layers the open context menu acts on.
+    menu_rows: Vec<usize>,
+    /// A rename the menu asked for, taken by the next list.
+    rename: Option<usize>,
 }
 
 impl Layers {
@@ -184,7 +189,7 @@ impl Layers {
             Preset::Refused => "Background and locked layers refuse drops",
             Preset::Copy => "Hold Alt while dropping to copy",
         };
-        Layers { next: layers.len(), layers, background, selection: Selection::only(0), last: last.to_owned() }
+        Layers { next: layers.len(), layers, background, selection: Selection::only(0), last: last.to_owned(), menu_rows: Vec::new(), rename: None }
     }
 
     fn at(&self, key: usize) -> Option<usize> {
@@ -278,6 +283,21 @@ impl Layers {
         self.layers.splice(insert..insert, moved.collect::<Vec<_>>());
     }
 
+    /// Copies each block of `keys` right below itself.
+    fn duplicate(&mut self, keys: &[usize]) {
+        for block in self.blocks(keys).into_iter().rev() {
+            let copies: Vec<Layer> = self.layers[block.clone()]
+                .iter()
+                .map(|layer| {
+                    let key = self.next;
+                    self.next += 1;
+                    Layer { key, name: format!("{} copy", layer.name), ..layer.clone() }
+                })
+                .collect();
+            self.layers.splice(block.end..block.end, copies);
+        }
+    }
+
     fn describe(&self, mv: &Move<usize>) -> String {
         let names: Vec<&str> = mv.items.iter().map(|&k| self.name(k)).collect();
         let position = match mv.position {
@@ -302,6 +322,15 @@ impl Layers {
     }
 }
 
+/// What the Reorder story's context menu does to the layers it was opened on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LayerCommand {
+    Rename,
+    Duplicate,
+    Lock,
+    Delete,
+}
+
 fn show_story(ui: &mut Ui, preset: Preset) {
     let state_id = ui.scope_id().with(("reorder-story", preset));
     let shared = ui.data_mut(|d| d.get_temp_mut_or_insert_with(state_id, || Arc::new(Mutex::new(Layers::new(preset)))).clone());
@@ -312,9 +341,17 @@ fn show_story(ui: &mut Ui, preset: Preset) {
         reorder = reorder.accepts(doc.rules());
     }
     let mut selection = doc.selection.clone();
-    let events = ui
+    let rename = doc.rename.take();
+    let (response, events) = ui
         .allocate_ui(vec2(300.0, 240.0), |ui| {
-            let list = List::new("layers", "Layers", order.as_slice()).selection(&mut selection).reorder(reorder).max_height(240.0);
+            let mut list = List::new("layers", "Layers", order.as_slice())
+                .selection(&mut selection)
+                .reorder(reorder)
+                .renamable(preset == Preset::Flat)
+                .max_height(240.0);
+            if let Some(key) = rename {
+                list = list.start_rename(key);
+            }
             let out = list.tree(preset == Preset::Tree).show(ui, |_, &key| {
                 let layer = doc.at(key).map(|at| &doc.layers[at]);
                 let (name, group, locked) = layer.map_or(("", false, false), |l| (l.name.as_str(), l.group, l.locked));
@@ -327,12 +364,26 @@ fn show_story(ui: &mut Ui, preset: Preset) {
                 }
                 row
             });
-            out.events
+            (out.response, out.events)
         })
         .inner;
     doc.selection = selection;
+    let mut open_menu = None;
     for event in events {
         match event {
+            ListEvent::ContextMenu(request) if preset == Preset::Flat => {
+                doc.menu_rows = match request.row {
+                    Some(_) if request.selected => doc.selection.items.clone(),
+                    Some(row) => vec![row],
+                    None => Vec::new(),
+                };
+                open_menu = Some(request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer));
+            }
+            ListEvent::Row(RowEvent::Renamed { row, text }) if !text.is_empty() => {
+                if let Some(at) = doc.at(row) {
+                    doc.layers[at].name = text;
+                }
+            }
             ListEvent::Reorder(EditEvent::Commit { value: Some(mv), .. } | EditEvent::Set { value: Some(mv), .. }) => {
                 doc.last = format!("Did: {}", doc.describe(&mv));
                 doc.apply(&mv);
@@ -355,6 +406,37 @@ fn show_story(ui: &mut Ui, preset: Preset) {
         }
     }
     if preset == Preset::Flat {
+        let rows = doc.menu_rows.clone();
+        let locked = !rows.is_empty() && rows.iter().all(|&k| doc.at(k).is_some_and(|at| doc.layers[at].locked));
+        let entries: Vec<MenuEntry<LayerCommand>> = vec![
+            MenuItem::new("Rename", LayerCommand::Rename).enabled(rows.len() == 1).into(),
+            MenuItem::new("Duplicate", LayerCommand::Duplicate).enabled(!rows.is_empty()).into(),
+            MenuItem::new("Locked", LayerCommand::Lock).check(locked).enabled(!rows.is_empty()).into(),
+            MenuEntry::Separator,
+            MenuItem::new("Delete", LayerCommand::Delete).icon(Icon::Trash).enabled(!rows.is_empty()).into(),
+        ];
+        let menu = ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, &response);
+        if let Some(command) = menu.chosen {
+            match command {
+                LayerCommand::Rename => doc.rename = rows.first().copied(),
+                LayerCommand::Duplicate => {
+                    doc.duplicate(&rows);
+                    doc.last = format!("Duplicated {} layers", rows.len());
+                }
+                LayerCommand::Lock => {
+                    for &key in &rows {
+                        if let Some(at) = doc.at(key) {
+                            doc.layers[at].locked = !locked;
+                        }
+                    }
+                }
+                LayerCommand::Delete => {
+                    doc.take(&rows);
+                    doc.selection = Selection::default();
+                    doc.last = format!("Deleted {} layers", rows.len());
+                }
+            }
+        }
         let response = ui.add(Button::new("Delete").icon(Icon::Trash));
         if let Some(drag) = response.dnd_release_payload::<ListDrag<usize>>() {
             doc.take(&drag.items);

@@ -2,7 +2,7 @@
 //! the Menu key or Shift+F10.
 
 use craft_theme::ControlSize;
-use egui::{Key, Modifiers, Popup, PopupAnchor, Pos2, Response, SetOpenCommand, Ui};
+use egui::{Key, Modifiers, Popup, PopupAnchor, Pos2, Rect, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
 use super::nav::Nav;
@@ -31,16 +31,44 @@ use crate::popup_list;
 pub struct ContextMenu<'a, T> {
     entries: &'a [MenuEntry<T>],
     size: ControlSize,
+    request: Option<OpenAt>,
+    own_gestures: bool,
+}
+
+/// Where a host asks a [`ContextMenu`] to open this pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OpenAt {
+    /// At a point, as for a secondary click.
+    Pointer(Pos2),
+    /// With its top left at the rect's bottom left, as for the Menu key: the first enabled row is
+    /// highlighted and the mnemonics are underlined.
+    Rect(Rect),
 }
 
 impl<'a, T: Clone> ContextMenu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md }
+        Self { entries, size: ControlSize::Md, request: None, own_gestures: true }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// Opens the menu this pass where a widget that reports its own context-menu gestures (a
+    /// [`List`](crate::list::List), a ruler) says. The menu belongs to the widget passed to
+    /// [`show`](Self::show), which keeps the keyboard focus and gets it back on Escape.
+    pub fn open_at(mut self, at: Option<OpenAt>) -> Self {
+        self.request = at;
+        self
+    }
+
+    /// Whether the secondary click and the Menu key on the widget open the menu by themselves;
+    /// `true` by default. A widget that reports the gestures through [`open_at`](Self::open_at)
+    /// turns them off.
+    pub fn own_gestures(mut self, own: bool) -> Self {
+        self.own_gestures = own;
         self
     }
 
@@ -51,10 +79,16 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         let mut generation = ctx.data(|d| d.get_temp::<u32>(base)).unwrap_or(0);
         let mut popup = base.with(generation);
         let mut open = Popup::is_id_open(ctx, popup);
+        // egui drops the focus on Escape before the menu sees the key; a widget that held it
+        // while the menu was open gets it back when Escape closes the menu.
+        let held = base.with("held");
+        let escaped = open && ctx.input(|i| i.key_pressed(Key::Escape));
         // A secondary press on the widget while the menu is open moves it to the pointer. egui
         // closes a popup on a click whose press began while it was open, so the menu reopens
         // under a new id, which no press began in.
-        if open && widget.contains_pointer() && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)) {
+        let secondary_press =
+            self.own_gestures && widget.contains_pointer() && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary));
+        if open && (secondary_press || self.request.is_some()) {
             Popup::close_id(ctx, popup);
             popup_list::record_open(ctx, popup, false);
             Nav::forget(ctx, popup);
@@ -64,9 +98,22 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
             open = false;
         }
         let at = popup.with("at");
-        let keyboard = widget.has_focus() && !open && opens_from_keyboard(ui);
+        let mut keyboard = self.own_gestures && widget.has_focus() && !open && opens_from_keyboard(ui);
         let mut command = None;
-        if widget.secondary_clicked() {
+        if let Some(request) = self.request {
+            let pos = match request {
+                OpenAt::Pointer(pos) => pos,
+                OpenAt::Rect(rect) => rect.left_bottom(),
+            };
+            keyboard = matches!(request, OpenAt::Rect(_));
+            ctx.data_mut(|d| d.insert_temp(at, pos));
+            command = Some(SetOpenCommand::Bool(true));
+        } else if !self.own_gestures {
+            // Only the host's requests open it; a click on the widget still closes it.
+            if widget.clicked_by(egui::PointerButton::Primary) {
+                command = Some(SetOpenCommand::Bool(false));
+            }
+        } else if widget.secondary_clicked() {
             let pos = ctx.input(|i| i.pointer.interact_pos()).unwrap_or(widget.rect.left_bottom());
             ctx.data_mut(|d| d.insert_temp(at, pos));
             command = Some(SetOpenCommand::Bool(true));
@@ -78,7 +125,14 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         }
         let pos = ctx.data(|d| d.get_temp::<Pos2>(at)).unwrap_or(widget.rect.left_bottom());
         let anchored = Popup::menu(widget).id(popup).anchor(PopupAnchor::Position(pos)).open_memory(command);
-        Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).show(ui, anchored)
+        let shown = Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).show(ui, anchored);
+        if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {
+            widget.request_focus();
+        } else if shown.open {
+            let focused = widget.has_focus();
+            ctx.data_mut(|d| d.insert_temp(held, focused));
+        }
+        shown
     }
 }
 
