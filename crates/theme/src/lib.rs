@@ -53,10 +53,11 @@ mod tests;
 pub use builtins::builtins;
 pub use color::{Oklab, Oklch, Rgba};
 pub use components::{
-    ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, CheckColors, CheckField, CheckPart, CheckTokens, ComponentField,
-    ComponentTokens, ControlSize, FieldKind, HandleField, HandleTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, OnOff,
-    OverrideError, OverrideValue, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, ThumbColors, ThumbPart,
-    ToggleButtonField, ToggleButtonTokens,
+    BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant,
+    BySize, CheckColors, CheckField, CheckPart, CheckTokens, ComponentField, ComponentTokens, ControlSize, FieldKind, HandleField, HandleTokens,
+    IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, OnOff, OverrideError, OverrideValue, ProgressField, ProgressTokens,
+    SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart,
+    ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{ContrastCheck, Ramps};

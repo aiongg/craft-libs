@@ -400,3 +400,26 @@ pub const RADIO_DOT_RATIO: f32 = 0.4;
 pub const SWITCH_ASPECT: f32 = 2.0;
 /// Between a switch's track edge and its thumb, in points, at every Size.
 pub const SWITCH_THUMB_INSET: f32 = 2.0;
+
+/// Largest corner radius of a swatch, in points: `shape.radius.control` up to this.
+pub const SWATCH_RADIUS_MAX: f32 = 4.0;
+/// Width of a swatch's selection ring, drawn outside the well.
+pub const SWATCH_SELECTED_WIDTH: f32 = 2.0;
+/// The two checkerboard greys behind a translucent swatch in a light theme.
+pub const SWATCH_CHECKER_LIGHT: (Rgba, Rgba) = (Rgba::rgb(255, 255, 255), Rgba::rgb(204, 204, 204));
+/// The two checkerboard greys behind a translucent swatch in a dark theme.
+pub const SWATCH_CHECKER_DARK: (Rgba, Rgba) = (Rgba::rgb(64, 64, 64), Rgba::rgb(102, 102, 102));
+
+/// Corner radius of a badge: a pill.
+pub const BADGE_RADIUS: Radius = Radius::Full;
+
+/// Largest corner radius of a keycap, in points.
+pub const KBD_RADIUS_MAX: f32 = 3.0;
+
+/// Thickness of a progress bar's track, in points, at every Size.
+pub const PROGRESS_TRACK: f32 = 4.0;
+/// Corner radius of a progress bar's track and fill: a pill.
+pub const PROGRESS_RADIUS: Radius = Radius::Full;
+
+/// Widest a tooltip's text grows before it wraps, in points.
+pub const TOOLTIP_WIDTH: f32 = 320.0;

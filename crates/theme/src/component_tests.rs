@@ -258,7 +258,7 @@ fn button_sizes_follow_the_size_preset() {
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3);
+    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 8);
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -322,9 +322,34 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
         "check.mixed.mark.rest",
         "check.on.mark",
         "check.off.thumb.rest",
+        "badge.good",
+        "badge.good.soft",
+        "badge.good.soft.glow",
+        "badge.good.hard.fill",
+        "badge.error.soft.fill",
+        "badge.good.soft.fill.rest",
+        "badge.height",
+        "kbd.pad_x",
+        "kbd.fill.rest",
+        "progress.track_height",
+        "progress.fill.rest",
+        "swatch.edge",
+        "swatch.size.md",
+        "swatch.mixed",
+        "tooltip.max_width",
+        "tooltip.fill",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }
+    assert_eq!(
+        ComponentField::from_path("badge.warn.solid.border"),
+        Some(ComponentField::Badge(BadgeField::Color { tone: BadgeTone::Warn, style: BadgeStyle::Solid, part: BadgePart::Border }))
+    );
+    assert_eq!(ComponentField::from_path("badge.radius"), Some(ComponentField::Badge(BadgeField::Radius)));
+    assert_eq!(ComponentField::from_path("kbd.text"), Some(ComponentField::Kbd(KbdField::Text)));
+    assert_eq!(ComponentField::from_path("progress.fill"), Some(ComponentField::Progress(ProgressField::Fill)));
+    assert_eq!(ComponentField::from_path("swatch.checker.b"), Some(ComponentField::Swatch(SwatchField::Color(SwatchColor::CheckerB))));
+    assert_eq!(ComponentField::from_path("swatch.radius"), Some(ComponentField::Swatch(SwatchField::Radius)));
     assert_eq!(TokenRef::from_path("surface.panel"), Some(TokenRef::Color(T::SurfacePanel)));
 }
 
@@ -427,4 +452,86 @@ fn handle_defaults_are_the_same_at_every_size_and_have_no_overridable_path() {
         assert_eq!(ComponentField::from_path(path), None, "{path}");
         assert_eq!(TokenRef::from_path(path), None, "{path}");
     }
+}
+
+/// Every pair of these families, measured on the final tokens of every appearance: badge labels on
+/// their fills and keys on keycaps are text (4.5:1, 7:1 high); the progress fill on its track, the
+/// selection ring on the panel and the mixed dash on its well are indicators (3:1, 4.5:1 high).
+#[test]
+fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_minimums() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            let (text_min, indicator_min) = if a.contrast == Contrast::High { (7.0, 4.5) } else { (4.5, 3.0) };
+            for tone in BadgeTone::ALL {
+                for style in BadgeStyle::ALL {
+                    let field = |part| ComponentField::Badge(BadgeField::Color { tone, style, part });
+                    let ratio = pair_ratio(t, field(BadgePart::Text), Some(field(BadgePart::Fill)));
+                    assert!(ratio >= text_min, "{} {a:?}: badge {tone:?} {style:?} text is {ratio:.2}, needs {text_min}", def.name);
+                }
+            }
+            let kbd = |f| ComponentField::Kbd(f);
+            let ratio = pair_ratio(t, kbd(KbdField::Text), Some(kbd(KbdField::Fill)));
+            assert!(ratio >= text_min, "{} {a:?}: kbd text is {ratio:.2}", def.name);
+            let progress = |f| ComponentField::Progress(f);
+            let ratio = pair_ratio(t, progress(ProgressField::Fill), Some(progress(ProgressField::Track)));
+            assert!(ratio >= indicator_min, "{} {a:?}: progress fill is {ratio:.2}", def.name);
+            let swatch = |c| ComponentField::Swatch(SwatchField::Color(c));
+            let ratio = pair_ratio(t, swatch(SwatchColor::Selected), None);
+            assert!(ratio >= indicator_min, "{} {a:?}: swatch selection ring is {ratio:.2}", def.name);
+            let ratio = pair_ratio(t, swatch(SwatchColor::MixedMark), Some(swatch(SwatchColor::MixedFill)));
+            assert!(ratio >= indicator_min, "{} {a:?}: swatch mixed dash is {ratio:.2}", def.name);
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let c = &t.component;
+    let status = |s: &StatusColors| (s.bg, s.fg, s.border);
+    for (tone, colors) in [
+        (BadgeTone::Good, &t.color.status.good),
+        (BadgeTone::Warn, &t.color.status.warn),
+        (BadgeTone::Bad, &t.color.status.bad),
+        (BadgeTone::Info, &t.color.status.info),
+    ] {
+        let soft = c.badge.colors(tone, BadgeStyle::Soft);
+        assert_eq!((soft.fill, soft.text, soft.border), status(colors), "{tone:?} soft");
+        let solid = c.badge.colors(tone, BadgeStyle::Solid);
+        assert_eq!((solid.fill, solid.text, solid.border), (colors.solid, t.color(T::TextOnStatus), colors.solid), "{tone:?} solid");
+    }
+    let accent = c.badge.colors(BadgeTone::Accent, BadgeStyle::Solid);
+    assert_eq!((accent.fill, accent.text), (t.color(T::AccentSolid), t.color(T::TextOnAccent)));
+    let soft = c.badge.colors(BadgeTone::Accent, BadgeStyle::Soft);
+    assert_eq!((soft.fill, soft.text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    let neutral = c.badge.colors(BadgeTone::Neutral, BadgeStyle::Soft);
+    assert_eq!((neutral.fill, neutral.text, neutral.border), (t.color(T::SurfaceSunken), t.color(T::TextMuted), t.color(T::LineBorder)));
+    assert_eq!((c.badge.height, c.badge.radius, c.badge.label), (t.size.icon.md, Radius::Full.px(), TypeRole::Caption));
+    assert_eq!((c.kbd.fill, c.kbd.text), (t.color(T::SurfaceRaised), t.color(T::TextMuted)));
+    assert_eq!((c.progress.track, c.progress.fill, c.progress.track_height), (t.color(T::SurfaceSunken), t.color(T::AccentSolid), 4.0));
+    let s = &c.swatch;
+    assert_eq!(s.size, BySize { sm: t.size.control.sm, md: t.size.control.md });
+    assert_eq!((s.edge_outer, s.edge_inner, s.selected), (t.color(T::LineControlEdge), t.color(T::SurfaceRaised), t.color(T::AccentSolid)));
+    assert_eq!((s.mixed_fill, s.mixed_mark), (t.color(T::SurfaceSunken), t.color(T::TextMuted)));
+    assert_eq!((s.checker_a, s.checker_b), (Rgba::rgb(64, 64, 64), Rgba::rgb(102, 102, 102)), "dark greys in a dark theme");
+    let light = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard), None).tokens.component.swatch;
+    assert_eq!((light.checker_a, light.checker_b), (Rgba::WHITE, Rgba::rgb(204, 204, 204)), "light greys in a light theme");
+}
+
+#[test]
+fn swatch_and_keycap_corners_are_the_control_radius_up_to_their_caps() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component;
+    let comfy = at(Size::Comfortable);
+    assert_eq!((comfy.swatch.radius, comfy.kbd.radius), (4.0, 3.0));
+    let mut def = grey_blue();
+    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }), edge: None });
+    let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
+    assert_eq!((t.swatch.radius, t.kbd.radius), (2.0, 2.0));
+}
+
+#[test]
+fn tooltips_have_a_width_and_no_overridable_path() {
+    let t = resolve(&grey_blue(), app(Mode::Light, Contrast::High), None).tokens;
+    assert_eq!(t.component.tooltip.max_width, 320.0);
+    assert!(ComponentField::ALL.iter().all(|f| !matches!(f, ComponentField::Tooltip(_))));
 }

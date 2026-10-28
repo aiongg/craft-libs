@@ -5,13 +5,18 @@
 //!
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
+mod badge;
 mod button;
 mod check;
 mod handle;
 mod icon_button;
+mod kbd;
+mod progress;
 mod segmented;
 mod slider;
+mod swatch;
 mod toggle_button;
+mod tooltip;
 
 use std::fmt;
 
@@ -19,13 +24,18 @@ use super::color::Rgba;
 use super::scale::Elevation;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef};
 
+pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckColors, CheckField, CheckPart, CheckTokens, OnOff};
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
+pub use kbd::{KbdField, KbdTokens};
+pub use progress::{ProgressField, ProgressTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens, ThumbColors, ThumbPart};
+pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
+pub use tooltip::{TooltipField, TooltipTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -430,6 +440,8 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Badges: small labels in a tone.
+    badge: BadgeTokens => Badge(BadgeField);
     /// Push buttons.
     button: ButtonTokens => Button(ButtonField);
     /// Check boxes, radio buttons and switches.
@@ -438,10 +450,18 @@ families! {
     handle: HandleTokens => Handle(HandleField);
     /// Square icon-only buttons.
     icon_button: IconButtonTokens => IconButton(IconButtonField);
+    /// Key chords and keycaps.
+    kbd: KbdTokens => Kbd(KbdField);
+    /// Progress bars.
+    progress: ProgressTokens => Progress(ProgressField);
     /// Segmented controls: one of a few options on a track.
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
+    /// Colour wells.
+    swatch: SwatchTokens => Swatch(SwatchField);
     /// Toggle buttons that are on and disabled.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
+    /// Tooltips.
+    tooltip: TooltipTokens => Tooltip(TooltipField);
 }

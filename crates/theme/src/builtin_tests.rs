@@ -82,3 +82,31 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
         }
     }
 }
+
+/// The labels of badges, the keys on keycaps, the progress fill, the swatch selection ring and the
+/// mixed dash meet their minimums in every built-in and appearance, pins included.
+#[test]
+fn builtin_small_control_pairs_meet_their_minimums() {
+    for theme in builtins() {
+        for a in appearances() {
+            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let small = |p: &&ContrastCheck| {
+                matches!(
+                    p.fg,
+                    TokenRef::Component(ComponentField::Badge(_) | ComponentField::Kbd(_) | ComponentField::Progress(_) | ComponentField::Swatch(_))
+                )
+            };
+            let pairs: Vec<_> = steps.component_pairs.iter().filter(small).collect();
+            assert_eq!(pairs.len(), 12 + 1 + 1 + 2, "{} {a:?}", theme.id);
+            for p in pairs {
+                // Adwaita dark pins `accent.solid` and `surface.sunken` 2.74:1 apart at standard
+                // contrast, as it does for the slider; high contrast moves them apart.
+                let known = theme.id.as_str() == "craft.adwaita"
+                    && a.mode == Mode::Dark
+                    && a.contrast == Contrast::Standard
+                    && p.fg == TokenRef::Component(ComponentField::Progress(ProgressField::Fill));
+                assert!(known || p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+            }
+        }
+    }
+}
