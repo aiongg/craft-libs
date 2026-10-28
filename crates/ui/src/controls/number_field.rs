@@ -20,7 +20,7 @@ use super::slider::{Scale, Track, labelled, pointer, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, GestureId, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
@@ -95,7 +95,13 @@ enum Handle {
 ///   gets the invalid edge and the reason as tooltip as it is typed (`-` and `1,` don't). Text
 ///   that isn't a number commits the value from before the run: the text stays in the field,
 ///   marked, until the user fixes it or Esc restores the value. Esc cancels the run, leaves the
-///   field and goes on to the host ([`EditResponse::escaped`]), as in a [`TextField`].
+///   field and goes on to the host ([`EditResponse::escaped`]), as in a [`TextField`]. The host
+///   needn't show each update as it was sent: it may answer one with a value of its own (snapped
+///   or clamped), or keep its value until the commit (still [mixed](NumberField::mixed), or not
+///   caught up yet); the text stays the user's. The run ends as moved by something else
+///   ([`CancelReason::External`]) when the host's value changes to one the run didn't send, in
+///   any pass but the one right after an update went out: a change in that pass is the host's
+///   answer to the update.
 /// - **Scrubbing**: a horizontal drag anywhere on a field without the focus, past egui's drag
 ///   threshold, scrubs it; a click without a drag gives it the focus with its text selected, so
 ///   typing replaces it. The [scrub label](NumberField::scrub_label) or
@@ -254,7 +260,10 @@ impl<'a> NumberField<'a> {
     }
 
     /// The selected objects have different values: the field is blank with a `—` placeholder,
-    /// and `value` is only where scrubs and steps start.
+    /// and `value` is only where scrubs and steps start. The host may keep the field mixed until
+    /// a gesture commits: while it stays mixed, a typing run's or a scrub's updates count as
+    /// applied, so the gesture goes on. Turning it on or giving it another value during a gesture
+    /// is a change like any other (see Typing on [`NumberField`]).
     pub fn mixed(mut self, mixed: bool) -> Self {
         self.mixed = mixed;
         self
@@ -314,7 +323,8 @@ impl<'a> NumberField<'a> {
         let style = NumberField::style(&tokens, self.size);
         let enabled = self.enabled && ui.is_enabled();
         let id = Interactive::id_in(ui, self.id_salt);
-        let host = (!self.mixed && self.value.is_finite()).then_some(self.value);
+        let real = (!self.mixed && self.value.is_finite()).then_some(self.value);
+        let host = Follow::host(ui, id, real);
         let codec = Numbers { numbers: self.numbers, decimals: self.decimals.clone(), unit: &self.unit, fallback: self.fallback.as_deref(), bounds };
         let font = tokens.font(style.field.role);
         let parts = Parts::new(ui, &tokens, &style, &self, font.clone(), enabled);
@@ -390,7 +400,59 @@ impl<'a> NumberField<'a> {
             }
             let _ = response.clone().tooltip(reason);
         }
-        typed.end_as(ui, |value| value.unwrap_or(self.value))
+        let (gesture, typing) = (typed.gesture().id(), typed.is_typing());
+        let edit = typed.end_as(ui, |value| value.unwrap_or(self.value));
+        Follow::store(ui, id, gesture, typing, real, edit.event.as_ref());
+        edit
+    }
+}
+
+/// How the field reads its host during one of its own gestures, kept from the last pass: the
+/// host doesn't always show the value an update sent (Typing on [`NumberField`]).
+#[derive(Clone, Copy, Debug)]
+struct Follow {
+    gesture: GestureId,
+    /// The host's value on the last pass: `None` mixed or not a finite number.
+    seen: Option<f64>,
+    /// The gesture is a typing run.
+    typing: bool,
+    /// An update went out on the last pass with a value the host didn't show: its answer comes on
+    /// this pass.
+    sent: bool,
+}
+
+impl Follow {
+    fn key(id: Id) -> Id {
+        id.with("craft_ui::number_field::follow")
+    }
+
+    /// The host value the field gives its gesture this pass for the host's `real` one. While the
+    /// host is consistent with the gesture, that is the gesture's last reported value: the host
+    /// shows it or stays mixed, or, in a typing run, keeps its value from the last pass or answers
+    /// the update the last pass sent. Otherwise it is `real`, and the gesture cancels as moved by
+    /// something else.
+    fn host(ui: &Ui, id: Id, real: Option<f64>) -> Option<f64> {
+        let Some((gesture, reported)) = Gesture::<Option<f64>>::reported(ui, id) else { return real };
+        let Some(follow) = ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|f| f.gesture == gesture) else { return real };
+        let unmoved = real == follow.seen;
+        let consistent = real == reported || (unmoved && (real.is_none() || follow.typing)) || (follow.typing && follow.sent);
+        if consistent { reported } else { real }
+    }
+
+    /// Keeps what the next pass needs while `gesture` goes on: `real` as seen, and whether this
+    /// pass's `event` sent an update the host's value doesn't show yet.
+    fn store(ui: &Ui, id: Id, gesture: Option<GestureId>, typing: bool, real: Option<f64>, event: Option<&EditEvent<f64>>) {
+        let ended = matches!(event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }));
+        let follow = gesture.filter(|_| !ended).map(|gesture| {
+            let sent = matches!(event, Some(EditEvent::Update { value, .. }) if Some(*value) != real);
+            Self { gesture, seen: real, typing, sent }
+        });
+        ui.data_mut(|d| match follow {
+            Some(follow) => {
+                d.insert_temp(Self::key(id), follow);
+            }
+            None => d.remove::<Self>(Self::key(id)),
+        });
     }
 }
 
@@ -902,11 +964,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
             row(ui, "Mixed", *mixed, |ui| {
                 let edit =
                     NumberField::new("number-field-mixed", "Size", *mixed, &numbers).unit(Unit::new("{n} pt")).mixed(is_mixed).size(size).show(ui);
-                if edit
-                    .event
-                    .as_ref()
-                    .is_some_and(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Commit { changed: true, .. } | EditEvent::Update { .. }))
-                {
+                if edit.event.as_ref().is_some_and(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Commit { changed: true, .. })) {
                     ui.data_mut(|d| d.insert_temp(mixed_key, false));
                 }
                 super::slider::apply(&edit, mixed);

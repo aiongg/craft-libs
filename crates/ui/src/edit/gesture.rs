@@ -273,6 +273,19 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// The active gesture of the control with widget id `id` as its last pass left it, read before
+    /// the control loads it: the gesture's id and the value of the last update that went out (the
+    /// start before the first). For a control that works out which host value it gives
+    /// [`load`](Gesture::load) as unmoved.
+    pub(crate) fn reported(ui: &Ui, id: Id) -> Option<(GestureId, T)> {
+        let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
+        let stored = ui.data(|d| d.get_temp::<Stored<T>>(id.with(STATE))).filter(|s| s.viewport == viewport && s.pass + 1 >= pass)?;
+        match stored.phase {
+            Phase::Active(a) => Some((a.id, a.reported)),
+            _ => None,
+        }
+    }
+
     /// The active gesture's start value: the host's value when it began.
     pub fn start(&self) -> Option<&T> {
         match &self.stored.phase {

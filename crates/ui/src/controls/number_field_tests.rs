@@ -13,16 +13,14 @@ use crate::localized::{LocaleNumbers, Unit, focus_first_field};
 use crate::story::Args;
 use crate::theme::{Base, install};
 
-/// A host with one number field after an egui button. It applies every value it is sent and
-/// puts the value from before the gesture back on a cancel.
+/// A host with one number field after an egui button. It applies every value it is sent (as
+/// `adjust` makes it), keeps a mixed field mixed until a commit or a set, and puts the value from
+/// before the gesture back on a cancel.
 struct Rig {
     ctx: Context,
     time: f64,
     value: f64,
     before: f64,
-    /// Whether the field was mixed before the gesture; the host's value is one once it applies
-    /// one.
-    before_mixed: bool,
     numbers: LocaleNumbers,
     range: (f64, f64),
     decimals: (usize, usize),
@@ -45,6 +43,8 @@ struct Rig {
     enabled: bool,
     /// What the host makes of a value it is sent (a host that snaps).
     adjust: fn(f64) -> f64,
+    /// The host applies a gesture's value only on its commit, not its updates.
+    on_commit: bool,
     policy: EditPolicy,
     id: Id,
     rect: Rect,
@@ -78,7 +78,6 @@ impl Rig {
             time: 0.0,
             value,
             before: value,
-            before_mixed: false,
             numbers: LocaleNumbers::from_tag("en"),
             range: (f64::NEG_INFINITY, f64::INFINITY),
             decimals: (0, 2),
@@ -96,6 +95,7 @@ impl Rig {
             drawn: true,
             enabled: true,
             adjust: |v| v,
+            on_commit: false,
             policy: EditPolicy::default(),
             id: Id::NULL,
             rect: Rect::NOTHING,
@@ -230,10 +230,13 @@ impl Rig {
             return;
         }
         match event {
-            EditEvent::Begin { .. } => (self.before, self.before_mixed) = (self.value, self.mixed),
+            EditEvent::Begin { .. } => self.before = self.value,
             EditEvent::Cancel { reason: CancelReason::External, .. } => {}
-            EditEvent::Cancel { .. } => (self.value, self.mixed) = (self.before, self.before_mixed),
+            EditEvent::Cancel { .. } => self.value = self.before,
             EditEvent::Commit { changed: false, .. } if self.mixed => {}
+            // A mixed host stays mixed until the commit.
+            EditEvent::Update { .. } if self.on_commit => {}
+            EditEvent::Update { value, .. } => self.value = (self.adjust)(value),
             other => {
                 if let Some(&v) = other.value() {
                     self.value = (self.adjust)(v);
@@ -418,6 +421,80 @@ fn a_plain_number_applies_as_it_is_typed_and_arithmetic_only_on_the_commit() {
     let id = begin_id(&since(&rig, n));
     assert_eq!(rig.event, Some(commit(id, -9.0, false)));
     assert_eq!(rig.value, -9.0);
+}
+
+/// Types each of `keys` in a frame of its own, with a frame after it for the update.
+fn type_each(rig: &mut Rig, keys: &[&str]) {
+    for key in keys {
+        rig.type_text(key);
+        rig.frame(vec![]);
+    }
+}
+
+#[test]
+fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_commit() {
+    let update = |id, value| EditEvent::Update { id, value, modifiers: Modifiers::NONE };
+    // A host that keeps the field mixed until the commit.
+    let mut rig = Rig::with(20.0, |r| r.mixed = true);
+    rig.focus();
+    let n = rig.events.len();
+    type_each(&mut rig, &["1", "2"]);
+    assert!(rig.mixed);
+    rig.key(Key::Enter);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(since(&rig, n)[1..], [update(id, 1.0), update(id, 12.0), commit(id, 12.0, true)]);
+    assert_eq!((rig.value, rig.mixed), (12.0, false));
+    // Esc puts the blank field back.
+    rig.mixed = true;
+    rig.focus();
+    let n = rig.events.len();
+    type_each(&mut rig, &["5"]);
+    rig.key(Key::Escape);
+    assert!(matches!(since(&rig, n).last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "{:?}", since(&rig, n));
+    rig.frame(vec![]);
+    assert_eq!((rig.value, rig.mixed, rig.shown()), (12.0, true, None), "blank, with its placeholder");
+
+    // A host that snaps each value it applies to a multiple of 4.
+    let mut rig = Rig::with(10.0, |r| r.adjust = |v| (v / 4.0).floor() * 4.0);
+    rig.focus();
+    let n = rig.events.len();
+    type_each(&mut rig, &["1", "3"]);
+    assert_eq!(rig.shown().as_deref(), Some("13"), "the text stays the user's");
+    rig.key(Key::Enter);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(since(&rig, n)[1..], [update(id, 1.0), update(id, 13.0), commit(id, 13.0, true)]);
+    assert_eq!(rig.value, 12.0);
+
+    // A host that applies only the commit.
+    let mut rig = Rig::with(10.0, |r| r.on_commit = true);
+    rig.focus();
+    let n = rig.events.len();
+    type_each(&mut rig, &["4", "2"]);
+    rig.key(Key::Enter);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(since(&rig, n)[1..], [update(id, 4.0), update(id, 42.0), commit(id, 42.0, true)]);
+    assert_eq!(rig.value, 42.0);
+
+    // A change of the host's value that answers no update is someone else's: the run ends. The
+    // answer comes in the pass after the update.
+    for (snaps, answer) in [(true, 4.0), (false, 10.0)] {
+        let mut rig = Rig::with(10.0, |r| match snaps {
+            true => r.adjust = |v| (v / 4.0).floor() * 4.0,
+            false => r.on_commit = true,
+        });
+        rig.focus();
+        let n = rig.events.len();
+        type_each(&mut rig, &["7"]);
+        rig.frame(vec![]);
+        assert_eq!((rig.value, since(&rig, n).len()), (answer, 2));
+        rig.value = 30.0;
+        rig.frame(vec![]);
+        let events = since(&rig, n);
+        assert!(
+            matches!(&events[..], [EditEvent::Begin { .. }, EditEvent::Update { .. }, EditEvent::Cancel { reason: CancelReason::External, .. }]),
+            "{events:?}"
+        );
+    }
 }
 
 #[test]
@@ -996,4 +1073,39 @@ fn right_to_left_keeps_the_digits_the_unit_and_the_scrub_label_in_place() {
     let (ltr_w, ltr_digits, ltr_unit) = parts(Direction::Ltr);
     let from_w = |w: Rect, r: Rect| r.min - w.min;
     assert_eq!((from_w(w, digits), from_w(w, unit)), (from_w(ltr_w, ltr_digits), from_w(ltr_w, ltr_unit)));
+}
+
+#[test]
+fn the_states_story_s_mixed_field_is_blank_again_after_esc_and_scrubs_while_mixed() {
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+    let story = number_field::stories().into_iter().find(|s| s.id == "controls/number-field/states").expect("the story");
+    let show = story.show;
+    let mut harness = Harness::builder()
+        .with_size([600.0, 600.0])
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(move |ui, args: &mut Args| show(ui, args), (story.args)());
+    harness.run();
+    let shown = |harness: &Harness<'_, Args>| harness.get_by_label("Size").accesskit_node().value().unwrap_or_default().to_owned();
+    assert_eq!(shown(&harness), "", "mixed: blank");
+    harness.get_by_label("Size").focus();
+    harness.run();
+    harness.event(Event::Text("5".to_owned()));
+    harness.run();
+    assert_eq!(shown(&harness), "5 pt");
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!(shown(&harness), "", "Esc puts the blank field back");
+
+    let from = harness.get_by_label("Size").rect().center();
+    harness.event(Event::PointerMoved(from));
+    harness.event(pointer(from, true));
+    harness.run();
+    for dx in [10.0, 20.0, 30.0] {
+        harness.event(Event::PointerMoved(from + vec2(dx, 0.0)));
+        harness.run();
+    }
+    harness.event(pointer(from + vec2(30.0, 0.0), false));
+    harness.run();
+    assert!(!shown(&harness).is_empty(), "the scrub went on to its release and committed a value");
 }
