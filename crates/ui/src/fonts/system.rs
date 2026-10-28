@@ -78,6 +78,13 @@ impl<T: FontIndex> Shared<T> {
         }
     }
 
+    /// Run `f` on the index, waiting until it is built; `None` if its build failed.
+    pub(super) fn with<R>(&'static self, f: impl FnOnce(&mut T) -> R) -> Option<R> {
+        let index = self.get(true)?;
+        let mut index = index.lock().unwrap_or_else(PoisonError::into_inner);
+        Some(f(&mut index))
+    }
+
     fn finish(&self) {
         let built = std::panic::catch_unwind(self.build).map_err(|payload| {
             let message = payload

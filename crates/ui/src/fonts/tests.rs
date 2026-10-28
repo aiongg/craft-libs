@@ -520,6 +520,44 @@ fn every_locale_asks_one_index_of_the_installed_fonts() {
     assert_eq!(system_index::BUILDS.load(std::sync::atomic::Ordering::Relaxed), 1);
 }
 
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
+fn the_system_interface_face_heads_the_ui_and_semibold_families() {
+    let Some(face) = system_ui_face() else {
+        eprintln!("skipped: no installed family resolves as system-ui or sans-serif (no fontconfig fonts here)");
+        return;
+    };
+    eprintln!("system interface face: {} (semibold at {})", face.family, face.semibold_weight);
+    assert!(face.semibold_weight >= 600, "{} has a real face from 600 up, not the regular one", face.family);
+    let semibold = FontFamily::Name(SEMIBOLD.into());
+    let app = |font: InterfaceFont| {
+        UiFonts::new(&I18nScripts).app_face("App", FontData::from_static(NOTO_SANS_LATIN), &[FontFamily::Proportional]).interface_font(font).stack()
+    };
+    let stack = app(InterfaceFont::System);
+    let proportional = stack.chain(&FontFamily::Proportional);
+    assert_eq!(proportional.first(), Some(&face.regular_name()));
+    assert!(proportional.iter().any(|name| name == "App"), "the app's face stays behind it: {proportional:?}");
+    assert_eq!(stack.chain(&semibold).first(), Some(&face.semibold_name()));
+    assert!(stack.weights().contains(&(semibold.clone(), 600)));
+    assert!(!stack.chain(&FontFamily::Monospace).contains(&face.regular_name()));
+    assert_eq!(app(InterfaceFont::Suite).chain(&FontFamily::Proportional).first().map(String::as_str), Some("App"));
+
+    let ctx = egui::Context::default();
+    stack.install(&ctx);
+    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+    for family in [FontFamily::Proportional, semibold] {
+        assert!(ctx.fonts_mut(|f| f.has_glyph(&FontId::new(14.0, family.clone()), 'a')), "{family:?} draws with the system face");
+    }
+}
+
+#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[test]
+fn no_system_interface_face_resolves_without_installed_fonts() {
+    let mut collection = fontique::Collection::new(fontique::CollectionOptions { shared: false, system_fonts: false });
+    let mut cache = fontique::SourceCache::new(fontique::SourceCacheOptions::default());
+    assert!(system_index::resolve_system_ui(&mut collection, &mut cache).is_none());
+}
+
 #[test]
 fn egui_faces_join_the_families_the_app_names() {
     let semibold = FontFamily::Name("semibold".into());

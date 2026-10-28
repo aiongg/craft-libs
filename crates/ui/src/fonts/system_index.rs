@@ -5,10 +5,12 @@ use std::sync::{Arc, LazyLock};
 
 use egui::{FallbackRequest, FontData, FontFamily, FontInsert, FontPriority, FontProvider, InsertFontFamily};
 use fontique::{
-    Collection, CollectionOptions, FallbackKey, GenericFamily, Language, QueryFamily, QueryFont, QueryStatus, Script, SourceCache, SourceCacheOptions,
+    Attributes, Collection, CollectionOptions, FallbackKey, FamilyId, FontStyle, FontWeight, FontWidth, GenericFamily, Language, QueryFamily,
+    QueryFont, QueryStatus, Script, SourceCache, SourceCacheOptions,
 };
 
 use super::system::{FontIndex, Lookup, Shared};
+use super::system_ui::{SystemUiFace, instance};
 
 pub(super) struct Index {
     collection: Collection,
@@ -49,6 +51,75 @@ pub(super) fn locale_language(locale: &str) -> Option<Language> {
 /// lookup found nothing meanwhile.
 pub(super) fn start(ctx: &egui::Context) {
     INDEX.start(Some(ctx));
+}
+
+/// The OS's interface face from the shared index, waiting until it is built.
+pub(super) fn system_ui_face() -> Option<SystemUiFace> {
+    INDEX.with(|index| resolve_system_ui(&mut index.collection, &mut index.source_cache)).flatten()
+}
+
+/// Families Windows 11 names its interface face, ahead of fontique's `system-ui` (Segoe UI).
+const PREFERRED_SYSTEM_UI: &[&str] = if cfg!(windows) { &["Segoe UI Variable", "Segoe UI Variable Text"] } else { &[] };
+
+/// The first family among the preferred ones, `system-ui` and `sans-serif` with a regular face
+/// that draws Latin, at regular and semibold weight.
+pub(super) fn resolve_system_ui(collection: &mut Collection, source_cache: &mut SourceCache) -> Option<SystemUiFace> {
+    let mut families: Vec<FamilyId> = PREFERRED_SYSTEM_UI.iter().filter_map(|name| collection.family_id(name)).collect();
+    for generic in [GenericFamily::SystemUi, GenericFamily::SansSerif] {
+        families.extend(collection.generic_families(generic));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    families.retain(|id| seen.insert(id.to_u64()));
+    families.into_iter().find_map(|id| {
+        let regular = match_weight(collection, source_cache, id, 400).filter(|(font, _)| can_render(font, 'a'))?;
+        let family = collection.family_name(id)?.to_owned();
+        let semibold = match_weight(collection, source_cache, id, 600).filter(|(font, _)| !font.synthesis.embolden());
+        let regular = face_data(regular.0);
+        let (semibold, semibold_weight) = match semibold {
+            Some((font, weight)) => {
+                let set = font.synthesis.variation_settings().iter().find(|(tag, _)| tag.to_be_bytes() == *b"wght").map(|(_, v)| *v);
+                let data = face_data(font);
+                let weight = set.map_or(weight, |_| wght_of(&data).unwrap_or(weight));
+                (data, weight)
+            }
+            None => (regular.clone(), 400),
+        };
+        Some(SystemUiFace { family, regular, semibold, semibold_weight })
+    })
+}
+
+/// The family's face that best matches `weight`, upright at normal width, with its static weight.
+fn match_weight(collection: &mut Collection, source_cache: &mut SourceCache, id: FamilyId, weight: u16) -> Option<(QueryFont, u16)> {
+    let mut query = collection.query(source_cache);
+    query.set_families([QueryFamily::Id(id)]);
+    query.set_attributes(Attributes::new(FontWidth::NORMAL, FontStyle::Normal, FontWeight::new(f32::from(weight))));
+    let mut found = None;
+    query.matches_with(|font| {
+        found = Some(font.clone());
+        QueryStatus::Stop
+    });
+    drop(query);
+    let font = found?;
+    let info = collection.family(font.family.0)?.fonts().get(font.family.1)?.clone();
+    // Static weights are whole numbers from 1 to 1000.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Some((font, info.weight().value().round() as u16))
+}
+
+/// A matched font as egui face data, at the variation fontique suggests for the requested
+/// weight and the system face's optical size.
+fn face_data(font: QueryFont) -> FontData {
+    let coords: Vec<([u8; 4], f32)> = font.synthesis.variation_settings().iter().map(|(tag, value)| (tag.to_be_bytes(), *value)).collect();
+    let (blob, _) = font.blob.into_raw_parts();
+    instance(FontData::from_blob(blob, font.index), coords)
+}
+
+/// The `wght` coordinate a face is set to.
+fn wght_of(data: &FontData) -> Option<u16> {
+    let wght = egui::epaint::text::Tag::new(b"wght");
+    // Clamped to the font's axis, which lies within 1 to 1000.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    data.tweak.coords.as_ref().iter().find(|(tag, _)| *tag == wght).map(|(_, value)| value.round() as u16)
 }
 
 impl FontIndex for Index {

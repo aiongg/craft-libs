@@ -310,6 +310,24 @@ impl TextSize {
     pub const ALL: [TextSize; 4] = [TextSize::Small, TextSize::Default, TextSize::Large, TextSize::Larger];
 }
 
+/// The interface-font setting: the face the interface text draws with. Mono text keeps the suite's
+/// face either way, and type sizes stay the same.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+pub enum InterfaceFont {
+    /// The suite's interface face.
+    #[default]
+    Suite,
+    /// The OS's own interface face (San Francisco, Segoe UI, the Linux desktop's), where the app
+    /// can read it; elsewhere the suite's face.
+    System,
+}
+
+impl InterfaceFont {
+    /// Every choice, default first.
+    pub const ALL: [InterfaceFont; 2] = [InterfaceFont::Suite, InterfaceFont::System];
+}
+
 /// The user's appearance choices, after "System" has been replaced by what the OS reports.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Appearance {

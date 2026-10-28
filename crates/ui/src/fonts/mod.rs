@@ -4,7 +4,9 @@
 //! fallback order for every app, so a label or file name in any shipped script draws in every app:
 //!
 //! 1. the app's own faces for the family (UI face, semibold, mono), or egui's default faces for a
-//!    family the app has none for;
+//!    family the app has none for; with [`InterfaceFont::System`]
+//!    ([`UiFonts::interface_font`]), the OS's interface face goes ahead of them in the UI and
+//!    semibold families;
 //! 2. craft-fonts faces for the UI language;
 //! 3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
 //!    Arabic file names;
@@ -42,11 +44,13 @@ mod served;
 mod system;
 #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
 mod system_index;
+mod system_ui;
 #[cfg(test)]
 mod tests;
 
 use std::sync::Arc;
 
+use craft_theme::InterfaceFont;
 use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style};
 
@@ -54,6 +58,7 @@ pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, mi
 use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
 pub use served::{ServedFace, loading};
+pub use system_ui::{SYSTEM_UI_OPTICAL_SIZE, SystemUiFace, system_ui_face};
 
 /// A font file from craft-fonts that the app embeds, one per line of `fonts/manifest.txt`.
 #[derive(Clone, Copy, Debug)]
@@ -310,6 +315,8 @@ pub struct UiFonts<'a> {
     system: SystemFonts,
     system_provider: Option<Arc<dyn FontProvider>>,
     cjk_rows: CjkRows,
+    /// The OS's interface face, ahead of the app's faces, with [`InterfaceFont::System`].
+    system_ui: Option<&'static SystemUiFace>,
 }
 
 impl<'a> UiFonts<'a> {
@@ -329,6 +336,7 @@ impl<'a> UiFonts<'a> {
             system: SystemFonts::default(),
             system_provider: None,
             cjk_rows: CjkRows::default(),
+            system_ui: None,
         }
     }
 
@@ -412,6 +420,20 @@ impl<'a> UiFonts<'a> {
     /// or make rows and widgets taller.
     pub fn cjk_rows(mut self, rows: CjkRows) -> Self {
         self.cjk_rows = rows;
+        self
+    }
+
+    /// The face the interface draws with: the app's own faces ([`InterfaceFont::Suite`], the
+    /// default), or the OS's ([`InterfaceFont::System`], see [`system_ui_face`]). The system
+    /// face's regular and semibold faces head the proportional and [`SEMIBOLD`] families, ahead of
+    /// the app's faces and every fallback after them; the [`SEMIBOLD`] family is built at weight
+    /// 600 if the app declares none. The monospace family keeps the app's faces. Where no system
+    /// face resolves (the web, no `system_fonts` feature), the app's faces stay first.
+    pub fn interface_font(mut self, font: InterfaceFont) -> Self {
+        self.system_ui = match font {
+            InterfaceFont::Suite => None,
+            InterfaceFont::System => system_ui_face(),
+        };
         self
     }
 
@@ -509,6 +531,13 @@ impl<'a> UiFonts<'a> {
                 None => specs.push(declared.clone()),
             }
         }
+        let semibold = FontFamily::Name(SEMIBOLD.into());
+        if self.system_ui.is_some() && !self.families.iter().any(|f| f.family == semibold) {
+            match specs.iter_mut().find(|s| s.family == semibold) {
+                Some(spec) => spec.weight = 600,
+                None => specs.push(Family::named(SEMIBOLD).weight(600)),
+            }
+        }
         specs
     }
 
@@ -590,11 +619,18 @@ impl<'a> UiFonts<'a> {
         Chain { configured, after, base: base_face, script, ui_downloads }
     }
 
-    /// The app faces heading `family`; a named family without its own takes the monospace ones
-    /// if it is [`Family::monospaced`], the proportional ones otherwise.
+    /// The app faces heading `family`, after the system face's for the proportional and
+    /// [`SEMIBOLD`] families with [`InterfaceFont::System`]; a named family without its own takes
+    /// the monospace ones if it is [`Family::monospaced`], the proportional ones otherwise.
     fn app_faces_for(&self, family: &Family) -> Vec<Face> {
         let faces = |family: &FontFamily| -> Vec<Face> {
-            self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone())).collect()
+            let system = self.system_ui.and_then(|face| match family {
+                FontFamily::Proportional => Some(Face::new(&face.regular_name(), face.regular.clone())),
+                FontFamily::Name(name) if &**name == SEMIBOLD => Some(Face::new(&face.semibold_name(), face.semibold.clone())),
+                _ => None,
+            });
+            let app = self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone()));
+            system.into_iter().chain(app).collect()
         };
         match faces(&family.family) {
             own if !own.is_empty() || !matches!(family.family, FontFamily::Name(_)) => own,
