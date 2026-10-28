@@ -12,6 +12,12 @@
 //!   stacking keys to reorder by [`Reorder`](crate::behavior::Reorder), AccessKit `ListBox`, and a
 //!   hook for the host's context menu. It reports [`ListEvent`]s.
 //!
+//! - [`TreeRow`]: a row with an indent by depth, squeezed before the label gets narrow, and a
+//!   disclosure triangle for groups; a [`List`] in [tree mode](List::tree) adds the tree keys
+//!   (→ and ← open, close, enter and leave; Alt for every group), AccessKit `Tree` and
+//!   `TreeItem` with `level` and `expanded`, and reports [`ListEvent::Open`]. [`TreeState`] keeps
+//!   the open groups for a host without a model.
+//!
 //! Rows draw with the `list.*` component tokens; [`ListRow::style`] is a pure function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
@@ -26,15 +32,19 @@ mod row;
 mod row_tests;
 mod spans;
 mod toggle;
+mod tree;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod tree_tests;
 mod view;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow", "List"];
+pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
-    row::stories().into_iter().chain(view::stories()).chain(drag::stories()).collect()
+    row::stories().into_iter().chain(view::stories()).chain(tree::stories()).chain(drag::stories()).collect()
 }
 
 pub use row::{DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, TrailingItem};
 pub use toggle::{ToggleColumn, ToggleEdit};
+pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};
