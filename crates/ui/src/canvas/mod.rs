@@ -12,6 +12,8 @@
 //!   view.
 //! - [`resize_cursor`]: the resize arrow for a document direction as the view shows it.
 //! - [`Readout`]: labelled values beside the pointer during a gesture.
+//! - [`RulerUnits`]: the ruler unit of a document axis, for ruler ticks and guide values.
+//! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -34,15 +36,19 @@
 
 mod claim;
 mod crisp;
+pub(crate) mod guides;
 pub mod hit;
 mod readout;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+mod units;
 mod view;
 
 pub use ::kurbo;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use guides::{Guide, GuideLine, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use readout::{Readout, ReadoutStyle};
+pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};

@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::Readout;
+use craft_ui::canvas::{Guides, Readout};
 use craft_ui::composites::{Field, PanelHeader, PropertyRow, SectionHeader};
 use craft_ui::controls::{
     Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Select,
@@ -441,5 +441,24 @@ fn readout() {
         d.line("offset", s.offset).line("pad", s.pad).line("col_gap", s.col_gap).line("row_gap", s.row_gap);
         d.line("fill", s.fill).line("border", s.border).line("radius", s.radius);
         d.line("role", role(s.role)).line("label", s.label).line("value", s.value);
+    });
+}
+
+/// Guides and smart guides: line, hit and pattern sizes, the colours, the distance label and the
+/// focus lines.
+#[test]
+fn guide() {
+    check("guide.txt", |d, t| {
+        let s = Guides::style(t);
+        d.line("width", s.width)
+            .line("hit", s.hit)
+            .line("dash", s.dash)
+            .line("gap", s.gap)
+            .line("dot_gap", s.dot_gap)
+            .line("dot_radius", s.dot_radius);
+        d.line("color", s.color).line("selected", s.selected).line("smart", s.smart);
+        d.line("measure_cap", s.measure_cap).line("measure_pad", s.measure_pad).line("measure_radius", s.measure_radius);
+        d.line("measure_role", role(s.measure_role)).line("measure_text", s.measure_text);
+        d.line("focus", s.focus).line("focus_offset", s.focus_offset);
     });
 }

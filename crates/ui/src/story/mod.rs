@@ -109,6 +109,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(primitives::icon::stories());
     all.extend(primitives::handle::stories());
     all.extend(crate::canvas::story::stories());
+    all.extend(crate::canvas::guides::stories());
     all.extend(crate::edit::stories());
     all.extend(controls::button::stories());
     all.extend(controls::icon_button::stories());
@@ -152,6 +153,7 @@ const DECLARED: &[&[&str]] = &[
     primitives::icon::COMPONENTS,
     primitives::handle::COMPONENTS,
     crate::canvas::story::COMPONENTS,
+    crate::canvas::guides::COMPONENTS,
     crate::edit::COMPONENTS,
     controls::button::COMPONENTS,
     controls::icon_button::COMPONENTS,
