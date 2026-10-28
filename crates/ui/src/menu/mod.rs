@@ -14,18 +14,22 @@
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
 //! function, dumped under `crates/ui/tests/dumps/components/menu.txt`.
 
+mod context;
 mod item;
 mod mnemonic;
 mod nav;
 mod popup;
+mod press;
 mod row;
 #[cfg(test)]
 mod tests;
 
+pub use context::ContextMenu;
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;
 pub use popup::{Menu, MenuResponse};
+pub use press::PressMenu;
 pub use row::MenuStyle;
 
 use egui::{Id, Key, KeyboardShortcut, Modifiers, Popup, Ui};
@@ -36,17 +40,35 @@ use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Args, Level, Story};
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Menu"];
+pub const COMPONENTS: &[&str] = &["Menu", "ContextMenu", "PressMenu"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/menu/menus",
-        level: Level::Composites,
-        component: "Menu",
-        name: "Menus",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true).with_number("rows", 40.0, 5.0, 200.0),
-        show: show_menus,
-    }]
+    vec![
+        Story {
+            id: "composites/menu/menus",
+            level: Level::Composites,
+            component: "Menu",
+            name: "Menus",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true).with_number("rows", 40.0, 5.0, 200.0),
+            show: show_menus,
+        },
+        Story {
+            id: "composites/menu/context-menu",
+            level: Level::Composites,
+            component: "ContextMenu",
+            name: "Context menu",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
+            show: show_context_menu,
+        },
+        Story {
+            id: "composites/menu/press-menu",
+            level: Level::Composites,
+            component: "PressMenu",
+            name: "Press menu",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
+            show: show_press_menu,
+        },
+    ]
 }
 
 /// The story's commands.
@@ -136,6 +158,40 @@ fn show_menus(ui: &mut Ui, args: &mut Args) {
             let button = ui.add(Button::new(label));
             let shown = Menu::new(entries).size(size).show(ui, Popup::menu(&button));
             if let Some(command) = shown.chosen {
+                ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
+            }
+        }
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        ui.add(Text::new(chosen).content(Content::Muted));
+    });
+}
+
+/// A focusable box with a context menu: secondary click, or Menu key and Shift+F10 once it has the
+/// focus (Tab to it).
+fn show_context_menu(ui: &mut Ui, args: &mut Args) {
+    let size = size_arg(args.choice("size"));
+    let entries = edit_menu(args.bool("icons"));
+    let last = Id::unique("craft-ui-context-menu-story-last");
+    Row::new(Gap::Section).show(ui, |ui| {
+        let target = ui.add(Button::new("Right-click, or focus and press Shift+F10"));
+        if let Some(command) = ContextMenu::new(&entries).size(size).show(ui, &target).chosen {
+            ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
+        }
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        ui.add(Text::new(chosen).content(Content::Muted));
+    });
+}
+
+/// Two press menus side by side: press, drag onto a row and release, or click to open.
+fn show_press_menu(ui: &mut Ui, args: &mut Args) {
+    let size = size_arg(args.choice("size"));
+    let edit = edit_menu(args.bool("icons"));
+    let long = long_menu(30);
+    let last = Id::unique("craft-ui-press-menu-story-last");
+    Row::new(Gap::Section).show(ui, |ui| {
+        for (label, entries) in [("Edit", &edit), ("Long", &long)] {
+            let button = ui.add(Button::new(label));
+            if let Some(command) = PressMenu::new(entries).size(size).show(ui, &button).chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }
         }

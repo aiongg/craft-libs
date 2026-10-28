@@ -475,3 +475,220 @@ fn the_story_opens_a_menu_whose_rows_are_all_named() {
     assert_eq!(rows.len(), 9, "the Edit menu's rows");
     assert!(rows.iter().all(|n| n.label().is_some_and(|l| !l.is_empty())), "every row is named");
 }
+
+/// Two press menus "One" and "Two" and a context-menu target "Target", each with its own rows.
+struct Owners {
+    ctx: egui::Context,
+    time: f64,
+    events: Vec<Event>,
+    pointer: Pos2,
+    tree: Vec<(NodeId, accesskit::Node)>,
+    chosen: Vec<&'static str>,
+    open: [bool; 3],
+    entries: [Vec<MenuEntry<&'static str>>; 3],
+    focus_target: bool,
+}
+
+impl Owners {
+    fn new() -> Owners {
+        let ctx = egui::Context::default();
+        install(&ctx, &Base::suite_default());
+        ctx.set_os(egui::os::OperatingSystem::Nix);
+        ctx.enable_accesskit();
+        let mut o = Owners {
+            ctx,
+            time: 0.0,
+            events: Vec::new(),
+            pointer: pos2(-10.0, -10.0),
+            tree: Vec::new(),
+            chosen: Vec::new(),
+            open: [false; 3],
+            entries: [
+                vec![item("Alpha", "alpha"), MenuItem::new("Off", "off").enabled(false).into(), item("Beta", "beta")],
+                vec![item("Gamma", "gamma"), item("Delta", "delta")],
+                vec![item("Cut", "cut"), item("Copy", "copy")],
+            ],
+            focus_target: false,
+        };
+        o.run(3);
+        o
+    }
+
+    fn frame(&mut self) {
+        self.time += 1.0 / 60.0;
+        let raw = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+            time: Some(self.time),
+            predicted_dt: 1.0 / 60.0,
+            events: std::mem::take(&mut self.events),
+            ..Default::default()
+        };
+        let mut chosen = Vec::new();
+        let mut open = [false; 3];
+        let focus = std::mem::take(&mut self.focus_target);
+        let entries = &self.entries;
+        let mut full = self.ctx.run_ui(raw, |ui| {
+            ui.horizontal(|ui| {
+                let one = ui.add(crate::controls::Button::new("One"));
+                let two = ui.add(crate::controls::Button::new("Two"));
+                let target = ui.add(crate::controls::Button::new("Target"));
+                if focus {
+                    target.request_focus();
+                }
+                let shown = [
+                    PressMenu::new(&entries[0]).show(ui, &one),
+                    PressMenu::new(&entries[1]).show(ui, &two),
+                    ContextMenu::new(&entries[2]).show(ui, &target),
+                ];
+                for (k, s) in shown.into_iter().enumerate() {
+                    chosen.extend(s.chosen);
+                    open[k] = s.open;
+                }
+            });
+        });
+        full.textures_delta.clear();
+        if let Some(update) = full.platform_output.accesskit_update {
+            self.tree = update.nodes;
+        }
+        self.chosen.extend(chosen);
+        self.open = open;
+    }
+
+    fn run(&mut self, frames: usize) {
+        for _ in 0..frames {
+            self.frame();
+        }
+    }
+
+    fn rect(&self, label: &str) -> Rect {
+        let n = self.tree.iter().map(|(_, n)| n).find(|n| n.label() == Some(label)).unwrap_or_else(|| panic!("no {label:?}"));
+        let b = n.bounds().expect("bounds");
+        Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32))
+    }
+
+    fn move_to(&mut self, p: Pos2) {
+        self.pointer = p;
+        self.events.push(Event::PointerMoved(p));
+        self.frame();
+    }
+
+    fn at(&self, label: &str) -> Pos2 {
+        let r = self.rect(label);
+        pos2(r.left() + (r.width() / 2.0).min(20.0), r.center().y)
+    }
+
+    fn button(&mut self, button: egui::PointerButton, pressed: bool) {
+        self.events.push(Event::PointerButton { pos: self.pointer, button, pressed, modifiers: Modifiers::NONE });
+        self.frame();
+    }
+
+    fn press(&mut self, label: &str) {
+        let p = self.at(label);
+        self.move_to(p);
+        self.button(egui::PointerButton::Primary, true);
+    }
+
+    fn release(&mut self) {
+        self.button(egui::PointerButton::Primary, false);
+        self.run(3);
+    }
+
+    fn key(&mut self, key: Key, modifiers: Modifiers) {
+        for pressed in [true, false] {
+            self.events.push(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
+        }
+        self.run(3);
+    }
+
+    fn shown(&self, label: &str) -> bool {
+        self.tree.iter().any(|(_, n)| n.label() == Some(label))
+    }
+}
+
+#[test]
+fn press_drag_release_runs_the_row_under_the_release_and_keeps_the_menu_open_on_the_button() {
+    let mut o = Owners::new();
+    o.press("One");
+    o.run(2);
+    assert!(o.open[0] && o.shown("Beta"));
+    let p = o.at("Beta");
+    o.move_to(p);
+    o.release();
+    assert_eq!(o.chosen, ["beta"]);
+    assert!(!o.open[0], "the row ran and the menu closed");
+
+    // Released back on the button: the menu stays open, and so after a disabled row.
+    o.press("One");
+    o.release();
+    assert!(o.open[0] && o.chosen.len() == 1, "a click opens it");
+    o.press("One");
+    o.release();
+    assert!(!o.open[0], "a press on the open button closes it");
+    o.press("One");
+    o.run(2);
+    let (alpha, beta) = (o.rect("Alpha"), o.rect("Beta"));
+    o.move_to(pos2(alpha.left() + 20.0, (alpha.center().y + beta.center().y) / 2.0));
+    o.release();
+    assert!(o.open[0] && o.chosen.len() == 1, "released on a disabled row");
+    o.press("One");
+    o.release();
+    o.press("One");
+    o.move_to(pos2(700.0, 500.0));
+    o.release();
+    assert!(o.open[0], "released on nothing keeps the menu open");
+    assert_eq!(o.chosen, ["beta"]);
+}
+
+#[test]
+fn secondary_click_opens_both_kinds_of_menu() {
+    let mut o = Owners::new();
+    for (label, row, k) in [("One", "Alpha", 0), ("Target", "Cut", 2)] {
+        let p = o.at(label);
+        o.move_to(p);
+        o.button(egui::PointerButton::Secondary, true);
+        o.button(egui::PointerButton::Secondary, false);
+        o.run(3);
+        assert!(o.open[k] && o.shown(row), "{label}");
+        if k == 2 {
+            // At the pointer.
+            assert!(o.rect("Cut").contains(o.rect("Cut").left_top() + vec2(1.0, 1.0)));
+            assert!((o.rect("Cut").left() - p.x).abs() < 40.0, "{:?} {:?}", o.rect("Cut"), p);
+        }
+        o.key(Key::Escape, Modifiers::NONE);
+        assert!(!o.open[k]);
+    }
+}
+
+#[test]
+fn the_menu_key_and_shift_f10_open_a_context_menu_at_the_focused_widget() {
+    for (key, modifiers) in [(Key::Menu, Modifiers::NONE), (Key::F10, Modifiers::SHIFT)] {
+        let mut o = Owners::new();
+        o.focus_target = true;
+        o.run(2);
+        o.key(key, modifiers);
+        assert!(o.open[2], "{key:?}");
+        let (target, cut) = (o.rect("Target"), o.rect("Cut"));
+        assert!((cut.left() - target.left()).abs() < 10.0 && cut.top() >= target.bottom() - 1.0, "{cut:?} under {target:?}");
+        o.key(Key::ArrowDown, Modifiers::NONE);
+        o.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(o.chosen, ["copy"], "first row lit on opening, then one step down");
+        assert!(!o.open[2]);
+    }
+}
+
+#[test]
+fn two_press_menus_in_one_frame_keep_their_own_gestures() {
+    let mut o = Owners::new();
+    o.press("One");
+    // Over the other button's row positions: Two's rows aren't shown, and One's gesture is One's.
+    o.release();
+    assert!(o.open[0] && !o.open[1]);
+    o.press("Two");
+    o.run(2);
+    assert!(o.open[1] && o.shown("Delta"));
+    let p = o.at("Delta");
+    o.move_to(p);
+    o.release();
+    assert_eq!(o.chosen, ["delta"], "Two's gesture runs Two's row");
+    assert!(!o.open[1]);
+}
