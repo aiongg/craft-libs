@@ -648,6 +648,54 @@ fn the_focused_gesture_is_a_typing_run_until_it_ends() {
     assert_eq!(focused_gesture(&rig.ctx), None);
 }
 
+/// A composite's gesture that is a part's typing run: the part's ending event ends it, also in a
+/// frame after the focus has gone, and when the composite is no longer drawn it ends with the value
+/// the part's run would end with.
+#[test]
+fn a_composites_gesture_ends_as_its_parts_run() {
+    let ctx = Context::default();
+    let part = Id::unique("part");
+    // The host applies every value.
+    let host = std::cell::Cell::new(0);
+    let pass = |focus: bool, draw: bool, act: &dyn Fn(&mut Gesture<i32>)| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            if !draw {
+                return;
+            }
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), part, Sense::click());
+            match focus {
+                true => response.request_focus(),
+                false => response.surrender_focus(),
+            }
+            let mut gesture = Gesture::load(ui, part, &host.get(), EditPolicy::default());
+            act(&mut gesture);
+            event = gesture.finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let begun = pass(true, true, &|g| {
+        g.begin();
+        g.update(1, Modifiers::NONE);
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(true, true, &|_| {}), update(id, 1));
+    assert_eq!(pass(false, true, &|g| g.ended_by_part()), None, "the focus went, the part's run goes on");
+    let interrupted = |g: &mut Gesture<i32>| {
+        g.ended_by_part();
+        g.interrupted_with(5);
+    };
+    assert_eq!(pass(false, true, &interrupted), None);
+    let _ = pass(false, false, &|_| {});
+    assert!(!is_live(&ctx, id));
+    assert_eq!(ending(&ctx, id), Ending::Commit { changed: true });
+    assert_eq!(unreported::<i32>(&ctx, id), Some(5));
+}
+
 #[test]
 fn a_drag_whose_control_is_not_drawn_is_removed_and_reverted() {
     let mut rig = Rig::new(EditPolicy::default());

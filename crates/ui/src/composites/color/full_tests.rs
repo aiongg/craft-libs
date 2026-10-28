@@ -8,7 +8,7 @@ use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Re
 use super::{AreaMode, ColorPicker, ColorPickerLayout, ColorWarning, PickedColor};
 use crate::behavior::FieldTab;
 use crate::controls::TextField;
-use crate::edit::{self, EditEvent};
+use crate::edit::{self, EditEvent, Ending};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
 
@@ -492,7 +492,6 @@ fn right_to_left_mirrors_the_full_layout_and_keeps_the_keys_of_area_and_strip() 
 /// A click on the compare swatch's current half ends a typing run in H in the same frame: the
 /// typed value is committed, then the current colour is set.
 #[test]
-#[ignore = "DS-26r2: edit ordering"]
 fn a_restore_click_that_ends_a_typing_run_restores_the_current_colour() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.compare = Some(Srgba::rgb(1.0, 0.0, 0.0));
@@ -511,7 +510,6 @@ fn a_restore_click_that_ends_a_typing_run_restores_the_current_colour() {
 /// A tap on the area (press and release in one frame) that ends a partial hex run sets the
 /// tapped colour.
 #[test]
-#[ignore = "DS-26r2: edit ordering"]
 fn an_area_tap_that_ends_a_partial_hex_run_sets_the_tapped_colour() {
     let start = Srgba::rgb(0.2, 0.4, 0.6);
     let mut rig = Rig::new(start);
@@ -522,23 +520,51 @@ fn an_area_tap_that_ends_a_partial_hex_run_sets_the_tapped_colour() {
     let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
     rig.frame(vec![Event::PointerMoved(at), button(true), button(false)]);
     rig.settle();
-    assert_ne!(hex(rig.color), hex(start), "the tap's colour stays: {:?}", kinds(&rig.events));
+    assert_eq!(kinds(&rig.events), ["Begin", "Commit", "Set"], "the run ends, then the tap sets");
+    let tapped = HsbModel.from_srgb(rig.color).values.map(f32::round);
+    assert_eq!(tapped[1..3], [90.0, 90.0], "the tap's saturation and brightness: {}", hex(rig.color));
 }
 
-/// The picker stops being drawn during a typing run in S (the host hides the panel): the draft
-/// is the picker's unreported value, so the host can commit it.
+/// The picker stops being drawn during a typing run in S (the host hides the panel): its gesture
+/// ends as the field's run ends when the focus leaves it. A number goes out as typed, so the host
+/// has it and keeps it; text after it that reads as no number ends the run at its start.
 #[test]
-#[ignore = "DS-26r2: edit ordering"]
-fn an_interrupted_typing_run_leaves_its_draft_unreported() {
-    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+fn an_interrupted_typing_run_ends_as_its_field_would() {
+    let start = Srgba::rgb(0.2, 0.4, 0.6);
+    let begun = |rig: &Rig| rig.events.iter().find_map(|e| if let EditEvent::Begin { id } = e { Some(*id) } else { None }).expect("the run began");
+
+    let mut rig = Rig::new(start);
     rig.tab_to("Saturation");
     rig.type_text("40");
-    let id = rig.events.iter().find_map(|e| if let EditEvent::Begin { id } = e { Some(*id) } else { None }).expect("the run began");
+    assert_eq!(kinds(&rig.events), ["Begin", "Update"], "a number goes out as typed");
+    let id = begun(&rig);
     rig.shown = false;
     rig.frame(vec![]);
-    let draft = edit::unreported::<PickedColor>(&rig.ctx, id).expect("the draft is unreported");
-    let s = HsbModel.from_srgb(draft.color).values[1];
+    assert!(!edit::is_live(&rig.ctx, id));
+    assert_eq!(edit::ending(&rig.ctx, id), Ending::Commit { changed: true });
+    assert_eq!(edit::unreported::<PickedColor>(&rig.ctx, id), None, "the host has the typed value");
+    let s = HsbModel.from_srgb(rig.color).values[1];
     assert!((s - 40.0).abs() < 0.5, "S = {s}");
+
+    for interrupted in [false, true] {
+        let mut rig = Rig::new(start);
+        rig.tab_to("Saturation");
+        rig.type_text("40");
+        rig.type_text("-");
+        let id = begun(&rig);
+        match interrupted {
+            true => {
+                rig.shown = false;
+                rig.frame(vec![]);
+                assert_eq!(edit::ending(&rig.ctx, id), Ending::Commit { changed: false }, "the host reverts the run");
+            }
+            false => {
+                rig.key(Key::Tab);
+                assert!(matches!(rig.events.last(), Some(EditEvent::Commit { changed: false, .. })), "{:?}", kinds(&rig.events));
+                assert_eq!(hex(rig.color), hex(start));
+            }
+        }
+    }
 }
 
 /// Pasted text goes to the hex field whole: eight digits with the alpha off are not a colour,

@@ -406,6 +406,47 @@ fn constrained_drags_stay_one_gesture_and_samples_arrive_as_sets() {
     assert_eq!(hex(rig.color), "#ff990080", "the sample, snapped, with the picker's alpha");
 }
 
+/// A press on the area or a slider while a field's typing run has the focus waits a pass: the
+/// run's commit goes out first, and the press's gesture starts from the host's value after it
+/// instead of being cancelled by it. Here the commit moves the value: the run's text reads as no
+/// number, so the run ends at its start.
+#[test]
+fn a_press_during_a_typing_run_starts_from_the_value_it_commits() {
+    let gestures = |rig: &Rig| {
+        let mut ids: Vec<_> = rig.events.iter().filter_map(EditEvent::id).collect();
+        ids.dedup();
+        ids
+    };
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.tab_to(0);
+    rig.type_text("12");
+    rig.type_text("-");
+    let area = rig.area();
+    rig.drag(area.center(), area.left_top() + vec2(area.width() * 0.75, area.height() * 0.25));
+    let kinds: Vec<_> = rig.events.iter().map(kind).collect();
+    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "the hue's run ends first: {kinds:?}");
+    assert!(matches!(rig.events[2], EditEvent::Commit { changed: false, .. }), "at its start");
+    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "then the drag: {kinds:?}");
+    assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
+    assert_eq!(gestures(&rig).len(), 2);
+    let model = rig.last_model().expect("HSB values");
+    assert_eq!(model.values.map(|v| v.round()), [210.0, 75.0, 75.0, 0.0], "the hue the run ended at, with the drag's saturation and brightness");
+
+    rig.events.clear();
+    rig.tab_to(1);
+    rig.type_text("40");
+    rig.type_text("-");
+    let b = rig.node(Role::Slider, "Saturation").bounds().expect("slider bounds");
+    let y = ((b.y0 + b.y1) / 2.0) as f32;
+    rig.drag(pos2(b.x0 as f32 + 2.0, y), pos2(b.x1 as f32 - 2.0, y));
+    let kinds: Vec<_> = rig.events.iter().map(kind).collect();
+    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "{kinds:?}");
+    assert!(matches!(rig.events[2], EditEvent::Commit { changed: false, .. }), "once, when the field sees the focus go");
+    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "the slider's drag: {kinds:?}");
+    assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
+    assert_eq!(rig.last_model().map(|m| m.values[1].round()), Some(100.0), "dragged to the end");
+}
+
 /// The model switch is a press menu: a click on the button opens the models as radio items, and
 /// a click on one switches the rows to it.
 #[test]

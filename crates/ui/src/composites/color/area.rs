@@ -5,7 +5,7 @@ use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, StrokeKind, Ui, Vec2, pos2};
 
 use super::{AreaMode, ColorPartsStyle, faded_stroke, fraction, parts_style, scale_of, spoken, value_at};
-use crate::controls::slider::{KEY_FILTER, Scale, tap};
+use crate::controls::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf, UiTokens};
@@ -65,6 +65,7 @@ pub struct ColorArea {
     size: Option<Vec2>,
     policy: EditPolicy,
     enabled: bool,
+    press_waits: bool,
 }
 
 impl ColorArea {
@@ -82,6 +83,7 @@ impl ColorArea {
             size: None,
             policy: EditPolicy::default(),
             enabled: true,
+            press_waits: false,
         }
     }
 
@@ -109,6 +111,13 @@ impl ColorArea {
         self
     }
 
+    /// Whether a press waits in this pass ([`press_turn`]): for a part of a colour picker, whose
+    /// fields' typing runs end on the press.
+    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
+        self.press_waits = waits;
+        self
+    }
+
     pub fn style(tokens: &UiTokens) -> ColorPartsStyle {
         parts_style(tokens)
     }
@@ -130,9 +139,24 @@ impl ColorArea {
         let (rect, enabled, dragging) = (response.rect, response.enabled(), response.dragged());
 
         let mut gesture = Gesture::load(ui, response.id, &self.values, self.policy).event_filter(KEY_FILTER).enabled(enabled);
+        let tapped = tap(ui, &response);
+        let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
+        let turn = press_turn(ui, response.id, self.press_waits, pressed.or(tapped));
+        if let PressTurn::Held(held) = turn {
+            gesture.begin();
+            if let Some(start) = gesture.start().copied() {
+                gesture.update(axes.at(rect, &start, held), ui.input(|i| i.modifiers));
+            }
+            if !response.dragged_by(PointerButton::Primary) {
+                gesture.commit();
+            }
+        }
+        let waits = matches!(turn, PressTurn::Waits);
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            gesture.begin();
+            if !waits {
+                gesture.begin();
+            }
         }
         if response.dragged_by(PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
@@ -143,8 +167,10 @@ impl ColorArea {
         if response.drag_stopped() {
             gesture.commit();
         }
-        if let Some(pos) = tap(ui, &response) {
+        if tapped.is_some() {
             response.request_focus();
+        }
+        if let Some(pos) = tapped.filter(|_| !waits) {
             let shown = *gesture.shown();
             gesture.set(axes.at(rect, &shown, pos));
         }

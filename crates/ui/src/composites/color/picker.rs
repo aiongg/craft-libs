@@ -8,9 +8,10 @@ use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Ve
 use super::hex::{self, HexCodec};
 use super::{AreaMode, ColorArea, ColorStrip};
 use crate::composites::PropertyRow;
+use crate::controls::slider::PRESS_WAIT;
 use crate::controls::{Button, IconButton, NumberField, Slider};
 use crate::direction;
-use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Ending, Gesture, GestureId};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
@@ -378,6 +379,9 @@ impl<'a> ColorPicker<'a> {
         let full = self.layout == ColorPickerLayout::Full;
         let mut state = State::load(ui, id);
         let pass = ui.ctx().cumulative_pass_nr();
+        let waits = edit::focused_gesture(ui.ctx()).is_some();
+        let shown_last_pass = state.shown_pass.is_some_and(|p| p + 1 == pass);
+        let held = state.held.take().filter(|_| shown_last_pass);
         if full && enabled && self.focus_on_open && state.shown_pass.is_none_or(|p| p + 1 < pass) {
             ColorPicker::focus_hex(ui.ctx(), id);
         }
@@ -398,8 +402,8 @@ impl<'a> ColorPicker<'a> {
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
             let shown = outer.shown().clone();
-            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
-            let mut edits = Edits::default();
+            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width, waits };
+            let mut edits = Edits { run: state.run, ..Edits::default() };
 
             eyedropper_requested = match self.layout {
                 ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
@@ -411,6 +415,17 @@ impl<'a> ColorPicker<'a> {
                 color
             }) {
                 edits.sample = Some(shown.with_color(color.with_alpha(shown.color.a), &constrain));
+            }
+            // A click waits as a press on a part does (`slider::press_turn`), and sets its colour
+            // against the host's value after the typing run it ended.
+            let (since, mut clicks) = held.unwrap_or((pass, Vec::new()));
+            clicks.append(&mut edits.clicks);
+            match waits && !clicks.is_empty() && pass < since + PRESS_WAIT {
+                true => {
+                    state.held = Some((since, clicks));
+                    ui.ctx().request_repaint();
+                }
+                false => edits.sets = clicks.into_iter().map(|color| shown.with_color(color, &constrain)).collect(),
             }
 
             let mut outer = outer.focus_owners(&edits.typing);
@@ -464,10 +479,9 @@ impl<'a> ColorPicker<'a> {
                 let track = self.dynamic_tracks.then(|| model.track(i, &values));
                 let (field, slider) =
                     slider_row(ui, ("channel", i), &name, exact[i], range, f64::from(ch.step), ch.decimals, unit, track, self.numbers, inner);
-                edits.typing.push(field.response.id);
-                for edit in [field, slider] {
-                    edits.push(&edit, |x| shown.with_channel(model, i, x, constrain));
-                }
+                let map = |x| shown.with_channel(model, i, x, constrain);
+                edits.typing(ui.ctx(), &field, map);
+                edits.push(&slider, map);
             }
             if models.len() > 1 {
                 state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
@@ -495,10 +509,9 @@ impl<'a> ColorPicker<'a> {
         let track = Some(vec![opaque.with_alpha(0.0), opaque]);
         let unit = unit_of("%", translate);
         let (field, slider) = slider_row(ui, "alpha", &name, shown.alpha, 0.0..=100.0, 1.0, 0, unit, track, self.numbers, inner);
-        edits.typing.push(field.response.id);
-        for edit in [field, slider] {
-            edits.push(&edit, |pct| shown.with_alpha(pct, constrain));
-        }
+        let map = |pct| shown.with_alpha(pct, constrain);
+        edits.typing(ui.ctx(), &field, map);
+        edits.push(&slider, map);
     }
 
     /// The area `area` large and, at the reading end, the strip `strip` wide. The strip and the
@@ -527,12 +540,14 @@ impl<'a> ColorPicker<'a> {
                 .size(area)
                 .policy(inner.policy)
                 .enabled(inner.enabled)
+                .press_waits(inner.waits)
                 .show(ui);
             edits.push(&area, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
             let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
                 .size(vec2(strip, area.response.rect.height()))
                 .policy(inner.policy)
                 .enabled(inner.enabled)
+                .press_waits(inner.waits)
                 .show(ui);
             edits.push(&strip, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
         });
@@ -594,8 +609,7 @@ impl<'a> ColorPicker<'a> {
                 )
             })
             .inner;
-        edits.typing.push(field.response.id);
-        edits.push(&field, |rgba| shown.with_hex(rgba, constrain));
+        edits.typing(ui.ctx(), &field, |rgba| shown.with_hex(rgba, constrain));
     }
 }
 
@@ -607,6 +621,9 @@ struct Inner {
     enabled: bool,
     /// The width of every channel field ([`channel_width`]).
     width: f32,
+    /// Another control's gesture had the focus as the pass began (a typing run): presses and
+    /// clicks wait until it has ended ([`edit::focused_gesture`]).
+    waits: bool,
 }
 
 /// The width of every channel field, in either layout: the widest value of every built-in
@@ -648,7 +665,7 @@ fn slider_row(
     numbers: &LocaleNumbers,
     inner: Inner,
 ) -> (EditResponse<f64>, EditResponse<f64>) {
-    let Inner { policy, enabled, width } = inner;
+    let Inner { policy, enabled, width, waits } = inner;
     let field = PropertyRow::word(name)
         .scrubs()
         .show(ui, |ui, row| {
@@ -668,7 +685,7 @@ fn slider_row(
             })
         })
         .inner;
-    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled);
+    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled).press_waits(waits);
     if let Some(stops) = track {
         slider = slider.track_colors(stops);
     }
@@ -722,6 +739,11 @@ struct State {
     kept: Option<Picked>,
     /// The inner control whose gesture the picker's gesture is.
     owner: Option<Id>,
+    /// The owner's own gesture, as its events named it.
+    run: Option<(Id, GestureId)>,
+    /// Colours set by clicks that wait for a typing run to end ([`Inner::waits`]), and the pass
+    /// of the first.
+    held: Option<(u64, Vec<Srgba>)>,
     /// The model of the Compact rows.
     model: Option<&'static str>,
     mode: AreaMode,
@@ -850,14 +872,29 @@ fn model_of(values: &ModelValues) -> Option<&'static dyn ColorModel> {
     builtin_models().into_iter().find(|m| m.id() == values.model)
 }
 
+/// How a typing field's run would end if it were interrupted now, as the picker's value: at the
+/// start of the picker's gesture (an owner's `Commit` that changed nothing resets it there), or
+/// with a value no update carried.
+enum Draft {
+    Start,
+    Value(Picked),
+}
+
 /// The inner controls' edits of a frame, in drawing order, as the picker's values.
 #[derive(Default)]
 struct Edits {
     events: Vec<(Id, EditEvent<Picked>)>,
     /// The fields whose focus is a typing run's: the picker's gesture commits when it leaves them.
     typing: Vec<Id>,
+    /// The owner's gesture as the last pass left it ([`State::run`]).
+    run: Option<(Id, GestureId)>,
+    /// The typing fields whose runs are under way, each with how it would end if the picker
+    /// stopped being drawn (`None`: with the picker's own value).
+    runs: Vec<(Id, Option<Draft>)>,
     sample: Option<Picked>,
-    /// One-shot values set by a click: the compare swatch's current half, a warning's chip.
+    /// Colours set by a click: the compare swatch's current half, a warning's chip.
+    clicks: Vec<Srgba>,
+    /// One-shot values to set.
     sets: Vec<Picked>,
 }
 
@@ -868,10 +905,34 @@ impl Edits {
         }
     }
 
+    /// [`push`](Edits::push) for a field whose focus is a typing run's, with how its run would
+    /// end if interrupted ([`edit::ending`], [`edit::unreported`]).
+    fn typing<T: Clone + 'static>(&mut self, ctx: &Context, field: &EditResponse<T>, map: impl Fn(T) -> Picked) {
+        let id = field.response.id;
+        self.typing.push(id);
+        let run = field.event.as_ref().and_then(EditEvent::id).or_else(|| self.run.filter(|(owner, _)| *owner == id).map(|(_, run)| run));
+        if let Some(run) = run
+            && edit::is_live(ctx, run)
+            && let Ending::Commit { changed } = edit::ending(ctx, run)
+        {
+            let draft = match (changed, edit::unreported::<T>(ctx, run)) {
+                (false, _) => Some(Draft::Start),
+                (true, Some(value)) => Some(Draft::Value(map(value))),
+                // The picker's gesture has the field's last value.
+                (true, None) => None,
+            };
+            self.runs.push((id, draft));
+        }
+        self.push(field, map);
+    }
+
     /// Turns the inner controls' gestures into the picker's: the control that begins one owns
-    /// it, and its commit or cancel ends it; others' changes join it.
+    /// it, and its commit or cancel ends it; others' changes join it. While the owner's typing
+    /// run is under way its commit ends the picker's gesture, also when the focus has left it;
+    /// if the picker stops being drawn, its gesture ends as that run would.
     fn feed(self, outer: &mut Gesture<Picked>, state: &mut State, scoped: bool) {
         for (who, event) in self.events {
+            let run = event.id();
             let owner = state.owner == Some(who);
             match event {
                 // Inside a scope the controls report only updates, each a change of its own.
@@ -908,12 +969,26 @@ impl Edits {
                 }
                 EditEvent::Set { value, .. } => outer.set(value),
             }
+            if state.owner == Some(who)
+                && let Some(run) = run
+            {
+                state.run = Some((who, run));
+            }
         }
         for value in self.sets {
             outer.set(value);
         }
         if let Some(sample) = self.sample {
             outer.set(sample);
+        }
+        if let Some((_, draft)) = self.runs.into_iter().find(|(field, _)| state.owner == Some(*field)) {
+            outer.ended_by_part();
+            if let Some(value) = draft.and_then(|draft| match draft {
+                Draft::Start => outer.start().cloned(),
+                Draft::Value(value) => Some(value),
+            }) {
+                outer.interrupted_with(value);
+            }
         }
     }
 }

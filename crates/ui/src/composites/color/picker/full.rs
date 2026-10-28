@@ -125,11 +125,11 @@ impl ColorPicker<'_> {
                 if self.compare.is_some() || !self.warnings.is_empty() {
                     top_row(ui, gap, |ui| {
                         if let Some(current) = self.compare {
-                            compare(ui, &tokens, current, shown, inner.enabled, translate, constrain, edits);
+                            compare(ui, &tokens, current, shown, inner.enabled, translate, edits);
                         }
                         Stack::new(Gap::Stack).show(ui, |ui| {
                             for (i, warning) in self.warnings.iter().enumerate() {
-                                show_warning(ui, &tokens, i, warning, shown, inner.enabled, constrain, edits);
+                                show_warning(ui, &tokens, i, warning, inner.enabled, edits);
                             }
                         });
                     });
@@ -216,8 +216,7 @@ impl ColorPicker<'_> {
                                         .show(ui)
                                 },
                             );
-                            edits.typing.push(edit.response.id);
-                            edits.push(&edit, |x| shown.with_channel(*model, i, x, constrain));
+                            edits.typing(ui.ctx(), &edit, |x| shown.with_channel(*model, i, x, constrain));
                         }
                     }
                     if c == 0 {
@@ -254,17 +253,7 @@ fn channel_row<R>(ui: &mut Ui, cell: f32, width: f32, height: f32, gap: f32, lab
 
 /// The compare swatch: the colour being edited ("new") over `current`, with their captions; a
 /// click on `current` sets it.
-#[allow(clippy::too_many_arguments)]
-fn compare(
-    ui: &mut Ui,
-    tokens: &UiTokens,
-    current: Srgba,
-    shown: &Picked,
-    enabled: bool,
-    translate: &dyn Fn(&str) -> String,
-    constrain: &dyn Fn(Srgba) -> Srgba,
-    edits: &mut Edits,
-) {
+fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabled: bool, translate: &dyn Fn(&str) -> String, edits: &mut Edits) {
     let t = &tokens.component.color_picker;
     let swatch = Swatch::style(tokens, ControlSize::Md);
     ui.allocate_ui_with_layout(vec2(t.compare_width, 0.0), Layout::top_down(Align::Center), |ui| {
@@ -294,7 +283,7 @@ fn compare(
         }
         let response = response.tooltip(restore);
         if response.clicked() {
-            edits.sets.push(shown.with_color(current, constrain));
+            edits.clicks.push(current);
         }
         if enabled {
             let _ = response.on_hover_cursor(CursorIcon::PointingHand);
@@ -322,17 +311,7 @@ fn fill(shapes: &mut Vec<Shape>, swatch: &SwatchStyle, rect: Rect, color: Srgba)
 }
 
 /// A warning: its icon over a chip of its colour, one button; a click sets the colour.
-#[allow(clippy::too_many_arguments)]
-fn show_warning(
-    ui: &mut Ui,
-    tokens: &UiTokens,
-    index: usize,
-    warning: &ColorWarning,
-    shown: &Picked,
-    enabled: bool,
-    constrain: &dyn Fn(Srgba) -> Srgba,
-    edits: &mut Edits,
-) {
+fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWarning, enabled: bool, edits: &mut Edits) {
     let t = &tokens.component.color_picker;
     let gap = Gap::Inline.points(tokens);
     let size = vec2(t.warning_icon.max(t.warning_chip), t.warning_icon + gap + t.warning_chip);
@@ -357,7 +336,7 @@ fn show_warning(
     }
     let response = response.tooltip(warning.tip.as_str());
     if response.clicked() {
-        edits.sets.push(shown.with_color(warning.nearest, constrain));
+        edits.clicks.push(warning.nearest);
     }
     if enabled {
         let _ = response.on_hover_cursor(CursorIcon::PointingHand);

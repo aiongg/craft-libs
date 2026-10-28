@@ -360,7 +360,6 @@ fn choosing_in_the_model_menu_keeps_the_popover_open() {
 
 /// Esc in the open model menu closes the menu only.
 #[test]
-#[ignore = "needs the menus fix: Menu consumes the Esc that closes it"]
 fn esc_in_the_model_menu_closes_only_the_menu() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.click_node(Role::Button, "Fill colour");
