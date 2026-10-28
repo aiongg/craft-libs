@@ -247,12 +247,16 @@ impl<'a, T: Clone> Menu<'a, T> {
         record_open(&ctx, id, open);
         let active = nav.active().filter(|_| open);
         if let Some((row, menu)) = active {
-            // AccessKit's focus is egui's: the widget that keeps it while the menu has the keys
-            // names the row, and so does the menu it belongs to.
-            let row = row.accesskit_id();
-            ctx.accesskit_node_builder(menu, |n| n.set_active_descendant(row));
-            if let Some(focused) = ctx.memory(|m| m.focused()) {
-                ctx.accesskit_node_builder(focused, |n| n.set_active_descendant(row));
+            // The widget that keeps egui's focus while the menu has the keys names the row, and
+            // so does the menu it belongs to. With nothing focused (a bar menu opened by Alt, F10
+            // or the pointer), the row itself is AccessKit's focus, as in native menus.
+            let node = row.accesskit_id();
+            ctx.accesskit_node_builder(menu, |n| n.set_active_descendant(node));
+            match ctx.memory(|m| m.focused()) {
+                Some(focused) => {
+                    ctx.accesskit_node_builder(focused, |n| n.set_active_descendant(node));
+                }
+                None => ctx.set_accesskit_focus(row),
             }
         }
         let active = active.map(|(row, _)| row);

@@ -48,6 +48,8 @@ struct Bar {
     events: Vec<Event>,
     pointer: Pos2,
     tree: Vec<(NodeId, accesskit::Node)>,
+    /// The AccessKit tree's focus in the last update.
+    accesskit_focus: Option<NodeId>,
     chosen: Vec<&'static str>,
     /// Where a label after a shrunk bar starts.
     after: Option<f32>,
@@ -75,6 +77,7 @@ impl Bar {
             events: Vec::new(),
             pointer: pos2(-10.0, -10.0),
             tree: Vec::new(),
+            accesskit_focus: None,
             chosen: Vec::new(),
             after: None,
             escape_after: false,
@@ -122,6 +125,7 @@ impl Bar {
         full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
             self.tree = update.nodes;
+            self.accesskit_focus = Some(update.focus);
         }
         self.after = after;
         self.escape_after |= escape;
@@ -793,4 +797,25 @@ fn any_open_is_true_while_a_bar_menu_is_open() {
     assert!(!b.open_before, "closed");
     b.key(Key::F10);
     assert!(!b.open_before, "the focused bar with no menu open is is_focused's, not any_open's");
+}
+
+/// With nothing focused, AccessKit's focus follows the keyboard: the title Alt lights, then the row
+/// the open menu lights. Escape gives it back to the root.
+#[test]
+fn with_nothing_focused_accesskit_focus_follows_the_lit_title_and_row() {
+    let mut b = Bar::wide();
+    let id = |b: &Bar, label: &str, role: Role| b.tree.iter().find(|(_, n)| n.label() == Some(label) && n.role() == role).map(|(id, _)| *id);
+    b.alt_tap();
+    assert!(is_focused(&b.ctx) && b.ctx.memory(|m| m.focused()).is_none(), "the bar has the keys, egui focus is on nothing");
+    assert_eq!(b.accesskit_focus, id(&b, "File", Role::MenuItem), "the lit title");
+    b.key(Key::ArrowDown);
+    assert!(b.shown("New"));
+    assert_eq!(b.accesskit_focus, id(&b, "New", Role::MenuItem), "the menu's lit row");
+    b.key(Key::ArrowDown);
+    assert_eq!(b.accesskit_focus, id(&b, "Open…", Role::MenuItem), "the next row");
+    b.key(Key::Escape);
+    b.key(Key::Escape);
+    assert!(!b.open() && b.focus().is_none());
+    let root = b.tree.iter().find(|(_, n)| n.role() == Role::Window).map(|(id, _)| *id);
+    assert_eq!(b.accesskit_focus, root, "back to the root");
 }

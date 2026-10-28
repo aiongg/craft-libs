@@ -428,6 +428,14 @@ impl<'a, T: Clone> MenuBar<'a, T> {
             let typing = self.text_editing || ctx.text_edit_focused();
             state.keys.keys(&ctx, &popups, &letters, mnemonics, shown_open.is_some(), typing, &mut state.keyboard);
         }
+        // The keyboard on a title while no widget has egui's focus (Alt or F10): the title is
+        // AccessKit's focus. An open menu's lit row takes it instead.
+        if shown_open.is_none()
+            && ctx.memory(|m| m.focused()).is_none()
+            && let Some(title) = state.keys.focus.and_then(|k| responses.get(k))
+        {
+            ctx.set_accesskit_focus(title.id);
+        }
         // The press-drag gesture ends with the button (its release was handled by the rows).
         if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
             state.pressing = false;
