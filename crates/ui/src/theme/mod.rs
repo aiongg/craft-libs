@@ -27,7 +27,7 @@ mod tests;
 mod tokens;
 
 pub use bridge::{Base, Captured, Inputs, Overrides, apply_popup_style, capture, install, scope, scoped_style};
-pub use convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
+pub use convert::{FontFamilies, ToEgui, corner_radius, margin, margin_x, stroke};
 pub use craft_theme::Tokens;
 pub use roles::{TABULAR_FIGURES, role_format, style_format, tabular};
 pub use style::style_for;

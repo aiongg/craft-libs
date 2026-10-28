@@ -73,6 +73,7 @@
 mod composer;
 pub(crate) mod window;
 
+pub(crate) use composer::is_ime_key;
 pub use composer::{Composer, Edit, Preedit, Processed, surrounding_chars};
 
 #[cfg(test)]

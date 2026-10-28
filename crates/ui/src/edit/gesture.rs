@@ -74,6 +74,7 @@ pub struct Gesture<T> {
     owners: Vec<Id>,
     filter: Option<EventFilter>,
     cancel_on_focus_loss: bool,
+    pointer_selects: bool,
     enabled: bool,
     now: f64,
     stored: Stored<T>,
@@ -172,6 +173,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             owners: vec![id],
             filter: None,
             cancel_on_focus_loss: false,
+            pointer_selects: false,
             enabled: true,
             now,
             stored,
@@ -190,6 +192,14 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// ([`Ending`]).
     pub fn cancel_on_focus_loss(mut self, cancel: bool) -> Self {
         self.cancel_on_focus_loss = cancel;
+        self
+    }
+
+    /// Whether a pointer drag on the control selects (a text field's text) rather than changes the
+    /// value; off by default. Such a drag doesn't make the gesture a drag, so an interrupted
+    /// typing run still ends as a commit ([`Ending`]).
+    pub fn pointer_selects(mut self, selects: bool) -> Self {
+        self.pointer_selects = selects;
         self
     }
 
@@ -281,7 +291,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             announced: false,
             ending: false,
             focused: self.focused_owner().is_some(),
-            dragged: self.ctx.is_being_dragged(self.widget),
+            dragged: self.dragged(),
         });
     }
 
@@ -388,6 +398,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         if armed && self.ctx.memory(|m| m.is_above_modal_layer(self.layer)) && self.ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.cancel(CancelReason::Escape);
         }
+    }
+
+    /// Whether the pointer drags the control's value.
+    fn dragged(&self) -> bool {
+        !self.pointer_selects && self.ctx.is_being_dragged(self.widget)
     }
 
     /// The focus owner that has focus.
@@ -497,7 +512,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// Records the active gesture live in this pass with how it ends if interrupted, or drops
     /// the entry of one that ended.
     fn record_live(&mut self) {
-        let dragged = self.ctx.is_being_dragged(self.widget);
+        let dragged = self.dragged();
         let cancel_on_focus_loss = self.cancel_on_focus_loss;
         match &mut self.stored.phase {
             Phase::Active(a) => {

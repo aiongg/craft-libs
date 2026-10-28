@@ -565,7 +565,7 @@ impl Guard {
 }
 
 /// Keys an IME uses to confirm, cancel or edit a composition.
-fn is_ime_key(key: Key) -> bool {
+pub(crate) fn is_ime_key(key: Key) -> bool {
     matches!(key, Key::Enter | Key::Escape | Key::Backspace | Key::Delete | Key::Space)
 }
 

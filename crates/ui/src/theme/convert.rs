@@ -64,6 +64,11 @@ pub fn margin(px: f32) -> Margin {
     Margin::same(to_i8(px))
 }
 
+/// A margin of `left` and `right` points, none above or below.
+pub fn margin_x(left: f32, right: f32) -> Margin {
+    Margin { left: to_i8(left), right: to_i8(right), top: 0, bottom: 0 }
+}
+
 /// A line `width` points wide.
 pub fn stroke(width: f32, color: Rgba) -> Stroke {
     Stroke::new(width, color.to_egui())

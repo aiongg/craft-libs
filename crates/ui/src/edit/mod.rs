@@ -282,18 +282,30 @@ pub enum Cost {
     Expensive,
 }
 
-/// What every value control returns: its response and this frame's event, if any.
+/// What every value control returns: its response, this frame's event, if any, and whether the
+/// user submitted the value.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 #[must_use = "the host applies the edit event"]
 pub struct EditResponse<T> {
     pub response: Response,
     pub event: Option<EditEvent<T>>,
+    /// The user pressed the control's submit key this frame (Enter in a text field), whether or
+    /// not the value changed: a search's "find next", a dialog's OK. A change the key ends goes
+    /// out as this frame's [`Commit`](EditEvent::Commit) (or [`Set`](EditEvent::Set)). Controls
+    /// without a submit key never set it.
+    pub submitted: bool,
 }
 
 impl<T> EditResponse<T> {
     pub fn new(response: Response, event: Option<EditEvent<T>>) -> Self {
-        Self { response, event }
+        Self { response, event, submitted: false }
+    }
+
+    /// Whether the user submitted the value this frame.
+    pub fn submitted(mut self, submitted: bool) -> Self {
+        self.submitted = submitted;
+        self
     }
 
     /// The value of a finished change that the host keeps as an undo step: a
@@ -307,7 +319,7 @@ impl<T> EditResponse<T> {
 
     /// The same response with the event's value converted ([`EditEvent::map`]).
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EditResponse<U> {
-        EditResponse { response: self.response, event: self.event.map(|e| e.map(f)) }
+        EditResponse { response: self.response, event: self.event.map(|e| e.map(f)), submitted: self.submitted }
     }
 }
 
