@@ -27,23 +27,35 @@ pub struct OpenChange<K> {
     pub all: bool,
 }
 
-/// The words of a tree's disclosure triangle, for a host to translate: its name for a screen
-/// reader is "{expand} {row}" or "{collapse} {row}", and its tooltip is that verb followed by
-/// the hint in parentheses.
+/// The words of a tree's disclosure triangle, for a host to translate. Each is a whole pattern,
+/// so a language puts the row where its grammar wants it: `{row}` stands for the row's label.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeText {
-    /// The verb for a closed group.
+    /// The name of a closed group's triangle for a screen reader: "Expand {row}".
     pub expand: String,
-    /// The verb for an open group.
+    /// The name of an open group's triangle: "Collapse {row}".
     pub collapse: String,
-    /// What Alt does, as PhotoCraft's tooltip says it ("Alt-click: all groups").
-    pub all_hint: String,
+    /// The tooltip of a closed group's triangle, with what Alt does (PhotoCraft):
+    /// "Expand  (Alt-click: all groups)".
+    pub expand_tip: String,
+    /// The tooltip of an open group's triangle: "Collapse  (Alt-click: all groups)".
+    pub collapse_tip: String,
 }
 
 impl Default for TreeText {
     fn default() -> Self {
-        Self { expand: "Expand".to_owned(), collapse: "Collapse".to_owned(), all_hint: "Alt-click: all groups".to_owned() }
+        Self {
+            expand: "Expand {row}".to_owned(),
+            collapse: "Collapse {row}".to_owned(),
+            expand_tip: "Expand  (Alt-click: all groups)".to_owned(),
+            collapse_tip: "Collapse  (Alt-click: all groups)".to_owned(),
+        }
     }
+}
+
+/// `pattern` with `{row}` replaced by the row's label.
+pub(super) fn with_row(pattern: &str, row: &str) -> String {
+    pattern.replace("{row}", row)
 }
 
 /// Where a row sits in a tree, as the display order says.
@@ -52,6 +64,9 @@ pub(super) struct Branch {
     pub depth: usize,
     pub group: bool,
     pub open: bool,
+    /// The row's zero-based position among its siblings and their number, for AccessKit; a row
+    /// shown outside a list doesn't know them.
+    pub siblings: Option<(usize, usize)>,
 }
 
 impl Branch {
@@ -83,7 +98,7 @@ pub struct TreeRow<'a, K> {
 impl<'a, K: Hash + Debug + Clone> TreeRow<'a, K> {
     /// `row` at `depth` levels down; `has_children` shows the triangle, `open` its state.
     pub fn new(row: ListRow<'a, K>, depth: usize, has_children: bool, open: bool) -> Self {
-        Self { row, branch: Branch { depth, group: has_children, open: has_children && open } }
+        Self { row, branch: Branch { depth, group: has_children, open: has_children && open, siblings: None } }
     }
 
     /// The row with its tree look, to hand a list that builds [`ListRow`]s.
@@ -103,11 +118,30 @@ impl<'a, K: Hash + Debug + Clone> TreeRow<'a, K> {
     }
 }
 
+/// The zero-based position of the row at `at` among its siblings (the rows of its depth under
+/// the same parent, or the top-level rows), and their number.
+pub(super) fn siblings<K>(order: &(impl DisplayOrder<K> + ?Sized), at: usize) -> (usize, usize) {
+    let depth = order.depth(at);
+    let start = crate::behavior::parent(order, at).map_or(0, |p| p + 1);
+    let (mut position, mut size) = (0, 0);
+    for row in (start..order.len()).take_while(|&row| order.depth(row) >= depth) {
+        if order.depth(row) == depth {
+            position += usize::from(row < at);
+            size += 1;
+        }
+    }
+    (position, size)
+}
+
 /// Sets `level`, `expanded`'s actions and takes the screen reader's Expand and Collapse requests
 /// of the row whose response is `response`.
 pub(super) fn report<K: Clone>(ui: &Ui, response: &Response, branch: &Branch, key: &K, events: &mut Vec<RowEvent<K>>) {
     ui.ctx().accesskit_node_builder(response.id, |node| {
         node.set_level(branch.depth);
+        if let Some((position, size)) = branch.siblings {
+            node.set_position_in_set(position);
+            node.set_size_of_set(size);
+        }
         if branch.group {
             node.add_action(if branch.open { Action::Collapse } else { Action::Expand });
         }
@@ -126,6 +160,12 @@ pub(super) fn report<K: Clone>(ui: &Ui, response: &Response, branch: &Branch, ke
     }
 }
 
+/// Half the disclosure triangle's base, as a share of the column's width: PhotoCraft's 3.5 pt in
+/// its 14 pt column (`layer_tree_ui.rs`).
+const TRIANGLE_HALF: f32 = 3.5 / 14.0;
+/// Half the triangle's height, as a share of half its base (PhotoCraft's 0.6).
+const TRIANGLE_DEPTH: f32 = 0.6;
+
 /// Senses and paints the disclosure triangle in `rect` (the column's width, the row's height).
 #[expect(clippy::too_many_arguments, reason = "the row's pieces; a struct would only carry them")]
 pub(super) fn show_disclosure<K: Clone>(
@@ -139,8 +179,8 @@ pub(super) fn show_disclosure<K: Clone>(
     label: &str,
     events: &mut Vec<RowEvent<K>>,
 ) {
-    let verb = if branch.open { &text.collapse } else { &text.expand };
-    let name = format!("{verb} {label}");
+    let (name, tip) = if branch.open { (&text.collapse, &text.collapse_tip) } else { (&text.expand, &text.expand_tip) };
+    let name = with_row(name, label);
     let sensed = Interactive::with_id(row_id.with("disclosure"), egui::accesskit::Role::Button, name)
         .sense(egui::Sense::CLICK)
         .expanded(branch.open)
@@ -148,7 +188,7 @@ pub(super) fn show_disclosure<K: Clone>(
         .focus_ring(false)
         .interact_at(ui, rect);
     let response = sensed.finish(ui);
-    let response = response.on_hover_text(format!("{verb}  ({})", text.all_hint));
+    let response = response.on_hover_text(with_row(tip, label));
     if response.clicked() {
         let all = ui.input(|i| i.modifiers.alt);
         events.push(RowEvent::Open(OpenChange { row: key.clone(), open: !branch.open, all }));
@@ -157,13 +197,14 @@ pub(super) fn show_disclosure<K: Clone>(
         return;
     }
     let color = if response.hovered() { style.icon_hover } else { style.icon };
-    let half = 3.5 * style.disclosure / 14.0;
-    let (c, s) = (rect.center(), half);
+    let s = TRIANGLE_HALF * style.disclosure;
+    let c = rect.center();
     let flip = if direction::is_rtl(ui) { -1.0 } else { 1.0 };
     let points = if branch.open {
-        vec![pos2(c.x - s, c.y - s * 0.6), pos2(c.x + s, c.y - s * 0.6), pos2(c.x, c.y + s * 0.6)]
+        vec![pos2(c.x - s, c.y - s * TRIANGLE_DEPTH), pos2(c.x + s, c.y - s * TRIANGLE_DEPTH), pos2(c.x, c.y + s * TRIANGLE_DEPTH)]
     } else {
-        vec![pos2(c.x - flip * s * 0.6, c.y - s), pos2(c.x + flip * s * 0.6, c.y), pos2(c.x - flip * s * 0.6, c.y + s)]
+        let d = flip * s * TRIANGLE_DEPTH;
+        vec![pos2(c.x - d, c.y - s), pos2(c.x + d, c.y), pos2(c.x - d, c.y + s)]
     };
     ui.painter().add(Shape::convex_polygon(points, color, Stroke::NONE));
 }

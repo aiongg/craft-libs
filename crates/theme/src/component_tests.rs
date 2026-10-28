@@ -469,7 +469,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 5
             + 1
             + 6
-            + (1 + 15)
+            + (1 + 17)
             + 3
             // Colour picker: the marker and its halo.
             + 2
@@ -851,6 +851,11 @@ fn list_pairs() -> Vec<(ListField, ListField, (f64, f64))> {
         (ListField::Text, ListField::Hover, text),
         (ListField::SelectedText, ListField::Selected, text),
         (ListField::SelectedText, ListField::SelectedHover, text),
+        (ListField::SelectedDimmed, ListField::Selected, text),
+        (ListField::SelectedDimmed, ListField::SelectedHover, text),
+        (ListField::SelectedDetail, ListField::Selected, text),
+        (ListField::SelectedDetail, ListField::SelectedHover, text),
+        (ListField::Text, ListField::GhostFill, text),
         (ListField::Drop, ListField::DropHalo, high),
     ]
 }

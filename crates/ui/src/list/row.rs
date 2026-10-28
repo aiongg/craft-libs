@@ -165,11 +165,14 @@ pub struct ListRowStyle {
     /// Line height of the label and of the detail line.
     pub label_line: f32,
     pub detail_line: f32,
-    /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.detail`.
+    /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.text.selected.dimmed`.
     pub text: Color32,
     pub dimmed: Color32,
     pub selected_text: Color32,
+    pub selected_dimmed: Color32,
+    /// `list.detail` and `list.detail.selected`.
     pub detail: Color32,
+    pub selected_detail: Color32,
     /// `list.icon` and `list.icon.hover`.
     pub icon: Color32,
     pub icon_hover: Color32,
@@ -219,7 +222,7 @@ impl ListRowStyle {
 /// use craft_ui::list::{ListRow, ToggleColumn};
 /// # egui::__run_test_ui(|ui| {
 /// let row = ListRow::new("layer-1", "Layer 1")
-///     .toggle(ToggleColumn::eye("Visibility", true))
+///     .toggle(ToggleColumn::eye("Visibility {row}", true))
 ///     .selected(true)
 ///     .show(ui);
 /// if row.response.double_clicked() {
@@ -464,7 +467,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             text: l.text.to_egui(),
             dimmed: l.dimmed.to_egui(),
             selected_text: l.selected_text.to_egui(),
+            selected_dimmed: l.selected_dimmed.to_egui(),
             detail: l.detail.to_egui(),
+            selected_detail: l.selected_detail.to_egui(),
             icon: l.icon.to_egui(),
             icon_hover: l.icon_hover.to_egui(),
             hover: l.hover.to_egui(),
@@ -569,17 +574,16 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         }
 
         let band = geometry.label_band(rect);
-        let text = if dimmed {
-            style.dimmed
-        } else if selected {
-            style.selected_text
-        } else {
-            style.text
+        let (text, detail_text) = match (selected, dimmed) {
+            (true, true) => (style.selected_dimmed, style.selected_detail),
+            (true, false) => (style.selected_text, style.selected_detail),
+            (false, true) => (style.dimmed, style.detail),
+            (false, false) => (style.text, style.detail),
         };
         if renaming {
             rename::show(ui, row_id, &key, &label, band, &mut events);
         } else if visible {
-            paint_label(ui, &tokens, &style, band, &label, detail.as_deref(), text);
+            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), text);
         }
         for (item, at) in trailing.into_iter().zip(&geometry.items) {
             let Some((start, width)) = *at else { continue };
@@ -700,7 +704,7 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
-fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect, label: &str, detail: Option<&str>, color: Color32) {
+fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect, label: &str, detail: Option<(&str, Color32)>, color: Color32) {
     if band.width() < 1.0 {
         return;
     }
@@ -714,8 +718,8 @@ fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect,
         });
     };
     line(ui, top, style.label_line, label, style.label_role, color);
-    if let Some(detail) = detail {
-        line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, style.detail);
+    if let Some((detail, detail_color)) = detail {
+        line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color);
     }
 }
 
@@ -807,8 +811,8 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
             let tokens = Tokens::of(ui);
             let fill = tokens.color.surface.raised.to_egui();
             let mut item = ListRow::new(i, row.name.clone())
-                .toggle(ToggleColumn::eye("Visibility", row.visible))
-                .toggle(ToggleColumn::lock("Lock", row.locked))
+                .toggle(ToggleColumn::eye("Visibility {row}", row.visible))
+                .toggle(ToggleColumn::lock("Lock {row}", row.locked))
                 .thumb(thumb, move |painter, rect| {
                     painter.rect_filled(rect, 0.0, fill);
                 })

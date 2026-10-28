@@ -118,6 +118,23 @@ fn builtin_menu_text_meets_its_minimum() {
     }
 }
 
+/// A list row's labels, dimmed labels and detail lines read on the panel and on the fills a row
+/// takes (a hidden layer that is selected), the ghost's label on its fill, and the drop marker on
+/// its halo, in every built-in and appearance, pins included.
+#[test]
+fn builtin_list_text_and_drop_marker_meet_their_minimums() {
+    for theme in builtins() {
+        for a in appearances() {
+            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
+            assert_eq!(pairs.len(), 12, "{} {a:?}", theme.id);
+            for p in pairs {
+                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+            }
+        }
+    }
+}
+
 /// `text.on_strong` is white and reads on `accent.strong` in every built-in and appearance;
 /// `accent.strong` is `accent.solid` where white already reads on it, and otherwise `accent.solid`
 /// with only its lightness moved (Pro's dark #378EF0 deepens, Graphite's light accent stays).

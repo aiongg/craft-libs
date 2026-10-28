@@ -615,6 +615,9 @@ pub const LIST_THUMB_PAD: f32 = 8.0;
 pub const LIST_DROP_WIDTH: f32 = 2.0;
 /// Width of the halo on each side of a list's drop marker, as `handle.halo` around a handle.
 pub const LIST_DROP_HALO: f32 = 1.0;
+/// How far a selected row's dimmed label and detail line move from `text.on_selected` toward the
+/// selected fill (OKLab mix), before their contrast minimum.
+pub const LIST_SELECTED_QUIET: f64 = 0.4;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;

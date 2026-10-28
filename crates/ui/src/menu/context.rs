@@ -98,7 +98,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         if let Some(request) = self.request {
             place = Some(match request {
                 OpenAt::Pointer(pos) => pos,
-                OpenAt::Rect(rect) => rect.left_bottom(),
+                OpenAt::Rect(rect) => below_reading_start(ui, rect),
             });
             keyboard = matches!(request, OpenAt::Rect(_));
         } else if !self.own_gestures {
@@ -109,7 +109,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         } else if widget.secondary_clicked() {
             place = Some(ctx.input(|i| i.pointer.interact_pos()).unwrap_or(widget.rect.left_bottom()));
         } else if keyboard {
-            place = Some(widget.rect.left_bottom());
+            place = Some(below_reading_start(ui, widget.rect));
         } else if widget.clicked_by(egui::PointerButton::Primary) {
             command = Some(SetOpenCommand::Bool(false));
         }
@@ -133,6 +133,12 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         }
         shown
     }
+}
+
+/// Where a menu opened from the keyboard for `rect` goes: below its reading start, the left
+/// edge, or the right edge in a right-to-left layout.
+fn below_reading_start(ui: &Ui, rect: Rect) -> Pos2 {
+    if crate::direction::is_rtl(ui) { rect.right_bottom() } else { rect.left_bottom() }
 }
 
 /// Takes the Menu key or Shift+F10 if one was pressed this pass.

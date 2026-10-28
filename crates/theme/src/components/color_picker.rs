@@ -137,7 +137,7 @@ impl Family for ColorPickerTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = |f| ComponentField::ColorPicker(f);
         vec![ContrastPair {
-            fg: field(ColorPickerField::Marker),
+            fg: TokenRef::Component(field(ColorPickerField::Marker)),
             bg: TokenRef::Component(field(ColorPickerField::MarkerHalo)),
             minimum: values::NON_TEXT_MIN,
         }]
