@@ -143,6 +143,8 @@ fn field_pairs() -> Vec<(ComponentField, ComponentField, (f64, f64))> {
     vec![
         (field(FieldField::Color { part: FieldPart::Text, disabled: false }), fill, (4.5, 7.0)),
         (field(FieldField::Color { part: FieldPart::Placeholder, disabled: false }), fill, (4.5, 7.0)),
+        (field(FieldField::Color { part: FieldPart::Unit, disabled: false }), fill, (4.5, 7.0)),
+        (field(FieldField::Color { part: FieldPart::Scrub, disabled: false }), fill, (4.5, 7.0)),
         (field(FieldField::Border(BorderState::Focused)), fill, (3.0, 4.5)),
         (field(FieldField::Invalid), fill, (3.0, 4.5)),
         (field(FieldField::SelectedText), field(FieldField::Selection), (4.5, 7.0)),
@@ -183,6 +185,7 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
     assert_eq!(f.border, border);
     assert_eq!(f.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
     assert_eq!(f.placeholder, Dimmed { rest: t.color(T::TextFaint), disabled: t.color(T::TextDisabled) });
+    assert_eq!((f.unit, f.scrub), (Dimmed { rest: t.color(T::TextMuted), disabled: t.color(T::TextDisabled) }, f.unit));
     assert_eq!((f.selection, f.selected_text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
     assert_eq!((f.caret, f.invalid), (t.color(T::TextNormal), t.color(T::StatusBadFg)));
 }
@@ -308,7 +311,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 3 * 2 + 4 + 4)
+        1 + 4 * 3 * 4 + 1 + 2 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4 + 2 + 4 + 2 * 4 + 3 + (1 + 6 * 2 * 3) + 3 + 3 + 7 + (1 + 5 * 2 + 4 + 4)
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -338,6 +341,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("field.placeholder.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Placeholder, disabled: true })),
         ("field.border.focused", ComponentField::Field(FieldField::Border(BorderState::Focused))),
         ("field.selection.text", ComponentField::Field(FieldField::SelectedText)),
+        ("field.unit.disabled", ComponentField::Field(FieldField::Color { part: FieldPart::Unit, disabled: true })),
+        ("field.scrub.rest", ComponentField::Field(FieldField::Color { part: FieldPart::Scrub, disabled: false })),
         ("slider.radius", ComponentField::Slider(SliderField::Radius)),
         ("slider.fill.hover", ComponentField::Slider(SliderField::Fill(State::Hover))),
         ("slider.thumb.border.disabled", ComponentField::Slider(SliderField::Thumb { part: ThumbPart::Border, state: State::Disabled })),
@@ -404,6 +409,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "field.caret.rest",
         "field.height.md",
         "field.invalid.rest",
+        "field.unit",
+        "field.scrub.hover",
     ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }

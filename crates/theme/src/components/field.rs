@@ -2,8 +2,8 @@
 //! end. The box takes its edge from the `Surface` primitive (a border, or a bevel in Classic);
 //! this family holds its sizes, corners and the colours of the box, the text and the selection.
 //!
-//! The text and the placeholder are text on the field's fill (4.5:1, 7:1 with high contrast),
-//! and so is the selected text on the selection. The focused and the invalid edge are the cues
+//! The text, the placeholder, a number's unit and its scrub label are text on the field's fill
+//! (4.5:1, 7:1 with high contrast), and so is the selected text on the selection. The focused and the invalid edge are the cues
 //! that show the field's state (3:1, 4.5:1 with high contrast) on the field's fill. The resting
 //! and hovered edges are design targets with no minimum. Each pair is measured at rest.
 
@@ -21,11 +21,15 @@ pub enum FieldPart {
     Text,
     /// The text shown while the field is empty.
     Placeholder,
+    /// A number's unit, drawn after it.
+    Unit,
+    /// The label or icon at a number field's start that a drag scrubs the value with.
+    Scrub,
 }
 
 impl FieldPart {
     /// Every part, in path order.
-    pub const ALL: [FieldPart; 3] = [FieldPart::Fill, FieldPart::Text, FieldPart::Placeholder];
+    pub const ALL: [FieldPart; 5] = [FieldPart::Fill, FieldPart::Text, FieldPart::Placeholder, FieldPart::Unit, FieldPart::Scrub];
 
     /// The path segment, e.g. `"placeholder"`.
     pub const fn name(self) -> &'static str {
@@ -33,6 +37,8 @@ impl FieldPart {
             FieldPart::Fill => "fill",
             FieldPart::Text => "text",
             FieldPart::Placeholder => "placeholder",
+            FieldPart::Unit => "unit",
+            FieldPart::Scrub => "scrub",
         }
     }
 }
@@ -146,6 +152,10 @@ pub struct FieldTokens {
     pub text: Dimmed,
     /// The text shown while empty: `text.faint`; disabled, `text.disabled`.
     pub placeholder: Dimmed,
+    /// A number's unit: `text.muted`; disabled, `text.disabled`.
+    pub unit: Dimmed,
+    /// A number field's scrub label or icon: `text.muted`; disabled, `text.disabled`.
+    pub scrub: Dimmed,
     /// Behind selected text: `state.selected`.
     pub selection: Rgba,
     /// Selected text: `text.on_selected`.
@@ -163,6 +173,8 @@ impl FieldTokens {
             FieldPart::Fill => &self.fill,
             FieldPart::Text => &self.text,
             FieldPart::Placeholder => &self.placeholder,
+            FieldPart::Unit => &self.unit,
+            FieldPart::Scrub => &self.scrub,
         }
     }
 
@@ -171,6 +183,8 @@ impl FieldTokens {
             FieldPart::Fill => &mut self.fill,
             FieldPart::Text => &mut self.text,
             FieldPart::Placeholder => &mut self.placeholder,
+            FieldPart::Unit => &mut self.unit,
+            FieldPart::Scrub => &mut self.scrub,
         }
     }
 
@@ -187,7 +201,8 @@ impl FieldTokens {
     }
 }
 
-/// An overridable text-field token. Paths: `radius`, `<fill|text|placeholder>.<rest|disabled>`,
+/// An overridable text-field token. Paths: `radius`,
+/// `<fill|text|placeholder|unit|scrub>.<rest|disabled>`,
 /// `border.<state>`, `selection.fill`, `selection.text`, `caret`, `invalid`, e.g.
 /// `field.border.focused`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -258,6 +273,8 @@ impl Family for FieldTokens {
             border: BorderColors { rest: c.line.control_edge, hover: c.text.faint, focused: c.line.focus, disabled: c.line.divider },
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
             placeholder: Dimmed { rest: c.text.faint, disabled: c.text.disabled },
+            unit: Dimmed { rest: c.text.muted, disabled: c.text.disabled },
+            scrub: Dimmed { rest: c.text.muted, disabled: c.text.disabled },
             selection: c.state.selected,
             selected_text: c.text.on_selected,
             caret: c.text.normal,
@@ -313,8 +330,8 @@ impl Family for FieldTokens {
         }
     }
 
-    /// At rest, on the field's fill: the text and the placeholder (text), the focused and invalid
-    /// edges (state cues); and the selected text on the selection.
+    /// At rest, on the field's fill: the text, the placeholder, the unit and the scrub label
+    /// (text), the focused and invalid edges (state cues); and the selected text on the selection.
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Field;
         let fill = TokenRef::Component(field(FieldField::Color { part: FieldPart::Fill, disabled: false }));
@@ -322,6 +339,8 @@ impl Family for FieldTokens {
         vec![
             pair(FieldField::Color { part: FieldPart::Text, disabled: false }, fill, values::TEXT_MIN),
             pair(FieldField::Color { part: FieldPart::Placeholder, disabled: false }, fill, values::TEXT_MIN),
+            pair(FieldField::Color { part: FieldPart::Unit, disabled: false }, fill, values::TEXT_MIN),
+            pair(FieldField::Color { part: FieldPart::Scrub, disabled: false }, fill, values::TEXT_MIN),
             pair(FieldField::Border(BorderState::Focused), fill, values::NON_TEXT_MIN),
             pair(FieldField::Invalid, fill, values::NON_TEXT_MIN),
             pair(FieldField::SelectedText, TokenRef::Component(field(FieldField::Selection)), values::TEXT_MIN),

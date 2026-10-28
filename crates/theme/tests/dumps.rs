@@ -328,6 +328,8 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
         border,
         text,
         placeholder,
+        unit,
+        scrub,
         selection,
         selected_text,
         caret,
@@ -341,7 +343,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
     out.line("field.gap", len(*gap));
     out.line("field.radius", len(*radius));
     out.line("field.role", role(*text_role));
-    for (key, d) in [("field.fill", fill), ("field.text", text), ("field.placeholder", placeholder)] {
+    for (key, d) in [("field.fill", fill), ("field.text", text), ("field.placeholder", placeholder), ("field.unit", unit), ("field.scrub", scrub)] {
         let Dimmed { rest, disabled } = d;
         out.line(&format!("{key}.rest"), hex(*rest));
         out.line(&format!("{key}.disabled"), hex(*disabled));
