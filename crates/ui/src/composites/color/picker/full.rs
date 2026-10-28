@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, CornerRadius, CursorIcon, Id, Layout, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
-use super::{ColorPicker, Edits, Inner, Picked, unit_of};
+use super::{ColorPicker, Edits, Inner, Picked, channel_name, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
 use crate::controls::{Button, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
 use crate::direction;
@@ -108,7 +108,8 @@ impl ColorPicker<'_> {
             let side = style.area + gap + ColorStrip::outer_width(&style, style.strip_full);
             ui.allocate_ui_with_layout(vec2(side, 0.0), Layout::top_down_justified(Align::Min), |ui| {
                 ui.set_width(side);
-                self.area_and_strip(ui, mode, shown, inner, translate, constrain, edits, Vec2::splat(style.area), style.strip_full);
+                let visible: Vec<&dyn ColorModel> = models.iter().copied().chain([mode.model()]).collect();
+                self.area_and_strip(ui, mode, &visible, shown, inner, translate, constrain, edits, Vec2::splat(style.area), style.strip_full);
                 if self.alpha {
                     self.alpha_row(ui, shown, inner, translate, constrain, edits);
                 }
@@ -185,7 +186,7 @@ impl ColorPicker<'_> {
                         }
                         let (_, exact) = shown.values_in(*model);
                         for (i, (ch, label)) in model.channels().iter().zip(labels).enumerate() {
-                            let name = translate(ch.name);
+                            let name = channel_name(*model, i, models, translate);
                             let index = offered.iter().position(|m| m.model().id() == model.id() && m.strip() == i);
                             let edit = channel_row(
                                 ui,

@@ -389,3 +389,99 @@ fn inside_an_edit_scope_the_full_picker_sends_only_updates_and_its_radios_none()
     assert!(rig.events.len() >= 3, "{:?}", rig.events);
     assert!(kinds(&rig.events).iter().all(|k| *k == "Update"), "only updates inside a scope: {:?}", kinds(&rig.events));
 }
+
+/// HSL on HSB's values: a host's model whose channel names repeat built-in ones.
+struct Hsl;
+
+const HSL: [Channel; 3] = [
+    Channel { name: "Hue", label: "H", min: 0.0, max: 360.0, unit: "°", decimals: 0, step: 1.0, track_stops: 13 },
+    Channel { name: "Saturation", label: "S", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
+    Channel { name: "Lightness", label: "L", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
+];
+
+impl ColorModel for Hsl {
+    fn id(&self) -> &'static str {
+        "hsl"
+    }
+    fn name(&self) -> &'static str {
+        "HSL"
+    }
+    fn channels(&self) -> &[Channel] {
+        &HSL
+    }
+    fn from_srgb(&self, c: Srgba) -> ModelValues {
+        ModelValues::new("hsl", &HsbModel.from_srgb(c).values[..3])
+    }
+    fn to_srgb(&self, v: &[f32; MAX_CHANNELS]) -> Srgba {
+        HsbModel.to_srgb(v)
+    }
+    fn default_on(&self) -> DefaultOn {
+        DefaultOn { full: true, compact: true }
+    }
+}
+
+#[test]
+fn channels_whose_names_clash_are_named_with_their_model_in_both_layouts() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.models.push(&OklchModel);
+    rig.settle();
+    for name in ["HSB hue", "OKLCH hue", "Lab lightness", "OKLCH lightness"] {
+        rig.node(Role::SpinButton, name);
+        rig.node(Role::RadioButton, name);
+    }
+    for plain in ["Saturation", "Red", "Chroma", "Green-red"] {
+        rig.node(Role::SpinButton, plain);
+    }
+    assert!(rig.nodes(Role::SpinButton, "Hue").is_empty() && rig.nodes(Role::SpinButton, "Lightness").is_empty());
+    rig.node(Role::Slider, "HSB hue");
+
+    // A host model that repeats built-in names.
+    rig.models = vec![&HsbModel, &RgbModel, &LabModel, &Hsl];
+    rig.settle();
+    for name in ["HSB hue", "HSL hue", "HSB saturation", "HSL saturation", "Lab lightness", "HSL lightness"] {
+        rig.node(Role::SpinButton, name);
+    }
+    rig.node(Role::SpinButton, "Brightness");
+
+    // Compact: the rows' model and the area's.
+    rig.layout = ColorPickerLayout::Compact;
+    rig.models = vec![&HsbModel, &RgbModel, &OklchModel];
+    rig.settle();
+    rig.node(Role::SpinButton, "Hue");
+    assert_eq!(rig.nodes(Role::Slider, "Hue").len(), 2, "the slider and the strip, no clash");
+    rig.mode = AreaMode::OklchH;
+    rig.settle();
+    rig.node(Role::SpinButton, "HSB hue");
+    assert_eq!(rig.nodes(Role::Slider, "HSB hue").len(), 1, "the row's slider");
+    assert_eq!(rig.nodes(Role::Slider, "OKLCH hue").len(), 1, "the strip");
+}
+
+#[test]
+fn right_to_left_mirrors_the_full_layout_and_keeps_the_keys_of_area_and_strip() {
+    let mut rig = Rig::new(HsbModel.to_srgb(&[200.0, 50.0, 50.0, 0.0]));
+    crate::direction::apply(&rig.ctx, crate::direction::Direction::Rtl);
+    rig.settle();
+    let area = rig.rect(Role::Slider, "Saturation and brightness");
+    let strip = rig.rect(Role::Slider, "Hue");
+    let (hue, lightness) = (rig.rect(Role::SpinButton, "Hue"), rig.rect(Role::SpinButton, "Lightness"));
+    let radio = rig.rect(Role::RadioButton, "Hue");
+    assert!(strip.right() < area.left(), "the strip at the reading end of the area");
+    assert!(hue.right() < strip.left(), "the grid after the area and strip");
+    assert!(lightness.right() < hue.left(), "H S B R G B first, at the right");
+    assert!(radio.left() > hue.right(), "each radio and label before its field");
+
+    // The axes and the keys don't mirror: Right still raises saturation, Up brightness and hue.
+    rig.click(area.center());
+    let (s, b) = (rig.value(Role::SpinButton, "Saturation"), rig.value(Role::SpinButton, "Brightness"));
+    rig.events.clear();
+    rig.key(Key::ArrowRight);
+    rig.key(Key::ArrowUp);
+    rig.settle();
+    assert_eq!(kinds(&rig.events), ["Set", "Set"]);
+    assert_eq!((rig.value(Role::SpinButton, "Saturation"), rig.value(Role::SpinButton, "Brightness")), (s + 1.0, b + 1.0));
+    rig.click(strip.center());
+    let h = rig.value(Role::SpinButton, "Hue");
+    rig.key(Key::ArrowUp);
+    rig.settle();
+    assert_eq!(rig.value(Role::SpinButton, "Hue"), h + 1.0);
+}

@@ -118,7 +118,10 @@ pub struct ColorPickerResponse {
 /// - Tab: in a dialog's [`FieldTab`](crate::behavior::FieldTab) scope Tab visits the number
 ///   fields and the hex field; the area, the strip and the sliders are reached with Ctrl+Tab.
 /// - AccessKit: a `Group` named `label`; the channel fields and sliders are named by the
-///   channel's full name ("Hue"), the hex field "Hex colour", the eyedropper by the host's label.
+///   channel's full name ("Hue"), or "<model> <channel>" ("OKLCH hue") while another model on
+///   show has a channel of that name (the rows' and the area's models in Compact, every model in
+///   Full; the strip and the row label follow it); the hex field "Hex colour", the eyedropper by
+///   the host's label.
 ///   Full: the radios are a `RadioGroup` "Field shows" with a `RadioButton` per channel, named
 ///   by the channel's full name; the compare swatch's halves are an `Image` "New colour" and a
 ///   `Button` "Restore current colour", each with its colour's hex as value; each warning a
@@ -153,7 +156,8 @@ type Translate<'a> = dyn Fn(&str) -> String + 'a;
 impl ColorPicker<'_> {
     /// The picker's own words, English: the keys [`text`](ColorPicker::text) translates. The
     /// models' channel and model names go through it too, and the area's name is
-    /// "<across> and <down>" ("Saturation and brightness").
+    /// "<across> and <down>" ("Saturation and brightness"). A channel whose name another model
+    /// on show also has is named "<model> <channel>" ("OKLCH hue", "HSB hue").
     pub const TEXTS: [&'static str; 10] = [
         "Opacity",
         "Hex colour",
@@ -399,12 +403,13 @@ impl<'a> ColorPicker<'a> {
         let height = self.area_height.unwrap_or(style.area_height);
         let gap = Gap::Inline.points(&Tokens::of(ui));
         let area_width = (ui.available_width() - gap - ColorStrip::outer_width(&style, style.strip)).max(0.0);
-        self.area_and_strip(ui, mode, shown, inner, translate, constrain, edits, vec2(area_width, height), style.strip);
         let model = models.iter().copied().find(|m| Some(m.id()) == state.model).or_else(|| models.first().copied());
+        let visible: Vec<&dyn ColorModel> = model.into_iter().chain([mode.model()]).collect();
+        self.area_and_strip(ui, mode, &visible, shown, inner, translate, constrain, edits, vec2(area_width, height), style.strip);
         if let Some(model) = model {
             let (values, exact) = shown.values_in(model);
             for (i, ch) in model.channels().iter().enumerate() {
-                let name = translate(ch.name);
+                let name = channel_name(model, i, &visible, translate);
                 let unit = unit_of(ch.unit, translate);
                 let range = f64::from(ch.min)..=f64::from(ch.max);
                 let track = self.dynamic_tracks.then(|| model.track(i, &values));
@@ -447,12 +452,14 @@ impl<'a> ColorPicker<'a> {
         }
     }
 
-    /// The area `area` large and, at the reading end, the strip `strip` wide.
+    /// The area `area` large and, at the reading end, the strip `strip` wide. The strip and the
+    /// area's components are named as the `visible` models' channels are ([`channel_name`]).
     #[allow(clippy::too_many_arguments)]
     fn area_and_strip(
         &self,
         ui: &mut Ui,
         mode: AreaMode,
+        visible: &[&dyn ColorModel],
         shown: &Picked,
         inner: Inner,
         translate: &dyn Fn(&str) -> String,
@@ -468,13 +475,13 @@ impl<'a> ColorPicker<'a> {
         let area_name = translate(&format!("{} and {}", channels[across].name, channels[down].name.to_lowercase()));
         Row::new(Gap::Inline).show(ui, |ui| {
             let area = ColorArea::new("area", area_name, mode, values)
-                .channel_names(translate(channels[across].name), translate(channels[down].name))
+                .channel_names(channel_name(model, across, visible, translate), channel_name(model, down, visible, translate))
                 .size(area)
                 .policy(inner.policy)
                 .enabled(inner.enabled)
                 .show(ui);
             edits.push(&area, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
-            let strip = ColorStrip::new("strip", translate(channels[mode.strip()].name), mode, values)
+            let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
                 .size(vec2(strip, area.response.rect.height()))
                 .policy(inner.policy)
                 .enabled(inner.enabled)
@@ -569,8 +576,17 @@ fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], t
         .fold(0.0, f32::max)
 }
 
-/// A Compact slider row: the word label, which scrubs the number field at the row's end, then
-/// the slider under them; the field's and the slider's edits.
+/// Channel `channel` of `model`'s accessible name, translated: the channel's name, or
+/// "<model> <channel>" ("OKLCH hue") when another of the `visible` models has a channel of that
+/// name.
+fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> String {
+    let name = model.channels()[channel].name;
+    let clash = visible.iter().any(|m| m.id() != model.id() && m.channels().iter().any(|ch| ch.name == name));
+    if clash { translate(&format!("{} {}", model.name(), name.to_lowercase())) } else { translate(name) }
+}
+
+/// A Compact slider row: the word label `name`, which scrubs and names the number field at the
+/// row's end, then the slider under them; the field's and the slider's edits.
 #[allow(clippy::too_many_arguments)]
 fn slider_row(
     ui: &mut Ui,
