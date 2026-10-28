@@ -38,6 +38,7 @@ mod claim;
 mod crisp;
 pub(crate) mod guides;
 pub mod hit;
+pub(crate) mod marquee;
 mod readout;
 pub(crate) mod story;
 #[cfg(test)]
@@ -49,6 +50,7 @@ pub use ::kurbo;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
+pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use readout::{Readout, ReadoutStyle};
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
