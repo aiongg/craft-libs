@@ -10,9 +10,13 @@
 
 mod area;
 mod hex;
+mod palette;
 mod picker;
 #[cfg(test)]
 mod picker_tests;
+mod popover;
+#[cfg(test)]
+mod popover_tests;
 mod strip;
 #[cfg(test)]
 mod tests;
@@ -21,7 +25,9 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
+pub use palette::SwatchPalette;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, PickedColor};
+pub use popover::{ColorPopover, ColorPopoverResponse};
 pub use strip::ColorStrip;
 
 use crate::controls::slider::{self, Scale};
@@ -218,7 +224,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "SwatchPalette"];
 
 const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
 
@@ -247,6 +253,30 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_number("width", 260.0, 160.0, 480.0)
             },
             show: show_compact,
+        },
+        Story {
+            id: "composites/color/popover",
+            level: Level::Composites,
+            component: "ColorPopover",
+            name: "Popover",
+            args: || {
+                Args::new()
+                    .with_choice("size", crate::controls::SIZE_NAMES, 1)
+                    .with_bool("alpha", true)
+                    .with_bool("eyedropper", true)
+                    .with_bool("disabled", false)
+            },
+            show: show_popover,
+        },
+        Story {
+            id: "composites/color/palette",
+            level: Level::Composites,
+            component: "SwatchPalette",
+            name: "Palette",
+            args: || {
+                Args::new().with_choice("size", crate::controls::SIZE_NAMES, 1).with_number("width", 200.0, 60.0, 400.0).with_bool("disabled", false)
+            },
+            show: show_palette,
         },
     ]
 }
@@ -331,5 +361,69 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
             let text = model.channels().iter().enumerate().map(|(i, ch)| spoken(ch.label, model, i, values.values[i])).collect::<Vec<_>>().join(", ");
             ui.add(Text::new(format!("{}  {text}", color.to_rgba().to_hex().to_uppercase())));
         });
+    });
+}
+
+/// A colour popover on a colour that a palette under it also sets; the eyedropper "samples" orange
+/// at once.
+fn show_popover(ui: &mut Ui, args: &mut Args) {
+    let numbers = LocaleNumbers::from_tag("en");
+    let size = crate::controls::size_arg(args.choice("size"));
+    let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
+    slider::with_values(ui, "color-popover", [(start, String::new())], |ui, state| {
+        let (color, last) = &mut state[0];
+        let (alpha, eyedropper) = (args.bool("alpha"), args.bool("eyedropper"));
+        let popover =
+            ColorPopover::new("color-popover", "Fill colour", *color, &numbers).size(size).enabled(!args.bool("disabled")).picker(|picker| {
+                let picker = picker.alpha(alpha);
+                if eyedropper { picker.eyedropper("Pick screen color") } else { picker }
+            });
+        let shown = popover.show(ui);
+        if shown.eyedropper_requested
+            && let Some(id) = shown.picker_id
+        {
+            ColorPicker::sampled(ui.ctx(), id, craft_theme::Srgba::rgb(1.0, 0.6, 0.0));
+        }
+        if let Some(event) = &shown.edit.event {
+            if let Some(p) = event.value() {
+                *color = p.color;
+            }
+            *last = edit::describe(&event.clone().map(|p| p.color.to_rgba().to_hex()));
+        }
+        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
+    });
+}
+
+const PALETTE: [(&str, [u8; 3]); 12] = [
+    ("Red", [0xe5, 0x48, 0x4d]),
+    ("Orange", [0xf7, 0x6b, 0x15]),
+    ("Amber", [0xf5, 0xa5, 0x24]),
+    ("Yellow", [0xf5, 0xd9, 0x0a]),
+    ("Lime", [0x7a, 0xc5, 0x5c]),
+    ("Green", [0x30, 0xa4, 0x6c]),
+    ("Teal", [0x12, 0xa5, 0x94]),
+    ("Sky", [0x00, 0x9e, 0xe1]),
+    ("Blue", [0x3e, 0x63, 0xdd]),
+    ("Violet", [0x8e, 0x4e, 0xc6]),
+    ("Pink", [0xd6, 0x40, 0x9f]),
+    ("Grey", [0x88, 0x8d, 0x91]),
+];
+
+/// Twelve swatches wrapping to the width, choosing one colour.
+fn show_palette(ui: &mut Ui, args: &mut Args) {
+    let size = crate::controls::size_arg(args.choice("size"));
+    let start = craft_theme::Srgba::from(craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd));
+    slider::with_values(ui, "color-palette", [(start, String::new())], |ui, state| {
+        let (color, last) = &mut state[0];
+        ui.set_width(args.number("width") as f32);
+        let swatches = PALETTE.map(|(name, [r, g, b])| (name, craft_theme::Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
+        let picked = SwatchPalette::new("color-palette", "Swatches", *color, swatches).size(size).enabled(!args.bool("disabled")).show(ui);
+        if let Some(event) = &picked.event {
+            if let Some(c) = event.value() {
+                *color = *c;
+            }
+            *last = edit::describe(&event.clone().map(|c| c.to_rgba().to_hex()));
+        }
+        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
     });
 }
