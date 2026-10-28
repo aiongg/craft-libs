@@ -1,11 +1,14 @@
-//! Desktop colour preference through the XDG Settings portal.
+//! Desktop colour preference and GNOME's window-button layout through the XDG Settings portal.
 //!
 //! Derived from PdfCraft's activation-safe subscription and GNOME schema fallback,
 //! CADCraft's BSD support, and ArtCraft Launcher's ReadOne/Read compatibility.
 //! Palettes, manual choices and the fallback when no preference exists belong to the host.
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU8, Ordering},
+use std::{
+    sync::{
+        Arc, Condvar, Mutex, PoisonError,
+        atomic::{AtomicBool, AtomicU8, Ordering},
+    },
+    time::Duration,
 };
 
 /// Desktop color preference observed independently of the application palette.
@@ -20,6 +23,14 @@ pub enum Theme {
 struct Shared {
     value: AtomicU8,
     active: AtomicBool,
+    /// True once the source has answered, found no answer, or been cancelled.
+    settled: Mutex<bool>,
+    settled_changed: Condvar,
+    /// GNOME's `button-layout` as the desktop reported it; `None` until an answer arrives.
+    layout: Mutex<Option<String>>,
+    /// `XDG_CURRENT_DESKTOP` names GNOME; read once when the watcher starts.
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    gnome: bool,
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     wake: Box<dyn Fn() + Send + Sync>,
 }
@@ -32,13 +43,32 @@ impl Shared {
         }
     }
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn settle(&self) {
+        *self.settled.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.settled_changed.notify_all();
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     fn publish(&self, theme: Option<Theme>) {
         let code = match theme {
             Some(Theme::Dark) => 1,
             Some(Theme::Light) => 2,
             None => 0,
         };
-        if self.value.swap(code, Ordering::AcqRel) != code && self.active.load(Ordering::Acquire) {
+        let changed = self.value.swap(code, Ordering::AcqRel) != code;
+        self.settle();
+        if changed && self.active.load(Ordering::Acquire) {
+            (self.wake)();
+        }
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_layout(&self, layout: String) {
+        let mut current = self.layout.lock().unwrap_or_else(PoisonError::into_inner);
+        if current.as_deref() == Some(layout.as_str()) {
+            return;
+        }
+        *current = Some(layout);
+        drop(current);
+        if self.active.load(Ordering::Acquire) {
             (self.wake)();
         }
     }
@@ -81,6 +111,30 @@ impl Watcher {
     pub fn current(&self) -> Option<Theme> {
         self.shared.get()
     }
+    /// GNOME's `org.gnome.desktop.wm.preferences` `button-layout` as the desktop reports it, such
+    /// as `appmenu:minimize,close`; an empty string is an answer too. `None` until the portal or
+    /// the `gsettings` fallback has answered, and on targets without a desktop watcher.
+    ///
+    /// It comes over the same connection as the theme, and a change runs the same wake callback.
+    /// Only a GNOME-family window manager follows this setting; `craft_window::policy::LayoutWatch`
+    /// decides when it applies. [`Watcher::wait_first`] does not wait for it.
+    pub fn button_layout(&self) -> Option<String> {
+        self.shared.layout.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+    /// Block until the first answer is known, then return it; at most `timeout`.
+    ///
+    /// Returns early, with `current()`, when the portal is absent and the `gsettings` fallback
+    /// found nothing, or when the desktop reports no preference. Call it once while building the
+    /// first frame so a light desktop does not flash dark:
+    ///
+    /// ```ignore
+    /// let theme = watcher.wait_first(std::time::Duration::from_millis(250));
+    /// ```
+    pub fn wait_first(&self, timeout: Duration) -> Option<Theme> {
+        let settled = self.shared.settled.lock().unwrap_or_else(PoisonError::into_inner);
+        drop(self.shared.settled_changed.wait_timeout_while(settled, timeout, |settled| !*settled).unwrap_or_else(PoisonError::into_inner));
+        self.current()
+    }
     /// Enable or suppress future change notifications without stopping observation.
     /// Changing this flag does not itself wake the host or clear the cached preference.
     pub fn set_active(&self, active: bool) {
@@ -92,7 +146,16 @@ impl Watcher {
         wake: impl Fn() + Send + Sync + 'static,
         source: impl FnOnce(Arc<Shared>) -> F + Send + 'static,
     ) -> Option<Self> {
-        let shared = Arc::new(Shared { value: AtomicU8::new(0), active: AtomicBool::new(active), wake: Box::new(wake) });
+        let gnome = is_gnome(std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref());
+        let shared = Arc::new(Shared {
+            value: AtomicU8::new(0),
+            active: AtomicBool::new(active),
+            settled: Mutex::new(false),
+            settled_changed: Condvar::new(),
+            layout: Mutex::new(None),
+            gnome,
+            wake: Box::new(wake),
+        });
         let worker_shared = Arc::clone(&shared);
         let (stop, stopped) = async_channel::bounded::<()>(1);
         let (done, finished) = std::sync::mpsc::channel();
@@ -103,8 +166,9 @@ impl Watcher {
                     async {
                         let _ = stopped.recv().await;
                     },
-                    source(worker_shared),
+                    source(Arc::clone(&worker_shared)),
                 ));
+                worker_shared.settle();
                 let _ = done.send(());
             })
             .ok()?;
@@ -116,6 +180,7 @@ impl Drop for Watcher {
         self.set_active(false);
         #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
         {
+            self.shared.settle();
             self.stop.close();
             if let Some(worker) = self.worker.take() {
                 let _ = self.finished.recv_timeout(std::time::Duration::from_millis(100));
@@ -127,6 +192,12 @@ impl Drop for Watcher {
             }
         }
     }
+}
+
+/// Whether a colon-separated `XDG_CURRENT_DESKTOP` value names GNOME.
+#[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+fn is_gnome(desktop: Option<&str>) -> bool {
+    desktop.is_some_and(|list| list.split(':').any(|name| name.eq_ignore_ascii_case("gnome")))
 }
 
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
@@ -141,31 +212,49 @@ mod portal {
     const STANDARD: &str = "org.freedesktop.appearance";
     const GNOME: &str = "org.gnome.desktop.interface";
     const KEY: &str = "color-scheme";
+    const WM: &str = "org.gnome.desktop.wm.preferences";
+    const LAYOUT_KEY: &str = "button-layout";
     const TIMEOUT: Duration = Duration::from_secs(2);
 
     // Outer None means unknown/malformed; Some(None) is an explicit no-preference answer.
-    fn decode(namespace: &str, value: &Value<'_>) -> Option<Option<Theme>> {
+    // GNOME 42-46 writes 'default' (portal value 0) for Settings > Appearance > Light, so on GNOME
+    // both mean light; elsewhere both are no preference.
+    fn decode(namespace: &str, value: &Value<'_>, gnome: bool) -> Option<Option<Theme>> {
         match (namespace, value) {
             (STANDARD, Value::U32(n)) => Some(match n {
                 1 => Some(Theme::Dark),
                 2 => Some(Theme::Light),
+                0 if gnome => Some(Theme::Light),
                 _ => None,
             }),
             (GNOME, Value::Str(s)) => Some(match s.as_str() {
                 "prefer-dark" => Some(Theme::Dark),
                 "prefer-light" => Some(Theme::Light),
+                "default" if gnome => Some(Theme::Light),
                 _ => None,
             }),
             _ => None,
         }
     }
-    fn reply(namespace: &str, value: &Value<'_>, legacy: bool) -> Option<Option<Theme>> {
-        if legacy {
-            let Value::Value(inner) = value else { return None };
-            decode(namespace, inner)
-        } else {
-            decode(namespace, value)
+    // The legacy `Read` wraps the value in one more variant; anything else is malformed.
+    fn unwrap_legacy<'a>(value: &'a Value<'a>, legacy: bool) -> Option<&'a Value<'a>> {
+        match (legacy, value) {
+            (false, value) => Some(value),
+            (true, Value::Value(inner)) => Some(inner),
+            (true, _) => None,
         }
+    }
+    fn reply(namespace: &str, value: &Value<'_>, legacy: bool, gnome: bool) -> Option<Option<Theme>> {
+        decode(namespace, unwrap_legacy(value, legacy)?, gnome)
+    }
+    // `None` means malformed. Any string is an answer, the empty one included: what the buttons
+    // mean, and what an unusable layout falls back to, is craft-window's call.
+    fn decode_layout(value: &Value<'_>) -> Option<String> {
+        let Value::Str(s) = value else { return None };
+        Some(s.as_str().trim().to_string())
+    }
+    fn layout_reply(value: &Value<'_>, legacy: bool) -> Option<String> {
+        decode_layout(unwrap_legacy(value, legacy)?)
     }
     fn combined(standard: Option<Option<Theme>>, gnome: Option<Option<Theme>>) -> Option<Option<Theme>> {
         if standard.is_none() && gnome.is_none() { None } else { Some(standard.flatten().or(gnome.flatten())) }
@@ -177,25 +266,28 @@ mod portal {
         })
         .await
     }
-    async fn read(connection: &zbus::Connection, namespace: &str) -> Option<Option<Theme>> {
+    async fn read_with<T>(connection: &zbus::Connection, namespace: &str, key: &str, answer: impl Fn(&Value<'_>, bool) -> Option<T>) -> Option<T> {
         for (method, legacy) in [("ReadOne", false), ("Read", true)] {
-            if let Some(Ok(message)) = bounded(connection.call_method(Some(DEST), PATH, Some(IFACE), method, &(namespace, KEY))).await
+            if let Some(Ok(message)) = bounded(connection.call_method(Some(DEST), PATH, Some(IFACE), method, &(namespace, key))).await
                 && let Ok(value) = message.body().deserialize::<OwnedValue>()
-                && let Some(answer) = reply(namespace, &value, legacy)
+                && let Some(answer) = answer(&value, legacy)
             {
                 return Some(answer);
             }
         }
         None
     }
-    fn rule() -> zbus::Result<zbus::MatchRule<'static>> {
+    async fn read(connection: &zbus::Connection, namespace: &str, gnome: bool) -> Option<Option<Theme>> {
+        read_with(connection, namespace, KEY, |value, legacy| reply(namespace, value, legacy, gnome)).await
+    }
+    fn rule(key: &'static str) -> zbus::Result<zbus::MatchRule<'static>> {
         Ok(zbus::MatchRule::builder()
             .msg_type(zbus::message::Type::Signal)
             .sender(DEST)?
             .path(PATH)?
             .interface(IFACE)?
             .member("SettingChanged")?
-            .arg(1, KEY)?
+            .arg(1, key)?
             .build())
     }
     fn owner_rule() -> zbus::Result<zbus::MatchRule<'static>> {
@@ -207,12 +299,55 @@ mod portal {
             .arg(0, DEST)?
             .build())
     }
+    /// The one-shot `gsettings` reads used when the portal can't answer, each at most once per
+    /// watcher, and the `PATH` they search.
+    pub(super) struct Fallbacks {
+        theme_used: bool,
+        layout_used: bool,
+        path: Option<std::ffi::OsString>,
+    }
+    impl Fallbacks {
+        fn from_env() -> Self {
+            Self { theme_used: false, layout_used: false, path: std::env::var_os("PATH") }
+        }
+        #[cfg(test)]
+        pub(super) fn used() -> Self {
+            Self { theme_used: true, layout_used: true, path: None }
+        }
+        async fn get(&self, schema: &str, key: &str) -> Option<String> {
+            let exe = gsettings_exe(self.path.as_deref())?;
+            let text = crate::process::capture(&exe, &["get", schema, key], TIMEOUT).await?;
+            Some(text.trim().trim_matches('\'').to_string())
+        }
+        async fn theme(&mut self, shared: &Shared) {
+            if std::mem::replace(&mut self.theme_used, true) {
+                return;
+            }
+            if let Some(text) = self.get(GNOME, KEY).await
+                && let Some(answer) = decode(GNOME, &Value::from(text.as_str()), shared.gnome)
+            {
+                shared.publish(answer);
+            }
+        }
+        async fn layout(&mut self, shared: &Shared) {
+            if std::mem::replace(&mut self.layout_used, true) {
+                return;
+            }
+            if let Some(text) = self.get(WM, LAYOUT_KEY).await
+                && let Some(answer) = decode_layout(&Value::from(text.as_str()))
+            {
+                shared.publish_layout(answer);
+            }
+        }
+    }
     pub(super) async fn watch(shared: Arc<Shared>) {
         let mut retry = Duration::from_secs(5);
-        let mut fallback_used = false;
+        let mut fallbacks = Fallbacks::from_env();
         loop {
             let mut connected = false;
-            let _ = session(&shared, &mut fallback_used, &mut connected).await;
+            let _ = session(&shared, &mut fallbacks, &mut connected).await;
+            // No session bus, no portal and an empty fallback all end here without a publish.
+            shared.settle();
             if connected {
                 retry = Duration::from_secs(5);
             }
@@ -226,67 +361,74 @@ mod portal {
         let dirs = path.map(std::env::split_paths).into_iter().flatten().filter(|p| p.is_absolute());
         dirs.chain(["/usr/bin", "/bin", "/usr/local/bin"].map(std::path::PathBuf::from)).map(|p| p.join("gsettings")).find(|p| p.is_file())
     }
-    async fn fallback(shared: &Shared, used: &mut bool) {
-        if *used {
-            return;
-        }
-        *used = true;
-        if let Some(exe) = gsettings_exe(std::env::var_os("PATH").as_deref())
-            && let Some(text) = crate::process::capture(&exe, &["get", GNOME, KEY], TIMEOUT).await
-        {
-            let text = text.trim().trim_matches('\'');
-            if let Some(answer) = decode(GNOME, &Value::from(text)) {
-                shared.publish(answer);
-            }
-        }
-    }
-    async fn session(shared: &Shared, fallback_used: &mut bool, connected: &mut bool) -> Option<()> {
+    async fn session(shared: &Shared, fallbacks: &mut Fallbacks, connected: &mut bool) -> Option<()> {
         let connection = match zbus::connection::Builder::session() {
             Ok(builder) => bounded(builder.method_timeout(TIMEOUT).build()).await.and_then(Result::ok),
             Err(_) => None,
         };
         let Some(connection) = connection else {
-            fallback(shared, fallback_used).await;
+            fallbacks.theme(shared).await;
+            fallbacks.layout(shared).await;
             return None;
         };
-        watch_connection(shared, fallback_used, connected, connection).await
+        watch_connection(shared, fallbacks, connected, connection).await
     }
-    async fn watch_connection(shared: &Shared, fallback_used: &mut bool, connected: &mut bool, connection: zbus::Connection) -> Option<()> {
+    enum Event {
+        Setting(zbus::Result<zbus::Message>),
+        Owner(zbus::Result<zbus::Message>),
+    }
+    async fn watch_connection(shared: &Shared, fallbacks: &mut Fallbacks, connected: &mut bool, connection: zbus::Connection) -> Option<()> {
         // MatchRule installs before activation: unlike a proxy subscription it needs no current owner.
-        let mut changes = bounded(zbus::MessageStream::for_match_rule(rule().ok()?, &connection, Some(64))).await?.ok()?;
+        let mut changes = bounded(zbus::MessageStream::for_match_rule(rule(KEY).ok()?, &connection, Some(64))).await?.ok()?;
+        let mut layouts = bounded(zbus::MessageStream::for_match_rule(rule(LAYOUT_KEY).ok()?, &connection, Some(8))).await?.ok()?;
         let mut owners = bounded(zbus::MessageStream::for_match_rule(owner_rule().ok()?, &connection, Some(8))).await?.ok()?;
-        let mut standard = read(&connection, STANDARD).await;
-        let mut gnome = read(&connection, GNOME).await;
+        let mut standard = read(&connection, STANDARD, shared.gnome).await;
+        let mut gnome = read(&connection, GNOME, shared.gnome).await;
         match combined(standard, gnome) {
             Some(answer) => {
                 *connected = true;
                 shared.publish(answer);
             }
             None => {
-                fallback(shared, fallback_used).await;
+                fallbacks.theme(shared).await;
+                fallbacks.layout(shared).await;
                 return None;
             }
         }
+        // Read after the theme is published so `wait_first` never waits for the layout.
+        match read_with(&connection, WM, LAYOUT_KEY, layout_reply).await {
+            Some(layout) => shared.publish_layout(layout),
+            None => fallbacks.layout(shared).await,
+        }
         loop {
-            let message =
-                futures_lite::future::race(async { changes.next().await.map(|m| (false, m)) }, async { owners.next().await.map(|m| (true, m)) })
-                    .await?;
-            let (owner, message) = message;
-            let message = message.ok()?;
-            if owner {
-                // Activation is already covered by the initial read. Loss/replacement reconnects.
-                if let Ok((_, old, _)) = message.body().deserialize::<(String, String, String)>()
-                    && !old.is_empty()
-                {
-                    return None;
+            let event = futures_lite::future::race(
+                futures_lite::future::race(async { changes.next().await.map(Event::Setting) }, async { layouts.next().await.map(Event::Setting) }),
+                async { owners.next().await.map(Event::Owner) },
+            )
+            .await?;
+            let message = match event {
+                Event::Owner(message) => {
+                    // Activation is already covered by the initial read. Loss/replacement reconnects.
+                    if let Ok((_, old, _)) = message.ok()?.body().deserialize::<(String, String, String)>()
+                        && !old.is_empty()
+                    {
+                        return None;
+                    }
+                    continue;
+                }
+                Event::Setting(message) => message.ok()?,
+            };
+            let Ok((namespace, key, value)) = message.body().deserialize::<(String, String, OwnedValue)>() else { continue };
+            if (namespace.as_str(), key.as_str()) == (WM, LAYOUT_KEY) {
+                if let Some(layout) = decode_layout(&value) {
+                    shared.publish_layout(layout);
                 }
                 continue;
             }
-            let Ok((namespace, key, value)) = message.body().deserialize::<(String, String, OwnedValue)>() else { continue };
             if key != KEY {
                 continue;
             }
-            let Some(answer) = decode(&namespace, &value) else { continue };
+            let Some(answer) = decode(&namespace, &value, shared.gnome) else { continue };
             match namespace.as_str() {
                 STANDARD => standard = Some(answer),
                 GNOME => gnome = Some(answer),
@@ -322,7 +464,66 @@ mod portal {
             Ok(())
         }
 
+        #[test]
+        fn button_layout_decodes_strings_verbatim_and_ignores_malformed_values() {
+            use super::{decode_layout, layout_reply};
+            assert_eq!(decode_layout(&Value::from("appmenu:minimize,close")).as_deref(), Some("appmenu:minimize,close"));
+            assert_eq!(decode_layout(&Value::from(" close: ")).as_deref(), Some("close:"));
+            // Empty is the desktop's answer; craft-window maps it to the desktop's default.
+            assert_eq!(decode_layout(&Value::from("")).as_deref(), Some(""));
+            assert_eq!(decode_layout(&Value::U32(1)), None);
+            assert_eq!(decode_layout(&Value::Bool(true)), None);
+            let wrapped = Value::Value(Box::new(Value::from("close,minimize:")));
+            assert_eq!(layout_reply(&wrapped, true).as_deref(), Some("close,minimize:"));
+            assert_eq!(layout_reply(&wrapped, false), None);
+            assert_eq!(layout_reply(&Value::from("close:"), true), None);
+            assert_eq!(layout_reply(&Value::from("close:"), false).as_deref(), Some("close:"));
+        }
+        #[test]
+        fn without_a_portal_gsettings_supplies_theme_and_button_layout() -> Result<(), Box<dyn std::error::Error>> {
+            use std::os::unix::fs::PermissionsExt;
+            struct Fixture(std::path::PathBuf);
+            impl Drop for Fixture {
+                fn drop(&mut self) {
+                    let _ = std::fs::remove_dir_all(&self.0);
+                }
+            }
+            let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
+            let directory = std::env::temp_dir().join(format!("craft-platform-layout-fallback-{}-{nonce}", std::process::id()));
+            std::fs::create_dir(&directory)?;
+            let fixture = Fixture(directory);
+            let helper = fixture.0.join("gsettings");
+            std::fs::write(
+                &helper,
+                "#!/bin/sh\ncase \"$2 $3\" in\n\
+                 'org.gnome.desktop.wm.preferences button-layout') echo \"'close,minimize:appmenu'\" ;;\n\
+                 'org.gnome.desktop.interface color-scheme') echo \"'prefer-dark'\" ;;\n\
+                 *) exit 1 ;;\nesac\n",
+            )?;
+            std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755))?;
+            let path = fixture.0.clone().into_os_string();
+            let watcher = Watcher::spawn(
+                false,
+                || {},
+                move |shared| async move {
+                    let mut fallbacks = super::Fallbacks { theme_used: false, layout_used: false, path: Some(path) };
+                    fallbacks.theme(&shared).await;
+                    fallbacks.layout(&shared).await;
+                },
+            )
+            .ok_or("worker creation failed")?;
+            assert_eq!(watcher.wait_first(Duration::from_secs(2)), Some(Theme::Dark));
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while watcher.button_layout().is_none() {
+                assert!(std::time::Instant::now() < deadline, "gsettings layout was not published");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(watcher.button_layout().as_deref(), Some("close,minimize:appmenu"));
+            Ok(())
+        }
+
         use super::{GNOME, STANDARD, combined, decode, reply};
+        use crate::appearance::is_gnome;
         use crate::appearance::{Theme, Watcher};
         use std::{
             sync::{Arc, atomic::Ordering},
@@ -339,18 +540,70 @@ mod portal {
         }
         #[test]
         fn malformed_is_distinct_from_no_preference_and_legacy_is_exact() {
-            assert_eq!(decode(STANDARD, &Value::U32(0)), Some(None));
-            assert_eq!(decode(STANDARD, &Value::U32(77)), Some(None));
-            assert_eq!(decode(STANDARD, &Value::from("dark")), None);
-            assert_eq!(reply(STANDARD, &Value::Value(Box::new(Value::U32(1))), true), Some(Some(Theme::Dark)));
-            assert_eq!(reply(STANDARD, &Value::U32(1), true), None);
-            assert_eq!(reply(STANDARD, &Value::Value(Box::new(Value::Value(Box::new(Value::U32(1))))), true), None);
-            assert_eq!(decode(STANDARD, &Value::Value(Box::new(Value::U32(1)))), None);
-            assert_eq!(decode(STANDARD, &Value::I32(1)), None);
-            assert_eq!(decode(GNOME, &Value::from("default")), Some(None));
-            assert_eq!(decode(GNOME, &Value::U32(1)), None);
-
-            assert_eq!(reply(GNOME, &Value::from("prefer-light"), false), Some(Some(Theme::Light)));
+            assert_eq!(decode(STANDARD, &Value::U32(0), false), Some(None));
+            assert_eq!(decode(STANDARD, &Value::U32(77), false), Some(None));
+            assert_eq!(decode(STANDARD, &Value::from("dark"), false), None);
+            assert_eq!(reply(STANDARD, &Value::Value(Box::new(Value::U32(1))), true, false), Some(Some(Theme::Dark)));
+            assert_eq!(reply(STANDARD, &Value::U32(1), true, false), None);
+            assert_eq!(reply(STANDARD, &Value::Value(Box::new(Value::Value(Box::new(Value::U32(1))))), true, false), None);
+            assert_eq!(decode(STANDARD, &Value::Value(Box::new(Value::U32(1))), false), None);
+            assert_eq!(decode(STANDARD, &Value::I32(1), false), None);
+            assert_eq!(decode(GNOME, &Value::U32(1), false), None);
+            assert_eq!(reply(GNOME, &Value::from("prefer-light"), false, false), Some(Some(Theme::Light)));
+        }
+        #[test]
+        fn gnome_light_setting_reads_as_light_and_zero_is_no_preference_elsewhere() {
+            assert_eq!(decode(GNOME, &Value::from("default"), true), Some(Some(Theme::Light)));
+            // A GNOME schema installed on another desktop doesn't make that desktop light.
+            assert_eq!(decode(GNOME, &Value::from("default"), false), Some(None));
+            assert_eq!(decode(GNOME, &Value::from("prefer-dark"), false), Some(Some(Theme::Dark)));
+            assert_eq!(decode(GNOME, &Value::from("prefer-light"), false), Some(Some(Theme::Light)));
+            assert_eq!(decode(STANDARD, &Value::U32(0), true), Some(Some(Theme::Light)));
+            assert_eq!(decode(STANDARD, &Value::U32(0), false), Some(None));
+            for gnome in [true, false] {
+                assert_eq!(decode(STANDARD, &Value::U32(1), gnome), Some(Some(Theme::Dark)));
+                assert_eq!(decode(STANDARD, &Value::U32(2), gnome), Some(Some(Theme::Light)));
+            }
+            assert!(is_gnome(Some("GNOME")));
+            assert!(is_gnome(Some("ubuntu:GNOME")));
+            assert!(is_gnome(Some("gnome-classic:gnome")));
+            assert!(!is_gnome(Some("KDE")));
+            assert!(!is_gnome(Some("X-Cinnamon")));
+            assert!(!is_gnome(None));
+        }
+        fn spawn_idle(source: impl FnOnce(Arc<crate::appearance::Shared>) + Send + 'static) -> Result<Watcher, &'static str> {
+            Watcher::spawn(false, || {}, move |shared| async move { source(shared) }).ok_or("worker creation failed")
+        }
+        #[test]
+        fn wait_first_returns_at_once_after_a_publish() -> Result<(), Box<dyn std::error::Error>> {
+            let watcher = spawn_idle(|shared| {
+                shared.publish(Some(Theme::Light));
+                std::thread::sleep(Duration::from_millis(500));
+            })?;
+            let started = std::time::Instant::now();
+            assert_eq!(watcher.wait_first(Duration::from_secs(2)), Some(Theme::Light));
+            assert!(started.elapsed() < Duration::from_secs(1));
+            Ok(())
+        }
+        #[test]
+        fn wait_first_times_out_without_an_answer_and_drop_stays_bounded() -> Result<(), Box<dyn std::error::Error>> {
+            let watcher = Watcher::spawn(false, || {}, |_| futures_lite::future::pending::<()>()).ok_or("worker creation failed")?;
+            let started = std::time::Instant::now();
+            assert_eq!(watcher.wait_first(Duration::from_millis(50)), None);
+            assert!(started.elapsed() >= Duration::from_millis(50));
+            drop(watcher);
+            Ok(())
+        }
+        #[test]
+        fn wait_first_returns_early_for_no_preference_and_for_a_source_that_ends_empty() -> Result<(), Box<dyn std::error::Error>> {
+            let none = spawn_idle(|shared| shared.publish(None))?;
+            let ended = spawn_idle(|_| {})?;
+            for watcher in [none, ended] {
+                let started = std::time::Instant::now();
+                assert_eq!(watcher.wait_first(Duration::from_secs(2)), None);
+                assert!(started.elapsed() < Duration::from_secs(1));
+            }
+            Ok(())
         }
         #[test]
         fn manual_cache_changes_do_not_wake_and_drop_cancels_pending_source() -> Result<(), Box<dyn std::error::Error>> {
