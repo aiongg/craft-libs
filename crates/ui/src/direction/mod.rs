@@ -412,10 +412,13 @@ pub enum Unmirrored {
     Number,
     /// Timecodes, durations and frame counters.
     Timecode,
+    /// Key chords: their keys keep the order they are pressed in and the platform writes them in
+    /// (`Ctrl+Shift+S`, `⇧⌘S`), the same in right-to-left locales.
+    KeyChord,
 }
 
 impl Unmirrored {
-    pub const ALL: [Unmirrored; 11] = [
+    pub const ALL: [Unmirrored; 12] = [
         Unmirrored::Canvas,
         Unmirrored::Image,
         Unmirrored::Ruler,
@@ -427,6 +430,7 @@ impl Unmirrored {
         Unmirrored::Code,
         Unmirrored::Number,
         Unmirrored::Timecode,
+        Unmirrored::KeyChord,
     ];
 }
 

@@ -262,9 +262,12 @@ fn swatch() {
             d.line(&format!("size.{name}.side"), Swatch::style(t, size).side);
         }
         let s = Swatch::style(t, ControlSize::Md);
-        d.line("radius", s.radius)
-            .line("edge.outer", s.edge_outer)
-            .line("edge.inner", s.edge_inner)
+        d.line("inset", s.inset)
+            .line("radius", s.radius)
+            .line("outline_radius", Swatch::outline_radius(&s))
+            .line("edge", s.edge)
+            .line("inner_edge.panel", s.inner_edge(Some(t.color.surface.panel)))
+            .line("inner_edge.mixed", s.inner_edge(None))
             .line("checker.a", s.checker[0])
             .line("checker.b", s.checker[1])
             .line("selected", s.selected)

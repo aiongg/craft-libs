@@ -5,6 +5,8 @@
 //!   suite's test languages; its items are re-exported here.
 //! - [`a11y`] (`screen-testing` feature, desktop): role, label, Tab order and focus ring checks
 //!   on a kittest harness.
+//! - [`symbols`] (`screen-testing` feature, desktop): craft-fonts' symbol faces for a kittest
+//!   harness, from `CRAFT_FONTS_DIR`.
 
 pub mod dump;
 
@@ -14,6 +16,8 @@ pub mod a11y;
 pub mod screens;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub use screens::*;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+pub mod symbols;
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;

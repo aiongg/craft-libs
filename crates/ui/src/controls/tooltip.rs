@@ -4,6 +4,7 @@ use egui::accesskit::Role;
 use egui::{Frame, KeyboardShortcut, Margin, Response, Shadow, Stroke, Ui};
 
 use super::Kbd;
+use crate::direction;
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, UiTokens};
@@ -54,11 +55,12 @@ impl Tooltip {
 ///
 /// Egui's timing and placement apply. Each helper also describes the widget for a screen reader
 /// (the tooltip text is its description, and its name when it has none, as egui's
-/// `on_hover_text` does).
+/// `on_hover_text` does); [`tooltip_with`](TooltipExt::tooltip_with) gives it the keyboard
+/// shortcut as well.
 pub trait TooltipExt: Sized {
     /// A tooltip with `text`.
     fn tooltip(self, text: impl Into<String>) -> Self;
-    /// A tooltip with `text` and its keyboard shortcut after it in a [`Kbd`].
+    /// A tooltip with `text` and its keyboard shortcut after it in reading order, in a [`Kbd`].
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self;
     /// A tooltip with any contents.
     fn tooltip_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self;
@@ -67,7 +69,7 @@ pub trait TooltipExt: Sized {
 impl TooltipExt for Response {
     fn tooltip(self, text: impl Into<String>) -> Self {
         let text = text.into();
-        describe(&self, &text);
+        describe(&self, &text, None);
         self.tooltip_ui(|ui| {
             ui.add(Text::new(text));
         })
@@ -75,10 +77,10 @@ impl TooltipExt for Response {
 
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self {
         let text = text.into();
-        let spoken = format!("{text} ({})", shortcut.format(&egui::ModifierNames::NAMES, super::kbd::is_mac(self.ctx.os())));
-        describe(&self, &spoken);
+        let keys = shortcut.format(&egui::ModifierNames::NAMES, super::kbd::is_mac(self.ctx.os()));
+        describe(&self, &text, Some(&keys));
         self.tooltip_ui(|ui| {
-            ui.horizontal_wrapped(|ui| {
+            ui.with_layout(direction::row(ui).with_main_wrap(true), |ui| {
                 ui.add(Text::new(text));
                 ui.add(Kbd::new(shortcut));
             });
@@ -95,11 +97,15 @@ impl TooltipExt for Response {
     }
 }
 
-/// The description egui's `on_hover_text` gives: only for a widget that already has a node.
-fn describe(response: &Response, text: &str) {
+/// The description egui's `on_hover_text` gives, and the keyboard `shortcut` in its spoken names:
+/// only for a widget that already has a node.
+fn describe(response: &Response, text: &str, shortcut: Option<&str>) {
     let ctx = &response.ctx;
     if ctx.has_accesskit_node(response.id) {
         ctx.accesskit_node_builder(response.id, |node| {
+            if let Some(shortcut) = shortcut {
+                node.set_keyboard_shortcut(shortcut);
+            }
             if node.description().is_none() {
                 node.set_description(text);
             }

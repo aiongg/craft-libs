@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 use craft_theme::{Contrast, Mode, Size};
 use craft_ui::story::{Args, Story, registry};
+use craft_ui::testing::symbols;
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
 use egui::{Align, Frame, Layout, Margin, RichText, Ui, vec2};
 use egui_kittest::Harness;
@@ -82,14 +83,15 @@ fn render(stories: &[Story]) -> image::RgbaImage {
     let args: Vec<Vec<Args>> = stories.iter().map(|s| APPEARANCES.iter().map(|_| s.defaults()).collect()).collect();
     let stories = stories.to_vec();
     let width = NAME_WIDTH + CELL_WIDTH * APPEARANCES.len() as f32 + 64.0;
-    let mut harness = Harness::builder()
-        .with_size([width, 4000.0])
-        .with_accessibility_check(false)
-        // The Kbd stories write the macOS key symbols, which the suite's symbol face draws and this
-        // harness does not install.
-        .allow_missing_glyphs()
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(move |ui, args: &mut Vec<Vec<Args>>| sheet(ui, &stories, args), args);
+    let mut builder = Harness::builder().with_size([width, 4000.0]).with_accessibility_check(false).with_context_setup(|ctx| {
+        install(ctx, &Base::suite_default());
+        symbols::install(ctx);
+    });
+    // The Kbd stories write the macOS key symbols, which craft-fonts' symbol faces draw.
+    if !symbols::available() && stories.iter().any(|s| s.id.starts_with("controls/kbd/")) {
+        builder = builder.allow_missing_glyphs();
+    }
+    let mut harness = builder.build_ui_state(move |ui, args: &mut Vec<Vec<Args>>| sheet(ui, &stories, args), args);
     harness.fit_contents();
     // A loading button's spinner repaints every frame, so the sheet never settles completely.
     let _ = harness.run_ok();

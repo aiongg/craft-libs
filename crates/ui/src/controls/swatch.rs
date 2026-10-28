@@ -1,13 +1,13 @@
 //! [`Swatch`]: a colour well.
 
-use craft_theme::ControlSize;
+use craft_theme::{ControlSize, Rgba, SwatchTokens};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, IdSalt, Rect, Response, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
 
 use super::{SIZE_NAMES, size_arg};
-use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, Text};
+use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
@@ -19,44 +19,56 @@ const CHECKER_CELLS: usize = 5;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SwatchStyle {
-    /// Side of the well: `swatch.size`.
+    /// Side of the swatch: `swatch.size`.
     pub side: f32,
-    /// `swatch.radius`.
+    /// From the swatch's outline to the well: the selection ring's room, `swatch.selected_gap`
+    /// and `swatch.selected_width`.
+    pub inset: f32,
+    /// The well's corners: `swatch.radius`. The rings around it are concentric.
     pub radius: CornerRadius,
-    /// The ring on the outline, one point wide: `swatch.edge.outer`.
-    pub edge_outer: Color32,
-    /// The ring just inside it, one point wide: `swatch.edge.inner`.
-    pub edge_inner: Color32,
+    /// The ring on the well's outline, one point wide: `swatch.edge`.
+    pub edge: Color32,
     /// The checkerboard behind a translucent colour: `swatch.checker.a` holds the corners,
     /// `swatch.checker.b` the other cells.
     pub checker: [Color32; 2],
-    /// The ring outside the well while selected: `swatch.selected`, `swatch.selected_width` wide.
+    /// The ring outside the well while selected: `swatch.selected`, `swatch.selected_width` wide,
+    /// `swatch.selected_gap` from the well.
     pub selected: Stroke,
     /// The well of a mixed value: `swatch.mixed.fill`.
     pub mixed_fill: Color32,
     /// The dash on a mixed well: `swatch.mixed.mark`.
     pub mixed_mark: Color32,
+    tokens: SwatchTokens,
+}
+
+impl SwatchStyle {
+    /// The ring just inside the edge of a well showing `color`, or the mixed well for `None`:
+    /// black or white at partial alpha, whichever stands out from the colour.
+    pub fn inner_edge(&self, color: Option<Rgba>) -> Color32 {
+        self.tokens.inner_edge(color.unwrap_or(self.tokens.mixed_fill)).to_egui()
+    }
 }
 
 /// A colour well: `if ui.add(Swatch::new("fill", "Fill colour", colour)).clicked() { open_picker }`.
 ///
 /// It shows `color` over a checkerboard where it has alpha, inside two one-point rings: the outer
-/// ring (`line.control_edge`) separates the well from the panel and the inner one (`surface.raised`)
-/// from the colour, so the well's bounds show whatever the colour. A click is the host's cue to
-/// open its picker; the swatch edits nothing. AccessKit sees a button named by `label` whose value
-/// is the colour as `#rrggbb` (`#rrggbbaa` when translucent).
+/// ring (`line.control_edge`) separates the well from the panel, and the inner one, black or
+/// white at partial alpha by the colour's lightness, from the colour, so the well's bounds show
+/// whatever the colour. A click is the host's cue to open its picker; the swatch edits nothing.
+/// AccessKit sees a button named by `label` whose value is the colour as `#rrggbb` (`#rrggbbaa`
+/// when translucent).
 ///
 /// [`mixed`](Swatch::mixed) shows the look of several objects with different colours: a neutral
 /// well with a dash and no colour value. [`selected`](Swatch::selected) puts the selection ring
-/// outside the well, as a palette of swatches marks its choice. The keyboard focus ring is drawn
-/// outside that.
+/// around the well, a gap away, as a palette of swatches marks its choice. The swatch keeps that
+/// ring's room in its size whether selected or not, and the keyboard focus ring goes outside it.
 ///
-/// `color` is an sRGB colour with straight (unpremultiplied) alpha held as an egui [`Color32`],
-/// e.g. from [`Color32::from_rgba_unmultiplied`]. Colour management is the app's.
+/// `color` is an sRGB colour with straight alpha ([`Rgba`]); an egui [`Color32`] converts into
+/// one, as closely as its premultiplied channels allow. Colour management is the app's.
 #[derive(Clone, Debug)]
 pub struct Swatch {
     label: String,
-    color: Color32,
+    color: Rgba,
     size: ControlSize,
     mixed: bool,
     selected: bool,
@@ -65,8 +77,16 @@ pub struct Swatch {
 }
 
 impl Swatch {
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: Color32) -> Self {
-        Self { label: label.into(), color, size: ControlSize::Md, mixed: false, selected: false, enabled: true, id_salt: IdSalt::new(id_salt) }
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: impl Into<Rgba>) -> Self {
+        Self {
+            label: label.into(),
+            color: color.into(),
+            size: ControlSize::Md,
+            mixed: false,
+            selected: false,
+            enabled: true,
+            id_salt: IdSalt::new(id_salt),
+        }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -96,43 +116,52 @@ impl Swatch {
         let s = &tokens.component.swatch;
         SwatchStyle {
             side: s.size.get(size),
+            inset: s.selected_gap + s.selected_width,
             radius: corner_radius(s.radius),
-            edge_outer: s.edge_outer.to_egui(),
-            edge_inner: s.edge_inner.to_egui(),
+            edge: s.edge.to_egui(),
             checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
             selected: Stroke::new(s.selected_width, s.selected.to_egui()),
             mixed_fill: s.mixed_fill.to_egui(),
             mixed_mark: s.mixed_mark.to_egui(),
+            tokens: *s,
         }
     }
 
-    /// The colour as AccessKit reports it: `#rrggbb`, or `#rrggbbaa` when translucent.
-    pub fn hex(color: Color32) -> String {
-        let [r, g, b, a] = color.to_srgba_unmultiplied();
-        if a == 255 { format!("#{r:02x}{g:02x}{b:02x}") } else { format!("#{r:02x}{g:02x}{b:02x}{a:02x}") }
+    /// The colour as AccessKit reports it: `#rrggbb`, or `#rrggbbaa` when translucent. The
+    /// channels are kept whatever the alpha.
+    pub fn hex(color: Rgba) -> String {
+        color.to_hex()
     }
 
-    /// The shapes of a well over `rect`: the colour (over the checkerboard where translucent) or,
-    /// for `None`, the mixed look; the inner and outer rings; the selection ring when `selected`.
-    /// A disabled well fades its rings.
-    pub fn shapes(style: &SwatchStyle, rect: Rect, color: Option<Color32>, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
+    /// The corners of the swatch's outline, concentric with the well's: the selection ring's,
+    /// which the focus ring follows outside it.
+    pub fn outline_radius(style: &SwatchStyle) -> CornerRadius {
+        grow(style.radius, style.inset)
+    }
+
+    /// The shapes of a swatch whose outline is `rect`: the well inset by the selection ring's
+    /// room, showing the colour (over the checkerboard where translucent) or, for `None`, the
+    /// mixed look; the inner and outer rings; the selection ring when `selected`. A disabled well
+    /// fades its rings.
+    pub fn shapes(style: &SwatchStyle, rect: Rect, color: Option<Rgba>, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
         let rect = rect.round_to_pixels(pixels_per_point);
+        let well = rect.shrink(style.inset);
         let radius = style.radius;
         let mut out = Vec::new();
         match color {
             None => {
-                out.push(Shape::Rect(RectShape::filled(rect, radius, style.mixed_fill)));
-                let half = rect.width() * 0.25;
-                let y = rect.center().y;
-                out.push(Shape::line_segment([pos2(rect.center().x - half, y), pos2(rect.center().x + half, y)], Stroke::new(2.0, style.mixed_mark)));
+                out.push(Shape::Rect(RectShape::filled(well, radius, style.mixed_fill)));
+                let half = well.width() * 0.25;
+                let y = well.center().y;
+                out.push(Shape::line_segment([pos2(well.center().x - half, y), pos2(well.center().x + half, y)], Stroke::new(2.0, style.mixed_mark)));
             }
             Some(color) => {
                 if color.a() < 255 {
-                    out.push(Shape::Rect(RectShape::filled(rect, radius, style.checker[0])));
-                    let cell = rect.width() / CHECKER_CELLS as f32;
+                    out.push(Shape::Rect(RectShape::filled(well, radius, style.checker[0])));
+                    let cell = well.width() / CHECKER_CELLS as f32;
                     for row in 0..CHECKER_CELLS {
                         for col in (0..CHECKER_CELLS).filter(|col| (row + col) % 2 == 1) {
-                            let min = rect.min + vec2(col as f32 * cell, row as f32 * cell);
+                            let min = well.min + vec2(col as f32 * cell, row as f32 * cell);
                             out.push(Shape::Rect(RectShape::filled(
                                 Rect::from_min_size(min, vec2(cell, cell)),
                                 CornerRadius::ZERO,
@@ -141,7 +170,7 @@ impl Swatch {
                         }
                     }
                 }
-                out.push(Shape::Rect(RectShape::filled(rect, radius, color)));
+                out.push(Shape::Rect(RectShape::filled(well, radius, color.to_egui())));
             }
         }
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
@@ -151,19 +180,24 @@ impl Swatch {
             sw: radius.sw.saturating_sub(1),
             se: radius.se.saturating_sub(1),
         };
-        out.push(Shape::Rect(RectShape::stroke(rect.shrink(1.0), inner_radius, Stroke::new(1.0, fade(style.edge_inner)), StrokeKind::Inside)));
-        out.push(Shape::Rect(RectShape::stroke(rect, radius, Stroke::new(1.0, fade(style.edge_outer)), StrokeKind::Inside)));
+        let inner = fade(style.inner_edge(color));
+        out.push(Shape::Rect(RectShape::stroke(well.shrink(1.0), inner_radius, Stroke::new(1.0, inner), StrokeKind::Inside)));
+        out.push(Shape::Rect(RectShape::stroke(well, radius, Stroke::new(1.0, fade(style.edge)), StrokeKind::Inside)));
         if selected {
-            let grow = style.selected.width.round() as u8;
-            let outer = CornerRadius {
-                nw: radius.nw.saturating_add(grow),
-                ne: radius.ne.saturating_add(grow),
-                sw: radius.sw.saturating_add(grow),
-                se: radius.se.saturating_add(grow),
-            };
-            out.push(Shape::Rect(RectShape::stroke(rect.expand(style.selected.width), outer, style.selected, StrokeKind::Inside)));
+            out.push(Shape::Rect(RectShape::stroke(rect, Swatch::outline_radius(style), style.selected, StrokeKind::Inside)));
         }
         out
+    }
+}
+
+/// `radius` grown by `by` points, for a concentric outline `by` points further out.
+fn grow(radius: CornerRadius, by: f32) -> CornerRadius {
+    let by = by.round() as u8;
+    CornerRadius {
+        nw: radius.nw.saturating_add(by),
+        ne: radius.ne.saturating_add(by),
+        sw: radius.sw.saturating_add(by),
+        se: radius.se.saturating_add(by),
     }
 }
 
@@ -171,8 +205,8 @@ impl Widget for Swatch {
     fn ui(self, ui: &mut Ui) -> Response {
         let style = Swatch::style(&Tokens::of(ui), self.size);
         let mut element = Interactive::new(self.id_salt, Role::Button, self.label.as_str())
-            .corner(Corner::Control)
             .state_layer(false)
+            .focus_ring(false)
             .selected(self.selected)
             .enabled(self.enabled);
         if !self.mixed {
@@ -183,6 +217,7 @@ impl Widget for Swatch {
             let color = (!self.mixed).then_some(self.color);
             ui.painter().extend(Swatch::shapes(&style, response.rect, color, self.selected, self.enabled, ui.pixels_per_point()));
         }
+        FocusRing::paint_radius(ui, response.rect, Swatch::outline_radius(&style), &response);
         if self.enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response }
     }
 }
@@ -229,15 +264,15 @@ pub(crate) fn stories() -> Vec<Story> {
 /// Opaque, translucent, a colour equal to the panel, mixed, selected and disabled, each named.
 fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
-    let panel = Tokens::of(ui).color.surface.panel.to_egui();
+    let panel = Tokens::of(ui).color.surface.panel;
     let samples: [(&str, Swatch); 7] = [
-        ("Opaque", Swatch::new("opaque", "Opaque", Color32::from_rgb(0x3e, 0x63, 0xdd))),
-        ("Translucent", Swatch::new("translucent", "Translucent", Color32::from_rgba_unmultiplied(0xe5, 0x48, 0x4d, 110))),
-        ("Clear", Swatch::new("clear", "Clear", Color32::from_rgba_unmultiplied(0, 0, 0, 0))),
+        ("Opaque", Swatch::new("opaque", "Opaque", Rgba::rgb(0x3e, 0x63, 0xdd))),
+        ("Translucent", Swatch::new("translucent", "Translucent", Rgba([0xe5, 0x48, 0x4d, 110]))),
+        ("Clear", Swatch::new("clear", "Clear", Rgba::TRANSPARENT)),
         ("Panel colour", Swatch::new("panel", "Panel colour", panel)),
-        ("Mixed", Swatch::new("mixed", "Mixed", Color32::BLACK).mixed(true)),
-        ("Selected", Swatch::new("selected", "Selected", Color32::from_rgb(0x30, 0xa4, 0x6c)).selected(true)),
-        ("Disabled", Swatch::new("disabled", "Disabled", Color32::from_rgb(0xf5, 0xa5, 0x24)).enabled(false)),
+        ("Mixed", Swatch::new("mixed", "Mixed", Rgba::BLACK).mixed(true)),
+        ("Selected", Swatch::new("selected", "Selected", Rgba::rgb(0x30, 0xa4, 0x6c)).selected(true)),
+        ("Disabled", Swatch::new("disabled", "Disabled", Rgba::rgb(0xf5, 0xa5, 0x24)).enabled(false)),
     ];
     let state_id = ui.scope_id().with("swatch-clicks");
     let mut clicks = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
@@ -262,7 +297,7 @@ fn show_palette(ui: &mut Ui, args: &mut Args) {
     Row::new(Gap::Inline).show(ui, |ui| {
         for (i, [r, g, b]) in PALETTE.into_iter().enumerate() {
             let label = format!("Colour {}", i + 1);
-            if ui.add(Swatch::new(("palette", i), label, Color32::from_rgb(r, g, b)).size(size).selected(i == chosen)).clicked() {
+            if ui.add(Swatch::new(("palette", i), label, Rgba::rgb(r, g, b)).size(size).selected(i == chosen)).clicked() {
                 chosen = i;
             }
         }

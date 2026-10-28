@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 
-use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode};
+use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode, Rgba, contrast_ratio};
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportId, vec2};
 
@@ -19,7 +19,7 @@ fn small_control_styles_are_their_tokens() {
         for size in SIZES {
             let s = Swatch::style(&t, size);
             assert_eq!((s.side, s.radius), (c.swatch.size.get(size), crate::theme::corner_radius(c.swatch.radius)));
-            assert_eq!((s.edge_outer, s.edge_inner), (c.swatch.edge_outer.to_egui(), c.swatch.edge_inner.to_egui()));
+            assert_eq!((s.edge, s.inset), (c.swatch.edge.to_egui(), c.swatch.selected_gap + c.swatch.selected_width));
             assert_eq!(s.checker, [c.swatch.checker_a.to_egui(), c.swatch.checker_b.to_egui()]);
             assert_eq!((s.selected.color, s.selected.width), (c.swatch.selected.to_egui(), c.swatch.selected_width));
             assert_eq!((s.mixed_fill, s.mixed_mark), (c.swatch.mixed_fill.to_egui(), c.swatch.mixed_mark.to_egui()));
@@ -64,35 +64,98 @@ fn small_control_styles_are_their_tokens() {
 fn a_chord_is_written_in_each_platforms_notation() {
     let all = Modifiers { alt: true, ctrl: true, shift: true, mac_cmd: true, command: false };
     let chord = KeyboardShortcut::new(all, Key::K);
-    let text = |os| Kbd::text(&Kbd::parts(&chord, os), os);
-    assert_eq!(text(OperatingSystem::Mac), "⌃⇧⌥⌘K");
-    assert_eq!(text(OperatingSystem::Windows), "Ctrl+Alt+Shift+K");
+    let text = |shortcut: &KeyboardShortcut, os| Kbd::new(shortcut).text(os);
+    assert_eq!(text(&chord, OperatingSystem::Mac), "⌃⇧⌥⌘K");
+    assert_eq!(text(&chord, OperatingSystem::Windows), "Ctrl+Alt+Shift+K");
     assert_eq!(Kbd::parts(&chord, OperatingSystem::Nix), ["Ctrl", "Alt", "Shift", "K"]);
     // `command` is Cmd on macOS and Ctrl elsewhere.
     let save = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Mac), ["⌘", "S"]);
     assert_eq!(Kbd::parts(&save, OperatingSystem::Nix), ["Ctrl", "S"]);
-    assert_eq!(Kbd::text(&Kbd::parts(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), OperatingSystem::Mac), "Escape");
+    assert_eq!(text(&KeyboardShortcut::new(Modifiers::NONE, Key::Escape), OperatingSystem::Mac), "Escape");
+    // Keys the caller names are joined with `+` on every platform.
+    for os in [OperatingSystem::Mac, OperatingSystem::Nix] {
+        assert_eq!(Kbd::keys(&["Shift", "Click"]).text(os), "Shift+Click", "{os:?}");
+    }
     // The notation is egui's own.
     for os in [OperatingSystem::Mac, OperatingSystem::Nix] {
         let mac = matches!(os, OperatingSystem::Mac);
         let names = if mac { ModifierNames::SYMBOLS } else { ModifierNames::NAMES };
         for shortcut in [chord, save] {
-            assert_eq!(Kbd::text(&Kbd::parts(&shortcut, os), os), shortcut.format(&names, mac), "{os:?}");
+            assert_eq!(text(&shortcut, os), shortcut.format(&names, mac), "{os:?}");
         }
     }
 }
 
-/// The shapes of a swatch well in `style` over a 24 point rect.
-fn well(style: &SwatchStyle, color: Option<Color32>, selected: bool, enabled: bool) -> Vec<Shape> {
-    Swatch::shapes(style, Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(24.0, 24.0)), color, selected, enabled, 1.0)
+/// The tokens in effect in `ctx`.
+fn tokens_in(ctx: &Context) -> std::sync::Arc<crate::theme::UiTokens> {
+    let tokens = std::cell::RefCell::new(None);
+    frame(ctx, 0.0, |ui| *tokens.borrow_mut() = Some(Tokens::of(ui)));
+    tokens.into_inner().unwrap()
+}
+
+/// The colour of each text shape `add` paints.
+fn text_colors(ctx: &Context, add: impl FnOnce(&mut Ui)) -> Vec<Color32> {
+    let (shapes, _) = frame(ctx, 0.0, add);
+    shapes.iter().filter_map(|s| if let Shape::Text(t) = s { Some(t.galley.job.sections[0].format.color) } else { None }).collect()
+}
+
+#[test]
+fn plain_keys_take_the_content_colour_and_keycaps_their_own() {
+    let ctx = motion_context(true);
+    let chord = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
+    let t = tokens_in(&ctx);
+    assert_eq!(text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord))), [t.color.text.muted.to_egui()], "muted by default");
+    assert_eq!(text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord).content(Content::OnSelected))), [t.color.text.on_selected.to_egui()]);
+    let keycaps = text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord).keycaps(true).content(Content::OnSelected)));
+    assert!(keycaps.iter().all(|&c| c == t.component.kbd.text.to_egui()), "{keycaps:?}");
+}
+
+/// Badges and keycaps grow with the Text size setting: at the largest, the label still sits inside
+/// the pill and each key inside its keycap.
+#[test]
+fn badge_and_keycap_labels_fit_at_the_largest_text_size() {
+    use craft_theme::{AppDefaults, ModeChoice, Size, SuiteChoice, SystemAppearance, TextSize, ThemeId, ThemePair};
+    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Comfortable };
+    let mut choice = SuiteChoice::default().with_defaults(&defaults);
+    choice.text_size = TextSize::Large;
+    let base = crate::theme::Base::resolve(&choice, SystemAppearance::default(), &defaults, None, &mut |id| {
+        craft_theme::builtins().iter().find(|t| t.id == *id).cloned()
+    });
+    let ctx = Context::default();
+    crate::theme::install(&ctx, &base);
+    assert_eq!(tokens_in(&ctx).appearance.text_size, TextSize::Large);
+    let boxes_and_texts = |add: &dyn Fn(&mut Ui)| {
+        let (shapes, _) = frame(&ctx, 0.0, add);
+        let boxes: Vec<Rect> = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { (r.fill.a() > 0).then_some(r.rect) } else { None }).collect();
+        let texts: Vec<Rect> = shapes.iter().filter_map(|s| if let Shape::Text(t) = s { Some(t.visual_bounding_rect()) } else { None }).collect();
+        (boxes, texts)
+    };
+    let (pills, labels) = boxes_and_texts(&|ui| _ = ui.add(Badge::count(1234).tone(BadgeTone::Bad).style(BadgeStyle::Solid)));
+    let (keycaps, keys) = boxes_and_texts(&|ui| _ = ui.add(Kbd::keys(&["Ctrl", "Shift", "Y"]).keycaps(true)));
+    for (boxes, texts, what) in [(pills, labels, "badge"), (keycaps, keys, "keycap")] {
+        assert!(!texts.is_empty(), "{what}");
+        for text in texts {
+            assert!(boxes.iter().any(|b| b.contains_rect(text)), "{what}: {text:?} outside {boxes:?}");
+        }
+    }
+}
+
+/// The shapes of a swatch in `style` over a 30 point rect.
+fn well(style: &SwatchStyle, color: Option<Rgba>, selected: bool, enabled: bool) -> Vec<Shape> {
+    Swatch::shapes(style, Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(30.0, 30.0)), color, selected, enabled, 1.0)
+}
+
+/// The colours of the stroked rects among `shapes`, in paint order.
+fn strokes(shapes: &[Shape]) -> Vec<Color32> {
+    shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { (!r.stroke.is_empty()).then_some(r.stroke.color) } else { None }).collect()
 }
 
 #[test]
 fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
     let t = tokens_of(&theme("craft.graphite"), Mode::Light);
     let style = Swatch::style(&t, ControlSize::Md);
-    let red = Color32::from_rgb(200, 30, 30);
+    let red = Rgba::rgb(200, 30, 30);
     let plain = well(&style, Some(red), false, true);
     assert_ne!(well(&style, None, false, true), plain, "mixed");
     assert_ne!(well(&style, Some(red), true, true), plain, "selected");
@@ -100,24 +163,44 @@ fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
     assert_ne!(well(&style, Some(red), false, false), plain, "disabled fades the rings");
 
     // Opaque colours have no checkerboard; translucent ones do.
-    let clear = Color32::from_rgba_unmultiplied(200, 30, 30, 90);
-    let strokes = |shapes: &[Shape]| -> Vec<Color32> {
-        shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { (!r.stroke.is_empty()).then_some(r.stroke.color) } else { None }).collect()
-    };
-    assert!(well(&style, Some(clear), false, true).len() > plain.len());
+    assert!(well(&style, Some(red.with_alpha(90)), false, true).len() > plain.len());
 
-    // A colour equal to the panel: the outer ring separates the well from the panel (it differs
-    // from it) and the inner ring from the colour.
-    let panel = t.color.surface.panel.to_egui();
-    let shapes = well(&style, Some(panel), false, true);
-    assert_eq!(strokes(&shapes), [style.edge_inner, style.edge_outer]);
-    assert_ne!(style.edge_outer, panel);
-    assert_ne!(style.edge_inner, style.edge_outer);
-    let outer = shapes.iter().rev().find_map(|s| if let Shape::Rect(r) = s { Some(r) } else { None }).unwrap();
-    assert_eq!(outer.rect, Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(24.0, 24.0)), "the outer ring is on the outline");
+    // The well sits inside the selection ring's room, and every ring is concentric with it.
+    let outline = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(30.0, 30.0));
+    let rects: Vec<_> = well(&style, Some(red), true, true).into_iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r) } else { None }).collect();
+    let [.., inner, edge, selected] = rects.as_slice() else { panic!("{rects:?}") };
+    assert_eq!(edge.rect, outline.shrink(style.inset), "the edge is on the well's outline");
+    assert_eq!((inner.rect, edge.corner_radius, selected.rect), (edge.rect.shrink(1.0), style.radius, outline));
+    assert_eq!(selected.corner_radius, Swatch::outline_radius(&style));
+    let grown = (style.inset.round() as u8) + style.radius.nw;
+    assert_eq!(selected.corner_radius.nw, grown, "concentric");
+    assert!(style.inset > style.selected.width, "a gap between the well and the selection ring");
 
-    assert_eq!(Swatch::hex(Color32::from_rgb(0x3e, 0x63, 0xdd)), "#3e63dd");
-    assert_eq!(Swatch::hex(Color32::from_rgba_unmultiplied(0xff, 0x00, 0x00, 0x80)), "#ff000080");
+    // A colour equal to the panel: the inner ring stands out from it by a measured ratio, in a
+    // light and a dark theme.
+    for (id, mode) in [("craft.graphite", Mode::Light), ("craft.pro-dark", Mode::Dark)] {
+        let t = tokens_of(&theme(id), mode);
+        let style = Swatch::style(&t, ControlSize::Md);
+        let panel = t.color.surface.panel;
+        let ring = strokes(&well(&style, Some(panel), false, true))[0];
+        let [r, g, b, a] = ring.to_srgba_unmultiplied();
+        let ratio = contrast_ratio(over(Rgba([r, g, b, a]), panel), panel);
+        assert!(ratio >= 3.0, "{id}: the inner ring on the panel colour is {ratio:.2}:1");
+    }
+
+    // The hex keeps the straight channels at any alpha.
+    assert_eq!(Swatch::hex(Rgba::rgb(0x3e, 0x63, 0xdd)), "#3e63dd");
+    assert_eq!(Swatch::hex(Rgba([0xff, 0x00, 0x00, 0x00])), "#ff000000");
+    assert_eq!(Swatch::hex(Rgba([0x12, 0x34, 0x56, 0x03])), "#12345603");
+    assert_eq!(Swatch::hex(Rgba([0xff, 0x00, 0x00, 0x80])), "#ff000080");
+    assert_eq!(Rgba::from(Color32::from_rgba_unmultiplied(0xff, 0x00, 0x00, 0x80)), Rgba([0xff, 0x00, 0x00, 0x80]), "from an egui colour");
+}
+
+/// `fg` alpha-composited over the opaque `bg`, as egui blends.
+fn over(fg: Rgba, bg: Rgba) -> Rgba {
+    let a = f32::from(fg.a()) / 255.0;
+    let ch = |i: usize| (f32::from(fg.0[i]) * a + f32::from(bg.0[i]) * (1.0 - a)).round() as u8;
+    Rgba([ch(0), ch(1), ch(2), 255])
 }
 
 /// One frame at `time`; the shapes and whether it asked for another frame at once.
@@ -191,10 +274,20 @@ fn a_button_draws_its_loading_ring_through_the_spinner() {
         shapes.into_iter().filter_map(|s| if let Shape::Path(p) = s { Some(p) } else { None }).count()
     };
     assert_eq!((ring(false), ring(true)), (0, 1));
-    // The ring is the spinner's own polyline.
-    let t = tokens_of(&theme("craft.graphite"), Mode::Light);
-    let icon = Spinner::style(&t, IconSize::Md, Content::Muted);
-    assert_eq!(Spinner::points(Rect::from_min_size(Pos2::ZERO, vec2(icon.points, icon.points)), 0.0).len(), 25);
+    // The ring is the spinner's own polyline, still at turn 0 with reduced motion, in an icon's
+    // square: the ends sit at 0° and 270°, its widest points at 90° and 180°.
+    let (shapes, _) = frame(&ctx, 0.0, |ui| {
+        ui.add(Button::new("Export").loading(true));
+    });
+    let points = shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p.points) } else { None }).unwrap();
+    let quarter = (points.len() - 1) / 3;
+    let center = Pos2::new((points[0].x + points[2 * quarter].x) / 2.0, (points[quarter].y + points[3 * quarter].y) / 2.0);
+    let side = Spinner::style(&tokens_in(&ctx), IconSize::Md, Content::Muted).points;
+    let expected = Spinner::points(Rect::from_center_size(center, vec2(side, side)), 0.0);
+    assert_eq!(points.len(), expected.len());
+    for (p, e) in points.iter().zip(&expected) {
+        assert!(p.distance(*e) < 1e-3, "{p:?} is not the spinner's {e:?}");
+    }
 }
 
 #[test]

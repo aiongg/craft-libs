@@ -23,7 +23,7 @@ pub struct KbdStyle {
     pub gap: f32,
     /// `kbd.label`.
     pub label: TypeRole,
-    /// `kbd.text`: the keys, plain or on keycaps.
+    /// `kbd.text`: the keys on keycaps. Plain keys take the caller's [`Content`] colour.
     pub text: Color32,
     /// A keycap: a raised surface with `kbd.fill` and `kbd.radius`.
     pub keycap: SurfaceStyle,
@@ -38,27 +38,38 @@ enum Chord {
 /// A key chord: `ui.add(Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, Key::S)))`.
 ///
 /// Given a [`KeyboardShortcut`], it writes the modifiers in the platform's notation: macOS
-/// symbols (`⌃⇧⌥⌘S`), elsewhere names joined with `+` (`Ctrl+Alt+Shift+S`), as egui's
-/// [`ModifierNames`]. [`Kbd::keys`] shows the given key names, joined the same way. Plain, the
-/// chord is muted text for menus and tooltips; [`keycaps`](Kbd::keycaps) puts each key in a small
-/// raised box for help pages and the command palette.
+/// symbols with no separator (`⌃⇧⌥⌘S`), elsewhere names joined with `+` (`Ctrl+Alt+Shift+S`),
+/// as egui's [`ModifierNames`]. [`Kbd::keys`] shows the given key names joined with `+` on every
+/// platform (`Shift+Click`). Plain, the chord is text in a [`Content`] colour, muted by default,
+/// for menus and tooltips; [`keycaps`](Kbd::keycaps) puts each key in a small raised box for help
+/// pages and the command palette.
 ///
-/// It has no input and no Tab stop; AccessKit sees a label with the names (`Cmd+Shift+S`).
+/// A chord keeps its order right to left
+/// ([`Unmirrored::KeyChord`](crate::direction::Unmirrored::KeyChord)). It has no input and no Tab
+/// stop; AccessKit sees a label with the names (`Cmd+Shift+S`).
 #[derive(Clone, Debug)]
 pub struct Kbd {
     chord: Chord,
     keycaps: bool,
+    content: Content,
     os: Option<OperatingSystem>,
 }
 
 impl Kbd {
     pub fn new(shortcut: &KeyboardShortcut) -> Self {
-        Self { chord: Chord::Shortcut(*shortcut), keycaps: false, os: None }
+        Self { chord: Chord::Shortcut(*shortcut), keycaps: false, content: Content::Muted, os: None }
     }
 
     /// Keys named by the caller, in order, e.g. `["Shift", "Click"]`.
     pub fn keys<S: AsRef<str>>(keys: &[S]) -> Self {
-        Self { chord: Chord::Keys(keys.iter().map(|k| k.as_ref().to_owned()).collect()), keycaps: false, os: None }
+        Self { chord: Chord::Keys(keys.iter().map(|k| k.as_ref().to_owned()).collect()), keycaps: false, content: Content::Muted, os: None }
+    }
+
+    /// The colour of plain keys, e.g. a highlighted menu row's content colour. Keycaps draw their
+    /// keys in `kbd.text`.
+    pub fn content(mut self, content: Content) -> Self {
+        self.content = content;
+        self
     }
 
     /// Each key in a small raised box.
@@ -107,9 +118,12 @@ impl Kbd {
         out
     }
 
-    /// `keys` as one line: no separator between macOS symbols, `+` elsewhere.
-    pub fn text(keys: &[String], os: OperatingSystem) -> String {
-        keys.join(if is_mac(os) { "" } else { "+" })
+    /// The chord as one line for `os`: a shortcut's macOS symbols with no separator, its names
+    /// elsewhere and caller-named keys everywhere joined with `+`.
+    pub fn text(&self, os: OperatingSystem) -> String {
+        let keys = self.keys_for(os);
+        let symbols = matches!(self.chord, Chord::Shortcut(_)) && is_mac(os);
+        keys.join(if symbols { "" } else { "+" })
     }
 
     /// The names for a screen reader: `Cmd+Shift+S`, whatever the platform's symbols.
@@ -142,7 +156,8 @@ impl Widget for Kbd {
         let style = Kbd::style(&tokens);
         let os = self.os.unwrap_or_else(|| ui.ctx().os());
         let keys = self.keys_for(os);
-        let format = role_format(&tokens, style.label, style.text);
+        let color = if self.keycaps { style.text } else { self.content.color(&tokens).to_egui() };
+        let format = role_format(&tokens, style.label, color);
         let layout = |text: String| ui.painter().layout_job(LayoutJob::single_section(text, format.clone()));
 
         // (galley, rect relative to the chord's start) per box; plain text is one box.
@@ -161,7 +176,7 @@ impl Widget for Kbd {
             let width = boxes.last().map_or(0.0, |(_, r)| r.max.x);
             (boxes, vec2(width, style.height))
         } else {
-            let galley = layout(Kbd::text(&keys, os));
+            let galley = layout(self.text(os));
             let size = galley.size();
             (vec![(galley, Rect::from_min_size(pos2(0.0, 0.0), size))], size)
         };
@@ -175,7 +190,7 @@ impl Widget for Kbd {
                     ui.painter().extend(style.keycap.shapes(cell, ppp));
                 }
                 let pos = Rect::from_center_size(cell.center(), galley.size()).min;
-                ui.painter().galley(pos.round_to_pixels(ppp), galley, style.text);
+                ui.painter().galley(pos.round_to_pixels(ppp), galley, color);
             }
         }
         response

@@ -6,27 +6,29 @@ use egui_kittest::{Harness, HarnessBuilder};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
-use crate::testing::a11y;
-use crate::theme::{Base, install};
+use crate::testing::{a11y, symbols};
+use crate::theme::{Base, ToEgui as _, install};
 
 fn harness<State>() -> HarnessBuilder<State> {
     Harness::<State>::builder().with_size([640.0, 320.0]).with_context_setup(|ctx| {
         install(ctx, &Base::suite_default());
+        symbols::install(ctx);
         ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
     })
 }
 
-/// A harness that draws a box for a character no installed face has: the macOS key symbols of
-/// [`Kbd`] come from the suite's symbol face, which the test context does not install.
-fn harness_with_tofu<State>() -> HarnessBuilder<State> {
-    harness().allow_missing_glyphs()
+/// A harness for macOS key chords: their symbols come from craft-fonts' symbol faces, so without
+/// `CRAFT_FONTS_DIR` it draws a box for them.
+fn kbd_harness<State>() -> HarnessBuilder<State> {
+    if symbols::available() { harness() } else { harness().allow_missing_glyphs() }
 }
 
 #[test]
 fn every_control_story_names_every_control() {
     for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("controls/")) {
         let mut args = story.defaults();
-        let mut harness = harness_with_tofu().build_ui(move |ui| (story.show)(ui, &mut args));
+        let builder = if story.id.starts_with("controls/kbd/") { kbd_harness() } else { harness() };
+        let mut harness = builder.build_ui(move |ui| (story.show)(ui, &mut args));
         // Loading buttons spin: run a fixed number of frames.
         harness.run_steps(4);
         a11y::assert_labelled(&harness);
@@ -628,10 +630,12 @@ fn numeric<State>(harness: &Harness<'_, State>, label: &str) -> (Role, Option<f6
 fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_when_disabled() {
     let mut harness = harness().build_ui_state(
         |ui, clicks: &mut u32| {
-            let blue = egui::Color32::from_rgb(0x3e, 0x63, 0xdd);
+            let blue = craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd);
             for (label, swatch) in [
                 ("Fill", Swatch::new("fill", "Fill", blue)),
-                ("Glass", Swatch::new("glass", "Glass", egui::Color32::from_rgba_unmultiplied(0xff, 0, 0, 0x80))),
+                ("Glass", Swatch::new("glass", "Glass", craft_theme::Rgba([0xff, 0, 0, 0x80]))),
+                ("Clear", Swatch::new("clear", "Clear", craft_theme::Rgba([0xff, 0, 0, 0]))),
+                ("Faint", Swatch::new("faint", "Faint", craft_theme::Rgba([0x12, 0x34, 0x56, 3]))),
                 ("Mixed", Swatch::new("mixed", "Mixed", blue).mixed(true)),
                 ("Chosen", Swatch::new("chosen", "Chosen", blue).selected(true)),
                 ("Locked", Swatch::new("locked", "Locked", blue).enabled(false)),
@@ -650,6 +654,8 @@ fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_w
     assert_eq!(harness.get_by_label("Fill").accesskit_node().role(), Role::Button);
     assert_eq!(value(&harness, "Fill").as_deref(), Some("#3e63dd"));
     assert_eq!(value(&harness, "Glass").as_deref(), Some("#ff000080"));
+    assert_eq!(value(&harness, "Clear").as_deref(), Some("#ff000000"), "alpha 0 keeps its channels");
+    assert_eq!(value(&harness, "Faint").as_deref(), Some("#12345603"));
     assert_eq!(value(&harness, "Mixed"), None, "a mixed well has no colour");
     assert!(harness.get_by_label("Chosen").accesskit_node().is_selected().unwrap_or(false));
     assert!(harness.get_by_label("Locked").accesskit_node().is_disabled());
@@ -677,6 +683,56 @@ fn a_palette_row_is_a_tab_stop_per_swatch_with_one_selected() {
     assert!(harness.get_by_label("Colour 3").accesskit_node().is_selected().unwrap_or(false));
 }
 
+/// In Studio dark the selection ring and the focus ring are both `accent.solid`: focus draws a second
+/// ring outside the selection ring, a gap away, not inside its band.
+#[test]
+fn focusing_a_selected_swatch_draws_the_focus_ring_outside_the_selection_ring() {
+    use craft_theme::{AppDefaults, ModeChoice, Size, SystemAppearance, ThemePair, builtins};
+    let studio = builtins().iter().find(|t| t.id.as_str() == "craft.studio").unwrap().id.clone();
+    let defaults = AppDefaults { theme: ThemePair::same(studio), mode: ModeChoice::Dark, size: Size::Compact };
+    let base =
+        Base::resolve(&craft_theme::SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
+            builtins().iter().find(|t| t.id == *id).cloned()
+        });
+    let tokens = &base.shown(craft_theme::Mode::Dark).resolved.tokens;
+    let accent = tokens.color.accent.solid.to_egui();
+    assert_eq!(tokens.color.line.focus.to_egui(), accent, "Studio's focus ring is the accent");
+    let mut harness = Harness::builder().with_size([200.0, 100.0]).build_ui(move |ui| {
+        install(ui.ctx(), &base);
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            ui.add(Swatch::new("chosen", "Chosen", craft_theme::Rgba::rgb(0x30, 0xa4, 0x6c)).selected(true));
+        });
+    });
+    harness.run();
+    let rings = |harness: &Harness<'_, ()>| -> Vec<egui::Rect> {
+        let node = harness.get_by_label("Chosen").rect();
+        let mut rects: Vec<_> = harness
+            .output()
+            .shapes
+            .iter()
+            .filter_map(|c| if let egui::Shape::Rect(r) = &c.shape { Some(r.clone()) } else { None })
+            .filter(|r| r.stroke.color == accent && !r.stroke.is_empty() && r.rect.contains_rect(node.shrink(4.0)))
+            .map(|r| r.visual_bounding_rect())
+            .collect();
+        rects.sort_by(|a, b| a.width().total_cmp(&b.width()));
+        rects
+    };
+    let unfocused = rings(&harness);
+    assert_eq!(unfocused.len(), 1, "the selection ring: {unfocused:?}");
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert!(harness.get_by_label("Chosen").is_focused());
+    let focused = rings(&harness);
+    assert_eq!(focused.len(), 2, "the focus ring as well: {focused:?}");
+    let (selection, focus) = (focused[0], focused[1]);
+    assert_eq!(selection, unfocused[0]);
+    assert!(focus.shrink(1.0).contains_rect(selection.expand(0.5)), "the focus ring {focus:?} clears the selection ring {selection:?}");
+    let node = harness.get_by_label("Chosen").rect();
+    assert!(node.contains_rect(selection), "the selection ring is inside the swatch's own rect, so nothing clips it");
+}
+
 #[test]
 fn badges_are_labels_with_their_text_and_counts_cap_at_99_plus() {
     let mut harness = harness().build_ui(|ui| {
@@ -694,7 +750,7 @@ fn badges_are_labels_with_their_text_and_counts_cap_at_99_plus() {
 
 #[test]
 fn a_key_chord_is_a_label_with_the_key_names_and_no_tab_stop() {
-    let mut harness = harness_with_tofu().build_ui(|ui| {
+    let mut harness = kbd_harness().build_ui(|ui| {
         let chord = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Z);
         ui.add(Kbd::new(&chord).os(egui::os::OperatingSystem::Mac));
         ui.add(Kbd::new(&chord).keycaps(true).os(egui::os::OperatingSystem::Windows));
@@ -741,6 +797,9 @@ fn tooltips_show_text_the_shortcut_and_custom_contents_on_enabled_and_disabled_c
     });
     harness.run();
     let shown = |harness: &Harness<'_, ()>, text: &str| harness.query_all_by(|n| n.value().as_deref() == Some(text)).count();
+    let undo = harness.get_by_label("Undo").accesskit_node();
+    assert_eq!(undo.data().keyboard_shortcut(), Some("Ctrl+Z"), "the shortcut is the node's");
+    assert_eq!(undo.data().description(), Some("Undo the last change"));
     harness.get_by_label("Undo").hover();
     harness.run_steps(4);
     assert_eq!(shown(&harness, "Undo the last change"), 1);
@@ -751,4 +810,18 @@ fn tooltips_show_text_the_shortcut_and_custom_contents_on_enabled_and_disabled_c
     harness.get_by_label("Info").hover();
     harness.run_steps(4);
     assert_eq!(shown(&harness, "Custom contents"), 1);
+}
+
+#[test]
+fn a_tooltip_shortcut_follows_its_text_in_reading_order() {
+    let mut harness = harness().build_ui(|ui| {
+        direction::apply(ui.ctx(), Direction::Rtl);
+        let undo = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::Z);
+        ui.add(Button::new("Undo").id_salt("undo")).tooltip_with("Undo the last change", &undo);
+    });
+    harness.run();
+    harness.get_by_label("Undo").hover();
+    harness.run_steps(4);
+    let x = |harness: &Harness<'_, ()>, text: &str| harness.get_by_value(text).rect().center().x;
+    assert!(x(&harness, "Ctrl+Z") < x(&harness, "Undo the last change"), "right to left, the shortcut is on the left");
 }

@@ -181,6 +181,7 @@ fn every_unmirrored_kind_is_listed_once() {
             Unmirrored::Code => 8,
             Unmirrored::Number => 9,
             Unmirrored::Timecode => 10,
+            Unmirrored::KeyChord => 11,
         };
         assert_eq!(position, i, "{kind:?}");
     }
