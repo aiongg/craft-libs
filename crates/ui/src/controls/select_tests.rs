@@ -90,12 +90,12 @@ fn a_press_dragged_onto_an_option_chooses_it_on_release() {
     harness.hover_at(screen);
     harness.run();
     assert_eq!(active(&harness).as_deref(), Some("Screen"), "the option under the pointer is active");
-    assert_eq!(harness.state().value, 2, "the value follows the active option");
+    assert_eq!(harness.state().value, 0, "the pointer only highlights");
     harness.event(press(screen, false));
     harness.run();
     assert_eq!(harness.state().value, 2);
     let events = &harness.state().events;
-    assert!(matches!(events[..], [EditEvent::Begin { .. }, .., EditEvent::Commit { value: 2, changed: true, .. }]), "{events:?}");
+    assert!(matches!(events[..], [EditEvent::Begin { .. }, EditEvent::Commit { value: 2, changed: true, .. }]), "{events:?}");
     assert_eq!(expanded(&harness), Some(false));
     assert!(options(&harness).is_empty(), "the list closed");
 }
@@ -334,14 +334,11 @@ fn the_open_list_is_one_gesture_that_commits_the_choice_or_cancels() {
     harness.run();
     harness.hover_at(option(&harness, "Lighten").rect().center());
     harness.run();
-    assert_eq!(harness.state().value, 5, "the pointer moves the value too");
+    assert_eq!(harness.state().value, 0, "the pointer doesn't move the value");
     option(&harness, "Lighten").click();
     harness.run();
     let events = std::mem::take(&mut harness.state_mut().events);
-    assert!(
-        matches!(events[..], [EditEvent::Begin { .. }, EditEvent::Update { value: 5, .. }, EditEvent::Commit { value: 5, changed: true, .. }]),
-        "{events:?}"
-    );
+    assert!(matches!(events[..], [EditEvent::Begin { .. }, EditEvent::Commit { value: 5, changed: true, .. }]), "{events:?}");
     assert_eq!(harness.state().value, 5);
 }
 
@@ -502,9 +499,9 @@ fn closing_the_list_without_a_choice_reports_why_and_puts_the_value_back() {
     let previewing = |harness: &mut Harness<'_, Host>| {
         harness.get_by_role(Role::ComboBox).click();
         harness.run();
-        harness.hover_at(option(harness, "Lighten").rect().center());
+        harness.key_press(Key::ArrowDown);
         harness.run();
-        assert_eq!(harness.state().value, 5, "the host shows the active option");
+        assert_eq!(harness.state().value, 1, "the host shows the active option");
     };
 
     previewing(&mut harness);
@@ -539,6 +536,40 @@ fn closing_the_list_without_a_choice_reports_why_and_puts_the_value_back() {
         (Some(CancelReason::UndoDuringGesture), 0, Some(false)),
         "an undo ends the list's gesture and closes the list"
     );
+}
+
+#[test]
+fn the_pointer_over_the_open_list_highlights_a_row_and_the_keys_go_on_from_it() {
+    let mut harness = blend();
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let selected = |harness: &Harness<'_, Host>, label: &str| option(harness, label).accesskit_node().data().is_selected();
+    for label in ["Screen", "Lighten"] {
+        harness.hover_at(option(&harness, label).rect().center());
+        harness.run();
+        assert_eq!(active(&harness).as_deref(), Some(label));
+    }
+    assert_eq!(harness.state().value, 0);
+    assert!(matches!(harness.state().events[..], [EditEvent::Begin { .. }]), "{:?}", harness.state().events);
+    assert_eq!((selected(&harness, "Normal"), selected(&harness, "Lighten")), (Some(true), Some(false)), "the value's row stays selected");
+
+    harness.key_press(Key::ArrowUp);
+    harness.run();
+    assert_eq!((harness.state().value, active(&harness).as_deref()), (4, Some("Darken")), "the key moves on from the hovered row");
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!(harness.state().value, 0);
+
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.state_mut().events.clear();
+    harness.hover_at(option(&harness, "Lighten").rect().center());
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    let events = &harness.state().events;
+    assert!(matches!(events[..], [EditEvent::Commit { value: 5, changed: true, .. }]), "{events:?}");
 }
 
 #[test]

@@ -105,9 +105,10 @@ pub struct SelectStyle {
 /// and, while open, the list it controls.
 ///
 /// - **The open list is one gesture**, as PhotoCraft's dropdowns: opening the list begins an
-///   edit gesture, and every option the pointer or the keys make active is an `Update`, so the
-///   value follows the list live and the chosen row (its check mark, AccessKit `selected`) is the
-///   active one, but for a search's first match (Searchable below). Choosing commits. Closing without a choice cancels and puts back the value from
+///   edit gesture, and every option the keys make active is an `Update`, so the value follows
+///   the keys live and the chosen row (its check mark, AccessKit `selected`) is the active one,
+///   but for a search's first match (Searchable below) and while the pointer highlights another
+///   row. Choosing commits. Closing without a choice cancels and puts back the value from
 ///   when the list opened: Esc ([`Escape`](CancelReason::Escape)), a click outside the list or a
 ///   press on the box ([`Dismissed`](CancelReason::Dismissed)), the focus leaving the box and the
 ///   list ([`FocusLost`](CancelReason::FocusLost)). A gesture that ends outside the list (an undo,
@@ -117,7 +118,9 @@ pub struct SelectStyle {
 ///   option and release to choose it. A plain click opens the list and leaves it open for a
 ///   second click; a release over the box keeps it open, a release elsewhere after a drag closes
 ///   it. A press on the box while the list is open closes it. The option under the pointer
-///   becomes active, so Enter chooses the row the pointer is on, as in a macOS pop-up menu.
+///   becomes the highlighted (active) row, so Enter chooses it as in a macOS pop-up menu, but
+///   hovering sends no `Update` and leaves the value, the check mark and `selected` on the
+///   chosen row; a key then moves on from the highlighted row.
 /// - **Keys on the closed box**: Down and Up step the value to the next and previous enabled
 ///   option without opening the list, one `Set` each, stopping at the ends (with the value none
 ///   of the options, Down goes to the first and Up to the last), as PhotoCraft's font picker
@@ -360,6 +363,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
         let popup_id = Popup::default_response_id(&response);
         let mut drawn_active = None;
+        // The active option after the keys and before the rows: the pointer's move onto a row
+        // highlights it and is not an update.
+        let mut keyed_active = pass.listbox.active();
         if pass.state.open {
             let header = search.as_ref().map_or(0.0, |_| style.field.height + style.list.gap);
             let mut open = true;
@@ -371,6 +377,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .height(MAX_ROWS * style.list.height + header)
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
+            keyed_active = pass.listbox.active();
             let picked = list.show(ui, popup, &mut pass, &mut drawn_active);
             let released = released(ui);
             if let Some(option) = picked {
@@ -393,10 +400,10 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 keep_focus(ui, popup_id, owner);
             }
         }
-        // The list's value follows the pointer and the keys; a search's first match waits for Enter.
+        // The list's value follows the keys, not the pointer; a search's first match waits for Enter.
         if !pass.searched
             && pass.gesture.is_active()
-            && let Some(active) = pass.listbox.active().filter(|a| Some(*a) != active_before)
+            && let Some(active) = keyed_active.filter(|a| Some(*a) != active_before)
         {
             pass.gesture.update(options.value(active), modifiers);
         }
