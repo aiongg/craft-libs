@@ -2,9 +2,9 @@
 artcraft.light.color = #1062c4ff
 artcraft.light.underline = hover
 artcraft.light.stroke = 1 #1062c4ff
-artcraft.dark.color = #a2c9ffff
+artcraft.dark.color = #b2d2ffff
 artcraft.dark.underline = always
-artcraft.dark.stroke = 1 #a2c9ffff
+artcraft.dark.stroke = 1 #b2d2ffff
 pro-dark.dark.color = #8fc1ffff
 pro-dark.dark.underline = always
 pro-dark.dark.stroke = 1 #8fc1ffff
