@@ -23,6 +23,7 @@
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
+//! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -50,6 +51,7 @@ pub(crate) mod guides;
 pub mod hit;
 pub(crate) mod marquee;
 mod part_focus;
+pub(crate) mod pen;
 pub mod quad;
 mod readout;
 pub(crate) mod ref_point;
@@ -73,6 +75,7 @@ pub use crisp::{crisp, crisp_shape};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
+pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
