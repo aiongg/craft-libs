@@ -111,6 +111,16 @@ impl Args {
         }
     }
 
+    /// Selects the option `option` of a choice arg; an unknown option leaves it unchanged.
+    pub fn set_choice(&mut self, name: &str, option: &str) {
+        let Some(Arg { value: ArgValue::Choice { options, index }, .. }) = self.args.iter_mut().find(|a| a.name == name) else {
+            self.wrong_kind(name, "choice")
+        };
+        if let Some(found) = options.iter().position(|o| *o == option) {
+            *index = found;
+        }
+    }
+
     pub fn text(&self, name: &str) -> &str {
         match self.value(name) {
             ArgValue::Text(t) => t,

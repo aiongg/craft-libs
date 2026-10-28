@@ -389,3 +389,36 @@ fn the_rulers_and_the_corner_are_in_the_accesskit_tree() {
     assert_eq!(data.value(), Some("100.0 px, 40.0 px"));
     assert!(!data.supports_action(accesskit::Action::Focus));
 }
+
+#[test]
+fn the_story_switches_units_from_the_menu_a_secondary_click_opens_at_the_pointer() {
+    let story = &super::stories()[0];
+    let mut h = Harness::<crate::story::Args>::builder()
+        .with_size([520.0, 420.0])
+        .with_step_dt(1.0 / 60.0)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(story.show, story.defaults());
+    h.run_steps(3);
+    let ruler = h.get_by_label("Horizontal ruler").rect();
+    let at = pos2(ruler.center().x, ruler.center().y);
+    h.event(Event::PointerMoved(at));
+    h.run();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(3);
+    let inches = h.get_by_label("Inches").rect();
+    assert!((inches.left() - at.x).abs() < 40.0 && inches.top() >= at.y - 2.0, "the menu is at the pointer: {inches:?} for {at:?}");
+    assert_eq!(h.get_by_label("Pixels").accesskit_node().data().toggled(), Some(accesskit::Toggled::True), "the current unit is checked");
+    let to = inches.center();
+    h.event(Event::PointerMoved(to));
+    h.run();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(3);
+    assert_eq!(h.state().choice("units"), "Inches");
+    assert_eq!(h.get_by_label("Horizontal ruler").accesskit_node().data().value(), Some("in"));
+}

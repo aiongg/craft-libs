@@ -11,6 +11,7 @@ use kurbo::Point;
 use super::guides::segment;
 use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -415,18 +416,15 @@ impl<'a> Rulers<'a> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Rulers"];
 
+const UNIT_NAMES: &[&str] = &["Pixels", "Millimetres", "Inches"];
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![Story {
         id: "primitives/rulers/canvas",
         level: Level::Primitives,
         component: "Rulers",
         name: "Canvas",
-        args: || {
-            super::story::args()
-                .with_choice("units", &["Pixels", "Millimetres", "Inches"], 0)
-                .with_bool("interactive", true)
-                .with_bool("locked", false)
-        },
+        args: || super::story::args().with_choice("units", UNIT_NAMES, 0).with_bool("interactive", true).with_bool("locked", false),
         show: show_canvas,
     }]
 }
@@ -494,6 +492,12 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
         .origin_locked(args.bool("locked"))
         .interactive(args.bool("interactive"))
         .show(ui, full, view, Some(guides.id));
+    let open_menu = rulers.context.map(|_| OpenAt::Pointer(ui.input(|i| i.pointer.interact_pos()).unwrap_or(full.min)));
+    let entries: Vec<MenuEntry<&'static str>> =
+        UNIT_NAMES.iter().map(|&name| MenuItem::new(name, name).radio(name == args.choice("units")).into()).collect();
+    if let Some(name) = ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, response).chosen {
+        args.set_choice("units", name);
+    }
     if rulers.reset_origin {
         zero = Point::ZERO;
     }
