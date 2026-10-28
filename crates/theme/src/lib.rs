@@ -21,6 +21,7 @@
 
 mod builtins;
 pub mod color;
+mod color_model;
 mod components;
 pub mod contrast;
 mod derive;
@@ -38,6 +39,8 @@ mod values;
 #[cfg(test)]
 mod builtin_tests;
 #[cfg(test)]
+mod color_model_tests;
+#[cfg(test)]
 mod component_tests;
 #[cfg(test)]
 mod explain_tests;
@@ -51,15 +54,18 @@ mod semantic_tests;
 mod tests;
 
 pub use builtins::builtins;
-pub use color::{Oklab, Oklch, Rgba};
+pub use color::{Hsb, Lab, Oklab, Oklch, Rgba, Srgba};
+pub use color_model::{
+    Channel, ColorModel, DefaultOn, HsbModel, LabModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, builtin_models, kept_or_converted,
+};
 pub use components::{
     BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BorderColors, BorderState, ButtonColors, ButtonField, ButtonPart,
-    ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens, ComponentField,
-    ComponentTokens, ControlSize, Dimmed, FieldField, FieldKind, FieldPart, FieldTokens, HandleField, HandleTokens, IconButtonField,
-    IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListboxField, ListboxTokens, OverrideError, OverrideValue, PanelHeaderField,
-    PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens,
-    SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart, ToggleButtonField, ToggleButtonTokens,
-    TooltipField, TooltipTokens,
+    ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens, ColorPickerField,
+    ColorPickerTokens, ComponentField, ComponentTokens, ControlSize, Dimmed, FieldField, FieldKind, FieldPart, FieldTokens, HandleField,
+    HandleTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, ListboxField, ListboxTokens, OverrideError,
+    OverrideValue, PanelHeaderField, PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, SectionField, SectionTokens,
+    SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, ThumbColors, ThumbPart,
+    ToggleButtonField, ToggleButtonTokens, TooltipField, TooltipTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};
