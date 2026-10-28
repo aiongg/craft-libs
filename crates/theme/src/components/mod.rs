@@ -9,13 +9,17 @@ mod badge;
 mod button;
 mod check;
 mod field;
+mod guide;
 mod handle;
 mod icon_button;
 mod kbd;
 mod listbox;
+mod marquee;
 mod panel_header;
 mod progress;
 mod property;
+mod readout;
+mod ruler;
 mod section;
 mod segmented;
 mod slider;
@@ -33,13 +37,17 @@ pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, Bad
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use listbox::{ListboxField, ListboxTokens};
+pub use marquee::{MarqueeField, MarqueeTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
+pub use readout::{ReadoutField, ReadoutTokens};
+pub use ruler::{RulerField, RulerTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
@@ -540,6 +548,8 @@ families! {
     check: CheckTokens => Check(CheckField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Ruler guides and smart guides.
+    guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
     /// Square icon-only buttons.
@@ -548,12 +558,18 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// List boxes: the rows of popup lists.
     listbox: ListboxTokens => Listbox(ListboxField);
+    /// Marching ants, selection bands and outlines being drawn.
+    marquee: MarqueeTokens => Marquee(MarqueeField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.
     property: PropertyTokens => Property(PropertyField);
+    /// Readouts: the values beside the pointer during a canvas gesture.
+    readout: ReadoutTokens => Readout(ReadoutField);
+    /// Rulers along the top and left of a canvas.
+    ruler: RulerTokens => Ruler(RulerField);
     /// Section headers: the row, chevron and title of a collapsible section.
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options on a track.
