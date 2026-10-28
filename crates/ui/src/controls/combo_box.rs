@@ -47,9 +47,10 @@ use crate::theme::{Tokens, TokensOf, margin_x};
 /// box popup and, while open, the list it controls.
 ///
 /// - **Typing** is a typing run as in a text field (one gesture, committed on Enter or when the
-///   focus leaves, Esc cancels). Each change opens the list on the options matching the typed
-///   text, ignoring case: those starting with it first, then those containing it. With no match
-///   the list closes. Work in the text takes the active option back to it: a change, a move of
+///   focus leaves; Enter leaves the field unless [`keep_focus`](ComboBox::keep_focus), Esc
+///   cancels the run, leaves the field and goes on to the host, [`EditResponse::escaped`]).
+///   Each change opens the list on the options matching the typed text, ignoring case: those
+///   starting with it first, then those containing it. With no match the list closes. Work in the text takes the active option back to it: a change, a move of
 ///   the caret or the selection (Left, Right, Home, End, a press in the text), an input method's
 ///   composition. Enter then commits the typed text.
 /// - **Opened without typing** (the chevron, Alt+Down) while no typing run is under way, the list
@@ -58,11 +59,14 @@ use crate::theme::{Tokens, TokensOf, margin_x};
 ///   and Page Up move the active option and put its text in the field as a change of the typing
 ///   run (one that begins the run when none is under way), so the host shows it at once. Enter
 ///   (Shift+Enter too, as the field counts it) and Alt+Up choose the active option and close the
-///   list; Enter with none commits the run ([`EditResponse::submitted`]) and closes the list,
-///   Alt+Up with none closes it. Esc brings back the text from before the keys put an option's
-///   in (cancelling the run they began, or changing the typed text's run back) and closes the
-///   list; with nothing put in it only closes the list and the run goes on. The next Esc cancels
-///   the run, and the one after leaves the field. Left, Right, Home and End stay with the caret.
+///   list, and the field keeps the focus (PhotoCraft's font picker); Enter with none commits the
+///   run ([`EditResponse::submitted`]), closes the list and leaves the field, as a text field's
+///   Enter. Alt+Up with none closes the list. Esc is the open list's: it brings back the text
+///   from before the keys put an option's in (cancelling the run they began, or changing the
+///   typed text's run back) and closes the list; with nothing put in it only closes the list and
+///   the run goes on. The press stays with the list. The next Esc is the text field's: it
+///   cancels the run, leaves the field and goes on to the host. Left, Right, Home and End stay
+///   with the caret.
 ///   Tab commits what the field shows and moves on. While an input method composes, the keys are
 ///   its own ([`Typing::composing`]) and the list reads none.
 /// - **Keys on the closed field**: Up and Down step the text to the option before or after the
@@ -90,6 +94,7 @@ pub struct ComboBox<'a> {
     size: ControlSize,
     policy: EditPolicy,
     enabled: bool,
+    keep_focus: bool,
 }
 
 impl<'a> ComboBox<'a> {
@@ -105,6 +110,7 @@ impl<'a> ComboBox<'a> {
             size: ControlSize::Md,
             policy: EditPolicy::default(),
             enabled: true,
+            keep_focus: false,
         }
     }
 
@@ -142,10 +148,17 @@ impl<'a> ComboBox<'a> {
         self
     }
 
+    /// Whether the field keeps the focus after an Enter that commits the typed text; off by
+    /// default. Choosing an option keeps it either way.
+    pub fn keep_focus(mut self, keep: bool) -> Self {
+        self.keep_focus = keep;
+        self
+    }
+
     /// Shows the field, and the list while it is open, and returns this frame's edit. The
     /// response covers the field.
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
-        let Self { id_salt, label, value, options, placeholder, size, policy, enabled } = self;
+        let Self { id_salt, label, value, options, placeholder, size, policy, enabled, keep_focus: keep } = self;
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
         let f = &style.field;
@@ -186,6 +199,7 @@ impl<'a> ComboBox<'a> {
             .placeholder(&placeholder)
             .policy(policy)
             .enabled(enabled)
+            .keep_focus(keep)
             .role(Role::EditableComboBox)
             .event_filter(key_filter(state.open))
             .show(ui, &look);

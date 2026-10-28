@@ -50,9 +50,10 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   [cancels on it](Gesture::cancel_on_focus_loss). The commit goes out in the same frame and
 ///   carries the final value, which an update may not have carried.
 /// - [`load`](Gesture::load) cancels on Esc (and consumes it, so later widgets and the control's
-///   own commit on egui's `drag_stopped` don't see it) when the policy is
-///   [`cancellable`](EditPolicy::cancellable) and no modal layer is above the control; on
-///   [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
+///   own commit on egui's `drag_stopped` don't see it; a focused text field's typing run leaves
+///   the press to the host instead, [`EditResponse::escaped`](super::EditResponse::escaped)) when
+///   the policy is [`cancellable`](EditPolicy::cancellable) and no modal layer is above the
+///   control; on [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
 ///   gesture's updates ([`CancelReason::External`]). [`enabled`](Gesture::enabled) cancels when
 ///   the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
@@ -160,6 +161,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all), an external
     /// change of the value, and Esc.
     pub fn load(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
+        Self::load_with(ui, id, value, policy, true)
+    }
+
+    /// [`load`](Gesture::load) for a control that leaves Esc to the host: the press cancels as it
+    /// does there but stays in the input, so the controls after it and the host see it too (a
+    /// focused text field's typing run, whose Esc also closes a dialog).
+    pub(crate) fn load_passing_escape(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
+        Self::load_with(ui, id, value, policy, false)
+    }
+
+    fn load_with(ui: &Ui, id: Id, value: &T, policy: EditPolicy, take_escape: bool) -> Self {
         let ctx = ui.ctx().clone();
         let key = id.with(STATE);
         let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
@@ -189,7 +201,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         gesture.end_restoring();
         gesture.apply_cancel_all();
         gesture.apply_external();
-        gesture.apply_escape();
+        gesture.apply_escape(take_escape);
         gesture
     }
 
@@ -302,14 +314,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         });
     }
 
-    /// Makes the active gesture report no updates, whatever the policy says, as
-    /// [`on_release_only`](EditPolicy::on_release_only) does: its commit carries its value. For a
-    /// gesture whose values in between mean nothing to the host, such as a number field's typing
-    /// run (`-` and `1,` aren't numbers yet), while the control's other gestures report at the
-    /// policy's rate. Lasts until the gesture ends.
-    pub fn hold_updates(&mut self) {
+    /// Whether the active gesture holds its updates: while it does it reports none, whatever the
+    /// policy says, as [`on_release_only`](EditPolicy::on_release_only) does, and its commit
+    /// carries its value; once it stops, the value not reported yet goes out as an update. For a
+    /// gesture whose values in between may mean nothing to the host, such as a number field's
+    /// typing run (`-` and `5+` aren't numbers yet), while the control's other gestures report at
+    /// the policy's rate. Lasts until the gesture ends or the next call.
+    pub fn hold_updates(&mut self, hold: bool) {
         if let Phase::Active(a) = &mut self.stored.phase {
-            a.held = true;
+            a.held = hold;
         }
     }
 
@@ -419,9 +432,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Cancels on Esc, unless a modal layer is above the control: Esc then closes the modal.
-    fn apply_escape(&mut self) {
+    /// `take` takes the press out of the input.
+    fn apply_escape(&mut self, take: bool) {
         let armed = matches!(&self.stored.phase, Phase::Active(a) if !a.ending) && self.policy.cancellable && !self.scoped;
-        if armed && self.ctx.memory(|m| m.is_above_modal_layer(self.layer)) && self.ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+        if !armed || !self.ctx.memory(|m| m.is_above_modal_layer(self.layer)) {
+            return;
+        }
+        let pressed = match take {
+            true => self.ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)),
+            false => self.ctx.input(escape_pressed),
+        };
+        if pressed {
             self.cancel(CancelReason::Escape);
         }
     }
@@ -559,4 +580,12 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
         }
     }
+}
+
+/// Whether this pass's input has a press of Esc that `consume_key(Modifiers::NONE, Key::Escape)`
+/// would take.
+pub(crate) fn escape_pressed(input: &egui::InputState) -> bool {
+    input.events.iter().any(
+        |event| matches!(event, egui::Event::Key { key: Key::Escape, pressed: true, modifiers, .. } if modifiers.matches_logically(Modifiers::NONE)),
+    )
 }

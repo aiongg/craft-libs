@@ -20,12 +20,20 @@ struct Rig {
     time: f64,
     value: f64,
     before: f64,
+    /// Whether the field was mixed before the gesture; the host's value is one once it applies
+    /// one.
+    before_mixed: bool,
     numbers: LocaleNumbers,
     range: (f64, f64),
     decimals: (usize, usize),
     unit: Unit,
     mixed: bool,
     scrub: bool,
+    /// A drag on the text scrubs.
+    scrub_text: bool,
+    /// The controls are in a scroll area 100 points tall over a tall filler, scrolled `offset`.
+    scroll: bool,
+    offset: f32,
     /// A label before the field scrubs it.
     outside: bool,
     /// The button before the field and the outside label.
@@ -41,6 +49,7 @@ struct Rig {
     id: Id,
     rect: Rect,
     event: Option<EditEvent<f64>>,
+    escaped: bool,
     /// Every event in order.
     events: Vec<EditEvent<f64>>,
     /// The field's AccessKit node and its children's roles in the last update.
@@ -69,12 +78,16 @@ impl Rig {
             time: 0.0,
             value,
             before: value,
+            before_mixed: false,
             numbers: LocaleNumbers::from_tag("en"),
             range: (f64::NEG_INFINITY, f64::INFINITY),
             decimals: (0, 2),
             unit: Unit::default(),
             mixed: false,
             scrub: false,
+            scrub_text: true,
+            scroll: false,
+            offset: 0.0,
             outside: false,
             button: Id::NULL,
             label: Rect::NOTHING,
@@ -87,6 +100,7 @@ impl Rig {
             id: Id::NULL,
             rect: Rect::NOTHING,
             event: None,
+            escaped: false,
             events: Vec::new(),
             node: None,
             children: Vec::new(),
@@ -148,6 +162,18 @@ impl Rig {
     }
 
     fn controls(&mut self, ui: &mut Ui) {
+        if !self.scroll {
+            self.field_row(ui);
+            return;
+        }
+        let out = egui::ScrollArea::vertical().max_height(100.0).show(ui, |ui| {
+            self.field_row(ui);
+            ui.allocate_space(vec2(200.0, 1000.0));
+        });
+        self.offset = out.state.clamped_offset().y;
+    }
+
+    fn field_row(&mut self, ui: &mut Ui) {
         self.button = ui.button("Before").id;
         let label = self.outside.then(|| ui.label("Width"));
         if !self.drawn {
@@ -166,6 +192,7 @@ impl Rig {
             .unit(self.unit.clone())
             .mixed(self.mixed)
             .enabled(self.enabled)
+            .scrub_text(self.scrub_text)
             .policy(self.policy);
         if self.scrub {
             field = field.scrub_label("W");
@@ -181,7 +208,7 @@ impl Rig {
             field = field.or_parse(sum);
         }
         let edit = field.show(ui);
-        (self.id, self.rect) = (edit.response.id, edit.response.rect);
+        (self.id, self.rect, self.escaped) = (edit.response.id, edit.response.rect, edit.escaped);
         self.event.clone_from(&edit.event);
         if let Some(event) = edit.event {
             self.events.push(event.clone());
@@ -203,12 +230,14 @@ impl Rig {
             return;
         }
         match event {
-            EditEvent::Begin { .. } => self.before = self.value,
-            EditEvent::Cancel { reason: CancelReason::External, .. } | EditEvent::Commit { changed: false, .. } => {}
-            EditEvent::Cancel { .. } => self.value = self.before,
+            EditEvent::Begin { .. } => (self.before, self.before_mixed) = (self.value, self.mixed),
+            EditEvent::Cancel { reason: CancelReason::External, .. } => {}
+            EditEvent::Cancel { .. } => (self.value, self.mixed) = (self.before, self.before_mixed),
+            EditEvent::Commit { changed: false, .. } if self.mixed => {}
             other => {
                 if let Some(&v) = other.value() {
                     self.value = (self.adjust)(v);
+                    self.mixed = false;
                 }
             }
         }
@@ -324,23 +353,21 @@ fn set(value: f64) -> EditEvent<f64> {
 }
 
 #[test]
-fn typing_commits_once_on_enter_and_on_focus_loss_with_the_value_read_rounded_and_clamped() {
+fn typing_commits_on_enter_and_on_focus_loss_with_the_value_read_rounded_and_clamped() {
     let mut rig = Rig::with(5.0, |r| r.range = (0.0, 100.0));
     rig.focus();
     let n = rig.events.len();
-    // Partial text isn't a value: Begin, then nothing until Enter.
     for c in ["-", "1", "2", ".", "3", "4", "5"] {
         rig.type_text(c);
     }
     let id = begin_id(&since(&rig, n));
-    assert_eq!(since(&rig, n).len(), 1, "no updates while typing: {:?}", since(&rig, n));
     rig.key(Key::Enter);
     // -12.345 rounds to two decimals, then clamps to the range.
     assert_eq!(rig.event, Some(commit(id, 0.0, true)));
     assert_eq!(rig.value, 0.0);
-    assert!(rig.has_focus());
+    assert!(!rig.has_focus(), "Enter leaves the field");
 
-    rig.chord(Modifiers::COMMAND, Key::A);
+    rig.focus();
     let n = rig.events.len();
     rig.type_text("2.375");
     let id = begin_id(&since(&rig, n));
@@ -348,6 +375,49 @@ fn typing_commits_once_on_enter_and_on_focus_loss_with_the_value_read_rounded_an
     // Half away from zero.
     assert_eq!(rig.event, Some(commit(id, 2.38, true)));
     assert_eq!(since(&rig, n).len(), 2);
+}
+
+/// A plain number applies as it is typed, one update a keystroke that makes one; `-` doesn't
+/// yet, and arithmetic waits for the commit, the host keeping the last plain value until then.
+#[test]
+fn a_plain_number_applies_as_it_is_typed_and_arithmetic_only_on_the_commit() {
+    let mut rig = Rig::with(5.0, |r| r.arithmetic = true);
+    rig.focus();
+    let n = rig.events.len();
+    let mut applied = Vec::new();
+    for c in ["-", "1", "2", "+", "3"] {
+        rig.type_text(c);
+        rig.frame(vec![]);
+        applied.push(rig.value);
+    }
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(applied, [5.0, -1.0, -12.0, -12.0, -12.0], "`-` leaves 5, `-12+` and `-12+3` wait");
+    rig.key(Key::Enter);
+    assert_eq!(rig.event, Some(commit(id, -9.0, true)));
+    assert_eq!(rig.value, -9.0);
+
+    // Esc after numbers applied as typed brings the value from before the run back.
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("4");
+    rig.frame(vec![]);
+    assert_eq!(rig.value, 4.0);
+    rig.key(Key::Escape);
+    assert!(matches!(since(&rig, n).last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "{:?}", since(&rig, n));
+    assert_eq!(rig.value, -9.0);
+    assert!(!rig.has_focus() && rig.escaped, "Esc leaves the field and goes on");
+
+    // Text that reads as no number commits the value from before the run.
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("7");
+    rig.frame(vec![]);
+    rig.type_text("x");
+    assert_eq!(rig.value, 7.0, "the last number applied stays while the text is no number");
+    rig.key(Key::Enter);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(rig.event, Some(commit(id, -9.0, false)));
+    assert_eq!(rig.value, -9.0);
 }
 
 #[test]
@@ -367,16 +437,18 @@ fn text_that_is_no_number_keeps_the_value_stays_outlined_and_esc_restores() {
     rig.ctx.memory_mut(|m| m.request_focus(rig.id));
     rig.frame(vec![]);
     rig.key(Key::Escape);
-    assert!(rig.has_focus(), "Esc restores and keeps the focus");
+    assert!(!rig.has_focus() && rig.escaped, "Esc restores, leaves and goes on");
     rig.frame(vec![]);
     assert_eq!((rig.shown().as_deref(), rig.invalid(), rig.event.clone()), (Some("7"), false, None));
 
     // Text fixed and committed clears the mark.
-    rig.chord(Modifiers::COMMAND, Key::A);
+    rig.focus();
     rig.type_text("x");
     rig.key(Key::Enter);
     rig.frame(vec![]);
     assert!(rig.invalid());
+    rig.ctx.memory_mut(|m| m.request_focus(rig.id));
+    rig.frame(vec![]);
     rig.chord(Modifiers::COMMAND, Key::A);
     rig.type_text("9");
     rig.key(Key::Enter);
@@ -512,7 +584,7 @@ fn german_and_arabic_digits_round_trip_with_the_unit_typed_or_not() {
     rig.type_text("2,25 px");
     rig.key(Key::Enter);
     assert_eq!(rig.value, 2.25);
-    rig.chord(Modifiers::COMMAND, Key::A);
+    rig.focus();
     rig.type_text("7,5");
     rig.key(Key::Enter);
     assert_eq!(rig.value, 7.5);
@@ -547,6 +619,7 @@ fn a_mixed_field_is_blank_commits_a_typed_number_and_steps_from_the_host_value()
     rig.focus();
     rig.key(Key::Enter);
     assert_eq!(rig.event, None, "blank commits nothing");
+    rig.focus();
     rig.type_text("20");
     rig.key(Key::Enter);
     assert!(matches!(rig.event, Some(EditEvent::Commit { value: 20.0, changed: true, .. })), "the host's value typed is a change: {:?}", rig.event);
@@ -663,13 +736,102 @@ fn a_label_before_the_field_scrubs_it_and_is_no_tab_stop() {
 }
 
 fn wheel_notch() -> Event {
+    wheel_lines(1.0, Modifiers::NONE)
+}
+
+/// `lines` wheel lines, up positive.
+fn wheel_lines(lines: f32, modifiers: Modifiers) -> Event {
     Event::MouseWheel {
         unit: MouseWheelUnit::Line,
-        delta: vec2(0.0, 1.0),
-        modifiers: Modifiers::NONE,
+        delta: vec2(0.0, lines),
+        modifiers,
         phase: egui::TouchPhase::Move,
         source: egui::MouseWheelSource::Wheel,
     }
+}
+
+/// A drag past egui's threshold anywhere on a field without the focus scrubs it, a click without
+/// a drag gives it the focus with its text selected, and a drag on the focused field's text
+/// selects it. `scrub_text(false)` leaves the text to the pointer.
+#[test]
+fn a_drag_on_a_field_without_the_focus_scrubs_it_and_a_click_edits_it() {
+    let mut rig = Rig::new(10.0);
+    let at = rig.rect.center();
+    rig.frame(vec![Event::PointerMoved(at)]);
+    assert_eq!(rig.cursor, CursorIcon::ResizeHorizontal);
+    let n = rig.events.len();
+    rig.drag(at, &[10.0, 15.0], Modifiers::NONE, true);
+    let events = since(&rig, n);
+    let id = begin_id(&events);
+    assert_eq!(events.last(), Some(&commit(id, 25.0, true)));
+    assert!(!rig.has_focus(), "a scrub doesn't focus the field");
+
+    let n = rig.events.len();
+    rig.drag(at, &[2.0], Modifiers::NONE, true);
+    assert_eq!(since(&rig, n), [], "a press that moves less than the threshold is a click");
+    assert!(rig.has_focus(), "the click gives the field the focus");
+    rig.frame(vec![]);
+    rig.type_text("3");
+    rig.key(Key::Enter);
+    assert_eq!(rig.value, 3.0, "with the text selected, so typing replaces it");
+
+    rig.focus();
+    let n = rig.events.len();
+    rig.drag(rig.rect.center(), &[-20.0, -30.0], Modifiers::NONE, true);
+    assert_eq!((since(&rig, n), rig.value, rig.has_focus()), (vec![], 3.0, true), "a drag in the focused field selects");
+
+    let mut rig = Rig::with(10.0, |r| r.scrub_text = false);
+    let n = rig.events.len();
+    rig.drag(rig.rect.center(), &[10.0, 15.0], Modifiers::NONE, true);
+    assert_eq!((since(&rig, n), rig.value, rig.has_focus()), (vec![], 10.0, true), "scrub_text(false): the press places the caret");
+}
+
+/// PhotoCraft's wheel: a gesture that starts over a field without the focus steps it, one that
+/// starts elsewhere scrolls the panel on over it; the focused field takes the wheel wherever the
+/// pointer is; Alt and Ctrl/Cmd stay the view's.
+#[test]
+fn the_wheel_steps_the_field_a_gesture_starts_over_and_the_focused_field_from_anywhere() {
+    let mut rig = Rig::with(100.0, |r| r.scroll = true);
+    let over = rig.rect.center();
+    rig.frame(vec![Event::PointerMoved(over)]);
+    let n = rig.events.len();
+    rig.frame(vec![wheel_lines(1.0, Modifiers::NONE)]);
+    rig.frame(vec![wheel_lines(1.0, Modifiers::SHIFT)]);
+    for _ in 0..4 {
+        rig.frame(vec![]);
+    }
+    assert_eq!(since(&rig, n), [set(101.0), set(111.0)], "a notch a step, Shift ten, no focus needed");
+    assert_eq!(rig.offset, 0.0, "the panel under the field doesn't scroll");
+    assert!(!rig.has_focus());
+
+    rig.time += 1.0;
+    rig.frame(vec![wheel_lines(1.0, Modifiers::ALT), wheel_lines(1.0, Modifiers::COMMAND)]);
+    assert_eq!(rig.value, 111.0, "Alt and Cmd/Ctrl + wheel are the view's");
+
+    // A gesture that starts below the field scrolls the panel, also once the field is under the
+    // pointer.
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(over + vec2(0.0, 50.0))]);
+    rig.frame(vec![wheel_lines(-1.0, Modifiers::NONE)]);
+    let over = rig.rect.center();
+    rig.frame(vec![Event::PointerMoved(over), wheel_lines(-1.0, Modifiers::NONE)]);
+    for _ in 0..4 {
+        rig.frame(vec![]);
+    }
+    assert_eq!(rig.value, 111.0, "the field passing under the pointer isn't stepped");
+    assert!(rig.offset > 0.0, "the panel scrolled");
+
+    // The focused field steps with the pointer away from it, and the panel stays.
+    let mut rig = Rig::with(100.0, |r| r.scroll = true);
+    rig.focus();
+    let away = rig.rect.center() + vec2(0.0, 50.0);
+    rig.frame(vec![Event::PointerMoved(away)]);
+    rig.frame(vec![wheel_lines(-2.0, Modifiers::NONE)]);
+    for _ in 0..4 {
+        rig.frame(vec![]);
+    }
+    assert_eq!((rig.value, rig.offset), (98.0, 0.0));
+    assert!(rig.has_focus());
 }
 
 #[test]

@@ -12,7 +12,7 @@ use egui::{
     TextBuffer, TextEdit, Ui, Vec2, ViewportId,
 };
 
-use crate::edit::{EditPolicy, EditResponse, Gesture, GestureId};
+use crate::edit::{EditPolicy, EditResponse, Gesture, GestureId, escape_pressed};
 use crate::ime::is_ime_key;
 use crate::primitives::FocusRing;
 use crate::theme::TABULAR_FIGURES;
@@ -44,9 +44,10 @@ pub trait Codec {
     type Value: Clone + PartialEq + Send + Sync + 'static;
 
     /// Whether every text is a value. Then the typing run reports each change at the policy's
-    /// rate. Otherwise the typed text is a draft: the run reports no updates
-    /// ([`Gesture::hold_updates`]), its value is the draft read back (or the start while the
-    /// draft reads as no value), and its commit carries that value.
+    /// rate. Otherwise the typed text is a draft: its value is the draft read back (or the start
+    /// while the draft reads as no value), the commit carries that value, and the run reports
+    /// only the drafts that [apply as typed](Codec::applies_as_typed) as updates, holding the
+    /// rest ([`Gesture::hold_updates`]).
     const DRAFTS_ARE_VALUES: bool = false;
 
     /// The text the field shows for `value`.
@@ -55,6 +56,14 @@ pub trait Codec {
     /// The value `text` stands for, typed in a run that began at `start`; or why it stands for
     /// none.
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>;
+
+    /// Whether the value of the draft `text`, which [`parse`](Codec::parse) reads as a value,
+    /// applies as it is typed (an update of the run) rather than when the run commits: a plain
+    /// number does, arithmetic (`5/2`) waits for the commit, so the host never applies `5` on the
+    /// way to `5/2*2`. None does by default. Not asked where drafts are values.
+    fn applies_as_typed(&self, _text: &str) -> bool {
+        false
+    }
 }
 
 /// Why text reads as no value, from [`Codec::parse`].
@@ -89,12 +98,16 @@ impl Codec for PlainText {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Escape {
-    /// Cancels the run under way when the policy is [cancellable](EditPolicy::cancellable), or
-    /// else leaves the field.
+    /// Cancels the run under way when the policy is [cancellable](EditPolicy::cancellable) (else
+    /// the focus leaving commits it), drops rejected text, leaves the field and passes the press
+    /// on: it stays in egui's input for the controls drawn after the field, and the field reports
+    /// it ([`EditResponse::escaped`]), so a dialog or a tool acts on the same press. PhotoCraft's
+    /// fields, and egui's, leave on Esc.
     #[default]
-    Cancel,
-    /// Clears text there is (a change of the run, which commits the empty text) and keeps the
-    /// focus; in an empty field, leaves it. A search field's Esc.
+    PassThrough,
+    /// Clears text there is (a change of the run, which commits the empty text), keeping the
+    /// focus and the press; in an empty field, as [`PassThrough`](Escape::PassThrough). A search
+    /// field's Esc: the first press clears, the next leaves.
     Clear,
 }
 
@@ -125,12 +138,14 @@ pub enum Escape {
 ///
 /// - **Typing run**: focus alone begins nothing. The first change of the text (typing, paste,
 ///   cut, delete, an input method's commit, in-field undo) begins the gesture; every later change
-///   is an update. Enter commits and keeps the focus ([`EditResponse::submitted`]): a plain press,
+///   is an update. Enter commits and leaves the field ([`EditResponse::submitted`]), as in
+///   PhotoCraft; [`keep_focus`](Typing::keep_focus) keeps the focus. Enter is a plain press,
 ///   with no modifier but Shift and not a held key's repeat, so a dialog's OK fires once and
 ///   Cmd/Ctrl+Enter stays free (a multi-line field's commit). Moving the focus away commits; a
 ///   field no longer drawn ends as a commit with everything typed ([`Ending`](crate::edit::Ending)).
 ///   A screen reader's set-value request without the focus is one [`Set`](crate::edit::EditEvent::Set).
-/// - **Esc**: as [`Escape`] says.
+/// - **Esc**: as [`Escape`] says; by default it cancels the run, leaves the field and goes on to
+///   the host ([`EditResponse::escaped`]).
 /// - **Input methods**: marked (pre-edit) text is never part of the value; the value is the
 ///   committed text. Enter, Esc, Backspace, Delete and Space are the input method's while it
 ///   composes, and the first of them after a composition ends in the same pass (the key that
@@ -148,13 +163,14 @@ pub enum Escape {
 /// - **Keys of the embedding control**: [`event_filter`](Typing::event_filter) keeps more keys
 ///   with the field while it has the focus (a list's Up and Down, a popup's Esc).
 /// - **Typed values** ([`Typing::with_codec`]): the field shows its value as the [`Codec`] writes
-///   it. Where text is a draft rather than a value (a number), the run reports no updates and
-///   commits the draft read back, so Enter, the focus leaving and a field no longer drawn all
-///   commit the same value. A draft that can't become a value is marked invalid as it is typed
-///   ([`Typed::rejected`]; text that still may, [`NotAValue::partial`], is not). A draft that
-///   reads as no value commits nothing (the run ends unchanged) and stays in the field, rejected
-///   with the codec's reason and reported invalid, until the user fixes it, Esc restores the
-///   value, or the host's value changes; a field no longer drawn drops it. An embedding
+///   it. Where text is a draft rather than a value (a number), the run reports as updates only
+///   the drafts that [apply as typed](Codec::applies_as_typed) and commits the draft read back,
+///   so Enter, the focus leaving and a field no longer drawn all commit the same value. A draft
+///   that can't become a value is marked invalid as it is typed ([`Typed::rejected`]; text that
+///   still may, [`NotAValue::partial`], is not). A draft that reads as no value commits nothing
+///   (the run ends at its start) and stays in the field, rejected with the codec's reason and
+///   reported invalid, until the user fixes it, Esc restores the value, or the host's value
+///   changes; a field no longer drawn drops it. An embedding
 ///   control's own input (a drag, a step) goes through [`Typed::gesture`],
 ///   [`Typed::commit_with`] and [`Typed::commit`].
 #[must_use = "show the field with `show`"]
@@ -169,6 +185,7 @@ pub struct Typing<'a, C: Codec = PlainText> {
     password: bool,
     char_limit: usize,
     escape: Escape,
+    keep_focus: bool,
     role: Role,
     invalid: bool,
     keys: EventFilter,
@@ -231,7 +248,8 @@ impl<'a, C: Codec> Typing<'a, C> {
             enabled: true,
             password: false,
             char_limit: usize::MAX,
-            escape: Escape::Cancel,
+            escape: Escape::PassThrough,
+            keep_focus: false,
             role: Role::TextInput,
             invalid: false,
             keys: EventFilter::default(),
@@ -279,6 +297,13 @@ impl<'a, C: Codec> Typing<'a, C> {
         self
     }
 
+    /// Whether the field keeps the focus after Enter commits; off by default: Enter leaves the
+    /// field, as in PhotoCraft.
+    pub fn keep_focus(mut self, keep: bool) -> Self {
+        self.keep_focus = keep;
+        self
+    }
+
     /// The AccessKit role: `TextInput` by default; `SearchInput` for a search field,
     /// `SpinButton` for a number field. A password field is a `PasswordInput` whatever this says.
     pub fn role(mut self, role: Role) -> Self {
@@ -295,7 +320,8 @@ impl<'a, C: Codec> Typing<'a, C> {
     /// Keys the embedding control reads while the field has the focus, on top of `TextEdit`'s
     /// and the run's Esc: egui keeps the focus on them (Tab, the arrows, Esc) and leaves them in
     /// the input. A searchable combo box keeps Up, Down and Esc for its open list; a number field
-    /// keeps Up and Down for stepping.
+    /// keeps Up and Down for stepping. A control that keeps Esc takes the press before the field
+    /// runs: one left in the input is the field's ([`Escape`]).
     pub fn event_filter(mut self, filter: EventFilter) -> Self {
         self.keys = filter;
         self
@@ -314,8 +340,14 @@ impl<'a, C: Codec> Typing<'a, C> {
         let focused = enabled && ui.memory(|m| m.has_focus(id));
         let submitted = focused && ui.input(enter_pressed);
         let was_focused = seen.as_ref().is_some_and(|s| s.focused);
-
-        let mut gesture = Gesture::load(ui, id, &self.value, self.policy).pointer_selects(true).enabled(enabled);
+        // The field's Esc goes on to the host; one with the focus elsewhere (a scrub of a number
+        // field) is the gesture's, as in every control.
+        let passing = self.escape == Escape::PassThrough && enabled && (focused || was_focused);
+        let gesture = match passing {
+            true => Gesture::load_passing_escape(ui, id, &self.value, self.policy),
+            false => Gesture::load(ui, id, &self.value, self.policy),
+        };
+        let mut gesture = gesture.pointer_selects(true).enabled(enabled);
         let seen_text = seen.as_ref().map(|s| s.text);
         let rejected = seen.as_ref().and_then(|s| s.rejected(ui, id));
         let draft = seen.and_then(|s| s.draft);
@@ -324,15 +356,19 @@ impl<'a, C: Codec> Typing<'a, C> {
         let run_cancelled = draft.as_ref().is_some_and(|d| gesture.id() != Some(d.run));
         let draft = draft.filter(|_| !run_cancelled);
         let mut rejected = rejected.filter(|r| !run_cancelled && enabled && r.host == self.value);
-        if rejected.is_some() && draft.is_none() && focused && !gesture.is_active() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-            rejected = None;
-        }
         if self.escape == Escape::Clear
             && focused
             && !self.codec.format(gesture.shown()).is_empty()
             && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
         {
             clear(ui, &self.codec, &mut gesture);
+        }
+        // An Esc left in the input leaves the field and goes on. egui has already dropped the
+        // focus on it unless the field kept Esc (a cancellable run under way).
+        let escaped = enabled && (focused || was_focused) && ui.input(escape_pressed);
+        if escaped {
+            rejected = None;
+            ui.memory_mut(|m| m.surrender_focus(id));
         }
 
         let shown = match (&draft, &rejected) {
@@ -388,6 +424,8 @@ impl<'a, C: Codec> Typing<'a, C> {
         let mut typed = Typed {
             id,
             escape: self.escape,
+            keep_focus: self.keep_focus,
+            escaped,
             codec: self.codec,
             host: self.value,
             was_focused,
@@ -451,6 +489,9 @@ fn tabular_line(ui: &Ui, look: &TypingLook, password: bool, text: &str) -> Arc<G
 pub struct Typed<C: Codec = PlainText> {
     id: Id,
     escape: Escape,
+    keep_focus: bool,
+    /// Esc left the field in this pass and goes on to the host.
+    escaped: bool,
     codec: C,
     /// The host's value this pass.
     host: C::Value,
@@ -605,6 +646,12 @@ impl<C: Codec> Typed<C> {
         ui.ctx().request_repaint();
     }
 
+    /// Whether Esc left the field in this pass and goes on to the host
+    /// ([`EditResponse::escaped`]).
+    pub fn escaped(&self) -> bool {
+        self.escaped
+    }
+
     /// Commits on Enter, keeps the focus rules and returns this pass's edit.
     pub fn end(self, ui: &Ui) -> EditResponse<C::Value> {
         self.end_as(ui, |value| value)
@@ -615,6 +662,9 @@ impl<C: Codec> Typed<C> {
     pub fn end_as<U: Clone + Send + Sync + 'static>(mut self, ui: &Ui, report: impl Fn(C::Value) -> U) -> EditResponse<U> {
         if self.submitted || self.commit {
             self.gesture.commit();
+        }
+        if self.submitted && !self.keep_focus {
+            ui.memory_mut(|m| m.surrender_focus(self.id));
         }
         let focused = ui.memory(|m| m.has_focus(self.id));
         if self.composing && !focused {
@@ -641,15 +691,14 @@ impl<C: Codec> Typed<C> {
         if focused && !self.was_focused && FocusRing::visible(ui.ctx()) {
             select_all(ui, self.id, &self.buffer);
         }
-        // Esc stays with the field while it is the input method's, clears text or restores
-        // rejected text.
+        // Esc stays with the field while it is the input method's or clears text.
         let composing = self.composing && focused;
-        let escape = composing || (self.escape == Escape::Clear && !self.codec.format(self.gesture.shown()).is_empty()) || self.rejected.is_some();
+        let escape = composing || (self.escape == Escape::Clear && !self.codec.format(self.gesture.shown()).is_empty());
         let seen = Seen::new(ui, egui::util::hash(&self.text), focused, composing, self.draft.take());
         seen.store(ui, self.id, self.rejected.take());
         let filter = either(self.filter, self.keys);
         let event = self.gesture.event_filter(EventFilter { escape: escape || filter.escape, ..filter }).finish_as(report);
-        EditResponse::new(self.response, event).submitted(self.submitted)
+        EditResponse::new(self.response, event).submitted(self.submitted).escaped(self.escaped)
     }
 
     /// A change of the text to `text`: with the focus, a change of the typing run (which it
@@ -664,9 +713,6 @@ impl<C: Codec> Typed<C> {
         }
         if !self.gesture.is_active() {
             self.gesture.begin();
-            if !C::DRAFTS_ARE_VALUES {
-                self.gesture.hold_updates();
-            }
         }
         let Some(start) = self.gesture.start().cloned() else { return };
         // The run's draft carries any mark from here.
@@ -684,6 +730,9 @@ impl<C: Codec> Typed<C> {
         if !C::DRAFTS_ARE_VALUES
             && let Some(run) = self.gesture.id()
         {
+            // The host keeps the last value applied as typed while a draft reads as none or waits
+            // for the commit.
+            self.gesture.hold_updates(error.is_some() || !self.codec.applies_as_typed(&text));
             self.draft = Some(Draft { run, text, error });
         }
     }

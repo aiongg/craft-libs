@@ -15,7 +15,8 @@ use egui::{
     Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
 };
 
-use super::slider::{Scale, Track, labelled, pointer, wheel, with_values};
+use super::field_wheel;
+use super::slider::{Scale, Track, labelled, pointer, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
@@ -80,26 +81,44 @@ enum Handle {
 /// Every way of changing the number reports through the edit lifecycle ([`crate::edit`]), one
 /// gesture at a time:
 ///
-/// - **Typing** is one gesture that reports no updates (`-` and `1,` aren't numbers yet). Enter
-///   and the focus leaving commit the text read back: [`LocaleNumbers::parse`] with the unit
-///   taken off, then the app's [`or_parse`](NumberField::or_parse); rounded to the most decimals
-///   shown (half away from zero) and clamped to the range. The text as the field shows it stands
-///   for the value itself, decimals the field doesn't show included. Text that can't become a
-///   number gets the invalid edge and the reason as tooltip as it is typed (`-` and `1,` don't).
-///   Text that isn't a number commits nothing: it stays in the field, marked, until the user
-///   fixes it or Esc restores the value. Esc during a run cancels it.
-/// - **Scrubbing**: a horizontal drag on the [scrub label](NumberField::scrub_label) or
-///   [icon](NumberField::scrub_icon) inside the field, or on a label outside it
-///   ([`scrub_by`](NumberField::scrub_by)), moves a step per point; Shift ten steps, Alt a tenth
-///   as fast. A drag is one gesture: Esc cancels it, a still pointer leaves the value exactly as
-///   it was; once the gesture is cancelled (Esc, an undo, the host's own change) the drag does
-///   nothing more until the release. A drag on the text selects it.
-/// - **Keys and the wheel**: Up and Down step the focused field, as does the wheel over it;
-///   Shift steps ten, Cmd/Ctrl a tenth where the decimals show it. A plain or fine step goes to
-///   the next multiple of its size (by 1, 5.1 goes up to 6 and down to 5). Each frame's steps are
-///   one [`Set`](EditEvent::Set); during a typing run they step from the typed value and the
-///   run's commit carries the result. Text that isn't a number takes no step: an arrow ends the
-///   run as Enter does (the text stays, marked) and the wheel scrolls the panel.
+/// The keys and the pointer follow PhotoCraft's number fields:
+///
+/// - **Typing** is one gesture. A plain number ([`LocaleNumbers::parse`], with or without the
+///   unit) applies as it is typed: an update for each keystroke that makes one, so the host
+///   shows it at once. Arithmetic and the app's other readers
+///   ([`or_parse`](NumberField::or_parse)) apply only on the commit, so `5/2*2` never applies
+///   `5` on the way; `-` and `1,` aren't numbers yet and leave the value as it was. Enter
+///   commits and leaves the field ([`keep_focus`](NumberField::keep_focus) keeps it there), and
+///   the focus leaving commits: the text read back, rounded to the most decimals shown (half
+///   away from zero) and clamped to the range. The text as the field shows it stands for the
+///   value itself, decimals the field doesn't show included. Text that can't become a number
+///   gets the invalid edge and the reason as tooltip as it is typed (`-` and `1,` don't). Text
+///   that isn't a number commits the value from before the run: the text stays in the field,
+///   marked, until the user fixes it or Esc restores the value. Esc cancels the run, leaves the
+///   field and goes on to the host ([`EditResponse::escaped`]), as in a [`TextField`].
+/// - **Scrubbing**: a horizontal drag anywhere on a field without the focus, past egui's drag
+///   threshold, scrubs it; a click without a drag gives it the focus with its text selected, so
+///   typing replaces it. The [scrub label](NumberField::scrub_label) or
+///   [icon](NumberField::scrub_icon) and a label outside the field
+///   ([`scrub_by`](NumberField::scrub_by)) scrub with the focus in the field too; a drag on the
+///   focused field's text selects it. [`scrub_text(false)`](NumberField::scrub_text) leaves the
+///   text to the pointer (DesignCraft's fields). A scrub moves a step per point; Shift ten
+///   steps, Alt a tenth as fast. A drag is one gesture: Esc cancels it, a still pointer leaves
+///   the value exactly as it was; once the gesture is cancelled (Esc, an undo, the host's own
+///   change) the drag does nothing more until the release.
+/// - **Keys**: Up and Down step the focused field; Shift steps ten, Cmd/Ctrl a tenth where the
+///   decimals show it. A plain or fine step goes to the next multiple of its size (by 1, 5.1
+///   goes up to 6 and down to 5).
+/// - **The wheel** steps a step a notch, ten with Shift. A focused field takes the wheel
+///   wherever the pointer is, so no panel scrolls with it; a field without the focus takes a
+///   wheel gesture that starts over it, while a gesture that started elsewhere (a panel being
+///   scrolled) goes on scrolling over it, and one that leaves the field is the panel's from then
+///   on. Alt+wheel, Ctrl/Cmd+wheel and a plain sideways scroll stay the view's. The focused
+///   field's hand-off needs [`theme::install`](crate::theme::install).
+/// - Each frame's steps (keys, wheel, screen reader) are one [`Set`](EditEvent::Set); during a
+///   typing run they step from the typed value and the run's commit carries the result. Text
+///   that isn't a number takes no step: an arrow ends the run as Enter does (the text stays,
+///   marked) and the wheel is the panel's.
 /// - **Pop-up slider** ([`popup_slider`](NumberField::popup_slider)): a ▾ at the field's end
 ///   opens a [`Slider`] below it; pressing the ▾ and dragging moves the value at once, as far as
 ///   the slider would, and closes it on release. A drag on either is one gesture.
@@ -126,12 +145,14 @@ pub struct NumberField<'a> {
     fallback: Option<Box<Reader<'a>>>,
     handle: Option<Handle>,
     scrub_by: Option<Response>,
+    scrub_text: bool,
     popup: Option<String>,
     mixed: bool,
     policy: EditPolicy,
     size: ControlSize,
     enabled: bool,
     invalid: bool,
+    keep_focus: bool,
 }
 
 impl<'a> NumberField<'a> {
@@ -150,12 +171,14 @@ impl<'a> NumberField<'a> {
             fallback: None,
             handle: None,
             scrub_by: None,
+            scrub_text: true,
             popup: None,
             mixed: false,
             policy: EditPolicy::default(),
             size: ControlSize::Md,
             enabled: true,
             invalid: false,
+            keep_focus: false,
         }
     }
 
@@ -212,6 +235,14 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// Whether a drag on a field without the focus scrubs it (PhotoCraft); on by default. Off, a
+    /// press in the text places the caret and a drag selects, as in a text field (DesignCraft),
+    /// and only the scrub handles scrub.
+    pub fn scrub_text(mut self, scrub: bool) -> Self {
+        self.scrub_text = scrub;
+        self
+    }
+
     /// A ▾ at the field's end that opens a [`Slider`] over the range. `name` (translated by the
     /// app) is the ▾'s tooltip and accessible name.
     ///
@@ -229,8 +260,9 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// How scrubs and drags report ([`EditPolicy`]); a typing run reports no updates whatever
-    /// this says. The default reports every change at once and cancels on Esc.
+    /// How the field reports ([`EditPolicy`]); a typing run's text that applies only on the
+    /// commit (arithmetic) holds its updates whatever this says. The default reports every
+    /// change at once and cancels on Esc.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -249,6 +281,12 @@ impl<'a> NumberField<'a> {
     /// Draws the invalid edge and reports the value invalid (the host rejects it).
     pub fn invalid(mut self, invalid: bool) -> Self {
         self.invalid = invalid;
+        self
+    }
+
+    /// Whether the field keeps the focus after Enter commits; off by default.
+    pub fn keep_focus(mut self, keep: bool) -> Self {
+        self.keep_focus = keep;
         self
     }
 
@@ -307,6 +345,7 @@ impl<'a> NumberField<'a> {
             .policy(self.policy)
             .enabled(self.enabled)
             .invalid(self.invalid)
+            .keep_focus(self.keep_focus)
             .role(Role::SpinButton)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
             .tabular(true);
@@ -329,6 +368,10 @@ impl<'a> NumberField<'a> {
             }
             if let Some(label) = &self.scrub_by {
                 sources.push(label.interact(Sense::CLICK | Sense::DRAG));
+            }
+            // Over the text of a field without the focus, where `TextEdit` would take the press.
+            if self.scrub_text && !typed.response().has_focus() {
+                sources.push(ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG));
             }
             input.scrub(ui, &mut typed, &sources);
         }
@@ -526,7 +569,7 @@ impl<'n> Input<'n> {
         let reads = typed.reads_as_value();
         let mut to = None;
         if stepping {
-            let notches = wheel(ui, self.id, 1.0, 10.0, focused && reads && response.contains_pointer(), dragging);
+            let notches = field_wheel::notches(ui, self.id, focused, response.rect, enabled && reads && !dragging);
             let requests = ui.input(|i| {
                 i.num_accesskit_action_requests(self.id, Action::Increment) as f64
                     - i.num_accesskit_action_requests(self.id, Action::Decrement) as f64
@@ -629,6 +672,12 @@ impl Numbers<'_> {
 
 impl Codec for Numbers<'_> {
     type Value = Option<f64>;
+
+    /// A plain number in the region's digits, with or without the unit; not what only the app's
+    /// reader reads (arithmetic).
+    fn applies_as_typed(&self, text: &str) -> bool {
+        self.numbers.parse(self.unit.strip(text)).is_ok()
+    }
 
     fn format(&self, value: &Option<f64>) -> String {
         value.filter(|v| v.is_finite()).map_or_else(String::new, |v| self.numbers.format(v, self.decimals.clone()))
@@ -930,7 +979,10 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                 super::slider::apply(&edit, radius);
             });
             ui.add(
-                Text::new("Drag a label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back.").content(Content::Muted),
+                Text::new(
+                    "Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it.",
+                )
+                .content(Content::Muted),
             );
         });
     });

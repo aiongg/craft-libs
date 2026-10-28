@@ -39,6 +39,7 @@ use std::time::Duration;
 use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiStackInfo};
 
 pub use gesture::Gesture;
+pub(crate) use gesture::escape_pressed;
 pub use host::{GestureHost, UndoMarks};
 pub(crate) use story::{RATES, describe, policy, stories};
 
@@ -307,16 +308,29 @@ pub struct EditResponse<T> {
     /// fires once and Cmd/Ctrl+Enter stays free (a multi-line field's commit). Controls without
     /// a submit key never set it.
     pub submitted: bool,
+    /// The user pressed Esc in the control this frame and the control passed the press on: it
+    /// ended the control's own part (a text field cancels its typing run and leaves the field)
+    /// and left the press in egui's input, so the controls drawn after it see it too. The host
+    /// acts on the same press here: a dialog's Cancel, a tool dropping its operation. A press the
+    /// control keeps (a search field clearing its text, an open list closing, an input method's
+    /// composition) doesn't set it.
+    pub escaped: bool,
 }
 
 impl<T> EditResponse<T> {
     pub fn new(response: Response, event: Option<EditEvent<T>>) -> Self {
-        Self { response, event, submitted: false }
+        Self { response, event, submitted: false, escaped: false }
     }
 
     /// Whether the user submitted the value this frame.
     pub fn submitted(mut self, submitted: bool) -> Self {
         self.submitted = submitted;
+        self
+    }
+
+    /// Whether the control passed an Esc press on to the host this frame.
+    pub fn escaped(mut self, escaped: bool) -> Self {
+        self.escaped = escaped;
         self
     }
 
@@ -331,7 +345,7 @@ impl<T> EditResponse<T> {
 
     /// The same response with the event's value converted ([`EditEvent::map`]).
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EditResponse<U> {
-        EditResponse { response: self.response, event: self.event.map(|e| e.map(f)), submitted: self.submitted }
+        EditResponse { response: self.response, event: self.event.map(|e| e.map(f)), submitted: self.submitted, escaped: self.escaped }
     }
 }
 

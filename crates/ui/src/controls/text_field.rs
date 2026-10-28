@@ -81,9 +81,16 @@ pub struct TextFieldStyle {
 /// ```
 ///
 /// The field shows the host's value and reports every change back through the edit lifecycle
-/// ([`crate::edit`]): a typing run is one gesture, which begins with the first change, commits
-/// on Enter or when the focus leaves, and cancels on Esc. The rules (input methods, in-field
-/// undo, changes from the host) are [`Typing`]'s.
+/// ([`crate::edit`]): a typing run is one gesture, which begins with the first change and
+/// commits on Enter or when the focus leaves. The keys follow PhotoCraft's fields:
+///
+/// - **Enter** commits and leaves the field, and reports [`submitted`](EditResponse::submitted)
+///   for a dialog's OK; [`keep_focus`](TextField::keep_focus) keeps the focus.
+/// - **Esc** cancels the run (the text from before it comes back), leaves the field and passes
+///   the press on: it stays in egui's input and the field reports
+///   [`escaped`](EditResponse::escaped), so a dialog closes on the same press.
+///
+/// The other rules (input methods, in-field undo, changes from the host) are [`Typing`]'s.
 ///
 /// - `label` is the accessible name; the field draws no label (a form row or the `Field`
 ///   composite shows it).
@@ -109,6 +116,7 @@ pub struct TextField<'a> {
     leading: Option<Icon>,
     password: bool,
     char_limit: usize,
+    keep_focus: bool,
 }
 
 impl<'a> TextField<'a> {
@@ -127,6 +135,7 @@ impl<'a> TextField<'a> {
             leading: None,
             password: false,
             char_limit: usize::MAX,
+            keep_focus: false,
         }
     }
 
@@ -178,6 +187,12 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Whether the field keeps the focus after Enter commits; off by default.
+    pub fn keep_focus(mut self, keep: bool) -> Self {
+        self.keep_focus = keep;
+        self
+    }
+
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
         let spec = Spec {
@@ -193,6 +208,7 @@ impl<'a> TextField<'a> {
             policy: self.policy,
             password: self.password,
             char_limit: self.char_limit,
+            keep_focus: self.keep_focus,
             keys: EventFilter::default(),
         };
         show_field(ui, &spec)
@@ -245,10 +261,11 @@ impl<'a> TextField<'a> {
 ///
 /// A search filters as the user types: every change goes out at once and Esc doesn't restore
 /// the text from before (the policy is not [cancellable](EditPolicy::cancellable)). Esc in a
-/// field with text clears it and commits the empty text, keeping the focus; Esc in an empty
-/// field leaves it. The clear button does the same as Esc and gives the field the focus; it is
-/// for the pointer only, not a Tab stop. Enter reports [`submitted`](EditResponse::submitted)
-/// ("find next").
+/// field with text clears it and commits the empty text, keeping the focus and the press; Esc in
+/// an empty field leaves it and goes on to the host ([`escaped`](EditResponse::escaped)), as a
+/// text field's. The clear button does the same as Esc and gives the field the focus; it is for
+/// the pointer only, not a Tab stop. Enter reports [`submitted`](EditResponse::submitted) ("find
+/// next") and leaves the field; [`keep_focus`](SearchField::keep_focus) keeps it there.
 ///
 /// AccessKit: a `SearchInput` named `label`; the clear button is a button named `clear_label`,
 /// which is also its tooltip. The search icon is decorative.
@@ -263,6 +280,7 @@ pub struct SearchField<'a> {
     size: ControlSize,
     policy: EditPolicy,
     enabled: bool,
+    keep_focus: bool,
     keys: EventFilter,
 }
 
@@ -279,6 +297,7 @@ impl<'a> SearchField<'a> {
             size: ControlSize::Md,
             policy: EditPolicy::default().cancellable(false),
             enabled: true,
+            keep_focus: false,
             keys: EventFilter::default(),
         }
     }
@@ -305,6 +324,12 @@ impl<'a> SearchField<'a> {
         self
     }
 
+    /// Whether the field keeps the focus after Enter; off by default.
+    pub fn keep_focus(mut self, keep: bool) -> Self {
+        self.keep_focus = keep;
+        self
+    }
+
     /// Keys an embedding control reads while the field has the focus: a popup list's arrows
     /// and Esc ([`Typing::event_filter`]).
     pub(crate) fn keys(mut self, keys: EventFilter) -> Self {
@@ -327,6 +352,7 @@ impl<'a> SearchField<'a> {
             policy: self.policy,
             password: false,
             char_limit: usize::MAX,
+            keep_focus: self.keep_focus,
             keys: self.keys,
         };
         show_field(ui, &spec)
@@ -349,6 +375,7 @@ struct Spec<'a> {
     policy: EditPolicy,
     password: bool,
     char_limit: usize,
+    keep_focus: bool,
     /// The embedding control's keys.
     keys: EventFilter,
 }
@@ -410,7 +437,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         caret: style.caret,
     };
     let id = Interactive::id_in(ui, spec.id_salt);
-    let (escape, role) = if spec.clear.is_some() { (Escape::Clear, Role::SearchInput) } else { (Escape::Cancel, Role::TextInput) };
+    let (escape, role) = if spec.clear.is_some() { (Escape::Clear, Role::SearchInput) } else { (Escape::PassThrough, Role::TextInput) };
     let typing = Typing::new(id, spec.label, spec.value)
         .placeholder(spec.placeholder)
         .policy(spec.policy)
@@ -418,6 +445,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         .invalid(spec.invalid)
         .password(spec.password)
         .char_limit(spec.char_limit)
+        .keep_focus(spec.keep_focus)
         .escape(escape)
         .role(role)
         .event_filter(spec.keys);
@@ -741,6 +769,9 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
             state.field = Some(edit.response.id);
             if edit.submitted {
                 state.log("field: submitted".to_owned());
+            }
+            if edit.escaped {
+                state.log("field: escaped (the press goes on)".to_owned());
             }
             if let Some(event) = edit.event {
                 state.log(format!("field: {}", edit::describe(&event)));

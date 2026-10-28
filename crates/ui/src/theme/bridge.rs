@@ -96,12 +96,15 @@ fn suite_default_theme() -> &'static ThemeDef {
 }
 
 /// Installs `base` in `ctx`: egui's light and dark styles from its tokens, egui's theme
-/// preference from its mode, and the input-modality tracking that shows
-/// [focus rings](crate::primitives::FocusRing) after keyboard input. Call it every frame: it
+/// preference from its mode, the input-modality tracking that shows
+/// [focus rings](crate::primitives::FocusRing) after keyboard input, and the wheel hand-off that
+/// lets a focused [`NumberField`](crate::controls::NumberField) take the wheel wherever the
+/// pointer is. Call it every frame: it
 /// does nothing while `base`, the font stack and the interface direction are unchanged, and
 /// requests a repaint when anything changed.
 pub fn install(ctx: &Context, base: &Base) {
     crate::primitives::focus_ring::track_modality(ctx);
+    crate::controls::field_wheel::install(ctx);
     crate::inspect::track(ctx);
     let env = Env::of(ctx);
     let unchanged = with_state(ctx, |s| s.installed.as_ref().is_some_and(|i| i.env == env && i.base == *base));

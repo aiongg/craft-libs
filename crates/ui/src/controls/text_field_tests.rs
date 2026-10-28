@@ -28,7 +28,9 @@ struct Rig {
     after_button: Id,
     /// The clear button's AccessKit node and rect, while it shows.
     clear: Option<(egui::accesskit::NodeId, Rect)>,
+    keep_focus: bool,
     submitted: bool,
+    escaped: bool,
     event: Option<EditEvent<String>>,
     /// The `Ui`'s next automatic id after the field.
     next_auto_id: Id,
@@ -79,7 +81,9 @@ impl Rig {
             before_button: Id::NULL,
             after_button: Id::NULL,
             clear: None,
+            keep_focus: false,
             submitted: false,
+            escaped: false,
             event: None,
             next_auto_id: Id::NULL,
             shown: None,
@@ -127,18 +131,22 @@ impl Rig {
         self.before_button = ui.button("Before").id;
         if self.drawn {
             let edit = if self.search {
-                SearchField::new("rig-field", "Search", &self.value, "Clear").policy(self.policy).enabled(self.enabled).show(ui)
+                SearchField::new("rig-field", "Search", &self.value, "Clear")
+                    .policy(self.policy)
+                    .enabled(self.enabled)
+                    .keep_focus(self.keep_focus)
+                    .show(ui)
             } else {
-                TextField::new("rig-field", "Name", &self.value).policy(self.policy).enabled(self.enabled).show(ui)
+                TextField::new("rig-field", "Name", &self.value).policy(self.policy).enabled(self.enabled).keep_focus(self.keep_focus).show(ui)
             };
             (self.id, self.rect) = (edit.response.id, edit.response.rect);
-            self.submitted = edit.submitted;
+            (self.submitted, self.escaped) = (edit.submitted, edit.escaped);
             self.event.clone_from(&edit.event);
             if let Some(event) = edit.event {
                 self.apply(ui, event);
             }
         } else {
-            (self.submitted, self.event) = (false, None);
+            (self.submitted, self.escaped, self.event) = (false, false, None);
         }
         self.keys_after = pressed_keys(ui);
         if self.hosted {
@@ -258,33 +266,42 @@ fn type_run(rig: &mut Rig, text: &str) -> GestureId {
 }
 
 #[test]
-fn a_typing_run_is_one_gesture_that_enter_commits_keeping_the_focus() {
+fn a_typing_run_is_one_gesture_that_enter_commits_and_leaves_the_field() {
     let mut rig = Rig::new("");
     rig.focus();
     assert_eq!(rig.event, None, "focus alone begins nothing");
     let id = type_run(&mut rig, "abc");
     rig.key(Key::Enter);
     assert_eq!(rig.event, commit(id, "abc", true));
-    assert!(rig.submitted && rig.has_focus());
+    assert!(rig.submitted && !rig.has_focus(), "Enter commits, submits and leaves the field");
     assert_eq!(rig.shown.as_deref(), Some("abc"));
 
-    // Enter with nothing typed submits without an event.
+    // Enter with nothing typed submits without an event, and leaves too.
+    rig.focus();
     rig.key(Key::Enter);
-    assert_eq!((rig.event.clone(), rig.submitted), (None, true));
+    assert_eq!((rig.event.clone(), rig.submitted, rig.has_focus()), (None, true, false));
+
+    // `keep_focus(true)`: the field stays.
+    rig.keep_focus = true;
+    rig.focus();
+    let id = type_run(&mut rig, "d");
+    rig.key(Key::Enter);
+    assert_eq!(rig.event, commit(id, "abcd", true));
+    assert!(rig.submitted && rig.has_focus());
 
     // Moving the focus away commits.
-    let id = type_run(&mut rig, "d");
+    let id = type_run(&mut rig, "e");
     rig.key(Key::Tab);
-    assert_eq!(rig.event, commit(id, "abcd", true));
+    assert_eq!(rig.event, commit(id, "abcde", true));
     assert!(!rig.has_focus() && !rig.submitted);
 
     // Typing and deleting back to the start commits unchanged.
     rig.focus();
-    let id = type_run(&mut rig, "e");
+    let id = type_run(&mut rig, "f");
     rig.key(Key::Backspace);
-    assert_eq!(rig.event, update(id, "abcd"));
+    assert_eq!(rig.event, update(id, "abcde"));
     rig.key(Key::Enter);
-    assert_eq!(rig.event, commit(id, "abcd", false));
+    assert_eq!(rig.event, commit(id, "abcde", false));
 }
 
 #[test]
@@ -297,6 +314,7 @@ fn a_typing_run_is_one_undo_step_and_a_field_no_longer_drawn_keeps_its_run() {
     assert_eq!((rig.doc.text.as_str(), rig.doc.undo.len()), ("abc", 1));
 
     // A drag that selects text doesn't make the run a drag: removed, it is kept as a step.
+    rig.focus();
     let id = type_run(&mut rig, "d");
     let (start, end) = (rig.rect.left_center() + vec2(8.0, 0.0), rig.rect.center());
     rig.frame(vec![Event::PointerMoved(start), button(start, true)]);
@@ -333,6 +351,7 @@ fn a_field_no_longer_drawn_keeps_the_text_no_update_reported_as_one_step() {
 #[test]
 fn only_a_plain_enter_press_submits() {
     let mut rig = Rig::new("");
+    rig.keep_focus = true;
     rig.focus();
     let id = type_run(&mut rig, "a");
     rig.chord(Modifiers::COMMAND, Key::Enter);
@@ -366,17 +385,21 @@ fn an_embedding_control_gets_the_keys_it_adds_to_the_focus_filter() {
         caret: egui::Color32::BLACK,
     };
     let keys = EventFilter { vertical_arrows: true, escape: true, ..Default::default() };
+    // The control reads its Esc before the field runs, as an open list does.
     let frame = |events: Vec<Event>| {
-        let mut after = Vec::new();
+        let mut seen = Vec::new();
         let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
         let output = ctx.run_ui(input, |ui| {
-            let typed = Typing::new(id, "Name", "ab").event_filter(keys).show(ui, &look);
-            let _ = typed.end(ui);
-            after = pressed_keys(ui);
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+                seen.push(Key::Escape);
+            }
+            let edit = Typing::new(id, "Name", "ab").event_filter(keys).show(ui, &look).end(ui);
+            assert!(!edit.escaped);
+            seen.extend(pressed_keys(ui));
             let _ = ui.button("After");
         });
         output.drop_without_applying_deltas();
-        after
+        seen
     };
     ctx.memory_mut(|m| m.request_focus(id));
     frame(vec![]);
@@ -413,24 +436,35 @@ impl UndoMarks for Doc {
 }
 
 #[test]
-fn esc_cancels_the_run_and_keeps_the_focus_and_a_second_esc_leaves() {
+fn esc_cancels_the_run_leaves_the_field_and_passes_the_press_on() {
     let mut rig = Rig::new("ab");
     rig.focus();
     let id = type_run(&mut rig, "cd");
     rig.key(Key::Escape);
     assert_eq!(rig.event, cancel(id, CancelReason::Escape));
-    assert!(rig.has_focus());
+    assert!(!rig.has_focus(), "one Esc leaves");
+    assert!(rig.escaped);
+    assert_eq!(rig.keys_after, [Key::Escape], "the controls after the field see the press");
+    rig.frame(vec![]);
     assert_eq!(rig.shown.as_deref(), Some("ab"));
-    rig.key(Key::Escape);
-    assert!(!rig.has_focus());
 
-    // Not cancellable: Esc ends the run as a commit and leaves the field.
+    // Without a run, Esc leaves and goes on too.
+    rig.focus();
+    rig.key(Key::Escape);
+    assert_eq!((rig.event.clone(), rig.has_focus(), rig.escaped), (None, false, true));
+    assert_eq!(rig.keys_after, [Key::Escape]);
+
+    // A field without the focus reports no Esc.
+    rig.key(Key::Escape);
+    assert!(!rig.escaped);
+
+    // Not cancellable: Esc ends the run as a commit, leaves the field and goes on.
     rig.policy = EditPolicy::default().cancellable(false);
     rig.focus();
     let id = type_run(&mut rig, "e");
     rig.key(Key::Escape);
     assert_eq!(rig.event, commit(id, "abe", true));
-    assert!(!rig.has_focus());
+    assert!(!rig.has_focus() && rig.escaped);
 }
 
 #[test]
@@ -531,15 +565,17 @@ fn tab_selects_the_whole_text_and_a_click_places_the_caret() {
 }
 
 #[test]
-fn a_search_field_clears_on_esc_and_leaves_when_empty() {
+fn a_search_field_clears_on_esc_and_the_next_esc_leaves_and_goes_on() {
     let mut rig = Rig::search("cat");
     rig.focus();
     rig.key(Key::Escape);
     assert_eq!(rig.event, Some(EditEvent::Set { value: String::new(), modifiers: Modifiers::NONE }));
     assert!(rig.has_focus());
+    assert!(!rig.escaped && rig.keys_after.is_empty(), "the clearing press is the field's");
     rig.key(Key::Escape);
     assert_eq!(rig.event, None);
     assert!(!rig.has_focus());
+    assert!(rig.escaped && rig.keys_after == [Key::Escape], "the press that leaves goes on");
 
     // During a run, Esc clears as a change of the run and commits it.
     rig.focus();
@@ -630,8 +666,10 @@ mod ime {
         assert_eq!(rig.shown.as_deref(), Some("a"));
         rig.key(Key::Escape);
         assert_eq!(rig.event, cancel(id, CancelReason::Escape));
+        assert!(!rig.has_focus());
 
         // Esc while composing with no run under way doesn't leave the field either.
+        rig.focus();
         rig.preedit("に");
         rig.key(Key::Escape);
         assert!(rig.has_focus());

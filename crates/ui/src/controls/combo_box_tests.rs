@@ -47,6 +47,9 @@ struct Host {
     gestures: GestureHost<Doc>,
     events: Vec<EditEvent<String>>,
     submitted: bool,
+    /// The field passed an Esc on, and the controls after it saw one.
+    escaped: bool,
+    esc_after: bool,
     /// The combo box isn't drawn.
     hidden: bool,
 }
@@ -68,6 +71,8 @@ fn combo(text: &str, options: &'static [&'static str]) -> Harness<'static, Host>
             if !host.hidden {
                 let edit = ComboBox::new("size", "Font size", &host.doc.text).options(options.iter().copied()).show(ui);
                 host.submitted |= edit.submitted;
+                host.escaped |= edit.escaped;
+                host.esc_after |= ui.input(|i| i.key_pressed(Key::Escape));
                 if let Some(event) = edit.event {
                     host.events.push(event.clone());
                     host.gestures.handle(ui.ctx(), &mut host.doc, event, |doc, text| {
@@ -257,26 +262,30 @@ fn enter_with_no_active_option_commits_the_typed_text_and_closes_the_list() {
     assert!(host.submitted, "Enter submits as in a text field");
     assert!(matches!(host.events.last(), Some(EditEvent::Commit { value, .. }) if value == "10"), "{:?}", host.events);
     assert_eq!(expanded(&harness), Some(false));
+    assert!(!field_focused(&harness), "and leaves the field, as a text field's Enter");
 }
 
+/// The open list's Esc is the list's; the next is the text field's: it cancels the run, leaves
+/// the field and goes on to the host.
 #[test]
-fn esc_closes_the_list_then_cancels_the_run_then_leaves() {
+fn esc_closes_the_list_then_cancels_the_run_leaves_and_goes_on() {
     let mut harness = sizes("");
     harness.run();
     focus(&mut harness);
     type_text(&mut harness, "1");
     key(&mut harness, Key::Escape);
+    let host = harness.state();
+    assert!(!host.escaped && !host.esc_after, "the list keeps the press that closes it");
     assert_eq!(expanded(&harness), Some(false), "the first Esc closes the list");
     assert_eq!(harness.state().doc.text, "1", "the run goes on");
     assert!(!harness.state().events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })));
     assert!(field_focused(&harness));
     key(&mut harness, Key::Escape);
-    harness.run();
-    assert!(matches!(harness.state().events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "the second cancels the run");
+    let host = harness.state();
+    assert!(host.escaped && host.esc_after, "the second goes on to the host");
+    assert!(matches!(harness.state().events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "and cancels the run");
     assert_eq!(harness.state().doc.text, "");
-    assert!(field_focused(&harness));
-    key(&mut harness, Key::Escape);
-    assert!(!field_focused(&harness), "the third leaves the field");
+    assert!(!field_focused(&harness), "and leaves the field");
 }
 
 #[test]
