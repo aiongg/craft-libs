@@ -245,12 +245,20 @@ fn inside_a_scope_only_updates_reach_the_host() {
 
 /// A document whose undo history holds the previous values.
 #[derive(Default)]
-struct Doc {
-    value: i32,
-    undo: Vec<i32>,
+struct Doc<V> {
+    value: V,
+    undo: Vec<V>,
 }
 
-impl UndoMarks for Doc {
+impl<V: Copy> Doc<V> {
+    /// Sets the value as one undo step.
+    fn apply(&mut self, value: V) {
+        self.undo.push(self.value);
+        self.value = value;
+    }
+}
+
+impl<V: Copy> UndoMarks for Doc<V> {
     type Mark = usize;
 
     fn undo_mark(&self) -> usize {
@@ -267,14 +275,11 @@ impl UndoMarks for Doc {
 
 #[test]
 fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_unchanged() {
-    let mut doc = Doc::default();
+    let mut doc = Doc::<i32>::default();
     let mut host = GestureHost::new();
-    let mut feed = |doc: &mut Doc, events: Vec<EditEvent<i32>>| {
+    let mut feed = |doc: &mut Doc<i32>, events: Vec<EditEvent<i32>>| {
         for event in events {
-            host.handle(doc, event, |doc, value| {
-                doc.undo.push(doc.value);
-                doc.value = value;
-            });
+            host.handle(doc, event, Doc::apply);
         }
     };
     let update = |id, value| EditEvent::Update { id, value, modifiers: Modifiers::NONE };
@@ -293,4 +298,52 @@ fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_uncha
 
     feed(&mut doc, vec![EditEvent::Set { value: 9 }]);
     assert_eq!((doc.value, doc.undo.len()), (9, 2));
+}
+
+#[test]
+fn a_gesture_whose_control_is_not_drawn_is_removed_and_the_host_reverts_it() {
+    let ctx = Context::default();
+    let mut doc = Doc { value: 40.0, undo: Vec::new() };
+    let mut host = GestureHost::new();
+    let mut time = 0.0;
+    // One pass, the slider drawn or not; the slider's event, the host's end_frame result, and the
+    // slider's rect.
+    let mut frame = |doc: &mut Doc<f32>, host: &mut GestureHost<Doc<f32>>, events: Vec<Event>, draw: bool| {
+        time += 1.0 / 60.0;
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        let mut out = (None, None, Rect::NOTHING);
+        let output = ctx.run_ui(input, |ui| {
+            if draw {
+                let edit = slider(ui, doc.value, EditPolicy::default());
+                out.0.clone_from(&edit.event);
+                out.2 = edit.response.rect;
+                if let Some(event) = edit.event {
+                    host.handle(doc, event, Doc::apply);
+                }
+            }
+            out.1 = host.end_frame(ui.ctx(), doc);
+        });
+        output.drop_without_applying_deltas();
+        out
+    };
+
+    let centre = frame(&mut doc, &mut host, vec![], true).2.center();
+    let first = begin_id(frame(&mut doc, &mut host, vec![Event::PointerMoved(centre), button(centre, true)], true).0);
+    let moved = centre + vec2(10.0, 0.0);
+    assert_eq!(frame(&mut doc, &mut host, vec![Event::PointerMoved(moved)], true).0, update(first, 50.0));
+    assert_eq!((doc.value, doc.undo.len()), (50.0, 1));
+
+    let (_, removed, _) = frame(&mut doc, &mut host, vec![], false);
+    assert_eq!(removed, Some(EditEvent::Cancel { id: first, reason: CancelReason::Removed }));
+    assert_eq!((doc.value, doc.undo.len()), (40.0, 0));
+    assert!(!host.is_active());
+
+    // Drawn again, the slider is idle: the held pointer and its release do nothing.
+    let (event, removed, _) = frame(&mut doc, &mut host, vec![Event::PointerMoved(centre)], true);
+    assert_eq!((event, removed), (None, None));
+    assert_eq!(frame(&mut doc, &mut host, vec![button(centre, false)], true).0, None);
+    let second = begin_id(frame(&mut doc, &mut host, vec![button(centre, true)], true).0);
+    assert_ne!(first, second);
+    assert_eq!((doc.value, doc.undo.len()), (40.0, 0));
 }

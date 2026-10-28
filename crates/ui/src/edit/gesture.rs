@@ -2,7 +2,7 @@
 
 use egui::{Context, EventFilter, Id, Key, Modifiers, Ui};
 
-use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRate, in_scope};
+use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRate, in_scope, mark_live};
 
 /// The edit state of one value control: idle, or active with a start value and a [`GestureId`].
 ///
@@ -48,6 +48,8 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, GestureId, UpdateRat
 ///   own commit on egui's `drag_stopped` don't see it) when the policy is
 ///   [`cancellable`](EditPolicy::cancellable), and on [`cancel_all`](super::cancel_all).
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
+/// - A control that is not drawn in a pass loses its gesture ([`CancelReason::Removed`], see
+///   [`is_live`](super::is_live)) and starts idle when it is drawn again.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change); an update that is due when the
@@ -76,6 +78,15 @@ struct Stored<T> {
     phase: Phase<T>,
     /// A one-shot value not reported yet (it waits a frame when a cancel goes out first).
     set: Option<T>,
+    /// The pass that last loaded the gesture. A control missing from a pass has been removed:
+    /// its state is dropped, and the host learns of it with [`is_live`](super::is_live).
+    pass: u64,
+}
+
+impl<T> Stored<T> {
+    fn idle(pass: u64) -> Self {
+        Self { phase: Phase::Idle, set: None, pass }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -125,7 +136,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     pub fn load(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
         let ctx = ui.ctx().clone();
         let key = id.with(STATE);
-        let stored = ctx.data(|d| d.get_temp::<Stored<T>>(key)).unwrap_or(Stored { phase: Phase::Idle, set: None });
+        let pass = ctx.cumulative_pass_nr();
+        let stored = match ctx.data(|d| d.get_temp::<Stored<T>>(key)) {
+            Some(stored) if stored.pass + 1 >= pass => Stored { pass, ..stored },
+            _ => Stored::idle(pass),
+        };
         let now = ctx.input(|i| i.time);
         let mut gesture = Self {
             ctx,
@@ -143,6 +158,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         gesture.end_restoring();
         gesture.apply_cancel_all();
         gesture.apply_escape();
+        gesture.mark_live();
         gesture
     }
 
@@ -215,6 +231,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             ending: false,
             focused: self.ctx.memory(|m| m.has_focus(self.widget)),
         });
+        self.mark_live();
     }
 
     /// The gesture's new value and the modifiers held; nothing while idle or once committed.
@@ -276,6 +293,12 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         let Self { ctx, key, stored, .. } = self;
         ctx.data_mut(|d| d.insert_temp(key, stored));
         event
+    }
+
+    fn mark_live(&self) {
+        if let Some(id) = self.id() {
+            mark_live(&self.ctx, id);
+        }
     }
 
     /// Leaves the restoring state once the host has acted on the cancel.
@@ -346,7 +369,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         if !a.ending {
             let due = match self.policy.update {
                 UpdateRate::Debounced(wait) => self.now - a.changed_at >= wait.as_secs_f64(),
-                UpdateRate::Realtime | UpdateRate::PerFrame => true,
+                UpdateRate::Realtime => true,
             };
             if !(updates && unreported && due) {
                 return None;

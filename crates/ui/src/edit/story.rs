@@ -14,7 +14,7 @@ use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceK
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
-const RATES: &[&str] = &["realtime", "per frame", "debounced 300 ms"];
+const RATES: &[&str] = &["realtime", "debounced 300 ms"];
 
 /// Events kept in the log.
 const LOG_LEN: usize = 20;
@@ -36,7 +36,6 @@ pub(crate) fn stories() -> Vec<Story> {
 /// The story's policy for both controls.
 fn policy(args: &Args) -> EditPolicy {
     let update = match args.choice("update rate") {
-        "per frame" => UpdateRate::PerFrame,
         "debounced 300 ms" => UpdateRate::Debounced(Duration::from_millis(300)),
         _ => UpdateRate::Realtime,
     };
@@ -119,6 +118,14 @@ impl State {
         self.host.handle(doc, event, apply);
     }
 
+    /// Reverts a gesture whose control is no longer drawn.
+    fn end_frame(&mut self, ui: &Ui) {
+        let doc = &mut self.docs[self.current % 2];
+        if let Some(event) = self.host.end_frame(ui.ctx(), doc) {
+            self.log(format!("host: {}", describe(&event)));
+        }
+    }
+
     /// Undo: during a gesture it cancels the gesture instead of undoing a step.
     fn undo(&mut self, ui: &Ui) {
         match self.host.active() {
@@ -180,6 +187,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
             let edit = text_field(ui, &label, policy);
             state.handle("field", edit.event, |doc, value| doc.edit(|d| d.label = value));
         });
+        state.end_frame(ui);
         Row::new(Gap::Inline).show(ui, |ui| {
             if button(ui, "undo", "Undo during gesture").clicked() {
                 state.undo(ui);

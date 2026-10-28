@@ -12,6 +12,8 @@
 //! - Controls embed a [`Gesture`], the state machine that turns their input into events.
 //! - [`EditPolicy`] says how often a control reports updates and whether Esc cancels.
 //! - [`cancel_all`] cancels every active gesture, e.g. on a document switch or an undo.
+//! - A gesture whose control is no longer drawn ends ([`CancelReason::Removed`]); the host learns
+//!   of it with [`is_live`] or [`GestureHost::end_frame`].
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one outer gesture.
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
@@ -117,6 +119,9 @@ pub enum CancelReason {
     DocumentSwitched,
     /// The user asked to undo during the gesture ([`cancel_all`]).
     UndoDuringGesture,
+    /// The control was not drawn in a pass, so no control is left to end the gesture
+    /// ([`is_live`], [`GestureHost::end_frame`]).
+    Removed,
 }
 
 /// How a control reports a gesture; the host chooses it per control.
@@ -141,17 +146,10 @@ impl Default for EditPolicy {
 }
 
 /// How often a gesture reports its value.
-///
-/// egui delivers input once per frame and a control reports at most one event per frame, so
-/// `Realtime` and `PerFrame` produce the same events; they tell the host whether the value must
-/// show in the frame it arrives (`Realtime`) or may show a frame later (`PerFrame`, e.g. a
-/// preview rendered on a worker).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpdateRate {
-    /// An update in every frame the value changes, applied by the host in that frame.
+    /// An update in every frame the value changes (egui delivers input once per frame).
     Realtime,
-    /// An update in every frame the value changes; the host may apply it a frame late.
-    PerFrame,
     /// An update once the value has held still for the duration (input time,
     /// [`egui::InputState::time`]); changes within it coalesce into one update. The last value
     /// always goes out as an update before the commit.
@@ -191,6 +189,39 @@ impl<T> EditResponse<T> {
         EditResponse { response: self.response, event: self.event.map(|e| e.map(f)) }
     }
 }
+
+/// Whether gesture `id`'s control was drawn in the current pass. Call it after the controls: a
+/// gesture that is not live has been removed, and its control starts idle if it comes back. A
+/// host without [`GestureHost`] treats an active gesture that is not live as cancelled with
+/// [`CancelReason::Removed`]; [`GestureHost::end_frame`] does that.
+pub fn is_live(ctx: &Context, id: GestureId) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<LiveGestures>(Id::unique(LIVE_GESTURES))).is_some_and(|live| live.pass == pass && live.ids.contains(&id))
+}
+
+/// Marks gesture `id` live in the current pass.
+fn mark_live(ctx: &Context, id: GestureId) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let live = d.get_temp_mut_or_default::<LiveGestures>(Id::unique(LIVE_GESTURES));
+        if live.pass != pass {
+            live.pass = pass;
+            live.ids.clear();
+        }
+        if !live.ids.contains(&id) {
+            live.ids.push(id);
+        }
+    });
+}
+
+/// The gestures whose controls were drawn in pass `pass`.
+#[derive(Clone, Default)]
+struct LiveGestures {
+    pass: u64,
+    ids: Vec<GestureId>,
+}
+
+const LIVE_GESTURES: &str = "craft_ui::edit::live_gestures";
 
 /// Every active gesture of `ctx` reports [`Cancel`](EditEvent::Cancel) with `reason` on its next
 /// frame. The host calls it on a document switch, or on undo during a gesture (instead of

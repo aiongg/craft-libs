@@ -2,7 +2,9 @@
 
 use std::fmt;
 
-use super::{EditEvent, GestureId};
+use egui::Context;
+
+use super::{CancelReason, EditEvent, GestureId, is_live};
 
 /// An undo history that can name where it stands and go back there, as FilmCraft's
 /// `Session::undo_mark` and `Session::revert_to` do.
@@ -30,6 +32,8 @@ pub trait UndoMarks {
 ///   value didn't change.
 /// - `Cancel` reverts to the mark.
 /// - `Set` applies the value: one undo step.
+/// - [`end_frame`](GestureHost::end_frame), called every pass after the controls, reverts a
+///   gesture whose control was not drawn.
 ///
 /// On undo during a gesture, and before switching documents, the host cancels the
 /// [active](GestureHost::active) gesture against its document and calls
@@ -84,6 +88,15 @@ impl<U: UndoMarks> GestureHost<U> {
         if let Some(value) = value {
             apply(doc, value);
         }
+    }
+
+    /// Call once per pass, after the controls: when the active gesture's control was not drawn
+    /// ([`is_live`]), reverts its edits and returns the `Cancel` with
+    /// [`CancelReason::Removed`] it applied (a cancel carries no value).
+    pub fn end_frame(&mut self, ctx: &Context, doc: &mut U) -> Option<EditEvent<()>> {
+        let id = self.active().filter(|id| !is_live(ctx, *id))?;
+        self.cancel(doc, id);
+        Some(EditEvent::Cancel { id, reason: CancelReason::Removed })
     }
 
     /// Cancels gesture `id`: reverts its edits. Returns whether it was under way.
