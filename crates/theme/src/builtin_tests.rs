@@ -343,3 +343,13 @@ fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
         }
     }
 }
+
+/// Bare canvas lines are the accent itself, as PhotoCraft draws them; `overlay.stroke`, drawn over
+/// the halo, is lightened to read on it.
+#[test]
+fn builtin_overlay_line_is_the_plain_accent() {
+    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
+    let t = resolve(theme, semantic_tests::app(Mode::Dark, Contrast::Standard), None).tokens;
+    assert_eq!(t.color(ColorToken::OverlayLine), Rgba::rgb(0x37, 0x8e, 0xf0));
+    assert_ne!(t.color(ColorToken::OverlayStroke), t.color(ColorToken::OverlayLine));
+}

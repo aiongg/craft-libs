@@ -468,14 +468,15 @@ fn dark_accent_seed_in_light_mode_still_meets_the_overlay_pairs() {
     }
 }
 
-/// Guide colours are the user's: a pinned guide colour that vanishes on the panel and the halo is
-/// kept in both contrasts and reported nowhere. The marquee's dashes are a pair, so a pinned
-/// marquee that matches them is fixed in high contrast.
+/// Guide colours are the user's, and the bare overlay line can't promise a ratio on an image: a
+/// pinned guide or line colour that vanishes on the panel and the halo is kept in both contrasts
+/// and reported nowhere. The marquee's dashes are a pair, so a pinned marquee that matches them is
+/// fixed in high contrast.
 #[test]
 fn guide_colours_are_exempt_from_the_overlay_pairs() {
     let mut def = grey_blue();
     let faint = hex("#202020");
-    let guides = [T::OverlayGuide, T::OverlayGuideSelected, T::OverlaySmartGuide];
+    let guides = [T::OverlayGuide, T::OverlayGuideSelected, T::OverlaySmartGuide, T::OverlayLine];
     def.pins.dark = Pins::from_iter(guides.map(|t| (t, faint)).into_iter().chain([(T::OverlayMarquee, hex("#101010"))]));
     let standard = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     for t in guides {
@@ -524,6 +525,22 @@ fn the_handle_outline_reads_on_the_handle_fill_whatever_the_stroke() {
         }
         let ratio = contrast_ratio(outline, r.tokens.color(T::OverlayHandleFill));
         assert!(ratio >= min, "{contrast:?}: {} on the fill is {ratio:.2}", outline.to_hex());
+    }
+}
+
+/// An alias that is a contrast rule's foreground starts from its target, pins included, and the
+/// contrast pass then moves it on its own (`derive::is_foreground`). Which aliases do is read from
+/// the rules, so a new rule whose foreground is an alias changes derivation silently; this list
+/// makes that a deliberate change.
+#[test]
+fn the_aliases_the_contrast_pass_moves_are_pinned() {
+    for mode in [Mode::Light, Mode::Dark] {
+        let moved: Vec<ColorToken> = ColorToken::ALL
+            .iter()
+            .copied()
+            .filter(|&t| matches!(values::source(t, mode), values::ColorSource::Same(_)) && derive::is_foreground(t))
+            .collect();
+        assert_eq!(moved, [T::OverlayHandleStroke], "{mode:?}");
     }
 }
 
