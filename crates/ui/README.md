@@ -437,10 +437,13 @@ Two features, both off by default, change what every craft-ui user draws, so the
   stack's own faces, and the context repaints when it arrives. Without it,
   `install` keeps the providers the context has (eframe's `system_fonts`, for one) and asks the
   stack's own faces after them. `UiFonts::system_provider` supplies a provider either way, and
-  `SystemFonts::Off` drops system fonts. It also gives `fonts::system_ui_face()`, the OS's own
-  interface face, which `UiFonts::interface_font(InterfaceFont::System)` puts ahead of the app's
-  UI and semibold faces; without the feature, and on the web, it is `None` and the app's faces
-  stay first.
+  `SystemFonts::Off` drops system fonts. It also gives the OS's own interface face, which
+  `UiFonts::interface_font(InterfaceFont::System)` puts ahead of the app's UI face (and its
+  semibold face, if the app has a `SEMIBOLD` family). The face comes from the same index, so the
+  UI thread doesn't wait for it: until it resolves the app's faces draw, and the stack is
+  installed again with it at the start of the next pass. `fonts::poll_system_ui_face(ctx)` asks
+  without waiting (to offer the setting), `fonts::system_ui_face()` waits (checks, tests). Without
+  the feature, and on the web, there is no system face and the app's faces stay first.
 - `color_fonts`: colour glyphs (COLR, sbix, CBDT), for colour emoji.
 
 egui 0.37's default faces have only a few monochrome emoji and lack symbols such as ⊞ ☰ 🔍. On

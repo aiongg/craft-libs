@@ -92,11 +92,18 @@ pub struct FontFamilies {
     pub ui: FontFamily,
     pub ui_semibold: FontFamily,
     pub mono: FontFamily,
+    /// Whether the formats of type styles in the UI slots ([`super::style_format`]) set the
+    /// `opsz` axis to their text size. On when the OS's interface face draws in the stack
+    /// ([`craft_theme::InterfaceFont::System`]), whose face is otherwise fixed at
+    /// [`fonts::SYSTEM_UI_OPTICAL_SIZE`]. A format's variations apply to every face of its
+    /// family, so a fallback face with an `opsz` axis follows the text size too. The suite's faces
+    /// keep their default optical size.
+    pub optical_size: bool,
 }
 
 impl Default for FontFamilies {
     fn default() -> Self {
-        Self { ui: FontFamily::Proportional, ui_semibold: FontFamily::Proportional, mono: FontFamily::Monospace }
+        Self { ui: FontFamily::Proportional, ui_semibold: FontFamily::Proportional, mono: FontFamily::Monospace, optical_size: false }
     }
 }
 
@@ -105,9 +112,10 @@ impl FontFamilies {
     pub fn installed(ctx: &Context) -> Self {
         let families = fonts::installed_families(ctx);
         let semibold = families.iter().flat_map(|f| f.iter()).find(|f| matches!(f, FontFamily::Name(name) if &**name == fonts::SEMIBOLD));
+        let optical_size = fonts::system_ui_installed(ctx);
         match semibold {
-            Some(semibold) => Self { ui_semibold: semibold.clone(), ..Self::default() },
-            None => Self::default(),
+            Some(semibold) => Self { ui_semibold: semibold.clone(), optical_size, ..Self::default() },
+            None => Self { optical_size, ..Self::default() },
         }
     }
 

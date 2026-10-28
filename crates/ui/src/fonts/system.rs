@@ -3,7 +3,8 @@
 //! Lookups that may not block (the UI thread's) find nothing until the index is built: egui
 //! draws with the faces it has, and every context that was turned away reloads its fonts when the
 //! index arrives, which forgets egui's cached misses and repaints. If the build panics, every
-//! lookup finds nothing from then on and egui keeps the faces it has.
+//! lookup finds nothing from then on and egui keeps the faces it has. Either way the index's
+//! `built` hook runs next, on the thread that built it.
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
@@ -34,11 +35,13 @@ pub(super) struct Shared<T> {
     state: Mutex<State<T>>,
     built: Condvar,
     build: fn() -> T,
+    /// Runs once the index is built or its build failed, outside every lock.
+    on_built: fn(),
 }
 
 impl<T: FontIndex> Shared<T> {
-    pub(super) const fn new(build: fn() -> T) -> Self {
-        Self { state: Mutex::new(State::Idle), built: Condvar::new(), build }
+    pub(super) const fn new(build: fn() -> T, on_built: fn()) -> Self {
+        Self { state: Mutex::new(State::Idle), built: Condvar::new(), build, on_built }
     }
 
     /// Start building the index on a background thread unless it is built or building. `ctx`
@@ -103,6 +106,7 @@ impl<T: FontIndex> Shared<T> {
                 super::providers::reload_font_providers(&ctx);
             }
         }
+        (self.on_built)();
     }
 
     fn lock(&self) -> MutexGuard<'_, State<T>> {
@@ -148,6 +152,13 @@ mod tests {
 
     static OPEN: AtomicBool = AtomicBool::new(false);
     static BUILDS: AtomicUsize = AtomicUsize::new(0);
+    static BUILT_HOOKS: AtomicUsize = AtomicUsize::new(0);
+
+    fn count_built_hook() {
+        BUILT_HOOKS.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn nothing() {}
 
     fn build_when_open() -> Gated {
         while !OPEN.load(Ordering::Acquire) {
@@ -169,7 +180,7 @@ mod tests {
         }
     }
 
-    static GATED: Shared<Gated> = Shared::new(build_when_open);
+    static GATED: Shared<Gated> = Shared::new(build_when_open, count_built_hook);
 
     #[test]
     fn ui_lookups_skip_the_index_until_it_is_built_then_the_context_reloads() {
@@ -198,13 +209,18 @@ mod tests {
         }
         assert!(other_locale.font_for(&request).is_some());
         assert_eq!(BUILDS.load(Ordering::Relaxed), 1, "every locale shares one index");
+        while BUILT_HOOKS.load(Ordering::Relaxed) == 0 {
+            assert!(Instant::now() < deadline, "the built hook runs once the index is built");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(BUILT_HOOKS.load(Ordering::Relaxed), 1);
     }
 
     fn build_panics() -> Gated {
         panic!("stand-in index build failure");
     }
 
-    static PANICS: Shared<Gated> = Shared::new(build_panics);
+    static PANICS: Shared<Gated> = Shared::new(build_panics, nothing);
 
     #[test]
     fn a_panicking_build_leaves_lookups_finding_nothing() {

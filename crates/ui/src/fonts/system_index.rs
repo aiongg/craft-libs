@@ -17,7 +17,7 @@ pub(super) struct Index {
     source_cache: SourceCache,
 }
 
-static INDEX: Shared<Index> = Shared::new(build);
+static INDEX: Shared<Index> = Shared::new(build, super::system_ui::index_built);
 
 #[cfg(test)]
 pub(super) static BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -53,8 +53,13 @@ pub(super) fn start(ctx: &egui::Context) {
     INDEX.start(Some(ctx));
 }
 
+/// Start building the index in the background, for a caller that doesn't look fonts up.
+pub(super) fn start_building() {
+    INDEX.start(None);
+}
+
 /// The OS's interface face from the shared index, waiting until it is built.
-pub(super) fn system_ui_face() -> Option<SystemUiFace> {
+pub(super) fn resolve_system_ui_face() -> Option<SystemUiFace> {
     INDEX.with(|index| resolve_system_ui(&mut index.collection, &mut index.source_cache)).flatten()
 }
 
@@ -74,12 +79,11 @@ pub(super) fn resolve_system_ui(collection: &mut Collection, source_cache: &mut 
         let regular = match_weight(collection, source_cache, id, 400).filter(|(font, _)| can_render(font, 'a'))?;
         let family = collection.family_name(id)?.to_owned();
         let semibold = match_weight(collection, source_cache, id, 600).filter(|(font, _)| !font.synthesis.embolden());
-        let regular = face_data(regular.0);
+        let regular = face_data(regular.0, 400);
         let (semibold, semibold_weight) = match semibold {
             Some((font, weight)) => {
-                let set = font.synthesis.variation_settings().iter().find(|(tag, _)| tag.to_be_bytes() == *b"wght").map(|(_, v)| *v);
-                let data = face_data(font);
-                let weight = set.map_or(weight, |_| wght_of(&data).unwrap_or(weight));
+                let data = face_data(font, 600);
+                let weight = wght_of(&data).unwrap_or(weight);
                 (data, weight)
             }
             None => (regular.clone(), 400),
@@ -106,10 +110,12 @@ fn match_weight(collection: &mut Collection, source_cache: &mut SourceCache, id:
     Some((font, info.weight().value().round() as u16))
 }
 
-/// A matched font as egui face data, at the variation fontique suggests for the requested
-/// weight and the system face's optical size.
-fn face_data(font: QueryFont) -> FontData {
-    let coords: Vec<([u8; 4], f32)> = font.synthesis.variation_settings().iter().map(|(tag, value)| (tag.to_be_bytes(), *value)).collect();
+/// A matched font as egui face data, at the variation fontique suggests for `weight` and the
+/// system face's optical size. A variable face's `wght` is always set, so the stack's family
+/// weights ([`super::set_weight`]) leave it as it is.
+fn face_data(font: QueryFont, weight: u16) -> FontData {
+    let coords = font.synthesis.variation_settings().iter().map(|(tag, value)| (tag.to_be_bytes(), *value));
+    let coords: Vec<([u8; 4], f32)> = coords.chain([(*b"wght", f32::from(weight))]).collect();
     let (blob, _) = font.blob.into_raw_parts();
     instance(FontData::from_blob(blob, font.index), coords)
 }

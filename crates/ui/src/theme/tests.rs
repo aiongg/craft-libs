@@ -169,7 +169,7 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
     use egui::{Color32, FontFamily};
 
     let semibold = FontFamily::Name(crate::fonts::SEMIBOLD.into());
-    let families = FontFamilies { ui: FontFamily::Proportional, ui_semibold: semibold.clone(), mono: FontFamily::Monospace };
+    let families = FontFamilies { ui: FontFamily::Proportional, ui_semibold: semibold.clone(), mono: FontFamily::Monospace, optical_size: false };
     let appearance =
         Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
     let tokens = resolve(&theme("craft.studio"), appearance, None).tokens;
@@ -188,6 +188,11 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
         assert_eq!(format.line_height, Some(style.line_height), "{role:?}");
         assert_eq!(format.color, Color32::RED);
         assert!(format.font_features.is_empty());
+        assert!(format.coords.as_ref().is_empty(), "{role:?}: the suite's faces keep their optical size");
+        // With the system face, the UI slots draw at the style's optical size; mono doesn't.
+        let optical = super::style_format(&FontFamilies { optical_size: true, ..families.clone() }, style, Color32::RED);
+        let opsz = optical.coords.as_ref().iter().find(|(tag, _)| *tag == egui::epaint::text::Tag::new(b"opsz")).map(|(_, size)| *size);
+        assert_eq!(opsz, (style.font != FontSlot::Mono).then_some(style.size), "{role:?}");
     }
     // Without a semibold family in the stack, those roles use the proportional family.
     assert_eq!(FontFamilies::default().family(FontSlot::UiSemibold), &FontFamily::Proportional);

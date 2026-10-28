@@ -5,8 +5,8 @@
 //!
 //! 1. the app's own faces for the family (UI face, semibold, mono), or egui's default faces for a
 //!    family the app has none for; with [`InterfaceFont::System`]
-//!    ([`UiFonts::interface_font`]), the OS's interface face goes ahead of them in the UI and
-//!    semibold families;
+//!    ([`UiFonts::interface_font`]), the OS's interface face goes ahead of them in the proportional
+//!    family, and in the [`SEMIBOLD`] family if the app has one;
 //! 2. craft-fonts faces for the UI language;
 //! 3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
 //!    Arabic file names;
@@ -58,7 +58,7 @@ pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, mi
 use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
 pub use served::{ServedFace, loading};
-pub use system_ui::{SYSTEM_UI_OPTICAL_SIZE, SystemUiFace, system_ui_face};
+pub use system_ui::{SYSTEM_UI_OPTICAL_SIZE, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemUiFace, poll_system_ui_face, system_ui_face};
 
 /// A font file from craft-fonts that the app embeds, one per line of `fonts/manifest.txt`.
 #[derive(Clone, Copy, Debug)]
@@ -188,6 +188,16 @@ fn families_key() -> egui::Id {
     egui::Id::unique("craft_ui::fonts::families")
 }
 
+fn system_ui_key() -> egui::Id {
+    egui::Id::unique("craft_ui::fonts::system_ui_installed")
+}
+
+/// Whether the OS's interface face draws in the proportional family of the stack last installed in
+/// `ctx` ([`InterfaceFont::System`], once the face resolved).
+pub(crate) fn system_ui_installed(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp(system_ui_key())).unwrap_or(false)
+}
+
 /// The families of the stack last installed in `ctx`, if any.
 pub(crate) fn installed_families(ctx: &egui::Context) -> Option<Arc<[FontFamily]>> {
     ctx.data(|d| d.get_temp(families_key()))
@@ -315,8 +325,7 @@ pub struct UiFonts<'a> {
     system: SystemFonts,
     system_provider: Option<Arc<dyn FontProvider>>,
     cjk_rows: CjkRows,
-    /// The OS's interface face, ahead of the app's faces, with [`InterfaceFont::System`].
-    system_ui: Option<&'static SystemUiFace>,
+    interface: InterfaceFont,
 }
 
 impl<'a> UiFonts<'a> {
@@ -336,7 +345,7 @@ impl<'a> UiFonts<'a> {
             system: SystemFonts::default(),
             system_provider: None,
             cjk_rows: CjkRows::default(),
-            system_ui: None,
+            interface: InterfaceFont::default(),
         }
     }
 
@@ -425,15 +434,21 @@ impl<'a> UiFonts<'a> {
 
     /// The face the interface draws with: the app's own faces ([`InterfaceFont::Suite`], the
     /// default), or the OS's ([`InterfaceFont::System`], see [`system_ui_face`]). The system
-    /// face's regular and semibold faces head the proportional and [`SEMIBOLD`] families, ahead of
-    /// the app's faces and every fallback after them; the [`SEMIBOLD`] family is built at weight
-    /// 600 if the app declares none. The monospace family keeps the app's faces. Where no system
-    /// face resolves (the web, no `system_fonts` feature), the app's faces stay first.
+    /// face's regular face goes ahead of the app's faces in the proportional family, and its
+    /// semibold face ahead of them in the [`SEMIBOLD`] family if the app has one; the rest of each
+    /// chain is the one [`InterfaceFont::Suite`] builds. The setting changes only the face: the
+    /// families and their weights stay the app's, and the monospace family keeps the app's faces.
+    /// Where no system face resolves (the web, no `system_fonts` feature), the app's faces stay
+    /// first.
+    ///
+    /// Building the stack doesn't wait for the index of installed fonts. Until the face resolves,
+    /// the chains hold [`SYSTEM_UI_REGULAR`] and [`SYSTEM_UI_SEMIBOLD`] without data, which
+    /// install skips, so the app's faces draw; [`Stack::install`] then installs the stack again,
+    /// with the face's data and any edits made to it, at the start of the first pass after the
+    /// face resolves. Checks and tests that need the face call [`system_ui_face`] first, which
+    /// waits.
     pub fn interface_font(mut self, font: InterfaceFont) -> Self {
-        self.system_ui = match font {
-            InterfaceFont::Suite => None,
-            InterfaceFont::System => system_ui_face(),
-        };
+        self.interface = font;
         self
     }
 
@@ -458,6 +473,11 @@ impl<'a> UiFonts<'a> {
 
     /// Build the stack without installing it.
     pub fn stack(&self) -> Stack {
+        self.stack_with_system_ui(system_ui::resolved())
+    }
+
+    /// [`Self::stack`] with the system face resolved as `resolved` (`None`: not yet).
+    fn stack_with_system_ui(&self, resolved: Option<Option<&SystemUiFace>>) -> Stack {
         let mut stack = Stack {
             definitions: FontDefinitions::empty(),
             after_system: FaceList::default(),
@@ -474,6 +494,8 @@ impl<'a> UiFonts<'a> {
             served: Vec::new(),
             ui_downloads: Vec::new(),
             cjk_rows: self.cjk_rows,
+            cjk_faces: Vec::new(),
+            system_ui_pending: false,
         };
         let defaults = FontDefinitions::default();
         let cjk_names: Vec<String> = match self.cjk_rows {
@@ -514,6 +536,13 @@ impl<'a> UiFonts<'a> {
             stack.weights.push((family.family, family.weight));
         }
         stack.fit_into_rows(&cjk_faces);
+        stack.cjk_faces = cjk_faces;
+        if self.interface == InterfaceFont::System {
+            stack.system_ui_pending = true;
+            if let Some(face) = resolved {
+                stack.provide_system_ui(face);
+            }
+        }
         stack
     }
 
@@ -531,13 +560,6 @@ impl<'a> UiFonts<'a> {
                 None => specs.push(declared.clone()),
             }
         }
-        let semibold = FontFamily::Name(SEMIBOLD.into());
-        if self.system_ui.is_some() && !self.families.iter().any(|f| f.family == semibold) {
-            match specs.iter_mut().find(|s| s.family == semibold) {
-                Some(spec) => spec.weight = 600,
-                None => specs.push(Family::named(SEMIBOLD).weight(600)),
-            }
-        }
         specs
     }
 
@@ -550,7 +572,7 @@ impl<'a> UiFonts<'a> {
 
         let app = self.app_faces_for(family);
         let own_faces = !app.is_empty();
-        let (base, egui_tail) = if own_faces { (app, egui_faces) } else { (egui_faces, Vec::new()) };
+        let (mut base, egui_tail) = if own_faces { (app, egui_faces) } else { (egui_faces, Vec::new()) };
         // egui's default faces cover the scripts app faces are assumed to.
         let covers = |script: &str| if own_faces { self.app_covers(script) } else { APP_SCRIPTS.contains(&script) };
 
@@ -591,6 +613,7 @@ impl<'a> UiFonts<'a> {
             .map(|face| face.name)
             .collect();
         let base_face = base.first().cloned();
+        base.splice(0..0, self.system_ui_slot(&family.family));
 
         let mut configured = craft(lead);
         if language_first {
@@ -619,18 +642,24 @@ impl<'a> UiFonts<'a> {
         Chain { configured, after, base: base_face, script, ui_downloads }
     }
 
-    /// The app faces heading `family`, after the system face's for the proportional and
-    /// [`SEMIBOLD`] families with [`InterfaceFont::System`]; a named family without its own takes
-    /// the monospace ones if it is [`Family::monospaced`], the proportional ones otherwise.
+    /// With [`InterfaceFont::System`], the system face's slot ahead of the app's faces in the
+    /// proportional and [`SEMIBOLD`] families: its name, without data until
+    /// [`Stack::provide_system_ui`].
+    fn system_ui_slot(&self, family: &FontFamily) -> Option<Face> {
+        let name = match family {
+            _ if self.interface != InterfaceFont::System => return None,
+            FontFamily::Proportional => SYSTEM_UI_REGULAR,
+            FontFamily::Name(name) if &**name == SEMIBOLD => SYSTEM_UI_SEMIBOLD,
+            _ => return None,
+        };
+        Some(Face { system_ui: true, ..Face::new(name, FontData::from_static(&[])) })
+    }
+
+    /// The app faces heading `family`; a named family without its own takes the monospace ones if
+    /// it is [`Family::monospaced`], the proportional ones otherwise.
     fn app_faces_for(&self, family: &Family) -> Vec<Face> {
         let faces = |family: &FontFamily| -> Vec<Face> {
-            let system = self.system_ui.and_then(|face| match family {
-                FontFamily::Proportional => Some(Face::new(&face.regular_name(), face.regular.clone())),
-                FontFamily::Name(name) if &**name == SEMIBOLD => Some(Face::new(&face.semibold_name(), face.semibold.clone())),
-                _ => None,
-            });
-            let app = self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone()));
-            system.into_iter().chain(app).collect()
+            self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone())).collect()
         };
         match faces(&family.family) {
             own if !own.is_empty() || !matches!(family.family, FontFamily::Name(_)) => own,
@@ -675,6 +704,7 @@ impl<'a> UiFonts<'a> {
             name: face.map(CraftFace::name).unwrap_or_default(),
             data: face.map_or_else(|| FontData::from_static(&[]), CraftFace::data),
             served: self.served.get(index).copied().flatten(),
+            system_ui: false,
         }
     }
 
@@ -746,6 +776,8 @@ struct Face {
     data: FontData,
     /// The served face this stands for; `data` is empty until it is fetched.
     served: Option<ServedFace>,
+    /// The system face's slot, whose data the stack adds when the face resolves.
+    system_ui: bool,
 }
 
 /// One family's faces, as [`UiFonts::chain`] orders them.
@@ -764,7 +796,7 @@ struct Chain {
 
 impl Face {
     fn new(name: &str, data: FontData) -> Self {
-        Self { name: name.to_owned(), data, served: None }
+        Self { name: name.to_owned(), data, served: None, system_ui: false }
     }
 
     /// Set a variable face to `weight`. A face that isn't at regular weight gets its own name, so
@@ -802,6 +834,10 @@ pub struct Stack {
     cjk_rows: CjkRows,
     /// Names of the served faces to fetch at install.
     ui_downloads: Vec<String>,
+    /// The CJK faces fitted into the rows of the proportional family's first face.
+    cjk_faces: Vec<String>,
+    /// The stack has [`InterfaceFont::System`] and the system face hasn't resolved yet.
+    system_ui_pending: bool,
 }
 
 impl Stack {
@@ -823,7 +859,18 @@ impl Stack {
     ///
     /// On the web, a stack with [`UiFonts::served_faces`] also fetches them (see there); the faces
     /// already fetched for an earlier stack are added at once.
+    ///
+    /// A stack built with [`InterfaceFont::System`] before the system face resolved is installed
+    /// without it, then again with it at the start of the first pass after it resolves, unless
+    /// another stack is installed in `ctx` first (see [`UiFonts::interface_font`]).
     pub fn install(&self, ctx: &egui::Context) {
+        if self.system_ui_pending
+            && let Some(face) = system_ui::resolved()
+        {
+            let mut stack = self.clone();
+            stack.provide_system_ui(face);
+            return stack.install(ctx);
+        }
         #[cfg(target_arch = "wasm32")]
         if !self.served.is_empty() {
             return served::web::install(ctx, self.clone());
@@ -835,7 +882,11 @@ impl Stack {
     fn install_faces(&self, ctx: &egui::Context, miss: Option<Arc<dyn FontProvider>>) {
         ctx.set_fonts(self.checked_definitions());
         let families: Arc<[FontFamily]> = self.definitions.families.keys().cloned().collect();
-        ctx.data_mut(|d| d.insert_temp(families_key(), families));
+        let system_ui = self.has_system_ui();
+        ctx.data_mut(|d| {
+            d.insert_temp(families_key(), families);
+            d.insert_temp(system_ui_key(), system_ui);
+        });
         let id = egui::Id::unique("craft_ui::fonts::installed");
         let (system, start_index) = self.context_lookup();
         let installed: Option<Arc<Installed>> = ctx.data(|d| d.get_temp(id));
@@ -857,6 +908,37 @@ impl Stack {
             start(ctx);
         }
         fit::install(ctx, self.row_faces());
+        system_ui::set_pending(ctx, self.system_ui_pending.then(|| self.clone()));
+    }
+
+    /// Add the system face's data to its slots ([`SYSTEM_UI_REGULAR`], [`SYSTEM_UI_SEMIBOLD`]) and
+    /// fit the CJK faces into its rows, or with `None` (no face resolves) drop the empty slots.
+    fn provide_system_ui(&mut self, face: Option<&SystemUiFace>) {
+        self.system_ui_pending = false;
+        for (name, data) in [(SYSTEM_UI_REGULAR, face.map(|f| &f.regular)), (SYSTEM_UI_SEMIBOLD, face.map(|f| &f.semibold))] {
+            match data {
+                Some(data) => {
+                    if self.definitions.families.values().any(|chain| chain.iter().any(|n| n == name)) {
+                        self.definitions.font_data.insert(name.to_owned(), Arc::new(data.clone()));
+                    }
+                }
+                None if !self.definitions.font_data.contains_key(name) => {
+                    for chain in self.definitions.families.values_mut() {
+                        chain.retain(|n| n != name);
+                    }
+                }
+                None => {}
+            }
+        }
+        if face.is_some() {
+            let cjk_faces = self.cjk_faces.clone();
+            self.fit_into_rows(&cjk_faces);
+        }
+    }
+
+    /// Whether the system face draws in the proportional family: its slot is there, with data.
+    fn has_system_ui(&self) -> bool {
+        self.chain(&FontFamily::Proportional).iter().any(|n| n == SYSTEM_UI_REGULAR) && self.definitions.font_data.contains_key(SYSTEM_UI_REGULAR)
     }
 
     /// Each family's weight, for wrapping another provider in [`RegularWeight`].
@@ -945,10 +1027,12 @@ impl Stack {
         Fonts::new(TextOptions::default(), self.checked_definitions()).with_font_providers(self.providers(with_system))
     }
 
-    /// The app's face and the UI language's script face, when the stack has both.
+    /// The app's face (the system face when it draws) and the UI language's script face, when the
+    /// stack has both.
     fn row_faces(&self) -> Option<fit::RowFaces> {
         let data = |name: &Option<String>| self.definitions.font_data.get(name.as_ref()?).cloned();
-        Some(fit::RowFaces::new(data(&self.base_face)?, data(&self.script_face)?))
+        let base = if self.has_system_ui() { Some(SYSTEM_UI_REGULAR.to_owned()) } else { self.base_face.clone() };
+        Some(fit::RowFaces::new(data(&base)?, data(&self.script_face)?))
     }
 
     fn checked_definitions(&self) -> FontDefinitions {
@@ -998,9 +1082,13 @@ impl Stack {
     }
 
     /// Fit the CJK faces `names` into the rows of the proportional family's first face, except where
-    /// one of them leads a family.
+    /// one of them leads a family. A system face slot without data is passed over: the face after
+    /// it draws until the slot gets its data, which fits them again.
     fn fit_into_rows(&mut self, names: &[String]) {
-        let Some(primary) = self.chain(&FontFamily::Proportional).first().and_then(|name| self.definitions.font_data.get(name)).cloned() else {
+        let font_data = &self.definitions.font_data;
+        let empty_slot = |name: &&String| *name == SYSTEM_UI_REGULAR && !font_data.contains_key(name.as_str());
+        let Some(primary) = self.chain(&FontFamily::Proportional).iter().find(|name| !empty_slot(name)).and_then(|name| font_data.get(name)).cloned()
+        else {
             return;
         };
         let leads = |name: &String| self.definitions.families.values().any(|chain| chain.first() == Some(name));
@@ -1018,7 +1106,7 @@ impl Stack {
     }
 
     fn add_configured(&mut self, face: Face) -> String {
-        if !self.add_served(&face) {
+        if !face.system_ui && !self.add_served(&face) {
             self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| Arc::new(face.data));
         }
         face.name

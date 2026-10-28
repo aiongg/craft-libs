@@ -520,34 +520,94 @@ fn every_locale_asks_one_index_of_the_installed_fonts() {
     assert_eq!(system_index::BUILDS.load(std::sync::atomic::Ordering::Relaxed), 1);
 }
 
+/// A stand-in for the OS's interface face, so the stack's handling doesn't depend on the machine.
+fn stand_in_system_face() -> SystemUiFace {
+    SystemUiFace {
+        family: "Stand-in Sans".to_owned(),
+        regular: FontData::from_static(NOTO_SANS_LATIN),
+        semibold: FontData::from_static(SYMBOLS),
+        semibold_weight: 600,
+    }
+}
+
+#[test]
+fn the_system_face_goes_ahead_of_the_suite_chains_once_it_resolves() {
+    let semibold = FontFamily::Name(SEMIBOLD.into());
+    let face = stand_in_system_face();
+    let fonts = |font: InterfaceFont, semibold_family: bool| {
+        let fonts = UiFonts::new(&I18nScripts).app_face("App", FontData::from_static(NOTO_SANS_LATIN), &[FontFamily::Proportional]);
+        let fonts = if semibold_family { fonts.family(Family::named(SEMIBOLD).weight(600)) } else { fonts };
+        fonts.interface_font(font)
+    };
+    let suite = fonts(InterfaceFont::Suite, true).stack_with_system_ui(None);
+    let pending = fonts(InterfaceFont::System, true).stack_with_system_ui(None);
+    assert!(pending.system_ui_pending);
+    assert!(pending.flat_definitions() == suite.flat_definitions(), "until the face resolves, the suite's faces install");
+    assert_eq!(pending.weights(), suite.weights());
+
+    let mut resolved = pending.clone();
+    resolved.provide_system_ui(Some(&face));
+    assert!(!resolved.system_ui_pending);
+    for (family, slot, data) in [(FontFamily::Proportional, SYSTEM_UI_REGULAR, &face.regular), (semibold.clone(), SYSTEM_UI_SEMIBOLD, &face.semibold)]
+    {
+        let expected: Vec<String> = std::iter::once(slot.to_owned()).chain(suite.chain(&family).iter().cloned()).collect();
+        assert_eq!(resolved.chain(&family), expected, "{family:?}: the system face, then the suite's chain");
+        assert!(resolved.chain(&family).iter().any(|name| name.starts_with("App")), "{family:?}: the app's face stays behind it");
+        assert_eq!(resolved.definitions.font_data[slot].bytes(), data.bytes());
+    }
+    assert_eq!(resolved.chain(&FontFamily::Monospace), suite.chain(&FontFamily::Monospace));
+    assert_eq!(resolved.weights(), suite.weights());
+    let built = fonts(InterfaceFont::System, true).stack_with_system_ui(Some(Some(&face)));
+    assert!(built.flat_definitions() == resolved.flat_definitions(), "a stack built after the face resolved is the same");
+
+    let mut unavailable = pending;
+    unavailable.provide_system_ui(None);
+    assert_eq!(unavailable.definitions.families, suite.definitions.families, "no face resolves: the suite's chains");
+
+    // The setting changes only the face: an app without a semibold family gets none.
+    let plain = fonts(InterfaceFont::System, false).stack_with_system_ui(Some(Some(&face)));
+    assert_eq!(plain.chain(&FontFamily::Proportional).first().map(String::as_str), Some(SYSTEM_UI_REGULAR));
+    assert!(!plain.definitions.families.contains_key(&semibold));
+    assert_eq!(plain.weights(), fonts(InterfaceFont::Suite, false).stack_with_system_ui(None).weights());
+}
+
 #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
 #[test]
-fn the_system_interface_face_heads_the_ui_and_semibold_families() {
+fn the_installed_system_face_heads_the_context_fonts_once_it_resolves() {
+    let semibold = FontFamily::Name(SEMIBOLD.into());
+    let ctx = egui::Context::default();
+    UiFonts::new(&I18nScripts)
+        .app_face("App", FontData::from_static(NOTO_SANS_LATIN), &[FontFamily::Proportional])
+        .family(Family::named(SEMIBOLD).weight(600))
+        .interface_font(InterfaceFont::System)
+        .install(&ctx);
     let Some(face) = system_ui_face() else {
         eprintln!("skipped: no installed family resolves as system-ui or sans-serif (no fontconfig fonts here)");
         return;
     };
     eprintln!("system interface face: {} (semibold at {})", face.family, face.semibold_weight);
     assert!(face.semibold_weight >= 600, "{} has a real face from 600 up, not the regular one", face.family);
-    let semibold = FontFamily::Name(SEMIBOLD.into());
-    let app = |font: InterfaceFont| {
-        UiFonts::new(&I18nScripts).app_face("App", FontData::from_static(NOTO_SANS_LATIN), &[FontFamily::Proportional]).interface_font(font).stack()
-    };
-    let stack = app(InterfaceFont::System);
-    let proportional = stack.chain(&FontFamily::Proportional);
-    assert_eq!(proportional.first(), Some(&face.regular_name()));
-    assert!(proportional.iter().any(|name| name == "App"), "the app's face stays behind it: {proportional:?}");
-    assert_eq!(stack.chain(&semibold).first(), Some(&face.semibold_name()));
-    assert!(stack.weights().contains(&(semibold.clone(), 600)));
-    assert!(!stack.chain(&FontFamily::Monospace).contains(&face.regular_name()));
-    assert_eq!(app(InterfaceFont::Suite).chain(&FontFamily::Proportional).first().map(String::as_str), Some("App"));
 
-    let ctx = egui::Context::default();
-    stack.install(&ctx);
-    ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
-    for family in [FontFamily::Proportional, semibold] {
-        assert!(ctx.fonts_mut(|f| f.has_glyph(&FontId::new(14.0, family.clone()), 'a')), "{family:?} draws with the system face");
+    let chain = |family: &FontFamily| ctx.fonts(|f| f.definitions().families.get(family).cloned().unwrap_or_default());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+        if chain(&FontFamily::Proportional).first().map(String::as_str) == Some(SYSTEM_UI_REGULAR) {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "the context's fonts are installed again with the face");
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
+    let definitions = ctx.fonts(|f| f.definitions().clone());
+    for (family, slot, data) in [(FontFamily::Proportional, SYSTEM_UI_REGULAR, &face.regular), (semibold, SYSTEM_UI_SEMIBOLD, &face.semibold)] {
+        let chain = &definitions.families[&family];
+        assert_eq!(chain.first().map(String::as_str), Some(slot), "{family:?}");
+        assert!(chain.iter().any(|name| name.starts_with("App")), "{family:?}: the app's face stays behind it: {chain:?}");
+        let installed = &definitions.font_data[slot];
+        assert_eq!((installed.bytes(), installed.index), (data.bytes(), data.index), "{family:?}: the system face's data is installed");
+    }
+    assert!(!definitions.families[&FontFamily::Monospace].iter().any(|name| name.starts_with(SYSTEM_UI_REGULAR)));
+    assert!(system_ui_installed(&ctx));
 }
 
 #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
