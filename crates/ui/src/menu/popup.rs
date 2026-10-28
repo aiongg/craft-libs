@@ -75,6 +75,7 @@ pub struct Menu<'a, T> {
     top_limit: Option<f32>,
     scroll_up: Cow<'a, str>,
     scroll_down: Cow<'a, str>,
+    header: Option<&'a mut dyn FnMut(&mut Ui) -> bool>,
 }
 
 /// What a menu did in a pass, from [`Menu::show`].
@@ -106,6 +107,7 @@ impl<'a, T: Clone> Menu<'a, T> {
             top_limit: None,
             scroll_up: Cow::Borrowed("Scroll menu up"),
             scroll_down: Cow::Borrowed("Scroll menu down"),
+            header: None,
         }
     }
 
@@ -144,6 +146,14 @@ impl<'a, T: Clone> Menu<'a, T> {
         self
     }
 
+    /// Content above the top level's rows, scrolling with them (a menu bar's search field).
+    /// `header` returns whether it holds the keyboard focus: the letters, ← / → and Space are then
+    /// its own, not the menu's.
+    pub(crate) fn header(mut self, header: &'a mut dyn FnMut(&mut Ui) -> bool) -> Self {
+        self.header = Some(header);
+        self
+    }
+
     /// Draws the menu in `popup` while the popup is open, and handles its keys.
     pub fn show(self, ui: &Ui, popup: Popup<'_>) -> MenuResponse<T> {
         let ctx = ui.ctx().clone();
@@ -175,6 +185,8 @@ impl<'a, T: Clone> Menu<'a, T> {
                 down: &self.scroll_down,
             },
             chosen: None,
+            header: self.header.map(|h| h as &mut dyn FnMut(&mut Ui) -> bool),
+            typing: false,
         };
         let shown = popup
             .kind(PopupKind::Menu)
@@ -187,7 +199,7 @@ impl<'a, T: Clone> Menu<'a, T> {
         let mut open = shown.as_ref().is_some_and(|r| !r.response.should_close());
         let mut step = None;
         if open {
-            let keys = nav.keys(&ctx, crate::direction::is_rtl(&ctx), mnemonics);
+            let keys = nav.keys(&ctx, crate::direction::is_rtl(&ctx), mnemonics, draw.typing);
             chosen = chosen.or(keys.run);
             step = keys.step;
             if keys.close || chosen.is_some() {
@@ -241,6 +253,10 @@ struct Draw<'s> {
     strips: Strips<'s>,
     /// The path of the row clicked or released on.
     chosen: Option<Vec<usize>>,
+    /// Drawn above the top level's rows; returns whether it has the keyboard focus.
+    header: Option<&'s mut dyn FnMut(&mut Ui) -> bool>,
+    /// The header has the keyboard focus.
+    typing: bool,
 }
 
 impl Draw<'_> {
@@ -248,7 +264,14 @@ impl Draw<'_> {
     /// the submenu row's, `path` the submenu row's entry path.
     fn level<T>(&mut self, ui: &mut Ui, depth: usize, scope: Id, path: &[usize], entries: &[MenuEntry<T>], nav: &mut Nav) {
         let strips = Strips { up: self.strips.up, down: self.strips.down, ..self.strips };
-        super::nav::level(ui, depth, nav, &strips, |ui, nav| self.rows(ui, depth, scope, path, entries, nav));
+        super::nav::level(ui, depth, nav, &strips, |ui, nav| {
+            if depth == 1
+                && let Some(header) = self.header.as_mut()
+            {
+                self.typing = header(ui);
+            }
+            self.rows(ui, depth, scope, path, entries, nav);
+        });
     }
 
     fn rows<T>(&mut self, ui: &mut Ui, depth: usize, scope: Id, path: &[usize], entries: &[MenuEntry<T>], nav: &mut Nav) {
