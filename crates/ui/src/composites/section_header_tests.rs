@@ -1,11 +1,10 @@
-//! Section and panel header tests: toggling, focus, AccessKit, truncation and mirroring.
+//! Section header tests: toggling, focus, AccessKit, the controls slot, truncation and mirroring.
 
 use egui::accesskit::Role;
-use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Ui, vec2};
+use egui::{Context, Key, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::panel_header::show_flyout;
 use super::section_header::{show_always_open, show_collapsible};
 use super::*;
 use crate::controls::IconButton;
@@ -35,6 +34,16 @@ fn header<'a, State>(harness: &'a Harness<'_, State>, title: &'a str) -> Node<'a
     harness.get_by(|n| n.role() == Role::DisclosureTriangle && n.label().as_deref() == Some(title))
 }
 
+/// The title's text node.
+fn title<'a, State>(harness: &'a Harness<'_, State>, text: &'a str) -> Option<Node<'a>> {
+    harness.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some(text))
+}
+
+/// The buttons' names in AccessKit tree order.
+fn buttons_in_tree<State>(harness: &Harness<'_, State>) -> Vec<String> {
+    harness.root().children_recursive().map(|n| n.accesskit_node()).filter(|n| n.role() == Role::Button).filter_map(|n| n.label()).collect()
+}
+
 fn body_shown<State>(harness: &Harness<'_, State>) -> bool {
     harness.query_by_label("Body").is_some()
 }
@@ -52,7 +61,7 @@ fn tokens() -> std::sync::Arc<crate::theme::UiTokens> {
 fn section() -> impl FnMut(&mut Ui) {
     |ui| {
         panel(ui, 240.0, |ui| {
-            let _ = SectionHeader::new("Transform").show(ui, |ui| ui.label("Body"));
+            let _ = SectionHeader::new("transform", "Transform").show(ui, |ui| ui.label("Body"));
         })
     }
 }
@@ -105,8 +114,8 @@ fn the_header_is_a_disclosure_triangle_that_reports_expanded() {
 fn the_open_state_is_kept_per_header() {
     let mut harness = harness(Direction::Ltr).build_ui(|ui| {
         panel(ui, 240.0, |ui| {
-            let _ = SectionHeader::new("Same").id_salt("a").show(ui, |ui| ui.label("Body A"));
-            let _ = SectionHeader::new("Same").id_salt("b").show(ui, |ui| ui.label("Body B"));
+            let _ = SectionHeader::new("a", "Same").show(ui, |ui| ui.label("Body A"));
+            let _ = SectionHeader::new("b", "Same").show(ui, |ui| ui.label("Body B"));
         })
     });
     harness.get_all_by_label("Same").next().expect("first header").click();
@@ -115,11 +124,45 @@ fn the_open_state_is_kept_per_header() {
 }
 
 #[test]
+fn sections_of_one_id_in_two_scopes_keep_separate_states() {
+    let mut harness = harness(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 240.0, |ui| {
+            for (scope, body) in [("left", "Body A"), ("right", "Body B")] {
+                ui.push_id(scope, |ui| {
+                    let _ = SectionHeader::new("transform", "Transform").show(ui, |ui| ui.label(body));
+                });
+            }
+        })
+    });
+    harness.get_all_by_label("Transform").next().expect("first header").click();
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Body A").is_none() && harness.query_by_label("Body B").is_some());
+}
+
+#[test]
+fn the_open_state_does_not_depend_on_the_title() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, title: &mut &'static str| {
+            panel(ui, 240.0, |ui| {
+                let _ = SectionHeader::new("transform", *title).show(ui, |ui| ui.label("Body"));
+            })
+        },
+        "Transform",
+    );
+    header(&harness, "Transform").click();
+    harness.run();
+    assert!(!body_shown(&harness));
+    *harness.state_mut() = "Transformer";
+    harness.run();
+    assert!(!body_shown(&harness), "a new title (a language switch) keeps the state");
+}
+
+#[test]
 fn a_host_owned_state_is_read_and_written() {
     let mut harness = harness(Direction::Ltr).build_ui_state(
         |ui, open: &mut bool| {
             panel(ui, 240.0, |ui| {
-                let _ = SectionHeader::new("Transform").open(open).show(ui, |ui| ui.label("Body"));
+                let _ = SectionHeader::new("transform", "Transform").open(open).show(ui, |ui| ui.label("Body"));
             })
         },
         false,
@@ -138,7 +181,7 @@ fn a_host_owned_state_is_read_and_written() {
 fn an_always_open_header_is_not_focusable_and_always_shows_its_body() {
     let mut harness = harness(Direction::Ltr).build_ui(|ui| {
         panel(ui, 240.0, |ui| {
-            let _ = SectionHeader::new("Transform")
+            let _ = SectionHeader::new("transform", "Transform")
                 .collapsible(false)
                 .controls(|ui| {
                     ui.add(IconButton::new(Icon::Plus, "Add transform").size(ControlSize::Sm));
@@ -160,7 +203,7 @@ fn the_controls_sit_at_the_trailing_end_and_the_title_gives_way() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         let harness = harness(dir).build_ui(|ui| {
             panel(ui, 140.0, |ui| {
-                let _ = SectionHeader::new("A rather long section title")
+                let _ = SectionHeader::new("long", "A rather long section title")
                     .collapsible(false)
                     .controls(|ui| {
                         ui.add(IconButton::new(Icon::Plus, "Add").size(ControlSize::Sm));
@@ -178,6 +221,50 @@ fn the_controls_sit_at_the_trailing_end_and_the_title_gives_way() {
     }
 }
 
+/// A collapsible header with three controls in a panel `width` wide.
+fn with_controls(width: f32) -> impl FnMut(&mut Ui) {
+    move |ui| {
+        panel(ui, width, |ui| {
+            let _ = SectionHeader::new("transform", "Transform")
+                .controls(|ui| {
+                    for (icon, label) in [(Icon::Settings, "Settings"), (Icon::Copy, "Copy"), (Icon::Plus, "Add")] {
+                        ui.add(IconButton::new(icon, label).size(ControlSize::Sm));
+                    }
+                })
+                .show(ui, |ui| ui.label("Body"));
+        })
+    }
+}
+
+#[test]
+fn the_controls_are_in_reading_order_for_tab_accesskit_and_layout() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let mut harness = harness(dir).build_ui(with_controls(240.0));
+        let stops: Vec<String> = a11y::tab_order(&mut harness).into_iter().map(|stop| stop.label).collect();
+        assert_eq!(stops, ["Transform", "Settings", "Copy", "Add"], "{dir:?}");
+        assert_eq!(buttons_in_tree(&harness), ["Settings", "Copy", "Add"], "{dir:?}");
+        let xs: Vec<f32> = ["Settings", "Copy", "Add"].map(|label| harness.get_by_label(label).rect().center().x).to_vec();
+        let row = header(&harness, "Transform").rect();
+        let add = harness.get_by_label("Add").rect();
+        if dir == Direction::Ltr {
+            assert!(xs[0] < xs[1] && xs[1] < xs[2], "{xs:?}");
+            assert!((add.right() - row.right()).abs() < 1.0, "the last control ends at the trailing edge: {add:?} {row:?}");
+        } else {
+            assert!(xs[0] > xs[1] && xs[1] > xs[2], "{xs:?}");
+            assert!((add.left() - row.left()).abs() < 1.0, "{add:?} {row:?}");
+        }
+    }
+}
+
+#[test]
+fn a_header_too_narrow_for_its_title_draws_none_and_keeps_its_name() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let harness = harness(dir).build_ui(with_controls(70.0));
+        assert!(title(&harness, "Transform").is_none(), "{dir:?}: the controls reach the title's start");
+        assert_eq!(header(&harness, "Transform").accesskit_node().label().as_deref(), Some("Transform"));
+    }
+}
+
 #[test]
 fn the_title_starts_after_the_chevron_and_mirrors() {
     let offset = tokens().component.section.title_offset;
@@ -191,99 +278,6 @@ fn the_title_starts_after_the_chevron_and_mirrors() {
     }
 }
 
-fn flyout(width: f32) -> impl FnMut(&mut Ui, &mut Vec<&'static str>) {
-    move |ui, clicks| {
-        panel(ui, width, |ui| {
-            let shown = PanelHeader::new("Brush settings").float(true).close(true).show(ui, |_| {});
-            for (name, response) in [("menu", shown.menu), ("float", shown.float), ("close", shown.close)] {
-                if response.is_some_and(|r| r.clicked()) {
-                    clicks.push(name);
-                }
-            }
-        })
-    }
-}
-
-#[test]
-fn the_panel_header_buttons_are_named_and_clickable() {
-    let mut harness = harness(Direction::Ltr).build_ui_state(flyout(280.0), Vec::new());
-    for (label, name) in [("Panel menu", "menu"), ("Float panel", "float"), ("Close panel", "close")] {
-        let node = harness.get_by_label(label);
-        assert_eq!(node.accesskit_node().role(), Role::Button);
-        node.click();
-        harness.run();
-        assert_eq!(harness.state().last(), Some(&name));
-    }
-    a11y::assert_labelled(&harness);
-    let title = harness.get_by(|n| n.role() == Role::Header);
-    assert_eq!(title.accesskit_node().label().as_deref(), Some("Brush settings"));
-}
-
-#[test]
-fn the_panel_header_has_the_size_token_height_and_the_buttons_trail() {
-    let height = PanelHeader::style(&tokens()).height;
-    for dir in [Direction::Ltr, Direction::Rtl] {
-        let harness = harness(dir).build_ui_state(flyout(280.0), Vec::new());
-        let header = harness.get_by(|n| n.role() == Role::Header).rect();
-        assert!((header.height() - height).abs() < 0.5, "{header:?}");
-        let (menu, float, close) =
-            (harness.get_by_label("Panel menu").rect(), harness.get_by_label("Float panel").rect(), harness.get_by_label("Close panel").rect());
-        let title = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Brush settings")).rect();
-        if dir == Direction::Ltr {
-            assert!(
-                title.left() < menu.left() && menu.right() <= float.left() && float.right() <= close.left(),
-                "{title:?} {menu:?} {float:?} {close:?}"
-            );
-            assert!(close.right() < header.right() + 0.5);
-        } else {
-            assert!(
-                title.right() > menu.right() && menu.left() >= float.right() && float.left() >= close.right(),
-                "{title:?} {menu:?} {float:?} {close:?}"
-            );
-            assert!(close.left() > header.left() - 0.5);
-        }
-    }
-}
-
-#[test]
-fn a_long_panel_title_is_cut_but_keeps_its_full_name() {
-    let harness = harness(Direction::Ltr).build_ui_state(
-        |ui, _: &mut ()| {
-            panel(ui, 140.0, |ui| {
-                let _ = PanelHeader::new("A rather long panel title indeed").float(true).close(true).show(ui, |_| {});
-            })
-        },
-        (),
-    );
-    let title = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("A rather long panel title indeed")).rect();
-    let float = harness.get_by_label("Panel menu").rect();
-    assert!(title.right() <= float.left() + 0.5, "{title:?} {float:?}");
-    assert_eq!(harness.get_by(|n| n.role() == Role::Header).accesskit_node().label().as_deref(), Some("A rather long panel title indeed"));
-}
-
-#[test]
-fn dragging_the_header_background_reports_a_drag() {
-    let mut harness = harness(Direction::Ltr).build_ui_state(
-        |ui, dragged: &mut bool| {
-            panel(ui, 280.0, |ui| {
-                *dragged |= PanelHeader::new("Brush").show(ui, |_| {}).header.dragged();
-            })
-        },
-        false,
-    );
-    let at = Pos2::new(130.0, 10.0);
-    let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    harness.event(Event::PointerMoved(at));
-    harness.run();
-    harness.event(button(at, true));
-    harness.run();
-    for dx in [10.0, 30.0] {
-        harness.event(Event::PointerMoved(at + vec2(dx, 0.0)));
-        harness.run();
-    }
-    assert!(*harness.state());
-}
-
 #[test]
 fn the_stories_name_every_control_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {
@@ -294,14 +288,6 @@ fn the_stories_name_every_control_in_both_directions() {
             a11y::assert_labelled(&harness);
             let mut a = args.clone();
             let harness = self::harness(dir).build_ui(move |ui| show_always_open(ui, &mut a));
-            a11y::assert_labelled(&harness);
-            let mut a = Args::new()
-                .with_bool("float", true)
-                .with_bool("close", true)
-                .with_bool("menu", true)
-                .with_bool("actions", true)
-                .with_number("width", width, 60.0, 400.0);
-            let harness = self::harness(dir).build_ui(move |ui| show_flyout(ui, &mut a));
             a11y::assert_labelled(&harness);
         }
     }

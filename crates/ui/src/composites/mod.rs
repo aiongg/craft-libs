@@ -38,6 +38,8 @@ pub(crate) mod field;
 mod field_tests;
 mod measure;
 pub(crate) mod panel_header;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod panel_header_tests;
 pub(crate) mod property_row;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod property_row_tests;

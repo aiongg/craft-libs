@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{Color32, CursorIcon, IdSalt, InnerResponse, Label, Rect, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
-use super::{PropertyGroup, PropertyLabel, PropertyRow};
+use super::{PropertyGroup, PropertyLabel, PropertyRow, measure};
 use crate::controls::{IconButton, NumberField};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
@@ -48,7 +48,7 @@ pub struct SectionStyle {
 /// ```
 /// use craft_ui::composites::SectionHeader;
 /// # egui::__run_test_ui(|ui| {
-/// SectionHeader::new("Transform").show(ui, |ui| {
+/// SectionHeader::new("transform", "Transform").show(ui, |ui| {
 ///     ui.label("The section's rows.");
 /// });
 /// # });
@@ -62,8 +62,10 @@ pub struct SectionStyle {
 ///   without the caller threading it.
 /// - [`collapsible(false)`](SectionHeader::collapsible) is the always-open header (DesignCraft): the
 ///   title alone, no chevron, not a Tab stop, the body always shown.
-/// - [`controls`](SectionHeader::controls) puts controls at the trailing end of the title row; the
-///   title is cut with an ellipsis (and shows its full text as a tooltip) to leave them room.
+/// - [`controls`](SectionHeader::controls) puts controls at the trailing end of the title row, in
+///   reading order (Tab and AccessKit visit them that way); the title is cut with an ellipsis (and
+///   shows its full text as a tooltip) to leave them room, and is not drawn when they reach its
+///   start.
 /// - **AccessKit:** a collapsible header is a `DisclosureTriangle` named by the title and
 ///   reporting `expanded`.
 #[must_use = "show the header with `show`"]
@@ -76,18 +78,11 @@ pub struct SectionHeader<'a> {
 }
 
 impl<'a> SectionHeader<'a> {
-    /// A header titled `title`, which is also its id: give [`id_salt`](SectionHeader::id_salt)
-    /// when a panel has two sections of one title.
-    pub fn new(title: impl Into<String>) -> Self {
-        let title = title.into();
-        Self { id_salt: IdSalt::new(&title), title, collapsible: true, open: None, controls: None }
-    }
-
-    /// Keeps the open state and focus when the title changes (a language switch) or two
-    /// sections share a title.
-    pub fn id_salt(mut self, id_salt: impl egui::AsIdSalt) -> Self {
-        self.id_salt = IdSalt::new(id_salt);
-        self
+    /// A header titled `title`. `id_salt` is its id, under which the open state is kept: it
+    /// stays when the title changes (a language switch), and two sections of one title keep
+    /// separate states.
+    pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), title: title.into(), collapsible: true, open: None, controls: None }
     }
 
     /// Whether the section can be closed; on by default. Off, the header is its title only and the
@@ -104,7 +99,7 @@ impl<'a> SectionHeader<'a> {
     }
 
     /// Controls at the trailing end of the title row (DesignCraft's `section_row`). The closure
-    /// runs in the trailing layout, so the first widget it adds is at the trailing edge.
+    /// adds them in a row in reading order that ends at the row's trailing edge.
     pub fn controls(mut self, add_controls: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.controls = Some(Box::new(add_controls));
         self
@@ -170,7 +165,7 @@ impl<'a> SectionHeader<'a> {
         // The chevron's box starts a point in from the row's start; the title is
         // `section.title_offset` from it.
         let x = |offset: f32| if rtl { row.right() - offset } else { row.left() + offset };
-        let mut title_end = if rtl { row.left() } else { row.right() };
+        let mut title_end = direction::end_x(ui, row);
         let mut title_start = x(0.0);
         if self.collapsible {
             let centre = pos2(x(1.0 + style.chevron_box / 2.0), row.center().y);
@@ -186,20 +181,19 @@ impl<'a> SectionHeader<'a> {
             );
             title_start = x(style.title_offset);
         }
+        // The title's `Ui` is made before the controls' so that AccessKit lists it first.
+        let mut title_ui = ui.new_child(UiBuilder::new().max_rect(row));
         if let Some(add_controls) = self.controls {
-            let mut controls = ui.new_child(UiBuilder::new().max_rect(row).layout(direction::trailing(ui)));
-            controls.spacing_mut().item_spacing.x = tokens.space.gap.inline;
-            add_controls(&mut controls);
-            let used = controls.min_rect();
-            title_end = if rtl { used.right() + tokens.space.gap.inline } else { used.left() - tokens.space.gap.inline };
-            if used.width() <= 0.0 {
-                title_end = if rtl { row.left() } else { row.right() };
+            let gap = tokens.space.gap.inline;
+            let ((), used) = measure::trailing_row(ui, id.with("controls"), row, Sense::hover(), gap, 0.0, add_controls);
+            if used.width() > 0.0 {
+                title_end = direction::start_x(ui, used) - direction::forward(ui) * gap;
             }
         }
-        let band = Rect::from_x_y_ranges(title_start.min(title_end)..=title_start.max(title_end), row.y_range());
-        if band.width() > 0.0 {
+        if direction::forward(ui) * (title_end - title_start) >= 1.0 {
+            let band = Rect::from_x_y_ranges(title_start.min(title_end)..=title_start.max(title_end), row.y_range());
             let format = role_format(&tokens, style.title_role, style.title);
-            ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
+            title_ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
                 ui.add(Label::new(egui::text::LayoutJob::single_section(self.title.clone(), format)).truncate().selectable(false));
             });
         }
@@ -313,9 +307,9 @@ pub(super) fn show_collapsible(ui: &mut Ui, args: &mut Args) {
     let mut effects = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        let _ = SectionHeader::new("Transform").show(ui, |ui| transform_rows(ui, &mut v, &numbers));
-        let _ = SectionHeader::new("Appearance").show(ui, |ui| opacity_row(ui, &mut v, &numbers));
-        let _ = SectionHeader::new("Effects").open(&mut effects).show(ui, |ui| {
+        let _ = SectionHeader::new("transform", "Transform").show(ui, |ui| transform_rows(ui, &mut v, &numbers));
+        let _ = SectionHeader::new("appearance", "Appearance").show(ui, |ui| opacity_row(ui, &mut v, &numbers));
+        let _ = SectionHeader::new("effects", "Effects").open(&mut effects).show(ui, |ui| {
             ui.label("No effects on this layer.");
         });
     });
@@ -333,7 +327,7 @@ pub(super) fn show_always_open(ui: &mut Ui, args: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        let _ = SectionHeader::new("Transform")
+        let _ = SectionHeader::new("transform", "Transform")
             .collapsible(false)
             .controls(|ui| {
                 ui.add(IconButton::new(Icon::Settings, "Transform settings").size(ControlSize::Sm));

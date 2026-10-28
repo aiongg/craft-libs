@@ -4,6 +4,7 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
 use egui::{Color32, Label, Rect, Response, Sense, Ui, UiBuilder, WidgetInfo, vec2};
 
+use super::measure;
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
@@ -32,7 +33,8 @@ pub struct PanelHeaderStyle {
 /// What [`PanelHeader::show`] shows: the header's background and its buttons.
 #[derive(Debug)]
 pub struct PanelHeaderResponse {
-    /// The background, which senses drags: the host starts a move or a tear-off from it.
+    /// The background, which senses drags (not focus): the host starts a move or a tear-off from
+    /// it.
     pub header: Response,
     /// The "Panel menu" button; the host opens its menu from it.
     pub menu: Option<Response>,
@@ -49,75 +51,92 @@ pub struct PanelHeaderResponse {
 /// ```
 /// use craft_ui::composites::PanelHeader;
 /// # egui::__run_test_ui(|ui| {
-/// let header = PanelHeader::new("Layers").float(true).close(true).show(ui, |_| {});
+/// let header = PanelHeader::new("layers", "Layers").float(true).close(true).show(ui, |_| {});
 /// if header.close.is_some_and(|close| close.clicked()) { /* close the panel */ }
 /// # });
 /// ```
 ///
-/// - The title is cut with an ellipsis and shows its full text as a tooltip when it does not fit.
-/// - The buttons are icon buttons named "Panel menu", "Float panel" and "Close panel" (the host
-///   passes translated names with the `*_label` methods). The menu button is on by default; the
-///   float and close buttons are off until asked for.
-/// - The background is not a Tab stop. The host gets its drag from
-///   [`PanelHeaderResponse::header`]: moving and tearing off stay with the docking code.
+/// - The title is cut with an ellipsis and shows its full text as a tooltip when it does not fit;
+///   when the trailing content reaches the title's start, no title is drawn.
+/// - The buttons are `panel_header.button` squares holding icon buttons named "Panel menu",
+///   "Float panel" and "Close panel" (the host passes translated names with the `*_label`
+///   methods). The menu button is on by default; the float and close buttons are off until asked
+///   for.
+/// - **Keyboard:** Tab visits the actions and the buttons in reading order (actions, menu, float,
+///   close; mirrored right to left). The background is not a Tab stop.
+/// - **Dragging.** The host gets the background's drag from [`PanelHeaderResponse::header`]:
+///   moving and tearing off stay with the docking code. A press that starts on the actions or the
+///   buttons belongs to them and never drags the panel.
 /// - Docked panels keep the dock area's tab strip, not this header.
 /// - **AccessKit:** the background is a `Header` named by the title; the buttons are named by
-///   their labels.
+///   their labels and listed in reading order after the title.
 #[must_use = "show the header with `show`"]
 pub struct PanelHeader {
     title: String,
-    menu: Option<String>,
-    float: Option<String>,
-    close: Option<String>,
     id_salt: egui::IdSalt,
+    menu: Slot,
+    float: Slot,
+    close: Slot,
+}
+
+/// One of the header's buttons: whether it is shown, and its accessible name.
+struct Slot {
+    shown: bool,
+    label: String,
+}
+
+impl Slot {
+    fn new(shown: bool, label: &str) -> Self {
+        Self { shown, label: label.to_owned() }
+    }
 }
 
 impl PanelHeader {
-    /// A header titled `title`, which is also its id.
-    pub fn new(title: impl Into<String>) -> Self {
-        let title = title.into();
-        Self { id_salt: egui::IdSalt::new(&title), title, menu: Some("Panel menu".into()), float: None, close: None }
-    }
-
-    /// Keeps the header's state when its title changes, or tells two headers of one title apart.
-    pub fn id_salt(mut self, id_salt: impl egui::AsIdSalt) -> Self {
-        self.id_salt = egui::IdSalt::new(id_salt);
-        self
+    /// A header titled `title`. `id_salt` is its id, so that its state and the buttons' focus
+    /// don't depend on the translated title.
+    pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            id_salt: egui::IdSalt::new(id_salt),
+            menu: Slot::new(true, "Panel menu"),
+            float: Slot::new(false, "Float panel"),
+            close: Slot::new(false, "Close panel"),
+        }
     }
 
     /// Whether the panel menu button is shown; on by default.
     pub fn menu(mut self, menu: bool) -> Self {
-        self.menu = menu.then(|| self.menu.unwrap_or_else(|| "Panel menu".into()));
+        self.menu.shown = menu;
         self
     }
 
     /// Shows the panel menu button with this accessible name.
     pub fn menu_label(mut self, label: impl Into<String>) -> Self {
-        self.menu = Some(label.into());
+        self.menu = Slot { shown: true, label: label.into() };
         self
     }
 
     /// Whether the float button is shown.
     pub fn float(mut self, float: bool) -> Self {
-        self.float = float.then(|| "Float panel".into());
+        self.float.shown = float;
         self
     }
 
     /// Shows the float button with this accessible name.
     pub fn float_label(mut self, label: impl Into<String>) -> Self {
-        self.float = Some(label.into());
+        self.float = Slot { shown: true, label: label.into() };
         self
     }
 
     /// Whether the close button is shown.
     pub fn close(mut self, close: bool) -> Self {
-        self.close = close.then(|| "Close panel".into());
+        self.close.shown = close;
         self
     }
 
     /// Shows the close button with this accessible name.
     pub fn close_label(mut self, label: impl Into<String>) -> Self {
-        self.close = Some(label.into());
+        self.close = Slot { shown: true, label: label.into() };
         self
     }
 
@@ -133,43 +152,39 @@ impl PanelHeader {
         }
     }
 
-    /// Shows the header across the available width. `add_actions` adds widgets between the title
-    /// and the menu button; it runs in the trailing layout, so the first widget it adds is nearest
-    /// the menu button.
+    /// Shows the header across the available width. `add_actions` adds widgets in a row in
+    /// reading order, ending `panel_header.gap` before the menu button.
     pub fn show(self, ui: &mut Ui, add_actions: impl FnOnce(&mut Ui)) -> PanelHeaderResponse {
         let tokens = Tokens::of(ui);
         let style = PanelHeader::style(&tokens);
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), style.height));
         let id = ui.make_persistent_id(self.id_salt);
-        let header = ui.interact(rect, id, Sense::drag());
+        // Drags only, without focus: the background is not a Tab stop.
+        let header = ui.interact(rect, id, Sense::DRAG);
         header.widget_info(|| WidgetInfo::labeled(Role::Header, ui.is_enabled(), &self.title));
 
         // The title is placed once the trailing side's width is known, in a `Ui` made first so
         // that AccessKit lists it first.
         let inner = rect.shrink2(vec2(style.pad, 0.0));
         let mut title_ui = ui.new_child(UiBuilder::new().max_rect(inner));
-        let mut trailing = ui.new_child(UiBuilder::new().max_rect(inner).layout(direction::trailing(ui)));
-        trailing.spacing_mut().item_spacing.x = style.gap;
-        let button = |ui: &mut Ui, icon: Icon, label: &Option<String>| {
-            label.as_ref().map(|label| ui.add(IconButton::new(icon, label.as_str()).size(ControlSize::Sm).id_salt((id, label.as_str()))))
-        };
-        let close = button(&mut trailing, Icon::Close, &self.close);
-        let float = button(&mut trailing, Icon::Float, &self.float);
-        let menu = button(&mut trailing, Icon::More, &self.menu);
-        add_actions(&mut trailing);
+        let slots = [(Icon::More, "menu", &self.menu), (Icon::Float, "float", &self.float), (Icon::Close, "close", &self.close)];
+        let count = slots.iter().filter(|(_, _, slot)| slot.shown).count() as f32;
+        let estimate = (count * (style.button + style.gap) - style.gap).max(0.0);
+        // The row senses drags so that a press on its widgets never reaches the background.
+        let ([menu, float, close], used) = measure::trailing_row(ui, id.with("trailing"), inner, Sense::DRAG, style.gap, estimate, |row| {
+            add_actions(row);
+            slots.map(|(icon, salt, slot)| {
+                slot.shown.then(|| {
+                    let (_, square) = row.allocate_space(vec2(style.button, style.button));
+                    IconButton::new(icon, slot.label.as_str()).size(ControlSize::Sm).id_salt((id, salt)).show_at(row, square)
+                })
+            })
+        });
 
-        let rtl = direction::is_rtl(ui);
-        let used = trailing.min_rect();
-        let end = if used.width() > 0.0 && used.width() < inner.width() {
-            if rtl { used.right() + style.gap } else { used.left() - style.gap }
-        } else if rtl {
-            inner.left()
-        } else {
-            inner.right()
-        };
         let start = direction::start_x(ui, inner);
-        let band = Rect::from_x_y_ranges(start.min(end)..=start.max(end), rect.y_range());
-        if band.width() > 0.0 {
+        let end = if used.width() > 0.0 { direction::start_x(ui, used) - direction::forward(ui) * style.gap } else { direction::end_x(ui, inner) };
+        if direction::forward(ui) * (end - start) >= 1.0 {
+            let band = Rect::from_x_y_ranges(start.min(end)..=start.max(end), rect.y_range());
             let format = role_format(&tokens, style.title_role, style.title);
             title_ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
                 ui.add(Label::new(egui::text::LayoutJob::single_section(self.title.clone(), format)).truncate().selectable(false));
@@ -198,7 +213,7 @@ pub(crate) fn stories() -> Vec<Story> {
 /// line under it shows what the host got.
 pub(super) fn show_flyout(ui: &mut Ui, args: &mut Args) {
     let (width, actions) = (args.number("width") as f32, args.bool("actions"));
-    let header = PanelHeader::new("Brush settings").menu(args.bool("menu")).float(args.bool("float")).close(args.bool("close"));
+    let header = PanelHeader::new("brush-settings", "Brush settings").menu(args.bool("menu")).float(args.bool("float")).close(args.bool("close"));
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let shown = header.show(ui, |ui| {

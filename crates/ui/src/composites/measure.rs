@@ -1,8 +1,14 @@
-//! The widest-label measuring shared by [`FieldGroup`](super::FieldGroup) and
-//! [`PropertyGroup`](super::PropertyGroup): a group keeps the widest label of the last pass,
-//! its rows use it, and a change discards the pass so the column never shows at a stale width.
+//! Widths measured on one pass and used on the next.
+//!
+//! - [`group`] and [`column`]: the widest-label measuring shared by [`FieldGroup`](super::FieldGroup)
+//!   and [`PropertyGroup`](super::PropertyGroup). A group keeps the widest label of the last pass,
+//!   its rows use it, and a change discards the pass so the column never shows at a stale width.
+//! - [`trailing_row`]: a row in reading order placed against the trailing end of a header, at
+//!   the width it had on the last pass.
 
-use egui::{Context, Id, IdSalt, LayerId, Ui, UiBuilder};
+use egui::{Context, Id, IdSalt, LayerId, Rect, Sense, Ui, UiBuilder};
+
+use crate::direction;
 
 /// A group whose rows are being laid out.
 #[derive(Clone, Copy, Debug)]
@@ -92,4 +98,38 @@ pub(super) fn column(ui: &Ui, kind: &'static str, own: f32) -> (f32, bool) {
         }
         None => (own, false),
     })
+}
+
+/// Runs `add` in a row in reading order, `spacing` between its items, placed against the
+/// trailing end of `rect` and vertically centred in it, and returns its result and the rect it
+/// used.
+///
+/// The row is created before its widgets, so Tab and AccessKit visit them in reading order; its
+/// start is set from the width it had on the last pass (`estimate` before the first), and a
+/// change of width discards the pass, so the row never shows away from the end. Wider than
+/// `rect`, it overflows past the reading start. `sense` is the row's own: [`Sense::DRAG`] keeps
+/// a press that starts in the row from dragging what lies under it.
+pub(super) fn trailing_row<R>(
+    ui: &mut Ui,
+    id: Id,
+    rect: Rect,
+    sense: Sense,
+    spacing: f32,
+    estimate: f32,
+    add: impl FnOnce(&mut Ui) -> R,
+) -> (R, Rect) {
+    let ctx = ui.ctx().clone();
+    let width = ctx.data(|d| d.get_temp::<f32>(id)).unwrap_or(estimate);
+    let max = if direction::is_rtl(ui) {
+        Rect::from_x_y_ranges(rect.left()..=rect.left() + width, rect.y_range())
+    } else {
+        Rect::from_x_y_ranges(rect.right() - width..=rect.right(), rect.y_range())
+    };
+    let mut row = ui.new_child(UiBuilder::new().id_salt(id).max_rect(max).layout(direction::row(ui)).sense(sense));
+    row.spacing_mut().item_spacing.x = spacing;
+    let inner = add(&mut row);
+    let used = row.min_rect();
+    // Positions are rounded to pixels, so a width may differ by a fraction between passes.
+    remember(&ctx, id, width, used.width(), 0.5, "trailing row width");
+    (inner, used)
 }
