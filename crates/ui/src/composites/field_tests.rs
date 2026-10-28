@@ -5,8 +5,9 @@ use egui_kittest::{Harness, HarnessBuilder, Node};
 
 use super::field::show_dialog;
 use super::*;
-use crate::controls::{Checkbox, TextField};
+use crate::controls::{Checkbox, NumberField, Select, Slider, TextField};
 use crate::direction::{self, Direction};
+use crate::localized::LocaleNumbers;
 use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, install};
@@ -53,6 +54,9 @@ fn a_group_lines_its_controls_up_after_one_label_column() {
     assert!((name.right() - res.right()).abs() < 0.5, "labels sit against the control: {name:?} {res:?}");
     assert!(res.right() < long.left() && name.width() < res.width());
     a11y::assert_labelled(&harness);
+    assert_eq!(text_input(&harness, "short").accesskit_node().label().as_deref(), Some("Name:"));
+    assert_eq!(text_input(&harness, "long").accesskit_node().label().as_deref(), Some("Resolution:"));
+    assert_eq!(harness.get_by(|n| n.role() == Role::CheckBox).accesskit_node().label().as_deref(), Some("Clip"));
 }
 
 #[test]
@@ -130,6 +134,36 @@ fn the_control_is_labelled_described_and_given_its_error_message() {
     let node = node.accesskit_node();
     assert_eq!((node.data().error_message(), node.data().invalid()), (Some(error), Some(Invalid::True)));
     assert_eq!(node.data().described_by(), [error]);
+}
+
+#[test]
+fn every_kind_of_control_is_labelled_described_and_given_its_error() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("en");
+        let (mut mode, mut snap) = (0usize, false);
+        let _ = Field::new("Opacity:")
+            .help("Opacity help.")
+            .show(ui, |ui, invalid| NumberField::new("opacity", "Opacity", 50.0, &numbers).invalid(invalid).show(ui));
+        let _ = Field::new("Mode:")
+            .error(Some("Mode error."))
+            .show(ui, |ui, _| Select::new("mode", "Mode", &mut mode).option(0, "Normal").option(1, "Multiply").show(ui));
+        let _ = Field::new("Snapping:").help("Snap help.").show(ui, |ui, _| Checkbox::bool("Snap", &mut snap).show(ui));
+        let _ = Field::new("Size:").error(Some("Size error.")).show(ui, |ui, _| Slider::new("size", "Size", 5.0, 0.0..=10.0).show(ui));
+    });
+    let id = |value: &str| text(&harness, value).expect("text node").accesskit_node().locate().0;
+    for (role, label, message, invalid) in [
+        (Role::SpinButton, "Opacity:", "Opacity help.", false),
+        (Role::ComboBox, "Mode:", "Mode error.", true),
+        (Role::CheckBox, "Snapping:", "Snap help.", false),
+        (Role::Slider, "Size:", "Size error.", true),
+    ] {
+        let node = harness.get_by(|n| n.role() == role).accesskit_node();
+        assert_eq!(node.label().as_deref(), Some(label), "{role:?}");
+        assert_eq!(node.data().labelled_by(), [id(label)], "{role:?}");
+        assert_eq!(node.data().described_by(), [id(message)], "{role:?}");
+        assert_eq!(node.data().error_message(), invalid.then(|| id(message)), "{role:?}");
+        assert_eq!(node.data().invalid(), invalid.then_some(Invalid::True), "{role:?}");
+    }
 }
 
 #[test]

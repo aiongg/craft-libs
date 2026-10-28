@@ -1,4 +1,5 @@
 use egui::accesskit::Role;
+use egui::text_selection::LabelSelectionState;
 use egui::{Context, Event, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
@@ -61,8 +62,8 @@ fn glyphs(ui: &mut Ui) {
     let numbers = LocaleNumbers::from_tag("en");
     panel(ui, 260.0, |ui| {
         PropertyGroup::new("g").show(ui, |ui| {
-            PropertyRow::glyph("W").show(ui, |ui, _| number("a", "a", 1.0, &numbers).show(ui));
-            PropertyRow::glyph("i").show(ui, |ui, _| number("b", "b", 2.0, &numbers).show(ui));
+            PropertyRow::glyph("W").show(ui, |ui, _| number("a", "Width", 1.0, &numbers).show(ui));
+            PropertyRow::glyph("i").show(ui, |ui, _| number("b", "Inset", 2.0, &numbers).show(ui));
         });
     });
 }
@@ -71,7 +72,7 @@ fn glyphs(ui: &mut Ui) {
 fn glyph_labels_share_a_centre_with_the_widest_against_the_control() {
     let harness = harness(Direction::Ltr).build_ui(glyphs);
     let (wide, narrow) = (rect(&harness, "W"), rect(&harness, "i"));
-    let (a, b) = (spin(&harness, "W").rect(), spin(&harness, "i").rect());
+    let (a, b) = (spin(&harness, "Width").rect(), spin(&harness, "Inset").rect());
     let style = tokens_style();
     assert!(wide.width() > narrow.width());
     assert!((wide.center().x - narrow.center().x).abs() < 0.6, "{wide:?} {narrow:?}");
@@ -84,10 +85,10 @@ fn glyph_labels_share_a_centre_with_the_widest_against_the_control() {
 fn right_to_left_mirrors_the_label_column() {
     let harness = harness(Direction::Rtl).build_ui(glyphs);
     let (wide, narrow) = (rect(&harness, "W"), rect(&harness, "i"));
-    let a = spin(&harness, "W").rect();
+    let a = spin(&harness, "Width").rect();
     assert!((wide.center().x - narrow.center().x).abs() < 0.6);
     assert!(a.right() < wide.left() && a.left() < 260.0 - 100.0, "{wide:?} {a:?}");
-    assert!((a.right() - spin(&harness, "i").rect().right()).abs() < 0.5);
+    assert!((a.right() - spin(&harness, "Inset").rect().right()).abs() < 0.5);
     assert!(wide.right() > 200.0, "the labels are at the right: {wide:?}");
 }
 
@@ -130,7 +131,7 @@ fn a_pair_splits_the_width_equally_around_the_link_slot() {
         });
     });
     let style = tokens_style();
-    let (w, h) = (spin(&harness, "W").rect(), spin(&harness, "H").rect());
+    let (w, h) = (spin(&harness, "Width").rect(), spin(&harness, "Height").rect());
     let link = harness.get_by_label("Keep proportions").rect();
     assert!((w.width() - h.width()).abs() < 0.5, "{w:?} {h:?}");
     assert!((link.width() - style.link_width).abs() < 0.5, "{link:?}");
@@ -141,6 +142,41 @@ fn a_pair_splits_the_width_equally_around_the_link_slot() {
         "{link:?} {label_h:?} {h:?}"
     );
     assert!((h.right() - w.left() - 300.0).abs() < 30.0);
+}
+
+#[test]
+fn a_pair_without_a_link_is_split_by_the_column_gap() {
+    let style = tokens_style();
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let row = std::cell::Cell::new(Rect::NOTHING);
+        let harness = harness(dir).build_ui(|ui| {
+            let numbers = LocaleNumbers::from_tag("en");
+            panel(ui, 300.0, |ui| {
+                let shown = PropertyRow::pair(PropertyLabel::glyph("X"), PropertyLabel::glyph("Y")).show(
+                    ui,
+                    |ui, _| number("x", "X position", 1.0, &numbers).show(ui),
+                    |ui, _| number("y", "Y position", 2.0, &numbers).show(ui),
+                );
+                row.set(shown.response.rect);
+            });
+        });
+        let row = row.get();
+        let (x, y) = (spin(&harness, "X position").rect(), spin(&harness, "Y position").rect());
+        let (label_x, label_y) = (rect(&harness, "X"), rect(&harness, "Y"));
+        let column = (row.width() - style.column_gap) / 2.0;
+        assert!((x.width() - y.width()).abs() < 0.5, "{x:?} {y:?}");
+        if dir == Direction::Ltr {
+            assert!((x.right() - row.left() - column).abs() < 0.5, "the first column is half the row less the gap: {x:?} {row:?}");
+            assert!((label_y.left() - x.right()) >= style.column_gap - 0.5, "{x:?} {label_y:?}");
+            assert!((y.right() - row.right()).abs() < 0.5, "{y:?} {row:?}");
+            let second = row.left() + column + style.column_gap;
+            assert!(label_y.left() >= second - 0.5 && label_x.left() >= row.left() - 0.5, "{label_y:?} starts the second column at {second}");
+        } else {
+            assert!((row.right() - x.left() - column).abs() < 0.5, "{x:?} {row:?}");
+            assert!((y.left() - row.left()).abs() < 0.5, "{y:?} {row:?}");
+            assert!(x.left() - label_y.right() >= style.column_gap - 0.5, "{x:?} {label_y:?}");
+        }
+    }
 }
 
 #[test]
@@ -157,7 +193,7 @@ fn an_essential_label_truncates_and_keeps_its_full_name() {
     let label = rect(&harness, "Opacity of the layer");
     assert!(label.width() < 80.0, "{label:?}");
     let node = harness.get_by(|n| n.role() == Role::SpinButton);
-    assert_eq!(node.accesskit_node().label().as_deref(), Some("Opacity of the layer"));
+    assert_eq!(node.accesskit_node().label().as_deref(), Some("Opacity of the layer"), "the word label names the control, uncut");
     a11y::assert_labelled(&harness);
 }
 
@@ -182,11 +218,37 @@ fn a_redundant_label_hides_when_narrow_and_the_control_keeps_its_name() {
 }
 
 #[test]
-fn the_control_is_labelled_by_the_visible_label() {
-    let harness = harness(Direction::Ltr).build_ui(glyphs);
-    let label = text(&harness, "W").expect("label").accesskit_node().locate().0;
-    let node = spin(&harness, "W");
-    assert_eq!(node.accesskit_node().data().labelled_by(), [label]);
+fn a_hidden_redundant_label_leaves_the_control_its_own_name() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("en");
+        panel(ui, 110.0, |ui| {
+            let _ = PropertyRow::word("Size").redundant().show(ui, |ui, _| number("s", "Brush size", 5.0, &numbers).show(ui));
+        });
+    });
+    assert!(text(&harness, "Size").is_none(), "hidden");
+    let node = harness.get_by(|n| n.role() == Role::SpinButton).accesskit_node();
+    assert_eq!(node.label().as_deref(), Some("Brush size"));
+    assert!(node.data().labelled_by().is_empty());
+}
+
+#[test]
+fn a_word_label_names_its_control_and_a_glyph_label_does_not() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("en");
+        panel(ui, 260.0, |ui| {
+            PropertyGroup::new("g").show(ui, |ui| {
+                PropertyRow::glyph("W").show(ui, |ui, _| number("w", "Width", 1.0, &numbers).show(ui));
+                PropertyRow::word("Opacity").show(ui, |ui, _| number("o", "Layer opacity", 2.0, &numbers).show(ui));
+            });
+        });
+    });
+    let spins: Vec<_> = harness.get_all_by(|n| n.role() == Role::SpinButton).map(|n| n.accesskit_node()).collect();
+    let [glyph, word] = spins.as_slice() else { panic!("two spin buttons: {spins:?}") };
+    assert_eq!(glyph.label().as_deref(), Some("Width"), "a glyph row keeps the control's name");
+    assert!(glyph.data().labelled_by().is_empty());
+    let opacity = text(&harness, "Opacity").expect("label").accesskit_node().locate().0;
+    assert_eq!(word.label().as_deref(), Some("Opacity"), "a word row is named by its label");
+    assert_eq!(word.data().labelled_by(), [opacity]);
     a11y::assert_labelled(&harness);
 }
 
@@ -216,6 +278,7 @@ fn a_scrubbing_label_changes_the_value() {
     );
     let at = rect(&harness, "Opacity").center();
     let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let selection = |harness: &Harness<'_, f64>| harness.ctx.with_plugin(|s: &mut LabelSelectionState| s.has_selection()).unwrap_or(false);
     harness.event(Event::PointerMoved(at));
     harness.run();
     harness.event(button(at, true));
@@ -223,10 +286,12 @@ fn a_scrubbing_label_changes_the_value() {
     for dx in [10.0, 30.0] {
         harness.event(Event::PointerMoved(at + vec2(dx, 0.0)));
         harness.run();
+        assert!(!selection(&harness), "the drag selects no label text");
     }
     harness.event(button(at + vec2(30.0, 0.0), false));
     harness.run();
     assert_ne!(*harness.state(), 50.0, "dragging the label scrubbed the field");
+    assert!(!selection(&harness));
 }
 
 #[test]
@@ -245,13 +310,50 @@ fn the_first_frame_already_shows_the_shared_centre() {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     let frame = |ctx: &Context| {
-        let output = ctx.run_ui(egui::RawInput::default(), glyphs);
+        let mut labels = Vec::new();
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            labels.clear();
+            let numbers = LocaleNumbers::from_tag("en");
+            panel(ui, 260.0, |ui| {
+                PropertyGroup::new("g").show(ui, |ui| {
+                    // The narrow label first, so that the first pass draws it at its own centre.
+                    for (glyph, id) in [("i", "b"), ("W", "a")] {
+                        PropertyRow::glyph(glyph).show(ui, |ui, row| {
+                            labels.push(row.response().map_or(Rect::NOTHING, |r| r.rect));
+                            number(id, glyph, 1.0, &numbers).show(ui)
+                        });
+                    }
+                });
+            });
+        });
         let passes = output.platform_output.num_completed_passes;
         output.drop_without_applying_deltas();
-        passes
+        (passes, labels)
     };
-    assert_eq!(frame(&ctx), 2, "the pass that measured the labels is discarded");
-    assert_eq!(frame(&ctx), 1, "an unchanged column lays out once");
+    let (passes, labels) = frame(&ctx);
+    assert_eq!(passes, 2, "the pass that measured the labels is discarded");
+    let [narrow, wide] = labels.as_slice() else { panic!("two labels: {labels:?}") };
+    assert!(
+        narrow.width() < wide.width() && (narrow.center().x - wide.center().x).abs() < 0.6,
+        "the shown pass shares the centre: {narrow:?} {wide:?}"
+    );
+    assert_eq!(frame(&ctx).0, 1, "an unchanged column lays out once");
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "two PropertyGroups share one id")]
+fn two_groups_of_one_id_under_one_parent_fail_in_debug() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        for _ in 0..2 {
+            PropertyGroup::new("same").show(ui, |ui| {
+                PropertyRow::glyph("X").show(ui, |ui, _| number("x", "X", 1.0, &numbers).show(ui));
+            });
+        }
+    });
 }
 
 #[test]

@@ -50,9 +50,10 @@ pub struct PropertyStyle {
 pub enum LabelKind {
     /// One or two characters (W, H, X, Y) in a narrow column. The labels of a [`PropertyGroup`]
     /// share one centre: the widest is flush against the control and narrower ones are centred on
-    /// it.
+    /// it. The control keeps its own accessible name ("Width" beside W).
     Glyph,
-    /// A word (Opacity, Angle) at the reading start of a wider column.
+    /// A word (Opacity, Angle) at the reading start of a wider column. While visible it is the
+    /// control's accessible name (`labelled_by`).
     Word,
 }
 
@@ -158,7 +159,9 @@ impl<'a> RowLabel<'a> {
 ///   ([`RowLabel::scrub`]) for `NumberField::scrub_by`.
 /// - **Mixed values.** The row shows nothing for them: the host passes `mixed` to the control
 ///   (`NumberField::mixed`, `Swatch::mixed`, `CheckState::Mixed`).
-/// - **AccessKit:** while the label is visible the control is `labelled_by` it.
+/// - **AccessKit:** a word label names its control while it is visible: the control is
+///   `labelled_by` it, as in PhotoCraft's word rows. A glyph label (W, X) is too short to name
+///   anything, so the control keeps its own name ("Width"). A hidden label changes nothing.
 ///
 /// Rows are separated by the `Ui`'s item spacing. [`PropertyRow::pair`] puts two columns in a
 /// row.
@@ -261,8 +264,12 @@ impl PropertyPair {
         first: impl FnOnce(&mut Ui, &RowLabel) -> A,
         second: impl FnOnce(&mut Ui, &RowLabel) -> B,
     ) -> InnerResponse<(A, B)> {
-        let linked = self.show_linked(ui, first, |_| (), second);
-        InnerResponse::new((linked.inner.0, linked.inner.2), linked.response)
+        let pair = Pair::new(ui, self);
+        let gap = pair.setup.style.column_gap;
+        let width = pair.column_width(gap);
+        let (a, a_bottom) = pair.setup.cell(ui, pair.at(0.0, width), &pair.labels[0], pair.widest, first);
+        let (b, b_bottom) = pair.setup.cell(ui, pair.at(width + gap, width), &pair.labels[1], pair.widest, second);
+        InnerResponse::new((a, b), pair.finish(ui, a_bottom.max(b_bottom)))
     }
 
     /// As [`show`](PropertyPair::show) with a slot of `property.link_width` between the columns,
@@ -275,27 +282,56 @@ impl PropertyPair {
         link: impl FnOnce(&mut Ui) -> L,
         second: impl FnOnce(&mut Ui, &RowLabel) -> B,
     ) -> InnerResponse<(A, L, B)> {
-        let setup = Setup::new(ui, self.size);
-        let rect = ui.available_rect_before_wrap();
-        let labels = [Measured::new(ui, &setup, self.first), Measured::new(ui, &setup, self.second)];
-        let widest = widest(ui, &labels);
-        let style = &setup.style;
+        let pair = Pair::new(ui, self);
+        let style = &pair.setup.style;
         let middle = style.link_width + 2.0 * style.column_gap;
-        let width = ((rect.width() - middle) / 2.0).max(0.0);
-        let rtl = setup.rtl;
-        let at = |offset: f32, width: f32| {
-            let (x0, x1) =
-                if rtl { (rect.right() - offset - width, rect.right() - offset) } else { (rect.left() + offset, rect.left() + offset + width) };
-            Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.bottom()))
-        };
-        let (a, a_bottom) = setup.cell(ui, at(0.0, width), &labels[0], widest, first);
-        let slot = at(width + style.column_gap, style.link_width);
+        let width = pair.column_width(middle);
+        let (a, a_bottom) = pair.setup.cell(ui, pair.at(0.0, width), &pair.labels[0], pair.widest, first);
+        let slot = pair.at(width + style.column_gap, style.link_width);
         let band = Rect::from_min_size(slot.min, vec2(slot.width(), style.label_band));
         let l = ui.scope_builder(UiBuilder::new().max_rect(band).layout(Layout::left_to_right(Align::Center)), link).inner;
-        let (b, b_bottom) = setup.cell(ui, at(width + middle, width), &labels[1], widest, second);
-        let bottom = a_bottom.max(b_bottom).max(rect.top() + style.label_band);
-        let row = Rect::from_min_max(rect.min, pos2(rect.right(), bottom));
-        InnerResponse::new((a, l, b), ui.allocate_rect(row, Sense::hover()))
+        let (b, b_bottom) = pair.setup.cell(ui, pair.at(width + middle, width), &pair.labels[1], pair.widest, second);
+        InnerResponse::new((a, l, b), pair.finish(ui, a_bottom.max(b_bottom)))
+    }
+}
+
+/// A pair row being laid out: its labels measured, its rect taken.
+struct Pair {
+    setup: Setup,
+    rect: Rect,
+    labels: [Measured; 2],
+    widest: f32,
+}
+
+impl Pair {
+    fn new(ui: &Ui, pair: PropertyPair) -> Self {
+        let setup = Setup::new(ui, pair.size);
+        let rect = ui.available_rect_before_wrap();
+        let labels = [Measured::new(ui, &setup, pair.first), Measured::new(ui, &setup, pair.second)];
+        let widest = widest(ui, &labels);
+        Self { setup, rect, labels, widest }
+    }
+
+    /// The width of each column when `middle` separates them.
+    fn column_width(&self, middle: f32) -> f32 {
+        ((self.rect.width() - middle) / 2.0).max(0.0)
+    }
+
+    /// The part of the row `width` wide from `offset` after its reading start.
+    fn at(&self, offset: f32, width: f32) -> Rect {
+        let rect = self.rect;
+        let (x0, x1) = if self.setup.rtl {
+            (rect.right() - offset - width, rect.right() - offset)
+        } else {
+            (rect.left() + offset, rect.left() + offset + width)
+        };
+        Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.bottom()))
+    }
+
+    /// Allocates the row down to the cells' `bottom`.
+    fn finish(&self, ui: &mut Ui, bottom: f32) -> Response {
+        let bottom = bottom.max(self.rect.top() + self.setup.style.label_band);
+        ui.allocate_rect(Rect::from_min_max(self.rect.min, pos2(self.rect.right(), bottom)), Sense::hover())
     }
 }
 
@@ -323,7 +359,7 @@ fn widest(ui: &Ui, labels: &[Measured]) -> f32 {
     widest
 }
 
-const GLYPH_TAG: &str = "craft-ui-property-group";
+const GLYPH_TAG: &str = "PropertyGroup";
 
 /// What every cell of a row shares.
 struct Setup {
@@ -385,7 +421,8 @@ impl Setup {
             let (x0, x1) = if self.rtl { (rect.right() - off - band, rect.right() - off) } else { (rect.left() + off, rect.left() + off + band) };
             let band = Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.top() + style.label_band));
             let job = LayoutJob::single_section(label.text.clone(), self.format.clone());
-            ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| ui.add(Label::new(job).truncate())).inner
+            ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| ui.add(Label::new(job).truncate().selectable(false)))
+                .inner
         });
 
         let width = (rect.width() - used).max(style.min_control);
@@ -396,7 +433,7 @@ impl Setup {
         let control = add_control(&mut child, &RowLabel { response: label_response.as_ref(), scrubs: label.scrubs });
         bottom = bottom.max(child.min_rect().bottom());
 
-        if let Some(label) = &label_response {
+        if let Some(label) = label_response.as_ref().filter(|_| label.kind == LabelKind::Word) {
             let id = control.control().id;
             let ctx = ui.ctx().clone();
             if ctx.has_accesskit_node(id) {
@@ -445,7 +482,8 @@ fn overrides(ui: &Ui) -> Option<Overrides> {
 /// The group measures its glyph labels as its rows draw them and uses the widest on the next
 /// pass; when it changes it asks egui to discard the pass (as [`FieldGroup`](super::FieldGroup)
 /// does), so the labels never show at a stale centre. Rows find their group through the `Ui`
-/// tree on the group's layer. Groups don't nest: a row belongs to the innermost one.
+/// tree on the group's layer. Groups don't nest: a row belongs to the innermost one. Two groups
+/// under one parent need different ids (a debug build fails an assertion when they share one).
 #[derive(Clone, Copy, Debug)]
 pub struct PropertyGroup {
     id_salt: IdSalt,

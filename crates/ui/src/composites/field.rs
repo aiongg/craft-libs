@@ -184,7 +184,7 @@ impl Field {
         let spacing = ui.spacing().item_spacing;
         stack.spacing_mut().item_spacing.y = style.help_gap;
         let mut label_response = match (self.above, label_text) {
-            (true, Some(text)) => Some(stack.add(Label::new(LayoutJob::single_section(text, label_format)))),
+            (true, Some(text)) => Some(stack.add(Label::new(LayoutJob::single_section(text, label_format)).selectable(false))),
             _ => None,
         };
         let control = stack
@@ -193,8 +193,9 @@ impl Field {
                 add_control(ui, invalid)
             })
             .inner;
-        let message =
-            message.map(|(text, color)| stack.add(Label::new(LayoutJob::single_section(text, role_format(&tokens, style.message_role, color)))));
+        let message = message.map(|(text, color)| {
+            stack.add(Label::new(LayoutJob::single_section(text, role_format(&tokens, style.message_role, color))).selectable(false))
+        });
 
         let control_rect = control.control().rect;
         let mut row = stack.min_rect();
@@ -202,7 +203,8 @@ impl Field {
             let x = if rtl { rect.right() - column } else { rect.left() };
             let band = Rect::from_min_size(pos2(x, control_rect.top()), vec2(column, control_rect.height().min(style.label_band)));
             let layout = direction::trailing(ui);
-            let added = label_ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(Arc::clone(g))));
+            let added =
+                label_ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(Arc::clone(g)).selectable(false)));
             row = row.union(added.inner.rect);
             label_response = Some(added.inner);
         }
@@ -261,7 +263,9 @@ pub(super) fn one_line(ui: &Ui, text: String, format: TextFormat) -> Arc<Galley>
 /// When the widest label changes (the first pass, a new language) it asks egui to discard the
 /// pass and lay it out again, as egui's `Grid` does, so the column never shows at a stale width.
 /// Fields reach the group through the `Ui` tree on the group's layer, however deep they sit.
-/// Groups don't nest: a field belongs to the innermost one.
+/// Groups don't nest: a field belongs to the innermost one. Two groups under one parent need
+/// different ids: sharing one, each would overwrite the other's column and every frame would be
+/// laid out twice (a debug build fails an assertion).
 #[derive(Clone, Copy, Debug)]
 pub struct FieldGroup {
     id_salt: IdSalt,
@@ -278,7 +282,7 @@ impl FieldGroup {
     }
 }
 
-const TAG: &str = "craft-ui-field-group";
+const TAG: &str = "FieldGroup";
 
 /// The label column of a field whose label is `own` wide: its group's, or its own outside one.
 fn column_width(ui: &Ui, own: f32) -> f32 {
