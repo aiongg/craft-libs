@@ -1,15 +1,14 @@
 //! [`Button`]: push buttons, and the face (icon, label, spinner) toggle buttons share.
 
-use std::f32::consts::TAU;
 use std::sync::Arc;
 
 use craft_theme::{ButtonVariant, ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Shape, Stroke, Ui, Vec2, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, Vec2, Widget, pos2, vec2};
 
-use super::{SIZE_NAMES, icon_size, salt, size_arg};
+use super::{SIZE_NAMES, Spinner, icon_size, salt, size_arg};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Corner, Interactive, Row, Stack, StateColors, StateLayer, SurfaceKind, Text};
@@ -223,7 +222,7 @@ impl Face<'_> {
         let Some(lead) = self.icon else {
             match spinner {
                 // Without an icon the spinner takes the label's place; the width stays.
-                Some(stroke) => paint_spinner(ui, Rect::from_center_size(rect.center(), icon), stroke, color),
+                Some(stroke) => Spinner::paint(ui, Rect::from_center_size(rect.center(), icon), stroke, color),
                 None => paint_galley(ui, &laid.galley, rect.center() - text / 2.0, color),
             }
             return;
@@ -233,7 +232,7 @@ impl Face<'_> {
         let (icon_x, text_x) = if direction::is_rtl(ui) { (start + content - style.icon, start) } else { (start, start + style.icon + style.gap) };
         let icon_rect = Rect::from_min_size(pos2(icon_x, rect.center().y - style.icon / 2.0), icon).round_to_pixels(ppp);
         match spinner {
-            Some(stroke) => paint_spinner(ui, icon_rect, stroke, color),
+            Some(stroke) => Spinner::paint(ui, icon_rect, stroke, color),
             None => icons::paint(ui, icon_rect, lead, icon_size(self.size), color),
         }
         paint_galley(ui, &laid.galley, pos2(text_x, rect.center().y - text.y / 2.0), color);
@@ -242,25 +241,6 @@ impl Face<'_> {
 
 fn paint_galley(ui: &Ui, galley: &Arc<Galley>, pos: egui::Pos2, color: Color32) {
     ui.painter().galley(pos.round_to_pixels(ui.pixels_per_point()), Arc::clone(galley), color);
-}
-
-/// A three-quarter ring turning once a second, `stroke` points wide, with the radius of the
-/// circles the icon sets draw (10 of 24 view-box units). Still with reduced motion.
-fn paint_spinner(ui: &Ui, rect: Rect, stroke: f32, color: Color32) {
-    const SEGMENTS: usize = 24;
-    let still = Tokens::of(ui).appearance.reduced_motion;
-    let radius = rect.width().min(rect.height()) * 10.0 / 24.0;
-    let turn = if still { 0.0 } else { (ui.input(|i| i.time) % 1.0) as f32 * TAU };
-    let points = (0..=SEGMENTS)
-        .map(|i| {
-            let angle = turn + i as f32 / SEGMENTS as f32 * 0.75 * TAU;
-            rect.center() + radius * vec2(angle.cos(), angle.sin())
-        })
-        .collect();
-    ui.painter().add(Shape::line(points, Stroke::new(stroke, color)));
-    if !still {
-        ui.ctx().request_repaint();
-    }
 }
 
 /// The components this module has stories for.

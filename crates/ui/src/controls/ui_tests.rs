@@ -16,11 +16,17 @@ fn harness<State>() -> HarnessBuilder<State> {
     })
 }
 
+/// A harness that draws a box for a character no installed face has: the macOS key symbols of
+/// [`Kbd`] come from the suite's symbol face, which the test context does not install.
+fn harness_with_tofu<State>() -> HarnessBuilder<State> {
+    harness().allow_missing_glyphs()
+}
+
 #[test]
 fn every_control_story_names_every_control() {
     for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("controls/")) {
         let mut args = story.defaults();
-        let mut harness = harness().build_ui(move |ui| (story.show)(ui, &mut args));
+        let mut harness = harness_with_tofu().build_ui(move |ui| (story.show)(ui, &mut args));
         // Loading buttons spin: run a fixed number of frames.
         harness.run_steps(4);
         a11y::assert_labelled(&harness);
@@ -610,4 +616,113 @@ fn arrows_home_and_end_skip_disabled_options_and_a_disabled_option_is_never_the_
         harness.run();
         assert_eq!(*harness.state(), 2, "segmented {segmented}: a disabled option ignores clicks");
     }
+}
+
+fn numeric<State>(harness: &Harness<'_, State>, label: &str) -> (Role, Option<f64>, Option<f64>, Option<f64>) {
+    let node = harness.get_by_label(label);
+    let n = node.accesskit_node();
+    (n.role(), n.numeric_value(), n.min_numeric_value(), n.max_numeric_value())
+}
+
+#[test]
+fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_when_disabled() {
+    let mut harness = harness().build_ui_state(
+        |ui, clicks: &mut u32| {
+            let blue = egui::Color32::from_rgb(0x3e, 0x63, 0xdd);
+            for (label, swatch) in [
+                ("Fill", Swatch::new("fill", "Fill", blue)),
+                ("Glass", Swatch::new("glass", "Glass", egui::Color32::from_rgba_unmultiplied(0xff, 0, 0, 0x80))),
+                ("Mixed", Swatch::new("mixed", "Mixed", blue).mixed(true)),
+                ("Chosen", Swatch::new("chosen", "Chosen", blue).selected(true)),
+                ("Locked", Swatch::new("locked", "Locked", blue).enabled(false)),
+            ] {
+                if ui.add(swatch).clicked() {
+                    *clicks += 1;
+                    let _ = label;
+                }
+            }
+        },
+        0,
+    );
+    harness.run();
+    a11y::assert_labelled(&harness);
+    let value = |harness: &Harness<'_, u32>, label: &str| harness.get_by_label(label).accesskit_node().value();
+    assert_eq!(harness.get_by_label("Fill").accesskit_node().role(), Role::Button);
+    assert_eq!(value(&harness, "Fill").as_deref(), Some("#3e63dd"));
+    assert_eq!(value(&harness, "Glass").as_deref(), Some("#ff000080"));
+    assert_eq!(value(&harness, "Mixed"), None, "a mixed well has no colour");
+    assert!(harness.get_by_label("Chosen").accesskit_node().is_selected().unwrap_or(false));
+    assert!(harness.get_by_label("Locked").accesskit_node().is_disabled());
+    harness.get_by_label("Fill").click();
+    harness.step();
+    assert_eq!(*harness.state(), 1, "reported in the click's frame");
+    harness.get_by_label("Locked").click();
+    harness.run();
+    assert_eq!(*harness.state(), 1, "a disabled swatch takes no click");
+}
+
+#[test]
+fn a_palette_row_is_a_tab_stop_per_swatch_with_one_selected() {
+    let story = crate::story::registry().into_iter().find(|s| s.id == "controls/swatch/palette").unwrap();
+    let mut args = story.defaults();
+    let mut harness = harness().build_ui(move |ui| (story.show)(ui, &mut args));
+    harness.run();
+    let stops = a11y::tab_order(&mut harness);
+    assert_eq!(stops.len(), 12);
+    assert!(stops.iter().all(|s| s.role == Role::Button));
+    let selected = harness.query_all_by(|n| n.role() == Role::Button && n.is_selected() == Some(true)).count();
+    assert_eq!(selected, 1);
+    harness.get_by_label("Colour 3").click();
+    harness.run();
+    assert!(harness.get_by_label("Colour 3").accesskit_node().is_selected().unwrap_or(false));
+}
+
+#[test]
+fn badges_are_labels_with_their_text_and_counts_cap_at_99_plus() {
+    let mut harness = harness().build_ui(|ui| {
+        ui.add(Badge::new("Beta").tone(BadgeTone::Accent));
+        for n in [0, 99, 100, 1234] {
+            ui.add(Badge::count(n).tone(BadgeTone::Bad).style(BadgeStyle::Solid));
+        }
+    });
+    harness.run();
+    a11y::assert_labelled(&harness);
+    let texts: Vec<String> = harness.query_all_by(|n| n.role() == Role::Label).filter_map(|n| n.accesskit_node().value()).collect();
+    assert_eq!(texts, ["Beta", "0", "99", "99+", "99+"]);
+    assert!(a11y::tab_order(&mut harness).is_empty(), "no Tab stop");
+}
+
+#[test]
+fn a_key_chord_is_a_label_with_the_key_names_and_no_tab_stop() {
+    let mut harness = harness_with_tofu().build_ui(|ui| {
+        let chord = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Z);
+        ui.add(Kbd::new(&chord).os(egui::os::OperatingSystem::Mac));
+        ui.add(Kbd::new(&chord).keycaps(true).os(egui::os::OperatingSystem::Windows));
+        ui.add(Kbd::keys(&["Shift", "Click"]));
+    });
+    harness.run();
+    let texts: Vec<String> = harness.query_all_by(|n| n.role() == Role::Label).filter_map(|n| n.accesskit_node().value()).collect();
+    assert_eq!(texts, ["Shift+Cmd+Z", "Ctrl+Shift+Z", "Shift+Click"], "spoken as names whatever the symbols");
+    assert!(a11y::tab_order(&mut harness).is_empty());
+}
+
+#[test]
+fn progress_bars_report_their_fraction_between_0_and_1_and_indeterminate_ones_none() {
+    let mut harness = harness().build_ui(|ui| {
+        ui.add(Progress::new(0.25).label("Export"));
+        ui.add(Progress::new(7.0).label("Overfull"));
+        ui.add(Progress::new(f32::NAN).label("Unknown"));
+        ui.add(Progress::indeterminate().label("Working"));
+        ui.add(Spinner::new().label("Loading"));
+    });
+    harness.run_steps(3);
+    a11y::assert_labelled(&harness);
+    assert_eq!(numeric(&harness, "Export"), (Role::ProgressIndicator, Some(0.25), Some(0.0), Some(1.0)));
+    assert_eq!(numeric(&harness, "Overfull").1, Some(1.0));
+    assert_eq!(numeric(&harness, "Unknown").1, Some(0.0));
+    let working = numeric(&harness, "Working");
+    assert_eq!((working.0, working.1), (Role::ProgressIndicator, None));
+    assert!(harness.get_by_label("Working").accesskit_node().is_busy());
+    assert_eq!(numeric(&harness, "Loading").0, Role::ProgressIndicator);
+    assert!(harness.get_by_label("Loading").accesskit_node().is_busy());
 }

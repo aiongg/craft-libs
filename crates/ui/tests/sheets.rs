@@ -85,6 +85,9 @@ fn render(stories: &[Story]) -> image::RgbaImage {
     let mut harness = Harness::builder()
         .with_size([width, 4000.0])
         .with_accessibility_check(false)
+        // The Kbd stories write the macOS key symbols, which the suite's symbol face draws and this
+        // harness does not install.
+        .allow_missing_glyphs()
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(move |ui, args: &mut Vec<Vec<Args>>| sheet(ui, &stories, args), args);
     harness.fit_contents();

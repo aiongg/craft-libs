@@ -9,6 +9,9 @@
 //! - [`RadioGroup`] and [`RadioSet`]: one of several options as radio buttons, a WAI-ARIA radio
 //!   group; a set places each option where the layout needs it.
 //! - [`Switch`]: an on/off setting that applies at once.
+//! - [`Swatch`]: a colour well that reports a click, for the host to open its picker.
+//! - [`Badge`]: a small label in a tone; [`Kbd`]: a key chord in the platform's notation.
+//! - [`Spinner`] and [`Progress`]: indeterminate and determinate progress.
 //! - [`Link`]: text in `accent.text` that opens a URL or reports a click.
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
@@ -16,7 +19,8 @@
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `check.*`, `slider.*`), so a theme's component overrides reach them; shape and edge come from the
+//! `segmented.*`, `check.*`, `slider.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`), so a theme's component
+//! overrides reach them; shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens) and its properties, dumped under
@@ -34,17 +38,24 @@
 //! # });
 //! ```
 
+pub(crate) mod badge;
 pub(crate) mod button;
 mod check;
 pub(crate) mod checkbox;
 pub(crate) mod icon_button;
+pub(crate) mod kbd;
 pub(crate) mod link;
+pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
 pub(crate) mod segmented;
 pub(crate) mod slider;
 #[cfg(test)]
 mod slider_tests;
+#[cfg(test)]
+mod small_tests;
+pub(crate) mod spinner;
+pub(crate) mod swatch;
 pub(crate) mod switch;
 #[cfg(test)]
 mod tests;
@@ -54,16 +65,21 @@ mod ui_tests;
 
 use egui::{IdSalt, Ui};
 
+pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
 pub use button::{Button, ButtonStyle};
 pub use check::IndicatorColors;
 pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
+pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle, LinkUnderline};
+pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
 pub use slider::{Slider, SliderStyle};
+pub use spinner::Spinner;
+pub use swatch::{Swatch, SwatchStyle};
 pub use switch::{Switch, SwitchStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 

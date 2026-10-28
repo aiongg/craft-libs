@@ -4,7 +4,10 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::controls::{Button, Checkbox, IconButton, IndicatorColors, Link, RadioGroup, Segmented, Slider, Switch, ToggleButton};
+use craft_ui::controls::{
+    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, Progress, RadioGroup, Segmented, Slider, Swatch, Switch,
+    ToggleButton,
+};
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
 use craft_ui::theme::{FontFamilies, UiTokens};
@@ -249,5 +252,57 @@ fn switch() {
         indicator(d, "off", &s.off);
         indicator(d, "on", &s.on);
         states(d, "text", &s.text);
+    });
+}
+
+#[test]
+fn swatch() {
+    check("swatch.txt", |d, t| {
+        for (size, name) in SIZES {
+            d.line(&format!("size.{name}.side"), Swatch::style(t, size).side);
+        }
+        let s = Swatch::style(t, ControlSize::Md);
+        d.line("radius", s.radius)
+            .line("edge.outer", s.edge_outer)
+            .line("edge.inner", s.edge_inner)
+            .line("checker.a", s.checker[0])
+            .line("checker.b", s.checker[1])
+            .line("selected", s.selected)
+            .line("mixed.fill", s.mixed_fill)
+            .line("mixed.mark", s.mixed_mark);
+    });
+}
+
+#[test]
+fn badge() {
+    check("badge.txt", |d, t| {
+        let look = Badge::look(t, BadgeTone::Neutral, BadgeStyle::Soft);
+        d.line("height", look.height).line("pad_x", look.pad_x).line("radius", look.radius).line("label", role(look.label));
+        for tone in BadgeTone::ALL {
+            for style in BadgeStyle::ALL {
+                let look = Badge::look(t, tone, style);
+                d.group(&format!("{}.{}", tone.name(), style.name()), |d| {
+                    d.line("fill", look.fill).line("text", look.text).line("border", look.border);
+                });
+            }
+        }
+    });
+}
+
+#[test]
+fn kbd() {
+    check("kbd.txt", |d, t| {
+        let s = Kbd::style(t);
+        d.line("height", s.height).line("pad_x", s.pad_x).line("gap", s.gap).line("label", role(s.label)).line("text", s.text);
+        surface(d, "keycap", &s.keycap);
+    });
+}
+
+#[test]
+fn progress() {
+    check("progress.txt", |d, t| {
+        let s = Progress::style(t);
+        d.line("height", s.height).line("radius", s.radius).line("fill", s.fill);
+        surface(d, "track", &s.track);
     });
 }

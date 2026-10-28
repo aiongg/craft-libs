@@ -11,17 +11,17 @@ use super::*;
 use crate::primitives::{Corner, SurfaceKind};
 use crate::theme::{Base, FontFamilies, ToEgui, UiTokens, install, scope};
 
-fn theme(id: &str) -> ThemeDef {
+pub(super) fn theme(id: &str) -> ThemeDef {
     builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone()
 }
 
-fn tokens_of(theme: &ThemeDef, mode: Mode) -> UiTokens {
+pub(super) fn tokens_of(theme: &ThemeDef, mode: Mode) -> UiTokens {
     let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
     UiTokens::new(resolve(theme, appearance, None).tokens, appearance, mode, FontFamilies::default())
 }
 
 /// Every built-in in each mode it has.
-fn every_builtin() -> Vec<UiTokens> {
+pub(super) fn every_builtin() -> Vec<UiTokens> {
     builtins().iter().flat_map(|t| [Mode::Light, Mode::Dark].map(|mode| tokens_of(t, mode))).collect()
 }
 
@@ -292,7 +292,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
 }
 
 /// A context showing the suite default, with reduced motion or not.
-fn motion_context(reduced: bool) -> Context {
+pub(super) fn motion_context(reduced: bool) -> Context {
     use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
     let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact };
     let system = SystemAppearance { reduced_motion: Some(reduced), ..Default::default() };
@@ -305,7 +305,7 @@ fn motion_context(reduced: bool) -> Context {
 }
 
 /// One frame of `add` at `time` with `events`, outside any theme scope: the shapes, flattened.
-fn frame_at(ctx: &Context, time: f64, events: Vec<Event>, add: impl FnOnce(&mut Ui)) -> Vec<Shape> {
+pub(super) fn frame_at(ctx: &Context, time: f64, events: Vec<Event>, add: impl FnOnce(&mut Ui)) -> Vec<Shape> {
     fn flatten(shape: Shape, out: &mut Vec<Shape>) {
         match shape {
             Shape::Vec(shapes) => shapes.into_iter().for_each(|s| flatten(s, out)),
