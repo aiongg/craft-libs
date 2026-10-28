@@ -20,10 +20,12 @@ use super::value::{GradientStops, StopRow, StopRows};
 use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::composites::curve_editor::{fill, take_exact};
 use crate::controls::slider::PRESS_WAIT;
-use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
-use crate::localized::LocaleNumbers;
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
+use crate::localized::{self, LocaleNumbers};
 use crate::primitives::{FocusRing, Gap, Stack};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+mod fields;
 
 /// A marker of the stop bar: a colour stop, an opacity stop, or the midpoint after stop `i` of a
 /// row. Indices are into the stops as the bar shows them ([`GradientStops::opacity_stops`] for
@@ -99,6 +101,14 @@ pub struct GradientLabels {
     pub bar_stops: String,
     /// A value in percent: "{n}%".
     pub percent: String,
+    /// The fields row's labels, which name their fields: "Color", "Opacity", "Location",
+    /// "Midpoint".
+    pub color: String,
+    pub opacity: String,
+    pub location: String,
+    pub midpoint_field: String,
+    /// The Delete button's accessible name and tooltip: "Delete stop".
+    pub delete: String,
 }
 
 impl Default for GradientLabels {
@@ -114,6 +124,11 @@ impl Default for GradientLabels {
             bar_value: "{n} color stops, {m} opacity stops".into(),
             bar_stops: "{n} stops".into(),
             percent: "{n}%".into(),
+            color: "Color".into(),
+            opacity: "Opacity".into(),
+            location: "Location".into(),
+            midpoint_field: "Midpoint".into(),
+            delete: "Delete stop".into(),
         }
     }
 }
@@ -159,11 +174,15 @@ struct State {
     /// Pointer input that waits while another control's gesture with the focus ends.
     held: Option<Held>,
     parts: parts::State<()>,
+    /// The selection as the editor's gesture began, restored when it is cancelled.
+    start_selected: Option<StopRef>,
+    /// The anchor of the colour popover while it is open ([`GradientEditor::color_popover`]).
+    popover: Option<Id>,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { selected: Some(StopRef::Color(0)), drag: None, held: None, parts: parts::State::default() }
+        Self { selected: Some(StopRef::Color(0)), drag: None, held: None, parts: parts::State::default(), start_selected: None, popover: None }
     }
 }
 
@@ -220,8 +239,10 @@ const MIN_GAP: f32 = 0.001;
 type Edits = parts::Edits<GradientStops>;
 
 /// What [`GradientEditor::show`] returns: the edit of the stops, whose response is the bar's, a
-/// colour stop whose colour the host is asked to edit (a double-click on it, or Enter or Space
-/// while it is selected), and a payload dropped on the bar ([`GradientEditor::drop_target`]).
+/// colour stop whose colour the host is asked to edit (a double-click on it, Enter or Space while
+/// it is selected, or a click on the Color well; never with
+/// [`color_popover`](GradientEditor::color_popover)), and a payload dropped on the bar
+/// ([`GradientEditor::drop_target`]).
 pub struct GradientEditorResponse<T = ()> {
     pub edit: EditResponse<GradientStops>,
     pub color_requested: Option<usize>,
@@ -264,10 +285,24 @@ pub struct GradientEditorResponse<T = ()> {
 /// Updates go out. The selection is view state: [`selected`](GradientEditor::selected) and
 /// [`select`](GradientEditor::select), the first colour stop until set.
 ///
+/// Fields ([`fields`](GradientEditor::fields), on by default): under the bar, one
+/// [`PropertyRow`](crate::composites::PropertyRow) per field of the selected marker, as
+/// PhotoCraft's: a colour stop's "Color" well (a [`Swatch`](crate::controls::Swatch); its click
+/// asks for the colour, or opens the popover) and, under [`StopRows::Combined`], its "Opacity";
+/// an opacity stop's "Opacity"; a stop's "Location" and a Delete button, disabled at the row's
+/// minimum; a midpoint's "Midpoint" in the host's range. The number fields are percent, as wide
+/// as the widest value, at the start of the control column; their labels scrub them. Enter or
+/// Space on an opacity stop or a midpoint focuses its first field. Every field is a part of the
+/// editor's edit: a scrub or a typing run is one gesture of the stops, a Location run that passes
+/// a neighbour keeps the selection on its stop, and a press on the bar or the Delete button during
+/// a typing run waits for the run's Commit. With [`color_popover`](GradientEditor::color_popover)
+/// the popover's gestures are the editor's, mapped to the stop.
+///
 /// AccessKit: the bar is a focusable `Group` named by the label, valued "{n} color stops, {m}
 /// opacity stops", whose active descendant is the selected marker; each marker is a
 /// `GraphicsObject` child ("Color stop {i} of {n}", valued "{location}, {hex}"), selected when it
-/// is.
+/// is. The fields are named by their labels; the Color well is a `Button` valued by its hex
+/// colour, and the Delete button is "Delete stop".
 #[must_use = "show the editor with `show`"]
 pub struct GradientEditor<'a, T = ()> {
     id_salt: IdSalt,
@@ -281,6 +316,8 @@ pub struct GradientEditor<'a, T = ()> {
     policy: EditPolicy,
     labels: GradientLabels,
     enabled: bool,
+    fields: bool,
+    color_popover: bool,
     drop_target: bool,
     payload: PhantomData<fn() -> T>,
 }
@@ -301,6 +338,8 @@ impl<'a> GradientEditor<'a> {
             policy: EditPolicy::default(),
             labels: GradientLabels::default(),
             enabled: true,
+            fields: true,
+            color_popover: false,
             drop_target: false,
             payload: PhantomData,
         }
@@ -398,11 +437,29 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         self
     }
 
+    /// Whether the selected marker's fields show under the bar; on by default. DesignCraft shows
+    /// the location in its panel header instead.
+    pub fn fields(mut self, fields: bool) -> Self {
+        self.fields = fields;
+        self
+    }
+
+    /// Whether the editor edits a colour stop's colour in a [`ColorPopover`](crate::composites::ColorPopover)
+    /// itself, anchored on the Color well (on the bar without the fields), as VectorCraft does;
+    /// off by default, when a request goes to the host in
+    /// [`GradientEditorResponse::color_requested`] (PhotoCraft opens its Color Picker dialog).
+    pub fn color_popover(mut self, popover: bool) -> Self {
+        self.color_popover = popover;
+        self
+    }
+
     /// Takes drops of `P` payloads (egui's drag and drop): while one hovers, a line marks the
     /// place; the release is reported in [`GradientEditorResponse::dropped`] and the host
     /// applies it.
     pub fn drop_target<P: Any + Send + Sync>(self) -> GradientEditor<'a, P> {
-        let Self { id_salt, label, stops, numbers, rules, midpoints, sampler, location_decimals, policy, labels, enabled, .. } = self;
+        let Self {
+            id_salt, label, stops, numbers, rules, midpoints, sampler, location_decimals, policy, labels, enabled, fields, color_popover, ..
+        } = self;
         GradientEditor {
             id_salt,
             label,
@@ -415,6 +472,8 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             policy,
             labels,
             enabled,
+            fields,
+            color_popover,
             drop_target: true,
             payload: PhantomData,
         }
@@ -430,16 +489,42 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     fn show_inside(&self, ui: &mut Ui, id: Id, style: &GradientEditorStyle) -> GradientEditorResponse<T> {
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
-        // Esc is the bar's: it cancels the bar's gesture, which cancels this one.
+        // A typing run had the focus as the pass began: the Delete button's click waits for it.
+        let waits = edit::focused_gesture(ui.ctx()).is_some();
+        // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.stops, self.policy.cancellable(false)).enabled(enabled);
+        let active = outer.is_active();
+        let before = state.selected;
         let shown = outer.shown().clone();
         let mut edits = Edits::new(&state.parts);
         let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
         edits.push(&bar.edit, |stops| stops);
+        // The one place a colour request is made: the popover takes it, or the host does.
+        let mut requested = bar.color_requested;
+        if self.fields {
+            requested = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
+        } else if self.color_popover {
+            self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
+        }
+        for () in edits.clicks(ui.ctx(), &mut state.parts, waits) {
+            if let Some(m) = state.selected.filter(|m| m.is_stop())
+                && let Some((stops, j)) = stops::remove(&bar.value, m.row(), m.index(), &self.rules)
+            {
+                state.selected = Some(StopRef::stop(m.row(), j));
+                edits.set(stops);
+            }
+        }
         let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
+        if !active && outer.is_active() {
+            state.start_selected = before;
+        }
         let event = outer.finish();
+        if matches!(event, Some(EditEvent::Cancel { .. })) {
+            state.selected = state.start_selected;
+        }
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
-        GradientEditorResponse { edit: EditResponse::new(bar.edit.response, event), color_requested: bar.color_requested, dropped: bar.dropped }
+        let color_requested = requested.filter(|_| !self.color_popover);
+        GradientEditorResponse { edit: EditResponse::new(bar.edit.response, event), color_requested, dropped: bar.dropped }
     }
 
     /// The bar: its interaction, look and AccessKit nodes, as a part of the editor's edit.
@@ -501,8 +586,11 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             }
             if response.has_focus() {
                 KeyClaim::claim(ui.ctx(), id, &CLAIMED);
-                if let Some(StopRef::Color(i)) = edit.keys(ui) {
-                    color_requested = Some(i);
+                match edit.keys(ui) {
+                    Some(StopRef::Color(i)) => color_requested = Some(i),
+                    // The fields row draws the marker's first field next.
+                    Some(_) if self.fields => localized::focus_first_field(ui.ctx(), true),
+                    _ => {}
                 }
             }
             if self.drop_target {
@@ -552,7 +640,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 None => node.clear_active_descendant(),
             }
         });
-        Bar { edit: EditResponse::new(response, event), color_requested, dropped }
+        Bar { edit: EditResponse::new(response, event), value: shown, color_requested, dropped }
     }
 
     /// The ramp, its edge, the midpoints and markers, and the drop place.
@@ -651,9 +739,10 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     }
 }
 
-/// The bar's part of a pass: its edit, and what it reports beside it.
+/// The bar's part of a pass: its edit, the stops it leaves, and what it reports beside it.
 struct Bar<T> {
     edit: EditResponse<GradientStops>,
+    value: GradientStops,
     color_requested: Option<usize>,
     dropped: Option<(StopDrop, Arc<T>)>,
 }

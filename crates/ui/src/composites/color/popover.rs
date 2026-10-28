@@ -198,6 +198,12 @@ pub(crate) fn popup<'a, 'b>(
     }
 }
 
+/// Closes the popup of the popover anchored on `anchor`, for a caller that stops drawing the
+/// anchor while the popup is open.
+pub(crate) fn close(ctx: &egui::Context, anchor: Id) {
+    ctx.data_mut(|d| d.remove::<Open>(anchor.with(STATE)));
+}
+
 /// The popover's state between frames.
 #[derive(Clone, Copy, Default)]
 struct Open {

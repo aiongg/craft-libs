@@ -35,6 +35,9 @@ struct Host {
     /// A "Location" field of colour stop 1 above the editor, as DesignCraft's panel header.
     field: bool,
     field_events: Vec<EditEvent<f64>>,
+    /// The editor's own fields row, and its colour popover.
+    stop_fields: bool,
+    popover: bool,
     requested: Vec<usize>,
     dropped: Option<(StopDrop, u32)>,
     escape_seen: bool,
@@ -57,6 +60,8 @@ impl Host {
             scoped: false,
             field: false,
             field_events: Vec::new(),
+            stop_fields: true,
+            popover: false,
             requested: Vec::new(),
             dropped: None,
             escape_seen: false,
@@ -86,7 +91,12 @@ impl Host {
             }
         }
         let stops = self.stops.clone();
-        let editor = GradientEditor::new("gradient", "Gradient", &stops, &numbers).rows(self.rows).stops(self.min, 1024).drop_target::<Payload>();
+        let editor = GradientEditor::new("gradient", "Gradient", &stops, &numbers)
+            .rows(self.rows)
+            .stops(self.min, 1024)
+            .fields(self.stop_fields)
+            .color_popover(self.popover)
+            .drop_target::<Payload>();
         let response = ui
             .allocate_ui(vec2(300.0, 0.0), |ui| {
                 ui.set_max_width(300.0);
@@ -493,7 +503,7 @@ fn a_midpoint_drags_and_nudges_within_the_midpoint_range() {
 
 #[test]
 fn a_press_during_a_typing_run_waits_for_its_commit_and_edits_the_stops_it_leaves() {
-    let mut harness = harness_with(Host { field: true, ..Host::new(three()) });
+    let mut harness = harness_with(Host { field: true, stop_fields: false, ..Host::new(three()) });
     let field = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Location")).rect().center();
     click(&mut harness, field, PointerButton::Primary);
     harness.event(Event::Text("30".into()));
@@ -665,7 +675,9 @@ fn the_bar_claims_its_keys_only_while_focused() {
 
 #[test]
 fn the_editor_stories_name_every_control() {
-    for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("composites/gradient/editor")) {
+    for story in
+        crate::story::registry().into_iter().filter(|s| s.id.starts_with("composites/gradient/editor") || s.id == "composites/gradient/dialog")
+    {
         let mut args = (story.args)();
         let mut harness = Harness::builder()
             .with_size([520.0, 240.0])
@@ -675,4 +687,168 @@ fn the_editor_stories_name_every_control() {
         a11y::assert_labelled(&harness);
         assert!(harness.query_all_by(|n| n.role() == Role::GraphicsObject).count() >= 3, "{}: the markers are in the tree", story.id);
     }
+}
+
+fn spin<'a>(harness: &'a Harness<'_, Host>, name: &str) -> Node<'a> {
+    let name = name.to_owned();
+    harness.get_by(move |n| n.role() == Role::SpinButton && n.label().as_deref() == Some(name.as_str()))
+}
+
+fn button<'a>(harness: &'a Harness<'_, Host>, name: &str) -> Node<'a> {
+    let name = name.to_owned();
+    harness.get_by(move |n| n.role() == Role::Button && n.label().as_deref() == Some(name.as_str()))
+}
+
+/// Types `text` into the field named `name` and commits it with Enter.
+fn type_into(harness: &mut Harness<'_, Host>, name: &str, text: &str) {
+    let at = spin(harness, name).rect().center();
+    click(harness, at, PointerButton::Primary);
+    harness.event(Event::Text(text.into()));
+    harness.run();
+}
+
+#[test]
+fn the_fields_edit_the_selected_marker_one_gesture_per_run_and_the_selection_follows_the_stop() {
+    let mut harness = rig(three());
+    let names: Vec<_> = harness
+        .query_all_by(|n| matches!(n.role(), Role::SpinButton | Role::Button))
+        .filter_map(|n| n.accesskit_node().label())
+        .filter(|l| ["Color", "Opacity", "Location", "Midpoint", "Delete stop"].contains(&l.as_str()))
+        .collect();
+    assert_eq!(names, ["Color", "Location", "Delete stop"], "a colour stop of a split bar");
+    assert_eq!(button(&harness, "Color").value().as_deref(), Some("#0033ff"));
+
+    // Location past a neighbour: one gesture, and the selection stays on the stop (tag 1).
+    type_into(&mut harness, "Location", "70");
+    assert_eq!(selected(&harness), Some(StopRef::Color(1)));
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().kinds().first(), Some(&"Begin"));
+    assert_eq!(harness.state().kinds().last(), Some(&"Commit"));
+    assert_eq!(harness.state().kinds().iter().filter(|k| **k == "Begin").count(), 1);
+    assert_eq!(harness.state().locations(), [0.5, 0.7, 1.0]);
+    assert_eq!(harness.state().stops.color[1].tag, 1);
+
+    // Esc cancels a run, and the selection goes back with the stop.
+    harness.state_mut().events.clear();
+    type_into(&mut harness, "Location", "20");
+    assert_eq!((harness.state().locations(), selected(&harness)), (vec![0.2, 0.5, 1.0], Some(StopRef::Color(0))));
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    assert_eq!(harness.state().kinds().last(), Some(&"Cancel"));
+    assert_eq!((harness.state().locations(), selected(&harness)), (vec![0.5, 0.7, 1.0], Some(StopRef::Color(1))));
+
+    // An opacity stop's Opacity: a scrub is one gesture, and writes out the implicit stops.
+    harness.state_mut().events.clear();
+    select(&mut harness, Some(StopRef::Opacity(0)));
+    assert!(harness.query_by(|n| n.role() == Role::Button && n.label().as_deref() == Some("Color")).is_none());
+    let field = spin(&harness, "Opacity").rect().center();
+    press(&mut harness, field);
+    for dx in [5.0, 10.0, 20.0] {
+        move_to(&mut harness, field - vec2(dx, 0.0));
+    }
+    release(&mut harness, field - vec2(20.0, 0.0));
+    assert_eq!(harness.state().kinds().first(), Some(&"Begin"));
+    assert_eq!(harness.state().kinds().last(), Some(&"Commit"));
+    let opacity = &harness.state().stops.opacity;
+    assert_eq!(opacity.len(), 2);
+    assert!(opacity[0].opacity < 1.0 && opacity[1].opacity == 1.0, "{opacity:?}");
+
+    // A midpoint's Midpoint, clamped to the host's range.
+    select(&mut harness, Some(StopRef::Midpoint(StopRow::Color, 0)));
+    assert_eq!(spin(&harness, "Midpoint").value().as_deref(), Some("50%"));
+    type_into(&mut harness, "Midpoint", "99");
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().stops.color[0].midpoint, 0.95);
+    assert!(harness.query_by(|n| n.label().as_deref() == Some("Delete stop")).is_none(), "a midpoint has no Delete");
+
+    // Combined: a colour stop's opacity is its alpha.
+    let mut harness = harness_with(Host { rows: StopRows::Combined, ..Host::new(three()) });
+    type_into(&mut harness, "Opacity", "25");
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().stops.color[0].color.a, 0.25);
+    assert!(harness.state().stops.opacity.is_empty());
+}
+
+#[test]
+fn enter_on_an_opacity_stop_or_a_midpoint_focuses_its_first_field() {
+    let mut harness = rig(three());
+    focus(&mut harness);
+    select(&mut harness, Some(StopRef::Opacity(1)));
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert!(spin(&harness, "Opacity").is_focused());
+    harness.event(Event::Text("40".into()));
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().stops.opacity_stops()[1].opacity, 0.4);
+    assert!(harness.state().requested.is_empty());
+
+    focus_from_scratch(&mut harness);
+    select(&mut harness, Some(StopRef::Midpoint(StopRow::Color, 1)));
+    key(&mut harness, Modifiers::NONE, Key::Space);
+    assert!(spin(&harness, "Midpoint").is_focused());
+}
+
+#[test]
+fn delete_removes_the_selected_stop_after_a_typing_run_and_is_off_at_the_minimum() {
+    let mut harness = rig(three());
+    select(&mut harness, Some(StopRef::Color(1)));
+    type_into(&mut harness, "Location", "30");
+    let delete = button(&harness, "Delete stop").rect().center();
+    click(&mut harness, delete, PointerButton::Primary);
+    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"]);
+    assert_eq!(harness.state().locations(), [0.0, 1.0]);
+    assert_eq!(selected(&harness), Some(StopRef::Color(1)));
+    assert!(button(&harness, "Delete stop").accesskit_node().is_disabled(), "two stops are the minimum");
+}
+
+#[test]
+fn the_color_well_asks_for_the_color_or_opens_the_popover() {
+    let mut harness = rig(three());
+    let well = button(&harness, "Color").rect().center();
+    click(&mut harness, well, PointerButton::Primary);
+    assert_eq!(harness.state().requested, [0]);
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_none());
+
+    let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
+    let well = button(&harness, "Color").rect().center();
+    click(&mut harness, well, PointerButton::Primary);
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some(), "the popover opens");
+    assert_eq!(button(&harness, "Color").accesskit_node().data().has_popup(), Some(egui::accesskit::HasPopup::Dialog));
+    // The hex field has the focus with its text selected.
+    harness.event(Event::Text("FF0000".into()));
+    harness.run();
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#ff0000");
+    assert_eq!(harness.state().kinds().iter().filter(|k| **k == "Begin").count(), 1, "{:?}", harness.state().kinds());
+    assert_eq!(harness.state().kinds().last(), Some(&"Commit"));
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_none());
+
+    // A double-click on a colour stop opens it too, and nothing goes to the host.
+    let at = harness.state().color_marker(1.0);
+    move_to(&mut harness, at);
+    for _ in 0..2 {
+        pointer(&mut harness, at, PointerButton::Primary, true, Modifiers::NONE);
+        pointer(&mut harness, at, PointerButton::Primary, false, Modifiers::NONE);
+    }
+    harness.run();
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some());
+    assert_eq!(selected(&harness), Some(StopRef::Color(2)));
+    assert!(harness.state().requested.is_empty());
+}
+
+#[test]
+fn a_press_during_the_location_field_s_typing_run_waits_and_drags_from_the_committed_value() {
+    let mut harness = rig(three());
+    select(&mut harness, Some(StopRef::Color(1)));
+    type_into(&mut harness, "Location", "30");
+    assert_eq!(harness.state().kinds(), ["Begin", "Update"]);
+    let at = harness.state().color_marker(1.0);
+    press(&mut harness, at);
+    let to = harness.state().color_marker(0.9);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "the run commits first: {kinds:?}");
+    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
+    assert!(!kinds.contains(&"Cancel"));
+    assert_eq!(harness.state().locations(), [0.0, 0.3, 0.9]);
 }
