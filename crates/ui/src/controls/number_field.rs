@@ -631,7 +631,7 @@ impl<'n> Input<'n> {
         let reads = typed.reads_as_value();
         let mut to = None;
         if stepping {
-            let notches = field_wheel::notches(ui, self.id, focused, response.rect, enabled && reads && !dragging);
+            let notches = field_wheel::notches(ui, self.id, focused, response.rect, enabled && reads && !dragging, 10.0);
             let requests = ui.input(|i| {
                 i.num_accesskit_action_requests(self.id, Action::Increment) as f64
                     - i.num_accesskit_action_requests(self.id, Action::Decrement) as f64

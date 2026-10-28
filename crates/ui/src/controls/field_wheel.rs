@@ -1,5 +1,7 @@
 //! The mouse wheel on number fields, as PhotoCraft's (`field_wheel.rs` there): one step a notch,
-//! ten with Shift.
+//! ten with Shift. Sliders with [`wheel_unfocused`](super::Slider::wheel_unfocused) and a
+//! select's closed box with [`wheel_steps`](super::Select::wheel_steps) follow the rules for a
+//! field without the focus.
 //!
 //! - While a field has the keyboard focus, the wheel steps it wherever the pointer is.
 //!   [`FieldWheel`], a plugin [`theme::install`](crate::theme::install) adds, takes the wheel
@@ -124,13 +126,14 @@ fn begin_pass(ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(k.gesture, WheelGesture { last: now, owner }));
 }
 
-/// Wheel lines for the number field `id` in `rect` in this pass (up positive, a Shift notch
-/// counting ten). While the field is `focused`: the wheel [`FieldWheel`] took for it at the
+/// Wheel lines for the field `id` in `rect` in this pass (up positive, a Shift notch counting
+/// `shift` lines). While the field is `focused`: the wheel [`FieldWheel`] took for it at the
 /// start of the pass (from the pass after the one that first finds it focused here, which
 /// records it). Without the focus: a gesture that started with the pointer over it. A field that
 /// doesn't `act` (disabled, being dragged, showing text that is no number) takes none, and the
-/// wheel over it is the view's from the next pass on.
-pub(super) fn notches(ui: &Ui, id: Id, focused: bool, rect: Rect, acts: bool) -> f64 {
+/// wheel over it is the view's from the next pass on. Number fields and sliders count ten lines a
+/// Shift notch; a select's closed box, which steps through options, one.
+pub(super) fn notches(ui: &Ui, id: Id, focused: bool, rect: Rect, acts: bool, shift: f32) -> f64 {
     if !acts {
         return 0.0;
     }
@@ -150,7 +153,7 @@ pub(super) fn notches(ui: &Ui, id: Id, focused: bool, rect: Rect, acts: bool) ->
             _ => None,
         })
         .collect();
-    f64::from(count(ui, id.with("craft_ui::field_wheel::lines"), &wheel, 10.0))
+    f64::from(count(ui, id.with("craft_ui::field_wheel::lines"), &wheel, shift))
 }
 
 /// This pass's wheel events for the field `id` without the focus, in `rect`: those of a gesture

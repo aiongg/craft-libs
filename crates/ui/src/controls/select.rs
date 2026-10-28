@@ -12,11 +12,11 @@ use egui::{
     vec2,
 };
 
+use super::field_wheel;
 use super::option_list::{
     MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
-use super::slider::wheel_turns;
 use super::text_field::{BoxState, field_box};
 use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
@@ -128,9 +128,13 @@ pub struct SelectStyle {
 ///   Alt+Up and Tab choose it (Tab then moves the focus on, from the search field too); Esc puts
 ///   the value back, closes the list and keeps the focus on the box. The active option shows the
 ///   focus ring inside its row while the keyboard moves it.
-/// - **Wheel** ([`wheel_steps`](Select::wheel_steps), off by default): the wheel over the closed
-///   box steps the value one option per notch (Shift too), stopping at the ends, one `Set` a
-///   frame; the panel under it doesn't scroll. PhotoCraft's Layers blend mode does this.
+/// - **Wheel** ([`wheel_steps`](Select::wheel_steps), off by default): a wheel gesture that
+///   starts over the closed box steps the value one option per notch (Shift too), stopping at
+///   the ends, one `Set` a frame, and the panel under it doesn't scroll. PhotoCraft's Layers
+///   blend mode does this. The box takes the wheel as a number field without the focus does: a
+///   gesture that started elsewhere (a panel being scrolled) goes on scrolling over it, one that
+///   leaves the box is the panel's from then on, and Alt+wheel, Ctrl/Cmd+wheel and a plain
+///   sideways scroll stay the view's.
 /// - **Searchable** ([`searchable`](Select::searchable)): a search field at the top of the list
 ///   takes the focus when it opens and filters the options as the user types; the arrows, Page
 ///   Up, Page Down, Enter and Esc work from it, Home and End stay with its text. The first match
@@ -251,9 +255,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
-    /// Whether the wheel over the closed box steps the value, one option per notch; off by
-    /// default, so the wheel scrolls the panel. For a select changed often in place (a layer's
-    /// blend mode).
+    /// Whether a wheel gesture that starts over the closed box steps the value, one option per
+    /// notch (Wheel on [`Select`]); off by default, so the wheel scrolls the panel. For a select
+    /// changed often in place (a layer's blend mode).
     pub fn wheel_steps(mut self, wheel_steps: bool) -> Self {
         self.wheel_steps = wheel_steps;
         self
@@ -335,7 +339,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             .interact_at(ui, rect)
             .finish(ui);
         if wheel_steps && enabled && !state.open {
-            let step = wheel_step(ui, id, &shown, chosen, response.contains_pointer());
+            let step = wheel_step(ui, id, &shown, chosen, response.rect);
             action = action.or(step);
         }
         // A press, or a click whose press and release came in one frame.
@@ -559,12 +563,13 @@ fn read_keys<T: Clone + PartialEq>(
     listbox.type_ahead(ui, shown).then(|| Action::Open { active: listbox.active(), keyboard: true })
 }
 
-/// The step this frame's wheel over the closed box makes from `chosen` while `hovered`: one
-/// option per notch, stopping at the ends. While hovered, the wheel scrolls nothing else.
-fn wheel_step<T: Clone + PartialEq>(ui: &Ui, id: Id, shown: &Shown<'_, '_, '_, T>, chosen: Option<usize>, hovered: bool) -> Option<Action> {
-    let (lines, pages) = wheel_turns(ui, id, hovered, false, 1.0);
+/// The step this frame's wheel over the closed box at `rect` makes from `chosen`: one option per
+/// notch, Shift too, stopping at the ends, for a wheel gesture that starts over the box, by the
+/// rules of a number field without the focus ([`field_wheel`]). The wheel it takes scrolls nothing
+/// else.
+fn wheel_step<T: Clone + PartialEq>(ui: &Ui, id: Id, shown: &Shown<'_, '_, '_, T>, chosen: Option<usize>, rect: Rect) -> Option<Action> {
     // Up is positive: the option before.
-    let notches = lines + pages;
+    let notches = field_wheel::notches(ui, id, false, rect, true, 1.0);
     let mut to = chosen;
     for _ in 0..(notches.abs() as usize).min(shown.len()) {
         match Listbox::neighbour(shown, to, notches < 0.0) {

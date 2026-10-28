@@ -268,6 +268,40 @@ fn the_wheel_over_the_closed_box_steps_the_value_only_when_asked_and_then_the_pa
 }
 
 #[test]
+fn a_panel_scroll_that_passes_over_a_select_with_wheel_steps_goes_on_scrolling() {
+    let mut harness = harness().build_ui_state(
+        |ui, host: &mut Host| {
+            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                ui.add_space(400.0);
+                let mut select = Select::new("blend", "Blend mode", &mut host.value).wheel_steps(true);
+                for (i, mode) in MODES.into_iter().enumerate() {
+                    select = select.option(i, mode);
+                }
+                host.events.extend(select.show(ui).event);
+                ui.add_space(1000.0);
+            });
+        },
+        Host::default(),
+    );
+    harness.run();
+    let start = harness.get_by_role(Role::ComboBox).rect();
+    let pointer = egui::pos2(start.center().x, 150.0);
+    assert!(!start.contains(pointer));
+    harness.hover_at(pointer);
+    harness.run();
+    let mut passed_over = false;
+    for _ in 0..40 {
+        harness.event(wheel(-0.5));
+        harness.step();
+        passed_over |= harness.get_by_role(Role::ComboBox).rect().contains(pointer);
+    }
+    harness.run();
+    assert!(passed_over, "the select went under the pointer");
+    assert!(harness.get_by_role(Role::ComboBox).rect().bottom() < pointer.y, "the panel went on scrolling past it");
+    assert_eq!((harness.state().value, harness.state().events.len()), (0, 0));
+}
+
+#[test]
 fn the_open_list_is_one_gesture_that_commits_the_choice_or_cancels() {
     let mut harness = blend();
     harness.run();
