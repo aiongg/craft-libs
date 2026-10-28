@@ -483,7 +483,7 @@ struct Wheel {
 /// acts and dropped once it doesn't. The panel under the slider doesn't scroll, for the whole of
 /// each notch the slider acts on, also once the pointer leaves or the focus moves. While `held`
 /// (a drag) the wheel is taken and changes nothing.
-fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: bool) -> f64 {
+pub(super) fn wheel(ui: &Ui, id: Id, step: f64, page: f64, acts: bool, held: bool) -> f64 {
     let key = id.with("craft_ui::slider::wheel");
     let line = ui.ctx().options(|o| o.input_options.line_scroll_speed).max(1.0);
     let mut state = ui.data(|d| d.get_temp::<Wheel>(key)).unwrap_or_default();

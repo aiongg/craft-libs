@@ -19,6 +19,8 @@
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
 //!   [`EditResponse`](crate::edit::EditResponse).
 //! - [`TextField`] and [`SearchField`]: one line of text; a typing run is one edit gesture.
+//! - [`NumberField`]: a number in the region's digits, typed, scrubbed, stepped or set on a
+//!   pop-up slider, one edit gesture at a time.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
@@ -48,6 +50,9 @@ pub(crate) mod checkbox;
 pub(crate) mod icon_button;
 pub(crate) mod kbd;
 pub(crate) mod link;
+pub(crate) mod number_field;
+#[cfg(test)]
+mod number_field_tests;
 pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
@@ -80,6 +85,7 @@ pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle, LinkUnderline};
+pub use number_field::{NumberField, NumberFieldStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;

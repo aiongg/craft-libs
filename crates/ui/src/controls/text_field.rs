@@ -6,11 +6,11 @@ use std::collections::VecDeque;
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::slider::with_values;
 use super::{IconButton, SIZE_NAMES, icon_size, size_arg};
-use crate::behavior::{Escape, Typed, Typing, TypingLook};
+use crate::behavior::{Escape, Typing, TypingLook};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
 use crate::icons::{self, Icon};
@@ -409,7 +409,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
     let under = ui.painter().add(Shape::Noop);
     let mut typed = typing.show(ui, &look);
     let rect = typed.response().rect;
-    ui.painter().set(under, Shape::Vec(box_shapes(ui, &style, spec, &typed, enabled)));
+    ui.painter().set(under, Shape::Vec(field_box(ui, &style, typed.response(), spec.invalid, enabled)));
     if let Some(icon) = spec.leading {
         icons::paint(ui, layout.leading(ui, &style, rect).round_to_pixels(ui.pixels_per_point()), icon, icon_size(spec.size), look.placeholder);
     }
@@ -428,15 +428,14 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
 /// The box under the text: the surface in the state's colours, and inside a bevel the focused
 /// or invalid edge. A focused invalid field draws the focused edge with the invalid colour as a
 /// line inside it.
-fn box_shapes(ui: &Ui, style: &TextFieldStyle, spec: &Spec<'_>, typed: &Typed, enabled: bool) -> Vec<Shape> {
-    let response = typed.response();
+pub(super) fn field_box(ui: &Ui, style: &TextFieldStyle, response: &Response, invalid: bool, enabled: bool) -> Vec<Shape> {
     let focused = response.has_focus();
     let mut surface = style.surface;
     surface.fill = if enabled { surface.fill } else { style.fill_disabled };
     let (edge, inner) = match () {
         () if !enabled => (style.border_disabled, None),
-        () if spec.invalid && focused => (style.border_focused, Some(style.invalid)),
-        () if spec.invalid => (style.invalid, None),
+        () if invalid && focused => (style.border_focused, Some(style.invalid)),
+        () if invalid => (style.invalid, None),
         () if focused => (style.border_focused, None),
         () if response.contains_pointer() => (style.border_hover, None),
         () => (border_color(&surface), None),
@@ -453,7 +452,7 @@ fn box_shapes(ui: &Ui, style: &TextFieldStyle, spec: &Spec<'_>, typed: &Typed, e
                 shapes.push(line_inside(rect, radius, stroke.width, stroke.width, inner));
             }
         }
-        SurfaceEdge::Bevel { width, .. } if enabled && (focused || spec.invalid) => {
+        SurfaceEdge::Bevel { width, .. } if enabled && (focused || invalid) => {
             shapes.extend(surface.shapes(response.rect, ppp));
             let bevel = (width * ppp).round().max(1.0) / ppp;
             shapes.push(line_inside(rect, radius, bevel, 1.0, edge));

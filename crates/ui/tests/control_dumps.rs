@@ -5,8 +5,8 @@
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::controls::{
-    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, Progress, RadioGroup, Segmented, Slider, Swatch, Switch,
-    TextField, ToggleButton, Tooltip,
+    Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented, Slider,
+    Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::testing::dump::Dump;
@@ -209,6 +209,17 @@ fn text_field() {
         d.line("placeholder.rest", s.placeholder).line("placeholder.disabled", s.placeholder_disabled);
         d.line("selection.fill", s.selection).line("selection.text", s.selected_text);
         d.line("caret", s.caret).line("invalid", s.invalid);
+    });
+}
+
+/// Number fields: their colours beyond the text field's box (`text_field.txt`), the same at
+/// both sizes.
+#[test]
+fn number_field() {
+    check("number_field.txt", |d, t| {
+        let s = NumberField::style(t, ControlSize::Md);
+        d.line("unit.rest", s.unit).line("unit.disabled", s.unit_disabled);
+        d.line("scrub.rest", s.scrub).line("scrub.disabled", s.scrub_disabled);
     });
 }
 

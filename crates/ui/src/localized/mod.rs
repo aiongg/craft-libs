@@ -1,8 +1,12 @@
 //! Number widgets that write numbers the way the user's region does (its digits, decimal mark and
 //! grouping) and read back any digits with the region's separators.
 //!
-//! [`LocaleNumbers`] wraps a [`craft_i18n::Format`], which writes and reads the numbers.
-//! [`LocalizedDragValue`] puts them on an [`egui::DragValue`]; [`NumberField`] is a text field for
+//! [`LocaleNumbers`] wraps a [`craft_i18n::Format`], which writes and reads the numbers, and
+//! [`Unit`] spells a unit around them; [`crate::controls::NumberField`] edits numbers with both.
+//!
+//! The widgets here are deprecated, kept until the last app moves to
+//! [`crate::controls::NumberField`]. [`LocalizedDragValue`] puts locale numbers on an
+//! [`egui::DragValue`]; [`NumberField`] is a text field for
 //! apps that edit numbers in a [`egui::TextEdit`], with the apps' panel-field behaviour: a
 //! [`Recessed`] box, scrubbing by the label, stepping to multiples of the step, a blank field for
 //! [mixed](NumberField::mixed) values and [`focus_first_field`]. Text that isn't a number never
@@ -24,6 +28,7 @@ use egui::{
 };
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests;
 
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
@@ -102,7 +107,7 @@ impl LocaleNumbers {
         self.format.parse(text)
     }
 
-    fn describe(&self, error: NumberError) -> String {
+    pub(crate) fn describe(&self, error: NumberError) -> String {
         let english = message(error);
         self.messages.as_ref().map_or_else(|| english.to_owned(), |translate| translate(english))
     }
@@ -153,7 +158,7 @@ impl Unit {
         &self.suffix
     }
 
-    fn strip<'t>(&self, text: &'t str) -> &'t str {
+    pub(crate) fn strip<'t>(&self, text: &'t str) -> &'t str {
         let text = text.trim();
         let text = text.strip_prefix(self.prefix.trim()).unwrap_or(text);
         text.strip_suffix(self.suffix.trim()).unwrap_or(text).trim()
@@ -213,6 +218,7 @@ fn mark_invalid(ui: &Ui, response: &Response, radius: CornerRadius, text: String
 /// # });
 /// ```
 #[must_use = "You should put this widget in a ui with `ui.add(widget);`"]
+#[deprecated(note = "use craft_ui::controls::NumberField")]
 pub struct LocalizedDragValue<'a> {
     drag: DragValue<'a>,
     numbers: LocaleNumbers,
@@ -221,6 +227,7 @@ pub struct LocalizedDragValue<'a> {
     fallback: Option<Fallback<'a>>,
 }
 
+#[allow(deprecated)]
 impl<'a> LocalizedDragValue<'a> {
     pub fn new(drag: DragValue<'a>, numbers: &LocaleNumbers) -> Self {
         LocalizedDragValue { drag, numbers: numbers.clone(), unit: Unit::default(), formatter: None, fallback: None }
@@ -266,6 +273,7 @@ impl<'a> LocalizedDragValue<'a> {
     }
 }
 
+#[allow(deprecated)]
 impl Widget for LocalizedDragValue<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let LocalizedDragValue { drag, numbers, unit, formatter, fallback } = self;
@@ -376,12 +384,12 @@ impl Recessed {
     }
 }
 
-fn first_field_id() -> Id {
+pub(crate) fn first_field_id() -> Id {
     Id::unique("craft_ui::localized::focus_first_field")
 }
 
-/// While `on`, the next enabled [`NumberField`] drawn takes the keyboard focus with its text
-/// selected, so typing replaces the value and Enter applies it: a dialog opening on its first
+/// While `on`, the next enabled number field drawn ([`crate::controls::NumberField`], or the
+/// deprecated [`NumberField`] here) takes the keyboard focus with its text selected, so typing replaces the value and Enter applies it: a dialog opening on its first
 /// field. Raise it when the group opens; the field that takes it lowers it. A sizing pass (a new
 /// window's first frame) leaves it for the next pass.
 pub fn focus_first_field(ctx: &Context, on: bool) {
@@ -424,6 +432,7 @@ struct Scrub {
 /// # });
 /// ```
 #[must_use = "You should put this widget in a ui with `ui.add(widget);`"]
+#[deprecated(note = "use craft_ui::controls::NumberField")]
 pub struct NumberField<'a> {
     get_set: Box<dyn 'a + FnMut(Option<f64>) -> f64>,
     numbers: LocaleNumbers,
@@ -440,6 +449,7 @@ pub struct NumberField<'a> {
     label: Option<(Id, Rect)>,
 }
 
+#[allow(deprecated)]
 impl<'a> NumberField<'a> {
     /// A field for `value`. Integer types get no decimals and their full range.
     pub fn new<Num: Numeric>(value: &'a mut Num, numbers: &LocaleNumbers) -> Self {
@@ -540,6 +550,7 @@ impl<'a> NumberField<'a> {
     }
 }
 
+#[allow(deprecated)]
 impl Widget for NumberField<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let NumberField { mut get_set, numbers, range, step, decimals, unit, fallback, width, id_salt, mixed, placeholder, recessed, label } = self;
@@ -680,7 +691,7 @@ impl Widget for NumberField<'_> {
 /// with Shift, a tenth of one with Ctrl/Cmd when `decimals` show it. A plain or Ctrl/Cmd step
 /// goes to the next multiple of its size in its direction, then on by whole steps; a Shift step
 /// rounds to a multiple of `step` first.
-fn stepped(value: f64, step: f64, decimals: usize, modifiers: Modifiers, n: f64) -> f64 {
+pub(crate) fn stepped(value: f64, step: f64, decimals: usize, modifiers: Modifiers, n: f64) -> f64 {
     let fine = step / 10.0;
     if modifiers.command && (round_half_away(fine, decimals) - fine).abs() <= fine.abs() * 1e-9 {
         to_multiple(value, fine, n)
@@ -790,7 +801,7 @@ fn select_all(ctx: &Context, id: Id, text: &str) {
 }
 
 /// `value` rounded to `decimals` digits after the point, ties away from zero; never `-0`.
-fn round_half_away(value: f64, decimals: usize) -> f64 {
+pub(crate) fn round_half_away(value: f64, decimals: usize) -> f64 {
     let scale = 10_f64.powi(i32::try_from(decimals).unwrap_or(i32::MAX));
     let rounded = if scale.is_finite() { (value * scale).round() / scale } else { value };
     if rounded.is_finite() { rounded + 0.0 } else { value }

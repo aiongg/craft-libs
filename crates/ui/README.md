@@ -7,11 +7,11 @@ interaction; `layout` provides toolbar fitting, split geometry and resize handle
 `printing` supplies printer/job controls and asynchronous feedback used by WordCraft and GridCraft.
 `fonts` installs the UI font stack, the same fallback order in every app.
 `primitives` holds the design system's building blocks (surfaces, state layer, focus ring, divider, stack and row, interactive element, text, icon, canvas handle), styled from `theme`'s tokens.
-`controls` holds the design system's controls built on them (button, icon button, toggle button, segmented control, link, check box, radio group and radio set, switch, slider, range slider, swatch, badge, kbd, spinner, progress bar, tooltip, text field, search field).
-`behavior` holds the keyboard, focus and selection rules that several controls share, such as a radio group's (`RadioSelection`, used by the radio group, the radio set and the segmented control) and a line of typed text's (`Typing`, egui's `TextEdit` reported as one edit gesture per typing run, used by the text and search fields).
+`controls` holds the design system's controls built on them (button, icon button, toggle button, segmented control, link, check box, radio group and radio set, switch, slider, range slider, swatch, badge, kbd, spinner, progress bar, tooltip, text field, search field, number field).
+`behavior` holds the keyboard, focus and selection rules that several controls share, such as a radio group's (`RadioSelection`, used by the radio group, the radio set and the segmented control) and a line of typed text's (`Typing`, egui's `TextEdit` reported as one edit gesture per typing run, used by the text, search and number fields; a `Codec` writes and reads a typed value).
 `inspect` records the primitives' layout boxes and the AccessKit tree for inspector overlays such as the gallery's; off by default.
 `edit` is the edit lifecycle value controls report through: gesture events (begin, update, commit, cancel, one-shot set), the `Gesture` state machine controls embed, and `GestureHost`, which turns the events into undo steps.
-`localized` supplies number fields that write and read the user's region's numbers.
+`localized` writes and reads the user's region's numbers (`LocaleNumbers`, `Unit`); its number fields are deprecated for `controls::NumberField`.
 The current delivery covers nine creative apps (DesignCraft, VectorCraft, PhotoCraft, FilmCraft, EffectCraft, CADCraft, PDFCraft, LightCraft and SoundCraft); prior basic and office adapters are separate. The [suite audit](../../docs/ui-components-audit.md#adoption-and-acceptance)
 records their scope and acceptance limits. Assets (font files included), complete themes, localization
 and command handling remain in each application. The suite's icons are bundled (`icons/`, with
@@ -510,28 +510,36 @@ on WASM too; browser PDF printing remains an app-owned service.
 `localized::LocaleNumbers` writes numbers in the region's digits, decimal mark and grouping and
 reads back any digits. Build it from the app's `I18n` with `.with_catalog(&i18n, lang)`, so the
 error tooltips come from the catalog rows keyed by `localized::MESSAGES` (English where a row is
-missing). `LocalizedDragValue` puts it on an `egui::DragValue`.
+missing). `localized::Unit` spells a unit around a number (`{n} px`, Turkish `%{n}`).
 
-`NumberField` is the panel and dialog field. It reads text on commit and keeps text it can't
-read, outlined, with the reason in a tooltip.
+`controls::NumberField` is the panel and dialog field. It reports through the edit lifecycle
+(`edit`): a typing run is one gesture read on commit; text it can't read stays, outlined, with the
+reason in a tooltip.
 
 ```rust
-let label = ui.label(i18n.t(lang, "Width"));
-let frame = Recessed { fill: t.input, stroke: Stroke::new(1.0, t.input_border), ..Recessed::from_style(ui.style()) };
-let r = ui.add(NumberField::new(&mut width, &numbers).range(0.0..=1e4).step(1.0).unit(Unit::translated(&i18n, lang, "{n} px"))
-    .recessed(frame).scrub_label(&label).mixed(widths_differ));
+let label = ui.add(Text::new(i18n.t(lang, "Width")));
+let edit = NumberField::new("width", i18n.t(lang, "Width"), width, &numbers)
+    .range(0.0..=1e4)
+    .unit(Unit::translated(&i18n, lang, "{n} px"))
+    .scrub_by(&label)
+    .mixed(widths_differ)
+    .show(ui);
 ```
 
-- `.recessed(Recessed)` draws the sunken box: fill, border, focus border, radius, height, margin.
-- `.scrub_label(&label)` names the field and scrubs it when the label is dragged: a step every two
-  points. A click on the label focuses the field, and Escape puts the value back. The response
-  carries the label's drag flags, so the app can make the drag one undo step.
-- Arrow keys, the wheel over the focused field and scrubbing step to the next multiple of `step`
-  (5.1 up to 6, down to 5); Shift steps ten, Ctrl/Cmd a tenth where the decimals show it.
-- `.mixed(true)` with `.placeholder(text)` shows a blank field for values that differ between
-  objects. The value stays until the user enters a number, which is `changed()` even when equal.
+- `.scrub_label(text)`, `.scrub_icon(icon)` or `.scrub_by(&label)` scrub the value with a drag: a
+  step a point, Shift ten, Alt a tenth as fast; a drag is one gesture and Esc puts the value back.
+- Arrow keys, the wheel over the focused field and screen-reader increments step to the next
+  multiple of `step` (5.1 up to 6, down to 5); Shift steps ten, Ctrl/Cmd a tenth where the
+  decimals show it.
+- `.or_parse(reader)` reads what the locale can't (arithmetic, timecodes); `.popup_slider(name)`
+  adds a ▾ that opens a slider.
+- `.mixed(true)` shows a blank field for values that differ between objects; a typed number is a
+  change even when it equals the host's value, which is where scrubs and steps start.
 - `localized::focus_first_field(ctx, true)` when a dialog opens: the first enabled field drawn
   takes the focus with its text selected.
+
+`localized::NumberField` and `LocalizedDragValue` are deprecated, kept until the last app moves to
+`controls::NumberField`.
 
 ## Screenshot completion
 
