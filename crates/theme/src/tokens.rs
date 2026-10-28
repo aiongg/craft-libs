@@ -503,6 +503,9 @@ pub struct RadiusSet {
     pub panel: f32,
     /// Push buttons; [`Radius::Full`](super::scale::Radius::Full) gives pills.
     pub button: f32,
+    /// Pill-shaped parts (switch, slider, progress, badge); each clamps it to half its height.
+    /// [`Radius::Full`](super::scale::Radius::Full) gives pills, 0 squares them.
+    pub pill: f32,
 }
 
 /// How surfaces draw their edge. Only the `Surface` primitive reads it.

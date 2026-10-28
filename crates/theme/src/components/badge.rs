@@ -211,7 +211,7 @@ impl Family for BadgeTokens {
             height: s.typography.get(label).line_height + 2.0 * values::BADGE_PAD_Y,
             pad_y: values::BADGE_PAD_Y,
             pad_x: s.space.pad.control,
-            radius: values::BADGE_RADIUS.px(),
+            radius: s.shape.radius.pill,
             label,
             colors: [
                 [soft(c.surface.sunken, c.text.muted, c.line.border), solid(c.text.muted, c.surface.panel)],

@@ -492,7 +492,7 @@ fn size_presets_text_size_shape_and_motion() {
     // A theme with its own shape: square corners and a bevel from pinned edge colours.
     let mut classic = grey_blue();
     classic.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }),
+        radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         edge: Some(EdgeSeed::Bevel { width: 1.0 }),
     });
     classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);

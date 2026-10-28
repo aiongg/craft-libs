@@ -56,7 +56,7 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
 | `variants` | no | `"both"` (default), `"light"` or `"dark"` |
 | `contrast_intent` | no | `"standard"` (default) or `"low"`: the theme is meant to be soft, and pickers label it "Low contrast" |
 | `seeds` | yes | `neutral`, `accent` and `status.good/warn/bad/info`, all required |
-| `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs all five keys when present |
+| `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button, pill? }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs the first five keys when present; `pill` (switch, slider, progress and badge shapes, clamped to half the part's height) defaults to `"full"`, and Classic sets it to 0 |
 | `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB` or `#RRGGBBAA`; surfaces (`surface.*` except `surface.scrim`) must be opaque. A `seeds` key holds that mode's seed overrides: `neutral`, `accent` and `status.good/warn/bad/info`, each optional; a field it names replaces the theme's `seeds` value in that mode and the rest fall through |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast; no `seeds` key (it is an error there and in `apps`) |
 | `components` | no | non-colour component overrides: a length (number or `"full"`) or `{ "level": 0-3 }` |

@@ -81,6 +81,7 @@ shape.radius.popup = 0
 shape.radius.window = 0
 shape.radius.panel = 0
 shape.radius.button = 0
+shape.radius.pill = 0
 shape.edge = bevel #ffffffff #404040ff 1
 space.gap.inline = 4
 space.gap.stack = 6

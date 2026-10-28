@@ -220,7 +220,7 @@ impl Parser {
         })
     }
 
-    /// The five radii; all are required.
+    /// The radii; all but `pill` are required, and `pill` defaults to fully round.
     fn radius_set(&mut self, r: &Map<String, Value>) -> Option<RadiusSet> {
         let mut get = |key: &str| {
             self.at(key, |p| match r.get(key) {
@@ -232,7 +232,11 @@ impl Parser {
             })
         };
         let (control, popup, window, panel, button) = (get("control"), get("popup"), get("window"), get("panel"), get("button"));
-        Some(RadiusSet { control: control?, popup: popup?, window: window?, panel: panel?, button: button? })
+        let pill = match r.get("pill") {
+            None | Some(Value::Null) => Radius::Full.px(),
+            Some(v) => self.at("pill", |p| p.length(v))?,
+        };
+        Some(RadiusSet { control: control?, popup: popup?, window: window?, panel: panel?, button: button?, pill })
     }
 
     /// A length in logical pixels: a number of 0 or more, or `"full"`.

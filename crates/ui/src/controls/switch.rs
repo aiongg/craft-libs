@@ -26,6 +26,8 @@ pub struct SwitchStyle {
     pub width: f32,
     /// Height of the track: `check.size`.
     pub track_height: f32,
+    /// Corner radius of the track: `shape.radius.pill`, at most half the track height.
+    pub track_radius: CornerRadius,
     /// Diameter of the thumb: the track height less `check.thumb_inset` on each side.
     pub thumb: f32,
     /// Between the track's edge and the thumb: `check.thumb_inset`.
@@ -124,7 +126,7 @@ impl<'a> Switch<'a> {
         if ui.is_rect_visible(response.rect) {
             let (track, label) = laid.place(ui, response.rect);
             let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
-            let round = CornerRadius::from(style.track_height / 2.0);
+            let round = style.track_radius;
             ui.painter().extend(indicator_shapes(ui, &style.surface, track, round, paint));
             let center = Switch::thumb(&style, track, position, if direction::is_rtl(ui) { Direction::Rtl } else { Direction::Ltr });
             let ppp = ui.pixels_per_point();
@@ -142,8 +144,9 @@ impl<'a> Switch<'a> {
         let motion = tokens.motion.r#move;
         let thumb = track_height - 2.0 * c.thumb_inset;
         let mut thumb_surface = Surface::style(tokens, SurfaceKind::Knob);
-        thumb_surface.radius = CornerRadius::from(thumb / 2.0);
+        thumb_surface.radius = CornerRadius::from(tokens.shape.radius.pill.min(thumb / 2.0));
         SwitchStyle {
+            track_radius: CornerRadius::from(tokens.shape.radius.pill.min(track_height / 2.0)),
             height: c.height.get(size),
             width: c.track.get(size),
             track_height,

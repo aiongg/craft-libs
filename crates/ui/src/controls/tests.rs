@@ -324,7 +324,6 @@ fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
                 let w = Switch::style(&t, size);
                 assert_eq!([w.thumb_fill.rest, w.thumb_fill.hover, w.thumb_fill.pressed], [face; 3], "{} {mode:?}", def.id);
                 assert_eq!((w.thumb_surface.fill, w.thumb_surface.edge, w.thumb_surface.shadow), (face, knob.edge, knob.shadow));
-                assert_eq!(w.thumb_surface.radius, egui::CornerRadius::from(w.thumb / 2.0));
             }
         }
     }
@@ -334,6 +333,21 @@ fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
         classic.component.slider.ring.to_egui(),
         craft_theme::States::new(Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT)
     );
+}
+
+/// A switch's track and thumb take `shape.radius.pill`, at most half their height: round by
+/// default, square in Classic.
+#[test]
+fn switch_track_and_thumb_follow_the_pill_radius() {
+    let round = |side: f32| egui::CornerRadius::from(side / 2.0);
+    let classic = tokens_of(&theme("craft.classic"), Mode::Light);
+    let rounded = tokens_of(&theme("craft.solarized-dark"), Mode::Dark);
+    for size in SIZES {
+        let w = Switch::style(&classic, size);
+        assert_eq!((w.track_radius, w.thumb_surface.radius), (egui::CornerRadius::ZERO, egui::CornerRadius::ZERO), "classic {size:?}");
+        let w = Switch::style(&rounded, size);
+        assert_eq!((w.track_radius, w.thumb_surface.radius), (round(w.track_height), round(w.thumb)), "rounded {size:?}");
+    }
 }
 
 /// A disabled knob lies flat: no shadow under a slider, range-slider or switch thumb. A slider's
@@ -501,16 +515,11 @@ fn bevel_themes_sink_check_boxes_radio_buttons_and_switch_tracks() {
         // The box sits at the left, centred: its rect is the indicator's.
         let side = if control == 2 { vec2(Switch::style(&t, ControlSize::Md).width, s.side) } else { vec2(s.side, s.side) };
         let indicator = Rect::from_min_size(egui::pos2(rect.get().left(), rect.get().center().y - side.y / 2.0), side);
-        // Round shapes: the bevel splits at 45 degrees through the corners, so compare the top
-        // and bottom middle; on the switch, right of the middle, clear of the raised thumb at the
-        // start.
+        // The radio is round: the bevel splits at 45 degrees through the corners, so compare the
+        // top and bottom middle. Classic squares the switch track (`radius.pill` 0).
         let (top_left, bottom_right) = match control {
-            0 => bevel_corners(&shapes, indicator),
             1 => bevel_at(&shapes, indicator, indicator.center_top(), indicator.center_bottom()),
-            _ => {
-                let x = indicator.center().x + indicator.width() / 8.0;
-                bevel_at(&shapes, indicator, egui::pos2(x, indicator.top()), egui::pos2(x, indicator.bottom()))
-            }
+            _ => bevel_corners(&shapes, indicator),
         };
         assert_eq!((top_left, bottom_right), (dark, light), "control {control}: a sunken indicator, shaded on the top left");
     }

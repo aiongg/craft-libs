@@ -179,3 +179,16 @@ fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
     assert_eq!(TokenRef::from_path("surface.knob"), Some(TokenRef::Color(ColorToken::SurfaceKnob)));
     assert_eq!(TokenRef::from_path("line.knob_edge"), Some(TokenRef::Color(ColorToken::LineKnobEdge)));
 }
+
+/// `radius.pill` is fully round unless the theme sets it; Classic squares it.
+#[test]
+fn pill_radius_is_full_by_default_and_zero_in_classic() {
+    let at = |id: &str| {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone();
+        resolve(&theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens
+    };
+    assert_eq!(at("craft.solarized-dark").shape.radius.pill, Radius::Full.px());
+    let t = at("craft.classic");
+    assert_eq!(t.shape.radius.pill, 0.0);
+    assert_eq!([t.component.badge.radius, t.component.progress.radius, t.component.slider.radius], [0.0; 3]);
+}

@@ -38,6 +38,8 @@ pub struct Radii {
     /// Push buttons: `button.radius`, which is `shape.radius.button` unless the theme overrides
     /// it.
     pub button: CornerRadius,
+    /// Pill-shaped parts: `shape.radius.pill`, to clamp to half the part's height.
+    pub pill: CornerRadius,
 }
 
 /// `elevation` as egui shadows.
@@ -61,6 +63,7 @@ impl UiTokens {
             window: corner_radius(r.window),
             panel: corner_radius(r.panel),
             button: corner_radius(tokens.component.button.radius),
+            pill: corner_radius(r.pill),
         };
         let e = &tokens.elevation;
         let shadow = Shadows { popup: e.popup.to_egui(), dialog: e.dialog.to_egui(), floating: e.floating.to_egui(), knob: e.knob.to_egui() };

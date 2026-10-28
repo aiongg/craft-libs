@@ -39,7 +39,7 @@ impl Family for ProgressTokens {
     fn defaults(s: &Semantic<'_>) -> ProgressTokens {
         ProgressTokens {
             track_height: values::PROGRESS_TRACK,
-            radius: values::PROGRESS_RADIUS.px(),
+            radius: s.shape.radius.pill,
             track: s.color.surface.sunken,
             fill: s.color.accent.solid,
         }

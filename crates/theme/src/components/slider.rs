@@ -110,7 +110,7 @@ impl Family for SliderTokens {
             width: BySize { sm: values::SLIDER_WIDTH * size.control.sm, md: values::SLIDER_WIDTH * size.control.md },
             thumb: BySize { sm: size.icon.sm, md: size.icon.md },
             track_height: values::SLIDER_TRACK,
-            radius: values::SLIDER_RADIUS.px(),
+            radius: s.shape.radius.pill,
             track: c.surface.sunken,
             fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled),
             thumb_colors: ThumbColors::knob(c),

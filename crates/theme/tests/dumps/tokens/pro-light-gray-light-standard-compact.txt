@@ -81,6 +81,7 @@ shape.radius.popup = 4
 shape.radius.window = 6
 shape.radius.panel = 0
 shape.radius.button = 999
+shape.radius.pill = 999
 shape.edge = flat
 space.gap.inline = 4
 space.gap.stack = 6

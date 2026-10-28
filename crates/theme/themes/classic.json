@@ -26,6 +26,7 @@
       "button": 0.0,
       "control": 0.0,
       "panel": 0.0,
+      "pill": 0.0,
       "popup": 0.0,
       "window": 0.0
     }
@@ -58,10 +59,5 @@
     "text.muted": "#404040",
     "text.normal": "#000000",
     "toggle_button.on_disabled.fill": "#bebab2"
-  },
-  "components": {
-    "badge.radius": 0.0,
-    "progress.radius": 0.0,
-    "slider.radius": 0.0
   }
 }

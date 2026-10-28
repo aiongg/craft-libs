@@ -339,7 +339,7 @@ fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
         assert_eq!(t.component.check.radius, radius, "{size:?}");
     }
     let mut def = grey_blue();
-    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }), edge: None });
+    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }), edge: None });
     assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 0.0);
 }
 
@@ -744,7 +744,7 @@ fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_t
     let comfy = at(Size::Comfortable);
     assert_eq!((comfy.swatch.radius, comfy.kbd.radius), (4.0, 3.0));
     let mut def = grey_blue();
-    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }), edge: None });
+    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }), edge: None });
     let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
     assert_eq!((t.swatch.radius, t.kbd.radius), (2.0, 2.0));
 

@@ -351,7 +351,7 @@ pub(super) const COMPACT: Preset = Preset {
         panel_header: 28.0,
     },
     space: SpaceTokens { gap: Gaps { inline: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
-    radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px() },
+    radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
         caption: style(10.5, 14.0, FontSlot::Ui),
@@ -374,7 +374,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
         panel_header: 34.0,
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
-    radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px() },
+    radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
         caption: style(11.5, 16.0, FontSlot::Ui),
@@ -471,9 +471,6 @@ pub const SECTION_TITLE_OFFSET: f32 = 18.0;
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.
 pub const SLIDER_TRACK: f32 = 4.0;
-/// Corner radius of a slider's track and thumb: [`Radius::Full`] gives a pill track and a round
-/// thumb.
-pub const SLIDER_RADIUS: Radius = Radius::Full;
 
 /// Canvas handle side or diameter in points, the same at every Size: handles sit on the
 /// document, not in the chrome.
@@ -513,8 +510,6 @@ pub const SWATCH_CHECKER_LIGHT: (Rgba, Rgba) = (Rgba::rgb(255, 255, 255), Rgba::
 /// The two checkerboard greys behind a translucent swatch in a dark theme.
 pub const SWATCH_CHECKER_DARK: (Rgba, Rgba) = (Rgba::rgb(64, 64, 64), Rgba::rgb(102, 102, 102));
 
-/// Corner radius of a badge: a pill.
-pub const BADGE_RADIUS: Radius = Radius::Full;
 /// Above and below a badge's caption line, in points.
 pub const BADGE_PAD_Y: f32 = 1.0;
 
@@ -525,8 +520,6 @@ pub const KBD_PAD_Y: f32 = 1.0;
 
 /// Thickness of a progress bar's track, in points, at every Size.
 pub const PROGRESS_TRACK: f32 = 4.0;
-/// Corner radius of a progress bar's track and fill: a pill.
-pub const PROGRESS_RADIUS: Radius = Radius::Full;
 
 /// Widest a tooltip's text grows before it wraps, in points.
 pub const TOOLTIP_WIDTH: f32 = 320.0;
