@@ -53,6 +53,53 @@ fn button_defaults_meet_every_minimum() {
     assert_eq!(b.danger.text, States::new(t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextDisabled)));
 }
 
+/// The icon-button and segmented pairs, written out independently of the families' lists.
+fn item_pairs() -> Vec<(ComponentField, ComponentField)> {
+    let icon = |part, state| ComponentField::IconButton(IconButtonField::Selected { part, state });
+    let segment = |part, state| ComponentField::Segmented(SegmentedField::Segment { part, state });
+    let selected = |part, state| ComponentField::Segmented(SegmentedField::Selected { part, state });
+    let mut p = vec![(segment(ItemPart::Text, State::Rest), ComponentField::Segmented(SegmentedField::Track))];
+    for s in [State::Hover, State::Pressed] {
+        p.push((segment(ItemPart::Text, s), segment(ItemPart::Fill, s)));
+    }
+    for s in [State::Rest, State::Hover, State::Pressed] {
+        p.push((icon(ItemPart::Text, s), icon(ItemPart::Fill, s)));
+        p.push((selected(ItemPart::Text, s), selected(ItemPart::Fill, s)));
+    }
+    p
+}
+
+#[test]
+fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_minimums() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
+            for (fg, bg) in item_pairs() {
+                let ratio = pair_ratio(&r.tokens, fg, Some(bg));
+                assert!(ratio >= min, "{} {a:?}: {} on {} is {ratio:.2}, needs {min}", def.name, fg.path(), bg.path());
+            }
+        }
+    }
+
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let (icon, seg) = (&t.component.icon_button, &t.component.segmented);
+    let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
+    let icons = BySize { sm: t.size.icon.sm, md: t.size.icon.md };
+    assert_eq!((icon.size, icon.icon, seg.height, seg.icon), (control, icons, control, icons));
+    assert_eq!(seg.pad_x, BySize { sm: t.space.pad.control, md: t.space.pad.control + t.space.gap.inline });
+    assert_eq!((seg.inset, seg.label), (2.0, TypeRole::Label));
+    let selected = ItemColors {
+        fill: States::new(t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateDisabledFill)),
+        text: States::new(t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextDisabled)),
+    };
+    assert_eq!((icon.selected, seg.selected), (selected, selected));
+    assert_eq!(seg.track, t.color(T::SurfaceSunken));
+    assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, t.color(T::StateHover), t.color(T::StatePressed), Rgba::TRANSPARENT));
+    assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
+}
+
 #[test]
 fn button_sizes_follow_the_size_preset() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.button;
@@ -66,14 +113,14 @@ fn button_sizes_follow_the_size_preset() {
     assert_eq!((comfy.pad_x.sm, comfy.pad_x.md), (14.0, 16.0));
     assert_eq!((comfy.icon.sm, comfy.icon.md), (14.0, 18.0));
     assert_eq!(comfy.gap, 6.0);
-    assert_eq!((comfy.label, comfy.radius, comfy.border_width, comfy.edge), (TypeRole::Label, Radius::Full.px(), 1.0, Edge::Flat));
+    assert_eq!((comfy.label, comfy.radius, comfy.border_width), (TypeRole::Label, Radius::Full.px(), 1.0));
 }
 
 #[test]
 fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     let paths: BTreeSet<_> = ComponentField::ALL.iter().map(|f| f.path()).collect();
     assert_eq!(paths.len(), ComponentField::ALL.len());
-    assert_eq!(ComponentField::ALL.len(), 2 + 4 * 3 * 4);
+    assert_eq!(ComponentField::ALL.len(), 1 + 4 * 3 * 4 + 2 * 4 + 1 + 2 * 2 * 4);
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
         assert_eq!(TokenRef::from_path(&f.path()), Some(TokenRef::Component(f)));
@@ -87,7 +134,30 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     }
     assert_eq!(ComponentField::from_path("button.primary.fill.hover"), Some(button(ButtonVariant::Primary, ButtonPart::Fill, State::Hover)));
     assert_eq!(ComponentField::from_path("button.radius"), Some(ComponentField::Button(ButtonField::Radius)));
-    for bad in ["button.height", "button.pad_x.md", "button.primary.fill", "button.primary.fill.hover.x", "button", "surface.panel", "nope.radius"] {
+    assert_eq!(
+        ComponentField::from_path("icon_button.selected.text.hover"),
+        Some(ComponentField::IconButton(IconButtonField::Selected { part: ItemPart::Text, state: State::Hover }))
+    );
+    assert_eq!(ComponentField::from_path("segmented.track"), Some(ComponentField::Segmented(SegmentedField::Track)));
+    assert_eq!(
+        ComponentField::from_path("segmented.segment.fill.pressed"),
+        Some(ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed }))
+    );
+    for bad in [
+        "button.height",
+        "button.pad_x.md",
+        "button.primary.fill",
+        "button.primary.fill.hover.x",
+        "button",
+        "button.edge",
+        "surface.panel",
+        "nope.radius",
+        "icon_button.size.sm",
+        "icon_button.selected.border.rest",
+        "segmented.inset",
+        "segmented.track.rest",
+        "segmented.selected.fill",
+    ] {
         assert_eq!(ComponentField::from_path(bad), None, "{bad}");
     }
     assert_eq!(TokenRef::from_path("surface.panel"), Some(TokenRef::Color(T::SurfacePanel)));
@@ -100,12 +170,12 @@ fn every_field_reads_back_and_kinds_are_checked() {
     for &f in ComponentField::ALL {
         let v = c.get(f);
         assert_eq!(v.kind(), f.kind(), "{}", f.path());
-        assert_eq!(c.set(f, v, &r.tokens.color), Ok(()));
+        assert_eq!(c.set(f, v), Ok(()));
     }
     assert_eq!(c, r.tokens.component);
     let radius = ComponentField::Button(ButtonField::Radius);
     assert_eq!(
-        c.set(radius, OverrideValue::Color(Rgba::WHITE), &r.tokens.color),
+        c.set(radius, OverrideValue::Color(Rgba::WHITE)),
         Err(OverrideError::WrongKind { field: radius, expected: FieldKind::Length, found: FieldKind::Color })
     );
 }
@@ -150,30 +220,25 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
 #[test]
 fn shape_overrides_apply_and_misplaced_overrides_are_errors() {
     let radius = ComponentField::Button(ButtonField::Radius);
-    let edge = ComponentField::Button(ButtonField::Edge);
     let fill = button(ButtonVariant::Primary, ButtonPart::Fill, State::Rest);
     let mut def = grey_blue();
     def.components.insert(radius, OverrideValue::Length(4.0));
-    def.components.insert(edge, OverrideValue::Edge(EdgeSeed::Bevel { width: 1.0 }));
     assert_eq!(def.override_errors(), vec![]);
     for mode in [Mode::Light, Mode::Dark] {
         let t = resolve(&def, app(mode, Contrast::High), None).tokens;
-        let b = &t.component.button;
-        assert_eq!(b.radius, 4.0);
-        assert_eq!(b.edge, Edge::Bevel { light: t.color(T::EdgeLight), dark: t.color(T::EdgeDark), width: 1.0 });
+        assert_eq!(t.component.button.radius, 4.0);
         assert_eq!(t.shape.radius.button, Radius::Full.px(), "the semantic shape is unchanged");
-        assert_eq!(t.component.get(edge), OverrideValue::Edge(EdgeSeed::Bevel { width: 1.0 }));
     }
 
     let mut bad = grey_blue();
     bad.components.insert(fill, OverrideValue::Color(Rgba::WHITE));
-    bad.components.insert(radius, OverrideValue::Edge(EdgeSeed::Flat));
+    bad.components.insert(radius, OverrideValue::Elevation(Elevation::level(1)));
     bad.pins.dark = Pins::from_iter([(TokenRef::from(radius), Rgba::WHITE)]);
     assert_eq!(
         bad.override_errors(),
         vec![
             OverrideError::PinNotColor(radius),
-            OverrideError::WrongKind { field: radius, expected: FieldKind::Length, found: FieldKind::Edge },
+            OverrideError::WrongKind { field: radius, expected: FieldKind::Length, found: FieldKind::Elevation },
             OverrideError::ColorNotPerMode(fill),
         ]
     );

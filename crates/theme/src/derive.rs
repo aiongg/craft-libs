@@ -407,13 +407,12 @@ pub(super) fn component_overrides(
     app: Option<&AppId>,
     mode: Mode,
     high: bool,
-    color: &ColorTokens,
 ) -> BTreeMap<ComponentField, PinLayer> {
     let mut layers = BTreeMap::new();
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
     for (layer, t, v) in pins(theme, app, mode, high) {
         if let TokenRef::Component(f) = t
-            && comp.set(f, OverrideValue::Color(v), color).is_ok()
+            && comp.set(f, OverrideValue::Color(v)).is_ok()
         {
             layers.insert(f, layer);
         }
@@ -421,7 +420,7 @@ pub(super) fn component_overrides(
     let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
     for (&f, &v) in theme.components.iter().chain(app_components.into_iter().flatten()) {
         if f.kind() != FieldKind::Color {
-            let _ = comp.set(f, v, color);
+            let _ = comp.set(f, v);
         }
     }
     layers
@@ -476,10 +475,10 @@ fn fix_component_pair(comp: &mut ComponentTokens, color: &ColorTokens, fg: Compo
         return;
     }
     let moved = ensure_contrast(f.with_alpha(255), b, min);
-    let _ = comp.set(fg, OverrideValue::Color(moved), color);
+    let _ = comp.set(fg, OverrideValue::Color(moved));
     if let TokenRef::Component(bg) = bg
         && ratio(moved, b) < min
     {
-        let _ = comp.set(bg, OverrideValue::Color(ensure_contrast(b, moved, min)), color);
+        let _ = comp.set(bg, OverrideValue::Color(ensure_contrast(b, moved, min)));
     }
 }

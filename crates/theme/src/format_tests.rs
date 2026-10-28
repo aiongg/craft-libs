@@ -26,7 +26,7 @@ fn full() -> Value {
         "light": { "surface.panel": "#F0F0F0", "button.primary.fill.rest": "#1062C4" },
         "dark": { "surface.panel": "#535353" },
         "high_contrast": { "light": { "text.normal": "#000000" }, "dark": {}, "x_hc": "kept" },
-        "components": { "button.radius": 4.5, "button.edge": "flat" },
+        "components": { "button.radius": 4.5 },
         "apps": {
             "photocraft": {
                 "light": {}, "dark": { "surface.canvas": "#282828" },
@@ -62,7 +62,7 @@ fn round_trip_keeps_values_and_unknown_keys() {
     assert_eq!(shape.edge, Some(EdgeSeed::Bevel { width: 1.0 }));
     assert_eq!(t.pins.light.get(T::SurfacePanel), Some(hex("#f0f0f0")));
     assert_eq!(t.high_contrast.light.get(T::TextNormal), Some(hex("#000000")));
-    assert_eq!(t.components.len(), 2);
+    assert_eq!(t.components.len(), 1);
     let photo = &t.apps[&AppId::parse("photocraft").unwrap()];
     assert_eq!(photo.pins.dark.get(T::SurfaceCanvas), Some(hex("#282828")));
     assert_eq!(photo.high_contrast.dark.get(T::TextNormal), Some(hex("#ffffff")));
@@ -165,8 +165,8 @@ fn every_field_error_has_its_path() {
             "components.\"button.primary.fill.rest\": colours are set per mode, in light or dark",
         ),
         ("/components/surface.panel", json!("#ffffff"), "components.\"surface.panel\": colours are set per mode, in light or dark"),
-        ("/components/button.radius", json!("flat"), "components.\"button.radius\": expected a Length value, found Edge"),
-        ("/components/button.edge", json!(4), "components.\"button.edge\": expected a Edge value, found Length"),
+        ("/components/button.radius", json!({ "level": 1 }), "components.\"button.radius\": expected a Length value, found Elevation"),
+        ("/components/button.edge", json!("flat"), "components.\"button.edge\": unknown token"),
         ("/components/button.nope", json!(4), "components.\"button.nope\": unknown token"),
         ("/components/button.radius", json!(-1), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
         ("/components/button.radius", json!({ "x": 1 }), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
@@ -182,8 +182,8 @@ fn every_field_error_has_its_path() {
         ("/apps/photocraft/high_contrast/dark/text.normal", json!("x"), "apps.photocraft.high_contrast.dark.\"text.normal\": not a colour"),
         (
             "/apps/photocraft/components/button.radius",
-            json!("flat"),
-            "apps.photocraft.components.\"button.radius\": expected a Length value, found Edge",
+            json!({ "level": 1 }),
+            "apps.photocraft.components.\"button.radius\": expected a Length value, found Elevation",
         ),
     ];
     for (pointer, value, expected) in cases {
@@ -213,14 +213,14 @@ fn errors_are_reported_together() {
     v["id"] = json!("Bad");
     v["seeds"]["neutral"] = json!("grey");
     v["dark"]["surface.panel"] = json!("nope");
-    v["components"]["button.radius"] = json!("flat");
+    v["components"]["button.radius"] = json!({ "level": 1 });
     assert_eq!(
         errors(&v),
         [
             "id: a theme id starts with a-z or 0-9",
             "seeds.neutral: not a colour",
             "dark.\"surface.panel\": not a colour",
-            "components.\"button.radius\": expected a Length value, found Edge",
+            "components.\"button.radius\": expected a Length value, found Elevation",
         ]
     );
 }
@@ -307,11 +307,8 @@ fn write_refuses_what_parse_rejects() {
 
     let mut def = grey_blue();
     let radius = ComponentField::from_path("button.radius").unwrap();
-    let edge = ComponentField::from_path("button.edge").unwrap();
     let fill = ComponentField::from_path("button.primary.fill.rest").unwrap();
-    def.components = [(radius, OverrideValue::Length(f32::NAN)), (edge, OverrideValue::Length(2.0)), (fill, OverrideValue::Color(Rgba::WHITE))]
-        .into_iter()
-        .collect();
+    def.components = [(radius, OverrideValue::Length(f32::NAN)), (fill, OverrideValue::Color(Rgba::WHITE))].into_iter().collect();
     def.pins.light = Pins::from_iter([(TokenRef::Color(T::SurfacePanel), hex("#ffffff80")), (TokenRef::Component(radius), Rgba::WHITE)]);
     def.shape = Some(ShapeSeed {
         radius: Some(RadiusSet { control: -1.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0 }),
@@ -326,7 +323,6 @@ fn write_refuses_what_parse_rejects() {
             "light.\"surface.panel\": surfaces must be opaque",
             "light.\"button.radius\": not a colour field; set it in components",
             "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\"",
-            "components.\"button.edge\": expected a Edge value, found Length",
             "components.\"button.primary.fill.rest\": colours are set per mode, in light or dark",
         ]
     );

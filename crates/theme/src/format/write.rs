@@ -162,7 +162,6 @@ pub(super) fn override_value(v: &OverrideValue) -> Value {
     match *v {
         OverrideValue::Color(c) => c.to_hex().into(),
         OverrideValue::Length(l) => length(l),
-        OverrideValue::Edge(e) => edge(e),
         OverrideValue::Elevation(e) => {
             // A shadow that is no preset level is written as the nearest one by blur.
             let level = (0..Elevation::LEVELS.len())

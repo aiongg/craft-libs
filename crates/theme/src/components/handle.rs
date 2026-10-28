@@ -3,7 +3,6 @@
 //! overrides.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
-use crate::tokens::ColorTokens;
 use crate::values;
 
 /// Handle tokens.
@@ -48,7 +47,7 @@ impl Family for HandleTokens {
         match f {}
     }
 
-    fn set(&mut self, f: HandleField, _: OverrideValue, _: &ColorTokens) {
+    fn set(&mut self, f: HandleField, _: OverrideValue) {
         match f {}
     }
 

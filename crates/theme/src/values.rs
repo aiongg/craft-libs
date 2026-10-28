@@ -365,6 +365,9 @@ pub const BUTTON_PAD_X_MD: f32 = 2.0;
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
 
+/// Between a segmented control's track edge and its segments, in points, at every Size.
+pub const SEGMENTED_INSET: f32 = 2.0;
+
 /// Canvas handle side or diameter in points, the same at every Size: handles sit on the
 /// document, not in the chrome.
 pub const HANDLE_SIZE: f32 = 8.0;

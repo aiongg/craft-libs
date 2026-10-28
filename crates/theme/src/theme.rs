@@ -28,7 +28,7 @@ pub struct ThemeDef {
     pub pins: ModePins,
     /// Fixed colours used only with [`Contrast::High`], applied over `pins`.
     pub high_contrast: ModePins,
-    /// Mode-independent component overrides (radii, edges, shadows). Colours go in the pins.
+    /// Mode-independent component overrides (radii, shadows). Colours go in the pins.
     pub components: BTreeMap<ComponentField, OverrideValue>,
     /// Whether the theme is meant to have low contrast.
     pub contrast_intent: ContrastIntent,

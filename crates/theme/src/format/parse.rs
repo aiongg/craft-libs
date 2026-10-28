@@ -355,7 +355,6 @@ impl Parser {
         }
         let value = match expected {
             FieldKind::Length => OverrideValue::Length(self.length(v)?),
-            FieldKind::Edge => OverrideValue::Edge(self.edge(v)?),
             FieldKind::Elevation => OverrideValue::Elevation(self.elevation(v)?),
             FieldKind::Color => return None,
         };
@@ -406,14 +405,12 @@ impl Parser {
     }
 }
 
-/// The kind a JSON value looks like: a `#` colour, a number or `"full"`, an edge, an elevation.
+/// The kind a JSON value looks like: a `#` colour, a number or `"full"`, an elevation.
 fn value_kind(v: &Value) -> Option<FieldKind> {
     match v {
         Value::Number(_) => Some(FieldKind::Length),
         Value::String(s) if s == "full" => Some(FieldKind::Length),
-        Value::String(s) if s == "flat" => Some(FieldKind::Edge),
         Value::String(s) if Rgba::from_hex(s).is_some() => Some(FieldKind::Color),
-        Value::Object(o) if o.contains_key("bevel") => Some(FieldKind::Edge),
         Value::Object(o) if o.contains_key("level") => Some(FieldKind::Elevation),
         _ => None,
     }
@@ -423,7 +420,6 @@ fn kind_hint(kind: FieldKind) -> &'static str {
     match kind {
         FieldKind::Color => "a colour",
         FieldKind::Length => "a length: a number of 0 or more, or \"full\"",
-        FieldKind::Edge => "\"flat\" or {\"bevel\": {\"width\": n}}",
         FieldKind::Elevation => "{\"level\": 0 to 3}",
     }
 }

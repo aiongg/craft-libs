@@ -1,21 +1,25 @@
 //! Component tokens: one struct per component family, every field concrete, filled from the
 //! semantic tokens. A theme may override a curated set of fields ([`ComponentField`]): colours,
-//! radii, edges and shadows. Sizes, padding, gaps and type roles come from the Size preset only.
+//! radii and shadows. Sizes, padding, gaps and type roles come from the Size preset only. Edges
+//! are not among them: the `Surface` primitive draws every edge from `shape.edge`.
 //!
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
 mod button;
 mod handle;
+mod icon_button;
+mod segmented;
 
 use std::fmt;
 
 use super::color::Rgba;
 use super::scale::Elevation;
-use super::theme::EdgeSeed;
 use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef};
 
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use handle::{HandleField, HandleTokens};
+pub use icon_button::{IconButtonField, IconButtonTokens};
+pub use segmented::{SegmentedField, SegmentedTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -128,6 +132,88 @@ impl<T: Copy> States<T> {
     }
 }
 
+/// One coloured part of an item without an outline: a segment, a toggled icon button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ItemPart {
+    /// The background.
+    Fill,
+    /// Label and icon.
+    Text,
+}
+
+impl ItemPart {
+    /// Every part, in path order.
+    pub const ALL: [ItemPart; 2] = [ItemPart::Fill, ItemPart::Text];
+
+    /// The path segment, e.g. `"fill"`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            ItemPart::Fill => "fill",
+            ItemPart::Text => "text",
+        }
+    }
+}
+
+/// The colours of an item without an outline, per state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ItemColors {
+    /// Background.
+    pub fill: States<Rgba>,
+    /// Label and icon.
+    pub text: States<Rgba>,
+}
+
+impl ItemColors {
+    /// The colours of `part`.
+    pub fn part(&self, part: ItemPart) -> &States<Rgba> {
+        match part {
+            ItemPart::Fill => &self.fill,
+            ItemPart::Text => &self.text,
+        }
+    }
+
+    fn part_mut(&mut self, part: ItemPart) -> &mut States<Rgba> {
+        match part {
+            ItemPart::Fill => &mut self.fill,
+            ItemPart::Text => &mut self.text,
+        }
+    }
+
+    /// The `state.selected` look: `text.on_selected` on `state.selected`, the disabled fill and
+    /// text when disabled.
+    fn selected(c: &ColorTokens) -> ItemColors {
+        let (fill, text) = (c.state.selected, c.text.on_selected);
+        ItemColors { fill: States::new(fill, fill, fill, c.state.disabled_fill), text: States::new(text, text, text, c.text.disabled) }
+    }
+
+    /// The colour of `part` in `state`, to set it.
+    fn get_mut(&mut self, part: ItemPart, state: State) -> &mut Rgba {
+        self.part_mut(part).get_mut(state)
+    }
+}
+
+/// The path of an item colour after its set's name: `fill.rest`.
+fn item_path(part: ItemPart, state: State) -> String {
+    format!("{}.{}", part.name(), state.name())
+}
+
+/// The part and state of an item colour path after its set's name.
+fn item_from_path(path: &str) -> Option<(ItemPart, State)> {
+    let (part, state) = path.split_once('.')?;
+    Some((ItemPart::ALL.into_iter().find(|p| p.name() == part)?, State::from_name(state)?))
+}
+
+/// Every (part, state) of an item colour set, in path order, for a family's `FIELDS`.
+const ITEM_FIELDS: [(ItemPart, State); 8] = {
+    let mut out = [(ItemPart::Fill, State::Rest); 8];
+    let mut i = 0;
+    while i < 8 {
+        out[i] = (ItemPart::ALL[i / 4], State::ALL[i % 4]);
+        i += 1;
+    }
+    out
+};
+
 /// What kind of value an overridable field takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FieldKind {
@@ -135,8 +221,6 @@ pub enum FieldKind {
     Color,
     /// A length in logical pixels.
     Length,
-    /// An edge style.
-    Edge,
     /// A shadow.
     Elevation,
 }
@@ -149,8 +233,6 @@ pub enum OverrideValue {
     /// A length in logical pixels; a radius of 999 gives pills, as
     /// [`Radius::Full`](super::scale::Radius::Full).
     Length(f32),
-    /// An edge style; a bevel takes its colours from `edge.light` and `edge.dark`.
-    Edge(EdgeSeed),
     /// A shadow.
     Elevation(Elevation),
 }
@@ -161,7 +243,6 @@ impl OverrideValue {
         match self {
             OverrideValue::Color(_) => FieldKind::Color,
             OverrideValue::Length(_) => FieldKind::Length,
-            OverrideValue::Edge(_) => FieldKind::Edge,
             OverrideValue::Elevation(_) => FieldKind::Elevation,
         }
     }
@@ -226,7 +307,7 @@ trait Family: Sized {
     /// The value of `f`.
     fn get(&self, f: Self::Field) -> OverrideValue;
     /// Sets `f` to `v`, whose kind the caller has checked.
-    fn set(&mut self, f: Self::Field, v: OverrideValue, color: &ColorTokens);
+    fn set(&mut self, f: Self::Field, v: OverrideValue);
     /// The family's contrast pairs.
     fn pairs() -> Vec<ContrastPair>;
 }
@@ -312,13 +393,13 @@ macro_rules! families {
                 match field { $(ComponentField::$var(f) => self.$name.get(f),)+ }
             }
 
-            /// Sets one field. `color` supplies a bevel's colours (`edge.light`, `edge.dark`).
-            pub fn set(&mut self, field: ComponentField, value: OverrideValue, color: &ColorTokens) -> Result<(), OverrideError> {
+            /// Sets one field.
+            pub fn set(&mut self, field: ComponentField, value: OverrideValue) -> Result<(), OverrideError> {
                 let (expected, found) = (field.kind(), value.kind());
                 if expected != found {
                     return Err(OverrideError::WrongKind { field, expected, found });
                 }
-                match field { $(ComponentField::$var(f) => self.$name.set(f, value, color),)+ }
+                match field { $(ComponentField::$var(f) => self.$name.set(f, value),)+ }
                 Ok(())
             }
 
@@ -347,4 +428,8 @@ families! {
     button: ButtonTokens => Button(ButtonField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
+    /// Square icon-only buttons.
+    icon_button: IconButtonTokens => IconButton(IconButtonField);
+    /// Segmented controls: one of a few options on a track.
+    segmented: SegmentedTokens => Segmented(SegmentedField);
 }

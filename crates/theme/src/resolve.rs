@@ -78,13 +78,13 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     let mut component = ComponentTokens::defaults(&Semantic { color: &color, shape: &shape, space: &preset.space, size: &preset.size });
     let defaults = component.clone();
     let high = appearance.contrast == Contrast::High;
-    let component_pins = derive::component_overrides(&mut component, theme, app, mode, high, &color);
+    let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &defaults, &color, high);
     warnings.extend(component_warnings);
 
     let before = &color_steps.before_pass;
     let mut component_before = ComponentTokens::defaults(&Semantic { color: before, shape: &shape, space: &preset.space, size: &preset.size });
-    derive::component_overrides(&mut component_before, theme, app, mode, high, before);
+    derive::component_overrides(&mut component_before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);
 
     let tokens = Tokens {

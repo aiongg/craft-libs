@@ -110,7 +110,6 @@ impl Check {
                     _ if expected == FieldKind::Color => c.fail(ErrorKind::ColorNotPerMode),
                     _ if expected != found => c.fail(ErrorKind::WrongKind { expected, found }),
                     OverrideValue::Length(l) => c.length(l),
-                    OverrideValue::Edge(e) => c.edge(e),
                     OverrideValue::Color(_) | OverrideValue::Elevation(_) => {}
                 }
             });

@@ -3,7 +3,7 @@
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
-use crate::tokens::{ColorTokens, Edge, TokenRef, TypeRole};
+use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
 
 /// A button's emphasis.
@@ -106,8 +106,6 @@ pub struct ButtonTokens {
     pub radius: f32,
     /// Outline width in logical pixels.
     pub border_width: f32,
-    /// Edge style.
-    pub edge: Edge,
     /// Primary colours.
     pub primary: ButtonColors,
     /// Secondary colours.
@@ -139,13 +137,11 @@ impl ButtonTokens {
     }
 }
 
-/// An overridable button field. Paths: `radius`, `edge`, `<variant>.<part>.<state>`.
+/// An overridable button field. Paths: `radius`, `<variant>.<part>.<state>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ButtonField {
     /// `button.radius`
     Radius,
-    /// `button.edge`
-    Edge,
     /// `button.<variant>.<part>.<state>`, e.g. `button.primary.fill.hover`.
     Color {
         /// The variant.
@@ -157,12 +153,11 @@ pub enum ButtonField {
     },
 }
 
-const FIELD_COUNT: usize = 2 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
+const FIELD_COUNT: usize = 1 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
 
 const FIELDS: [ButtonField; FIELD_COUNT] = {
     let mut out = [ButtonField::Radius; FIELD_COUNT];
-    out[1] = ButtonField::Edge;
-    let mut i = 2;
+    let mut i = 1;
     let (mut v, mut p, mut s) = (0, 0, 0);
     while v < ButtonVariant::ALL.len() {
         while p < ButtonPart::ALL.len() {
@@ -199,7 +194,6 @@ impl Family for ButtonTokens {
             label: TypeRole::Label,
             radius: s.shape.radius.button,
             border_width: values::BUTTON_BORDER_WIDTH,
-            edge: s.shape.edge,
             primary: ButtonColors {
                 fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.state.disabled_fill),
                 border: none,
@@ -223,16 +217,13 @@ impl Family for ButtonTokens {
     fn path(f: ButtonField) -> String {
         match f {
             ButtonField::Radius => "radius".to_owned(),
-            ButtonField::Edge => "edge".to_owned(),
             ButtonField::Color { variant, part, state } => format!("{}.{}.{}", variant.name(), part.name(), state.name()),
         }
     }
 
     fn from_path(path: &str) -> Option<ButtonField> {
-        match path {
-            "radius" => return Some(ButtonField::Radius),
-            "edge" => return Some(ButtonField::Edge),
-            _ => {}
+        if path == "radius" {
+            return Some(ButtonField::Radius);
         }
         let mut segments = path.split('.');
         let (variant, part, state) = (segments.next()?, segments.next()?, segments.next()?);
@@ -249,7 +240,6 @@ impl Family for ButtonTokens {
     fn kind(f: ButtonField) -> FieldKind {
         match f {
             ButtonField::Radius => FieldKind::Length,
-            ButtonField::Edge => FieldKind::Edge,
             ButtonField::Color { .. } => FieldKind::Color,
         }
     }
@@ -257,15 +247,13 @@ impl Family for ButtonTokens {
     fn get(&self, f: ButtonField) -> OverrideValue {
         match f {
             ButtonField::Radius => OverrideValue::Length(self.radius),
-            ButtonField::Edge => OverrideValue::Edge(self.edge.seed()),
             ButtonField::Color { variant, part, state } => OverrideValue::Color(self.colors(variant).part(part).get(state)),
         }
     }
 
-    fn set(&mut self, f: ButtonField, v: OverrideValue, color: &ColorTokens) {
+    fn set(&mut self, f: ButtonField, v: OverrideValue) {
         match (f, v) {
             (ButtonField::Radius, OverrideValue::Length(r)) => self.radius = r,
-            (ButtonField::Edge, OverrideValue::Edge(e)) => self.edge = e.resolve(color),
             (ButtonField::Color { variant, part, state }, OverrideValue::Color(c)) => *self.colors_mut(variant).part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}
