@@ -9,9 +9,14 @@
 mod fixtures;
 
 use std::path::PathBuf;
+use std::sync::{Arc, LazyLock};
 
-use egui::{Color32, Context, Event, FullOutput, Modifiers, PointerButton, Pos2, RawInput, Rect, Response, TextureId, Ui};
-use egui_kittest::{TestRenderer, wgpu::WgpuTestRenderer};
+use eframe::egui_wgpu::{RenderState, Renderer, RendererOptions};
+use egui::{Color32, Context, Event, FullOutput, Modifiers, PointerButton, Pos2, RawInput, Rect, Response, TextureId, Ui, mutex::RwLock};
+use egui_kittest::{
+    TestRenderer,
+    wgpu::{WgpuTestRenderer, create_render_state, default_wgpu_setup},
+};
 use fixtures::{CANVAS, Case, Component, Mutation, State, Theme};
 use image::{Rgba, RgbaImage};
 
@@ -26,6 +31,20 @@ struct Mesh {
 struct Capture {
     image: RgbaImage,
     meshes: Option<Vec<Mesh>>,
+}
+
+/// A renderer of its own on the binary's one wgpu device.
+///
+/// The tests run on parallel threads. To name an object, Vulkan-Loader before 1.4.350 walks every
+/// instance's driver and device lists while other threads change those lists under a different
+/// lock, so creating or destroying an instance or device beside another test's rendering crashed
+/// the binary (KhronosGroup/Vulkan-Loader#1866). The device is therefore created once and never
+/// dropped. Each test still gets its own egui renderer, because every capture's context reuses
+/// the same managed texture ids.
+fn renderer() -> WgpuTestRenderer {
+    static DEVICE: LazyLock<RenderState> = LazyLock::new(|| create_render_state(default_wgpu_setup(), RendererOptions::PREDICTABLE));
+    let renderer = Renderer::new(&DEVICE.device, DEVICE.target_format, RendererOptions::PREDICTABLE);
+    WgpuTestRenderer::from_render_state(RenderState { renderer: Arc::new(RwLock::new(renderer)), ..DEVICE.clone() })
 }
 
 fn context(theme: Theme, scale: f32) -> Context {
@@ -184,7 +203,7 @@ impl Artifacts {
 
 #[test]
 fn rendered_controls_match_independent_reference_pixels_and_meshes() {
-    let mut renderer = WgpuTestRenderer::new();
+    let mut renderer = renderer();
     let mut artifacts = Artifacts::new("controls");
     let mut count = 0;
     for component in Component::ALL {
@@ -213,7 +232,7 @@ fn rendered_controls_match_independent_reference_pixels_and_meshes() {
 
 #[test]
 fn visual_comparisons_detect_color_spacing_and_stroke_mutations() {
-    let mut renderer = WgpuTestRenderer::new();
+    let mut renderer = renderer();
     let mut artifacts = Artifacts::new("negative-controls");
     let mut count = 0;
     for theme in [Theme::Light, Theme::Dark] {
@@ -242,7 +261,7 @@ fn toolbar_fitting_matches_literal_group_and_overflow_positions() {
     use craft_ui::layout::fit_toolbar;
     use egui::{Align, Layout, Stroke, StrokeKind, UiBuilder, pos2, vec2};
 
-    let mut renderer = WgpuTestRenderer::new();
+    let mut renderer = renderer();
     let mut artifacts = Artifacts::new("toolbar");
     let mut count = 0;
     // Independently specified rectangles: three natural groups, one group + More, More only.
@@ -297,7 +316,7 @@ fn widget_palette_renders_all_five_states_with_existing_borders_and_expansion() 
     use craft_ui::theme::WidgetPalette;
     use egui::{CornerRadius, Stroke, StrokeKind, pos2, vec2};
 
-    let mut renderer = WgpuTestRenderer::new();
+    let mut renderer = renderer();
     let mut artifacts = Artifacts::new("widget-palette");
     for theme in [Theme::Light, Theme::Dark] {
         for scale in [1.0, 1.5, 2.0] {
