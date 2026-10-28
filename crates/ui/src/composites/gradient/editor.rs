@@ -2,6 +2,7 @@
 //! lifecycle.
 
 use std::any::Any;
+use std::cell::Cell;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -18,6 +19,7 @@ use super::ramp::{GradientRamp, GradientRampStyle};
 use super::stops::{self, Sampler, StopRules, default_sampler};
 use super::value::{GradientStops, StopRow, StopRows};
 use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::composites::color::ColorPicker;
 use crate::composites::curve_editor::{fill, take_exact};
 use crate::controls::slider::PRESS_WAIT;
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
@@ -242,11 +244,17 @@ type Edits = parts::Edits<GradientStops>;
 /// colour stop whose colour the host is asked to edit (a double-click on it, Enter or Space while
 /// it is selected, or a click on the Color well; never with
 /// [`color_popover`](GradientEditor::color_popover)), and a payload dropped on the bar
-/// ([`GradientEditor::drop_target`]).
+/// ([`GradientEditor::drop_target`]). With the colour popover, its picker's eyedropper request
+/// and id, as [`ColorPopoverResponse`](crate::composites::ColorPopoverResponse) reports them.
 pub struct GradientEditorResponse<T = ()> {
     pub edit: EditResponse<GradientStops>,
     pub color_requested: Option<usize>,
     pub dropped: Option<(StopDrop, Arc<T>)>,
+    /// The popover's eyedropper button was pressed; the sampled colour goes to
+    /// [`ColorPicker::sampled`] with [`picker_id`](Self::picker_id).
+    pub eyedropper_requested: bool,
+    /// The id of the picker in the colour popover while it is shown.
+    pub picker_id: Option<Id>,
 }
 
 /// Edits a gradient's stops through the edit lifecycle: `GradientEditor::new("fill", "Gradient",
@@ -318,9 +326,13 @@ pub struct GradientEditor<'a, T = ()> {
     enabled: bool,
     fields: bool,
     color_popover: bool,
+    /// The host's setup of the popover's picker, taken when the popover shows.
+    picker: Cell<Option<PickerSetup<'a>>>,
     drop_target: bool,
     payload: PhantomData<fn() -> T>,
 }
+
+type PickerSetup<'a> = Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a>;
 
 impl<'a> GradientEditor<'a> {
     /// An editor named `label` ("Gradient") of the host's `stops`; `id_salt` keeps its selection
@@ -340,6 +352,7 @@ impl<'a> GradientEditor<'a> {
             enabled: true,
             fields: true,
             color_popover: false,
+            picker: Cell::new(None),
             drop_target: false,
             payload: PhantomData,
         }
@@ -453,12 +466,34 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         self
     }
 
+    /// Sets up the colour popover's picker as [`ColorPopover::picker`](crate::composites::ColorPopover::picker)
+    /// does (texts, constraint, models, eyedropper): `setup` gets the Compact picker with alpha
+    /// under [`StopRows::Combined`].
+    pub fn color_picker(self, setup: impl FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a) -> Self {
+        self.picker.set(Some(Box::new(setup)));
+        self
+    }
+
     /// Takes drops of `P` payloads (egui's drag and drop): while one hovers, a line marks the
     /// place; the release is reported in [`GradientEditorResponse::dropped`] and the host
     /// applies it.
     pub fn drop_target<P: Any + Send + Sync>(self) -> GradientEditor<'a, P> {
         let Self {
-            id_salt, label, stops, numbers, rules, midpoints, sampler, location_decimals, policy, labels, enabled, fields, color_popover, ..
+            id_salt,
+            label,
+            stops,
+            numbers,
+            rules,
+            midpoints,
+            sampler,
+            location_decimals,
+            policy,
+            labels,
+            enabled,
+            fields,
+            color_popover,
+            picker,
+            ..
         } = self;
         GradientEditor {
             id_salt,
@@ -474,6 +509,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             enabled,
             fields,
             color_popover,
+            picker,
             drop_target: true,
             payload: PhantomData,
         }
@@ -501,10 +537,11 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         edits.push(&bar.edit, |stops| stops);
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
+        let mut picker = fields::PickerReport::default();
         if self.fields {
-            requested = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
+            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
         } else if self.color_popover {
-            self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
+            picker = self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
         }
         for () in edits.clicks(ui.ctx(), &mut state.parts, waits) {
             if let Some(m) = state.selected.filter(|m| m.is_stop())
@@ -524,7 +561,13 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         }
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
         let color_requested = requested.filter(|_| !self.color_popover);
-        GradientEditorResponse { edit: EditResponse::new(bar.edit.response, event), color_requested, dropped: bar.dropped }
+        GradientEditorResponse {
+            edit: EditResponse::new(bar.edit.response, event),
+            color_requested,
+            dropped: bar.dropped,
+            eyedropper_requested: picker.eyedropper_requested,
+            picker_id: picker.picker_id,
+        }
     }
 
     /// The bar: its interaction, look and AccessKit nodes, as a part of the editor's edit.
@@ -1040,7 +1083,7 @@ impl BarEdit<'_> {
             StopRows::Split if pos.y < self.geo.ramp.center().y => StopRow::Opacity,
             _ => StopRow::Color,
         };
-        if let Some((stops, i)) = stops::add(stops, row, self.geo.location(pos.x), self.sampler, self.rules) {
+        if let Some((stops, i)) = stops::add(stops, row, stops::round_location(self.geo.location(pos.x)), self.sampler, self.rules) {
             self.state.selected = Some(StopRef::stop(row, i));
             self.gesture.set(stops);
         }
@@ -1063,13 +1106,13 @@ impl BarEdit<'_> {
                 }
             }
             m => {
-                let (row, i) = (m.row(), m.index());
+                let (row, i, at) = (m.row(), m.index(), stops::round_location(to));
                 // At the row's minimum a stop dragged off the bar stays and moves.
                 let torn = (off && !copy).then(|| stops::remove(base, row, i, self.rules)).flatten().map(|(s, _)| (s, None));
                 let edited = torn.or_else(|| match (moved, copy) {
                     (false, _) => None,
-                    (true, true) => stops::copy(base, row, i, to, self.rules).map(|(s, j)| (s, Some(StopRef::stop(row, j)))),
-                    (true, false) => stops::move_to(base, row, i, to, self.rules).map(|(s, j)| (s, Some(StopRef::stop(row, j)))),
+                    (true, true) => stops::copy(base, row, i, at, self.rules).map(|(s, j)| (s, Some(StopRef::stop(row, j)))),
+                    (true, false) => stops::move_to(base, row, i, at, self.rules).map(|(s, j)| (s, Some(StopRef::stop(row, j)))),
                 });
                 edited.unwrap_or_else(|| (base.clone(), Some(marker)))
             }

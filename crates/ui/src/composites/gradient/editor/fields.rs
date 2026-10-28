@@ -20,6 +20,13 @@ use crate::theme::{Tokens, TokensOf};
 
 const FIELDS: &str = "craft_ui::gradient_editor::fields";
 
+/// What the colour popover's picker reported in a pass.
+#[derive(Default)]
+pub(super) struct PickerReport {
+    pub eyedropper_requested: bool,
+    pub picker_id: Option<Id>,
+}
+
 /// What the number fields of a pass share.
 struct Look {
     policy: EditPolicy,
@@ -31,8 +38,8 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// The selected marker's fields under the bar, drawn from `stops` (the stops the bar leaves)
     /// and pushed into `edits` after the bar (PhotoCraft's rows): a colour stop's Color well, its
     /// Opacity under [`StopRows::Combined`], an opacity stop's Opacity; a stop's Location and the
-    /// Delete button; a midpoint's Midpoint. Returns the colour request: the bar's `requested`
-    /// or a click on the well.
+    /// Delete button; a midpoint's Midpoint. Returns the colour request (the bar's `requested`
+    /// or a click on the well) and what the popover's picker reported.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn fields_row(
         &self,
@@ -43,7 +50,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         edits: &mut Edits,
         enabled: bool,
         requested: Option<usize>,
-    ) -> Option<usize> {
+    ) -> (Option<usize>, PickerReport) {
         let builder = UiBuilder::new().scope_id(id.with(FIELDS)).layout(direction::column(ui));
         ui.scope_builder(builder, |ui| {
             let unit = Unit::new(&self.labels.percent);
@@ -57,11 +64,12 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 m => m.index() < stops.len(m.row()),
             });
             let mut requested = requested;
+            let mut picker = PickerReport::default();
             let mut well = false;
             match selected {
                 Some(StopRef::Color(i)) => {
                     well = true;
-                    requested = self.well(ui, stops, i, state, edits, enabled, requested);
+                    (requested, picker) = self.well(ui, stops, i, state, edits, enabled, requested);
                     if self.rules.rows == StopRows::Combined {
                         let color = stops.color[i].color;
                         let field = self.number(ui, ("opacity", StopRow::Color), &self.labels.opacity, percent(color.a), 0.0..=100.0, 0, &look);
@@ -99,14 +107,14 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             if !well && let Some(anchor) = state.popover.take() {
                 popover::close(ui.ctx(), anchor);
             }
-            requested
+            (requested, picker)
         })
         .inner
     }
 
     /// The Color well of colour stop `i`: a click asks for its colour, or opens the colour
     /// popover with [`color_popover`](GradientEditor::color_popover), which a request from the
-    /// bar opens too. Returns the colour request.
+    /// bar opens too. Returns the colour request and what the popover's picker reported.
     #[allow(clippy::too_many_arguments)]
     fn well(
         &self,
@@ -117,10 +125,11 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         edits: &mut Edits,
         enabled: bool,
         requested: Option<usize>,
-    ) -> Option<usize> {
+    ) -> (Option<usize>, PickerReport) {
         let side = Swatch::style(&Tokens::of(ui), ControlSize::Md).side;
         let color = self.stop_color(stops, i);
         let mut out = requested;
+        let mut picker = PickerReport::default();
         PropertyRow::word(&self.labels.color).show(ui, |ui, _| {
             at_start(ui, side, |ui| {
                 let well = ui.add(Swatch::new("color", self.labels.color.as_str(), Rgba::from(color)).enabled(enabled));
@@ -131,10 +140,12 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                     return well;
                 }
                 let toggled = well.clicked() || (requested.is_some() && state.popover != Some(well.id));
-                self.popup(ui, well, toggled, stops, i, state, edits, enabled).response
+                let shown;
+                (shown, picker) = self.popup(ui, well, toggled, stops, i, state, edits, enabled);
+                shown
             })
         });
-        out
+        (out, picker)
     }
 
     /// The colour popover on the bar, for an editor without the fields row
@@ -150,23 +161,26 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         edits: &mut Edits,
         enabled: bool,
         requested: Option<usize>,
-    ) {
+    ) -> PickerReport {
         match state.selected {
             Some(StopRef::Color(i)) if i < stops.color.len() => {
                 let toggled = requested.is_some() && state.popover != Some(bar.id);
                 // The edit is pushed; the response is the bar's own.
-                let _ = self.popup(ui, bar, toggled, stops, i, state, edits, enabled);
+                self.popup(ui, bar, toggled, stops, i, state, edits, enabled).1
             }
             _ => {
                 if let Some(anchor) = state.popover.take() {
                     popover::close(ui.ctx(), anchor);
                 }
+                PickerReport::default()
             }
         }
     }
 
-    /// The colour popover of colour stop `i` under `anchor`, which `toggled` opens or closes. Its
-    /// picker's edits are parts of the editor's edit, mapped to the stop.
+    /// The colour popover of colour stop `i` under `anchor`, which `toggled` opens or closes, with
+    /// the host's [`color_picker`](GradientEditor::color_picker) setup. Its picker is a part of the
+    /// editor's edit, mapped to the stop. Returns the anchor's response and what the picker
+    /// reported.
     #[allow(clippy::too_many_arguments)]
     fn popup(
         &self,
@@ -178,21 +192,31 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         state: &mut State,
         edits: &mut Edits,
         enabled: bool,
-    ) -> EditResponse<PickedColor> {
+    ) -> (Response, PickerReport) {
         let rows = self.rules.rows;
         let combined = rows == StopRows::Combined;
-        let setup: Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a>> = Box::new(move |picker| picker.alpha(combined));
+        let host = self.picker.take();
+        let setup: Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a> = Box::new(move |picker| {
+            let picker = picker.alpha(combined);
+            match host {
+                Some(host) => host(picker),
+                None => picker,
+            }
+        });
         let anchor_id = anchor.id;
         let shown = popover::popup(ui, anchor, toggled, &self.labels.color, self.stop_color(stops, i), self.numbers, enabled, Some(setup));
         state.popover = shown.open.then_some(anchor_id);
-        edits.push(&shown.edit, |picked| {
-            let mut out = stops.clone();
-            let stop = &mut out.color[i].color;
-            // A split gradient's colour stops keep their own alpha, which nothing shows.
-            *stop = if combined { picked.color } else { Srgba { a: stop.a, ..picked.color } };
-            out
-        });
-        shown.edit
+        // The picker is the part, not the anchor: when it isn't drawn its gesture is over.
+        if let Some(picker) = shown.picker_id {
+            edits.push_as(ui.ctx(), picker, shown.edit.event.as_ref(), |picked: PickedColor| {
+                let mut out = stops.clone();
+                let stop = &mut out.color[i].color;
+                // A split gradient's colour stops keep their own alpha, which nothing shows.
+                *stop = if combined { picked.color } else { Srgba { a: stop.a, ..picked.color } };
+                out
+            });
+        }
+        (shown.edit.response, PickerReport { eyedropper_requested: shown.eyedropper_requested, picker_id: shown.picker_id })
     }
 
     /// Colour stop `i`'s colour as the well shows it: opaque in a split gradient.

@@ -2,8 +2,9 @@
 //! share. Every edit returns the new stops and the index of the stop it touched, so a selection
 //! follows a stop across reorders; `None` when the rules refuse the edit.
 //!
-//! Stops keep their own midpoints and tags when they move. Pointer locations are rounded with
-//! [`round_location`].
+//! Stops keep their own midpoints and tags when they move. Locations are clamped to 0..=1; the
+//! bar rounds pointer locations with [`round_location`] before it gives them to the rules, so a
+//! typed location keeps its decimals.
 
 use std::ops::RangeInclusive;
 
@@ -34,9 +35,15 @@ impl Default for StopRules {
     }
 }
 
-/// `location` clamped to 0..=1 and rounded to 0.001, as pointer locations are.
+/// `location` clamped to 0..=1 and rounded to 0.001, as pointer locations are (PhotoCraft's
+/// Gradient Map).
 pub fn round_location(location: f32) -> f32 {
-    if location.is_finite() { (location.clamp(0.0, 1.0) * 1000.0).round() / 1000.0 } else { 0.0 }
+    (clamp_location(location) * 1000.0).round() / 1000.0
+}
+
+/// `location` clamped to 0..=1; 0 when it isn't a number.
+fn clamp_location(location: f32) -> f32 {
+    if location.is_finite() { location.clamp(0.0, 1.0) } else { 0.0 }
 }
 
 /// What the two stop types have in common for the rules.
@@ -113,7 +120,7 @@ pub fn add(stops: &GradientStops, row: StopRow, location: f32, sampler: &Sampler
     if !has_row(rules, row) || stops.len(row) >= rules.max {
         return None;
     }
-    let location = round_location(location);
+    let location = clamp_location(location);
     let sampled = sampler(stops, location);
     let mut out = explicit(stops, row);
     let at = match row {
@@ -126,13 +133,14 @@ pub fn add(stops: &GradientStops, row: StopRow, location: f32, sampler: &Sampler
     Some((out, at))
 }
 
-/// Moves stop `i` of `row` to `location`. It may pass its neighbours; among stops at the same
-/// location it comes last. Returns its new index.
+/// Moves stop `i` of `row` to `location`. It may pass its neighbours; it keeps its place among
+/// stops at its new location, on the side it came from, so a stop that doesn't move or only
+/// reaches a neighbour's location never swaps with it. Returns its new index.
 pub fn move_to(stops: &GradientStops, row: StopRow, i: usize, location: f32, rules: &StopRules) -> Option<(GradientStops, usize)> {
     if !has_row(rules, row) || i >= stops.len(row) {
         return None;
     }
-    let location = round_location(location);
+    let location = clamp_location(location);
     let mut out = explicit(stops, row);
     let at = match row {
         StopRow::Color => relocate(&mut out.color, i, location),
@@ -143,8 +151,16 @@ pub fn move_to(stops: &GradientStops, row: StopRow, i: usize, location: f32, rul
 
 fn relocate<T: Stop>(list: &mut Vec<T>, i: usize, location: f32) -> usize {
     let mut stop = list.remove(i);
+    let from = stop.location();
     stop.set_location(location);
-    place(list, stop)
+    // Moving up it stops before the stops at its new location, moving down after them.
+    let at = match location > from {
+        true => list.partition_point(|s| s.location() < location),
+        false if location == from => i,
+        false => list.partition_point(|s| s.location() <= location),
+    };
+    list.insert(at, stop);
+    at
 }
 
 /// Removes stop `i` of `row`, never below `rules.min`. Returns the index of the stop that takes
@@ -168,7 +184,7 @@ pub fn copy(stops: &GradientStops, row: StopRow, i: usize, location: f32, rules:
     if !has_row(rules, row) || i >= stops.len(row) || stops.len(row) >= rules.max {
         return None;
     }
-    let location = round_location(location);
+    let location = clamp_location(location);
     let mut out = explicit(stops, row);
     let at = match row {
         StopRow::Color => insert(&mut out.color, ColorStop { location, ..stops.color[i] }),
