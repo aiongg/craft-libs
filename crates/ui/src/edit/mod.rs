@@ -179,6 +179,9 @@ pub enum CancelReason {
     /// The control lost keyboard focus, for a control that cancels on it
     /// ([`Gesture::cancel_on_focus_loss`]).
     FocusLost,
+    /// The control's popup closed without a choice: a click outside it, a press on the control
+    /// while it was open, or a screen reader's click on the open control.
+    Dismissed,
     /// The host switched documents ([`cancel_all`]).
     DocumentSwitched,
     /// The user asked to undo during the gesture ([`cancel_all`]).
