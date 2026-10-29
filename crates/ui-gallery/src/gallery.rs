@@ -1,6 +1,10 @@
 //! The gallery app.
 #![allow(deprecated, reason = "the gallery's own pickers use craft_ui::ComboBox until they move to craft_ui::controls::Select")]
-
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
+)]
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -10,9 +14,9 @@ use craft_ui::direction;
 use craft_ui::icons::{self, IconSet};
 use craft_ui::inspect;
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
-use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, scope};
+use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::containers::menu::{MenuButton, MenuConfig};
-use egui::{CentralPanel, Frame, Margin, Panel, PopupCloseBehavior, ScrollArea, Ui};
+use egui::{CentralPanel, Frame, Panel, PopupCloseBehavior, ScrollArea, Ui};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -166,7 +170,7 @@ impl Gallery {
         } else {
             direction::end_panel(&ctx, "gallery.args").default_size(240.0).show(ui, |ui| self.args_panel(ui));
         }
-        let frame = Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(Margin::same(12));
+        let frame = Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(margin(tokens.space.pad.panel));
         CentralPanel::default().frame(frame).show(ui, |ui| self.centre(ui, inspecting));
     }
 
@@ -437,7 +441,7 @@ fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, 
 fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);
     let fill = tokens.color.surface.background.to_egui();
-    let framed = Frame::new().fill(fill).inner_margin(Margin::same(16)).show(ui, |ui| {
+    let framed = Frame::new().fill(fill).inner_margin(margin(tokens.space.pad.dialog)).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
         ui.push_id(story.id, |ui| {
             (story.show)(ui, args);
@@ -498,6 +502,6 @@ fn compare_grid(
                 });
             }
         });
-        ui.add_space(12.0);
+        ui.add_space(Tokens::of(ui).space.gap.section);
     }
 }

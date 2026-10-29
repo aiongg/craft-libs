@@ -7,6 +7,12 @@
 //! desktop the UI face picker also offers the OS's own interface face ("System",
 //! [`craft_ui::fonts::poll_system_ui_face`]) once it resolves.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
+)]
+
 use std::sync::Arc;
 use std::task::Poll;
 
@@ -15,7 +21,7 @@ use craft_ui::fonts::{
     Family, I18nScripts, SEMIBOLD, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemFonts, SystemUiFace, UiFonts, poll_system_ui_face,
 };
 use craft_ui::story::{Args, Level, Story};
-use craft_ui::theme::{FontFamilies, ToEgui, Tokens, TokensOf, scope, style_for, style_format, tabular};
+use craft_ui::theme::{FontFamilies, ToEgui, Tokens, TokensOf, margin, scope, style_for, style_format, tabular};
 use egui::text::LayoutJob;
 use egui::{Color32, FontData, FontFamily, RichText, Ui};
 
@@ -189,7 +195,7 @@ fn column(ui: &mut Ui, face: &str, mono: bool, tnum: bool) {
         _ => face.to_owned(),
     };
     ui.label(RichText::new(title).font(tokens.font(TypeRole::Title)));
-    ui.add_space(4.0);
+    ui.add_space(tokens.space.gap.inline);
     let roles = [
         (TypeRole::Caption, "Caption"),
         (TypeRole::Label, "Label"),
@@ -210,10 +216,10 @@ fn column(ui: &mut Ui, face: &str, mono: bool, tnum: bool) {
             sample_line(ui, sample, format);
         }
     }
-    ui.add_space(8.0);
+    ui.add_space(Tokens::of(ui).space.gap.stack);
     digits(ui, &families, mono);
     for size in [Size::Compact, Size::Comfortable] {
-        ui.add_space(8.0);
+        ui.add_space(Tokens::of(ui).space.gap.stack);
         scope(ui, |o| o.size = Some(size), |ui| inspector(ui, &families, size));
     }
 }
@@ -243,9 +249,9 @@ fn inspector(ui: &mut Ui, families: &FontFamilies, size: Size) {
     ui.label(RichText::new(format!("Inspector, {size:?}")).font(tokens.font(TypeRole::Caption)).color(tokens.color.text.muted.to_egui()));
     let frame = egui::Frame::new()
         .fill(tokens.color.surface.panel.to_egui())
-        .stroke(egui::Stroke::new(1.0, tokens.color.line.border.to_egui()))
+        .stroke(egui::Stroke::new(1.0, tokens.color.line.border.to_egui())) // design: allow(no stroke-width token; hairline frame of the specimen panel)
         .corner_radius(tokens.radius.panel)
-        .inner_margin(egui::Margin::same(8));
+        .inner_margin(margin(tokens.space.pad.panel));
     frame.show(ui, |ui| {
         ui.set_style(style);
         ui.heading("Transform");

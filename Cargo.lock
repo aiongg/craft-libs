@@ -822,6 +822,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-design-lint"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "serde",
+ "serde_json",
+ "syn 2.0.119",
+ "toml",
+ "toml_edit",
+]
+
+[[package]]
 name = "craft-dialogs"
 version = "0.1.0"
 dependencies = [

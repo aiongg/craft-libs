@@ -3,6 +3,12 @@
 //!
 //! The page draws with the gallery's own tokens; the swatches show the explained values.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
+)]
+
 use std::sync::Arc;
 
 use craft_theme::{
@@ -12,7 +18,9 @@ use craft_ui::direction;
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf};
 use egui::{CentralPanel, Grid, RichText, ScrollArea, Sense, Stroke, StrokeKind, Ui, vec2};
 
+// design: allow(a colour chip is a specimen of the colour, not a control; no size token fits)
 const SWATCH: egui::Vec2 = vec2(28.0, 16.0);
+// design: allow(a colour chip is a specimen of the colour, not a control; no size token fits)
 const RAMP_SWATCH: egui::Vec2 = vec2(22.0, 22.0);
 
 /// The browser's filters, selection and last explanation.
@@ -45,7 +53,7 @@ impl Browser {
             ui.separator();
             ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
                 self.color_table(ui, &explained);
-                ui.add_space(16.0);
+                ui.add_space(Tokens::of(ui).space.gap.section);
                 self.component_table(ui, &explained);
             });
         });
@@ -270,7 +278,7 @@ fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) 
                 let rect = swatch(ui, c, RAMP_SWATCH);
                 let label = RichText::new(step.to_string()).small();
                 if step == used || toward == Some(step) {
-                    ui.painter().rect_stroke(rect.expand(2.0), 3.0, Stroke::new(2.0, mark), StrokeKind::Outside);
+                    ui.painter().rect_stroke(rect.expand(2.0), 3.0, Stroke::new(2.0, mark), StrokeKind::Outside); // design: allow(no stroke-width token; the ring marks the used ramp step)
                     ui.label(label.strong());
                 } else {
                     ui.label(label);
@@ -284,7 +292,7 @@ fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) 
 fn swatch(ui: &mut Ui, color: Rgba, size: egui::Vec2) -> egui::Rect {
     let border = Tokens::of(ui).color.line.border.to_egui();
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    ui.painter().rect(rect, 2.0, color.to_egui(), Stroke::new(1.0, border), StrokeKind::Inside);
+    ui.painter().rect(rect, 2.0, color.to_egui(), Stroke::new(1.0, border), StrokeKind::Inside); // design: allow(no stroke-width token; hairline around a colour chip)
     rect
 }
 

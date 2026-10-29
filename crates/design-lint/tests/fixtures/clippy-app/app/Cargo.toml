@@ -1,0 +1,12 @@
+[package]
+name = "clippy-app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+egui = { version = "0.37", default-features = false }
+
+[lints.clippy]
+disallowed_methods = "warn"
+disallowed_types = "warn"
