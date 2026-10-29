@@ -400,8 +400,13 @@ pub fn fixed_size_pixels(a: Point, b: Point, size: (f64, f64)) -> Rect {
     Rect::new(x0, y0, x0 + w, y0 + h)
 }
 
-/// A square marquee's pixel rectangle `r` (its corners snapped outwards to whole pixels) with
-/// equal sides. Snapping each axis on its own made one side a pixel longer than the other when
+/// The pixel rectangle a marquee between two corners selects: both edges snapped outwards to
+/// whole pixels, so every pixel the marquee touches is in.
+pub fn marquee_pixels(a: Point, b: Point) -> Rect {
+    Rect::new(a.x.min(b.x).floor(), a.y.min(b.y).floor(), a.x.max(b.x).ceil(), a.y.max(b.y).ceil())
+}
+
+/// A square marquee's pixel rectangle `r`, as [`marquee_pixels`] returns it, with equal sides. Snapping each axis on its own made one side a pixel longer than the other when
 /// the press sat between pixels (a ⇧ drag read 101 × 102). The shorter side grows to the longer
 /// one, away from the press point `start` towards `end`, so the square still covers every pixel
 /// the drag touched.

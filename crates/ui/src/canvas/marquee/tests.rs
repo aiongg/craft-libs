@@ -1,7 +1,7 @@
 use egui::{Color32, Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect as ScreenRect, Sense, Shape, pos2, vec2};
 use kurbo::{Point, Rect};
 
-use super::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeResponse, MarqueeShape, fixed_size_pixels, square_pixels};
+use super::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeResponse, MarqueeShape, fixed_size_pixels, marquee_pixels, square_pixels};
 use crate::canvas::{CanvasView, Claim};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 
@@ -540,13 +540,20 @@ fn free_and_ratio_clicks_stay_clicks() {
 fn a_square_stays_square_after_rounding_to_pixels() {
     let (start, end) = (Point::new(50.3, 50.7), Point::new(150.8, 90.0));
     let (a, b) = Constraint::Free.corners(start, end, true, false);
-    let snapped = Rect::new(a.x.min(b.x).floor(), a.y.min(b.y).floor(), a.x.max(b.x).ceil(), a.y.max(b.y).ceil());
+    let snapped = marquee_pixels(a, b);
     assert_eq!((snapped.width(), snapped.height()), (101.0, 102.0));
     assert_eq!(square_pixels(snapped, start, end), Rect::new(50.0, 50.0, 152.0, 152.0));
     // Dragged up and left the short side grows away from the press, towards the pointer.
     let up = Rect::new(10.0, 20.0, 60.0, 30.0);
     assert_eq!(square_pixels(up, Point::new(60.0, 30.0), Point::new(10.0, 20.0)), Rect::new(10.0, -20.0, 60.0, 30.0));
     assert_eq!(square_pixels(up, Point::new(10.0, 20.0), Point::new(60.0, 30.0)), Rect::new(10.0, 20.0, 60.0, 70.0));
+}
+
+#[test]
+fn a_marquee_snaps_outwards_to_whole_pixels_from_either_corner() {
+    let (a, b) = (Point::new(50.3, 50.7), Point::new(150.8, 90.0));
+    assert_eq!(marquee_pixels(a, b), Rect::new(50.0, 50.0, 151.0, 91.0));
+    assert_eq!(marquee_pixels(b, a), marquee_pixels(a, b));
 }
 
 #[test]
