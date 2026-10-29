@@ -323,8 +323,6 @@ pub struct TabView<'a> {
     pub sense: Sense,
     /// The tab's zero-based position among all the strip's tabs, hidden ones included.
     pub position: usize,
-    /// How many tabs the strip has, hidden ones included.
-    pub size: usize,
     /// The words of the strip.
     pub text: &'a TabStripText,
     /// The id of the host's panel node this tab controls.
@@ -440,7 +438,6 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let tab = sensed.finish(ui);
         ui.ctx().accesskit_node_builder(id, |node: &mut Node| {
             node.clear_toggled();
-            node.set_size_of_set(view.size);
             if let Some(panel) = view.controls {
                 node.push_controlled(panel.accesskit_id());
             }
@@ -592,7 +589,6 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
             drop_highlight: *highlight,
             sense: Sense::CLICK,
             position: index,
-            size: rows.len(),
             text: &text,
             controls: None,
         };

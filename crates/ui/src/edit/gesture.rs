@@ -60,6 +60,11 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
 ///   and starts idle when it is drawn again; the host ends the gesture as [`Ending`] says, a
 ///   typing run with the control's last value.
+/// - A gesture the host ended before its control did (another control began a gesture or set a
+///   value, [`GestureHost`](super::GestureHost)) is over: [`load`](Gesture::load) replaces it
+///   with a new gesture of the same input (the same drag, typing run or draft), started from the
+///   host's value. That gesture reports its [`Begin`](EditEvent::Begin) at its first change and
+///   nothing if it ends unchanged, so the input goes on and its later changes reach the host.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
@@ -79,6 +84,7 @@ pub struct Gesture<T> {
     owners: Vec<Id>,
     filter: Option<EventFilter>,
     cancel_on_focus_loss: bool,
+    commit_on_interrupt: bool,
     pointer_selects: bool,
     enabled: bool,
     now: f64,
@@ -87,8 +93,9 @@ pub struct Gesture<T> {
     cancelled: Option<Cancelled>,
     /// A gesture that ended this frame: its live entry goes.
     ended: Option<GestureId>,
-    /// The value an interruption commits with ([`interrupted_with`](Gesture::interrupted_with)).
-    interrupted: Option<T>,
+    /// How an interruption ends the gesture, in place of the focus rule
+    /// ([`interrupted_as`](Gesture::interrupted_as)).
+    interrupted: Option<Interrupted<T>>,
     /// A part's run under way ends the gesture this frame ([`ended_by_part`](Gesture::ended_by_part)).
     by_part: bool,
 }
@@ -149,6 +156,8 @@ struct Active<T> {
     dragged: bool,
     /// Reports no updates, whatever the policy ([`Gesture::hold_updates`]).
     held: bool,
+    /// Carries on the input of a gesture the host ended: `Begin` waits for the first change.
+    waits: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -195,6 +204,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             owners: vec![id],
             filter: None,
             cancel_on_focus_loss: false,
+            commit_on_interrupt: false,
             pointer_selects: false,
             enabled: true,
             now,
@@ -206,6 +216,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         };
         gesture.end_restoring();
         gesture.apply_cancel_all();
+        gesture.carry_on_ended();
         gesture.apply_external();
         gesture.apply_escape(take_escape);
         gesture
@@ -216,6 +227,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// ([`Ending`]).
     pub fn cancel_on_focus_loss(mut self, cancel: bool) -> Self {
         self.cancel_on_focus_loss = cancel;
+        self
+    }
+
+    /// Whether an interrupted gesture ends as a commit, whatever the focus rule of [`Ending`] says:
+    /// its control is no longer drawn, or the host ends it because another gesture begins or a
+    /// value is set ([`GestureHost`](super::GestureHost)). Off by default. For a control whose
+    /// gesture is user work kept as it goes, such as a pen draft's anchors (switching tools
+    /// finishes the path). It replaces nothing else: Esc, focus loss and the control's own
+    /// commit and cancel still end the gesture as the control says.
+    pub fn commit_on_interrupt(mut self, commit: bool) -> Self {
+        self.commit_on_interrupt = commit;
         self
     }
 
@@ -330,6 +352,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             focused: self.focused_owner().is_some(),
             dragged: self.dragged(),
             held: false,
+            waits: false,
         });
     }
 
@@ -345,14 +368,14 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// The value the active gesture commits with if its control stops being drawn after this frame,
-    /// in place of its own ([`Ending`], [`unreported`](super::unreported)). For a composite whose
-    /// gesture is a part's typing run: the value that run would end with, as the composite's
-    /// value, so an interruption ends the composite's gesture as the part's would end it. The
-    /// composite gives it again each frame.
-    pub(crate) fn interrupted_with(&mut self, value: T) {
+    /// How the active gesture ends if it is interrupted after this frame (its control stops being
+    /// drawn, or the host ends it), in place of the focus rule of [`Ending`] and
+    /// [`commit_on_interrupt`](Gesture::commit_on_interrupt). For a composite whose gesture is a
+    /// part's: as that part's gesture would end, with its value as the composite's
+    /// ([`unreported`](super::unreported)). The composite gives it again each frame.
+    pub(crate) fn interrupted_as(&mut self, interrupted: Interrupted<T>) {
         if self.is_active() {
-            self.interrupted = Some(value);
+            self.interrupted = Some(interrupted);
         }
     }
 
@@ -420,6 +443,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// Whether the gesture ends in this frame: it committed, or a cancel goes out.
+    pub(crate) fn is_ending(&self) -> bool {
+        self.cancelled.is_some() || matches!(&self.stored.phase, Phase::Active(a) if a.ending)
+    }
+
     /// Stores the state and returns this frame's event.
     pub fn finish(self) -> Option<EditEvent<T>> {
         self.finish_as(|value| value)
@@ -457,6 +485,29 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         {
             self.cancel(reason);
         }
+    }
+
+    /// Replaces a gesture the host ended with a new one of the same input, started from the host's
+    /// value; its `Begin` waits for its first change. The focus, drag and held updates go on.
+    fn carry_on_ended(&mut self) {
+        let generation = CancelAll::get(&self.ctx).generation;
+        let Phase::Active(a) = &mut self.stored.phase else { return };
+        if !a.announced || !live::ended(&self.ctx, a.id) {
+            return;
+        }
+        live::forget(&self.ctx, a.id);
+        *a = Active {
+            id: GestureId::next(),
+            generation,
+            start: self.host.clone(),
+            current: self.host.clone(),
+            reported: self.host.clone(),
+            changed_at: self.now,
+            announced: false,
+            ending: false,
+            waits: true,
+            ..a.clone()
+        };
     }
 
     /// Cancels when the host's value is no longer the one the gesture reported.
@@ -529,6 +580,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return self.end();
         }
         if !a.announced {
+            if a.waits && a.current == a.start {
+                return None;
+            }
             a.announced = true;
             if !self.scoped {
                 return Some(EditEvent::Begin { id: a.id });
@@ -594,17 +648,28 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Records the active gesture live in this pass with how it ends if interrupted (a commit
-    /// carries the value no update reported), or drops the entry of one that ended.
+    /// carries the value no update reported), or drops the entry of one that ended. A gesture
+    /// waiting for its first change isn't recorded until its `Begin` goes out.
     fn record_live<U: Clone + Send + Sync + 'static>(&mut self, report: &impl Fn(T) -> U) {
         let dragged = self.dragged();
         let focused = self.focused_owner().is_some();
-        let cancel_on_focus_loss = self.cancel_on_focus_loss;
+        let (cancel_on_focus_loss, commit_on_interrupt) = (self.cancel_on_focus_loss, self.commit_on_interrupt);
         match &mut self.stored.phase {
+            // A gesture the host hasn't seen begin has nothing to end.
+            Phase::Active(a) if !a.announced => a.dragged |= dragged,
             Phase::Active(a) => {
                 a.dragged |= dragged;
-                let (ending, unreported) = match a.focused && !a.dragged && !cancel_on_focus_loss {
+                let commits = match &self.interrupted {
+                    Some(Interrupted::Commit(_)) => true,
+                    Some(Interrupted::Cancel) => false,
+                    None => commit_on_interrupt || (a.focused && !a.dragged && !cancel_on_focus_loss),
+                };
+                let (ending, unreported) = match commits {
                     true => {
-                        let last = self.interrupted.as_ref().unwrap_or(&a.current);
+                        let last = match &self.interrupted {
+                            Some(Interrupted::Commit(Some(value))) => value,
+                            _ => &a.current,
+                        };
                         let unreported = (*last != a.reported).then(|| Arc::new(report(last.clone())) as live::Value);
                         (Ending::Commit { changed: *last != a.start }, unreported)
                     }
@@ -619,6 +684,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
         }
     }
+}
+
+/// How a composite's gesture ends if it is interrupted, as the part that owns it would end
+/// ([`Gesture::interrupted_as`]).
+#[derive(Clone, Debug)]
+pub(crate) enum Interrupted<T> {
+    /// A commit, with this value in place of the gesture's own when given.
+    Commit(Option<T>),
+    Cancel,
 }
 
 /// Whether this pass's input has a press of Esc that `consume_key(Modifiers::NONE, Key::Escape)`

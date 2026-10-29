@@ -38,6 +38,14 @@ struct Host {
     /// The editor's own fields row, and its colour popover.
     stop_fields: bool,
     popover: bool,
+    location_decimals: usize,
+    /// The editor isn't drawn.
+    hidden: bool,
+    /// The popover's picker gets an eyedropper through `color_picker`; the editor's last report
+    /// of it, and of the picker's id.
+    eyedropper: bool,
+    eyedropper_requested: bool,
+    picker_id: Option<Id>,
     requested: Vec<usize>,
     dropped: Option<(StopDrop, u32)>,
     escape_seen: bool,
@@ -62,6 +70,11 @@ impl Host {
             field_events: Vec::new(),
             stop_fields: true,
             popover: false,
+            location_decimals: 0,
+            hidden: false,
+            eyedropper: false,
+            eyedropper_requested: false,
+            picker_id: None,
             requested: Vec::new(),
             dropped: None,
             escape_seen: false,
@@ -74,6 +87,9 @@ impl Host {
     }
 
     fn show(&mut self, ui: &mut Ui) {
+        if self.hidden {
+            return;
+        }
         let numbers = LocaleNumbers::from_tag("en");
         let tokens = Tokens::of(ui);
         let style = GradientEditor::style(&tokens);
@@ -96,7 +112,12 @@ impl Host {
             .stops(self.min, 1024)
             .fields(self.stop_fields)
             .color_popover(self.popover)
+            .location_decimals(self.location_decimals)
             .drop_target::<Payload>();
+        let editor = match self.eyedropper {
+            true => editor.color_picker(|picker| picker.eyedropper("Pick screen color")),
+            false => editor,
+        };
         let response = ui
             .allocate_ui(vec2(300.0, 0.0), |ui| {
                 ui.set_max_width(300.0);
@@ -117,6 +138,8 @@ impl Host {
         self.ramp = Rect::from_min_size(self.rect.min + vec2(style.inset, top), vec2(self.rect.width() - 2.0 * style.inset, style.ramp_height));
         self.style = Some(style);
         self.requested.extend(response.color_requested);
+        self.eyedropper_requested |= response.eyedropper_requested;
+        self.picker_id = response.picker_id;
         if let Some((place, payload)) = response.dropped {
             self.dropped = Some((place, payload.0));
         }
@@ -196,8 +219,12 @@ fn three() -> GradientStops {
 }
 
 fn harness(host: Host, dir: Direction) -> Harness<'static, Host> {
+    harness_sized(host, dir, [400.0, 240.0])
+}
+
+fn harness_sized(host: Host, dir: Direction, size: [f32; 2]) -> Harness<'static, Host> {
     let mut harness = Harness::builder()
-        .with_size([400.0, 240.0])
+        .with_size(size)
         .with_step_dt(1.0 / 60.0)
         .with_context_setup(move |ctx: &Context| {
             install(ctx, &Base::suite_default());
@@ -851,4 +878,135 @@ fn a_press_during_the_location_field_s_typing_run_waits_and_drags_from_the_commi
     assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"));
     assert_eq!(harness.state().locations(), [0.0, 0.3, 0.9]);
+}
+
+/// Opens the popover on colour stop 0 and types `hex` into its hex field without Enter.
+fn hex_run(harness: &mut Harness<'_, Host>, hex: &str) {
+    let well = button(harness, "Color").rect().center();
+    click(harness, well, PointerButton::Primary);
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some(), "the popover opens");
+    harness.event(Event::Text(hex.into()));
+    harness.run();
+    assert_eq!(harness.state().kinds().first(), Some(&"Begin"));
+}
+
+#[test]
+fn the_popover_s_hex_run_ends_when_its_picker_goes_and_a_bar_drag_is_a_gesture_of_its_own() {
+    // The selection moves to a midpoint: the well and the popover go mid-run.
+    let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
+    hex_run(&mut harness, "FF0000");
+    select(&mut harness, Some(StopRef::Midpoint(StopRow::Color, 0)));
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_none());
+    let kinds = harness.state().kinds();
+    assert_eq!((kinds.iter().filter(|k| **k == "Begin").count(), kinds.last()), (1, Some(&"Commit")), "{kinds:?}");
+    assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#ff0000");
+    harness.state_mut().events.clear();
+    let (from, to) = (harness.state().color_marker(1.0), harness.state().color_marker(0.9));
+    press(&mut harness, from);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!((kinds.first(), kinds.last()), (Some(&"Begin"), Some(&"Commit")), "{kinds:?}");
+    assert_eq!(kinds.iter().filter(|k| **k == "Begin").count(), 1, "{kinds:?}");
+    assert_eq!(harness.state().locations(), [0.0, 0.5, 0.9]);
+
+    // A press on the bar mid-run closes the popover: the run commits before the drag begins.
+    let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
+    hex_run(&mut harness, "00FF00");
+    let (from, to) = (harness.state().color_marker(1.0), harness.state().color_marker(0.9));
+    press(&mut harness, from);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    assert!(harness.query_by(|n| n.role() == Role::Dialog).is_none());
+    let kinds = harness.state().kinds();
+    let commit = kinds.iter().position(|k| *k == "Commit").expect("the run commits");
+    assert_eq!(kinds[..commit].iter().filter(|k| **k == "Begin").count(), 1, "{kinds:?}");
+    assert_eq!((kinds[commit + 1], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
+    assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
+    assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#00ff00");
+    assert_eq!(harness.state().locations(), [0.0, 0.5, 0.9]);
+
+    // The whole editor goes mid-run: the host ends its gesture as the hex run would, a commit
+    // with the typed colour.
+    let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
+    hex_run(&mut harness, "0000FF");
+    let Some(EditEvent::Begin { id }) = harness.state().events.first().cloned() else { panic!() };
+    harness.state_mut().hidden = true;
+    harness.run();
+    let ctx = harness.ctx.clone();
+    assert!(!crate::edit::is_live(&ctx, id));
+    assert_eq!(crate::edit::ending(&ctx, id), crate::edit::Ending::Commit { changed: true });
+    let kept = crate::edit::unreported::<GradientStops>(&ctx, id).unwrap_or_else(|| harness.state().stops.clone());
+    assert_eq!(kept.color[0].color.to_rgba().to_hex(), "#0000ff");
+}
+
+#[test]
+fn a_typed_location_keeps_its_decimals_and_a_drag_rounds_to_a_thousandth() {
+    let mut harness = harness_with(Host { location_decimals: 3, ..Host::new(three()) });
+    select(&mut harness, Some(StopRef::Color(1)));
+    type_into(&mut harness, "Location", "33.333");
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit"]);
+    assert!((harness.state().stops.color[1].location - 0.33333).abs() < 1e-6, "{:?}", harness.state().locations());
+    assert_eq!(spin(&harness, "Location").value().as_deref(), Some("33.333%"));
+
+    let (from, to) = (harness.state().color_marker(1.0), harness.state().color_marker(0.9) + vec2(0.37, 0.0));
+    press(&mut harness, from);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    let at = harness.state().stops.color[2].location;
+    assert_eq!(at, stops::round_location(at), "{at}");
+}
+
+#[test]
+fn the_popover_s_picker_takes_the_host_s_setup_and_reports_its_eyedropper() {
+    // Tall enough for the popover with alpha and the eyedropper.
+    let host = Host { popover: true, eyedropper: true, rows: StopRows::Combined, ..Host::new(three()) };
+    let mut harness = harness_sized(host, Direction::Ltr, [400.0, 640.0]);
+    let well = button(&harness, "Color").rect().center();
+    click(&mut harness, well, PointerButton::Primary);
+    let opacity = harness.query_all_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Opacity")).count();
+    assert_eq!(opacity, 2, "the fields row's and the picker's alpha, set before the host's setup");
+    let picker = harness.state().picker_id.expect("the picker is shown");
+    let eyedropper = button(&harness, "Pick screen color").rect().center();
+    click(&mut harness, eyedropper, PointerButton::Primary);
+    assert!(harness.state().eyedropper_requested);
+    harness.state_mut().events.clear();
+    crate::composites::ColorPicker::sampled(&harness.ctx, picker, Srgba::rgb(1.0, 0.0, 0.0));
+    harness.run();
+    assert_eq!(harness.state().kinds(), ["Set"]);
+    assert_eq!(harness.state().stops.color[0].color.to_rgba().to_hex(), "#ff0000");
+}
+
+#[test]
+fn a_location_run_moves_the_stop_from_where_it_began() {
+    // Two stops at 50 %: typing "5" then "50" on the second passes the first and comes back.
+    let tied = GradientStops::new(vec![stop(0.0, 1), stop(0.5, 2), stop(0.5, 3), stop(1.0, 4)]);
+    let mut harness = rig(tied.clone());
+    select(&mut harness, Some(StopRef::Color(2)));
+    type_into(&mut harness, "Location", "5");
+    assert_eq!((harness.state().locations(), selected(&harness)), (vec![0.0, 0.05, 0.5, 1.0], Some(StopRef::Color(1))));
+    harness.event(Event::Text("0".into()));
+    harness.run();
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().kinds().last(), Some(&"Commit unchanged"), "{:?}", harness.state().kinds());
+    assert_eq!(harness.state().stops, tied);
+    assert_eq!(selected(&harness), Some(StopRef::Color(2)));
+}
+
+#[test]
+fn a_screen_reader_step_in_the_frame_the_popover_s_run_ends_goes_onto_the_committed_stops() {
+    // The host turns the popover off mid hex run, and a screen reader steps the Opacity field in
+    // the same frame.
+    let mut harness = harness_with(Host { popover: true, rows: StopRows::Combined, ..Host::new(three()) });
+    hex_run(&mut harness, "FF0000");
+    harness.state_mut().popover = false;
+    let fields = harness.query_all_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Opacity"));
+    let field = fields.min_by(|a, b| a.rect().top().total_cmp(&b.rect().top())).expect("the fields row's Opacity");
+    field.decrement_accesskit();
+    harness.run();
+    let kinds = harness.state().kinds();
+    assert_eq!((kinds.first(), &kinds[kinds.len() - 2..]), (Some(&"Begin"), &["Commit", "Set"][..]), "{kinds:?}");
+    let color = harness.state().stops.color[0].color;
+    assert_eq!(color.to_rgba().to_hex(), "#ff0000fc", "the typed colour with the step's opacity");
 }

@@ -6,26 +6,16 @@ use std::collections::HashMap;
 
 use egui::accesskit::{Action, ActionRequest, Node, Role, TreeId};
 use egui::{
-    Color32, Context, Event, Id, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Response, TouchPhase, Ui,
-    pos2, vec2,
+    Color32, Context, Event, Id, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, TouchPhase, Ui, pos2, vec2,
 };
 
 use super::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
+use crate::composites::levels_editor::{LevelsEditor, gamma_at, gamma_from};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureId};
+use crate::primitives::Interactive;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
 const GAP: f64 = 2.0;
-
-fn gamma_at(values: &[f64], gamma: f64) -> f64 {
-    let (black, white) = (values[0], values[2]);
-    black + (white - black) * 0.5f64.powf(gamma)
-}
-
-fn gamma_from(values: &[f64], x: f64) -> f64 {
-    let (black, white) = (values[0], values[2]);
-    let t = ((x - black) / (white - black).max(f64::EPSILON)).clamp(1e-6, 1.0 - 1e-6);
-    t.ln() / 0.5f64.ln()
-}
 
 /// A row as the last frame drew it.
 #[derive(Clone, Debug, Default)]
@@ -100,7 +90,7 @@ impl Rig {
     }
 
     fn rows(&mut self, ui: &mut Ui) {
-        let style = ThumbRowStyle::of(&Tokens::of(ui));
+        let style = ThumbRowStyle::from(&LevelsEditor::style(&Tokens::of(ui)));
         // A level a point: the travel is 255 points.
         let width = 255.0 + 2.0 * style.inset();
         let range = 0.0..=255.0;
@@ -117,7 +107,7 @@ impl Rig {
             .enabled(self.enabled)
             .press_waits(self.waits);
         let out = row.show(ui, &style);
-        self.rows[0] = drawn(&out.thumbs, out.travel, out.edit.response.rect, out.shown.to_vec(), out.dragged);
+        self.rows[0] = drawn(ui, "rig-input", &style, out.edit.response.rect, out.shown.to_vec(), out.dragged);
         self.input_event.clone_from(&out.edit.event);
         if let Some(event) = out.edit.event {
             self.apply(event, |rig| &mut rig.input, |rig| rig.before.0);
@@ -130,7 +120,7 @@ impl Rig {
             .enabled(self.enabled)
             .press_waits(self.waits);
         let out = row.show(ui, &style);
-        self.rows[1] = drawn(&out.thumbs, out.travel, out.edit.response.rect, out.shown.to_vec(), out.dragged);
+        self.rows[1] = drawn(ui, "rig-output", &style, out.edit.response.rect, out.shown.to_vec(), out.dragged);
         self.output_event.clone_from(&out.edit.event);
         if let Some(event) = out.edit.event {
             self.apply(event, |rig| &mut rig.output, |rig| rig.before.1);
@@ -197,12 +187,17 @@ impl Rig {
     }
 }
 
-fn drawn(thumbs: &[Response], travel: (f32, f32), rect: Rect, shown: Vec<f64>, dragged: Option<usize>) -> Drawn {
+/// The row `salt` as drawn: the thumb centres follow from the shown values, the gamma thumb
+/// between the black and the white one.
+fn drawn(ui: &Ui, salt: &str, style: &ThumbRowStyle, rect: Rect, shown: Vec<f64>, dragged: Option<usize>) -> Drawn {
+    let travel = (rect.left() + style.inset(), rect.right() - style.inset());
+    let id = ui.make_persistent_id(egui::IdSalt::new(salt));
+    let level = |i: usize| if shown.len() == 3 && i == 1 { gamma_at(&shown, shown[1]) } else { shown[i] };
     Drawn {
         travel,
         y: rect.center().y,
-        ids: thumbs.iter().map(|t| t.id).collect(),
-        xs: thumbs.iter().map(|t| t.rect.center().x).collect(),
+        ids: (0..shown.len()).map(|i| Interactive::id_in(ui, id.with(("thumb", i)))).collect(),
+        xs: (0..shown.len()).map(|i| travel.0 + (travel.1 - travel.0) * (level(i) / 255.0) as f32).collect(),
         shown,
         dragged,
     }
@@ -490,7 +485,7 @@ fn values_outside_the_range_draw_at_the_ends_and_one_that_is_not_finite_begins_n
     rig.press(rig.on(1, 0, 0.0));
     let id = begin(rig.output_event.clone());
     rig.drag(rig.at(1, 40.0, 0.0));
-    assert_eq!(rig.output_event, update(id, [40.0, 255.0]), "an edit clamps the other value into the range");
+    assert_eq!(rig.output_event, update(id, [40.0, 300.0]), "an edit leaves the other value as it is");
     rig.enabled = false;
     rig.frame(vec![]);
     assert_eq!(rig.output_event, Some(EditEvent::Cancel { id, reason: CancelReason::Disabled }), "disabling mid-drag cancels");

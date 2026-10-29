@@ -69,9 +69,9 @@ pub struct PenResponse {
     pub id: Id,
     /// The draft's edit gesture, each value the whole draft: Begin at its first change (a draft
     /// the host hands in, a resumed path's, begins at once), Update on each change, Commit on
-    /// Enter, Esc or closing it (`closed` is set), Cancel when the last anchor is removed or the
-    /// gesture is interrupted as a cancel ([`Ending`](crate::edit::Ending)). A draft begun and
-    /// ended in one frame is a Set.
+    /// Enter, Esc or closing it (`closed` is set), Cancel when the last anchor is removed. A draft
+    /// begun and ended in one frame is a Set. After the host ends the gesture for another
+    /// control's change, the draft's next change begins a new gesture.
     pub event: Option<EditEvent<EditSubpath>>,
     /// A press on the end point of an open path while no draft is open: the host makes that
     /// path's subpath the draft with the knot of that end last (reversing it for its first knot).
@@ -138,11 +138,14 @@ struct Drag {
 /// - Not a Tab stop: there is no keyboard drawing. The anchors are AccessKit objects in a group
 ///   named by the host, the last one selected.
 /// - The edit gesture is the draft, its policy not cancellable: Esc ends the path and keeps it.
-///   An interrupted draft (the host stops showing the overlay, or the canvas loses keyboard focus)
-///   ends by [`Gesture`]'s rule, a commit only when the canvas had keyboard focus during the draft
-///   and a cancel otherwise; a canvas does not take focus from a click on its own, so a host that
-///   wants an interrupted path kept gives the canvas focus, or ends the draft itself with Enter's
-///   commit. [`GestureHost`](crate::edit::GestureHost) judges it from [`ending`](crate::edit::ending).
+///   An interrupted draft commits ([`Gesture::commit_on_interrupt`]): anchors are the user's
+///   work, and switching tools (the host stops showing the overlay) finishes the path. Keyboard
+///   focus plays no part: a click in an options-bar field or Tab leaves the draft open. When the
+///   host ends the gesture because another control begins a gesture or sets a value (a stroke
+///   width in the options bar), the anchors so far are one undo step and the draft goes on: its
+///   next change begins a new gesture ([`Gesture`]'s rule for gestures the host ended).
+///   [`GestureHost`](crate::edit::GestureHost) judges an interruption from
+///   [`ending`](crate::edit::ending).
 /// - Order: the host shows the pen after its handles and guides, as it is a tool.
 pub struct PenDraft<'a> {
     id_salt: IdSalt,
@@ -223,7 +226,7 @@ impl<'a> PenDraft<'a> {
         let style = self.look.unwrap_or_else(|| PenDraft::style(&Tokens::of(ui)));
         let editing = ui.is_enabled();
         let host = self.draft.cloned().unwrap_or_default();
-        let mut gesture = Gesture::load(ui, id, &host, EditPolicy::default().cancellable(false)).focus_owners(&[canvas.id]).enabled(editing);
+        let mut gesture = Gesture::load(ui, id, &host, EditPolicy::default().cancellable(false)).commit_on_interrupt(true).enabled(editing);
         // A draft the host hands in (a resumed path) is the gesture's start.
         if !gesture.is_active() && !host.knots.is_empty() {
             gesture.begin();

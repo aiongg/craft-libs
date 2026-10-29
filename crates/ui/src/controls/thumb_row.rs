@@ -13,12 +13,11 @@ use egui::{
 use super::slider::{KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
-use crate::theme::{ToEgui, UiTokens};
 
 /// Width of a thumb's edge, in points.
 const EDGE: f32 = 1.0;
 
-/// A thumb row's sizes and colours, from [`ThumbRowStyle::of`].
+/// A thumb row's sizes and colours, built from the levels editor's style.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ThumbRowStyle {
     /// Height of the row: `levels.row`.
@@ -38,19 +37,6 @@ pub(crate) struct ThumbRowStyle {
 }
 
 impl ThumbRowStyle {
-    pub fn of(tokens: &UiTokens) -> ThumbRowStyle {
-        let l = &tokens.component.levels;
-        ThumbRowStyle {
-            height: l.row,
-            thumb: vec2(l.thumb_width, l.thumb_height),
-            hit: l.hit,
-            edge: l.thumb_edge.to_egui(),
-            disabled_edge: l.disabled_edge.to_egui(),
-            ring: l.ring.to_egui(),
-            ring_width: tokens.component.slider.ring_width,
-        }
-    }
-
     /// How far a thumb's centre stays inside each end of the row: half a thumb, so the triangles
     /// stay inside it.
     pub fn inset(&self) -> f32 {
@@ -133,9 +119,10 @@ impl Thumb {
 }
 
 /// Triangle thumbs on one row, tip up, each a value of its own: the rows of a levels editor. It
-/// reports the row's values as one array
-/// through the edit lifecycle, built like [`RangeSlider`](super::RangeSlider): one gesture on the
-/// row, with the thumbs as its focus owners.
+/// reports the row's values as one array through the edit lifecycle, built like
+/// [`RangeSlider`](super::RangeSlider): one gesture on the row, with the thumbs as its focus
+/// owners. An edit writes only the edited thumb's value; the others stay as the gesture holds
+/// them.
 ///
 /// - Each thumb is a Tab stop and an AccessKit `Slider` named by its label, with its value and
 ///   bounds.
@@ -175,11 +162,6 @@ pub(crate) struct ThumbRowOutput<const N: usize> {
     pub values: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
-    /// The thumbs' responses, in row order.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the row's tests find the thumbs by them"))]
-    pub thumbs: [Response; N],
-    /// The x of a thumb centre at the start and at the end of the range.
-    pub travel: (f32, f32),
 }
 
 /// What a press at a point moves.
@@ -293,28 +275,30 @@ impl<const N: usize> Layout<'_, N> {
         })
     }
 
-    /// The values while `press` at `origin` is dragged to `x`, from `start` (as drawn). A grabbed
-    /// thumb moves by the pointer's movement and stays where it is while the pointer is still; a
-    /// jumping one goes to the pointer. The moved value snaps to its step and stays in its bounds.
-    fn moved(&self, start: &[f64; N], press: Press, origin: f32, x: f32) -> [f64; N] {
-        let Some(i) = press.thumb(origin, x) else { return *start };
+    /// The values while `press` at `origin` is dragged to `x`, from `raw` (the gesture's values).
+    /// A grabbed thumb moves by the pointer's movement and stays where it is while the pointer is
+    /// still; a jumping one goes to the pointer. The moved value snaps to its step and stays in
+    /// its bounds; the other values stay as they are.
+    fn moved(&self, raw: &[f64; N], press: Press, origin: f32, x: f32) -> [f64; N] {
+        let Some(i) = press.thumb(origin, x) else { return *raw };
         let grab = !matches!(press, Press::Jump(_));
         if grab && x == origin {
-            return *start;
+            return *raw;
         }
+        let start = &self.placed(raw);
         let at = if grab { self.at(start, i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
         let value = self.thumbs[i].follow.map_or(at, |f| (f.value_at)(start, at));
         let (lo, hi) = self.bounds(start, i);
-        let mut out = *start;
+        let mut out = *raw;
         out[i] = self.scale_of(i).snap(value).clamp(lo, hi);
         out
     }
 
-    /// The values with thumb `i` at its default, if it has one.
-    fn reset(&self, values: &[f64; N], i: usize) -> Option<[f64; N]> {
+    /// The values `raw` with thumb `i` at its default, if it has one.
+    fn reset(&self, raw: &[f64; N], i: usize) -> Option<[f64; N]> {
         let default = self.thumbs[i].default.filter(|d| d.is_finite())?;
-        let (lo, hi) = self.bounds(values, i);
-        let mut out = *values;
+        let (lo, hi) = self.bounds(&self.placed(raw), i);
+        let mut out = *raw;
         out[i] = self.scale_of(i).snap(default).clamp(lo, hi);
         Some(out)
     }
@@ -389,8 +373,7 @@ impl<const N: usize> ThumbRow<N> {
         }
 
         for (i, &thumb) in ids.iter().enumerate() {
-            let values = layout.placed(gesture.shown());
-            let reset = layout.reset(&values, i).filter(|_| sensing.enabled && ui.memory(|m| m.has_focus(thumb)));
+            let reset = layout.reset(gesture.shown(), i).filter(|_| sensing.enabled && ui.memory(|m| m.has_focus(thumb)));
             // Taken during a drag too, which it doesn't change, as the arrows are.
             if let Some(reset) = reset
                 && ui.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::Backspace))
@@ -398,11 +381,12 @@ impl<const N: usize> ThumbRow<N> {
             {
                 gesture.set(reset);
             }
-            let mut values = layout.placed(gesture.shown());
+            let values = layout.placed(gesture.shown());
             let sensing = Sensing { falling: self.thumbs[i].falling, ..sensing };
             if let Some(v) = stepped(ui, thumb, sensing, None, values[i], layout.bounds(&values, i), &layout.scale_of(i)) {
-                values[i] = v;
-                gesture.set(values);
+                let mut out = *gesture.shown();
+                out[i] = v;
+                gesture.set(out);
             }
         }
 
@@ -442,8 +426,7 @@ impl<const N: usize> ThumbRow<N> {
                 FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
             }
         }
-        let travel = layout.track.ends();
-        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish()), shown, values, dragged, thumbs, travel }
+        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish()), shown, values, dragged }
     }
 }
 
@@ -475,8 +458,8 @@ fn pointer_input<const N: usize>(
         && input.finite
     {
         gesture.begin();
-        if let Some(start) = gesture.start().map(|s| layout.placed(s))
-            && let Some(press) = layout.press(&start, at.x)
+        if let Some(start) = gesture.start().copied()
+            && let Some(press) = layout.press(&layout.placed(&start), at.x)
         {
             focus = Some(press.focus());
             gesture.update(layout.moved(&start, press, at.x, at.x), modifiers);
@@ -494,9 +477,9 @@ fn pointer_input<const N: usize>(
     }
     let mut active = None;
     if response.dragged_by(PointerButton::Primary)
-        && let Some(start) = gesture.start().map(|s| layout.placed(s))
+        && let Some(start) = gesture.start().copied()
         && let Some((pos, origin)) = pointer(ui, response)
-        && let Some(press) = layout.press(&start, origin.x)
+        && let Some(press) = layout.press(&layout.placed(&start), origin.x)
     {
         active = Some(press);
         if let (Press::Either { .. }, Some(i)) = (press, press.thumb(origin.x, pos.x)) {
@@ -511,11 +494,11 @@ fn pointer_input<const N: usize>(
         gesture.commit();
     }
     if let Some(at) = tapped {
-        let values = layout.placed(gesture.shown());
-        if let Some(press) = layout.press(&values, at.x) {
+        let raw = *gesture.shown();
+        if let Some(press) = layout.press(&layout.placed(&raw), at.x) {
             focus = Some(press.focus());
             if double.is_none() && !waits {
-                gesture.set(layout.moved(&values, press, at.x, at.x));
+                gesture.set(layout.moved(&raw, press, at.x, at.x));
             }
         }
     }
@@ -534,9 +517,8 @@ fn double_click<const N: usize>(
     if !(sensing.enabled && sensing.hovered && ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary))) {
         return None;
     }
-    let values = layout.placed(gesture.shown());
-    let i = layout.press(&values, response.hover_pos()?.x)?.focus();
-    gesture.set(layout.reset(&values, i)?);
+    let i = layout.press(&layout.placed(gesture.shown()), response.hover_pos()?.x)?.focus();
+    gesture.set(layout.reset(gesture.shown(), i)?);
     Some(i)
 }
 

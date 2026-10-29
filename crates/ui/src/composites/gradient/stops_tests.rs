@@ -48,11 +48,33 @@ fn a_moved_stop_passes_its_neighbours_and_keeps_its_tag_and_the_selection_index(
     assert_eq!(at, 1);
     assert_eq!(out.color.iter().map(|s| s.tag).collect::<Vec<_>>(), [8, 7, 9]);
 
-    // Among stops at one location the moved stop comes last; locations round to 0.001.
-    let (out, at) = stops::move_to(&stops, StopRow::Color, 2, 0.5004, &rules).unwrap();
-    assert_eq!((at, out.color[at].location, out.color[at].tag), (2, 0.5, 9));
-    let (_, at) = stops::move_to(&stops, StopRow::Color, 1, 0.0, &rules).unwrap();
-    assert_eq!(at, 1, "after the stop already at 0");
+    // Locations clamp and keep their decimals; the bar rounds pointer locations itself.
+    let (out, at) = stops::move_to(&stops, StopRow::Color, 2, 0.33333, &rules).unwrap();
+    assert_eq!((at, out.color[at].location, out.color[at].tag), (1, 0.33333, 9));
+    assert_eq!(stops::move_to(&stops, StopRow::Color, 2, 1.5, &rules).unwrap().0.color[2].location, 1.0);
+}
+
+#[test]
+fn a_stop_keeps_its_place_among_stops_at_its_location_unless_it_crossed_them() {
+    let rules = StopRules::default();
+    let tags = |s: &GradientStops| s.color.iter().map(|s| s.tag).collect::<Vec<_>>();
+    // A hard edge at 1.0: a nudge past the end clamps and changes nothing.
+    let mut stops = red_to_blue();
+    stops.color.insert(1, ColorStop { tag: 8, ..ColorStop::new(1.0, Srgba::BLACK) });
+    let (out, at) = stops::move_to(&stops, StopRow::Color, 1, 1.01, &rules).unwrap();
+    assert_eq!((out, at), (stops.clone(), 1));
+
+    // Reaching a stop's location from below it stays below, from above it stays above.
+    let mut stops = red_to_blue();
+    stops.color.insert(1, ColorStop { tag: 8, ..ColorStop::new(0.5, Srgba::BLACK) });
+    let (out, at) = stops::move_to(&stops, StopRow::Color, 0, 0.5, &rules).unwrap();
+    assert_eq!((tags(&out), at), (vec![7, 8, 9], 0));
+    let (out, at) = stops::move_to(&stops, StopRow::Color, 2, 0.5, &rules).unwrap();
+    assert_eq!((tags(&out), at), (vec![7, 8, 9], 2));
+    // Moving past the tie crosses it.
+    let tied = stops::move_to(&stops, StopRow::Color, 0, 0.5, &rules).unwrap().0;
+    let (out, at) = stops::move_to(&tied, StopRow::Color, 0, 0.6, &rules).unwrap();
+    assert_eq!((tags(&out), at), (vec![8, 7, 9], 1));
 }
 
 #[test]
