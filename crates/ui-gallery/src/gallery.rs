@@ -273,7 +273,7 @@ impl Gallery {
                         a.icon_set = icon_set;
                     }
                 });
-                OptionsBar::cell(ui, "Scale:", CellWidth::Md, |ui, caption| {
+                OptionsBar::cell(ui, "Scale:", CellWidth::Lg, |ui, caption| {
                     let scale = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
                         .range(SCALE)
                         .decimals(0..=0)
