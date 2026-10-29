@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use craft_design_lint::{CLIPPY_TEMPLATE, ClippyDrift, DriftKind, Error, check_clippy, clippy_drift, merge_clippy, write_clippy};
+use craft_design_lint::{CLIPPY_TEMPLATE, ClippyDrift, DriftKind, Error, check_clippy, clippy_drift, clippy_shadows, merge_clippy, write_clippy};
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -203,4 +203,52 @@ fn tempdir(name: &str) -> PathBuf {
     let dir = base.join(format!("craft-design-lint-{name}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+#[test]
+fn another_clippy_toml_shadows_the_root_one() {
+    let write = |root: &Path, rel: &str, text: &str| {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let root = tempdir("shadow");
+    write(&root, "clippy.toml", CLIPPY_TEMPLATE);
+    write(&root, "Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n");
+    write(&root, "crates/a/Cargo.toml", "[package]\nname = \"a\"\n");
+    write(&root, "crates/b/Cargo.toml", "[package]\nname = \"b\"\n");
+    let file = root.join("clippy.toml");
+    assert_eq!(clippy_shadows(&file, None).unwrap(), []);
+    check_clippy(&root).unwrap();
+
+    // A member crate's own clippy.toml, or a parent directory's, hides the root one from that crate.
+    write(&root, "crates/a/clippy.toml", "");
+    let shadows = clippy_shadows(&file, None).unwrap();
+    assert_eq!(shadows.iter().map(|s| s.path.clone()).collect::<Vec<_>>(), [root.join("crates/a")]);
+    assert!(shadows[0].to_string().contains("error[clippy/shadowed]"), "{}", shadows[0]);
+    assert!(matches!(check_clippy(&root), Err(Error::ClippyShadowed(s)) if s.len() == 1));
+    std::fs::remove_file(root.join("crates/a/clippy.toml")).unwrap();
+    write(&root, "crates/.clippy.toml", "");
+    assert_eq!(clippy_shadows(&file, None).unwrap().len(), 1);
+    std::fs::remove_file(root.join("crates/.clippy.toml")).unwrap();
+
+    // A clippy.toml in a directory without a package below it, in a nested workspace, or under target/ is not read for the root.
+    write(&root, "docs/clippy.toml", "");
+    write(&root, "vendor/Cargo.toml", "[workspace]\n");
+    write(&root, "vendor/x/Cargo.toml", "[package]\nname = \"x\"\n");
+    write(&root, "vendor/x/clippy.toml", "");
+    write(&root, "target/y/Cargo.toml", "[package]\nname = \"y\"\n");
+    write(&root, "target/y/clippy.toml", "");
+    assert_eq!(clippy_shadows(&file, None).unwrap(), []);
+
+    // CLIPPY_CONF_DIR: this directory (or a child without its own file) is fine; elsewhere is not.
+    assert_eq!(clippy_shadows(&file, Some(root.as_os_str())).unwrap(), []);
+    assert_eq!(clippy_shadows(&file, Some(root.join("crates/a").as_os_str())).unwrap(), []);
+    let other = tempdir("shadow-other");
+    write(&other, "clippy.toml", "");
+    let shadows = clippy_shadows(&file, Some(other.as_os_str())).unwrap();
+    assert_eq!(shadows.len(), 1);
+    assert!(shadows[0].reason.contains("CLIPPY_CONF_DIR"), "{}", shadows[0].reason);
+    let none = tempdir("shadow-none");
+    assert_eq!(clippy_shadows(&file, Some(none.as_os_str())).unwrap().len(), 1);
 }

@@ -1,29 +1,35 @@
 //! `// design: allow(<reason>)` markers: finding them in the source text and applying them to findings.
+//!
+//! A marker may name the rules it covers: `// design: allow[literal-size/stroke, raw-colour](<reason>)`.
 
 use std::ops::RangeInclusive;
 
 use proc_macro2::{TokenStream, TokenTree};
+use quote::ToTokens as _;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
 use crate::report::{Finding, Severity};
-use crate::rules::analyze_source;
+use crate::rules::{RULES, analyze_file, is_unmarkable, parse_failure, selector_matches};
 
 pub const EMPTY: &str = "marker/empty";
+pub const INVALID: &str = "marker/invalid";
 pub const UNUSED: &str = "marker/unused";
 
 /// Shortest accepted marker or exemption reason, in characters.
 pub const MIN_REASON: usize = 3;
 
-const PREFIX: &str = "design: allow(";
+const PREFIX: &str = "design: allow";
 
 /// The findings of one file after markers were applied.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Marked {
-    /// Findings not covered by a marker, plus `marker/empty` and `marker/unused` findings.
+    /// Findings not covered by a marker, plus `marker/*` findings.
     pub findings: Vec<Finding>,
     /// Markers found in the file.
     pub markers: usize,
+    /// `allow` and `expect` attributes naming a `clippy::disallowed_*` lint.
+    pub clippy_allows: usize,
 }
 
 #[derive(Debug)]
@@ -32,7 +38,7 @@ enum Scope {
     File,
     /// End-of-line marker: findings starting on `line`.
     Line,
-    /// Alone on its line: findings starting in the next code line's statement or item.
+    /// Alone on its line: findings starting in the next code line's statement or field.
     Next,
 }
 
@@ -41,26 +47,36 @@ struct Marker {
     line: usize,
     column: usize,
     scope: Scope,
-    /// Why the marker is invalid, when it is.
-    problem: Option<&'static str>,
+    /// Rule ids or families the marker covers; empty means every rule.
+    rules: Vec<String>,
+    /// The rule and message of what is wrong with the marker, when something is.
+    problem: Option<(&'static str, String)>,
 }
 
-/// Checks one file's source text and applies its markers.
+impl Marker {
+    fn covers_rule(&self, rule: &str) -> bool {
+        self.rules.is_empty() || self.rules.iter().any(|r| selector_matches(r, rule))
+    }
+}
+
+/// Checks one file's source text and applies its markers. The file is parsed once.
 ///
 /// `exempt(rule)` tells whether a path exemption already silences a rule in this file;
 /// those findings are dropped before markers are matched, so a marker that only covers them is unused.
+/// `parse` findings are never exempt, and no marker covers them.
 pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, exempt: &dyn Fn(&str) -> bool) -> Marked {
-    let analysis = analyze_source(src, include_tests);
+    let file = match syn::parse_file(src) {
+        Ok(file) => file,
+        Err(e) => return Marked { findings: parse_failure(&e).findings, markers: 0, clippy_allows: 0 },
+    };
+    let analysis = analyze_file(src, &file, include_tests);
     let mut findings: Vec<Finding> = analysis.findings.into_iter().filter(|f| !exempt(f.rule)).collect();
-    if findings.iter().any(|f| f.rule == crate::rules::PARSE) {
-        return Marked { findings, markers: 0 };
-    }
     let lines: Vec<&str> = src.lines().collect();
-    let markers = find_markers(src, &lines);
+    let markers = find_markers(&lines, &file);
     let mut spans: Option<Vec<RangeInclusive<usize>>> = None;
     let mut used = vec![false; markers.len()];
     let mut kept = Vec::new();
-    // A finding is covered when it starts inside the marker's range.
+    // A finding is covered when it starts inside the range of a marker that covers its rule.
     let covering: Vec<Option<RangeInclusive<usize>>> = markers
         .iter()
         .map(|m| match m.scope {
@@ -68,14 +84,18 @@ pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, e
             Scope::File => Some(0..=usize::MAX),
             Scope::Line => Some(m.line..=m.line),
             Scope::Next => next_code_line(&lines, m.line).map(|line| {
-                let item_spans = spans.get_or_insert_with(|| item_spans(src));
+                let item_spans = spans.get_or_insert_with(|| item_spans(&file));
                 let end = item_spans.iter().filter(|r| *r.start() == line).map(|r| *r.end()).max().unwrap_or(line);
                 line..=end
             }),
         })
         .collect();
     for finding in findings.drain(..) {
-        let hit = covering.iter().position(|c| c.as_ref().is_some_and(|r| r.contains(&finding.line)));
+        let hit = (!is_unmarkable(finding.rule))
+            .then(|| {
+                covering.iter().zip(&markers).position(|(c, m)| m.covers_rule(finding.rule) && c.as_ref().is_some_and(|r| r.contains(&finding.line)))
+            })
+            .flatten();
         match hit {
             Some(i) => used[i] = true,
             None => kept.push(finding),
@@ -83,8 +103,8 @@ pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, e
     }
     let severity = if deny_unused { Severity::Error } else { Severity::Warning };
     for (i, marker) in markers.iter().enumerate() {
-        let (rule, message) = match marker.problem {
-            Some(problem) => (EMPTY, problem.to_owned()),
+        let (rule, message) = match &marker.problem {
+            Some((rule, problem)) => (*rule, problem.clone()),
             None if used[i] || analysis.skipped.iter().any(|r| r.contains(&marker.line)) => continue,
             None => (UNUSED, "marker suppresses nothing; remove it".to_owned()),
         };
@@ -98,7 +118,7 @@ pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, e
         kept.push(finding);
     }
     kept.sort_by_key(|f| (f.line, f.column));
-    Marked { findings: kept, markers: markers.len() }
+    Marked { findings: kept, markers: markers.len(), clippy_allows: analysis.clippy_allows }
 }
 
 /// The first line after `line` that holds code: not blank and not a comment.
@@ -109,51 +129,97 @@ fn next_code_line(lines: &[&str], line: usize) -> Option<usize> {
     })
 }
 
+fn open_line(brace: &syn::token::Brace) -> usize {
+    brace.span.open().start().line
+}
+
+/// The last line of a control-flow or block expression's header: up to its opening brace.
+fn expr_header_end(e: &syn::Expr) -> Option<usize> {
+    use syn::Expr;
+    Some(match e {
+        Expr::If(i) => open_line(&i.then_branch.brace_token),
+        Expr::ForLoop(f) => open_line(&f.body.brace_token),
+        Expr::While(w) => open_line(&w.body.brace_token),
+        Expr::Loop(l) => open_line(&l.body.brace_token),
+        Expr::Match(m) => open_line(&m.brace_token),
+        Expr::Block(b) => open_line(&b.block.brace_token),
+        Expr::Unsafe(u) => open_line(&u.block.brace_token),
+        Expr::Async(a) => open_line(&a.block.brace_token),
+        _ => return None,
+    })
+}
+
+/// The last line of an item's header when it has a body of statements: up to the end of a fn signature or the opening brace.
+fn item_header_end(i: &syn::Item) -> Option<usize> {
+    use syn::Item;
+    match i {
+        Item::Fn(f) => Some(f.sig.span().end().line),
+        Item::Impl(i) => Some(open_line(&i.brace_token)),
+        Item::Trait(t) => Some(open_line(&t.brace_token)),
+        Item::Mod(m) => m.content.as_ref().map(|(brace, _)| open_line(brace)),
+        _ => None,
+    }
+}
+
 /// Line ranges of every statement, item, match arm and field initialiser in the file.
-fn item_spans(src: &str) -> Vec<RangeInclusive<usize>> {
+///
+/// A fn, impl, trait, module or control-flow statement counts as its header only; the statements in its body have their own ranges.
+fn item_spans(file: &syn::File) -> Vec<RangeInclusive<usize>> {
     struct Spans(Vec<RangeInclusive<usize>>);
     impl Spans {
-        fn add(&mut self, span: proc_macro2::Span) {
-            self.0.push(span.start().line..=span.end().line);
+        fn add(&mut self, span: proc_macro2::Span, header_end: Option<usize>) {
+            let end = header_end.unwrap_or_else(|| span.end().line);
+            self.0.push(span.start().line..=end);
         }
     }
     impl<'ast> Visit<'ast> for Spans {
         fn visit_stmt(&mut self, i: &'ast syn::Stmt) {
-            self.add(i.span());
+            let header = match i {
+                syn::Stmt::Expr(e, _) => expr_header_end(e),
+                syn::Stmt::Item(item) => item_header_end(item),
+                _ => None,
+            };
+            self.add(i.span(), header);
             visit::visit_stmt(self, i);
         }
         fn visit_item(&mut self, i: &'ast syn::Item) {
-            self.add(i.span());
+            self.add(i.span(), item_header_end(i));
             visit::visit_item(self, i);
         }
         fn visit_impl_item(&mut self, i: &'ast syn::ImplItem) {
-            self.add(i.span());
+            let header = match i {
+                syn::ImplItem::Fn(f) => Some(f.sig.span().end().line),
+                _ => None,
+            };
+            self.add(i.span(), header);
             visit::visit_impl_item(self, i);
         }
         fn visit_trait_item(&mut self, i: &'ast syn::TraitItem) {
-            self.add(i.span());
+            let header = match i {
+                syn::TraitItem::Fn(f) if f.default.is_some() => Some(f.sig.span().end().line),
+                _ => None,
+            };
+            self.add(i.span(), header);
             visit::visit_trait_item(self, i);
         }
         fn visit_arm(&mut self, i: &'ast syn::Arm) {
-            self.add(i.span());
+            self.add(i.span(), expr_header_end(&i.body));
             visit::visit_arm(self, i);
         }
         fn visit_field_value(&mut self, i: &'ast syn::FieldValue) {
-            self.add(i.span());
+            self.add(i.span(), None);
             visit::visit_field_value(self, i);
         }
     }
     let mut spans = Spans(Vec::new());
-    if let Ok(file) = syn::parse_file(src) {
-        spans.visit_file(&file);
-    }
+    spans.visit_file(file);
     spans.0
 }
 
 type LiteralSpan = ((usize, usize), (usize, usize));
 
 /// `((line, column), (line, column))` of each string, char and byte literal token, columns in characters.
-fn literal_spans(src: &str, lines: &[&str]) -> Vec<LiteralSpan> {
+fn literal_spans(file: &syn::File, lines: &[&str]) -> Vec<LiteralSpan> {
     fn walk(stream: TokenStream, lines: &[&str], out: &mut Vec<LiteralSpan>) {
         for tree in stream {
             match tree {
@@ -171,14 +237,43 @@ fn literal_spans(src: &str, lines: &[&str]) -> Vec<LiteralSpan> {
         }
     }
     let mut out = Vec::new();
-    if let Ok(stream) = src.parse::<TokenStream>() {
-        walk(stream, lines, &mut out);
-    }
+    walk(file.to_token_stream(), lines, &mut out);
     out
 }
 
-fn find_markers(src: &str, lines: &[&str]) -> Vec<Marker> {
-    let literals = literal_spans(src, lines);
+/// What follows `design: allow` in a comment: the rule list and the reason, or why they are malformed.
+type Parsed = (Vec<String>, Option<(&'static str, String)>);
+
+fn parse_marker(rest: &str) -> Option<Parsed> {
+    let (list, after) = match rest.strip_prefix('[') {
+        Some(inner) => {
+            let Some(end) = inner.find(']') else {
+                return Some((Vec::new(), Some((INVALID, "marker rule list is missing the closing `]`".to_owned()))));
+            };
+            (Some(&inner[..end]), &inner[end + 1..])
+        }
+        None => (None, rest),
+    };
+    let Some(reason) = after.strip_prefix('(') else {
+        return list.is_some().then(|| (Vec::new(), Some((EMPTY, "marker needs a reason: `// design: allow[<rules>](<reason>)`".to_owned()))));
+    };
+    let rules: Vec<String> = list.map(|l| l.split(',').map(|r| r.trim().to_owned()).collect()).unwrap_or_default();
+    let problem = if let Some(unknown) = rules.iter().find(|r| r.is_empty() || !RULES.iter().any(|known| selector_matches(r, known))) {
+        Some((INVALID, format!("marker names unknown rule `{unknown}`")))
+    } else {
+        match reason.rfind(')') {
+            None => Some((EMPTY, "marker is missing the closing `)`".to_owned())),
+            Some(end) if reason[..end].trim().chars().count() < MIN_REASON => {
+                Some((EMPTY, "marker needs a reason of at least three characters: `// design: allow(<reason>)`".to_owned()))
+            }
+            Some(_) => None,
+        }
+    };
+    Some((rules, problem))
+}
+
+fn find_markers(lines: &[&str], file: &syn::File) -> Vec<Marker> {
+    let literals = literal_spans(file, lines);
     let mut out = Vec::new();
     for (idx, text) in lines.iter().enumerate() {
         let line = idx + 1;
@@ -193,21 +288,15 @@ fn find_markers(src: &str, lines: &[&str]) -> Vec<Marker> {
             None if after.starts_with('/') => continue,
             None => (false, after),
         };
-        let Some(inner) = body.trim().strip_prefix(PREFIX) else { continue };
+        let Some(rest) = body.trim().strip_prefix(PREFIX) else { continue };
+        let Some((rules, problem)) = parse_marker(rest) else { continue };
         let alone = text[..chars[column].0].trim().is_empty();
         let scope = match (file_level, alone) {
             (true, _) => Scope::File,
             (false, true) => Scope::Next,
             (false, false) => Scope::Line,
         };
-        let problem = match inner.rfind(')') {
-            None => Some("marker is missing the closing `)`"),
-            Some(end) if inner[..end].trim().chars().count() < MIN_REASON => {
-                Some("marker needs a reason of at least three characters: `// design: allow(<reason>)`")
-            }
-            Some(_) => None,
-        };
-        out.push(Marker { line, column: column + 1, scope, problem });
+        out.push(Marker { line, column: column + 1, scope, rules, problem });
     }
     out
 }

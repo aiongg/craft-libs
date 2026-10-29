@@ -1,10 +1,12 @@
 //! `design-lint.toml`: which directories the checker reads and which paths are exempt.
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
 use crate::Error;
+use crate::rules::{PARSE, selector_matches};
 
 /// What to check. Paths are relative to the root passed to [`crate::check`].
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -31,15 +33,17 @@ pub struct Exemption {
 }
 
 impl Exemption {
-    /// Whether this exemption silences `rule` in the file at `path` (relative to the root).
+    /// Whether this exemption silences `rule` in the file at `path` (relative to the root). `parse` is never silenced.
     pub fn covers(&self, path: &Path, rule: &str) -> bool {
-        path.starts_with(&self.path) && (self.rules.is_empty() || self.rules.iter().any(|r| rule_matches(r, rule)))
+        rule != PARSE && path.starts_with(&self.path) && (self.rules.is_empty() || self.rules.iter().any(|r| selector_matches(r, rule)))
     }
 }
 
-/// `selector` is the rule id itself or its family (`literal-size` matches `literal-size/vec2`).
-fn rule_matches(selector: &str, rule: &str) -> bool {
-    rule == selector || rule.strip_prefix(selector).is_some_and(|rest| rest.starts_with('/'))
+impl fmt::Display for Exemption {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let rules = if self.rules.is_empty() { "all rules".to_owned() } else { self.rules.join(", ") };
+        write!(f, "{} ({rules}): {}", self.path.display(), self.reason)
+    }
 }
 
 #[derive(Deserialize)]
@@ -83,7 +87,7 @@ impl Config {
 
     /// Parses config text; `origin` names the file in errors.
     ///
-    /// An `[[exempt]]` without a reason of at least three characters, or naming a rule that does not exist, is an error.
+    /// An `[[exempt]]` without a reason of at least three characters, or naming a rule that does not exist (or `parse`), is an error.
     pub fn parse(origin: &Path, text: &str) -> Result<Self, Error> {
         let fail = |message: String| Error::Toml { path: origin.to_owned(), message };
         let raw: Raw = toml::from_str(text).map_err(|e| fail(e.to_string()))?;
@@ -94,8 +98,11 @@ impl Config {
             if reason.chars().count() < crate::markers::MIN_REASON {
                 return Err(fail(format!("[[exempt]] for `{shown}` needs a `reason` of at least {} characters", crate::markers::MIN_REASON)));
             }
-            if let Some(unknown) = e.rules.iter().find(|r| !crate::RULES.iter().any(|known| rule_matches(r, known))) {
+            if let Some(unknown) = e.rules.iter().find(|r| !crate::RULES.iter().any(|known| selector_matches(r, known))) {
                 return Err(fail(format!("[[exempt]] for `{shown}` names unknown rule `{unknown}`")));
+            }
+            if e.rules.iter().any(|r| r == PARSE) {
+                return Err(fail(format!("[[exempt]] for `{shown}` names `{PARSE}`; files that do not parse cannot be exempt")));
             }
             exempt.push(Exemption { path: e.path, rules: e.rules, reason: reason.to_owned() });
         }
