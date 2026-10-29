@@ -11,6 +11,7 @@ mod bezier;
 mod button;
 mod check;
 mod color_picker;
+mod cursor;
 mod curve;
 mod dock;
 mod empty_state;
@@ -59,6 +60,7 @@ pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
+pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
 pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
@@ -598,6 +600,8 @@ families! {
     color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
+    /// Painted pointers: the crosshair, selection badge, distort and skew arrows.
+    cursor: CursorTokens => Cursor(CursorField);
     /// Dock areas: the panel groups, column bars and iconic columns of a docking surface.
     dock: DockTokens => Dock(DockField);
     /// Empty states: the message of an empty panel, list or canvas.

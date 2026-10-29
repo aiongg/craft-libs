@@ -7,13 +7,13 @@ use std::fmt::Write as _;
 
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
-    CheckOffColors, CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CurveTokens, Dimmed, DockTokens,
-    Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps, GradientEditorTokens, GradientLineTokens,
-    GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens,
-    ListboxTokens, MarqueeTokens, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet,
-    RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens,
-    States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
-    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    CheckOffColors, CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens, CurveTokens, Dimmed,
+    DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps, GradientEditorTokens,
+    GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes,
+    ListTokens, ListboxTokens, MarqueeTokens, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens,
+    PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens,
+    SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -219,6 +219,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         check,
         color_picker,
         curve,
+        cursor,
         dock,
         empty_state,
         field,
@@ -260,6 +261,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     check_lines(out, check);
     color_picker_lines(out, color_picker);
     curve_lines(out, curve);
+    cursor_lines(out, cursor);
     dock_lines(out, dock);
     empty_state_lines(out, empty_state);
     field_lines(out, field);
@@ -1003,6 +1005,36 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.step_min", len(*step_min));
     out.line("ruler.tick_mid", len(*tick_mid));
     out.line("ruler.tick_minor", len(*tick_minor));
+}
+
+fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
+    let CursorTokens {
+        crosshair_reach,
+        crosshair_gap,
+        badge_half,
+        badge_offset,
+        badge_beside_x,
+        badge_beside_y,
+        dart_length,
+        dart_half_width,
+        skew_gap,
+        skew_half_length,
+        skew_head,
+        skew_back,
+        ..
+    } = c;
+    out.line("cursor.crosshair_reach", len(*crosshair_reach));
+    out.line("cursor.crosshair_gap", len(*crosshair_gap));
+    out.line("cursor.badge_half", len(*badge_half));
+    out.line("cursor.badge_offset", len(*badge_offset));
+    out.line("cursor.badge_beside_x", len(*badge_beside_x));
+    out.line("cursor.badge_beside_y", len(*badge_beside_y));
+    out.line("cursor.dart_length", len(*dart_length));
+    out.line("cursor.dart_half_width", len(*dart_half_width));
+    out.line("cursor.skew_gap", len(*skew_gap));
+    out.line("cursor.skew_half_length", len(*skew_half_length));
+    out.line("cursor.skew_head", len(*skew_head));
+    out.line("cursor.skew_back", len(*skew_back));
 }
 
 fn handle_lines(out: &mut Lines, h: &HandleTokens) {
