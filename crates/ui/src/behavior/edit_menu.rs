@@ -9,8 +9,9 @@
 //! field's gesture sees ordinary typing: `Cut` and `Copy` events, a Delete key press, Cmd/Ctrl+A,
 //! Cmd/Ctrl+Z, and for Paste the window's clipboard request, which arrives as a `Paste` event.
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
+use egui::plugin::Plugin;
 use egui::{Context, Event, Id, Key, KeyboardShortcut, LayerId, Modifiers, Order, Popup, Pos2, Response, Ui, ViewportCommand};
 
 use crate::controls::Kbd;
@@ -47,18 +48,28 @@ pub struct EditMenu;
 impl EditMenu {
     /// Sets the labels the edit menus of `ctx` use. Call it with [`theme::install`](crate::theme::install)
     /// when the language changes.
+    /// The context keeps them outside its [`egui::Memory`], so a memory reset leaves them installed.
     pub fn install(ctx: &Context, labels: EditMenuLabels) {
-        ctx.data_mut(|d| d.insert_temp(labels_id(), Arc::new(labels)));
+        ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(labels));
     }
 
     /// The labels installed in `ctx`, English when none are.
     pub fn labels(ctx: &Context) -> Arc<EditMenuLabels> {
-        ctx.data(|d| d.get_temp::<Arc<EditMenuLabels>>(labels_id())).unwrap_or_default()
+        static ENGLISH: LazyLock<Arc<EditMenuLabels>> = LazyLock::new(Arc::default);
+        let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
+        installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
     }
 }
 
-fn labels_id() -> Id {
-    Id::unique("craft_ui::behavior::edit_menu::labels")
+/// The labels [`EditMenu::install`] set, kept as a plugin so that a reset of the context's memory
+/// does not drop them.
+#[derive(Default)]
+struct Installed(Option<Arc<EditMenuLabels>>);
+
+impl Plugin for Installed {
+    fn debug_name(&self) -> &'static str {
+        "craft_ui::behavior::edit_menu::labels"
+    }
 }
 
 /// One command of the menu.

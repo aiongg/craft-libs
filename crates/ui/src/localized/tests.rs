@@ -1,5 +1,5 @@
 use egui::accesskit::Role;
-use egui::{DragValue, Key, Modifiers};
+use egui::{Context, DragValue, Key, Modifiers};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 
@@ -602,4 +602,19 @@ fn of_is_english_until_numbers_are_installed_then_the_installed_ones() {
         assert_eq!(LocaleNumbers::of(ui).format(1234.5, 0..=2), "1.234,5");
     });
     output.drop_without_applying_deltas();
+}
+
+#[test]
+fn installed_numbers_survive_a_memory_reset_and_are_english_before_an_install() {
+    let ctx = Context::default();
+    let separator = |ctx: &Context| {
+        let mut text = String::new();
+        ctx.run_ui(egui::RawInput::default(), |ui| text = LocaleNumbers::of(ui).format(1.5, 1..=1)).drop_without_applying_deltas();
+        text
+    };
+    assert_eq!(separator(&ctx), "1.5");
+    LocaleNumbers::from_tag("de").install(&ctx);
+    assert_eq!(separator(&ctx), "1,5");
+    ctx.memory_mut(|m| *m = egui::Memory::default());
+    assert_eq!(separator(&ctx), "1,5", "a memory reset leaves the installed numbers");
 }

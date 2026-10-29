@@ -1165,8 +1165,8 @@ fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Opt
 }
 
 /// The width of a box that fits its options: the widest text, room for the chosen option's icon
-/// when any option has one, the chevron, and the padding. Measured again only when the texts,
-/// the font or the pixel ratio change.
+/// when any option has one, the chevron, and the padding. The widest text is measured again only
+/// when the texts, the font or the pixel ratio change; the rest is added on every pass.
 fn fitted_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, options: &Options<'_, '_, T>) -> f32 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     Tokens::of(ui).font(f.role).hash(&mut hasher);
@@ -1176,18 +1176,16 @@ fn fitted_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, optio
     }
     let key = hasher.finish();
     let cache_id = id.with("fit");
-    if let Some((cached, width)) = ui.data(|d| d.get_temp::<(u64, f32)>(cache_id))
-        && cached == key
-    {
-        return width;
-    }
-    let text = (0..options.len())
-        .map(|option| text_galley(ui, f.role, &options.text(option), Color32::PLACEHOLDER, f32::INFINITY).size().x)
-        .fold(0.0, f32::max);
+    let cached = ui.data(|d| d.get_temp::<(u64, f32)>(cache_id)).filter(|(cached, _)| *cached == key);
+    let text = cached.map(|(_, text)| text).unwrap_or_else(|| {
+        let text = (0..options.len())
+            .map(|option| text_galley(ui, f.role, &options.text(option), Color32::PLACEHOLDER, f32::INFINITY).size().x)
+            .fold(0.0, f32::max);
+        ui.data_mut(|d| d.insert_temp(cache_id, (key, text)));
+        text
+    });
     let icon = if options.has_icons() { f.icon + f.gap } else { 0.0 };
-    let width = (2.0 * f.pad_x + icon + text + f.gap + f.icon).ceil();
-    ui.data_mut(|d| d.insert_temp(cache_id, (key, width)));
-    width
+    (2.0 * f.pad_x + icon + text + f.gap + f.icon).ceil()
 }
 
 /// What the closed box shows.

@@ -1176,6 +1176,34 @@ fn the_states_story_s_mixed_field_is_blank_again_after_esc_and_scrubs_while_mixe
     assert!(!shown(&harness).is_empty(), "the scrub went on to its release and committed a value");
 }
 
+#[test]
+fn steps_with_decides_the_wheel_and_the_screen_reader_steps_too() {
+    let mut rig = Rig::with(100.0, |r| {
+        r.stops = true;
+        r.range = (0.0, 150.0);
+        r.decimals = (0, 1);
+    });
+    let over = rig.rect.center();
+    let wheel = |lines: f32| Event::MouseWheel {
+        unit: MouseWheelUnit::Line,
+        delta: vec2(0.0, lines),
+        modifiers: Modifiers::NONE,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+    };
+    rig.frame(vec![Event::PointerMoved(over), wheel(1.0)]);
+    assert_eq!(rig.value, 150.0, "a notch up goes to the next stop (200), clamped to the range");
+    rig.frame(vec![wheel(-1.0)]);
+    assert_eq!(rig.value, 100.0);
+    rig.frame(vec![wheel(-1.0)]);
+    assert_eq!(rig.value, 50.0, "a notch down goes to the previous stop");
+    rig.request(Action::Increment, None);
+    assert_eq!(rig.value, 100.0, "Increment is the next stop");
+    rig.request(Action::Decrement, None);
+    rig.request(Action::Decrement, None);
+    assert_eq!(rig.value, 25.0, "Decrement is the previous stop, twice");
+}
+
 /// Zoom levels 12.5, 25, 50, 100, 200.
 fn zoom_stop(value: f64, direction: i32) -> f64 {
     let stops = [12.5, 25.0, 50.0, 100.0, 200.0];
@@ -1241,9 +1269,14 @@ fn the_wrap_keeps_a_scrub_continuous_across_the_edge() {
     assert_eq!(travel(4.0, 10.0, None, edges).delta, 6.0);
     // Leftwards likewise.
     assert_eq!(travel(10.0, 1.0, None, edges).send, Some(796.0));
-    // A pointer that moves elsewhere instead (no warp on this platform) is an ordinary move.
+    // A pointer that moves elsewhere instead (no warp on this platform) is an ordinary move, and
+    // the request stays pending: it is not sent again.
     let moved = travel(799.0, 780.0, Some(4.0), edges);
-    assert_eq!((moved.delta, moved.warp), (-19.0, None));
+    assert_eq!((moved.delta, moved.warp, moved.send), (-19.0, Some(4.0), None));
+    let edge_again = travel(780.0, 799.0, moved.warp, edges);
+    assert_eq!((edge_again.delta, edge_again.warp, edge_again.send), (19.0, Some(4.0), None));
+    // Seen within the area around the target, the request is done.
+    assert_eq!(travel(799.0, 7.0, Some(4.0), edges).warp, None);
     // Away from the edges, or without them, nothing is sent.
     assert_eq!(travel(100.0, 200.0, None, edges).send, None);
     assert_eq!(travel(790.0, 799.0, None, None).send, None);
@@ -1273,6 +1306,52 @@ fn scrub_wrap_moves_the_pointer_only_in_a_full_screen_viewport() {
         }
         rig.frame(vec![pointer(pos2(799.0, from.y), false)]);
     }
+}
+
+fn wrapping_rig() -> Rig {
+    Rig::with(1000.0, |r| {
+        r.scrub = true;
+        r.fullscreen = true;
+        r.wrap = true;
+        r.range = (0.0, 100_000.0);
+    })
+}
+
+#[test]
+fn a_scrub_stays_continuous_across_a_pointer_warp() {
+    let mut rig = wrapping_rig();
+    let from = rig.handle();
+    let y = from.y;
+    rig.frame(vec![Event::PointerMoved(from), pointer(from, true)]);
+    rig.frame(vec![Event::PointerMoved(from + vec2(10.0, 0.0))]);
+    rig.frame(vec![Event::PointerMoved(pos2(799.0, y))]);
+    let at_edge = rig.value;
+    assert_eq!(at_edge, 1000.0 + f64::from(799.0 - from.x), "a step a point from the press");
+    assert_eq!(warps(&rig), vec![pos2(4.0, y)]);
+    // The platform moves the pointer; the jump adds nothing.
+    rig.frame(vec![Event::PointerMoved(pos2(4.0, y))]);
+    assert_eq!(rig.value, at_edge, "the warp is no move");
+    // Dragging on counts from the warp target.
+    rig.frame(vec![Event::PointerMoved(pos2(14.0, y))]);
+    assert_eq!(rig.value, at_edge + 10.0);
+    rig.frame(vec![Event::PointerMoved(pos2(20.0, y))]);
+    assert_eq!(rig.value, at_edge + 16.0);
+    rig.frame(vec![pointer(pos2(20.0, y), false)]);
+}
+
+#[test]
+fn a_warp_that_fails_is_asked_for_once() {
+    let mut rig = wrapping_rig();
+    let from = rig.handle();
+    let y = from.y;
+    rig.frame(vec![Event::PointerMoved(from), pointer(from, true)]);
+    rig.frame(vec![Event::PointerMoved(pos2(799.0, y))]);
+    // The platform does not move the pointer, which wiggles at the edge.
+    for x in [799.5, 799.0, 799.8, 799.2] {
+        rig.frame(vec![Event::PointerMoved(pos2(x, y))]);
+    }
+    assert_eq!(warps(&rig), vec![pos2(4.0, y)]);
+    rig.frame(vec![pointer(pos2(799.2, y), false)]);
 }
 
 #[test]

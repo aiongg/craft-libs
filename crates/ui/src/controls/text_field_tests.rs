@@ -53,6 +53,8 @@ struct Rig {
     /// What the last frame sent to the window and the clipboard.
     commands: Vec<ViewportCommand>,
     copied: Vec<String>,
+    /// Every text copied since the rig began.
+    ever_copied: Vec<String>,
 }
 
 impl Rig {
@@ -107,6 +109,7 @@ impl Rig {
             role: None,
             commands: Vec::new(),
             copied: Vec::new(),
+            ever_copied: Vec::new(),
         };
         rig.frame(vec![]);
         rig
@@ -137,6 +140,7 @@ impl Rig {
             .iter()
             .filter_map(|c| if let egui::OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None })
             .collect();
+        self.ever_copied.extend(self.copied.iter().cloned());
         self.commands = output.viewport_output.values().flat_map(|v| v.commands.iter().cloned()).collect();
         output.drop_without_applying_deltas();
         if let Some(update) = update {
@@ -849,7 +853,7 @@ fn a_command_is_the_input_the_shortcut_sends() {
     rig.choose("Cut");
     rig.frame(vec![]);
     assert_eq!(rig.value, "", "Cut removes the selection");
-    assert!(rig.copied.is_empty() || rig.copied == ["hello"]);
+    assert_eq!(rig.ever_copied, ["hello"], "Cut copies what it removes");
     rig.secondary_click(rig.rect.center());
     rig.choose("Undo");
     rig.frame(vec![]);
@@ -966,4 +970,13 @@ fn installed_labels_name_the_menu_rows() {
     );
     rig.secondary_click(rig.rect.center());
     assert!(rig.row("Alles auswählen").is_some() && rig.row("Select All").is_none());
+}
+
+#[test]
+fn installed_labels_survive_a_memory_reset() {
+    let rig = Rig::new("hello");
+    let labels = crate::behavior::EditMenuLabels { undo: "Widerrufen".into(), ..Default::default() };
+    crate::behavior::EditMenu::install(&rig.ctx, labels);
+    rig.ctx.memory_mut(|m| *m = egui::Memory::default());
+    assert_eq!(crate::behavior::EditMenu::labels(&rig.ctx).undo, "Widerrufen");
 }

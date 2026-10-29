@@ -312,7 +312,7 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
     let f = &t.component.field;
     let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
     assert_eq!((f.height, f.width), (control, BySize { sm: 8.0 * control.sm, md: 8.0 * control.md }));
-    assert_eq!(f.number_width, BySize { sm: 4.0 * control.sm, md: 4.0 * control.md });
+    assert_eq!(f.number_width, BySize { sm: 3.0 * control.sm, md: 3.0 * control.md });
     assert_eq!(f.icon, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
     assert_eq!((f.pad_x, f.gap, f.radius, f.role), (t.space.pad.control, t.space.gap.inline, t.shape.radius.control, TypeRole::Body));
     assert_eq!(f.fill, Dimmed { rest: t.color(T::SurfaceSunken), disabled: t.color(T::StateDisabledFill) });

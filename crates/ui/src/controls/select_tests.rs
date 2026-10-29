@@ -6,6 +6,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent};
+use crate::icons::Icon;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, install};
 
@@ -816,6 +817,7 @@ struct Preview {
     fit: bool,
     size: Option<ControlSize>,
     rows: bool,
+    icons: bool,
 }
 
 fn preview(texts: &[&'static str], fit: bool) -> Harness<'static, Preview> {
@@ -828,7 +830,7 @@ fn preview(texts: &[&'static str], fit: bool) -> Harness<'static, Preview> {
                 select = select.rows(texts.len(), |i| i, move |i| texts[i]);
             } else {
                 for (i, text) in host.texts.iter().enumerate() {
-                    select = select.option(i, *text);
+                    select = if host.icons && i == 0 { select.option_icon(i, Icon::Check, *text) } else { select.option(i, *text) };
                     if i == 1 {
                         select = select.option_tooltip("Blends dark over light");
                     }
@@ -863,6 +865,19 @@ fn fit_is_as_wide_as_the_widest_option_in_every_size_class() {
         assert_ne!(long, field);
         assert_eq!(width(&["A", "Linear Light"], true, true), field, "{size:?}: rows ignore fit");
     }
+}
+
+#[test]
+fn the_fitted_width_follows_a_change_of_icons_with_the_texts_unchanged() {
+    let mut harness = preview(&["A", "Linear Light"], true);
+    harness.run();
+    let plain = box_width(&harness);
+    harness.state_mut().icons = true;
+    harness.run();
+    assert!(box_width(&harness) > plain, "room for the icon");
+    harness.state_mut().icons = false;
+    harness.run();
+    assert_eq!(box_width(&harness), plain);
 }
 
 #[test]
