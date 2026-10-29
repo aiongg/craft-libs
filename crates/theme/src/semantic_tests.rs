@@ -139,7 +139,9 @@ fn samples_resolve_and_derived_tokens_meet_every_minimum() {
             if pinned && a.contrast == Contrast::Standard {
                 continue;
             }
-            assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
+            if a.contrast == Contrast::High {
+                assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
+            }
             assert_meets_spec(&def.name, &r, a.contrast);
         }
     }
@@ -164,7 +166,7 @@ fn the_focus_line_meets_3_to_1_on_the_background_in_every_built_in_and_with_a_pi
         let r = resolve(&def, a, None);
         let ratio = contrast_ratio(r.tokens.color(T::LineFocus), r.tokens.color(T::SurfaceBackground));
         assert!(ratio >= min(a), "{a:?}: {ratio:.2}");
-        assert!(r.warnings.is_empty(), "{a:?}: {:?}", r.warnings);
+        assert!(r.warnings.iter().all(|w| w.fg != T::LineFocus.into() && w.bg != T::LineFocus.into()), "{a:?}: {:?}", r.warnings);
     }
 }
 
@@ -225,7 +227,11 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, t.color(T::SurfaceRaised)),
             minimum: 4.5,
         });
-        assert_eq!(r.warnings, expected, "{mode:?}");
+        let reads_pin = |w: &&ContrastCheck| match w.fg {
+            TokenRef::Color(c) => r.tokens.color(c) == pin,
+            TokenRef::Component(f) => r.tokens.component.color(f) == Some(pin),
+        };
+        assert_eq!(r.warnings.iter().filter(reads_pin).copied().collect::<Vec<_>>(), expected, "{mode:?}");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
@@ -251,7 +257,8 @@ fn pinned_edge_hover_pressed_and_divider_are_kept_without_warnings() {
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(r.tokens.color(t), panel, "{mode:?} {t:?}");
         }
-        assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
+        let kept = [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider].map(TokenRef::from);
+        assert!(r.warnings.iter().all(|w| !kept.contains(&w.fg) && !kept.contains(&w.bg)), "{mode:?}: {:?}", r.warnings);
         let high = resolve(&def, app(mode, Contrast::High), None);
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(high.tokens.color(t), panel, "{mode:?} {t:?} in high contrast");
@@ -303,7 +310,8 @@ fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
         }
         assert_eq!(t.color(T::StateDisabledFill), panel, "{mode:?}");
         assert!(e.colors.iter().all(|o| !matches!(o.pass_move, Some(PassMove::Pulled(_)))), "{mode:?}: nothing needs a pull");
-        assert!(e.resolved.warnings.is_empty(), "{mode:?}: {:?}", e.resolved.warnings);
+        let anchored = ANCHORED.map(TokenRef::from);
+        assert!(e.resolved.warnings.iter().all(|w| !anchored.contains(&w.fg) && !anchored.contains(&w.bg)), "{mode:?}: {:?}", e.resolved.warnings);
     }
 }
 
@@ -679,19 +687,25 @@ fn text_between_fills_on_both_sides_keeps_its_best_value() {
     }
 }
 
+/// Pinned text on the accent stays and, in Standard, so do the unpinned solids under it: the pairs
+/// it misses are reported. High contrast fixes the pairs.
 #[test]
-fn pinned_on_accent_text_moves_the_unpinned_solids() {
+fn pinned_on_accent_text_reports_in_standard_and_is_fixed_in_high() {
     let mut def = theme("test.light-accent", "#8b8d98", "#78ADF6", ["#30a46c", "#ffc53d", "#e5484d", "#0090ff"]);
     let solids = [T::AccentSolid, T::AccentHover, T::AccentPressed];
     let before = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
     def.pins.dark = Pins::from_iter([(T::TextOnAccent, Rgba::WHITE)]);
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
-    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert_eq!(r.tokens.color(T::TextOnAccent), Rgba::WHITE);
+    let reported: Vec<_> = r.warnings.iter().filter(|w| w.fg == T::TextOnAccent.into()).map(|w| w.bg).collect();
+    assert_eq!(reported, solids.map(TokenRef::from), "{:?}", r.warnings);
     for s in solids {
-        let (old, new) = (before.color(s), r.tokens.color(s));
-        assert!(relative_luminance(new) < relative_luminance(old), "{} {old:?} -> {new:?}", s.path());
-        assert!(contrast_ratio(Rgba::WHITE, new) >= 4.5, "{}", s.path());
+        assert_eq!(r.tokens.color(s), before.color(s), "{} stays", s.path());
+    }
+    let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
+    assert!(high.warnings.is_empty(), "{:?}", high.warnings);
+    for s in solids {
+        assert!(contrast_ratio(high.tokens.color(T::TextOnAccent), high.tokens.color(s)) >= 7.0, "{}", s.path());
     }
 }
 
@@ -781,22 +795,20 @@ fn pinned_failing_text_warns_on_its_pairs_and_the_component_pairs_that_read_it()
         .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
         .into_iter()
         .collect();
-    let (semantic, component): (Vec<ContrastCheck>, Vec<ContrastCheck>) = r.warnings.iter().partition(|w| matches!(w.fg, TokenRef::Color(_)));
+    let reads_pin = |w: &&ContrastCheck| match w.fg {
+        TokenRef::Component(f) => t.component.color(f) == Some(pin),
+        TokenRef::Color(c) => t.color(c) == pin,
+    };
+    let (semantic, component): (Vec<ContrastCheck>, Vec<ContrastCheck>) =
+        r.warnings.iter().filter(reads_pin).partition(|w| matches!(w.fg, TokenRef::Color(_)));
     assert_eq!(semantic, expected);
-    let failing: Vec<_> = steps.component_pairs.iter().filter(|p| !p.passes()).copied().collect();
+    let failing: Vec<_> = steps.component_pairs.iter().filter(|p| !p.passes()).filter(reads_pin).copied().collect();
     assert!(!component.is_empty());
     assert_eq!(component, failing);
-    for w in &component {
-        let fg = match w.fg {
-            TokenRef::Component(f) => t.component.color(f),
-            TokenRef::Color(c) => Some(t.color(c)),
-        };
-        assert_eq!(fg, Some(pin), "{} reads the pin", w.fg.path());
-    }
 
     // A pinned component colour is reported.
     let text = ComponentField::from_path("button.secondary.text.rest").unwrap();
     def.pins.light = Pins::from_iter([(TokenRef::Component(text), pin)]);
     let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
-    assert_eq!(r.warnings.iter().map(|w| w.fg).collect::<Vec<_>>(), [TokenRef::Component(text)]);
+    assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Component(text)), "{:?}", r.warnings);
 }

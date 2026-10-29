@@ -59,5 +59,8 @@
     "text.faint": "#606068",
     "text.muted": "#96969e",
     "text.normal": "#ececf0"
+  },
+  "components": {
+    "button.radius": 6.0
   }
 }

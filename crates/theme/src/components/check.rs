@@ -33,11 +33,6 @@ fn darken(color: Rgba, amount: f32) -> Rgba {
     Rgba([channel(r), channel(g), channel(b), a])
 }
 
-/// `color` with its opacity multiplied by `opacity`.
-fn fade(color: Rgba, opacity: f32) -> Rgba {
-    color.with_alpha((f32::from(color.a()) * opacity).round() as u8)
-}
-
 /// One coloured part of a check box, radio button or switch indicator while off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckOffPart {
@@ -275,8 +270,10 @@ impl Family for CheckTokens {
         let sunken = c.surface.sunken;
         let rest_outline = identifiable_outline(c.text.faint, sunken, &[c.surface.panel, c.surface.raised], s.high);
         let outline = States::new(rest_outline, c.text.muted, c.text.muted, c.text.disabled);
-        let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
+        // PhotoCraft draws no separate accent hover: the fill is the accent in every state, a
+        // check box a little less opaque while pressed (`widgets/buttons.rs:244-249`).
         let solid = c.accent.solid;
+        let switch = States::new(solid, solid, solid, c.text.disabled);
         let no_outline = Rgba::TRANSPARENT;
         let box_size = BySize { sm: icon.sm, md: icon.md - values::CHECK_BOX_INSET };
         let on_accent = c.text.on_accent;
@@ -298,11 +295,11 @@ impl Family for CheckTokens {
                 border: outline,
             },
             on: CheckOnColors {
-                fill: States::new(solid, solid, fade(solid, values::CHECK_ON_PRESSED_OPACITY), c.text.disabled),
+                fill: States::new(solid, solid, solid.faded(values::CHECK_ON_PRESSED_OPACITY), c.text.disabled),
                 border: States::new(no_outline, no_outline, no_outline, c.text.disabled),
                 mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
             },
-            switch: CheckSwitchColors { fill: accent, border: accent },
+            switch: CheckSwitchColors { fill: switch, border: switch },
             thumb: ThumbColors::knob(c),
         }
     }

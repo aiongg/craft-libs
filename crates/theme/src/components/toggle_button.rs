@@ -1,14 +1,23 @@
-//! Toggle buttons. Off, a toggle button is a secondary button and takes `button.secondary`; on,
-//! it holds `button.secondary.*.pressed`. This family holds the colours of a toggle button that
-//! is on and disabled: `button.secondary.*.disabled` would make it look off.
+//! Toggle buttons. Off, a toggle button is a secondary button and takes `button.secondary`. This
+//! family holds the colours of one that is on, in every state but disabled, and of one that is on
+//! and disabled: `button.secondary.*.disabled` would make it look off.
 
-use super::{ButtonPart, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ButtonPart, ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic};
 use crate::color::Rgba;
+use crate::tokens::{ColorToken, TokenRef};
+use crate::values;
 
 /// Toggle-button tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToggleButtonTokens {
+    /// Fill while on: `state.selected`, or where that fill does not show on the panel and on a
+    /// popup and the outline does not either, the nearest lightness that does.
+    pub on_fill: Rgba,
+    /// Outline while on: `line.control_edge`.
+    pub on_border: Rgba,
+    /// Label and icon while on: the text drawn on that fill.
+    pub on_text: Rgba,
     /// Fill while on and disabled: `state.selected`, the fill of a toggle button that is on.
     pub on_disabled_fill: Rgba,
     /// Outline while on and disabled: `line.divider`, as a disabled secondary button's.
@@ -18,6 +27,23 @@ pub struct ToggleButtonTokens {
 }
 
 impl ToggleButtonTokens {
+    /// The colour of `part` while on.
+    pub fn on(&self, part: ButtonPart) -> Rgba {
+        match part {
+            ButtonPart::Fill => self.on_fill,
+            ButtonPart::Border => self.on_border,
+            ButtonPart::Text => self.on_text,
+        }
+    }
+
+    fn on_mut(&mut self, part: ButtonPart) -> &mut Rgba {
+        match part {
+            ButtonPart::Fill => &mut self.on_fill,
+            ButtonPart::Border => &mut self.on_border,
+            ButtonPart::Text => &mut self.on_text,
+        }
+    }
+
     /// The colour of `part` while on and disabled.
     pub fn on_disabled(&self, part: ButtonPart) -> Rgba {
         match part {
@@ -36,19 +62,22 @@ impl ToggleButtonTokens {
     }
 }
 
-/// An overridable toggle-button field: `toggle_button.on_disabled.<part>`, e.g.
-/// `toggle_button.on_disabled.fill`.
+/// An overridable toggle-button field: `toggle_button.on.<part>` or `toggle_button.on_disabled.<part>`,
+/// e.g. `toggle_button.on.fill`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ToggleButtonField {
+    /// A colour of a toggle button that is on.
+    On(ButtonPart),
     /// A colour of a toggle button that is on and disabled.
     OnDisabled(ButtonPart),
 }
 
-const FIELDS: [ToggleButtonField; ButtonPart::ALL.len()] = {
-    let mut out = [ToggleButtonField::OnDisabled(ButtonPart::Fill); ButtonPart::ALL.len()];
+const FIELDS: [ToggleButtonField; 2 * ButtonPart::ALL.len()] = {
+    let mut out = [ToggleButtonField::On(ButtonPart::Fill); 2 * ButtonPart::ALL.len()];
     let mut i = 0;
     while i < ButtonPart::ALL.len() {
-        out[i] = ToggleButtonField::OnDisabled(ButtonPart::ALL[i]);
+        out[i] = ToggleButtonField::On(ButtonPart::ALL[i]);
+        out[ButtonPart::ALL.len() + i] = ToggleButtonField::OnDisabled(ButtonPart::ALL[i]);
         i += 1;
     }
     out
@@ -60,17 +89,34 @@ impl Family for ToggleButtonTokens {
 
     fn defaults(s: &Semantic<'_>) -> ToggleButtonTokens {
         let c = s.color;
-        ToggleButtonTokens { on_disabled_fill: c.state.selected, on_disabled_border: c.line.divider, on_disabled_text: c.text.disabled }
+        // The state is identified by its fill or its edge: one of them reaches the non-text
+        // minimum on the panel and on a popup.
+        let (on_fill, on_text) =
+            Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
+        ToggleButtonTokens {
+            on_fill,
+            on_border: c.line.control_edge,
+            on_text,
+            on_disabled_fill: c.state.selected,
+            on_disabled_border: c.line.divider,
+            on_disabled_text: c.text.disabled,
+        }
     }
 
     fn path(f: ToggleButtonField) -> String {
-        let ToggleButtonField::OnDisabled(part) = f;
-        format!("on_disabled.{}", part.name())
+        match f {
+            ToggleButtonField::On(part) => format!("on.{}", part.name()),
+            ToggleButtonField::OnDisabled(part) => format!("on_disabled.{}", part.name()),
+        }
     }
 
     fn from_path(path: &str) -> Option<ToggleButtonField> {
-        let part = path.strip_prefix("on_disabled.")?;
-        ButtonPart::ALL.into_iter().find(|p| p.name() == part).map(ToggleButtonField::OnDisabled)
+        let part = |name: &str| ButtonPart::ALL.into_iter().find(|p| p.name() == name);
+        match path.split_once('.')? {
+            ("on", name) => part(name).map(ToggleButtonField::On),
+            ("on_disabled", name) => part(name).map(ToggleButtonField::OnDisabled),
+            _ => None,
+        }
     }
 
     fn kind(_: ToggleButtonField) -> FieldKind {
@@ -78,20 +124,36 @@ impl Family for ToggleButtonTokens {
     }
 
     fn get(&self, f: ToggleButtonField) -> OverrideValue {
-        let ToggleButtonField::OnDisabled(part) = f;
-        OverrideValue::Color(self.on_disabled(part))
+        OverrideValue::Color(match f {
+            ToggleButtonField::On(part) => self.on(part),
+            ToggleButtonField::OnDisabled(part) => self.on_disabled(part),
+        })
     }
 
     fn set(&mut self, f: ToggleButtonField, v: OverrideValue) {
-        let ToggleButtonField::OnDisabled(part) = f;
         // Mismatched kinds are rejected before this is called.
         if let OverrideValue::Color(c) = v {
-            *self.on_disabled_mut(part) = c;
+            match f {
+                ToggleButtonField::On(part) => *self.on_mut(part) = c,
+                ToggleButtonField::OnDisabled(part) => *self.on_disabled_mut(part) = c,
+            }
         }
     }
 
-    /// None: disabled text has no contrast minimum (WCAG 1.4.3 exempts inactive controls).
+    /// The fill, or failing that the outline, shows on the panel and on a popup, and the text
+    /// reads on the fill. The fill comes before its text: high contrast moves the fill first.
+    /// Disabled colours have no pair: disabled text has no contrast minimum (WCAG 1.4.3 exempts
+    /// inactive controls).
     fn pairs() -> Vec<ContrastPair> {
-        Vec::new()
+        let on = |part| TokenRef::Component(ComponentField::ToggleButton(ToggleButtonField::On(part)));
+        let mut out = Vec::new();
+        out.extend([ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
+            fg: on(ButtonPart::Fill),
+            bg: TokenRef::Color(bg),
+            minimum: values::STATE_CUE_MIN,
+            alternate: Some(on(ButtonPart::Border)),
+        }));
+        out.push(ContrastPair { fg: on(ButtonPart::Text), bg: on(ButtonPart::Fill), minimum: values::TEXT_MIN, alternate: None });
+        out
     }
 }

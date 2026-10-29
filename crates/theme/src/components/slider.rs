@@ -28,8 +28,8 @@ pub struct SliderTokens {
     pub radius: f32,
     /// The track's fill: `surface.sunken`.
     pub track: Rgba,
-    /// The filled part, from the start to the value: an accent state indicator (`accent.solid`,
-    /// `accent.hover`, `accent.pressed`; `text.disabled` when disabled).
+    /// The filled part, from the start to the value: an accent state indicator (`accent.solid` in
+    /// every state; `text.disabled` when disabled).
     pub fill: States<Rgba>,
     /// The thumb: a knob, a `surface.knob` face with a `line.knob_edge` outline in every
     /// enabled state; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
@@ -119,7 +119,7 @@ impl Family for SliderTokens {
             track_height: values::SLIDER_TRACK,
             radius: s.shape.radius.pill,
             track: c.surface.sunken,
-            fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled),
+            fill: States::new(c.accent.solid, c.accent.solid, c.accent.solid, c.text.disabled),
             thumb_colors: ThumbColors::knob(c),
             ring: States::new(clear, soft, soft, clear),
             ring_width: values::KNOB_RING,

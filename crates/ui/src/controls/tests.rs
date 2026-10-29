@@ -39,6 +39,7 @@ fn button_styles_are_their_button_tokens() {
                     assert_eq!(s.text.get(state), colors.text.get(state).to_egui(), "{variant:?} text {state:?}");
                 }
                 assert_eq!((s.height, s.pad_x, s.icon, s.gap, s.label), (b.height.get(size), b.pad_x.get(size), b.icon.get(size), b.gap, b.label));
+                assert_eq!(s.border_width, b.border_width);
                 assert_eq!(s.radius, Corner::Button.radius(&t));
                 let surface = if variant == ButtonVariant::Ghost { None } else { Some(SurfaceKind::Raised) };
                 assert_eq!(s.surface, surface);
@@ -73,10 +74,11 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
 
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));
-            let pressed = c.button.secondary.fill.pressed.to_egui();
-            assert_eq!(toggle.on_fill.get(State::Rest), pressed, "on, the toggle rests pressed");
-            assert_eq!(toggle.on_fill.get(State::Hover), pressed);
-            assert_eq!(toggle.on_text.get(State::Rest), c.button.secondary.text.pressed.to_egui());
+            let on = c.toggle_button.on_fill.to_egui();
+            assert_eq!(toggle.on_fill.get(State::Rest), on, "on, the toggle holds toggle_button.on.*");
+            assert_eq!(toggle.on_fill.get(State::Pressed), on);
+            assert_eq!(toggle.on_border.get(State::Hover), c.toggle_button.on_border.to_egui());
+            assert_eq!(toggle.on_text.get(State::Rest), c.toggle_button.on_text.to_egui());
             let on_disabled = [&toggle.on_fill, &toggle.on_border, &toggle.on_text].map(|s| s.get(State::Disabled));
             let tokens = craft_theme::ButtonPart::ALL.map(|part| c.toggle_button.on_disabled(part).to_egui());
             assert_eq!(on_disabled, tokens, "on and disabled: toggle_button.on_disabled.*");

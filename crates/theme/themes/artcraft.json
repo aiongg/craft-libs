@@ -21,6 +21,13 @@
     "accent.soft": "#d6d6d6",
     "accent.solid": "#378ef0",
     "accent.text": "#1062c4",
+    "button.secondary.border.hover": "{text.normal}",
+    "button.secondary.border.pressed": "{text.normal}",
+    "button.secondary.border.rest": "{text.muted}",
+    "button.secondary.fill.disabled": "#00000000",
+    "button.secondary.fill.hover": "{state.hover}",
+    "button.secondary.fill.pressed": "{state.hover}",
+    "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "line.border": "#d6d6d6",
@@ -35,11 +42,19 @@
     "surface.sunken": "#ffffff",
     "text.faint": "#787878",
     "text.muted": "#404040",
-    "text.normal": "#141414"
+    "text.normal": "#141414",
+    "text.on_accent": "#ffffff"
   },
   "dark": {
     "accent.soft": "#6e6e6e",
     "accent.solid": "#378ef0",
+    "button.secondary.border.hover": "{text.normal}",
+    "button.secondary.border.pressed": "{text.normal}",
+    "button.secondary.border.rest": "{text.muted}",
+    "button.secondary.fill.disabled": "#00000000",
+    "button.secondary.fill.hover": "{state.hover}",
+    "button.secondary.fill.pressed": "{state.hover}",
+    "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "line.border": "#424242",
@@ -55,6 +70,12 @@
     "tab.strip": "#4a4a4a",
     "text.faint": "#a0a0a0",
     "text.muted": "#d4d4d4",
-    "text.normal": "#eeeeee"
+    "text.normal": "#eeeeee",
+    "text.on_accent": "#ffffff"
+  },
+  "components": {
+    "button.border_width": 1.5,
+    "button.hover_opacity": 0.9,
+    "button.pressed_opacity": 0.8
   }
 }

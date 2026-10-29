@@ -80,6 +80,7 @@ struct Numeric {
 struct Look {
     surface: Option<SurfaceKind>,
     corner: Option<Corner>,
+    border_width: Option<f32>,
     colors: Option<StateColors>,
     on_colors: Option<StateColors>,
     state_layer: bool,
@@ -147,7 +148,7 @@ impl<'a> Interactive<'a> {
             mixed: false,
             selected: None,
             report: Report { role, label, value: None, numeric: None, expanded: None, busy: false, position: None },
-            look: Look { surface: None, corner: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
+            look: Look { surface: None, corner: None, border_width: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
         }
     }
 
@@ -227,6 +228,13 @@ impl<'a> Interactive<'a> {
     /// [`Corner::Control`] without a surface.
     pub fn corner(mut self, corner: Corner) -> Self {
         self.look.corner = Some(corner);
+        self
+    }
+
+    /// The width of a flat surface's border when [`colors`](Interactive::colors) give it a colour,
+    /// in points, in place of the surface's one point. A bevel keeps its own width.
+    pub fn border_width(mut self, width: f32) -> Self {
+        self.look.border_width = Some(width);
         self
     }
 
@@ -469,7 +477,7 @@ impl Sensed {
                     style.fill = fill;
                     style.radius = radius;
                     if let (SurfaceEdge::Border(stroke), Some(border)) = (style.edge, colors.and_then(|c| c.border)) {
-                        style.edge = SurfaceEdge::Border(Stroke::new(stroke.width, animated(&border)));
+                        style.edge = SurfaceEdge::Border(Stroke::new(look.border_width.unwrap_or(stroke.width), animated(&border)));
                     }
                     ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
                 }
