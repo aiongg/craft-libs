@@ -115,7 +115,7 @@ pub struct AngleDialStyle {
 /// - **Mixed**: a `value` that isn't a finite number (a mixed selection) draws no needle and
 ///   leaves the field blank. A press on the dial focuses it and begins no drag; a click sets the
 ///   angle it points at, and a number typed in the field commits, both from the range's start.
-///   The accessible value reads as the range's start.
+///   The accessible node has no value, as a mixed number field's.
 ///
 /// Drawing it with [`field(false)`](AngleDial::field) leaves the dial alone.
 #[derive(Clone, Debug)]
@@ -333,8 +333,12 @@ impl<'a> AngleDial<'a> {
         }
 
         let value = scale.place(*gesture.shown());
-        let text = format!("{}°", self.numbers.format(value, 0..=decimals_of(self.step)));
-        let response = sensed.numeric(value, scale.min..=scale.max, self.step).value(text).finish(ui);
+        let response = if mixed {
+            sensed.numeric_mixed(scale.min..=scale.max, self.step).finish(ui)
+        } else {
+            let text = format!("{}°", self.numbers.format(value, 0..=decimals_of(self.step)));
+            sensed.numeric(value, scale.min..=scale.max, self.step).value(text).finish(ui)
+        };
         if ui.is_rect_visible(rect) {
             let active = enabled && (response.hovered() || dragging);
             self.paint(ui, style, rect, (!mixed).then_some(value), active, enabled);

@@ -69,7 +69,8 @@ struct Report {
 /// A numeric value with its bounds, for sliders.
 #[derive(Clone, Debug)]
 struct Numeric {
-    value: f64,
+    /// `None` for a mixed value.
+    value: Option<f64>,
     range: RangeInclusive<f64>,
     step: f64,
 }
@@ -380,7 +381,14 @@ impl Sensed {
     /// increment, a decrement (offered while the value is inside its bounds) or a value; the
     /// control reads those requests from the input.
     pub fn numeric(mut self, value: f64, range: RangeInclusive<f64>, step: f64) -> Self {
-        self.report.numeric = Some(Numeric { value, range, step });
+        self.report.numeric = Some(Numeric { value: Some(value), range, step });
+        self
+    }
+
+    /// As [`numeric`](Sensed::numeric) for a value that is mixed (a selection whose items differ):
+    /// no value, the bounds and step, and every request offered.
+    pub fn numeric_mixed(mut self, range: RangeInclusive<f64>, step: f64) -> Self {
+        self.report.numeric = Some(Numeric { value: None, range, step });
         self
     }
 
@@ -393,7 +401,7 @@ impl Sensed {
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(report.role, enabled, &report.label);
             info.current_text_value.clone_from(&report.value);
-            info.value = report.numeric.as_ref().map(|n| n.value);
+            info.value = report.numeric.as_ref().and_then(|n| n.value);
             info.selected = checked;
             info
         });
@@ -406,12 +414,15 @@ impl Sensed {
                     node.set_min_numeric_value(*range.start());
                     node.set_max_numeric_value(*range.end());
                     node.set_numeric_value_step(*step);
+                    if value.is_none() {
+                        node.clear_numeric_value();
+                    }
                     if enabled {
                         node.add_action(Action::SetValue);
-                        if value < range.end() {
+                        if value.is_none_or(|v| v < *range.end()) {
                             node.add_action(Action::Increment);
                         }
-                        if value > range.start() {
+                        if value.is_none_or(|v| v > *range.start()) {
                             node.add_action(Action::Decrement);
                         }
                     }

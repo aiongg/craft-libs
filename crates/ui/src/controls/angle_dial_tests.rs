@@ -394,3 +394,14 @@ fn typing_in_a_mixed_dials_field_commits_the_number() {
     assert!(!events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "{events:?}");
     assert_eq!(rig.angle, 45.0);
 }
+
+#[test]
+fn a_mixed_dial_has_no_accessible_value() {
+    let mut rig = Rig::new();
+    rig.angle = f64::NAN;
+    rig.frame(vec![]);
+    let node = rig.node(Role::Slider);
+    assert_eq!((node.numeric_value(), node.value()), (None, None));
+    assert_eq!((node.min_numeric_value(), node.max_numeric_value()), (Some(-180.0), Some(180.0)));
+    assert!(node.supports_action(Action::SetValue));
+}
