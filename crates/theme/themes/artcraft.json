@@ -49,6 +49,7 @@
     "surface.canvas": "#282828",
     "surface.panel": "#535353",
     "surface.sunken": "#454545",
+    "tab.strip": "#4a4a4a",
     "text.muted": "#d4d4d4",
     "text.normal": "#eeeeee"
   }

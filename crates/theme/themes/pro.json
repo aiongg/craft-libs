@@ -56,6 +56,7 @@
     "surface.canvas": "#282828",
     "surface.panel": "#323232",
     "surface.sunken": "#242424",
+    "tab.strip": "#262626",
     "text.normal": "#dedede"
   }
 }
