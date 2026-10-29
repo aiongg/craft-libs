@@ -562,6 +562,8 @@ fn a_drag_the_host_ended_for_another_controls_set_goes_on_from_the_hosts_value()
     // Another control recolours the last stop.
     let mut recoloured = h.state().0.now.clone();
     recoloured.stops.color[3].color = Srgba::rgb(0.0, 1.0, 0.0);
+    // The same Set also moves the dragged stop: the pointer wins for its location.
+    recoloured.stops.color[2].location = 0.65;
     h.state_mut().2 = Some(recoloured);
     h.run();
     assert_eq!(h.state().0.now.stops.color[3].color, Srgba::rgb(0.0, 1.0, 0.0));
@@ -571,9 +573,9 @@ fn a_drag_the_host_ended_for_another_controls_set_goes_on_from_the_hosts_value()
     h.run();
     let doc = &h.state().0.now;
     let locations: Vec<f32> = doc.stops.color.iter().map(|s| s.location).collect();
-    assert_eq!(locations, [0.0, 0.6, 0.75, 1.0], "the drag goes on with its stop");
+    assert_eq!(locations, [0.0, 0.6, 0.75, 1.0], "the drag goes on with its stop, whose location follows the pointer, not the Set");
     assert_eq!(doc.stops.color[2].tag, 7);
-    assert_eq!(doc.stops.color[3].color, Srgba::rgb(0.0, 1.0, 0.0), "from the host's value");
+    assert_eq!(doc.stops.color[3].color, Srgba::rgb(0.0, 1.0, 0.0), "the Set's other changes stay");
     let begins: Vec<_> = h.state().4.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).map(|e| e.id()).collect();
     assert_eq!(begins.len(), 2, "a gesture of its own: {:?}", kinds(&h.state().4));
     assert_ne!(begins[0], begins[1]);
@@ -931,4 +933,63 @@ fn a_not_editable_overlay_has_its_parts_but_no_tab_stop_and_no_selection() {
     key(&mut h, Modifiers::NONE, Key::Insert);
     assert_eq!(picked(&h), None);
     assert!(h.state().events.is_empty(), "the keys do nothing");
+}
+
+/// Presses and releases at `at` in one frame, the pointer already there.
+fn tap(h: &mut Harness<'_, Host>, at: Pos2) {
+    frame(h, [Event::PointerMoved(at), button(at, true, Modifiers::NONE), button(at, false, Modifiers::NONE)]);
+    h.run();
+}
+
+#[test]
+fn a_one_frame_click_on_the_line_adds_a_stop_like_a_two_frame_click() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    tap(&mut h, s.t(0.75));
+    assert_eq!(kinds(&h.state().events), ["set"]);
+    assert_eq!(locations(&h), [0.0, 0.3, 0.6, 0.75, 1.0]);
+    assert_eq!(selected(&h), Some(StopRef::Color(3)));
+}
+
+#[test]
+fn a_one_frame_click_picks_a_stop_a_midpoint_and_an_end() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    for (at, part, sel) in [
+        (s.t(0.3), LinePart::Stop(1), Some(StopRef::Color(1))),
+        (s.t(0.45), LinePart::Midpoint(1), Some(StopRef::Midpoint(StopRow::Color, 1))),
+        (s.t(1.0), LinePart::End, Some(StopRef::Midpoint(StopRow::Color, 1))),
+    ] {
+        tap(&mut h, at);
+        assert_eq!((picked(&h), selected(&h)), (Some(part), sel));
+    }
+    assert!(h.state().events.is_empty(), "picking edits nothing");
+}
+
+#[test]
+fn a_one_frame_double_click_asks_for_the_colour_and_a_one_frame_secondary_click_reports_the_part() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let at = s.t(0.6);
+    frame(
+        &mut h,
+        [
+            Event::PointerMoved(at),
+            button(at, true, Modifiers::NONE),
+            button(at, false, Modifiers::NONE),
+            button(at, true, Modifiers::NONE),
+            button(at, false, Modifiers::NONE),
+        ],
+    );
+    h.run();
+    assert_eq!(h.state().color_requested, [2]);
+    let at = s.t(0.3);
+    let secondary = |pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    frame(&mut h, [Event::PointerMoved(at), secondary(true), secondary(false)]);
+    h.run();
+    assert_eq!(h.state().context, Some(LinePart::Stop(1)));
+    assert_eq!(selected(&h), Some(StopRef::Color(1)));
 }
