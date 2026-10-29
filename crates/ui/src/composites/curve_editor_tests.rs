@@ -8,6 +8,7 @@ use egui_kittest::{Harness, Node};
 
 use super::*;
 use crate::behavior::KeyClaim;
+use crate::controls::NumberField;
 use crate::direction::{self, Direction};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
@@ -39,6 +40,11 @@ struct Host {
     percent: bool,
     /// Hands the events to a [`GestureHost`] over a document with undo steps instead.
     undo: Option<Undo>,
+    /// An app's field of the drawn curve's output at level 128, outside the editor: drawn before
+    /// the editor when true, else after it.
+    outside: Option<bool>,
+    /// The outside field's events by kind, with their passes.
+    outside_events: Vec<(&'static str, u64)>,
 }
 
 /// A document of one curve with undo steps, under a [`GestureHost`].
@@ -92,6 +98,8 @@ impl Host {
             pencil: false,
             percent: false,
             undo: None,
+            outside: None,
+            outside_events: Vec::new(),
         }
     }
 
@@ -119,6 +127,9 @@ impl Host {
         }
         let width = self.width;
         let scoped = self.scoped;
+        if self.outside == Some(true) {
+            self.show_outside(ui, &numbers);
+        }
         let edit = ui
             .allocate_ui(vec2(width, 0.0), |ui| {
                 ui.set_max_width(width);
@@ -128,6 +139,9 @@ impl Host {
                 }
             })
             .inner;
+        if self.outside == Some(false) {
+            self.show_outside(ui, &numbers);
+        }
         self.escape_seen |= ui.input(|i| i.key_pressed(Key::Escape));
         self.id = edit.response.id;
         self.rect = edit.response.rect;
@@ -161,6 +175,24 @@ impl Host {
                 }
             }
             self.events.push(event);
+        }
+    }
+
+    /// The outside field ([`Host::outside`]), applied to the drawn curve.
+    fn show_outside(&mut self, ui: &mut Ui, numbers: &LocaleNumbers) {
+        let value = self.drawn().get(128).copied().unwrap_or_default();
+        let edit = NumberField::new("outside", "Midtone", f64::from(value), numbers).range(0.0..=255.0).decimals(0..=0).show(ui);
+        let Some(event) = edit.event else { return };
+        let kind = match &event {
+            EditEvent::Begin { .. } => "Begin",
+            EditEvent::Update { .. } => "Update",
+            EditEvent::Commit { .. } => "Commit",
+            EditEvent::Cancel { .. } => "Cancel",
+            EditEvent::Set { .. } => "Set",
+        };
+        self.outside_events.push((kind, ui.ctx().cumulative_pass_nr()));
+        if let (Some(v), Curve::Map(map)) = (event.value(), &mut self.curve) {
+            map[128] = *v as f32;
         }
     }
 
@@ -853,6 +885,37 @@ fn pencil_rig() -> Harness<'static, Host> {
     host.curve = Curve::Map((0..256).map(|k| k as f32).collect());
     host.pencil = true;
     harness(host, Direction::Ltr)
+}
+
+/// A pencil stroke pressed during the typing run of an app's field of the same curve waits for
+/// the run's commit, whether the field is drawn before or after the editor, and begins in the pass
+/// after it from the curve the run left.
+#[test]
+fn a_pencil_stroke_during_an_outside_fields_typing_run_begins_the_pass_after_its_commit() {
+    for first in [false, true] {
+        let mut host = Host::new(&[]);
+        host.curve = Curve::Map((0..256).map(|k| k as f32).collect());
+        host.pencil = true;
+        host.outside = Some(first);
+        let mut harness = harness(host, Direction::Ltr);
+        let field = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Midtone")).rect().center();
+        click_with(&mut harness, field, PointerButton::Primary, Modifiers::NONE);
+        harness.event(Event::Text("40".into()));
+        harness.run();
+        assert!(harness.state().events.is_empty(), "field first {first}");
+
+        let from = harness.state().at([20.0, 200.0]);
+        press(&mut harness, from);
+        let to = harness.state().at([60.0, 200.0]);
+        move_to(&mut harness, to);
+        release(&mut harness, to);
+        let commit = harness.state().outside_events.iter().find(|(kind, _)| *kind == "Commit").map(|(_, pass)| *pass);
+        assert!(commit.is_some(), "field first {first}: {:?}", harness.state().outside_events);
+        assert_eq!(Some(harness.state().pass_of("Begin", 0)), commit.map(|pass| pass + 1), "field first {first}");
+        assert_eq!(harness.state().kinds().last(), Some(&"Commit"), "field first {first}");
+        let map = harness.state().drawn();
+        assert_eq!((map[20], map[60], map[128]), (200.0, 200.0, 40.0), "field first {first}: the stroke keeps the typed value");
+    }
 }
 
 #[test]

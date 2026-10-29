@@ -132,6 +132,8 @@ struct State {
     held: Option<(u64, Press)>,
     /// The last level a pencil stroke under way drew to.
     stroke: Option<[f32; 2]>,
+    /// A pencil press that waits for its turn (`edit::order`), and the last pass that held it.
+    stroke_held: Option<(u64, StrokePress)>,
     /// Where the previous pencil stroke ended: Shift+press continues from it.
     end: Option<StrokeEnd>,
     /// The graph's and the fields' edits as the editor's one gesture.
@@ -144,6 +146,13 @@ struct Press {
     pos: Pos2,
     secondary: bool,
     command: bool,
+}
+
+/// A pencil press: where, and whether Shift was held.
+#[derive(Clone, Copy, Debug)]
+struct StrokePress {
+    pos: Pos2,
+    shift: bool,
 }
 
 /// The end of the previous pencil stroke and the curve it left; the end goes once the host's
@@ -524,6 +533,9 @@ impl<'a> CurveEditor<'a> {
             state.selected = None;
             state.drag = None;
             state.held = None;
+            if !enabled {
+                state.stroke_held = None;
+            }
             if !gesture.is_active() && state.end.as_ref().is_some_and(|end| end.curve != *curve) {
                 state.end = None;
             }
@@ -533,6 +545,7 @@ impl<'a> CurveEditor<'a> {
             }
         } else if let Some(points) = points.as_mut() {
             state.selected = state.selected.filter(|&i| i < points.len());
+            state.stroke_held = None;
             if enabled {
                 let mut edit = PointEdit { gesture: &mut gesture, points, state, rules, map, style };
                 edit.pointer(ui, &response);
@@ -545,6 +558,7 @@ impl<'a> CurveEditor<'a> {
             state.selected = None;
             state.drag = None;
             state.held = None;
+            state.stroke_held = None;
         }
 
         let shown = gesture.shown().clone();
@@ -971,19 +985,25 @@ struct StrokeEdit<'g> {
 
 impl StrokeEdit<'_> {
     /// Press, drag and release as one gesture; a Shift press starts at the previous stroke's end.
+    /// A press gives the graph the focus and takes its turn from the edit order (`edit::order`):
+    /// while a typing run has the focus (an app's field of the same curve), the press waits,
+    /// keeping its Shift, until the run's ending event has gone out, and then draws on the curve
+    /// the run leaves. A press released while it waited still draws its point.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
         let down = response.is_pointer_button_down_on();
         let press = down && ui.input(|i| i.pointer.primary_pressed());
-        if press && let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
+        let new =
+            press.then(|| ui.input(|i| i.pointer.press_origin())).flatten().map(|pos| StrokePress { pos, shift: ui.input(|i| i.modifiers.shift) });
+        if new.is_some() {
             response.request_focus();
-            let at = self.map.value_at(pos);
-            let from = match ui.input(|i| i.modifiers.shift) {
-                true => self.state.end.as_ref().map_or(at, |end| end.at),
-                false => at,
-            };
-            self.gesture.begin();
-            self.state.stroke = Some(at);
-            self.draw(ui, from, at);
+        }
+        let pass = ui.ctx().cumulative_pass_nr();
+        let held = self.state.stroke_held.take().filter(|(last, _)| last + 1 == pass).map(|(_, press)| press);
+        if let Some(stroke) = held.or(new) {
+            match order::turn(ui.ctx(), response.id, self.gesture.id()) {
+                Turn::Waits => self.state.stroke_held = Some((pass, stroke)),
+                Turn::Now | Turn::Runs => self.start(ui, stroke),
+            }
         }
         let released = ui.input(|i| i.pointer.primary_released());
         if !press
@@ -1000,6 +1020,17 @@ impl StrokeEdit<'_> {
             self.state.end = Some(StrokeEnd { at, curve: self.gesture.shown().clone() });
             self.gesture.commit();
         }
+    }
+
+    fn start(&mut self, ui: &Ui, press: StrokePress) {
+        let at = self.map.value_at(press.pos);
+        let from = match press.shift {
+            true => self.state.end.as_ref().map_or(at, |end| end.at),
+            false => at,
+        };
+        self.gesture.begin();
+        self.state.stroke = Some(at);
+        self.draw(ui, from, at);
     }
 
     fn draw(&mut self, ui: &Ui, from: [f32; 2], to: [f32; 2]) {
