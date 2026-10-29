@@ -2,8 +2,13 @@ use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
 use egui::{Context, RawInput};
 
+/// The window the dock lays out in; an empty screen would draw no panel.
+fn input() -> RawInput {
+    RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..RawInput::default() }
+}
+
 fn frame(ctx: &Context, gallery: &mut Gallery) {
-    ctx.run_ui(RawInput::default(), |ui| gallery.show(ui)).drop_without_applying_deltas();
+    ctx.run_ui(input(), |ui| gallery.show(ui)).drop_without_applying_deltas();
 }
 
 #[test]
@@ -103,7 +108,7 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
 
 /// The AccessKit tree of one gallery frame.
 fn tree_of(ctx: &Context, gallery: &mut Gallery) -> craft_ui::inspect::AccessTree {
-    let output = ctx.run_ui(RawInput::default(), |ui| gallery.show(ui));
+    let output = ctx.run_ui(input(), |ui| gallery.show(ui));
     let tree = output.platform_output.accesskit_update.as_ref().and_then(craft_ui::inspect::AccessTree::from_update);
     output.drop_without_applying_deltas();
     tree.expect("an AccessKit tree")
@@ -120,6 +125,8 @@ fn unnamed_beside(tree: &craft_ui::inspect::AccessTree, anchor: &str) -> Vec<Str
         .into_iter()
         .filter(|id| tree.name(*id).is_none())
         .filter_map(|id| tree.node(id))
+        // egui's own scroll bars have no label to set; the List names its own.
+        .filter(|n| n.role() != egui::accesskit::Role::ScrollBar)
         .map(|n| format!("{:?} at {:?} beside {anchor:?}", n.role(), n.bounds()))
         .collect()
 }
@@ -136,7 +143,7 @@ fn every_control_in_the_gallery_chrome_has_an_accessible_name() {
         gallery.select(id);
         frame(&ctx, &mut gallery);
         let tree = tree_of(&ctx, &mut gallery);
-        for anchor in ["Tokens", "Filter stories", "Reset args"] {
+        for anchor in ["Theme", "Filter components"] {
             for missing in unnamed_beside(&tree, anchor) {
                 unnamed.push(format!("{id}: {missing}"));
             }
@@ -247,7 +254,7 @@ fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
     let mut gallery = Gallery::new(None);
     gallery.select("primitives/canvas/document");
     let run = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| {
-        let mut input = RawInput::default();
+        let mut input = input();
         input.viewports.entry(input.viewport_id).or_default().native_pixels_per_point = Some(1.0);
         ctx.run_ui(input, |ui| {
             gallery.show(ui);

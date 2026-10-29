@@ -1154,6 +1154,7 @@ dependencies = [
  "eframe",
  "egui",
  "serde",
+ "serde_json",
  "wasm-bindgen-futures",
 ]
 
