@@ -7,13 +7,13 @@ use std::fmt::Write as _;
 
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
-    CheckOffColors, CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens, CurveTokens, Dimmed,
-    DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps, GradientEditorTokens,
-    GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes,
-    ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens,
-    SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
+    CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps,
+    GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
+    LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
+    PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens,
+    SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors,
+    ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -304,7 +304,7 @@ fn item_lines(out: &mut Lines, key: &str, colors: &ItemColors) {
 }
 
 fn check_lines(out: &mut Lines, c: &CheckTokens) {
-    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, thumb } = c;
+    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, switch, thumb } = c;
     by_size(out, "check.height", height);
     by_size(out, "check.size", size);
     out.line("check.gap", len(*gap));
@@ -321,6 +321,9 @@ fn check_lines(out: &mut Lines, c: &CheckTokens) {
     states(out, "check.on.fill", fill);
     states(out, "check.on.border", border);
     states(out, "check.on.mark", mark);
+    let CheckSwitchColors { fill, border } = switch;
+    states(out, "check.switch.fill", fill);
+    states(out, "check.switch.border", border);
     thumb_lines(out, "check.thumb", thumb);
 }
 

@@ -61,7 +61,7 @@ pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
-pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
+pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};

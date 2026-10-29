@@ -6,8 +6,10 @@
 //!
 //! The text, the chosen text and the group headers are text on the popup surface (4.5:1, 7:1 with
 //! high contrast), and the active text is text on the active fill. The check mark is the cue that
-//! shows the chosen option (3:1, 4.5:1 with high contrast) on the popup surface and on the active
-//! fill. The active fill must be visibly different from the popup surface (ratio 1.12, as a list
+//! shows the chosen option (3:1, 4.5:1 with high contrast) on the popup surface. A mark on the
+//! active row follows that row's text colour, as a menu's marks follow its label, so it is
+//! measured with the active text against the active fill, which is the stronger text minimum.
+//! The active fill must be visibly different from the popup surface (ratio 1.12, as a list
 //! row's hover fill); the separator is a design target with no minimum. Each pair is measured at
 //! rest.
 
@@ -45,7 +47,8 @@ pub struct ListboxTokens {
     pub active_text: Rgba,
     /// The chosen option's text: `text.normal`.
     pub chosen_text: Rgba,
-    /// The check mark at the chosen option: `text.normal`.
+    /// The check mark at the chosen option: `text.normal`; on the active row it is the active
+    /// text.
     pub mark: Rgba,
     /// A group header: `text.muted`.
     pub group: Rgba,
@@ -182,8 +185,8 @@ impl Family for ListboxTokens {
     }
 
     /// At rest: the text, the chosen text and the group header on the popup surface, and the
-    /// active text on the active fill (text); the check mark on the popup surface and on the
-    /// active fill (the cue of the chosen option).
+    /// active text (which also colours the check mark on the active row) on the active fill
+    /// (text); the check mark on the popup surface (the cue of the chosen option).
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Listbox;
         let popup = TokenRef::Color(ColorToken::SurfaceRaised);
@@ -196,7 +199,6 @@ impl Family for ListboxTokens {
             pair(ListboxField::Group, popup, values::TEXT_MIN),
             pair(ListboxField::ActiveText, active, values::TEXT_MIN),
             pair(ListboxField::Mark, popup, values::NON_TEXT_MIN),
-            pair(ListboxField::Mark, active, values::NON_TEXT_MIN),
         ]
     }
 }

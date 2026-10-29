@@ -41,7 +41,7 @@ pub struct SwitchStyle {
     pub surface: SurfaceStyle,
     /// Off: `check.off.*`.
     pub off: IndicatorColors,
-    /// On: `check.on.*` without the mark; the thumb's place shows the state.
+    /// On: `check.switch.*`; the thumb's place shows the state too.
     pub on: IndicatorColors,
     /// The thumb's shape: a round knob [`Surface`] (its border, or bevel, and the knob shadow);
     /// a disabled thumb has no shadow.
@@ -66,7 +66,7 @@ pub struct SwitchStyle {
 /// held. AccessKit reports a `Switch` named by the label, toggled, after this frame's click.
 ///
 /// The track sits at the reading start on a sunken [`Surface`] with round ends: `check.off.*`
-/// with an outline, or `check.on.*`. The thumb is a knob, the same off and on, so the track's
+/// with an outline, or `check.switch.*`. The thumb is a knob, the same off and on, so the track's
 /// colour and the thumb's place show the state.
 #[derive(Debug)]
 pub struct Switch<'a> {
@@ -156,7 +156,7 @@ impl<'a> Switch<'a> {
             label: c.label,
             surface: Surface::style(tokens, SurfaceKind::Sunken),
             off: IndicatorColors::from(&c.off),
-            on: IndicatorColors { mark: None, ..IndicatorColors::from(&c.on) },
+            on: IndicatorColors::from(&c.switch),
             thumb_surface: knob(thumb_surface, c.thumb.fill.rest.to_egui(), c.thumb.border.rest.to_egui(), true),
             thumb_fill: c.thumb.fill.to_egui(),
             thumb_border: c.thumb.border.to_egui(),

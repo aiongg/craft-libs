@@ -130,6 +130,12 @@ impl CheckOnColors {
     }
 }
 
+/// One coloured part of a switch track while on.
+pub type CheckSwitchPart = CheckOffPart;
+
+/// The colours of a switch track while on, per state. A switch draws no mark.
+pub type CheckSwitchColors = CheckOffColors;
+
 /// Check-box, radio-button and switch tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -158,6 +164,9 @@ pub struct CheckTokens {
     /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
     /// and outline with a `state.disabled_fill` mark.
     pub on: CheckOnColors,
+    /// A switch track while on: the same as the check box's on fill and outline unless the theme
+    /// pins it. A switch has no mark, so the track alone shows the state.
+    pub switch: CheckSwitchColors,
     /// The switch thumb, off and on: a knob, a `surface.knob` face with a `line.knob_edge`
     /// outline in every enabled state; disabled, a face halfway to `surface.panel` with a
     /// `line.divider` outline.
@@ -165,7 +174,7 @@ pub struct CheckTokens {
 }
 
 /// An overridable check field. Paths: `radius`, `off.<fill|border>.<state>`,
-/// `on.<fill|border|mark>.<state>`, `thumb.<part>.<state>`, e.g. `check.on.mark.rest`.
+/// `on.<fill|border|mark>.<state>`, `switch.<fill|border>.<state>`, `thumb.<part>.<state>`, e.g. `check.on.mark.rest`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckField {
     /// `check.radius`
@@ -184,6 +193,13 @@ pub enum CheckField {
         /// The state.
         state: State,
     },
+    /// `check.switch.<part>.<state>`: the switch track while on.
+    Switch {
+        /// The part.
+        part: CheckSwitchPart,
+        /// The state.
+        state: State,
+    },
     /// `check.thumb.<part>.<state>`: the switch thumb.
     Thumb {
         /// The part.
@@ -196,7 +212,8 @@ pub enum CheckField {
 const STATES: usize = State::ALL.len();
 const OFF_COUNT: usize = CheckOffPart::ALL.len() * STATES;
 const ON_COUNT: usize = CheckOnPart::ALL.len() * STATES;
-const FIELD_COUNT: usize = 1 + OFF_COUNT + ON_COUNT + THUMB_FIELDS.len();
+const SWITCH_COUNT: usize = CheckSwitchPart::ALL.len() * STATES;
+const FIELD_COUNT: usize = 1 + OFF_COUNT + ON_COUNT + SWITCH_COUNT + THUMB_FIELDS.len();
 
 const FIELDS: [CheckField; FIELD_COUNT] = {
     let mut out = [CheckField::Radius; FIELD_COUNT];
@@ -210,10 +227,15 @@ const FIELDS: [CheckField; FIELD_COUNT] = {
         out[1 + OFF_COUNT + j] = CheckField::On { part: CheckOnPart::ALL[j / STATES], state: State::ALL[j % STATES] };
         j += 1;
     }
+    let mut m = 0;
+    while m < SWITCH_COUNT {
+        out[1 + OFF_COUNT + ON_COUNT + m] = CheckField::Switch { part: CheckSwitchPart::ALL[m / STATES], state: State::ALL[m % STATES] };
+        m += 1;
+    }
     let mut k = 0;
     while k < THUMB_FIELDS.len() {
         let (part, state) = THUMB_FIELDS[k];
-        out[1 + OFF_COUNT + ON_COUNT + k] = CheckField::Thumb { part, state };
+        out[1 + OFF_COUNT + ON_COUNT + SWITCH_COUNT + k] = CheckField::Thumb { part, state };
         k += 1;
     }
     out
@@ -246,6 +268,7 @@ impl Family for CheckTokens {
             thumb_inset: values::SWITCH_THUMB_INSET,
             off: CheckOffColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline },
             on: CheckOnColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
+            switch: CheckSwitchColors { fill: accent, border: accent },
             thumb: ThumbColors::knob(c),
         }
     }
@@ -255,6 +278,7 @@ impl Family for CheckTokens {
             CheckField::Radius => "radius".to_owned(),
             CheckField::Off { part, state } => format!("off.{}.{}", part.name(), state.name()),
             CheckField::On { part, state } => format!("on.{}.{}", part.name(), state.name()),
+            CheckField::Switch { part, state } => format!("switch.{}.{}", part.name(), state.name()),
             CheckField::Thumb { part, state } => format!("thumb.{}", thumb_path(part, state)),
         }
     }
@@ -276,6 +300,7 @@ impl Family for CheckTokens {
         match on_off {
             "off" => Some(CheckField::Off { part: CheckOffPart::ALL.into_iter().find(|p| p.name() == part)?, state }),
             "on" => Some(CheckField::On { part: CheckOnPart::ALL.into_iter().find(|p| p.name() == part)?, state }),
+            "switch" => Some(CheckField::Switch { part: CheckSwitchPart::ALL.into_iter().find(|p| p.name() == part)?, state }),
             _ => None,
         }
     }
@@ -283,7 +308,7 @@ impl Family for CheckTokens {
     fn kind(f: CheckField) -> FieldKind {
         match f {
             CheckField::Radius => FieldKind::Length,
-            CheckField::Off { .. } | CheckField::On { .. } | CheckField::Thumb { .. } => FieldKind::Color,
+            CheckField::Off { .. } | CheckField::On { .. } | CheckField::Switch { .. } | CheckField::Thumb { .. } => FieldKind::Color,
         }
     }
 
@@ -292,6 +317,7 @@ impl Family for CheckTokens {
             CheckField::Radius => OverrideValue::Length(self.radius),
             CheckField::Off { part, state } => OverrideValue::Color(self.off.part(part).get(state)),
             CheckField::On { part, state } => OverrideValue::Color(self.on.part(part).get(state)),
+            CheckField::Switch { part, state } => OverrideValue::Color(self.switch.part(part).get(state)),
             CheckField::Thumb { part, state } => OverrideValue::Color(self.thumb.part(part).get(state)),
         }
     }
@@ -301,6 +327,7 @@ impl Family for CheckTokens {
             (CheckField::Radius, OverrideValue::Length(r)) => self.radius = r.min(values::CHECK_RADIUS_MAX),
             (CheckField::Off { part, state }, OverrideValue::Color(c)) => *self.off.part_mut(part).get_mut(state) = c,
             (CheckField::On { part, state }, OverrideValue::Color(c)) => *self.on.part_mut(part).get_mut(state) = c,
+            (CheckField::Switch { part, state }, OverrideValue::Color(c)) => *self.switch.part_mut(part).get_mut(state) = c,
             (CheckField::Thumb { part, state }, OverrideValue::Color(c)) => *self.thumb.part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}
@@ -318,6 +345,13 @@ impl Family for CheckTokens {
         let mut out: Vec<_> =
             backgrounds.map(|bg| ContrastPair { fg: on(CheckOnPart::Fill), bg, minimum: min, alternate: Some(on(CheckOnPart::Border)) }).into();
         out.extend(backgrounds.map(|bg| ContrastPair { fg: off(CheckOffPart::Border), bg, minimum: min, alternate: Some(off(CheckOffPart::Fill)) }));
+        let switch = |part| field(CheckField::Switch { part, state: State::Rest });
+        out.extend(backgrounds.map(|bg| ContrastPair {
+            fg: switch(CheckSwitchPart::Fill),
+            bg,
+            minimum: min,
+            alternate: Some(switch(CheckSwitchPart::Border)),
+        }));
         out.push(ContrastPair { fg: on(CheckOnPart::Mark), bg: on(CheckOnPart::Fill), minimum: min, alternate: None });
         out
     }

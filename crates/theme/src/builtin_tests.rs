@@ -81,7 +81,7 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
-            assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 6, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -209,7 +209,7 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
-            assert_eq!(pairs.len(), 5, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -412,5 +412,34 @@ fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
         assert_eq!(t.color(ColorToken::TextOnSelected), white);
         assert_eq!(t.component.check.off.fill.rest, white);
         assert_eq!([t.component.check.on.fill.rest, t.component.check.on.mark.rest], [white, black]);
+    }
+}
+
+/// Classic's switch has a navy on track, its list box and select rows highlight in navy with
+/// white text, its secondary buttons keep the face colour at rest and under the pointer, and its
+/// popups are the menu grey. Other built-ins keep the switch track equal to the check box's on
+/// fill.
+#[test]
+fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
+    let navy = Rgba::rgb(0x0a, 0x24, 0x6a);
+    let white = Rgba::rgb(255, 255, 255);
+    let face = Rgba::rgb(0xd4, 0xd0, 0xc8);
+    for theme in builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let c = &t.component;
+            if theme.id.as_str() != "craft.classic" {
+                assert_eq!((c.check.switch.fill, c.check.switch.border), (c.check.on.fill, c.check.on.border), "{} {a:?}", theme.id);
+                continue;
+            }
+            if a.contrast == Contrast::High || a.mode != Mode::Light {
+                continue;
+            }
+            assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
+            assert_eq!((c.listbox.active_fill, c.listbox.active_text), (navy, white));
+            assert_eq!([c.button.secondary.fill.rest, c.button.secondary.fill.hover], [face; 2]);
+            assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
+            assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
+        }
     }
 }

@@ -344,7 +344,6 @@ fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
         (ListboxField::Group, popup, (4.5, 7.0)),
         (ListboxField::ActiveText, active, (4.5, 7.0)),
         (ListboxField::Mark, popup, (3.0, 4.5)),
-        (ListboxField::Mark, active, (3.0, 4.5)),
     ]
 }
 
@@ -439,6 +438,9 @@ fn check_pairs() -> Vec<(ComponentField, TokenRef)> {
         p.push((off_border, TokenRef::Color(bg)));
     }
     p.push((on(CheckOnPart::Mark), TokenRef::Component(on(CheckOnPart::Fill))));
+    for bg in [T::SurfacePanel, T::SurfaceRaised] {
+        p.push((ComponentField::Check(CheckField::Switch { part: CheckOffPart::Fill, state: State::Rest }), TokenRef::Color(bg)));
+    }
     p
 }
 
@@ -594,6 +596,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 7
             // Menu tints: a fill, text and shortcut per hue.
             + 3 * 7
+            // Switch track while on: fill and border per state.
+            + 2 * 4
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -603,6 +607,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     for state in State::ALL {
         let mut check: Vec<_> = CheckOffPart::ALL.map(|part| CheckField::Off { part, state }).into();
         check.extend(CheckOnPart::ALL.map(|part| CheckField::On { part, state }));
+        check.extend(CheckSwitchPart::ALL.map(|part| CheckField::Switch { part, state }));
         check.extend(ThumbPart::ALL.map(|part| CheckField::Thumb { part, state }));
         for f in check {
             assert!(ComponentField::ALL.contains(&ComponentField::Check(f)), "{f:?}");
