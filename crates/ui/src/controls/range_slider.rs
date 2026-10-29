@@ -150,10 +150,10 @@ impl RangeSlider {
         }
         let mut active = None;
         if response.dragged_by(PointerButton::Primary)
-            && let Some(start) = gesture.start().copied()
+            && let Some(anchor) = gesture.anchor().copied()
             && let Some((pos, origin)) = pointer(ui, &response)
         {
-            let start = placed(&scale, start);
+            let start = placed(&scale, anchor);
             let part = at(start, origin.x);
             active = Some(part);
             if part == Part::Either && pos.x != origin.x {

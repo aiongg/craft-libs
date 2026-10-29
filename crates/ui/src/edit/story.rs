@@ -244,10 +244,10 @@ pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditRespons
         gesture.begin();
     }
     if response.dragged()
-        && let Some(start) = gesture.start().copied()
+        && let Some(anchor) = gesture.anchor().copied()
         && let Some((pos, origin)) = ui.input(|i| i.pointer.interact_pos().zip(i.pointer.press_origin()))
     {
-        gesture.update((start + (pos.x - origin.x)).round().clamp(0.0, SLIDER_MAX), ui.input(|i| i.modifiers));
+        gesture.update((anchor + (pos.x - origin.x)).round().clamp(0.0, SLIDER_MAX), ui.input(|i| i.modifiers));
     }
     if response.drag_stopped() {
         gesture.commit();

@@ -23,11 +23,12 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///     if response.drag_started() {
 ///         gesture.begin();
 ///     }
-///     if response.dragged() {
-///         // From the value shown, not the start: a gesture the host ended carries on from the
-///         // host's value.
-///         let value = gesture.shown() + response.drag_delta().x;
-///         gesture.update(value, ui.input(|i| i.modifiers));
+///     if response.dragged()
+///         && let Some(anchor) = gesture.anchor().copied()
+///     {
+///         let moved = ui.input(|i| i.pointer.interact_pos().zip(i.pointer.press_origin()));
+///         let delta = moved.map_or(0.0, |(pos, origin)| pos.x - origin.x);
+///         gesture.update(anchor + delta, ui.input(|i| i.modifiers));
 ///     }
 ///     if response.drag_stopped() {
 ///         gesture.commit();
@@ -64,12 +65,14 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   with a new gesture of the same input (the same drag, typing run or draft), started from the
 ///   host's value. That gesture reports its [`Begin`](EditEvent::Begin) at its first change, with
 ///   an id it takes at that change ([`id`](Gesture::id)), and nothing if it ends unchanged, so
-///   the input goes on and its later changes reach the host. Its [`start`](Gesture::start) is
-///   the host's value, so a drag computes its value from [`shown`](Gesture::shown) and the
-///   pointer's movement since the last frame, not from the start and the movement since the
-///   press. A control whose commit also signals that the user finished (a pen draft's Enter)
-///   can't rely on the commit for that: an unchanged carried-on gesture reports nothing, so the
-///   control reports the finish another way.
+///   the input goes on and its later changes reach the host. Its [`start`](Gesture::start) and
+///   [`shown`](Gesture::shown) value are the host's value, which holds the input's changes when
+///   the host kept the gesture it ended and not when it reverted it (a drag's). So a drag
+///   computes its value from the input instead: from [`anchor`](Gesture::anchor) and the
+///   pointer's movement since the press, or, for a drag that adds each frame's movement to the
+///   value, from the value it last set. A control whose commit also signals that the user
+///   finished (a pen draft's Enter) can't rely on the commit for that: an unchanged carried-on
+///   gesture reports nothing, so the control reports the finish another way.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
@@ -141,9 +144,13 @@ enum Phase<T> {
 #[derive(Clone, Debug)]
 struct Active<T> {
     id: GestureId,
+    /// The input's first gesture ([`Gesture::input`]).
+    input: GestureId,
     /// The [`CancelAll`] generation when the gesture began.
     generation: u64,
     start: T,
+    /// The host's value when the input's first gesture began ([`Gesture::anchor`]).
+    anchor: T,
     current: T,
     /// The value of the last update that went out (`start` before the first): what the host
     /// shows.
@@ -324,10 +331,32 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
 
     /// The active gesture's start value: the host's value when it began. For a gesture that
     /// carries on an input the host ended, that is the host's value when the host ended it, not
-    /// the value the input started from.
+    /// the value the input began from ([`anchor`](Gesture::anchor)).
     pub fn start(&self) -> Option<&T> {
         match &self.stored.phase {
             Phase::Active(a) => Some(&a.start),
+            _ => None,
+        }
+    }
+
+    /// The value the input under way began from: the host's value when its first gesture began.
+    /// It stays when a gesture the host ended carries the input on, where
+    /// [`start`](Gesture::start) becomes the host's value. A drag that computes its value from
+    /// the pointer's movement since the press starts from it, so the value follows the pointer
+    /// whether the host kept or reverted the gesture it ended.
+    pub fn anchor(&self) -> Option<&T> {
+        match &self.stored.phase {
+            Phase::Active(a) => Some(&a.anchor),
+            _ => None,
+        }
+    }
+
+    /// The input under way: the id of its first gesture, the same when a gesture the host ended
+    /// carries the input on. For a control that keeps track of its own input (a press until its
+    /// release) across carry-ons.
+    pub(crate) fn input(&self) -> Option<GestureId> {
+        match &self.stored.phase {
+            Phase::Active(a) => Some(a.input),
             _ => None,
         }
     }
@@ -349,10 +378,13 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return;
         }
         let generation = CancelAll::get(&self.ctx).generation;
+        let id = GestureId::next();
         self.stored.phase = Phase::Active(Active {
-            id: GestureId::next(),
+            id,
+            input: id,
             generation,
             start: self.host.clone(),
+            anchor: self.host.clone(),
             current: self.host.clone(),
             reported: self.host.clone(),
             modifiers: Modifiers::NONE,
@@ -505,7 +537,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
 
     /// Replaces a gesture the host ended with a new one of the same input, started from the host's
     /// value; its `Begin` waits for its first change, which gives it its id
-    /// ([`update`](Gesture::update)). The focus, drag and held updates go on. Runs after
+    /// ([`update`](Gesture::update)). The input, its anchor, the focus, the drag and held updates
+    /// go on. Runs after
     /// [`apply_cancel_all`](Gesture::apply_cancel_all): an input that a `cancel_all` stops
     /// doesn't go on.
     fn carry_on_ended(&mut self) {
