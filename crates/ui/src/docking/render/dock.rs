@@ -632,7 +632,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ui.painter().with_clip_rect(grip).rect_stroke(
                 grip.shrink(1.0),
                 0.0,
-                Stroke::new(1.0, self.look.resize.gamma_multiply(0.5)),
+                Stroke::new(self.look.focus_width, self.look.resize.gamma_multiply(self.look.grip_alpha)),
                 StrokeKind::Inside,
             );
         }
@@ -799,7 +799,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             if !outer {
                 self.iconic.outline(&painter, line, self.look);
             }
-            painter.rect_filled(line, 1.0, self.look.drop);
+            painter.rect_filled(line, self.look.marker_radius, self.look.drop);
         }
     }
 }

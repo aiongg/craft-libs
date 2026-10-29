@@ -206,7 +206,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ui.painter().with_clip_rect(hit).rect_stroke(
                 hit.shrink(1.0),
                 0.0,
-                Stroke::new(1.0, self.look.resize.gamma_multiply(0.5)),
+                Stroke::new(self.look.focus_width, self.look.resize.gamma_multiply(self.look.grip_alpha)),
                 StrokeKind::Inside,
             );
         }
@@ -401,7 +401,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         #[allow(deprecated)]
         let response = tabs::Tab::new(tab_id, &label, active)
             .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() })
-            .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(1.0, self.look.focus) })
+            .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(self.look.focus_width, self.look.focus) })
             .show_at(ui, rect, |ui, response| {
                 let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
                 painter.rect_filled(

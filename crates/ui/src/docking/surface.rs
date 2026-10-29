@@ -273,6 +273,11 @@ impl DockStyle {
             column_bar_height: self.column_bar_height,
             icon_size: self.icon_size,
             iconic_width: self.iconic_width,
+            icon_selected_text: self.text,
+            title_text: self.text,
+            title_muted: self.inactive_text,
+            grip: self.accent,
+            ..DockLook::from_visuals(&egui::Visuals::default())
         };
         let derived = look.font.size * 2.5 + look.tab_padding;
         let config = DockConfig {

@@ -21,9 +21,9 @@ const TAB_FILL: f32 = 0.08;
 
 /// The preview of a drop that joins a group as a tab, or of the rect a drop beside something
 /// gives the moved panels: a 2 pt accent outline inside `rect`, with a light fill.
-fn tab_outline(painter: &egui::Painter, rect: Rect, accent: egui::Color32) {
+fn tab_outline(painter: &egui::Painter, rect: Rect, accent: egui::Color32, width: f32) {
     painter.rect_filled(rect, 0.0, accent.gamma_multiply(TAB_FILL));
-    painter.rect_stroke(rect, 0.0, egui::Stroke::new(2.0, accent), egui::StrokeKind::Inside);
+    painter.rect_stroke(rect, 0.0, egui::Stroke::new(width, accent), egui::StrokeKind::Inside);
 }
 
 /// Height of a panel floated out of a dock column when the host gives no floating size.
@@ -602,11 +602,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             } else if beside {
                 let to = Target::At { anchor: proposal.anchor.clone(), placement: proposal.placement.clone() };
                 match self.result_rect(action(to), members) {
-                    Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop),
+                    Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width),
                     None => self.paint_drop_line(ctx, proposal.preview, false),
                 }
             } else {
-                tab_outline(painter, proposal.preview.shrink(1.0), self.look.drop);
+                tab_outline(painter, proposal.preview.shrink(1.0), self.look.drop, self.look.drop_width);
             }
         }
         self.paint_marker(painter, proposal);
@@ -619,7 +619,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn paint_dock_preview(&self, ctx: &Context, painter: &egui::Painter, action: Action<P>, members: &[P], drop: &DockDrop<P>) {
         let rect = (!self.config.side_edge_zones && !drop.outer).then_some(action).and_then(|action| self.result_rect(action, members));
         match rect {
-            Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop),
+            Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width),
             None => self.paint_drop_line(ctx, drop.line, drop.outer),
         }
     }
@@ -751,11 +751,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return false;
         }
         let hovered = proposal.and_then(zone_of);
-        let fill = self.look.drop.gamma_multiply(0.3);
+        let fill = self.look.drop.gamma_multiply(self.look.ghost_fill);
         for (_, points) in shapes.iter().filter(|(zone, _)| Some(*zone) == hovered) {
             painter.add(egui::Shape::convex_polygon(points.clone(), fill, egui::Stroke::NONE));
         }
-        let stroke = egui::Stroke::new(1.0, self.look.drop.gamma_multiply(0.6));
+        let stroke = egui::Stroke::new(1.0, self.look.drop.gamma_multiply(self.look.ghost_stroke));
         for (_, points) in shapes {
             painter.add(egui::Shape::closed_line(points, stroke));
         }

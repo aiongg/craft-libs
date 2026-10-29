@@ -89,7 +89,7 @@ impl<P: PartialEq> Iconic<P> {
     /// Outline the iconic column an insertion line lies in.
     pub(super) fn outline(&self, painter: &egui::Painter, line: Rect, look: &DockLook) {
         if let Some(column) = self.columns.iter().find(|column| column.shrink(1.0).contains(line.center())) {
-            painter.rect_stroke(column.shrink(1.0), 0.0, Stroke::new(2.0, look.drop), StrokeKind::Inside);
+            painter.rect_stroke(column.shrink(1.0), 0.0, Stroke::new(look.drop_width, look.drop), StrokeKind::Inside);
         }
     }
 
@@ -100,7 +100,7 @@ impl<P: PartialEq> Iconic<P> {
 
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn row_height(&self) -> f32 {
-        self.look.icon_size + 10.0
+        self.look.icon_size + self.look.icon_pad
     }
 
     fn icon_group_height(&self, group: &Group<P>) -> f32 {
@@ -227,21 +227,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), current, &label));
         let painter = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
         if current || response.hovered() {
-            painter.rect_filled(cell.shrink(2.0), 3.0, self.look.icon_selected);
+            painter.rect_filled(cell.shrink(2.0), self.look.icon_radius, self.look.icon_selected);
         }
         if response.has_focus() {
-            painter.rect_stroke(cell.shrink(1.0), 3.0, Stroke::new(1.0, self.look.focus), StrokeKind::Inside);
+            painter.rect_stroke(cell.shrink(1.0), self.look.icon_radius, Stroke::new(self.look.focus_width, self.look.focus), StrokeKind::Inside);
         }
         let size = self.look.icon_size;
         let inset = ((self.look.iconic_width - size) * 0.5).max(2.0);
         let icon = Rect::from_min_size(pos2(cell.left() + inset, cell.center().y - size * 0.5), vec2(size, size));
-        let color = if current { self.look.text } else { self.look.inactive_text };
+        let color = if current { self.look.icon_selected_text } else { self.look.inactive_text };
         if !self.content.paint_icon(&painter, icon, panel, color) {
             if let Some(source) = self.content.icon(panel) {
                 egui::Image::new(source).tint(color).paint_at(ui, icon.intersect(cell));
             } else {
                 let initial: String = label.chars().next().into_iter().flat_map(char::to_uppercase).collect();
-                painter.rect_stroke(icon, 3.0, Stroke::new(1.0, color), StrokeKind::Inside);
+                painter.rect_stroke(icon, self.look.icon_radius, Stroke::new(1.0, color), StrokeKind::Inside);
                 painter.text(icon.center(), egui::Align2::CENTER_CENTER, initial, self.look.font.clone(), color);
             }
         }
