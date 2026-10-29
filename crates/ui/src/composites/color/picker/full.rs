@@ -9,7 +9,7 @@ use egui::{
 
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
-use crate::controls::{Button, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
+use crate::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
 use crate::direction;
 use crate::edit::ops;
 use crate::icons::{self, Icon, IconSize};
@@ -116,6 +116,9 @@ impl ColorPicker<'_> {
                 ui.set_width(side);
                 let visible: Vec<&dyn ColorModel> = models.iter().copied().chain([mode.model()]).collect();
                 self.area_and_strip(ui, mode, &visible, inner, translate, parts, Vec2::splat(style.area), style.strip_full);
+                if self.web_colors.is_some() {
+                    only_web_colors(ui, inner.enabled, translate, parts);
+                }
                 if self.alpha {
                     self.alpha_row(ui, inner, translate, parts);
                 }
@@ -245,6 +248,19 @@ impl ColorPicker<'_> {
                 });
             }
         });
+    }
+}
+
+/// The "Only Web Colors" check box; switching it on sets the snapped colour.
+fn only_web_colors(ui: &mut Ui, enabled: bool, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
+    let mut on = parts.web.get();
+    let changed = Checkbox::bool(translate(texts::ONLY_WEB_COLORS), &mut on).id_salt("only-web-colors").enabled(enabled).show(ui).response.changed();
+    if changed {
+        parts.web.set(on);
+        let color = parts.value().color;
+        if on && !(parts.constrain)(color).same_rgb8(color) {
+            parts.edits.input(super::Input::Click(color));
+        }
     }
 }
 

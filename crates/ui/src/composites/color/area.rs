@@ -228,8 +228,8 @@ pub(crate) struct AreaOp {
 }
 
 /// `values` with `op` applied to the two channels `mode`'s area shows, as the area applies it.
-pub(super) fn apply(op: &AreaOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
-    Axes::of(mode, None).apply(op, values)
+pub(super) fn apply(op: &AreaOp, values: &ModelValues, mode: AreaMode, quantize: Option<usize>) -> ModelValues {
+    Axes::of(mode, quantize).apply(op, values)
 }
 
 /// The area's two channels and their scales.

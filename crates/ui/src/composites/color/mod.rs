@@ -372,15 +372,14 @@ fn show_compact(ui: &mut Ui, args: &mut Args) {
     slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
         let (color, before, last) = &mut state[0];
         ui.set_width(args.number("width") as f32);
+        let mut web = args.bool("web colours only");
         let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
+            .web_colors(&mut web)
             .alpha(args.bool("alpha"))
             .dynamic_tracks(args.bool("dynamic tracks"))
             .enabled(!args.bool("disabled"));
         if args.bool("eyedropper") {
             picker = picker.eyedropper("Pick screen color");
-        }
-        if args.bool("web colours only") {
-            picker = picker.constrain(web_color);
         }
         let picked = picker.show(ui);
         if picked.eyedropper_requested {

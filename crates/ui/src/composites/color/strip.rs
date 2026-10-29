@@ -181,7 +181,7 @@ impl ColorStrip {
         // The one-shot inputs, each an operation applied to the values the ones before it left.
         let mut ops = Vec::new();
         let mut set = |gesture: &mut Gesture<ModelValues>, op: ScalarOp| {
-            gesture.set(apply_quantized(&op, gesture.shown(), self.mode, self.quantize));
+            gesture.set(apply(&op, gesture.shown(), self.mode, self.quantize));
             ops.push(op);
         };
         if let Some(pos) = tapped.filter(|_| !waits) {
@@ -204,14 +204,10 @@ impl ColorStrip {
     }
 }
 
-/// `values` with `op` applied to `mode`'s strip component, as the strip applies it.
-pub(super) fn apply(op: &ScalarOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
-    apply_quantized(op, values, mode, None)
-}
-
-/// [`apply`] on a strip that quantises to `quantize` levels: a relative `op` steps again until the
-/// colour is a different one, or the component can go no further.
-fn apply_quantized(op: &ScalarOp, values: &ModelValues, mode: AreaMode, quantize: Option<usize>) -> ModelValues {
+/// `values` with `op` applied to `mode`'s strip component, as the strip applies it. On a strip that
+/// quantises to `quantize` levels a relative `op` steps again until the colour is a different one,
+/// or the component can go no further.
+pub(super) fn apply(op: &ScalarOp, values: &ModelValues, mode: AreaMode, quantize: Option<usize>) -> ModelValues {
     let channel = mode.strip();
     let model = mode.model();
     let scale = scale_of(model, channel);
