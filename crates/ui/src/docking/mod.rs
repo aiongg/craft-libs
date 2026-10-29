@@ -8,11 +8,13 @@
 pub mod chrome;
 #[cfg(feature = "serde")]
 mod command;
+mod config;
 #[cfg(feature = "native-windows")]
 mod desktop;
 mod dock_model;
 mod hits;
 mod labels;
+mod look;
 mod model;
 #[cfg(feature = "native-windows")]
 mod placement;
@@ -26,8 +28,10 @@ mod workspace;
 
 #[cfg(feature = "serde")]
 pub use command::{DockCommand, DockOperation, UiDock, ZoneName};
+pub use config::DockConfig;
 pub use dock_model::{Column, ColumnLocation, Group, GroupLocation, PanelState, Side, Target};
 pub use hits::{Divider, Hit, ResizeEdge};
+pub use look::{DockLook, DockSpec, DockWith};
 pub use model::{Action, DockError, Floating, Layout, Location, MAX_DEPTH, MAX_PANELS, Monitor, Node, Permissions, Placement, StackEntry, Zone};
 pub use render::{close_flyout, flyout, open_flyout};
 pub use surface::{

@@ -1,16 +1,16 @@
-//! One keyed hook for every label in [`DockStyle`].
+//! One keyed hook for every label in [`DockConfig`].
 
-use super::DockStyle;
+use super::{DockConfig, DockStyle};
 
-impl DockStyle {
+impl DockConfig {
     /// Replace every `*_label` field with `translate(key)`, keeping the English default where it
     /// returns `None`. The defaults of menu items are in title case; those of controls, which
     /// only screen readers announce, in sentence case. An application translates the docking
     /// chrome in one place:
     ///
     /// ```
-    /// fn dock_style(ui: &egui::Ui) -> craft_ui::docking::DockStyle {
-    ///     craft_ui::docking::DockStyle::from_ui(ui).localized(|key| match key {
+    /// fn dock_config() -> craft_ui::docking::DockConfig {
+    ///     craft_ui::docking::DockConfig::default().localized(|key| match key {
     ///         "dock.close" => Some("Fermer le panneau".to_owned()),
     ///         _ => None,
     ///     })
@@ -80,5 +80,23 @@ impl DockStyle {
             ("dock.autoCollapse", &mut self.auto_collapse_label),
             ("dock.floatHint", &mut self.float_hint_label),
         ]
+    }
+}
+
+impl DockStyle {
+    /// [`DockConfig::localized`] for the flat style:
+    ///
+    /// ```
+    /// fn dock_style(ui: &egui::Ui) -> craft_ui::docking::DockStyle {
+    ///     craft_ui::docking::DockStyle::from_ui(ui).localized(|key| match key {
+    ///         "dock.close" => Some("Fermer le panneau".to_owned()),
+    ///         _ => None,
+    ///     })
+    /// }
+    /// ```
+    #[must_use]
+    pub fn localized(self, translate: impl Fn(&str) -> Option<String>) -> Self {
+        let (config, look) = self.split();
+        Self::join(&config.localized(translate), &look)
     }
 }

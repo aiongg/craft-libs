@@ -9,7 +9,7 @@ use egui::{Context, Id, Key, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, U
 
 use super::{GroupKind, Renderer, dock::Edge};
 use crate::docking::{
-    Column, DockStyle, Group, GroupDrag, GroupGesture, begin_drag,
+    Column, DockLook, Group, GroupDrag, GroupGesture, begin_drag,
     chrome::{ChromeStyle, FloatingFrame},
     is_dragging,
     targets::{DockDrop, DockTarget, horizontal_line, usable},
@@ -87,9 +87,9 @@ impl<P: PartialEq> Iconic<P> {
     }
 
     /// Outline the iconic column an insertion line lies in.
-    pub(super) fn outline(&self, painter: &egui::Painter, line: Rect, style: &DockStyle) {
+    pub(super) fn outline(&self, painter: &egui::Painter, line: Rect, look: &DockLook) {
         if let Some(column) = self.columns.iter().find(|column| column.shrink(1.0).contains(line.center())) {
-            painter.rect_stroke(column.shrink(1.0), 0.0, Stroke::new(2.0, style.accent), StrokeKind::Inside);
+            painter.rect_stroke(column.shrink(1.0), 0.0, Stroke::new(2.0, look.drop), StrokeKind::Inside);
         }
     }
 
@@ -100,7 +100,7 @@ impl<P: PartialEq> Iconic<P> {
 
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn row_height(&self) -> f32 {
-        self.style.icon_size + 10.0
+        self.look.icon_size + 10.0
     }
 
     fn icon_group_height(&self, group: &Group<P>) -> f32 {
@@ -141,7 +141,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// clipped to the visible `view`.
     fn icon_groups(&mut self, ui: &mut Ui, column: &Column<P>, area: Rect, view: Rect, edge: Edge) {
         let open = flyout::<P>(ui.ctx(), self.id);
-        let labels = view.width() >= self.style.iconic_label_width;
+        let labels = view.width() >= self.config.iconic_label_width;
         let xs = view.x_range();
         let mut top = area.top();
         let mut bands = Vec::new();
@@ -150,7 +150,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let band_top = if index > 0 { top } else { area.top() };
             if index > 0 {
                 let y = top + SEPARATOR * 0.5;
-                ui.painter().with_clip_rect(view).hline(area.x_range().shrink(4.0), y, self.style.border);
+                ui.painter().with_clip_rect(view).hline(area.x_range().shrink(4.0), y, self.look.border);
                 top += SEPARATOR;
             }
             let rect = Rect::from_min_size(pos2(area.left(), top), vec2(area.width(), self.icon_group_height(group)));
@@ -181,7 +181,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             for (below, ys, line) in [(false, upper_top..=middle, rect.top()), (true, middle..=lower_bottom, rect.bottom())] {
                 let band = Rect::from_x_y_ranges(xs, ys).intersect(view);
                 if usable(band) {
-                    let width = self.style.drop_line_width;
+                    let width = self.config.drop_line_width;
                     let line = horizontal_line(line.clamp(view.top() + width * 0.5, view.bottom() - width * 0.5), xs, width);
                     self.dock_targets.push(DockDrop { target: DockTarget::GroupBand { anchor: anchor.clone(), below }, band, line, outer: false });
                 }
@@ -198,9 +198,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let response = if movable { response.on_hover_cursor(egui::CursorIcon::Grab) } else { response };
         self.register_interaction(ui.ctx(), response.id);
         let height = group.height.filter(|h| h.is_finite()).unwrap_or(FLYOUT_HEIGHT);
-        let source = Rect::from_min_size(pos2(grip.left(), top), vec2(width.max(self.style.min_pane), height.max(self.style.tab_height)));
+        let source = Rect::from_min_size(pos2(grip.left(), top), vec2(width.max(self.config.min_pane), height.max(self.look.tab_height)));
         self.record_float(&group.panels, vec2(grip.width(), self.row_height()), source.size());
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_group_label));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_group_label));
         if movable && response.drag_started() {
             let origin = ui.input(|i| i.pointer.press_origin()).or_else(|| ui.ctx().pointer_interact_pos()).unwrap_or(grip.center());
             let drag = GroupDrag {
@@ -227,28 +227,28 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), current, &label));
         let painter = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
         if current || response.hovered() {
-            painter.rect_filled(cell.shrink(2.0), 3.0, self.style.active_background);
+            painter.rect_filled(cell.shrink(2.0), 3.0, self.look.icon_selected);
         }
         if response.has_focus() {
-            painter.rect_stroke(cell.shrink(1.0), 3.0, Stroke::new(1.0, self.style.accent), StrokeKind::Inside);
+            painter.rect_stroke(cell.shrink(1.0), 3.0, Stroke::new(1.0, self.look.focus), StrokeKind::Inside);
         }
-        let size = self.style.icon_size;
-        let inset = ((self.style.iconic_width - size) * 0.5).max(2.0);
+        let size = self.look.icon_size;
+        let inset = ((self.look.iconic_width - size) * 0.5).max(2.0);
         let icon = Rect::from_min_size(pos2(cell.left() + inset, cell.center().y - size * 0.5), vec2(size, size));
-        let color = if current { self.style.text } else { self.style.inactive_text };
+        let color = if current { self.look.text } else { self.look.inactive_text };
         if !self.content.paint_icon(&painter, icon, panel, color) {
             if let Some(source) = self.content.icon(panel) {
                 egui::Image::new(source).tint(color).paint_at(ui, icon.intersect(cell));
             } else {
                 let initial: String = label.chars().next().into_iter().flat_map(char::to_uppercase).collect();
                 painter.rect_stroke(icon, 3.0, Stroke::new(1.0, color), StrokeKind::Inside);
-                painter.text(icon.center(), egui::Align2::CENTER_CENTER, initial, self.style.font.clone(), color);
+                painter.text(icon.center(), egui::Align2::CENTER_CENTER, initial, self.look.font.clone(), color);
             }
         }
         if labels {
-            let text = self.content.label(ui, panel, &label, &self.style.font, color);
+            let text = self.content.label(ui, panel, &label, &self.look.font, color);
             let galley =
-                text.into_galley(ui, Some(egui::TextWrapMode::Truncate), (cell.right() - icon.right() - 12.0).max(0.0), self.style.font.clone());
+                text.into_galley(ui, Some(egui::TextWrapMode::Truncate), (cell.right() - icon.right() - 12.0).max(0.0), self.look.font.clone());
             painter.galley(pos2(icon.right() + 6.0, cell.center().y - galley.size().y * 0.5), galley, color);
         } else if response.hovered() && !response.dragged() {
             response.clone().on_hover_text(&label);
@@ -272,8 +272,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The Auto-Collapse Iconic Panels item of a column menu (U1): true when chosen.
     pub(super) fn auto_collapse_item(&mut self, ui: &mut Ui) -> bool {
-        let logical = self.style.auto_collapse_label.clone();
-        let text = self.content.action_label(ui, &logical, &self.style.font, self.style.text);
+        let logical = self.config.auto_collapse_label.clone();
+        let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
         let mut on = self.iconic.auto_collapse;
         let response = ui.add(egui::Checkbox::new(&mut on, text));
         response.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), self.iconic.auto_collapse, &logical));
@@ -298,7 +298,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         let bounds = self.workspace.intersect(self.float_bounds);
-        let width = request.width.max(self.style.min_pane).min(bounds.width());
+        let width = request.width.max(self.config.min_pane).min(bounds.width());
         let max = self
             .content
             .floating_size(&active)
@@ -308,9 +308,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .unwrap_or(FLYOUT_HEIGHT);
         // A flyout fits the content its panel last drew, up to that height.
         let height = self
-            .fitted_height(&active, self.style.tab_height, max)
+            .fitted_height(&active, self.look.tab_height, max)
             .unwrap_or(max)
-            .max(self.style.tab_height + self.style.min_pane)
+            .max(self.look.tab_height + self.config.min_pane)
             .min(bounds.height());
         let left = match request.edge {
             Edge::Left => request.column.right(),
@@ -318,7 +318,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         };
         let top = request.icons.top().min(bounds.bottom() - height).max(bounds.top());
         let rect = Rect::from_min_size(pos2(left, top), vec2(width, height));
-        let style = ChromeStyle::from_dock(self.style);
+        let style = ChromeStyle::from_look(self.look, self.config);
         let group = request.group;
         let response = FloatingFrame::new(id, rect).bounds(bounds).resizable(false).show(ctx, &style, |ui, rect| {
             self.group(ui, &group.panels, group.active, false, rect, GroupKind::Dock);

@@ -3,7 +3,7 @@ use std::{fmt::Debug, hash::Hash, sync::Arc};
 use egui::{Color32, Galley, Id, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{Renderer, clamp_float, stripless};
-use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Placement, Target, begin_drag, surface::TAB_PADDING};
+use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Placement, Target, begin_drag};
 use crate::tabs;
 
 /// Where a group is drawn. It decides the drop targets the group offers and its gestures.
@@ -50,7 +50,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         self.record_float(panels, rect.size(), rect.size());
         let policy = self.permissions(selected);
         let splits = matches!(kind, GroupKind::Frame | GroupKind::Floating { .. }) && policy.accepts_splits;
-        let rtl = self.style.right_to_left;
+        let rtl = self.config.right_to_left;
         if stripless(panels, &*self.content) {
             self.contents(ui, selected, rect);
             self.targets.push(DropTarget {
@@ -65,8 +65,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         let movable = panels.iter().all(|p| self.permissions(p).movable);
-        let strip = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + self.style.tab_height).min(rect.bottom())));
-        ui.painter().rect_filled(strip, 0.0, self.style.tab_background);
+        let strip = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + self.look.tab_height).min(rect.bottom())));
+        ui.painter().rect_filled(strip, 0.0, self.look.tab_strip);
         let floating = matches!(kind, GroupKind::Floating { .. });
         // Laid out left to right, then mirrored in a right-to-left layout: tabs from the right
         // edge, the header (the host's ≡) at the left.
@@ -84,17 +84,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.host_area(ui, "header", header, selected, |content, ui| content.group_header(ui, panels, selected, floating));
         }
         // The drag bar keeps its reserved width: tabs shrink, then overflow, before it narrows.
-        let bar_width = self.style.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
+        let bar_width = self.config.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
         let tabs_width = (strip.width() - header_width - bar_width).max(0.0);
         let widths: Vec<f32> = panels
             .iter()
             .map(|p| {
                 self.content
-                    .label(ui, p, &self.label_of(p), &self.style.font, self.style.text)
-                    .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, self.style.font.clone())
+                    .label(ui, p, &self.label_of(p), &self.look.font, self.look.text)
+                    .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, self.look.font.clone())
                     .size()
                     .x
-                    + TAB_PADDING
+                    + self.look.tab_padding
             })
             .collect();
         let wanted = self.content.group_extra_tabs_width(panels, selected, floating);
@@ -102,7 +102,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // The widest tabs shrink first, to a common width no narrower than `min_tab_width`; only
         // when every tab at that width cannot fit do the rest go to the overflow menu. A tab
         // narrower than its name cuts it with "…" and names it in a tooltip.
-        let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.style.min_tab_width);
+        let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look));
         let owner = TabGroup { panels, selected, minimized, kind, rect };
         let mut x = strip.left();
         let mut shown = Vec::new();
@@ -117,8 +117,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let overflow = mirror(Rect::from_min_size(pos2(x, strip.top()), vec2(fit.overflow_width, strip.height())));
             let response = ui.interact(overflow, self.id.with(("overflow", selected)), Sense::click());
             self.register_interaction(ui.ctx(), response.id);
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.panels_label));
-            ui.painter().with_clip_rect(overflow).text(overflow.center(), egui::Align2::CENTER_CENTER, "…", self.style.font.clone(), self.style.text);
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.panels_label));
+            ui.painter().with_clip_rect(overflow).text(overflow.center(), egui::Align2::CENTER_CENTER, "…", self.look.font.clone(), self.look.text);
             egui::Popup::menu(&response).show(|ui| {
                 egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                     for index in &fit.overflow {
@@ -146,7 +146,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // Registered last, so the band wins over the tabs below it.
         let border = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, (strip.top() + BORDER_BAND).min(strip.bottom()))));
         self.group_handle(ui, "drag-border", border, &owner, movable);
-        if self.style.wheel_selects_tabs {
+        if self.config.wheel_selects_tabs {
             let tabs_area = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, strip.bottom())));
             self.wheel_tabs(ui, tabs_area, extra, panels, active);
         }
@@ -165,7 +165,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !minimized {
             self.contents(ui, selected, Rect::from_min_max(pos2(rect.left(), strip.bottom()), rect.max));
         }
-        ui.painter().rect_stroke(rect, 0.0, self.style.border, StrokeKind::Inside);
+        ui.painter().rect_stroke(rect, 0.0, self.look.border, StrokeKind::Inside);
     }
 
     /// A part of the strip the host draws (`header` or `extra-tabs`) at `rect`. A press in it
@@ -191,7 +191,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let response = ui.interact(hit, self.id.with((name, owner.panels.first())), sense);
         let response = if movable { response.on_hover_cursor(egui::CursorIcon::Grab) } else { response };
         self.register_interaction(ui.ctx(), response.id);
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_group_label));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_group_label));
         if movable && response.drag_started() {
             self.start_group_drag(ui, owner.panels, self.drag_source(owner));
         }
@@ -206,7 +206,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ui.painter().with_clip_rect(hit).rect_stroke(
                 hit.shrink(1.0),
                 0.0,
-                Stroke::new(1.0, self.style.accent.gamma_multiply(0.5)),
+                Stroke::new(1.0, self.look.resize.gamma_multiply(0.5)),
                 StrokeKind::Inside,
             );
         }
@@ -276,23 +276,23 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// and Move Group To. `panel` is the panel whose menu this is.
     fn group_menu(&mut self, ui: &mut Ui, owner: &TabGroup<'_, P>, panel: &P) {
         let all = |check: &dyn Fn(crate::docking::Permissions) -> bool| owner.panels.iter().all(|p| check(self.permissions(p)));
-        let closable = self.style.close_menu_items && all(&|p| p.closable);
+        let closable = self.config.close_menu_items && all(&|p| p.closable);
         let movable = all(&|p| p.movable);
         let floatable = movable && all(&|p| p.floatable);
-        if closable && self.menu_action(ui, &self.style.close_group_label.clone()) {
+        if closable && self.menu_action(ui, &self.config.close_group_label.clone()) {
             self.output.actions.push(Action::CloseGroup { panel: panel.clone() });
         }
         if self.minimizes(owner) {
-            let label = if owner.minimized { self.style.expand_label.clone() } else { self.style.minimize_label.clone() };
+            let label = if owner.minimized { self.config.expand_label.clone() } else { self.config.minimize_label.clone() };
             if self.menu_action(ui, &label) {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !owner.minimized });
             }
         }
-        if owner.kind == GroupKind::Dock && self.menu_action(ui, &self.style.collapse_to_icons_label.clone()) {
+        if owner.kind == GroupKind::Dock && self.menu_action(ui, &self.config.collapse_to_icons_label.clone()) {
             self.output.actions.push(Action::SetIconic { panel: panel.clone(), iconic: true });
         }
         let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
-        if floatable && !whole_window && self.menu_action(ui, &self.style.float_group_label.clone()) {
+        if floatable && !whole_window && self.menu_action(ui, &self.config.float_group_label.clone()) {
             let size = self.group_float_size(owner.panels, owner.rect.size());
             let rect = clamp_float(Rect::from_min_size(owner.rect.min + vec2(24.0, 24.0), size), self.float_bounds);
             self.output.actions.push(Action::MoveGroup {
@@ -302,8 +302,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let targets = if movable { self.group_targets(owner.panels) } else { Vec::new() };
         if !targets.is_empty() {
-            let logical = self.style.move_group_to_label.clone();
-            let text = self.content.action_label(ui, &logical, &self.style.font, self.style.text);
+            let logical = self.config.move_group_to_label.clone();
+            let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
             let response = ui.menu_button(text, |ui| {
                 egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                     for target in &targets {
@@ -325,7 +325,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// A stock menu button with shaped text and its logical accessibility label; true when
     /// clicked, after closing the menu.
     pub(super) fn menu_action(&mut self, ui: &mut Ui, logical: &str) -> bool {
-        let text = self.content.action_label(ui, logical, &self.style.font, self.style.text);
+        let text = self.content.action_label(ui, logical, &self.look.font, self.look.text);
         let response = ui.button(text);
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), logical));
         if response.clicked() {
@@ -357,7 +357,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// value. The function only returns the response; the caller performs the menu action.
     pub(super) fn menu_label(&mut self, ui: &mut Ui, panel: &P) -> egui::Response {
         let logical = self.label_of(panel);
-        let text = self.content.label(ui, panel, &logical, &self.style.font, self.style.text);
+        let text = self.content.label(ui, panel, &logical, &self.look.font, self.look.text);
         let response = ui.button(text);
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
         response
@@ -365,8 +365,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// A tab's label, cut at the end with '…' to fit `width`.
     pub(super) fn tab_label(&mut self, ui: &Ui, panel: &P, label: &str, color: Color32, width: f32) -> Arc<Galley> {
-        let text = self.content.label(ui, panel, label, &self.style.font, color);
-        crate::docking::chrome::truncated(ui, text, width, self.style.font.clone())
+        let text = self.content.label(ui, panel, label, &self.look.font, color);
+        crate::docking::chrome::truncated(ui, text, width, self.look.font.clone())
     }
 
     /// True while a tab's focus came from the pointer, which shows no focus outline. Tab or an
@@ -392,8 +392,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let minimized = owner.filter(|owner| self.minimizes(owner)).map(|owner| owner.minimized);
         let policy = self.permissions(panel);
         let label = self.label_of(panel);
-        let color = if active { self.style.text } else { self.style.inactive_text };
-        let galley = self.tab_label(ui, panel, &label, color, (rect.width() - TAB_PADDING).max(0.0));
+        let color = if active { self.look.text } else { self.look.inactive_text };
+        let galley = self.tab_label(ui, panel, &label, color, (rect.width() - self.look.tab_padding).max(0.0));
         let elided = galley.elided;
         let tab_id = self.id.with(("tab", panel));
         let pointer_focus = self.pointer_focus(ui, tab_id);
@@ -401,11 +401,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         #[allow(deprecated)]
         let response = tabs::Tab::new(tab_id, &label, active)
             .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() })
-            .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(1.0, self.style.accent) })
+            .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(1.0, self.look.focus) })
             .show_at(ui, rect, |ui, response| {
                 let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                painter.rect_filled(rect, 0.0, if active || response.hovered() { self.style.active_background } else { self.style.tab_background });
-                let at = pos2(rect.left() + TAB_PADDING * 0.5, rect.center().y - galley.size().y * 0.5);
+                painter.rect_filled(
+                    rect,
+                    0.0,
+                    if active {
+                        self.look.tab_active
+                    } else if response.hovered() {
+                        self.look.tab_hover
+                    } else {
+                        self.look.tab_strip
+                    },
+                );
+                let at = pos2(rect.left() + self.look.tab_padding * 0.5, rect.center().y - galley.size().y * 0.5);
                 painter.galley(at, galley.clone(), color);
             });
         let response = if elided { response.on_hover_text(&label) } else { response };
@@ -436,7 +446,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !minimized });
             }
         }
-        if self.style.middle_click_closes_tabs && policy.closable && response.clicked_by(egui::PointerButton::Middle) {
+        if self.config.middle_click_closes_tabs && policy.closable && response.clicked_by(egui::PointerButton::Middle) {
             self.output.actions.push(Action::Close { panel: panel.clone() });
         }
         if policy.movable && response.drag_started() && begin_drag(ui.ctx(), self.id, panel.clone(), group) {
@@ -445,8 +455,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         response.context_menu(|ui| {
             self.content.panel_menu(ui, panel);
             if policy.movable && policy.floatable {
-                let logical = self.style.float_label.clone();
-                let text = self.content.action_label(ui, &logical, &self.style.font, self.style.text);
+                let logical = self.config.float_label.clone();
+                let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
                 let response = ui.button(text);
                 response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
                 if response.clicked() {
@@ -459,7 +469,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let targets: Vec<P> =
                 if policy.movable { self.layout.move_targets(panel, |p| self.permissions(p)).into_iter().cloned().collect() } else { Vec::new() };
             if !targets.is_empty() {
-                let text = self.content.action_label(ui, &self.style.move_panel_to_label, &self.style.font, self.style.text);
+                let text = self.content.action_label(ui, &self.config.move_panel_to_label, &self.look.font, self.look.text);
                 let response = ui.menu_button(text, |ui| {
                     egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                         for target in &targets {
@@ -474,12 +484,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                         }
                     });
                 });
-                response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_panel_to_label));
+                response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_panel_to_label));
             }
-            if policy.closable && self.style.close_menu_items {
-                let text = self.content.action_label(ui, &self.style.close_label, &self.style.font, self.style.text);
+            if policy.closable && self.config.close_menu_items {
+                let text = self.content.action_label(ui, &self.config.close_label, &self.look.font, self.look.text);
                 let response = ui.button(text);
-                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.close_label));
+                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.close_label));
                 if response.clicked() {
                     self.output.actions.push(Action::Close { panel: panel.clone() });
                     ui.close();

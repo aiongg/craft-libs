@@ -9,7 +9,7 @@ use egui::{
     Color32, Context, FontId, Galley, Id, Key, LayerId, Order, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetText, pos2, vec2,
 };
 
-use super::{DockStyle, PanelLimits, resize::AnchoredResize};
+use super::{DockConfig, DockLook, DockStyle, PanelLimits, resize::AnchoredResize};
 
 /// Height of a floating window's title bar.
 pub const TITLE_HEIGHT: f32 = 14.0;
@@ -57,6 +57,21 @@ impl ChromeStyle {
             active_background: visuals.widgets.active.bg_fill,
             font: FontId::proportional(12.0),
             right_to_left: false,
+        }
+    }
+
+    /// The colors of `look` and the direction of `config`; the accent is the look's focus color.
+    pub fn from_look(look: &DockLook, config: &DockConfig) -> Self {
+        Self {
+            background: look.floating_background,
+            stroke: look.floating_stroke,
+            title_background: look.tab_strip,
+            text: look.text,
+            weak_text: look.inactive_text,
+            accent: look.focus,
+            active_background: look.tab_active,
+            font: look.font.clone(),
+            right_to_left: config.right_to_left,
         }
     }
 

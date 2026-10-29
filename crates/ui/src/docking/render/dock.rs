@@ -10,7 +10,7 @@ use egui::{Context, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, p
 
 use super::{GroupKind, Renderer, RowItem, row_drag, row_range, stripless};
 use crate::docking::{
-    Action, Column, DockEvent, DockHeights, DockStyle, DropTarget, Group, GroupDrag, GroupGesture, Node, Placement, Side, Target, Zone,
+    Action, Column, DockConfig, DockEvent, DockHeights, DockLook, DropTarget, Group, GroupDrag, GroupGesture, Node, Placement, Side, Target, Zone,
     dock_model::Unit,
     targets::{
         DockDrop, DockTarget, SIDE_EDGE_ZONE_DEPTH, STRIP_REACH, body_zone, column_edge, drop_zone, horizontal_line, resolve_dock, usable,
@@ -74,13 +74,14 @@ pub(in crate::docking) fn dock_rects<P>(
     columns: &[Column<P>],
     other: &Node<P>,
     rect: Rect,
-    style: &DockStyle,
+    config: &DockConfig,
+    look: &DockLook,
     content: &dyn crate::docking::DockContent<P>,
 ) -> (Rect, Rect, f32) {
-    let gap = style.gap;
-    let room = (rect.width() - gap - super::node_limits(other, style, content).min.x).clamp(0.0, rect.width());
-    let width = columns.iter().map(|c| column_width(c, style)).sum::<f32>().clamp(0.0, room);
-    let (dock, rest) = match edge_of(side, style.right_to_left) {
+    let gap = look.gap;
+    let room = (rect.width() - gap - super::node_limits(other, config, look, content).min.x).clamp(0.0, rect.width());
+    let width = columns.iter().map(|c| column_width(c, config, look)).sum::<f32>().clamp(0.0, room);
+    let (dock, rest) = match edge_of(side, config.right_to_left) {
         Edge::Left => (
             Rect::from_min_max(rect.min, pos2(rect.left() + width, rect.bottom())),
             Rect::from_min_max(pos2((rect.left() + width + gap).min(rect.right()), rect.top()), rect.max),
@@ -93,8 +94,8 @@ pub(in crate::docking) fn dock_rects<P>(
     (dock, rest, room)
 }
 
-pub(in crate::docking) fn column_width<P>(column: &Column<P>, style: &DockStyle) -> f32 {
-    if column.iconic { column.iconic_width.unwrap_or(style.iconic_width).clamp(style.iconic_width, style.iconic_max_width) } else { column.width }
+pub(in crate::docking) fn column_width<P>(column: &Column<P>, config: &DockConfig, look: &DockLook) -> f32 {
+    if column.iconic { column.iconic_width.unwrap_or(look.iconic_width).clamp(look.iconic_width, config.iconic_max_width) } else { column.width }
 }
 
 /// [D] A dock's columns as drawn in its rect: each column's width bounds, natural width with
@@ -265,7 +266,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             (other, Node::Dock { side, columns }) => (false, *side, columns, other),
             _ => return false,
         };
-        let (dock, rest, room) = dock_rects(side, columns, other, rect, self.style, &*self.content);
+        let (dock, rest, room) = dock_rects(side, columns, other, rect, self.config, self.look, &*self.content);
         self.dock(ui, side, columns, dock, room);
         path.push(dock_first);
         self.node(ui, other, rest, path, root);
@@ -275,23 +276,23 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// One dock in `rect`, columns from its outer edge. `room` is the widest the dock may get.
     pub(super) fn dock(&mut self, ui: &mut Ui, side: Side, columns: &[Column<P>], rect: Rect, room: f32) {
-        let edge = edge_of(side, self.style.right_to_left);
+        let edge = edge_of(side, self.config.right_to_left);
         let (outer, inward) = match edge {
             Edge::Left => (rect.left(), 1.0),
             Edge::Right => (rect.right(), -1.0),
         };
-        let (band_width, line_width) = (self.style.column_edge_band, self.style.drop_line_width);
+        let (band_width, line_width) = (self.config.column_edge_band, self.config.drop_line_width);
         if columns.is_empty() {
             let (band, line) = column_edge(outer, rect.y_range(), band_width, line_width);
             let band = band.union(Rect::from_x_y_ranges(
-                outer.min(outer + inward * self.style.new_dock_band)..=outer.max(outer + inward * self.style.new_dock_band),
+                outer.min(outer + inward * self.config.new_dock_band)..=outer.max(outer + inward * self.config.new_dock_band),
                 rect.y_range(),
             ));
             self.dock_targets.push(DockDrop { target: DockTarget::NewDock { side }, band, line, outer: true });
             return;
         }
         if usable(rect) {
-            ui.painter().rect_filled(rect, 0.0, self.style.background);
+            ui.painter().rect_filled(rect, 0.0, self.look.background);
         }
         let DockColumns { bounds, natural, widths, rects } = self.dock_columns(side, columns, rect);
         let scaled = widths.iter().zip(&natural).any(|(w, (n, _))| w != n);
@@ -340,7 +341,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.id.with(("column-resize", Some(first))),
                 SplitAxis::Horizontal,
                 divider,
-                &self.style.resize_label,
+                &self.config.resize_label,
                 self.handle_style(),
             )
             .value(width, lo..=hi)
@@ -370,14 +371,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The columns of a dock drawn in `rect` ([`DockColumns`]).
     pub(in crate::docking) fn dock_columns(&self, side: Side, columns: &[Column<P>], rect: Rect) -> DockColumns {
-        let (outer, inward) = match edge_of(side, self.style.right_to_left) {
+        let (outer, inward) = match edge_of(side, self.config.right_to_left) {
             Edge::Left => (rect.left(), 1.0),
             Edge::Right => (rect.right(), -1.0),
         };
         let bounds: Vec<(f32, f32)> =
-            columns.iter().map(|c| if c.iconic { (self.style.iconic_width, self.style.iconic_max_width) } else { self.column_bounds(c) }).collect();
+            columns.iter().map(|c| if c.iconic { (self.look.iconic_width, self.config.iconic_max_width) } else { self.column_bounds(c) }).collect();
         let natural: Vec<(f32, Option<f32>)> =
-            columns.iter().zip(&bounds).map(|(c, (lo, _))| (column_width(c, self.style), (!c.iconic).then_some(lo.max(1.0)))).collect();
+            columns.iter().zip(&bounds).map(|(c, (lo, _))| (column_width(c, self.config, self.look), (!c.iconic).then_some(lo.max(1.0)))).collect();
         let widths = fit_widths(&natural, rect.width());
         let mut x = outer;
         let mut rects = Vec::new();
@@ -398,7 +399,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// the body, top to bottom (none when the column is iconic or its body is empty). Groups
     /// taller than the body together scroll.
     pub(in crate::docking) fn column_layout(&self, column: &Column<P>, rect: Rect) -> (Rect, Rect, Vec<f32>) {
-        let bar = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + self.style.column_bar_height).min(rect.bottom())));
+        let bar = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + self.look.column_bar_height).min(rect.bottom())));
         let body = Rect::from_min_max(pos2(rect.left(), bar.bottom()), rect.max);
         if column.iconic || !usable(body) {
             return (bar, body, Vec::new());
@@ -408,16 +409,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .iter()
             .map(|g| GroupSize { minimized: g.minimized, saved: g.height, min: self.group_min(g), content: self.dock_heights(g) })
             .collect();
-        (bar, body, group_heights(&sizes, self.style.tab_height, body.height()))
+        (bar, body, group_heights(&sizes, self.look.tab_height, body.height()))
     }
 
     fn handle_style(&self) -> ResizeHandleStyle {
-        ResizeHandleStyle { hovered: self.style.accent, dragged: self.style.accent, focused: self.style.accent }
+        ResizeHandleStyle { hovered: self.look.resize, dragged: self.look.resize, focused: self.look.focus }
     }
 
     /// Width bounds of an expanded column from its panels' limits.
     fn column_bounds(&self, column: &Column<P>) -> (f32, f32) {
-        let mut lo = self.style.min_pane;
+        let mut lo = self.config.min_pane;
         let mut hi = f32::INFINITY;
         for panel in column.groups.iter().flat_map(|g| g.panels.iter()) {
             let limits = self.limits(panel);
@@ -429,13 +430,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// Least height of an open group: its strip and the tallest minimum of its panels.
     fn group_min(&self, group: &Group<P>) -> f32 {
-        let body = group.panels.iter().map(|p| self.limits(p).min.y).fold(self.style.min_pane, f32::max);
-        self.style.tab_height + body
+        let body = group.panels.iter().map(|p| self.limits(p).min.y).fold(self.config.min_pane, f32::max);
+        self.look.tab_height + body
     }
 
     /// The largest of each of the group's panels' [`DockHeights`], the tab strip added.
     fn dock_heights(&self, group: &Group<P>) -> Option<DockHeights> {
-        let strip = self.style.tab_height;
+        let strip = self.look.tab_height;
         group
             .panels
             .iter()
@@ -459,7 +460,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.iconic_column(ui, column, body, edge);
         }
         if column.iconic || !usable(body) {
-            ui.painter().rect_stroke(rect, 0.0, self.style.border, StrokeKind::Inside);
+            ui.painter().rect_stroke(rect, 0.0, self.look.border, StrokeKind::Inside);
             return;
         }
         let total: f32 = heights.iter().sum();
@@ -489,7 +490,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 *tab = tab.intersect(body);
             }
         }
-        ui.painter().rect_stroke(rect, 0.0, self.style.border, StrokeKind::Inside);
+        ui.painter().rect_stroke(rect, 0.0, self.look.border, StrokeKind::Inside);
     }
 
     /// Groups top to bottom in `area` (the scrolled content when the column scrolls), their
@@ -501,8 +502,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let top = rects.last().map_or(area.top(), |r| r.bottom());
         let xs = view.x_range();
-        let half = self.style.seam_band * 0.5;
-        let width = self.style.drop_line_width;
+        let half = self.config.seam_band * 0.5;
+        let width = self.config.drop_line_width;
         // A line on an edge scrolled out of the view shows at the view's edge.
         let line = |y: f32| horizontal_line(y.clamp(view.top() + width * 0.5, view.bottom() - width * 0.5), xs, width);
         let push = |targets: &mut Vec<DockDrop<P>>, target: DockTarget<P>, band: Rect, line: Rect| {
@@ -518,7 +519,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let band = Rect::from_x_y_ranges(xs, (rect.top() - half)..=(rect.top() + half));
                 push(&mut self.dock_targets, DockTarget::Seam { anchor: above.clone() }, band, line(rect.top()));
             }
-            let header = if stripless(&group.panels, &*self.content) { 0.0 } else { self.style.tab_height };
+            let header = if stripless(&group.panels, &*self.content) { 0.0 } else { self.look.tab_height };
             let body = Rect::from_min_max(pos2(rect.left(), (rect.top() + header).min(rect.bottom())), rect.max).intersect(view);
             if !group.minimized && usable(body) {
                 let center = group.panels.get(group.active).is_some_and(|p| self.permissions(p).accepts_tabs);
@@ -558,7 +559,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 self.id.with(("group-resize", Some(first))),
                 SplitAxis::Vertical,
                 divider,
-                &self.style.resize_label,
+                &self.config.resize_label,
                 self.handle_style(),
             )
             .value(*a, (a + lo)..=(a + hi))
@@ -578,7 +579,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// The column bar: the »/« button at its outer end, the rest drags the column (S6),
     /// toggles iconic on double-click (M2) and opens the column menu (U1).
     fn column_bar(&mut self, ui: &mut Ui, column: &Column<P>, first: &P, bar: Rect, rect: Rect, edge: Edge) {
-        ui.painter().rect_filled(bar, 0.0, self.style.tab_background);
+        ui.painter().rect_filled(bar, 0.0, self.look.tab_strip);
         let width = COLLAPSE_WIDTH.min(bar.width());
         let (button, grip) = match edge {
             Edge::Left => (
@@ -590,16 +591,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 Rect::from_min_max(bar.min, pos2(bar.right() - width, bar.bottom())),
             ),
         };
-        let label = if column.iconic { self.style.expand_panels_label.clone() } else { self.style.collapse_to_icons_label.clone() };
+        let label = if column.iconic { self.config.expand_panels_label.clone() } else { self.config.collapse_to_icons_label.clone() };
         if usable(button) {
             let response = ui.interact(button, self.id.with(("column-collapse", Some(first))), Sense::click());
             self.register_interaction(ui.ctx(), response.id);
-            let button_label = if column.iconic { &self.style.expand_column_label } else { &self.style.collapse_column_label };
+            let button_label = if column.iconic { &self.config.expand_column_label } else { &self.config.collapse_column_label };
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), button_label));
             // The arrows point where the column goes: towards the window edge when it collapses.
             let glyph = if (edge == Edge::Left) != column.iconic { "«" } else { "»" };
-            let color = if response.hovered() || response.has_focus() { self.style.text } else { self.style.inactive_text };
-            ui.painter().with_clip_rect(button).text(button.center(), egui::Align2::CENTER_CENTER, glyph, self.style.font.clone(), color);
+            let color = if response.hovered() || response.has_focus() { self.look.text } else { self.look.inactive_text };
+            ui.painter().with_clip_rect(button).text(button.center(), egui::Align2::CENTER_CENTER, glyph, self.look.font.clone(), color);
             if response.clicked() {
                 self.output.actions.push(Action::SetIconic { panel: first.clone(), iconic: !column.iconic });
             }
@@ -611,7 +612,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let response = ui.interact(grip, self.id.with(("column-bar", Some(first))), Sense::click_and_drag());
         let response = if movable { response.on_hover_cursor(egui::CursorIcon::Grab) } else { response };
         self.register_interaction(ui.ctx(), response.id);
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.style.move_column_label));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_column_label));
         if movable && response.drag_started() {
             let origin = ui.input(|i| i.pointer.press_origin()).or_else(|| ui.ctx().pointer_interact_pos()).unwrap_or(grip.center());
             let drag = GroupDrag {
@@ -631,7 +632,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ui.painter().with_clip_rect(grip).rect_stroke(
                 grip.shrink(1.0),
                 0.0,
-                Stroke::new(1.0, self.style.accent.gamma_multiply(0.5)),
+                Stroke::new(1.0, self.look.resize.gamma_multiply(0.5)),
                 StrokeKind::Inside,
             );
         }
@@ -665,10 +666,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// have no dock yet.
     fn dock_candidates(&self) -> Vec<DockDrop<P>> {
         let mut candidates = self.dock_targets.clone();
-        if !self.style.new_dock_zones || !usable(self.workspace) {
+        if !self.config.new_dock_zones || !usable(self.workspace) {
             return candidates;
         }
-        let rtl = self.style.right_to_left;
+        let rtl = self.config.right_to_left;
         let ys = self.workspace.y_range();
         for edge in [Edge::Left, Edge::Right] {
             let side = side_at(edge, rtl);
@@ -676,11 +677,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 continue;
             }
             let (x, inward) = match edge {
-                Edge::Left => (self.workspace.left(), self.style.new_dock_band),
-                Edge::Right => (self.workspace.right(), -self.style.new_dock_band),
+                Edge::Left => (self.workspace.left(), self.config.new_dock_band),
+                Edge::Right => (self.workspace.right(), -self.config.new_dock_band),
             };
             let band = Rect::from_x_y_ranges(x.min(x + inward)..=x.max(x + inward), ys);
-            let width = self.style.drop_line_width;
+            let width = self.config.drop_line_width;
             let line = vertical_line(x + inward.signum() * width * 0.5, ys, width);
             candidates.push(DockDrop { target: DockTarget::NewDock { side }, band, line, outer: true });
         }
@@ -697,7 +698,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// [`Self::in_tab_strip`] past the groups holding any of `through`.
     fn in_tab_strip_past(&self, pointer: Pos2, through: &[P]) -> bool {
         let own = |t: &DropTarget<P>| t.tabs.iter().any(|(p, _)| through.contains(p));
-        !self.style.side_edge_zones
+        !self.config.side_edge_zones
             && self.targets.iter().rev().find(|t| usable(t.rect) && t.rect.contains(pointer) && !own(t)).is_some_and(|t| {
                 t.accepts_tabs && t.tab_strip.map(|strip| strip.intersect(t.rect)).is_some_and(|strip| usable(strip) && strip.contains(pointer))
             })
@@ -720,10 +721,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return None;
         }
         let group = self.dock_groups.iter().find(|g| g.body.contains(pointer))?;
-        let zone = if self.style.side_edge_zones {
+        let zone = if self.config.side_edge_zones {
             drop_zone(group.body, 0.0, SIDE_EDGE_ZONE_DEPTH, pointer)?
         } else {
-            body_zone(group.body, 0.0, self.style.side_zone_fraction, group.center, pointer)?
+            body_zone(group.body, 0.0, self.config.side_zone_fraction, group.center, pointer)?
         };
         let (target, line) = group.side(zone)?.clone();
         Some(DockDrop { target, band: group.body, line, outer: false })
@@ -796,9 +797,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if usable(line) {
             let painter = self.preview_painter(ctx);
             if !outer {
-                self.iconic.outline(&painter, line, self.style);
+                self.iconic.outline(&painter, line, self.look);
             }
-            painter.rect_filled(line, 1.0, self.style.accent);
+            painter.rect_filled(line, 1.0, self.look.drop);
         }
     }
 }

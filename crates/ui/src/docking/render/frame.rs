@@ -207,7 +207,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// edge zones the quarter the new frame takes. Without them, on a tab strip that takes tabs,
     /// the band reaches only [`crate::docking::targets::STRIP_REACH`] from the line.
     pub(super) fn edge_proposal(&self, members: &[P], pointer: Pos2) -> Option<(P, Zone, Rect)> {
-        let sides = self.style.outer_edges();
+        let sides = self.config.outer_edges();
         let (distance, zone, area) = EDGES
             .into_iter()
             .filter(|zone| sides.contains(*zone))
@@ -222,17 +222,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 Some((distance, zone, area))
             })
             .min_by(|a, b| a.0.total_cmp(&b.0))?;
-        let band = if self.style.side_edge_zones { crate::docking::targets::SIDE_EDGE_BAND } else { self.style.edge_band };
+        let band = if self.config.side_edge_zones { crate::docking::targets::SIDE_EDGE_BAND } else { self.config.edge_band };
         if distance > band.min(area.width() / 4.0).min(area.height() / 4.0) {
             return None;
         }
-        let line = crate::docking::targets::edge_line(area, zone, self.style.drop_line_width);
+        let line = crate::docking::targets::edge_line(area, zone, self.config.drop_line_width);
         let reach = |line: Rect| line.distance_to_pos(pointer) <= crate::docking::targets::STRIP_REACH;
-        if !self.style.side_edge_zones && self.in_tab_strip(pointer) && !line.is_some_and(reach) {
+        if !self.config.side_edge_zones && self.in_tab_strip(pointer) && !line.is_some_and(reach) {
             return None;
         }
         let anchor = self.edge_anchor(members, zone)?;
-        if !self.style.side_edge_zones {
+        if !self.config.side_edge_zones {
             return Some((anchor, zone, line?));
         }
         let size = area.size() * 0.25;
@@ -290,22 +290,22 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Under the pointer while a drag offers a docking target: which modifier floats the drop
     /// instead. With native windows, the window under the pointer draws it, beside its preview.
     pub(super) fn paint_float_hint(&self, ctx: &Context, pointer: Pos2) {
-        if !self.style.float_hint || self.style.float_hint_label.is_empty() {
+        if !self.config.float_hint || self.config.float_hint_label.is_empty() {
             return;
         }
         let key = if ctx.os() == egui::os::OperatingSystem::Mac { "⌘" } else { "Ctrl" };
         let painter = self.preview_painter(ctx);
-        let galley = painter.layout_no_wrap(self.style.float_hint_label.replace("{key}", key), self.style.font.clone(), self.style.text);
+        let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", key), self.look.font.clone(), self.look.text);
         let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(12.0, 6.0));
         let rect = crate::docking::chrome::clamp(rect, self.float_bounds);
-        painter.rect(rect, 4.0, self.style.floating_background, egui::Stroke::new(1.0, self.style.accent), egui::StrokeKind::Inside);
-        painter.galley(rect.center() - galley.size() * 0.5, galley, self.style.text);
+        painter.rect(rect, 4.0, self.look.floating_background, egui::Stroke::new(1.0, self.look.drop), egui::StrokeKind::Inside);
+        painter.galley(rect.center() - galley.size() * 0.5, galley, self.look.text);
     }
 
     /// Ctrl/Cmd held when a split-tree tab drag starts: the drop floats (S9).
     pub(super) fn latch_undock(&self, ctx: &Context, kind: Option<GroupKind>) {
         let command = ctx.input(|i| i.modifiers.command || i.modifiers.ctrl || i.modifiers.mac_cmd);
-        if self.style.command_press_floats && matches!(kind, Some(GroupKind::Frame | GroupKind::Floating { .. })) && command {
+        if self.config.command_press_floats && matches!(kind, Some(GroupKind::Frame | GroupKind::Floating { .. })) && command {
             ctx.data_mut(|d| {
                 if let Some(drag) = d.get_temp::<crate::docking::Drag<P>>(self.id.with("drag")) {
                     d.insert_temp(self.id.with("drag"), crate::docking::Drag { undock: true, ..drag });
@@ -318,17 +318,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// them.
     pub(super) fn frame_items(&mut self, ui: &mut egui::Ui, owner: &TabGroup<'_, P>, panel: &P) {
         let others = owner.panels.iter().filter(|p| *p != panel).all(|p| self.permissions(p).closable);
-        if self.style.close_others_item
+        if self.config.close_others_item
             && owner.panels.len() > 1
             && others
-            && self.style.close_menu_items
-            && self.menu_action(ui, &self.style.close_others_label.clone())
+            && self.config.close_menu_items
+            && self.menu_action(ui, &self.config.close_others_label.clone())
         {
             self.output.actions.push(Action::CloseOthers { panel: panel.clone() });
         }
-        if self.style.maximize_item && owner.kind == GroupKind::Frame {
+        if self.config.maximize_item && owner.kind == GroupKind::Frame {
             let restore = self.frame.maximized.as_ref().is_some_and(|m| owner.panels.contains(m));
-            let label = if restore { self.style.restore_frame_label.clone() } else { self.style.maximize_label.clone() };
+            let label = if restore { self.config.restore_frame_label.clone() } else { self.config.maximize_label.clone() };
             if self.menu_action(ui, &label) {
                 let panel = if restore { self.frame.maximized.clone().unwrap_or_else(|| panel.clone()) } else { panel.clone() };
                 self.output.events.push(DockEvent::ToggleMaximize { panel });

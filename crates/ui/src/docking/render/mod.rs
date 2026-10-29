@@ -4,7 +4,7 @@ use egui::{Context, CursorIcon, Id, Rect, Sense, Ui, UiBuilder, Vec2, pos2, vec2
 
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
-use super::{Action, DockContent, DockOutput, DockStyle, DropTarget, Layout, Node, PanelLimits, Permissions, dock_model::Place};
+use super::{Action, DockConfig, DockContent, DockLook, DockOutput, DropTarget, Layout, Node, PanelLimits, Permissions, dock_model::Place};
 
 #[cfg(feature = "native-windows")]
 mod body_drag;
@@ -92,7 +92,8 @@ pub(in crate::docking) use sizes::{DROP_MARGIN, Drawn, RowItem, Sizer, row_drag,
 
 pub(super) struct Renderer<'a, P> {
     pub(super) id: Id,
-    pub(super) style: &'a DockStyle,
+    pub(super) config: &'a DockConfig,
+    pub(super) look: &'a DockLook,
     pub(super) content: &'a mut dyn DockContent<P>,
     pub(super) activation: Option<P>,
     pub(super) blockers: Vec<Rect>,
@@ -217,8 +218,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     self.split_id(&layout_path),
                     *axis,
                     split.divider,
-                    &self.style.resize_label,
-                    ResizeHandleStyle { hovered: self.style.accent, dragged: self.style.accent, focused: self.style.accent },
+                    &self.config.resize_label,
+                    ResizeHandleStyle { hovered: self.look.resize, dragged: self.look.resize, focused: self.look.focus },
                 )
                 .value(split.first_size(), (split.first_size() + lo)..=(split.first_size() + hi))
                 .show(ui);
@@ -241,22 +242,22 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
             Node::Dock { side, columns } => self.dock(ui, *side, columns, rect, rect.width()),
             Node::Stack { entries } => {
-                let total_header = (entries.len() as f32 * self.style.tab_height).min(rect.height());
+                let total_header = (entries.len() as f32 * self.look.tab_height).min(rect.height());
                 let remaining = (rect.height() - total_header).max(0.0);
-                let total_wanted: f64 = entries.iter().filter(|e| e.open).map(|e| f64::from(e.height.unwrap_or(self.style.min_pane).max(1.0))).sum();
-                let header = self.style.tab_height.min(rect.height() / entries.len().max(1) as f32);
+                let total_wanted: f64 = entries.iter().filter(|e| e.open).map(|e| f64::from(e.height.unwrap_or(self.config.min_pane).max(1.0))).sum();
+                let header = self.look.tab_height.min(rect.height() / entries.len().max(1) as f32);
                 let mut top = rect.top();
                 let mut dividers = Vec::new();
                 for (index, entry) in entries.iter().enumerate() {
                     let share = if entry.open && total_wanted > 0.0 {
-                        (f64::from(remaining) * f64::from(entry.height.unwrap_or(self.style.min_pane).max(1.0)) / total_wanted) as f32
+                        (f64::from(remaining) * f64::from(entry.height.unwrap_or(self.config.min_pane).max(1.0)) / total_wanted) as f32
                     } else {
                         0.0
                     };
                     let panel_rect = Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), (top + header + share).min(rect.bottom())));
                     let title_rect = Rect::from_min_max(panel_rect.min, pos2(panel_rect.right(), (top + header).min(panel_rect.bottom())));
                     self.tab(ui, &entry.panel, title_rect, entry.open, panel_rect, None);
-                    let collapse = if self.style.right_to_left {
+                    let collapse = if self.config.right_to_left {
                         Rect::from_min_max(title_rect.min, pos2((title_rect.left() + 18.0).min(title_rect.right()), title_rect.bottom()))
                     } else {
                         Rect::from_min_max(pos2((title_rect.right() - 18.0).max(title_rect.left()), title_rect.top()), title_rect.max)
@@ -269,8 +270,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                         collapse.center(),
                         egui::Align2::CENTER_CENTER,
                         if entry.open { "−" } else { "+" },
-                        self.style.font.clone(),
-                        self.style.text,
+                        self.look.font.clone(),
+                        self.look.text,
                     );
                     if response.clicked() {
                         self.output.actions.push(Action::SetStackOpen { panel: entry.panel.clone(), open: !entry.open });
@@ -286,7 +287,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                         tabs: vec![(entry.panel.clone(), title_rect)],
                         allow_splits: self.permissions(&entry.panel).accepts_splits,
                         accepts_tabs: self.permissions(&entry.panel).accepts_tabs,
-                        right_to_left: self.style.right_to_left,
+                        right_to_left: self.config.right_to_left,
                     });
                     top = panel_rect.bottom();
                     if entry.open && remaining > 0.0 {
@@ -298,7 +299,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let scale = if total_wanted > 0.0 { f64::from(remaining) / total_wanted } else { 0.0 };
                 let body_limits = |panel: &P| {
                     let mut limits = self.limits(panel);
-                    limits.min.y = limits.min.y.max(self.style.min_pane);
+                    limits.min.y = limits.min.y.max(self.config.min_pane);
                     limits.max = limits.max.max(limits.min);
                     limits
                 };
@@ -307,7 +308,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     .iter()
                     .map(|entry| {
                         let limits = body_limits(&entry.panel);
-                        let size = (f64::from(entry.height.unwrap_or(self.style.min_pane).max(1.0)) * scale) as f32;
+                        let size = (f64::from(entry.height.unwrap_or(self.config.min_pane).max(1.0)) * scale) as f32;
                         RowItem { size, min: limits.min.y, max: limits.max.y }
                     })
                     .collect();
@@ -323,8 +324,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                         self.id.with(("stack-resize", &first.panel)),
                         SplitAxis::Vertical,
                         divider,
-                        &self.style.resize_label,
-                        ResizeHandleStyle { hovered: self.style.accent, dragged: self.style.accent, focused: self.style.accent },
+                        &self.config.resize_label,
+                        ResizeHandleStyle { hovered: self.look.resize, dragged: self.look.resize, focused: self.look.focus },
                     )
                     .value(first_size, (first_size + lo)..=(first_size + hi))
                     .show(ui);
@@ -343,7 +344,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     pub(super) fn sizer(&self) -> Sizer<'_, P> {
-        Sizer { style: self.style, content: &*self.content }
+        Sizer { config: self.config, look: self.look, content: &*self.content }
     }
 
     /// `ResizeSplit` actions that move the divider of the split at view path `path` in the
@@ -370,7 +371,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// the split's own divider: dragging one moves both dividers.
     fn intersections(&mut self, ui: &mut Ui, (node, rect): (&Node<P>, Rect), path: &[bool], divider: Rect, mark: usize, root: (&Node<P>, Rect)) {
         let Node::Split { axis, .. } = node else { return };
-        let side = (self.style.gap * 3.0).max(12.0);
+        let side = (self.look.gap * 3.0).max(12.0);
         let mut found = Vec::new();
         for inner in self.dividers.get(mark..).unwrap_or_default() {
             if inner.axis == *axis || !inner.divider.expand(1.0).intersects(divider) {
@@ -417,7 +418,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !crate::docking::targets::usable(rect) {
             return;
         }
-        ui.painter().rect_filled(rect, 0.0, self.style.background);
+        ui.painter().rect_filled(rect, 0.0, self.look.background);
         let mut child =
             ui.new_child(UiBuilder::new().scope_id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
@@ -450,11 +451,11 @@ pub(in crate::docking) fn stripless<P>(panels: &[P], content: &dyn DockContent<P
 }
 
 /// Size policy of a subtree, shared by the renderer and its measurements.
-pub(in crate::docking) fn node_limits<P>(node: &Node<P>, style: &DockStyle, content: &dyn DockContent<P>) -> PanelLimits {
+pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, look: &DockLook, content: &dyn DockContent<P>) -> PanelLimits {
     match node {
         Node::Dock { columns, .. } => {
-            let width: f32 = columns.iter().map(|c| dock::column_width(c, style)).sum();
-            PanelLimits { min: vec2(width.clamp(style.min_pane, 1_000_000.0), style.min_pane), ..PanelLimits::default() }
+            let width: f32 = columns.iter().map(|c| dock::column_width(c, config, look)).sum();
+            PanelLimits { min: vec2(width.clamp(config.min_pane, 1_000_000.0), config.min_pane), ..PanelLimits::default() }
         }
         // A group is as large as its largest panel allows: a panel without a maximum lifts the
         // maximum of the panels it joins.
@@ -462,13 +463,13 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, style: &DockStyle, cont
             let mut limits = PanelLimits { min: Vec2::ZERO, max: if panels.is_empty() { PanelLimits::default().max } else { Vec2::ZERO } };
             for panel in panels {
                 let policy = content.limits(panel);
-                limits.min = limits.min.max(policy.min).max(Vec2::splat(style.min_pane));
+                limits.min = limits.min.max(policy.min).max(Vec2::splat(config.min_pane));
                 limits.max = limits.max.max(policy.max);
             }
             limits.max = limits.max.max(limits.min);
             if !stripless(panels, content) {
-                limits.min.y = (limits.min.y + style.tab_height).min(1_000_000.0);
-                limits.max.y = (limits.max.y + style.tab_height).min(1_000_000.0);
+                limits.min.y = (limits.min.y + look.tab_height).min(1_000_000.0);
+                limits.max.y = (limits.max.y + look.tab_height).min(1_000_000.0);
             }
             limits
         }
@@ -479,8 +480,8 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, style: &DockStyle, cont
             }
             for entry in entries {
                 let policy = content.limits(&entry.panel);
-                limits.min.x = limits.min.x.max(policy.min.x).max(style.min_pane);
-                limits.min.y += if entry.open { policy.min.y.max(style.min_pane) } else { 0.0 } + style.tab_height;
+                limits.min.x = limits.min.x.max(policy.min.x).max(config.min_pane);
+                limits.min.y += if entry.open { policy.min.y.max(config.min_pane) } else { 0.0 } + look.tab_height;
                 limits.max.x = limits.max.x.max(policy.max.x);
             }
             limits.min = limits.min.min(Vec2::splat(1_000_000.0));
@@ -488,16 +489,16 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, style: &DockStyle, cont
             limits
         }
         Node::Split { axis, first, second, .. } => {
-            let a = node_limits(first, style, content);
-            let b = node_limits(second, style, content);
+            let a = node_limits(first, config, look, content);
+            let b = node_limits(second, config, look, content);
             let limits = match axis {
                 SplitAxis::Horizontal => PanelLimits {
-                    min: vec2(a.min.x + b.min.x + style.gap, a.min.y.max(b.min.y)),
-                    max: vec2(a.max.x + b.max.x + style.gap, a.max.y.min(b.max.y)),
+                    min: vec2(a.min.x + b.min.x + look.gap, a.min.y.max(b.min.y)),
+                    max: vec2(a.max.x + b.max.x + look.gap, a.max.y.min(b.max.y)),
                 },
                 SplitAxis::Vertical => PanelLimits {
-                    min: vec2(a.min.x.max(b.min.x), a.min.y + b.min.y + style.gap),
-                    max: vec2(a.max.x.min(b.max.x), a.max.y + b.max.y + style.gap),
+                    min: vec2(a.min.x.max(b.min.x), a.min.y + b.min.y + look.gap),
+                    max: vec2(a.max.x.min(b.max.x), a.max.y + b.max.y + look.gap),
                 },
             };
             PanelLimits { min: limits.min.min(Vec2::splat(1_000_000.0)), max: limits.max.max(limits.min).min(Vec2::splat(1_000_000.0)) }

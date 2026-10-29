@@ -647,7 +647,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             // keys and resizes are not this window's.
             let own = matches!(class, ViewportClass::Immediate | ViewportClass::Deferred);
             let released = if blocked && own { block_input(ui) } else { Vec::new() };
-            ui.painter().rect_filled(full, 0.0, self.style.floating_background);
+            ui.painter().rect_filled(full, 0.0, self.look.floating_background);
             let buttons = self.native_bar(ui, window);
             let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
             self.cross.pointed = None;
@@ -687,7 +687,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             surface.origin = self.window_gestures(ui, window);
             if blocked {
                 (surface.targets, surface.dock_targets, surface.windows) = Default::default();
-                cover(ui, self.id.with(("native-blocked", window.id)), full, self.style.blocked_dim);
+                cover(ui, self.id.with(("native-blocked", window.id)), full, self.look.blocked_dim);
                 if !released.is_empty() {
                     self.output.forwarded_modifiers = Some(ui.input(|i| i.modifiers));
                     self.output.forwarded_events.extend(released);
@@ -785,13 +785,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn native_bar(&mut self, ui: &mut Ui, window: &Floating<P>) -> Vec<Rect> {
         let Some(first) = window.panels().next().cloned() else { return Vec::new() };
         let full = ui.max_rect();
-        let style = ChromeStyle::from_dock(self.style);
+        let style = ChromeStyle::from_look(self.look, self.config);
         let rect = Rect::from_min_size(full.min, vec2(full.width(), BAR_HEIGHT.min(full.height())));
         ui.painter().rect_filled(rect, 0.0, style.title_background);
         let (close_hit, close_glyph) = close_rects(rect, if OS_RESIZES { MACOS_CLOSE } else { OTHER_CLOSE }, style.right_to_left);
         let movable = window.panels().all(|p| self.permissions(p).movable);
-        let closable = self.style.close_button && window.panels().all(|p| self.permissions(p).closable);
-        let (move_label, close_label) = (self.style.move_window_label.clone(), self.style.close_window_label.clone());
+        let closable = self.config.close_button && window.panels().all(|p| self.permissions(p).closable);
+        let (move_label, close_label) = (self.config.move_window_label.clone(), self.config.close_window_label.clone());
         let title = crate::docking::dock_model::first_active(&window.root).map(|p| self.label_of(p)).unwrap_or_default();
         // On macOS the bar keeps the arrow, as native title bars do: AppKit's resize areas
         // cover its ends and top edge, and a cursor set over them flickers with AppKit's.

@@ -38,7 +38,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Size limits of a floating window: its title bar and, unless it is minimized, its tree.
     pub(super) fn window_limits(&self, window: &Floating<P>) -> PanelLimits {
         let chrome = self.window_chrome(window);
-        let tree = node_limits(&window.root, self.style, &*self.content);
+        let tree = node_limits(&window.root, self.config, self.look, &*self.content);
         let body = match window.minimized {
             true => (self.minimized_body(window), self.minimized_body(window)),
             false => (tree.min.y, tree.max.y),
@@ -49,13 +49,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The height of a minimized window's body: the tab strip of its only group, or nothing.
     pub(super) fn minimized_body(&self, window: &Floating<P>) -> f32 {
-        if matches!(window.root, Node::Tabs { .. }) { self.style.tab_height } else { 0.0 }
+        if matches!(window.root, Node::Tabs { .. }) { self.look.tab_height } else { 0.0 }
     }
 
     /// The title bar and, for a movable (resizable) window, the resize band above it.
     fn window_chrome(&self, window: &Floating<P>) -> f32 {
         let band = if window.panels().all(|panel| self.permissions(panel).movable) { RESIZE_BAND } else { 0.0 };
-        band + self.style.title_height
+        band + self.look.title_height
     }
 
     /// Where a floating window draws its tree, as [`Self::floating_window`] places it.
@@ -78,8 +78,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ctx.move_to_top(FloatingFrame::layer(id));
         }
         let movable = window.panels().all(|panel| self.permissions(panel).movable);
-        let style = ChromeStyle::from_dock(self.style);
-        let resize_label = self.style.resize_window_label.clone();
+        let style = ChromeStyle::from_look(self.look, self.config);
+        let resize_label = self.config.resize_window_label.clone();
         let opacity = self.drag_opacity(ctx, first);
         let response =
             FloatingFrame::new(id, rect).bounds(screen).limits(limits).resizable(movable).resize_label(&resize_label).opacity(opacity).show(
@@ -121,7 +121,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// The title bar, then the window's tree below it, in `contents`. Moves carry the whole
     /// `frame`, resize band included.
     fn window_contents(&mut self, ui: &mut Ui, window: &Floating<P>, contents: Rect, frame: Rect, style: &ChromeStyle) {
-        let title = Rect::from_min_max(contents.min, pos2(contents.right(), (contents.top() + self.style.title_height).min(contents.bottom())));
+        let title = Rect::from_min_max(contents.min, pos2(contents.right(), (contents.top() + self.look.title_height).min(contents.bottom())));
         self.title_bar(ui, window, title, frame, style);
         let body = Rect::from_min_max(pos2(contents.left(), title.bottom()), contents.max);
         self.floating_body(ui, window, body, frame);
@@ -148,8 +148,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn title_bar(&mut self, ui: &mut Ui, window: &Floating<P>, title: Rect, rect: Rect, style: &ChromeStyle) {
         let Some(first) = window.panels().next() else { return };
         let movable = window.panels().all(|p| self.permissions(p).movable);
-        let closable = self.style.close_button && window.panels().all(|p| self.permissions(p).closable);
-        let (move_label, close_label) = (self.style.move_window_label.clone(), self.style.close_window_label.clone());
+        let closable = self.config.close_button && window.panels().all(|p| self.permissions(p).closable);
+        let (move_label, close_label) = (self.config.move_window_label.clone(), self.config.close_window_label.clone());
         let mut bar = TitleBar::new(self.id.with(("move-group", Some(first))), &move_label).movable(movable);
         if closable {
             bar = bar.close(&close_label);
@@ -248,7 +248,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if self.cross.docks {
             return true;
         }
-        self.style.title_bar_docks
+        self.config.title_bar_docks
     }
 
     /// Release of a title bar drag. The window already sits where it was dragged; a dock or

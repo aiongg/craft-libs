@@ -12,12 +12,14 @@ use std::{fmt::Debug, hash::Hash};
 
 use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, UiBuilder, epaint::ClippedShape, vec2};
 
-use super::{DockArea, DockContent, DockOutput, DockStyle, Hit, Layout, Monitor};
+use super::{DockArea, DockConfig, DockContent, DockLook, DockOutput, DockStyle, DockWith, Hit, Layout, Monitor};
 
 /// Pointer travel that starts a drag before moving to its destination.
 const NUDGE: egui::Vec2 = egui::Vec2::new(8.0, 6.0);
 
 type StyleFn = Box<dyn Fn(&mut DockStyle)>;
+type ConfigFn = Box<dyn Fn(&mut DockConfig)>;
+type LookFn = Box<dyn Fn(&mut DockLook)>;
 #[cfg(feature = "native-windows")]
 type InputHook = std::sync::Arc<dyn Fn(&Context, &mut RawInput) + Send + Sync>;
 
@@ -63,6 +65,8 @@ pub struct DockDriver<P, C> {
     #[cfg(feature = "native-windows")]
     input_hook: Option<InputHook>,
     style: Option<StyleFn>,
+    config: Option<ConfigFn>,
+    look: Option<LookFn>,
     shapes: Vec<ClippedShape>,
     ime: Option<egui::output::IMEOutput>,
     time: f64,
@@ -96,6 +100,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             #[cfg(feature = "native-windows")]
             input_hook: None,
             style: None,
+            config: None,
+            look: None,
             shapes: Vec::new(),
             ime: None,
             time: 0.0,
@@ -107,6 +113,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
     /// Adjust the style each frame, after [`DockStyle::from_ui`]. Settles again.
     pub fn with_style(mut self, style: impl Fn(&mut DockStyle) + 'static) -> Self {
         self.style = Some(Box::new(style));
+        self.settle();
+        self
+    }
+
+    /// Adjust the [`DockConfig`] each frame, after the style and [`Self::with_style`]. The area
+    /// then draws from a [`DockWith`]. Settles again.
+    pub fn with_config(mut self, config: impl Fn(&mut DockConfig) + 'static) -> Self {
+        self.config = Some(Box::new(config));
+        self.settle();
+        self
+    }
+
+    /// Adjust the [`DockLook`] each frame, like [`Self::with_config`]. Settles again.
+    pub fn with_look(mut self, look: impl Fn(&mut DockLook) + 'static) -> Self {
+        self.look = Some(Box::new(look));
         self.settle();
         self
     }
@@ -145,6 +166,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
         let input_hook = self.input_hook.clone();
         #[cfg(feature = "native-windows")]
         let window_system = self.host.as_ref().map_or(Default::default(), |host| host.borrow().window_system());
+        let (config_fn, look_fn) = (&self.config, &self.look);
         let (style_fn, maximized, raise, auto, bounds, locked, native, blocked) = (
             &self.style,
             self.maximized.clone(),
@@ -160,6 +182,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             if let Some(adjust) = style_fn {
                 adjust(&mut style);
             }
+            let with = (config_fn.is_some() || look_fn.is_some()).then(|| {
+                let (mut config, mut look) = style.split();
+                if let Some(adjust) = config_fn {
+                    adjust(&mut config);
+                }
+                if let Some(adjust) = look_fn {
+                    adjust(&mut look);
+                }
+                DockWith { config, look }
+            });
             ui.scope_builder(UiBuilder::new().max_rect(area), |ui| {
                 let mut dock = DockArea::new(id)
                     .maximized(maximized.clone())
@@ -182,7 +214,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
                 if let Some(hook) = input_hook.clone() {
                     dock = dock.native_input_hook(move |ctx, input| hook(ctx, input));
                 }
-                output = dock.show_content(ui, layout, &style, content);
+                output = match &with {
+                    Some(with) => dock.show_content(ui, layout, with, content),
+                    None => dock.show_content(ui, layout, &style, content),
+                };
             });
         });
         full.textures_delta.clear();

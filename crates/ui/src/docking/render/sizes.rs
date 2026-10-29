@@ -12,7 +12,7 @@
 use egui::Rect;
 
 use super::{dock::dock_rects, node_limits, split_bounds};
-use crate::docking::{DockContent, DockStyle, Node, PanelLimits};
+use crate::docking::{DockConfig, DockContent, DockLook, Node, PanelLimits};
 use crate::layout::{SplitAxis, SplitLayout, SplitSize, split_rect};
 
 /// A split's two children with the rects they are drawn in.
@@ -23,7 +23,8 @@ type Children<'n, P> = [(&'n Node<P>, Rect); 2];
 pub(in crate::docking) const DROP_MARGIN: f32 = 1.0;
 
 pub(in crate::docking) struct Sizer<'a, P> {
-    pub(in crate::docking) style: &'a DockStyle,
+    pub(in crate::docking) config: &'a DockConfig,
+    pub(in crate::docking) look: &'a DockLook,
     pub(in crate::docking) content: &'a dyn DockContent<P>,
 }
 
@@ -50,14 +51,14 @@ fn along(v: egui::Vec2, axis: SplitAxis) -> f32 {
 
 impl<P> Sizer<'_, P> {
     fn limits(&self, node: &Node<P>) -> PanelLimits {
-        node_limits(node, self.style, self.content)
+        node_limits(node, self.config, self.look, self.content)
     }
 
     /// The split as drawn: its stored size, clamped so both children fit their limits.
     pub(in crate::docking) fn split(&self, axis: SplitAxis, size: SplitSize, first: &Node<P>, second: &Node<P>, rect: Rect) -> Option<SplitLayout> {
-        let wanted = split_rect(rect, axis, size, self.style.gap, 0.0)?;
+        let wanted = split_rect(rect, axis, size, self.look.gap, 0.0)?;
         let (lo, hi) = split_bounds(wanted.available(), axis, self.limits(first), self.limits(second));
-        split_rect(rect, axis, SplitSize::FixedFirst(wanted.first_size().clamp(lo, hi)), self.style.gap, 0.0)
+        split_rect(rect, axis, SplitSize::FixedFirst(wanted.first_size().clamp(lo, hi)), self.look.gap, 0.0)
     }
 
     /// The children of a split drawn in `rect`, with their rects; a dock beside its neighbour
@@ -66,11 +67,11 @@ impl<P> Sizer<'_, P> {
         let Node::Split { axis, size, first, second } = node else { return None };
         match (&**first, &**second) {
             (Node::Dock { side, columns }, other) if *axis == SplitAxis::Horizontal => {
-                let (dock, rest, _) = dock_rects(*side, columns, other, rect, self.style, self.content);
+                let (dock, rest, _) = dock_rects(*side, columns, other, rect, self.config, self.look, self.content);
                 Some([(first, dock), (second, rest)])
             }
             (other, Node::Dock { side, columns }) if *axis == SplitAxis::Horizontal => {
-                let (dock, rest, _) = dock_rects(*side, columns, other, rect, self.style, self.content);
+                let (dock, rest, _) = dock_rects(*side, columns, other, rect, self.config, self.look, self.content);
                 Some([(first, rest), (second, dock)])
             }
             _ => {
