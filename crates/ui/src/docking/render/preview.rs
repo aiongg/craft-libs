@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use egui::{Context, Key, Pos2, Rect, Ui, Vec2, pos2, vec2};
 
 use super::{DROP_MARGIN, Drawn, Renderer, clamp_float, dock::group_action};
-use crate::docking::chrome::drop_preview;
+use crate::docking::chrome::drop_preview_with;
 use crate::docking::{
     Action, DockStyle, Drag, DropProposal, DropRequest, DropTarget, GroupDrag, GroupGesture, Layout, Node, Placement, Target, Zone, cancel_drag,
     dock_model::{Place, sized_split_depth},
@@ -409,7 +409,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let painter = self.preview_painter(ctx);
         if drag.gesture != GroupGesture::Window {
             let ghost = self.group_ghost(drag, pointer);
-            drop_preview(&painter, ghost, self.look.drop, true);
+            drop_preview_with(&painter, ghost, self.look, true);
             let strip = Rect::from_min_size(ghost.min, vec2(ghost.width(), self.look.tab_height.min(ghost.height())));
             let labels = painter.with_clip_rect(strip.shrink(2.0));
             let mut x = strip.left() + self.look.tab_padding * 0.5;
@@ -539,7 +539,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.paint_tab_proposal(ctx, &painter, &drag, proposal.as_ref(), pointer);
         }
         if let (None, Some(rect)) = (&proposal, floating_rect) {
-            drop_preview(&painter, rect, self.look.drop, false);
+            drop_preview_with(&painter, rect, self.look, false);
         }
     }
 
@@ -596,7 +596,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if crate::docking::targets::usable(proposal.preview) {
             let beside = matches!(proposal.placement, Placement::Split(zone) | Placement::SplitSized { zone, .. } if zone != Zone::Center);
             if self.config.side_edge_zones {
-                drop_preview(painter, proposal.preview.shrink(1.0), self.look.drop, filled);
+                drop_preview_with(painter, proposal.preview.shrink(1.0), self.look, filled);
             } else if matches!(proposal.placement, Placement::Edge(_)) {
                 self.paint_drop_line(ctx, proposal.preview, true);
             } else if beside {
@@ -885,7 +885,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !released {
             let painter = self.preview_painter(ctx);
             if let Some(rect) = feedback.preview.filter(|rect| crate::docking::targets::usable(*rect)) {
-                drop_preview(&painter, rect, self.look.drop, true);
+                drop_preview_with(&painter, rect, self.look, true);
                 // A window moving by its title bar fades over it, as over the renderer's own.
                 ctx.data_mut(|d| d.insert_temp(self.id.with(GROUP_HIGHLIGHTED), true));
             }

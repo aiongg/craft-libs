@@ -298,7 +298,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", key), self.look.font.clone(), self.look.text);
         let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(12.0, 6.0));
         let rect = crate::docking::chrome::clamp(rect, self.float_bounds);
-        painter.rect(rect, 4.0, self.look.floating_background, egui::Stroke::new(1.0, self.look.drop), egui::StrokeKind::Inside);
+        painter.rect(rect, self.look.hint_radius, self.look.floating_background, egui::Stroke::new(1.0, self.look.drop), egui::StrokeKind::Inside);
         painter.galley(rect.center() - galley.size() * 0.5, galley, self.look.text);
     }
 

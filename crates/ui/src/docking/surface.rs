@@ -274,6 +274,7 @@ impl DockStyle {
             icon_size: self.icon_size,
             iconic_width: self.iconic_width,
             icon_selected_text: self.text,
+            title_background: self.tab_background,
             title_text: self.text,
             title_muted: self.inactive_text,
             grip: self.accent,

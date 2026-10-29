@@ -47,6 +47,8 @@ pub use workspace::Workspace;
 use surface::{Drag, GroupDrag, GroupGesture};
 
 #[cfg(test)]
+mod chrome_token_tests;
+#[cfg(test)]
 mod command_tests;
 #[cfg(test)]
 mod dock_tests;

@@ -785,7 +785,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn native_bar(&mut self, ui: &mut Ui, window: &Floating<P>) -> Vec<Rect> {
         let Some(first) = window.panels().next().cloned() else { return Vec::new() };
         let full = ui.max_rect();
-        let style = ChromeStyle::from_look(self.look, self.config);
+        // The operating system draws the window's corners and shadow.
+        let style = ChromeStyle { radius: egui::CornerRadius::ZERO, shadow: egui::Shadow::NONE, ..ChromeStyle::from_look(self.look, self.config) };
         let rect = Rect::from_min_size(full.min, vec2(full.width(), BAR_HEIGHT.min(full.height())));
         ui.painter().rect_filled(rect, 0.0, style.title_background);
         let (close_hit, close_glyph) = close_rects(rect, if OS_RESIZES { MACOS_CLOSE } else { OTHER_CLOSE }, style.right_to_left);

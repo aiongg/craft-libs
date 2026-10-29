@@ -79,6 +79,8 @@ pub struct DockLook {
     pub floating_radius: CornerRadius,
     pub floating_shadow: Shadow,
     /// Title of a floating window.
+    /// Fill of a floating window's title bar.
+    pub title_background: Color32,
     pub title_text: Color32,
     /// The ▾ and × glyphs of a floating title bar at rest.
     pub title_muted: Color32,
@@ -131,6 +133,7 @@ impl DockLook {
             grip_alpha: dock.grip_alpha,
             floating_radius: corner_radius(float.radius),
             floating_shadow: float.shadow.to_egui(),
+            title_background: float.title.to_egui(),
             title_text: float.title_text.to_egui(),
             title_muted: float.title_muted.to_egui(),
             grip: float.grip.to_egui(),
@@ -175,6 +178,7 @@ impl DockLook {
             grip_alpha: 0.5,
             floating_radius: CornerRadius::ZERO,
             floating_shadow: Shadow::NONE,
+            title_background: visuals.extreme_bg_color,
             title_text: visuals.text_color(),
             title_muted: visuals.weak_text_color(),
             grip: visuals.selection.stroke.color,
