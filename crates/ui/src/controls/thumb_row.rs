@@ -287,6 +287,14 @@ impl<const N: usize> RowRules<N> {
         }
         Some(out)
     }
+
+    /// `now` with thumb `i` moved to `v`, within its bounds among the others, where a drag of it
+    /// would stop.
+    pub(crate) fn moved(&self, now: &[f64; N], i: usize, v: f64) -> [f64; N] {
+        let mut row = *now;
+        row[i] = v;
+        self.rebase(row, now, now).unwrap_or(row)
+    }
 }
 
 /// The row's thumbs on its track.

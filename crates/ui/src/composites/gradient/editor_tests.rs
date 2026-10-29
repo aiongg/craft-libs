@@ -844,6 +844,27 @@ fn an_arrow_on_the_bar_during_a_field_scrub_keeps_the_scrubs_value() {
     assert_eq!(state.locations(), [0.0, 0.51, 1.0], "the arrow applies");
 }
 
+/// Screen-reader steps on the Opacity and Location fields in one frame both count: the Location
+/// step moves the stop the Opacity step left.
+#[test]
+fn steps_on_two_fields_in_one_frame_both_reach_the_host() {
+    use egui::accesskit::{Action, ActionRequest};
+    let mut harness = harness_with(Host { rows: StopRows::Combined, ..Host::new(three()) });
+    focus(&mut harness);
+    select(&mut harness, Some(StopRef::Color(1)));
+    harness.state_mut().events.clear();
+    let events = [("Opacity", Action::Decrement), ("Location", Action::Increment)].map(|(name, action)| {
+        let (target_node, target_tree) = spin(&harness, name).accesskit_node().locate();
+        Event::AccessKitActionRequest(ActionRequest { action, target_tree, target_node, data: None })
+    });
+    harness.input_mut().events.extend(events);
+    harness.run();
+    let state = harness.state();
+    assert_eq!(state.kinds(), ["Set"]);
+    assert_eq!(state.stops.color[1].color.a, 0.99, "the opacity step applies");
+    assert_eq!(state.locations(), [0.0, 0.51, 1.0], "the location step applies");
+}
+
 /// A held bar edit applies its change of one stop onto the stops of its turn: a change in place, a
 /// move past a neighbour (found by its tag), an added or a removed stop. When the stops of its
 /// turn aren't its base's at their places (by tag), or the result is out of order, it gives none.

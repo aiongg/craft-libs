@@ -466,16 +466,13 @@ impl<'a> TransformFields<'a> {
         let scoped = edit::in_scope(ui);
         let mut edits = parts::Edits::<TransformRow>::new(id, &kept.parts);
         let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
-        let mut running = shown;
+        let mut running = parts::Running::new(&outer, scoped, shown);
         for (which, edit) in &fields {
-            let (which, base) = (*which, running);
+            let (which, base) = (*which, *running.value());
             edits.typing(ui.ctx(), edit, |value| convert.row(&base, which, value));
+            running.after(&edits, edit.response.id);
             if let Some(&value) = edit.event.as_ref().and_then(EditEvent::value) {
-                let row = convert.row(&base, which, value);
-                if edits.applies(&outer, scoped, edit.response.id) {
-                    running = row;
-                }
-                values.push((which, value, row));
+                values.push((which, value, convert.row(&base, which, value)));
             }
         }
         let outer = edits.feed(outer, &mut kept.parts, scoped);

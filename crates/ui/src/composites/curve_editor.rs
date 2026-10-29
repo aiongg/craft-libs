@@ -474,7 +474,8 @@ impl<'a> CurveEditor<'a> {
                         }
                     };
                     if self.fields {
-                        self.fields_row(ui, id, &points, selected, policy, &mut edits);
+                        let mut running = parts::Running::new(&outer, scoped, Curve::Points(points.clone()));
+                        self.fields_row(ui, id, &points, selected, policy, &mut edits, &mut running);
                     }
                 }
                 if let Some(hint) = &self.hint {
@@ -718,8 +719,19 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The Input/Output row of the selected point, disabled without one: two parts of the
-    /// editor's edit, drawn from `points` with `policy`, their values as curves.
-    fn fields_row(&self, ui: &mut Ui, id: Id, points: &[[f32; 2]], selected: Option<usize>, policy: EditPolicy, edits: &mut parts::Edits<Curve>) {
+    /// editor's edit, drawn from `points` with `policy`, their values as curves made from the
+    /// curve `running` holds when each is pushed.
+    #[allow(clippy::too_many_arguments)]
+    fn fields_row(
+        &self,
+        ui: &mut Ui,
+        id: Id,
+        points: &[[f32; 2]],
+        selected: Option<usize>,
+        policy: EditPolicy,
+        edits: &mut parts::Edits<Curve>,
+        running: &mut parts::Running<'_, Curve>,
+    ) {
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let at = selected.and_then(|i| points.get(i).map(|p| (i, *p)));
         let (x, y) = at.map_or((0.0, 0.0), |(_, p)| (p[0], p[1]));
@@ -746,10 +758,11 @@ impl<'a> CurveEditor<'a> {
             }
             field
         };
-        let moved = |axis: usize, value: f64| {
-            let mut points = points.to_vec();
-            if let Some((i, p)) = at {
-                let mut to = p;
+        let moved = |base: &Curve, axis: usize, value: f64| {
+            let mut points = base.points().unwrap_or(points).to_vec();
+            if let Some((i, _)) = at
+                && let Some(mut to) = points.get(i).copied()
+            {
                 to[axis] = self.field_level(value);
                 rules.move_to(&mut points, i, to);
             }
@@ -763,8 +776,11 @@ impl<'a> CurveEditor<'a> {
             )
         });
         let (input, output) = row.inner.inner;
-        edits.typing(ui.ctx(), &input, |v| moved(0, v));
-        edits.typing(ui.ctx(), &output, |v| moved(1, v));
+        let base = running.value().clone();
+        edits.typing(ui.ctx(), &input, |v| moved(&base, 0, v));
+        running.after(edits, input.response.id);
+        let base = running.value().clone();
+        edits.typing(ui.ctx(), &output, |v| moved(&base, 1, v));
     }
 }
 

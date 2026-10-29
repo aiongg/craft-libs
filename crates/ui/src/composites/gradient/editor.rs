@@ -558,17 +558,20 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 &shown
             }
         };
+        // Each field maps onto the stops the parts before it in this pass left, and Delete
+        // removes from the stops they all left.
+        let mut running = parts::Running::new(&outer, scoped, drawn.clone());
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
         if self.fields {
-            (requested, picker) = self.fields_row(ui, id, drawn, &mut state, &mut edits, enabled, requested);
+            (requested, picker) = self.fields_row(ui, id, drawn, &mut running, &mut state, &mut edits, enabled, requested);
         } else if self.color_popover {
             picker = self.popover(ui, bar.edit.response.clone(), drawn, &mut state, &mut edits, enabled, requested);
         }
         for () in edits.inputs(ui.ctx(), &mut state.parts) {
             if let Some(m) = state.selected.filter(|m| m.is_stop())
-                && let Some((stops, j)) = stops::remove(drawn, m.row(), m.index(), &self.rules)
+                && let Some((stops, j)) = stops::remove(running.value(), m.row(), m.index(), &self.rules)
             {
                 state.selected = Some(StopRef::stop(m.row(), j));
                 edits.set(stops);

@@ -514,6 +514,42 @@ fn a_held_row_step_keeps_the_thumb_order_on_the_row_of_its_turn() {
     );
 }
 
+/// Screen-reader steps on the given fields, all in one frame.
+fn field_steps(harness: &mut Harness<'_, Host>, steps: &[(&str, egui::accesskit::Action)]) {
+    let events = steps
+        .iter()
+        .map(|&(name, action)| {
+            let (target_node, target_tree) = node(harness, Role::SpinButton, name).accesskit_node().locate();
+            Event::AccessKitActionRequest(egui::accesskit::ActionRequest { action, target_tree, target_node, data: None })
+        })
+        .collect::<Vec<_>>();
+    harness.input_mut().events.extend(events);
+    harness.run();
+}
+
+/// Steps on several fields in one frame all count, each from the levels the ones before it left:
+/// two on the input row and one on the output row reach the host as one Set.
+#[test]
+fn field_steps_on_one_row_in_one_frame_all_reach_the_host() {
+    use egui::accesskit::Action;
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    field_steps(&mut harness, &[("Input black", Action::Increment), ("Gamma", Action::Increment), ("Output white", Action::Decrement)]);
+    assert_eq!(harness.state().kinds(), ["Set"]);
+    assert_eq!(harness.state().levels, Levels { in_black: 1.0, gamma: 1.01, out_white: 254.0, ..IDENTITY });
+}
+
+/// A field's step in the frame of a step on the other end's field keeps the input ends the gap
+/// apart, as a drag of its thumb would stop: white can't come closer to the black the earlier
+/// step left.
+#[test]
+fn field_steps_on_both_input_ends_in_one_frame_keep_the_gap() {
+    use egui::accesskit::Action;
+    let mut harness = harness(Host::with_undo(Levels { in_black: 40.0, in_white: 43.0, ..IDENTITY }), Direction::Ltr);
+    field_steps(&mut harness, &[("Input black", Action::Increment), ("Input white", Action::Decrement)]);
+    let levels = harness.state().levels;
+    assert_eq!((levels.in_black, levels.in_white), (41.0, 43.0), "{:?}", harness.state().kinds());
+}
+
 /// A tap (press and release in one frame) on a row in the pass a field's typing run commits
 /// reaches the host in a later pass than the Commit: a composite reports one edit per pass.
 #[test]
