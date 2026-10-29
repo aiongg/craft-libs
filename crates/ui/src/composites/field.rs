@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use craft_theme::TypeRole;
-use egui::accesskit::Invalid;
+use egui::accesskit::{Invalid, Role};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{AsIdSalt, Color32, Galley, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
@@ -47,6 +47,23 @@ pub struct FieldStyle {
 pub trait FieldControl {
     /// The response whose AccessKit node is the control.
     fn control(&self) -> &Response;
+}
+
+/// Names the control of a row by its visible `label` (`labelled_by`). A cell of several controls
+/// has no node of a widget but its layout's container: that becomes a group, so the label names
+/// the cluster.
+pub(super) fn name_control(ctx: &egui::Context, control: &Response, label: &Response) {
+    if !ctx.has_accesskit_node(control.id) {
+        return;
+    }
+    ctx.accesskit_node_builder(control.id, |node| {
+        if node.role() == Role::GenericContainer {
+            node.set_role(Role::Group);
+        }
+        // The node's own label would win over `labelled_by`.
+        node.clear_label();
+        node.push_labelled_by(label.id.accesskit_id());
+    });
 }
 
 impl FieldControl for Response {

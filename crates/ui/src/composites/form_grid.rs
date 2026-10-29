@@ -5,8 +5,9 @@ use craft_theme::TypeRole;
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
-use super::field::{FieldControl, one_line};
+use super::field::{FieldControl, name_control, one_line};
 use super::measure;
+use super::property_row::RowLabel;
 use crate::controls::{Checkbox, NumberField, Select};
 use crate::direction;
 use crate::edit::EditEvent;
@@ -138,13 +139,37 @@ impl Form<'_> {
     /// A row of `label` and the control `add_control` draws in a row of the control column; the
     /// control it returns is the one the label names and centres on. Controls after the first in
     /// the cell (a unit menu, a caption) sit beside it.
-    pub fn row<C: FieldControl>(&mut self, label: impl Into<String>, add_control: impl FnOnce(&mut Ui) -> C) -> InnerResponse<C> {
+    ///
+    /// The closure gets the row's [`RowLabel`], whose [`scrub`](RowLabel::scrub) is the label's
+    /// response for [`NumberField::scrub_by`], so that a label scrubs its field:
+    ///
+    /// ```
+    /// # use craft_ui::composites::FormGrid;
+    /// # use craft_ui::controls::NumberField;
+    /// # use craft_ui::localized::LocaleNumbers;
+    /// # egui::__run_test_ui(|ui| { let numbers = LocaleNumbers::from_tag("en");
+    /// FormGrid::new("shape").show(ui, |form| {
+    ///     form.row("Radius:", |ui, label| {
+    ///         let field = NumberField::new("radius", "Radius", 4.0, &numbers);
+    ///         match label.scrub() {
+    ///             Some(label) => field.scrub_by(label),
+    ///             None => field,
+    ///         }
+    ///         .show(ui)
+    ///     });
+    /// });
+    /// # });
+    /// ```
+    ///
+    /// A cell of several controls side by side (a [`Row`](crate::primitives::Row) the closure
+    /// returns the response of) is an accessible group named by the label.
+    pub fn row<C: FieldControl>(&mut self, label: impl Into<String>, add_control: impl FnOnce(&mut Ui, &RowLabel) -> C) -> InnerResponse<C> {
         self.cell(Some(label.into()).filter(|l| !l.is_empty()), add_control, true)
     }
 
     /// A row with no label, whose control starts at the control column.
     pub fn unlabelled<C: FieldControl>(&mut self, add_control: impl FnOnce(&mut Ui) -> C) -> InnerResponse<C> {
-        self.cell(None, add_control, true)
+        self.cell(None, |ui, _| add_control(ui), true)
     }
 
     /// A row of `label` and a read-only `text` in the normal text colour. The text is not a
@@ -152,7 +177,7 @@ impl Form<'_> {
     pub fn value(&mut self, label: impl Into<String>, text: impl Into<String>) -> Response {
         let format = role_format(&self.tokens, TypeRole::Body, Content::Normal.color(&self.tokens).to_egui());
         let job = LayoutJob::single_section(text.into(), format);
-        self.cell(Some(label.into()).filter(|l| !l.is_empty()), |ui| ui.add(Label::new(job).selectable(false)), false).inner
+        self.cell(Some(label.into()).filter(|l| !l.is_empty()), |ui, _| ui.add(Label::new(job).selectable(false)), false).inner
     }
 
     /// Extra space before the next row.
@@ -160,7 +185,12 @@ impl Form<'_> {
         self.ui.add_space(height);
     }
 
-    fn cell<C: FieldControl>(&mut self, label: Option<String>, add_control: impl FnOnce(&mut Ui) -> C, names_control: bool) -> InnerResponse<C> {
+    fn cell<C: FieldControl>(
+        &mut self,
+        label: Option<String>,
+        add_control: impl FnOnce(&mut Ui, &RowLabel) -> C,
+        names_control: bool,
+    ) -> InnerResponse<C> {
         let style = self.style;
         let ui = &mut *self.ui;
         let format = role_format(&self.tokens, style.label_role, style.label);
@@ -175,42 +205,31 @@ impl Form<'_> {
             Rect::from_min_max(pos2(rect.left() + indent, rect.top()), rect.max)
         };
 
-        // The label is placed once the control's height is known, in a `Ui` made before the
-        // control's so that AccessKit lists the label first.
-        let mut label_ui = galley.is_some().then(|| ui.new_child(UiBuilder::new().max_rect(rect)));
-        let mut cell = ui.new_child(UiBuilder::new().max_rect(control_rect).layout(direction::column(ui)));
-        cell.spacing_mut().item_spacing = self.spacing;
-        let control = direction::horizontal(&mut cell, add_control).inner;
-
-        let control_box = control.control().rect;
-        let mut row = cell.min_rect();
-        let mut label_response = None;
-        if let (Some(label_ui), Some(galley)) = (label_ui.as_mut(), galley) {
+        // The label comes first, in the first control's height, so that the control closure has
+        // its response (scrubbing) and AccessKit lists it before the control.
+        let mut row = Rect::NOTHING;
+        let label_response = galley.map(|galley| {
             let x = if rtl { rect.right() - column } else { rect.left() };
-            let band = Rect::from_min_size(pos2(x, control_box.top()), vec2(column, control_box.height().min(style.label_band)));
+            let band = Rect::from_min_size(pos2(x, rect.top()), vec2(column, style.label_band));
             let layout = match self.align {
                 LabelAlign::End => direction::trailing(ui),
                 LabelAlign::Start => direction::row(ui),
             };
-            let added = label_ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(galley).selectable(false)));
-            row = row.union(added.inner.rect);
-            label_response = Some(added.inner);
+            ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(galley).selectable(false))).inner
+        });
+        if let Some(label) = &label_response {
+            row = label.rect;
         }
+        let mut cell = ui.new_child(UiBuilder::new().max_rect(control_rect).layout(direction::column(ui)));
+        cell.spacing_mut().item_spacing = self.spacing;
+        let control = direction::horizontal(&mut cell, |ui| add_control(ui, &RowLabel::new(label_response.as_ref(), true))).inner;
+        row = row.union(cell.min_rect());
         row.extend_with_x(direction::start_x(ui, rect));
 
-        let id = control.control().id;
-        let ctx = ui.ctx().clone();
-        if names_control
-            && ctx.has_accesskit_node(id)
-            && let Some(label) = &label_response
-        {
-            ctx.accesskit_node_builder(id, |node| {
-                // The node's own label would win over `labelled_by`.
-                node.clear_label();
-                node.push_labelled_by(label.id.accesskit_id());
-            });
+        if names_control && let Some(label) = &label_response {
+            name_control(ui.ctx(), control.control(), label);
         }
-        drop((label_ui, cell));
+        drop(cell);
         let response = ui.allocate_rect(row, Sense::hover());
         InnerResponse::new(control, response)
     }
@@ -275,7 +294,7 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut Args) {
             form.value("Dimensions:", format!("{} px × {} px", v.width.round(), v.height.round()));
             form.space(6.0);
             let width = form
-                .row("Width:", |ui| {
+                .row("Width:", |ui, _| {
                     let edit = NumberField::new("width", "Width", v.width, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
                     let _ = unit_menu(ui, "width-unit", "Width unit", &mut v.unit);
                     edit
@@ -283,7 +302,7 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut Args) {
                 .inner;
             apply(width.event, &mut v.width);
             let height = form
-                .row("Height:", |ui| {
+                .row("Height:", |ui, _| {
                     let edit = NumberField::new("height", "Height", v.height, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
                     let _ = unit_menu(ui, "height-unit", "Height unit", &mut v.unit);
                     edit
@@ -291,7 +310,7 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut Args) {
                 .inner;
             apply(height.event, &mut v.height);
             let resolution = form
-                .row("Resolution:", |ui| {
+                .row("Resolution:", |ui, _| {
                     let edit = NumberField::new("resolution", "Resolution", v.resolution, &numbers).range(1.0..=30000.0).decimals(0..=0).show(ui);
                     ui.label("Pixels/Inch");
                     edit

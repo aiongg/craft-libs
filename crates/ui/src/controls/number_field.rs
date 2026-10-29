@@ -1337,16 +1337,15 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, wrapped)
             });
+            form.row("Radius", |ui, label| {
+                let field = NumberField::new("number-field-radius", "Radius", *radius, &numbers).range(0.0..=500.0).unit(Unit::new("{n} px")).size(size);
+                let edit = match label.scrub() {
+                    Some(label) => field.scrub_by(label),
+                    None => field,
+                }
+                .show(ui);
+                super::slider::store(&edit, radius)
             });
-            Row::new(Gap::Inline).show(ui, |ui| {
-                let label = ui.add(Text::new("Radius"));
-                let edit = NumberField::new("number-field-radius", "Radius", *radius, &numbers)
-                    .range(0.0..=500.0)
-                    .unit(Unit::new("{n} px"))
-                    .scrub_by(&label)
-                    .size(size)
-                    .show(ui);
-                super::slider::store(&edit, radius);
             });
             ui.add(
                 Text::new(
