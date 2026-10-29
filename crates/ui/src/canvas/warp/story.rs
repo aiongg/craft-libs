@@ -5,7 +5,7 @@
 use egui::{Color32, Mesh, Ui};
 use kurbo::{Point, Rect};
 
-use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, cubic};
+use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpSplit, cubic};
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
@@ -20,7 +20,13 @@ pub(crate) fn stories() -> Vec<Story> {
         level: Level::Primitives,
         component: "Warp grid",
         name: "Warp",
-        args: || super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true),
+        args: || {
+            super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true).with_choice(
+                "split",
+                &["Off", "Crosswise", "Lengthwise"],
+                0,
+            )
+        },
         show: show_warp,
     }]
 }
@@ -144,6 +150,7 @@ pub(crate) fn edited(mesh: &WarpMesh, edit: &WarpEdit) -> WarpMesh {
             }
         }
         WarpEdit::Point { .. } => {}
+        WarpEdit::Split { split, index, t } => return mesh.split(split, index, t),
         WarpEdit::Surface { s, t, by } => {
             // The least change of the patch's control points that moves the surface point by `by`.
             let (column, row, u, v) = patch(mesh, s, t);
@@ -178,6 +185,11 @@ fn show_warp(ui: &mut Ui, args: &mut Args) {
     let mesh = host.mesh.clone();
     let r = WarpGrid::new("story-warp", &mesh, english_names())
         .editable(args.bool("editable"))
+        .split(match args.choice("split") {
+            "Crosswise" => Some(WarpSplit::Crosswise),
+            "Lengthwise" => Some(WarpSplit::Lengthwise),
+            _ => None,
+        })
         .surface(|p| surface_at(&mesh, p))
         .units(&px, &px)
         .show(ui, &canvas.response, view);

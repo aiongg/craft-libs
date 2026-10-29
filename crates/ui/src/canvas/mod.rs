@@ -19,7 +19,8 @@
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
 //! - [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box;
 //!   [`ReferencePoint`]: the 3 × 3 picker of its reference point.
-//! - [`turn_cursor`]: the rotate pointer outside a transform box's corners.
+//! - [`turn_cursor`]: the rotate pointer outside a transform box's corners; [`distort_cursor`],
+//!   [`skew_cursor`] and [`selection_cursor`] are the other painted pointers.
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
@@ -90,7 +91,7 @@ pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
 pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
-pub use turn::turn_cursor;
+pub use turn::{SelectionBadge, distort_cursor, selection_badge_at, selection_cursor, skew_cursor, turn_cursor, turn_cursor_with};
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
-pub use warp::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpStyle};
+pub use warp::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpSplit, WarpStyle};

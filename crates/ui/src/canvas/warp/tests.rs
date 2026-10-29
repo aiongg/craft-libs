@@ -5,7 +5,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Vec2};
 
 use super::story::{WarpHost, english_names, eval, surface_at};
-use super::{WarpEdit, WarpGrid, WarpMesh};
+use super::{WarpEdit, WarpGrid, WarpMesh, WarpSplit};
 use crate::canvas::guides::GuideHost;
 use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
@@ -24,6 +24,7 @@ struct Host {
     rotation: f64,
     flip: bool,
     editable: bool,
+    split: Option<WarpSplit>,
     view: Option<CanvasView>,
     events: Vec<EditEvent<WarpEdit>>,
     picked: Option<usize>,
@@ -39,6 +40,7 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
         rotation,
         flip,
         editable: true,
+        split: None,
         view: None,
         events: Vec::new(),
         picked: None,
@@ -60,6 +62,7 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
             let mesh = host.host.mesh.clone();
             let r = WarpGrid::new("warp", &mesh, english_names())
                 .editable(host.editable)
+                .split(host.split)
                 .surface(|p| surface_at(&mesh, p))
                 .units(&px, &px)
                 .show(ui, &canvas, &view);
@@ -417,4 +420,69 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
     assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
     assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
     assert!(h.state().field.commit_came_first());
+}
+
+/// Presses and releases the primary button at `at` with `modifiers` held.
+fn click(h: &mut Harness<'_, Host>, at: Pos2, modifiers: Modifiers) {
+    h.event(Event::ModifiersChanged(modifiers));
+    h.event(Event::PointerMoved(at));
+    h.run();
+    h.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: true, modifiers });
+    h.run();
+    h.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: false, modifiers });
+    h.run();
+}
+
+#[test]
+fn a_split_inserts_a_line_at_the_click_and_alt_switches_direction() {
+    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
+    h.run();
+    let at = screen(&h, Point::new(RECT.x0 + 0.25 * RECT.width(), RECT.y0 + 0.4 * RECT.height()));
+    click(&mut h, at, Modifiers::NONE);
+    assert_eq!(kinds(&h), ["set"], "one Set, no drag");
+    let Some(WarpEdit::Split { split: WarpSplit::Crosswise, index: 0, t }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
+    assert!((t - 0.4).abs() < 0.01, "{t}");
+    assert_eq!((mesh(&h).columns, mesh(&h).rows), (1, 2));
+    // The new row of anchors lies on the click's line.
+    let anchor = mesh(&h).point(0, 3);
+    assert!((anchor.y - (RECT.y0 + 0.4 * RECT.height())).abs() < 0.5, "{anchor:?}");
+
+    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
+    h.run();
+    click(&mut h, at, Modifiers::ALT);
+    let Some(WarpEdit::Split { split: WarpSplit::Lengthwise, index: 0, t }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
+    assert!((t - 0.25).abs() < 0.01, "{t}");
+    assert_eq!((mesh(&h).columns, mesh(&h).rows), (2, 1));
+
+    // Off the surface nothing is inserted, and the press is not a drag of a point.
+    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
+    h.run();
+    let off = screen(&h, Point::new(RECT.x1 + 60.0, RECT.y1 + 40.0));
+    click(&mut h, off, Modifiers::NONE);
+    assert!(kinds(&h).is_empty());
+    // On an anchor of a split tool the press does not drag the anchor either.
+    let corner = screen(&h, Point::new(RECT.x0, RECT.y0));
+    click(&mut h, corner, Modifiers::NONE);
+    assert!(kinds(&h).is_empty());
+}
+
+#[test]
+fn splitting_keeps_the_surface_where_it_was() {
+    let mut warped = WarpMesh::identity(RECT, 2, 2);
+    for (k, p) in warped.points.iter_mut().enumerate() {
+        *p += Vec2::new((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
+    }
+    for (split, index, t) in [(WarpSplit::Crosswise, 1, 0.3), (WarpSplit::Lengthwise, 0, 0.7)] {
+        let cut = warped.split(split, index, t);
+        for (u, v) in [(0.1, 0.2), (0.5, 0.5), (0.9, 0.8)] {
+            // The same surface point, in the half of the patch that holds it.
+            let (a, b) = match split {
+                WarpSplit::Crosswise => ((0, 1, u, v), if v < t { (0, 1, u, v / t) } else { (0, 2, u, (v - t) / (1.0 - t)) }),
+                WarpSplit::Lengthwise => ((0, 1, u, v), if u < t { (0, 1, u / t, v) } else { (1, 1, (u - t) / (1.0 - t), v) }),
+            };
+            let (before, after) = (warped.patch_point(a.0, a.1, a.2, a.3), cut.patch_point(b.0, b.1, b.2, b.3));
+            assert!(before.distance(after) < 1e-9, "{split:?} {before:?} {after:?}");
+        }
+        assert!(cut.is_valid());
+    }
 }
