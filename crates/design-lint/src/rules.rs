@@ -19,8 +19,9 @@ pub const FONT_ID: &str = "literal-size/font-id";
 pub const RAW_COLOUR_CONST: &str = "raw-colour/const";
 pub const PARSE: &str = "parse";
 
-/// Every rule id the syntax rules emit.
-pub const RULES: [&str; 8] = [VEC2, ADD_SPACE, CORNER_RADIUS, STROKE, MARGIN, FONT_ID, RAW_COLOUR_CONST, PARSE];
+/// Every rule id the checker emits, including the marker rules.
+pub const RULES: [&str; 10] =
+    [VEC2, ADD_SPACE, CORNER_RADIUS, STROKE, MARGIN, FONT_ID, RAW_COLOUR_CONST, PARSE, crate::markers::EMPTY, crate::markers::UNUSED];
 
 const NAMED_COLOURS: [&str; 21] = [
     "WHITE",

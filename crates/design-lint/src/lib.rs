@@ -10,13 +10,15 @@
 
 mod clippy;
 mod config;
+mod markers;
 mod report;
 mod rules;
 
 use std::path::{Path, PathBuf};
 
 pub use clippy::{ClippyDrift, DriftKind, check_clippy, clippy_drift, merge_clippy, write_clippy};
-pub use config::Config;
+pub use config::{Config, Exemption};
+pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};
 pub use rules::{Analysis, RULES, analyze_source};
 
@@ -29,6 +31,7 @@ pub const LINTS_TEMPLATE: &str = include_str!("../lints.template.toml");
 /// Checks the configured paths (relative to `root`) and returns the findings.
 ///
 /// Test files and `#[cfg(test)]` code are skipped unless the config includes them.
+/// `// design: allow(<reason>)` markers and `[[exempt]]` paths silence findings; see [`analyze_with_markers`].
 /// A file that does not parse is a `parse` finding; an unreadable path is an error.
 pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
     let mut report = Report::default();
@@ -44,14 +47,17 @@ pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
             report.files += 1;
             let area = area_of(&base, &file);
             let shown = file.strip_prefix(root).unwrap_or(&file).to_owned();
-            let analysis = analyze_source(&src, config.include_tests);
-            for mut finding in analysis.findings {
+            let exempt = |rule: &str| config.exempt.iter().any(|e| e.covers(&shown, rule));
+            let marked = analyze_with_markers(&src, config.include_tests, config.deny_unused, &exempt);
+            report.markers += marked.markers;
+            for mut finding in marked.findings {
                 finding.path.clone_from(&shown);
                 finding.area.clone_from(&area);
                 report.findings.push(finding);
             }
         }
     }
+    report.exemptions = config.exempt.len();
     report.findings.sort_by(|a, b| (&a.path, a.line, a.column).cmp(&(&b.path, b.line, b.column)));
     Ok(report)
 }

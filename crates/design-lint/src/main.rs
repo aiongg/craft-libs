@@ -4,7 +4,8 @@ use std::process::ExitCode;
 use craft_design_lint::{CLIPPY_TEMPLATE, Config, Error, check, check_clippy, write_clippy};
 
 const USAGE: &str = "usage:
-  craft-design-lint check [--config <path>] [--summary]       report literal sizes and named colours (default config: design-lint.toml)
+  craft-design-lint check [--config <path>] [--summary] [--deny-unused]
+                                                              report literal sizes and named colours (default config: design-lint.toml)
   craft-design-lint clippy [--write] [--clippy-toml <path>]   print the template, or merge it into clippy.toml
   craft-design-lint check-clippy [--clippy-toml <path>]       fail unless clippy.toml carries the template";
 
@@ -69,10 +70,12 @@ fn usage() -> ExitCode {
 fn run_check(args: &[String]) -> Result<ExitCode, Error> {
     let mut config_path = PathBuf::from("design-lint.toml");
     let mut summary = false;
+    let mut deny_unused = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--summary" => summary = true,
+            "--deny-unused" => deny_unused = true,
             "--config" => match args.next() {
                 Some(path) => config_path = PathBuf::from(path),
                 None => return Ok(usage()),
@@ -80,7 +83,8 @@ fn run_check(args: &[String]) -> Result<ExitCode, Error> {
             _ => return Ok(usage()),
         }
     }
-    let config = Config::load(&config_path)?;
+    let mut config = Config::load(&config_path)?;
+    config.deny_unused |= deny_unused;
     let root = config_path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let report = check(&config, root)?;
     if summary {
