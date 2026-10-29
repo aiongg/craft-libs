@@ -6,8 +6,9 @@ use kurbo::Point;
 use super::{GradientLineNames, GradientOverlay, GradientOverlayResponse};
 use crate::canvas::{CanvasView, GradientExtent, GradientLine, LineGradient, gradient_line};
 use crate::composites::gradient::stops::{StopRules, sample};
-use crate::composites::{ColorStop, GradientStops, StopRef, StopRow, StopRows};
-use crate::edit::{EditEvent, describe};
+use crate::composites::{ColorStop, GradientEditor, GradientStops, StopRef, StopRow, StopRows};
+use crate::edit::{EditEvent, GestureHost, UndoMarks, describe};
+use crate::localized::LocaleNumbers;
 use crate::story::{Args, Level, Story};
 use craft_theme::Srgba;
 
@@ -15,23 +16,35 @@ use craft_theme::Srgba;
 pub const COMPONENTS: &[&str] = &["Gradient line"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/gradient-line/edit",
-        level: Level::Primitives,
-        component: "Gradient line",
-        name: "Edit",
-        args: || {
-            super::super::story::args()
-                .with_choice("rows", &["Split", "Combined"], 0)
-                .with_choice("extent", &["None", "Circle", "Square", "Mirror"], 0)
-                .with_choice("selected", &["None", "Stop 2", "Midpoint 1"], 1)
-                .with_bool("reverse", false)
-                .with_bool("midpoints", true)
-                .with_bool("alt copies", false)
-                .with_bool("editable", true)
+    vec![
+        Story {
+            id: "primitives/gradient-line/edit",
+            level: Level::Primitives,
+            component: "Gradient line",
+            name: "Edit",
+            args: || {
+                super::super::story::args()
+                    .with_choice("rows", &["Split", "Combined"], 0)
+                    .with_choice("extent", &["None", "Circle", "Square", "Mirror"], 0)
+                    .with_choice("selected", &["None", "Stop 2", "Midpoint 1"], 1)
+                    .with_bool("reverse", false)
+                    .with_bool("midpoints", true)
+                    .with_bool("alt copies", false)
+                    .with_bool("editable", true)
+            },
+            show: show_edit,
         },
-        show: show_edit,
-    }]
+        Story {
+            id: "primitives/gradient-line/with-editor",
+            level: Level::Primitives,
+            component: "Gradient line",
+            name: "With editor",
+            args: || {
+                super::super::story::args().with_choice("rows", &["Split", "Combined"], 0).with_bool("reverse", false).with_bool("midpoints", true)
+            },
+            show: show_with_editor,
+        },
+    ]
 }
 
 /// The English names the story and tests use.
@@ -177,4 +190,87 @@ fn paint_picture(ui: &Ui, view: &CanvasView, value: &LineGradient, rows: StopRow
         }
     }
     ui.painter_at(view.rect).add(cells);
+}
+
+/// The gradient of the "With editor" story and its undo history of whole snapshots.
+#[derive(Clone, Debug)]
+struct Doc {
+    value: LineGradient,
+    undo: Vec<LineGradient>,
+}
+
+impl Doc {
+    fn apply(&mut self, value: LineGradient) {
+        self.undo.push(self.value.clone());
+        self.value = value;
+    }
+}
+
+impl UndoMarks for Doc {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(before) = self.undo.get(mark).cloned() {
+            self.value = before;
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+/// The story's host: one gradient, edited by the overlay and the editor through one gesture host.
+#[derive(Clone, Debug)]
+struct WithEditor {
+    rows: StopRows,
+    doc: Doc,
+    host: GestureHost<Doc>,
+}
+
+fn show_with_editor(ui: &mut Ui, args: &mut Args) {
+    let rows = if args.choice("rows") == "Combined" { StopRows::Combined } else { StopRows::Split };
+    let key = ui.scope_id().with("gradient-line-with-editor");
+    let fresh =
+        || WithEditor { rows, doc: Doc { value: LineGradient { line: LINE, stops: story_stops(rows) }, undo: Vec::new() }, host: GestureHost::new() };
+    let mut state = ui.data(|d| d.get_temp::<WithEditor>(key)).filter(|s| s.rows == rows).unwrap_or_else(fresh);
+    let (reverse, ctx) = (args.bool("reverse"), ui.ctx().clone());
+    let numbers = LocaleNumbers::from_tag("en");
+    let rules = StopRules { rows, ..StopRules::default() };
+    ui.label(format!("Undo steps: {}", state.doc.undo.len()));
+    ui.horizontal_top(|ui| {
+        let editor_id = ui
+            .vertical(|ui| {
+                ui.set_width(300.0);
+                let stops = state.doc.value.stops.clone();
+                let bar = GradientEditor::new("story-gradient-bar", "Gradient", &stops, &numbers).rows(rows).stops(rules.min, rules.max).show(ui);
+                if let Some(event) = bar.edit.event {
+                    state.host.handle(&ctx, &mut state.doc, event, |doc: &mut Doc, stops: GradientStops| {
+                        let line = doc.value.line;
+                        doc.apply(LineGradient { line, stops });
+                    });
+                }
+                bar.edit.response.id
+            })
+            .inner;
+        let canvas = super::super::story::document(ui, args, "Document");
+        let view = &canvas.view;
+        paint_picture(ui, view, &state.doc.value, rows, reverse);
+        let value = state.doc.value.clone();
+        let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
+            .rules(rules.clone())
+            .midpoints(args.bool("midpoints"))
+            .reverse(reverse)
+            .selection_of(editor_id)
+            .show(ui, &canvas.response, view);
+        if let Some(event) = r.event {
+            state.host.handle(&ctx, &mut state.doc, event, Doc::apply);
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(key, state));
 }

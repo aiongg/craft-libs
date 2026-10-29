@@ -527,7 +527,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// Shows the editor and returns this frame's edit.
     pub fn show(self, ui: &mut Ui) -> GradientEditorResponse<T> {
         let style = GradientEditor::style(&Tokens::of(ui));
-        let id = GradientEditor::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         Stack::new(Gap::Stack).show(ui, |ui| self.show_inside(ui, id, &style)).inner
     }
 
@@ -737,41 +737,16 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// The markers as AccessKit children of the bar, in `+` order per row. Returns them with
     /// their ids.
     fn nodes(&self, ui: &mut Ui, geo: &Geometry, stops: &GradientStops, selected: Option<StopRef>) -> Vec<(StopRef, Id)> {
-        let percent = |v: f32, decimals: usize| fill(&self.labels.percent, &[("n", &self.numbers.format(f64::from(v) * 100.0, decimals..=decimals))]);
-        let location = |at: f32| percent(at, self.location_decimals);
-        let int = |n: usize| self.numbers.format(n as f64, 0..=0);
         let mut out = Vec::new();
         for row in geo.rows() {
-            let at = locations(stops, row);
-            let n = int(at.len());
             for m in geo.order(stops, row) {
-                let (name, value, rect) = match m {
-                    StopRef::Color(i) => {
-                        let stop = stops.color[i];
-                        let hex = Rgba::from(Srgba { a: 1.0, ..stop.color }).to_hex().to_uppercase();
-                        let values = [("location", location(stop.location)), ("hex", hex), ("opacity", percent(stop.color.a, 0))];
-                        let template = match geo.rows {
-                            StopRows::Split => &self.labels.color_value,
-                            StopRows::Combined => &self.labels.color_opacity_value,
-                        };
-                        let value = fill(template, &values.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>());
-                        (fill(&self.labels.color_stop, &[("i", &int(i + 1)), ("n", &n)]), value, geo.marker_rect(row, stop.location))
-                    }
-                    StopRef::Opacity(i) => {
-                        let stop = stops.opacity_stops()[i];
-                        let value =
-                            fill(&self.labels.opacity_value, &[("location", &location(stop.location)), ("opacity", &percent(stop.opacity, 0))]);
-                        (fill(&self.labels.opacity_stop, &[("i", &int(i + 1)), ("n", &n)]), value, geo.marker_rect(row, stop.location))
-                    }
+                let (name, value) = marker_texts(&self.labels, self.numbers, self.location_decimals, geo.rows, stops, m);
+                let rect = match m {
                     StopRef::Midpoint(row, i) => {
-                        let template = match row {
-                            StopRow::Color => &self.labels.midpoint,
-                            StopRow::Opacity => &self.labels.opacity_midpoint,
-                        };
                         let r = geo.style.diamond;
-                        let rect = Rect::from_center_size(geo.diamond_center(row, midpoint_at(stops, row, i)), vec2(2.0 * r, 2.0 * r));
-                        (fill(template, &[("i", &int(i + 1))]), percent(midpoint(stops, row, i), 0), rect)
+                        Rect::from_center_size(geo.diamond_center(row, midpoint_at(stops, row, i)), vec2(2.0 * r, 2.0 * r))
                     }
+                    m => geo.marker_rect(row, geo.location_of(stops, m)),
                 };
                 let node = ui.interact(rect, ui.scope_id().with(("marker", m)), Sense::hover());
                 let enabled = ui.is_enabled();
@@ -785,6 +760,47 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             }
         }
         out
+    }
+}
+
+/// The accessible name and value of marker `m` of `stops`, as the bar and the canvas gradient
+/// overlay's parts read them.
+pub(crate) fn marker_texts(
+    labels: &GradientLabels,
+    numbers: &LocaleNumbers,
+    location_decimals: usize,
+    rows: StopRows,
+    stops: &GradientStops,
+    m: StopRef,
+) -> (String, String) {
+    let percent = |v: f32, decimals: usize| fill(&labels.percent, &[("n", &numbers.format(f64::from(v) * 100.0, decimals..=decimals))]);
+    let location = |at: f32| percent(at, location_decimals);
+    let int = |n: usize| numbers.format(n as f64, 0..=0);
+    let n = int(locations(stops, m.row()).len());
+    match m {
+        StopRef::Color(i) => {
+            let stop = stops.color[i];
+            let hex = Rgba::from(Srgba { a: 1.0, ..stop.color }).to_hex().to_uppercase();
+            let values = [("location", location(stop.location)), ("hex", hex), ("opacity", percent(stop.color.a, 0))];
+            let template = match rows {
+                StopRows::Split => &labels.color_value,
+                StopRows::Combined => &labels.color_opacity_value,
+            };
+            let value = fill(template, &values.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>());
+            (fill(&labels.color_stop, &[("i", &int(i + 1)), ("n", &n)]), value)
+        }
+        StopRef::Opacity(i) => {
+            let stop = stops.opacity_stops()[i];
+            let value = fill(&labels.opacity_value, &[("location", &location(stop.location)), ("opacity", &percent(stop.opacity, 0))]);
+            (fill(&labels.opacity_stop, &[("i", &int(i + 1)), ("n", &n)]), value)
+        }
+        StopRef::Midpoint(row, i) => {
+            let template = match row {
+                StopRow::Color => &labels.midpoint,
+                StopRow::Opacity => &labels.opacity_midpoint,
+            };
+            (fill(template, &[("i", &int(i + 1))]), percent(midpoint(stops, row, i), 0))
+        }
     }
 }
 
