@@ -11,7 +11,7 @@ use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Divider, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_theme::{ControlSize, TypeRole};
 
@@ -302,47 +302,50 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "patterns/status-bar/photocraft",
-            level: Level::Patterns,
-            component: "StatusBar",
-            name: "PhotoCraft",
-            args: || {
+        Story::new(
+            "patterns/status-bar/photocraft",
+            Level::Patterns,
+            "StatusBar",
+            "PhotoCraft",
+            || {
                 Args::new()
                     .with_text("message", "Saved to Documents")
                     .with_bool("error", false)
                     .with_bool("render_path", true)
                     .with_number("width", 640.0, 160.0, 1200.0)
             },
-            show: show_story,
-        },
-        Story {
-            id: "patterns/status-bar/error",
-            level: Level::Patterns,
-            component: "StatusBar",
-            name: "Error",
-            args: || {
+            show_story,
+        )
+        .on(Surface::Chrome),
+        Story::new(
+            "patterns/status-bar/error",
+            Level::Patterns,
+            "StatusBar",
+            "Error",
+            || {
                 Args::new()
                     .with_text("message", "Couldn't save: the disk is full")
                     .with_bool("error", true)
                     .with_bool("render_path", true)
                     .with_number("width", 640.0, 160.0, 1200.0)
             },
-            show: show_story,
-        },
-        Story {
-            id: "patterns/status-bar/narrow",
-            level: Level::Patterns,
-            component: "StatusBar",
-            name: "Narrow",
-            args: || {
+            show_story,
+        )
+        .on(Surface::Chrome),
+        Story::new(
+            "patterns/status-bar/narrow",
+            Level::Patterns,
+            "StatusBar",
+            "Narrow",
+            || {
                 Args::new()
                     .with_text("message", "Exported 14 layers to the folder Documents/Exports/2026")
                     .with_bool("error", false)
                     .with_bool("render_path", true)
                     .with_number("width", 480.0, 160.0, 1200.0)
             },
-            show: show_story,
-        },
+            show_story,
+        )
+        .on(Surface::Chrome),
     ]
 }
