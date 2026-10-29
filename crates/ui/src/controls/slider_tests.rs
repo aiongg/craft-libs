@@ -902,6 +902,9 @@ fn a_power_scale_places_the_thumb_and_inverts_for_every_value() {
     let high = track.dragged(80.0, track.x_of(80.0), track.x_of(80.0) + 5.0) - 80.0;
     assert!(0.0 < low && low < high, "{low} {high}");
 
+    // Only the track is curved: keys and Page move the value linearly, as PhotoCraft's steps do.
+    assert_eq!((scale.key_step(), scale.page_step(), scale.moved(10.0, scale.key_step())), (1.0, 10.0, 11.0));
+
     let mut rig = Rig::new();
     (rig.step, rig.kind, rig.level) = (None, SliderScale::Power(2.0), 25.0);
     rig.frame(vec![]);

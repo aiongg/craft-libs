@@ -238,10 +238,9 @@ impl Slider {
     }
 
     /// How the track maps positions to values (default [`SliderScale::Linear`]). With a
-    /// [`Power`](SliderScale::Power) or [`Log`](SliderScale::Log) scale and no
-    /// [`step`](Slider::step), an arrow key moves a hundredth of the track (a log slider: a tenth
-    /// of a decade) and Page a tenth of it. With a step, keys step in value space and Page moves
-    /// a tenth of the range in whole steps. A scale that doesn't fit the range (a log scale over
+    /// Only the track maps through a power curve: keys, the wheel and steps stay linear in the
+    /// value, as in PhotoCraft. A log slider without a [`step`](Slider::step) moves an arrow
+    /// key by a tenth of a decade of the value and Page by a tenth of the track. A scale that doesn't fit the range (a log scale over
     /// a range that isn't positive, a power that isn't a positive number) is a debug assertion
     /// and in release builds the track stays linear.
     pub fn scale(mut self, scale: SliderScale) -> Self {
@@ -505,7 +504,7 @@ impl Scale {
     /// step grid) goes to the next stop first. Unsnapped and unclamped.
     pub fn moved(&self, value: f64, delta: f64) -> f64 {
         let Some(step) = self.step else {
-            return if self.linear() { value + delta } else { self.at_position(self.position(value) + delta) };
+            return if self.kind == SliderScale::Log { self.at_position(self.position(value) + delta) } else { value + delta };
         };
         let at = (value - self.min) / step;
         let steps = (delta / step).round();
@@ -519,14 +518,13 @@ impl Scale {
         self.min + (from + steps) * step
     }
 
-    /// One arrow key's change: the step, or a hundredth of the range. On a power or log scale
-    /// without a step it is a change of position (a hundredth of the track; a log slider's, a
-    /// tenth of a decade), and [`moved`](Scale::moved) takes it so.
+    /// One arrow key's change: the step, or a hundredth of the range. On a log scale without a
+    /// step it is a change of position (a tenth of a decade of the value), and
+    /// [`moved`](Scale::moved) takes it so.
     pub fn key_step(&self) -> f64 {
         match (self.step, self.kind) {
             (Some(step), _) => step,
-            (None, SliderScale::Linear) => self.span() / 100.0,
-            (None, SliderScale::Power(_)) => 0.01,
+            (None, SliderScale::Linear | SliderScale::Power(_)) => self.span() / 100.0,
             (None, SliderScale::Log) => 0.1 / (self.max / self.min).log10(),
         }
     }
@@ -537,13 +535,13 @@ impl Scale {
     }
 
     /// One Page key's change: a tenth of the range, in whole steps when there is a step; on a
-    /// power or log scale without a step, a tenth of the track.
+    /// log scale without a step, a tenth of the track.
     pub fn page_step(&self) -> f64 {
         let page = self.span() / 10.0;
         match (self.step, self.kind) {
             (Some(step), _) => (page / step).round().max(1.0) * step,
-            (None, SliderScale::Linear) => page,
-            (None, _) => 0.1,
+            (None, SliderScale::Linear | SliderScale::Power(_)) => page,
+            (None, SliderScale::Log) => 0.1,
         }
     }
 }
@@ -926,7 +924,8 @@ fn paint_marks(ui: &Ui, style: &SliderStyle, track: &Track, marks: &[f64], ticks
     let (x0, x1) = track.ends();
     let ticks = (ticks > 0).then(|| (0..=ticks).map(move |i| egui::lerp(x0..=x1, i as f32 / ticks as f32)));
     let marks = marks.iter().filter(|m| (track.scale.min..=track.scale.max).contains(m)).map(|m| track.x_of(*m));
-    let top = track.bar(ui.pixels_per_point()).bottom();
+    // PhotoCraft leaves a gap as long as the mark (3 points there) under the track.
+    let top = track.bar(ui.pixels_per_point()).bottom() + style.mark;
     let stroke = scale::Stroke::Hairline.egui(ui.ctx(), style.mark_color);
     for x in ticks.into_iter().flatten().chain(marks) {
         ui.painter().line_segment([pos2(x, top), pos2(x, top + style.mark)], stroke);
