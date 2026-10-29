@@ -552,7 +552,7 @@ fn a_square_stays_square_after_rounding_to_pixels() {
 #[test]
 fn a_marquee_snaps_outwards_to_whole_pixels_from_either_corner() {
     let (a, b) = (Point::new(50.3, 50.7), Point::new(150.8, 90.0));
-    assert_eq!(marquee_pixels(a, b), Rect::new(50.0, 50.0, 151.0, 91.0));
+    assert_eq!(marquee_pixels(a, b), Rect::new(50.0, 50.0, 151.0, 90.0));
     assert_eq!(marquee_pixels(b, a), marquee_pixels(a, b));
 }
 

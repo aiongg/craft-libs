@@ -85,7 +85,8 @@ pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
-    Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, square_pixels,
+    Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
+    square_pixels,
 };
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
