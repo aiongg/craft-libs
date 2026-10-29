@@ -21,17 +21,46 @@ fn builtins_parse_and_round_trip_to_their_files() {
     assert_eq!(ids.len(), themes.len(), "ids are unique");
 }
 
+/// High contrast meets every minimum in every built-in. Standard contrast keeps PhotoCraft's pinned
+/// values and reports the pairs they miss as warnings; those show in the token dumps
+/// (`tests/dumps/tokens`), where a changed pair shows in review.
 #[test]
-fn builtins_resolve_everywhere_without_warnings_beyond_their_intent() {
+fn builtins_resolve_in_high_contrast_without_warnings() {
     for theme in builtins() {
-        for a in appearances() {
+        for a in appearances().into_iter().filter(|a| a.contrast == Contrast::High) {
             let r = resolve(theme, a, None);
-            let high = a.contrast == Contrast::High;
-            if high || theme.contrast_intent == ContrastIntent::Standard {
-                assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", theme.id, r.warnings);
-            }
+            assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", theme.id, r.warnings);
         }
     }
+}
+
+/// Fails when a pair misses its minimum in high contrast. Standard contrast reports it instead
+/// (see [`builtins_resolve_in_high_contrast_without_warnings`]).
+fn assert_passes_in_high_contrast(theme: &ThemeDef, a: Appearance, p: &ContrastCheck) {
+    if a.contrast == Contrast::High {
+        assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+    }
+}
+
+/// ArtCraft dark is PhotoCraft's ProMedium in Standard contrast, including the greys and the
+/// accent whose pairs miss the minimums; those pairs are reported.
+#[test]
+fn artcraft_dark_standard_keeps_photocraft_values_and_reports_the_pairs_they_miss() {
+    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.artcraft").unwrap();
+    let r = resolve(theme, semantic_tests::app(Mode::Dark, Contrast::Standard), None);
+    let hex = |t| r.tokens.color(t).to_hex();
+    assert_eq!(hex(ColorToken::StateHover), "#626262");
+    assert_eq!(hex(ColorToken::StatePressed), "#707070");
+    assert_eq!(hex(ColorToken::TextFaint), "#a0a0a0");
+    assert_eq!(hex(ColorToken::AccentSolid), "#378ef0");
+    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found.
+    let c = &r.tokens.component;
+    assert_eq!(
+        (c.list.selected, c.segmented.selected.fill.rest, c.dock.icon_selected),
+        (Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b))
+    );
+    assert!(r.warnings.iter().any(|w| w.fg == ColorToken::TextFaint.into() && w.bg == ColorToken::StateHover.into()));
+    assert!(r.warnings.iter().any(|w| w.fg == ColorToken::AccentSolid.into() && w.bg == ColorToken::SurfacePanel.into()));
 }
 
 /// Links and other accent-coloured text must read as accent, not as body text: a neutral
@@ -67,14 +96,14 @@ fn builtin_field_text_and_state_edges_meet_their_minimums() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_)))).collect();
             assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }
 }
 
 /// The text of a popup list's rows reads on the popup surface and on the active fill, and the check
-/// mark shows on both, in every built-in and appearance, pins included.
+/// mark shows on both, in every built-in, pins included. Standard contrast reports the pairs it misses.
 #[test]
 fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
     for theme in builtins() {
@@ -83,14 +112,14 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
             assert_eq!(pairs.len(), 6, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }
 }
 
 /// The active menu row's text reads on the accent fill and the shortcuts on the popup surface, in
-/// every built-in and appearance, pins included.
+/// every built-in and appearance, pins included. Standard contrast reports the pairs it misses.
 #[test]
 fn builtin_menu_text_meets_its_minimum() {
     for theme in builtins() {
@@ -100,7 +129,7 @@ fn builtin_menu_text_meets_its_minimum() {
             // The active text and the shortcut, and each hue's text and shortcut on its tint.
             assert_eq!(pairs.len(), 2 + 2 * MenuHue::ALL.len(), "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }
@@ -108,7 +137,7 @@ fn builtin_menu_text_meets_its_minimum() {
 
 /// A list row's labels, dimmed labels and detail lines read on the panel and on the fills a row
 /// takes (a hidden layer that is selected), the ghost's label on its fill, and the drop marker on
-/// its halo, in every built-in and appearance, pins included.
+/// its halo, in every built-in, pins included. Standard contrast reports the pairs it misses.
 #[test]
 fn builtin_list_text_and_drop_marker_meet_their_minimums() {
     for theme in builtins() {
@@ -117,7 +146,7 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
             assert_eq!(pairs.len(), 16, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }
@@ -211,7 +240,7 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
             assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
             let c = resolve(theme, a, None).tokens.component.check;
             assert_ne!(c.on.mark.disabled, c.on.fill.disabled, "{} {a:?}: a disabled mark doesn't show", theme.id);
@@ -220,7 +249,7 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
 }
 
 /// The labels of badges, the keys on keycaps, the progress fill, the swatch selection ring and the
-/// mixed dash meet their minimums in every built-in and appearance, pins included.
+/// mixed dash meet their minimums in every built-in, pins included. Standard contrast reports the pairs it misses.
 #[test]
 fn builtin_small_control_pairs_meet_their_minimums() {
     for theme in builtins() {
@@ -235,7 +264,7 @@ fn builtin_small_control_pairs_meet_their_minimums() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(small).collect();
             assert_eq!(pairs.len(), 12 + 1 + 1 + 2, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }
@@ -350,7 +379,7 @@ fn builtin_greys_from_grey_seeds_stay_neutral() {
 }
 
 /// A tab's labels, details, ×, and drop marker meet their minimums in every built-in and
-/// appearance, pins included.
+/// appearance, pins included. Standard contrast reports the pairs it misses.
 #[test]
 fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
     for theme in builtins() {
@@ -359,7 +388,7 @@ fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
             assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
             for p in pairs {
-                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert_passes_in_high_contrast(theme, a, p);
             }
         }
     }

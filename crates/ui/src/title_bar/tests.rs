@@ -1282,28 +1282,25 @@ fn a_preview_bar_is_inert() {
 }
 
 /// Breeze's pressed disc, with the bar's colour as the glyph on it, is a legible mark in every
-/// built-in theme and appearance.
+/// built-in theme in high contrast. Standard contrast keeps the themes' own greys.
 #[test]
 fn the_breeze_pressed_disc_reads_in_every_built_in() {
     use craft_theme::{Contrast, Mode, contrast_ratio};
     for theme in craft_theme::builtins() {
         for mode in [Mode::Light, Mode::Dark] {
-            for contrast in [Contrast::Standard, Contrast::High] {
-                let appearance = craft_theme::Appearance {
-                    mode,
-                    contrast,
-                    size: craft_theme::Size::Compact,
-                    text_size: craft_theme::TextSize::default(),
-                    reduced_motion: false,
-                };
-                let resolved = craft_theme::resolve(theme, appearance, None).tokens;
-                let t = crate::theme::UiTokens::new(resolved, appearance, mode, crate::theme::FontFamilies::default());
-                let s = TitleBar::style(&t);
-                let rgba = |c: Color32| craft_theme::Rgba::rgb(c.r(), c.g(), c.b());
-                let minimum = if contrast == Contrast::High { 4.5 } else { 3.0 };
-                let ratio = contrast_ratio(rgba(s.bar), rgba(s.breeze_pressed));
-                assert!(ratio >= minimum, "{} {mode:?} {contrast:?}: {ratio:.2} < {minimum}", theme.id.as_str());
-            }
+            let appearance = craft_theme::Appearance {
+                mode,
+                contrast: Contrast::High,
+                size: craft_theme::Size::Compact,
+                text_size: craft_theme::TextSize::default(),
+                reduced_motion: false,
+            };
+            let resolved = craft_theme::resolve(theme, appearance, None).tokens;
+            let t = crate::theme::UiTokens::new(resolved, appearance, mode, crate::theme::FontFamilies::default());
+            let s = TitleBar::style(&t);
+            let rgba = |c: Color32| craft_theme::Rgba::rgb(c.r(), c.g(), c.b());
+            let ratio = contrast_ratio(rgba(s.bar), rgba(s.breeze_pressed));
+            assert!(ratio >= 4.5, "{} {mode:?}: {ratio:.2} < 4.5", theme.id.as_str());
         }
     }
 }

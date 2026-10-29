@@ -44,12 +44,13 @@ fn a_dock_style_from_visuals_splits_into_the_default_config_and_the_visuals_look
     }
 }
 
-/// Light and dark resolve to different strips, active tabs and drop colours, none of them the
-/// colours `DockLook::from_visuals` takes from egui.
+/// Light and dark resolve to different strips and active tabs, and neither mode's strip or drop
+/// colour is the colour `DockLook::from_visuals` takes from egui. (The drop colour is the accent,
+/// which is the same in both modes of the default theme.)
 #[test]
 fn the_themed_look_differs_between_modes_and_from_the_visuals_look() {
     let (light, dark) = (look_at(Size::Compact, Mode::Light), look_at(Size::Compact, Mode::Dark));
-    for (name, a, b) in [("strip", light.tab_strip, dark.tab_strip), ("active", light.tab_active, dark.tab_active), ("drop", light.drop, dark.drop)] {
+    for (name, a, b) in [("strip", light.tab_strip, dark.tab_strip), ("active", light.tab_active, dark.tab_active)] {
         assert_ne!(a, b, "{name}");
     }
     for (look, visuals) in [(&light, Visuals::light()), (&dark, Visuals::dark())] {

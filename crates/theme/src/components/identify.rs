@@ -1,8 +1,10 @@
 //! Selected and on states must be identifiable (WCAG 1.4.11): a fill, an edge or a mark reaches
 //! the non-text minimum on what the state sits on. Where a fill carries the state alone, its
 //! derived colour moves in OKLCH lightness to the nearest step that does, with its text still
-//! readable on it.
+//! readable on it. A pinned `state.selected` stays in standard contrast, and its pairs are
+//! reported.
 
+use super::Semantic;
 use crate::color::{Oklch, Rgba};
 use crate::contrast::{contrast_ratio, ensure_contrast};
 use crate::derive::over;
@@ -26,12 +28,14 @@ pub(super) struct Identify<'a> {
     pub with: &'a [Rgba],
     /// High contrast: the high minimums apply.
     pub high: bool,
+    /// The fill is the theme's pinned `state.selected`, which standard contrast keeps.
+    keep: bool,
 }
 
 impl<'a> Identify<'a> {
     /// A fill that has to show on the fills `on`.
-    pub fn on(on: &'a [Rgba], high: bool) -> Self {
-        Identify { on, apart: &[], edge: None, with: &[], high }
+    pub fn on(on: &'a [Rgba], s: &Semantic<'_>) -> Self {
+        Identify { on, apart: &[], edge: None, with: &[], high: s.high, keep: s.selected_pinned && !s.high }
     }
 
     /// Also keeps a step from the fills `apart`.
@@ -87,13 +91,14 @@ impl<'a> Identify<'a> {
         })
     }
 
-    /// `fill` and `text` as they stay or move: `fill` when it, or its edge, already reaches the
+    /// `fill` and `text` as they stay or move: both stay when the fill is pinned in standard
+    /// contrast. Otherwise `fill` when it, or its edge, already reaches the
     /// minimum on every fill it sits on and keeps its step from the fills beside it; otherwise
     /// the nearest lightness along its hue and chroma where it does and `text`, moved if it has
     /// to, reads on it. When no lightness satisfies both, the one that comes closest.
     pub fn fill(&self, fill: Rgba, text: Rgba) -> (Rgba, Rgba) {
         let text_min = self.pick(values::TEXT_MIN);
-        if (self.shows(fill) || self.edge.is_some_and(|e| self.shows(e))) && self.separate(fill) {
+        if self.keep || ((self.shows(fill) || self.edge.is_some_and(|e| self.shows(e))) && self.separate(fill)) {
             return (fill, text);
         }
         let start = fill.to_oklch();

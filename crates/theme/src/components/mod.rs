@@ -114,6 +114,8 @@ pub(crate) struct Semantic<'a> {
     pub typography: &'a TypeTokens,
     /// High contrast: the derived colours of a family aim for the high minimums.
     pub high: bool,
+    /// `state.selected` is pinned: in standard contrast the selected fills keep the pin.
+    pub selected_pinned: bool,
 }
 
 /// The two control sizes a family offers.
@@ -268,8 +270,9 @@ impl ItemColors {
     /// The `state.selected` look: `text.on_selected` on `state.selected`, the disabled fill and
     /// text when disabled. The fill moves in lightness where it doesn't reach the non-text
     /// minimum on the fills in `on` (see [`Identify`]), with the text moving to read on it.
-    fn selected(c: &ColorTokens, on: &[Rgba], high: bool) -> ItemColors {
-        let (fill, text) = Identify::on(on, high).fill(c.state.selected, c.text.on_selected);
+    fn selected(s: &Semantic<'_>, on: &[Rgba]) -> ItemColors {
+        let c = s.color;
+        let (fill, text) = Identify::on(on, s).fill(c.state.selected, c.text.on_selected);
         ItemColors { fill: States::new(fill, fill, fill, c.state.disabled_fill), text: States::new(text, text, text, c.text.disabled) }
     }
 

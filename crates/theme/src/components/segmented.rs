@@ -94,7 +94,7 @@ impl Family for SegmentedTokens {
                 fill: States::new(clear, c.state.hover, c.state.pressed, clear),
                 text: States::new(c.text.normal, c.text.normal, c.text.normal, c.text.disabled),
             },
-            selected: ItemColors::selected(c, &[c.surface.sunken], s.high),
+            selected: ItemColors::selected(s, &[c.surface.sunken]),
         }
     }
 

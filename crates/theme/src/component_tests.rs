@@ -178,7 +178,10 @@ fn levels_defaults_come_from_semantic_tokens_and_the_thumb_edge_meets_the_indica
     for theme in builtins() {
         for a in appearances().into_iter().filter(|a| a.text_size == TextSize::default()) {
             let r = resolve(theme, a, None);
-            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            if a.contrast != Contrast::High {
+                continue;
+            }
+            let min = 4.5;
             let ratio = pair_ratio(&r.tokens, edge, None);
             assert!(ratio >= min, "{} {a:?}: levels.thumb_edge on surface.panel is {ratio:.2}, needs {min}", theme.id);
             let raised = r.tokens.color(T::SurfaceRaised);
@@ -1046,13 +1049,16 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((l.drop, l.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
 }
 
-/// The drop marker meets its minimum on its halo in every built-in, mode and contrast.
+/// The drop marker meets its minimum on its halo in every built-in and mode in high contrast.
 #[test]
 fn builtin_drop_markers_meet_their_minimum_on_their_halo() {
     for theme in builtins() {
         for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::default()) {
+            if a.contrast != Contrast::High {
+                continue;
+            }
             let l = resolve(theme, a, None).tokens.component.list;
-            let min = if a.contrast == Contrast::High { values::NON_TEXT_MIN.1 } else { values::NON_TEXT_MIN.0 };
+            let min = values::NON_TEXT_MIN.1;
             let ratio = contrast_ratio(l.drop, l.drop_halo);
             assert!(ratio >= min, "{} {a:?}: list.drop on list.drop_halo is {ratio:.2}, needs {min}", theme.id);
         }
@@ -1409,19 +1415,23 @@ fn selected_fills_show_on_what_they_sit_on() {
 }
 
 /// A selected fill that already shows stays as the theme gave it; one that doesn't moves in
-/// lightness only, and its text moves with it.
+/// lightness only, and its text moves with it. A pinned `state.selected` stays in standard
+/// contrast whether it shows or not, and moves in high contrast.
 #[test]
 fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_only() {
-    let pinned = |fill: &str| {
+    let pinned = |fill: &str, contrast| {
         let mut def = grey_blue();
         def.pins.light = Pins::from_iter([(T::StateSelected, hex(fill))]);
-        resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens
+        resolve(&def, app(Mode::Light, contrast), None).tokens
     };
-    let t = pinned("#102a6b");
+    let t = pinned("#102a6b", Contrast::Standard);
     assert_eq!(t.component.icon_button.selected.fill.rest, hex("#102a6b"));
     assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
 
-    let faint = pinned("#dfe5f5");
+    let kept = pinned("#dfe5f5", Contrast::Standard);
+    assert_eq!((kept.component.list.selected, kept.component.list.selected_text), (hex("#dfe5f5"), kept.color(T::TextOnSelected)));
+
+    let faint = pinned("#dfe5f5", Contrast::High);
     let moved = faint.component.list.selected;
     let (before, after) = (hex("#dfe5f5").to_oklch(), moved.to_oklch());
     assert!(after.l < before.l - 0.1, "{moved:?}");

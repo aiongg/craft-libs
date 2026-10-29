@@ -225,11 +225,11 @@ impl Family for ListTokens {
         let (c, list) = (s.color, &s.size.list);
         let panel = [c.surface.panel];
         let min_step = if s.high { values::LIST_HOVER_MIN.1 } else { values::LIST_HOVER_MIN.0 };
-        let (selected, text) = Identify::on(&panel, s.high).fill(c.state.selected, c.text.on_selected);
+        let (selected, text) = Identify::on(&panel, s).fill(c.state.selected, c.text.on_selected);
         // A theme whose selected row has a distinct hover step keeps one.
         let stepped = contrast_ratio(over(c.state.selected_hover, c.surface.panel), over(c.state.selected, c.surface.panel)) >= min_step;
         let apart: &[Rgba] = if stepped { &[selected] } else { &[] };
-        let (selected_hover, text) = Identify::on(&panel, s.high).apart(apart).with(&[selected]).fill(c.state.selected_hover, text);
+        let (selected_hover, text) = Identify::on(&panel, s).apart(apart).with(&[selected]).fill(c.state.selected_hover, text);
         let fills = [selected, selected_hover];
         // Text that already reads on the unmoved fills stays as it is, pinned or not.
         let selected_text =

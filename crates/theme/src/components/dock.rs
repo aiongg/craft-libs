@@ -135,7 +135,7 @@ impl Family for DockTokens {
     fn defaults(s: &Semantic<'_>) -> DockTokens {
         let c = s.color;
         let k = s.size.control.md / values::DOCK_BASE_CONTROL;
-        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s.high).fill(c.state.selected, c.text.on_selected);
+        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s).fill(c.state.selected, c.text.on_selected);
         DockTokens {
             gap: s.space.gap.inline,
             border_width: values::DOCK_BORDER_WIDTH,

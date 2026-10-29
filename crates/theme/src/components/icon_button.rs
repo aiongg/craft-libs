@@ -54,7 +54,7 @@ impl Family for IconButtonTokens {
             size: BySize { sm: size.control.sm, md: size.control.md },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             badge: BySize { sm: size.icon.sm * values::ICON_BUTTON_BADGE_RATIO, md: size.icon.md * values::ICON_BUTTON_BADGE_RATIO },
-            selected: ItemColors::selected(s.color, &[s.color.surface.panel, s.color.surface.raised], s.high),
+            selected: ItemColors::selected(s, &[s.color.surface.panel, s.color.surface.raised]),
         }
     }
 
