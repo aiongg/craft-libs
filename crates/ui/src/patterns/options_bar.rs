@@ -15,8 +15,10 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct OptionsBarStyle {
-    /// Height of the bar: `options_bar.height`, or `height_narrow` for the narrow bar.
+    /// Height of a one-row bar: `options_bar.height`, or `height_narrow` for the narrow bar.
     pub height: f32,
+    /// Between two rows of a bar with more than one: `options_bar.row_gap`.
+    pub row_gap: f32,
     /// Space at the bar's ends: `options_bar.pad`.
     pub pad: f32,
     /// Between items, and between a caption and its control: `options_bar.gap`.
@@ -29,7 +31,8 @@ pub struct OptionsBarStyle {
     pub fields: [f32; 3],
     /// Width of the floating scroll bar: `options_bar.scroll_bar`.
     pub scroll_bar: f32,
-    /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`.
+    /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`. It is also the
+    /// height of a row.
     pub button: f32,
     /// Fill of the bar: `surface.chrome`.
     pub fill: Color32,
@@ -47,12 +50,13 @@ pub struct CommitCancel {
 }
 
 type Slot<'a> = Option<Box<dyn FnOnce(&mut Ui) + 'a>>;
+type Row<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
 /// The slots of a bar, filled by the closure given to [`OptionsBar::show`].
 #[derive(Default)]
 pub struct OptionsBarSlots<'a> {
     leading: Slot<'a>,
-    body: Slot<'a>,
+    rows: Vec<Row<'a>>,
     trailing: Slot<'a>,
 }
 
@@ -62,9 +66,16 @@ impl<'a> OptionsBarSlots<'a> {
         self.leading = Some(Box::new(add));
     }
 
-    /// The tool's options: cells, dividers and groups, in reading order.
+    /// The tool's options on a one-row bar: cells, dividers and groups, in reading order. The same
+    /// as [`row`](Self::row) called once.
     pub fn body(&mut self, add: impl FnOnce(&mut Ui) + 'a) {
-        self.body = Some(Box::new(add));
+        self.row(add);
+    }
+
+    /// One row of the tool's options. Call it once per row, top to bottom; the bar is as many rows
+    /// high as it was called. Each row scrolls sideways on its own when it is wider than the bar.
+    pub fn row(&mut self, add: impl FnOnce(&mut Ui) + 'a) {
+        self.rows.push(Box::new(add));
     }
 
     /// Controls pinned at the reading end, outside the scrolling body: commit and cancel while a
@@ -137,6 +148,7 @@ impl OptionsBar {
         let o = &tokens.component.options_bar;
         OptionsBarStyle {
             height: if narrow { o.height_narrow } else { o.height },
+            row_gap: o.row_gap,
             pad: o.pad,
             gap: o.gap,
             divider: o.divider,
@@ -156,7 +168,9 @@ impl OptionsBar {
         let style = OptionsBar::style(&tokens, self.narrow);
         let mut slots = OptionsBarSlots::default();
         add(&mut slots);
-        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), style.height), Sense::hover());
+        let rows = slots.rows.len().max(1);
+        let height = OptionsBar::height_of(&style, rows);
+        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
         ui.painter().rect_filled(rect, 0.0, style.fill);
         let inner = Rect::from_x_y_ranges(rect.x_range().shrink(style.pad), rect.y_range());
         let id = ui.make_persistent_id(self.id_salt);
@@ -172,31 +186,52 @@ impl OptionsBar {
             Some(_) => measure::trailing_width(ui.ctx(), trailing_id).map_or(0.0, |w| w + style.gap),
             None => 0.0,
         };
-        let scroll = if direction::is_rtl(ui) {
-            Rect::from_x_y_ranges(inner.left() + reserved..=inner.right(), inner.y_range())
-        } else {
-            Rect::from_x_y_ranges(inner.left()..=inner.right() - reserved, inner.y_range())
-        };
-        let mut area = bar.new_child(UiBuilder::new().id_salt("scroll").max_rect(scroll).layout(direction::row(ui)));
-        area.spacing_mut().scroll = egui::style::ScrollStyle { bar_width: style.scroll_bar, ..egui::style::ScrollStyle::floating() };
-        ScrollArea::horizontal().id_salt("tool-options").auto_shrink([false, false]).show(&mut area, |ui| {
-            ui.spacing_mut().item_spacing.x = style.gap;
-            ui.with_layout(direction::row(ui), |ui| {
-                if let Some(leading) = slots.leading {
-                    leading(ui);
-                }
-                if let Some(body) = slots.body {
-                    body(ui);
-                }
-                // Font ink can extend past its advance at fractional positions; keep it in the content.
-                ui.add_space(2.0);
+        let x_range = if direction::is_rtl(ui) { inner.left() + reserved..=inner.right() } else { inner.left()..=inner.right() - reserved };
+        // A row's band is the one-row bar's height around the row, so the bands of neighbouring rows overlap
+        // by the padding and a single row fills the bar.
+        let band = style.height;
+        let pitch = style.button + style.row_gap;
+        let mut leading = slots.leading;
+        let mut body_rows = slots.rows.into_iter();
+        for index in 0..rows {
+            let top = inner.top() + index as f32 * pitch;
+            let scroll = Rect::from_x_y_ranges(x_range.clone(), top..=top + band);
+            let mut area = bar.new_child(UiBuilder::new().id_salt(("row", index)).max_rect(scroll).layout(direction::row(ui)));
+            area.spacing_mut().scroll = egui::style::ScrollStyle { bar_width: style.scroll_bar, ..egui::style::ScrollStyle::floating() };
+            let leading = leading.take();
+            let row = body_rows.next();
+            let scroll_id = if index == 0 { IdSalt::new("tool-options") } else { IdSalt::new(("tool-options", index)) };
+            ScrollArea::horizontal().id_salt(scroll_id).auto_shrink([false, false]).show(&mut area, |ui| {
+                ui.spacing_mut().item_spacing.x = style.gap;
+                ui.with_layout(direction::row(ui), |ui| {
+                    let content = |ui: &mut Ui| {
+                        if let Some(leading) = leading {
+                            leading(ui);
+                        }
+                        if let Some(row) = row {
+                            row(ui);
+                        }
+                        // Font ink can extend past its advance at fractional positions; keep it in the content.
+                        ui.add_space(2.0);
+                    };
+                    if rows > 1 {
+                        ui.scope_builder(UiBuilder::new().accessibility_role(Role::Group).layout(direction::row(ui)), content);
+                    } else {
+                        content(ui);
+                    }
+                });
+                reveal_focused_control(ui, FocusRing::style(&Tokens::of(ui)).outset());
             });
-            reveal_focused_control(ui, FocusRing::style(&Tokens::of(ui)).outset());
-        });
+        }
         if let Some(trailing) = slots.trailing {
             measure::trailing_row(&mut bar, trailing_id, inner, Sense::hover(), style.gap, 0.0, trailing);
         }
         response
+    }
+
+    /// The height of a bar of `rows` rows: the one-row height plus a row and a gap for each further row.
+    pub fn height_of(style: &OptionsBarStyle, rows: usize) -> f32 {
+        style.height + rows.saturating_sub(1) as f32 * (style.button + style.row_gap)
     }
 
     /// The Home button: a toggle in the leading slot, followed by a divider. The host decides when
@@ -288,7 +323,12 @@ pub(crate) fn stories() -> Vec<Story> {
         component: "OptionsBar",
         name: "Brush and transform",
         args: || {
-            Args::new().with_bool("narrow", false).with_bool("session", true).with_bool("disabled", false).with_number("width", 640.0, 160.0, 1200.0)
+            Args::new()
+                .with_bool("narrow", false)
+                .with_bool("session", true)
+                .with_bool("disabled", false)
+                .with_bool("two_rows", false)
+                .with_number("width", 640.0, 160.0, 1200.0)
         },
         show: super::options_cell::show_story,
     }]

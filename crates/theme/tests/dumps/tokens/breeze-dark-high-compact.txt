@@ -663,6 +663,7 @@ notice.warn.fg = #ffa56dff
 notice.bad.fg = #ff9ea5ff
 options_bar.height = 36
 options_bar.height_narrow = 30
+options_bar.row_gap = 4
 options_bar.pad = 10
 options_bar.gap = 8
 options_bar.divider = 22

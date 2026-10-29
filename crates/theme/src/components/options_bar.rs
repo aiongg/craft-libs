@@ -15,6 +15,8 @@ pub struct OptionsBarTokens {
     pub height_narrow: f32,
     /// Space at the bar's ends: `options_bar.pad`.
     pub pad: f32,
+    /// Between two rows of a bar with more than one row: `options_bar.row_gap`.
+    pub row_gap: f32,
     /// Between items, and between a caption and its control: `options_bar.gap`.
     pub gap: f32,
     /// Length of a divider between groups; its box is 9 (Compact) wide: `options_bar.divider`.
@@ -48,6 +50,7 @@ impl Family for OptionsBarTokens {
             height: s.size.bar.options,
             height_narrow: s.size.bar.options_narrow,
             pad: values::OPTIONS_BAR_PAD,
+            row_gap: scale(values::OPTIONS_BAR_ROW_GAP),
             gap: scale(values::OPTIONS_BAR_GAP),
             divider: scale(values::OPTIONS_BAR_DIVIDER),
             field_sm: scale(values::OPTIONS_BAR_FIELD_SM),

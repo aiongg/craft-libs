@@ -6,7 +6,7 @@ use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
-use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
+use craft_ui::controls::{Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -224,8 +224,9 @@ impl Gallery {
         let numbers = LocaleNumbers::of(ui);
         let faces_shown =
             faces::available().then(|| (faces::shown_ui_face(ui.ctx(), &a.ui_face), faces::shown_mono_face(&a.mono_face), faces::ui_faces(ui.ctx())));
+        let icon_set_id = a.icon_set().id().to_owned();
         OptionsBar::new("gallery.options").label("Appearance").show(ui, |bar| {
-            bar.body(|ui| {
+            bar.row(|ui| {
                 OptionsBar::cell(ui, "Theme:", CellWidth::Content, |ui, _| {
                     let current = builtin(&a.theme).map_or(a.theme.as_str(), |t| t.name.as_str()).to_owned();
                     let mut theme = Select::new("gallery.theme", "Theme", &mut a.theme).placeholder(current).fit(true).size(ControlSize::Sm);
@@ -249,7 +250,8 @@ impl Gallery {
                     [("Off", MotionChoice::Full), ("On", MotionChoice::Reduced), ("System", MotionChoice::System)],
                 );
                 segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
-                OptionsBar::divider(ui);
+            });
+            bar.row(|ui| {
                 OptionsBar::cell(ui, "Text:", CellWidth::Content, |ui, _| {
                     let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size).size(ControlSize::Sm);
                     for (i, size) in TextSize::ALL.iter().enumerate() {
@@ -262,7 +264,7 @@ impl Gallery {
                     face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, mono_shown, faces::MONO_FACES);
                 }
                 OptionsBar::cell(ui, "Icons:", CellWidth::Content, |ui, _| {
-                    let mut icon_set = a.icon_set().id().to_owned();
+                    let mut icon_set = icon_set_id;
                     let mut icons = Select::new("gallery.icon_set", "Icons", &mut icon_set).fit(true).size(ControlSize::Sm);
                     for set in IconSet::ALL {
                         icons = icons.option(set.id().to_owned(), set.title());
@@ -271,7 +273,7 @@ impl Gallery {
                         a.icon_set = icon_set;
                     }
                 });
-                OptionsBar::cell(ui, "Scale:", CellWidth::Md, |ui, caption| {
+                OptionsBar::cell(ui, "Scale:", CellWidth::Lg, |ui, caption| {
                     let scale = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
                         .range(SCALE)
                         .decimals(0..=0)
@@ -290,7 +292,7 @@ impl Gallery {
                 segmented(ui, "View", compare, [("Canvas", false), ("Compare", true)]);
             });
             bar.trailing(|ui| {
-                if ui.add(Button::new("Reset layout").size(ControlSize::Sm)).clicked() {
+                if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
                     *reset_layout = true;
                 }
             });
