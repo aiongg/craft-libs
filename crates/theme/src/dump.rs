@@ -356,15 +356,15 @@ fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
 }
 
 fn segmented_lines(out: &mut Lines, s: &SegmentedTokens) {
-    let SegmentedTokens { height, pad_x, icon, inset, label, track, segment, selected } = s;
+    let SegmentedTokens { height, pad_x, icon, gap, label, segment, selected, selected_border } = s;
     by_size(out, "segmented.height", height);
     by_size(out, "segmented.pad_x", pad_x);
     by_size(out, "segmented.icon", icon);
-    out.line("segmented.inset", len(*inset));
+    out.line("segmented.gap", len(*gap));
     out.line("segmented.label", role(*label));
-    out.line("segmented.track", hex(*track));
     item_lines(out, "segmented.segment", segment);
     item_lines(out, "segmented.selected", selected);
+    states(out, "segmented.selected.border", selected_border);
 }
 
 fn field_lines(out: &mut Lines, f: &FieldTokens) {

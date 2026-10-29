@@ -68,10 +68,7 @@ fn item_pairs() -> Vec<(ComponentField, ComponentField)> {
     let icon = |part| ComponentField::IconButton(IconButtonField::Selected(part));
     let segment = |part, state| ComponentField::Segmented(SegmentedField::Segment { part, state });
     let selected = |part, state| ComponentField::Segmented(SegmentedField::Selected { part, state });
-    let mut p = vec![(segment(ItemPart::Text, State::Rest), ComponentField::Segmented(SegmentedField::Track))];
-    for s in [State::Hover, State::Pressed] {
-        p.push((segment(ItemPart::Text, s), segment(ItemPart::Fill, s)));
-    }
+    let mut p = vec![(segment(ItemPart::Text, State::Hover), segment(ItemPart::Fill, State::Hover))];
     p.push((icon(ButtonPart::Text), icon(ButtonPart::Fill)));
     for s in [State::Rest, State::Hover, State::Pressed] {
         p.push((selected(ItemPart::Text, s), selected(ItemPart::Fill, s)));
@@ -105,21 +102,19 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     let glyphs = BySize { sm: icons.sm - values::ICON_BUTTON_GLYPH_LESS.0, md: icons.md - values::ICON_BUTTON_GLYPH_LESS.1 };
     assert_eq!((icon.size, icon.icon, seg.height, seg.icon), (control, glyphs, control, icons));
     assert_eq!(seg.pad_x, BySize { sm: t.space.pad.control, md: t.space.pad.control + t.space.gap.inline });
-    assert_eq!((seg.inset, seg.label), (2.0, TypeRole::Label));
-    let selected = ItemColors {
-        fill: States::new(t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateDisabledFill)),
-        text: States::new(t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextDisabled)),
-    };
-    // The fills move to show on what they sit on (`selected_fills_show_on_what_they_sit_on`); the
-    // disabled look is the semantic one.
-    assert_eq!(seg.selected.fill.disabled, selected.fill.disabled);
-    assert_eq!(seg.selected.text.disabled, selected.text.disabled);
+    // PhotoCraft's `pill_tab`: item spacing 8 in Compact, 24 high, text + 20 wide.
+    assert_eq!((seg.gap, seg.label), (t.space.gap.inline + values::SEGMENTED_GAP_OVER_INLINE, TypeRole::Label));
+    let hover = t.color(T::StateHover);
+    assert_eq!(seg.selected.fill, States::new(hover, hover, hover, t.color(T::StateDisabledFill)));
+    assert_eq!(seg.selected.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
+    let edge = t.color(T::LineControlEdge);
+    assert_eq!(seg.selected_border, States::new(edge, edge, edge, t.color(T::LineDivider)));
     // An icon button that is on is `accent.soft` inside an `accent.solid` outline.
     assert_eq!((icon.selected.on_fill, icon.selected.on_border), (t.color(T::AccentSoft), t.color(T::AccentSolid)));
     assert_eq!((icon.selected.on_disabled_fill, icon.selected.on_disabled_text), (t.color(T::AccentSoft), t.color(T::TextDisabled)));
-    assert_eq!(seg.track, t.color(T::SurfaceSunken));
-    assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, t.color(T::StateHover), t.color(T::StatePressed), Rgba::TRANSPARENT));
-    assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
+    let half = hover.faded(values::SEGMENT_HOVER_OPACITY);
+    assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, half, half, Rgba::TRANSPARENT));
+    assert_eq!(seg.segment.text, States::new(t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled)));
 }
 
 /// The decided contrast scope: the filled part is an accent state indicator, 3:1 on the track
@@ -642,8 +637,9 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2 * 3
             // List: the frame of the selected row's thumbnail.
             + 1
-            + 1
+            // Segmented: a colour per part and state of plain and selected pills, and the selected pill's outline per state.
             + 2 * 2 * 4
+            + 4
             // Slider: radius, track and the two thumb lengths; fill, thumb and ring per state.
             + 4
             + 4
@@ -720,7 +716,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("button.radius", ComponentField::Button(ButtonField::Radius)),
         ("icon_button.selected.text", ComponentField::IconButton(IconButtonField::Selected(ButtonPart::Text))),
         ("icon_button.selected_disabled.border", ComponentField::IconButton(IconButtonField::SelectedDisabled(ButtonPart::Border))),
-        ("segmented.track", ComponentField::Segmented(SegmentedField::Track)),
+        ("segmented.selected.border.hover", ComponentField::Segmented(SegmentedField::SelectedBorder(State::Hover))),
         ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
         ("check.radius", ComponentField::Check(CheckField::Radius)),
         ("check.on.mark.hover", ComponentField::Check(CheckField::On { part: CheckOnPart::Mark, state: State::Hover })),
@@ -768,7 +764,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "icon_button.selected.border.rest",
         "icon_button.selected",
         "segmented.inset",
-        "segmented.track.rest",
+        "segmented.track",
+        "segmented.selected.border",
         "segmented.selected.fill",
         "slider.thumb",
         "slider.thumb.text.rest",
@@ -1472,9 +1469,13 @@ fn selected_fills_show_on_what_they_sit_on() {
             let (t, min) = (&r.tokens, indicator_min(a));
             if a.contrast == Contrast::Standard {
                 let k = &t.component;
-                let (selected, on) = (t.color(T::StateSelected), t.color(T::TextOnSelected));
+                let selected = t.color(T::StateSelected);
                 let who = format!("{} {a:?}", def.name);
-                assert_eq!((k.segmented.selected.fill.rest, k.segmented.selected.text.rest), (selected, on), "{who}");
+                assert_eq!(
+                    (k.segmented.selected.fill.rest, k.segmented.selected.text.rest),
+                    (t.color(T::StateHover), t.color(T::TextNormal)),
+                    "{who}"
+                );
                 assert_eq!((k.list.selected, k.dock.icon_selected), (selected, selected), "{who}");
                 let soft = t.color(T::AccentSoft);
                 assert_eq!((k.icon_button.selected.on_fill, k.toggle_button.on_fill), (soft, soft), "{who}");
@@ -1490,11 +1491,15 @@ fn selected_fills_show_on_what_they_sit_on() {
                     assert!(ratio >= min, "{} {a:?}: {what} is {ratio:.2} on {}, needs {min}", def.name, bg.to_hex());
                 }
             };
-            on("segmented selected", k.segmented.selected.fill.rest, &[k.segmented.track]);
             on("list selected", k.list.selected, &[panel]);
             on("list selected_hover", k.list.selected_hover, &[panel]);
             on("dock icon selected", k.dock.icon_selected, &[k.dock.background]);
             let (toggle, icon) = (&k.toggle_button, &k.icon_button.selected);
+            for bg in [panel, raised] {
+                let (fill, edge) =
+                    (contrast_ratio(over(k.segmented.selected.fill.rest, bg), bg), contrast_ratio(k.segmented.selected_border.rest, bg));
+                assert!(fill.max(edge) >= min, "{} {a:?}: segmented selected is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
+            }
             for (what, on) in [("toggle", toggle), ("icon button", icon)] {
                 for bg in [panel, raised] {
                     let (fill, edge) = (contrast_ratio(over(on.on_fill, bg), bg), contrast_ratio(on.on_border, bg));
@@ -1527,8 +1532,6 @@ fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_o
     };
     let t = pinned("#102a6b", Contrast::High);
     assert_eq!(t.component.list.selected, hex("#102a6b"));
-    assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
-
     let kept = pinned("#dfe5f5", Contrast::Standard);
     assert_eq!((kept.component.list.selected, kept.component.list.selected_text), (hex("#dfe5f5"), kept.color(T::TextOnSelected)));
 

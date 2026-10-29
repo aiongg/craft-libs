@@ -4,7 +4,7 @@
 //!   and a loading state.
 //! - [`IconButton`]: a square ghost button showing only an icon, optionally a toggle.
 //! - [`ToggleButton`]: a secondary-looking button that stays pressed while on.
-//! - [`Segmented`]: one of a few options (tool modes) on a track, a radio group.
+//! - [`Segmented`]: one of a few options (tool modes, mode tabs) as separate pills, a radio group.
 //! - [`Checkbox`]: a box that is checked, unchecked or mixed ([`CheckState`]).
 //! - [`RadioGroup`] and [`RadioSet`]: one of several options as radio buttons, a radio group;
 //!   a set places each option where the layout needs it.

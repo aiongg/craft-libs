@@ -53,12 +53,11 @@ fn artcraft_dark_standard_keeps_photocraft_values_and_reports_the_pairs_they_mis
     assert_eq!(hex(ColorToken::StatePressed), "#707070");
     assert_eq!(hex(ColorToken::TextFaint), "#a0a0a0");
     assert_eq!(hex(ColorToken::AccentSolid), "#378ef0");
-    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found.
+    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found;
+    // a selected pill is PhotoCraft's `hover`.
     let c = &r.tokens.component;
-    assert_eq!(
-        (c.list.selected, c.segmented.selected.fill.rest, c.dock.icon_selected),
-        (Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b))
-    );
+    assert_eq!((c.list.selected, c.dock.icon_selected), (Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b)));
+    assert_eq!(c.segmented.selected.fill.rest, Rgba::rgb(0x62, 0x62, 0x62));
     assert!(r.warnings.iter().any(|w| w.fg == ColorToken::TextFaint.into() && w.bg == ColorToken::StateHover.into()));
     assert!(r.warnings.iter().any(|w| w.fg == ColorToken::AccentSolid.into() && w.bg == ColorToken::SurfacePanel.into()));
 }
@@ -706,6 +705,28 @@ fn tabs_follow_photocraft() {
         assert_eq!((tab.active, tab.close_text), (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextFaint)), "{who}");
         assert_eq!(t.component.float.title, tab.strip, "{who}");
         assert_eq!((tab.height, tab.panel_height, tab.close_box, tab.close_icon), (26.0, 28.0, 14.0, 10.0), "{who}");
+    }
+}
+
+/// A segmented control is PhotoCraft's `pill_tab` (`widgets/panel.rs:104-123`) in every built-in
+/// theme and mode: pills 24 high and text + 20 wide, 8 apart; the selected one `state.hover` with a
+/// 1 pt `line.control_edge` outline and `text.normal`; the others `text.muted`, `state.hover` at 0.6
+/// under the pointer.
+#[test]
+fn segmented_follows_photocraft_pill_tab() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+            let who = format!("{} {mode:?}", theme.id.as_str());
+            let (s, color) = (&t.component.segmented, |c| t.color(c));
+            assert_eq!((s.height.md, s.pad_x.md, s.gap), (24.0, 10.0, 8.0), "{who}");
+            assert_eq!((s.selected.fill.rest, s.selected.text.rest), (color(ColorToken::StateHover), color(ColorToken::TextNormal)), "{who}");
+            assert_eq!(s.selected_border.rest, color(ColorToken::LineControlEdge), "{who}");
+            assert_eq!(s.segment.text.rest, color(ColorToken::TextMuted), "{who}");
+            let hover = color(ColorToken::StateHover);
+            let expected = if hover.a() == 255 { hover.faded(values::SEGMENT_HOVER_OPACITY) } else { hover };
+            assert_eq!(s.segment.fill.hover, expected, "{who}");
+        }
     }
 }
 

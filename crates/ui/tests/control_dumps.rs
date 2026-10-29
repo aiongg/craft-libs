@@ -165,11 +165,11 @@ fn segmented() {
             });
         }
         let s = Segmented::style(t, ControlSize::Md);
-        d.line("inset", s.inset).line("label", role(s.label)).line("radius", s.radius);
-        surface(d, "track", &s.track);
+        d.line("gap", s.gap).line("label", role(s.label)).line("radius", s.radius);
         states(d, "segment.fill", &s.fill);
         states(d, "segment.text", &s.text);
         states(d, "selected.fill", &s.selected_fill);
+        states(d, "selected.border", &s.selected_border);
         states(d, "selected.text", &s.selected_text);
     });
 }

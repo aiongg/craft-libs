@@ -286,7 +286,7 @@ impl Family for ListTokens {
             selected_detail: look.quiet,
             icon: c.text.muted,
             icon_hover: c.text.normal,
-            hover: visible_hover(half(c.state.hover), c.surface.panel, &[selected], c.text.normal, s.high),
+            hover: visible_hover(half(c.state.hover, values::LIST_HOVER_OPACITY), c.surface.panel, &[selected], c.text.normal, s.high),
             selected,
             selected_hover: look.selected_hover,
             divider: c.line.divider,
@@ -426,10 +426,9 @@ fn quiet_on_selected(text: Rgba, fills: &[Rgba; 2], rest: Rgba) -> Rgba {
     readable_on(quiet, fills, rest, false)
 }
 
-/// An opaque `state.hover` at [`values::LIST_HOVER_OPACITY`]; a translucent one is already a
-/// partial overlay.
-fn half(hover: Rgba) -> Rgba {
-    if hover.a() == 255 { hover.faded(values::LIST_HOVER_OPACITY) } else { hover }
+/// An opaque `state.hover` at `opacity`; a translucent one is already a partial overlay.
+pub(super) fn half(hover: Rgba, opacity: f32) -> Rgba {
+    if hover.a() == 255 { hover.faded(opacity) } else { hover }
 }
 
 /// `top` painted over `bottom`, both possibly translucent.

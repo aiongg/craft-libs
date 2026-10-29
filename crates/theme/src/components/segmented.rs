@@ -1,66 +1,75 @@
-//! Segmented controls: a sunken track holding a row of segments, one of them selected. The track
-//! takes its edge from the `Surface` primitive; this family holds its fill, the segments' sizes
-//! and the colours of plain and selected segments.
+//! Segmented controls: separate pills side by side (PhotoCraft's `pill_tab`), one of them
+//! selected. This family holds the pills' sizes and the colours of plain and selected pills.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, ITEM_FIELDS, ItemColors, ItemPart, OverrideValue, Semantic, State, States};
+use super::list::half;
+use super::{
+    BySize, ComponentField, ContrastPair, Family, FieldKind, ITEM_FIELDS, Identify, ItemColors, ItemPart, OverrideValue, Semantic, State, States,
+};
 use crate::color::Rgba;
-use crate::tokens::{TokenRef, TypeRole};
+use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
 /// Segmented-control tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SegmentedTokens {
-    /// Height of the track: the control height.
+    /// Height of a pill: the control height.
     pub height: BySize<f32>,
-    /// Horizontal padding at the start and end of a segment.
+    /// Horizontal padding at the start and end of a pill.
     pub pad_x: BySize<f32>,
-    /// Icon size in icon segments.
+    /// Icon size in icon pills.
     pub icon: BySize<f32>,
-    /// Between the track's edge and its segments.
-    pub inset: f32,
+    /// Between pills.
+    pub gap: f32,
     /// Label type role.
     pub label: TypeRole,
-    /// The track's fill: `surface.sunken`.
-    pub track: Rgba,
-    /// Segments that are not selected: transparent on the track until hovered.
+    /// Pills that are not selected: transparent until hovered, then `state.hover` at
+    /// [`values::SEGMENT_HOVER_OPACITY`]; `text.muted`.
     pub segment: ItemColors,
-    /// The selected segment: `text.on_selected` on `state.selected`, the fill moved to reach the
-    /// non-text minimum on the track, the text moved to read on it.
+    /// The selected pill: `text.normal` on `state.hover`. In high contrast the fill or its edge
+    /// reaches the non-text minimum on the panel and on a popup.
     pub selected: ItemColors,
+    /// The 1 pt outline inside the selected pill: `line.control_edge`; `line.divider` when
+    /// disabled.
+    pub selected_border: States<Rgba>,
 }
 
-/// An overridable segmented-control field. Paths: `track`, `segment.<part>.<state>`,
-/// `selected.<part>.<state>`, e.g. `segmented.selected.fill.rest`.
+/// An overridable segmented-control field. Paths: `segment.<part>.<state>`,
+/// `selected.<part>.<state>`, `selected.border.<state>`, e.g. `segmented.selected.fill.rest`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SegmentedField {
-    /// `segmented.track`
-    Track,
-    /// A colour of segments that are not selected.
+    /// A colour of pills that are not selected.
     Segment {
         /// The part.
         part: ItemPart,
         /// The state.
         state: State,
     },
-    /// A colour of the selected segment.
+    /// A colour of the selected pill.
     Selected {
         /// The part.
         part: ItemPart,
         /// The state.
         state: State,
     },
+    /// The outline of the selected pill.
+    SelectedBorder(State),
 }
 
-const FIELD_COUNT: usize = 1 + 2 * ITEM_FIELDS.len();
+const FIELD_COUNT: usize = 2 * ITEM_FIELDS.len() + State::ALL.len();
 
 const FIELDS: [SegmentedField; FIELD_COUNT] = {
-    let mut out = [SegmentedField::Track; FIELD_COUNT];
+    let mut out = [SegmentedField::SelectedBorder(State::Rest); FIELD_COUNT];
     let mut i = 0;
     while i < ITEM_FIELDS.len() {
         let (part, state) = ITEM_FIELDS[i];
-        out[1 + i] = SegmentedField::Segment { part, state };
-        out[1 + ITEM_FIELDS.len() + i] = SegmentedField::Selected { part, state };
+        out[i] = SegmentedField::Segment { part, state };
+        out[ITEM_FIELDS.len() + i] = SegmentedField::Selected { part, state };
+        i += 1;
+    }
+    let mut i = 0;
+    while i < State::ALL.len() {
+        out[2 * ITEM_FIELDS.len() + i] = SegmentedField::SelectedBorder(State::ALL[i]);
         i += 1;
     }
     out
@@ -69,9 +78,9 @@ const FIELDS: [SegmentedField; FIELD_COUNT] = {
 impl SegmentedTokens {
     fn colors_mut(&mut self, f: SegmentedField) -> Option<&mut Rgba> {
         match f {
-            SegmentedField::Track => Some(&mut self.track),
             SegmentedField::Segment { part, state } => Some(self.segment.get_mut(part, state)),
             SegmentedField::Selected { part, state } => Some(self.selected.get_mut(part, state)),
+            SegmentedField::SelectedBorder(state) => Some(self.selected_border.get_mut(state)),
         }
     }
 }
@@ -83,32 +92,35 @@ impl Family for SegmentedTokens {
     fn defaults(s: &Semantic<'_>) -> SegmentedTokens {
         let (c, size, space) = (s.color, s.size, s.space);
         let clear = Rgba::TRANSPARENT;
+        let hover = half(c.state.hover, values::SEGMENT_HOVER_OPACITY);
+        let edge = c.line.control_edge;
+        let (fill, text) = Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(edge).fill(c.state.hover, c.text.normal);
         SegmentedTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             pad_x: BySize { sm: space.pad.control, md: space.pad.control + space.gap.inline },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
-            inset: values::SEGMENTED_INSET,
+            gap: space.gap.inline + values::SEGMENTED_GAP_OVER_INLINE,
             label: TypeRole::Label,
-            track: c.surface.sunken,
             segment: ItemColors {
-                fill: States::new(clear, c.state.hover, c.state.pressed, clear),
-                text: States::new(c.text.normal, c.text.normal, c.text.normal, c.text.disabled),
+                fill: States::new(clear, hover, hover, clear),
+                text: States::new(c.text.muted, c.text.muted, c.text.muted, c.text.disabled),
             },
-            selected: ItemColors::selected(c, &[c.surface.sunken], s.high),
+            selected: ItemColors { fill: States::new(fill, fill, fill, c.state.disabled_fill), text: States::new(text, text, text, c.text.disabled) },
+            selected_border: States::new(edge, edge, edge, c.line.divider),
         }
     }
 
     fn path(f: SegmentedField) -> String {
         match f {
-            SegmentedField::Track => "track".to_owned(),
             SegmentedField::Segment { part, state } => format!("segment.{}", super::item_path(part, state)),
             SegmentedField::Selected { part, state } => format!("selected.{}", super::item_path(part, state)),
+            SegmentedField::SelectedBorder(state) => format!("selected.border.{}", state.name()),
         }
     }
 
     fn from_path(path: &str) -> Option<SegmentedField> {
-        if path == "track" {
-            return Some(SegmentedField::Track);
+        if let Some(state) = path.strip_prefix("selected.border.") {
+            return State::from_name(state).map(SegmentedField::SelectedBorder);
         }
         let (set, rest) = path.split_once('.')?;
         let (part, state) = super::item_from_path(rest)?;
@@ -125,9 +137,9 @@ impl Family for SegmentedTokens {
 
     fn get(&self, f: SegmentedField) -> OverrideValue {
         OverrideValue::Color(match f {
-            SegmentedField::Track => self.track,
             SegmentedField::Segment { part, state } => self.segment.part(part).get(state),
             SegmentedField::Selected { part, state } => self.selected.part(part).get(state),
+            SegmentedField::SelectedBorder(state) => self.selected_border.get(state),
         })
     }
 
@@ -140,39 +152,40 @@ impl Family for SegmentedTokens {
 
     fn pairs() -> Vec<ContrastPair> {
         use SegmentedField as F;
-        let field = |f| ComponentField::Segmented(f);
+        let field = |f| TokenRef::Component(ComponentField::Segmented(f));
+        let surfaces = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
         let mut out = Vec::new();
-        // A resting segment is transparent: its text sits on the track.
+        // A resting pill is transparent: its text sits on the panel or on a popup.
+        for bg in surfaces {
+            out.push(ContrastPair {
+                fg: field(F::Segment { part: ItemPart::Text, state: State::Rest }),
+                bg,
+                minimum: values::TEXT_MIN,
+                alternate: None,
+            });
+        }
         out.push(ContrastPair {
-            fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state: State::Rest })),
-            bg: TokenRef::Component(field(F::Track)),
+            fg: field(F::Segment { part: ItemPart::Text, state: State::Hover }),
+            bg: field(F::Segment { part: ItemPart::Fill, state: State::Hover }),
             minimum: values::TEXT_MIN,
             alternate: None,
         });
-        for state in [State::Hover, State::Pressed] {
+        // The selected pill shows by its fill or its outline; the fill comes before its text:
+        // high contrast moves the fill first.
+        for bg in surfaces {
             out.push(ContrastPair {
-                fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state })),
-                bg: TokenRef::Component(field(F::Segment { part: ItemPart::Fill, state })),
-                minimum: values::TEXT_MIN,
-                alternate: None,
+                fg: field(F::Selected { part: ItemPart::Fill, state: State::Rest }),
+                bg,
+                minimum: values::STATE_CUE_MIN,
+                alternate: Some(field(F::SelectedBorder(State::Rest))),
             });
         }
-        // The selected segment shows on the track, which is also what its unselected neighbours
-        // show. The fill comes before its text: high contrast moves the fill first.
         out.push(ContrastPair {
-            fg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state: State::Rest })),
-            bg: TokenRef::Component(field(F::Track)),
-            minimum: values::STATE_CUE_MIN,
+            fg: field(F::Selected { part: ItemPart::Text, state: State::Rest }),
+            bg: field(F::Selected { part: ItemPart::Fill, state: State::Rest }),
+            minimum: values::TEXT_MIN,
             alternate: None,
         });
-        for state in [State::Rest, State::Hover, State::Pressed] {
-            out.push(ContrastPair {
-                fg: TokenRef::Component(field(F::Selected { part: ItemPart::Text, state })),
-                bg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state })),
-                minimum: values::TEXT_MIN,
-                alternate: None,
-            });
-        }
         out
     }
 }

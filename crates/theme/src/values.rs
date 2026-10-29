@@ -564,8 +564,12 @@ pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
 pub const BUTTON_HOVER_OPACITY: f32 = 0.93;
 pub const BUTTON_PRESSED_OPACITY: f32 = 0.85;
 
-/// Between a segmented control's track edge and its segments, in points, at every Size.
-pub const SEGMENTED_INSET: f32 = 2.0;
+/// How far a segmented control's gap between pills is over the inline gap of its Size, in points
+/// (PhotoCraft's `pill_tab` item spacing is 8: the Compact inline gap 4 plus this).
+pub const SEGMENTED_GAP_OVER_INLINE: f32 = 4.0;
+/// Opacity of `state.hover` behind an unselected pill under the pointer (PhotoCraft's `pill_tab`:
+/// `hover.gamma_multiply(0.6)`, `widgets/panel.rs:116`).
+pub const SEGMENT_HOVER_OPACITY: f32 = 0.6;
 
 /// A text field's default width, in control heights of its size.
 pub const FIELD_WIDTH: f32 = 8.0;
