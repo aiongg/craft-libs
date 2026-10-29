@@ -3,6 +3,8 @@
 
 pub(crate) mod story;
 
+use std::borrow::Cow;
+
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{BezPath, PathEl, Point, Rect, Vec2};
 
@@ -153,6 +155,18 @@ impl WarpMesh {
         out
     }
 
+    /// A one-patch mesh with its rule-of-thirds lines made real: cut into 3 × 3 patches at a
+    /// third and two thirds across each way, the surface unchanged. PhotoCraft does this before
+    /// the first split of a custom warp so that the cut divides the grid on screen instead of
+    /// replacing it. Any other mesh is returned as it is.
+    pub fn commit_thirds(&self) -> WarpMesh {
+        if !self.is_valid() || self.columns != 1 || self.rows != 1 {
+            return self.clone();
+        }
+        // The second cut is at half of what is left after the first.
+        self.split_column(0, 1.0 / 3.0).split_column(1, 0.5).split_row(0, 1.0 / 3.0).split_row(1, 0.5)
+    }
+
     /// The de Casteljau cut of a cubic at `t`: the five new control points after its first.
     fn cut(p: [Point; 4], t: f64) -> [Point; 5] {
         let lerp = |a: Point, b: Point| Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
@@ -190,11 +204,8 @@ impl WarpMesh {
     /// (`column`, `row`), PhotoCraft's rule: a [`Cross`](WarpSplit::Cross) in the open, and the
     /// perpendicular line when the pointer is close to an existing line of one direction. A
     /// one-patch mesh's rule-of-thirds lines count as existing lines. "Close" is 8 document units
-    /// of the anchors' extent across, within 2 to 12 % of the mesh.
-    fn quick_split(&self, column: usize, row: usize, u: f64, v: f64) -> WarpSplit {
-        let anchors = || self.anchors().map(|i| self.points[i]);
-        let first = anchors().next().unwrap_or(Point::ZERO);
-        let bounds = anchors().fold(Rect::from_points(first, first), |r, p| r.union_pt(p));
+    /// of the warp's source rectangle `bounds` across, within 2 to 12 % of the mesh.
+    fn quick_split(&self, bounds: Rect, column: usize, row: usize, u: f64, v: f64) -> WarpSplit {
         let tolerance = |extent: f64| (8.0 / extent.abs().max(1.0)).clamp(0.02, 0.12);
         let thirds = self.columns == 1 && self.rows == 1;
         let near = |patches: usize, at: f64, tolerance: f64| {
@@ -318,7 +329,11 @@ pub enum WarpEdit {
     Surface { s: f64, t: f64, by: Vec2 },
     /// Insert lines of anchors: the host's mesh becomes [`WarpMesh::split`] of itself with these
     /// arguments. Always a [`Set`](EditEvent::Set).
-    Split { split: WarpSplit, column: usize, row: usize, u: f64, v: f64 },
+    ///
+    /// `thirds` is set when the cut is of a one-patch mesh that PhotoCraft's custom warp first
+    /// divides at its thirds ([`WarpMesh::commit_thirds`]): the host applies that to its mesh
+    /// before `split`, and `column`, `row`, `u` and `v` name a patch of the result.
+    Split { split: WarpSplit, column: usize, row: usize, u: f64, v: f64, thirds: bool },
 }
 
 /// The AccessKit names of a warp mesh's parts, the host's translated text.
@@ -420,7 +435,7 @@ struct Drag {
 /// let names = WarpNames::new("Warp", |row, column| format!("Row {row}, column {column}"), |row, column, side| {
 ///     format!("Row {row}, column {column}, {side:?} handle")
 /// });
-/// let r = WarpGrid::new("warp", &mesh, names).show(ui, &canvas, &view);
+/// let r = WarpGrid::new("warp", &mesh, Rect::new(100.0, 80.0, 300.0, 220.0), names).show(ui, &canvas, &view);
 /// if !r.claimed {
 ///     // the tool's input
 /// }
@@ -443,6 +458,8 @@ struct Drag {
 pub struct WarpGrid<'a> {
     id_salt: IdSalt,
     mesh: &'a WarpMesh,
+    bounds: Rect,
+    preset: bool,
     names: WarpNames<'a>,
     editable: bool,
     surface: Option<Surface<'a>>,
@@ -455,11 +472,14 @@ pub struct WarpGrid<'a> {
 }
 
 impl<'a> WarpGrid<'a> {
-    /// The host's `mesh`, named `names` in the AccessKit tree.
-    pub fn new(id_salt: impl AsIdSalt, mesh: &'a WarpMesh, names: WarpNames<'a>) -> Self {
+    /// The host's `mesh` over the source rectangle `bounds` (the box the warp was made on, which
+    /// the quick split's reach is measured against), named `names` in the AccessKit tree.
+    pub fn new(id_salt: impl AsIdSalt, mesh: &'a WarpMesh, bounds: Rect, names: WarpNames<'a>) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             mesh,
+            bounds,
+            preset: false,
             names,
             editable: true,
             surface: None,
@@ -483,6 +503,14 @@ impl<'a> WarpGrid<'a> {
     /// press there pulls the surface. Without it only the points are dragged.
     pub fn surface(mut self, surface: impl Fn(Point) -> Option<(f64, f64)> + 'a) -> Self {
         self.surface = Some(Box::new(surface));
+        self
+    }
+
+    /// Whether the mesh is a preset fitted as one patch (PhotoCraft's Arc, Flag and the other
+    /// styles), false by default. A split of a custom one-patch mesh first makes its
+    /// rule-of-thirds lines real ([`WarpMesh::commit_thirds`]); a preset's is cut as it is.
+    pub fn preset(mut self, preset: bool) -> Self {
+        self.preset = preset;
         self
     }
 
@@ -630,9 +658,12 @@ impl<'a> WarpGrid<'a> {
             && let Some(anchor) = self.mesh.anchor_of(index)
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
         {
-            let w = self.mesh.width();
-            let (row, column) = ((anchor / w / 3).min(self.mesh.rows - 1), (anchor % w / 3).min(self.mesh.columns - 1));
-            gesture.set(WarpEdit::Split { split: tool, column, row, u: 0.5, v: 0.5 });
+            // The anchor's corner of the mesh the cut is made on (a one-patch mesh's committed
+            // thirds put it at the same corner of the 3 × 3).
+            let (base, thirds) = self.split_base();
+            let (w, scale) = (self.mesh.width(), if thirds { 3 } else { 1 });
+            let (row, column) = ((anchor / w / 3 * scale).min(base.rows - 1), (anchor % w / 3 * scale).min(base.columns - 1));
+            gesture.set(WarpEdit::Split { split: tool, column, row, u: 0.5, v: 0.5, thirds });
         }
         let preview = if editable { self.split_pass(&ctx, canvas, view, id, mods, &mut gesture) } else { None };
         if editable && !splitting {
@@ -749,17 +780,24 @@ impl<'a> WarpGrid<'a> {
         hover
     }
 
+    /// The mesh a split cuts and whether its thirds were made real first.
+    fn split_base(&self) -> (Cow<'a, WarpMesh>, bool) {
+        let thirds = !self.preset && self.mesh.columns == 1 && self.mesh.rows == 1;
+        (if thirds { Cow::Owned(self.mesh.commit_thirds()) } else { Cow::Borrowed(self.mesh) }, thirds)
+    }
+
     /// What the split would insert for a pointer at screen point `p`: the armed tool's lines, or
     /// with `quick` the quick split's. `None` off the surface and where every line of it lies on
     /// an existing one; a cross with one line on an existing one inserts the other alone.
     fn split_at(&self, view: &CanvasView, quick: bool, p: Pos2) -> Option<SplitAt> {
         const EDGE: f64 = 0.01;
         let doc = view.to_doc(p);
-        let (column, row, u, v, distance) = self.mesh.nearest(doc);
+        let (mesh, thirds) = self.split_base();
+        let (column, row, u, v, distance) = mesh.nearest(doc);
         if distance * view.zoom > 1.0 {
             return None;
         }
-        let kind = self.split.filter(|_| !quick).unwrap_or_else(|| self.mesh.quick_split(column, row, u, v));
+        let kind = self.split.filter(|_| !quick).unwrap_or_else(|| mesh.quick_split(self.bounds, column, row, u, v));
         let free = |c: f64| (EDGE..=1.0 - EDGE).contains(&c);
         let split = match (kind != WarpSplit::Horizontal && free(u), kind != WarpSplit::Vertical && free(v)) {
             (true, true) => WarpSplit::Cross,
@@ -770,7 +808,7 @@ impl<'a> WarpGrid<'a> {
         // The way a line moves as its parameter grows, for the arrow across it.
         let step = 1e-3;
         let across = |along_u: bool| {
-            let at = |d: f64| if along_u { self.mesh.patch_point(column, row, d, v) } else { self.mesh.patch_point(column, row, u, d) };
+            let at = |d: f64| if along_u { mesh.patch_point(column, row, d, v) } else { mesh.patch_point(column, row, u, d) };
             let c = if along_u { u } else { v };
             at((c + step).min(1.0)) - at((c - step).max(0.0))
         };
@@ -779,7 +817,7 @@ impl<'a> WarpGrid<'a> {
             WarpSplit::Vertical => resize_cursor(view, across(true)),
             WarpSplit::Horizontal => resize_cursor(view, across(false)),
         };
-        Some(SplitAt { split, column, row, u, v, cursor })
+        Some(SplitAt { split, column, row, u, v, thirds, cursor })
     }
 
     /// A press on the canvas: the nearest point within reach, else the surface under it, claimed
@@ -946,17 +984,19 @@ struct SplitAt {
     row: usize,
     u: f64,
     v: f64,
+    thirds: bool,
     cursor: CursorIcon,
 }
 
 impl SplitAt {
     fn edit(&self) -> WarpEdit {
-        WarpEdit::Split { split: self.split, column: self.column, row: self.row, u: self.u, v: self.v }
+        WarpEdit::Split { split: self.split, column: self.column, row: self.row, u: self.u, v: self.v, thirds: self.thirds }
     }
 
     /// The new lines of `mesh`, in document units.
     fn lines(&self, mesh: &WarpMesh) -> Vec<BezPath> {
-        let cut = mesh.split(self.split, self.column, self.row, self.u, self.v);
+        let base = if self.thirds { mesh.commit_thirds() } else { mesh.clone() };
+        let cut = base.split(self.split, self.column, self.row, self.u, self.v);
         let column = || cut.column_path(3 * self.column + 3);
         let row = || cut.row_path(3 * self.row + 3);
         match self.split {

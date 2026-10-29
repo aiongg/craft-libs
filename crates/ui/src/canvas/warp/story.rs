@@ -150,7 +150,10 @@ pub(crate) fn edited(mesh: &WarpMesh, edit: &WarpEdit) -> WarpMesh {
             }
         }
         WarpEdit::Point { .. } => {}
-        WarpEdit::Split { split, column, row, u, v } => return mesh.split(split, column, row, u, v),
+        WarpEdit::Split { split, column, row, u, v, thirds } => {
+            let base = if thirds { mesh.commit_thirds() } else { mesh.clone() };
+            return base.split(split, column, row, u, v);
+        }
         WarpEdit::Surface { s, t, by } => {
             // The least change of the patch's control points that moves the surface point by `by`.
             let (column, row, u, v) = patch(mesh, s, t);
@@ -183,7 +186,7 @@ fn show_warp(ui: &mut Ui, args: &mut Args) {
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let mesh = host.mesh.clone();
-    let r = WarpGrid::new("story-warp", &mesh, english_names())
+    let r = WarpGrid::new("story-warp", &mesh, PICTURE, english_names())
         .editable(args.bool("editable"))
         .split(match args.choice("split") {
             "Cross" => Some(WarpSplit::Cross),
