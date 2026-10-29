@@ -85,8 +85,8 @@ pub use selection::{
     resolve_selection,
 };
 pub use theme::{
-    AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, SeedOverrides, Seeds,
-    ShapeSeed, Size, TextSize, ThemeDef, Variants,
+    AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, RadiusOffset, SeedOverrides,
+    Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants,
 };
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,

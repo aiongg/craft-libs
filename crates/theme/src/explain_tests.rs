@@ -215,8 +215,14 @@ fn fixed_and_moved_pairs_differ() {
 fn reads_are_what_both_probes_agree_on() {
     use super::explain::{PROBES, agree, default_reads, probe_reads};
     let (a, b) = (probe_reads(PROBES[0]), probe_reads(PROBES[1]));
-    assert_eq!(a, b, "today's defaults read the same tokens under either probe");
-    assert_eq!(default_reads(), a);
+    // The hover fills of lists and list boxes are `state.hover` moved only when it is too close
+    // to the row beside it, so whether a probe reads it depends on the probe's colours.
+    let moved_when_close = [ComponentField::List(ListField::Hover), ComponentField::Listbox(ListboxField::ActiveFill)];
+    let steady = |reads: &[(ComponentField, Option<T>)]| reads.iter().filter(|(f, _)| !moved_when_close.contains(f)).copied().collect::<Vec<_>>();
+    assert_eq!(steady(&a), steady(&b), "today's defaults read the same tokens under either probe");
+    let reads = default_reads();
+    assert_eq!(steady(&reads), steady(&a));
+    assert!(reads.iter().filter(|(f, _)| moved_when_close.contains(f)).all(|&(_, t)| t.is_none() || t == Some(T::StateHover)));
     let f = field("button.primary.fill.rest");
     assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, Some(T::AccentHover))]), [(f, None)]);
     assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, None)]), [(f, None)]);

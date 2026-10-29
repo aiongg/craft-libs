@@ -29,6 +29,7 @@ pub const MAX_THEME_BYTES: usize = 256 * 1024;
 /// The expected form of a length, in [`ErrorKind::BadValue`].
 const LENGTH: &str = "a length: a number of 0 or more, or \"full\"";
 /// The expected form of an edge, in [`ErrorKind::BadValue`].
+const OFFSET: &str = "a number";
 const EDGE: &str = "\"flat\" or {\"bevel\": {\"width\": n}} with n above 0";
 
 /// A parsed theme file: the theme and the JSON it came from, so that [`write`] keeps unknown keys.

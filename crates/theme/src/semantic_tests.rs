@@ -403,7 +403,7 @@ fn anchored_greys_take_a_pinned_panels_tint() {
 fn a_bevel_lights_and_shades_a_pinned_panel() {
     let mut def = grey_blue();
     def.id = ThemeId::parse("test.bevel-panel").unwrap();
-    def.shape = Some(ShapeSeed { radius: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
     def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c0c0c0"))]);
     def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#404040"))]);
     for mode in [Mode::Light, Mode::Dark] {
@@ -616,6 +616,7 @@ fn size_presets_text_size_shape_and_motion() {
     let mut classic = grey_blue();
     classic.shape = Some(ShapeSeed {
         radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius_offset: None,
         edge: Some(EdgeSeed::Bevel { width: 1.0 }),
     });
     classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);

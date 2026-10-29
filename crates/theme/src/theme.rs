@@ -224,8 +224,35 @@ pub enum PinLayer {
 pub struct ShapeSeed {
     /// Replaces every radius of the preset.
     pub radius: Option<RadiusSet>,
+    /// Added to the control, popup and window radii in force (the preset's, or `radius`), so a
+    /// theme keeps its own shape at every Size. A result below 0 is 0; a "full" radius stays full.
+    pub radius_offset: Option<RadiusOffset>,
     /// Replaces the preset's edge style.
     pub edge: Option<EdgeSeed>,
+}
+
+/// Per-tier additions to the corner radii, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RadiusOffset {
+    /// Added to `control`.
+    pub control: f32,
+    /// Added to `popup`.
+    pub popup: f32,
+    /// Added to `window`.
+    pub window: f32,
+}
+
+impl RadiusOffset {
+    /// `radius` with the offsets added; `panel`, `button` and `pill` are not offset.
+    pub fn apply(self, radius: RadiusSet) -> RadiusSet {
+        let add = |r: f32, d: f32| if r >= crate::scale::Radius::Full.px() { r } else { (r + d).max(0.0) };
+        RadiusSet {
+            control: add(radius.control, self.control),
+            popup: add(radius.popup, self.popup),
+            window: add(radius.window, self.window),
+            ..radius
+        }
+    }
 }
 
 /// A theme's edge style. A bevel's colours are the `edge.light` and `edge.dark` colour tokens:

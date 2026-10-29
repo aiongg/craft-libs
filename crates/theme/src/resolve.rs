@@ -151,6 +151,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
 
     let seed = theme.shape;
     let radius = seed.and_then(|s| s.radius).unwrap_or(preset.radius);
+    let radius = seed.and_then(|s| s.radius_offset).map_or(radius, |o| o.apply(radius));
     let edge = seed.and_then(|s| s.edge).map_or(preset.edge, |e| e.resolve(&color));
 
     let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);

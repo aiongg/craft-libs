@@ -729,6 +729,11 @@ pub const LIST_DROP_HALO: f32 = 1.0;
 /// How far a selected row's dimmed label and detail line move from `text.on_selected` toward the
 /// selected fill (OKLab mix), before their contrast minimum.
 pub const LIST_SELECTED_QUIET: f64 = 0.4;
+/// Least contrast ratio (standard, high) between a list row's hover fill and the fills it sits
+/// beside: the rest surface and the selected fill. The built-in hover steps are 1.1 to 1.4 away
+/// from the panel; 1.12 is the least that still reads on a screen at normal brightness. A hover
+/// step that is closer is moved away along OKLCH lightness.
+pub const LIST_HOVER_MIN: (f64, f64) = (1.12, 1.12);
 
 /// The control height the Compact angle dial sizes are set for.
 pub const ANGLE_DIAL_BASE_CONTROL: f32 = 24.0;

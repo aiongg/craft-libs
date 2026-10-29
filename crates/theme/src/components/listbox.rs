@@ -7,9 +7,11 @@
 //! The text, the chosen text and the group headers are text on the popup surface (4.5:1, 7:1 with
 //! high contrast), and the active text is text on the active fill. The check mark is the cue that
 //! shows the chosen option (3:1, 4.5:1 with high contrast) on the popup surface and on the active
-//! fill. The active fill and the separator are design targets with no minimum. Each pair is
-//! measured at rest.
+//! fill. The active fill must be visibly different from the popup surface (ratio 1.12, as a list
+//! row's hover fill); the separator is a design target with no minimum. Each pair is measured at
+//! rest.
 
+use super::list::visible_hover;
 use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
@@ -118,7 +120,7 @@ impl Family for ListboxTokens {
             separator_pad: s.space.gap.inline,
             radius: s.shape.radius.control,
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
-            active_fill: c.state.hover,
+            active_fill: visible_hover(c.state.hover, c.surface.raised, &[], c.text.normal, s.high),
             active_text: c.text.normal,
             chosen_text: c.text.normal,
             mark: c.text.normal,
@@ -188,6 +190,7 @@ impl Family for ListboxTokens {
         let active = TokenRef::Component(field(ListboxField::ActiveFill));
         let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum };
         vec![
+            pair(ListboxField::ActiveFill, popup, values::LIST_HOVER_MIN),
             pair(ListboxField::Text { disabled: false }, popup, values::TEXT_MIN),
             pair(ListboxField::ChosenText, popup, values::TEXT_MIN),
             pair(ListboxField::Group, popup, values::TEXT_MIN),
