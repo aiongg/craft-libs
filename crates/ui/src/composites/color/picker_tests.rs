@@ -493,6 +493,50 @@ fn a_field_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
     assert!(model.values[1] > 67.0, "the scrub raised the saturation: {:?}", model.values);
 }
 
+/// A screen reader's step on the hue strip during a scrub of the Saturation field waits for the
+/// release and changes only the hue: the strip's values from the step's pass don't bring back the
+/// saturation the scrub moved on from.
+#[test]
+fn a_screen_reader_step_on_the_strip_during_a_field_scrub_keeps_the_scrubs_value() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    let b = rig.node(Role::SpinButton, "Saturation").bounds().expect("field bounds");
+    let from = pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(from), button(from, true)]);
+    for dx in [10.0, 12.0, 14.0] {
+        rig.frame(vec![Event::PointerMoved(from + vec2(dx, 0.0))]);
+    }
+    let strip = rig
+        .nodes
+        .iter()
+        .find(|(_, n)| n.role() == Role::Slider && n.orientation() == Some(egui::accesskit::Orientation::Vertical))
+        .map(|(id, _)| *id)
+        .expect("the strip");
+    let hue = rig.last_model().expect("HSB values").values[0];
+    let step = egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: egui::accesskit::TreeId::ROOT,
+        target_node: strip,
+        data: None,
+    };
+    rig.frame(vec![Event::AccessKitActionRequest(step)]);
+    let stepped = rig.last_model().expect("HSB values").values[1];
+    for dx in [16.0, 18.0, 20.0] {
+        rig.frame(vec![Event::PointerMoved(from + vec2(dx, 0.0))]);
+    }
+    rig.frame(vec![button(from + vec2(20.0, 0.0), false)]);
+    rig.settle();
+    let kinds: Vec<_> = rig.events.iter().map(kind).collect();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let committed = rig.events.iter().find_map(|e| match e {
+        EditEvent::Commit { value, .. } => value.model.map(|m| m.values[1]),
+        _ => None,
+    });
+    assert!(committed.is_some_and(|s| s > stepped), "the scrub moved on after the step: {committed:?} vs {stepped}");
+    let model = rig.last_model().expect("HSB values");
+    assert_eq!(Some(model.values[1]), committed, "the step keeps the saturation the scrub committed");
+    assert!(model.values[0] > hue, "the step raised the hue: {} from {hue}", model.values[0]);
+}
+
 /// The model switch is a press menu: a click on the button opens the models as radio items, and
 /// a click on one switches the rows to it.
 #[test]
