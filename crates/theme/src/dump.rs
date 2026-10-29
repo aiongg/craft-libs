@@ -850,9 +850,8 @@ fn gradient_editor_lines(out: &mut Lines, t: &GradientEditorTokens) {
 }
 
 fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
-    let HistogramTokens { height, fill_alpha, backdrop_alpha, line, marker_alpha, marker_width } = t;
+    let HistogramTokens { height, backdrop_alpha, line, marker_alpha, marker_width } = t;
     out.line("histogram.height", len(*height));
-    out.line("histogram.fill_alpha", len(*fill_alpha));
     out.line("histogram.backdrop_alpha", len(*backdrop_alpha));
     out.line("histogram.line", len(*line));
     out.line("histogram.marker_alpha", len(*marker_alpha));

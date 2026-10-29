@@ -9,8 +9,6 @@ use crate::values;
 pub struct HistogramTokens {
     /// Height of the plot: `histogram.height`.
     pub height: f32,
-    /// Alpha of the RGB ribbons' fills: `histogram.fill_alpha`.
-    pub fill_alpha: f32,
     /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
     pub backdrop_alpha: f32,
     /// Width of the RGB ribbons' outlines: `histogram.line`.
@@ -34,7 +32,6 @@ impl Family for HistogramTokens {
         let k = s.size.control.md / values::HISTOGRAM_BASE_CONTROL;
         HistogramTokens {
             height: (values::HISTOGRAM_HEIGHT * k).round(),
-            fill_alpha: values::HISTOGRAM_FILL_ALPHA,
             backdrop_alpha: values::HISTOGRAM_BACKDROP_ALPHA,
             line: values::HISTOGRAM_LINE,
             marker_alpha: values::HISTOGRAM_MARKER_ALPHA,

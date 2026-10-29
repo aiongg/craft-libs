@@ -499,7 +499,6 @@ handle.stroke = 1
 handle.halo = 1
 handle.hit = 14
 histogram.height = 125
-histogram.fill_alpha = 0.3
 histogram.backdrop_alpha = 0.35
 histogram.line = 1
 histogram.marker_alpha = 0.4

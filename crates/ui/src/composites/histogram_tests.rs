@@ -6,7 +6,7 @@ use egui::{Color32, Context, Event, Key, Mesh, Modifiers, PointerButton, Pos2, R
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::histogram::{self, Blend, outline, overlap, plot_shapes, product, rgb_heights, rgb_mesh, tone_heights, tone_mesh};
+use super::histogram::{self, Blend, outline, plot_shapes, product, rgb_heights, rgb_mesh, sum, tone_heights, tone_mesh};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::story::Args;
@@ -132,21 +132,21 @@ fn rgb_smoothing_evens_out_a_comb_and_pins_the_edges() {
 }
 
 #[test]
-fn overlaps_take_the_channel_wise_maximum_whatever_the_order() {
+fn overlaps_add_the_channels_saturating_whatever_the_order() {
     let rect = rect();
     let colors = [Color32::from_rgb(255, 80, 80), Color32::from_rgb(80, 224, 80), Color32::from_rgb(80, 128, 255)];
     let at = |heights: [f32; 3], colors: &[Color32; 3], height: f32| {
         let h = heights.map(|v| flat(4, v));
-        color_at(&rgb_mesh(rect, &h, colors, 0.3, Blend::Max), pos2(rect.center().x, rect.bottom() - height * rect.height()))
+        color_at(&rgb_mesh(rect, &h, colors, Blend::Add), pos2(rect.center().x, rect.bottom() - height * rect.height()))
     };
-    let red_green = overlap(&colors, 0b011);
-    assert_eq!(red_green, Color32::from_rgb(255, 224, 80));
-    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.2), Some(red_green.gamma_multiply(0.3)));
+    let red_green = sum(&colors, 0b011);
+    assert_eq!(red_green, Color32::from_rgb(255, 255, 160));
+    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.2), Some(red_green));
     // The same data with the channels' roles swapped.
-    assert_eq!(at([0.5, 0.8, 0.0], &[colors[1], colors[0], colors[2]], 0.2), Some(red_green.gamma_multiply(0.3)));
-    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(overlap(&colors, 0b111).gamma_multiply(0.3)));
+    assert_eq!(at([0.5, 0.8, 0.0], &[colors[1], colors[0], colors[2]], 0.2), Some(red_green));
+    assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.2), Some(Color32::WHITE));
     // One channel alone above the others; nothing above the tallest.
-    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.7), Some(colors[0].gamma_multiply(0.3)));
+    assert_eq!(at([0.8, 0.5, 0.0], &colors, 0.7), Some(colors[0]));
     assert_eq!(at([0.5, 0.5, 0.5], &colors, 0.7), None);
 }
 
@@ -156,7 +156,7 @@ fn crossing_channels_keep_the_overlap_colour_under_both() {
     let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::BLUE];
     let red = vec![0.9, 0.9, 0.1, 0.1];
     let green = vec![0.1, 0.1, 0.9, 0.9];
-    let mesh = rgb_mesh(rect, &[red, green, flat(4, 0.0)], &colors, 1.0, Blend::Max);
+    let mesh = rgb_mesh(rect, &[red, green, flat(4, 0.0)], &colors, Blend::Add);
     for x in [0.1, 0.3, 0.5, 0.7, 0.9] {
         let point = pos2(rect.left() + x * rect.width(), rect.bottom() - 0.05 * rect.height());
         assert_eq!(color_at(&mesh, point), Some(Color32::from_rgb(255, 255, 0)), "x = {x}");
@@ -402,17 +402,18 @@ fn channels_with_four_inks_draw_four_fills() {
 }
 
 #[test]
-fn overlapping_inks_multiply_and_rgb_takes_the_maximum() {
+fn overlapping_inks_multiply_and_rgb_adds() {
     let colors = [Color32::from_rgb(200, 100, 0), Color32::from_rgb(100, 200, 255)];
     assert_eq!(product(&colors, 0b11), Color32::from_rgb(78, 78, 0));
     assert_eq!(product(&colors, 0b10), colors[1]);
     assert_eq!(product(&colors, 0), Color32::WHITE);
-    assert_eq!(overlap(&colors, 0b11), Color32::from_rgb(200, 200, 255));
+    assert_eq!(sum(&colors, 0b11), Color32::from_rgb(255, 255, 255));
+    assert_eq!(sum(&colors, 0), Color32::BLACK);
     let heights = vec![flat(8, 0.8), flat(8, 0.4)];
     let rect = rect();
-    let at = |blend| color_at(&rgb_mesh(rect, &heights, &colors, 1.0, blend), pos2(rect.center().x, rect.bottom() - 5.0));
+    let at = |blend| color_at(&rgb_mesh(rect, &heights, &colors, blend), pos2(rect.center().x, rect.bottom() - 5.0));
     assert_eq!(at(Blend::Multiply), Some(Color32::from_rgb(78, 78, 0)));
-    assert_eq!(at(Blend::Max), Some(Color32::from_rgb(200, 200, 255)));
+    assert_eq!(at(Blend::Add), Some(Color32::from_rgb(255, 255, 255)));
 }
 
 #[test]
@@ -552,10 +553,11 @@ fn ink_fills_are_opaque_and_overlaps_are_the_product_of_the_inks() {
     assert_eq!(at(0.1), Some(product(&colors, 0b11)), "under both inks");
     assert_eq!(at(0.6), Some(colors[0]), "under the tall ink only");
     assert_eq!(colors[0].a(), 255);
-    // The RGB look keeps its translucent fills.
+    // The RGB look is opaque too: the tall channel alone is its own colour, the overlap their saturating sum.
     let rgb = plot_shapes(rect, &HistogramData::rgb([&tall, &short, &short]), HistogramLook::Rgb, &style);
-    let red = color_at(first_mesh(&rgb), pos2(rect.center().x, rect.bottom() - 0.6 * rect.height()));
-    assert_eq!(red, Some(style.ink(ChannelColor::Red).gamma_multiply(style.fill_alpha)));
+    let rgb_at = |height: f32| color_at(first_mesh(&rgb), pos2(rect.center().x, rect.bottom() - height * rect.height()));
+    assert_eq!(rgb_at(0.6), Some(style.ink(ChannelColor::Red)));
+    assert_eq!(rgb_at(0.1), Some(sum(&[style.ink(ChannelColor::Red), style.ink(ChannelColor::Green), style.ink(ChannelColor::Blue)], 0b111)));
 }
 
 #[test]

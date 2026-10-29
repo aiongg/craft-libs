@@ -121,13 +121,33 @@ impl Curve {
         changed
     }
 
-    /// The output of every input level `0..=levels` through `points` (ascending inputs), of which
+    /// `points` and their corner flags as PhotoCraft's `contour_curve_lut` reads them: sorted by
+    /// input (stable), then each point within 1e-6 of the one kept before it dropped, so the first
+    /// of a run keeps its flag. The host's `Curve::Points` is not required to be ascending or
+    /// distinct, and a duplicated corner would otherwise split the curve into a vertical step and
+    /// give the sampler a zero-width segment.
+    ///
+    /// This is done where the curve is evaluated, not where the editor takes the host's value: the
+    /// editor edits the host's list by index (selection, drags, field edits, corner flags), so
+    /// reordering it on the way in would put every operation on the wrong point. Every drawn curve
+    /// (the plot, the pencil's starting map, the previews) goes through here, so they agree.
+    fn normalised(points: &[[f32; 2]], corners: &[bool]) -> (Vec<[f32; 2]>, Vec<bool>) {
+        let mut kept: Vec<([f32; 2], bool)> = points.iter().enumerate().map(|(i, p)| (*p, corners.get(i).copied().unwrap_or(false))).collect();
+        kept.sort_by(|a, b| a.0[0].total_cmp(&b.0[0]));
+        kept.dedup_by(|later, earlier| (later.0[0] - earlier.0[0]).abs() < 1e-6);
+        kept.into_iter().unzip()
+    }
+
+    /// The output of every input level `0..=levels` through `points` (normalised first, see
+    /// [`Curve::normalised`]), of which
     /// `corners` marks corner points (PhotoCraft's `contour_curve_lut`): the points are split at
     /// the corners into runs `[start..=corner]`, each run is `smooth` (the host's interpolation of
     /// those points alone, constant outside its end points), and each run owns the inputs from its
     /// first point on. A corner is where one run ends and the next begins, so the curve bends
     /// there and all-corner points make a polyline.
     pub(crate) fn through(points: &[[f32; 2]], corners: &[bool], smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
+        let (points, corners) = Curve::normalised(points, corners);
+        let (points, corners) = (points.as_slice(), corners.as_slice());
         if !corners.iter().any(|&corner| corner) {
             return smooth(points);
         }
@@ -595,6 +615,29 @@ mod tests {
         // All corners: a polyline.
         let polyline = Curve::through(&points, &[true; 5], smooth);
         assert!((polyline[96] - 120.0).abs() < 1e-3 && (polyline[160] - 205.0).abs() < 1e-3);
+    }
+
+    /// PhotoCraft's `contour_curve_lut` sorts the points and drops one within 1e-6 of the one
+    /// before it, keeping the first with its flag: a duplicated corner draws no vertical step.
+    #[test]
+    fn duplicated_and_unsorted_points_are_normalised_as_photocraft_does() {
+        let smooth = |p: &[[f32; 2]]| Curve::monotone(p, 255.0);
+        let clean = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [255.0, 255.0]];
+        let flags = [false, false, true, false];
+        let expected = Curve::through(&clean, &flags, smooth);
+        // The corner twice (the second a hair after the first, with another output): the first stays.
+        let doubled = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [128.0000005, 90.0], [255.0, 255.0]];
+        let drawn = Curve::through(&doubled, &[false, false, true, true, false], smooth);
+        assert_eq!(drawn, expected);
+        assert!(drawn.windows(2).all(|w| (w[1] - w[0]).abs() < 40.0), "no vertical step at the corner");
+        // The duplicate first, so its flag is the one dropped: the survivor is smooth.
+        let first_smooth = Curve::through(&doubled, &[false, false, false, true, false], smooth);
+        assert_eq!(first_smooth, Curve::through(&clean, &[false; 4], smooth));
+        // Unsorted input is the sorted curve, flags travelling with their points.
+        let shuffled = [[255.0, 255.0], [128.0, 200.0], [0.0, 0.0], [64.0, 40.0]];
+        assert_eq!(Curve::through(&shuffled, &[false, true, false, false], smooth), expected);
+        // The same rule with no corner at all.
+        assert_eq!(Curve::through(&shuffled, &[false; 4], smooth), smooth(&clean));
     }
 
     /// Toggling flips the point's flag, a point added is smooth, and a point removed takes its
