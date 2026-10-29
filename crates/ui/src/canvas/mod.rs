@@ -82,7 +82,7 @@ pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
-pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields};
+pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
 pub use turn::turn_cursor;
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
