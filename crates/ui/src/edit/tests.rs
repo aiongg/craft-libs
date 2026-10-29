@@ -687,7 +687,7 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert_eq!(pass(false, true, &|g| g.ended_by_part()), None, "the focus went, the part's run goes on");
     let interrupted = |g: &mut Gesture<i32>| {
         g.ended_by_part();
-        g.interrupted_with(5);
+        g.interrupted_as(gesture::Interrupted::Commit(Some(5)));
     };
     assert_eq!(pass(false, true, &interrupted), None);
     let _ = pass(false, false, &|_| {});
@@ -741,6 +741,152 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     assert_eq!(pass(true, &|_, _, _| {}), Some(EditEvent::set(5, Modifiers::NONE)), "a click waits two passes at most");
     assert_eq!(pass(true, &|e, _, _| e.click(6)), None);
     assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
+}
+
+/// In a pass where the composite's gesture ends, the other parts' events wait for the next pass
+/// and go onto the value the ending left: the host gets the ending, then the next edit, and a
+/// part drawn before the owner's commit doesn't lose its value to it either.
+#[test]
+fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    // Part `a` edits the first number, part `b` the second.
+    let host = std::cell::Cell::new((0, 0));
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    type Act<'a> = &'a dyn Fn(&mut parts::Edits<(i32, i32)>, &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, (i32, i32));
+    let mut pass = |act: Act| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(&state);
+            let part = |id: Id, event: Option<EditEvent<i32>>| {
+                let x = if id == a_id { 0.0 } else { 30.0 };
+                EditResponse::new(ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click()), event)
+            };
+            act(&mut edits, &part, shown);
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let a = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push(&part(a_id, event), |v| (v, shown.1));
+    };
+    let b = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push(&part(b_id, event), |v| (shown.0, v));
+    };
+    let run = GestureId::next();
+    let begun = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::begin(run)));
+        b(e, p, s, None);
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let committed = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::commit(run, 5, true, Modifiers::NONE)));
+        b(e, p, s, Some(EditEvent::set(9, Modifiers::NONE)));
+    });
+    assert_eq!(committed, commit(id, (5, 0), true));
+    assert_eq!(
+        pass(&|e, p, s| {
+            a(e, p, s, None);
+            b(e, p, s, None);
+        }),
+        Some(EditEvent::set((5, 9), Modifiers::NONE)),
+        "the step goes onto the committed value"
+    );
+
+    // Drawn before the owner's commit.
+    let run = GestureId::next();
+    let begun = pass(&|e, p, s| {
+        b(e, p, s, None);
+        a(e, p, s, Some(EditEvent::begin(run)));
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let committed = pass(&|e, p, s| {
+        b(e, p, s, Some(EditEvent::set(1, Modifiers::NONE)));
+        a(e, p, s, Some(EditEvent::commit(run, 6, true, Modifiers::NONE)));
+    });
+    assert_eq!(committed, commit(id, (6, 9), true));
+    assert_eq!(
+        pass(&|e, p, s| {
+            b(e, p, s, None);
+            a(e, p, s, None);
+        }),
+        Some(EditEvent::set((6, 1), Modifiers::NONE))
+    );
+    assert_eq!(host.get(), (6, 1));
+}
+
+/// A part that owns the composite's gesture and isn't drawn ends it as the part's own gesture
+/// ends ([`parts::Edits::feed`]): a typing run commits with its last value, also one no update
+/// carried; a drag cancels. The other parts' gestures are the composite's next ones. A composite
+/// that isn't drawn ends the same way.
+#[test]
+fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let host = std::cell::Cell::new(0);
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    // Part `a`, when drawn, with or without the focus: a control whose value is a tenth of the
+    // composite's and that reports no updates; part `b` reports the event given.
+    type Part<'a> = Option<(bool, &'a dyn Fn(&mut Gesture<i32>))>;
+    let mut pass = |a: Part, b: Option<EditEvent<i32>>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let mut edits = parts::Edits::<i32>::new(&state);
+            if let Some((focus, act)) = a {
+                let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+                match focus {
+                    true => response.request_focus(),
+                    false => response.surrender_focus(),
+                }
+                let mut gesture = Gesture::load(ui, a_id, &(host.get() / 10), EditPolicy::default().on_release_only(true));
+                act(&mut gesture);
+                edits.push(&EditResponse::new(response, gesture.finish()), |v| v * 10);
+            }
+            let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
+            edits.push(&EditResponse::new(response, b.clone()), |v| v);
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let typed = |g: &mut Gesture<i32>| {
+        g.begin();
+        g.update(4, Modifiers::NONE);
+    };
+    let begun = pass(Some((true, &typed)), None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(Some((true, &|_| {})), None), None);
+    let b = GestureId::next();
+    assert_eq!(pass(None, Some(EditEvent::begin(b))), commit(id, 40, true), "the run's value no update carried");
+    let begun = pass(None, Some(EditEvent::update(b, 7, Modifiers::NONE)));
+    let Some(EditEvent::Begin { id: next }) = begun else { panic!("{begun:?}") };
+    assert_ne!(next, id);
+    assert_eq!(pass(None, Some(EditEvent::commit(b, 7, true, Modifiers::NONE))), commit(next, 7, true));
+
+    let begun = pass(Some((false, &typed)), None);
+    let Some(EditEvent::Begin { id: drag }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(None, None), cancel(drag, CancelReason::Removed));
+    assert_eq!(host.get(), 7);
+
+    // The whole composite goes during the owner's typing run: the host ends the composite's
+    // gesture as the run would end, with the run's value, although the owner isn't one of the
+    // composite's focus owners.
+    let begun = pass(Some((true, &typed)), None);
+    let Some(EditEvent::Begin { id: run }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(Some((true, &|_| {})), None), None);
+    ctx.run_ui(RawInput::default(), |_| {}).drop_without_applying_deltas();
+    assert!(!is_live(&ctx, run));
+    assert_eq!((ending(&ctx, run), unreported::<i32>(&ctx, run)), (Ending::Commit { changed: true }, Some(40)));
 }
 
 #[test]
