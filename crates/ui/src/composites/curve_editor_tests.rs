@@ -1,7 +1,7 @@
 //! Curve editor tests: pointer and key editing through the edit lifecycle, the fields, focus,
 //! AccessKit, the direction, and the key claim.
 
-use egui::accesskit::Role;
+use egui::accesskit::{Action, ActionRequest, Role};
 use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
@@ -9,7 +9,7 @@ use egui_kittest::{Harness, Node};
 use super::*;
 use crate::behavior::KeyClaim;
 use crate::direction::{self, Direction};
-use crate::edit::{CancelReason, EditEvent, GestureHost, UndoMarks};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
@@ -19,6 +19,9 @@ struct Host {
     curve: Curve,
     before: Option<Curve>,
     events: Vec<EditEvent<Curve>>,
+    /// The pass of each event.
+    passes: Vec<u64>,
+    policy: EditPolicy,
     /// The graph's id and rect, from the last frame.
     id: Id,
     rect: Rect,
@@ -75,6 +78,8 @@ impl Host {
             curve: Curve::Points(points.to_vec()),
             before: None,
             events: Vec::new(),
+            passes: Vec::new(),
+            policy: EditPolicy::default(),
             id: Id::NULL,
             rect: Rect::NOTHING,
             pad: 0.0,
@@ -107,6 +112,7 @@ impl Host {
             .channels(&channels)
             .channel(self.channel)
             .max_points(self.max_points)
+            .policy(self.policy)
             .pencil(self.pencil);
         if self.percent {
             editor = editor.percent();
@@ -125,6 +131,9 @@ impl Host {
         self.escape_seen |= ui.input(|i| i.key_pressed(Key::Escape));
         self.id = edit.response.id;
         self.rect = edit.response.rect;
+        if edit.event.is_some() {
+            self.passes.push(ui.ctx().cumulative_pass_nr());
+        }
         if let Some(undo) = &mut self.undo {
             if let Some(event) = edit.event.clone() {
                 undo.host.handle(ui.ctx(), &mut undo.doc, event, |doc, value| {
@@ -153,6 +162,19 @@ impl Host {
             }
             self.events.push(event);
         }
+    }
+
+    /// Forgets the events so far.
+    fn clear(&mut self) {
+        self.events.clear();
+        self.passes.clear();
+    }
+
+    /// The pass of the first event of `kind` ([`kinds`](Host::kinds)) at or after event `from`.
+    fn pass_of(&self, kind: &str, from: usize) -> u64 {
+        let i = self.kinds().iter().skip(from).position(|k| *k == kind);
+        assert!(i.is_some(), "no {kind} in {:?}", self.kinds());
+        self.passes[from + i.unwrap_or_default()]
     }
 
     /// The drawn curve's outputs.
@@ -524,7 +546,7 @@ fn a_scrub_of_the_input_field_is_one_gesture_of_curves() {
     press(&mut harness, at);
     let at = harness.state().at([128.0, 128.0]);
     release(&mut harness, at);
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let start = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Input")).rect().center();
     press(&mut harness, start);
     for dx in [10.0, 20.0, 30.0] {
@@ -539,8 +561,8 @@ fn a_scrub_of_the_input_field_is_one_gesture_of_curves() {
 }
 
 /// Typing into the Input field and pressing the graph without Enter: the typed value goes out
-/// first and stays, and the graph's gesture starts from it, with a plain host and under a
-/// [`GestureHost`].
+/// first and stays, and the graph's gesture begins in the pass after the commit, from the typed
+/// value, with a plain host and under a [`GestureHost`].
 #[test]
 fn a_press_on_the_graph_during_a_typing_run_keeps_the_typed_value_and_starts_from_it() {
     for host in [Host::new(&THREE), Host::with_undo(&THREE)] {
@@ -549,11 +571,8 @@ fn a_press_on_the_graph_during_a_typing_run_keeps_the_typed_value_and_starts_fro
         let point = harness.state().at([128.0, 128.0]);
         press(&mut harness, point);
         release(&mut harness, point);
-        harness.state_mut().events.clear();
-        let input = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Input")).rect().center();
-        click_with(&mut harness, input, PointerButton::Primary, Modifiers::NONE);
-        harness.event(Event::Text("100".into()));
-        harness.run();
+        harness.state_mut().clear();
+        type_into_input(&mut harness, "100");
 
         let at = harness.state().at([200.0, 60.0]);
         press(&mut harness, at);
@@ -564,27 +583,109 @@ fn a_press_on_the_graph_during_a_typing_run_keeps_the_typed_value_and_starts_fro
         assert_eq!(kinds[..4], ["Begin", "Update", "Commit", "Begin"], "undo {undo}: {kinds:?}");
         assert_eq!(kinds.last(), Some(&"Commit"), "undo {undo}: {kinds:?}");
         assert!(kinds[4..kinds.len() - 1].iter().all(|k| *k == "Update"), "undo {undo}: {kinds:?}");
+        assert_eq!(
+            harness.state().pass_of("Begin", 3),
+            harness.state().pass_of("Commit", 0) + 1,
+            "undo {undo}: the press runs the pass after the commit"
+        );
         assert_eq!(harness.state().points(), vec![[0.0, 0.0], [100.0, 128.0], [200.0, 80.0], [255.0, 255.0]], "undo {undo}");
         if let Some(u) = &harness.state().undo {
             assert_eq!(u.doc.undo.len(), 2, "the typing run and the drag, one step each");
             assert_eq!(u.doc.undo[1].points(), Some(&[[0.0, 0.0], [100.0, 128.0], [255.0, 255.0]][..]));
         }
     }
+}
 
-    // A right-click delete waits for the run's commit too.
-    let mut harness = rig(&[[0.0, 0.0], [64.0, 80.0], [128.0, 128.0], [255.0, 255.0]]);
-    let point = harness.state().at([64.0, 80.0]);
-    press(&mut harness, point);
-    release(&mut harness, point);
-    harness.state_mut().events.clear();
-    let input = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Input")).rect().center();
-    click_with(&mut harness, input, PointerButton::Primary, Modifiers::NONE);
-    harness.event(Event::Text("70".into()));
-    harness.run();
+/// A right-click and a Cmd/Ctrl-click on a point during the Input field's typing run each wait
+/// for the run's commit and then delete the point as their own Set: the held press keeps its
+/// button and Cmd/Ctrl.
+#[test]
+fn a_delete_click_on_the_graph_during_a_typing_run_waits_for_its_commit() {
+    for (button, modifiers) in [(PointerButton::Secondary, Modifiers::NONE), (PointerButton::Primary, CMD)] {
+        let mut harness = rig(&[[0.0, 0.0], [64.0, 80.0], [128.0, 128.0], [255.0, 255.0]]);
+        let point = harness.state().at([64.0, 80.0]);
+        press(&mut harness, point);
+        release(&mut harness, point);
+        harness.state_mut().clear();
+        type_into_input(&mut harness, "70");
+        let at = harness.state().at([128.0, 128.0]);
+        click_with(&mut harness, at, button, modifiers);
+        assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"], "{button:?}");
+        assert_eq!(harness.state().pass_of("Set", 0), harness.state().pass_of("Commit", 0) + 1, "{button:?}");
+        assert_eq!(harness.state().points(), vec![[0.0, 0.0], [70.0, 80.0], [255.0, 255.0]], "{button:?}");
+    }
+}
+
+/// Under an on-release policy the host's curve stays during a scrub of the Input field, and the
+/// graph's point follows the scrub all the same: the graph draws the editor's shown curve.
+#[test]
+fn a_field_scrub_moves_the_point_under_an_on_release_policy() {
+    let mut harness = harness(Host { policy: EditPolicy::default().on_release_only(true), ..Host::new(&THREE) }, Direction::Ltr);
     let at = harness.state().at([128.0, 128.0]);
-    click_with(&mut harness, at, PointerButton::Secondary, Modifiers::NONE);
-    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"]);
-    assert_eq!(harness.state().points(), vec![[0.0, 0.0], [70.0, 80.0], [255.0, 255.0]]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    harness.state_mut().clear();
+    let start = input_field(&harness);
+    press(&mut harness, start);
+    for dx in [10.0, 20.0, 30.0] {
+        move_to(&mut harness, start + vec2(dx, 0.0));
+    }
+    harness.step();
+    assert_eq!(harness.state().points(), THREE.to_vec(), "no updates reach the host");
+    let value = point_value(&harness, "Point 2 of 3");
+    assert_ne!(value, "Input 128, Output 128", "the point follows the scrub");
+    release(&mut harness, start + vec2(30.0, 0.0));
+    let points = harness.state().points();
+    assert!(points[1][0] > 128.0, "{points:?}");
+    assert_eq!(value, format!("Input {}, Output 128", points[1][0]), "the point showed the value the host got");
+}
+
+/// A screen reader's step on the Input field while a point is dragged doesn't join the drag: it
+/// waits for the release and goes out as its own Set in the next pass, mapped onto the curve the
+/// drag left.
+#[test]
+fn a_screen_readers_step_on_a_field_during_a_graph_drag_is_its_own_set_after_the_release() {
+    let mut harness = harness(Host::with_undo(&THREE), Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    for y in [110.0, 100.0] {
+        let to = harness.state().at([128.0, y]);
+        move_to(&mut harness, to);
+    }
+    let (target_node, target_tree) =
+        harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Input")).accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(ActionRequest { action: Action::Increment, target_tree, target_node, data: None }));
+    let to = harness.state().at([128.0, 90.0]);
+    move_to(&mut harness, to);
+    assert_eq!(harness.state().points()[1], [128.0, 90.0], "the step waits");
+    let to = harness.state().at([128.0, 90.0]);
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds.first(), Some(&"Begin"), "{kinds:?}");
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    assert!(kinds[1..kinds.len() - 2].iter().all(|k| *k == "Update"), "{kinds:?}");
+    assert_eq!(harness.state().pass_of("Set", 0), harness.state().pass_of("Commit", 0) + 1);
+    assert_eq!(harness.state().points(), vec![[0.0, 0.0], [129.0, 90.0], [255.0, 255.0]]);
+    let undo = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(undo, Some(2), "the drag and the step, one step each");
+}
+
+/// The Input field's centre.
+fn input_field(harness: &Harness<'_, Host>) -> Pos2 {
+    harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Input")).rect().center()
+}
+
+/// Clicks into the Input field and types `text`, without Enter.
+fn type_into_input(harness: &mut Harness<'_, Host>, text: &str) {
+    let input = input_field(harness);
+    click_with(harness, input, PointerButton::Primary, Modifiers::NONE);
+    harness.event(Event::Text(text.into()));
+    harness.run();
+}
+
+/// The AccessKit value of the point named `name`.
+fn point_value(harness: &Harness<'_, Host>, name: &str) -> String {
+    harness.get_by(|n| n.role() == Role::GraphicsObject && n.label().as_deref() == Some(name)).value().unwrap_or_default()
 }
 
 #[test]
@@ -738,7 +839,7 @@ fn percent_fields_show_whole_percents_and_take_them() {
     assert_eq!((value, min, max), (Some(50.0), Some(0.0), Some(100.0)));
     let (value, ..) = field(&harness, "Input");
     assert_eq!(value, Some(50.0));
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let input = field(&harness, "Input").3;
     click_with(&mut harness, input, PointerButton::Primary, Modifiers::NONE);
     harness.event(Event::Text("25".into()));
@@ -780,7 +881,7 @@ fn shift_press_continues_in_a_straight_line_from_the_previous_stroke() {
     let start = harness.state().at([20.0, 200.0]);
     press(&mut harness, start);
     release(&mut harness, start);
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let to = harness.state().at([120.0, 100.0]);
     move_to(&mut harness, to);
     pointer(&mut harness, to, PointerButton::Primary, true, Modifiers::SHIFT);
@@ -814,7 +915,7 @@ fn pencil_mode_hides_the_points_ignores_keys_and_reads_as_drawn() {
     let mut harness = pencil_rig();
     let at = harness.state().at([100.0, 100.0]);
     click_with(&mut harness, at, PointerButton::Primary, Modifiers::NONE);
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     for k in [Key::ArrowUp, Key::Insert, Key::Delete, Key::Plus] {
         key(&mut harness, Modifiers::NONE, k);
     }
@@ -850,7 +951,7 @@ fn shift_press_starts_afresh_once_the_previous_stroke_s_curve_is_gone() {
         press(&mut harness, start);
         release(&mut harness, start);
         change(&mut harness);
-        harness.state_mut().events.clear();
+        harness.state_mut().clear();
         let to = harness.state().at([120.0, 100.0]);
         move_to(&mut harness, to);
         pointer(&mut harness, to, PointerButton::Primary, true, Modifiers::SHIFT);
