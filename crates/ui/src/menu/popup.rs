@@ -12,6 +12,7 @@ use super::item::{MenuEntry, MenuItem, at_path};
 use super::mnemonic;
 use super::nav::{MenuStep, Nav, Row, Strips};
 use super::row::{self, Columns, MenuStyle, RowContent, RowPainter, RowState};
+use crate::controls::TooltipExt as _;
 use crate::popup_list;
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
@@ -467,6 +468,10 @@ impl Draw<'_> {
             };
             self.painter.paint(ui, r.rect, &content, cols, RowState { enabled, active: lit || open });
             row::access(&r, &RowContent { mnemonic, ..content }, open);
+            let r = match it.tooltip_of() {
+                Some(text) => r.tooltip(text),
+                None => r,
+            };
             (r, ())
         });
     }
@@ -480,6 +485,7 @@ fn row_content<'r, T>(it: &'r MenuItem<T>, label: &'r str, mnemonic: Option<char
         kind: it.item_kind(),
         shortcut: it.shortcut_of().filter(|_| it.children().is_none()),
         submenu: it.children().is_some(),
+        tint: it.tint_of(),
     }
 }
 

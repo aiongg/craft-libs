@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{ControlSize, TypeRole};
+use craft_theme::{ControlSize, Srgba, TypeRole};
 use egui::accesskit::{HasPopup, Role, Toggled};
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
@@ -43,6 +43,8 @@ pub struct MenuStyle {
     pub shortcut: Color32,
     /// `kbd.label`: a shortcut's type role.
     pub shortcut_label: TypeRole,
+    /// `menu.tint_alpha`: the alpha of a user label colour behind a row.
+    pub tint_alpha: f32,
 }
 
 impl MenuStyle {
@@ -57,6 +59,7 @@ impl MenuStyle {
             active_text: m.active_text.to_egui(),
             shortcut: m.shortcut.to_egui(),
             shortcut_label: tokens.component.kbd.label,
+            tint_alpha: m.tint_alpha,
         }
     }
 }
@@ -81,6 +84,8 @@ pub(crate) struct RowContent<'r> {
     pub kind: ItemKind,
     pub shortcut: Option<&'r Kbd>,
     pub submenu: bool,
+    /// A user label colour behind the row.
+    pub tint: Option<Srgba>,
 }
 
 /// How a row is drawn this pass.
@@ -99,6 +104,11 @@ pub(crate) struct RowPainter<'s> {
 }
 
 impl RowPainter<'_> {
+    /// The colour a row's `tint` is drawn with: the tint at `menu.tint_alpha` of its own alpha.
+    pub fn tint_fill(&self, tint: Srgba) -> Color32 {
+        Color32::from(Srgba { a: tint.a * self.style.tint_alpha, ..tint })
+    }
+
     fn label_galley(&self, ui: &Ui, row: &RowContent<'_>, color: Color32) -> Arc<Galley> {
         let format = role_format(self.tokens, self.style.rows.label, color);
         let mut job = LayoutJob::default();
@@ -141,6 +151,9 @@ impl RowPainter<'_> {
         let active = state.active && state.enabled;
         if active {
             ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, m.active_fill);
+        }
+        if let (Some(tint), true, false) = (row.tint, state.enabled, active) {
+            ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, self.tint_fill(tint));
         }
         let (text, mark, shortcut) = match () {
             () if !state.enabled => (s.text_disabled, s.text_disabled, s.text_disabled),

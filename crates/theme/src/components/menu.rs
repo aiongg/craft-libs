@@ -30,6 +30,8 @@ pub struct MenuTokens {
     pub active_text: Rgba,
     /// A row's shortcut: `text.muted`.
     pub shortcut: Rgba,
+    /// Alpha of a user label colour behind a row's text; not overridable: `menu.tint_alpha`.
+    pub tint_alpha: f32,
 }
 
 /// An overridable menu field. Paths: `active.fill`, `active.text`, `shortcut`, e.g.
@@ -61,6 +63,7 @@ impl Family for MenuTokens {
             active_fill: c.accent.strong,
             active_text: c.text.on_strong,
             shortcut: c.text.muted,
+            tint_alpha: values::MENU_TINT_ALPHA,
         }
     }
 

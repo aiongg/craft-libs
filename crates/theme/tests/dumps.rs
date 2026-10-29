@@ -1105,13 +1105,14 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
 }
 
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, .. } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tint_alpha, .. } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
     out.line("menu.active.fill", hex(*active_fill));
     out.line("menu.active.text", hex(*active_text));
     out.line("menu.shortcut", hex(*shortcut));
+    out.line("menu.tint_alpha", decimals(*tint_alpha, 2));
 }
 
 fn kbd_lines(out: &mut Lines, k: &KbdTokens) {

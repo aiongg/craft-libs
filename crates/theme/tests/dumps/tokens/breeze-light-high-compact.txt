@@ -551,6 +551,7 @@ menu.scroll_strip = 16
 menu.active.fill = #005f89ff
 menu.active.text = #ffffffff
 menu.shortcut = #363f48ff
+menu.tint_alpha = 0.15
 notice.icon_gap = 4
 notice.neutral.fg = #363f48ff
 notice.info.fg = #00557aff

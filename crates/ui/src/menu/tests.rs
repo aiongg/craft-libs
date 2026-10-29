@@ -6,9 +6,13 @@ use craft_theme::ControlSize;
 use egui::accesskit::{self, HasPopup, NodeId, Role, Toggled};
 use egui::{Event, Id, Key, Modifiers, Popup, Pos2, Rect, pos2, vec2};
 
+use craft_theme::Srgba;
+
 use super::nav::{Nav, heading};
+use super::row::RowPainter;
 use super::*;
 use crate::theme::{Base, TokensOf as _, install};
+use crate::theme::{ToEgui as _, Tokens};
 
 fn item(label: &str, command: &'static str) -> MenuEntry<&'static str> {
     MenuItem::new(label, command).into()
@@ -29,6 +33,8 @@ struct Driver {
     open: bool,
     /// Passed to [`Menu::opened_by_keyboard`].
     keyboard: bool,
+    /// What the last frame painted.
+    shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 impl Driver {
@@ -51,6 +57,7 @@ impl Driver {
             popup: Id::NULL,
             open: false,
             keyboard: false,
+            shapes: Vec::new(),
         };
         d.run(3);
         d
@@ -81,6 +88,7 @@ impl Driver {
             self.tree = update.nodes;
         }
         self.popup = popup;
+        self.shapes = std::mem::take(&mut full.shapes);
         if let Some(shown) = shown {
             self.chosen.extend(shown.chosen);
             self.steps.extend(shown.step);
@@ -1014,4 +1022,90 @@ fn any_open_is_true_while_a_press_or_context_menu_is_open() {
     assert!(o.open[2] && o.open_before, "context menu");
     o.key(Key::Escape, Modifiers::NONE);
     assert!(!o.open_before, "closed");
+}
+
+/// The fills of the rectangles the last frame painted.
+fn fills(d: &Driver) -> Vec<egui::Color32> {
+    fn collect(shape: &egui::Shape, out: &mut Vec<egui::Color32>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
+            egui::Shape::Rect(r) => out.push(r.fill),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    d.shapes.iter().for_each(|c| collect(&c.shape, &mut out));
+    out
+}
+
+fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode) -> crate::theme::UiTokens {
+    use craft_theme::{Appearance, Contrast, Size, TextSize};
+    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    crate::theme::UiTokens::new(craft_theme::resolve(theme, appearance, None).tokens, appearance, mode, crate::theme::FontFamilies::default())
+}
+
+#[test]
+fn a_tinted_row_keeps_text_contrast_in_every_builtin_theme() {
+    // The seven label hues PhotoCraft offers.
+    let hues = [
+        Srgba::rgb(0.86, 0.24, 0.24),
+        Srgba::rgb(0.95, 0.55, 0.15),
+        Srgba::rgb(0.95, 0.80, 0.20),
+        Srgba::rgb(0.30, 0.70, 0.30),
+        Srgba::rgb(0.25, 0.45, 0.90),
+        Srgba::rgb(0.60, 0.35, 0.80),
+        Srgba::rgb(0.50, 0.50, 0.50),
+    ];
+    for theme in craft_theme::builtins() {
+        for mode in [craft_theme::Mode::Light, craft_theme::Mode::Dark] {
+            let tokens = tokens_in(theme, mode);
+            let style = Menu::style(&tokens, ControlSize::Md);
+            let (raised, text) = (tokens.color.surface.raised, tokens.color.text.normal);
+            assert_eq!(style.rows.text.to_array(), text.to_egui().to_array(), "rows use text.normal");
+            for hue in hues {
+                let fill = RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md }.tint_fill(hue);
+                let under = raised.to_egui().blend(fill).to_array();
+                let ratio = craft_theme::contrast_ratio(text, craft_theme::Rgba([under[0], under[1], under[2], 255]));
+                assert!(ratio >= 4.5, "{} {mode:?}: text on tint {hue:?} is {ratio:.2}:1", theme.id.as_str());
+            }
+        }
+    }
+}
+
+#[test]
+fn the_active_row_ignores_the_tint() {
+    let tint = Srgba::rgb(0.86, 0.24, 0.24);
+    let entries =
+        vec![MenuItem::new("Red", "red").tint(tint).into(), MenuItem::new("Off", "off").tint(tint).enabled(false).into(), item("Plain", "plain")];
+    let mut d = Driver::new(entries);
+    d.click("Open");
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut style = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| style = Some(Menu::style(&Tokens::of(ui), ControlSize::Md))).drop_without_applying_deltas();
+    let style = style.unwrap_or_else(|| panic!("no style"));
+    let tinted = egui::Color32::from(Srgba { a: tint.a * style.tint_alpha, ..tint });
+    let count = |d: &Driver, c| fills(d).iter().filter(|&&f| f == c).count();
+    d.move_to(pos2(-10.0, -10.0));
+    d.run(2);
+    assert_eq!(count(&d, tinted), 1, "the enabled tinted row is tinted; the disabled one is not");
+    d.move_to(d.rect("Red").center());
+    d.run(2);
+    assert_eq!(count(&d, tinted), 0, "the active row draws no tint");
+    assert_eq!(count(&d, style.active_fill), 1, "it draws the active fill");
+}
+
+#[test]
+fn a_row_tooltip_shows_after_the_delay() {
+    let mut d = Driver::new(vec![MenuItem::new("Save", "save").tooltip("Writes the file").into(), item("Quit", "quit")]);
+    d.click("Open");
+    let tip = |d: &Driver| d.tree.iter().filter(|(_, n)| n.role() == Role::Label && n.value() == Some("Writes the file")).count();
+    assert_eq!(tip(&d), 0);
+    d.move_to(d.rect("Save").center());
+    d.run(5);
+    assert_eq!(tip(&d), 0, "not before the delay");
+    d.run(40);
+    assert_eq!(tip(&d), 1, "the tooltip shows");
+    assert_eq!(d.get("Save").description(), Some("Writes the file"));
+    assert_eq!(d.get("Quit").description(), None);
 }

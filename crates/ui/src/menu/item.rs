@@ -1,5 +1,7 @@
 //! A menu's data: its entries ([`MenuEntry`]), each a row ([`MenuItem`]) or a separator.
 
+use craft_theme::Srgba;
+
 use crate::controls::Kbd;
 use crate::icons::Icon;
 
@@ -85,6 +87,8 @@ pub struct MenuItem<T> {
     mnemonic: Option<char>,
     /// Takes part in its level's mnemonics.
     keyed: bool,
+    tint: Option<Srgba>,
+    tooltip: Option<String>,
     action: Action<T>,
 }
 
@@ -101,7 +105,19 @@ impl<T> MenuItem<T> {
     }
 
     fn with_action(label: String, action: Action<T>) -> Self {
-        Self { label, english: None, icon: None, shortcut: None, kind: ItemKind::Plain, enabled: true, mnemonic: None, keyed: true, action }
+        Self {
+            label,
+            english: None,
+            icon: None,
+            shortcut: None,
+            kind: ItemKind::Plain,
+            enabled: true,
+            mnemonic: None,
+            keyed: true,
+            tint: None,
+            tooltip: None,
+            action,
+        }
     }
 
     /// An icon before the label. Every row of a menu that has an icon keeps room for one.
@@ -159,6 +175,21 @@ impl<T> MenuItem<T> {
         self
     }
 
+    /// A user label colour: the row's background at `menu.tint_alpha` of the colour's alpha, over
+    /// the menu surface. The active and disabled looks win over it.
+    /// The colour is document data, so the row keeps its text: colour is never the only cue.
+    pub fn tint(mut self, color: impl Into<Srgba>) -> Self {
+        self.tint = Some(color.into());
+        self
+    }
+
+    /// A hover tooltip on the row, shown after [`Tooltip::DELAY`](crate::controls::Tooltip::DELAY)
+    /// and reported to AccessKit as the row's description.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     pub fn label(&self) -> &str {
         &self.label
     }
@@ -185,6 +216,14 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn icon_of(&self) -> Option<Icon> {
         self.icon
+    }
+
+    pub(crate) fn tint_of(&self) -> Option<Srgba> {
+        self.tint
+    }
+
+    pub(crate) fn tooltip_of(&self) -> Option<&str> {
+        self.tooltip.as_deref()
     }
 
     pub(crate) fn shortcut_of(&self) -> Option<&Kbd> {
