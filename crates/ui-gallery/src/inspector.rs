@@ -4,6 +4,12 @@
 //! It reads [`craft_ui::inspect`]: the primitives' records and the AccessKit tree of the
 //! previous pass. Its colours are the gallery's own tokens, taken before the story's scope.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
+)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -106,7 +112,7 @@ impl Inspector {
                 for part in band_parts(record.outer, record.content) {
                     painter.rect_filled(part, CornerRadius::ZERO, band);
                 }
-                painter.rect_stroke(record.content, CornerRadius::ZERO, Stroke::new(1.0, guide), StrokeKind::Inside);
+                painter.rect_stroke(record.content, CornerRadius::ZERO, Stroke::new(1.0, guide), StrokeKind::Inside); // design: allow(no stroke-width token; overlay outline of a measured box)
             }
         }
 
@@ -126,7 +132,7 @@ impl Inspector {
             if let Some(bounds) = self.hovered.filter(|id| tree.walk(node).iter().any(|(n, _)| n == id)).and_then(|id| tree.bounds(id)) {
                 let marquee = c.overlay.marquee.to_egui();
                 painter.rect_filled(bounds, CornerRadius::ZERO, marquee.gamma_multiply(0.2));
-                painter.rect_stroke(bounds, CornerRadius::ZERO, Stroke::new(2.0, marquee), StrokeKind::Outside);
+                painter.rect_stroke(bounds, CornerRadius::ZERO, Stroke::new(2.0, marquee), StrokeKind::Outside); // design: allow(no stroke-width token; overlay marquee of the hovered node)
             }
             let order = tree.focus_order(node);
             badges = order.iter().map(|id| label_of(&tree, *id)).collect();
@@ -137,7 +143,7 @@ impl Inspector {
                     let centre = if rtl { bounds.right_top() } else { bounds.left_top() };
                     let galley = painter.layout_no_wrap((i + 1).to_string(), font.clone(), text);
                     let radius = (galley.size().max_elem() / 2.0 + 2.0).max(7.0);
-                    painter.circle(centre, radius, fill, Stroke::new(1.0, halo));
+                    painter.circle(centre, radius, fill, Stroke::new(1.0, halo)); // design: allow(no stroke-width token; overlay halo of a focus-order badge)
                     painter.galley(centre - galley.size() / 2.0, galley, text);
                 }
             }
@@ -160,6 +166,7 @@ impl Inspector {
             ui.label("Waiting for the AccessKit tree.");
             return;
         };
+        // design: allow(fallback before the first frame captures tokens; the inspector panel is debug chrome)
         let warn = self.tokens.as_ref().map_or(Color32::RED, |t| t.color.status.warn.fg.to_egui());
         let cells = self.shown.clone();
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
