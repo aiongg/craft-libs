@@ -46,6 +46,7 @@ mod segmented;
 mod slider;
 mod slider_row;
 mod spinner;
+mod status_bar;
 mod swatch;
 mod tab;
 mod title_bar;
@@ -103,6 +104,7 @@ pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
+pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use tab::{TabField, TabTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
@@ -680,6 +682,8 @@ families! {
     slider_row: SliderRowTokens => SliderRow(SliderRowField);
     /// Spinners: the ring of an indeterminate wait.
     spinner: SpinnerTokens => Spinner(SpinnerField);
+    /// Status bars: the bar at the bottom of the window.
+    status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
     swatch: SwatchTokens => Swatch(SwatchField);
     /// Tabs: one tab of a document or panel strip.

@@ -611,6 +611,18 @@ fn options_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
 }
 
 #[test]
+fn status_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
+    let def = grey_blue();
+    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.status_bar;
+    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
+    assert_eq!(
+        (compact.height, compact.pad, compact.gap, compact.group_gap, compact.divider, compact.field_width),
+        (24.0, 10.0, 8.0, 12.0, 16.0, 64.0)
+    );
+    assert_eq!((comfy.height, comfy.pad, comfy.gap, comfy.group_gap, comfy.divider, comfy.field_width), (30.0, 10.0, 10.0, 15.0, 20.0, 78.0));
+}
+
+#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;

@@ -1137,6 +1137,22 @@ pub const OPTIONS_BAR_FIELD_LG: f32 = 76.0;
 /// Width of the options bar's floating scroll bar (`panels/options_bar.rs:49`), the same at every Size.
 pub const OPTIONS_BAR_SCROLL_BAR: f32 = 4.0;
 
+/// Space at the ends of the status bar (`panels/status_bar.rs:19`), the same at every Size.
+pub const STATUS_BAR_PAD: f32 = 10.0;
+/// Between the items of the status bar (`theme.rs:1073`), Compact.
+pub const STATUS_BAR_GAP: f32 = 8.0;
+/// Added after the zoom field (`panels/chrome_ui.rs`, `status_bar_pro`: `ui.add_space(12.0)`), Compact.
+pub const STATUS_BAR_GROUP_GAP: f32 = 12.0;
+/// Length of a divider in the status bar (`widgets::vline(ui, 16.0)`), Compact.
+pub const STATUS_BAR_DIVIDER: f32 = 16.0;
+/// Width of the zoom field cell: PhotoCraft's Pro 64 at Compact (`chrome_ui.rs`, `status_bar_pro`), its 78 at Comfortable.
+pub const fn status_bar_field_width(size: Size) -> f32 {
+    match size {
+        Size::Compact => 64.0,
+        Size::Comfortable => 78.0,
+    }
+}
+
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
 /// Compact distance from the pointer to a readout's corner, across and down (PhotoCraft's).

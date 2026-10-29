@@ -16,7 +16,7 @@ use craft_ui::controls::{
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
-use craft_ui::patterns::OptionsBar;
+use craft_ui::patterns::{OptionsBar, StatusBar};
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
 use craft_ui::testing::dump::Dump;
@@ -488,6 +488,17 @@ fn options_bar() {
         d.line("divider", s.divider).line("divider_box", s.divider_box).line("button", s.button).line("scroll_bar", s.scroll_bar);
         d.line("field_sm", s.fields[0]).line("field_md", s.fields[1]).line("field_lg", s.fields[2]);
         d.line("fill", s.fill).line("chevron", s.chevron);
+    });
+}
+
+/// Status bars: the height, ends, gaps, divider, zoom field width and colours.
+#[test]
+fn status_bar() {
+    check("status_bar.txt", |d, t| {
+        let s = StatusBar::style(t);
+        d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("group_gap", s.group_gap);
+        d.line("divider", s.divider).line("divider_box", s.divider_box).line("field_width", s.field_width);
+        d.line("fill", s.fill).line("text", s.text).line("message", s.message).line("warning", s.warning);
     });
 }
 

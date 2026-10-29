@@ -13,8 +13,8 @@ use crate::{
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens,
     Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens,
     Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
-    Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -255,6 +255,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         slider,
         slider_row,
         spinner,
+        status_bar,
         swatch,
         tab,
         title_bar,
@@ -303,6 +304,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     slider_lines(out, slider);
     slider_row_lines(out, slider_row);
     spinner_lines(out, spinner);
+    status_bar_lines(out, status_bar);
     swatch_lines(out, swatch);
     tab_lines(out, tab);
     title_bar_lines(out, title_bar);
@@ -1331,6 +1333,16 @@ fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
     out.line("tooltip.fill", hex(*fill));
     out.line("tooltip.text", hex(*text));
     out.line("tooltip.border", hex(*border));
+}
+
+fn status_bar_lines(out: &mut Lines, t: &StatusBarTokens) {
+    let StatusBarTokens { height, pad, gap, group_gap, divider, field_width } = t;
+    out.line("status_bar.height", len(*height));
+    out.line("status_bar.pad", len(*pad));
+    out.line("status_bar.gap", len(*gap));
+    out.line("status_bar.group_gap", len(*group_gap));
+    out.line("status_bar.divider", len(*divider));
+    out.line("status_bar.field_width", len(*field_width));
 }
 
 fn spinner_lines(out: &mut Lines, t: &SpinnerTokens) {
