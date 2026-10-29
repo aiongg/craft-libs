@@ -31,6 +31,9 @@
     "surface.background": "#00252f",
     "surface.canvas": "#002b36",
     "surface.panel": "#073642",
-    "surface.sunken": "#00252f"
+    "surface.sunken": "#00252f",
+    "text.faint": "#586e75",
+    "text.muted": "#657b83",
+    "text.normal": "#839496"
   }
 }

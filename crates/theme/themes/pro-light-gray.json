@@ -19,6 +19,7 @@
   "shape": null,
   "light": {
     "accent.soft": "#d0d0d0",
+    "accent.solid": "#378ef0",
     "accent.text": "#004296",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
@@ -33,6 +34,7 @@
     "surface.panel": "#b8b8b8",
     "surface.sunken": "#d6d6d6",
     "tab.strip": "#aaaaaa",
+    "text.faint": "#606060",
     "text.muted": "#343434",
     "text.normal": "#141414"
   }

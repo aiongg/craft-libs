@@ -34,6 +34,7 @@
     "surface.canvas": "#e2e2e6",
     "surface.panel": "#fcfcfd",
     "surface.sunken": "#f2f2f5",
+    "text.faint": "#9696a0",
     "text.muted": "#60606a",
     "text.normal": "#18181c"
   },
@@ -55,6 +56,8 @@
     "surface.canvas": "#0e0e0f",
     "surface.panel": "#1a1a1c",
     "surface.sunken": "#232326",
+    "text.faint": "#606068",
+    "text.muted": "#96969e",
     "text.normal": "#ececf0"
   }
 }

@@ -28,6 +28,7 @@
   },
   "light": {
     "accent.soft": "#3aace830",
+    "accent.solid": "#3aace8",
     "accent.text": "#1e5e88",
     "button.primary.fill.rest": "#237ab4",
     "button.primary.text.rest": "#ffffff",

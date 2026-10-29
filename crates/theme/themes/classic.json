@@ -86,6 +86,7 @@
     "surface.raised": "{surface.background}",
     "surface.sunken": "#ffffff",
     "text.disabled": "#808080",
+    "text.faint": "#808080",
     "text.muted": "#404040",
     "text.normal": "#000000",
     "text.on_selected": "{text.on_accent}",
