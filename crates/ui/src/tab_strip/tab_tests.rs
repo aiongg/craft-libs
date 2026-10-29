@@ -218,6 +218,43 @@ fn the_active_tab_takes_the_active_fill_and_the_text_colour() {
     assert_eq!(label_colour(&off, "Photo"), Some(s.inactive_text));
 }
 
+/// High contrast draws `tab.indicator` as a bar along the top of the selected tab and of no other;
+/// Standard contrast draws none.
+#[test]
+fn the_indicator_is_painted_on_the_selected_tab_only() {
+    use crate::theme::scope;
+    use craft_theme::Contrast;
+    let tab = Tab::new(1u8, "Photo");
+    let paint = |active, contrast| {
+        let mut bar = None;
+        let drawn = shapes(|ui| {
+            scope(
+                ui,
+                |o| o.contrast = Some(contrast),
+                |ui| {
+                    bar = Some(Tab::<u8>::style(&Tokens::of(ui)));
+                    let mut clicks = Clicks { tab: 0, close: 0 };
+                    one_tab(ui, &mut clicks, &tab, active);
+                },
+            );
+        });
+        (bar.expect("style"), drawn)
+    };
+    let (high, on) = paint(true, Contrast::High);
+    let (_, off) = paint(false, Contrast::High);
+    let (standard, standard_on) = paint(true, Contrast::Standard);
+    assert!(high.indicator.a() > 0 && standard.indicator.a() == 0);
+    assert!(fills(&on).contains(&high.indicator));
+    assert!(!fills(&off).contains(&high.indicator));
+    assert_eq!(fills(&standard_on), [standard.active]);
+    let bar = on.iter().find_map(|s| match s {
+        Shape::Rect(r) if r.fill == high.indicator => Some(r.rect),
+        _ => None,
+    });
+    let bar = bar.expect("bar");
+    assert_eq!((bar.height(), bar.top()), (high.indicator_width, 0.0));
+}
+
 /// A tab under the pointer takes the active tab's fill, and its label stays the inactive colour
 /// (PhotoCraft's tabs do not light up).
 #[test]

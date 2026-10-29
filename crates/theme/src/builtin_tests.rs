@@ -389,7 +389,7 @@ fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
-            assert_eq!(pairs.len(), 8, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 10, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -847,6 +847,11 @@ fn high_contrast_control_edges_reach_three_to_one() {
                 let r = ratio(row, c.popup.fill);
                 assert!(r >= min, "{who}: {name} is {r:.2}:1 on popup.fill");
             }
+            // The selected tab shows by its fill or by the indicator on the strip, and the
+            // indicator reads on the tab it marks.
+            let (strip, active, indicator) = (over(c.tab.strip, panel), over(c.tab.active, panel), over(c.tab.indicator, panel));
+            assert!(ratio(active, strip).max(ratio(indicator, strip)) >= min, "{who}: the selected tab is not set off from the strip");
+            assert!(ratio(indicator, active) >= min, "{who}: tab.indicator on tab.active is {:.2}:1", ratio(indicator, active));
             for fill in [c.slider.fill.rest, c.slider.fill.hover, c.slider.fill.pressed] {
                 assert!(ratio(fill, c.slider.track) >= min, "{who}: slider.fill on slider.track");
             }

@@ -676,8 +676,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Levels: thumb edge, disabled edge and a ring per state.
             + (2 + 4)
-            // Tab: the radius and eleven colours.
-            + 12
+            // Tab: the radius and twelve colours.
+            + 13
             // Dock: five colours, the current icon's text and two radii; float: radius, shadow and eight colours.
             + 8
             + 10
@@ -1198,6 +1198,8 @@ fn tab_pairs() -> Vec<(TabField, TabField, (f64, f64))> {
         (TabField::Close, TabField::Strip, mark),
         (TabField::Close, TabField::Active, mark),
         (TabField::Drop, TabField::DropHalo, mark),
+        // The indicator on the selected tab; its pair on the strip may be met by the tab's fill.
+        (TabField::Indicator, TabField::Active, (0.0, 3.0)),
     ]
 }
 
@@ -1228,6 +1230,7 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 28.0, 34.0, 12.0, 4.0, 40.0));
     assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 10.0, 20.0, 0.0, true));
     assert_eq!((t.drop_width, t.drop_halo_width, t.progress_height, t.tear_off), (2.0, 1.0, 2.0, 24.0));
+    assert_eq!((t.indicator_width, t.indicator), (2.0, Rgba::TRANSPARENT));
     assert_eq!((t.strip_height(false), t.strip_height(true)), (26.0, 34.0));
     assert_eq!((t.label_role(false), t.label_role(true), t.detail_role), (TypeRole::Label, TypeRole::Body, TypeRole::Caption));
 

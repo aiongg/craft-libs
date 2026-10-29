@@ -48,6 +48,8 @@ pub struct TabTokens {
     pub drop_halo_width: f32,
     /// Height of the progress bar.
     pub progress_height: f32,
+    /// Thickness of the selected tab's indicator.
+    pub indicator_width: f32,
     /// How far outside the strip a tab drag still resolves targets.
     pub tear_off: f32,
     /// Type role of the label.
@@ -79,6 +81,10 @@ pub struct TabTokens {
     pub drop: Rgba,
     /// The outline under the drop marker: `surface.panel`.
     pub drop_halo: Rgba,
+    /// A bar along the top edge of the selected tab: transparent, so the selected tab shows by
+    /// its fill and label as in PhotoCraft; high contrast sets it to a colour that reaches the
+    /// control edge minimum on the strip and on the selected tab.
+    pub indicator: Rgba,
 }
 
 impl TabTokens {
@@ -106,6 +112,7 @@ impl TabTokens {
             TabField::CloseHover => &mut self.close_hover,
             TabField::Drop => &mut self.drop,
             TabField::DropHalo => &mut self.drop_halo,
+            TabField::Indicator => &mut self.indicator,
         })
     }
 }
@@ -139,6 +146,8 @@ pub enum TabField {
     Drop,
     /// `tab.drop.halo`
     DropHalo,
+    /// `tab.indicator`
+    Indicator,
 }
 
 impl TabField {
@@ -156,6 +165,7 @@ impl TabField {
             TabField::CloseHover => "close.hover",
             TabField::Drop => "drop",
             TabField::DropHalo => "drop.halo",
+            TabField::Indicator => "indicator",
         }
     }
 }
@@ -175,6 +185,7 @@ impl Family for TabTokens {
         TabField::CloseHover,
         TabField::Drop,
         TabField::DropHalo,
+        TabField::Indicator,
     ];
 
     fn defaults(s: &Semantic<'_>) -> TabTokens {
@@ -194,6 +205,7 @@ impl Family for TabTokens {
             drop_width: values::TAB_DROP_WIDTH,
             drop_halo_width: values::TAB_DROP_HALO,
             progress_height: values::TAB_PROGRESS_HEIGHT,
+            indicator_width: values::TAB_INDICATOR_WIDTH,
             tear_off: values::TAB_TEAR_OFF,
             label: TypeRole::Label,
             label_large: TypeRole::Body,
@@ -209,6 +221,7 @@ impl Family for TabTokens {
             close_hover: c.text.normal,
             drop: c.accent.solid,
             drop_halo: c.surface.panel,
+            indicator: Rgba::TRANSPARENT,
         }
     }
 
@@ -255,7 +268,17 @@ impl Family for TabTokens {
         let component = |f| TokenRef::Component(field(f));
         let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         let (text, mark) = (values::TEXT_MIN, values::NON_TEXT_MIN);
+        let edge = values::CONTROL_EDGE_MIN;
         vec![
+            // The selected tab shows by its fill or by the indicator on the strip, and the
+            // indicator also shows on the tab it marks.
+            ContrastPair {
+                fg: component(TabField::Indicator),
+                bg: component(TabField::Strip),
+                minimum: edge,
+                alternate: Some(component(TabField::Active)),
+            },
+            pair(TabField::Indicator, TabField::Active, edge),
             pair(TabField::Text, TabField::Active, text),
             pair(TabField::InactiveText, TabField::Strip, text),
             pair(TabField::InactiveText, TabField::Active, text),

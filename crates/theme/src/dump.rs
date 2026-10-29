@@ -622,6 +622,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         drop_width,
         drop_halo_width,
         progress_height,
+        indicator_width,
         tear_off,
         label,
         label_large,
@@ -637,6 +638,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         close_hover,
         drop,
         drop_halo,
+        indicator,
     } = t;
     out.line("tab.height", len(*height));
     out.line("tab.panel_height", len(*panel_height));
@@ -652,6 +654,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     out.line("tab.drop_width", len(*drop_width));
     out.line("tab.drop_halo_width", len(*drop_halo_width));
     out.line("tab.progress_height", len(*progress_height));
+    out.line("tab.indicator_width", len(*indicator_width));
     out.line("tab.tear_off", len(*tear_off));
     out.line("tab.label", role(*label));
     out.line("tab.label_large", role(*label_large));
@@ -668,6 +671,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         ("close.hover", close_hover),
         ("drop", drop),
         ("drop.halo", drop_halo),
+        ("indicator", indicator),
     ] {
         out.line(&format!("tab.{k}"), hex(*c));
     }

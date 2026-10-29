@@ -206,6 +206,8 @@ pub struct TabStyle {
     pub drop_halo: Stroke,
     /// `tab.progress_height`.
     pub progress_height: f32,
+    /// `tab.indicator_width`.
+    pub indicator_width: f32,
     /// `tab.tear_off`.
     pub tear_off: f32,
     /// Side of the tab's icon: `size.icon.sm`.
@@ -234,6 +236,9 @@ pub struct TabStyle {
     pub close_fill: Color32,
     /// `tab.drop`.
     pub drop: Color32,
+    /// `tab.indicator`: the bar along the selected tab's top edge, transparent unless high
+    /// contrast sets it.
+    pub indicator: Color32,
     /// The progress bar: `progress.track` and `progress.fill`.
     pub track: Color32,
     pub fill: Color32,
@@ -256,6 +261,15 @@ impl TabStyle {
         if filled {
             let r = corner_radius(self.radius).nw;
             painter.rect_filled(rect, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, self.active);
+        }
+    }
+
+    /// The selected tab's indicator: a bar along the top edge of `rect` (the edge the strip
+    /// shows beside), or nothing when `tab.indicator` is transparent.
+    pub fn paint_indicator(&self, painter: &egui::Painter, rect: Rect) {
+        if self.indicator.a() > 0 {
+            let bar = Rect::from_min_size(rect.min, vec2(rect.width(), self.indicator_width.min(rect.height())));
+            painter.rect_filled(bar, 0.0, self.indicator);
         }
     }
 
@@ -420,6 +434,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             drop_width: t.drop_width,
             drop_halo: Stroke::new(t.drop_halo_width, t.drop_halo.to_egui()),
             progress_height: t.progress_height,
+            indicator_width: t.indicator_width,
             tear_off: t.tear_off,
             icon_size: tokens.size.icon.sm,
             label_role: t.label,
@@ -436,6 +451,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             close_hover: t.close_hover.to_egui(),
             close_fill: t.close_fill.to_egui(),
             drop: t.drop.to_egui(),
+            indicator: t.indicator.to_egui(),
             track: p.track.to_egui(),
             fill: p.fill.to_egui(),
         }
@@ -558,6 +574,9 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let rtl = direction::is_rtl(ui);
         let ppp = ui.pixels_per_point();
         style.paint_surface(ui.painter(), rect, view.active || hovered);
+        if view.active {
+            style.paint_indicator(ui.painter(), rect);
+        }
         if view.divider && style.dividers {
             let x = if rtl { rect.left() + style.divider.width / 2.0 } else { rect.right() - style.divider.width / 2.0 };
             ui.painter().vline(x.round_to_pixel_center(ppp), rect.y_range(), style.divider);

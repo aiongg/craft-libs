@@ -820,6 +820,8 @@ pub const TAB_DROP_WIDTH: f32 = 2.0;
 pub const TAB_DROP_HALO: f32 = 1.0;
 /// Height of a tab's progress bar, in points, at every Size.
 pub const TAB_PROGRESS_HEIGHT: f32 = 2.0;
+/// Thickness of the bar along the top edge of the selected tab, in points, at every Size.
+pub const TAB_INDICATOR_WIDTH: f32 = 2.0;
 /// How far outside its strip a tab drag still resolves targets (PhotoCraft's `TEAR_OFF`).
 pub const TAB_TEAR_OFF: f32 = 24.0;
 

@@ -767,6 +767,11 @@ pub(super) fn component_overrides(
     let text_pinned = on_accent_pinned || layers.contains_key(&field(State::Rest));
     comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)), text_pinned, color.surface.panel, high);
     comp.list.follow(color, high, |f| layers.contains_key(&ComponentField::List(f)));
+    // High contrast marks the selected tab with the accent, which the pass then moves to read on
+    // the strip and on the tab; Standard leaves the indicator to the theme.
+    if high && comp.tab.indicator == Rgba::TRANSPARENT {
+        comp.tab.indicator = color.accent.solid;
+    }
     // A floating group's title bar is its tab strip.
     if !layers.contains_key(&ComponentField::Float(FloatField::Title)) {
         comp.float.title = comp.tab.strip;
