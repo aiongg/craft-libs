@@ -578,17 +578,17 @@ fn stack(top: Rgba, bottom: Rgba) -> Rgba {
 
 /// The selected row's fills and text for the fills `selected` and `selected_hover`: unchanged in
 /// standard contrast, moved to identify the state on the panel in high contrast.
-struct SelectedLook {
-    selected: Rgba,
-    selected_hover: Rgba,
-    text: Rgba,
-    quiet: Rgba,
+pub(super) struct SelectedLook {
+    pub selected: Rgba,
+    pub selected_hover: Rgba,
+    pub text: Rgba,
+    pub quiet: Rgba,
 }
 
 impl SelectedLook {
     /// `text` is the label on the unmoved fills; `edge` an outline that identifies the selected row
     /// as well as its fill.
-    fn of(c: &ColorTokens, selected: Rgba, selected_hover: Rgba, text: Rgba, edge: Option<Rgba>, high: bool) -> SelectedLook {
+    pub(super) fn of(c: &ColorTokens, selected: Rgba, selected_hover: Rgba, text: Rgba, edge: Option<Rgba>, high: bool) -> SelectedLook {
         let panel = [c.surface.panel];
         let min_step = if high { values::LIST_HOVER_MIN.1 } else { values::LIST_HOVER_MIN.0 };
         let identify = || edge.map_or_else(|| Identify::on(&panel, high), |e| Identify::on(&panel, high).edge(e));

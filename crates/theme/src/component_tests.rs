@@ -384,11 +384,15 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
 fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
     let popup = TokenRef::Component(ComponentField::Popup(PopupField::Fill));
     let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
+    let chosen = TokenRef::Component(ComponentField::Listbox(ListboxField::ChosenFill));
     vec![
-        (ListboxField::ActiveFill, popup, (1.12, 3.0)),
+        (ListboxField::ActiveFill, popup, (1.12, 1.12)),
+        (ListboxField::ActiveBorder, popup, crate::values::CONTROL_EDGE_MIN),
         (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
         (ListboxField::Group, popup, (4.5, 7.0)),
         (ListboxField::ActiveText, active, (4.5, 7.0)),
+        (ListboxField::ChosenFill, popup, (1.12, 3.0)),
+        (ListboxField::ChosenText, chosen, (4.5, 7.0)),
         (ListboxField::Mark, popup, (3.0, 4.5)),
     ]
 }
@@ -440,11 +444,15 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     let l = &t.component.listbox;
     assert_eq!(l.height, BySize { sm: t.size.control.sm, md: t.size.control.md });
     assert_eq!(l.icon, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
-    assert_eq!((l.pad_x, l.gap, l.separator_pad, l.radius), (t.space.pad.control + 4.0, t.space.gap.inline, t.space.gap.inline, 0.0));
+    assert_eq!(
+        (l.pad_x, l.gap, l.separator_pad, l.radius),
+        (t.space.pad.control + 4.0, t.space.gap.inline, t.space.gap.inline, t.shape.radius.control)
+    );
     assert_eq!(l.max_height, 420.0 + 12.0 * (t.size.control.md - 24.0));
     assert_eq!((l.label, l.group_label), (TypeRole::Body, TypeRole::Caption));
     assert_eq!(l.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
-    assert_eq!((l.active_fill, l.active_text), (t.color(T::AccentSolid), t.color(T::TextOnAccent)));
+    assert_eq!((l.active_text, l.active_border), (t.color(T::TextNormal), t.color(T::LineControlEdge)));
+    assert_eq!((l.chosen_fill, l.chosen_text, l.chosen_border), (t.color(T::AccentSolid), t.color(T::TextOnAccent), t.color(T::AccentText)));
     let popup = t.color(T::SurfacePanel);
     assert!(contrast_ratio(over(l.active_fill, popup), popup) >= values::LIST_HOVER_MIN.0);
     assert_eq!(l.mark, t.color(T::TextNormal));
@@ -696,6 +704,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Popup: fill, border and shadow; the menu's open fill replaced the list box's chosen text.
             + 3
+            // List box: the active and chosen borders and the chosen fill and text (the menu's radius is one more).
+            + 5
             // Histogram: the backdrop; curve: the selected point's outline.
             + 1
             + 1
@@ -829,7 +839,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "listbox.text",
         "listbox.active",
         "listbox.active.fill.rest",
-        "listbox.chosen.fill",
+        "listbox.chosen",
         "listbox.mark.rest",
         "listbox.group.text",
         "listbox.separator_pad",

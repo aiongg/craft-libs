@@ -106,7 +106,10 @@ impl<'r> OptionRows<'r> {
         }
         let picked = enabled && (response.clicked() || (self.pressing && self.released && response.contains_pointer()));
         let active = listbox.active() == Some(row.option);
-        let lit = active || (self.hover == Hover::Highlights && enabled && response.contains_pointer());
+        // The active row is lit while the keyboard holds it or the pointer is on it; the row a
+        // list opened on and the pointer has left is only the chosen one, as in PhotoCraft.
+        let lit = (active && (listbox.keyboard() || response.contains_pointer()))
+            || (self.hover == Hover::Highlights && enabled && response.contains_pointer());
         let look =
             RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, lit, focus: active && listbox.keyboard(), enabled };
         paint_row(ui, self.style, self.size, response.rect, &look);
@@ -138,8 +141,8 @@ struct RowLook<'r> {
     icon: Option<Icon>,
     icons: bool,
     chosen: bool,
-    /// Active, or under the pointer where the pointer only highlights: the active fill
-    /// (`accent.solid`) and text. The chosen option has them too.
+    /// Active with the keyboard or the pointer on it, or under the pointer where the pointer only
+    /// highlights: the active fill, text and border (the chosen option keeps its own look).
     lit: bool,
     /// The active row is the keyboard's focus cue.
     focus: bool,
@@ -157,16 +160,24 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
         return;
     }
     let ppp = ui.pixels_per_point();
-    let filled = (look.lit || look.chosen) && look.enabled;
-    if filled {
-        ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, s.active_fill);
+    // The chosen row keeps its look under the pointer, as a selected row does in PhotoCraft.
+    let (fill, ink, border) = match () {
+        () if look.chosen => (Some(s.chosen_fill), s.chosen_text, Some(s.chosen_border)),
+        () if look.lit => (Some(s.active_fill), s.active_text, Some(s.active_border)),
+        () => (None, s.text, None),
+    };
+    if let Some(fill) = fill.filter(|_| look.enabled) {
+        ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, fill);
+        if let Some(border) = border {
+            ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, Stroke::new(1.0, border), StrokeKind::Inside));
+        }
     }
     if look.focus && look.enabled {
         ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, s.focus, StrokeKind::Inside));
     }
     let (text, mark) = match () {
         () if !look.enabled => (s.text_disabled, s.text_disabled),
-        () if filled => (s.active_text, s.active_text),
+        () if fill.is_some() => (ink, ink),
         () => (s.text, s.mark),
     };
     let forward = direction::forward(ui);
@@ -282,10 +293,10 @@ mod tests {
     use crate::theme::{Base, install};
 
     fn rect_fills(shapes: &[egui::epaint::ClippedShape]) -> Vec<Color32> {
-        shapes.iter().filter_map(|c| if let Shape::Rect(r) = &c.shape { Some(r.fill) } else { None }).collect()
+        shapes.iter().filter_map(|c| if let Shape::Rect(r) = &c.shape { Some(r.fill) } else { None }).filter(|f| *f != Color32::TRANSPARENT).collect()
     }
 
-    /// The chosen option and the lit row have the active fill, a plain row has none; a closed box's
+    /// The chosen option has the chosen fill and the lit row the active (hover) fill, a plain row has none; a closed box's
     /// chevron is two strokes of the text colour at 0.8 strength.
     #[test]
     fn the_chosen_and_the_lit_rows_have_the_active_fill_and_the_chevron_is_drawn_as_a_line() {
@@ -304,11 +315,50 @@ mod tests {
         });
         out.textures_delta.clear();
         let s = style.unwrap_or_else(|| panic!("no style"));
-        assert_eq!(rect_fills(&out.shapes), [s.list.active_fill, s.list.active_fill], "the chosen row and the lit row, not the plain one");
-        assert_eq!(s.list.radius, egui::CornerRadius::ZERO);
+        assert_eq!(rect_fills(&out.shapes), [s.list.chosen_fill, s.list.active_fill], "the chosen row and the lit row, not the plain one");
         let chevron = out.shapes.iter().find_map(|c| if let Shape::Path(p) = &c.shape { Some(p.clone()) } else { None });
         let chevron = chevron.unwrap_or_else(|| panic!("no chevron path"));
         assert_eq!(chevron.points.len(), 3);
         assert_eq!(chevron.stroke, egui::epaint::PathStroke::new(1.3, s.field.text.gamma_multiply(0.8)));
+    }
+
+    /// The chosen row is the solid accent with the on-accent text in a Pro theme and the soft accent
+    /// with the normal text and rounded corners in Studio; a chosen row keeps its look when it is also
+    /// lit, and a lit row that is not chosen has the hover fill in both.
+    #[test]
+    fn the_chosen_row_follows_the_theme_and_the_lit_row_is_the_accent() {
+        use craft_theme::ContrastChoice;
+        use craft_theme::{AppDefaults, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize, ThemeId, ThemePair, builtins};
+        let base = |id: &str| {
+            let sel = Selection {
+                theme: ThemePair::same(ThemeId::parse(id).unwrap()),
+                mode: ModeChoice::Dark,
+                contrast: ContrastChoice::Standard,
+                motion: MotionChoice::System,
+                size: Size::Compact,
+                text_size: TextSize::Default,
+            };
+            let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Dark, size: Size::Compact };
+            Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |i| builtins().iter().find(|t| t.id == *i).cloned())
+        };
+        for (id, soft, radius) in [("craft.pro", false, 3), ("craft.studio", true, 6)] {
+            let ctx = Context::default();
+            install(&ctx, &base(id));
+            let mut style = None;
+            let mut out = ctx.run_ui(RawInput::default(), |ui| {
+                let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
+                let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
+                let row = |chosen, lit| RowLook { text: "Normal", icon: None, icons: false, chosen, lit, focus: false, enabled: true };
+                paint_row(ui, &s.list, ControlSize::Md, rect, &row(true, false));
+                paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, true));
+                paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
+                style = Some(s);
+            });
+            out.textures_delta.clear();
+            let s = style.unwrap_or_else(|| panic!("no style"));
+            assert_eq!(rect_fills(&out.shapes), [s.list.chosen_fill, s.list.chosen_fill, s.list.active_fill], "{id}");
+            assert_ne!(s.list.chosen_fill, s.list.active_fill, "{id}");
+            assert_eq!((s.list.chosen_text == s.list.text, s.list.radius), (soft, egui::CornerRadius::same(radius)), "{id}");
+        }
     }
 }
