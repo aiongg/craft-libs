@@ -2,10 +2,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use egui::{Color32, Context, FontId, Id, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use super::{Action, DockError, DropTarget, Layout, Monitor, Permissions, render::Renderer, resize::AnchoredResize};
-
-/// Horizontal room around a tab's label, both when measuring its natural width and when cutting it.
-pub(super) const TAB_PADDING: f32 = 24.0;
+use super::{Action, DockConfig, DockError, DockLook, DockSpec, DropTarget, Layout, Monitor, Permissions, render::Renderer, resize::AnchoredResize};
 
 /// Application-supplied chrome. Body renderers retain their own UI style and contents.
 #[derive(Clone, Debug)]
@@ -171,139 +168,182 @@ impl DockStyle {
     }
 
     pub fn from_visuals(visuals: &egui::Visuals) -> Self {
-        let font = FontId::proportional(12.0);
+        Self::join(&DockConfig::default(), &DockLook::from_visuals(visuals))
+    }
+
+    /// The flat style that draws and behaves as `config` and `look` do. It has one accent: the
+    /// look's drop color; one active fill: its active tab color; and the tab minimum width the
+    /// config resolves to.
+    pub fn join(config: &DockConfig, look: &DockLook) -> Self {
+        let c = config.clone();
         Self {
-            tab_height: 26.0,
-            gap: 4.0,
-            min_pane: 40.0,
-            background: visuals.panel_fill,
-            tab_background: visuals.extreme_bg_color,
-            active_background: visuals.widgets.active.bg_fill,
-            text: visuals.text_color(),
-            inactive_text: visuals.weak_text_color(),
-            border: visuals.widgets.noninteractive.bg_stroke,
-            accent: visuals.selection.stroke.color,
-            min_tab_width: font.size * 2.5 + TAB_PADDING,
-            font,
-            float_label: "Float Panel".into(),
-            close_label: "Close Panel".into(),
-            move_panel_to_label: "Move Panel to Group".into(),
-            panels_label: "Panels".into(),
-            resize_label: "Resize panels".into(),
-            resize_window_label: "Resize panel window".into(),
-            move_group_label: "Move tab group".into(),
-            close_group_label: "Close Tab Group".into(),
-            minimize_label: "Minimize".into(),
-            expand_label: "Expand".into(),
-            float_group_label: "Float Tab Group".into(),
-            move_group_to_label: "Move Group To".into(),
-            drag_bar_width: 40.0,
-            floating_background: visuals.window_fill,
-            floating_stroke: visuals.window_stroke,
-            blocked_dim: visuals.panel_fill.gamma_multiply(0.6),
-            title_height: super::chrome::TITLE_HEIGHT,
-            edge_band: 28.0,
-            side_edge_zones: false,
-            drop_edges: super::Sides::ALL,
-            side_zone_fraction: 1.0 / 3.0,
-            drop_line_width: 4.0,
-            new_dock_zones: true,
-            column_bar_height: 14.0,
-            seam_band: 28.0,
-            column_edge_band: 28.0,
-            new_dock_band: 28.0,
-            icon_size: 20.0,
-            iconic_width: 36.0,
-            iconic_max_width: 240.0,
-            iconic_label_width: 96.0,
-            auto_collapse_label: "Auto-Collapse Iconic Panels".into(),
-            right_to_left: false,
-            move_column_label: "Move panel column".into(),
-            collapse_to_icons_label: "Collapse to Icons".into(),
-            expand_panels_label: "Expand Panels".into(),
-            collapse_column_label: "Collapse column to icons".into(),
-            expand_column_label: "Expand column".into(),
-            move_window_label: "Move panel window".into(),
-            close_window_label: "Close panel window".into(),
-            close_others_label: "Close Other Panels in Group".into(),
-            close_others_item: false,
-            maximize_label: "Maximize Frame".into(),
-            restore_frame_label: "Restore Frame Size".into(),
-            maximize_item: false,
-            float_hint_label: "Hold {key} to undock".into(),
-            float_hint: false,
-            command_press_floats: false,
-            float_on_empty_drop: true,
-            title_bar_docks: true,
-            close_menu_items: true,
-            close_button: true,
-            wheel_selects_tabs: false,
-            middle_click_closes_tabs: false,
+            tab_height: look.tab_height,
+            gap: look.gap,
+            min_pane: c.min_pane,
+            background: look.background,
+            tab_background: look.tab_strip,
+            active_background: look.tab_active,
+            text: look.text,
+            inactive_text: look.inactive_text,
+            border: look.border,
+            accent: look.drop,
+            font: look.font.clone(),
+            float_label: c.float_label,
+            close_label: c.close_label,
+            move_panel_to_label: c.move_panel_to_label,
+            panels_label: c.panels_label,
+            resize_label: c.resize_label,
+            resize_window_label: c.resize_window_label,
+            move_group_label: c.move_group_label,
+            close_group_label: c.close_group_label,
+            minimize_label: c.minimize_label,
+            expand_label: c.expand_label,
+            float_group_label: c.float_group_label,
+            move_group_to_label: c.move_group_to_label,
+            drag_bar_width: c.drag_bar_width,
+            min_tab_width: config.tab_width_floor(look),
+            floating_background: look.floating_background,
+            floating_stroke: look.floating_stroke,
+            blocked_dim: look.blocked_dim,
+            title_height: look.title_height,
+            edge_band: c.edge_band,
+            side_edge_zones: c.side_edge_zones,
+            drop_edges: c.drop_edges,
+            side_zone_fraction: c.side_zone_fraction,
+            drop_line_width: c.drop_line_width,
+            new_dock_zones: c.new_dock_zones,
+            column_bar_height: look.column_bar_height,
+            seam_band: c.seam_band,
+            column_edge_band: c.column_edge_band,
+            new_dock_band: c.new_dock_band,
+            icon_size: look.icon_size,
+            iconic_width: look.iconic_width,
+            iconic_max_width: c.iconic_max_width,
+            iconic_label_width: c.iconic_label_width,
+            auto_collapse_label: c.auto_collapse_label,
+            right_to_left: c.right_to_left,
+            move_column_label: c.move_column_label,
+            collapse_to_icons_label: c.collapse_to_icons_label,
+            expand_panels_label: c.expand_panels_label,
+            collapse_column_label: c.collapse_column_label,
+            expand_column_label: c.expand_column_label,
+            move_window_label: c.move_window_label,
+            close_window_label: c.close_window_label,
+            close_others_label: c.close_others_label,
+            close_others_item: c.close_others_item,
+            maximize_label: c.maximize_label,
+            restore_frame_label: c.restore_frame_label,
+            maximize_item: c.maximize_item,
+            float_hint_label: c.float_hint_label,
+            float_hint: c.float_hint,
+            command_press_floats: c.command_press_floats,
+            float_on_empty_drop: c.float_on_empty_drop,
+            title_bar_docks: c.title_bar_docks,
+            close_menu_items: c.close_menu_items,
+            close_button: c.close_button,
+            wheel_selects_tabs: c.wheel_selects_tabs,
+            middle_click_closes_tabs: c.middle_click_closes_tabs,
         }
     }
 
-    /// The sides [`Self::drop_edges`] gives in this profile: all four with
-    /// [`Self::side_edge_zones`].
-    pub(super) fn drop_sides(&self) -> super::Sides {
-        if self.side_edge_zones { super::Sides::ALL } else { self.drop_edges }
+    /// The behaviour and labels, and the look, of this style. The look's resize, drop and focus
+    /// colors are the style's accent, and its tab, hover and selected-icon fills the active
+    /// fill. A minimum tab width equal to the font-derived default becomes `None`.
+    pub fn split(&self) -> (DockConfig, DockLook) {
+        let look = DockLook {
+            tab_height: self.tab_height,
+            gap: self.gap,
+            background: self.background,
+            tab_strip: self.tab_background,
+            tab_active: self.active_background,
+            tab_hover: self.active_background,
+            icon_selected: self.active_background,
+            text: self.text,
+            inactive_text: self.inactive_text,
+            border: self.border,
+            resize: self.accent,
+            drop: self.accent,
+            focus: self.accent,
+            font: self.font.clone(),
+            tab_padding: super::look::TAB_PADDING,
+            floating_background: self.floating_background,
+            floating_stroke: self.floating_stroke,
+            blocked_dim: self.blocked_dim,
+            title_height: self.title_height,
+            column_bar_height: self.column_bar_height,
+            icon_size: self.icon_size,
+            iconic_width: self.iconic_width,
+            icon_selected_text: self.text,
+            title_background: self.tab_background,
+            title_text: self.text,
+            title_muted: self.inactive_text,
+            grip: self.accent,
+            ..DockLook::from_visuals(&egui::Visuals::default())
+        };
+        let derived = look.font.size * 2.5 + look.tab_padding;
+        let config = DockConfig {
+            min_pane: self.min_pane,
+            float_label: self.float_label.clone(),
+            close_label: self.close_label.clone(),
+            move_panel_to_label: self.move_panel_to_label.clone(),
+            panels_label: self.panels_label.clone(),
+            resize_label: self.resize_label.clone(),
+            resize_window_label: self.resize_window_label.clone(),
+            move_group_label: self.move_group_label.clone(),
+            close_group_label: self.close_group_label.clone(),
+            minimize_label: self.minimize_label.clone(),
+            expand_label: self.expand_label.clone(),
+            float_group_label: self.float_group_label.clone(),
+            move_group_to_label: self.move_group_to_label.clone(),
+            drag_bar_width: self.drag_bar_width,
+            min_tab_width: (self.min_tab_width != derived).then_some(self.min_tab_width),
+            edge_band: self.edge_band,
+            side_edge_zones: self.side_edge_zones,
+            drop_edges: self.drop_edges,
+            side_zone_fraction: self.side_zone_fraction,
+            drop_line_width: self.drop_line_width,
+            new_dock_zones: self.new_dock_zones,
+            seam_band: self.seam_band,
+            column_edge_band: self.column_edge_band,
+            new_dock_band: self.new_dock_band,
+            iconic_max_width: self.iconic_max_width,
+            iconic_label_width: self.iconic_label_width,
+            auto_collapse_label: self.auto_collapse_label.clone(),
+            right_to_left: self.right_to_left,
+            move_column_label: self.move_column_label.clone(),
+            collapse_to_icons_label: self.collapse_to_icons_label.clone(),
+            expand_panels_label: self.expand_panels_label.clone(),
+            collapse_column_label: self.collapse_column_label.clone(),
+            expand_column_label: self.expand_column_label.clone(),
+            move_window_label: self.move_window_label.clone(),
+            close_window_label: self.close_window_label.clone(),
+            close_others_label: self.close_others_label.clone(),
+            close_others_item: self.close_others_item,
+            maximize_label: self.maximize_label.clone(),
+            restore_frame_label: self.restore_frame_label.clone(),
+            maximize_item: self.maximize_item,
+            float_hint_label: self.float_hint_label.clone(),
+            float_hint: self.float_hint,
+            command_press_floats: self.command_press_floats,
+            float_on_empty_drop: self.float_on_empty_drop,
+            title_bar_docks: self.title_bar_docks,
+            close_menu_items: self.close_menu_items,
+            close_button: self.close_button,
+            wheel_selects_tabs: self.wheel_selects_tabs,
+            middle_click_closes_tabs: self.middle_click_closes_tabs,
+        };
+        (config, look)
     }
 
-    /// The sides of a frame or floating group that takes no tabs (a canvas) whose body takes a
-    /// drop: none in the docking profile ([`Self::new_dock_zones`] without
-    /// [`Self::side_edge_zones`]), where only the bands along borders dock beside it, else
-    /// [`Self::drop_sides`].
-    pub(super) fn canvas_sides(&self) -> super::Sides {
-        if self.side_edge_zones || !self.new_dock_zones { self.drop_sides() } else { super::Sides::NONE }
-    }
-
-    /// The outer edges that take a drop: all four with [`Self::side_edge_zones`], else the top
-    /// and bottom of [`Self::drop_edges`].
-    pub(super) fn outer_edges(&self) -> super::Sides {
-        let sides = self.drop_sides();
-        if self.side_edge_zones { sides } else { super::Sides { left: false, right: false, ..sides } }
-    }
-
-    /// How a group's body divides into drop zones: [`crate::docking::SIDE_EDGE_ZONE_DEPTH`] deep
-    /// with [`Self::side_edge_zones`], else [`Self::side_zone_fraction`] of it, with
-    /// [`Self::drop_line_width`] previews. Pass it to [`crate::docking::resolve_drop_by`].
+    /// [`DockConfig::zone_rule`].
     pub fn zone_rule(&self) -> super::ZoneRule {
-        if self.side_edge_zones {
-            super::ZoneRule::Depth(super::SIDE_EDGE_ZONE_DEPTH)
-        } else {
-            super::ZoneRule::Fraction { fraction: self.side_zone_fraction, line: self.drop_line_width }
-        }
+        self.split().0.zone_rule()
     }
 
+    #[cfg(test)]
     pub(super) fn valid(&self) -> bool {
-        [
-            self.tab_height,
-            self.gap,
-            self.min_pane,
-            self.border.width,
-            self.font.size,
-            self.drag_bar_width,
-            self.min_tab_width,
-            self.floating_stroke.width,
-            self.title_height,
-            self.edge_band,
-            self.side_zone_fraction,
-            self.drop_line_width,
-            self.column_bar_height,
-            self.seam_band,
-            self.column_edge_band,
-            self.new_dock_band,
-            self.icon_size,
-            self.iconic_width,
-            self.iconic_max_width,
-            self.iconic_label_width,
-        ]
-        .iter()
-        .all(|v| v.is_finite() && (0.0..=4096.0).contains(v))
-            && self.iconic_width <= self.iconic_max_width
-            && self.tab_height > 0.0
-            && self.font.size > 0.0
-            && self.drop_line_width > 0.0
-            && self.side_zone_fraction <= 0.5
+        let (config, look) = self.split();
+        super::look::valid(&config, &look)
     }
 }
 
@@ -1202,7 +1242,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         self,
         ui: &mut Ui,
         layout: &Layout<P>,
-        style: &DockStyle,
+        style: &impl DockSpec,
         label: impl Fn(&P) -> String,
         permissions: impl Fn(&P) -> Permissions,
         body: impl FnMut(&mut Ui, &P),
@@ -1216,7 +1256,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         self,
         ui: &mut Ui,
         layout: &Layout<P>,
-        style: &DockStyle,
+        style: &impl DockSpec,
         label: impl Fn(&P) -> String,
         permissions: impl Fn(&P) -> Permissions,
         limits: impl Fn(&P) -> PanelLimits,
@@ -1232,7 +1272,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         self,
         ui: &mut Ui,
         layout: &Layout<P>,
-        style: &DockStyle,
+        style: &impl DockSpec,
         label: impl Fn(&P) -> String,
         permissions: impl Fn(&P) -> Permissions,
         limits: impl Fn(&P) -> PanelLimits,
@@ -1243,7 +1283,9 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
     }
 
     /// Render with every label, policy and size from `content`.
-    pub fn show_content(self, ui: &mut Ui, layout: &Layout<P>, style: &DockStyle, content: &mut dyn DockContent<P>) -> DockOutput<P> {
+    pub fn show_content(self, ui: &mut Ui, layout: &Layout<P>, style: &dyn DockSpec, content: &mut dyn DockContent<P>) -> DockOutput<P> {
+        let (config, look) = style.parts(ui);
+        let (config, look) = (&*config, &*look);
         #[cfg(feature = "native-windows")]
         super::render::set_input_hook(ui.ctx(), self.id, self.input_hook);
         let rect = ui.available_rect_before_wrap();
@@ -1251,7 +1293,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             cancel_drag::<P>(ui.ctx(), self.id);
             return DockOutput { error: Some(error), ..Default::default() };
         }
-        if !style.valid() || !super::targets::usable(rect) || layout.panels().into_iter().any(|p| !content.limits(p).valid()) {
+        if !super::look::valid(config, look) || !super::targets::usable(rect) || layout.panels().into_iter().any(|p| !content.limits(p).valid()) {
             cancel_drag::<P>(ui.ctx(), self.id);
             return DockOutput { error: Some(DockError::InvalidGeometry), ..Default::default() };
         }
@@ -1267,7 +1309,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         ui.ctx().data_mut(|d| d.insert_temp(blocked_key, self.input_blocked));
         cancel_drag_if_replaced(ui.ctx(), self.id, layout);
         release_moved_tab_focus(ui.ctx(), self.id, layout);
-        let (view, frame) = super::render::view(layout, self.maximized.as_ref(), self.hide, &*content, !style.side_edge_zones);
+        let (view, frame) = super::render::view(layout, self.maximized.as_ref(), self.hide, &*content, !config.side_edge_zones);
         let places = layout.places();
         // A panel keeps the content height it last drew while hidden or minimized.
         let contents: Vec<(P, Option<f32>)> = float_space::<P>(ui.ctx(), self.id)
@@ -1276,7 +1318,8 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let content_index = contents.iter().enumerate().map(|(i, (panel, _))| (panel.clone(), i)).collect();
         let mut renderer = Renderer {
             id: self.id,
-            style,
+            config,
+            look,
             content,
             activation: self.activation,
             blockers: self.blockers,
@@ -1292,7 +1335,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             output: DockOutput::default(),
             frame,
             iconic: super::render::Iconic::new(self.auto_collapse),
-            float_space: FloatSpace { contents, side_edge_zones: style.side_edge_zones, ..FloatSpace::new(rect) },
+            float_space: FloatSpace { contents, side_edge_zones: config.side_edge_zones, ..FloatSpace::new(rect) },
             places,
             contents: content_index,
             dividers: Vec::new(),

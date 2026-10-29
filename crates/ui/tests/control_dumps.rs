@@ -13,6 +13,7 @@ use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
     Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
+use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
@@ -447,6 +448,27 @@ fn panel_header() {
         let s = PanelHeader::style(t);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// The dock look: every size, factor and colour `DockArea` reads from the `dock`, `float` and
+/// `tab` tokens.
+#[test]
+fn dock_look() {
+    check("dock_look.txt", |d, t| {
+        let l = DockLook::from_tokens(t);
+        d.line("tab_height", l.tab_height).line("gap", l.gap).line("tab_padding", l.tab_padding).line("font_size", l.font.size);
+        d.line("title_height", l.title_height).line("column_bar_height", l.column_bar_height).line("icon_size", l.icon_size);
+        d.line("icon_pad", l.icon_pad).line("iconic_width", l.iconic_width).line("icon_radius", l.icon_radius).line("hint_radius", l.hint_radius);
+        d.line("drop_width", l.drop_width).line("focus_width", l.focus_width).line("marker_radius", l.marker_radius);
+        d.line("drop_fill", l.drop_fill).line("ghost_fill", l.ghost_fill).line("ghost_stroke", l.ghost_stroke);
+        d.line("tab_fill", l.tab_fill).line("grip_alpha", l.grip_alpha);
+        d.line("background", l.background).line("border", l.border).line("tab_strip", l.tab_strip).line("tab_active", l.tab_active);
+        d.line("tab_hover", l.tab_hover).line("icon_selected", l.icon_selected).line("icon_selected_text", l.icon_selected_text);
+        d.line("text", l.text).line("inactive_text", l.inactive_text).line("resize", l.resize).line("drop", l.drop).line("focus", l.focus);
+        d.line("floating_background", l.floating_background).line("floating_stroke", l.floating_stroke).line("blocked_dim", l.blocked_dim);
+        d.line("floating_radius", l.floating_radius).line("floating_shadow", l.floating_shadow);
+        d.line("title_background", l.title_background).line("title_text", l.title_text).line("title_muted", l.title_muted).line("grip", l.grip);
     });
 }
 

@@ -94,7 +94,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
         p.extend([T::SurfacePanel, T::SurfaceRaised, bg].map(|b| (fg, b, 4.5, 7.0)));
         p.extend(solids.map(|solid| (T::TextOnStatus, solid, 4.5, 7.0)));
     }
-    p.extend(CONTROL_BGS.map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
+    p.extend([T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
     p.extend([T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::AccentSolid, bg, 3.0, 4.5)));
     p
 }
@@ -142,6 +142,29 @@ fn samples_resolve_and_derived_tokens_meet_every_minimum() {
             assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
             assert_meets_spec(&def.name, &r, a.contrast);
         }
+    }
+}
+
+/// The focus line marks focus on title bars and tab strips, which sit on `surface.background`.
+#[test]
+fn the_focus_line_meets_3_to_1_on_the_background_in_every_built_in_and_with_a_pinned_panel() {
+    let min = |a: Appearance| if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+    for theme in crate::builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let ratio = contrast_ratio(t.color(T::LineFocus), t.color(T::SurfaceBackground));
+            assert!(ratio >= min(a), "{} {a:?}: {ratio:.2}", theme.id);
+        }
+    }
+    let mut def = grey_blue();
+    def.id = ThemeId::parse("test.focus-panel-pin").unwrap();
+    def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c4c4c4"))]);
+    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a"))]);
+    for a in appearances() {
+        let r = resolve(&def, a, None);
+        let ratio = contrast_ratio(r.tokens.color(T::LineFocus), r.tokens.color(T::SurfaceBackground));
+        assert!(ratio >= min(a), "{a:?}: {ratio:.2}");
+        assert!(r.warnings.is_empty(), "{a:?}: {:?}", r.warnings);
     }
 }
 
@@ -567,6 +590,8 @@ fn size_presets_text_size_shape_and_motion() {
     assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
     assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 22.0, 32.0));
     assert_eq!((comfy.size.rail.width, comfy.size.rail.button, comfy.size.panel_header), (50.0, 36.0, 34.0));
+    assert_eq!((compact.size.rail.panel_width, compact.size.rail.panel_button), (36.0, 28.0));
+    assert_eq!((comfy.size.rail.panel_width, comfy.size.rail.panel_button), (44.0, 32.0));
     assert_eq!((comfy.size.icon.sm, comfy.size.icon.md, comfy.size.icon.lg), (14.0, 18.0, 22.0));
     assert_eq!((compact.space.gap.inline, compact.space.gap.stack, compact.space.gap.section), (4.0, 6.0, 12.0));
     assert_eq!((comfy.space.pad.control, comfy.space.pad.panel, comfy.space.pad.dialog), (8.0, 12.0, 20.0));

@@ -73,6 +73,8 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     // A bevel is the relief of a raised control, so a bevelled knob lies flat.
     let knob = shadow(if matches!(edge, Edge::Bevel { .. }) { 0 } else { values::KNOB_ELEVATION });
 
+    let elevation = ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating), knob };
+
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;
 
@@ -83,6 +85,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         shape: &shape,
         space: &preset.space,
         size: &preset.size,
+        elevation: &elevation,
         preset: appearance.size,
         typography: &typography,
     });
@@ -97,6 +100,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         shape: &shape,
         space: &preset.space,
         size: &preset.size,
+        elevation: &elevation,
         preset: appearance.size,
         typography: &typography,
     });
@@ -109,7 +113,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         space: preset.space,
         size: preset.size,
         typography,
-        elevation: ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating), knob },
+        elevation,
         motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
         component,
     };

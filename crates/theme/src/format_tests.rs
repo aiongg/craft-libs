@@ -360,6 +360,26 @@ fn appearance(mode: Mode) -> Appearance {
     Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
 
+/// `float.shadow` is written as `{"level": n}` and read back as the same elevation.
+#[test]
+fn a_float_shadow_override_round_trips_through_the_file() {
+    let mut def = grey_blue();
+    let shadow = ComponentField::from_path("float.shadow").unwrap();
+    for level in 0..Elevation::LEVELS.len() {
+        def.components.insert(shadow, OverrideValue::Elevation(Elevation::level(level)));
+        let text = format::write(&format::to_file(&def).unwrap()).unwrap();
+        let written: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(written["components"]["float.shadow"], json!({ "level": level }));
+        let back = format::parse(text.as_bytes()).unwrap().theme;
+        assert_eq!(back.components[&shadow], OverrideValue::Elevation(Elevation::level(level)));
+        assert_eq!(resolve(&back, appearance(Mode::Light), None).tokens.component.float.shadow, Elevation::level(level));
+    }
+    let bad = json!({ "level": 4 });
+    let mut v = full();
+    v["components"] = json!({ "float.shadow": bad });
+    assert_eq!(errors(&v), ["components.\"float.shadow\": expected {\"level\": 0 to 3}"]);
+}
+
 #[test]
 fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     let mut def = grey_blue();

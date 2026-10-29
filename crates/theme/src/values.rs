@@ -318,12 +318,14 @@ const TEXT_BGS: &[Bg] = &[
 ];
 const SELECTED_BGS: &[Bg] = &[Token(T::StateSelected), Token(T::StateSelectedHover)];
 const CONTROL_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
+/// The focus line also marks focus on the title bars and tab strips, which sit on the background.
+const FOCUS_BGS: &[Bg] = &[Token(T::SurfaceBackground), Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 
 /// Every contrast pair, in the order the contrast pass fixes them: fills that serve as
 /// backgrounds later (state fills, `accent.solid`) come before the text drawn on them.
 pub(super) const RULES: &[PairRule] = &[
-    rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::LineFocus], FOCUS_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
@@ -398,7 +400,7 @@ pub(super) const COMPACT: Preset = Preset {
     size: SizeTokens {
         control: ControlSizes { sm: 20.0, md: 24.0 },
         icon: IconSizes { sm: 12.0, md: 16.0, lg: 20.0 },
-        rail: RailSizes { width: 40.0, button: 30.0 },
+        rail: RailSizes { width: 40.0, button: 30.0, panel_width: 36.0, panel_button: 28.0 },
         bar: BarSizes { title: 32.0, tab: 26.0, status: 22.0, options: 32.0 },
         panel_header: 28.0,
         list: ListSizes {
@@ -433,7 +435,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
     size: SizeTokens {
         control: ControlSizes { sm: 24.0, md: 30.0 },
         icon: IconSizes { sm: 14.0, md: 18.0, lg: 22.0 },
-        rail: RailSizes { width: 50.0, button: 36.0 },
+        rail: RailSizes { width: 50.0, button: 36.0, panel_width: 44.0, panel_button: 32.0 },
         bar: BarSizes { title: 38.0, tab: 30.0, status: 26.0, options: 38.0 },
         panel_header: 34.0,
         list: ListSizes {
@@ -566,6 +568,33 @@ pub const SECTION_CHEVRON: f32 = 11.0;
 pub const SECTION_CHEVRON_BOX: f32 = 12.0;
 /// Compact distance from a section row's start to its title (the chevron box and its inset).
 pub const SECTION_TITLE_OFFSET: f32 = 18.0;
+
+/// The control height the Compact dock bar heights are set for.
+pub const DOCK_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a floating window's title bar and of a collapsed column's bar.
+pub const DOCK_BAR_HEIGHT: f32 = 14.0;
+/// Added to the icon size for the height of an iconic column's row.
+pub const DOCK_ICON_PAD: f32 = 10.0;
+/// Width of a group's border.
+pub const DOCK_BORDER_WIDTH: f32 = 1.0;
+/// Width of a drop outline.
+pub const DOCK_DROP_WIDTH: f32 = 2.0;
+/// Width of a keyboard focus stroke.
+pub const DOCK_FOCUS_WIDTH: f32 = 1.0;
+/// Corner radius of the insertion marker.
+pub const DOCK_MARKER_RADIUS: f32 = 1.0;
+/// Alpha factor of the filled drop preview.
+pub const DOCK_DROP_FILL: f32 = 0.15;
+/// Alpha factor of the highlighted zone under a dragged tab.
+pub const DOCK_GHOST_FILL: f32 = 0.3;
+/// Alpha factor of the outline of the zones under a dragged tab.
+pub const DOCK_GHOST_STROKE: f32 = 0.6;
+/// Alpha factor of the light fill inside a tab drop's outline.
+pub const DOCK_TAB_FILL: f32 = 0.08;
+/// Alpha factor of the resize handle's stroke at hover and focus.
+pub const DOCK_GRIP_ALPHA: f32 = 0.5;
+/// Width of a floating window's border.
+pub const FLOAT_BORDER_WIDTH: f32 = 1.0;
 
 /// The control height the Compact colour picker sizes are set for; other sizes scale them by
 /// their control height over this.

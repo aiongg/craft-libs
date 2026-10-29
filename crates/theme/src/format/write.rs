@@ -275,7 +275,6 @@ mod tests {
     use crate::format::parse::Parser;
     use crate::scale::Elevation;
 
-    // No component field takes a shadow yet, so the elevation form is checked on its own.
     #[test]
     fn elevation_overrides_parse_and_write() {
         let mut p = Parser::new();

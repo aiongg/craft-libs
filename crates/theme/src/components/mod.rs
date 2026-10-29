@@ -12,8 +12,10 @@ mod button;
 mod check;
 mod color_picker;
 mod curve;
+mod dock;
 mod empty_state;
 mod field;
+mod float;
 mod gradient_editor;
 mod gradient_line;
 mod guide;
@@ -48,7 +50,7 @@ use std::fmt;
 use super::color::Rgba;
 use super::scale::Elevation;
 use super::theme::Size;
-use super::tokens::{ColorTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
+use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
@@ -57,8 +59,10 @@ pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVari
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use curve::{CurveField, CurveTokens};
+pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use float::{FloatField, FloatTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use guide::{GuideField, GuideTokens};
@@ -95,6 +99,8 @@ pub(crate) struct Semantic<'a> {
     pub shape: &'a ShapeTokens,
     pub space: &'a SpaceTokens,
     pub size: &'a SizeTokens,
+    /// Shadows.
+    pub elevation: &'a ElevationTokens,
     /// The Size preset, for the few values a family sets per preset.
     pub preset: Size,
     /// After the Text size setting.
@@ -590,8 +596,12 @@ families! {
     color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
+    /// Dock areas: the panel groups, column bars and iconic columns of a docking surface.
+    dock: DockTokens => Dock(DockField);
     /// Empty states: the message of an empty panel, list or canvas.
     empty_state: EmptyStateTokens => EmptyState(EmptyStateField);
+    /// Floating windows: the frame and title bar of a floating panel group.
+    float: FloatTokens => Float(FloatField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.

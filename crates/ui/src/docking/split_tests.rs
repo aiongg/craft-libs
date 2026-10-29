@@ -526,7 +526,8 @@ fn assert_dividers_travel(d: &mut Driver) {
 fn assert_sizes(d: &Driver, context: &str) {
     let mut style = DockStyle::default();
     frame_style(&mut style);
-    let sizer = Sizer { style: &style, content: &d.content };
+    let (config, look) = style.split();
+    let sizer = Sizer { config: &config, look: &look, content: &d.content };
     let mut trees: Vec<(&Node<u32>, Rect)> = d.layout.root.iter().map(|root| (root, d.area)).collect();
     for window in d.layout.floating.iter().filter(|w| !w.minimized) {
         // The window's body is the union of its groups.

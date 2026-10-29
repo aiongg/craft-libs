@@ -570,6 +570,9 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + (2 + 4)
             // Tab: the radius and eleven colours.
             + 12
+            // Dock: five colours, the current icon's text and two radii; float: radius, shadow and eight colours.
+            + 8
+            + 10
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -1120,4 +1123,100 @@ fn a_tab_override_replaces_the_default() {
     assert_eq!(ComponentField::from_path("tab.text.inactive"), Some(ComponentField::Tab(TabField::InactiveText)));
     assert_eq!(ComponentField::from_path("tab.close.hover"), Some(ComponentField::Tab(TabField::CloseHover)));
     assert_eq!(ComponentField::from_path("tab.height"), None);
+}
+
+fn dock_float_pairs() -> Vec<(ComponentField, ComponentField, (f64, f64))> {
+    let (text, mark) = ((4.5, 7.0), (3.0, 4.5));
+    let (dock, float) = (ComponentField::Dock, ComponentField::Float);
+    vec![
+        (dock(DockField::IconSelectedText), dock(DockField::IconSelected), text),
+        (dock(DockField::Drop), dock(DockField::Background), mark),
+        (float(FloatField::TitleText), float(FloatField::Title), text),
+        (float(FloatField::TitleMuted), float(FloatField::Title), mark),
+        (float(FloatField::Focus), float(FloatField::Title), mark),
+        (float(FloatField::Focus), dock(DockField::Background), mark),
+        (float(FloatField::Focus), ComponentField::Tab(TabField::Strip), mark),
+    ]
+}
+
+/// The icon cell's label, the drop outline, the title bar's text and glyphs and the focus stroke
+/// meet their minimums on what they sit on in every appearance.
+#[test]
+fn dock_and_float_pairs_meet_their_minimums_in_every_appearance() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            let ours = |t: &TokenRef| matches!(t, TokenRef::Component(ComponentField::Dock(_) | ComponentField::Float(_)));
+            assert!(r.warnings.iter().all(|w| !ours(&w.fg)), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            for (fg, bg, (standard, high)) in dock_float_pairs() {
+                let min = if a.contrast == Contrast::High { high } else { standard };
+                let bg = over(t.component.color(bg).unwrap(), t.color(T::SurfacePanel));
+                let ratio = contrast_ratio(over(t.component.color(fg).unwrap(), bg), bg);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+            }
+        }
+    }
+}
+
+#[test]
+fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
+    let compact = at(Size::Compact);
+    let d = &compact.component.dock;
+    assert_eq!((d.gap, d.border_width, d.title_height, d.column_bar_height), (4.0, 1.0, 14.0, 14.0));
+    assert_eq!((d.icon_size, d.icon_pad, d.iconic_width), (20.0, 10.0, 36.0));
+    assert_eq!((d.drop_width, d.focus_width, d.marker_radius, d.icon_radius, d.hint_radius), (2.0, 1.0, 1.0, 3.0, 4.0));
+    assert_eq!((d.drop_fill, d.ghost_fill, d.ghost_stroke, d.grip_alpha, d.tab_fill), (0.15, 0.3, 0.6, 0.5, 0.08));
+    let t = &compact;
+    assert_eq!((d.background, d.border), (t.color(T::SurfacePanel), t.color(T::LineBorder)));
+    assert_eq!((d.resize, d.drop), (t.color(T::AccentSolid), t.color(T::AccentSolid)));
+    assert_eq!((d.icon_selected, d.icon_selected_text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    let f = &compact.component.float;
+    assert_eq!((f.border_width, f.radius, f.shadow), (1.0, 0.0, compact.elevation.floating));
+    assert_eq!((f.fill, f.border, f.blocked), (t.color(T::SurfacePanel), t.color(T::LineBorder), t.color(T::SurfaceScrim)));
+    assert_eq!((f.title, f.title_text, f.title_muted), (compact.component.tab.strip, t.color(T::TextNormal), t.color(T::TextMuted)));
+    assert_eq!((f.grip, f.focus), (t.color(T::AccentSolid), t.color(T::LineFocus)));
+
+    let comfy = at(Size::Comfortable);
+    let d = &comfy.component.dock;
+    assert_eq!((d.gap, d.title_height, d.column_bar_height, d.icon_size, d.iconic_width), (6.0, 18.0, 18.0, 22.0, 44.0));
+    assert_eq!((d.icon_radius, d.hint_radius), (comfy.shape.radius.control, comfy.shape.radius.popup));
+    assert_eq!(comfy.component.float.radius, comfy.shape.radius.panel);
+}
+
+/// The default shadow is the dark-adjusted floating level, so a dark theme's window shadow is as
+/// strong as its other floating surfaces.
+#[test]
+fn the_float_shadow_follows_the_mode_adjusted_floating_elevation() {
+    for mode in [Mode::Light, Mode::Dark] {
+        let t = resolve(&grey_blue(), app(mode, Contrast::Standard), None).tokens;
+        assert_eq!(t.component.float.shadow, t.elevation.floating, "{mode:?}");
+    }
+}
+
+#[test]
+fn dock_and_float_overrides_replace_the_defaults() {
+    let mut def = grey_blue();
+    let shadow = ComponentField::Float(FloatField::Shadow);
+    def.components.insert(shadow, OverrideValue::Elevation(Elevation::level(1)));
+    def.components.insert(ComponentField::Float(FloatField::Radius), OverrideValue::Length(6.0));
+    def.components.insert(ComponentField::Dock(DockField::HintRadius), OverrideValue::Length(2.0));
+    let c = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
+    assert_eq!((c.float.shadow, c.float.radius, c.dock.hint_radius), (Elevation::level(1), 6.0, 2.0));
+    for (path, field) in [
+        ("dock.icon.selected", ComponentField::Dock(DockField::IconSelected)),
+        ("dock.icon.selected.text", ComponentField::Dock(DockField::IconSelectedText)),
+        ("dock.icon.radius", ComponentField::Dock(DockField::IconRadius)),
+        ("dock.hint.radius", ComponentField::Dock(DockField::HintRadius)),
+        ("float.shadow", shadow),
+        ("float.title.text", ComponentField::Float(FloatField::TitleText)),
+        ("float.title.muted", ComponentField::Float(FloatField::TitleMuted)),
+    ] {
+        assert_eq!(ComponentField::from_path(path), Some(field), "{path}");
+    }
+    assert_eq!(shadow.kind(), FieldKind::Elevation);
+    for sized in ["dock.gap", "dock.drop_width", "dock.icon_size", "float.border_width"] {
+        assert_eq!(ComponentField::from_path(sized), None, "{sized}");
+    }
 }

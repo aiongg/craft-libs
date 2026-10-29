@@ -8,16 +8,19 @@
 pub mod chrome;
 #[cfg(feature = "serde")]
 mod command;
+mod config;
 #[cfg(feature = "native-windows")]
 mod desktop;
 mod dock_model;
 mod hits;
 mod labels;
+mod look;
 mod model;
 #[cfg(feature = "native-windows")]
 mod placement;
 mod render;
 mod resize;
+mod story;
 mod surface;
 mod targets;
 #[cfg(any(test, feature = "testing"))]
@@ -26,10 +29,13 @@ mod workspace;
 
 #[cfg(feature = "serde")]
 pub use command::{DockCommand, DockOperation, UiDock, ZoneName};
+pub use config::DockConfig;
 pub use dock_model::{Column, ColumnLocation, Group, GroupLocation, PanelState, Side, Target};
 pub use hits::{Divider, Hit, ResizeEdge};
+pub use look::{DockLook, DockSpec, DockWith};
 pub use model::{Action, DockError, Floating, Layout, Location, MAX_DEPTH, MAX_PANELS, Monitor, Node, Permissions, Placement, StackEntry, Zone};
 pub use render::{close_flyout, flyout, open_flyout};
+pub(crate) use story::{COMPONENTS, stories};
 pub use surface::{
     DockArea, DockContent, DockEvent, DockHeights, DockOutput, DockStyle, DropFeedback, DropRequest, FloatSpace, HidePanels, PanelLimits,
     WindowFiles, WindowKind, begin_drag, cancel_drag, float_space, is_dragging, route_app_drag, send_keys, typing_window,
@@ -42,6 +48,8 @@ pub use workspace::Workspace;
 
 use surface::{Drag, GroupDrag, GroupGesture};
 
+#[cfg(test)]
+mod chrome_token_tests;
 #[cfg(test)]
 mod command_tests;
 #[cfg(test)]
@@ -56,6 +64,10 @@ mod group_tests;
 mod iconic_tests;
 #[cfg(all(test, feature = "native-windows"))]
 mod ime_tests;
+#[cfg(test)]
+mod look_tests;
+#[cfg(test)]
+mod look_token_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(all(test, feature = "native-windows"))]

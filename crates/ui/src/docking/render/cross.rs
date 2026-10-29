@@ -265,7 +265,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             _ if !self.permissions(&drag.panel).floatable => {}
             _ => {
                 let size = self.float_size(&drag.panel, drag.source.size());
-                let grab = drag.grab.min(vec2(size.x, self.style.tab_height)) + vec2(0.0, BAR_HEIGHT);
+                let grab = drag.grab.min(vec2(size.x, self.look.tab_height)) + vec2(0.0, BAR_HEIGHT);
                 let rect = self.desktop_float(&pointer, size, grab);
                 let action = Action::Float { panel: drag.panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] };
                 self.push_checked(Some(action), &drag.panel);
@@ -340,7 +340,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Release of a bar drag: over a target in another window the whole window docks or
     /// joins there. Over the desktop, or with Ctrl/Cmd held, it stays where it was moved.
     fn drop_native_window(&mut self, window: u64, pointer: &DragPointer) {
-        let Some(drag) = self.window_group_drag(window).filter(|_| !pointer.command && (pointer.docks || self.style.title_bar_docks)) else { return };
+        let Some(drag) = self.window_group_drag(window).filter(|_| !pointer.command && (pointer.docks || self.config.title_bar_docks)) else {
+            return;
+        };
         match self.destination(pointer, None) {
             Some(Dest::Main(local)) => {
                 (self.cross.bar, self.cross.docks) = (true, pointer.docks);

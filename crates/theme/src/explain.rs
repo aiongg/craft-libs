@@ -5,8 +5,9 @@ use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
+use super::scale::Elevation;
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
-use super::tokens::{ColorToken, ColorTokens, ShapeTokens, StatusKind, TokenRef};
+use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
 use crate::AppId;
 
@@ -257,11 +258,16 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
     }
     let preset = values::preset(Size::Compact);
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
+    let elevation = {
+        let [popup, dialog, floating] = [values::ELEVATION_LEVELS.0, values::ELEVATION_LEVELS.1, values::ELEVATION_LEVELS.2].map(Elevation::level);
+        ElevationTokens { popup, dialog, floating, knob: Elevation::level(values::KNOB_ELEVATION) }
+    };
     let defaults = ComponentTokens::defaults(&Semantic {
         color: &probe,
         shape: &shape,
         space: &preset.space,
         size: &preset.size,
+        elevation: &elevation,
         preset: Size::Compact,
         typography: &preset.typography,
     });
