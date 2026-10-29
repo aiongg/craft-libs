@@ -51,7 +51,10 @@ fn write_elsewhere(dir: &Path, change: SelectionChange) -> Accepted {
     store.update(&base, change).unwrap()
 }
 
+/// The limit only ends a hung test; the built-in themes are parsed before the clock starts (see
+/// `watch::tests::wait_for`).
 fn settle(client: &mut SuiteClient) {
+    let _ = craft_theme::builtins();
     let deadline = Instant::now() + Duration::from_secs(5);
     while client.is_pending() {
         assert!(Instant::now() < deadline, "the change never settled");

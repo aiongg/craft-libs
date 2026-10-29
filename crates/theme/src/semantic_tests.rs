@@ -62,6 +62,49 @@ pub(super) fn appearances() -> Vec<Appearance> {
     out
 }
 
+type Resolution = (Resolved, resolve::Steps);
+
+/// Every built-in in every appearance of [`appearances`], indexed theme-major. The first test to
+/// ask resolves all of them on every core; the others wait for it instead of repeating the work.
+static BUILTIN_RESOLVED: std::sync::LazyLock<(Vec<Appearance>, Vec<Resolution>)> = std::sync::LazyLock::new(|| {
+    let all = appearances();
+    let jobs: Vec<_> = crate::builtins().iter().flat_map(|theme| all.iter().map(move |&a| (theme, a))).collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let done: std::sync::Mutex<Vec<(usize, Resolution)>> = std::sync::Mutex::default();
+    std::thread::scope(|scope| {
+        for _ in 0..std::thread::available_parallelism().map_or(4, usize::from) {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(&(theme, a)) = jobs.get(i) else { break };
+                    let r = resolve::resolve_with_steps(theme, a, None);
+                    done.lock().unwrap().push((i, r));
+                }
+            });
+        }
+    });
+    let mut done = done.into_inner().unwrap();
+    done.sort_by_key(|d| d.0);
+    (all, done.into_iter().map(|d| d.1).collect())
+});
+
+/// [`resolve::resolve_with_steps`], answered from [`BUILTIN_RESOLVED`] for a built-in theme (the
+/// very reference `builtins()` hands out, not a modified copy) and an appearance of
+/// [`appearances`].
+pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, resolve::Steps) {
+    let index = crate::builtins().iter().position(|b| std::ptr::eq(b, theme));
+    let (all, slots) = &*BUILTIN_RESOLVED;
+    match (index, app, all.iter().position(|&a| a == appearance)) {
+        (Some(t), None, Some(a)) => slots[t * all.len() + a].clone(),
+        _ => resolve::resolve_with_steps(theme, appearance, app),
+    }
+}
+
+/// [`super::resolve`], shared like [`resolve_with_steps`].
+pub(super) fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Resolved {
+    resolve_with_steps(theme, appearance, app).0
+}
+
 pub(super) fn app(mode: Mode, contrast: Contrast) -> Appearance {
     Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
