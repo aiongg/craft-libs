@@ -15,8 +15,8 @@ use super::curve::{Curve, CurveOp, PointKey, Rules, follow_corners};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
-use crate::controls::NumberField;
 use crate::controls::number_field::{self, FieldRule};
+use crate::controls::{Checkbox, NumberField};
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::parts::{self, Pushed};
@@ -51,6 +51,8 @@ pub struct CurveLabels {
     pub point: String,
     /// A point's accessible value: "Input {x}, Output {y}".
     pub point_value: String,
+    /// The selected point's checkbox that makes it a corner point ([`CurveEditor::corners`]): "Corner".
+    pub corner: String,
     /// A corner point's accessible value: "Input {x}, Output {y}, corner".
     pub corner_value: String,
     /// The graph's accessible value: "{channel}, {n} points".
@@ -72,6 +74,7 @@ impl Default for CurveLabels {
             output: "Output".into(),
             point: "Point {i} of {n}".into(),
             point_value: "Input {x}, Output {y}".into(),
+            corner: "Corner".into(),
             corner_value: "Input {x}, Output {y}, corner".into(),
             graph_value: "{channel}, {n} points".into(),
             graph_points: "{n} points".into(),
@@ -202,6 +205,8 @@ struct Drag {
     offset: [f32; 2],
     /// The selection before the press, restored when the gesture is cancelled.
     before: Option<usize>,
+    /// Whether the point is a corner point, kept while it is off the graph so it comes back as one.
+    corner: bool,
 }
 
 const STATE: &str = "craft_ui::curve_editor";
@@ -219,9 +224,6 @@ const CLAIMED: [ClaimedKey; 7] = [
     ClaimedKey::exact(Modifiers::NONE, Key::Insert),
     ClaimedKey::exact(Modifiers::COMMAND, Key::Enter),
 ];
-
-/// The keys a focused graph with [`corners`](CurveEditor::corners) keeps besides [`CLAIMED`].
-const CLAIMED_CORNERS: [ClaimedKey; 1] = [ClaimedKey::exact(Modifiers::NONE, Key::C)];
 
 /// The keys a focused graph keeps from focus navigation: the arrows nudge its point.
 const KEY_FILTER: egui::EventFilter = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
@@ -263,11 +265,11 @@ type CornerSamples<'a> = dyn Fn(&[[f32; 2]], &[bool]) -> Vec<f32> + 'a;
 /// the host. Every key but `+` needs exactly its modifiers. The graph claims Delete, Backspace,
 /// `+`, `=`, `-`, Insert and Cmd/Ctrl+Enter from the app's shortcuts ([`KeyClaim`]).
 ///
-/// Corners ([`corners`](CurveEditor::corners), the contour editor): a double-click on a point, or C
-/// with the point selected, makes it a corner point, or a smooth one if it is a corner. A corner
+/// Corners ([`corners`](CurveEditor::corners), the contour editor): a Corner checkbox under the
+/// fields makes the selected point a corner point (Photoshop's and PhotoCraft's Contour Editor). A corner
 /// point joins both its neighbours with straight segments; the smooth points between two corners
 /// take the sampler. A new point is smooth, and a point keeps its flag when it moves; the flags
-/// are the [`Curve::Contour`] value's. With corners on, smooth points are round and corner points
+/// are the [`Curve::Points`] value's. With corners on, smooth points are round and corner points
 /// square; without, every point is square.
 ///
 /// Events: a press-drag-release is Begin, Updates and Commit (unchanged for a press without
@@ -620,7 +622,6 @@ impl<'a> CurveEditor<'a> {
                     gesture: &mut gesture,
                     points,
                     corner_flags: &mut corner_flags,
-                    corners: self.corners,
                     state,
                     rules,
                     map,
@@ -631,8 +632,7 @@ impl<'a> CurveEditor<'a> {
                 };
                 edit.pointer(ui, &response);
                 if response.has_focus() {
-                    let claimed = if self.corners { [CLAIMED.as_slice(), CLAIMED_CORNERS.as_slice()].concat() } else { CLAIMED.to_vec() };
-                    KeyClaim::claim(ui.ctx(), id, &claimed);
+                    KeyClaim::claim(ui.ctx(), id, &CLAIMED);
                     edit.keys(ui);
                 }
                 ops = edit.ops;
@@ -732,8 +732,7 @@ impl<'a> CurveEditor<'a> {
     /// The curve through its samples, or a drawn curve's straight segments.
     fn paint_curve(&self, ui: &Ui, curve: &Curve, map: Map, color: Color32, width: f32) {
         let outputs = match curve {
-            Curve::Points(points) => self.samples(points, &[]),
-            Curve::Contour { points, corners } => self.samples(points, corners),
+            Curve::Points { points, corners } => self.samples(points, corners),
             Curve::Map(outputs) => outputs.clone(),
         };
         let last = outputs.len().saturating_sub(1).max(1) as f32;
@@ -837,6 +836,15 @@ impl<'a> CurveEditor<'a> {
             };
             edits.typing(edit, field_ops, apply, map);
         }
+        if self.corners {
+            let mut corner = at.is_some_and(|i| edits.value().is_corner(i));
+            let edit = Checkbox::bool(self.labels.corner.as_str(), &mut corner).id_salt((id, "corner")).enabled(enabled).show(ui);
+            let ops = edit.event.as_ref().and_then(|_| Some(EditOp::Graph(CurveOp::Corner(key?, corner))));
+            let map = |on: bool, now: &Curve| {
+                key.and_then(|key| self.apply(&EditOp::Graph(CurveOp::Corner(key, on)), now, &mut None)).unwrap_or_else(|| now.clone())
+            };
+            edits.push(&edit, ops, apply, map);
+        }
     }
 
     /// The rule of the `axis` field of point `at` of `points` (none: the row without a point), in
@@ -913,8 +921,6 @@ struct PointEdit<'g, 'p> {
     points: &'p mut Vec<[f32; 2]>,
     /// Whether each point is a corner point.
     corner_flags: &'p mut Vec<bool>,
-    /// Whether the editor toggles corner points ([`CurveEditor::corners`]).
-    corners: bool,
     state: &'g mut State,
     rules: Rules,
     map: Map,
@@ -987,16 +993,6 @@ impl PointEdit<'_, '_> {
         {
             self.drag_to(ui, drag, pos);
         }
-        // The second press of a double-click is a gesture still under way here: the toggle is its
-        // last update.
-        if self.corners
-            && response.double_clicked()
-            && let Some(pos) = response.interact_pointer_pos()
-            && let Some(i) = self.map.hit(self.points, pos, self.style.hit)
-            && let Some(at) = PointKey::of(self.points, i)
-        {
-            self.apply(CurveOp::ToggleCorner(at));
-        }
         if self.state.drag.is_some() && !response.is_pointer_button_down_on() {
             self.state.drag = None;
             self.gesture.commit();
@@ -1017,7 +1013,7 @@ impl PointEdit<'_, '_> {
                 let at = self.map.value_at(pos);
                 let p = self.points[i];
                 self.state.selected = Some(i);
-                self.state.drag = Some(Drag { index: Some(i), offset: [p[0] - at[0], p[1] - at[1]], before });
+                self.state.drag = Some(Drag { index: Some(i), offset: [p[0] - at[0], p[1] - at[1]], before, corner: false });
                 self.gesture.begin();
             }
             None if secondary => self.state.selected = None,
@@ -1029,7 +1025,7 @@ impl PointEdit<'_, '_> {
                 let Some(i) = self.rules.insert(self.points, self.map.value_at(pos)) else { return };
                 self.follow(&was);
                 self.state.selected = Some(i);
-                self.state.drag = Some(Drag { index: Some(i), offset: [0.0, 0.0], before });
+                self.state.drag = Some(Drag { index: Some(i), offset: [0.0, 0.0], before, corner: false });
                 self.gesture.begin();
                 if self.points.len() != count {
                     let curve = self.curve();
@@ -1049,8 +1045,9 @@ impl PointEdit<'_, '_> {
         let before = self.points.clone();
         let changed = match drag.index {
             Some(i) if outside && Rules::can_delete(self.points, i) => {
+                let corner = self.corner_flags.get(i).copied().unwrap_or(false);
                 Rules::delete(self.points, i);
-                self.state.drag = Some(Drag { index: None, ..drag });
+                self.state.drag = Some(Drag { index: None, corner, ..drag });
                 self.state.selected = None;
                 true
             }
@@ -1065,6 +1062,13 @@ impl PointEdit<'_, '_> {
             None => false,
         };
         self.follow(&before);
+        if let (None, Some(i)) = (drag.index, self.state.drag.and_then(|d| d.index))
+            && drag.corner
+            && changed
+            && let Some(flag) = self.corner_flags.get_mut(i)
+        {
+            *flag = true;
+        }
         if changed {
             let curve = self.curve();
             self.gesture.update(curve, ui.input(|i| i.modifiers));
@@ -1095,10 +1099,6 @@ impl PointEdit<'_, '_> {
             self.apply(CurveOp::Insert { after });
         }
         let Some(at) = self.state.selected.and_then(|i| PointKey::of(self.points, i)) else { return };
-        if self.corners && take(Modifiers::NONE, Key::C) > 0 {
-            self.apply(CurveOp::ToggleCorner(at));
-            return;
-        }
         if take(Modifiers::NONE, Key::Delete) + take(Modifiers::NONE, Key::Backspace) > 0 {
             self.apply(CurveOp::Delete(at));
             return;
@@ -1301,7 +1301,7 @@ fn story_points(map: &[f32]) -> Curve {
     let last = map.len().saturating_sub(1);
     let mut points: Vec<[f32; 2]> = (0..last).step_by(32).map(|k| [k as f32, map[k]]).collect();
     points.push([last as f32, map.get(last).copied().unwrap_or(255.0)]);
-    Curve::Points(points)
+    Curve::smooth(points)
 }
 
 /// PhotoCraft's Curves on an RGB image: a channel per arg, the other channels' curves and a
@@ -1318,8 +1318,8 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-curves", || {
         let mut curves = vec![Curve::identity(255.0); 4];
-        curves[0] = Curve::Points(vec![[0.0, 0.0], [64.0, 48.0], [192.0, 214.0], [255.0, 255.0]]);
-        curves[1] = Curve::Points(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]);
+        curves[0] = Curve::smooth(vec![[0.0, 0.0], [64.0, 48.0], [192.0, 214.0], [255.0, 255.0]]);
+        curves[1] = Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]);
         curves
     });
     let width = args.number("width") as f32;
@@ -1359,7 +1359,7 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
 /// Camera Raw's tone curve: 260 square, no fields, no channels.
 fn show_small(ui: &mut Ui, _: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
-    let (id, mut host) = story_curves(ui, "curve-editor-small", || vec![Curve::Points(vec![[0.0, 0.0], [96.0, 80.0], [255.0, 255.0]])]);
+    let (id, mut host) = story_curves(ui, "curve-editor-small", || vec![Curve::smooth(vec![[0.0, 0.0], [96.0, 80.0], [255.0, 255.0]])]);
     let edit = CurveEditor::new("tone-curve", "Tone curve", &host.curves[0], &numbers).side(260.0).fields(false).show(ui);
     let StoryCurves { curves, before } = &mut host;
     apply(&edit, &mut curves[0], before);
