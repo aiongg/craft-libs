@@ -196,6 +196,8 @@ pub struct Typing<'a, C: Codec = PlainText> {
     keep_rejected: bool,
     multiline: Option<usize>,
     edit_menu: bool,
+    /// The menu the embedding control showed itself this pass.
+    menu: Option<edit_menu::Outcome>,
 }
 
 impl<'a> Typing<'a> {
@@ -263,6 +265,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             keep_rejected: true,
             multiline: None,
             edit_menu: false,
+            menu: None,
         }
     }
 
@@ -280,6 +283,14 @@ impl<'a, C: Codec> Typing<'a, C> {
     /// [`EditMenu`](super::EditMenu); off by default.
     pub fn edit_menu(mut self, on: bool) -> Self {
         self.edit_menu = on;
+        self
+    }
+
+    /// Tells the field that its embedding control showed the edit menu itself this pass, ahead of
+    /// its own key readers ([`edit_menu::show`]), and what came of it. The field then does not
+    /// show it again.
+    pub(crate) fn edit_menu_shown(mut self, outcome: edit_menu::Outcome) -> Self {
+        self.menu = Some(outcome);
         self
     }
 
@@ -369,9 +380,11 @@ impl<'a, C: Codec> Typing<'a, C> {
         if enabled {
             super::FieldTab::register(ui, id);
         }
-        if self.edit_menu && enabled {
-            edit_menu::show(ui, id, self.password, None);
-        }
+        let menu = match (self.edit_menu && enabled, self.menu) {
+            (true, None) => edit_menu::show(ui, id, self.password, None),
+            (true, Some(shown)) => shown,
+            (false, _) => edit_menu::Outcome::default(),
+        };
         let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         let caret = state.cursor.char_range();
@@ -460,7 +473,7 @@ impl<'a, C: Codec> Typing<'a, C> {
         visuals.weak_text_color = Some(look.placeholder);
         // A click in the edit menu is no click away from the field.
         let surrender = ui.ctx().options(|o| o.input_options.surrender_focus_on);
-        if self.edit_menu && edit_menu::pointer_on(ui.ctx(), id) {
+        if self.edit_menu && menu.pointer_on(ui.ctx(), id) {
             ui.ctx().options_mut(|o| o.input_options.surrender_focus_on = SurrenderFocusOn::Never);
         }
         let mut output = edit.show(ui);

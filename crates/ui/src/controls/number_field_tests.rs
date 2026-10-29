@@ -1340,6 +1340,33 @@ fn a_scrub_stays_continuous_across_a_pointer_warp() {
 }
 
 #[test]
+fn travel_takes_the_first_position_after_a_warp_as_arrived_however_far_it_is_from_the_target() {
+    let edges = Some((0.0, 800.0));
+    // A fast scrub: the pointer is first seen 10 points past the target, not within 4.
+    let arrived = travel(799.0, 14.0, Some(4.0), edges);
+    assert_eq!((arrived.delta, arrived.warp, arrived.send), (0.0, None, None));
+}
+
+#[test]
+fn a_fast_scrub_across_the_edge_continues_by_the_real_movement() {
+    let mut rig = wrapping_rig();
+    let from = rig.handle();
+    let y = from.y;
+    rig.frame(vec![Event::PointerMoved(from), pointer(from, true)]);
+    rig.frame(vec![Event::PointerMoved(from + vec2(10.0, 0.0))]);
+    rig.frame(vec![Event::PointerMoved(pos2(799.0, y))]);
+    let at_edge = rig.value;
+    assert_eq!(warps(&rig), vec![pos2(4.0, y)]);
+    // The pointer is first seen at the target plus 10: that is the warp, not a move of -785.
+    rig.frame(vec![Event::PointerMoved(pos2(14.0, y))]);
+    assert_eq!(rig.value, at_edge, "the arrival is no move");
+    rig.frame(vec![Event::PointerMoved(pos2(20.0, y))]);
+    assert_eq!(rig.value, at_edge + 6.0, "the scrub goes on by the real movement");
+    assert_eq!(warps(&rig), vec![pos2(4.0, y)], "the warp is not sent again");
+    rig.frame(vec![pointer(pos2(20.0, y), false)]);
+}
+
+#[test]
 fn a_warp_that_fails_is_asked_for_once() {
     let mut rig = wrapping_rig();
     let from = rig.handle();
@@ -1367,6 +1394,21 @@ fn a_secondary_click_opens_the_edit_menu_on_the_text_unless_the_field_turns_it_o
         assert_eq!(crate::behavior::edit_menu::is_open(&rig.ctx, rig.id), on);
         assert_eq!(rig.has_focus(), on, "the press focuses the field when the menu opens on its text");
         assert_eq!(rig.events, vec![], "the press changes no value");
+    }
+}
+
+#[test]
+fn arrows_with_modifiers_are_the_open_edit_menus_and_do_not_step_the_field() {
+    for modifiers in [Modifiers::SHIFT, Modifiers::COMMAND, Modifiers::ALT] {
+        let mut rig = Rig::with(12.0, |_| {});
+        rig.focus();
+        rig.key(Key::Menu);
+        rig.frame(vec![]);
+        assert!(crate::behavior::edit_menu::is_open(&rig.ctx, rig.id));
+        rig.chord(modifiers, Key::ArrowDown);
+        rig.chord(modifiers, Key::ArrowUp);
+        assert_eq!(rig.value, 12.0, "{modifiers:?}: the field under the menu is not stepped");
+        assert_eq!(rig.events, vec![], "{modifiers:?}: no edit");
     }
 }
 
