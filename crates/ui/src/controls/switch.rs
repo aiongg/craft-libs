@@ -160,7 +160,7 @@ impl<'a> Switch<'a> {
             thumb_surface: knob(thumb_surface, c.thumb.fill.rest.to_egui(), c.thumb.border.rest.to_egui(), true),
             thumb_fill: c.thumb.fill.to_egui(),
             thumb_border: c.thumb.border.to_egui(),
-            text: label_colors(tokens),
+            text: label_colors(tokens, tokens.color.text.normal),
             travel: motion.millis as f32 / 1000.0,
             easing: motion.easing,
         }

@@ -2,13 +2,13 @@
 
 use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Shape, Stroke, Ui, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, IdSalt, Rect, Shape, Stroke, Ui, vec2};
 
 use super::button::content_color;
-use super::check::{IndicatorColors, Labelled, Layout, Paint, indicator_shapes, label_colors};
+use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::{SIZE_NAMES, salt, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
-use crate::primitives::{Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle};
+use crate::primitives::{Gap, Interactive, Stack};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf, UiTokens};
 
@@ -81,9 +81,9 @@ impl CheckValue for bool {
 pub struct CheckboxStyle {
     /// Height of one line: `check.height`.
     pub height: f32,
-    /// Side of the box: `check.size`.
+    /// Side of the box: `check.box_size`.
     pub side: f32,
-    /// Between the box and the label: `check.gap`.
+    /// Between the box and the label: `check.box_gap`.
     pub gap: f32,
     /// `check.label`.
     pub label: TypeRole,
@@ -91,14 +91,13 @@ pub struct CheckboxStyle {
     pub radius: CornerRadius,
     /// Stroke width of the check and the dash: `check.mark`.
     pub mark: f32,
-    /// The sunken surface the box draws on, for its edge (a border, or a bevel in bevel themes);
-    /// the fill and corners are the box's own.
-    pub surface: SurfaceStyle,
+    /// Width of the outline, drawn inside the box: `check.outline`.
+    pub outline: f32,
     /// Unchecked: `check.off.*`.
     pub off: IndicatorColors,
     /// Checked or mixed: `check.on.*`.
     pub on: IndicatorColors,
-    /// The label: `text.normal`, `text.disabled`.
+    /// The label: `text.muted`, `text.disabled`.
     pub text: States<Color32>,
 }
 
@@ -110,9 +109,9 @@ pub struct CheckboxStyle {
 /// held. AccessKit reports a `CheckBox` named by the label, toggled true, false or mixed, after
 /// this frame's click.
 ///
-/// The box sits at the reading start on a sunken [`Surface`] (bevelled in bevel themes): the
-/// `check.off.*` colours with an outline while unchecked, `check.on.*` with a check or a dash
-/// while checked or mixed. The label wraps, is cut or runs on as the `Ui`'s wrap mode says, with
+/// The box sits at the reading start, flat in every theme: the `check.off.*` colours with an
+/// outline while unchecked, `check.on.*` with a check or a dash while checked or mixed. The
+/// pointer is a hand over the box and the label, and pressing the label shows the box pressed. The label wraps, is cut or runs on as the `Ui`'s wrap mode says, with
 /// the whole label in a tooltip when cut.
 #[derive(Debug)]
 pub struct Checkbox<'a, T: CheckValue = CheckState> {
@@ -183,6 +182,9 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
             _ => sensed.checked(state == CheckState::Checked),
         };
         let mut response = sensed.finish(ui);
+        if response.enabled() {
+            response = response.on_hover_cursor(CursorIcon::PointingHand);
+        }
         if clicked {
             response.mark_changed();
         }
@@ -190,9 +192,9 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
             let (rect, label) = laid.place(ui, response.rect);
             let on = state != CheckState::Unchecked;
             let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
-            ui.painter().extend(indicator_shapes(ui, &style.surface, rect, style.radius, paint));
-            if let Some(mark) = paint.mark.and_then(|color| mark(rect, state, style.mark, color)) {
-                ui.painter().add(mark);
+            ui.painter().add(box_shape(rect, style.radius, style.outline, paint));
+            if let Some(color) = paint.mark {
+                ui.painter().extend(mark(rect, state, style.mark, color));
             }
             laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));
         }
@@ -206,27 +208,36 @@ impl Checkbox<'static, CheckState> {
         let c = &tokens.component.check;
         CheckboxStyle {
             height: c.height.get(size),
-            side: c.size.get(size),
-            gap: c.gap,
+            side: c.box_size.get(size),
+            gap: c.box_gap,
             label: c.label,
             radius: CornerRadius::from(c.radius),
             mark: c.mark.get(size),
-            surface: Surface::style(tokens, SurfaceKind::Sunken),
+            outline: c.outline,
             off: IndicatorColors::from(&c.off),
             on: IndicatorColors::from(&c.on),
-            text: label_colors(tokens),
+            text: label_colors(tokens, tokens.color.text.muted),
         }
     }
 }
 
-/// The check or dash in the box `rect`; none when unchecked.
-fn mark(rect: Rect, state: CheckState, width: f32, color: Color32) -> Option<Shape> {
-    let at = |x: f32, y: f32| pos2(rect.left() + x * rect.width(), rect.top() + y * rect.height());
+/// The check or dash in the box `rect`; none when unchecked. The check is PhotoCraft's: two
+/// segments through points laid out on a 14 point box and scaled to `rect`.
+fn mark(rect: Rect, state: CheckState, width: f32, color: Color32) -> Vec<Shape> {
+    let k = rect.width() / 14.0;
     let stroke = Stroke::new(width, color);
     match state {
-        CheckState::Unchecked => None,
-        CheckState::Checked => Some(Shape::line(vec![at(0.24, 0.52), at(0.42, 0.7), at(0.76, 0.32)], stroke)),
-        CheckState::Mixed => Some(Shape::line_segment([at(0.26, 0.5), at(0.74, 0.5)], stroke)),
+        CheckState::Unchecked => Vec::new(),
+        CheckState::Checked => {
+            let a = rect.left_center() + vec2(3.0, 0.5) * k;
+            let b = rect.center_bottom() + vec2(-1.0, -3.5) * k;
+            let c = rect.right_top() + vec2(-3.0, 3.5) * k;
+            vec![Shape::line_segment([a, b], stroke), Shape::line_segment([b, c], stroke)]
+        }
+        CheckState::Mixed => {
+            let y = rect.center().y;
+            vec![Shape::line_segment([egui::pos2(rect.left() + 0.26 * rect.width(), y), egui::pos2(rect.left() + 0.74 * rect.width(), y)], stroke)]
+        }
     }
 }
 

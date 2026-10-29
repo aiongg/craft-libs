@@ -304,10 +304,13 @@ fn item_lines(out: &mut Lines, key: &str, colors: &ItemColors) {
 }
 
 fn check_lines(out: &mut Lines, c: &CheckTokens) {
-    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, switch, thumb } = c;
+    let CheckTokens { height, size, gap, box_size, box_gap, outline, label, radius, mark, dot, track, thumb_inset, off, on, switch, thumb } = c;
     by_size(out, "check.height", height);
     by_size(out, "check.size", size);
     out.line("check.gap", len(*gap));
+    by_size(out, "check.box_size", box_size);
+    out.line("check.box_gap", len(*box_gap));
+    out.line("check.outline", len(*outline));
     out.line("check.label", role(*label));
     out.line("check.radius", len(*radius));
     by_size(out, "check.mark", mark);

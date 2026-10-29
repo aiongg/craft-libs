@@ -278,8 +278,7 @@ fn checkbox() {
             });
         }
         let s = Checkbox::style(t, ControlSize::Md);
-        d.line("radius", s.radius);
-        indicator_edge(d, &s.surface);
+        d.line("radius", s.radius).line("outline", s.outline);
         indicator(d, "off", &s.off);
         indicator(d, "on", &s.on);
         states(d, "text", &s.text);
@@ -296,7 +295,7 @@ fn radio() {
             });
         }
         let s = RadioGroup::style(t, ControlSize::Md);
-        indicator_edge(d, &s.surface);
+        d.line("outline", s.outline);
         indicator(d, "off", &s.off);
         indicator(d, "on", &s.on);
         states(d, "text", &s.text);
