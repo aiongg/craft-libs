@@ -567,9 +567,9 @@ impl<'a> LevelsEditor<'a> {
         }
         // The histogram touches the input row, and the bar the output row.
         ui.spacing_mut().item_spacing.y = 0.0;
-        let (plot, _) = ui.allocate_exact_size(vec2(width, Histogram::style(tokens).height), Sense::hover());
+        let (plot, _) = ui.allocate_exact_size(vec2(width, tokens.component.levels.histogram), Sense::hover());
         let plot = plot.shrink2(vec2(rows.inset(), 0.0));
-        let mut histogram = Histogram::new("histogram", self.labels.histogram.as_str()).height(plot.height()).stale(self.stale);
+        let mut histogram = Histogram::new("histogram", self.labels.histogram.as_str()).height(plot.height()).bordered(true).stale(self.stale);
         if let Some(data) = self.histogram {
             histogram = histogram.data(data.clone());
         }

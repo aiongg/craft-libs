@@ -862,13 +862,14 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
 }
 
 fn levels_lines(out: &mut Lines, t: &LevelsTokens) {
-    let LevelsTokens { min_width, max_width, row, thumb_width, thumb_height, hit, bar, thumb_edge, disabled_edge, ring } = t;
+    let LevelsTokens { min_width, max_width, row, thumb_width, thumb_height, hit, histogram, bar, thumb_edge, disabled_edge, ring } = t;
     out.line("levels.min_width", len(*min_width));
     out.line("levels.max_width", len(*max_width));
     out.line("levels.row", len(*row));
     out.line("levels.thumb_width", len(*thumb_width));
     out.line("levels.thumb_height", len(*thumb_height));
     out.line("levels.hit", len(*hit));
+    out.line("levels.histogram", len(*histogram));
     out.line("levels.bar", len(*bar));
     out.line("levels.thumb_edge", hex(*thumb_edge));
     out.line("levels.disabled_edge", hex(*disabled_edge));
@@ -892,9 +893,10 @@ fn gradient_editor_lines(out: &mut Lines, t: &GradientEditorTokens) {
 }
 
 fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
-    let HistogramTokens { height, backdrop_alpha, line, marker_alpha, marker_width } = t;
+    let HistogramTokens { height, backdrop, line, selection_alpha, marker_alpha, marker_width } = t;
     out.line("histogram.height", len(*height));
-    out.line("histogram.backdrop_alpha", len(*backdrop_alpha));
+    out.line("histogram.backdrop", hex(*backdrop));
+    out.line("histogram.selection_alpha", len(*selection_alpha));
     out.line("histogram.line", len(*line));
     out.line("histogram.marker_alpha", len(*marker_alpha));
     out.line("histogram.marker_width", len(*marker_width));

@@ -115,7 +115,7 @@ pub enum HistogramScale {
 pub enum HistogramLook {
     /// One channel as a filled area in its colour.
     Tone,
-    /// The tone look at `histogram.backdrop_alpha`, to sit behind a curve.
+    /// One grey, `histogram.backdrop`, in every channel, to sit behind a curve.
     Backdrop,
     /// Overlapping ribbons: filled bands with exact overlap colours and an outline each.
     Rgb,
@@ -210,8 +210,10 @@ pub struct HistogramStyle {
     /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
     /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
     pub inks: [Color32; 7],
-    /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
-    pub backdrop_alpha: f32,
+    /// The tone look behind a curve, in every channel: `histogram.backdrop`.
+    pub backdrop: Color32,
+    /// The selected range's band: `accent.solid` at `histogram.selection_alpha`.
+    pub selection: Color32,
     /// Width of the ribbons' outlines: `histogram.line`.
     pub line: f32,
     /// The marker on the tone look: `text.normal` at `histogram.marker_alpha`.
@@ -249,8 +251,8 @@ impl HistogramStyle {
 /// ```
 ///
 /// - **Bins:** any count, drawn across the plot width, each bin centred in its slot.
-/// - **Tone look:** a filled area on `field.fill` with `field.border.rest`, in the channel's data
-///   token (`text.muted` for neutral).
+/// - **Tone look:** a filled area on `field.fill`, with a `field.border.rest` edge only when
+///   [`bordered`](Histogram::bordered), in the channel's data token (`text.muted` for neutral).
 /// - **RGB look** ([`rgb`](Histogram::rgb), [`channels`](Histogram::channels)): the bins smoothed
 ///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale
 ///   and a `histogram.line` outline per channel. Fills are opaque: `rgb` adds the channel colours where fills overlap
@@ -283,6 +285,7 @@ pub struct Histogram {
     stale_label: String,
     stale_click: Option<String>,
     height: Option<f32>,
+    bordered: bool,
 }
 
 /// What [`Histogram::show`] returns. It dereferences to the plot's [`egui::Response`].
@@ -337,6 +340,7 @@ impl Histogram {
             stale_label: "Cached data".to_owned(),
             stale_click: None,
             height: None,
+            bordered: false,
         }
     }
 
@@ -444,6 +448,13 @@ impl Histogram {
         self
     }
 
+    /// Draws the 1 point `field.border.rest` edge round the plot. Off by default, as the Histogram
+    /// panel has none; a levels editor turns it on.
+    pub fn bordered(mut self, bordered: bool) -> Self {
+        self.bordered = bordered;
+        self
+    }
+
     /// The look in `tokens`. The ribbon colours are those of `tokens`; [`show`](Histogram::show)
     /// uses the dark mode's.
     pub fn style(tokens: &UiTokens) -> HistogramStyle {
@@ -456,7 +467,8 @@ impl Histogram {
             tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
             inks: ChannelColor::ALL.map(|c| c.color(tokens)),
-            backdrop_alpha: h.backdrop_alpha,
+            backdrop: h.backdrop.to_egui(),
+            selection: tokens.color.accent.solid.to_egui().gamma_multiply(h.selection_alpha),
             line: h.line,
             marker: tokens.color.text.normal.to_egui().gamma_multiply(h.marker_alpha),
             marker_alpha: h.marker_alpha,
@@ -516,7 +528,7 @@ impl Histogram {
                     (style.marker, tokens.color.text.normal.to_egui())
                 };
                 if let Some(range) = &shown {
-                    painter.extend(selection_shapes(rect, bins, range, style.marker_width, color));
+                    painter.extend(selection_shapes(rect, bins, range, style.marker_width, style.selection));
                 }
                 if let Some(level) = self.marker {
                     painter.extend(marker_shapes(rect, bins, level, style.marker_width, color));
@@ -526,7 +538,9 @@ impl Histogram {
                     Self::caption(ui, id.with(("marker", i)), rect, level_x(rect, bins, *level), caption, solid, &tokens);
                 }
             }
-            painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
+            if self.bordered {
+                painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
+            }
             if selectable {
                 FocusRing::paint_radius(ui, rect, CornerRadius::ZERO, &response);
             }
@@ -701,8 +715,7 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
     }
     match (&data.plot, look) {
         (Plot::Tone { bins, channel }, HistogramLook::Tone | HistogramLook::Backdrop) => {
-            let color = style.tone(*channel);
-            let color = if look == HistogramLook::Backdrop { color.gamma_multiply(style.backdrop_alpha) } else { color };
+            let color = if look == HistogramLook::Backdrop { style.backdrop } else { style.tone(*channel) };
             vec![Shape::mesh(tone_mesh(rect, &tone_heights(bins, data.scale), color))]
         }
         (Plot::Channels { channels, blend }, HistogramLook::Rgb) => {

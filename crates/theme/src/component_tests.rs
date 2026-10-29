@@ -182,7 +182,7 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
     let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
     let c = &t.component.curve;
     assert_eq!((c.fill, c.border), (t.component.field.fill.rest, t.component.field.border.rest));
-    assert_eq!((c.grid, c.baseline), (t.color(T::LineDivider), t.color(T::LineBorder)));
+    assert_eq!((c.grid, c.baseline), (t.color(T::LineDivider), t.color(T::LineControlEdge)));
     assert_eq!((c.point_fill, c.point_stroke), (t.color(T::SurfaceSunken), t.color(T::TextNormal)));
     assert_eq!((c.width, c.other_width, c.other_alpha), (1.5, 1.0, 0.8));
     // The Compact sizes scale with the control height.
@@ -226,7 +226,7 @@ fn levels_defaults_come_from_semantic_tokens_and_the_thumb_edge_meets_the_indica
     // The Compact sizes scale with the control height.
     let k = t.size.control.md / 24.0;
     let scaled = |v: f32| (v * k).round();
-    assert_eq!((l.min_width, l.max_width, l.row, l.bar), (scaled(120.0), scaled(300.0), scaled(14.0), scaled(8.0)));
+    assert_eq!((l.min_width, l.max_width, l.row, l.histogram, l.bar), (scaled(120.0), scaled(300.0), scaled(14.0), scaled(110.0), scaled(10.0)));
     assert_eq!((l.thumb_width, l.thumb_height, l.hit), (scaled(11.0), scaled(9.0), scaled(7.0)));
     assert_eq!(ComponentField::from_path("levels.ring.hover"), Some(ComponentField::Levels(LevelsField::Ring(State::Hover))));
     assert_eq!(ComponentField::from_path("levels.thumb_edge"), Some(edge));
@@ -262,7 +262,7 @@ fn gradient_editor_defaults_come_from_semantic_tokens_and_its_cues_meet_the_indi
 }
 
 /// The channel colours a curve is drawn in are checked on `curve.fill`, not only on the surface
-/// it defaults to: a pinned fill that hides them warns, and high contrast moves the fill.
+/// it defaults to: a pinned fill that hides them is moved by high contrast.
 #[test]
 fn a_pinned_curve_fill_is_checked_against_the_channel_colours() {
     let fill = ComponentField::Curve(CurveField::Fill);
@@ -271,7 +271,7 @@ fn a_pinned_curve_fill_is_checked_against_the_channel_colours() {
     def.pins.dark.colors.insert(TokenRef::Component(fill), red);
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     let warned = |r: &crate::Resolved| r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::DataRed) && w.bg == TokenRef::Component(fill));
-    assert!(warned(&r), "{:?}", r.warnings);
+    assert!(!warned(&r), "Standard keeps PhotoCraft's channel colours: {:?}", r.warnings);
     let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
     let ratio = contrast_ratio(r.tokens.color(T::DataRed), r.tokens.component.color(fill).unwrap());
     assert!(ratio >= 4.5 && !warned(&r), "{ratio:.2}: {:?}", r.warnings);
@@ -688,6 +688,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Popup: fill, border and shadow; the menu's open fill replaced the list box's chosen text.
             + 3
+            // Histogram: the backdrop.
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -917,7 +919,7 @@ fn handle_defaults_are_the_same_at_every_size_and_have_no_overridable_path() {
         for size in [Size::Compact, Size::Comfortable] {
             for mode in [Mode::Light, Mode::Dark] {
                 let t = resolve(&def, Appearance { size, ..app(mode, Contrast::High) }, None).tokens;
-                assert_eq!(t.component.handle, HandleTokens { size: 8.0, stroke: 1.0, halo: 1.0, hit: 14.0 }, "{} {size:?} {mode:?}", def.name);
+                assert_eq!(t.component.handle, HandleTokens { size: 7.0, stroke: 1.0, halo: 1.0, hit: 14.0 }, "{} {size:?} {mode:?}", def.name);
             }
         }
     }

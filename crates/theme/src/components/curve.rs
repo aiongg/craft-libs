@@ -36,7 +36,7 @@ pub struct CurveTokens {
     pub border: Rgba,
     /// The quarter grid: `line.divider`.
     pub grid: Rgba,
-    /// The diagonal of the unchanged curve: `line.border`.
+    /// The diagonal of the unchanged curve: `line.control_edge` (PhotoCraft draws it at 1.6 times its divider, about its field border).
     pub baseline: Rgba,
     /// An unselected point's inside, and the outline round a selected one: `field.fill.rest`.
     pub point_fill: Rgba,
@@ -129,7 +129,7 @@ impl Family for CurveTokens {
             fill: field_fill,
             border: field_border,
             grid: c.line.divider,
-            baseline: c.line.border,
+            baseline: c.line.control_edge,
             point_fill: field_fill,
             point_stroke: c.text.normal,
         }
@@ -159,14 +159,15 @@ impl Family for CurveTokens {
 
     /// The cues that show the editor's state on the plot (WCAG 1.4.11), 3:1 and 4.5:1 with high
     /// contrast: the point outline, which draws the neutral curve, the unselected points' edges
-    /// and the selected point; and the channel colours (`data.*`) a channel's curve is drawn in.
+    /// and the selected point; and, in high contrast only, the channel colours (`data.*`) a
+    /// channel's curve is drawn in (PhotoCraft's are the same in every theme).
     /// High contrast moves `curve.fill` for a channel colour, which stays as the data rule left it.
     fn pairs() -> Vec<ContrastPair> {
         let fill = TokenRef::Component(ComponentField::Curve(CurveField::Fill));
-        let pair = |fg| ContrastPair { fg, bg: fill, minimum: values::NON_TEXT_MIN, alternate: None };
+        let pair = |fg, minimum| ContrastPair { fg, bg: fill, minimum, alternate: None };
         let channels = [T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow];
-        std::iter::once(pair(TokenRef::Component(ComponentField::Curve(CurveField::PointStroke))))
-            .chain(channels.map(|t| pair(TokenRef::Color(t))))
+        std::iter::once(pair(TokenRef::Component(ComponentField::Curve(CurveField::PointStroke)), values::NON_TEXT_MIN))
+            .chain(channels.map(|t| pair(TokenRef::Color(t), values::STATE_CUE_MIN)))
             .collect()
     }
 }

@@ -317,12 +317,13 @@ fn pill_radius_is_full_by_default_and_zero_in_classic() {
     assert_eq!([t.component.badge.radius, t.component.progress.radius, t.component.slider.radius], [0.0; 3]);
 }
 
-/// The edited curve and its points are the cue that shows a curve editor's state: the channel
-/// colours must reach 3:1 on the plot (`field.fill`) in every built-in, mode and contrast.
+/// The edited curve and its points are the cue that shows a curve editor's state: in high
+/// contrast the channel colours must reach 3:1 on the plot (`field.fill`) in every built-in and
+/// mode. Standard keeps PhotoCraft's.
 #[test]
-fn data_channel_colours_reach_three_to_one_on_the_curve_fill() {
+fn data_channel_colours_reach_three_to_one_on_the_curve_fill_in_high_contrast() {
     for theme in builtins() {
-        for a in appearances() {
+        for a in appearances().into_iter().filter(|a| a.contrast == Contrast::High) {
             let t = resolve(theme, a, None).tokens;
             let fill = t.component.curve.fill;
             let d = t.color.data;
@@ -684,6 +685,42 @@ fn toasts_and_panel_rows_follow_photocraft() {
             assert_eq!((toast.edge(Tone::Bad), toast.title(Tone::Bad)), (toast.edge(Tone::Warn), toast.title(Tone::Warn)), "{who}");
             assert_eq!(toast.title(Tone::Bad), t.color(ColorToken::StatusWarnFg), "{who}");
             assert_eq!(t.space.gap.row, if size == Size::Compact { 4.0 } else { 6.0 }, "{who}");
+        }
+    }
+}
+
+/// The editors follow PhotoCraft: histogram channel colours are PhotoCraft's in every theme and mode
+/// (`histogram_panel.rs:191`), canvas box lines and handle outlines are the accent, handles are 7
+/// wide, and the Pro themes pin the curve backdrop grey 88 where the others use grey 190 (both at
+/// 0.75).
+#[test]
+fn editors_follow_photocraft() {
+    let hex = |s: &str| Rgba::from_hex(s).unwrap();
+    for theme in builtins() {
+        for app in appearances().into_iter().filter(|a| a.contrast == Contrast::Standard && a.text_size == TextSize::ALL[0]) {
+            let t = resolve(theme, app, None).tokens;
+            let who = format!("{} {:?} {:?}", theme.id, app.mode, app.size);
+            for (token, value) in [
+                (ColorToken::DataRed, "#eb1e1e"),
+                (ColorToken::DataGreen, "#1eeb1e"),
+                (ColorToken::DataBlue, "#2828f0"),
+                (ColorToken::DataCyan, "#00c8eb"),
+                (ColorToken::DataMagenta, "#e600a0"),
+                (ColorToken::DataYellow, "#f0dc00"),
+            ] {
+                assert_eq!(t.color(token), hex(value), "{who} {}", token.path());
+            }
+            assert_eq!(t.color(ColorToken::OverlayLine), t.color(ColorToken::AccentSolid), "{who}");
+            assert_eq!(t.color(ColorToken::OverlayHandleStroke), t.color(ColorToken::AccentSolid), "{who}");
+            assert_eq!(t.component.handle.size, 7.0, "{who}");
+            let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&theme.id.as_str());
+            let grey = if pro { 88 } else { 190 };
+            assert_eq!(t.component.histogram.backdrop, Rgba([grey, grey, grey, 191]), "{who}");
+            assert_eq!(
+                (t.component.levels.histogram, t.component.levels.bar),
+                if app.size == Size::Compact { (110.0, 10.0) } else { (138.0, 13.0) },
+                "{who}"
+            );
         }
     }
 }

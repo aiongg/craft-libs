@@ -579,7 +579,7 @@ fn histogram() {
     check("histogram.txt", |d, t| {
         let s = Histogram::style(t);
         d.line("height", s.height).line("fill", s.fill).line("border", s.border).line("scope", s.scope);
-        d.line("backdrop_alpha", s.backdrop_alpha).line("line", s.line);
+        d.line("backdrop", s.backdrop).line("selection", s.selection).line("line", s.line);
         d.line("marker", s.marker).line("marker_alpha", s.marker_alpha).line("marker_width", s.marker_width).line("stale", s.stale);
         for channel in ChannelColor::ALL {
             d.line(&format!("tone.{}", channel.name()), s.tone(channel));

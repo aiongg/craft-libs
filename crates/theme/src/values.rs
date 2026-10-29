@@ -241,10 +241,10 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::StateSelectedHover => StateVariant { base: T::StateSelected, step: pick(7, 6) },
         T::StateDisabledFill => Same(T::SurfacePanel),
         T::OverlayStroke => Accent(9),
-        T::OverlayLine => Accent(9),
+        T::OverlayLine => Same(T::AccentSolid),
         T::OverlayHalo => Fixed(Rgba::BLACK.with_alpha(alpha(0.6))),
         T::OverlayHandleFill => Fixed(Rgba::WHITE),
-        T::OverlayHandleStroke => Same(T::OverlayStroke),
+        T::OverlayHandleStroke => Same(T::AccentSolid),
         T::OverlayMarquee => Fixed(Rgba::WHITE),
         T::OverlayMarqueeDash => Fixed(Rgba::BLACK),
         // Guides sit on the document, not the panel, so they keep one colour in both modes.
@@ -261,13 +261,14 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::DataSeries5 => series(5),
         T::DataSeries6 => series(6),
         T::DataSeries7 => series(7),
-        T::DataRed => Fixed(if dark { Rgba::rgb(0xff, 0x50, 0x50) } else { Rgba::rgb(0xd0, 0x20, 0x20) }),
-        T::DataGreen => Fixed(if dark { Rgba::rgb(0x50, 0xe0, 0x50) } else { Rgba::rgb(0x20, 0xa0, 0x20) }),
-        T::DataBlue => Fixed(if dark { Rgba::rgb(0x50, 0x80, 0xff) } else { Rgba::rgb(0x20, 0x50, 0xd0) }),
+        // PhotoCraft's histogram channel colours (`histogram_panel.rs:191`), the same in every theme and mode.
+        T::DataRed => Fixed(Rgba::rgb(235, 30, 30)),
+        T::DataGreen => Fixed(Rgba::rgb(30, 235, 30)),
+        T::DataBlue => Fixed(Rgba::rgb(40, 40, 240)),
         T::DataLuma => Neutral(12),
-        T::DataCyan => Fixed(if dark { Rgba::rgb(0x28, 0xc8, 0xe6) } else { Rgba::rgb(0x08, 0x73, 0x88) }),
-        T::DataMagenta => Fixed(if dark { Rgba::rgb(0xe1, 0x46, 0xc8) } else { Rgba::rgb(0xb0, 0x24, 0x9a) }),
-        T::DataYellow => Fixed(if dark { Rgba::rgb(0xeb, 0xd2, 0x28) } else { Rgba::rgb(0x7a, 0x64, 0x00) }),
+        T::DataCyan => Fixed(Rgba::rgb(0, 200, 235)),
+        T::DataMagenta => Fixed(Rgba::rgb(230, 0, 160)),
+        T::DataYellow => Fixed(Rgba::rgb(240, 220, 0)),
         T::DataScope => Fixed(Rgba::rgb(0x28, 0x28, 0x28)),
         T::CaptionCloseHover => Fixed(Rgba::rgb(0xc4, 0x2b, 0x1c)),
         T::CaptionCloseText => Fixed(Rgba::WHITE),
@@ -378,14 +379,15 @@ pub(super) const RULES: &[PairRule] = &[
     rule(&[T::OverlayStroke], HALO_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::OverlayMarquee], &[Token(T::OverlayMarqueeDash)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     // A selected anchor is a handle filled with its outline colour: the outline on the fill is the
-    // only mark of the selection.
-    rule(&[T::OverlayHandleStroke], &[Token(T::OverlayHandleFill)], NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    // only mark of the selection. Standard keeps the accent PhotoCraft outlines its handles in.
+    rule(&[T::OverlayHandleStroke], &[Token(T::OverlayHandleFill)], STATE_CUE_MIN.0, STATE_CUE_MIN.1),
     // A curve editor's curve and points in a channel colour, on its plot (`field.fill`, `surface.sunken`).
+    // PhotoCraft's channel colours are the same in every theme, so Standard keeps them as they are.
     rule(
         &[T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow],
         &[Token(T::SurfaceSunken)],
-        NON_TEXT_MIN.0,
-        NON_TEXT_MIN.1,
+        STATE_CUE_MIN.0,
+        STATE_CUE_MIN.1,
     ),
     // Guide and smart-guide colours have no pair: they are the user's choice, as in the apps'
     // preferences, and a bare line on an image can't promise a ratio. `overlay.line` neither, for
@@ -593,8 +595,11 @@ pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 pub const HISTOGRAM_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a histogram plot (PhotoCraft's panel).
 pub const HISTOGRAM_HEIGHT: f32 = 100.0;
-/// Alpha of the tone look behind a curve: PhotoCraft's grey 88 / 190 at 0.75 reads as a faint grey.
-pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
+/// The tone look behind a curve: PhotoCraft's grey 190 at 0.75 (`curves.rs:274`, its non-Pro look; the
+/// Pro themes pin grey 88).
+pub const HISTOGRAM_BACKDROP: Rgba = Rgba([190, 190, 190, 191]);
+/// Alpha of the selected range's accent band (PhotoCraft's `histogram_panel.rs:648`).
+pub const HISTOGRAM_SELECTION_ALPHA: f32 = 0.35;
 /// Width of the RGB ribbons' outlines.
 pub const HISTOGRAM_LINE: f32 = 1.0;
 /// Alpha of the marker band (PhotoCraft's `paint_sample`).
@@ -693,10 +698,10 @@ pub const COLOR_PICKER_MARKER_OUTER_WIDTH: f32 = 1.0;
 pub const COLOR_PICKER_MARKER: Rgba = Rgba::WHITE;
 /// The marker's outer ring: black at alpha 160, as PhotoCraft's.
 pub const COLOR_PICKER_MARKER_HALO: Rgba = Rgba([0, 0, 0, 160]);
-/// Compact width of a strip pointer triangle.
-pub const COLOR_PICKER_POINTER_WIDTH: f32 = 6.0;
-/// Compact height of a strip pointer triangle.
-pub const COLOR_PICKER_POINTER_HEIGHT: f32 = 8.0;
+/// Compact depth of a strip pointer triangle (PhotoCraft's thumb is 7 tall, `color_panel_ui.rs:281`).
+pub const COLOR_PICKER_POINTER_WIDTH: f32 = 7.0;
+/// Compact base of a strip pointer triangle (PhotoCraft's thumb is 10 wide).
+pub const COLOR_PICKER_POINTER_HEIGHT: f32 = 10.0;
 /// Compact size of a warning icon.
 pub const COLOR_PICKER_WARNING_ICON: f32 = 13.0;
 /// Compact size of a warning's chip of the nearest passing colour.
@@ -748,8 +753,10 @@ pub const LEVELS_THUMB_HEIGHT: f32 = 9.0;
 /// Compact distance from a levels thumb's centre within which a press grabs it: half of a 14 pt
 /// hit area.
 pub const LEVELS_HIT: f32 = 7.0;
-/// Compact thickness of a levels editor's output gradient bar, as a curve editor's bars.
-pub const LEVELS_BAR: f32 = 8.0;
+/// Compact thickness of a levels editor's output gradient bar (PhotoCraft's `levels.rs:140`).
+pub const LEVELS_BAR: f32 = 10.0;
+/// Compact height of a levels editor's histogram (PhotoCraft's `levels.rs:88`).
+pub const LEVELS_HISTOGRAM: f32 = 110.0;
 /// The control height the Compact gradient editor sizes are set for.
 pub const GRADIENT_EDITOR_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a gradient editor's ramp (PhotoCraft's stop bar).
@@ -862,7 +869,7 @@ pub const SLIDER_SNAP: f32 = 6.0;
 
 /// Canvas handle side or diameter in points, the same at every Size: handles sit on the
 /// document, not in the chrome.
-pub const HANDLE_SIZE: f32 = 8.0;
+pub const HANDLE_SIZE: f32 = 7.0;
 /// Handle outline width ([`Stroke::W1`](super::scale::Stroke::W1)).
 pub const HANDLE_STROKE: f32 = 1.0;
 /// Width of the halo drawn around a handle so it reads on any image.
