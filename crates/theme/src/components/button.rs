@@ -5,6 +5,8 @@
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
+use crate::contrast::ensure_contrast;
+use crate::derive::over;
 use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
 
@@ -141,8 +143,11 @@ impl ButtonTokens {
 
     /// Derives what follows a pinned rest colour, after the theme's overrides: the primary and
     /// secondary hover and pressed fills at the opacities of the final rest fill, and the primary
-    /// text of every state as the rest text. A field `pinned` says is kept.
-    pub(crate) fn follow(&mut self, pinned: impl Fn(ButtonField) -> bool) {
+    /// text of every state as the rest text. A field `pinned` says is kept. When the rest text is
+    /// not pinned (`text_pinned` false), the hover and pressed text moves to the least change from
+    /// the rest text that reaches the text minimum on its fill over `panel`; pinned text is kept and
+    /// reported.
+    pub(crate) fn follow(&mut self, pinned: impl Fn(ButtonField) -> bool, text_pinned: bool, panel: Rgba, high: bool) {
         let field = |variant, part, state| ButtonField::Color { variant, part, state };
         let (hover, pressed) = (self.hover_opacity, self.pressed_opacity);
         let set = |variant: ButtonVariant, part: ButtonPart, state: State, value: Rgba, colors: &mut ButtonColors| {
@@ -154,7 +159,9 @@ impl ButtonTokens {
         set(ButtonVariant::Primary, ButtonPart::Fill, State::Hover, rest.faded(hover), &mut self.primary);
         set(ButtonVariant::Primary, ButtonPart::Fill, State::Pressed, rest.faded(pressed), &mut self.primary);
         let text = self.primary.text.rest;
+        let minimum = if high { values::TEXT_MIN.1 } else { values::TEXT_MIN.0 };
         for state in [State::Hover, State::Pressed] {
+            let text = if text_pinned { text } else { ensure_contrast(text, over(self.primary.fill.get(state), panel), minimum) };
             set(ButtonVariant::Primary, ButtonPart::Text, state, text, &mut self.primary);
         }
         let rest = self.secondary.fill.rest;

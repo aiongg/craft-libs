@@ -226,10 +226,11 @@ fn a_thumbnail_sets_the_row_height_and_is_framed() {
         });
         assert_eq!(height, (side + s.thumb_pad).max(s.thumb_row_min), "{size:?}");
         assert_eq!(height, s.height(size, false));
-        assert_eq!(painted.size(), vec2(side - 2.0, side - 2.0), "{size:?}: inside the frame");
+        assert_eq!(painted.size(), vec2(side, side), "{size:?}: the host paints the whole thumbnail");
         assert!(
-            drawn.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.thumb_border && r.rect.size() == vec2(side, side))),
-            "{size:?}"
+            drawn.iter().any(|s2| matches!(s2, Shape::Rect(r)
+                if r.stroke.color == s.thumb_border && r.stroke_kind == egui::StrokeKind::Outside && r.rect == painted)),
+            "{size:?}: the frame sits just outside it"
         );
     }
     assert_eq!(s.height(ThumbSize::None, false), s.row_height);

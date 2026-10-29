@@ -344,7 +344,13 @@ fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
     by_size(out, "icon_button.size", size);
     by_size(out, "icon_button.icon", icon);
     by_size(out, "icon_button.badge", badge);
-    item_lines(out, "icon_button.selected", selected);
+    let ToggleButtonTokens { on_fill, on_border, on_text, on_disabled_fill, on_disabled_border, on_disabled_text } = selected;
+    out.line("icon_button.selected.fill", hex(*on_fill));
+    out.line("icon_button.selected.border", hex(*on_border));
+    out.line("icon_button.selected.text", hex(*on_text));
+    out.line("icon_button.selected_disabled.fill", hex(*on_disabled_fill));
+    out.line("icon_button.selected_disabled.border", hex(*on_disabled_border));
+    out.line("icon_button.selected_disabled.text", hex(*on_disabled_text));
 }
 
 fn segmented_lines(out: &mut Lines, s: &SegmentedTokens) {
@@ -548,6 +554,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         selected_hover,
         divider,
         thumb_border,
+        thumb_border_selected,
         drop,
         drop_halo,
         ghost_fill,
@@ -587,6 +594,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         ("selected.hover", selected_hover),
         ("divider", divider),
         ("thumb.border", thumb_border),
+        ("thumb.border.selected", thumb_border_selected),
         ("drop", drop),
         ("drop.halo", drop_halo),
         ("ghost.fill", ghost_fill),

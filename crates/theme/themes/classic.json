@@ -68,6 +68,7 @@
     "check.switch.fill.rest": "{accent.solid}",
     "edge.dark": "#404040",
     "edge.light": "#ffffff",
+    "icon_button.selected.text": "{text.on_accent}",
     "line.border": "#808080",
     "line.control_edge": "{line.border}",
     "line.divider": "{line.border}",

@@ -66,7 +66,12 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
             let i = IconButton::style(&t, size);
             assert_eq!((i.side, i.icon, i.radius), (c.icon_button.size.get(size), c.icon_button.icon.get(size), Corner::Control.radius(&t)));
             assert_eq!((i.fill, i.text), (c.button.ghost.fill.to_egui(), c.button.ghost.text.to_egui()));
-            assert_eq!((i.selected_fill, i.selected_text), (c.icon_button.selected.fill.to_egui(), c.icon_button.selected.text.to_egui()));
+            let on = &c.icon_button.selected;
+            assert_eq!(
+                [i.selected_fill, i.selected_border, i.selected_text].map(|s| (s.rest, s.pressed, s.disabled)),
+                craft_theme::ButtonPart::ALL.map(|p| (on.on(p).to_egui(), on.on(p).to_egui(), on.on_disabled(p).to_egui())),
+                "on, the icon button holds icon_button.selected.*"
+            );
             assert_eq!(
                 (i.badge, i.badge_edge),
                 (c.icon_button.badge.get(size), egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui()))

@@ -174,10 +174,8 @@ fn low_contrast_imports_succeed_with_warnings() {
     assert_eq!((entry.warnings, entry.contrast_intent), (imported.record.warnings, ContrastIntent::Low));
     let base = store.accepted().clone();
     store.update(&base, whole("flat", ModeChoice::Dark)).unwrap();
-    // Built-ins with standard intent resolve with none, so the count is about the theme.
-    let graphite = store.export(&id("craft.graphite")).unwrap();
-    let renamed = replace_top_level_id(&graphite, &id("graphite-copy")).unwrap();
-    assert_eq!(ThemeRecord::parse(&renamed).unwrap().warnings, 0);
+    // A seed-only theme pins nothing, so its derived colours resolve with none.
+    assert_eq!(ThemeRecord::parse(theme_json("seeded", "").as_bytes()).unwrap().warnings, 0);
 }
 
 #[test]

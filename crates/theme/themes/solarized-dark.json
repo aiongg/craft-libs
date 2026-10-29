@@ -24,9 +24,11 @@
     "caption.close_hover": "#dc322f",
     "caption.close_text": "#fdf6e3",
     "data.scope": "#002b36",
+    "icon_button.selected.text": "#fdf6e3",
     "line.border": "#00252f",
     "line.control_edge": "#15505f",
     "line.divider": "#00252f",
+    "list.selected": "{accent.soft}",
     "state.hover": "#0e4a5a",
     "state.pressed": "#12596b",
     "surface.background": "#00252f",
@@ -35,6 +37,7 @@
     "surface.sunken": "#00252f",
     "text.faint": "#586e75",
     "text.muted": "#657b83",
-    "text.normal": "#839496"
+    "text.normal": "#839496",
+    "toggle_button.on.text": "#fdf6e3"
   }
 }

@@ -34,6 +34,8 @@
     "line.control_edge": "#bababa",
     "line.divider": "#d6d6d6",
     "line.knob_edge": "#282828",
+    "list.thumb.border": "#141414",
+    "list.thumb.border.selected": "{list.thumb.border}",
     "seeds": {
       "neutral": "#f0f0f0",
       "status": {
@@ -64,10 +66,13 @@
     "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
+    "icon_button.selected.text": "{text.on_accent}",
     "line.border": "#1e1e1e",
     "line.control_edge": "#4a4a4a",
     "line.divider": "#1e1e1e",
     "line.knob_edge": "#282828",
+    "list.thumb.border": "#141414",
+    "list.thumb.border.selected": "{list.thumb.border}",
     "state.hover": "#424242",
     "state.pressed": "#4e4e4e",
     "state.selected": "#525252",
@@ -79,7 +84,8 @@
     "text.faint": "#808080",
     "text.muted": "#b2b2b2",
     "text.normal": "#dedede",
-    "text.on_accent": "#ffffff"
+    "text.on_accent": "#ffffff",
+    "toggle_button.on.text": "{text.on_accent}"
   },
   "components": {
     "button.border_width": 1.5,

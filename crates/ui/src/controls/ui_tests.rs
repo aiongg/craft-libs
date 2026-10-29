@@ -79,13 +79,21 @@ fn selected_draws_the_selected_fill_and_reports_toggled_without_flipping_on_clic
     );
     harness.run();
     let toggled = |harness: &Harness<'_, (bool, u32)>| harness.get_by_label("Frame tool").accesskit_node().toggled();
-    let fill = IconButton::style(&crate::theme::current(&harness.ctx), ControlSize::Md).selected_fill.rest;
+    let style = IconButton::style(&crate::theme::current(&harness.ctx), ControlSize::Md);
+    let fill = style.selected_fill.rest;
+    let outlined = |harness: &Harness<'_, (bool, u32)>| {
+        let node = harness.get_by_label("Frame tool").rect();
+        harness.output().shapes.iter().any(|c| {
+            matches!(&c.shape, egui::Shape::Rect(r) if r.stroke == egui::Stroke::new(1.0, style.selected_border.rest) && r.stroke_kind == egui::StrokeKind::Inside && r.rect.contains_rect(node.shrink(1.0)))
+        })
+    };
     let filled = |harness: &Harness<'_, (bool, u32)>| {
         let node = harness.get_by_label("Frame tool").rect();
         harness.output().shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == fill && r.rect.contains_rect(node.shrink(1.0))))
     };
     assert_eq!(toggled(&harness), Some(Toggled::True));
     assert!(filled(&harness), "the selected fill is painted");
+    assert!(outlined(&harness), "with a 1 pt outline inside its edge");
     harness.get_by_label("Frame tool").click();
     harness.run();
     assert_eq!(*harness.state(), (true, 1), "the click is reported and the host owns the state");
@@ -93,7 +101,7 @@ fn selected_draws_the_selected_fill_and_reports_toggled_without_flipping_on_clic
     harness.state_mut().0 = false;
     harness.run();
     assert_eq!(toggled(&harness), Some(Toggled::False));
-    assert!(!filled(&harness), "no selected fill once deselected");
+    assert!(!filled(&harness) && !outlined(&harness), "no selected look once deselected");
 }
 
 #[test]
