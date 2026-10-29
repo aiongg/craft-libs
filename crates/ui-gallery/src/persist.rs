@@ -7,13 +7,14 @@ use craft_ui::story::{ArgValue, Args};
 use serde::{Deserialize, Serialize};
 
 use crate::appearance::Appearance;
-use crate::layout::PanelId;
+use crate::layout::{CentreView, PanelId};
 
 pub const KEY: &str = "craft-ui-gallery";
 
 /// The dock layout has a key of its own: a layout this build cannot read (a newer format) then
-/// costs only the layout, not the rest of [`Saved`].
-pub const LAYOUT_KEY: &str = "craft-ui-gallery.layout";
+/// costs only the layout, not the rest of [`Saved`]. The suffix is the layout's version: layouts
+/// saved under an earlier version (the token browser in the centre) are not read.
+pub const LAYOUT_KEY: &str = "craft-ui-gallery.layout.v2";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -21,6 +22,9 @@ pub struct Saved {
     pub appearance: Appearance,
     pub selected: Option<String>,
     pub filter: String,
+    pub view: CentreView,
+    /// The share of the Tokens panel's height that its list takes.
+    pub tokens_split: Option<f32>,
     pub compare: bool,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,

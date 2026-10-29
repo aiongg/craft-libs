@@ -935,8 +935,20 @@ pub(super) struct ThumbPaint {
 pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, paint: ThumbPaint) -> Rect {
     let ppp = ui.pixels_per_point();
     let rect = Rect::from_center_size(center, vec2(style.thumb_width, style.thumb)).round_to_pixels(ppp);
-    let surface = knob(style.thumb_surface, paint.fill, paint.border, paint.enabled);
+    let mut surface = knob(style.thumb_surface, paint.fill, paint.border, paint.enabled);
+    // An outline is centred on the face's edge, so the face keeps the thumb size and the outline
+    // reaches half its width beyond it; a bevel stays inside.
+    let outline = match surface.edge {
+        SurfaceEdge::Border(stroke) => Some(stroke),
+        _ => None,
+    };
+    if outline.is_some() {
+        surface.edge = SurfaceEdge::None;
+    }
     ui.painter().extend(surface.shapes(rect, ppp));
+    if let Some(stroke) = outline {
+        ui.painter().rect_stroke(rect, surface.radius, stroke, StrokeKind::Middle);
+    }
     if paint.ring != Color32::TRANSPARENT {
         let stroke = Stroke::new(style.ring_width, paint.ring);
         let radius = f32::from(surface.radius.nw);

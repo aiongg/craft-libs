@@ -16,10 +16,29 @@ pub enum PanelId {
     Properties,
     /// The inspector; inspect mode is on while this tab is shown.
     Inspect,
-    /// The story canvas, or the compare grid.
-    Canvas,
+    /// The centre: the current [`CentreView`].
+    View,
     /// The token browser.
     Tokens,
+}
+
+/// What the centre shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CentreView {
+    /// Every component of one level, each drawn from its default story.
+    #[default]
+    Overview,
+    /// One component's stories, or the compare grid.
+    Component,
+}
+
+impl CentreView {
+    pub fn title(self) -> &'static str {
+        match self {
+            CentreView::Overview => "Overview",
+            CentreView::Component => "Component",
+        }
+    }
 }
 
 impl PanelId {
@@ -29,7 +48,7 @@ impl PanelId {
             PanelId::Stories => "Stories",
             PanelId::Properties => "Properties",
             PanelId::Inspect => "Inspect",
-            PanelId::Canvas => "Canvas",
+            PanelId::View => "View",
             PanelId::Tokens => "Tokens",
         }
     }
@@ -42,14 +61,17 @@ impl PanelId {
 }
 
 const COMPONENTS_WIDTH: f32 = 220.0;
-const SIDE_WIDTH: f32 = 280.0;
+const SIDE_WIDTH: f32 = 340.0;
 
-/// Components at the start edge; the canvas and the token browser as tabs in the centre; the
-/// stories above the properties and the inspector at the end edge.
+/// Components at the start edge; the view in the centre; the stories above the properties, the
+/// inspector and the token browser at the end edge.
 pub fn default_workspace() -> Workspace<PanelId> {
     let components = Column::new(vec![Group::new(vec![PanelId::Components], 0)], COMPONENTS_WIDTH);
-    let side = Column::new(vec![Group::new(vec![PanelId::Stories], 0), Group::new(vec![PanelId::Properties, PanelId::Inspect], 0)], SIDE_WIDTH);
-    let centre = Node::Tabs { panels: vec![PanelId::Canvas, PanelId::Tokens], active: 0 };
+    let side = Column::new(
+        vec![Group::new(vec![PanelId::Stories], 0), Group::new(vec![PanelId::Properties, PanelId::Inspect, PanelId::Tokens], 0)],
+        SIDE_WIDTH,
+    );
+    let centre = Node::Tabs { panels: vec![PanelId::View], active: 0 };
     let end = Node::Split {
         axis: SplitAxis::Horizontal,
         size: SplitSize::FixedSecond(SIDE_WIDTH),
@@ -76,7 +98,7 @@ pub fn reconciled(mut saved: Workspace<PanelId>) -> Workspace<PanelId> {
 mod tests {
     use super::*;
 
-    const ALL: [PanelId; 6] = [PanelId::Components, PanelId::Stories, PanelId::Properties, PanelId::Inspect, PanelId::Canvas, PanelId::Tokens];
+    const ALL: [PanelId; 6] = [PanelId::Components, PanelId::Stories, PanelId::Properties, PanelId::Inspect, PanelId::View, PanelId::Tokens];
 
     #[test]
     fn the_default_layout_is_valid_and_holds_every_panel() {

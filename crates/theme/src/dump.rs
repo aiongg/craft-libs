@@ -718,6 +718,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
 fn dock_lines(out: &mut Lines, t: &DockTokens) {
     let DockTokens {
         gap,
+        body_gap,
         border_width,
         title_height,
         column_bar_height,
@@ -743,6 +744,7 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
     } = t;
     for (k, v) in [
         ("gap", gap),
+        ("body_gap", body_gap),
         ("border_width", border_width),
         ("title_height", title_height),
         ("column_bar_height", column_bar_height),

@@ -28,10 +28,56 @@ fn in_ui<R>(test: impl FnOnce(&mut Ui) -> R) -> R {
 /// iconic column with the panel rail, the tab strip with the tab family.
 #[test]
 fn the_look_follows_the_size_preset() {
-    let sizes =
-        |look: &DockLook| [look.tab_height, look.gap, look.tab_padding, look.title_height, look.column_bar_height, look.iconic_width, look.icon_size];
-    assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [28.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0]);
-    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [40.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0]);
+    let sizes = |look: &DockLook| {
+        [look.tab_height, look.gap, look.tab_padding, look.title_height, look.column_bar_height, look.iconic_width, look.icon_size, look.body_gap]
+    };
+    assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [28.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0, 0.0]);
+    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [40.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0, 6.0]);
+}
+
+/// Controls stacked in a panel body are `dock.body_gap` apart, in a docked panel and a floating one.
+#[test]
+fn stacked_controls_in_a_panel_body_are_the_body_gap_apart() {
+    use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
+    use egui_kittest::{Harness, kittest::Queryable as _};
+    struct Stack;
+    impl DockContent<u32> for Stack {
+        fn body(&mut self, ui: &mut Ui, panel: &u32) {
+            ui.label(format!("first {panel}"));
+            ui.label(format!("second {panel}"));
+        }
+        fn logical_label(&self, panel: &u32) -> String {
+            format!("Panel {panel}")
+        }
+        fn permissions(&self, _: &u32) -> Permissions {
+            Permissions::default()
+        }
+    }
+    let layout = Layout {
+        root: Some(Node::Tabs { panels: vec![0], active: 0 }),
+        floating: vec![Floating::single(vec![1], 0, [300.0, 20.0, 160.0, 160.0]).with_id(1)],
+    };
+    for size in [Size::Compact, Size::Comfortable] {
+        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size };
+        let base =
+            crate::theme::Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
+                builtins().iter().find(|t| t.id == *id).cloned()
+            });
+        let layout = layout.clone();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(520.0, 300.0))
+            .with_context_setup(move |ctx: &Context| crate::theme::install(ctx, &base))
+            .build_ui(move |ui| {
+                DockArea::new(egui::Id::unique("body-gap")).show_content(ui, &layout, &DockConfig::default(), &mut Stack);
+            });
+        harness.run_steps(3);
+        let expected = look_at(size, Mode::Light).body_gap;
+        for panel in [0, 1] {
+            let top = harness.get_by_label(&format!("first {panel}")).rect();
+            let next = harness.get_by_label(&format!("second {panel}")).rect();
+            assert!((next.top() - top.bottom() - expected).abs() < 0.5, "{size:?} panel {panel}: {top:?} {next:?}");
+        }
+    }
 }
 
 /// The unmigrated flat style splits into the default config and the visuals look, field by field.
@@ -311,4 +357,43 @@ fn a_rounded_floating_window_insets_its_body_below_a_title_bar_from_the_top() {
     assert_eq!((title.left(), title.top()), (100.0, 100.0));
     assert!((tab.left() - (100.0 + inset)).abs() < 1e-4, "{tab:?}");
     assert_eq!(tab.top(), 100.0 + title_height);
+}
+
+/// A docked Compact slider row is PhotoCraft's 46 points: field 24, slider 18 and the row's 4, with
+/// no item spacing between them (`panels/panel_docking.rs:1229`).
+#[test]
+fn a_docked_slider_row_is_the_photocraft_pitch() {
+    use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
+    use egui::accesskit::Role;
+    use egui_kittest::{Harness, kittest::Queryable as _};
+    struct Rows;
+    impl DockContent<u32> for Rows {
+        fn body(&mut self, ui: &mut Ui, _: &u32) {
+            let numbers = crate::localized::LocaleNumbers::from_tag("en");
+            for id in ["a", "b"] {
+                let _ = crate::composites::SliderRow::new(id, id, 10.0, 0.0..=100.0, &numbers).show(ui);
+            }
+        }
+        fn logical_label(&self, _: &u32) -> String {
+            "Panel".into()
+        }
+        fn permissions(&self, _: &u32) -> Permissions {
+            Permissions::default()
+        }
+    }
+    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact };
+    let base =
+        crate::theme::Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
+            builtins().iter().find(|t| t.id == *id).cloned()
+        });
+    let layout = Layout { root: Some(Node::Tabs { panels: vec![0], active: 0 }), floating: vec![] };
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(400.0, 400.0))
+        .with_context_setup(move |ctx: &Context| crate::theme::install(ctx, &base))
+        .build_ui(move |ui| {
+            DockArea::new(egui::Id::unique("pitch")).show_content(ui, &layout, &DockConfig::default(), &mut Rows);
+        });
+    harness.run_steps(3);
+    let fields: Vec<_> = harness.query_all(egui_kittest::kittest::by().role(Role::SpinButton)).map(|n| n.rect()).collect();
+    assert_eq!(fields[1].top() - fields[0].top(), 46.0);
 }

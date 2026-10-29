@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use craft_platform::appearance::SystemReader;
-use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, builtins};
+use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
-use craft_ui::controls::{Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
+use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -17,14 +17,15 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
-use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui};
+use egui::epaint::RectShape;
+use egui::{Align, CentralPanel, Frame, Panel, Rect, ScrollArea, Sense, Shape, Ui, UiBuilder, Widget as _, pos2};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::layout::{PanelId, default_workspace, reconciled};
+use crate::layout::{CentreView, PanelId, default_workspace, reconciled};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -43,7 +44,10 @@ pub struct Gallery {
     base: Base,
     selected: Option<String>,
     filter: String,
+    view: CentreView,
     compare: bool,
+    /// The component the Overview scrolls to, until its tile has been drawn.
+    scroll_to: Option<&'static str>,
     compare_themes: Vec<String>,
     compare_high: bool,
     browser: Browser,
@@ -77,10 +81,12 @@ impl Gallery {
             os_applied: SystemAppearance::default(),
             selected,
             filter: saved.filter,
+            view: saved.view,
             compare: saved.compare,
+            scroll_to: None,
             compare_themes,
             compare_high: saved.compare_high,
-            browser: Browser::default(),
+            browser: Browser::new(saved.tokens_split),
             inspector: Inspector::default(),
             workspace: persist::load_layout(storage).map_or_else(default_workspace, reconciled),
             reset_layout: false,
@@ -96,6 +102,19 @@ impl Gallery {
         }
     }
 
+    pub fn set_view(&mut self, view: CentreView) {
+        self.view = view;
+    }
+
+    pub fn view(&self) -> CentreView {
+        self.view
+    }
+
+    /// The id of the selected story.
+    pub fn selected(&self) -> Option<&str> {
+        self.selected.as_deref()
+    }
+
     pub fn set_compare(&mut self, compare: bool) {
         self.compare = compare;
     }
@@ -108,17 +127,13 @@ impl Gallery {
         self.compare_themes = ids.iter().filter(|id| builtin(id).is_some()).map(|id| (*id).to_owned()).collect();
     }
 
-    /// Shows the token browser tab instead of the canvas tab.
-    pub fn set_tokens(&mut self, tokens: bool) {
-        self.activate(if tokens { PanelId::Tokens } else { PanelId::Canvas });
-    }
-
     /// Shows the inspector tab, which turns inspect mode on, instead of the properties tab.
     pub fn set_inspect(&mut self, inspect: bool) {
         self.activate(if inspect { PanelId::Inspect } else { PanelId::Properties });
     }
 
-    fn activate(&mut self, panel: PanelId) {
+    /// Brings `panel` to the front of its tab group.
+    pub fn activate(&mut self, panel: PanelId) {
         let _ = self.workspace.apply(Action::Activate { panel }, PanelId::permissions);
     }
 
@@ -169,7 +184,9 @@ impl Gallery {
         let tokens = Tokens::of(ui);
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| self.options_bar(ui));
         let layout = &self.workspace.layout;
-        let inspecting = layout.panel_state(&PanelId::Inspect) == PanelState::Front && layout.panel_state(&PanelId::Canvas) == PanelState::Front;
+        let inspecting = self.view == CentreView::Component
+            && layout.panel_state(&PanelId::Inspect) == PanelState::Front
+            && layout.panel_state(&PanelId::View) == PanelState::Front;
         inspect::set_enabled(&ctx, inspecting);
         if inspecting {
             self.inspector.begin(&ctx, Arc::clone(&tokens));
@@ -219,6 +236,7 @@ impl Gallery {
     fn options_bar(&mut self, ui: &mut Ui) {
         let a = &mut self.appearance;
         let compare = &mut self.compare;
+        let view = &mut self.view;
         let reset_layout = &mut self.reset_layout;
         let numbers = LocaleNumbers::of(ui);
         let faces_shown =
@@ -288,7 +306,12 @@ impl Gallery {
                     }
                 });
                 OptionsBar::divider(ui);
-                segmented(ui, "View", compare, [("Canvas", false), ("Compare", true)]);
+                segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
+                let overview = *view == CentreView::Overview;
+                let toggle = ui.add(ToggleButton::new("Compare", compare).size(ControlSize::Sm).enabled(!overview));
+                if overview {
+                    let _ = toggle.tooltip("Compare works on the Component view");
+                }
             });
             bar.trailing(|ui| {
                 if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
@@ -323,24 +346,36 @@ impl Gallery {
                 Entry::Component(component) => ListRow::new(*entry, *component),
             });
         let mut picked = None;
+        let mut activated = false;
         for event in out.events {
             match event {
-                ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) | ListEvent::Activate(Entry::Component(c)) => {
-                    picked = Some(c)
+                ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) => picked = Some(c),
+                ListEvent::Activate(Entry::Component(c)) => {
+                    picked = Some(c);
+                    activated = true;
                 }
                 _ => {}
             }
         }
-        if let Some(component) = picked.filter(|c| Some(*c) != current) {
+        // Enter on the current component scrolls the Overview back to it.
+        if let Some(component) = picked.filter(|c| activated || Some(*c) != current) {
             self.select_component(component);
         }
     }
 
-    /// Opens the first story of `component`.
-    fn select_component(&mut self, component: &str) {
-        if let Some(story) = first_story_of(&self.stories, component) {
+    /// Opens the default story of `component`; the Overview scrolls to its tile.
+    fn select_component(&mut self, component: &'static str) {
+        if let Some(story) = default_story_of(&self.stories, component) {
             self.selected = Some(story.id.to_owned());
+            self.scroll_to = Some(component);
         }
+    }
+
+    /// Opens `component` in the Component view, on its default story.
+    fn open_component(&mut self, component: &'static str) {
+        self.select_component(component);
+        self.scroll_to = None;
+        self.view = CentreView::Component;
     }
 
     /// The selected component's stories.
@@ -439,8 +474,16 @@ impl Gallery {
         }
     }
 
-    /// The story, or the grid of appearances in the compare view, on the canvas colour.
-    fn canvas_panel(&mut self, ui: &mut Ui, inspecting: bool) {
+    /// The centre: the current view.
+    fn view_panel(&mut self, ui: &mut Ui, inspecting: bool) {
+        match self.view {
+            CentreView::Overview => self.overview_view(ui),
+            CentreView::Component => self.component_view(ui, inspecting),
+        }
+    }
+
+    /// The story, or the grid of appearances while compare is on, on the canvas colour.
+    fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
         let Some(story) = self.current() else {
             canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
                 ui.set_min_size(ui.available_size());
@@ -465,6 +508,45 @@ impl Gallery {
                 }
             });
         });
+    }
+
+    /// Every component of one level, on the canvas colour: the level follows the selected
+    /// story. Each tile draws the component's default story; its name opens the Component view.
+    fn overview_view(&mut self, ui: &mut Ui) {
+        let nav = nav(&self.stories, &self.filter.to_lowercase());
+        let current = self.current();
+        let shown = current.and_then(|s| nav.iter().position(|(level, _)| *level == s.level)).unwrap_or(0);
+        let appearance = self.appearance.clone();
+        let system = self.os_applied;
+        let mut level = shown;
+        let mut opened = None;
+        canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+            ui.set_min_size(ui.available_size());
+            let Some((shown_level, components)) = nav.get(shown) else {
+                ui.label("No components match the filter.");
+                return;
+            };
+            ui.horizontal(|ui| {
+                ui.label("Level:");
+                let mut select = Select::new("gallery.overview.level", "Level", &mut level).fit(true).size(ControlSize::Sm);
+                for (i, (level, _)) in nav.iter().enumerate() {
+                    select = select.option(i, level.title());
+                }
+                let _ = select.policy(fields::policy()).show(ui);
+            });
+            let tiles = overview_tiles(&self.stories, components, current);
+            let scroll_to = &mut self.scroll_to;
+            ScrollArea::vertical().id_salt(shown_level.slug()).auto_shrink([false, false]).show(ui, |ui| {
+                opened = overview(ui, &tiles, &mut self.args, &self.saved_args, &appearance, system, scroll_to);
+            });
+        });
+        let first = nav.get(level).and_then(|(_, components)| components.first()).and_then(|c| default_story_of(&self.stories, c));
+        if let Some(story) = first.filter(|_| level != shown) {
+            self.selected = Some(story.id.to_owned());
+        }
+        if let Some(component) = opened {
+            self.open_component(component);
+        }
     }
 
     fn tokens_panel(&mut self, ui: &mut Ui) {
@@ -512,14 +594,21 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::Components => padded(ui, |ui| self.gallery.components_panel(ui)),
             PanelId::Stories => padded(ui, |ui| self.gallery.stories_panel(ui)),
             PanelId::Properties => scrolled(ui, |ui| self.gallery.properties_panel(ui)),
+            PanelId::Inspect if self.gallery.view == CentreView::Overview => padded(ui, |ui| {
+                ui.label("Inspect works on the Component view.");
+            }),
             PanelId::Inspect => padded(ui, |ui| self.gallery.inspector.panel(ui)),
-            PanelId::Canvas => self.gallery.canvas_panel(ui, self.inspecting),
-            PanelId::Tokens => self.gallery.tokens_panel(ui),
+            PanelId::View => self.gallery.view_panel(ui, self.inspecting),
+            PanelId::Tokens => padded(ui, |ui| self.gallery.tokens_panel(ui)),
         }
     }
 
     fn logical_label(&self, panel: &PanelId) -> String {
-        panel.title().to_owned()
+        match panel {
+            PanelId::View => self.gallery.view.title(),
+            _ => panel.title(),
+        }
+        .to_owned()
     }
 
     fn permissions(&self, panel: &PanelId) -> Permissions {
@@ -528,7 +617,7 @@ impl DockContent<PanelId> for Panels<'_> {
 
     fn dock_heights(&self, panel: &PanelId) -> Option<DockHeights> {
         match panel {
-            PanelId::Stories => Some(DockHeights::new(170.0).compact(90.0)),
+            PanelId::Stories => Some(DockHeights::new(80.0).compact(60.0)),
             PanelId::Properties | PanelId::Inspect => Some(DockHeights::new(240.0).compact(120.0).fill(300.0)),
             _ => None,
         }
@@ -567,6 +656,8 @@ impl eframe::App for Gallery {
             appearance: self.appearance.clone(),
             selected: self.selected.clone(),
             filter: self.filter.clone(),
+            view: self.view,
+            tokens_split: Some(self.browser.share()),
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             compare_high: self.compare_high,
@@ -578,7 +669,7 @@ impl eframe::App for Gallery {
 }
 
 /// The args of `story` in `args`, from the saved values on first use.
-fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<persist::SavedArg>>, story: &Story) -> &'a mut Args {
+pub(crate) fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<persist::SavedArg>>, story: &Story) -> &'a mut Args {
     args.entry(story.id.to_owned()).or_insert_with(|| match saved.get(story.id) {
         Some(values) => persist::restore_args(story.defaults(), values),
         None => story.defaults(),
@@ -592,8 +683,9 @@ pub(crate) fn stories() -> Vec<Story> {
     stories
 }
 
-/// The first story of `component`.
-pub(crate) fn first_story_of<'a>(stories: &'a [Story], component: &str) -> Option<&'a Story> {
+/// The story the Overview draws and the Components panel opens for `component`: its first story,
+/// which shows the component at rest.
+pub(crate) fn default_story_of<'a>(stories: &'a [Story], component: &str) -> Option<&'a Story> {
     stories.iter().find(|s| s.component == component)
 }
 
@@ -606,7 +698,7 @@ fn first_story(stories: &[Story]) -> Option<&'static str> {
 
 /// The navigation's levels in their order, each with the components that have a story matching
 /// `filter` (lowercase), sorted by name ignoring case, whatever the registration order.
-fn nav(stories: &[Story], filter: &str) -> Vec<(Level, Vec<&'static str>)> {
+pub(crate) fn nav(stories: &[Story], filter: &str) -> Vec<(Level, Vec<&'static str>)> {
     Level::ALL
         .into_iter()
         .filter_map(|level| {
@@ -717,6 +809,82 @@ fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut In
     }
 }
 
+/// The story each of `components` draws in the Overview: its default story, except the selected
+/// component's, which draws the selected story so Stories and Properties change what is seen.
+fn overview_tiles(stories: &[Story], components: &[&'static str], selected: Option<Story>) -> Vec<Story> {
+    components.iter().filter_map(|c| selected.filter(|s| s.component == *c).or_else(|| default_story_of(stories, c).copied())).collect()
+}
+
+/// The narrowest a tile may be: PhotoCraft's dock panels are 290 pt wide, and a story drawn in
+/// less than a panel's width is no longer what the apps show.
+const TILE_MIN_WIDTH: f32 = 290.0;
+
+/// The tiles of one level in one or two columns: two once each column keeps [`TILE_MIN_WIDTH`].
+/// A row's tiles share its height. Returns the component whose name was clicked.
+pub(crate) fn overview(
+    ui: &mut Ui,
+    tiles: &[Story],
+    args: &mut HashMap<String, Args>,
+    saved: &HashMap<String, Vec<persist::SavedArg>>,
+    appearance: &Appearance,
+    system: SystemAppearance,
+    scroll_to: &mut Option<&'static str>,
+) -> Option<&'static str> {
+    let shown = shown_mode(ui.ctx());
+    let overrides = |o: &mut craft_ui::theme::Overrides| {
+        appearance.overrides(o);
+        o.mode = Some(appearance.mode(shown));
+        o.contrast = Some(appearance.contrast(system));
+    };
+    let mut opened = None;
+    scope(ui, overrides, |ui| {
+        let tokens = Tokens::of(ui);
+        let gap = tokens.space.gap.section;
+        let pad = margin(tokens.space.pad.dialog);
+        let fill = tokens.color.surface.background.to_egui();
+        let rtl = direction::is_rtl(ui);
+        let width = ui.available_width();
+        let columns = if width >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
+        let tile_width = (width - gap * (columns - 1) as f32) / columns as f32;
+        let area = ui.available_rect_before_wrap();
+        // A tile is as tall as its story; a story that fills the height it is given gets a viewport's.
+        let reach = area.height();
+        for row in tiles.chunks(columns) {
+            let top = ui.cursor().min.y;
+            let mut bottom = top;
+            let mut placed = Vec::new();
+            for (i, story) in row.iter().enumerate() {
+                let x = if rtl { area.max.x - (i + 1) as f32 * tile_width - i as f32 * gap } else { area.min.x + i as f32 * (tile_width + gap) };
+                let slot = ui.painter().add(Shape::Noop);
+                let mut cell =
+                    ui.new_child(UiBuilder::new().id_salt(story.id).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))));
+                let used = Frame::new().inner_margin(pad).show(&mut cell, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    if Link::new(story.component).role(TypeRole::Heading).id_salt(("tile", story.id)).ui(ui).clicked() {
+                        opened = Some(story.component);
+                    }
+                    let args = args_of(args, saved, story);
+                    ui.push_id(story.id, |ui| (story.show)(ui, args));
+                    // A tile does not change the gallery's scale.
+                    let _ = craft_ui::story::take_pixels_per_point_request(ui.ctx());
+                });
+                if *scroll_to == Some(story.component) {
+                    cell.scroll_to_rect(used.response.rect, Some(Align::TOP));
+                    *scroll_to = None;
+                }
+                bottom = bottom.max(used.response.rect.bottom());
+                placed.push((slot, x));
+            }
+            for (slot, x) in placed {
+                ui.painter().set(slot, Shape::Rect(RectShape::filled(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom)), 0.0, fill)));
+            }
+            ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());
+            ui.add_space(gap);
+        }
+    });
+    opened
+}
+
 /// Rows: the chosen themes. Columns: light and dark in standard contrast, each followed by its
 /// high-contrast column when `high` is set.
 /// A mode the theme doesn't have leaves its column empty.
@@ -775,6 +943,7 @@ mod tests {
 
     use super::*;
     use crate::layout::PanelId;
+    use egui::Rect;
 
     /// An in-memory eframe storage.
     #[derive(Default)]
@@ -822,6 +991,59 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_gallery_opens_in_the_overview() {
+        assert_eq!(Gallery::new(None).view, CentreView::Overview);
+    }
+
+    /// Frames of the gallery in a 1280 x 800 window.
+    fn run_frames(ctx: &egui::Context, gallery: &mut Gallery, frames: usize) {
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        for _ in 0..frames {
+            ctx.run_ui(input.clone(), |ui| gallery.show(ui)).drop_without_applying_deltas();
+        }
+    }
+
+    #[test]
+    fn picking_a_component_in_the_overview_scrolls_to_it_and_keeps_the_overview() {
+        let ctx = egui::Context::default();
+        let mut gallery = Gallery::new(None);
+        let current = gallery.current().unwrap();
+        // The last component of another level, so the pick changes the level shown.
+        let story = gallery.stories.iter().rev().find(|s| s.level != current.level && s.level != Level::Specimens).copied().unwrap();
+        gallery.select_component(story.component);
+        assert_eq!(gallery.scroll_to, Some(story.component));
+        assert_eq!(gallery.view, CentreView::Overview);
+        run_frames(&ctx, &mut gallery, 2);
+        assert_eq!(gallery.scroll_to, None, "the tile was drawn and scrolled to");
+        assert_eq!(gallery.view, CentreView::Overview);
+        assert_eq!(gallery.current().unwrap().component, story.component);
+    }
+
+    #[test]
+    fn the_selected_components_tile_draws_the_selected_story() {
+        let stories = stories();
+        let multi = stories.iter().find(|s| stories.iter().filter(|o| o.component == s.component).count() > 1).unwrap().component;
+        let other = stories.iter().find(|s| s.component != multi && s.level == stories.iter().find(|m| m.component == multi).unwrap().level).unwrap();
+        let second = *stories.iter().filter(|s| s.component == multi).nth(1).unwrap();
+        let components = [multi, other.component];
+        let tiles = overview_tiles(&stories, &components, Some(second));
+        assert_eq!(tiles[0].id, second.id);
+        assert_eq!(tiles[1].id, default_story_of(&stories, other.component).unwrap().id);
+        assert_eq!(overview_tiles(&stories, &components, None)[0].id, default_story_of(&stories, multi).unwrap().id);
+    }
+
+    #[test]
+    fn a_tiles_link_opens_the_component_view_on_the_default_story() {
+        let mut gallery = Gallery::new(None);
+        let story = gallery.stories.iter().rev().find(|s| s.component != gallery.current().unwrap().component).unwrap();
+        let (component, first) = (story.component, gallery.stories.iter().find(|s| s.component == story.component).unwrap().id);
+        gallery.open_component(component);
+        assert_eq!(gallery.view, CentreView::Component);
+        assert_eq!(gallery.selected.as_deref(), Some(first));
+        assert_eq!(gallery.scroll_to, None);
+    }
+
+    #[test]
     fn picking_a_component_opens_its_first_story() {
         let mut gallery = Gallery::new(None);
         let (component, first) = {
@@ -836,7 +1058,7 @@ mod tests {
     #[test]
     fn the_dock_layout_round_trips_through_storage() {
         let mut gallery = Gallery::new(None);
-        gallery.set_tokens(true);
+        gallery.activate(PanelId::Tokens);
         gallery.workspace.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
         let mut storage = Memory::default();
         eframe::App::save(&mut gallery, &mut storage);
@@ -849,10 +1071,24 @@ mod tests {
     fn an_invalid_saved_layout_falls_back_to_the_default() {
         use craft_ui::docking::{Layout, Node};
         let broken =
-            Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::Canvas, PanelId::Canvas], active: 0 }), floating: Vec::new() });
+            Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::View, PanelId::View], active: 0 }), floating: Vec::new() });
         let mut storage = Memory::default();
         eframe::set_value(&mut storage, persist::LAYOUT_KEY, &broken);
         assert_eq!(Gallery::new(Some(&storage)).workspace, default_workspace());
+    }
+
+    #[test]
+    fn a_layout_saved_before_the_views_frame_loads_as_the_default_and_keeps_the_rest() {
+        use craft_ui::docking::{Layout, Node};
+        // The earlier layout held the token browser as a tab beside the canvas in the centre.
+        let centre = Node::Tabs { panels: vec![PanelId::View, PanelId::Tokens], active: 1 };
+        let old = Workspace::new(Layout { root: Some(centre), floating: Vec::new() });
+        let mut storage = Memory::default();
+        eframe::set_value(&mut storage, KEY, &Saved { filter: "button".to_owned(), ..Saved::default() });
+        eframe::set_value(&mut storage, "craft-ui-gallery.layout", &old);
+        let gallery = Gallery::new(Some(&storage));
+        assert_eq!(gallery.workspace, default_workspace());
+        assert_eq!(gallery.filter, "button");
     }
 
     #[test]

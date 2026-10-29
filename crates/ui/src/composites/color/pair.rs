@@ -224,12 +224,18 @@ impl<'a> SwatchPair<'a> {
         let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, backdrop, picker } = self;
         let enabled = enabled && ui.is_enabled();
         let id = ui.make_persistent_id(id_salt);
-        let builder = UiBuilder::new().scope_id(id).layout(direction::row(ui)).accessibility_role(Role::Group).accessibility_label(label);
+        let tokens = Tokens::of(ui);
+        let style = SwatchPair::style(&tokens);
+        let block = Vec2::splat(style.well + style.step);
+        // The row is as tall as the wells or the button column, whatever height the parent offers.
+        let buttons = usize::from(swap.is_some()) + usize::from(defaults.is_some());
+        let column = buttons as f32 * tokens.size.control.sm + buttons.saturating_sub(1) as f32 * ui.spacing().item_spacing.y;
+        let available = ui.available_rect_before_wrap();
+        let band = Rect::from_min_size(available.min, vec2(available.width(), block.y.max(column)));
+        let builder =
+            UiBuilder::new().scope_id(id).max_rect(band).layout(direction::row(ui)).accessibility_role(Role::Group).accessibility_label(label);
         let inner = ui.scope_builder(builder, |ui| {
-            let tokens = Tokens::of(ui);
-            let style = SwatchPair::style(&tokens);
             let swatch = Swatch::style(&tokens, ControlSize::Md);
-            let block = Vec2::splat(style.well + style.step);
             let (area, _) = ui.allocate_exact_size(block, Sense::hover());
             let rects = well_rects(ui, &style, area);
             let ids = [Interactive::id_in(ui, (id, "primary")), Interactive::id_in(ui, (id, "secondary"))];

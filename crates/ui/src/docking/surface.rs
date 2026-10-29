@@ -10,6 +10,8 @@ use super::{Action, DockConfig, DockError, DockLook, DockSpec, DropTarget, Layou
 pub struct DockStyle {
     pub tab_height: f32,
     pub gap: f32,
+    /// Vertical gap between stacked controls in a panel body.
+    pub body_gap: f32,
     pub min_pane: f32,
     pub background: Color32,
     pub tab_background: Color32,
@@ -179,6 +181,7 @@ impl DockStyle {
         Self {
             tab_height: look.tab_height,
             gap: look.gap,
+            body_gap: look.body_gap,
             min_pane: c.min_pane,
             background: look.background,
             tab_background: look.tab_strip,
@@ -253,6 +256,7 @@ impl DockStyle {
         let look = DockLook {
             tab_height: self.tab_height,
             gap: self.gap,
+            body_gap: self.body_gap,
             background: self.background,
             tab_strip: self.tab_background,
             tab_active: self.active_background,
