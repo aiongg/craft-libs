@@ -474,21 +474,19 @@ impl<'a> LevelsEditor<'a> {
         let pass = ui.ctx().cumulative_pass_nr();
         ui.data_mut(|d| d.insert_temp(id.with(CLIP), (clip, pass)));
 
-        // Each row's fields draw from the row's value of this pass and map onto it, unless the
-        // row's edit waits for another part's gesture: it isn't in the editor's value then.
+        // Each row's fields draw from the row's value of this pass, unless the row's edit waits
+        // for another part's gesture: it isn't in the editor's value then. Each part maps onto
+        // the value the parts before it in this pass left.
         let scoped = edit::in_scope(ui);
+        let mut running = parts::Running::new(&outer, scoped, levels);
         let input_rules = input.rules.clone();
         let rules = input.rules;
         edits.push_rebased(&input.edit, &levels.input(), move |row, base, now| rules.rebase(row, base, now), |v| levels.with_input(v));
-        let mut running = levels;
-        if let Some(&row) = input.edit.event.as_ref().and_then(EditEvent::value)
-            && edits.applies(&outer, scoped, input.edit.response.id)
-        {
-            running = running.with_input(row);
-        }
+        running.after(&edits, input.edit.response.id);
+        let drawn = *running.value();
         let level = |field: NumberField<'a>| field.step(self.step).decimals(self.decimals..=self.decimals);
-        let [black, gamma, white] = running.input();
-        let [black_at, _, white_at] = input_rules.placed(&running.input());
+        let [black, gamma, white] = drawn.input();
+        let [black_at, _, white_at] = input_rules.placed(&drawn.input());
         let full = self.field_width(ui, start..=end, self.decimals);
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w3 = fields.share(3);
@@ -510,10 +508,13 @@ impl<'a> LevelsEditor<'a> {
             ),
         ];
         let [b, g, w] = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
-        let base = running;
-        edits.typing(ui.ctx(), &b, |v| Levels { in_black: v, ..base });
-        edits.typing(ui.ctx(), &g, |v| Levels { gamma: v, ..base });
-        edits.typing(ui.ctx(), &w, |v| Levels { in_white: v, ..base });
+        // A field's range is drawn from the row before this pass's fields: its value keeps the
+        // thumbs' order on the row the fields before it left.
+        for (i, field) in [&b, &g, &w].into_iter().enumerate() {
+            let base = *running.value();
+            edits.typing(ui.ctx(), field, |v| base.with_input(input_rules.moved(&base.input(), i, v)));
+            running.after(&edits, field.response.id);
+        }
 
         if self.captions {
             self.caption(ui, style, &self.labels.output);
@@ -537,13 +538,10 @@ impl<'a> LevelsEditor<'a> {
             .part(true)
             .show(ui, &rows);
         let rules = output.rules;
-        edits.push_rebased(&output.edit, &levels.output(), move |row, base, now| rules.rebase(row, base, now), |v| levels.with_output(v));
-        if let Some(&row) = output.edit.event.as_ref().and_then(EditEvent::value)
-            && edits.applies(&outer, scoped, output.edit.response.id)
-        {
-            running = running.with_output(row);
-        }
-        let [out_black, out_white] = running.output();
+        let base = *running.value();
+        edits.push_rebased(&output.edit, &levels.output(), move |row, base, now| rules.rebase(row, base, now), |v| base.with_output(v));
+        running.after(&edits, output.edit.response.id);
+        let [out_black, out_white] = running.value().output();
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w2 = full.min(fields.share(2));
         let out_fields = [
@@ -551,8 +549,11 @@ impl<'a> LevelsEditor<'a> {
             (fields.at_end(w2), "out-white", level(self.field(inner, "out-white", &self.labels.out_white, out_white, start..=end))),
         ];
         let [ob, ow] = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
-        edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..running });
-        edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..running });
+        let base = *running.value();
+        edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..base });
+        running.after(&edits, ob.response.id);
+        let base = *running.value();
+        edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..base });
 
         let submitted = [&b, &g, &w, &ob, &ow].iter().any(|e| e.submitted);
         let escaped = [&b, &g, &w, &ob, &ow].iter().any(|e| e.escaped);

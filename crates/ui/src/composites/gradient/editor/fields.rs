@@ -13,6 +13,7 @@ use crate::composites::color::{ColorPicker, PickedColor, popover};
 use crate::composites::gradient::{GradientStops, StopRow, StopRows, stops};
 use crate::controls::{IconButton, NumberField, Swatch};
 use crate::direction;
+use crate::edit::parts::Running;
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, GestureId};
 use crate::icons::Icon;
 use crate::localized::Unit;
@@ -47,7 +48,8 @@ struct Look {
 
 impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// The selected marker's fields under the bar, drawn from `stops` (the stops the bar leaves)
-    /// and pushed into `edits` after the bar (PhotoCraft's rows): a colour stop's Color well, its
+    /// and pushed into `edits` after the bar (PhotoCraft's rows), each mapped onto the stops
+    /// `running` holds when it is pushed: a colour stop's Color well, its
     /// Opacity under [`StopRows::Combined`], an opacity stop's Opacity; a stop's Location and the
     /// Delete button; a midpoint's Midpoint. Returns the colour request (the bar's `requested`
     /// or a click on the well) and what the popover's picker reported.
@@ -57,6 +59,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         ui: &mut Ui,
         id: Id,
         stops: &GradientStops,
+        running: &mut Running<'_, GradientStops>,
         state: &mut State,
         edits: &mut Edits,
         enabled: bool,
@@ -81,27 +84,34 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 Some(StopRef::Color(i)) => {
                     well = true;
                     (requested, picker) = self.well(ui, stops, i, state, edits, enabled, requested);
+                    if let Some(part) = picker.picker_id {
+                        running.after(edits, part);
+                    }
                     if self.rules.rows == StopRows::Combined {
                         let color = stops.color[i].color;
                         let field = self.number(ui, ("opacity", StopRow::Color), &self.labels.opacity, percent(color.a), 0.0..=100.0, 0, &look);
+                        let base = running.value();
                         edits.typing(ui.ctx(), &field, |v| {
-                            let mut out = stops.clone();
+                            let mut out = base.clone();
                             out.color[i].color.a = (v / 100.0) as f32;
                             out
                         });
+                        running.after(edits, field.response.id);
                     }
-                    self.location(ui, StopRow::Color, i, stops, state, edits, &look);
+                    self.location(ui, StopRow::Color, i, running, state, edits, &look);
                     self.delete(ui, StopRow::Color, stops, edits, enabled);
                 }
                 Some(StopRef::Opacity(i)) => {
                     let opacity = stops.opacity_stops()[i].opacity;
                     let field = self.number(ui, ("opacity", StopRow::Opacity), &self.labels.opacity, percent(opacity), 0.0..=100.0, 0, &look);
+                    let base = running.value();
                     edits.typing(ui.ctx(), &field, |v| {
-                        let mut out = GradientStops { color: stops.color.clone(), opacity: stops.opacity_stops().into_owned() };
+                        let mut out = GradientStops { color: base.color.clone(), opacity: base.opacity_stops().into_owned() };
                         out.opacity[i].opacity = (v / 100.0) as f32;
                         out
                     });
-                    self.location(ui, StopRow::Opacity, i, stops, state, edits, &look);
+                    running.after(edits, field.response.id);
+                    self.location(ui, StopRow::Opacity, i, running, state, edits, &look);
                     self.delete(ui, StopRow::Opacity, stops, edits, enabled);
                 }
                 Some(StopRef::Midpoint(row, i)) => {
@@ -112,6 +122,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                     edits.typing(ui.ctx(), &field, |v| {
                         stops::set_midpoint(stops, row, i, (v / 100.0) as f32, rules).map_or_else(|| stops.clone(), |(s, _)| s)
                     });
+                    running.after(edits, field.response.id);
                 }
                 None => {}
             }
@@ -239,10 +250,21 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         }
     }
 
-    /// The Location field of stop `i` of `row`. Each value of a run moves the stop from where the
-    /// run began ([`LocationRun`]); the selection follows the stop when it passes a neighbour.
+    /// The Location field of stop `i` of `row`, drawn from and mapped onto the stops `running`
+    /// holds. Each value of a run moves the stop from where the run began ([`LocationRun`]); the
+    /// selection follows the stop when it passes a neighbour.
     #[allow(clippy::too_many_arguments)]
-    fn location(&self, ui: &mut Ui, row: StopRow, i: usize, stops: &GradientStops, state: &mut State, edits: &mut Edits, look: &Look) {
+    fn location(
+        &self,
+        ui: &mut Ui,
+        row: StopRow,
+        i: usize,
+        running: &mut Running<'_, GradientStops>,
+        state: &mut State,
+        edits: &mut Edits,
+        look: &Look,
+    ) {
+        let stops = running.value();
         let at = locations(stops, row)[i];
         let field = self.number(ui, ("location", row), &self.labels.location, percent(at), 0.0..=100.0, self.location_decimals, look);
         let event_run = field.event.as_ref().and_then(EditEvent::id);
@@ -261,6 +283,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         }
         edits.typing(ui.ctx(), &field, |v| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
         state.location = run;
+        running.after(edits, field.response.id);
     }
 
     /// A number field in percent in a row labelled `name`, which scrubs it; `look.width` wide at

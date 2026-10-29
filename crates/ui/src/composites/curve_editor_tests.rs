@@ -703,6 +703,26 @@ fn a_screen_readers_step_on_a_field_during_a_graph_drag_is_its_own_set_after_the
     assert_eq!(undo, Some(2), "the drag and the step, one step each");
 }
 
+/// Screen-reader steps on the Input and Output fields in one frame both count: the Output step
+/// applies to the curve the Input step left.
+#[test]
+fn steps_on_both_fields_in_one_frame_both_reach_the_host() {
+    let mut harness = harness(Host::with_undo(&THREE), Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    harness.state_mut().clear();
+    let events = ["Input", "Output"].map(|name| {
+        let (target_node, target_tree) =
+            harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some(name)).accesskit_node().locate();
+        Event::AccessKitActionRequest(ActionRequest { action: Action::Increment, target_tree, target_node, data: None })
+    });
+    harness.input_mut().events.extend(events);
+    harness.run();
+    assert_eq!(harness.state().kinds(), ["Set"]);
+    assert_eq!(harness.state().points(), vec![[0.0, 0.0], [129.0, 129.0], [255.0, 255.0]]);
+}
+
 /// An arrow on the graph during a scrub of the selected point's Input field waits for the
 /// release and moves only the output: the graph's curve from the arrow's pass doesn't bring back
 /// the input the scrub moved on from.

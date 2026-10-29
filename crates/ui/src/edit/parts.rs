@@ -360,8 +360,8 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
 
     /// Whether `part`'s event of this pass goes out in this pass, as far as the parts pushed so
     /// far tell, rather than waiting for its turn ([`feed`](Edits::feed) holds it). A part drawn
-    /// after it draws from and maps onto the value that event makes only when it does; else onto
-    /// the composite's shown value. `outer` is the composite's gesture as loaded and `scoped` as
+    /// after it draws from and maps onto the value that event makes only when it does
+    /// ([`Running`]); else onto the composite's shown value. `outer` is the composite's gesture as loaded and `scoped` as
     /// for `feed`. False when the part has no event.
     pub fn applies(&self, outer: &Gesture<V>, scoped: bool, part: Id) -> bool {
         let Some(at) = self.events.iter().rposition(|(id, ..)| *id == part) else { return false };
@@ -508,6 +508,40 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             }
         }
         outer
+    }
+}
+
+/// The composite's value as the parts pushed so far in a pass leave it. A part pushed after them
+/// maps onto it, so every part's event in a frame counts, each from the value the ones before it
+/// left: a screen reader's steps on two fields of one row in one frame both reach the host. A
+/// part's value is in it only when the part's event goes out in this pass
+/// ([`Edits::applies`]); one that waits for its turn isn't.
+pub(crate) struct Running<'a, V> {
+    outer: &'a Gesture<V>,
+    scoped: bool,
+    value: V,
+}
+
+impl<'a, V: Clone + PartialEq + Send + Sync + 'static> Running<'a, V> {
+    /// From `value`, the composite's value the first part is drawn from. `outer` is the
+    /// composite's gesture as loaded and `scoped` as for [`Edits::feed`].
+    pub fn new(outer: &'a Gesture<V>, scoped: bool, value: V) -> Self {
+        Self { outer, scoped, value }
+    }
+
+    /// The value the next part maps onto.
+    pub fn value(&self) -> &V {
+        &self.value
+    }
+
+    /// After `part` is pushed into `edits`: its event's value, when that goes out in this pass.
+    pub fn after<C>(&mut self, edits: &Edits<V, C>, part: Id) {
+        if edits.applies(self.outer, self.scoped, part)
+            && let Some((_, event, _)) = edits.events.iter().rfind(|(id, ..)| *id == part)
+            && let Some(value) = event.value()
+        {
+            self.value = value.clone();
+        }
     }
 }
 
