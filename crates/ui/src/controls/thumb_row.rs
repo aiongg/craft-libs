@@ -147,7 +147,7 @@ pub(crate) struct ThumbRow<const N: usize> {
     width: Option<f32>,
     policy: EditPolicy,
     enabled: bool,
-    press_waits: bool,
+    part: bool,
 }
 
 /// What a [`ThumbRow`] shows and reports in a frame.
@@ -320,7 +320,7 @@ impl<const N: usize> ThumbRow<N> {
             width: None,
             policy: EditPolicy::default(),
             enabled: true,
-            press_waits: false,
+            part: false,
         }
     }
 
@@ -341,10 +341,10 @@ impl<const N: usize> ThumbRow<N> {
         self
     }
 
-    /// Whether a press waits in this pass ([`press_turn`]), for a row that is a part of a
-    /// composite reporting through one edit.
-    pub fn press_waits(mut self, waits: bool) -> Self {
-        self.press_waits = waits;
+    /// Whether the row is a part of a composite reporting through one edit, whose press takes
+    /// its turn from the edit order ([`press_turn`]).
+    pub(crate) fn part(mut self, part: bool) -> Self {
+        self.part = part;
         self
     }
 
@@ -367,7 +367,7 @@ impl<const N: usize> ThumbRow<N> {
 
         // The gesture lives on the row, which takes every press; the focus goes to the thumbs.
         let mut gesture = Gesture::load(ui, id, &self.value, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(sensing.enabled);
-        let (focus, active) = pointer_input(ui, &response, &layout, &mut gesture, PressInput { sensing, waits: self.press_waits, finite });
+        let (focus, active) = pointer_input(ui, &response, &layout, &mut gesture, PressInput { sensing, part: self.part, finite });
         let dragged = active.and_then(Press::single);
         let mut focus = focus.map(|i| ids[i]);
         if response.drag_stopped() && focus.is_none() {
@@ -437,8 +437,8 @@ impl<const N: usize> ThumbRow<N> {
 #[derive(Clone, Copy, Debug)]
 struct PressInput {
     sensing: Sensing,
-    /// A press waits in this pass ([`press_turn`]).
-    waits: bool,
+    /// The row is a part of a composite ([`press_turn`]).
+    part: bool,
     /// Every host value is a finite number, so a press may begin a gesture.
     finite: bool,
 }
@@ -455,7 +455,7 @@ fn pointer_input<const N: usize>(
     let modifiers = ui.input(|i| i.modifiers);
     let tapped = tap(ui, response);
     let pressed = response.drag_started_by(PointerButton::Primary).then(|| pointer(ui, response).map(|(_, origin)| origin)).flatten();
-    let turn = press_turn(ui, response.id, input.waits, pressed.or(tapped));
+    let turn = press_turn(ui, response.id, input.part, gesture.id(), pressed.or(tapped));
     let mut focus = None;
     if let PressTurn::Held(at) = turn
         && input.finite

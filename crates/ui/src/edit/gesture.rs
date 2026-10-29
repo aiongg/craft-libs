@@ -700,12 +700,21 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Records the active gesture live in this pass with how it ends if interrupted (a commit
-    /// carries the value no update reported), or drops the entry of one that ended. A gesture
-    /// waiting for its first change isn't recorded until its `Begin` goes out.
+    /// carries the value no update reported) and whether it is a typing run, or records that one
+    /// ended. A gesture waiting for its first change isn't recorded until its `Begin` goes out.
+    ///
+    /// A typing run has the focus, isn't a pointer drag, and ends by the focus rule when the
+    /// focus leaves: not a gesture that [commits on interrupt](Gesture::commit_on_interrupt), and
+    /// not a composite's, which ends as its part's does ([`interrupted_as`](Gesture::interrupted_as)).
     fn record_live<U: Clone + Send + Sync + 'static>(&mut self, report: &impl Fn(T) -> U) {
         let dragged = self.dragged();
-        let focused = self.focused_owner().is_some();
+        let focus = self.focused_owner();
+        let focused = focus.is_some();
         let (cancel_on_focus_loss, commit_on_interrupt) = (self.cancel_on_focus_loss, self.commit_on_interrupt);
+        let by_focus = !commit_on_interrupt && self.interrupted.is_none();
+        if let Some(id) = self.ended.filter(|&id| self.id() != Some(id)) {
+            live::finish(&self.ctx, id);
+        }
         match &mut self.stored.phase {
             // A gesture the host hasn't seen begin has nothing to end.
             Phase::Active(a) if !a.announced => a.dragged |= dragged,
@@ -727,13 +736,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                     }
                     false => (Ending::Cancel, None),
                 };
-                live::mark(&self.ctx, a.id, ending, unreported, focused);
+                let typing = focus.filter(|_| by_focus && a.focused && !a.dragged);
+                live::mark(&self.ctx, a.id, ending, unreported, focused, typing);
             }
-            Phase::Idle | Phase::Restoring { .. } => {
-                if let Some(id) = self.ended {
-                    live::forget(&self.ctx, id);
-                }
-            }
+            Phase::Idle | Phase::Restoring { .. } => {}
         }
     }
 }

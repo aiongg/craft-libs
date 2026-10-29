@@ -378,7 +378,6 @@ impl<'a> ColorPicker<'a> {
         let full = self.layout == ColorPickerLayout::Full;
         let mut state = State::load(ui, id);
         let pass = ui.ctx().cumulative_pass_nr();
-        let waits = edit::focused_gesture(ui.ctx()).is_some();
         if full && enabled && self.focus_on_open && state.shown_pass.is_none_or(|p| p + 1 < pass) {
             ColorPicker::focus_hex(ui.ctx(), id);
         }
@@ -399,15 +398,15 @@ impl<'a> ColorPicker<'a> {
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
             let shown = outer.shown().clone();
-            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width, waits };
-            let mut edits = Edits::new(&state.parts);
+            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
+            let mut edits = Edits::new(id, &state.parts);
 
             eyedropper_requested = match self.layout {
                 ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
                 ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, &shown, inner, &translate, &constrain, &mut edits),
             };
             // A click sets its colour against the host's value after the typing run it ended.
-            for color in edits.clicks(ui.ctx(), &mut state.parts, waits) {
+            for color in edits.inputs(ui.ctx(), &mut state.parts) {
                 edits.set(shown.with_color(color, &constrain));
             }
             if let Some(color) = ui.data_mut(|d| {
@@ -529,14 +528,14 @@ impl<'a> ColorPicker<'a> {
                 .size(area)
                 .policy(inner.policy)
                 .enabled(inner.enabled)
-                .press_waits(inner.waits)
+                .part(true)
                 .show(ui);
             edits.push(&area, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
             let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
                 .size(vec2(strip, area.response.rect.height()))
                 .policy(inner.policy)
                 .enabled(inner.enabled)
-                .press_waits(inner.waits)
+                .part(true)
                 .show(ui);
             edits.push(&strip, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
         });
@@ -610,9 +609,6 @@ struct Inner {
     enabled: bool,
     /// The width of every channel field ([`channel_width`]).
     width: f32,
-    /// Another control's gesture had the focus as the pass began (a typing run): presses and
-    /// clicks wait until it has ended ([`edit::focused_gesture`]).
-    waits: bool,
 }
 
 /// The width of every channel field, in either layout: the widest value of every built-in
@@ -654,7 +650,7 @@ fn slider_row(
     numbers: &LocaleNumbers,
     inner: Inner,
 ) -> (EditResponse<f64>, EditResponse<f64>) {
-    let Inner { policy, enabled, width, waits } = inner;
+    let Inner { policy, enabled, width } = inner;
     let field = PropertyRow::word(name)
         .scrubs()
         .show(ui, |ui, row| {
@@ -665,7 +661,7 @@ fn slider_row(
                     .decimals(0..=usize::from(decimals))
                     .unit(unit)
                     .policy(policy)
-                    .press_waits(waits)
+                    .part(true)
                     .enabled(enabled);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),
@@ -675,7 +671,7 @@ fn slider_row(
             })
         })
         .inner;
-    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled).press_waits(waits);
+    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled).part(true);
     if let Some(stops) = track {
         slider = slider.track_colors(stops);
     }
@@ -728,7 +724,7 @@ struct State {
     /// The value the picker last reported: the colour with the values that made it.
     kept: Option<Picked>,
     /// The inner controls' edits: the owner of the picker's gesture, and the colours set by
-    /// clicks that wait for a typing run to end ([`Inner::waits`]).
+    /// clicks that wait for their turn ([`Edits::inputs`]).
     parts: parts::State<Srgba>,
     /// The model of the Compact rows.
     model: Option<&'static str>,

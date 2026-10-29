@@ -43,8 +43,6 @@ struct Look {
     policy: EditPolicy,
     width: f32,
     enabled: bool,
-    /// Another control's gesture had the focus as the pass began: a scrub waits for it to end.
-    waits: bool,
 }
 
 impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
@@ -62,7 +60,6 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         state: &mut State,
         edits: &mut Edits,
         enabled: bool,
-        waits: bool,
         requested: Option<usize>,
     ) -> (Option<usize>, PickerReport) {
         let builder = UiBuilder::new().scope_id(id.with(FIELDS)).layout(direction::column(ui));
@@ -72,7 +69,6 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost),
                 width: NumberField::fit_width(ui, ControlSize::Md, self.numbers, 0.0..=100.0, self.location_decimals, &unit),
                 enabled,
-                waits,
             };
             let selected = state.selected.filter(|m| match *m {
                 StopRef::Midpoint(row, i) => i + 1 < stops.len(row),
@@ -289,7 +285,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                         .decimals(decimals..=decimals)
                         .unit(Unit::new(&self.labels.percent))
                         .policy(look.policy)
-                        .press_waits(look.waits)
+                        .part(true)
                         .enabled(look.enabled);
                     match row.scrub() {
                         Some(label) => field.scrub_by(label),
@@ -303,7 +299,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
 
     /// The Delete button under the fields, at the reading start of the control column
     /// (PhotoCraft); it removes the selected stop of `row`, and is disabled at the row's minimum.
-    /// Its click waits for a typing run as a press does ([`Edits::clicks`]).
+    /// Its click takes its turn as the editor's input ([`Edits::inputs`]).
     fn delete(&self, ui: &mut Ui, row: StopRow, stops: &GradientStops, edits: &mut Edits, enabled: bool) {
         let tokens = Tokens::of(ui);
         let label = PropertyRow::style(&tokens, ControlSize::Md);
@@ -314,7 +310,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let rect = Rect::from_min_size(pos2(x, full.top()), vec2(side, side));
         let button = IconButton::new(Icon::Trash, self.labels.delete.as_str()).id_salt("delete").enabled(enabled && stops.len(row) > self.rules.min);
         if ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| ui.add(button)).inner.clicked() {
-            edits.click(());
+            edits.input(());
         }
     }
 }

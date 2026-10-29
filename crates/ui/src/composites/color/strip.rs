@@ -47,7 +47,7 @@ pub struct ColorStrip {
     size: Option<Vec2>,
     policy: EditPolicy,
     enabled: bool,
-    press_waits: bool,
+    part: bool,
 }
 
 impl ColorStrip {
@@ -64,7 +64,7 @@ impl ColorStrip {
             size: None,
             policy: EditPolicy::default(),
             enabled: true,
-            press_waits: false,
+            part: false,
         }
     }
 
@@ -86,10 +86,10 @@ impl ColorStrip {
         self
     }
 
-    /// Whether a press waits in this pass ([`press_turn`]): for a part of a colour picker, whose
-    /// fields' typing runs end on the press.
-    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
-        self.press_waits = waits;
+    /// Whether the strip is a part of a colour picker, whose press takes its turn from the edit
+    /// order ([`press_turn`]): it waits for a field's typing run to end.
+    pub(crate) fn part(mut self, part: bool) -> Self {
+        self.part = part;
         self
     }
 
@@ -130,7 +130,7 @@ impl ColorStrip {
         let mut gesture = Gesture::load(ui, response.id, &self.values, self.policy).event_filter(KEY_FILTER).enabled(response.enabled());
         let tapped = tap(ui, &response);
         let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let turn = press_turn(ui, response.id, self.press_waits, pressed.or(tapped));
+        let turn = press_turn(ui, response.id, self.part, gesture.id(), pressed.or(tapped));
         if let PressTurn::Held(held) = turn {
             gesture.begin();
             if let Some(start) = gesture.start().copied() {

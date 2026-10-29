@@ -4,9 +4,9 @@
 use std::time::Duration;
 
 use egui::accesskit::Role;
-use egui::{Area, Context, Event, EventFilter, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Response, Sense, Ui, vec2};
+use egui::{Area, Context, Event, EventFilter, Id, Key, Modal, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense, Ui, vec2};
 
-use super::story::{slider, text_field};
+use super::story::{self, slider, text_field};
 use super::*;
 use crate::primitives::Interactive;
 
@@ -629,23 +629,30 @@ fn a_change_during_a_typing_run_keeps_the_run_as_one_step_in_either_draw_order()
 }
 
 /// The gesture with the focus is a typing run while it lasts: not once Enter ends it, and not once
-/// its field is no longer drawn.
+/// its field is no longer drawn. A drag that took the focus is the focused gesture, not a typing
+/// run.
 #[test]
 fn the_focused_gesture_is_a_typing_run_until_it_ends() {
+    let typing = |ctx: &Context| live::typing(ctx).map(|(run, _)| run);
     let mut rig = Rig::new(EditPolicy::default());
-    assert_eq!(focused_gesture(&rig.ctx), None);
+    assert_eq!((focused_gesture(&rig.ctx), typing(&rig.ctx)), (None, None));
     let run = rig.typing_run();
-    assert_eq!(focused_gesture(&rig.ctx), Some(run));
+    assert_eq!((focused_gesture(&rig.ctx), typing(&rig.ctx)), (Some(run), Some(run)));
     rig.frame(vec![key_event(Key::Enter)]);
     assert_eq!(rig.field_event, commit(run, "Layer 1x".to_owned(), true));
-    assert_eq!(focused_gesture(&rig.ctx), None);
+    assert_eq!((focused_gesture(&rig.ctx), typing(&rig.ctx)), (None, None));
 
     let mut rig = Rig::new(EditPolicy::default());
     let run = rig.typing_run();
-    assert_eq!(focused_gesture(&rig.ctx), Some(run));
+    assert_eq!(typing(&rig.ctx), Some(run));
     rig.draw_field = false;
     rig.frame(vec![]);
-    assert_eq!(focused_gesture(&rig.ctx), None);
+    assert_eq!((focused_gesture(&rig.ctx), typing(&rig.ctx)), (None, None));
+
+    let mut rig = Rig::new(EditPolicy::default());
+    let drag = begin_id(rig.press(0.0));
+    rig.drag(10.0);
+    assert_eq!((focused_gesture(&rig.ctx), typing(&rig.ctx)), (Some(drag), None));
 }
 
 /// A composite's gesture that is a part's typing run: the part's ending event ends it, also in a
@@ -696,25 +703,37 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert_eq!(unreported::<i32>(&ctx, id), Some(5));
 }
 
-/// A composite's parts as one gesture ([`parts::Edits`]): the part that begins it owns it, another
-/// part's change joins it, and the owner's commit ends it with the owner's value. A
-/// click on a part waits while a typing run has the focus, at most `PRESS_WAIT` passes.
+/// A composite's parts as one gesture ([`parts::Edits`]): the part that begins it owns it, and
+/// the owner's commit ends it with the owner's value. Another part's change never joins it: it
+/// asks the owner's typing run to end and is its own Set in the pass after the run's commit. A
+/// click waits for a typing run the same way.
 #[test]
 fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     let ctx = Context::default();
     let mut state = parts::State::default();
     let host = std::cell::Cell::new(0);
     let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
-    type Act<'a> = &'a dyn Fn(&mut parts::Edits<i32, i32>, &Response, &Response);
-    let mut pass = |waits: bool, act: Act| {
+    // Part `a` is a field, with the focus while `focus`, whose gesture does as `a` says; part `b`
+    // reports the event given (a screen reader's step); `click` is a click on a button part.
+    let mut pass = |focus: bool, a: &dyn Fn(&mut Gesture<i32>), b: Option<EditEvent<i32>>, click: Option<i32>| {
         let mut event = None;
         let output = ctx.run_ui(RawInput::default(), |ui| {
-            let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
-            let (a, b) = (part(a_id, 0.0), part(b_id, 30.0));
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
-            let mut edits = parts::Edits::new(&state);
-            act(&mut edits, &a, &b);
-            for click in edits.clicks(ui.ctx(), &mut state, waits) {
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(composite, &state);
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+            if focus {
+                response.request_focus();
+            }
+            let mut gesture = Gesture::load(ui, a_id, &shown, EditPolicy::default());
+            a(&mut gesture);
+            edits.typing(ui.ctx(), &EditResponse::new(response, gesture.finish()), |v| v);
+            let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
+            edits.push(&EditResponse::new(response, b.clone()), |v| v);
+            if let Some(click) = click {
+                edits.input(click);
+            }
+            for click in edits.inputs(ui.ctx(), &mut state) {
                 edits.set(click);
             }
             event = edits.feed(outer, &mut state, false).finish();
@@ -725,29 +744,49 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
         }
         event
     };
-    let edit = |response: &Response, event: EditEvent<i32>| EditResponse::new(response.clone(), Some(event));
-    let run = GestureId::next();
-    let begun = pass(false, &|e, a, _| e.push(&edit(a, EditEvent::begin(run)), |v| v));
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
-    let joined = pass(false, &|e, a, b| {
-        e.push(&edit(a, EditEvent::update(run, 3, Modifiers::NONE)), |v| v);
-        e.push(&edit(b, EditEvent::set(7, Modifiers::NONE)), |v| v);
-    });
-    assert_eq!(joined, update(id, 7));
-    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 0, false, Modifiers::NONE)), |v| v)), commit(id, 0, false));
+    let idle = |_: &mut Gesture<i32>| {};
+    let typed = |value: i32| {
+        move |g: &mut Gesture<i32>| {
+            g.begin();
+            g.update(value, Modifiers::NONE);
+        }
+    };
+    let focused = |ctx: &Context| ctx.memory(|m| m.has_focus(a_id));
 
-    assert_eq!(pass(true, &|e, _, _| e.click(5)), None);
-    assert_eq!(pass(true, &|_, _, _| {}), None);
-    assert_eq!(pass(true, &|_, _, _| {}), Some(EditEvent::set(5, Modifiers::NONE)), "a click waits two passes at most");
-    assert_eq!(pass(true, &|e, _, _| e.click(6)), None);
-    assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
+    let begun = pass(true, &typed(3), None, None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(true, &idle, Some(EditEvent::set(7, Modifiers::NONE)), None), update(id, 3), "the step doesn't join the run");
+    assert!(!focused(&ctx), "the step asked the run to end");
+    assert_eq!(pass(false, &idle, None, None), commit(id, 3, true));
+    assert_eq!(pass(false, &idle, None, None), Some(EditEvent::set(7, Modifiers::NONE)), "the step runs after the commit");
+
+    let begun = pass(true, &typed(4), None, None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(true, &idle, None, Some(5)), update(id, 4));
+    assert!(!focused(&ctx), "the click asked the run to end");
+    assert_eq!(pass(false, &idle, None, None), commit(id, 4, true));
+    assert_eq!(pass(false, &idle, None, None), Some(EditEvent::set(5, Modifiers::NONE)), "the click runs after the commit");
+    assert_eq!(pass(false, &idle, None, Some(6)), Some(EditEvent::set(6, Modifiers::NONE)), "with nothing to wait for it runs at once");
 
     // A map off by one stands for float drift: the owner's commit that changed nothing still ends
     // the gesture at its start.
+    let mut state = parts::State::<()>::default();
+    let mut pass = |event: EditEvent<i32>, map: fn(i32) -> i32| {
+        let mut out = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let mut edits = parts::Edits::new(composite, &state);
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+            edits.push(&EditResponse::new(response, Some(event.clone())), map);
+            out = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        out
+    };
     let run = GestureId::next();
-    let begun = pass(false, &|e, a, _| e.push(&edit(a, EditEvent::begin(run)), |v| v));
+    let begun = pass(EditEvent::begin(run), |v| v);
     let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
-    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 6, false, Modifiers::NONE)), |v| v + 1)), commit(id, 6, false));
+    assert_eq!(pass(EditEvent::commit(run, 6, false, Modifiers::NONE), |v| v + 1), commit(id, 6, false));
 }
 
 /// In a pass where the composite's gesture ends, the other parts' events wait for the next pass
@@ -766,7 +805,7 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::new(&state);
+            let mut edits = parts::Edits::new(composite, &state);
             let part = |id: Id, event: Option<EditEvent<i32>>| {
                 let x = if id == a_id { 0.0 } else { 30.0 };
                 EditResponse::new(ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click()), event)
@@ -865,7 +904,7 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
         let mut event = None;
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
-            let mut edits = parts::Edits::<i32>::new(&state);
+            let mut edits = parts::Edits::<i32>::new(composite, &state);
             if let Some((focus, act)) = a {
                 let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
                 match focus {
@@ -1083,7 +1122,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     // A typing run (recorded by its control as one to keep, ending with a value no update
     // carried), then a set from another control.
     let run = GestureId::next();
-    live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)), true);
+    live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)), true, None);
     for event in [EditEvent::Begin { id: run }, update(run, 1), update(run, 2), set(9)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
@@ -1096,7 +1135,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
 
     // A drag (recorded as one to revert), then a set.
     let drag = GestureId::next();
-    live::mark(&ctx, drag, Ending::Cancel, None, false);
+    live::mark(&ctx, drag, Ending::Cancel, None, false, None);
     for event in [EditEvent::Begin { id: drag }, update(drag, 5), set(7)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
@@ -1266,10 +1305,10 @@ fn a_cancel_all_after_the_host_ended_a_gesture_stops_its_input() {
 
 /// A composite's gesture under a [`GestureHost`] that another control's change ends mid-run: the
 /// owner's typing run carries on, and its commit ends with the owner's value against the
-/// host's, also when that value is the owner's own start. An unchanged owner's interrupted run
-/// keeps another part's value that joined the gesture.
+/// host's, also when that value is the owner's own start. Another part's step during an
+/// unchanged run is its own Set after the run's commit.
 #[test]
-fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it_or_a_part_joined() {
+fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it() {
     let ctx = Context::default();
     let mut state = parts::State::<()>::default();
     let mut host = GestureHost::new();
@@ -1283,7 +1322,7 @@ fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it_or_a_
             let ctx = ui.ctx().clone();
             let outer = Gesture::load(ui, composite, &(doc.now.0, doc.now.1), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::<(i32, i32)>::new(&state);
+            let mut edits = parts::Edits::<(i32, i32)>::new(composite, &state);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
             response.request_focus();
             // The field follows its own run, as a number field does.
@@ -1318,9 +1357,322 @@ fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it_or_a_
     assert_eq!(pass(&|g| g.update(40, Modifiers::NONE), None, None), (None, (50, 0, 9)));
     assert_eq!(pass(&Gesture::commit, None, None), (Some(EditEvent::set((40, 0), Modifiers::NONE)), (40, 0, 9)));
 
-    // A run that changes nothing, a step on `b` that joins it, then the bar's change.
+    // A run that changes nothing, a step on `b` that waits for it, then the bar's change.
     let (begun, _) = pass(&Gesture::begin, None, None);
     let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
-    assert_eq!(pass(&idle, Some(EditEvent::set(7, Modifiers::NONE)), None), (update(id, (40, 7)), (40, 7, 9)));
-    assert_eq!(pass(&idle, None, Some(3)), (None, (40, 7, 3)), "the joined step stays");
+    assert_eq!(pass(&idle, Some(EditEvent::set(7, Modifiers::NONE)), None), (None, (40, 0, 9)));
+    assert_eq!(pass(&Gesture::commit, None, None), (commit(id, (40, 0), false), (40, 0, 9)));
+    assert_eq!(pass(&idle, None, None), (Some(EditEvent::set((40, 7), Modifiers::NONE)), (40, 7, 9)));
+    assert_eq!(pass(&idle, None, Some(3)), (None, (40, 7, 3)), "the step stays");
+}
+
+/// The story's fake composite (a slider and a text field as one edit, [`story::Composite`])
+/// under a [`GestureHost`], frame by frame, with each pass's event kept.
+struct Pairs {
+    ctx: Context,
+    id: Id,
+    composite: story::Composite,
+    /// Whether the composite is drawn.
+    draw: bool,
+    time: f64,
+    doc: Doc<story::Pair>,
+    host: GestureHost<Doc<story::Pair>>,
+    events: Vec<Option<EditEvent<story::Pair>>>,
+}
+
+impl Pairs {
+    fn new(field_first: bool) -> Self {
+        let mut rig = Self {
+            ctx: Context::default(),
+            id: Id::unique("pairs"),
+            composite: story::Composite { field_first, ..story::Composite::default() },
+            draw: true,
+            time: 0.0,
+            doc: Doc::new((40.0, "Layer 1".to_owned())),
+            host: GestureHost::new(),
+            events: Vec::new(),
+        };
+        rig.frame(vec![]);
+        rig
+    }
+
+    /// Runs one frame and returns the composite's event. The composite's input is this frame's
+    /// only.
+    fn frame(&mut self, events: Vec<Event>) -> Option<EditEvent<story::Pair>> {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(self.time), events, ..Default::default() };
+        self.time += 1.0 / 60.0;
+        let ctx = self.ctx.clone();
+        let mut event = None;
+        let output = ctx.run_ui(input, |ui| {
+            if self.draw {
+                event = self.composite.show(ui, self.id, &self.doc.now, EditPolicy::default()).event;
+            }
+            if let Some(event) = event.clone() {
+                self.host.handle(ui.ctx(), &mut self.doc, event, |doc, value| doc.set(value));
+            }
+            self.host.end_frame(ui.ctx(), &mut self.doc);
+        });
+        output.drop_without_applying_deltas();
+        self.composite.input = None;
+        self.events.push(event.clone());
+        event
+    }
+
+    /// The index of the next frame in [`events`](Pairs::events).
+    fn next(&self) -> usize {
+        self.events.len()
+    }
+
+    fn rect(&self, part: &str) -> Rect {
+        self.ctx.read_response(self.id.with(part)).map_or(Rect::NOTHING, |r| r.rect)
+    }
+
+    fn at(&self, dx: f32) -> Pos2 {
+        self.rect("slider").center() + vec2(dx, 0.0)
+    }
+
+    fn press(&mut self, dx: f32) -> Option<EditEvent<story::Pair>> {
+        let pos = self.at(dx);
+        self.frame(vec![Event::PointerMoved(pos), button(pos, true)])
+    }
+
+    fn drag(&mut self, dx: f32) -> Option<EditEvent<story::Pair>> {
+        let pos = self.at(dx);
+        self.frame(vec![Event::PointerMoved(pos)])
+    }
+
+    fn release(&mut self, dx: f32) -> Option<EditEvent<story::Pair>> {
+        let pos = self.at(dx);
+        self.frame(vec![button(pos, false)])
+    }
+
+    fn field_focused(&self) -> bool {
+        self.ctx.memory(|m| m.has_focus(self.id.with("field")))
+    }
+
+    /// Focuses the field and starts a typing run that the host has seen up to "Layer 1x".
+    fn typing_run(&mut self) -> GestureId {
+        let pos = self.rect("field").center();
+        self.frame(vec![Event::PointerMoved(pos), button(pos, true), button(pos, false)]);
+        self.frame(vec![]);
+        let begun = self.frame(vec![Event::Text("x".to_owned())]);
+        let Some(EditEvent::Begin { id }) = begun else { panic!("expected Begin, got {begun:?}") };
+        assert_eq!(self.frame(vec![]), update(id, (40.0, "Layer 1x".to_owned())));
+        id
+    }
+}
+
+fn pair(level: f32, label: &str) -> story::Pair {
+    (level, label.to_owned())
+}
+
+fn set_pair(level: f32, label: &str) -> Option<EditEvent<story::Pair>> {
+    Some(EditEvent::set(pair(level, label), Modifiers::NONE))
+}
+
+/// A press on one part of a composite during another part's typing run: the run's Commit goes
+/// out in the press pass when the field is drawn after the slider, in the next when before, and
+/// the press's Begin in the pass after the Commit, from the committed value. A draft that reads
+/// as no value commits the run's start, and the press starts from it, not from the last update.
+#[test]
+fn a_press_during_a_typing_run_runs_the_pass_after_its_commit_in_either_draw_order() {
+    for field_first in [false, true] {
+        let mut rig = Pairs::new(field_first);
+        let run = rig.typing_run();
+        let press = rig.next();
+        rig.press(0.0);
+        assert!(!rig.field_focused(), "{field_first}");
+        rig.drag(0.0);
+        rig.drag(0.0);
+        let ending = if field_first { press + 1 } else { press };
+        assert_eq!(rig.events[ending], commit(run, pair(40.0, "Layer 1x"), true), "{field_first}");
+        let Some(EditEvent::Begin { id }) = rig.events[ending + 1] else { panic!("{field_first}: {:?}", rig.events) };
+        assert!(rig.events[press..ending].iter().all(Option::is_none), "{field_first}: {:?}", rig.events);
+        rig.events.truncate(ending + 2);
+        rig.drag(10.0);
+        rig.release(10.0);
+        let after = &rig.events[ending + 2..];
+        let expected = [update(id, pair(50.0, "Layer 1x")), commit(id, pair(50.0, "Layer 1x"), true)];
+        assert!(after.iter().flatten().eq(expected.iter().flatten()), "{field_first}: {after:?}");
+        assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(50.0, "Layer 1x"), 2), "{field_first}");
+
+        let mut rig = Pairs::new(field_first);
+        let run = rig.typing_run();
+        rig.frame(vec![Event::Text("+".to_owned())]);
+        assert_eq!(rig.events.last(), Some(&None), "a draft that reads as no value goes out in no update");
+        let press = rig.next();
+        rig.press(0.0);
+        rig.drag(0.0);
+        rig.drag(0.0);
+        let ending = if field_first { press + 1 } else { press };
+        assert_eq!(rig.events[ending], commit(run, pair(40.0, "Layer 1"), false), "{field_first}");
+        assert!(matches!(rig.events[ending + 1], Some(EditEvent::Begin { .. })), "{field_first}: {:?}", rig.events);
+        rig.drag(10.0);
+        rig.release(10.0);
+        assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(50.0, "Layer 1"), 1), "{field_first}");
+    }
+}
+
+/// A click that takes no focus (a screen reader's) during a typing run takes the focus from the
+/// field, and runs as a Set in the pass after the run's Commit; it never joins the run.
+#[test]
+fn a_click_that_takes_no_focus_ends_the_run_and_runs_after_it() {
+    let mut rig = Pairs::new(false);
+    let run = rig.typing_run();
+    rig.composite.input = Some(pair(10.0, "Reset"));
+    assert_eq!(rig.frame(vec![]), None);
+    assert!(!rig.field_focused());
+    assert_eq!(rig.frame(vec![]), commit(run, pair(40.0, "Layer 1x"), true));
+    assert_eq!(rig.frame(vec![]), set_pair(10.0, "Reset"));
+    assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(10.0, "Reset"), 2));
+}
+
+/// A press and a click that wait for one typing run run in their order, one a pass: the press
+/// first, and the click once the press's drag has ended.
+#[test]
+fn inputs_wait_in_order_and_one_runs_per_pass() {
+    let mut rig = Pairs::new(false);
+    let run = rig.typing_run();
+    rig.composite.input = Some(pair(10.0, "Reset"));
+    assert_eq!(rig.press(0.0), commit(run, pair(40.0, "Layer 1x"), true));
+    let id = begin_id(rig.drag(0.0).map(|e| e.map(|(level, _)| level)));
+    assert_eq!(rig.drag(10.0), update(id, pair(50.0, "Layer 1x")));
+    assert_eq!(rig.drag(10.0), None, "the click waits for the drag");
+    assert_eq!(rig.release(10.0), commit(id, pair(50.0, "Layer 1x"), true));
+    assert_eq!(rig.frame(vec![]), set_pair(10.0, "Reset"));
+    assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(10.0, "Reset"), 3));
+}
+
+/// A waiting press whose part isn't drawn in a pass is dropped, and so is a waiting click of a
+/// composite that isn't drawn: the run's ending is the only edit.
+#[test]
+fn a_waiting_input_is_dropped_when_its_control_is_not_drawn() {
+    let mut rig = Pairs::new(true);
+    let run = rig.typing_run();
+    assert_eq!(rig.press(0.0), None, "the field drawn first ends its run in the next pass");
+    rig.composite.slider = false;
+    assert_eq!(rig.drag(0.0), commit(run, pair(40.0, "Layer 1x"), true));
+    rig.composite.slider = true;
+    rig.frame(vec![]);
+    rig.drag(10.0);
+    rig.drag(10.0);
+    rig.release(10.0);
+    let n = rig.events.len();
+    assert!(rig.events[n - 4..].iter().all(Option::is_none), "{:?}", rig.events);
+    assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(40.0, "Layer 1x"), 1));
+
+    let mut rig = Pairs::new(false);
+    rig.typing_run();
+    rig.composite.input = Some(pair(10.0, "Reset"));
+    assert_eq!(rig.frame(vec![]), None);
+    rig.draw = false;
+    rig.frame(vec![]);
+    rig.draw = true;
+    assert_eq!((rig.frame(vec![]), rig.frame(vec![])), (None, None));
+    assert_eq!((rig.doc.now.clone(), rig.doc.undo.len()), (pair(40.0, "Layer 1x"), 1), "the host kept the run");
+}
+
+/// A screen reader's step on one part during another part's drag doesn't join the drag: it waits
+/// for the release, and is its own Set on the committed value in the next pass.
+#[test]
+fn a_part_event_during_another_parts_drag_waits_for_the_release() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let host = std::cell::Cell::new((0, 0));
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    // Part `a` drags the first number, part `b` steps the second.
+    let mut pass = |a: Option<EditEvent<i32>>, b: Option<EditEvent<i32>>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(composite, &state);
+            let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
+            edits.push(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
+            edits.push(&EditResponse::new(part(b_id, 30.0), b.clone()), |v| (shown.0, v));
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let run = GestureId::next();
+    let begun = pass(Some(EditEvent::begin(run)), None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let step = Some(EditEvent::set(9, Modifiers::NONE));
+    assert_eq!(pass(Some(EditEvent::update(run, 5, Modifiers::NONE)), step), update(id, (5, 0)), "the step doesn't join");
+    assert_eq!(pass(Some(EditEvent::update(run, 6, Modifiers::NONE)), None), update(id, (6, 0)));
+    assert_eq!(pass(Some(EditEvent::commit(run, 6, true, Modifiers::NONE)), None), commit(id, (6, 0), true));
+    assert_eq!(pass(None, None), Some(EditEvent::set((6, 9), Modifiers::NONE)));
+    assert_eq!(host.get(), (6, 9));
+}
+
+/// Runs passes of `ctx` with a control `control` that has the focus and a gesture under way, made
+/// as `gesture` says, and returns the turn of a press asked in the last.
+fn turn_beside(ctx: &Context, control: Id, own: Option<GestureId>, gesture: impl Fn(Gesture<i32>) -> Gesture<i32>) -> order::Turn {
+    let mut turn = None;
+    for begin in [true, false] {
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), control, Sense::click()).request_focus();
+            let mut g = gesture(Gesture::load(ui, control, &0, EditPolicy::default()));
+            if begin {
+                g.begin();
+            }
+            let _ = g.finish();
+            if !begin {
+                turn = Some(order::turn(ui.ctx(), Id::unique("press"), own));
+            }
+        });
+        output.drop_without_applying_deltas();
+    }
+    turn.unwrap_or(order::Turn::Now)
+}
+
+/// A pen's draft that commits on interrupt has the focus but isn't a typing run: a press beside it
+/// runs at once, and leaves it the focus.
+#[test]
+fn an_input_does_not_wait_for_a_gesture_that_commits_on_interrupt() {
+    let pen = Id::unique("pen");
+    let ctx = Context::default();
+    assert_eq!(turn_beside(&ctx, pen, None, |g| g.commit_on_interrupt(true)), order::Turn::Now);
+    assert!(ctx.memory(|m| m.has_focus(pen)));
+    let ctx = Context::default();
+    assert_eq!(turn_beside(&ctx, pen, None, |g| g), order::Turn::Waits, "a typing run makes it wait");
+    assert!(!ctx.memory(|m| m.has_focus(pen)), "and is asked to end");
+}
+
+/// A press on the field that owns the typing run (a number field's scrub) runs at once: the
+/// field's own run is no reason to wait.
+#[test]
+fn a_scrub_on_the_field_that_owns_the_run_runs_at_once() {
+    let field = Id::unique("field");
+    let ctx = Context::default();
+    let run = std::cell::Cell::new(None);
+    let turn = turn_beside(&ctx, field, None, |g| {
+        if g.id().is_some() {
+            run.set(g.id());
+        }
+        g
+    });
+    assert_eq!(turn, order::Turn::Waits);
+    let ctx = Context::default();
+    let mut own = None;
+    for begin in [true, false] {
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), field, Sense::click()).request_focus();
+            let mut g = Gesture::load(ui, field, &0, EditPolicy::default());
+            if begin {
+                g.begin();
+                own = g.id();
+            } else {
+                assert_eq!(order::turn(ui.ctx(), Id::unique("scrub"), own), order::Turn::Now);
+            }
+            let _ = g.finish();
+        });
+        output.drop_without_applying_deltas();
+    }
+    assert!(ctx.memory(|m| m.has_focus(field)), "the scrub ends the run itself");
 }

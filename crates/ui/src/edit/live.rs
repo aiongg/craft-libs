@@ -13,8 +13,8 @@ pub(super) type Value = Arc<dyn Any + Send + Sync>;
 
 /// One active gesture: the viewport its control is drawn in, the last pass of that viewport that
 /// drew it, how it ends if it is interrupted, the value it ends with when the host hasn't seen
-/// it, whether its control had the keyboard focus in that pass, and whether the host has ended
-/// it before its control did.
+/// it, whether its control had the keyboard focus in that pass, the widget with that focus when
+/// the gesture is a typing run, and whether the host has ended it before its control did.
 #[derive(Clone)]
 struct Entry {
     id: GestureId,
@@ -23,6 +23,7 @@ struct Entry {
     ending: Ending,
     unreported: Option<Value>,
     focused: bool,
+    typing: Option<Id>,
     ended: bool,
 }
 
@@ -35,15 +36,19 @@ impl std::fmt::Debug for Entry {
             .field("ending", &self.ending)
             .field("unreported", &self.unreported.is_some())
             .field("focused", &self.focused)
+            .field("typing", &self.typing)
             .field("ended", &self.ended)
             .finish()
     }
 }
 
-/// The active gestures of a context. Small: one entry per gesture under way.
+/// The active gestures of a context, and the gestures whose control ended them in the current
+/// pass of their viewport. Small: one entry per gesture under way.
 #[derive(Clone, Debug, Default)]
 pub(super) struct Live {
     entries: Vec<Entry>,
+    /// Each with its viewport and the pass its ending event went out in.
+    finished: Vec<(GestureId, ViewportId, u64)>,
 }
 
 /// A gesture's state as seen from the viewport running now.
@@ -64,8 +69,9 @@ impl Live {
     /// gesture the host has ended stays ended until its control learns of it.
     fn mark(&mut self, entry: Entry, pass_for: impl Fn(ViewportId) -> u64) {
         self.entries.retain(|e| e.id == entry.id || e.pass + 1 >= pass_for(e.viewport));
+        self.finished.retain(|&(_, viewport, pass)| pass >= pass_for(viewport));
         match self.entries.iter_mut().find(|e| e.id == entry.id) {
-            Some(e) if e.ended => *e = Entry { focused: false, ended: true, ..entry },
+            Some(e) if e.ended => *e = Entry { focused: false, typing: None, ended: true, ..entry },
             Some(e) => *e = entry,
             None => self.entries.push(entry),
         }
@@ -75,12 +81,20 @@ impl Live {
         self.entries.retain(|e| e.id != id);
     }
 
+    /// Drops `id`'s entry: its control reported its ending in `pass` of `viewport`.
+    fn finish(&mut self, id: GestureId, viewport: ViewportId, pass: u64, pass_for: impl Fn(ViewportId) -> u64) {
+        self.forget(id);
+        self.finished.retain(|&(_, viewport, pass)| pass >= pass_for(viewport));
+        self.finished.push((id, viewport, pass));
+    }
+
     /// Marks `id` ended by the host: no longer live or focused. The entry stays until its control
     /// has loaded once more, which learns of it with [`ended`](Live::ended).
     fn end(&mut self, id: GestureId) {
         if let Some(e) = self.entries.iter_mut().find(|e| e.id == id) {
             e.ended = true;
             e.focused = false;
+            e.typing = None;
         }
     }
 
@@ -120,6 +134,22 @@ impl Live {
         self.entries.iter().filter(|e| e.focused && e.viewport == current && e.pass + 1 >= pass).map(|e| e.id).max()
     }
 
+    /// Whether gesture `id` has gone out before the current pass of its viewport: its control
+    /// reported its ending in an earlier pass, a whole pass ran without its control, the host
+    /// ended it, or no control recorded it.
+    pub(super) fn gone(&self, id: GestureId, pass_for: impl Fn(ViewportId) -> u64) -> bool {
+        match self.entries.iter().find(|e| e.id == id) {
+            Some(e) => e.ended || e.pass + 1 < pass_for(e.viewport),
+            None => !self.finished.iter().any(|&(f, viewport, pass)| f == id && pass >= pass_for(viewport)),
+        }
+    }
+
+    /// The newest typing run of `current` whose control had the focus in this pass or the last,
+    /// with the widget that had it.
+    pub(super) fn typing(&self, current: ViewportId, pass: u64) -> Option<(GestureId, Id)> {
+        self.entries.iter().filter(|e| e.viewport == current && e.pass + 1 >= pass).filter_map(|e| Some((e.id, e.typing?))).max_by_key(|(id, _)| *id)
+    }
+
     /// A copy: judging reads pass numbers, which egui's data lock can't be held for.
     fn get(ctx: &Context) -> Self {
         ctx.data(|d| d.get_temp::<Self>(Id::unique(LIVE_GESTURES))).unwrap_or_default()
@@ -133,18 +163,26 @@ impl Live {
 const LIVE_GESTURES: &str = "craft_ui::edit::live_gestures";
 
 /// Marks gesture `id` live in the current pass of the current viewport, ending as `ending` with
-/// `unreported` if interrupted; `focused` when its control has the keyboard focus.
-pub(super) fn mark(ctx: &Context, id: GestureId, ending: Ending, unreported: Option<Value>, focused: bool) {
+/// `unreported` if interrupted; `focused` when its control has the keyboard focus, and `typing`
+/// the widget with it when the gesture is a typing run.
+pub(super) fn mark(ctx: &Context, id: GestureId, ending: Ending, unreported: Option<Value>, focused: bool, typing: Option<Id>) {
     let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
     let mut live = Live::get(ctx);
-    live.mark(Entry { id, viewport, pass, ending, unreported, focused, ended: false }, |v| ctx.cumulative_pass_nr_for(v));
+    live.mark(Entry { id, viewport, pass, ending, unreported, focused, typing, ended: false }, |v| ctx.cumulative_pass_nr_for(v));
     live.put(ctx);
 }
 
-/// Drops `id`'s entry: it ended.
+/// Drops `id`'s entry: the host ended it, and its control carries the input on.
 pub(super) fn forget(ctx: &Context, id: GestureId) {
     let mut live = Live::get(ctx);
     live.forget(id);
+    live.put(ctx);
+}
+
+/// Drops `id`'s entry: its control reported its ending in this pass.
+pub(super) fn finish(ctx: &Context, id: GestureId) {
+    let mut live = Live::get(ctx);
+    live.finish(id, ctx.viewport_id(), ctx.cumulative_pass_nr(), |v| ctx.cumulative_pass_nr_for(v));
     live.put(ctx);
 }
 
@@ -176,12 +214,20 @@ pub(super) fn focused(ctx: &Context) -> Option<GestureId> {
     Live::get(ctx).focused(ctx.viewport_id(), ctx.cumulative_pass_nr())
 }
 
+pub(super) fn typing(ctx: &Context) -> Option<(GestureId, Id)> {
+    Live::get(ctx).typing(ctx.viewport_id(), ctx.cumulative_pass_nr())
+}
+
+pub(super) fn gone(ctx: &Context, id: GestureId) -> bool {
+    Live::get(ctx).gone(id, |v| ctx.cumulative_pass_nr_for(v))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn entry(id: GestureId, viewport: ViewportId, pass: u64, ending: Ending) -> Entry {
-        Entry { id, viewport, pass, ending, unreported: None, focused: false, ended: false }
+        Entry { id, viewport, pass, ending, unreported: None, focused: false, typing: None, ended: false }
     }
 
     #[test]

@@ -159,7 +159,7 @@ pub struct NumberField<'a> {
     enabled: bool,
     invalid: bool,
     keep_focus: bool,
-    press_waits: bool,
+    part: bool,
 }
 
 impl<'a> NumberField<'a> {
@@ -186,7 +186,7 @@ impl<'a> NumberField<'a> {
             enabled: true,
             invalid: false,
             keep_focus: false,
-            press_waits: false,
+            part: false,
         }
     }
 
@@ -301,13 +301,13 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// Whether a press on the scrub sources, the ▾ or the pop-up slider waits in this pass
-    /// (`slider::press_turn`), for a field that is a part of a composite reporting through one
-    /// edit: while another control's gesture has the focus (`edit::focused_gesture`, a typing run
-    /// in a sibling field), the press takes the focus from it, that gesture ends and its event
-    /// goes out, and the press runs from the host's value after it.
-    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
-        self.press_waits = waits;
+    /// Whether the field is a part of a composite reporting through one edit: a press on the
+    /// scrub sources, the ▾ or the pop-up slider takes its turn from the edit order
+    /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
+    /// field's), the press asks it to end and waits, and runs from the host's value after the
+    /// run's ending event.
+    pub(crate) fn part(mut self, part: bool) -> Self {
+        self.part = part;
         self
     }
 
@@ -398,14 +398,15 @@ impl<'a> NumberField<'a> {
         let mut typed = typing.show(ui, &look);
         let rect = typed.response().rect;
         // The field's own typing run having the focus is no reason to wait: its scrub ends it.
-        let waits = self.press_waits && edit::focused_gesture(ui.ctx()).is_some_and(|g| typed.gesture().id() != Some(g));
+        let own = typed.gesture().id();
         let input = Input {
             id,
             base: if self.value.is_finite() { self.value } else { 0.0_f64.clamp(bounds.0, bounds.1) },
             step: self.step,
             modifiers: ui.input(|i| i.modifiers),
             codec,
-            waits,
+            part: self.part,
+            own,
         };
 
         if stepping {
@@ -504,24 +505,17 @@ struct Input<'n> {
     step: f64,
     modifiers: Modifiers,
     codec: Numbers<'n>,
-    /// A press waits in this pass ([`NumberField::press_waits`]).
-    waits: bool,
+    /// The field is a part of a composite ([`NumberField::part`]).
+    part: bool,
+    /// The field's own gesture.
+    own: Option<GestureId>,
 }
 
 impl<'n> Input<'n> {
     /// When the press `started` in this pass on one of the field's press targets (`key`) runs:
-    /// now, after a wait, or not yet. A waiting press takes the focus from the control that has
-    /// it, which ends that control's gesture.
+    /// now, after a wait, or not yet.
     fn turn(&self, ui: &Ui, key: &str, started: Option<Pos2>) -> PressTurn {
-        let turn = press_turn(ui, self.id.with(key), self.waits, started);
-        if matches!(turn, PressTurn::Waits) && started.is_some() {
-            ui.memory_mut(|m| {
-                if let Some(focused) = m.focused() {
-                    m.surrender_focus(focused);
-                }
-            });
-        }
-        turn
+        press_turn(ui, self.id.with(key), self.part, self.own, started)
     }
 
     /// Drags on the scrub `sources`: a step a point (Shift ten, Alt a tenth as fast); a click
@@ -652,7 +646,7 @@ impl<'n> Input<'n> {
         let mut slider = Slider::new(self.id.with("craft_ui::number_field::slider"), name, typed.value().unwrap_or(self.base), lo..=hi)
             .size(field.size)
             .enabled(enabled)
-            .press_waits(self.waits);
+            .part(self.part);
         if self.step > 0.0 {
             slider = slider.step(self.step);
         }

@@ -1,5 +1,6 @@
-//! `foundations/edit/log`: a fake slider and a fake text field wired to [`Gesture`], their
-//! events in a log, and a [`GestureHost`] keeping undo steps for two documents.
+//! `foundations/edit/log`: a fake slider and a fake text field wired to [`Gesture`], the same two
+//! as one fake composite on `edit::parts`, their events in a log, and a [`GestureHost`] keeping
+//! undo steps for two documents.
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -7,9 +8,10 @@ use std::time::Duration;
 
 use craft_theme::TypeRole;
 use egui::accesskit::Role;
-use egui::{Align2, Event, EventFilter, Key, Modifiers, Response, Sense, Ui, pos2, vec2};
+use egui::{Align2, Event, EventFilter, Id, Key, Modifiers, Response, Sense, Ui, pos2, vec2};
 
-use super::{CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all};
+use super::{CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all, in_scope, parts};
+use crate::controls::slider::{PressTurn, press_turn};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf};
@@ -28,7 +30,13 @@ pub(crate) fn stories() -> Vec<Story> {
         level: Level::Foundations,
         component: "Edit lifecycle",
         name: "Event log",
-        args: || Args::new().with_choice("update rate", RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
+        args: || {
+            Args::new()
+                .with_choice("update rate", RATES, 0)
+                .with_bool("cancellable", true)
+                .with_bool("on release only", false)
+                .with_bool("field first", false)
+        },
         show,
     }]
 }
@@ -179,8 +187,9 @@ pub(crate) fn describe<T: Debug>(event: &EditEvent<T>) -> String {
     }
 }
 
-/// The controls, the undo and switch buttons (also Cmd/Ctrl+Z and Ctrl+Tab, which work during a
-/// drag; with no gesture under way, undo takes back one step), and the log.
+/// The controls, the composite (its field drawn first with `field first`), the undo and switch
+/// buttons (also Cmd/Ctrl+Z and Ctrl+Tab, which work during a drag; with no gesture under way,
+/// undo takes back one step), and the log.
 fn show(ui: &mut Ui, args: &mut Args) {
     let policy = policy(args);
     let state_id = ui.scope_id().with("edit-story-state");
@@ -199,6 +208,12 @@ fn show(ui: &mut Ui, args: &mut Args) {
             let label = state.doc().label.clone();
             let edit = text_field(ui, &label, policy);
             state.handle(ui, "field", edit.event, |doc, value| doc.edit(|d| d.label = value));
+        });
+        let value = (state.doc().level, state.doc().label.clone());
+        let id = Interactive::id_in(ui, "edit-story-composite");
+        let composite = Composite { field_first: args.bool("field first"), ..Composite::default() }.show(ui, id, &value, policy);
+        state.handle(ui, "composite", composite.event, |doc, (level, label)| {
+            doc.edit(|d| (d.level, d.label) = (level, label));
         });
         state.end_frame(ui);
         Row::new(Gap::Inline).show(ui, |ui| {
@@ -231,17 +246,31 @@ const CONTROL_WIDTH: f32 = 200.0;
 /// A fake slider over 0 to [`SLIDER_MAX`]: drag horizontally (one unit per point), or the arrow
 /// keys while focused.
 pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditResponse<f32> {
+    fake_slider(ui, Interactive::id_in(ui, "edit-story-slider"), value, policy, false)
+}
+
+/// [`slider`] with widget id `id`; a `part` of a composite takes its press's turn from the edit
+/// order (`edit::order`).
+fn fake_slider(ui: &mut Ui, id: Id, value: f32, policy: EditPolicy, part: bool) -> EditResponse<f32> {
     let tokens = Tokens::of(ui);
-    let response = Interactive::new("edit-story-slider", Role::Slider, "Level")
-        .sense(Sense::drag())
-        .state_layer(false)
-        .show(ui, vec2(CONTROL_WIDTH, tokens.size.control.md));
+    let response =
+        Interactive::with_id(id, Role::Slider, "Level").sense(Sense::drag()).state_layer(false).show(ui, vec2(CONTROL_WIDTH, tokens.size.control.md));
     let mut gesture = Gesture::load(ui, response.id, &value, policy)
         .event_filter(EventFilter { horizontal_arrows: true, ..Default::default() })
         .enabled(response.enabled());
+    let pressed = response.drag_started().then(|| ui.input(|i| i.pointer.press_origin())).flatten();
+    let turn = press_turn(ui, response.id, part, gesture.id(), pressed);
+    if let PressTurn::Held(_) = turn {
+        gesture.begin();
+        if !response.dragged() {
+            gesture.commit();
+        }
+    }
     if response.drag_started() {
         response.request_focus();
-        gesture.begin();
+        if !matches!(turn, PressTurn::Waits) {
+            gesture.begin();
+        }
     }
     if response.dragged()
         && let Some(anchor) = gesture.anchor().copied()
@@ -278,10 +307,16 @@ pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditRespons
 }
 
 /// A fake one-line text field: click to focus, type, Backspace, Enter to commit, Esc to cancel;
-/// moving the focus away commits.
+/// moving the focus away commits. A draft ending in `+` reads as no value: no update carries it,
+/// and a run that ends on one ends at its start, as a number field's arithmetic does.
 pub(super) fn text_field(ui: &mut Ui, value: &str, policy: EditPolicy) -> EditResponse<String> {
+    fake_field(ui, Interactive::id_in(ui, "edit-story-field"), value, policy)
+}
+
+/// [`text_field`] with widget id `id`.
+fn fake_field(ui: &mut Ui, id: Id, value: &str, policy: EditPolicy) -> EditResponse<String> {
     let tokens = Tokens::of(ui);
-    let response = Interactive::new("edit-story-field", Role::TextInput, "Label")
+    let response = Interactive::with_id(id, Role::TextInput, "Label")
         .surface(SurfaceKind::Sunken)
         .state_layer(false)
         .show(ui, vec2(CONTROL_WIDTH, tokens.size.control.md));
@@ -293,6 +328,14 @@ pub(super) fn text_field(ui: &mut Ui, value: &str, policy: EditPolicy) -> EditRe
         for event in ui.input(|i| i.events.clone()) {
             type_key(&mut gesture, &event);
         }
+    }
+    let draft = gesture.shown().ends_with('+');
+    gesture.hold_updates(draft);
+    if draft
+        && !response.has_focus()
+        && let Some(start) = gesture.start().cloned()
+    {
+        gesture.update(start, Modifiers::NONE);
     }
     let shown = gesture.shown().clone();
     ui.ctx().accesskit_node_builder(response.id, |node| node.set_value(shown.as_str()));
@@ -325,8 +368,68 @@ fn type_key(gesture: &mut Gesture<String>, event: &Event) {
             },
             *modifiers,
         ),
-        Event::Key { key: Key::Enter, pressed: true, .. } => gesture.commit(),
+        Event::Key { key: Key::Enter, pressed: true, .. } => {
+            if gesture.shown().ends_with('+')
+                && let Some(start) = gesture.start().cloned()
+            {
+                gesture.update(start, Modifiers::NONE);
+            }
+            gesture.commit();
+        }
         _ => {}
+    }
+}
+
+/// The fake composite's value: a level and a label.
+pub(super) type Pair = (f32, String);
+
+/// A fake composite on `edit::parts`: a fake slider (its press takes its turn from the edit
+/// order) and a fake text field, reported through one edit of a [`Pair`]. The parts' widget ids
+/// are the composite's id with `"slider"` and `"field"`.
+#[derive(Clone, Debug)]
+pub(super) struct Composite {
+    /// The field is drawn before the slider.
+    pub field_first: bool,
+    /// Which parts are drawn.
+    pub slider: bool,
+    pub field: bool,
+    /// An input of the composite's own in this pass (a click that sets this value).
+    pub input: Option<Pair>,
+}
+
+impl Default for Composite {
+    fn default() -> Self {
+        Self { field_first: false, slider: true, field: true, input: None }
+    }
+}
+
+impl Composite {
+    pub(super) fn show(&self, ui: &mut Ui, id: Id, value: &Pair, policy: EditPolicy) -> EditResponse<Pair> {
+        let mut state = ui.data(|d| d.get_temp::<parts::State<Pair>>(id)).unwrap_or_default();
+        let outer = Gesture::load(ui, id, value, policy.cancellable(false));
+        let shown = outer.shown().clone();
+        let inner = EditPolicy::default().cancellable(policy.cancellable);
+        let mut edits = parts::Edits::<Pair, Pair>::new(id, &state);
+        let row = Row::new(Gap::Inline).show(ui, |ui| {
+            for draw_field in [self.field_first, !self.field_first] {
+                if draw_field && self.field {
+                    let edit = fake_field(ui, id.with("field"), &shown.1, inner);
+                    edits.typing(ui.ctx(), &edit, |label| (shown.0, label));
+                } else if !draw_field && self.slider {
+                    let edit = fake_slider(ui, id.with("slider"), shown.0, inner, true);
+                    edits.push(&edit, |level| (level, shown.1.clone()));
+                }
+            }
+        });
+        if let Some(input) = self.input.clone() {
+            edits.input(input);
+        }
+        for value in edits.inputs(ui.ctx(), &mut state) {
+            edits.set(value);
+        }
+        let outer = edits.feed(outer, &mut state, in_scope(ui));
+        ui.data_mut(|d| d.insert_temp(id, state));
+        EditResponse::new(row.response, outer.finish())
     }
 }
 

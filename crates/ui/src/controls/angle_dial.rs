@@ -218,19 +218,18 @@ impl<'a> AngleDial<'a> {
         let style = AngleDial::style(&tokens);
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id)).unwrap_or_default();
-        let waits = edit::focused_gesture(ui.ctx()).is_some();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id, &self.value, self.policy.cancellable(false)).enabled(enabled);
         let shown = *outer.shown();
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<f64>::new(&state);
+        let mut edits = parts::Edits::<f64>::new(id, &state);
 
         let dial = Row::new(Gap::Inline)
             .show(ui, |ui| {
-                let dial = self.dial(ui, &style, shown, policy, enabled, waits);
+                let dial = self.dial(ui, &style, shown, policy, enabled);
                 edits.push(&dial, |v| v);
                 if self.field {
-                    let field = self.degrees(ui, shown, policy, enabled, waits);
+                    let field = self.degrees(ui, shown, policy, enabled);
                     edits.typing(ui.ctx(), &field, |v| v);
                 }
                 dial
@@ -242,7 +241,7 @@ impl<'a> AngleDial<'a> {
     }
 
     /// The degree field, `°` inside, as wide as the range's largest value needs.
-    fn degrees(&self, ui: &mut Ui, shown: f64, policy: EditPolicy, enabled: bool, waits: bool) -> EditResponse<f64> {
+    fn degrees(&self, ui: &mut Ui, shown: f64, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
         let unit = Unit::new("{n}°");
         let places = decimals_of(self.step);
         let width = NumberField::fit_width(ui, self.size, self.numbers, self.range.clone(), places, &unit);
@@ -253,7 +252,7 @@ impl<'a> AngleDial<'a> {
                 .decimals(0..=places)
                 .unit(unit)
                 .policy(policy)
-                .press_waits(waits)
+                .part(true)
                 .size(self.size)
                 .enabled(enabled)
                 .show(ui)
@@ -262,7 +261,7 @@ impl<'a> AngleDial<'a> {
     }
 
     /// The dial: its interaction, look and AccessKit node.
-    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, shown: f64, policy: EditPolicy, enabled: bool, waits: bool) -> EditResponse<f64> {
+    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, shown: f64, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
         let scale = Scale::new(&self.range, Some(self.step));
         let sensed = Interactive::new("dial", Role::Slider, self.label.as_str())
             .sense(Sense::drag())
@@ -278,7 +277,7 @@ impl<'a> AngleDial<'a> {
         let shift = || ui.input(|i| i.modifiers.shift);
         let tapped = tap(ui, &response);
         let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let turn = press_turn(ui, response.id, waits, pressed.or(tapped));
+        let turn = press_turn(ui, response.id, true, gesture.id(), pressed.or(tapped));
         if let PressTurn::Held(held) = turn {
             gesture.begin();
             if let Some(start) = gesture.start().copied()

@@ -212,7 +212,7 @@ impl ColorPicker<'_> {
                                         .decimals(0..=usize::from(ch.decimals))
                                         .unit(unit_of(ch.unit, translate))
                                         .policy(inner.policy)
-                                        .press_waits(inner.waits)
+                                        .part(true)
                                         .enabled(inner.enabled)
                                         .show(ui)
                                 },
@@ -284,7 +284,7 @@ fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabl
         }
         let response = response.tooltip(restore);
         if response.clicked() {
-            edits.click(current);
+            edits.input(current);
         }
         if enabled {
             let _ = response.on_hover_cursor(CursorIcon::PointingHand);
@@ -337,7 +337,7 @@ fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWar
     }
     let response = response.tooltip(warning.tip.as_str());
     if response.clicked() {
-        edits.click(warning.nearest);
+        edits.input(warning.nearest);
     }
     if enabled {
         let _ = response.on_hover_cursor(CursorIcon::PointingHand);
