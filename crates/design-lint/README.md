@@ -44,6 +44,8 @@ reason = "document-space drawing"
 | `style-mutation` | `style_mut`, `spacing_mut`, `visuals_mut`, `set_style`, `set_visuals`, `set_zoom_factor`, `override_*` |
 | `clippy/inner-allow` | `#![allow(clippy::disallowed_*)]` or `#![expect(..)]` in any scope; list the file in an `[[exempt]]` to accept it. Outer `#[allow]`/`#[expect]` of those lints are counted in the summary line. |
 
+Names are resolved through the file's `use` items, per module scope: grouped imports, renames (`use egui::Margin as M`), module aliases (`use craft_ui::theme as t`) and glob imports (`use craft_ui::theme::*`) all reach the rule table, so `margin(4.0)` is flagged after `use craft_ui::theme::margin`. A bare name that a fn in the same module defines is not extended through globs. Imports in a module do not apply in sibling modules.
+
 A literal is a number, optionally negated, parenthesised, cast or in arithmetic; zero is never flagged. A name is flagged when a `const` or `static` in the same file with that name has such a value. Consts are keyed by module and impl scope: a bare name takes the innermost scope that defines it, `Self::X`, `self::X`, `super::X`, `crate::X`, `Type::X` and `module::X` (last two segments) the scope they name, and a name with several candidates is flagged when any is non-zero.
 
 ## Markers

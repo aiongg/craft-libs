@@ -352,3 +352,42 @@ fn clippy_allows_in_test_code_are_not_counted() {
     let analysis = analyze_source(src, false);
     assert_eq!((analysis.clippy_allows, analysis.findings.len()), (0, 0));
 }
+
+#[test]
+fn imported_names_resolve_through_use_items() {
+    let margin = "literal-size/margin";
+    for (src, rule) in [
+        ("use craft_ui::theme::margin;\nfn f() { let _ = margin(4.0); }", margin),
+        ("use craft_ui::theme::{margin, stroke};\nfn f() { let _ = margin(4.0); }", margin),
+        ("use craft_ui::theme::{margin, stroke};\nfn f() { let _ = stroke(1.0, c); }", "literal-size/stroke"),
+        ("use craft_ui::theme::margin as m;\nfn f() { let _ = m(4.0); }", margin),
+        ("use craft_ui::theme::{self as t, corner_radius as cr};\nfn f() { let _ = t::margin(4.0); }", margin),
+        ("use craft_ui::theme::{self as t, corner_radius as cr};\nfn f() { let _ = cr(4.0); }", "literal-size/corner-radius"),
+        ("use craft_ui::theme::*;\nfn f() { let _ = margin(4.0); }", margin),
+        ("use craft_ui::theme;\nfn f() { let _ = theme::margin(4.0); }", margin),
+        ("use craft_ui::{theme::margin_x};\nfn f() { let _ = margin_x(4.0, 0.0); }", margin),
+        ("use craft_ui::*;\nfn f() { let _ = theme::margin(4.0); }", margin),
+        ("use egui::Margin as M;\nfn f() { let _ = M::from(4.0); }", margin),
+        ("use egui::Margin as M;\nfn f() { let _ = M { left: 4, right: 0, top: 0, bottom: 0 }; }", margin),
+        ("use egui::vec2 as v;\nfn f() { let _ = v(4.0, 4.0); }", "literal-size/vec2"),
+        ("use egui::{Vec2 as V};\nfn f() { let _ = V::splat(4.0); }", "literal-size/vec2"),
+        ("use egui::Color32 as C;\nfn f() { let _ = C::WHITE; }", "raw-colour/const"),
+        ("use egui::Color32::WHITE;\nfn f() { let _ = WHITE; }", "raw-colour/const"),
+        ("mod m { use craft_ui::theme::margin; fn f() { let _ = margin(4.0); } }", margin),
+    ] {
+        assert!(flagged(src, rule), "{src}: {:?}", rules(src));
+    }
+}
+
+#[test]
+fn local_fns_and_unimported_names_stay_unflagged() {
+    assert!(clean("fn margin(px: f32) -> f32 { px }\nfn f() { let _ = margin(4.0); }"));
+    assert!(clean("use craft_ui::theme::*;\nfn margin(px: f32) -> f32 { px }\nfn f() { let _ = margin(4.0); }"));
+    assert!(clean("fn f() { let _ = margin(4.0); let _ = m(4.0); }"));
+    assert!(clean("use other::margin;\nuse craft_ui::theme::stroke;\nfn f() { let _ = margin(4.0); }"));
+    // Imports are scoped to their module.
+    assert!(clean("mod a { use craft_ui::theme::margin; }\nmod b { fn f() { let _ = margin(4.0); } }"));
+    assert!(clean("use craft_ui::theme::margin as m;\nfn f() { let _ = margin(4.0); }"));
+    // A zero literal is still accepted through an import.
+    assert!(clean("use craft_ui::theme::margin;\nfn f() { let _ = margin(0.0); let _ = margin(gap); }"));
+}

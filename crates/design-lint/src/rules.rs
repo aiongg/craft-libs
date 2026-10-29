@@ -110,7 +110,15 @@ pub(crate) fn parse_failure(e: &syn::Error) -> Analysis {
 
 /// Checks a parsed file; `src` is its text, used for finding snippets.
 pub(crate) fn analyze_file(src: &str, file: &syn::File, include_tests: bool) -> Analysis {
-    let mut linter = Linter { lines: src.lines().collect(), defs: Vec::new(), scope: Vec::new(), out: Analysis::default(), include_tests };
+    let mut linter = Linter {
+        lines: src.lines().collect(),
+        defs: Vec::new(),
+        imports: Vec::new(),
+        fns: Vec::new(),
+        scope: Vec::new(),
+        out: Analysis::default(),
+        include_tests,
+    };
     if linter.skips(&file.attrs, file.span()) {
         return linter.out;
     }
@@ -144,9 +152,20 @@ struct ConstDef {
     value: Option<f64>,
 }
 
+/// A `use` declaration: `alias` is the name it brings in, `None` for a glob (`path::*`).
+struct Import {
+    /// The module scope the `use` is in.
+    scope: Vec<Frame>,
+    alias: Option<String>,
+    path: Vec<String>,
+}
+
 struct Linter<'a> {
     lines: Vec<&'a str>,
     defs: Vec<ConstDef>,
+    imports: Vec<Import>,
+    /// Names of fns with the module scope they are defined in.
+    fns: Vec<(Vec<Frame>, String)>,
     /// The modules and impl blocks around the item being visited.
     scope: Vec<Frame>,
     out: Analysis,
@@ -156,6 +175,8 @@ struct Linter<'a> {
 /// Collects `const NAME: T = <expr>` and `static` items in any scope, with their enclosing modules and impl blocks.
 struct ConstCollector {
     defs: Vec<ConstDef>,
+    imports: Vec<Import>,
+    fns: Vec<(Vec<Frame>, String)>,
     scope: Vec<Frame>,
     include_tests: bool,
 }
@@ -200,7 +221,16 @@ impl<'ast> Visit<'ast> for ConstCollector {
     }
     fn visit_item_fn(&mut self, i: &'ast syn::ItemFn) {
         if !self.skipped(&i.attrs) {
+            self.fns.push((module_scope(&self.scope).to_vec(), i.sig.ident.to_string()));
             visit::visit_item_fn(self, i);
+        }
+    }
+    fn visit_item_use(&mut self, i: &'ast syn::ItemUse) {
+        if !self.skipped(&i.attrs) {
+            let mut found = Vec::new();
+            flatten_use(&mut Vec::new(), &i.tree, &mut found);
+            let scope = module_scope(&self.scope).to_vec();
+            self.imports.extend(found.into_iter().map(|(alias, path)| Import { scope: scope.clone(), alias, path }));
         }
     }
     fn visit_item_const(&mut self, i: &'ast syn::ItemConst) {
@@ -214,6 +244,42 @@ impl<'ast> Visit<'ast> for ConstCollector {
     fn visit_impl_item_const(&mut self, i: &'ast syn::ImplItemConst) {
         self.add(&i.ident, &i.expr);
         visit::visit_impl_item_const(self, i);
+    }
+}
+
+/// The names a `use` tree brings in with their full paths; `None` is a glob import of the path.
+fn flatten_use(prefix: &mut Vec<String>, tree: &syn::UseTree, out: &mut Vec<(Option<String>, Vec<String>)>) {
+    use syn::UseTree;
+    match tree {
+        UseTree::Path(p) => {
+            prefix.push(p.ident.to_string());
+            flatten_use(prefix, &p.tree, out);
+            prefix.pop();
+        }
+        UseTree::Name(n) => {
+            let mut path = prefix.clone();
+            if n.ident != "self" {
+                path.push(n.ident.to_string());
+            }
+            if let Some(alias) = path.last().cloned() {
+                out.push((Some(alias), path));
+            }
+        }
+        UseTree::Rename(r) => {
+            let mut path = prefix.clone();
+            if r.ident != "self" {
+                path.push(r.ident.to_string());
+            }
+            if r.rename != "_" {
+                out.push((Some(r.rename.to_string()), path));
+            }
+        }
+        UseTree::Glob(_) => out.push((None, prefix.clone())),
+        UseTree::Group(g) => {
+            for t in &g.items {
+                flatten_use(prefix, t, out);
+            }
+        }
     }
 }
 
@@ -315,9 +381,12 @@ impl Linter<'_> {
     }
 
     fn resolve_consts(&mut self, file: &syn::File) {
-        let mut collector = ConstCollector { defs: Vec::new(), scope: Vec::new(), include_tests: self.include_tests };
+        let mut collector =
+            ConstCollector { defs: Vec::new(), imports: Vec::new(), fns: Vec::new(), scope: Vec::new(), include_tests: self.include_tests };
         collector.visit_file(file);
         self.defs = collector.defs;
+        self.imports = collector.imports;
+        self.fns = collector.fns;
         loop {
             let resolved: Vec<(usize, f64)> = self
                 .defs
@@ -333,6 +402,28 @@ impl Linter<'_> {
                 self.defs[i].value = Some(v);
             }
         }
+    }
+
+    /// The full paths a path written here can stand for, through the file's `use` items.
+    ///
+    /// A first segment that is an imported name (also renamed, or grouped) is replaced by the imported path.
+    /// Otherwise the path as written comes first, then, through each glob import in scope, the path under the glob's
+    /// prefix. A bare name that a fn in scope defines is not extended through globs: the local fn wins.
+    fn expand_path(&self, path: &syn::Path) -> Vec<Vec<String>> {
+        let written: Vec<String> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+        let Some(first) = written.first() else { return Vec::new() };
+        let module = module_scope(&self.scope);
+        let visible = || self.imports.iter().filter(|i| module.starts_with(&i.scope));
+        let explicit = visible().filter(|i| i.alias.as_deref() == Some(first.as_str())).max_by_key(|i| i.scope.len());
+        if let Some(import) = explicit {
+            return vec![import.path.iter().chain(&written[1..]).cloned().collect()];
+        }
+        let mut out = vec![written.clone()];
+        let local_fn = written.len() == 1 && self.fns.iter().any(|(scope, name)| name == first && module.starts_with(scope));
+        if !local_fn {
+            out.extend(visible().filter(|i| i.alias.is_none()).map(|i| i.path.iter().chain(&written).cloned().collect::<Vec<_>>()));
+        }
+        out
     }
 
     /// The consts called `name` that have a literal value, with their indices.
@@ -471,16 +562,26 @@ impl Linter<'_> {
 
     fn check_call(&mut self, call: &ExprCall) {
         let Expr::Path(func) = &*call.func else { return };
-        let span = call.span();
-        let args = call.args.iter();
-        if last_ident(&func.path).as_deref() == Some("vec2") {
-            self.size_rule(VEC2, span, args);
-            return;
-        }
-        if last_ident(&func.path).is_some_and(|f| STROKE_TAKERS.contains(&f.as_str())) {
+        let candidates = self.expand_path(&func.path);
+        if candidates.iter().any(|c| c.last().is_some_and(|f| STROKE_TAKERS.contains(&f.as_str()))) {
             self.stroke_tuples(call.args.iter());
         }
-        let Some((ty, f)) = last_two(&func.path) else { return };
+        for idents in &candidates {
+            if self.apply_call(call, idents) {
+                return;
+            }
+        }
+    }
+
+    /// Applies the rule for a call to the function at `idents`; whether one matched.
+    fn apply_call(&mut self, call: &ExprCall, idents: &[String]) -> bool {
+        let span = call.span();
+        let args = call.args.iter();
+        if idents.last().map(String::as_str) == Some("vec2") {
+            self.size_rule(VEC2, span, args);
+            return true;
+        }
+        let [.., ty, f] = idents else { return false };
         match (ty.as_str(), f.as_str()) {
             ("Vec2", "new" | "splat") => self.size_rule(VEC2, span, args),
             ("CornerRadius", "same" | "from") | ("theme", "corner_radius") => self.size_rule(CORNER_RADIUS, span, args),
@@ -491,8 +592,9 @@ impl Linter<'_> {
             ("Stroke" | "PathStroke", "from") => self.stroke_tuples(args),
             ("Margin", "same" | "symmetric" | "from") | ("theme", "margin" | "margin_x") => self.size_rule(MARGIN, span, args),
             ("FontId", "proportional" | "monospace" | "new") => self.size_rule(FONT_ID, span, args.take(1)),
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
     fn check_method(&mut self, call: &ExprMethodCall) {
@@ -518,12 +620,17 @@ impl Linter<'_> {
     }
 
     fn check_struct(&mut self, s: &ExprStruct) {
-        let Some(ty) = last_ident(&s.path) else { return };
-        let (rule, fields): (&'static str, &[&str]) = match ty.as_str() {
-            "Vec2" => (VEC2, &["x", "y"]),
-            "CornerRadius" => (CORNER_RADIUS, &["nw", "ne", "sw", "se"]),
-            "Stroke" | "PathStroke" => (STROKE, &["width"]),
-            "Margin" => (MARGIN, &["left", "right", "top", "bottom"]),
+        let (rule, fields): (&'static str, &[&str]) = match self
+            .expand_path(&s.path)
+            .iter()
+            .filter_map(|c| c.last())
+            .map(String::as_str)
+            .find(|t| matches!(*t, "Vec2" | "CornerRadius" | "Stroke" | "PathStroke" | "Margin"))
+        {
+            Some("Vec2") => (VEC2, &["x", "y"]),
+            Some("CornerRadius") => (CORNER_RADIUS, &["nw", "ne", "sw", "se"]),
+            Some("Stroke" | "PathStroke") => (STROKE, &["width"]),
+            Some("Margin") => (MARGIN, &["left", "right", "top", "bottom"]),
             _ => return,
         };
         let values =
@@ -532,12 +639,11 @@ impl Linter<'_> {
     }
 
     fn check_path(&mut self, p: &ExprPath) {
-        let Some((ty, name)) = last_two(&p.path) else { return };
-        let named = match ty.as_str() {
-            "Color32" => NAMED_COLOURS.contains(&name.as_str()),
-            "Rgba" => RGBA_COLOURS.contains(&name.as_str()),
+        let named = self.expand_path(&p.path).iter().any(|c| match c.as_slice() {
+            [.., ty, name] if ty == "Color32" => NAMED_COLOURS.contains(&name.as_str()),
+            [.., ty, name] if ty == "Rgba" => RGBA_COLOURS.contains(&name.as_str()),
             _ => false,
-        };
+        });
         if named {
             let snippet = self.snippet(p.span());
             let message = format!(
