@@ -665,6 +665,7 @@ fn slider_row(
                     .decimals(0..=usize::from(decimals))
                     .unit(unit)
                     .policy(policy)
+                    .press_waits(waits)
                     .enabled(enabled);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),

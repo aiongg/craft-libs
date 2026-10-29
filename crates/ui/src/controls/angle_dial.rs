@@ -230,7 +230,7 @@ impl<'a> AngleDial<'a> {
                 let dial = self.dial(ui, &style, shown, policy, enabled, waits);
                 edits.push(&dial, |v| v);
                 if self.field {
-                    let field = self.degrees(ui, shown, policy, enabled);
+                    let field = self.degrees(ui, shown, policy, enabled, waits);
                     edits.typing(ui.ctx(), &field, |v| v);
                 }
                 dial
@@ -242,7 +242,7 @@ impl<'a> AngleDial<'a> {
     }
 
     /// The degree field, `°` inside, as wide as the range's largest value needs.
-    fn degrees(&self, ui: &mut Ui, shown: f64, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
+    fn degrees(&self, ui: &mut Ui, shown: f64, policy: EditPolicy, enabled: bool, waits: bool) -> EditResponse<f64> {
         let unit = Unit::new("{n}°");
         let places = decimals_of(self.step);
         let width = NumberField::fit_width(ui, self.size, self.numbers, self.range.clone(), places, &unit);
@@ -253,6 +253,7 @@ impl<'a> AngleDial<'a> {
                 .decimals(0..=places)
                 .unit(unit)
                 .policy(policy)
+                .press_waits(waits)
                 .size(self.size)
                 .enabled(enabled)
                 .show(ui)

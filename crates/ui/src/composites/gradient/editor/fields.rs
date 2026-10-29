@@ -43,6 +43,8 @@ struct Look {
     policy: EditPolicy,
     width: f32,
     enabled: bool,
+    /// Another control's gesture had the focus as the pass began: a scrub waits for it to end.
+    waits: bool,
 }
 
 impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
@@ -60,6 +62,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         state: &mut State,
         edits: &mut Edits,
         enabled: bool,
+        waits: bool,
         requested: Option<usize>,
     ) -> (Option<usize>, PickerReport) {
         let builder = UiBuilder::new().scope_id(id.with(FIELDS)).layout(direction::column(ui));
@@ -69,6 +72,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost),
                 width: NumberField::fit_width(ui, ControlSize::Md, self.numbers, 0.0..=100.0, self.location_decimals, &unit),
                 enabled,
+                waits,
             };
             let selected = state.selected.filter(|m| match *m {
                 StopRef::Midpoint(row, i) => i + 1 < stops.len(row),
@@ -285,6 +289,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                         .decimals(decimals..=decimals)
                         .unit(Unit::new(&self.labels.percent))
                         .policy(look.policy)
+                        .press_waits(look.waits)
                         .enabled(look.enabled);
                     match row.scrub() {
                         Some(label) => field.scrub_by(label),

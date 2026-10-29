@@ -212,6 +212,7 @@ impl ColorPicker<'_> {
                                         .decimals(0..=usize::from(ch.decimals))
                                         .unit(unit_of(ch.unit, translate))
                                         .policy(inner.policy)
+                                        .press_waits(inner.waits)
                                         .enabled(inner.enabled)
                                         .show(ui)
                                 },

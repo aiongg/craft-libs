@@ -447,6 +447,32 @@ fn a_press_during_a_typing_run_starts_from_the_value_it_commits() {
     assert_eq!(rig.last_model().map(|m| m.values[1].round()), Some(100.0), "dragged to the end");
 }
 
+/// A scrub on one field while another field's typing run is open waits for the run: the run
+/// commits the typed value first, then the scrub is a gesture of its own from that colour.
+#[test]
+fn a_field_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.tab_to(0);
+    rig.type_text("120");
+    let b = rig.node(Role::SpinButton, "Saturation").bounds().expect("field bounds");
+    let from = pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(from), button(from, true)]);
+    for dx in [10.0, 12.0, 14.0, 16.0, 18.0, 20.0] {
+        rig.frame(vec![Event::PointerMoved(from + vec2(dx, 0.0))]);
+    }
+    rig.frame(vec![button(from + vec2(20.0, 0.0), false)]);
+    rig.settle();
+    let kinds: Vec<_> = rig.events.iter().map(kind).collect();
+    let run = kinds.iter().position(|k| *k == "Commit").expect("the run commits");
+    assert!(kinds[0] == "Begin" && kinds[1..run].iter().all(|k| *k == "Update"), "the hue's run ends first: {kinds:?}");
+    assert!(matches!(rig.events[run], EditEvent::Commit { changed: true, .. }));
+    assert_eq!((kinds[run + 1], kinds.last()), ("Begin", Some(&"Commit")), "then the scrub: {kinds:?}");
+    assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
+    let model = rig.last_model().expect("HSB values");
+    assert_eq!(model.values[0].round(), 120.0, "the typed hue stays");
+    assert!(model.values[1] > 67.0, "the scrub raised the saturation: {:?}", model.values);
+}
+
 /// The model switch is a press menu: a click on the button opens the models as radio items, and
 /// a click on one switches the rows to it.
 #[test]
