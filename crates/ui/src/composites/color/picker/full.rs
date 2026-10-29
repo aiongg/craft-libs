@@ -284,7 +284,7 @@ fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabl
         }
         let response = response.tooltip(restore);
         if response.clicked() {
-            edits.input(current);
+            edits.input(super::Input::Click(current));
         }
         if enabled {
             let _ = response.on_hover_cursor(CursorIcon::PointingHand);
@@ -337,7 +337,7 @@ fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWar
     }
     let response = response.tooltip(warning.tip.as_str());
     if response.clicked() {
-        edits.input(warning.nearest);
+        edits.input(super::Input::Click(warning.nearest));
     }
     if enabled {
         let _ = response.on_hover_cursor(CursorIcon::PointingHand);
