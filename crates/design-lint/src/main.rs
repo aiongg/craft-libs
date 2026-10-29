@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use craft_design_lint::{CLIPPY_TEMPLATE, Error, check_clippy, write_clippy};
+use craft_design_lint::{CLIPPY_TEMPLATE, Config, Error, check, check_clippy, write_clippy};
 
 const USAGE: &str = "usage:
+  craft-design-lint check [--config <path>] [--summary]       report literal sizes and named colours (default config: design-lint.toml)
   craft-design-lint clippy [--write] [--clippy-toml <path>]   print the template, or merge it into clippy.toml
   craft-design-lint check-clippy [--clippy-toml <path>]       fail unless clippy.toml carries the template";
 
@@ -29,6 +30,9 @@ fn run(args: &[String]) -> Result<ExitCode, Error> {
     let Some((command, rest)) = args.split_first() else {
         return Ok(usage());
     };
+    if command == "check" {
+        return run_check(rest);
+    }
     let mut write = false;
     let mut clippy_toml = PathBuf::from("clippy.toml");
     let mut rest = rest.iter();
@@ -60,4 +64,30 @@ fn run(args: &[String]) -> Result<ExitCode, Error> {
 fn usage() -> ExitCode {
     eprintln!("{USAGE}");
     ExitCode::from(2)
+}
+
+fn run_check(args: &[String]) -> Result<ExitCode, Error> {
+    let mut config_path = PathBuf::from("design-lint.toml");
+    let mut summary = false;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--summary" => summary = true,
+            "--config" => match args.next() {
+                Some(path) => config_path = PathBuf::from(path),
+                None => return Ok(usage()),
+            },
+            _ => return Ok(usage()),
+        }
+    }
+    let config = Config::load(&config_path)?;
+    let root = config_path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let report = check(&config, root)?;
+    if summary {
+        print!("{}", report.summary_table());
+        println!("{}", report.summary_line());
+    } else {
+        print!("{}", report.render());
+    }
+    Ok(ExitCode::from(report.exit_code()))
 }
