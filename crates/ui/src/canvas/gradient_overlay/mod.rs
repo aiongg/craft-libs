@@ -131,7 +131,7 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 ///   colour with a ring round it, and a diamond between stops. Drawn in that order, so a stop at
 ///   an end sits inside its ring. Points go through the view, so a rotated, flipped or stretched
 ///   view draws the line where the document has it.
-/// - Under [`StopRows::Split`] a stop's disc is opaque; under [`StopRows::Combined`] its colour
+/// - Under [`StopRows::Split`] and [`StopRows::ColorOnly`] a stop's disc is opaque; under [`StopRows::Combined`] its colour
 ///   shows its opacity over a white backing.
 /// - With [`reverse`](Self::reverse) location `t` is drawn at `1 − t` from the start.
 /// - The selected stop or midpoint ([`select`](Self::select)) is drawn with its ring or fill in
@@ -587,7 +587,7 @@ impl<'a> GradientOverlay<'a> {
         let (r, ring) = (style.stop, style.stop_ring.width);
         out.push(Shape::circle_stroke(at, r + ring, style.stop_halo));
         match self.rules.rows {
-            StopRows::Split => out.push(Shape::circle_filled(at, r, Color32::from_rgb(color.r(), color.g(), color.b()))),
+            StopRows::Split | StopRows::ColorOnly => out.push(Shape::circle_filled(at, r, Color32::from_rgb(color.r(), color.g(), color.b()))),
             StopRows::Combined => {
                 out.push(Shape::circle_filled(at, r, style.backing));
                 out.push(Shape::circle_filled(at, r, color));

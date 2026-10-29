@@ -4,7 +4,7 @@ use craft_theme::ModelValues;
 use egui::accesskit::{Orientation, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
-use super::{AreaMode, ColorArea, ColorPartsStyle, faded, faded_stroke, fraction, scale_of, value_at};
+use super::{AreaMode, ColorArea, ColorPartsStyle, band_values, faded, faded_stroke, fraction, scale_of, value_at};
 use crate::controls::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
 use crate::edit::ops::ScalarOp;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -49,6 +49,7 @@ pub struct ColorStrip {
     policy: EditPolicy,
     enabled: bool,
     part: bool,
+    bands: Option<usize>,
 }
 
 impl ColorStrip {
@@ -66,6 +67,7 @@ impl ColorStrip {
             policy: EditPolicy::default(),
             enabled: true,
             part: false,
+            bands: None,
         }
     }
 
@@ -84,6 +86,15 @@ impl ColorStrip {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Quantises the strip to `n` levels (at least two) from the component's low end to its
+    /// high end: the strip shows `n` flat cells and reports only values that are multiples of
+    /// `1 / (n - 1)` of the component's range (a web-safe strip has 6). The pointer takes the
+    /// level of the cell under it; a key steps one level.
+    pub fn bands(mut self, n: usize) -> Self {
+        self.bands = Some(n.max(2));
         self
     }
 
@@ -118,7 +129,7 @@ impl ColorStrip {
         let rect = Rect::from_center_size(outer.center(), size);
         let model = self.mode.model();
         let channel = self.mode.strip();
-        let scale = scale_of(model, channel);
+        let scale = scale_of(model, channel, self.bands);
         let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
@@ -126,7 +137,7 @@ impl ColorStrip {
             .focus_ring(false)
             .interact_at(ui, rect);
         let response = sensed.response().clone();
-        let component_at = |y: f32| value_at(&scale, if rect.height() > 0.0 { (rect.bottom() - y) / rect.height() } else { 0.0 });
+        let component_at = |y: f32| value_at(&scale, if rect.height() > 0.0 { (rect.bottom() - y) / rect.height() } else { 0.0 }, self.bands);
         let at = |base: &ModelValues, y: f32| {
             let mut values = *base;
             values.values[channel] = component_at(y);
@@ -194,7 +205,7 @@ impl ColorStrip {
 /// `values` with `op` applied to `mode`'s strip component, as the strip applies it.
 pub(super) fn apply(op: &ScalarOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
     let channel = mode.strip();
-    let scale = scale_of(mode.model(), channel);
+    let scale = scale_of(mode.model(), channel, None);
     let mut out = *values;
     out.values[channel] = slider::apply(op, scale.place(f64::from(values.values[channel])), (scale.min, scale.max), &scale) as f32;
     out
@@ -206,23 +217,38 @@ fn paint(ui: &Ui, style: &ColorPartsStyle, strip: &ColorStrip, scale: &Scale, re
     let base = strip.mode.strip_base(shown);
     let painter = ui.painter();
     let mut mesh = Mesh::default();
-    for k in 0..=MESH_STEPS {
-        let t = k as f32 / MESH_STEPS as f32;
+    let color_at = |value: f32| {
         let mut v = base;
-        v.values[channel] = egui::lerp(scale.max as f32..=scale.min as f32, t);
-        let color = model.to_srgb(&v.values).into();
-        let y = egui::lerp(rect.y_range(), t);
-        mesh.colored_vertex(pos2(rect.left(), y), color);
-        mesh.colored_vertex(pos2(rect.right(), y), color);
-    }
-    for k in 0..MESH_STEPS as u32 {
-        let a = 2 * k;
-        mesh.add_triangle(a, a + 1, a + 3);
-        mesh.add_triangle(a, a + 3, a + 2);
+        v.values[channel] = value;
+        model.to_srgb(&v.values).into()
+    };
+    match strip.bands {
+        Some(n) => {
+            let n = n.max(2);
+            let h = rect.height() / n as f32;
+            for (row, value) in band_values(scale, n).collect::<Vec<_>>().into_iter().rev().enumerate() {
+                let top = rect.top() + row as f32 * h;
+                mesh.add_colored_rect(Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + h)), color_at(value));
+            }
+        }
+        None => {
+            for k in 0..=MESH_STEPS {
+                let t = k as f32 / MESH_STEPS as f32;
+                let color = color_at(egui::lerp(scale.max as f32..=scale.min as f32, t));
+                let y = egui::lerp(rect.y_range(), t);
+                mesh.colored_vertex(pos2(rect.left(), y), color);
+                mesh.colored_vertex(pos2(rect.right(), y), color);
+            }
+            for k in 0..MESH_STEPS as u32 {
+                let a = 2 * k;
+                mesh.add_triangle(a, a + 1, a + 3);
+                mesh.add_triangle(a, a + 3, a + 2);
+            }
+        }
     }
     painter.add(mesh);
     painter.rect_stroke(rect, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
-    let y = egui::lerp(rect.bottom()..=rect.top(), fraction(scale, shown.values[channel]));
+    let y = egui::lerp(rect.bottom()..=rect.top(), fraction(scale, shown.values[channel], strip.bands));
     let (depth, half) = (style.pointer.x, style.pointer.y / 2.0);
     let color = faded(style.pointer_color, enabled);
     let edge = style.edge.width;

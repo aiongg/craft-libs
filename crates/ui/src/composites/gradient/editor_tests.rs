@@ -140,7 +140,7 @@ impl Host {
         self.rect = edit.response.rect;
         let top = match self.rows {
             StopRows::Split => style.pointer + style.marker + 1.0,
-            StopRows::Combined => 3.0 * style.diamond + 1.0,
+            StopRows::Combined | StopRows::ColorOnly => 3.0 * style.diamond + 1.0,
         };
         self.ramp = Rect::from_min_size(self.rect.min + vec2(style.inset, top), vec2(self.rect.width() - 2.0 * style.inset, style.ramp_height));
         self.style = Some(style);

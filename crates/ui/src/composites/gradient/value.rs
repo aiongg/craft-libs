@@ -15,9 +15,14 @@ pub enum StopRows {
     /// One row of colour stops; each stop's opacity is its colour's alpha and
     /// [`GradientStops::opacity`] stays empty.
     Combined,
+    /// One row of colour stops and no opacity at all: a colour's alpha is forced to 1 and the
+    /// editor shows no Opacity field (PhotoCraft's Gradient Map). [`GradientStops::opacity`]
+    /// stays empty.
+    ColorOnly,
 }
 
-/// One of the two rows of a [`StopRows::Split`] bar. [`StopRows::Combined`] has only `Color`.
+/// One of the two rows of a [`StopRows::Split`] bar. [`StopRows::Combined`] and
+/// [`StopRows::ColorOnly`] have only `Color`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StopRow {
     /// Colour stops.

@@ -456,7 +456,8 @@ impl<'a> GradientEditor<'a> {
 }
 
 impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
-    /// The row layout; [`StopRows::Split`] by default.
+    /// The row layout; [`StopRows::Split`] by default. [`StopRows::ColorOnly`] forces every
+    /// colour stop's alpha to 1.
     pub fn rows(mut self, rows: StopRows) -> Self {
         self.rules.rows = rows;
         self
@@ -703,6 +704,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         *stop = match self.rules.rows {
             StopRows::Combined => color,
             StopRows::Split => Srgba { a: stop.a, ..color },
+            StopRows::ColorOnly => Srgba { a: 1.0, ..color },
         };
         out
     }
@@ -712,8 +714,8 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let rows = self.rules.rows;
         let top = match rows {
             StopRows::Split => style.pointer + style.marker + 1.0,
-            StopRows::Combined if self.midpoints => 3.0 * style.diamond + 1.0,
-            StopRows::Combined => 1.0,
+            StopRows::Combined | StopRows::ColorOnly if self.midpoints => 3.0 * style.diamond + 1.0,
+            StopRows::Combined | StopRows::ColorOnly => 1.0,
         };
         let bottom = style.pointer + style.marker + 1.0;
         let width = ui.available_width();
@@ -808,7 +810,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let count = |n: usize| self.numbers.format(n as f64, 0..=0);
         let value = match rows {
             StopRows::Split => fill(&self.labels.bar_value, &[("n", &count(shown.color.len())), ("m", &count(shown.opacity_stops().len()))]),
-            StopRows::Combined => fill(&self.labels.bar_stops, &[("n", &count(shown.color.len()))]),
+            StopRows::Combined | StopRows::ColorOnly => fill(&self.labels.bar_stops, &[("n", &count(shown.color.len()))]),
         };
         let active = selected.and_then(|s| nodes.iter().find(|(m, _)| *m == s)).map(|(_, id)| *id);
         // A `Ui`'s node gets no bounds of its own from egui.
@@ -915,7 +917,7 @@ pub(crate) fn marker_texts(
             let hex = Rgba::from(Srgba { a: 1.0, ..stop.color }).to_hex().to_uppercase();
             let values = [("location", location(stop.location)), ("hex", hex), ("opacity", percent(stop.color.a, 0))];
             let template = match rows {
-                StopRows::Split => &labels.color_value,
+                StopRows::Split | StopRows::ColorOnly => &labels.color_value,
                 StopRows::Combined => &labels.color_opacity_value,
             };
             let value = fill(template, &values.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>());
@@ -995,7 +997,7 @@ impl Geometry {
     fn rows(&self) -> Vec<StopRow> {
         match self.rows {
             StopRows::Split => vec![StopRow::Opacity, StopRow::Color],
-            StopRows::Combined => vec![StopRow::Color],
+            StopRows::Combined | StopRows::ColorOnly => vec![StopRow::Color],
         }
     }
 
@@ -1104,7 +1106,7 @@ impl Geometry {
         } else if pos.y < self.ramp.top() {
             match self.rows {
                 StopRows::Split => (StopRow::Opacity, pos.y <= self.ramp.top() - s.diamond, true),
-                StopRows::Combined => (StopRow::Color, false, true),
+                StopRows::Combined | StopRows::ColorOnly => (StopRow::Color, false, true),
             }
         } else {
             return None;

@@ -1,10 +1,10 @@
 //! [`ColorArea`]: two components of a colour across and down a field, the others fixed.
 
-use craft_theme::ModelValues;
+use craft_theme::{ColorModel, ModelValues};
 use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, StrokeKind, Ui, Vec2, pos2};
 
-use super::{AreaMode, ColorPartsStyle, faded_stroke, fraction, parts_style, scale_of, spoken, value_at};
+use super::{AreaMode, ColorPartsStyle, band_values, faded_stroke, fraction, parts_style, scale_of, spoken, value_at};
 use crate::controls::slider::{self, KEY_FILTER, PressTurn, Scale, press_turn, tap};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -67,6 +67,7 @@ pub struct ColorArea {
     policy: EditPolicy,
     enabled: bool,
     part: bool,
+    bands: Option<usize>,
 }
 
 impl ColorArea {
@@ -85,6 +86,7 @@ impl ColorArea {
             policy: EditPolicy::default(),
             enabled: true,
             part: false,
+            bands: None,
         }
     }
 
@@ -112,6 +114,16 @@ impl ColorArea {
         self
     }
 
+    /// Quantises both axes to `n` levels (at least two) from each component's low end to its
+    /// high end: the area shows an `n` by `n` grid of flat cells and reports only values that are
+    /// multiples of `1 / (n - 1)` of the component's range (a web-safe field has 6). The pointer
+    /// takes the level of the cell under it; a key steps one level. The other components keep
+    /// their values.
+    pub fn bands(mut self, n: usize) -> Self {
+        self.bands = Some(n.max(2));
+        self
+    }
+
     /// Whether the area is a part of a colour picker, whose press takes its turn from the edit
     /// order ([`press_turn`]): it waits for a field's typing run to end.
     pub(crate) fn part(mut self, part: bool) -> Self {
@@ -134,7 +146,7 @@ impl ColorArea {
         let size = self.size.unwrap_or(Vec2::splat(style.area));
         let model = self.mode.model();
         let [across, down] = self.mode.area();
-        let axes = Axes::of(self.mode);
+        let axes = Axes::of(self.mode, self.bands);
         let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
@@ -217,7 +229,7 @@ pub(crate) struct AreaOp {
 
 /// `values` with `op` applied to the two channels `mode`'s area shows, as the area applies it.
 pub(super) fn apply(op: &AreaOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
-    Axes::of(mode).apply(op, values)
+    Axes::of(mode, None).apply(op, values)
 }
 
 /// The area's two channels and their scales.
@@ -226,13 +238,14 @@ struct Axes {
     down: usize,
     x: Scale,
     y: Scale,
+    bands: Option<usize>,
 }
 
 impl Axes {
-    fn of(mode: AreaMode) -> Axes {
+    fn of(mode: AreaMode, bands: Option<usize>) -> Axes {
         let model = mode.model();
         let [across, down] = mode.area();
-        Axes { across, down, x: scale_of(model, across), y: scale_of(model, down) }
+        Axes { across, down, x: scale_of(model, across, bands), y: scale_of(model, down, bands), bands }
     }
 
     /// `values` with `op` applied, each channel on its scale. A channel `op` doesn't step stays
@@ -254,7 +267,10 @@ impl Axes {
     /// The across and down components at `pos` in `rect`, kept to the area's edges.
     fn components_at(&self, rect: Rect, pos: Pos2) -> [f32; 2] {
         let along = |p: f32, from: f32, length: f32| if length > 0.0 { (p - from) / length } else { 0.0 };
-        [value_at(&self.x, along(pos.x, rect.left(), rect.width())), value_at(&self.y, 1.0 - along(pos.y, rect.top(), rect.height()))]
+        [
+            value_at(&self.x, along(pos.x, rect.left(), rect.width()), self.bands),
+            value_at(&self.y, 1.0 - along(pos.y, rect.top(), rect.height()), self.bands),
+        ]
     }
 
     /// A tap at `pos` in `rect`, as an operation.
@@ -272,7 +288,7 @@ impl Axes {
 
     /// Where `values` sit in `rect`.
     fn pos(&self, rect: Rect, values: &ModelValues) -> Pos2 {
-        let (fx, fy) = (fraction(&self.x, values.values[self.across]), fraction(&self.y, values.values[self.down]));
+        let (fx, fy) = (fraction(&self.x, values.values[self.across], self.bands), fraction(&self.y, values.values[self.down], self.bands));
         pos2(egui::lerp(rect.x_range(), fx), egui::lerp(rect.y_range(), 1.0 - fy))
     }
 }
@@ -312,6 +328,19 @@ fn paint(ui: &Ui, style: &ColorPartsStyle, area: &ColorArea, axes: &Axes, rect: 
     let model = area.mode.model();
     let painter = ui.painter();
     let mut mesh = Mesh::default();
+    match area.bands {
+        Some(n) => band_cells(&mut mesh, model, axes, rect, shown, n.max(2)),
+        None => smooth_mesh(&mut mesh, model, axes, rect, shown),
+    }
+    painter.add(mesh);
+    painter.rect_stroke(rect, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
+    let at = axes.pos(rect, shown);
+    painter.circle_stroke(at, style.marker_outer_radius, faded_stroke(style.marker_outer, enabled));
+    painter.circle_stroke(at, style.marker_inner_radius, faded_stroke(style.marker_inner, enabled));
+}
+
+/// The colours as a mesh of vertices, blending between them.
+fn smooth_mesh(mesh: &mut Mesh, model: &dyn ColorModel, axes: &Axes, rect: Rect, shown: &ModelValues) {
     let last = (MESH - 1) as f32;
     for row in 0..MESH {
         for col in 0..MESH {
@@ -330,9 +359,19 @@ fn paint(ui: &Ui, style: &ColorPartsStyle, area: &ColorArea, axes: &Axes, rect: 
             mesh.add_triangle(a, b + 1, b);
         }
     }
-    painter.add(mesh);
-    painter.rect_stroke(rect, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
-    let at = axes.pos(rect, shown);
-    painter.circle_stroke(at, style.marker_outer_radius, faded_stroke(style.marker_outer, enabled));
-    painter.circle_stroke(at, style.marker_inner_radius, faded_stroke(style.marker_inner, enabled));
+}
+
+/// The colours as `n` by `n` flat cells, each in the colour of its levels.
+fn band_cells(mesh: &mut Mesh, model: &dyn ColorModel, axes: &Axes, rect: Rect, shown: &ModelValues, n: usize) {
+    let (across, down): (Vec<f32>, Vec<f32>) = (band_values(&axes.x, n).collect(), band_values(&axes.y, n).collect());
+    let (w, h) = (rect.width() / n as f32, rect.height() / n as f32);
+    for (row, y) in down.iter().rev().enumerate() {
+        for (col, x) in across.iter().enumerate() {
+            let mut v = *shown;
+            v.values[axes.across] = *x;
+            v.values[axes.down] = *y;
+            let min = pos2(rect.left() + col as f32 * w, rect.top() + row as f32 * h);
+            mesh.add_colored_rect(Rect::from_min_size(min, Vec2::new(w, h)), model.to_srgb(&v.values).into());
+        }
+    }
 }

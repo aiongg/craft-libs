@@ -90,7 +90,7 @@ mod toast_tests;
 
 pub use color::{
     AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
-    ColorWarning, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
+    ColorWarning, ColorWarningChip, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
 };
 pub use craft_theme::Tone;
 pub use curve::Curve;
