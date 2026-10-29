@@ -4,6 +4,8 @@ use kurbo::{Point, Rect, Vec2};
 use super::readout::ReadoutLayout;
 use super::{CanvasView, Claim, Readout, crisp_shape, hit, resize_cursor};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
+use crate::edit::{EditPolicy, Gesture};
 use crate::theme::{Tokens, TokensOf as _};
 
 fn screen() -> ScreenRect {
@@ -392,4 +394,59 @@ fn the_story_canvas_view_follows_its_args() {
     }
     let turned = with_ui(|ui| super::story::document(ui, &args, "Document").view);
     assert_eq!(turned.rotation, 30.0);
+}
+
+/// A press taken while a field's typing run has the focus waits for the run's ending: the claim
+/// holds through the release and until the owner's turn, the turn comes once and after the run's
+/// Commit, and the claim ends with it. An owner that stops asking loses the claim.
+#[test]
+fn a_claimed_press_waits_for_a_typing_run_and_holds_through_the_wait() {
+    let ctx = Context::default();
+    let canvas = Id::unique("claim-canvas");
+    let (overlay, tool, field) = (Id::unique("overlay"), Id::unique("tool"), Id::unique("field"));
+    let at = pos2(100.0, 100.0);
+    let pass_nr = std::cell::Cell::new(0);
+    let committed = std::cell::Cell::new(None);
+    let mut turns = Vec::new();
+    // The field is drawn in every pass and has the focus only in the first two.
+    let run = |events: Vec<Event>, ask: bool, turns: &mut Vec<Turn>| {
+        pass_nr.set(pass_nr.get() + 1);
+        let nr = pass_nr.get();
+        let input = RawInput { screen_rect: Some(screen()), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            let response = ui.interact(ScreenRect::from_min_size(pos2(300.0, 300.0), vec2(20.0, 20.0)), field, egui::Sense::click());
+            if nr <= 2 {
+                response.request_focus();
+            }
+            let mut gesture = Gesture::load(ui, field, &0, EditPolicy::default());
+            if nr == 1 {
+                gesture.begin();
+            }
+            if matches!(gesture.finish(), Some(crate::edit::EditEvent::Commit { .. })) {
+                committed.set(Some(nr));
+            }
+            let ctx = ui.ctx();
+            if nr == 2 {
+                assert!(Claim::take(ctx, canvas, overlay));
+                assert!(!Claim::take(ctx, canvas, tool));
+            }
+            if ask {
+                turns.push(Claim::turn(ctx, canvas, overlay));
+            }
+        })
+        .drop_without_applying_deltas();
+    };
+    run(vec![Event::PointerMoved(at)], false, &mut turns);
+    run(vec![button(at, true)], true, &mut turns);
+    run(vec![button(at, false)], true, &mut turns);
+    assert!(Claim::is_owner(&ctx, canvas, overlay), "held through the release while it waits");
+    assert_eq!(turns[0], Turn::Waits);
+    while turns.last() == Some(&Turn::Waits) && turns.len() < 6 {
+        run(vec![], true, &mut turns);
+    }
+    assert_eq!(turns.last(), Some(&Turn::Runs), "{turns:?}");
+    assert!(committed.get().is_some_and(|c| c < pass_nr.get()), "the run's Commit went out first: {:?} {}", committed.get(), pass_nr.get());
+    run(vec![], true, &mut turns);
+    assert_eq!(turns.last(), Some(&Turn::Now), "it runs once");
+    assert_eq!(Claim::owner(&ctx, canvas), None, "a released press's claim ends with its turn");
 }

@@ -3,7 +3,7 @@ use kurbo::{Point, Rect};
 
 use super::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeResponse, MarqueeShape};
 use crate::canvas::{CanvasView, Claim};
-use crate::edit::{CancelReason, EditEvent};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 
 const SCREEN: ScreenRect = ScreenRect { min: pos2(0.0, 0.0), max: pos2(800.0, 600.0) };
 
@@ -222,6 +222,13 @@ struct Harness {
     canvas: Id,
     /// Whether the marquee owned the press at the end of the last pass.
     owned: bool,
+    /// A text field's typing run beside the canvas, begun in the first pass.
+    typing: bool,
+    /// The field's first pass has gone.
+    began: bool,
+    passes: usize,
+    /// The pass in which the field's run committed.
+    committed: Option<usize>,
 }
 
 fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
@@ -242,6 +249,10 @@ impl Harness {
             constraint: Constraint::Free,
             canvas: Id::NULL,
             owned: false,
+            typing: false,
+            began: false,
+            passes: 0,
+            committed: None,
         };
         h.pass(vec![Event::PointerMoved(pos2(120.0, 120.0))]);
         h
@@ -256,8 +267,25 @@ impl Harness {
         let mut out = MarqueeResponse::default();
         let mut canvas_id = Id::NULL;
         let mut owned = false;
+        self.passes += 1;
+        let (typing, pass, mut committed, first) = (self.typing, self.passes, self.committed, self.typing && !self.began);
+        self.began |= typing;
         self.ctx
             .run_ui(input, |ui| {
+                if typing {
+                    let field = ui.make_persistent_id("typing field");
+                    let response = ui.interact(ScreenRect::from_min_size(pos2(600.0, 500.0), vec2(20.0, 20.0)), field, Sense::click());
+                    if first {
+                        response.request_focus();
+                    }
+                    let mut gesture = Gesture::load(ui, field, &0, EditPolicy::default());
+                    if first {
+                        gesture.begin();
+                    }
+                    if matches!(gesture.finish(), Some(EditEvent::Commit { .. })) {
+                        committed = Some(pass);
+                    }
+                }
                 let canvas = ui.allocate_rect(view.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
                 canvas_id = canvas.id;
                 out = MarqueeDrag::new("test").shape(MarqueeShape::Rect).constraint(constraint).show(ui, &canvas, &view);
@@ -266,6 +294,7 @@ impl Harness {
             .drop_without_applying_deltas();
         self.canvas = canvas_id;
         self.owned = owned;
+        self.committed = committed;
         out
     }
 
@@ -447,4 +476,36 @@ fn a_press_and_moves_in_one_frame_begin_the_drag_in_that_frame() {
         Some(EditEvent::Commit { value, .. }) => assert_eq!((value.a, value.b), (Point::new(100.0, 100.0), Point::new(160.0, 150.0))),
         other => panic!("{other:?}"),
     }
+}
+
+/// A press during a text field's typing run reports nothing until the run's Commit has gone out;
+/// the drag then begins from the press, and a press released meanwhile still ends as a click.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
+    let mut h = Harness::new();
+    h.typing = true;
+    h.pass(vec![]);
+    let press = h.press(A);
+    assert_eq!((press.event, press.rect), (None, None));
+    assert!(h.owned, "the marquee holds the press while it waits");
+    let mut events = Vec::new();
+    for i in 0..5 {
+        let out = h.drag(A + vec2(30.0, 20.0 + i as f32));
+        let waiting = h.committed.is_none_or(|c| c >= h.passes);
+        assert!(!waiting || out.event.is_none(), "nothing before the run Commit: {out:?} {:?} {}", h.committed, h.passes);
+        events.extend(out.event);
+    }
+    let out = h.release(A + vec2(30.0, 24.0));
+    events.extend(out.event);
+    assert!(h.committed.is_some(), "the run ended");
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
+
+    let mut h = Harness::new();
+    h.typing = true;
+    h.pass(vec![]);
+    h.press(A);
+    assert!(!h.release(A).clicked, "the click waits");
+    let clicks = (0..5).filter(|_| h.pass(vec![]).clicked).count();
+    assert_eq!(clicks, 1, "and runs once");
 }

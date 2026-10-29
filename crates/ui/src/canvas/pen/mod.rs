@@ -9,6 +9,7 @@ use super::bezier::{constrain, outline};
 use super::claim::PrimaryPress;
 use super::{CanvasView, Claim, EditSubpath, HandleSide, Knot, KnotRef, Part, PartFocus, RulerUnits, hit};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -112,6 +113,9 @@ struct Drag {
     moved: bool,
     /// The in handle as the last pass left it: ⌥ keeps it there while the out handle follows.
     in_ctrl: Point,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]), with the
+    /// modifiers at the press; what it takes and does is decided when its turn comes.
+    waits: Option<Modifiers>,
 }
 
 /// The path being drawn with the Pen: the host's open draft, its gestures and its keys. The
@@ -245,12 +249,24 @@ impl<'a> PenDraft<'a> {
         }
         let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false };
 
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
-        if drag.is_none() && editing {
+        let mut drag: Option<Drag> = ctx
+            .data(|d| d.get_temp(drag_key(id)))
+            .filter(|d: &Drag| d.press.holds(&ctx) || (d.waits.is_some() && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.as_ref().is_some_and(|d| d.waits.is_some());
+        if let Some(d) = &drag
+            && let Some(mods) = d.waits
+        {
+            drag = match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => drag,
+                Turn::Runs => self.start(view, &style, &mut gesture, &mut out, d.press, mods),
+                Turn::Now => None,
+            };
+        }
+        if drag.is_none() && !waited && editing {
             drag = self.press(&ctx, canvas, view, &style, &mut gesture, &mut out);
         }
         if let Some(d) = drag.take() {
-            drag = self.track(&ctx, view, &style, d, &mut gesture, &mut out);
+            drag = if d.waits.is_some() { Some(d) } else { self.track(&ctx, view, &style, d, &mut gesture, &mut out) };
         }
         let undo = ctx.data_mut(|d| d.remove_temp::<bool>(remove_key(id))).unwrap_or(false);
         if editing && drag.is_none() {
@@ -290,7 +306,27 @@ impl<'a> PenDraft<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
+        if !Claim::take(ctx, canvas.id, out.id) {
+            return None;
+        }
         let mods = ctx.input(|i| i.modifiers);
+        if Claim::turn(ctx, canvas.id, out.id) == Turn::Waits {
+            return Some(Drag { press, kind: Kind::Pull, moved: false, in_ctrl: Point::ZERO, waits: Some(mods) });
+        }
+        self.start(view, style, gesture, out, press, mods)
+    }
+
+    /// The press `press` made with `mods`, against the draft now: begins what it takes, or
+    /// resumes the path whose end it hit.
+    fn start(
+        &self,
+        view: &CanvasView,
+        style: &PenStyle,
+        gesture: &mut Gesture<EditSubpath>,
+        out: &mut PenResponse,
+        press: PrimaryPress,
+        mods: Modifiers,
+    ) -> Option<Drag> {
         let mut draft = gesture.shown().clone();
         let near = |p: Point| hit::point(press.origin, view.to_screen(p)) <= style.hit;
         let n = draft.knots.len();
@@ -309,17 +345,11 @@ impl<'a> PenDraft<'a> {
         } else if n == 0
             && let Some(&(path, knot, _)) = self.ends.iter().find(|(_, _, p)| near(*p))
         {
-            if !Claim::take(ctx, canvas.id, out.id) {
-                return None;
-            }
             out.resumed = Some((path, knot));
             return None;
         } else {
             Kind::Pull
         };
-        if !Claim::take(ctx, canvas.id, out.id) {
-            return None;
-        }
         let at = match kind {
             Kind::Close => 0,
             _ => n.saturating_sub(1),
@@ -343,7 +373,7 @@ impl<'a> PenDraft<'a> {
         };
         gesture.begin();
         gesture.update(draft, mods);
-        Some(Drag { press, kind, moved: false, in_ctrl })
+        Some(Drag { press, kind, moved: false, in_ctrl, waits: None })
     }
 
     /// One pass of a press the overlay owns: the press that goes on, if it does.

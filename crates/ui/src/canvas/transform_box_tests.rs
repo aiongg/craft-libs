@@ -9,7 +9,7 @@ use super::{BoxHost, RotateZone, TransformBox, TransformLabels, english_names};
 use crate::canvas::guides::GuideHost;
 use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
-use crate::edit::{CancelReason, EditEvent};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, current, install};
 
@@ -34,6 +34,14 @@ struct Host {
     claimed: bool,
     guides: Option<GuideHost>,
     guide_events: usize,
+    /// A text field's typing run beside the canvas: its gesture is begun in the first pass, has
+    /// the focus until something takes it, and reports its events here.
+    typing: bool,
+    typing_events: Vec<EditEvent<i32>>,
+    /// Passes drawn, and the pass of each event of the box and of the field.
+    pass: usize,
+    box_passes: Vec<usize>,
+    typing_passes: Vec<usize>,
 }
 
 fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -53,10 +61,32 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
         claimed: false,
         guides: None,
         guide_events: 0,
+        typing: false,
+        typing_events: Vec::new(),
+        pass: 0,
+        box_passes: Vec::new(),
+        typing_passes: Vec::new(),
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
+            host.pass += 1;
+            if host.typing {
+                let field = ui.make_persistent_id("typing field");
+                let first = host.pass == 1;
+                let response = ui.interact(egui::Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), field, Sense::click());
+                if first {
+                    response.request_focus();
+                }
+                let mut gesture = Gesture::load(ui, field, &0, EditPolicy::default());
+                if first {
+                    gesture.begin();
+                }
+                if let Some(event) = gesture.finish() {
+                    host.typing_events.push(event);
+                    host.typing_passes.push(host.pass);
+                }
+            }
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the box.
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -74,6 +104,7 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
                 .value("W 100%")
                 .show(ui, &canvas, &view);
             host.host.apply(&r);
+            host.box_passes.extend(r.event.iter().map(|_| host.pass));
             host.events.extend(r.event.clone());
             host.applied += usize::from(r.apply);
             host.discarded += usize::from(r.discard);
@@ -571,4 +602,57 @@ fn the_parts_are_graphics_objects_in_a_group() {
         "edges are refused in Distort"
     );
     assert_eq!(group.accesskit_node().active_descendant().and_then(|n| n.label()).as_deref(), Some("Top left corner"));
+}
+
+/// A press on the box while a text field's typing run has the focus asks the run to end and waits
+/// for its Commit: the box's Begin comes in a later pass, from the box the host has then, and the
+/// drag still follows the pointer from the press.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
+    let mut h = harness(|h| h.typing = true);
+    h.step();
+    assert!(h.state().typing_events.is_empty() || matches!(h.state().typing_events[..], [EditEvent::Begin { .. }]));
+    let from = screen(&h, Point::new(150.0, 110.0));
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true, Modifiers::NONE));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    assert!(h.state().claimed, "the box holds the press meanwhile");
+    h.event(Event::PointerMoved(from + vec2(30.0, 0.0)));
+    for _ in 0..4 {
+        h.step();
+    }
+    h.event(Event::PointerMoved(from + vec2(40.0, 0.0)));
+    h.step();
+    h.event(button(from + vec2(40.0, 0.0), false, Modifiers::NONE));
+    h.step();
+    h.step();
+    let (events, commit_pass, box_passes) = (&h.state().events, h.state().typing_passes.last().copied(), &h.state().box_passes);
+    assert!(matches!(h.state().typing_events.last(), Some(EditEvent::Commit { .. })), "{:?}", h.state().typing_events);
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(commit_pass < box_passes.first().copied(), "the run's Commit goes out first: {commit_pass:?} {box_passes:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
+    let moved = state(&h);
+    assert!((moved.quad[0].x - RECT.x0 - 40.0).abs() < 1e-3, "the whole move from the press: {moved:?}");
+}
+
+/// A press released while it waited still runs, as the click it was.
+#[test]
+fn a_press_released_while_it_waited_runs_as_a_click() {
+    let mut h = harness(|h| h.typing = true);
+    h.step();
+    let outside = screen(&h, Point::new(20.0, 20.0));
+    h.event(Event::PointerMoved(outside));
+    h.step();
+    h.event(button(outside, true, Modifiers::NONE));
+    h.event(button(outside, false, Modifiers::NONE));
+    h.step();
+    assert_eq!(h.state().applied, 0, "the click waits");
+    for _ in 0..4 {
+        h.step();
+    }
+    assert_eq!(h.state().applied, 1, "and runs once");
+    h.step();
+    assert_eq!((h.state().applied, h.state().claimed), (1, false));
 }

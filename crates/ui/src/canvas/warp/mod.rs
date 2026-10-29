@@ -9,6 +9,7 @@ use kurbo::{BezPath, PathEl, Point, Rect, Vec2};
 use super::claim::PrimaryPress;
 use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -246,6 +247,9 @@ struct Drag {
     began: bool,
     /// Esc ended it: the rest of the press does nothing.
     cancelled: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]); its target is
+    /// the one at the press and is made again when its turn comes.
+    waits: bool,
 }
 
 /// The mesh of a warp over a canvas: patch boundaries, anchors and their handles, dragged by the
@@ -379,12 +383,30 @@ impl<'a> WarpGrid<'a> {
             ctx.data(|d| d.get_temp(picked_key)).filter(|&i: &usize| editable && i < screen.len() && self.mesh.anchor_of(i).is_some());
 
         // A press whose end the grid missed is dropped, its gesture with it.
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
-        if drag.is_none() && editable {
+        let mut drag: Option<Drag> =
+            ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.is_some_and(|d| d.waits);
+        // The pass in which the press starts: its pass, or the one its turn comes in.
+        let mut starts = false;
+        if let Some(d) = drag
+            && d.waits
+        {
+            drag = match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => drag,
+                Turn::Runs => {
+                    starts = true;
+                    let target = self.target_at(view, &screen, &style, d.press.origin);
+                    Some(Drag { target: target.unwrap_or(d.target), cancelled: target.is_none(), waits: false, ..d })
+                }
+                Turn::Now => None,
+            };
+        }
+        if drag.is_none() && !waited && editable {
             drag = self.press(&ctx, canvas, view, &screen, &style, id);
-            if let Some(Drag { target: Target::Point(index), .. }) = drag {
-                picked = Some(index);
-            }
+            starts = drag.is_some_and(|d| !d.waits);
+        }
+        if starts && let Some(Drag { target: Target::Point(index), cancelled: false, .. }) = drag {
+            picked = Some(index);
         }
         let reported = Gesture::<WarpEdit>::reported(ui, id).map(|(_, value)| value);
         let mut gesture = Gesture::load(ui, id, &reported.unwrap_or(IDLE), self.policy).focus_owners(&[]).enabled(editable);
@@ -393,12 +415,12 @@ impl<'a> WarpGrid<'a> {
                 // Esc, `cancel_all` or a missed pass ended it; the press stays claimed.
                 d.cancelled = true;
             }
-            if !d.began && !d.cancelled && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            if !d.began && !d.cancelled && !d.waits && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
                 d.cancelled = true;
             }
         }
         if let Some(d) = drag.take() {
-            drag = self.track(&ctx, view, d, &mut gesture);
+            drag = if d.waits { Some(d) } else { self.track(&ctx, view, d, &mut gesture) };
         }
 
         let parts = if editable { self.parts(&screen, &style, picked) } else { Vec::new() };
@@ -421,7 +443,7 @@ impl<'a> WarpGrid<'a> {
         out.event = gesture.finish();
         out.claimed = Claim::is_owner(&ctx, canvas.id, id);
         out.picked = picked;
-        let held = drag.filter(|_| ctx.input(|i| i.pointer.primary_down()));
+        let held = drag.filter(|d| d.waits || ctx.input(|i| i.pointer.primary_down()));
         ctx.data_mut(|d| {
             match held {
                 Some(drag) => {
@@ -462,7 +484,11 @@ impl<'a> WarpGrid<'a> {
             return None;
         }
         let target = self.target_at(view, screen, style, press.origin)?;
-        Claim::take(ctx, canvas.id, id).then_some(Drag { press, target, began: false, cancelled: false })
+        if !Claim::take(ctx, canvas.id, id) {
+            return None;
+        }
+        let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
+        Some(Drag { press, target, began: false, cancelled: false, waits })
     }
 
     /// What a press at screen point `p` would drag.

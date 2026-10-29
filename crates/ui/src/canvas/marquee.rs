@@ -12,6 +12,7 @@ use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Pos2, Rect as ScreenRect, 
 use kurbo::{Point, Rect};
 
 use super::{CanvasView, Claim, Readout};
+use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::story::{Args, Level, Story};
@@ -449,6 +450,9 @@ struct Press {
     end: Point,
     begun: bool,
     cancelled: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]); the gesture
+    /// has not begun and nothing is reported.
+    waits: bool,
 }
 
 impl Press {
@@ -515,6 +519,19 @@ impl<'a> MarqueeDrag<'a> {
             )
         });
         let mut press: Option<Press> = ctx.data(|d| d.get_temp(key));
+        if let Some(p) = &mut press
+            && p.waits
+        {
+            let turn = if Claim::is_owner(&ctx, canvas.id, id) { Claim::turn(&ctx, canvas.id, id) } else { Turn::Now };
+            match turn {
+                Turn::Waits => return MarqueeResponse::default(),
+                Turn::Runs => p.waits = false,
+                Turn::Now => {
+                    ctx.data_mut(|d| d.remove::<Press>(key));
+                    return MarqueeResponse::default();
+                }
+            }
+        }
         if press.is_none()
             && pressed
             && canvas.enabled()
@@ -534,9 +551,14 @@ impl<'a> MarqueeDrag<'a> {
                 end: start,
                 begun: false,
                 cancelled: false,
+                waits: Claim::turn(&ctx, canvas.id, id) == Turn::Waits,
             });
         }
         let Some(mut press) = press else { return MarqueeResponse::default() };
+        if press.waits {
+            ctx.data_mut(|d| d.insert_temp(key, press));
+            return MarqueeResponse::default();
+        }
 
         // The marquee is the host's to draw from `rect`, not a value it stores, so the gesture's
         // own last report stands for the host's value (otherwise it would see an outside change).
