@@ -666,3 +666,18 @@ fn increment(target: NodeId) -> egui::accesskit::ActionRequest {
 fn kinds_of(events: &[EditEvent<PickedColor>]) -> Vec<&'static str> {
     events.iter().map(kind).collect()
 }
+
+/// An opacity step and an eyedropper sample in one frame both reach the host: the sample takes the
+/// alpha the step made.
+#[test]
+fn a_sample_in_the_frame_of_an_opacity_step_keeps_the_stepped_alpha() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6).with_alpha(0.5));
+    rig.tab_to(4);
+    assert_eq!(rig.focused_name().as_deref(), Some("Opacity"));
+    rig.events.clear();
+    ColorPicker::sampled(&rig.ctx, rig.picker, Srgba::rgb(1.0, 0.6, 0.0));
+    let key = Event::Key { key: Key::ArrowUp, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    rig.frame(vec![key]);
+    rig.settle();
+    assert_eq!(hex(rig.color), "#ff990082", "the sample with the stepped alpha (51%)");
+}

@@ -102,7 +102,8 @@ pub(crate) fn same_stop<T: Stop>(old: &[T], i: usize, new: &[T], k: usize) -> bo
 
 /// A stop of a row as an operation names it, found again on the stops of the operation's turn
 /// ([`find`](StopKey::find)), which another control may have changed since: a stop with a tag by
-/// its tag, an untagged stop by its location.
+/// its tag, an untagged stop by its location (or, when another control moved it, as
+/// [`find`](StopKey::find) describes).
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct StopKey {
     pub row: StopRow,
@@ -111,6 +112,8 @@ pub(crate) struct StopKey {
     pub location: f32,
     /// The locations of the row's untagged stops when the key was made.
     pub untagged: Vec<f32>,
+    /// The locations of the untagged stops next to this one in the row, when the key was made.
+    pub neighbours: [Option<f32>; 2],
     /// Which of the untagged stops at `location` the stop was, in row order: stops can share a
     /// location.
     pub nth: usize,
@@ -131,7 +134,10 @@ impl StopKey {
         let (tag, location) = (stop.tag(), stop.location());
         let untagged = list.iter().filter(|s| s.tag() == 0).map(Stop::location).collect();
         let nth = list[..i].iter().filter(|s| s.tag() == 0 && s.location() == location).count();
-        Some(Self { row, tag, location, untagged, nth })
+        let before = list[..i].iter().rev().find(|s| s.tag() == 0).map(Stop::location);
+        let after = list[i + 1..].iter().find(|s| s.tag() == 0).map(Stop::location);
+        let neighbours = [before, after];
+        Some(Self { row, tag, location, untagged, neighbours, nth })
     }
 
     /// The stop's index in `stops`:
@@ -139,7 +145,9 @@ impl StopKey {
     ///   copy keeps its stop's tag), the one of them at `location`;
     /// - untagged, the untagged stop at `location` (the `nth` while as many share it as did);
     ///   with none there, the one untagged stop whose location isn't in `untagged`: another
-    ///   control moved it.
+    ///   control moved it. That holds only while the row has as many untagged stops as before
+    ///   and the stop's untagged neighbours are still at their locations: otherwise the stop is
+    ///   gone, or the stop that moved is another one.
     ///
     /// `None` when the row can't tell which stop it is: an operation on it is dropped rather than
     /// applied to another stop.
@@ -165,6 +173,11 @@ impl StopKey {
         if !at.is_empty() {
             let were = self.untagged.iter().filter(|&&l| l == self.location).count();
             return at.get(self.nth).copied().filter(|_| at.len() == were);
+        }
+        let untagged_now: Vec<f32> = list.iter().filter(|s| s.tag() == 0).map(Stop::location).collect();
+        let neighbours_stay = self.neighbours.iter().flatten().all(|l| untagged_now.contains(l));
+        if untagged_now.len() != self.untagged.len() || !neighbours_stay {
+            return None;
         }
         only((0..list.len()).filter(with_tag).filter(|&i| !self.untagged.contains(&list[i].location())).collect())
     }

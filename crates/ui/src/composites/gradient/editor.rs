@@ -364,7 +364,7 @@ pub struct GradientEditorResponse<T = ()> {
 /// reader's step during another part's gesture waits for it to end, then applies to its stop on
 /// the stops the gesture left, and the selection stays on its stop: a tagged stop is found by its
 /// tag, an untagged one by its location. When the row can't tell which stop it was (two untagged
-/// stops moved), the edit is dropped.
+/// stops moved, or the stop is gone and another untagged one moved), the edit is dropped.
 ///
 /// AccessKit: the bar is a focusable `Group` named by the label, valued "{n} color stops, {m}
 /// opacity stops", whose active descendant is the selected marker; each marker is a
