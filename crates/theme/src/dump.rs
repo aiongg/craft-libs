@@ -1012,7 +1012,6 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
         skew_head,
         skew_back,
         skew_head_outline,
-        ..
     } = c;
     out.line("cursor.crosshair_reach", len(*crosshair_reach));
     out.line("cursor.crosshair_gap", len(*crosshair_gap));
