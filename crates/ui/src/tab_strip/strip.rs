@@ -443,7 +443,8 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
         } = strip;
         let tabs = self.tabs;
         let style = self.style;
-        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), style.strip_height(large)));
+        let height = if kind == TabKind::Panel { style.panel_height } else { style.strip_height(large) };
+        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), height));
         ui.painter().rect_filled(rect, 0.0, style.strip);
         let shows_close = kind.shows_close();
         let natural: Vec<f32> = tabs.iter().map(|tab| tab.natural_width(ui, large, shows_close)).collect();
@@ -799,7 +800,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
         let lit = (button.hovered() && ui.is_enabled()) || menu.open;
         if lit {
             let r = crate::theme::corner_radius(style.radius).nw;
-            ui.painter().rect_filled(at, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, style.hover);
+            ui.painter().rect_filled(at, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, style.active);
         }
         let color = if lit { style.text } else { style.inactive_text };
         icons::paint_in(ui, at, Icon::ChevronsRight, icons::active(ui.ctx()), style.icon_size, IconSize::Sm.stroke(), color);

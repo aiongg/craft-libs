@@ -30,8 +30,8 @@ fn in_ui<R>(test: impl FnOnce(&mut Ui) -> R) -> R {
 fn the_look_follows_the_size_preset() {
     let sizes =
         |look: &DockLook| [look.tab_height, look.gap, look.tab_padding, look.title_height, look.column_bar_height, look.iconic_width, look.icon_size];
-    assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [26.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0]);
-    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [30.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0]);
+    assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [28.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0]);
+    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [32.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0]);
 }
 
 /// The unmigrated flat style splits into the default config and the visuals look, field by field.
@@ -210,7 +210,7 @@ fn the_dock_stories_are_fully_labelled_in_both_locales() {
     }
 }
 
-/// Pins distinct colors on the hover, focus and current-icon tokens: the tab strip, drag bar and
+/// Pins distinct colors on the active tab, focus and current-icon tokens: the tab strip, drag bar and
 /// icon cell painters read them, each from its own token.
 #[test]
 fn the_painters_read_their_own_tokens() {
@@ -219,7 +219,7 @@ fn the_painters_read_their_own_tokens() {
     let selected = Rgba([20, 60, 230, 255]);
     let selected_text = Rgba([250, 120, 10, 255]);
     let pins: Pins = [
-        (ComponentField::Tab(TabField::Hover), hover),
+        (ComponentField::Tab(TabField::Active), hover),
         (ComponentField::Float(FloatField::Focus), focus),
         (ComponentField::Dock(DockField::IconSelected), selected),
         (ComponentField::Dock(DockField::IconSelectedText), selected_text),
@@ -245,9 +245,10 @@ fn the_painters_read_their_own_tokens() {
     };
     let wanted = |color: Rgba| color.to_egui();
 
-    // A tab under the pointer is filled with `tab.hover`.
+    // A tab under the pointer is filled with `tab.active`, as the selected tab is.
     let tab = rect_of(&d, Hit::Tab(2));
     assert_ne!(tab, rect_of(&d, Hit::Tab(1)));
+    assert!(!rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "resting tab");
     d.move_to(tab.center());
     d.step(vec![]);
     assert!(rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "hovered tab");

@@ -411,17 +411,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(self.look.focus_width, self.look.focus) })
             .show_at(ui, rect, |ui, response| {
                 let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                painter.rect_filled(
-                    rect,
-                    0.0,
-                    if active {
-                        self.look.tab_active
-                    } else if response.hovered() {
-                        self.look.tab_hover
-                    } else {
-                        self.look.tab_strip
-                    },
-                );
+                painter.rect_filled(rect, 0.0, self.look.tab_strip);
+                if active || response.hovered() {
+                    crate::tab_strip::paint_active_fill(&painter, rect, self.look.tab_radius, self.look.tab_active);
+                }
                 let at = pos2(rect.left() + self.look.tab_padding * 0.5, rect.center().y - galley.size().y * 0.5);
                 painter.galley(at, galley.clone(), color);
             });

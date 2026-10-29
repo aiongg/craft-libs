@@ -1185,10 +1185,9 @@ fn tab_pairs() -> Vec<(TabField, TabField, (f64, f64))> {
     let (text, mark) = ((4.5, 7.0), (3.0, 4.5));
     vec![
         (TabField::Text, TabField::Active, text),
-        (TabField::Text, TabField::Hover, text),
         (TabField::InactiveText, TabField::Strip, text),
+        (TabField::InactiveText, TabField::Active, text),
         (TabField::Detail, TabField::Strip, text),
-        (TabField::Detail, TabField::Hover, text),
         (TabField::Detail, TabField::Active, text),
         (TabField::Close, TabField::Strip, mark),
         (TabField::Close, TabField::Active, mark),
@@ -1220,33 +1219,23 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
     let compact = at(Size::Compact);
     let t = &compact.component.tab;
-    assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 34.0, 12.0, 4.0, 40.0));
-    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 12.0, 20.0, 0.0, true));
+    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 28.0, 34.0, 12.0, 4.0, 40.0));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 10.0, 20.0, 0.0, true));
     assert_eq!((t.drop_width, t.drop_halo_width, t.progress_height, t.tear_off), (2.0, 1.0, 2.0, 24.0));
     assert_eq!((t.strip_height(false), t.strip_height(true)), (26.0, 34.0));
     assert_eq!((t.label_role(false), t.label_role(true), t.detail_role), (TypeRole::Label, TypeRole::Body, TypeRole::Caption));
 
     let comfy = at(Size::Comfortable);
     let t = &comfy.component.tab;
-    assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 38.0, 16.0, 6.0, 44.0));
-    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 14.0, 24.0, comfy.shape.radius.control, false));
+    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 32.0, 38.0, 16.0, 6.0, 44.0));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 12.0, 24.0, comfy.shape.radius.control, false));
 
     let t = &compact;
     let tab = &t.component.tab;
-    assert_eq!((tab.strip, tab.active), (t.color(T::SurfaceBackground), t.color(T::SurfacePanel)));
+    assert_eq!((tab.strip, tab.active), (t.color(T::SurfacePanel), t.color(T::SurfacePanel)));
     assert_eq!((tab.text, tab.inactive_text, tab.divider), (t.color(T::TextNormal), t.color(T::TextMuted), t.color(T::LineDivider)));
-    assert_eq!((tab.close_text, tab.close_hover), (t.color(T::TextMuted), t.color(T::TextNormal)));
+    assert_eq!((tab.close_text, tab.close_hover, tab.close_fill), (t.color(T::TextFaint), t.color(T::TextNormal), t.color(T::StateHover)));
     assert_eq!((tab.drop, tab.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
-}
-
-/// The hover fill is the strip moved `TAB_HOVER_MIX` of the way toward `state.hover`.
-#[test]
-fn tab_hover_sits_between_the_strip_and_the_hover_state() {
-    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
-    let tab = &t.component.tab;
-    let l = |c: Rgba| c.to_oklab().l;
-    let (strip, hover, state) = (l(tab.strip), l(tab.hover), l(over(t.color(T::StateHover), tab.strip)));
-    assert!((hover - (strip + (state - strip) * values::TAB_HOVER_MIX)).abs() < 0.01, "{strip} {hover} {state}");
 }
 
 #[test]

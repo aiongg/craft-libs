@@ -17,6 +17,7 @@ pub(super) const TAB_PADDING: f32 = 24.0;
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DockLook {
+    /// Height of a group's tab strip: `tab.panel_height`.
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
@@ -25,8 +26,10 @@ pub struct DockLook {
     pub background: Color32,
     /// Tab strip, column bar and floating title bar.
     pub tab_strip: Color32,
+    /// The selected tab, and the tab under the pointer.
     pub tab_active: Color32,
-    pub tab_hover: Color32,
+    /// Top corners of the selected tab: `tab.radius`.
+    pub tab_radius: f32,
     /// Fill of the current icon cell in an iconic column.
     pub icon_selected: Color32,
     pub text: Color32,
@@ -101,13 +104,13 @@ impl DockLook {
     pub fn from_tokens(tokens: &UiTokens) -> Self {
         let (dock, float, tab) = (&tokens.component.dock, &tokens.component.float, &tokens.component.tab);
         Self {
-            tab_height: tab.height,
+            tab_height: tab.panel_height,
             gap: dock.gap,
             pad: tokens.space.pad.control,
             background: dock.background.to_egui(),
             tab_strip: tab.strip.to_egui(),
             tab_active: tab.active.to_egui(),
-            tab_hover: tab.hover.to_egui(),
+            tab_radius: tab.radius,
             icon_selected: dock.icon_selected.to_egui(),
             text: tab.text.to_egui(),
             inactive_text: tab.inactive_text.to_egui(),
@@ -154,7 +157,7 @@ impl DockLook {
             background: visuals.panel_fill,
             tab_strip: visuals.extreme_bg_color,
             tab_active: visuals.widgets.active.bg_fill,
-            tab_hover: visuals.widgets.active.bg_fill,
+            tab_radius: 0.0,
             icon_selected: visuals.widgets.active.bg_fill,
             text: visuals.text_color(),
             inactive_text: visuals.weak_text_color(),

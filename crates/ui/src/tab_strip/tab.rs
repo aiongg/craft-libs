@@ -136,6 +136,8 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
 pub struct TabStyle {
     /// Height of the strip: `tab.height`.
     pub height: f32,
+    /// Height of a dock group's strip: `tab.panel_height`.
+    pub panel_height: f32,
     /// Height of the strip with Large Tabs: `tab.height_large`.
     pub height_large: f32,
     /// `tab.pad_x`.
@@ -150,7 +152,7 @@ pub struct TabStyle {
     pub close_icon: f32,
     /// `tab.overflow`.
     pub overflow: f32,
-    /// Top corners of the active and hovered tab: `tab.radius`.
+    /// Top corners of the active tab and of a tab under the pointer: `tab.radius`.
     pub radius: f32,
     /// `tab.dividers`.
     pub dividers: bool,
@@ -171,10 +173,9 @@ pub struct TabStyle {
     pub detail_role: TypeRole,
     /// Corners of the × under the pointer: `radius.control`.
     pub close_radius: f32,
-    /// `tab.strip`, `tab.active` and `tab.hover`.
+    /// `tab.strip`, and `tab.active` behind the active tab and a tab under the pointer.
     pub strip: Color32,
     pub active: Color32,
-    pub hover: Color32,
     /// `tab.text` and `tab.text.inactive`.
     pub text: Color32,
     pub inactive_text: Color32,
@@ -185,7 +186,7 @@ pub struct TabStyle {
     /// `tab.close` and `tab.close.hover`.
     pub close_color: Color32,
     pub close_hover: Color32,
-    /// Behind the × under the pointer: `state.hover`.
+    /// Behind the × under the pointer: `tab.close.fill`.
     pub close_fill: Color32,
     /// `tab.drop`.
     pub drop: Color32,
@@ -203,6 +204,21 @@ impl TabStyle {
     /// The label's type role, with Large Tabs if `large`.
     pub fn label_role(&self, large: bool) -> TypeRole {
         if large { self.label_role_large } else { self.label_role }
+    }
+
+    /// The fill of a tab in `rect`: the active tab and a tab under the pointer take `tab.active`
+    /// with `tab.radius` on the top corners; the others show the strip. Dock and document tabs
+    /// share it.
+    pub fn paint_surface(&self, painter: &egui::Painter, rect: Rect, filled: bool) {
+        if filled {
+            paint_active_fill(painter, rect, self.radius, self.active);
+        }
+    }
+
+    /// The colour of a tab's label: `tab.text` on the active tab, `tab.text.inactive` on the others,
+    /// also under the pointer (PhotoCraft's tabs do not light up on hover).
+    pub fn label_color(&self, active: bool) -> Color32 {
+        if active { self.text } else { self.inactive_text }
     }
 
     /// The width of a tab with these text widths: the padding, the icon, the label, the detail,
@@ -263,6 +279,13 @@ impl TabStyle {
             detail_cut: detail < metrics.detail,
         }
     }
+}
+
+/// The fill of the active tab, and of a tab under the pointer: `fill` with `radius` on the top
+/// corners. A dock group's tab and a document tab both paint through it.
+pub(crate) fn paint_active_fill(painter: &egui::Painter, rect: Rect, radius: f32, fill: Color32) {
+    let r = corner_radius(radius).nw;
+    painter.rect_filled(rect, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, fill);
 }
 
 /// Which parts of a tab are shown.
@@ -347,6 +370,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let p = &tokens.component.progress;
         TabStyle {
             height: t.height,
+            panel_height: t.panel_height,
             height_large: t.height_large,
             pad_x: t.pad_x,
             gap: t.gap,
@@ -367,14 +391,13 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             close_radius: tokens.shape.radius.control,
             strip: t.strip.to_egui(),
             active: t.active.to_egui(),
-            hover: t.hover.to_egui(),
             text: t.text.to_egui(),
             inactive_text: t.inactive_text.to_egui(),
             detail: t.detail.to_egui(),
             divider: Stroke::new(Hairline::Hairline.width(1.0), t.divider.to_egui()),
             close_color: t.close_text.to_egui(),
             close_hover: t.close_hover.to_egui(),
-            close_fill: tokens.color.state.hover.to_egui(),
+            close_fill: t.close_fill.to_egui(),
             drop: t.drop.to_egui(),
             track: p.track.to_egui(),
             fill: p.fill.to_egui(),
@@ -474,23 +497,12 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let tokens = Tokens::of(ui);
         let rtl = direction::is_rtl(ui);
         let ppp = ui.pixels_per_point();
-        let fill = if view.active {
-            Some(style.active)
-        } else if hovered {
-            Some(style.hover)
-        } else {
-            None
-        };
-        if let Some(fill) = fill {
-            let r = corner_radius(style.radius).nw;
-            ui.painter().rect_filled(rect, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, fill);
-        }
+        style.paint_surface(ui.painter(), rect, view.active || hovered);
         if view.divider && style.dividers {
             let x = if rtl { rect.left() + style.divider.width / 2.0 } else { rect.right() - style.divider.width / 2.0 };
             ui.painter().vline(x.round_to_pixel_center(ppp), rect.y_range(), style.divider);
         }
-        let lit = view.active || hovered;
-        let text = if lit { style.text } else { style.inactive_text };
+        let text = style.label_color(view.active);
         let large = view.large;
         let run = |ui: &Ui, at: Rect, text_role: TypeRole, string: &str, color: Color32| {
             if at.width() < 1.0 {

@@ -753,12 +753,17 @@ pub struct ListSizes {
 /// Sizes and looks of tabs that differ by Size preset.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TabSizes {
+    /// Height of a dock group's tab strip (PhotoCraft's panel tabs are 2 taller than its
+    /// document tabs).
+    pub panel_height: f32,
     /// Height of a strip with Large Tabs.
     pub height_large: f32,
     /// Least width of a panel tab before the strip overflows.
     pub min_width: f32,
     /// Side of the × hit box.
     pub close: f32,
+    /// Side of the × glyph.
+    pub close_icon: f32,
     /// The active and hovered tab's top corners are `radius.control` (square otherwise).
     pub rounded: bool,
     /// Document tabs have a divider at their trailing edge.

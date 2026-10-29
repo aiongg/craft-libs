@@ -467,7 +467,7 @@ fn dock_look() {
         d.line("drop_fill", l.drop_fill).line("ghost_fill", l.ghost_fill).line("ghost_stroke", l.ghost_stroke);
         d.line("tab_fill", l.tab_fill).line("grip_alpha", l.grip_alpha);
         d.line("background", l.background).line("border", l.border).line("tab_strip", l.tab_strip).line("tab_active", l.tab_active);
-        d.line("tab_hover", l.tab_hover).line("icon_selected", l.icon_selected).line("icon_selected_text", l.icon_selected_text);
+        d.line("tab_radius", l.tab_radius).line("icon_selected", l.icon_selected).line("icon_selected_text", l.icon_selected_text);
         d.line("text", l.text).line("inactive_text", l.inactive_text).line("resize", l.resize).line("drop", l.drop).line("focus", l.focus);
         d.line("floating_background", l.floating_background).line("floating_stroke", l.floating_stroke).line("blocked_dim", l.blocked_dim);
         d.line("floating_radius", l.floating_radius).line("floating_shadow", l.floating_shadow);
@@ -771,12 +771,17 @@ fn list_row() {
 fn tab() {
     check("tab.txt", |d, t| {
         let s = Tab::<u8>::style(t);
-        d.line("height", s.height).line("height_large", s.height_large).line("pad_x", s.pad_x).line("gap", s.gap).line("min_width", s.min_width);
+        d.line("height", s.height)
+            .line("panel_height", s.panel_height)
+            .line("height_large", s.height_large)
+            .line("pad_x", s.pad_x)
+            .line("gap", s.gap)
+            .line("min_width", s.min_width);
         d.line("close_box", s.close_box).line("close_icon", s.close_icon).line("overflow", s.overflow).line("radius", s.radius);
         d.line("dividers", s.dividers).line("drop_width", s.drop_width).line("progress_height", s.progress_height).line("tear_off", s.tear_off);
         d.line("icon_size", s.icon_size).line("label_role", role(s.label_role)).line("label_role_large", role(s.label_role_large));
         d.line("detail_role", role(s.detail_role)).line("close_radius", s.close_radius);
-        d.line("strip", s.strip).line("active", s.active).line("hover", s.hover).line("text", s.text).line("inactive_text", s.inactive_text);
+        d.line("strip", s.strip).line("active", s.active).line("text", s.text).line("inactive_text", s.inactive_text);
         d.line("detail", s.detail).line("divider", s.divider.color).line("close_color", s.close_color).line("close_hover", s.close_hover);
         d.line("close_fill", s.close_fill).line("drop", s.drop).line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
         d.line("track", s.track).line("fill", s.fill);

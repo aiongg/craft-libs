@@ -44,6 +44,7 @@
     "surface.canvas": "#a0a0a0",
     "surface.panel": "#b8b8b8",
     "surface.sunken": "#d6d6d6",
+    "tab.close.fill": "#00000000",
     "tab.strip": "#aaaaaa",
     "text.faint": "#606060",
     "text.muted": "#343434",

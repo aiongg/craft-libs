@@ -256,7 +256,6 @@ impl DockStyle {
             background: self.background,
             tab_strip: self.tab_background,
             tab_active: self.active_background,
-            tab_hover: self.active_background,
             icon_selected: self.active_background,
             text: self.text,
             inactive_text: self.inactive_text,

@@ -218,6 +218,32 @@ fn the_active_tab_takes_the_active_fill_and_the_text_colour() {
     assert_eq!(label_colour(&off, "Photo"), Some(s.inactive_text));
 }
 
+/// A tab under the pointer takes the active tab's fill, and its label stays the inactive colour
+/// (PhotoCraft's tabs do not light up).
+#[test]
+fn a_tab_under_the_pointer_takes_the_active_fill_and_keeps_its_label_colour() {
+    let s = style();
+    let tab = Tab::new(1u8, "Photo");
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut painted = Vec::new();
+    for frame in 0..3 {
+        let mut input = egui::RawInput::default();
+        if frame > 0 {
+            input.events.push(Event::PointerMoved(rect().center()));
+        }
+        let output = ctx.run_ui(input, |ui| {
+            let mut clicks = Clicks { tab: 0, close: 0 };
+            one_tab(ui, &mut clicks, &tab, false);
+        });
+        painted.clear();
+        output.shapes.iter().for_each(|s| flatten(&s.shape, &mut painted));
+        output.drop_without_applying_deltas();
+    }
+    assert_eq!(fills(&painted), [s.active]);
+    assert_eq!(label_colour(&painted, "Photo"), Some(s.inactive_text));
+}
+
 #[test]
 fn the_mark_detail_and_progress_are_drawn() {
     let s = style();

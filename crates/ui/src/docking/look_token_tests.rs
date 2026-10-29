@@ -20,7 +20,7 @@ fn compact_tokens_reproduce_the_literal_sizes() {
     themed(|ui, tokens| {
         assert_eq!(&DockLook::of(ui), tokens);
         let visuals = DockLook::from_visuals(&egui::Visuals::default());
-        assert_eq!(tokens.tab_height, visuals.tab_height);
+        assert_eq!(tokens.tab_height, 28.0);
         assert_eq!(tokens.gap, visuals.gap);
         assert_eq!(tokens.pad, visuals.pad);
         assert_eq!(tokens.tab_padding, visuals.tab_padding);
