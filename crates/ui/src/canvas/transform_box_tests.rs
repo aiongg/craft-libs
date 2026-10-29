@@ -42,6 +42,10 @@ struct Host {
     pass: usize,
     box_passes: Vec<usize>,
     typing_passes: Vec<usize>,
+    /// The modifiers the box reads in place of the input state.
+    modifiers: Option<Modifiers>,
+    /// The box rounds its corners to whole units; the host stores the emitted box unchanged.
+    pixel_grid: bool,
 }
 
 fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -66,6 +70,8 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
         pass: 0,
         box_passes: Vec::new(),
         typing_passes: Vec::new(),
+        modifiers: None,
+        pixel_grid: false,
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -94,7 +100,12 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
             let state = host.host.state;
-            let r = TransformBox::new("box", &state, english_names())
+            let mut b = TransformBox::new("box", &state, english_names());
+            if let Some(m) = host.modifiers {
+                b = b.modifiers(m);
+            }
+            let r = b
+                .pixel_grid(host.pixel_grid)
                 .rules(host.rules)
                 .rotate_zone(host.zone)
                 .inside_moves(host.inside_moves)
@@ -655,4 +666,63 @@ fn a_press_released_while_it_waited_runs_as_a_click() {
     assert_eq!(h.state().applied, 1, "and runs once");
     h.step();
     assert_eq!((h.state().applied, h.state().claimed), (1, false));
+}
+
+#[test]
+fn modifiers_override_replaces_the_input_modifiers_in_each_overlay() {
+    let (part, at) = (BoxPart::Corner(2), Point::new(300.0, 220.0));
+    for (input, held) in [(Modifiers::NONE, Modifiers::SHIFT), (Modifiers::SHIFT, Modifiers::NONE)] {
+        let mut h = harness(|host| host.modifiers = Some(held));
+        h.run();
+        let start = state(&h);
+        let (from, to) = (screen(&h, at), screen(&h, at) + vec2(40.0, 10.0));
+        let want = expected(&h, &start, part, from, to, held);
+        assert!(!near(&want, &expected(&h, &start, part, from, to, input)), "the two modifier sets drag differently");
+        drag(&mut h, from, to, input);
+        assert!(near(&state(&h), &want), "input {input:?}, override {held:?}: {:?}", state(&h));
+    }
+}
+
+/// Presses the bottom-right corner and moves in 30 steps to `by` away, the host feeding each
+/// emitted box back as `state`.
+fn grid_drag(h: &mut Harness<'_, Host>, steps: u8, by: egui::Vec2) -> (BoxState, Pos2, Pos2) {
+    let from = screen(h, Point::new(300.0, 220.0));
+    let to = from + by;
+    h.event(Event::PointerMoved(from));
+    h.event(button(from, true, Modifiers::NONE));
+    h.run();
+    for i in 1..=steps {
+        h.event(Event::PointerMoved(from.lerp(to, f32::from(i) / 30.0)));
+        h.run();
+    }
+    (state(h), from, to)
+}
+
+#[test]
+fn a_pixel_grid_box_fed_back_as_state_does_not_drift_over_a_drag() {
+    let mut h = harness(|host| host.pixel_grid = true);
+    h.run();
+    let start = state(&h);
+    let (shown, from, to) = grid_drag(&mut h, 30, vec2(30.4, 20.4));
+    h.event(button(to, false, Modifiers::NONE));
+    h.run();
+    assert!(!kinds(&h).contains(&"cancel"), "{:?}", kinds(&h));
+    let v = view(&h);
+    let exact = quad::drag(&start, &start, BoxPart::Corner(2), v.to_doc(from), v.to_doc(to), Modifiers::NONE, &h.state().rules);
+    let whole = |p: Point| Point::new(p.x.round(), p.y.round());
+    let want = BoxState { quad: exact.quad.map(whole), pivot: exact.pivot };
+    assert!(near(&shown, &want) && near(&state(&h), &want), "{shown:?} != {want:?}");
+    assert!(shown.quad.iter().zip(exact.quad).all(|(a, b)| a.distance(b) <= 0.71), "within the rounding of the exact box");
+    assert_eq!(kinds(&h).last(), Some(&"commit"));
+}
+
+#[test]
+fn an_external_change_during_a_pixel_grid_drag_still_cancels() {
+    let mut h = harness(|host| host.pixel_grid = true);
+    h.run();
+    grid_drag(&mut h, 10, vec2(30.4, 20.4));
+    h.state_mut().host.state = BoxState::from_rect(Rect::new(10.0, 10.0, 50.0, 50.0));
+    h.event(Event::PointerMoved(screen(&h, Point::new(330.0, 240.0))));
+    h.run();
+    assert_eq!(kinds(&h).last(), Some(&"cancel"), "{:?}", kinds(&h));
 }

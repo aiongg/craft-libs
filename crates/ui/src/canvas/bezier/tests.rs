@@ -6,8 +6,8 @@ use kurbo::{ParamCurve as _, ParamCurveDeriv as _, Point, Vec2};
 
 use super::story::PathHost;
 use super::{
-    BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS, PathEdit,
-    PathSelection,
+    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS,
+    PathEdit, PathSelection,
 };
 use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
@@ -32,6 +32,8 @@ struct Host {
     inserts: Vec<(u64, KnotRef, f64)>,
     deletes: Vec<(u64, Vec<KnotRef>)>,
     field: TypingField,
+    modifiers: Option<Modifiers>,
+    highlight: Option<BezierHit>,
 }
 
 /// Path 1: an open subpath of four anchors: a straight segment, then two curved ones.
@@ -68,6 +70,8 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         inserts: Vec::new(),
         deletes: Vec::new(),
         field: TypingField::default(),
+        modifiers: None,
+        highlight: None,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -79,10 +83,11 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
             let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
-            let response = BezierOverlay::new("paths", &host.paths.paths, &host.paths.selection, &px, &px, names)
-                .tool(host.tool)
-                .handles(host.handles)
-                .show(ui, &canvas, &view);
+            let mut overlay = BezierOverlay::new("paths", &host.paths.paths, &host.paths.selection, &px, &px, names);
+            if let Some(m) = host.modifiers {
+                overlay = overlay.modifiers(m);
+            }
+            let response = overlay.highlight(host.highlight).tool(host.tool).handles(host.handles).show(ui, &canvas, &view);
             if let Some(x) = host.guide {
                 let guides = [Guide::new(1, Orientation::Vertical, x)];
                 let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
@@ -555,4 +560,71 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
     assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
     assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
     assert!(h.state().field.commit_came_first());
+}
+
+#[test]
+fn modifiers_override_replaces_the_input_modifiers_in_the_overlay() {
+    let mut h = two_paths();
+    let (a1, a2) = (screen(&h, anchor(&h, 0, 0, 0)), screen(&h, anchor(&h, 0, 0, 1)));
+    click(&mut h, a1, Modifiers::NONE);
+    click(&mut h, a2, Modifiers::SHIFT);
+    h.state_mut().modifiers = Some(Modifiers::NONE);
+    // The input holds ⇧ after the press, which would keep the move at 45°; the override says none.
+    press(&mut h, a2, Modifiers::NONE);
+    move_to(&mut h, a2 + vec2(10.0, 0.0));
+    h.event(Event::ModifiersChanged(Modifiers::SHIFT));
+    move_to(&mut h, a2 + vec2(30.0, 26.0));
+    release(&mut h, a2 + vec2(30.0, 26.0));
+    let (_, by) = moved_by(last_edit(&h)).expect("a move");
+    assert!(near(by, Vec2::new(30.0, 26.0)), "{by:?}");
+}
+
+/// The filled squares of the last frame, by width.
+fn square_widths(h: &Harness<'_, Host>) -> Vec<f32> {
+    fn collect(shape: &Shape, out: &mut Vec<f32>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
+            Shape::Rect(rect) => out.push(rect.rect.width()),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    h.output().shapes.iter().for_each(|c| collect(&c.shape, &mut out));
+    out
+}
+
+/// The lines of the last frame stroked `width` wide in `color`.
+fn lines(h: &Harness<'_, Host>, width: f32, color: Color32) -> usize {
+    fn count(shape: &Shape, width: f32, color: Color32) -> usize {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().map(|s| count(s, width, color)).sum(),
+            Shape::Path(path) => usize::from((path.stroke.width - width).abs() < 1e-3 && path.stroke.color == egui::epaint::ColorMode::Solid(color)),
+            _ => 0,
+        }
+    }
+    h.output().shapes.iter().map(|c| count(&c.shape, width, color)).sum()
+}
+
+#[test]
+fn highlight_draws_the_hover_look_on_the_hit_only() {
+    let style = BezierOverlay::style(&current(&two_paths().ctx));
+    let enlarged = style.highlight_anchor + 2.0 * style.highlight_halo;
+    let ring = style.selected_segment + 2.0 * style.highlight_halo;
+
+    let mut h = two_paths();
+    assert!(!square_widths(&h).contains(&enlarged) && lines(&h, ring, style.halo) == 0, "nothing highlighted");
+
+    let point = BezierHit::Anchor { path: 1, knot: KnotRef::new(0, 1) };
+    h.state_mut().highlight = Some(point);
+    h.run();
+    let big = square_widths(&h).iter().filter(|w| (**w - enlarged).abs() < 1e-3).count();
+    assert_eq!(big, 1, "one enlarged anchor");
+    assert_eq!(lines(&h, ring, style.halo), 0, "no segment ring for a point");
+
+    let segment = BezierHit::Segment { path: 1, segment: KnotRef::new(0, 1), t: 0.5 };
+    h.state_mut().highlight = Some(segment);
+    h.run();
+    assert_eq!(lines(&h, ring, style.halo), 1, "the ring's halo under the segment");
+    assert_eq!(lines(&h, style.selected_segment, style.color), 1, "the ring");
+    assert!(!square_widths(&h).contains(&enlarged), "no enlarged anchor for a segment");
 }

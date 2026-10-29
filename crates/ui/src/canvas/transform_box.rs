@@ -198,6 +198,8 @@ pub struct TransformBox<'a> {
     snap: Option<Snap<'a>>,
     value: Option<String>,
     policy: EditPolicy,
+    modifiers: Option<Modifiers>,
+    pixel_grid: bool,
 }
 
 impl<'a> TransformBox<'a> {
@@ -216,6 +218,8 @@ impl<'a> TransformBox<'a> {
             snap: None,
             value: None,
             policy: EditPolicy::default(),
+            modifiers: None,
+            pixel_grid: false,
         }
     }
 
@@ -223,6 +227,23 @@ impl<'a> TransformBox<'a> {
     /// PhotoCraft's Free Transform by default.
     pub fn rules(mut self, rules: BoxRules) -> Self {
         self.rules = rules;
+        self
+    }
+
+    /// The modifiers every test of this box reads (the press, the drag, the host's snap) in place
+    /// of the input state: a touch host's sticky modifiers, or Ctrl turning snapping off.
+    pub fn modifiers(mut self, modifiers: Modifiers) -> Self {
+        self.modifiers = Some(modifiers);
+        self
+    }
+
+    /// Rounds the corners of each dragged box to whole document units (PhotoCraft's Snap
+    /// Transforms to Pixel Grid), so the host stores the emitted box unchanged. It rounds from the
+    /// gesture's start box and the pointer on every move, so it does not drift. Only an upright
+    /// rectangle (flips included) is rounded, and one that would collapse below a unit keeps its
+    /// exact corners. Keys are not rounded.
+    pub fn pixel_grid(mut self, on: bool) -> Self {
+        self.pixel_grid = on;
         self
     }
 
@@ -438,7 +459,7 @@ impl<'a> TransformBox<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let mods = ctx.input(|i| i.modifiers);
+        let mods = self.modifiers.unwrap_or_else(|| ctx.input(|i| i.modifiers));
         let screen = on_screen(view, self.state);
         let part = self.takes(&screen, press.origin, style, mods)?;
         if !Claim::take(ctx, canvas.id, id) {
@@ -491,7 +512,8 @@ impl<'a> TransformBox<'a> {
         if d.cancelled {
             return;
         }
-        let (pointer, down, mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let (pointer, down, input_mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let mods = self.modifiers.unwrap_or(input_mods);
         let mut far = false;
         if let Some(pointer) = pointer {
             let moved = pointer.distance(d.press.origin);
@@ -505,7 +527,11 @@ impl<'a> TransformBox<'a> {
                 let to = view.to_doc(pointer);
                 let to = self.snap.as_ref().map_or(to, |snap| snap(d.part, to, mods));
                 let last = *gesture.shown();
-                gesture.update(quad::drag(&d.start, &last, d.part, d.from, to, mods, &self.rules), mods);
+                let mut dragged = quad::drag(&d.start, &last, d.part, d.from, to, mods, &self.rules);
+                if self.pixel_grid {
+                    dragged = on_pixel_grid(dragged);
+                }
+                gesture.update(dragged, mods);
             }
         }
         if down {
@@ -844,6 +870,19 @@ pub(crate) fn english_names() -> TransformNames {
         edges: ["Top edge", "Right edge", "Bottom edge", "Left edge"].map(String::from),
         pivot: "Reference point".into(),
     }
+}
+
+/// `state` with its corners on whole units, when it is an upright rectangle of at least one unit
+/// each way; otherwise as it is. The reference point stays where it is.
+fn on_pixel_grid(state: BoxState) -> BoxState {
+    let q = state.quad;
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-6;
+    let upright = near(q[0].y, q[1].y) && near(q[2].y, q[3].y) && near(q[0].x, q[3].x) && near(q[1].x, q[2].x);
+    let rounded = q.map(|p| Point::new(p.x.round(), p.y.round()));
+    let ok = rounded.iter().all(|p| p.x.is_finite() && p.y.is_finite())
+        && (rounded[1].x - rounded[0].x).abs() >= 1.0
+        && (rounded[3].y - rounded[0].y).abs() >= 1.0;
+    if upright && ok { BoxState { quad: rounded, ..state } } else { state }
 }
 
 /// A host's open box, as the stories and tests keep it: updates shown as they come.

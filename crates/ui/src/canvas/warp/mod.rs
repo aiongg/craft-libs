@@ -7,7 +7,7 @@ use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Painter, Pos2, Response, S
 use kurbo::{BezPath, PathEl, Point, Rect, Vec2};
 
 use super::claim::PrimaryPress;
-use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit};
+use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit, resize_cursor};
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
@@ -117,20 +117,111 @@ impl WarpMesh {
         (0..self.height()).step_by(3).flat_map(move |j| (0..w).step_by(3).map(move |i| j * w + i))
     }
 
+    /// The chain of cubic segments along control row `j`.
+    fn row_path(&self, j: usize) -> BezPath {
+        chain((0..self.width()).map(|i| self.point(i, j)).collect())
+    }
+
+    /// The chain of cubic segments along control column `i`.
+    fn column_path(&self, i: usize) -> BezPath {
+        chain((0..self.height()).map(|j| self.point(i, j)).collect())
+    }
+
     /// The patch boundaries: each a chain of cubic segments along a row or a column of anchors.
     fn boundaries(&self) -> Vec<BezPath> {
-        let (w, h) = (self.width(), self.height());
-        let chain = |points: Vec<Point>| {
-            let mut path = BezPath::new();
-            path.move_to(points[0]);
-            for &[a, b, c] in points[1..].as_chunks::<3>().0 {
-                path.curve_to(a, b, c);
-            }
-            path
-        };
-        let rows = (0..h).step_by(3).map(|j| chain((0..w).map(|i| self.point(i, j)).collect()));
-        let columns = (0..w).step_by(3).map(|i| chain((0..h).map(|j| self.point(i, j)).collect()));
+        let rows = (0..self.height()).step_by(3).map(|j| self.row_path(j));
+        let columns = (0..self.width()).step_by(3).map(|i| self.column_path(i));
         rows.chain(columns).collect()
+    }
+
+    /// The mesh with a new line of anchors through patch row (`Crosswise`) or column
+    /// (`Lengthwise`) `index`, at parameter `t` (0 to 1) across it: the patches on that row or
+    /// column are cut by de Casteljau, so the surface is unchanged. An `index` past the mesh or a
+    /// `t` outside 0 to 1 leaves the mesh as it is.
+    pub fn split(&self, split: WarpSplit, index: usize, t: f64) -> WarpMesh {
+        let patches = match split {
+            WarpSplit::Crosswise => self.rows,
+            WarpSplit::Lengthwise => self.columns,
+        };
+        if !self.is_valid() || index >= patches || !(0.0..=1.0).contains(&t) {
+            return self.clone();
+        }
+        let (w, h) = (self.width(), self.height());
+        let cut = |p: [Point; 4]| {
+            let lerp = |a: Point, b: Point| Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+            let (a, b, c) = (lerp(p[0], p[1]), lerp(p[1], p[2]), lerp(p[2], p[3]));
+            let (d, e) = (lerp(a, b), lerp(b, c));
+            [a, d, lerp(d, e), e, c]
+        };
+        match split {
+            WarpSplit::Crosswise => {
+                let mut rows: Vec<Vec<Point>> = (0..h).map(|j| (0..w).map(|i| self.point(i, j)).collect()).collect();
+                let at = 3 * index;
+                let cuts: Vec<[Point; 5]> = (0..w).map(|i| cut(std::array::from_fn(|k| self.point(i, at + k)))).collect();
+                let inserted: Vec<Vec<Point>> = (0..5).map(|k| cuts.iter().map(|c| c[k]).collect()).collect();
+                rows.splice(at + 1..at + 3, inserted);
+                WarpMesh { columns: self.columns, rows: self.rows + 1, points: rows.concat() }
+            }
+            WarpSplit::Lengthwise => {
+                let at = 3 * index;
+                let mut points = Vec::with_capacity((w + 3) * h);
+                for j in 0..h {
+                    let row: [Point; 4] = std::array::from_fn(|k| self.point(at + k, j));
+                    let cuts = cut(row);
+                    points.extend((0..=at).map(|i| self.point(i, j)));
+                    points.extend(cuts);
+                    points.extend((at + 3..w).map(|i| self.point(i, j)));
+                }
+                WarpMesh { columns: self.columns + 1, rows: self.rows, points }
+            }
+        }
+    }
+
+    /// The point of the surface nearest to document point `p`: its patch column and row, its
+    /// parameters `(u, v)` in that patch and its distance from `p`.
+    fn nearest(&self, p: Point) -> (usize, usize, f64, f64, f64) {
+        const COARSE: usize = 8;
+        const ROUNDS: usize = 10;
+        let mut best = (0, 0, 0.0, 0.0, f64::INFINITY);
+        for row in 0..self.rows {
+            for column in 0..self.columns {
+                let at = |u: f64, v: f64| self.patch_point(column, row, u, v).distance(p);
+                let mut found = (0.5, 0.5, f64::INFINITY);
+                for j in 0..=COARSE {
+                    for i in 0..=COARSE {
+                        let (u, v) = (i as f64 / COARSE as f64, j as f64 / COARSE as f64);
+                        let d = at(u, v);
+                        if d < found.2 {
+                            found = (u, v, d);
+                        }
+                    }
+                }
+                let mut reach = 1.0 / COARSE as f64;
+                for _ in 0..ROUNDS {
+                    let (cu, cv) = (found.0, found.1);
+                    for j in -2..=2 {
+                        for i in -2..=2 {
+                            let (u, v) = ((cu + f64::from(i) * reach / 2.0).clamp(0.0, 1.0), (cv + f64::from(j) * reach / 2.0).clamp(0.0, 1.0));
+                            let d = at(u, v);
+                            if d < found.2 {
+                                found = (u, v, d);
+                            }
+                        }
+                    }
+                    reach /= 2.0;
+                }
+                if found.2 < best.4 {
+                    best = (column, row, found.0, found.1, found.2);
+                }
+            }
+        }
+        best
+    }
+
+    /// The surface point of patch (`column`, `row`) at `(u, v)`.
+    fn patch_point(&self, column: usize, row: usize, u: f64, v: f64) -> Point {
+        let across: [Point; 4] = std::array::from_fn(|j| cubic(std::array::from_fn(|i| self.point(3 * column + i, 3 * row + j)), u));
+        cubic(across, v)
     }
 
     /// A one-patch mesh's rule-of-thirds curves: the patch at a third and two thirds across, each
@@ -151,11 +242,43 @@ impl WarpMesh {
     }
 }
 
+/// The cubic segments through `points`, the first the start and every three after the next
+/// segment's controls and end.
+fn chain(points: Vec<Point>) -> BezPath {
+    let mut path = BezPath::new();
+    path.move_to(points[0]);
+    for &[a, b, c] in points[1..].as_chunks::<3>().0 {
+        path.curve_to(a, b, c);
+    }
+    path
+}
+
 /// The cubic Bézier through control points `p` at `t`.
 fn cubic(p: [Point; 4], t: f64) -> Point {
     let s = 1.0 - t;
     let b = [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t];
     Point::new(p.iter().zip(b).map(|(p, b)| p.x * b).sum(), p.iter().zip(b).map(|(p, b)| p.y * b).sum())
+}
+
+/// Which way a new line of anchors cuts a warp mesh ([`WarpGrid::split`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WarpSplit {
+    /// A line across the mesh, along its rows: it cuts a patch row in two and adds a row of
+    /// anchors.
+    Crosswise,
+    /// A line down the mesh, along its columns: it cuts a patch column in two and adds a column
+    /// of anchors.
+    Lengthwise,
+}
+
+impl WarpSplit {
+    /// The other direction (Alt held).
+    pub fn toggled(self) -> Self {
+        match self {
+            WarpSplit::Crosswise => WarpSplit::Lengthwise,
+            WarpSplit::Lengthwise => WarpSplit::Crosswise,
+        }
+    }
 }
 
 /// A warp drag or nudge, in document units. A drag's `by` is the whole move from its press, which
@@ -167,6 +290,9 @@ pub enum WarpEdit {
     Point { index: usize, by: Vec2 },
     /// Pull the surface at the host's parameters `(s, t)` ([`WarpGrid::surface`]).
     Surface { s: f64, t: f64, by: Vec2 },
+    /// Insert a line of anchors: the host's mesh becomes [`WarpMesh::split`] of itself with these
+    /// arguments. Always a [`Set`](EditEvent::Set).
+    Split { split: WarpSplit, index: usize, t: f64 },
 }
 
 /// The AccessKit names of a warp mesh's parts, the host's translated text.
@@ -205,6 +331,8 @@ pub struct WarpStyle {
     pub control: HandleStyle,
     /// The arm from an anchor to a shown handle: `transform.warp_minor` of `overlay.handle_stroke`.
     pub arm: Stroke,
+    /// The preview of a split line: `transform.line` of `overlay.stroke`.
+    pub split: Stroke,
     /// Distance from an anchor or a handle within which a press takes it: `transform.hit`.
     pub hit: f32,
     /// Distance from the pointer within which a handle and its arm show, measured to the handle
@@ -295,6 +423,7 @@ pub struct WarpGrid<'a> {
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     zero: Point,
     steps: (f64, f64),
+    split: Option<WarpSplit>,
     policy: EditPolicy,
 }
 
@@ -310,6 +439,7 @@ impl<'a> WarpGrid<'a> {
             units: None,
             zero: Point::ZERO,
             steps: (nudge::STEP, nudge::BIG_STEP),
+            split: None,
             policy: EditPolicy::default(),
         }
     }
@@ -347,6 +477,18 @@ impl<'a> WarpGrid<'a> {
         self
     }
 
+    /// The split tool, when one is active (PhotoCraft's Split Warp): a hover over the surface
+    /// previews the new line across the patch under the pointer, and a press and release inserts
+    /// it where the pointer is released, as one [`WarpEdit::Split`] [`Set`](EditEvent::Set).
+    /// Alt switches between [`Crosswise`](WarpSplit::Crosswise) and
+    /// [`Lengthwise`](WarpSplit::Lengthwise). While a tool is set presses neither drag points nor
+    /// pull the surface; the pointer is the resize arrow across the line, and a pointer on an
+    /// existing line previews and inserts nothing.
+    pub fn split(mut self, tool: Option<WarpSplit>) -> Self {
+        self.split = tool;
+        self
+    }
+
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -361,6 +503,7 @@ impl<'a> WarpGrid<'a> {
             anchor: HandleStyle { size: t.warp_anchor, ..Handle::style(tokens, HandleShape::Square) },
             control: HandleStyle { size: t.warp_control, ..Handle::style(tokens, HandleShape::Round) },
             arm: Stroke::new(t.warp_minor, o.handle_stroke.to_egui()),
+            split: Stroke::new(t.line, o.stroke.to_egui()),
             hit: t.hit,
             reveal: t.warp_reveal,
             flatten: tokens.component.bezier.flatten,
@@ -401,7 +544,8 @@ impl<'a> WarpGrid<'a> {
                 Turn::Now => None,
             };
         }
-        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editable {
+        let splitting = editable && self.split.is_some();
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editable && !splitting {
             drag = self.press(&ctx, canvas, view, &screen, &style, id);
             starts = drag.is_some_and(|d| !d.waits);
         }
@@ -436,7 +580,11 @@ impl<'a> WarpGrid<'a> {
         {
             gesture.set(WarpEdit::Point { index, by });
         }
-        if editable {
+        let preview = match self.split {
+            Some(tool) if editable => self.split_pass(&ctx, canvas, view, id, tool, &mut gesture),
+            _ => None,
+        };
+        if editable && !splitting {
             self.cursor(&ctx, canvas, view, &screen, &style, drag);
         }
 
@@ -464,6 +612,10 @@ impl<'a> WarpGrid<'a> {
         });
         let kept = picked.filter(|_| focus.focused).and_then(|i| self.mesh.anchor_of(i));
         self.paint(ui, view, &screen, &style, editable, [dragged, kept]);
+        if let Some(at) = preview {
+            let path = view.affine() * at.line(self.mesh);
+            stroke_path(&ui.painter_at(view.rect), path, f64::from(style.flatten), style.split);
+        }
         if focus.keyboard
             && let Some(index) = picked
         {
@@ -471,6 +623,84 @@ impl<'a> WarpGrid<'a> {
             PartFocus::ring(&ui.painter_at(view.rect), egui::Rect::from_center_size(screen[index], vec2(size, size)));
         }
         out
+    }
+
+    /// One pass of the split tool: takes a press on the surface, inserts at its release, sets the
+    /// pointer and returns the line the pointer would insert.
+    fn split_pass(
+        &self,
+        ctx: &Context,
+        canvas: &Response,
+        view: &CanvasView,
+        id: Id,
+        tool: WarpSplit,
+        gesture: &mut Gesture<WarpEdit>,
+    ) -> Option<SplitAt> {
+        let key = id.with("craft_ui::canvas::WarpGrid::split_press");
+        let (pointer, mods) = ctx.input(|i| (i.pointer.latest_pos(), i.modifiers));
+        let tool = if mods.alt { tool.toggled() } else { tool };
+        let at = |p: Pos2| self.split_at(view, tool, p);
+        let mut press: Option<PrimaryPress> = ctx.data(|d| d.get_temp(key)).filter(|p: &PrimaryPress| p.holds(ctx));
+        if press.is_none()
+            && ctx.input(|i| i.pointer.primary_pressed())
+            && let Some(current) = PrimaryPress::current(ctx)
+            && view.rect.contains(current.origin)
+            && canvas.contains_pointer()
+            && at(current.origin).is_some()
+            && Claim::take(ctx, canvas.id, id)
+        {
+            press = Some(current);
+        }
+        if press.is_some() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            press = None;
+        }
+        if press.is_some() && ctx.input(|i| i.pointer.primary_released()) {
+            if let Some(split) = pointer.and_then(at) {
+                gesture.set(split.edit());
+            }
+            press = None;
+        }
+        ctx.data_mut(|d| match press {
+            Some(p) => {
+                d.insert_temp(key, p);
+            }
+            None => d.remove::<PrimaryPress>(key),
+        });
+        let over = canvas.hover_pos().or(pointer).filter(|p| view.rect.contains(*p) && canvas.contains_pointer());
+        let hover = over.and_then(at).filter(|_| press.is_some() || Claim::owner(ctx, canvas.id).is_none());
+        if let Some(split) = &hover {
+            ctx.set_cursor_icon(resize_cursor(view, split.across));
+        }
+        hover
+    }
+
+    /// Where the split `tool` would cut for a pointer at screen point `p`: `None` off the surface
+    /// and on an existing line.
+    fn split_at(&self, view: &CanvasView, tool: WarpSplit, p: Pos2) -> Option<SplitAt> {
+        const EDGE: f64 = 0.01;
+        let doc = view.to_doc(p);
+        let (column, row, u, v, distance) = self.mesh.nearest(doc);
+        if distance * view.zoom > 1.0 {
+            return None;
+        }
+        let (index, t) = match tool {
+            WarpSplit::Crosswise => (row, v),
+            WarpSplit::Lengthwise => (column, u),
+        };
+        if !(EDGE..=1.0 - EDGE).contains(&t) {
+            return None;
+        }
+        // The way the line moves as `t` grows, for the arrow across it.
+        let step = 1e-3;
+        let (a, b) = match tool {
+            WarpSplit::Crosswise => {
+                (self.mesh.patch_point(column, row, u, (v - step).max(0.0)), self.mesh.patch_point(column, row, u, (v + step).min(1.0)))
+            }
+            WarpSplit::Lengthwise => {
+                (self.mesh.patch_point(column, row, (u - step).max(0.0), v), self.mesh.patch_point(column, row, (u + step).min(1.0), v))
+            }
+        };
+        Some(SplitAt { split: tool, index, t, across: b - a })
     }
 
     /// A press on the canvas: the nearest point within reach, else the surface under it, claimed
@@ -611,6 +841,31 @@ impl<'a> WarpGrid<'a> {
         }
         for p in ends {
             painter.extend(Handle::shapes_with(&style.control, HandleShape::Round, p, ppp));
+        }
+    }
+}
+
+/// A split line the pointer would insert.
+#[derive(Clone, Copy, Debug)]
+struct SplitAt {
+    split: WarpSplit,
+    index: usize,
+    t: f64,
+    /// The document direction across the line.
+    across: Vec2,
+}
+
+impl SplitAt {
+    fn edit(&self) -> WarpEdit {
+        WarpEdit::Split { split: self.split, index: self.index, t: self.t }
+    }
+
+    /// The new line of `mesh`, in document units.
+    fn line(&self, mesh: &WarpMesh) -> BezPath {
+        let split = mesh.split(self.split, self.index, self.t);
+        match self.split {
+            WarpSplit::Crosswise => split.row_path(3 * self.index + 3),
+            WarpSplit::Lengthwise => split.column_path(3 * self.index + 3),
         }
     }
 }

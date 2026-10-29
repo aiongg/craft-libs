@@ -1,11 +1,16 @@
 //! [`Histogram`]: a plot of bins, one tone channel or RGB ribbons.
 
-use craft_theme::{Mode, Rgba};
+use craft_theme::{Mode, Rgba, TypeRole};
 use egui::accesskit::Role;
-use egui::{Color32, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+use egui::{
+    Color32, CornerRadius, CursorIcon, EventFilter, Key, Mesh, Modifiers, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo,
+    pos2, vec2,
+};
+use std::ops::RangeInclusive;
 
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
+use crate::primitives::{Corner, FocusRing};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, tokens_in_mode};
 
@@ -110,7 +115,7 @@ pub enum HistogramLook {
     Tone,
     /// The tone look at `histogram.backdrop_alpha`, to sit behind a curve.
     Backdrop,
-    /// Three overlapping ribbons: filled bands with exact overlap colours and an outline each.
+    /// Overlapping ribbons: filled bands with exact overlap colours and an outline each.
     Rgb,
 }
 
@@ -142,7 +147,16 @@ pub struct HistogramData {
 #[derive(Clone, Debug, PartialEq)]
 enum Plot {
     Tone { bins: Vec<f32>, channel: ChannelColor },
-    Rgb([Vec<f32>; 3]),
+    Channels { channels: Vec<(Vec<f32>, ChannelColor)>, blend: Blend },
+}
+
+/// How the fills of overlapping channels combine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Blend {
+    /// Channel-wise maximum: light on the dark scope (red, green and blue).
+    Max,
+    /// Channel-wise product: inks on paper.
+    Multiply,
 }
 
 impl HistogramData {
@@ -153,7 +167,16 @@ impl HistogramData {
 
     /// Red, green and blue bins, drawn as ribbons. The three slices should have one length.
     pub fn rgb<B: BinCount>(channels: [&[B]; 3]) -> Self {
-        Self { plot: Plot::Rgb(channels.map(|c| c.iter().map(|b| b.height()).collect())), scale: HistogramScale::Peak }
+        let colors = [ChannelColor::Red, ChannelColor::Green, ChannelColor::Blue];
+        let channels = channels.iter().zip(colors).map(|(bins, color)| (bins.iter().map(|b| b.height()).collect(), color)).collect();
+        Self { plot: Plot::Channels { channels, blend: Blend::Max }, scale: HistogramScale::Peak }
+    }
+
+    /// Any number of channels, each `(bins, color)`, as ribbons whose fills multiply where they
+    /// overlap: the inks of a CMYK or spot-colour image. The slices should have one length.
+    pub fn channels<B: BinCount>(channels: &[(&[B], ChannelColor)]) -> Self {
+        let channels = channels.iter().take(MAX_CHANNELS).map(|(bins, color)| (bins.iter().map(|b| b.height()).collect(), *color)).collect();
+        Self { plot: Plot::Channels { channels, blend: Blend::Multiply }, scale: HistogramScale::Peak }
     }
 
     /// How tall the bins are drawn; [`HistogramScale::Peak`] by default.
@@ -182,6 +205,9 @@ pub struct HistogramStyle {
     /// `data.green`, `data.blue`. [`Histogram::show`] reads them from the dark mode's tokens, since
     /// the scope is dark in every theme.
     pub ribbons: [Color32; 3],
+    /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
+    /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
+    pub inks: [Color32; 7],
     /// Alpha of the ribbons' fills: `histogram.fill_alpha`.
     pub fill_alpha: f32,
     /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
@@ -203,10 +229,16 @@ impl HistogramStyle {
     pub fn tone(&self, channel: ChannelColor) -> Color32 {
         self.tones[channel as usize]
     }
+
+    /// The ribbon colour of `channel` on the scope.
+    pub fn ink(&self, channel: ChannelColor) -> Color32 {
+        self.inks[channel as usize]
+    }
 }
 
-/// A plot of bins: one tone channel (Levels, the Histogram panel) or red, green and blue ribbons
-/// (Camera Raw). It is not interactive and not focusable.
+/// A plot of bins: one tone channel (Levels, the Histogram panel) or overlapping ribbons (Camera
+/// Raw's red, green and blue, a print's inks). It senses nothing and takes no focus unless the host
+/// asks for [`selection`](Histogram::selection) or [`on_stale_click`](Histogram::on_stale_click).
 ///
 /// ```
 /// use craft_ui::composites::{ChannelColor, Histogram};
@@ -219,13 +251,20 @@ impl HistogramStyle {
 /// - **Bins:** any count, drawn across the plot width, each bin centred in its slot.
 /// - **Tone look:** a filled area on `field.fill` with `field.border.rest`, in the channel's data
 ///   token (`text.muted` for neutral).
-/// - **RGB look:** the bins smoothed for display with the five-bin binomial kernel (the two edge
-///   bins pinned), one shared scale, fills at `histogram.fill_alpha` whose overlaps take the
-///   channel-wise maximum of the channel colours, and a `histogram.line` outline per channel.
-///   The plot sits on `data.scope` and draws the dark mode's `data.red`, `green` and `blue`.
-/// - **Marker:** a 2 pt band at a level; **stale:** a warning icon at the top trailing corner
-///   with a tooltip.
-/// - **AccessKit:** one `Image` node named by the label, whose value is [`value`](Histogram::value).
+/// - **RGB look** ([`rgb`](Histogram::rgb), [`channels`](Histogram::channels)): the bins smoothed
+///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale,
+///   fills at `histogram.fill_alpha` and a `histogram.line` outline per channel. Where fills
+///   overlap, `rgb` takes the channel-wise maximum of the channel colours and `channels` their
+///   product. The plot sits on `data.scope` and draws the dark mode's data colours.
+/// - **Outline:** the original histogram as a `histogram.line` line over the plot.
+/// - **Marker, markers:** a 2 pt band at a level; markers add a caption beside the band.
+/// - **Selection:** a band over a range of levels with 2 pt edges, dragged with the pointer or
+///   moved with the arrow keys (Shift moves the start edge) while the plot has focus. Levels are
+///   bin positions, whole numbers.
+/// - **Stale:** a warning icon at the top trailing corner with a tooltip; with
+///   [`on_stale_click`](Histogram::on_stale_click) it is a button.
+/// - **AccessKit:** one `Image` node named by the label, whose value is [`value`](Histogram::value);
+///   the stale mark and each marker caption are named nodes too.
 #[must_use = "show the histogram with `show`"]
 pub struct Histogram {
     id_salt: egui::IdSalt,
@@ -233,10 +272,40 @@ pub struct Histogram {
     data: Option<HistogramData>,
     value: Option<String>,
     marker: Option<f32>,
+    markers: Vec<(f32, String)>,
+    outline: Option<(Vec<f32>, ChannelColor)>,
+    selection: Option<Option<RangeInclusive<f32>>>,
     stale: bool,
     stale_label: String,
+    stale_click: Option<String>,
     height: Option<f32>,
 }
+
+/// What [`Histogram::show`] returns. It dereferences to the plot's [`egui::Response`].
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct HistogramResponse {
+    /// The plot's response.
+    pub response: egui::Response,
+    /// The range the user set this frame by dragging or with the keys, in levels; `None` when
+    /// [`Histogram::selection`] is off or the user changed nothing.
+    pub selection: Option<RangeInclusive<f32>>,
+    /// The stale mark was clicked; only with [`Histogram::on_stale_click`].
+    pub clicked: bool,
+}
+
+impl std::ops::Deref for HistogramResponse {
+    type Target = egui::Response;
+
+    fn deref(&self) -> &egui::Response {
+        &self.response
+    }
+}
+
+/// Channels a plot draws; the overlap masks are 32-bit.
+const MAX_CHANNELS: usize = 32;
+
+const SELECTION_KEYS: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
 
 impl Histogram {
     /// An empty histogram named `label`. `id_salt` is its id.
@@ -247,8 +316,12 @@ impl Histogram {
             data: None,
             value: None,
             marker: None,
+            markers: Vec::new(),
+            outline: None,
+            selection: None,
             stale: false,
             stale_label: "Cached data".to_owned(),
+            stale_click: None,
             height: None,
         }
     }
@@ -265,6 +338,13 @@ impl Histogram {
         self
     }
 
+    /// Any number of channels (inks), each `(bins, color)`, in the RGB look with the fills
+    /// multiplied where they overlap.
+    pub fn channels<B: BinCount>(mut self, channels: &[(&[B], ChannelColor)]) -> Self {
+        self.data = Some(HistogramData::channels(channels));
+        self
+    }
+
     /// Bins in either look, as a host keeps them.
     pub(super) fn data(mut self, data: HistogramData) -> Self {
         self.data = Some(data);
@@ -277,10 +357,34 @@ impl Histogram {
         self
     }
 
+    /// An outline of the original histogram over the current one, in `channel`'s colour. In the
+    /// tone look it shares the plot's scale (the taller of the two sets it); in the RGB look it has
+    /// its own.
+    pub fn outline<B: BinCount>(mut self, bins: &[B], channel: ChannelColor) -> Self {
+        self.outline = Some((bins.iter().map(|b| b.height()).collect(), channel));
+        self
+    }
+
     /// A marker at `level`, a position in bins (a bin's centre is its index): the sampled pixel's
     /// tone in PhotoCraft.
     pub fn marker(mut self, level: Option<f32>) -> Self {
         self.marker = level;
+        self
+    }
+
+    /// Labelled markers, each `(level, caption)`: the black point, white point and mid of a
+    /// levels adjustment. The caption is drawn beside the band, at the top, on the side with room;
+    /// the host translates it.
+    pub fn markers(mut self, markers: &[(f32, String)]) -> Self {
+        self.markers = markers.to_vec();
+        self
+    }
+
+    /// A selected range of levels (bin positions) that the user changes by dragging over the plot
+    /// or with the arrow keys; `None` is no selection yet. The new range is
+    /// [`HistogramResponse::selection`]; the host stores it and passes it back.
+    pub fn selection(mut self, range: Option<RangeInclusive<f32>>) -> Self {
+        self.selection = Some(range);
         self
     }
 
@@ -294,6 +398,14 @@ impl Histogram {
     /// translates it.
     pub fn stale_label(mut self, label: impl Into<String>) -> Self {
         self.stale_label = label.into();
+        self
+    }
+
+    /// Makes the stale mark a button named `label` ("Recalculate"), reported as
+    /// [`HistogramResponse::clicked`]. It replaces [`stale_label`](Histogram::stale_label) as the
+    /// mark's name and tooltip.
+    pub fn on_stale_click(mut self, label: impl Into<String>) -> Self {
+        self.stale_click = Some(label.into());
         self
     }
 
@@ -320,6 +432,7 @@ impl Histogram {
             scope: d.scope.to_egui(),
             tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
+            inks: ChannelColor::ALL.map(|c| c.color(tokens)),
             fill_alpha: h.fill_alpha,
             backdrop_alpha: h.backdrop_alpha,
             line: h.line,
@@ -339,47 +452,133 @@ impl Histogram {
         painter.extend(plot_shapes(rect, data, look, &Histogram::style(tokens)));
     }
 
-    /// Shows the histogram across the available width. The response senses nothing.
-    pub fn show(self, ui: &mut Ui) -> egui::Response {
+    /// Shows the histogram across the available width.
+    pub fn show(self, ui: &mut Ui) -> HistogramResponse {
         let tokens = Tokens::of(ui);
         let mut style = Histogram::style(&tokens);
-        let rgb = matches!(self.data, Some(HistogramData { plot: Plot::Rgb(_), .. }));
+        let rgb = matches!(self.data, Some(HistogramData { plot: Plot::Channels { .. }, .. }));
         if rgb {
-            style.ribbons = Histogram::style(&tokens_in_mode(ui.ctx(), Mode::Dark)).ribbons;
+            let dark = Histogram::style(&tokens_in_mode(ui.ctx(), Mode::Dark));
+            (style.ribbons, style.inks) = (dark.ribbons, dark.inks);
         }
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), self.height.unwrap_or(style.height)), Sense::hover());
         let id = ui.make_persistent_id(self.id_salt);
-        let response = ui.interact(rect, id, Sense::hover());
+        let bins = self.data.as_ref().map_or(0, HistogramData::bin_count);
+        let selectable = self.selection.is_some() && bins > 0 && ui.is_enabled();
+        let response = ui.interact(rect, id, if selectable { Sense::click_and_drag() } else { Sense::hover() });
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label);
             info.current_text_value.clone_from(&self.value);
             info
         });
-        if !ui.is_rect_visible(rect) {
-            return response;
-        }
-        let painter = ui.painter().with_clip_rect(rect);
-        painter.rect_filled(rect, 0.0, if rgb { style.scope } else { style.fill });
-        if let Some(data) = &self.data {
-            let look = if rgb { HistogramLook::Rgb } else { HistogramLook::Tone };
-            painter.extend(plot_shapes(rect, data, look, &style));
-            if let Some(level) = self.marker {
-                let color = if rgb { overlap(&style.ribbons, 0b111).gamma_multiply(style.marker_alpha) } else { style.marker };
-                painter.extend(marker_shapes(rect, data.bin_count(), level, style.marker_width, color));
+        let selection = if selectable { self.edit_selection(ui, &response, rect, bins) } else { None };
+        let shown = selection.clone().or_else(|| self.selection.clone().flatten());
+        let mut clicked = false;
+        if ui.is_rect_visible(rect) {
+            let painter = ui.painter().with_clip_rect(rect);
+            painter.rect_filled(rect, 0.0, if rgb { style.scope } else { style.fill });
+            if let Some(data) = &self.data {
+                let look = if rgb { HistogramLook::Rgb } else { HistogramLook::Tone };
+                painter.extend(plot_shapes(rect, data, look, &style));
+                if let Some((bins, channel)) = &self.outline {
+                    painter.extend(outline_shapes(rect, data, bins, *channel, &style));
+                }
+                let (color, solid) = if rgb {
+                    let solid = overlap(&style.ribbons, 0b111);
+                    (solid.gamma_multiply(style.marker_alpha), solid)
+                } else {
+                    (style.marker, tokens.color.text.normal.to_egui())
+                };
+                if let Some(range) = &shown {
+                    painter.extend(selection_shapes(rect, bins, range, style.marker_width, color));
+                }
+                if let Some(level) = self.marker {
+                    painter.extend(marker_shapes(rect, bins, level, style.marker_width, color));
+                }
+                for (i, (level, caption)) in self.markers.iter().enumerate() {
+                    painter.extend(marker_shapes(rect, bins, *level, style.marker_width, color));
+                    Self::caption(ui, id.with(("marker", i)), rect, level_x(rect, bins, *level), caption, solid, &tokens);
+                }
+            }
+            painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
+            if selectable {
+                FocusRing::paint_radius(ui, rect, CornerRadius::ZERO, &response);
+            }
+            if self.stale {
+                clicked = self.stale_mark(ui, id, rect, &tokens, style.stale);
             }
         }
-        painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
-        if self.stale {
-            let side = IconSize::Sm.points(&tokens);
-            let gap = tokens.space.gap.inline;
-            let x = direction::end_x(ui, rect) - direction::forward(ui) * (gap + side / 2.0);
-            let mark = Rect::from_center_size(pos2(x, rect.top() + gap + side / 2.0), vec2(side, side));
-            icons::paint(ui, mark, Icon::Warning, IconSize::Sm, style.stale);
-            let stale = ui.interact(mark, id.with("stale"), Sense::hover());
-            stale.widget_info(|| WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.stale_label));
-            stale.on_hover_text(&self.stale_label);
+        HistogramResponse { response, selection, clicked }
+    }
+
+    /// The range the pointer or keys set this frame.
+    fn edit_selection(&self, ui: &Ui, response: &egui::Response, rect: Rect, bins: usize) -> Option<RangeInclusive<f32>> {
+        let current = self.selection.clone().flatten();
+        let level = |x: f32| level_at(rect, bins, x);
+        let mut changed = None;
+        if response.hovered() || response.dragged() {
+            ui.set_cursor_icon(CursorIcon::Crosshair);
         }
-        response
+        if response.dragged()
+            && let Some((from, to)) = ui.input(|i| i.pointer.press_origin().zip(i.pointer.interact_pos()))
+        {
+            let (a, b) = (level(from.x), level(to.x));
+            changed = Some(a.min(b)..=a.max(b));
+        }
+        if response.has_focus() {
+            ui.memory_mut(|m| m.set_focus_lock_filter(response.id, SELECTION_KEYS));
+            let (start_step, end_step) = ui.input_mut(|i| {
+                let mut step = |modifiers| i8::from(i.consume_key(modifiers, Key::ArrowRight)) - i8::from(i.consume_key(modifiers, Key::ArrowLeft));
+                let start = step(Modifiers::SHIFT);
+                (start, step(Modifiers::NONE))
+            });
+            if (start_step, end_step) != (0, 0) {
+                let middle = self.marker.unwrap_or((bins as f32 - 1.0) / 2.0).round();
+                let range = current.unwrap_or(middle..=middle);
+                let last = bins as f32 - 1.0;
+                let start = (range.start() + f32::from(start_step)).clamp(0.0, last);
+                let end = (range.end() + f32::from(end_step)).clamp(0.0, last);
+                changed = Some(start.min(end)..=start.max(end));
+            }
+        }
+        changed
+    }
+
+    /// Paints a marker's caption beside its band and names it for screen readers.
+    fn caption(ui: &Ui, id: egui::Id, rect: Rect, x: f32, caption: &str, color: Color32, tokens: &UiTokens) {
+        if !usable(rect) || !x.is_finite() {
+            return;
+        }
+        let gap = tokens.space.gap.inline;
+        let galley = ui.painter().layout_no_wrap(caption.to_owned(), tokens.font(TypeRole::Caption), color);
+        let after = x + gap;
+        let left = if after + galley.size().x <= rect.right() { after } else { (x - gap - galley.size().x).max(rect.left()) };
+        let at = pos2(left, rect.top() + gap);
+        let area = Rect::from_min_size(at, galley.size()).intersect(rect);
+        ui.painter().with_clip_rect(rect).galley(at, galley, color);
+        let node = ui.interact(area, id, Sense::hover());
+        node.widget_info(|| WidgetInfo::labeled(Role::Image, ui.is_enabled(), caption));
+    }
+
+    /// The stale mark; true when it was clicked.
+    fn stale_mark(&self, ui: &Ui, id: egui::Id, rect: Rect, tokens: &UiTokens, color: Color32) -> bool {
+        let side = IconSize::Sm.points(tokens);
+        let gap = tokens.space.gap.inline;
+        let x = direction::end_x(ui, rect) - direction::forward(ui) * (gap + side / 2.0);
+        let mark = Rect::from_center_size(pos2(x, rect.top() + gap + side / 2.0), vec2(side, side));
+        icons::paint(ui, mark, Icon::Warning, IconSize::Sm, color);
+        let (sense, role, label) = match &self.stale_click {
+            Some(label) => (Sense::click(), Role::Button, label),
+            None => (Sense::hover(), Role::Image, &self.stale_label),
+        };
+        let stale = ui.interact(mark, id.with("stale"), sense);
+        stale.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), label));
+        if self.stale_click.is_some() {
+            FocusRing::paint(ui, mark, Corner::Control, &stale);
+        }
+        let clicked = stale.clicked();
+        stale.on_hover_text(label);
+        clicked
     }
 }
 
@@ -387,14 +586,14 @@ impl HistogramData {
     fn bin_count(&self) -> usize {
         match &self.plot {
             Plot::Tone { bins, .. } => bins.len(),
-            Plot::Rgb(channels) => channels[0].len(),
+            Plot::Channels { channels, .. } => channels.first().map_or(0, |(bins, _)| bins.len()),
         }
     }
 }
 
 /// The colour of the area under every channel of `mask` (bit `c` for channel `c`): the
 /// channel-wise maximum of their colours, which doesn't depend on drawing order.
-pub(super) fn overlap(colors: &[Color32; 3], mask: u8) -> Color32 {
+pub(super) fn overlap(colors: &[Color32], mask: u32) -> Color32 {
     let (mut r, mut g, mut b) = (0, 0, 0);
     for (c, color) in colors.iter().enumerate() {
         if mask & (1 << c) != 0 {
@@ -402,6 +601,29 @@ pub(super) fn overlap(colors: &[Color32; 3], mask: u8) -> Color32 {
         }
     }
     Color32::from_rgb(r, g, b)
+}
+
+/// The colour of the area under every channel of `mask`, multiplied channel-wise: white under
+/// none.
+pub(super) fn product(colors: &[Color32], mask: u32) -> Color32 {
+    let mut rgb = [255u16; 3];
+    for (c, color) in colors.iter().enumerate() {
+        if mask & (1 << c) != 0 {
+            for (acc, v) in rgb.iter_mut().zip([color.r(), color.g(), color.b()]) {
+                *acc = (*acc * u16::from(v) + 127) / 255;
+            }
+        }
+    }
+    Color32::from_rgb(rgb[0] as u8, rgb[1] as u8, rgb[2] as u8)
+}
+
+impl Blend {
+    fn color(self, colors: &[Color32], mask: u32) -> Color32 {
+        match self {
+            Blend::Max => overlap(colors, mask),
+            Blend::Multiply => product(colors, mask),
+        }
+    }
 }
 
 fn usable(rect: Rect) -> bool {
@@ -419,10 +641,12 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
             let color = if look == HistogramLook::Backdrop { color.gamma_multiply(style.backdrop_alpha) } else { color };
             vec![Shape::mesh(tone_mesh(rect, &tone_heights(bins, data.scale), color))]
         }
-        (Plot::Rgb(channels), HistogramLook::Rgb) => {
-            let heights = rgb_heights(channels, data.scale);
-            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &style.ribbons, style.fill_alpha))];
-            for (values, color) in heights.iter().zip(style.ribbons) {
+        (Plot::Channels { channels, blend }, HistogramLook::Rgb) => {
+            let colors: Vec<Color32> = channels.iter().map(|(_, channel)| style.ink(*channel)).collect();
+            let bins: Vec<Vec<f32>> = channels.iter().map(|(bins, _)| bins.clone()).collect();
+            let heights = rgb_heights(&bins, data.scale);
+            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &colors, style.fill_alpha, *blend))];
+            for (values, color) in heights.iter().zip(colors) {
                 if values.iter().any(|&v| v > 0.0) {
                     shapes.push(Shape::line(outline(rect, values), Stroke::new(style.line, color)));
                 }
@@ -439,10 +663,44 @@ pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, width: f32, col
     if !usable(rect) || bins == 0 || !level.is_finite() {
         return Vec::new();
     }
-    let x = rect.left() + ((level + 0.5) / bins as f32).clamp(0.0, 1.0) * rect.width();
-    let left = (x - width / 2.0).round();
+    let left = (level_x(rect, bins, level) - width / 2.0).round();
     let band = Rect::from_min_max(pos2(left, rect.top()), pos2(left + width, rect.bottom())).intersect(rect);
     vec![Shape::rect_filled(band, 0.0, color)]
+}
+
+/// The x of bin position `level`, clamped to the plot.
+fn level_x(rect: Rect, bins: usize, level: f32) -> f32 {
+    rect.left() + ((level + 0.5) / bins.max(1) as f32).clamp(0.0, 1.0) * rect.width()
+}
+
+/// The whole bin position under `x`, clamped to the bins.
+fn level_at(rect: Rect, bins: usize, x: f32) -> f32 {
+    ((x - rect.left()) / rect.width() * bins as f32 - 0.5).round().clamp(0.0, bins.saturating_sub(1) as f32)
+}
+
+/// The selected range: the marker colour over the range and a marker band at each edge.
+pub(super) fn selection_shapes(rect: Rect, bins: usize, range: &RangeInclusive<f32>, width: f32, color: Color32) -> Vec<Shape> {
+    if !usable(rect) || bins == 0 || !range.start().is_finite() || !range.end().is_finite() {
+        return Vec::new();
+    }
+    let (start, end) = (level_x(rect, bins, *range.start()), level_x(rect, bins, *range.end()));
+    let mut shapes = vec![Shape::rect_filled(Rect::from_min_max(pos2(start, rect.top()), pos2(end, rect.bottom())), 0.0, color)];
+    shapes.extend(marker_shapes(rect, bins, *range.start(), width, color));
+    shapes.extend(marker_shapes(rect, bins, *range.end(), width, color));
+    shapes
+}
+
+/// The outline of `bins` over `data`: in the tone look on the plot's scale, so a taller outline
+/// runs off the top; in the RGB look on its own.
+pub(super) fn outline_shapes(rect: Rect, data: &HistogramData, bins: &[f32], channel: ChannelColor, style: &HistogramStyle) -> Vec<Shape> {
+    if !usable(rect) {
+        return Vec::new();
+    }
+    let (heights, color) = match &data.plot {
+        Plot::Tone { bins: current, .. } => (normalized(bins, tone_top(current, data.scale)), style.tone(channel)),
+        Plot::Channels { .. } => (tone_heights(bins, data.scale), style.ink(channel)),
+    };
+    vec![Shape::line(outline(rect, &heights), Stroke::new(style.line, color))]
 }
 
 /// `v / scale` clamped to 1 for every bin.
@@ -464,6 +722,11 @@ fn interior(bins: &[f32]) -> &[f32] {
 
 /// Heights in `0..=1` of one channel's bins.
 pub(super) fn tone_heights(bins: &[f32], scale: HistogramScale) -> Vec<f32> {
+    normalized(bins, tone_top(bins, scale))
+}
+
+/// The count at the top of the plot for one channel's bins.
+fn tone_top(bins: &[f32], scale: HistogramScale) -> f32 {
     let tallest = bins.iter().copied().fold(0.0f32, f32::max);
     let mut top = tallest.max(1.0) * 1.1;
     if scale == HistogramScale::Typical {
@@ -472,7 +735,7 @@ pub(super) fn tone_heights(bins: &[f32], scale: HistogramScale) -> Vec<f32> {
             top = top.min(typical);
         }
     }
-    normalized(bins, top)
+    top
 }
 
 /// The display smoothing of an RGB channel: a five-bin binomial kernel (1 4 6 4 1)/16 on the
@@ -496,20 +759,20 @@ fn smooth(bins: &[f32]) -> Vec<f32> {
 
 /// Heights in `0..=1` of the three channels, on one scale. Edge bins are clipped pixels: they
 /// don't set the scale unless the interior is empty, and are capped at the top.
-pub(super) fn rgb_heights(channels: &[Vec<f32>; 3], scale: HistogramScale) -> [Vec<f32>; 3] {
-    let curves = channels.each_ref().map(|c| smooth(c));
+pub(super) fn rgb_heights(channels: &[Vec<f32>], scale: HistogramScale) -> Vec<Vec<f32>> {
+    let curves: Vec<Vec<f32>> = channels.iter().map(|c| smooth(c)).collect();
     let interior_peak = curves.iter().flat_map(|c| interior(c).iter().copied()).fold(0.0f32, f32::max);
     let peak = if interior_peak > 0.0 { interior_peak } else { curves.iter().flatten().copied().fold(0.0f32, f32::max) };
     let mut top = if peak > 0.0 { peak * 1.1 } else { 1.0 };
     if scale == HistogramScale::Typical {
-        let n = curves[0].len();
+        let n = curves.first().map_or(0, Vec::len);
         let columns = (1..n.saturating_sub(1)).map(|i| curves.iter().map(|c| c.get(i).copied().unwrap_or(0.0)).fold(0.0f32, f32::max));
         let typical = typical(columns);
         if typical > 0.0 {
             top = top.min(typical);
         }
     }
-    curves.map(|c| normalized(&c, top))
+    curves.iter().map(|c| normalized(c, top)).collect()
 }
 
 /// The top edge of a plot: flat from the left to the first bin's centre, straight between
@@ -552,68 +815,63 @@ fn quad(mesh: &mut Mesh, rect: Rect, x: [f32; 2], bottom: [f32; 2], top: [f32; 2
 /// One span between two bin centres, split where two channels' edges cross so each piece has a
 /// fixed channel order: the band under k channels is drawn once, in their overlap colour, so the
 /// result doesn't depend on drawing order and has no cracks.
-fn span(mesh: &mut Mesh, rect: Rect, x: [f32; 2], a: [f32; 3], b: [f32; 3], fill: &dyn Fn(u8) -> Color32) {
-    let mut cuts = [0.0f32, 1.0, 1.0, 1.0, 1.0];
-    let mut n = 2;
-    for (i, (ai, bi)) in a.iter().zip(&b).enumerate() {
-        for (aj, bj) in a.iter().zip(&b).skip(i + 1) {
+fn span(mesh: &mut Mesh, rect: Rect, x: [f32; 2], a: &[f32], b: &[f32], fill: &dyn Fn(u32) -> Color32) {
+    let mut cuts = vec![0.0f32, 1.0];
+    for (i, (ai, bi)) in a.iter().zip(b).enumerate() {
+        for (aj, bj) in a.iter().zip(b).skip(i + 1) {
             let denominator = (bi - ai) - (bj - aj);
             if denominator.abs() > f32::EPSILON {
                 let crossing = (aj - ai) / denominator;
-                if crossing > 0.0
-                    && crossing < 1.0
-                    && let Some(cut) = cuts.get_mut(n)
-                {
-                    *cut = crossing;
-                    n += 1;
+                if crossing > 0.0 && crossing < 1.0 {
+                    cuts.push(crossing);
                 }
             }
         }
     }
-    let Some(cuts) = cuts.get_mut(..n) else { return };
     cuts.sort_unstable_by(f32::total_cmp);
+    let all = if a.len() >= 32 { u32::MAX } else { (1u32 << a.len()) - 1 };
     for cut in cuts.windows(2) {
         let (start, end) = (cut[0], cut[1]);
         if end <= start {
             continue;
         }
-        let left = std::array::from_fn::<_, 3, _>(|c| a[c] + (b[c] - a[c]) * start);
-        let right = std::array::from_fn::<_, 3, _>(|c| a[c] + (b[c] - a[c]) * end);
-        let mut order = [(0usize, 1u8), (1, 2), (2, 4)];
-        order.sort_unstable_by(|(i, _), (j, _)| (left[*i] + right[*i]).total_cmp(&(left[*j] + right[*j])));
+        let at = |t: f32| -> Vec<f32> { a.iter().zip(b).map(|(a, b)| a + (b - a) * t).collect() };
+        let (left, right) = (at(start), at(end));
+        let mut order: Vec<usize> = (0..a.len()).collect();
+        order.sort_by(|&i, &j| (left[i] + right[i]).total_cmp(&(left[j] + right[j])));
         let x = [x[0] + (x[1] - x[0]) * start, x[0] + (x[1] - x[0]) * end];
         let mut floor = [0.0; 2];
-        let mut mask = 0b111;
-        for (channel, bit) in order {
+        let mut mask = all;
+        for channel in order {
             let top = [left[channel], right[channel]];
             if top[0] > floor[0] || top[1] > floor[1] {
                 quad(mesh, rect, x, floor, top, fill(mask));
             }
             floor = top;
-            mask &= !bit;
+            mask &= !(1 << channel);
         }
     }
 }
 
 /// The ribbons' fills.
-pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>; 3], colors: &[Color32; 3], fill_alpha: f32) -> Mesh {
+pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>], colors: &[Color32], fill_alpha: f32, blend: Blend) -> Mesh {
     let mut mesh = Mesh::default();
-    let n = heights[0].len();
-    if n == 0 || heights.iter().any(|h| h.len() != n) {
+    let n = heights.first().map_or(0, Vec::len);
+    if n == 0 || heights.iter().any(|h| h.len() != n) || colors.len() != heights.len() {
         return mesh;
     }
-    let fill = |mask: u8| overlap(colors, mask).gamma_multiply(fill_alpha);
-    let at = |i: usize| std::array::from_fn::<_, 3, _>(|c| heights[c][i]);
+    let fill = |mask: u32| blend.color(colors, mask).gamma_multiply(fill_alpha);
+    let at = |i: usize| heights.iter().map(|h| h[i]).collect::<Vec<f32>>();
     let mut previous_x = rect.left();
     let mut previous = at(0);
     for i in 0..n {
         let x = rect.left() + (i as f32 + 0.5) / n as f32 * rect.width();
         let next = at(i);
-        span(&mut mesh, rect, [previous_x, x], previous, next, &fill);
+        span(&mut mesh, rect, [previous_x, x], &previous, &next, &fill);
         previous_x = x;
         previous = next;
     }
-    span(&mut mesh, rect, [previous_x, rect.right()], previous, previous, &fill);
+    span(&mut mesh, rect, [previous_x, rect.right()], &previous, &previous, &fill);
     mesh
 }
 
@@ -626,10 +884,44 @@ pub(crate) fn stories() -> Vec<Story> {
     let tone = || {
         Args::new().with_choice("channel", CHANNELS, 1).with_bool("stale", false).with_bool("marker", true).with_number("width", 256.0, 80.0, 400.0)
     };
+    let plain = || Args::new().with_number("width", 256.0, 80.0, 400.0);
     let rgb = || Args::new().with_choice("scale", SCALES, 0).with_bool("marker", false).with_number("width", 256.0, 80.0, 400.0);
     vec![
         Story { id: "composites/histogram/tone", level: Level::Composites, component: "Histogram", name: "Tone", args: tone, show: show_tone },
         Story { id: "composites/histogram/rgb", level: Level::Composites, component: "Histogram", name: "RGB", args: rgb, show: show_rgb },
+        Story { id: "composites/histogram/inks", level: Level::Composites, component: "Histogram", name: "Inks", args: plain, show: show_inks },
+        Story {
+            id: "composites/histogram/outline",
+            level: Level::Composites,
+            component: "Histogram",
+            name: "Outline",
+            args: plain,
+            show: show_outline,
+        },
+        Story {
+            id: "composites/histogram/markers",
+            level: Level::Composites,
+            component: "Histogram",
+            name: "Markers",
+            args: plain,
+            show: show_markers,
+        },
+        Story {
+            id: "composites/histogram/selection",
+            level: Level::Composites,
+            component: "Histogram",
+            name: "Selection",
+            args: plain,
+            show: show_selection,
+        },
+        Story {
+            id: "composites/histogram/stale-click",
+            level: Level::Composites,
+            component: "Histogram",
+            name: "Stale click",
+            args: plain,
+            show: show_stale_click,
+        },
     ]
 }
 
@@ -671,5 +963,76 @@ pub(super) fn show_rgb(ui: &mut Ui, args: &mut Args) {
         ui.set_max_width(width);
         let marker = args.bool("marker").then_some(100.0);
         Histogram::new("story-rgb", "RGB histogram").rgb([&r, &g, &b]).scale(scale).value("Red, green and blue channels").marker(marker).show(ui);
+    });
+}
+
+/// `story` in a column `width` wide.
+fn sized(ui: &mut Ui, args: &Args, story: impl FnOnce(&mut Ui)) {
+    let width = args.number("width") as f32;
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_max_width(width);
+        story(ui);
+    });
+}
+
+fn story_bins() -> Vec<u32> {
+    bell(90.0, 30.0, 9000.0).iter().zip(bell(190.0, 14.0, 6000.0)).map(|(a, b)| a + b).collect()
+}
+
+pub(super) fn show_inks(ui: &mut Ui, args: &mut Args) {
+    let (c, m, y, k) = (bell(70.0, 30.0, 9000.0), bell(110.0, 36.0, 8000.0), bell(150.0, 30.0, 7000.0), bell(40.0, 20.0, 6000.0));
+    sized(ui, args, |ui| {
+        let inks: [(&[u32], ChannelColor); 4] =
+            [(&c, ChannelColor::Cyan), (&m, ChannelColor::Magenta), (&y, ChannelColor::Yellow), (&k, ChannelColor::Neutral)];
+        Histogram::new("story-inks", "Ink histogram").channels(&inks).value("Cyan, magenta, yellow and black inks").show(ui);
+    });
+}
+
+pub(super) fn show_outline(ui: &mut Ui, args: &mut Args) {
+    let original = bell(120.0, 50.0, 12_000.0);
+    sized(ui, args, |ui| {
+        Histogram::new("story-outline", "Histogram")
+            .tone(&story_bins(), ChannelColor::Red)
+            .outline(&original, ChannelColor::Neutral)
+            .value("Red channel with the original outlined")
+            .show(ui);
+    });
+}
+
+pub(super) fn show_markers(ui: &mut Ui, args: &mut Args) {
+    sized(ui, args, |ui| {
+        let markers = [(12.0, "0".to_owned()), (128.0, "1.00".to_owned()), (243.0, "255".to_owned())];
+        Histogram::new("story-markers", "Histogram").tone(&story_bins(), ChannelColor::Neutral).markers(&markers).value("Levels points").show(ui);
+    });
+}
+
+pub(super) fn show_selection(ui: &mut Ui, args: &mut Args) {
+    sized(ui, args, |ui| {
+        let id = ui.scope_id().with("story-selection");
+        let current = ui.data(|d| d.get_temp::<(f32, f32)>(id)).map(|(a, b)| a..=b);
+        let shown = Histogram::new("story-selection", "Histogram")
+            .tone(&story_bins(), ChannelColor::Neutral)
+            .selection(current)
+            .value("Selected levels")
+            .show(ui);
+        if let Some(range) = shown.selection {
+            ui.data_mut(|d| d.insert_temp(id, (*range.start(), *range.end())));
+        }
+    });
+}
+
+pub(super) fn show_stale_click(ui: &mut Ui, args: &mut Args) {
+    sized(ui, args, |ui| {
+        let id = ui.scope_id().with("story-recalculated");
+        let count = ui.data(|d| d.get_temp::<u32>(id)).unwrap_or(0);
+        let shown = Histogram::new("story-stale-click", "Histogram")
+            .tone(&story_bins(), ChannelColor::Neutral)
+            .stale(true)
+            .on_stale_click("Recalculate")
+            .value(format!("Recalculated {count} times"))
+            .show(ui);
+        if shown.clicked {
+            ui.data_mut(|d| d.insert_temp(id, count + 1));
+        }
     });
 }

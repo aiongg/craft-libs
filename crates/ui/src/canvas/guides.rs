@@ -308,6 +308,7 @@ pub struct Guides<'a> {
     names: GuideNames,
     steps: (f64, f64),
     policy: EditPolicy,
+    modifiers: Option<Modifiers>,
 }
 
 impl<'a> Guides<'a> {
@@ -327,7 +328,15 @@ impl<'a> Guides<'a> {
             names,
             steps: (nudge::STEP, nudge::BIG_STEP),
             policy: EditPolicy::default(),
+            modifiers: None,
         }
+    }
+
+    /// The modifiers every test of the guides reads (the Alt flip, the snap and the click) in place of the input state: a touch
+    /// host's sticky modifiers, or Ctrl turning snapping off.
+    pub fn modifiers(mut self, modifiers: Modifiers) -> Self {
+        self.modifiers = Some(modifiers);
+        self
     }
 
     /// The host's selected guide.
@@ -571,7 +580,8 @@ impl<'a> Guides<'a> {
             gesture.begin();
             d.began = true;
         }
-        let (pointer, down, mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let (pointer, down, input_mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let mods = self.modifiers.unwrap_or(input_mods);
         let orientation = match d.key {
             None if mods.alt => d.base.flipped(),
             None => d.base,
