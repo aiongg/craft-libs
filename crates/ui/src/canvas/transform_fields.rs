@@ -233,11 +233,17 @@ const FIELDS: usize = 7;
 /// # egui::__run_test_ui(|ui| {
 /// let rect = Rect::new(0.0, 0.0, 200.0, 100.0);
 /// let mut state = BoxState::from_rect(rect);
+/// let mut skew_v = 0.0;
 /// let mut linked = true;
-/// let edit = TransformFields::new("transform-fields", &state, rect, TransformFieldLabels::default()).linked(&mut linked).show(ui);
-/// if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
-///     state = *value;
+/// let edit = TransformFields::new("transform-fields", &state, rect, TransformFieldLabels::default())
+///     .skew_v(skew_v)
+///     .linked(&mut linked)
+///     .show(ui);
+/// if let Some(row) = edit.event.as_ref().and_then(|e| e.value()) {
+///     state = row.state;
+///     skew_v = row.skew_v;
 /// }
+/// # let _ = (state, skew_v);
 /// # });
 /// ```
 ///
