@@ -1,11 +1,6 @@
-//! Tab fitting and accessible tab interactions without owning a dock or document model.
-//!
-//! The caller owns identity, localization, selection, painting, overflow menus and drag actions.
-//! [`fit`] (tabs shrink before they overflow) and [`fit_whole`] (tabs keep their full width) only
-//! assign widths; [`Tab`] returns the complete egui response, including double-click and drag
-//! phases, so a panel strip can collapse, reorder or tear off according to its app.
-
-use egui::{Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+//! Tab fitting without owning a dock or document model: [`fit`] (tabs shrink before they overflow)
+//! and [`fit_whole`] (tabs keep their full width) only assign widths. The tab itself is
+//! [`crate::tab_strip::Tab`].
 
 /// Tabs visible on a strip and tabs that need an overflow menu, all in original order.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -141,69 +136,6 @@ fn squeeze(natural: &[f32], indices: &[usize], total: f32, minimum: f32) -> Vec<
             (i, width)
         })
         .collect()
-}
-
-/// An accessible tab at a caller-supplied rectangle, with caller-supplied painting.
-///
-/// IDs must be unique in their UI scope and independent of translated labels. Selection remains
-/// caller-owned. `Sense::click()` is the default; use [`Self::sense`] for draggable dock tabs.
-#[deprecated(note = "use craft_ui::tab_strip::TabStrip")]
-pub struct Tab<'a> {
-    id: Id,
-    label: &'a str,
-    selected: bool,
-    sense: Sense,
-    focus_stroke: Option<Stroke>,
-}
-
-#[allow(deprecated)]
-impl<'a> Tab<'a> {
-    pub fn new(id: Id, label: &'a str, selected: bool) -> Self {
-        Self { id, label, selected, sense: Sense::click(), focus_stroke: None }
-    }
-
-    pub fn sense(mut self, sense: Sense) -> Self {
-        self.sense = sense;
-        self
-    }
-
-    /// Set the inset keyboard-focus outline using the application's theme. The default uses
-    /// egui's selection stroke. An explicit `Stroke::NONE` disables the outline.
-    pub fn focus_stroke(mut self, stroke: Stroke) -> Self {
-        self.focus_stroke = Some(stroke);
-        self
-    }
-
-    /// Register a tab, call its painter and return the unmodified click/drag response.
-    ///
-    /// This does not allocate space or alter the UI cursor. The painter receives the response
-    /// for hover/press styling. Non-finite, empty, inverted or excessive rectangles yield an inert
-    /// zero-size response and do not invoke the painter. Parent disabled state applies normally.
-    pub fn show_at(self, ui: &mut Ui, rect: Rect, paint: impl FnOnce(&Ui, &Response)) -> Response {
-        let size = rect.size();
-        let valid = rect.is_finite() && size.x > 0.0 && size.y > 0.0 && size.x <= MAX_EXTENT && size.y <= MAX_EXTENT;
-        let safe_rect = if valid { rect } else { Rect::from_min_size(egui::Pos2::ZERO, Vec2::ZERO) };
-        let response = ui.interact(safe_rect, self.id, if valid { self.sense } else { Sense::hover() });
-        response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, valid && ui.is_enabled(), self.selected, self.label));
-        ui.ctx().accesskit_node_builder(self.id, |node| {
-            node.set_role(egui::accesskit::Role::Tab);
-            node.clear_toggled();
-            node.set_selected(self.selected);
-        });
-        if !valid {
-            return response;
-        }
-        paint(ui, &response);
-        if response.has_focus() && rect.width() > 4.0 && rect.height() > 4.0 {
-            let focus = rect.shrink(2.0);
-            let stroke = self.focus_stroke.unwrap_or(ui.visuals().selection.stroke);
-            if stroke.width.is_finite() && stroke.width > 0.0 {
-                let stroke = Stroke::new(stroke.width.min(focus.width().min(focus.height()) * 0.5), stroke.color);
-                ui.painter().rect_stroke(focus, 0.0, stroke, StrokeKind::Inside);
-            }
-        }
-        response
-    }
 }
 
 #[cfg(test)]

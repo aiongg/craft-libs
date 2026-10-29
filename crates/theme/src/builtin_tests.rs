@@ -53,12 +53,11 @@ fn artcraft_dark_standard_keeps_photocraft_values_and_reports_the_pairs_they_mis
     assert_eq!(hex(ColorToken::StatePressed), "#707070");
     assert_eq!(hex(ColorToken::TextFaint), "#a0a0a0");
     assert_eq!(hex(ColorToken::AccentSolid), "#378ef0");
-    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found.
+    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found;
+    // a selected pill is PhotoCraft's `hover`.
     let c = &r.tokens.component;
-    assert_eq!(
-        (c.list.selected, c.segmented.selected.fill.rest, c.dock.icon_selected),
-        (Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b))
-    );
+    assert_eq!((c.list.selected, c.dock.icon_selected), (Rgba::rgb(0x6b, 0x6b, 0x6b), Rgba::rgb(0x6b, 0x6b, 0x6b)));
+    assert_eq!(c.segmented.selected.fill.rest, Rgba::rgb(0x62, 0x62, 0x62));
     assert!(r.warnings.iter().any(|w| w.fg == ColorToken::TextFaint.into() && w.bg == ColorToken::StateHover.into()));
     assert!(r.warnings.iter().any(|w| w.fg == ColorToken::AccentSolid.into() && w.bg == ColorToken::SurfacePanel.into()));
 }
@@ -389,7 +388,7 @@ fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
-            assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 8, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -665,6 +664,69 @@ fn popups_and_their_rows_follow_photocraft() {
         assert_eq!((l.pad_x, l.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
         if id != "craft.classic" {
             assert_eq!((l.active_fill, m.active_fill), (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentSolid)), "{who}");
+        }
+    }
+}
+
+/// Tabs follow PhotoCraft (`theme.rs` `tab_strip`, `canvas/tabs.rs:455-585`,
+/// `panels/panel_docking.rs:553-567`): the Pro themes keep their darker or lighter strip, every
+/// other theme's strip is the panel, a tab under the pointer takes the active fill, the Pro tabs
+/// draw no box behind the pointed ×, a floating group's title is the strip, and the dock strip is 28
+/// high (document strip 26).
+#[test]
+fn tabs_follow_photocraft() {
+    // (theme, mode, PhotoCraft's `tab_strip` as a grey level; None where it is the panel)
+    let strips = [
+        ("craft.artcraft", Mode::Dark, Some(74)),
+        ("craft.artcraft", Mode::Light, Some(226)),
+        ("craft.pro", Mode::Dark, Some(38)),
+        ("craft.pro", Mode::Light, Some(226)),
+        ("craft.pro-light-gray", Mode::Light, Some(170)),
+        ("craft.studio", Mode::Dark, None),
+        ("craft.adwaita", Mode::Light, None),
+        ("craft.breeze", Mode::Dark, None),
+        ("craft.soft", Mode::Light, None),
+        ("craft.solarized-dark", Mode::Dark, None),
+    ];
+    for (id, mode, strip) in strips {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+        let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+        let tab = &t.component.tab;
+        let who = format!("{id} {mode:?}");
+        match strip {
+            Some(grey) => {
+                assert_eq!(tab.strip, Rgba([grey, grey, grey, 255]), "{who}");
+                assert_eq!(tab.close_fill.a(), 0, "{who}: no box behind the pointed ×");
+            }
+            None => {
+                assert_eq!(tab.strip, t.color(ColorToken::SurfacePanel), "{who}");
+                assert_eq!(tab.close_fill, t.color(ColorToken::StateHover), "{who}");
+            }
+        }
+        assert_eq!((tab.active, tab.close_text), (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextFaint)), "{who}");
+        assert_eq!(t.component.float.title, tab.strip, "{who}");
+        assert_eq!((tab.height, tab.panel_height, tab.close_box, tab.close_icon), (26.0, 28.0, 14.0, 10.0), "{who}");
+    }
+}
+
+/// A segmented control is PhotoCraft's `pill_tab` (`widgets/panel.rs:104-123`) in every built-in
+/// theme and mode: pills 24 high and text + 20 wide, 8 apart; the selected one `state.hover` with a
+/// 1 pt `line.control_edge` outline and `text.normal`; the others `text.muted`, `state.hover` at 0.6
+/// under the pointer.
+#[test]
+fn segmented_follows_photocraft_pill_tab() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+            let who = format!("{} {mode:?}", theme.id.as_str());
+            let (s, color) = (&t.component.segmented, |c| t.color(c));
+            assert_eq!((s.height.md, s.pad_x.md, s.gap), (24.0, 10.0, 8.0), "{who}");
+            assert_eq!((s.selected.fill.rest, s.selected.text.rest), (color(ColorToken::StateHover), color(ColorToken::TextNormal)), "{who}");
+            assert_eq!(s.selected_border.rest, color(ColorToken::LineControlEdge), "{who}");
+            assert_eq!(s.segment.text.rest, color(ColorToken::TextMuted), "{who}");
+            let hover = color(ColorToken::StateHover);
+            let expected = if hover.a() == 255 { hover.faded(values::SEGMENT_HOVER_OPACITY) } else { hover };
+            assert_eq!(s.segment.fill.hover, expected, "{who}");
         }
     }
 }

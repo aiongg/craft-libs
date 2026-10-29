@@ -28,7 +28,7 @@ pub struct FloatTokens {
     pub border: Rgba,
     /// Over a window that a modal one blocks: `surface.scrim`.
     pub blocked: Rgba,
-    /// Behind the title: `surface.background`, the tab strip's.
+    /// Behind the title: the tab strip's fill (`tab.strip`, `surface.panel` unless pinned).
     pub title: Rgba,
     /// The title and the ▾ and × under the pointer or with focus: `text.normal`.
     pub title_text: Rgba,
@@ -124,7 +124,7 @@ impl Family for FloatTokens {
             fill: c.surface.panel,
             border: c.line.border,
             blocked: c.surface.scrim,
-            title: c.surface.background,
+            title: c.surface.panel,
             title_text: c.text.normal,
             title_muted: c.text.muted,
             grip: c.accent.solid,

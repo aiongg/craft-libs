@@ -68,10 +68,7 @@ fn item_pairs() -> Vec<(ComponentField, ComponentField)> {
     let icon = |part| ComponentField::IconButton(IconButtonField::Selected(part));
     let segment = |part, state| ComponentField::Segmented(SegmentedField::Segment { part, state });
     let selected = |part, state| ComponentField::Segmented(SegmentedField::Selected { part, state });
-    let mut p = vec![(segment(ItemPart::Text, State::Rest), ComponentField::Segmented(SegmentedField::Track))];
-    for s in [State::Hover, State::Pressed] {
-        p.push((segment(ItemPart::Text, s), segment(ItemPart::Fill, s)));
-    }
+    let mut p = vec![(segment(ItemPart::Text, State::Hover), segment(ItemPart::Fill, State::Hover))];
     p.push((icon(ButtonPart::Text), icon(ButtonPart::Fill)));
     for s in [State::Rest, State::Hover, State::Pressed] {
         p.push((selected(ItemPart::Text, s), selected(ItemPart::Fill, s)));
@@ -105,21 +102,19 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     let glyphs = BySize { sm: icons.sm - values::ICON_BUTTON_GLYPH_LESS.0, md: icons.md - values::ICON_BUTTON_GLYPH_LESS.1 };
     assert_eq!((icon.size, icon.icon, seg.height, seg.icon), (control, glyphs, control, icons));
     assert_eq!(seg.pad_x, BySize { sm: t.space.pad.control, md: t.space.pad.control + t.space.gap.inline });
-    assert_eq!((seg.inset, seg.label), (2.0, TypeRole::Label));
-    let selected = ItemColors {
-        fill: States::new(t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateDisabledFill)),
-        text: States::new(t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextDisabled)),
-    };
-    // The fills move to show on what they sit on (`selected_fills_show_on_what_they_sit_on`); the
-    // disabled look is the semantic one.
-    assert_eq!(seg.selected.fill.disabled, selected.fill.disabled);
-    assert_eq!(seg.selected.text.disabled, selected.text.disabled);
+    // PhotoCraft's `pill_tab`: item spacing 8 in Compact, 24 high, text + 20 wide.
+    assert_eq!((seg.gap, seg.label), (t.space.gap.inline + values::SEGMENTED_GAP_OVER_INLINE, TypeRole::Label));
+    let hover = t.color(T::StateHover);
+    assert_eq!(seg.selected.fill, States::new(hover, hover, hover, t.color(T::StateDisabledFill)));
+    assert_eq!(seg.selected.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
+    let edge = t.color(T::LineControlEdge);
+    assert_eq!(seg.selected_border, States::new(edge, edge, edge, t.color(T::LineDivider)));
     // An icon button that is on is `accent.soft` inside an `accent.solid` outline.
     assert_eq!((icon.selected.on_fill, icon.selected.on_border), (t.color(T::AccentSoft), t.color(T::AccentSolid)));
     assert_eq!((icon.selected.on_disabled_fill, icon.selected.on_disabled_text), (t.color(T::AccentSoft), t.color(T::TextDisabled)));
-    assert_eq!(seg.track, t.color(T::SurfaceSunken));
-    assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, t.color(T::StateHover), t.color(T::StatePressed), Rgba::TRANSPARENT));
-    assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
+    let half = hover.faded(values::SEGMENT_HOVER_OPACITY);
+    assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, half, half, Rgba::TRANSPARENT));
+    assert_eq!(seg.segment.text, States::new(t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled)));
 }
 
 /// The decided contrast scope: the filled part is an accent state indicator, 3:1 on the track
@@ -642,8 +637,9 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2 * 3
             // List: the frame of the selected row's thumbnail.
             + 1
-            + 1
+            // Segmented: a colour per part and state of plain and selected pills, and the selected pill's outline per state.
             + 2 * 2 * 4
+            + 4
             // Slider: radius, track and the two thumb lengths; fill, thumb and ring per state.
             + 4
             + 4
@@ -723,7 +719,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("button.radius", ComponentField::Button(ButtonField::Radius)),
         ("icon_button.selected.text", ComponentField::IconButton(IconButtonField::Selected(ButtonPart::Text))),
         ("icon_button.selected_disabled.border", ComponentField::IconButton(IconButtonField::SelectedDisabled(ButtonPart::Border))),
-        ("segmented.track", ComponentField::Segmented(SegmentedField::Track)),
+        ("segmented.selected.border.hover", ComponentField::Segmented(SegmentedField::SelectedBorder(State::Hover))),
         ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
         ("check.radius", ComponentField::Check(CheckField::Radius)),
         ("check.on.mark.hover", ComponentField::Check(CheckField::On { part: CheckOnPart::Mark, state: State::Hover })),
@@ -771,7 +767,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "icon_button.selected.border.rest",
         "icon_button.selected",
         "segmented.inset",
-        "segmented.track.rest",
+        "segmented.track",
+        "segmented.selected.border",
         "segmented.selected.fill",
         "slider.thumb",
         "slider.thumb.text.rest",
@@ -1190,10 +1187,9 @@ fn tab_pairs() -> Vec<(TabField, TabField, (f64, f64))> {
     let (text, mark) = ((4.5, 7.0), (3.0, 4.5));
     vec![
         (TabField::Text, TabField::Active, text),
-        (TabField::Text, TabField::Hover, text),
         (TabField::InactiveText, TabField::Strip, text),
+        (TabField::InactiveText, TabField::Active, text),
         (TabField::Detail, TabField::Strip, text),
-        (TabField::Detail, TabField::Hover, text),
         (TabField::Detail, TabField::Active, text),
         (TabField::Close, TabField::Strip, mark),
         (TabField::Close, TabField::Active, mark),
@@ -1225,33 +1221,23 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
     let compact = at(Size::Compact);
     let t = &compact.component.tab;
-    assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 34.0, 12.0, 4.0, 40.0));
-    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 12.0, 20.0, 0.0, true));
+    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 28.0, 34.0, 12.0, 4.0, 40.0));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 10.0, 20.0, 0.0, true));
     assert_eq!((t.drop_width, t.drop_halo_width, t.progress_height, t.tear_off), (2.0, 1.0, 2.0, 24.0));
     assert_eq!((t.strip_height(false), t.strip_height(true)), (26.0, 34.0));
     assert_eq!((t.label_role(false), t.label_role(true), t.detail_role), (TypeRole::Label, TypeRole::Body, TypeRole::Caption));
 
     let comfy = at(Size::Comfortable);
     let t = &comfy.component.tab;
-    assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 38.0, 16.0, 6.0, 44.0));
-    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 14.0, 24.0, comfy.shape.radius.control, false));
+    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 32.0, 38.0, 16.0, 6.0, 44.0));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 12.0, 24.0, comfy.shape.radius.control, false));
 
     let t = &compact;
     let tab = &t.component.tab;
-    assert_eq!((tab.strip, tab.active), (t.color(T::SurfaceBackground), t.color(T::SurfacePanel)));
+    assert_eq!((tab.strip, tab.active), (t.color(T::SurfacePanel), t.color(T::SurfacePanel)));
     assert_eq!((tab.text, tab.inactive_text, tab.divider), (t.color(T::TextNormal), t.color(T::TextMuted), t.color(T::LineDivider)));
-    assert_eq!((tab.close_text, tab.close_hover), (t.color(T::TextMuted), t.color(T::TextNormal)));
+    assert_eq!((tab.close_text, tab.close_hover, tab.close_fill), (t.color(T::TextFaint), t.color(T::TextNormal), t.color(T::StateHover)));
     assert_eq!((tab.drop, tab.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
-}
-
-/// The hover fill is the strip moved `TAB_HOVER_MIX` of the way toward `state.hover`.
-#[test]
-fn tab_hover_sits_between_the_strip_and_the_hover_state() {
-    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
-    let tab = &t.component.tab;
-    let l = |c: Rgba| c.to_oklab().l;
-    let (strip, hover, state) = (l(tab.strip), l(tab.hover), l(over(t.color(T::StateHover), tab.strip)));
-    assert!((hover - (strip + (state - strip) * values::TAB_HOVER_MIX)).abs() < 0.01, "{strip} {hover} {state}");
 }
 
 #[test]
@@ -1486,9 +1472,13 @@ fn selected_fills_show_on_what_they_sit_on() {
             let (t, min) = (&r.tokens, indicator_min(a));
             if a.contrast == Contrast::Standard {
                 let k = &t.component;
-                let (selected, on) = (t.color(T::StateSelected), t.color(T::TextOnSelected));
+                let selected = t.color(T::StateSelected);
                 let who = format!("{} {a:?}", def.name);
-                assert_eq!((k.segmented.selected.fill.rest, k.segmented.selected.text.rest), (selected, on), "{who}");
+                assert_eq!(
+                    (k.segmented.selected.fill.rest, k.segmented.selected.text.rest),
+                    (t.color(T::StateHover), t.color(T::TextNormal)),
+                    "{who}"
+                );
                 assert_eq!((k.list.selected, k.dock.icon_selected), (selected, selected), "{who}");
                 let soft = t.color(T::AccentSoft);
                 assert_eq!((k.icon_button.selected.on_fill, k.toggle_button.on_fill), (soft, soft), "{who}");
@@ -1504,11 +1494,15 @@ fn selected_fills_show_on_what_they_sit_on() {
                     assert!(ratio >= min, "{} {a:?}: {what} is {ratio:.2} on {}, needs {min}", def.name, bg.to_hex());
                 }
             };
-            on("segmented selected", k.segmented.selected.fill.rest, &[k.segmented.track]);
             on("list selected", k.list.selected, &[panel]);
             on("list selected_hover", k.list.selected_hover, &[panel]);
             on("dock icon selected", k.dock.icon_selected, &[k.dock.background]);
             let (toggle, icon) = (&k.toggle_button, &k.icon_button.selected);
+            for bg in [panel, raised] {
+                let (fill, edge) =
+                    (contrast_ratio(over(k.segmented.selected.fill.rest, bg), bg), contrast_ratio(k.segmented.selected_border.rest, bg));
+                assert!(fill.max(edge) >= min, "{} {a:?}: segmented selected is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
+            }
             for (what, on) in [("toggle", toggle), ("icon button", icon)] {
                 for bg in [panel, raised] {
                     let (fill, edge) = (contrast_ratio(over(on.on_fill, bg), bg), contrast_ratio(on.on_border, bg));
@@ -1541,8 +1535,6 @@ fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_o
     };
     let t = pinned("#102a6b", Contrast::High);
     assert_eq!(t.component.list.selected, hex("#102a6b"));
-    assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
-
     let kept = pinned("#dfe5f5", Contrast::Standard);
     assert_eq!((kept.component.list.selected, kept.component.list.selected_text), (hex("#dfe5f5"), kept.color(T::TextOnSelected)));
 

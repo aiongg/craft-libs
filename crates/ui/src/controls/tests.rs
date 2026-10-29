@@ -91,10 +91,8 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
 
             let s = Segmented::style(&t, size);
             let seg = &c.segmented;
-            assert_eq!((s.height, s.pad_x, s.icon, s.inset), (seg.height.get(size), seg.pad_x.get(size), seg.icon.get(size), seg.inset));
-            assert_eq!(s.track.fill, seg.track.to_egui());
-            let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
-            assert_eq!((s.track.edge, s.track.radius), (sunken.edge, sunken.radius), "the track's edge is the sunken surface's");
+            assert_eq!((s.height, s.pad_x, s.icon, s.gap), (seg.height.get(size), seg.pad_x.get(size), seg.icon.get(size), seg.gap));
+            assert_eq!(s.selected_border, seg.selected_border.to_egui());
             assert_eq!((s.fill, s.text), (seg.segment.fill.to_egui(), seg.segment.text.to_egui()));
             assert_eq!((s.selected_fill, s.selected_text), (seg.selected.fill.to_egui(), seg.selected.text.to_egui()));
         }

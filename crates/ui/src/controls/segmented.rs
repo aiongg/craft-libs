@@ -1,4 +1,5 @@
-//! [`Segmented`]: one of a few options on a track, as a radio group.
+//! [`Segmented`]: one of a few options as separate pills (PhotoCraft's `pill_tab`), as a radio
+//! group.
 
 use std::sync::Arc;
 
@@ -6,7 +7,7 @@ use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, UiBuilder, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
@@ -14,7 +15,7 @@ use super::{SIZE_NAMES, icon_size, size_arg};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::icons::{self, Icon};
-use crate::primitives::{Content, Corner, Gap, Interactive, Stack, StateColors, Surface, SurfaceKind, SurfaceStyle, Text};
+use crate::primitives::{Content, Corner, Gap, Interactive, Stack, StateColors, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 
@@ -22,20 +23,17 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SegmentedStyle {
-    /// Height of the track: `segmented.height`.
+    /// Height of a pill: `segmented.height`.
     pub height: f32,
-    /// At the start and end of each segment: `segmented.pad_x`.
+    /// At the start and end of each pill: `segmented.pad_x`.
     pub pad_x: f32,
     /// Side of an icon: `segmented.icon`.
     pub icon: f32,
-    /// Between the track's edge and the segments: `segmented.inset`.
-    pub inset: f32,
+    /// Between pills: `segmented.gap`.
+    pub gap: f32,
     /// `segmented.label`.
     pub label: TypeRole,
-    /// The track: a sunken [`Surface`] (its edge and `Corner::Control`) filled with
-    /// `segmented.track`.
-    pub track: SurfaceStyle,
-    /// Segments' corners: `Corner::Control`.
+    /// Pills' corners: `Corner::Control`.
     pub radius: CornerRadius,
     /// `segmented.segment.fill`.
     pub fill: States<Color32>,
@@ -43,6 +41,8 @@ pub struct SegmentedStyle {
     pub text: States<Color32>,
     /// `segmented.selected.fill`.
     pub selected_fill: States<Color32>,
+    /// The 1 pt outline inside the selected pill: `segmented.selected.border`.
+    pub selected_border: States<Color32>,
     /// `segmented.selected.text`.
     pub selected_text: States<Color32>,
 }
@@ -61,13 +61,13 @@ pub struct SegmentedStyle {
 /// # });
 /// ```
 ///
-/// Equal-width segments sit on a sunken track; the selected one shows `segmented.selected.*`.
-/// It is a radio group: AccessKit `RadioGroup` named `label`, with the number of segments, and a
+/// Pills sit side by side, each as wide as its label plus padding; the selected one shows
+/// `segmented.selected.*`. It is a radio group: AccessKit `RadioGroup` named `label`, with the number of segments, and a
 /// `RadioButton` per segment, the selected one checked, each at its position in the set. Keys and
 /// focus are [`RadioSelection`](crate::behavior::RadioSelection)'s, as PhotoCraft's and
 /// DesignCraft's segments: each enabled segment a Tab stop, the arrows move the focus without
-/// selecting, Enter, Space or a click selects. Segments run from the reading start. An icon segment's label is its accessible name and
-/// tooltip, also while disabled.
+/// selecting, Enter, Space or a click selects. Segments run from the reading start. An icon
+/// segment's label is its accessible name and tooltip, also while disabled.
 #[derive(Debug)]
 pub struct Segmented<'a, T> {
     id_salt: IdSalt,
@@ -125,7 +125,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
         self
     }
 
-    /// Shows the control. The response covers the track; it is
+    /// Shows the control. The response covers the pills; it is
     /// [changed](Response::changed) when the selection changed.
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
@@ -136,23 +136,20 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
             .iter()
             .map(|item| item.icon.is_none().then(|| ui.painter().layout_job(LayoutJob::single_section(item.label.clone(), format.clone()))))
             .collect();
-        let content = galleys.iter().map(|g| g.as_ref().map_or(style.icon, |g| g.size().x)).fold(0.0, f32::max);
-        let segment = vec2(content + 2.0 * style.pad_x, style.height - 2.0 * style.inset);
+        let widths: Vec<f32> = galleys.iter().map(|g| g.as_ref().map_or(style.icon, |g| g.size().x) + 2.0 * style.pad_x).collect();
         let count = self.items.len();
-        let (_, track) = ui.allocate_space(vec2(count as f32 * segment.x + 2.0 * style.inset, style.height));
-        if ui.is_rect_visible(track) {
-            ui.painter().extend(style.track.shapes(track, ui.pixels_per_point()));
-        }
+        let total = widths.iter().sum::<f32>() + count.saturating_sub(1) as f32 * style.gap;
+        let (_, strip) = ui.allocate_space(vec2(total, style.height));
 
         let mut group = ui.new_child(
             UiBuilder::new()
                 .id_salt(self.id_salt)
-                .max_rect(track.shrink(style.inset))
+                .max_rect(strip)
                 .layout(direction::row(ui))
                 .accessibility_role(Role::RadioGroup)
                 .accessibility_label(self.label.as_str()),
         );
-        group.spacing_mut().item_spacing = Vec2::ZERO;
+        group.spacing_mut().item_spacing = vec2(style.gap, 0.0);
         let enabled = self.enabled && ui.is_enabled();
         let items = self.items.iter().enumerate().map(|(i, item)| (Interactive::id_in(&group, i), enabled && item.enabled)).collect();
         let selected = self.items.iter().position(|item| item.value == *self.value);
@@ -166,10 +163,11 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                 Interactive::new(i, Role::RadioButton, item.label.as_str())
                     .position_in_set(i)
                     .colors(StateColors { fill: style.fill, border: None })
-                    .on_colors(StateColors { fill: style.selected_fill, border: None })
+                    .on_colors(StateColors { fill: style.selected_fill, border: Some(style.selected_border) })
+                    .outline()
                     .corner(Corner::Control)
                     .enabled(enabled && item.enabled)
-                    .interact(&mut group, segment)
+                    .interact(&mut group, vec2(widths[i], style.height))
             })
             .collect();
         radios.sensed(&sensed);
@@ -201,8 +199,8 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
         }
 
         let mut response = match responses.into_iter().reduce(|all, r| all.union(r)) {
-            Some(all) => all.with_new_rect(track),
-            None => ui.interact(track, ui.make_persistent_id(self.id_salt), Sense::hover()),
+            Some(all) => all.with_new_rect(strip),
+            None => ui.interact(strip, ui.make_persistent_id(self.id_salt), Sense::hover()),
         };
         if radios.changed() {
             response.mark_changed();
@@ -214,19 +212,17 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
 impl Segmented<'static, ()> {
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SegmentedStyle {
         let s = &tokens.component.segmented;
-        let mut track = Surface::style(tokens, SurfaceKind::Sunken);
-        track.fill = s.track.to_egui();
         SegmentedStyle {
             height: s.height.get(size),
             pad_x: s.pad_x.get(size),
             icon: s.icon.get(size),
-            inset: s.inset,
+            gap: s.gap,
             label: s.label,
-            track,
             radius: Corner::Control.radius(tokens),
             fill: s.segment.fill.to_egui(),
             text: s.segment.text.to_egui(),
             selected_fill: s.selected.fill.to_egui(),
+            selected_border: s.selected_border.to_egui(),
             selected_text: s.selected.text.to_egui(),
         }
     }

@@ -1,11 +1,11 @@
 use std::{fmt::Debug, hash::Hash, sync::Arc};
 
-use egui::{Color32, Galley, Id, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, Galley, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{Renderer, clamp_float, stripless};
-use crate::controls::TooltipExt as _;
 use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Placement, Target, begin_drag};
 use crate::tabs;
+use crate::theme::TokensOf as _;
 
 /// Where a group is drawn. It decides the drop targets the group offers and its gestures.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -376,17 +376,6 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         crate::docking::chrome::truncated(ui, text, width, self.look.font.clone())
     }
 
-    /// True while a tab's focus came from the pointer, which shows no focus outline. Tab or an
-    /// arrow key (keyboard navigation) clears it.
-    fn pointer_focus(&self, ui: &Ui, tab: Id) -> bool {
-        let key = tab.with("pointer-focus");
-        let navigated = ui.input(|i| [Key::Tab, Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown].iter().any(|k| i.key_pressed(*k)));
-        if navigated {
-            ui.ctx().data_mut(|d| d.remove_temp::<bool>(key));
-        }
-        ui.ctx().data(|d| d.get_temp::<bool>(key)).unwrap_or(false)
-    }
-
     /// Draw one tab inside `rect` and return its response.
     ///
     /// Clicking activates and focuses the panel. In a minimized group the first click expands and
@@ -399,37 +388,31 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let minimized = owner.filter(|owner| self.minimizes(owner)).map(|owner| owner.minimized);
         let policy = self.permissions(panel);
         let label = self.label_of(panel);
-        let color = if active { self.look.text } else { self.look.inactive_text };
-        let galley = self.tab_label(ui, panel, &label, color, (rect.width() - self.look.tab_padding).max(0.0));
-        let elided = galley.elided;
+        let mut style = crate::tab_strip::Tab::<P>::style(&crate::theme::Tokens::of(ui));
+        style.strip = self.look.tab_strip;
+        style.active = self.look.tab_active;
+        style.radius = self.look.tab_radius;
+        style.text = self.look.text;
+        style.inactive_text = self.look.inactive_text;
+        style.pad_x = self.look.tab_padding * 0.5;
+        let galley = self.tab_label(ui, panel, &label, style.label_color(active), f32::INFINITY);
         let tab_id = self.id.with(("tab", panel));
-        let pointer_focus = self.pointer_focus(ui, tab_id);
-        // The group strip keeps `tabs::Tab` until it is rebuilt on `TabStrip`.
-        #[allow(deprecated)]
-        let response = tabs::Tab::new(tab_id, &label, active)
-            .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() })
-            .focus_stroke(if pointer_focus { Stroke::NONE } else { Stroke::new(self.look.focus_width, self.look.focus) })
-            .show_at(ui, rect, |ui, response| {
-                let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-                painter.rect_filled(
-                    rect,
-                    0.0,
-                    if active {
-                        self.look.tab_active
-                    } else if response.hovered() {
-                        self.look.tab_hover
-                    } else {
-                        self.look.tab_strip
-                    },
-                );
-                let at = pos2(rect.left() + self.look.tab_padding * 0.5, rect.center().y - galley.size().y * 0.5);
-                painter.galley(at, galley.clone(), color);
-            });
-        let response = if elided { response.tooltip(&label) } else { response };
+        let position = owner.and_then(|owner| owner.panels.iter().position(|p| p == panel)).unwrap_or(0);
+        let text = crate::tab_strip::TabStripText::default();
+        let view = crate::tab_strip::TabView {
+            strip: self.id,
+            active,
+            focused: ui.memory(|m| m.has_focus(tab_id)),
+            large: false,
+            divider: false,
+            drop_highlight: false,
+            sense: if policy.movable { Sense::click_and_drag() } else { Sense::click() },
+            position,
+            text: &text,
+            controls: None,
+        };
+        let response = crate::tab_strip::Tab::new(panel.clone(), &label).with_id(tab_id).shaped(galley).show_with(ui, rect, &view, &style).tab;
         self.register_interaction(ui.ctx(), response.id);
-        if response.is_pointer_button_down_on() || response.clicked_by(egui::PointerButton::Primary) {
-            ui.ctx().data_mut(|d| d.insert_temp(tab_id.with("pointer-focus"), true));
-        }
         // The click that expands a minimized group is not the first half of a double-click.
         let expand_key = self.id.with(("expanded-by-click", owner.map(|owner| owner.panels.first())));
         if response.clicked() {

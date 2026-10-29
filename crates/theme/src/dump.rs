@@ -123,10 +123,12 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.list.trailing_pad", len(*trailing_pad));
     out.line("size.list.rounded", rounded);
     out.line("size.list.dividers", dividers);
-    let TabSizes { height_large, min_width, close, rounded, dividers } = tab_sizes;
+    let TabSizes { panel_height, height_large, min_width, close, close_icon, rounded, dividers } = tab_sizes;
+    out.line("size.tab.panel_height", len(*panel_height));
     out.line("size.tab.height_large", len(*height_large));
     out.line("size.tab.min_width", len(*min_width));
     out.line("size.tab.close", len(*close));
+    out.line("size.tab.close_icon", len(*close_icon));
     out.line("size.tab.rounded", rounded);
     out.line("size.tab.dividers", dividers);
 }
@@ -354,15 +356,15 @@ fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
 }
 
 fn segmented_lines(out: &mut Lines, s: &SegmentedTokens) {
-    let SegmentedTokens { height, pad_x, icon, inset, label, track, segment, selected } = s;
+    let SegmentedTokens { height, pad_x, icon, gap, label, segment, selected, selected_border } = s;
     by_size(out, "segmented.height", height);
     by_size(out, "segmented.pad_x", pad_x);
     by_size(out, "segmented.icon", icon);
-    out.line("segmented.inset", len(*inset));
+    out.line("segmented.gap", len(*gap));
     out.line("segmented.label", role(*label));
-    out.line("segmented.track", hex(*track));
     item_lines(out, "segmented.segment", segment);
     item_lines(out, "segmented.selected", selected);
+    states(out, "segmented.selected.border", selected_border);
 }
 
 fn field_lines(out: &mut Lines, f: &FieldTokens) {
@@ -613,6 +615,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
 fn tab_lines(out: &mut Lines, t: &TabTokens) {
     let TabTokens {
         height,
+        panel_height,
         height_large,
         pad_x,
         gap,
@@ -631,17 +634,18 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         detail_role,
         strip,
         active,
-        hover,
         text,
         inactive_text,
         detail,
         divider,
+        close_fill,
         close_text,
         close_hover,
         drop,
         drop_halo,
     } = t;
     out.line("tab.height", len(*height));
+    out.line("tab.panel_height", len(*panel_height));
     out.line("tab.height_large", len(*height_large));
     out.line("tab.pad_x", len(*pad_x));
     out.line("tab.gap", len(*gap));
@@ -661,11 +665,11 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     for (k, c) in [
         ("strip", strip),
         ("active", active),
-        ("hover", hover),
         ("text", text),
         ("text.inactive", inactive_text),
         ("detail", detail),
         ("divider", divider),
+        ("close.fill", close_fill),
         ("close", close_text),
         ("close.hover", close_hover),
         ("drop", drop),

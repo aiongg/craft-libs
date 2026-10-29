@@ -267,14 +267,6 @@ impl ItemColors {
         }
     }
 
-    /// The `state.selected` look: `text.on_selected` on `state.selected`, the disabled fill and
-    /// text when disabled. The fill moves in lightness where it doesn't reach the non-text
-    /// minimum on the fills in `on` (see [`Identify`]), with the text moving to read on it.
-    fn selected(c: &ColorTokens, on: &[Rgba], high: bool) -> ItemColors {
-        let (fill, text) = Identify::on(on, high).fill(c.state.selected, c.text.on_selected);
-        ItemColors { fill: States::new(fill, fill, fill, c.state.disabled_fill), text: States::new(text, text, text, c.text.disabled) }
-    }
-
     /// The colour of `part` in `state`, to set it.
     fn get_mut(&mut self, part: ItemPart, state: State) -> &mut Rgba {
         self.part_mut(part).get_mut(state)
@@ -664,7 +656,7 @@ families! {
     ruler: RulerTokens => Ruler(RulerField);
     /// Section headers: the row, chevron and title of a collapsible section.
     section: SectionTokens => Section(SectionField);
-    /// Segmented controls: one of a few options on a track.
+    /// Segmented controls: one of a few options as separate pills.
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);

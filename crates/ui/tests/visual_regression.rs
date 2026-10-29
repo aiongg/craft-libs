@@ -208,7 +208,7 @@ fn rendered_controls_match_independent_reference_pixels_and_meshes() {
             }
         }
     }
-    assert_eq!(count, 372);
+    assert_eq!(count, 288);
     eprintln!("{count} control before/after pairs matched exact RGBA pixels and tessellated meshes");
 }
 

@@ -150,25 +150,11 @@ fit; the selected tab is always shown in its logical place, taking the place of 
 fit when it lies past them. Only a selected tab wider than the strip minus the overflow button is
 narrowed.
 
-`tabs::Tab` is deprecated: strips use `tab_strip::TabStrip`. It stays until docking and the apps
-have moved. It registers a tab at a supplied rectangle and invokes the application's painter:
-
-```rust
-fn tab(ui: &mut egui::Ui, rect: egui::Rect, selected: bool) -> egui::Response {
-    craft_ui::tabs::Tab::new(ui.scope_id().with("layers-tab"), "Layers", selected)
-        .sense(egui::Sense::click_and_drag())
-        .show_at(ui, rect, |ui, response| {
-            let fill = if response.hovered() { egui::Color32::GRAY } else { egui::Color32::DARK_GRAY };
-            ui.painter().rect_filled(response.rect, 0.0, fill);
-        })
-}
-```
-
-Supply a stable ID independent of the translated label. The component reports the accessible
-Tab role, label and selection, handles egui keyboard activation, and paints a focus outline from
-the caller's theme. The caller keeps selection, labels, overflow menus, painting and drag actions;
-close buttons and tab context menus stay separate. Dock and floating-panel adapters use the same
-component without sharing window or workspace state.
+The tab itself is `tab_strip::Tab`. A host that draws its own strip (the dock's group strip) shows
+each tab with `Tab::show_with`: `Tab::with_id` keeps the host's widget id, `Tab::shaped` gives the
+label as the host shaped it, `TabView::sense` makes the tab a drag source, and the returned
+`TabResponse::tab` carries clicks, double-clicks and the context menu. `Tab::style` returns the
+theme's `TabStyle`, whose fields the host may replace.
 
 ## Splits and resize handles
 

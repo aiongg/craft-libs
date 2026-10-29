@@ -213,14 +213,23 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
                 minimum: 4.5,
             });
         }
-        // A tab's detail text is `text.faint` on the strip, the hovered tab and the active tab.
+        // A tab's detail text is `text.faint` on the strip and the active tab.
         let tab = ComponentField::Tab;
-        for bg in [TabField::Strip, TabField::Hover, TabField::Active] {
+        for bg in [TabField::Strip, TabField::Active] {
             expected.push(ContrastCheck {
                 fg: tab(TabField::Detail).into(),
                 bg: tab(bg).into(),
                 ratio: contrast_ratio(pin, t.component.color(tab(bg)).unwrap()),
                 minimum: 4.5,
+            });
+        }
+        // A tab's × is `text.faint` on the strip and the active tab (a mark: 3:1).
+        for bg in [TabField::Strip, TabField::Active] {
+            expected.push(ContrastCheck {
+                fg: tab(TabField::Close).into(),
+                bg: tab(bg).into(),
+                ratio: contrast_ratio(pin, t.component.color(tab(bg)).unwrap()),
+                minimum: 3.0,
             });
         }
         // A toast's "more" line is `text.faint` on the card fill, `surface.panel`.

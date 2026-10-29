@@ -155,6 +155,24 @@ fn segmented_controls_are_radio_groups_with_the_selected_segment_checked() {
     assert_eq!((*harness.state(), checked(&harness)), (2, vec!["Subtract".to_owned()]), "every segment reports the click in its frame");
 }
 
+/// PhotoCraft's `pill_tab`: separate pills of the control height, each its label plus both
+/// paddings wide, `segmented.gap` apart.
+#[test]
+fn segmented_pills_are_separate_and_as_wide_as_their_labels() {
+    let mut harness = segmented();
+    harness.run();
+    let style = Segmented::style(&crate::theme::current(&harness.ctx), ControlSize::Md);
+    let rects: Vec<_> = ["New", "Add", "Subtract"].map(|l| harness.get_by_label(l).rect()).into();
+    for rect in &rects {
+        assert_eq!(rect.height(), style.height);
+    }
+    for pair in rects.windows(2) {
+        assert!((pair[1].min.x - pair[0].max.x - style.gap).abs() < 0.01, "{pair:?}");
+    }
+    assert!(rects[2].width() > rects[1].width(), "a longer label makes a wider pill");
+    assert!(rects[1].width() > 2.0 * style.pad_x);
+}
+
 /// A radio button as AccessKit reports it: label, position in the set, checked.
 type RadioItem = (String, Option<usize>, bool);
 

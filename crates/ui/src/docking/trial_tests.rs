@@ -199,12 +199,16 @@ fn double_click_on_the_active_tab_of_a_minimized_group_or_window_ends_expanded()
 /// keyboard (Tab) focus paints the accent outline.
 fn a_clicked_tab_shows_no_focus_outline_but_tab_key_focus_does() {
     let mut d = Driver::new(frames());
-    let accent = d.ctx.global_style().visuals.selection.stroke.color;
+    crate::theme::install(&d.ctx, &crate::theme::Base::suite_default());
+    d.step(vec![]);
     let id = Id::unique(AREA).with(("tab", &3u32));
-    let outline = d.tab(3).shrink(2.0);
-    let outlined = |d: &Driver| rects(d).iter().any(|r| r.rect == outline && r.stroke.width > 0.0 && r.stroke.color == accent);
+    let tab = d.tab(3);
+    // The ring lies inside the tab, inset from its edge.
+    let outlined = |d: &Driver| {
+        rects(d).iter().any(|r| r.fill.a() == 0 && r.stroke.width > 0.0 && tab.contains_rect(r.rect) && r.rect.contains_rect(tab.shrink(6.0)))
+    };
 
-    d.click(d.tab(3).center());
+    d.click(tab.center());
     // A platform may focus the clicked widget, as an AccessKit focus request does.
     d.ctx.memory_mut(|m| m.request_focus(id));
     d.step(vec![]);

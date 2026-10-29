@@ -14,7 +14,8 @@ use craft_ui::buttons::{IconButton, IconButtonStyle};
 use craft_ui::controls::TooltipExt as _;
 use craft_ui::layout::{ResizeHandle, SplitAxis, SplitSize, split_rect};
 #[allow(deprecated)]
-use craft_ui::tabs::{self, Tab};
+use craft_ui::tab_strip::{Tab, TabStripText, TabView};
+use craft_ui::tabs;
 use egui::Galley;
 use egui::accesskit::Live;
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
@@ -509,13 +510,13 @@ impl Draw<'_, '_> {
     }
 
     /// Show as tabs, with the ones that do not fit in a menu.
-    #[allow(deprecated)]
     fn area_tabs(&mut self, ui: &mut Ui) {
         let areas = self.state.areas.clone();
         let pad = ui.spacing().button_padding.x * 2.0;
         let font = TextStyle::Button.resolve(ui.style());
         let natural: Vec<f32> =
             areas.iter().map(|a| ui.painter().layout_no_wrap(self.vis(&a.label), font.clone(), Color32::WHITE).size().x + pad).collect();
+        let tab_text = TabStripText::default();
         let selected = areas.iter().position(|a| a.id == self.state.area).unwrap_or(0);
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y + 4.0), Sense::hover());
         let fit = tabs::fit(&natural, selected, rect.width(), 48.0, ICON + 8.0);
@@ -529,19 +530,21 @@ impl Draw<'_, '_> {
             let on = i == selected;
             let id = self.base.with(("area", i));
             let text = self.vis(&a.label);
-            let accent = self.style.accent;
-            let resp = Tab::new(id, &a.label, on).show_at(ui, r, |ui, resp| {
-                let v = ui.visuals();
-                let color = if on { v.strong_text_color() } else { v.text_color() };
-                if resp.hovered() && !on {
-                    ui.painter().rect_filled(r, 2.0, v.widgets.hovered.weak_bg_fill);
-                }
-                if on {
-                    ui.painter().line_segment([r.left_bottom(), r.right_bottom()], Stroke::new(2.0, accent));
-                }
-                let (g, _) = self.one_line(ui.painter(), &[(text, TextFormat::simple(font.clone(), color))], r.width() - 4.0);
-                ui.painter().galley(r.center() - g.size() / 2.0, g, color);
-            });
+            let color = if on { ui.visuals().strong_text_color() } else { ui.visuals().text_color() };
+            let (shaped, _) = self.one_line(ui.painter(), &[(text, TextFormat::simple(font.clone(), color))], f32::INFINITY);
+            let view = TabView {
+                strip: self.base.with("areas"),
+                active: on,
+                focused: false,
+                large: false,
+                divider: false,
+                drop_highlight: false,
+                sense: Sense::click(),
+                position: i,
+                text: &tab_text,
+                controls: None,
+            };
+            let resp = Tab::new(i, &a.label).with_id(id).shaped(shaped).show_at(ui, r, &view).tab;
             self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), resp.rect, &a.label);
             if resp.clicked() {
                 pick = Some(a.id.clone());

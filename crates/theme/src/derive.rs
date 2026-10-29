@@ -6,7 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Oklch, Rgba};
 use super::components::{
-    ButtonField, ButtonPart, ButtonVariant, ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue, State,
+    ButtonField, ButtonPart, ButtonVariant, ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, FloatField, OverrideValue,
+    State,
 };
 use super::contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 use super::ramp::{self, Mode, Ramp, RampKind};
@@ -766,6 +767,10 @@ pub(super) fn component_overrides(
     let text_pinned = on_accent_pinned || layers.contains_key(&field(State::Rest));
     comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)), text_pinned, color.surface.panel, high);
     comp.list.follow(color, high, |f| layers.contains_key(&ComponentField::List(f)));
+    // A floating group's title bar is its tab strip.
+    if !layers.contains_key(&ComponentField::Float(FloatField::Title)) {
+        comp.float.title = comp.tab.strip;
+    }
     layers
 }
 

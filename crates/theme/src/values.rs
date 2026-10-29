@@ -427,7 +427,7 @@ pub(super) const COMPACT: Preset = Preset {
             rounded: false,
             dividers: true,
         },
-        tab: TabSizes { height_large: 34.0, min_width: 40.0, close: 14.0, rounded: false, dividers: true },
+        tab: TabSizes { panel_height: 28.0, height_large: 34.0, min_width: 40.0, close: 14.0, close_icon: 10.0, rounded: false, dividers: true },
     },
     space: SpaceTokens { gap: Gaps { inline: 4.0, row: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -462,7 +462,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
             rounded: true,
             dividers: false,
         },
-        tab: TabSizes { height_large: 38.0, min_width: 44.0, close: 16.0, rounded: true, dividers: false },
+        tab: TabSizes { panel_height: 32.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -566,8 +566,12 @@ pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
 pub const BUTTON_HOVER_OPACITY: f32 = 0.93;
 pub const BUTTON_PRESSED_OPACITY: f32 = 0.85;
 
-/// Between a segmented control's track edge and its segments, in points, at every Size.
-pub const SEGMENTED_INSET: f32 = 2.0;
+/// How far a segmented control's gap between pills is over the inline gap of its Size, in points
+/// (PhotoCraft's `pill_tab` item spacing is 8: the Compact inline gap 4 plus this).
+pub const SEGMENTED_GAP_OVER_INLINE: f32 = 4.0;
+/// Opacity of `state.hover` behind an unselected pill under the pointer (PhotoCraft's `pill_tab`:
+/// `hover.gamma_multiply(0.6)`, `widgets/panel.rs:116`).
+pub const SEGMENT_HOVER_OPACITY: f32 = 0.6;
 
 /// A text field's default width, in control heights of its size.
 pub const FIELD_WIDTH: f32 = 8.0;
@@ -818,9 +822,6 @@ pub const TAB_DROP_HALO: f32 = 1.0;
 pub const TAB_PROGRESS_HEIGHT: f32 = 2.0;
 /// How far outside its strip a tab drag still resolves targets (PhotoCraft's `TEAR_OFF`).
 pub const TAB_TEAR_OFF: f32 = 24.0;
-/// How far a hovered tab's fill moves from the strip toward `state.hover` (OKLab mix; PhotoCraft
-/// draws `hover` at 35 % over the strip).
-pub const TAB_HOVER_MIX: f64 = 0.35;
 
 /// Least title bar height with Adwaita caption buttons: libadwaita's 46 pt header plus its 1 pt
 /// separator.
