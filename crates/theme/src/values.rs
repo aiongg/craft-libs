@@ -555,7 +555,7 @@ pub const MENU_MIN_WIDTH: f32 = 220.0;
 pub const MENU_SHORTCUT_GAP: f32 = 16.0;
 /// Alpha of a user label colour behind a menu row's text: the most that keeps `text.normal` at 4.5:1
 /// on every label hue in every built-in theme (PhotoCraft draws 0.3).
-pub const MENU_TINT_ALPHA: f32 = 0.15;
+pub const MENU_TINT_ALPHA: f32 = 0.24;
 /// Compact height of a menu's scroll strip (PhotoCraft's scroll arrows).
 pub const MENU_SCROLL_STRIP: f32 = 16.0;
 

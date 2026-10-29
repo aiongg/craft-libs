@@ -1046,27 +1046,28 @@ fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode) -> crate::t
 
 #[test]
 fn a_tinted_row_keeps_text_contrast_in_every_builtin_theme() {
-    // The seven label hues PhotoCraft offers.
+    // PhotoCraft's label colours (`menu_tint`).
     let hues = [
-        Srgba::rgb(0.86, 0.24, 0.24),
-        Srgba::rgb(0.95, 0.55, 0.15),
-        Srgba::rgb(0.95, 0.80, 0.20),
-        Srgba::rgb(0.30, 0.70, 0.30),
-        Srgba::rgb(0.25, 0.45, 0.90),
-        Srgba::rgb(0.60, 0.35, 0.80),
-        Srgba::rgb(0.50, 0.50, 0.50),
-    ];
+        ("red", [190, 60, 60]),
+        ("orange", [200, 120, 40]),
+        ("yellow", [190, 170, 40]),
+        ("green", [60, 150, 70]),
+        ("blue", [50, 110, 200]),
+        ("violet", [130, 80, 190]),
+        ("gray", [120, 120, 120]),
+    ]
+    .map(|(name, [r, g, b])| (name, Srgba::from(egui::Color32::from_rgb(r, g, b))));
     for theme in craft_theme::builtins() {
         for mode in [craft_theme::Mode::Light, craft_theme::Mode::Dark] {
             let tokens = tokens_in(theme, mode);
             let style = Menu::style(&tokens, ControlSize::Md);
             let (raised, text) = (tokens.color.surface.raised, tokens.color.text.normal);
             assert_eq!(style.rows.text.to_array(), text.to_egui().to_array(), "rows use text.normal");
-            for hue in hues {
+            for (name, hue) in hues {
                 let fill = RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md }.tint_fill(hue);
                 let under = raised.to_egui().blend(fill).to_array();
                 let ratio = craft_theme::contrast_ratio(text, craft_theme::Rgba([under[0], under[1], under[2], 255]));
-                assert!(ratio >= 4.5, "{} {mode:?}: text on tint {hue:?} is {ratio:.2}:1", theme.id.as_str());
+                assert!(ratio >= 4.5, "{} {mode:?}: text on the {name} tint is {ratio:.2}:1", theme.id.as_str());
             }
         }
     }
