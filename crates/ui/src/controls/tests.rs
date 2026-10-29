@@ -370,7 +370,7 @@ fn switch_track_and_thumb_follow_the_pill_radius() {
 /// ring paints only while the slider is hovered or pressed.
 #[test]
 fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() {
-    // PhotoCraft's knob shadow is a hard circle: black at 90/255, no blur.
+    // PhotoCraft's knob shadow is a hard circle: black at 90/255, no blur. A range slider's flat handles cast none.
     let shadow = Color32::from_black_alpha(90);
     let shadows = |shapes: &[Shape]| shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.blur_width == 0.0 && r.fill == shadow)).count();
     for enabled in [true, false] {
@@ -381,7 +381,7 @@ fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() 
             let mut on = true;
             let _ = Switch::new("Autosave", &mut on).enabled(enabled).show(ui);
         });
-        assert_eq!(shadows(&shapes), if enabled { 4 } else { 0 }, "enabled: {enabled}");
+        assert_eq!(shadows(&shapes), if enabled { 2 } else { 0 }, "enabled: {enabled}");
     }
 
     let ctx = context();

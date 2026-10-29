@@ -207,7 +207,7 @@ fn all_zero_bins_draw_no_ribbons() {
 }
 
 #[test]
-fn backdrop_is_the_tone_look_at_the_backdrop_alpha() {
+fn backdrop_is_one_grey_in_every_channel() {
     let style = style();
     let data = HistogramData::tone(&[5u32; 8], ChannelColor::Neutral);
     let color = |look| match &plot_shapes(rect(), &data, look, &style)[0] {
@@ -215,7 +215,13 @@ fn backdrop_is_the_tone_look_at_the_backdrop_alpha() {
         other => panic!("{other:?}"),
     };
     assert_eq!(color(HistogramLook::Tone), style.tone(ChannelColor::Neutral));
-    assert_eq!(color(HistogramLook::Backdrop), style.tone(ChannelColor::Neutral).gamma_multiply(style.backdrop_alpha));
+    assert_eq!(color(HistogramLook::Backdrop), style.backdrop);
+    let red = HistogramData::tone(&[5u32; 8], ChannelColor::Red);
+    let backdrop = match &plot_shapes(rect(), &red, HistogramLook::Backdrop, &style)[0] {
+        egui::Shape::Mesh(m) => m.vertices[0].color,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(backdrop, style.backdrop);
 }
 
 #[test]
@@ -244,21 +250,21 @@ fn the_dark_modes_tokens_are_available_in_a_light_theme() {
         assert_eq!(Tokens::of(ui).mode, Mode::Light);
         let dark = tokens_in_mode(ui.ctx(), Mode::Dark);
         assert_eq!(dark.mode, Mode::Dark);
-        assert_ne!(dark.color.data.red, Tokens::of(ui).color.data.red);
+        assert_ne!(dark.color.data.luma, Tokens::of(ui).color.data.luma);
     })
     .drop_without_applying_deltas();
 }
 
-/// The RGB look sits on the dark scope in every theme, so a light theme's histogram outlines its
-/// ribbons in the dark mode's data colours.
+/// The RGB look sits on the dark scope in every theme, so a light theme's histogram outlines a
+/// neutral ribbon in the dark mode's `data.luma`.
 #[test]
-fn a_light_theme_draws_the_dark_modes_ribbons() {
+fn a_light_theme_draws_the_dark_modes_inks() {
     let bins: Vec<u32> = (0..64).map(|k| 10 + k % 7).collect();
-    let data = |t: &crate::theme::UiTokens| [t.color.data.red, t.color.data.green, t.color.data.blue].map(|c| c.to_egui());
+    let data = |t: &crate::theme::UiTokens| [t.color.data.luma.to_egui()];
     let mut harness = harness(Direction::Ltr).build_ui_state(
-        move |ui, colors: &mut Option<([Color32; 3], [Color32; 3])>| {
+        move |ui, colors: &mut Option<([Color32; 1], [Color32; 1])>| {
             *colors = Some((data(&tokens_in_mode(ui.ctx(), Mode::Dark)), data(&Tokens::of(ui))));
-            let _ = Histogram::new("h", "Histogram").rgb([&bins, &bins, &bins]).show(ui);
+            let _ = Histogram::new("h", "Histogram").channels(&[(&bins[..], ChannelColor::Neutral)]).show(ui);
         },
         None,
     );
@@ -278,22 +284,22 @@ fn a_light_theme_draws_the_dark_modes_ribbons() {
         })
         .collect();
     assert_ne!(dark, light);
-    assert_eq!(outlines, dark, "the ribbons' outlines, red, green and blue");
+    assert_eq!(outlines, dark, "the ribbon's outline");
 }
 
 #[test]
-fn marker_is_a_two_point_band_clipped_to_the_plot() {
+fn marker_is_a_tick_on_the_bottom_clipped_to_the_plot() {
     let rect = rect();
-    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, 2.0, Color32::WHITE)[0] {
+    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, (1.5, 9.0), Color32::WHITE)[0] {
         egui::Shape::Rect(r) => r.rect,
         other => panic!("{other:?}"),
     };
     let middle = band(127.5);
-    assert_eq!(middle.width(), 2.0);
+    assert_eq!(middle.width(), 1.5);
     assert!((middle.center().x - rect.center().x).abs() <= 1.0);
-    assert_eq!((middle.top(), middle.bottom()), (rect.top(), rect.bottom()));
+    assert_eq!((middle.height(), middle.bottom()), (9.0, rect.bottom()));
     assert!(rect.contains_rect(band(-50.0)) && rect.contains_rect(band(5000.0)));
-    assert!(histogram::marker_shapes(rect, 256, f32::NAN, 2.0, Color32::WHITE).is_empty());
+    assert!(histogram::marker_shapes(rect, 256, f32::NAN, (1.5, 9.0), Color32::WHITE).is_empty());
 }
 
 #[test]
@@ -706,4 +712,27 @@ fn harness_named() -> Harness<'static> {
             .selection_labels("Anfang", "Ende")
             .show(ui);
     })
+}
+
+/// PhotoCraft's Histogram panel has no outline; its levels dialog draws one, and a selected range is
+/// the accent at 0.35.
+#[test]
+fn the_plot_has_an_edge_only_when_bordered_and_a_selection_is_the_accent() {
+    let edges = |bordered: bool| {
+        let mut harness = harness(Direction::Ltr).build_ui(move |ui| {
+            let _ = Histogram::new("h", "Histogram").tone(&[1u32, 4, 2], ChannelColor::Neutral).bordered(bordered).show(ui);
+        });
+        harness.run();
+        harness.output().shapes.iter().filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.stroke.width > 0.0)).count()
+    };
+    assert_eq!(edges(false), 0);
+    assert_eq!(edges(true), 1);
+    let style = style();
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::of(ui);
+        assert_eq!(style.selection, tokens.color.accent.solid.to_egui().gamma_multiply(tokens.component.histogram.selection_alpha));
+    })
+    .drop_without_applying_deltas();
 }

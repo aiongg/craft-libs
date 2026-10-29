@@ -209,7 +209,7 @@ pub struct ColorPartsStyle {
     /// A strip pointer triangle, its depth across and its height: `color_picker.pointer_width`
     /// and `color_picker.pointer_height`.
     pub pointer: Vec2,
-    /// The pointers' fill: `text.normal`.
+    /// The pointers' fill: `text.normal`, outlined in the strip's edge.
     pub pointer_color: Color32,
 }
 

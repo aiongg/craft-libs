@@ -23,6 +23,8 @@ pub struct LevelsTokens {
     pub thumb_height: f32,
     /// Distance from a thumb's centre within which a press grabs it: `levels.hit`.
     pub hit: f32,
+    /// Height of the histogram over the input row: `levels.histogram`.
+    pub histogram: f32,
     /// Thickness of the output gradient bar: `levels.bar`.
     pub bar: f32,
     /// A thumb's 1 pt edge, which shows a black or white face on any panel: `text.muted`.
@@ -92,6 +94,7 @@ impl Family for LevelsTokens {
             thumb_width: scale(values::LEVELS_THUMB_WIDTH),
             thumb_height: scale(values::LEVELS_THUMB_HEIGHT),
             hit: scale(values::LEVELS_HIT),
+            histogram: scale(values::LEVELS_HISTOGRAM),
             bar: scale(values::LEVELS_BAR),
             thumb_edge: c.text.muted,
             disabled_edge: c.text.disabled,

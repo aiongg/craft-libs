@@ -283,6 +283,6 @@ fn paint(ui: &Ui, style: &ColorPartsStyle, strip: &ColorStrip, scale: &Scale, re
     for (tip, dir) in [(rect.left() - edge, -1.0), (rect.right() + edge, 1.0)] {
         let base = tip + dir * depth;
         let points = vec![pos2(tip, y), pos2(base, y - half), pos2(base, y + half)];
-        painter.add(Shape::convex_polygon(points, color, egui::Stroke::NONE));
+        painter.add(Shape::convex_polygon(points, color, faded_stroke(style.edge, enabled)));
     }
 }

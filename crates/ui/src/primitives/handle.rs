@@ -7,6 +7,7 @@ use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, S
 use crate::inspect::{self, RecordKind};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_theme::Contrast;
 
 /// What a handle does, which sets its shape and pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,8 +45,8 @@ pub struct HandleStyle {
     pub fill: Color32,
     /// The outline inside `size`: `handle.stroke` of `overlay.handle_stroke`; none on a rotate dot.
     pub stroke: Stroke,
-    /// The outline outside `size`: `handle.halo` of `overlay.halo`, so the handle reads on any
-    /// image.
+    /// The outline outside `size`: `handle.halo` of `overlay.halo` in high contrast, so the handle
+    /// reads on any image; none otherwise.
     pub halo: Stroke,
     /// Side of the square that takes the pointer, centred on the handle: `handle.hit`.
     pub hit: f32,
@@ -123,11 +124,13 @@ impl Handle {
             HandleShape::Square | HandleShape::Round => (o.handle_fill, Stroke::new(h.stroke, o.handle_stroke.to_egui())),
             HandleShape::Rotate => (o.handle_stroke, Stroke::NONE),
         };
+        // PhotoCraft's handles have no halo; high contrast keeps it.
+        let halo = if tokens.appearance.contrast == Contrast::High { h.halo } else { 0.0 };
         let cursor = match shape {
             HandleShape::Square | HandleShape::Round => CursorIcon::Move,
             HandleShape::Rotate => CursorIcon::Alias,
         };
-        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(h.halo, o.halo.to_egui()), hit: h.hit, cursor }
+        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(halo, o.halo.to_egui()), hit: h.hit, cursor }
     }
 
     /// A selected handle's look: a `Square` or `Round` filled with `overlay.handle_stroke`, as a

@@ -123,7 +123,7 @@ pub struct CurveStyle {
     /// outline of `curve.point_stroke` inside it.
     pub point: HandleStyle,
     /// The selected point: `curve.point_stroke` with a `handle.stroke` outline of
-    /// `curve.point_fill` outside it.
+    /// `curve.point_halo` outside it.
     pub selected: HandleStyle,
     /// The hint line: `caption` in `text.faint`.
     pub hint_role: TypeRole,
@@ -482,7 +482,7 @@ impl<'a> CurveEditor<'a> {
         let mut selected = point;
         selected.fill = c.point_stroke.to_egui();
         selected.stroke = Stroke::NONE;
-        selected.halo = Stroke::new(h.stroke, c.point_fill.to_egui());
+        selected.halo = Stroke::new(h.stroke, c.point_halo.to_egui());
         CurveStyle {
             min_side: c.min_side,
             max_side: c.max_side,
