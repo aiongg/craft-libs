@@ -608,7 +608,7 @@ fn lines(h: &Harness<'_, Host>, width: f32, color: Color32) -> usize {
 #[test]
 fn highlight_draws_the_hover_look_on_the_hit_only() {
     let style = BezierOverlay::style(&current(&two_paths().ctx));
-    let enlarged = style.highlight_anchor + 2.0 * style.highlight_halo;
+    let enlarged = style.highlight_anchor + 2.0 * style.anchor.halo.width;
     let ring = style.selected_segment + 2.0 * style.highlight_halo;
 
     let mut h = two_paths();
@@ -618,7 +618,7 @@ fn highlight_draws_the_hover_look_on_the_hit_only() {
     h.state_mut().highlight = Some(point);
     h.run();
     let big = square_widths(&h).iter().filter(|w| (**w - enlarged).abs() < 1e-3).count();
-    assert_eq!(big, 1, "one enlarged anchor");
+    assert_eq!(big, 2, "one enlarged anchor: its body and its outline");
     assert_eq!(lines(&h, ring, style.halo), 0, "no segment ring for a point");
 
     let segment = BezierHit::Segment { path: 1, segment: KnotRef::new(0, 1), t: 0.5 };

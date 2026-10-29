@@ -234,7 +234,7 @@ impl RangeSlider {
 /// The slider's look with PhotoCraft's range handle for a thumb: a 5 by 12 rectangle of
 /// `text.normal` with a 1 point `text.muted` outline and 1 point corners, flat (`text.disabled`
 /// when disabled).
-fn range_style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
+pub(super) fn range_style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
     let (s, c) = (&tokens.component.slider, &tokens.color);
     let mut style = Slider::style(tokens, size);
     style.thumb_width = s.range_thumb_width.get(size);

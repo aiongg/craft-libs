@@ -11,8 +11,16 @@ use crate::icons::{self, IconSize};
 use crate::theme::{FontFamilies, ToEgui, TokensOf, UiTokens};
 
 fn tokens(id: &str, mode: Mode) -> UiTokens {
+    tokens_at(id, mode, Contrast::Standard)
+}
+
+fn high_contrast_tokens(id: &str, mode: Mode) -> UiTokens {
+    tokens_at(id, mode, Contrast::High)
+}
+
+fn tokens_at(id: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
-    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
     UiTokens::new(resolve(theme, appearance, None).tokens, appearance, mode, FontFamilies::default())
 }
 
@@ -233,19 +241,24 @@ fn content_colours_are_their_tokens() {
 }
 
 #[test]
-fn handles_are_the_token_size_with_a_halo_outside() {
+fn handles_are_the_token_size_with_a_halo_outside_in_high_contrast_only() {
     let t = tokens("craft.artcraft", Mode::Dark);
     let (h, o) = (t.component.handle, &t.color.overlay);
     let drawn = Handle::shapes(&t, HandleShape::Square, pos2(20.3, 20.6), 1.0);
-    let [Shape::Rect(halo), Shape::Rect(body), Shape::Rect(outline)] = &drawn[..] else { panic!("{drawn:?}") };
+    let [Shape::Rect(body), Shape::Rect(outline)] = &drawn[..] else { panic!("{drawn:?}") };
     assert_eq!(body.rect.size(), vec2(h.size, h.size));
     assert_eq!(body.rect.min, body.rect.min.round(), "on the pixel grid");
-    assert_eq!(halo.rect, body.rect.expand(h.halo));
-    assert_eq!((halo.fill, body.fill), (o.halo.to_egui(), o.handle_fill.to_egui()));
+    assert_eq!(body.fill, o.handle_fill.to_egui());
     assert_eq!(outline.stroke, Stroke::new(h.stroke, o.handle_stroke.to_egui()));
     assert_eq!(Handle::style(&t, HandleShape::Rotate).fill, o.handle_stroke.to_egui());
     assert_ne!(Handle::style(&t, HandleShape::Rotate).cursor, Handle::style(&t, HandleShape::Round).cursor);
     assert_eq!(Handle::style(&t, HandleShape::Square).hit, h.hit);
+
+    let high = high_contrast_tokens("craft.artcraft", Mode::Dark);
+    let drawn = Handle::shapes(&high, HandleShape::Square, pos2(20.3, 20.6), 1.0);
+    let [Shape::Rect(halo), Shape::Rect(body), Shape::Rect(_)] = &drawn[..] else { panic!("{drawn:?}") };
+    assert_eq!(halo.rect, body.rect.expand(h.halo));
+    assert_eq!(halo.fill, high.color.overlay.halo.to_egui());
 }
 
 /// A selected anchor is the handle filled with its outline colour, the same size and halo.

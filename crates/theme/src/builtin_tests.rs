@@ -754,7 +754,8 @@ fn toasts_and_panel_rows_follow_photocraft() {
 /// The editors follow PhotoCraft: histogram channel colours are PhotoCraft's in every theme and mode
 /// (`histogram_panel.rs:191`), canvas box lines and handle outlines are the accent, handles are 7
 /// wide, and the Pro themes pin the curve backdrop grey 88 where the others use grey 190 (both at
-/// 0.75).
+/// 0.75). The selected curve point is outlined in black, a range slider's thumb is a 5 by 12
+/// rectangle and a marked histogram level is a 1.5 by 9 tick.
 #[test]
 fn editors_follow_photocraft() {
     let hex = |s: &str| Rgba::from_hex(s).unwrap();
@@ -775,6 +776,10 @@ fn editors_follow_photocraft() {
             assert_eq!(t.color(ColorToken::OverlayLine), t.color(ColorToken::AccentSolid), "{who}");
             assert_eq!(t.color(ColorToken::OverlayHandleStroke), t.color(ColorToken::AccentSolid), "{who}");
             assert_eq!(t.component.handle.size, 7.0, "{who}");
+            assert_eq!(t.component.curve.point_halo, Rgba::BLACK, "{who}");
+            let range = (t.component.slider.range_thumb_width.md, t.component.slider.range_thumb_height.md, t.component.slider.range_thumb_radius);
+            assert_eq!(range, if app.size == Size::Compact { (5.0, 12.0, 1.0) } else { (6.0, 15.0, 1.0) }, "{who}");
+            assert_eq!((t.component.histogram.marker_width, t.component.histogram.marker_height), (1.5, 9.0), "{who}");
             let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&theme.id.as_str());
             let grey = if pro { 88 } else { 190 };
             assert_eq!(t.component.histogram.backdrop, Rgba([grey, grey, grey, 191]), "{who}");

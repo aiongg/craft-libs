@@ -136,7 +136,8 @@ impl Rig {
             self.apply(event, |rig| &mut rig.level, |rig| rig.before.0);
         }
         let edit = range_slider.show(ui);
-        self.tracks = Some((slider, Track::new(edit.response.rect, &style, scale)));
+        let range_style = super::range_slider::range_style(&Tokens::of(ui), ControlSize::Md);
+        self.tracks = Some((slider, Track::new(edit.response.rect, &range_style, scale)));
         let id = edit.response.id;
         self.thumbs = (Interactive::id_in(ui, id.with("lower")), Interactive::id_in(ui, id.with("upper")));
         self.range_event.clone_from(&edit.event);
@@ -799,7 +800,8 @@ impl Hosted {
             let scale = Scale::new(&(RANGE.0..=RANGE.1), Some(1.0));
             let level = Slider::new("hosted-slider", "Level", self.doc.now.level, RANGE.0..=RANGE.1).step(1.0).show(ui);
             let range = RangeSlider::new("hosted-range", ("From", "To"), self.doc.now.range, RANGE.0..=RANGE.1).step(1.0).show(ui);
-            self.tracks = Some((Track::new(level.response.rect, &style, scale), Track::new(range.response.rect, &style, scale)));
+            let range_style = super::range_slider::range_style(&Tokens::of(ui), ControlSize::Md);
+            self.tracks = Some((Track::new(level.response.rect, &style, scale), Track::new(range.response.rect, &range_style, scale)));
             (self.level_event, self.range_event) = (level.event.clone(), range.event.clone());
             if let Some(event) = level.event {
                 self.host.handle(&ctx, &mut self.doc, event, |doc: &mut Doc, v| doc.apply(|now| now.level = v));
@@ -1024,4 +1026,17 @@ fn triangle_thumb_has_the_round_thumbs_hit_area() {
     }
     assert_eq!(outcomes[0], outcomes[1]);
     assert!(matches!(outcomes[1], (None | Some(40.0), Some(v)) if v > 40.0), "{outcomes:?}");
+}
+
+/// A range slider's thumbs are PhotoCraft's range handles: 5 by 12 rectangles at Compact, flat.
+#[test]
+fn range_slider_thumbs_are_narrow_flat_rectangles() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.run_ui(RawInput::default(), |ui| {
+        let style = super::range_slider::range_style(&Tokens::of(ui), ControlSize::Md);
+        assert_eq!((style.thumb_width, style.thumb), (5.0, 12.0));
+        assert!(style.thumb_surface.shadow.is_none());
+    })
+    .drop_without_applying_deltas();
 }
