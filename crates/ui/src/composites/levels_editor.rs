@@ -152,6 +152,8 @@ impl From<&LevelsStyle> for ThumbRowStyle {
             disabled_edge: style.disabled_edge,
             ring: style.ring,
             ring_width: style.ring_width,
+            low_label: ThumbRowStyle::half_labels().0,
+            high_label: ThumbRowStyle::half_labels().1,
         }
     }
 }

@@ -687,6 +687,8 @@ struct Mini<const N: usize> {
     travel: (f32, f32),
     y: f32,
     labels: Vec<String>,
+    /// The half labels are translated.
+    translated: bool,
 }
 
 impl<const N: usize> Mini<N> {
@@ -706,6 +708,7 @@ impl<const N: usize> Mini<N> {
             travel: (0.0, 0.0),
             y: 0.0,
             labels: Vec::new(),
+            translated: false,
         };
         mini.frame(vec![]);
         mini
@@ -718,7 +721,14 @@ impl<const N: usize> Mini<N> {
         self.time += 1.0 / 60.0;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| {
-            let style = ThumbRow::<N>::style(&Tokens::of(ui));
+            let mut style = ThumbRow::<N>::style(&Tokens::of(ui));
+            if self.translated {
+                style = style.localized(|key| match key {
+                    "thumbRow.low" => Some("{name} bas".to_owned()),
+                    "thumbRow.high" => Some("{name} haut".to_owned()),
+                    _ => None,
+                });
+            }
             // A level a point.
             let mut row =
                 ThumbRow::new("mini", self.value, &(0.0..=self.range), Some(1.0), (self.thumbs)()).width(self.range as f32 + 2.0 * style.inset());
@@ -774,6 +784,10 @@ fn alt_drag_splits_and_a_half_moves_alone() {
     let mut mini = Mini::new([100.0, 100.0], 255.0, None, split_pair);
     mini.labels.sort();
     assert_eq!(mini.labels, ["Black high", "Black low"], "a split thumb is two sliders");
+    mini.translated = true;
+    mini.frame(vec![]);
+    mini.labels.sort();
+    assert_eq!(mini.labels, ["Black bas", "Black haut"], "the half names come from the style's labels");
     // Alt held at the press: the halves coincide, so the drag's direction picks the half.
     mini.modifiers = Modifiers::ALT;
     mini.press(mini.at(100.0, 0.0));

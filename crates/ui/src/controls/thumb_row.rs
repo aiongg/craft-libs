@@ -47,7 +47,7 @@ impl<const N: usize> DerefMut for Row<N> {
 }
 
 /// A thumb row's sizes and colours, built from the levels editor's style.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ThumbRowStyle {
     /// Height of the row: `levels.row`.
     pub height: f32,
@@ -63,9 +63,32 @@ pub struct ThumbRowStyle {
     pub ring: States<Color32>,
     /// `slider.ring_width`.
     pub ring_width: f32,
+    /// The accessible name of the low half of a split thumb; `{name}` is the thumb's label.
+    /// English default "{name} low".
+    pub low_label: String,
+    /// The accessible name of the high half of a split thumb. English default "{name} high".
+    pub high_label: String,
 }
 
 impl ThumbRowStyle {
+    /// Replace the half labels with `translate(key)`, keeping the English default where it
+    /// returns `None`. Keys: `thumbRow.low` ("{name} low") and `thumbRow.high` ("{name} high"),
+    /// with `{name}` standing for the thumb's label.
+    #[must_use]
+    pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
+        for (key, label) in [("thumbRow.low", &mut self.low_label), ("thumbRow.high", &mut self.high_label)] {
+            if let Some(text) = translate(key) {
+                *label = text;
+            }
+        }
+        self
+    }
+
+    /// The default names of a split thumb's halves.
+    pub(crate) fn half_labels() -> (String, String) {
+        ("{name} low".to_owned(), "{name} high".to_owned())
+    }
+
     /// How far a thumb's centre stays inside each end of the row: half a thumb, so the triangles
     /// stay inside it.
     pub fn inset(&self) -> f32 {
@@ -141,8 +164,8 @@ impl Thumb {
     }
 
     /// The thumb is split into two halves, and the next thumb of the row is its high half: this
-    /// one is the low half, drawn as the left half of a triangle and named "<label> low"; the next
-    /// is named "<label> high" after this thumb's label, and only its face, scale and order are its
+    /// one is the low half, drawn as the left half of a triangle and named by the style's `low_label`; the next
+    /// is named by `high_label` after this thumb's label, and only its face, scale and order are its
     /// own. The row's values `[low, high]` of the pair sit in consecutive entries, `low <= high`.
     ///
     /// A press that begins without Alt held moves the pair together, keeping the spread between the
@@ -537,6 +560,8 @@ impl<const N: usize> ThumbRow<N> {
             disabled_edge: l.disabled_edge.to_egui(),
             ring: l.ring.to_egui(),
             ring_width: tokens.component.slider.ring_width,
+            low_label: ThumbRowStyle::half_labels().0,
+            high_label: ThumbRowStyle::half_labels().1,
         }
     }
 
@@ -649,8 +674,8 @@ impl<const N: usize> ThumbRow<N> {
         let thumbs: [Response; N] = std::array::from_fn(|i| {
             let (lo, hi) = rules.reported_bounds(&shown, i);
             let name = match rules.partner(i) {
-                Some(j) if j > i => format!("{} low", rules.thumbs[i].label),
-                Some(j) => format!("{} high", rules.thumbs[j].label),
+                Some(j) if j > i => style.low_label.replace("{name}", &rules.thumbs[i].label),
+                Some(j) => style.high_label.replace("{name}", &rules.thumbs[j].label),
                 None => rules.thumbs[i].label.clone(),
             };
             let sensed = Interactive::new(id.with(("thumb", i)), Role::Slider, name)
