@@ -131,6 +131,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::switch::stories());
     all.extend(controls::slider::stories());
     all.extend(controls::range_slider::stories());
+    all.extend(controls::thumb_row::stories());
     all.extend(controls::swatch::stories());
     all.extend(controls::badge::stories());
     all.extend(controls::kbd::stories());
@@ -201,6 +202,7 @@ const DECLARED: &[&[&str]] = &[
     controls::switch::COMPONENTS,
     controls::slider::COMPONENTS,
     controls::range_slider::COMPONENTS,
+    controls::thumb_row::COMPONENTS,
     controls::swatch::COMPONENTS,
     controls::badge::COMPONENTS,
     controls::kbd::COMPONENTS,

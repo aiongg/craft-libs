@@ -127,10 +127,10 @@ fn icon_button() {
     check("icon_button.txt", |d, t| {
         for (size, name) in SIZES {
             let s = IconButton::style(t, size);
-            d.line(&format!("size.{name}.side"), s.side).line(&format!("size.{name}.icon"), s.icon);
+            d.line(&format!("size.{name}.side"), s.side).line(&format!("size.{name}.icon"), s.icon).line(&format!("size.{name}.badge"), s.badge);
         }
         let s = IconButton::style(t, ControlSize::Md);
-        d.line("radius", s.radius);
+        d.line("radius", s.radius).line("badge.edge", s.badge_edge.color);
         states(d, "fill", &s.fill);
         states(d, "text", &s.text);
         states(d, "selected.fill", &s.selected_fill);
@@ -793,7 +793,7 @@ fn menu() {
         let s = Menu::style(t, ControlSize::Md);
         d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
-        d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
+        d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label)).line("tint_alpha", s.tint_alpha);
     });
 }
 

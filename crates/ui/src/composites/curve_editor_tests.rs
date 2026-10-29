@@ -38,6 +38,7 @@ struct Host {
     width: f32,
     pencil: bool,
     percent: bool,
+    corners: bool,
     /// Hands the events to a [`GestureHost`] over a document with undo steps instead.
     undo: Option<Undo>,
     /// An app's field of the drawn curve's output at level 128, outside the editor: drawn before
@@ -81,7 +82,7 @@ impl UndoMarks for CurveDoc {
 impl Host {
     fn new(points: &[[f32; 2]]) -> Self {
         Self {
-            curve: Curve::Points(points.to_vec()),
+            curve: Curve::smooth(points.to_vec()),
             before: None,
             events: Vec::new(),
             passes: Vec::new(),
@@ -97,6 +98,7 @@ impl Host {
             width: 300.0,
             pencil: false,
             percent: false,
+            corners: false,
             undo: None,
             outside: None,
             outside_events: Vec::new(),
@@ -105,7 +107,7 @@ impl Host {
 
     /// A host that hands the events to a [`GestureHost`].
     fn with_undo(points: &[[f32; 2]]) -> Self {
-        let curve = Curve::Points(points.to_vec());
+        let curve = Curve::smooth(points.to_vec());
         Self { undo: Some(Undo { host: GestureHost::new(), doc: CurveDoc { now: curve, undo: Vec::new() } }), ..Self::new(points) }
     }
 
@@ -121,7 +123,8 @@ impl Host {
             .channel(self.channel)
             .max_points(self.max_points)
             .policy(self.policy)
-            .pencil(self.pencil);
+            .pencil(self.pencil)
+            .corners(self.corners);
         if self.percent {
             editor = editor.percent();
         }
@@ -213,7 +216,7 @@ impl Host {
     fn drawn(&self) -> Vec<f32> {
         match &self.curve {
             Curve::Map(map) => map.clone(),
-            Curve::Points(_) => Vec::new(),
+            Curve::Points { .. } => Vec::new(),
         }
     }
 
@@ -1142,7 +1145,7 @@ fn other_channels_draw_behind_unless_active_or_unchanged() {
         CurveChannel::new("Green", ChannelColor::Green),
         CurveChannel::new("Blue", ChannelColor::Blue),
     ];
-    let bent = Curve::Points(vec![[0.0, 0.0], [128.0, 160.0], [255.0, 255.0]]);
+    let bent = Curve::smooth(vec![[0.0, 0.0], [128.0, 160.0], [255.0, 255.0]]);
     let curves = [bent.clone(), bent.clone(), Curve::identity(255.0), Curve::Map((0..256).map(|k| (k as f32 + 9.0).min(255.0)).collect())];
     let editor = |active: usize| CurveEditor::new("c", "Curve", &curves[active], &numbers).channels(&channels).channel(active).overlays(&curves);
     assert_eq!(editor(0).other_channels(), [1, 3], "the identity green and the active composite are skipped");
@@ -1207,4 +1210,92 @@ fn a_selection_key_before_a_waiting_arrow_keeps_its_selection() {
     release(&mut harness, start + vec2(20.0, 0.0));
     assert_eq!(harness.state().points()[2][1], 201.0, "the arrow moved the point `+` selected");
     assert_eq!(selected(&harness), Some(2));
+}
+
+const BENT: [[f32; 2]; 5] = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [192.0, 210.0], [255.0, 255.0]];
+
+fn corner_rig() -> Harness<'static, Host> {
+    harness(Host { corners: true, ..Host::new(&BENT) }, Direction::Ltr)
+}
+
+/// Selects the point at `q` with a click.
+fn select_point(harness: &mut Harness<'_, Host>, q: [f32; 2]) {
+    let at = harness.state().at(q);
+    press(harness, at);
+    release(harness, at);
+}
+
+fn corner_box<'a>(harness: &'a Harness<'_, Host>) -> Node<'a> {
+    harness.get_by(|n| n.role() == Role::CheckBox && n.label().as_deref() == Some("Corner"))
+}
+
+#[test]
+fn corner_points_join_straight_and_the_corner_checkbox_toggles() {
+    let mut harness = corner_rig();
+    assert!(corner_box(&harness).accesskit_node().is_disabled(), "no point selected");
+    select_point(&mut harness, BENT[2]);
+    assert_eq!(corner_box(&harness).accesskit_node().toggled(), Some(egui::accesskit::Toggled::False));
+    harness.state_mut().events.clear();
+    corner_box(&harness).click();
+    harness.run();
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, true, false, false]);
+    assert_eq!(harness.state().points(), BENT, "the points stay where they were");
+    assert_eq!(selected(&harness), Some(2));
+    assert_eq!(harness.state().kinds(), ["Set"]);
+    assert_eq!(corner_box(&harness).accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
+
+    // The curve is straight on both sides of the corner (the sampler's own curve bulges there).
+    let samples = Curve::through(&BENT, &harness.state().curve.corner_flags(), 255.0, |p| Curve::monotone(p, 255.0));
+    assert!((samples[96] - 120.0).abs() < 1e-3 && (samples[160] - 205.0).abs() < 1e-3, "{} {}", samples[96], samples[160]);
+
+    assert_eq!(point_value(&harness, "Point 3 of 5"), "Input 128, Output 200, corner");
+    assert_eq!(point_value(&harness, "Point 2 of 5"), "Input 64, Output 40");
+
+    corner_box(&harness).click();
+    harness.run();
+    assert_eq!(harness.state().curve, Curve::smooth(BENT.to_vec()), "unchecked: smooth again");
+    assert_eq!(point_value(&harness, "Point 3 of 5"), "Input 128, Output 200");
+}
+
+#[test]
+fn without_corners_there_is_no_checkbox() {
+    let harness = rig(&BENT);
+    assert!(harness.query_all_by(|n| n.role() == Role::CheckBox).next().is_none());
+}
+
+#[test]
+fn a_corner_dragged_off_the_plot_and_back_keeps_its_flag() {
+    let mut harness = corner_rig();
+    select_point(&mut harness, BENT[2]);
+    corner_box(&harness).click();
+    harness.run();
+    let at = harness.state().at(BENT[2]);
+    press(&mut harness, at);
+    let off = harness.state().rect.center() + vec2(0.0, harness.state().rect.height());
+    move_to(&mut harness, off);
+    assert_eq!(harness.state().points().len(), 4, "dragged off, the point is gone");
+    let back = harness.state().at([140.0, 150.0]);
+    move_to(&mut harness, back);
+    release(&mut harness, back);
+    assert_eq!(harness.state().points()[2], [140.0, 150.0]);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, true, false, false]);
+}
+
+#[test]
+fn a_corner_keeps_its_flag_when_dragged_and_a_new_point_is_smooth() {
+    let mut harness = corner_rig();
+    select_point(&mut harness, BENT[2]);
+    corner_box(&harness).click();
+    harness.run();
+    let at = harness.state().at(BENT[2]);
+    let to = harness.state().at([140.0, 150.0]);
+    press(&mut harness, at);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    assert_eq!(harness.state().points()[2], [140.0, 150.0]);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, true, false, false]);
+    let new = harness.state().at([20.0, 100.0]);
+    press(&mut harness, new);
+    release(&mut harness, new);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, false, true, false, false], "the flag stays on its point");
 }

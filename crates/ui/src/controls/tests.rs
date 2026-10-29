@@ -66,6 +66,7 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
             assert_eq!((i.side, i.icon, i.radius), (c.icon_button.size.get(size), c.icon_button.icon.get(size), Corner::Control.radius(&t)));
             assert_eq!((i.fill, i.text), (c.button.ghost.fill.to_egui(), c.button.ghost.text.to_egui()));
             assert_eq!((i.selected_fill, i.selected_text), (c.icon_button.selected.fill.to_egui(), c.icon_button.selected.text.to_egui()));
+            assert_eq!((i.badge, i.badge_edge), (c.icon_button.badge.get(size), egui::Stroke::new(1.0, t.color.line.control_edge.to_egui())));
 
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));
@@ -684,4 +685,55 @@ fn the_field_edge_shows_focus_and_an_invalid_value_and_a_bevel_keeps_its_colours
     assert_eq!((strokes_in(&shapes, s.border_focused), strokes_in(&shapes, s.invalid)), (vec![1.0], vec![1.0]));
     let (edge, inner) = (stroke_rects(&shapes, s.border_focused), stroke_rects(&shapes, s.invalid));
     assert_eq!(inner, [edge[0].shrink(1.0)], "both inside the bevel, the invalid line innermost");
+}
+
+/// The badge dot of the icon button in `ui`: the circle filled with `color`.
+fn badge_circle(shapes: &[Shape], color: Color32) -> Option<egui::epaint::CircleShape> {
+    shapes.iter().find_map(|s| if let Shape::Circle(c) = s { (c.fill == color).then_some(*c) } else { None })
+}
+
+#[test]
+fn badge_stays_visible_on_light_and_dark_fills() {
+    use craft_theme::Srgba;
+    let ctx = context();
+    for t in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let tokens = tokens_of(t, mode);
+            for color in [Color32::BLACK, Color32::from_gray(128), Color32::WHITE] {
+                for on in [false, true] {
+                    let shapes = frame_at(&ctx, 0.0, vec![], |ui| {
+                        crate::theme::scope(
+                            ui,
+                            |o| (o.theme, o.mode) = (Some(t.clone()), Some(mode)),
+                            |ui| {
+                                ui.add(IconButton::new(crate::icons::Icon::Eye, "Set point").selected(on).badge(Srgba::from(color)));
+                            },
+                        );
+                    });
+                    let dot = badge_circle(&shapes, color).expect("the badge is painted");
+                    let style = IconButton::style(&tokens, ControlSize::Md);
+                    assert_eq!(dot.radius, style.badge / 2.0);
+                    assert_eq!(dot.stroke, style.badge_edge, "{} {mode:?}: the ring is line.control_edge", t.id.as_str());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn badge_is_at_the_end_corner_in_both_directions() {
+    use crate::direction::{self, Direction};
+    let ctx = context();
+    for (dir, end_is_right) in [(Direction::Ltr, true), (Direction::Rtl, false)] {
+        direction::apply(&ctx, dir);
+        let rect = Cell::new(Rect::NOTHING);
+        let shapes = frame_at(&ctx, 0.0, vec![], |ui| {
+            rect.set(ui.add(IconButton::new(crate::icons::Icon::Eye, "Set point").badge(Color32::RED)).rect);
+        });
+        let dot = badge_circle(&shapes, Color32::RED).unwrap();
+        let rect = rect.get();
+        assert!(dot.center.y > rect.center().y, "{dir:?}: the bottom half");
+        assert_eq!(dot.center.x > rect.center().x, end_is_right, "{dir:?}: the reading end");
+        assert!(rect.expand(0.5).contains(dot.center));
+    }
 }

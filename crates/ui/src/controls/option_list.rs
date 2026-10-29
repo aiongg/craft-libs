@@ -12,7 +12,7 @@ use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Color32, Galley, Id, Rect, Response, Sense, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
 
-use super::{ListboxStyle, TextFieldStyle, icon_size};
+use super::{ListboxStyle, TextFieldStyle, TooltipExt as _, icon_size};
 use crate::behavior::Listbox;
 use crate::direction;
 use crate::icons::{self, Icon};
@@ -62,6 +62,8 @@ pub(super) struct OptionRow<'t> {
     pub icon: Option<Icon>,
     pub chosen: bool,
     pub enabled: bool,
+    /// A hover tooltip on the row; it is also the row's accessible description.
+    pub tooltip: Option<&'t str>,
 }
 
 /// What a row did in its pass.
@@ -71,6 +73,8 @@ pub(super) struct RowOutcome {
     pub picked: bool,
     /// It was the active option when it was drawn.
     pub active: bool,
+    /// The pointer is over the row and the row can be chosen.
+    pub pointed: bool,
 }
 
 impl<'r> OptionRows<'r> {
@@ -109,7 +113,12 @@ impl<'r> OptionRows<'r> {
         let look =
             RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, lit, focus: active && listbox.keyboard(), enabled };
         paint_row(ui, self.style, self.size, response.rect, &look);
-        RowOutcome { rect: response.rect, picked, active }
+        let pointed = enabled && response.contains_pointer();
+        let rect = response.rect;
+        if let Some(text) = row.tooltip {
+            response.tooltip(text);
+        }
+        RowOutcome { rect, picked, active, pointed }
     }
 
     /// The width a row needs: its text, the check mark and the icon with their gaps, and the

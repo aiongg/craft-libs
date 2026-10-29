@@ -66,6 +66,43 @@ fn icon_buttons_are_named_by_their_label_with_a_tooltip_and_report_a_toggle_in_t
     }
 }
 
+#[test]
+fn selected_draws_the_selected_fill_and_reports_toggled_without_flipping_on_click() {
+    let mut harness = harness().build_ui_state(
+        |ui, (on, clicks): &mut (bool, u32)| {
+            if ui.add(IconButton::new(Icon::Eye, "Frame tool").selected(*on)).clicked() {
+                *clicks += 1;
+            }
+        },
+        (true, 0),
+    );
+    harness.run();
+    let toggled = |harness: &Harness<'_, (bool, u32)>| harness.get_by_label("Frame tool").accesskit_node().toggled();
+    assert_eq!(toggled(&harness), Some(Toggled::True));
+    harness.get_by_label("Frame tool").click();
+    harness.run();
+    assert_eq!(*harness.state(), (true, 1), "the click is reported and the host owns the state");
+    assert_eq!(toggled(&harness), Some(Toggled::True));
+    harness.state_mut().0 = false;
+    harness.run();
+    assert_eq!(toggled(&harness), Some(Toggled::False));
+}
+
+#[test]
+fn show_tooltip_false_keeps_the_label_as_name_and_shows_no_tooltip() {
+    let hovered_names = |show: bool| {
+        let mut harness = harness().build_ui(move |ui| {
+            ui.add(IconButton::new(Icon::Trash, "Delete layer").show_tooltip(show));
+        });
+        harness.run();
+        harness.get_by_label("Delete layer").hover();
+        harness.run_steps(4);
+        harness.query_all_by(|n| n.label().as_deref() == Some("Delete layer") || n.value().as_deref() == Some("Delete layer")).count()
+    };
+    assert_eq!(hovered_names(true), 2, "the tooltip repeats the label");
+    assert_eq!(hovered_names(false), 1, "the label still names the button and no tooltip shows");
+}
+
 /// Three segments in a group named "Combine".
 fn segmented<'a>() -> Harness<'a, usize> {
     harness().build_ui_state(

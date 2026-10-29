@@ -672,3 +672,176 @@ fn a_row_operation_applies_within_the_thumbs_bounds_on_the_row_it_meets() {
     let gamma = apply(1, ScalarOp::By(0.01), [0.0, f64::NAN, 255.0]);
     assert!((gamma[1] - 1.01).abs() < 1e-9, "an unset gamma steps from 1: {gamma:?}");
 }
+
+/// One row of `N` thumbs on `0..=range` with a point to a level, for the split and wrapping
+/// tests; the host applies every value it is sent.
+struct Mini<const N: usize> {
+    ctx: Context,
+    time: f64,
+    modifiers: Modifiers,
+    value: [f64; N],
+    range: f64,
+    wrap: Option<f64>,
+    thumbs: fn() -> [Thumb; N],
+    event: Option<EditEvent<[f64; N]>>,
+    travel: (f32, f32),
+    y: f32,
+    labels: Vec<String>,
+    /// The half labels are translated.
+    translated: bool,
+}
+
+impl<const N: usize> Mini<N> {
+    fn new(value: [f64; N], range: f64, wrap: Option<f64>, thumbs: fn() -> [Thumb; N]) -> Self {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        ctx.enable_accesskit();
+        let mut mini = Self {
+            ctx,
+            time: 0.0,
+            modifiers: Modifiers::NONE,
+            value,
+            range,
+            wrap,
+            thumbs,
+            event: None,
+            travel: (0.0, 0.0),
+            y: 0.0,
+            labels: Vec::new(),
+            translated: false,
+        };
+        mini.frame(vec![]);
+        mini
+    }
+
+    fn frame(&mut self, events: Vec<Event>) {
+        let events = std::iter::once(Event::ModifiersChanged(self.modifiers)).chain(events).collect();
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(self.time), events, ..Default::default() };
+        self.time += 1.0 / 60.0;
+        let ctx = self.ctx.clone();
+        let output = ctx.run_ui(input, |ui| {
+            let mut style = ThumbRow::<N>::style(&Tokens::of(ui));
+            if self.translated {
+                style = style.localized(|key| match key {
+                    "thumbRow.low" => Some("{name} bas".to_owned()),
+                    "thumbRow.high" => Some("{name} haut".to_owned()),
+                    _ => None,
+                });
+            }
+            // A level a point.
+            let mut row =
+                ThumbRow::new("mini", self.value, &(0.0..=self.range), Some(1.0), (self.thumbs)()).width(self.range as f32 + 2.0 * style.inset());
+            if let Some(period) = self.wrap {
+                row = row.wrap(period);
+            }
+            let out = row.show(ui, &style);
+            let rect = out.edit.response.rect;
+            self.travel = (rect.left() + style.inset(), rect.right() - style.inset());
+            self.y = rect.center().y;
+            self.event.clone_from(&out.edit.event);
+            if let Some(v) = out.edit.event.and_then(|e| e.value().copied()) {
+                self.value = v;
+            }
+        });
+        if let Some(update) = output.platform_output.accesskit_update.clone() {
+            self.labels = update.nodes.iter().filter(|(_, n)| n.role() == Role::Slider).filter_map(|(_, n)| n.label().map(str::to_owned)).collect();
+        }
+        output.drop_without_applying_deltas();
+    }
+
+    fn at(&self, level: f64, dx: f32) -> Pos2 {
+        pos2(self.travel.0 + (self.travel.1 - self.travel.0) * (level / self.range) as f32 + dx, self.y)
+    }
+
+    fn press(&mut self, pos: Pos2) {
+        self.frame(vec![Event::PointerMoved(pos), button(pos, true)]);
+    }
+
+    fn drag(&mut self, pos: Pos2) {
+        self.frame(vec![Event::PointerMoved(pos)]);
+    }
+
+    fn release(&mut self, pos: Pos2) {
+        self.frame(vec![button(pos, false)]);
+    }
+
+    fn tap(&mut self, pos: Pos2) {
+        self.frame(vec![Event::PointerMoved(pos), button(pos, true), button(pos, false)]);
+    }
+}
+
+fn split_pair() -> [Thumb; 2] {
+    [Thumb::new("Black", Color32::BLACK).split(), Thumb::new("Black", Color32::BLACK)]
+}
+
+fn hues() -> [Thumb; 2] {
+    [Thumb::new("Hue from", Color32::RED), Thumb::new("Hue to", Color32::YELLOW)]
+}
+
+#[test]
+fn alt_drag_splits_and_a_half_moves_alone() {
+    let mut mini = Mini::new([100.0, 100.0], 255.0, None, split_pair);
+    mini.labels.sort();
+    assert_eq!(mini.labels, ["Black high", "Black low"], "a split thumb is two sliders");
+    mini.translated = true;
+    mini.frame(vec![]);
+    mini.labels.sort();
+    assert_eq!(mini.labels, ["Black bas", "Black haut"], "the half names come from the style's labels");
+    // Alt held at the press: the halves coincide, so the drag's direction picks the half.
+    mini.modifiers = Modifiers::ALT;
+    mini.press(mini.at(100.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.frame(vec![]);
+    mini.drag(mini.at(130.0, 0.0));
+    let alt = |value| Some(EditEvent::Update { id, value, modifiers: Modifiers::ALT });
+    assert_eq!(mini.event, alt([100.0, 130.0]));
+    // Releasing Alt mid-drag changes nothing: the press decided.
+    mini.modifiers = Modifiers::NONE;
+    mini.drag(mini.at(140.0, 0.0));
+    assert_eq!(mini.event, update(id, [100.0, 140.0]));
+    mini.release(mini.at(140.0, 0.0));
+    assert_eq!(mini.value, [100.0, 140.0]);
+
+    // The low half stops at the high half.
+    mini.modifiers = Modifiers::ALT;
+    mini.press(mini.at(100.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.drag(mini.at(200.0, 0.0));
+    assert_eq!(mini.event, Some(EditEvent::Update { id, value: [140.0, 140.0], modifiers: Modifiers::ALT }));
+    mini.release(mini.at(200.0, 0.0));
+}
+
+#[test]
+fn an_unsplit_pair_moves_together_keeping_its_spread() {
+    let mut mini = Mini::new([100.0, 130.0], 255.0, None, split_pair);
+    // The high half is grabbed; the low half goes along.
+    mini.press(mini.at(130.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.drag(mini.at(150.0, 0.0));
+    assert_eq!(mini.event, update(id, [120.0, 150.0]));
+    // At the end of the range the pair stops with its spread intact.
+    mini.drag(mini.at(300.0, 0.0));
+    assert_eq!(mini.event, update(id, [225.0, 255.0]));
+    mini.release(mini.at(300.0, 0.0));
+    assert_eq!(mini.value, [225.0, 255.0]);
+}
+
+#[test]
+fn a_wrapped_row_crosses_the_period_and_keeps_the_short_way_distance() {
+    let mut mini = Mini::new([350.0, 100.0], 360.0, Some(360.0), hues);
+    // A thumb dragged past the end appears at the start.
+    mini.press(mini.at(350.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.drag(mini.at(350.0, 20.0));
+    assert_eq!(mini.event, update(id, [10.0, 100.0]));
+    mini.release(mini.at(350.0, 20.0));
+    assert_eq!(mini.value, [10.0, 100.0]);
+
+    // A press 20 degrees across the seam from the first thumb is nearer to it than to the
+    // second (at 100), though 330 points away on the bar.
+    mini.value = [350.0, 100.0];
+    mini.frame(vec![]);
+    mini.tap(mini.at(10.0, 0.0));
+    assert_eq!(mini.event, set([10.0, 100.0], Modifiers::NONE));
+}

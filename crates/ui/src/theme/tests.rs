@@ -198,3 +198,24 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
     assert_eq!(FontFamilies::default().family(FontSlot::UiSemibold), &FontFamily::Proportional);
     assert!(!tabular(egui::TextFormat::default()).font_features.is_empty());
 }
+
+#[test]
+fn the_scale_module_is_reachable_from_craft_ui() {
+    assert_eq!(scale::Space::S4.px(), craft_theme::scale::Space::S4.px());
+    assert_eq!(scale::Radius::R4.px(), craft_theme::scale::Radius::R4.px());
+}
+
+#[test]
+fn stroke_ext_matches_width_for_every_step_at_1_and_2_ppp() {
+    for ppp in [1.0, 2.0] {
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(ppp);
+        ctx.run_ui(RawInput::default(), |_| {}).drop_without_applying_deltas();
+        for step in scale::Stroke::ALL {
+            let s = step.egui(&ctx, egui::Color32::RED);
+            assert_eq!(s.width, step.width(ppp), "{step:?} at {ppp}");
+            assert_eq!(s.color, egui::Color32::RED);
+        }
+        assert_eq!(scale::Stroke::Hairline.egui(&ctx, egui::Color32::RED).width, 1.0 / ppp);
+    }
+}

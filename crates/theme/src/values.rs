@@ -555,6 +555,9 @@ pub const MENU_BASE_CONTROL: f32 = 24.0;
 pub const MENU_MIN_WIDTH: f32 = 220.0;
 /// Compact least room between a menu row's label and its shortcut or submenu arrow.
 pub const MENU_SHORTCUT_GAP: f32 = 16.0;
+/// Alpha of a user label colour behind a menu row's text: the most that keeps `text.normal` at 4.5:1
+/// on every label hue in every built-in theme (PhotoCraft draws 0.3).
+pub const MENU_TINT_ALPHA: f32 = 0.24;
 /// Compact height of a menu's scroll strip (PhotoCraft's scroll arrows).
 pub const MENU_SCROLL_STRIP: f32 = 16.0;
 
@@ -940,6 +943,8 @@ pub const CHECK_MARK_SM: f32 = 1.5;
 pub const CHECK_MARK_MD: f32 = 2.0;
 /// Diameter of a radio button's dot as a fraction of the circle's.
 pub const RADIO_DOT_RATIO: f32 = 0.4;
+/// Diameter of an icon button's badge dot as a fraction of its icon.
+pub const ICON_BUTTON_BADGE_RATIO: f32 = 0.4;
 /// Width of a switch's track as a multiple of its height.
 pub const SWITCH_ASPECT: f32 = 2.0;
 /// Between a switch's track edge and its thumb, in points, at every Size.

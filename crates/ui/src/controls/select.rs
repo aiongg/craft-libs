@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::hash::{Hash as _, Hasher as _};
 use std::sync::Arc;
 
 use craft_theme::{ControlSize, TypeRole};
@@ -156,6 +157,8 @@ pub struct Select<'a, T> {
     rows: Option<Rows<'a, T>>,
     search: Option<(String, String)>,
     wheel_steps: bool,
+    fit: bool,
+    highlighted: Option<&'a mut Option<T>>,
     placeholder: String,
     size: ControlSize,
     policy: EditPolicy,
@@ -185,6 +188,7 @@ struct Choice<T> {
     text: String,
     icon: Option<Icon>,
     enabled: bool,
+    tooltip: Option<String>,
 }
 
 impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
@@ -199,6 +203,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             rows: None,
             search: None,
             wheel_steps: false,
+            fit: false,
+            highlighted: None,
             placeholder: String::new(),
             size: ControlSize::Md,
             policy: EditPolicy::default(),
@@ -208,13 +214,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
     /// An option showing `text`, which chooses `value`.
     pub fn option(mut self, value: T, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: None, enabled: true }));
+        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: None, enabled: true, tooltip: None }));
         self
     }
 
     /// An option showing `icon` before `text`, which chooses `value`.
     pub fn option_icon(mut self, value: T, icon: Icon, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: Some(icon), enabled: true }));
+        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: Some(icon), enabled: true, tooltip: None }));
         self
     }
 
@@ -222,6 +228,15 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     pub fn option_enabled(mut self, enabled: bool) -> Self {
         if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
             choice.enabled = enabled;
+        }
+        self
+    }
+
+    /// A hover tooltip on the last option added, shown after [`Tooltip::DELAY`] on its row; it is
+    /// also the row's accessible description.
+    pub fn option_tooltip(mut self, text: impl Into<String>) -> Self {
+        if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
+            choice.tooltip = Some(text.into());
         }
         self
     }
@@ -266,6 +281,24 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// Whether the box is as wide as its widest option, the padding, the chevron and, when any
+    /// option has an icon, room for it, in place of `field.width`. A justified layout still
+    /// fills. Ignored with [`rows`](Select::rows), whose long list is not measured.
+    pub fn fit(mut self, fit: bool) -> Self {
+        self.fit = fit;
+        self
+    }
+
+    /// While the list is open, writes the option under the pointer to `out`, else `None`. It is
+    /// not an edit: hovering sends no `Update` and leaves the value alone. A host that previews
+    /// the option applies `*out` and restores its own value when `*out` becomes `None`, as the
+    /// list closes with a commit (the commit carries the value) or a cancel (the value goes
+    /// back). Keys that move the active option do not write it.
+    pub fn highlighted(mut self, out: &'a mut Option<T>) -> Self {
+        self.highlighted = Some(out);
+        self
+    }
+
     /// The text the box shows when the value is none of the options, in the placeholder colour.
     pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
         self.placeholder = placeholder.into();
@@ -292,7 +325,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// Shows the box, and the list while it is open, and returns this frame's edit. The response
     /// covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<T> {
-        let Self { id_salt, label, value, entries, rows, search, wheel_steps, placeholder, size, policy, enabled } = self;
+        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, highlighted, placeholder, size, policy, enabled } = self;
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
@@ -332,7 +365,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
 
-        let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width };
+        let width = box_width(ui, id, &style.field, fit.then_some(&options));
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -363,6 +396,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
         let popup_id = Popup::default_response_id(&response);
         let mut drawn_active = None;
+        let mut pointed = None;
         // The active option after the keys and before the rows: the pointer's move onto a row
         // highlights it and is not an update.
         let mut keyed_active = pass.listbox.active();
@@ -378,7 +412,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
             keyed_active = pass.listbox.active();
-            let picked = list.show(ui, popup, &mut pass, &mut drawn_active);
+            let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed);
+
             let released = released(ui);
             if let Some(option) = picked {
                 pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
@@ -399,6 +434,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 let owner = if box_focused { Some(id) } else { pass.state.search.filter(|_| search_focused) };
                 keep_focus(ui, popup_id, owner);
             }
+        }
+        if let Some(out) = highlighted {
+            *out = pointed.map(|option| options.value(option));
         }
         // The list's value follows the keys, not the pointer; a search's first match waits for Enter.
         if !pass.searched
@@ -824,6 +862,10 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         self.choices.get(option).and_then(|c| c.icon)
     }
 
+    fn tooltip(&self, option: usize) -> Option<&'s str> {
+        self.choices.get(option).and_then(|c| c.tooltip.as_deref())
+    }
+
     /// Whether `option` is one of the options and can be chosen.
     fn enabled(&self, option: usize) -> bool {
         match self.source {
@@ -949,6 +991,7 @@ impl List<'_> {
         popup: PopupList<'_>,
         pass: &mut Pass<'_, '_, '_, T>,
         drawn_active: &mut Option<usize>,
+        pointed: &mut Option<usize>,
     ) -> Option<usize> {
         let mut picked = None;
         let options = pass.options;
@@ -989,14 +1032,23 @@ impl List<'_> {
         };
         let mut option_row = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
             let text = options.text(option);
-            let row =
-                OptionRow { option, text: &text, icon: options.icon(option), chosen: self.chosen == Some(option), enabled: options.enabled(option) };
+            let row = OptionRow {
+                option,
+                text: &text,
+                icon: options.icon(option),
+                chosen: self.chosen == Some(option),
+                enabled: options.enabled(option),
+                tooltip: options.tooltip(option),
+            };
             let outcome = rows.show(ui, listbox, &row);
             if outcome.picked {
                 picked = Some(option);
             }
             if outcome.active {
                 *drawn_active = Some(option);
+            }
+            if outcome.pointed {
+                *pointed = Some(option);
             }
             outcome.rect
         };
@@ -1100,6 +1152,42 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
         listbox.reveal(Listbox::neighbour(shown, None, true), keyboard);
     }
     changed
+}
+
+/// The box's width: all the room in a justified layout, else `field.width`, or the width that
+/// fits `fit`'s options (not rows).
+fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>) -> f32 {
+    match fit {
+        _ if ui.layout().horizontal_justify() => ui.available_width(),
+        Some(options) if !options.rows() => fitted_width(ui, id, f, options),
+        _ => f.width,
+    }
+}
+
+/// The width of a box that fits its options: the widest text, room for the chosen option's icon
+/// when any option has one, the chevron, and the padding. Measured again only when the texts,
+/// the font or the pixel ratio change.
+fn fitted_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, options: &Options<'_, '_, T>) -> f32 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    Tokens::of(ui).font(f.role).hash(&mut hasher);
+    ui.pixels_per_point().to_bits().hash(&mut hasher);
+    for option in 0..options.len() {
+        options.text(option).hash(&mut hasher);
+    }
+    let key = hasher.finish();
+    let cache_id = id.with("fit");
+    if let Some((cached, width)) = ui.data(|d| d.get_temp::<(u64, f32)>(cache_id))
+        && cached == key
+    {
+        return width;
+    }
+    let text = (0..options.len())
+        .map(|option| text_galley(ui, f.role, &options.text(option), Color32::PLACEHOLDER, f32::INFINITY).size().x)
+        .fold(0.0, f32::max);
+    let icon = if options.has_icons() { f.icon + f.gap } else { 0.0 };
+    let width = (2.0 * f.pad_x + icon + text + f.gap + f.icon).ceil();
+    ui.data_mut(|d| d.insert_temp(cache_id, (key, width)));
+    width
 }
 
 /// What the closed box shows.
