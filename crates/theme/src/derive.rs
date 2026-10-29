@@ -731,6 +731,7 @@ fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastCheck
 /// whose pin it takes.
 pub(super) fn component_overrides(
     comp: &mut ComponentTokens,
+    color: &ColorTokens,
     theme: &ThemeDef,
     app: Option<&AppId>,
     mode: Mode,
@@ -759,6 +760,7 @@ pub(super) fn component_overrides(
         let _ = comp.set(f, v);
     }
     comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)));
+    comp.list.follow(color, high, |f| layers.contains_key(&ComponentField::List(f)));
     layers
 }
 

@@ -81,6 +81,7 @@ struct Look {
     surface: Option<SurfaceKind>,
     corner: Option<Corner>,
     border_width: Option<f32>,
+    outline: bool,
     colors: Option<StateColors>,
     on_colors: Option<StateColors>,
     state_layer: bool,
@@ -148,7 +149,16 @@ impl<'a> Interactive<'a> {
             mixed: false,
             selected: None,
             report: Report { role, label, value: None, numeric: None, expanded: None, busy: false, position: None },
-            look: Look { surface: None, corner: None, border_width: None, colors: None, on_colors: None, state_layer: true, focus_ring: true },
+            look: Look {
+                surface: None,
+                corner: None,
+                border_width: None,
+                outline: false,
+                colors: None,
+                on_colors: None,
+                state_layer: true,
+                focus_ring: true,
+            },
         }
     }
 
@@ -235,6 +245,14 @@ impl<'a> Interactive<'a> {
     /// in points, in place of the surface's one point. A bevel keeps its own width.
     pub fn border_width(mut self, width: f32) -> Self {
         self.look.border_width = Some(width);
+        self
+    }
+
+    /// Draws the border colour of [`colors`](Interactive::colors) as an outline inside the rect
+    /// when the element has no surface (a surface draws its own edge), in the width of
+    /// [`border_width`](Interactive::border_width) or one point.
+    pub fn outline(mut self) -> Self {
+        self.look.outline = true;
         self
     }
 
@@ -481,10 +499,15 @@ impl Sensed {
                     }
                     ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
                 }
-                None if fill != Color32::TRANSPARENT => {
-                    ui.painter().rect_filled(rect, radius, fill);
+                None => {
+                    if fill != Color32::TRANSPARENT {
+                        ui.painter().rect_filled(rect, radius, fill);
+                    }
+                    if let (true, Some(border)) = (look.outline, colors.and_then(|c| c.border)) {
+                        let stroke = Stroke::new(look.border_width.unwrap_or(1.0), animated(&border));
+                        ui.painter().rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
+                    }
                 }
-                None => {}
             }
         }
         if look.focus_ring {

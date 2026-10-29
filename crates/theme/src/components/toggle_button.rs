@@ -11,14 +11,14 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToggleButtonTokens {
-    /// Fill while on: `state.selected`, or where that fill does not show on the panel and on a
+    /// Fill while on: `accent.soft`, or where that fill does not show on the panel and on a
     /// popup and the outline does not either, the nearest lightness that does.
     pub on_fill: Rgba,
-    /// Outline while on: `line.control_edge`.
+    /// Outline while on: `accent.solid`.
     pub on_border: Rgba,
-    /// Label and icon while on: the text drawn on that fill.
+    /// Label and icon while on: `accent.text`, moved to read on the fill.
     pub on_text: Rgba,
-    /// Fill while on and disabled: `state.selected`, the fill of a toggle button that is on.
+    /// Fill while on and disabled: `accent.soft`, the fill of a toggle button that is on.
     pub on_disabled_fill: Rgba,
     /// Outline while on and disabled: `line.divider`, as a disabled secondary button's.
     pub on_disabled_border: Rgba,
@@ -27,6 +27,22 @@ pub struct ToggleButtonTokens {
 }
 
 impl ToggleButtonTokens {
+    /// The look of a button that is on, shared with the icon button: `accent.soft` inside a
+    /// 1 pt `accent.solid` outline, the label in `accent.text`. The state is identified by its
+    /// fill or its outline: one of them reaches the non-text minimum on the panel and on a popup.
+    pub(super) fn accent_look(s: &Semantic<'_>) -> ToggleButtonTokens {
+        let c = s.color;
+        let (on_fill, on_text) = Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.accent.solid).fill(c.accent.soft, c.accent.text);
+        ToggleButtonTokens {
+            on_fill,
+            on_border: c.accent.solid,
+            on_text,
+            on_disabled_fill: c.accent.soft,
+            on_disabled_border: c.line.divider,
+            on_disabled_text: c.text.disabled,
+        }
+    }
+
     /// The colour of `part` while on.
     pub fn on(&self, part: ButtonPart) -> Rgba {
         match part {
@@ -36,7 +52,7 @@ impl ToggleButtonTokens {
         }
     }
 
-    fn on_mut(&mut self, part: ButtonPart) -> &mut Rgba {
+    pub(super) fn on_mut(&mut self, part: ButtonPart) -> &mut Rgba {
         match part {
             ButtonPart::Fill => &mut self.on_fill,
             ButtonPart::Border => &mut self.on_border,
@@ -53,7 +69,7 @@ impl ToggleButtonTokens {
         }
     }
 
-    fn on_disabled_mut(&mut self, part: ButtonPart) -> &mut Rgba {
+    pub(super) fn on_disabled_mut(&mut self, part: ButtonPart) -> &mut Rgba {
         match part {
             ButtonPart::Fill => &mut self.on_disabled_fill,
             ButtonPart::Border => &mut self.on_disabled_border,
@@ -88,19 +104,7 @@ impl Family for ToggleButtonTokens {
     const FIELDS: &'static [ToggleButtonField] = &FIELDS;
 
     fn defaults(s: &Semantic<'_>) -> ToggleButtonTokens {
-        let c = s.color;
-        // The state is identified by its fill or its edge: one of them reaches the non-text
-        // minimum on the panel and on a popup.
-        let (on_fill, on_text) =
-            Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
-        ToggleButtonTokens {
-            on_fill,
-            on_border: c.line.control_edge,
-            on_text,
-            on_disabled_fill: c.state.selected,
-            on_disabled_border: c.line.divider,
-            on_disabled_text: c.text.disabled,
-        }
+        ToggleButtonTokens::accent_look(s)
     }
 
     fn path(f: ToggleButtonField) -> String {

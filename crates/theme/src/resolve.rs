@@ -201,7 +201,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         high: appearance.contrast == Contrast::High,
     });
     let high = appearance.contrast == Contrast::High;
-    let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
+    let component_pins = derive::component_overrides(&mut component, &color, theme, app, mode, high);
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &color, high);
     warnings.extend(component_warnings);
 
@@ -216,7 +216,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         typography: &typography,
         high,
     });
-    derive::component_overrides(&mut component_before, theme, app, mode, high);
+    derive::component_overrides(&mut component_before, before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);
 
     let tokens = Tokens {

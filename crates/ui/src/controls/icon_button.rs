@@ -1,15 +1,15 @@
 //! [`IconButton`]: a square ghost button that shows only an icon.
 
-use craft_theme::{ButtonVariant, ControlSize, Srgba, States};
+use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
-use super::{SIZE_NAMES, icon_size, salt, size_arg};
+use super::{SIZE_NAMES, salt, size_arg};
 use crate::direction;
-use crate::icons::{self, Icon};
+use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -28,8 +28,10 @@ pub struct IconButtonStyle {
     pub fill: States<Color32>,
     /// Off: `button.ghost.text`.
     pub text: States<Color32>,
-    /// Toggled on: `icon_button.selected.fill`.
+    /// Toggled on: `icon_button.selected.fill`, held in every state but disabled.
     pub selected_fill: States<Color32>,
+    /// Toggled on: the 1 pt outline inside the edge, `icon_button.selected.border`.
+    pub selected_border: States<Color32>,
     /// Toggled on: `icon_button.selected.text`.
     pub selected_text: States<Color32>,
     /// Diameter of the badge dot: `icon_button.badge`.
@@ -43,8 +45,8 @@ pub struct IconButtonStyle {
 /// It looks like a ghost button: transparent until hovered, no edge. The required `label` is its
 /// accessible name and its hover tooltip, since the icon alone names nothing to a screen reader
 /// and may be unclear to anyone. [`toggle`](IconButton::toggle) makes it a toggle button: on, it
-/// shows the selected fill and tints the icon `text.on_selected`, and AccessKit reports it
-/// toggled. [`selected`](IconButton::selected) shows the same look for a state the host owns.
+/// shows `accent.soft` inside a 1 pt `accent.solid` outline and tints the icon `accent.text`, and
+/// AccessKit reports it toggled. [`selected`](IconButton::selected) shows the same look for a state the host owns.
 #[derive(Debug)]
 pub struct IconButton<'a> {
     icon: Icon,
@@ -131,14 +133,20 @@ impl<'a> IconButton<'a> {
     pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
         let c = &tokens.component;
         let ghost = c.button.colors(ButtonVariant::Ghost);
+        let selected = &c.icon_button.selected;
+        let held = |part| {
+            let on = selected.on(part).to_egui();
+            States::new(on, on, on, selected.on_disabled(part).to_egui())
+        };
         IconButtonStyle {
             side: c.icon_button.size.get(size),
             icon: c.icon_button.icon.get(size),
             radius: Corner::Control.radius(tokens),
             fill: ghost.fill.to_egui(),
             text: ghost.text.to_egui(),
-            selected_fill: c.icon_button.selected.fill.to_egui(),
-            selected_text: c.icon_button.selected.text.to_egui(),
+            selected_fill: held(ButtonPart::Fill),
+            selected_border: held(ButtonPart::Border),
+            selected_text: held(ButtonPart::Text),
             badge: c.icon_button.badge.get(size),
             badge_edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), tokens.color.line.mark.to_egui()),
         }
@@ -160,7 +168,8 @@ impl IconButton<'_> {
         let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
             .sense(sense)
             .colors(StateColors { fill: style.fill, border: None })
-            .on_colors(StateColors { fill: style.selected_fill, border: None })
+            .on_colors(StateColors { fill: style.selected_fill, border: Some(style.selected_border) })
+            .outline()
             .corner(Corner::Control)
             .enabled(self.enabled);
         if let Some(on) = on.as_deref_mut() {
@@ -177,7 +186,7 @@ impl IconButton<'_> {
         let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
         if ui.is_rect_visible(response.rect) {
             let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
-            icons::paint(ui, rect, self.icon, icon_size(self.size), color);
+            icons::paint_in(ui, rect, self.icon, icons::active(ui.ctx()), style.icon, IconSize::Sm.stroke(), color);
             if let Some(badge) = self.badge {
                 let r = style.badge / 2.0;
                 let center = pos2(direction::end_x(ui, rect) - direction::forward(ui) * r, rect.bottom() - r);

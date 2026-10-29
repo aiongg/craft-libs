@@ -65,15 +65,15 @@ fn button_defaults_meet_every_minimum() {
 
 /// The icon-button and segmented pairs, written out independently of the families' lists.
 fn item_pairs() -> Vec<(ComponentField, ComponentField)> {
-    let icon = |part, state| ComponentField::IconButton(IconButtonField::Selected { part, state });
+    let icon = |part| ComponentField::IconButton(IconButtonField::Selected(part));
     let segment = |part, state| ComponentField::Segmented(SegmentedField::Segment { part, state });
     let selected = |part, state| ComponentField::Segmented(SegmentedField::Selected { part, state });
     let mut p = vec![(segment(ItemPart::Text, State::Rest), ComponentField::Segmented(SegmentedField::Track))];
     for s in [State::Hover, State::Pressed] {
         p.push((segment(ItemPart::Text, s), segment(ItemPart::Fill, s)));
     }
+    p.push((icon(ButtonPart::Text), icon(ButtonPart::Fill)));
     for s in [State::Rest, State::Hover, State::Pressed] {
-        p.push((icon(ItemPart::Text, s), icon(ItemPart::Fill, s)));
         p.push((selected(ItemPart::Text, s), selected(ItemPart::Fill, s)));
     }
     p
@@ -102,7 +102,8 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     let (icon, seg) = (&t.component.icon_button, &t.component.segmented);
     let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
     let icons = BySize { sm: t.size.icon.sm, md: t.size.icon.md };
-    assert_eq!((icon.size, icon.icon, seg.height, seg.icon), (control, icons, control, icons));
+    let glyphs = BySize { sm: icons.sm - values::ICON_BUTTON_GLYPH_LESS.0, md: icons.md - values::ICON_BUTTON_GLYPH_LESS.1 };
+    assert_eq!((icon.size, icon.icon, seg.height, seg.icon), (control, glyphs, control, icons));
     assert_eq!(seg.pad_x, BySize { sm: t.space.pad.control, md: t.space.pad.control + t.space.gap.inline });
     assert_eq!((seg.inset, seg.label), (2.0, TypeRole::Label));
     let selected = ItemColors {
@@ -111,8 +112,11 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     };
     // The fills move to show on what they sit on (`selected_fills_show_on_what_they_sit_on`); the
     // disabled look is the semantic one.
-    assert_eq!((icon.selected.fill.disabled, seg.selected.fill.disabled), (selected.fill.disabled, selected.fill.disabled));
-    assert_eq!((icon.selected.text.disabled, seg.selected.text.disabled), (selected.text.disabled, selected.text.disabled));
+    assert_eq!(seg.selected.fill.disabled, selected.fill.disabled);
+    assert_eq!(seg.selected.text.disabled, selected.text.disabled);
+    // An icon button that is on is `accent.soft` inside an `accent.solid` outline.
+    assert_eq!((icon.selected.on_fill, icon.selected.on_border), (t.color(T::AccentSoft), t.color(T::AccentSolid)));
+    assert_eq!((icon.selected.on_disabled_fill, icon.selected.on_disabled_text), (t.color(T::AccentSoft), t.color(T::TextDisabled)));
     assert_eq!(seg.track, t.color(T::SurfaceSunken));
     assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, t.color(T::StateHover), t.color(T::StatePressed), Rgba::TRANSPARENT));
     assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
@@ -463,7 +467,7 @@ fn a_toggle_button_on_and_disabled_keeps_the_on_fill() {
         for a in appearances() {
             let t = resolve(&def, a, None).tokens;
             let toggle = t.component.toggle_button;
-            assert_eq!(toggle.on_disabled(ButtonPart::Fill), t.color(T::StateSelected));
+            assert_eq!(toggle.on_disabled(ButtonPart::Fill), t.color(T::AccentSoft));
             assert_eq!(toggle.on_disabled(ButtonPart::Border), t.color(T::LineDivider));
             assert_eq!(toggle.on_disabled(ButtonPart::Text), t.color(T::TextDisabled));
             assert_ne!(toggle.on_disabled_fill, t.component.button.secondary.fill.disabled, "{} {a:?}: on looks off", def.name);
@@ -613,7 +617,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             + (2 + 3) * 4
             + 2 * 4
-            + 2 * 4
+            // Icon button toggled on: a colour per part, and per part toggled on and disabled.
+            + 2 * 3
+            // List: the frame of the selected row's thumbnail.
+            + 1
             + 1
             + 2 * 2 * 4
             + 2
@@ -687,7 +694,8 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
     let named = [
         ("button.primary.fill.hover", button(ButtonVariant::Primary, ButtonPart::Fill, State::Hover)),
         ("button.radius", ComponentField::Button(ButtonField::Radius)),
-        ("icon_button.selected.text.hover", ComponentField::IconButton(IconButtonField::Selected { part: ItemPart::Text, state: State::Hover })),
+        ("icon_button.selected.text", ComponentField::IconButton(IconButtonField::Selected(ButtonPart::Text))),
+        ("icon_button.selected_disabled.border", ComponentField::IconButton(IconButtonField::SelectedDisabled(ButtonPart::Border))),
         ("segmented.track", ComponentField::Segmented(SegmentedField::Track)),
         ("segmented.segment.fill.pressed", ComponentField::Segmented(SegmentedField::Segment { part: ItemPart::Fill, state: State::Pressed })),
         ("check.radius", ComponentField::Check(CheckField::Radius)),
@@ -735,6 +743,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "nope.radius",
         "icon_button.size.sm",
         "icon_button.selected.border.rest",
+        "icon_button.selected",
         "segmented.inset",
         "segmented.track.rest",
         "segmented.selected.fill",
@@ -1104,8 +1113,8 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((l.icon, l.icon_hover), (t.color(T::TextMuted), t.color(T::TextNormal)));
     // The selected fills and their text move to show on the panel
     // (`selected_fills_show_on_what_they_sit_on`).
-    assert_eq!(l.hover, t.color(T::StateHover));
-    assert_eq!((l.divider, l.thumb_border), (t.color(T::LineDivider), t.color(T::LineBorder)));
+    assert_eq!(l.hover.a(), 128, "state.hover at half opacity");
+    assert_eq!((l.divider, l.thumb_border, l.thumb_border_selected), (t.color(T::LineDivider), t.color(T::LineControlEdge), t.color(T::TextNormal)));
     assert_eq!((l.ghost_fill, l.ghost_border), (t.color(T::SurfaceRaised), t.color(T::AccentSolid)));
     assert_eq!((l.drop, l.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
 }
@@ -1453,8 +1462,10 @@ fn selected_fills_show_on_what_they_sit_on() {
                 let (selected, on) = (t.color(T::StateSelected), t.color(T::TextOnSelected));
                 let who = format!("{} {a:?}", def.name);
                 assert_eq!((k.segmented.selected.fill.rest, k.segmented.selected.text.rest), (selected, on), "{who}");
-                assert_eq!((k.icon_button.selected.fill.rest, k.list.selected, k.dock.icon_selected), (selected, selected, selected), "{who}");
-                assert_eq!((k.toggle_button.on_fill, k.list.selected_hover), (selected, t.color(T::StateSelectedHover)), "{who}");
+                assert_eq!((k.list.selected, k.dock.icon_selected), (selected, selected), "{who}");
+                let soft = t.color(T::AccentSoft);
+                assert_eq!((k.icon_button.selected.on_fill, k.toggle_button.on_fill), (soft, soft), "{who}");
+                assert_eq!(k.list.selected_hover, t.color(T::StateSelectedHover), "{who}");
                 continue;
             }
             let text_min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
@@ -1467,14 +1478,15 @@ fn selected_fills_show_on_what_they_sit_on() {
                 }
             };
             on("segmented selected", k.segmented.selected.fill.rest, &[k.segmented.track]);
-            on("icon button selected", k.icon_button.selected.fill.rest, &[panel, raised]);
             on("list selected", k.list.selected, &[panel]);
             on("list selected_hover", k.list.selected_hover, &[panel]);
             on("dock icon selected", k.dock.icon_selected, &[k.dock.background]);
-            let toggle = &k.toggle_button;
-            for bg in [panel, raised] {
-                let (fill, edge) = (contrast_ratio(toggle.on_fill, bg), contrast_ratio(toggle.on_border, bg));
-                assert!(fill.max(edge) >= min, "{} {a:?}: toggle on is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
+            let (toggle, icon) = (&k.toggle_button, &k.icon_button.selected);
+            for (what, on) in [("toggle", toggle), ("icon button", icon)] {
+                for bg in [panel, raised] {
+                    let (fill, edge) = (contrast_ratio(over(on.on_fill, bg), bg), contrast_ratio(on.on_border, bg));
+                    assert!(fill.max(edge) >= min, "{} {a:?}: {what} on is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
+                }
             }
             for (text, fill) in [
                 (k.list.selected_text, k.list.selected),
@@ -1482,6 +1494,7 @@ fn selected_fills_show_on_what_they_sit_on() {
                 (k.dock.icon_selected_text, k.dock.icon_selected),
                 (k.segmented.selected.text.rest, k.segmented.selected.fill.rest),
                 (toggle.on_text, toggle.on_fill),
+                (icon.on_text, icon.on_fill),
             ] {
                 let ratio = contrast_ratio(text, fill);
                 assert!(ratio >= text_min, "{} {a:?}: text {} on {} is {ratio:.2}, needs {text_min}", def.name, text.to_hex(), fill.to_hex());
@@ -1500,7 +1513,7 @@ fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_o
         resolve(&def, app(Mode::Light, contrast), None).tokens
     };
     let t = pinned("#102a6b", Contrast::High);
-    assert_eq!(t.component.icon_button.selected.fill.rest, hex("#102a6b"));
+    assert_eq!(t.component.list.selected, hex("#102a6b"));
     assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
 
     let kept = pinned("#dfe5f5", Contrast::Standard);

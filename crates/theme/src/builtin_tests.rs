@@ -144,7 +144,7 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
-            assert_eq!(pairs.len(), 16, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 15, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -586,6 +586,67 @@ fn buttons_follow_photocraft() {
                 "craft.studio" => assert_eq!(b.radius, 6.0),
                 "craft.soft" => assert_eq!(b.radius, 7.0),
                 _ => {}
+            }
+        }
+    }
+}
+
+/// Selected rows and icon buttons follow PhotoCraft (`theme.rs` `row_selected`, `accent_soft`,
+/// `accent_border`, `accent_text`; `layer_row.rs:283-286`, `icons.rs:156-163`): the selected row
+/// is `state.selected`, or `accent.soft` where PhotoCraft's `row_selected` is transparent; hover is
+/// half-opacity `state.hover`; a selected icon button is `accent.soft` in a `accent.solid`
+/// outline with PhotoCraft's `accent_text` glyph; the thumbnail frame is #141414 in the Pro themes.
+#[test]
+fn selected_rows_and_icon_buttons_follow_photocraft() {
+    // (theme, mode, PhotoCraft accent_text)
+    let accent_text = [
+        ("craft.artcraft", Mode::Dark, "#ffffff"),
+        ("craft.artcraft", Mode::Light, "#1062c4"),
+        ("craft.pro", Mode::Dark, "#ffffff"),
+        ("craft.pro", Mode::Light, "#1062c4"),
+        ("craft.pro-light-gray", Mode::Light, "#004296"),
+        ("craft.studio", Mode::Dark, "#d6d0ff"),
+        ("craft.studio", Mode::Light, "#5040c8"),
+        ("craft.adwaita", Mode::Dark, "#78aeed"),
+        ("craft.adwaita", Mode::Light, "#1c71d8"),
+        ("craft.breeze", Mode::Dark, "#50b8ee"),
+        ("craft.breeze", Mode::Light, "#1e5e88"),
+        ("craft.soft", Mode::Dark, "#bec8fc"),
+        ("craft.soft", Mode::Light, "#2e3a92"),
+        ("craft.solarized-dark", Mode::Dark, "#fdf6e3"),
+        ("craft.classic", Mode::Light, "#ffffff"),
+    ];
+    for theme in builtins() {
+        let id = theme.id.as_str();
+        for mode in [Mode::Light, Mode::Dark] {
+            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
+                continue;
+            }
+            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+            let (list, icon) = (&t.component.list, &t.component.icon_button);
+            let who = format!("{id} {mode:?}");
+            let transparent = ["craft.studio", "craft.adwaita", "craft.breeze", "craft.soft", "craft.solarized-dark"].contains(&id);
+            let selected = if transparent { t.color(ColorToken::AccentSoft) } else { t.color(ColorToken::StateSelected) };
+            assert_eq!(list.selected, selected, "{who}");
+            assert_eq!(list.hover.a(), 128, "{who}: state.hover at half opacity");
+            assert_eq!(list.row_height, 24.0, "{who}");
+            assert_eq!(
+                (icon.selected.on_fill, icon.selected.on_border),
+                (t.color(ColorToken::AccentSoft), t.color(ColorToken::AccentSolid)),
+                "{who}"
+            );
+            assert_eq!((icon.size.md, icon.icon.md, icon.size.sm, icon.icon.sm), (24.0, 12.0, 20.0, 10.0), "{who}");
+            if let Some((_, _, glyph)) = accent_text.iter().find(|(i, m, _)| *i == id && *m == mode) {
+                assert_eq!(icon.selected.on_text, semantic_tests::hex(glyph), "{who}");
+            }
+            if ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&id) {
+                assert_eq!(
+                    (list.thumb_border, list.thumb_border_selected),
+                    (semantic_tests::hex("#141414"), semantic_tests::hex("#141414")),
+                    "{who}"
+                );
+            } else {
+                assert_eq!(list.thumb_border, t.color(ColorToken::LineControlEdge), "{who}");
             }
         }
     }

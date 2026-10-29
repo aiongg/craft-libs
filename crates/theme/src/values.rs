@@ -749,6 +749,9 @@ pub const GRADIENT_EDITOR_TEAR_OFF: f32 = 28.0;
 /// Compact thickness of the line that marks a drop place.
 pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 
+/// Opacity of the hover fill of a list row (PhotoCraft `hover.gamma_multiply(0.5)`:
+/// `layer_row.rs:285`, `history.rs:63`, `channels_panel.rs`, `actions.rs`).
+pub const LIST_HOVER_OPACITY: f32 = 0.5;
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).
@@ -1033,8 +1036,12 @@ pub const CHECK_MARK_RATIO: f32 = 0.125;
 pub const CHECK_OFF_PRESSED_DARKEN: f32 = 0.18;
 /// Diameter of a radio button's dot as a fraction of the circle's.
 pub const RADIO_DOT_RATIO: f32 = 0.4;
-/// Diameter of an icon button's badge dot as a fraction of its icon.
+/// Diameter of an icon button's badge dot as a fraction of the Size's icon.
 pub const ICON_BUTTON_BADGE_RATIO: f32 = 0.4;
+/// How much smaller an icon button's glyph is than the Size's icon, (small, medium). PhotoCraft
+/// draws the glyph at round(0.52 x the box), 10 in a 20 box and 12 in a 24 box (`icons.rs:175`),
+/// which is the Compact icon (12, 16) less these; a larger Size keeps the step.
+pub const ICON_BUTTON_GLYPH_LESS: (f32, f32) = (2.0, 4.0);
 /// Width of a switch's track as a multiple of its height.
 pub const SWITCH_ASPECT: f32 = 2.0;
 /// Between a switch's track edge and its thumb, in points, at every Size.

@@ -182,8 +182,9 @@ pub struct ListRowStyle {
     pub selected_hover: Color32,
     /// The hairlines: `list.divider`, one physical pixel.
     pub divider: Stroke,
-    /// `list.thumb.border`.
+    /// `list.thumb.border` and `list.thumb.border.selected`.
     pub thumb_border: Color32,
+    pub thumb_border_selected: Color32,
     /// `list.drop`.
     pub drop: Color32,
     /// The outline under the drop marker: `list.drop_halo_width` of `list.drop_halo` on each side.
@@ -235,7 +236,7 @@ impl ListRowStyle {
 ///   [indent](ListRow::indent), a [thumbnail](ListRow::thumb) or [icon](ListRow::icon), the label
 ///   with an optional [detail](ListRow::detail) line under it, the trailing items. The row
 ///   mirrors in a right-to-left interface.
-/// - **States** are inputs: [`selected`](ListRow::selected) (the neutral `state.selected` fill,
+/// - **States** are inputs: [`selected`](ListRow::selected) (the `list.selected` fill,
 ///   rounded in Comfortable, no border), [`focused`](ListRow::focused) (the focus ring, drawn
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
 ///   label), [`highlight`](ListRow::highlight) (the hover fill without the pointer),
@@ -365,8 +366,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self
     }
 
-    /// A thumbnail of `size` before the label, framed in `list.thumb.border`; `paint` draws into
-    /// the painter, clipped to the rect inside the frame. [`ThumbSize::None`] draws none.
+    /// A thumbnail of `size` before the label, framed just outside in `list.thumb.border`
+    /// (`list.thumb.border.selected` on the selected row); `paint` draws into the painter, clipped
+    /// to the thumbnail's rect. [`ThumbSize::None`] draws none.
     pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
         self.thumb = size;
         self.thumbnail = Some(Box::new(paint));
@@ -477,6 +479,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             selected_hover: l.selected_hover.to_egui(),
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
+            thumb_border_selected: l.thumb_border_selected.to_egui(),
             drop: l.drop.to_egui(),
             drop_halo: Stroke::new(l.drop_halo_width, l.drop_halo.to_egui()),
             ghost_fill: l.ghost_fill.to_egui(),
@@ -567,7 +570,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             let at = Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, side).center().x, rect.center().y), vec2(side, side));
             let at = at.round_to_pixels(ui.pixels_per_point());
             if side > 0.0 && thumb != ThumbSize::None {
-                paint_thumb(ui, &style, at, thumbnail);
+                paint_thumb(ui, &style, at, thumbnail, selected);
             } else if let Some(icon) = icon {
                 icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
             }
@@ -694,13 +697,13 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, selected: bool, l
     }
 }
 
-/// The thumbnail's frame, with the host's painting inside it.
-fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbnail<'_>>) {
-    let inner = at.shrink(1.0);
+/// The thumbnail with the host's painting over all of `at`, and its frame just outside it.
+fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbnail<'_>>, selected: bool) {
     if let Some(paint) = thumbnail {
-        paint(&ui.painter().with_clip_rect(inner), inner);
+        paint(&ui.painter().with_clip_rect(at), at);
     }
-    ui.painter().rect_stroke(at, 0.0, Stroke::new(1.0, style.thumb_border), StrokeKind::Inside);
+    let color = if selected { style.thumb_border_selected } else { style.thumb_border };
+    ui.painter().rect_stroke(at, 0.0, Stroke::new(1.0, color), StrokeKind::Outside);
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
