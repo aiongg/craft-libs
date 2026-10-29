@@ -378,6 +378,13 @@ pub fn is_live(ctx: &Context, id: GestureId) -> bool {
     }
 }
 
+/// [`is_live`] before the current pass has drawn its controls: whether gesture `id`'s control was
+/// drawn in the previous pass of its viewport or since. A composite asks it for a gesture it
+/// replays before it draws its parts.
+pub fn was_live(ctx: &Context, id: GestureId) -> bool {
+    live::was_drawn(ctx, id)
+}
+
 /// How active gesture `id` ends if it is interrupted, as its control recorded it in its last
 /// frame; [`Ending::Cancel`] for a gesture no control recorded.
 pub fn ending(ctx: &Context, id: GestureId) -> Ending {

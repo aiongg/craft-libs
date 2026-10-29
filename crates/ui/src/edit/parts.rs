@@ -250,8 +250,8 @@ pub(crate) enum Pushed {
     Out,
     /// It waits for its turn in the composite's queue.
     Waits,
-    /// No event, or one that changes nothing: a Set none of whose operations applies, or the
-    /// Cancel of a run whose events all waited.
+    /// No event, or one that changes nothing: a Set none of whose operations applies, the Cancel
+    /// of a run whose events all waited, or the Commit of a run that changed nothing.
     Nothing,
 }
 
@@ -383,6 +383,13 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
         }
         while !self.queue.is_empty() {
             let entry = self.queue.remove(0);
+            // A typing run whose field isn't drawn any more has ended: its last text commits, and a
+            // Begin of it has nothing to begin.
+            let entry = match entry.kind {
+                Kind::Begin { id } if !super::was_live(ctx, id) => continue,
+                Kind::Update { id, modifiers } if !super::was_live(ctx, id) => Queued { kind: Kind::Set { modifiers }, ..entry },
+                _ => entry,
+            };
             let Some(value) = entry.apply(&self.value, &mut apply) else { continue };
             if let Kind::Begin { id } | Kind::Update { id, .. } = entry.kind {
                 self.replayed = Some((entry.part, id));
@@ -447,8 +454,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
         let queued = Queued { part, kind, ops: ops.into_iter().collect() };
         if !self.goes_out(part, kind.run(), self.events.len()) {
             debug_assert!(!queued.ops.is_empty() || matches!(kind, Kind::Begin { .. }), "a held part event needs its operations");
-            self.join(queued);
-            return Pushed::Waits;
+            return if self.join(queued) { Pushed::Waits } else { Pushed::Nothing };
         }
         let value = match kind {
             Kind::Begin { id } => {
@@ -479,16 +485,22 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
     }
 
     /// Adds `entry` to the queue's tail; an Update or Commit takes the place of the queued Begin
-    /// or Update of its part's run.
-    fn join(&mut self, entry: Queued<O>) {
+    /// or Update of its part's run. A Commit that changed nothing removes them instead, so the
+    /// run replays nothing. Returns whether `entry` is in the queue.
+    fn join(&mut self, entry: Queued<O>) -> bool {
+        if let Kind::Commit { id: run, changed: false, .. } = entry.kind {
+            self.queue.retain(|q| q.part != entry.part || q.kind.run() != Some(run));
+            return false;
+        }
         if let Kind::Update { id: run, .. } | Kind::Commit { id: run, .. } = entry.kind
             && let Some(at) =
                 self.queue.iter().position(|q| q.part == entry.part && matches!(q.kind, Kind::Begin { id } | Kind::Update { id, .. } if id == run))
         {
             self.queue[at] = entry;
-            return;
+            return true;
         }
         self.queue.push(entry);
+        true
     }
 
     /// Records that `part` is drawn, and how its gesture under way would end.
@@ -582,15 +594,28 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
         // The owner whose event ends the composite's gesture in this pass: the other parts'
         // events wait for the next.
         let ender = state.owner.filter(|&owner| !scoped && outer.is_active() && !gone && self.owner_ends(owner));
-        let ends = !scoped && (gone || outer.is_ending() || ender.is_some());
+        // The owner is drawn but its run is not live (a typing run its field no longer carries) and
+        // no event of this pass ends it: nothing else would end the composite's gesture.
+        let dead = !scoped
+            && outer.is_active()
+            && !gone
+            && ender.is_none()
+            && state.owner.is_some_and(|owner| {
+                state.run.is_some_and(|(who, _)| who == owner) && self.drawn.iter().any(|(id, end)| *id == owner && end.is_none())
+            });
+        let ends = !scoped && (gone || dead || outer.is_ending() || ender.is_some());
         // What a held event waits for: the gesture under way, or the one cancelled as it loaded.
         let gesture = outer.id().or(state.gesture);
         // Operations held although `push` or `replay` let them go: they wait first.
         let mut back = Vec::new();
         // Decided from the events, not by comparing values: a value type holding a NaN is never
         // equal to itself.
-        let mut moved = gone || !self.sets.is_empty();
-        if gone {
+        let mut moved = gone || dead || !self.sets.is_empty();
+        if dead {
+            outer.commit();
+            state.owner = None;
+            state.run = None;
+        } else if gone {
             // A gesture no control recorded is cancelled (`edit::ending`).
             match ended.and_then(|end| end.get::<V>()).unwrap_or(End::Cancel) {
                 End::Cancel => outer.cancel(CancelReason::Removed),

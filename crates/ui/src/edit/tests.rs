@@ -1641,6 +1641,9 @@ fn a_part_event_during_another_parts_drag_waits_for_the_release() {
             let mut edits = parts::Edits::new(composite, &state, &outer, false);
             edits.replay(ui.ctx(), apply_pair);
             let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
+            if let Some(EditEvent::Begin { id } | EditEvent::Update { id, .. }) = &a {
+                live::mark(ui.ctx(), *id, Ending::Commit { changed: true }, None, false, None);
+            }
             let edit = EditResponse::new(part(a_id, 0.0), a.clone());
             edits.push(&edit, set_ops(0, &edit), apply_pair, |v, now| (v, now.1));
             let edit = EditResponse::new(part(b_id, 30.0), b.clone());
@@ -1706,6 +1709,11 @@ struct QueueRig {
     repaint: bool,
     /// What became of each part's event in the last pass.
     pushed: [parts::Pushed; 3],
+    /// The gesture each part's control has under way: it marks it live whenever it is drawn.
+    runs: [Option<GestureId>; 3],
+    /// The parts not drawn in the next passes, and the parts whose runs are typing runs.
+    hidden: [bool; 3],
+    typing: [bool; 3],
 }
 
 impl QueueRig {
@@ -1720,22 +1728,42 @@ impl QueueRig {
             turn: None,
             repaint: false,
             pushed: [parts::Pushed::Nothing; 3],
+            runs: [None; 3],
+            hidden: [false; 3],
+            typing: [false; 3],
         }
     }
 
     fn pass(&mut self, edits: [PartEdit; 3]) -> Option<EditEvent<(i32, i32)>> {
         let (composite, parts) = (self.composite, self.parts);
         let (state, host, press) = (&mut self.state, self.host, self.press);
+        let (runs, hidden, typing) = (&mut self.runs, self.hidden, self.typing);
         let (mut event, mut turn, mut pushed) = (None, None, [parts::Pushed::Nothing; 3]);
         let output = self.ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host, EditPolicy::default());
             let mut composite_edits = parts::Edits::new(composite, state, &outer, false);
             composite_edits.replay(ui.ctx(), apply_pair);
             for (i, (id, edit)) in parts.into_iter().zip(edits.clone()).enumerate() {
+                if hidden[i] {
+                    continue;
+                }
                 let response = ui.interact(Rect::from_min_size(Pos2::new(30.0 * i as f32, 0.0), vec2(20.0, 20.0)), id, Sense::click());
                 let (part_event, ops) = edit.map_or((None, Vec::new()), |(event, ops)| (Some(event), ops));
+                match &part_event {
+                    Some(EditEvent::Begin { id } | EditEvent::Update { id, .. }) => runs[i] = Some(*id),
+                    Some(EditEvent::Commit { id, .. } | EditEvent::Cancel { id, .. }) => {
+                        live::finish(ui.ctx(), *id);
+                        runs[i] = None;
+                    }
+                    _ => {}
+                }
+                if let Some(run) = runs[i] {
+                    live::mark(ui.ctx(), run, Ending::Commit { changed: true }, None, false, None);
+                }
                 let map = move |v: i32, now: &(i32, i32)| if i == 0 { (v, now.1) } else { (now.0, v) };
-                pushed[i] = composite_edits.push(&EditResponse::new(response, part_event), ops, apply_pair, map);
+                let edit = EditResponse::new(response, part_event);
+                pushed[i] =
+                    if typing[i] { composite_edits.typing(&edit, ops, apply_pair, map) } else { composite_edits.push(&edit, ops, apply_pair, map) };
             }
             turn = press.map(|press| order::turn(ui.ctx(), press, None));
             event = composite_edits.feed(outer, state).finish();
@@ -1839,6 +1867,148 @@ fn a_one_shot_event_during_a_drain_waits_behind_the_queue() {
     assert_eq!(rig.pass([None, None, None]), None);
     assert_eq!(rig.turn, Some(order::Turn::Runs), "the press runs once the queue is empty");
     assert_eq!(rig.host, (9, 2));
+}
+
+fn upd(run: GestureId, value: i32) -> EditEvent<i32> {
+    EditEvent::update(run, value, Modifiers::NONE)
+}
+
+fn fin(run: GestureId, value: i32, changed: bool) -> EditEvent<i32> {
+    EditEvent::commit(run, value, changed, Modifiers::NONE)
+}
+
+/// Holds part `a`'s drag open, queues the events of part `b` made during it with `held`, and
+/// commits the drag; the rig is then at the pass before the queue's first.
+fn held_through_a_drag(held: impl FnOnce(&mut QueueRig)) -> QueueRig {
+    let mut rig = QueueRig::new();
+    rig.typing[1] = true;
+    let run = GestureId::next();
+    let id = rig.begin_drag(run);
+    held(&mut rig);
+    assert_eq!(rig.pass([drag(fin(run, 6, true)), None, None]), commit(id, (6, 0), true));
+    rig
+}
+
+/// An Update or Commit of a part's run takes the place of the run's queued Begin or Update: only
+/// the last goes out, as the part's one event.
+#[test]
+fn an_update_or_commit_replaces_the_runs_queued_entry() {
+    let run = GestureId::next();
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, drag(EditEvent::begin(run)), None]);
+        rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+        rig.pass([None, Some((upd(run, 4), vec![PairOp::Set(1, 4)])), None]);
+    });
+    let began = rig.pass([None, None, None]);
+    assert!(matches!(began, Some(EditEvent::Begin { .. })), "{began:?}");
+    let next = rig.pass([None, Some((upd(run, 4), vec![PairOp::Set(1, 4)])), None]);
+    assert_eq!(next.as_ref().and_then(EditEvent::value), Some(&(6, 4)), "{next:?}");
+
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+        rig.pass([None, Some((fin(run, 5, true), vec![PairOp::Set(1, 5)])), None]);
+    });
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 5), Modifiers::NONE)), "the Commit took the Update's place");
+    assert_eq!(rig.pass([None, None, None]), None);
+}
+
+/// A replayed Update begins the composite's gesture with its part as owner; the part's live events
+/// of the same run go out in that pass, and the entries after it wait until that gesture ends.
+#[test]
+fn a_replayed_update_begins_the_gesture_and_the_entries_after_it_wait() {
+    let run = GestureId::next();
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+        rig.pass([None, None, set_op(9, vec![PairOp::Set(0, 9)])]);
+    });
+    rig.press = Some(Id::unique("press"));
+    let began = rig.pass([None, Some((upd(run, 4), vec![PairOp::Set(1, 4)])), None]);
+    assert!(matches!(began, Some(EditEvent::Begin { .. })), "{began:?}");
+    let Some(EditEvent::Begin { id }) = began else { panic!("{began:?}") };
+    assert_eq!(rig.pushed[1], parts::Pushed::Out, "the owner's live event of the run goes out");
+    assert_eq!(rig.host, (6, 0));
+    let step = rig.pass([None, Some((upd(run, 5), vec![PairOp::Set(1, 5)])), None]);
+    assert_eq!(step, update(id, (6, 5)));
+    assert_eq!(rig.turn, Some(order::Turn::Waits));
+    assert_eq!(rig.pass([None, Some((fin(run, 5, true), vec![PairOp::Set(1, 5)])), None]), commit(id, (6, 5), true));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((9, 5), Modifiers::NONE)), "the entry after it, once it ended");
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.turn, Some(order::Turn::Runs));
+}
+
+/// A queued Commit goes out as a Set of its operations.
+#[test]
+fn a_queued_commit_goes_out_as_a_set() {
+    let run = GestureId::next();
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, Some((fin(run, 5, true), vec![PairOp::Set(1, 5)])), None]);
+    });
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 5), Modifiers::NONE)));
+    assert_eq!(rig.pass([None, None, None]), None);
+}
+
+/// A part's Cancel drops the entries of its run: nothing replays.
+#[test]
+fn a_parts_cancel_drops_its_runs_queued_entries() {
+    let run = GestureId::next();
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, drag(EditEvent::begin(run)), None]);
+        rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+        rig.pass([None, drag(EditEvent::cancel(run, CancelReason::Escape)), None]);
+    });
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.host, (6, 0));
+}
+
+/// A typing run's queued Update whose run is not live when its turn comes goes out as a Set (the
+/// run's text commits), and leaves the composite idle with the edit order free.
+#[test]
+fn a_queued_update_of_a_dead_typing_run_goes_out_as_a_set() {
+    let run = GestureId::next();
+    let mut rig = QueueRig::new();
+    rig.typing[1] = true;
+    let drag_run = GestureId::next();
+    let id = rig.begin_drag(drag_run);
+    rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+    rig.hidden[1] = true;
+    assert_eq!(rig.pass([drag(fin(drag_run, 6, true)), None, None]), commit(id, (6, 0), true));
+    rig.hidden[1] = false;
+    rig.runs[1] = None;
+    rig.press = Some(Id::unique("press"));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 3), Modifiers::NONE)));
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.turn, Some(order::Turn::Runs), "the composite is idle and the order head free");
+}
+
+/// A typing run's Update that went out ends the composite's gesture when the run is no longer
+/// live though its field is drawn.
+#[test]
+fn an_owner_whose_run_is_not_live_ends_the_composite_gesture() {
+    let run = GestureId::next();
+    let mut rig = QueueRig::new();
+    rig.typing[1] = true;
+    let began = rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+    assert!(matches!(began, Some(EditEvent::Begin { .. })), "{began:?}");
+    rig.runs[1] = None;
+    rig.press = Some(Id::unique("press"));
+    let end = rig.pass([None, None, None]);
+    assert!(matches!(end, Some(EditEvent::Commit { .. })), "{end:?}");
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.turn, Some(order::Turn::Now));
+}
+
+/// A Commit that changed nothing leaves nothing of its run in the queue: the typed text restored
+/// replays no Set.
+#[test]
+fn an_unchanged_commit_leaves_nothing_queued() {
+    let run = GestureId::next();
+    let mut rig = held_through_a_drag(|rig| {
+        rig.pass([None, Some((upd(run, 3), vec![PairOp::Set(1, 3)])), None]);
+        rig.pass([None, Some((fin(run, 0, false), vec![PairOp::Set(1, 0)])), None]);
+        assert_eq!(rig.pushed[1], parts::Pushed::Nothing);
+    });
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.host, (6, 0));
 }
 
 /// `push` says what became of each part's event: it went out in its pass, it waits in the queue,
