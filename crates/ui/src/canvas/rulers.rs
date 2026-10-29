@@ -72,7 +72,7 @@ pub struct RulerStyle {
     pub tick_mid: f32,
     /// Length of the other minor ticks: `ruler.tick_minor`.
     pub tick_minor: f32,
-    /// The strips and the corner: `surface.panel`.
+    /// The strips and the corner: `surface.chrome`.
     pub fill: Color32,
     /// 1 point of `text.faint`.
     pub tick: Stroke,
@@ -231,7 +231,7 @@ impl<'a> Rulers<'a> {
             step_min: r.step_min,
             tick_mid: r.tick_mid,
             tick_minor: r.tick_minor,
-            fill: c.surface.panel.to_egui(),
+            fill: c.surface.chrome.to_egui(),
             tick: Stroke::new(1.0, c.text.faint.to_egui()),
             label: c.text.muted.to_egui(),
             marker: Stroke::new(1.0, c.text.normal.to_egui()),

@@ -172,6 +172,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::SurfaceBackground => Anchored(pick(2, 3)),
         T::SurfaceCanvas => Same(T::SurfaceBackground),
         T::SurfacePanel => Neutral(panel_step(mode)),
+        T::SurfaceChrome => Same(T::SurfacePanel),
         T::SurfaceRaised => Anchored(pick(4, 1)),
         T::SurfaceSunken => Anchored(1),
         // Near white in both modes (dark: about 236/255), as macOS, GNOME and PhotoCraft knobs. A
@@ -325,6 +326,7 @@ pub const ACTIVE_ROW_MIN: (f64, f64) = (LIST_HOVER_MIN.0, CONTROL_EDGE_MIN.1);
 const TEXT_BGS: &[Bg] = &[
     Token(T::SurfaceBackground),
     Token(T::SurfacePanel),
+    Token(T::SurfaceChrome),
     Token(T::SurfaceRaised),
     Token(T::SurfaceSunken),
     Token(T::StateHover),
@@ -333,7 +335,8 @@ const TEXT_BGS: &[Bg] = &[
 const SELECTED_BGS: &[Bg] = &[Token(T::StateSelected), Token(T::StateSelectedHover)];
 const CONTROL_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 /// The focus line also marks focus on the title bars and tab strips, which sit on the background.
-const FOCUS_BGS: &[Bg] = &[Token(T::SurfaceBackground), Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
+const FOCUS_BGS: &[Bg] =
+    &[Token(T::SurfaceBackground), Token(T::SurfacePanel), Token(T::SurfaceChrome), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 /// Where a mark or a badge ring is drawn: control surfaces and the hover and pressed fills. The
 /// selected fills are left out: no single colour reaches the minimum on both a light panel and
 /// Classic's dark selection fill.
@@ -347,6 +350,8 @@ pub(super) const RULES: &[PairRule] = &[
     rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::LineMark], MARK_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
+    // A canvas scroll bar's thumb is a boundary on its track: Standard keeps the theme's own greys.
+    rule(&[T::TextFaint, T::TextMuted], &[Token(T::SurfaceChrome)], CONTROL_EDGE_MIN.0, CONTROL_EDGE_MIN.1),
     rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::AccentText], CONTROL_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::StatusGoodFg], &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::StatusGoodBg)], TEXT_MIN.0, TEXT_MIN.1),
@@ -1053,6 +1058,19 @@ pub const MARQUEE_DRAWING_HALO: f32 = 3.0;
 /// Farthest a press may move, in points, and still be a click (PhotoCraft's `is_click`).
 pub const MARQUEE_CLICK_SLOP: f32 = 3.0;
 
+/// Width of a thin floating panel scroll bar (PhotoCraft's `floating_width`, `theme.rs:1090`).
+pub const SCROLL_FLOATING_WIDTH: f32 = 4.0;
+/// Handle opacity of a thin bar under the pointer (`theme.rs:1088`): the stock thin style fades
+/// the handle to the track's opacity, so the thumb would disappear.
+pub const SCROLL_HANDLE_OPACITY: f32 = 1.0;
+/// Track opacity of a thin bar under the pointer (`theme.rs:1089`).
+pub const SCROLL_TRACK_OPACITY: f32 = 0.4;
+/// Thickness of a canvas scroll bar in points (`canvas/scrollbars.rs:20`).
+pub const SCROLL_CANVAS_WIDTH: f32 = 12.0;
+/// Between a canvas bar's edge and its thumb, in points.
+pub const SCROLL_THUMB_INSET: f32 = 3.0;
+/// Shortest canvas thumb along its bar, in points (`canvas/scrollbars.rs:22`).
+pub const SCROLL_THUMB_MIN: f32 = 24.0;
 /// Ruler strip thickness in points, the same at every Size (PhotoCraft's, Pro and Studio alike).
 pub const RULER_SIZE: f32 = 16.0;
 /// Ruler label size in points, the same at every Size and Text size.
@@ -1125,8 +1143,8 @@ pub const KBD_RADIUS_MAX: f32 = 3.0;
 /// Above and below a keycap's caption line, in points.
 pub const KBD_PAD_Y: f32 = 1.0;
 
-/// Thickness of a progress bar's track, in points, at every Size.
-pub const PROGRESS_TRACK: f32 = 4.0;
+/// Thickness of a progress bar's track, in points, at every Size (PhotoCraft's `bar_h`, `jobs_ui.rs:631`).
+pub const PROGRESS_TRACK: f32 = 6.0;
 
 /// Widest a tooltip's text grows before it wraps, in points (PhotoCraft's `tooltip_width`, `theme.rs:1093`).
 pub const TOOLTIP_WIDTH: f32 = 280.0;

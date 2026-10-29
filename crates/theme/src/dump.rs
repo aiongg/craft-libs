@@ -12,9 +12,9 @@ use crate::{
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
     PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba,
-    RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, States, SwatchColor,
-    SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens,
-    TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
+    States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
+    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -248,10 +248,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         readout,
         ref_point,
         ruler,
+        scroll,
         section,
         segmented,
         slider,
         slider_row,
+        spinner,
         swatch,
         tab,
         title_bar,
@@ -293,10 +295,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     readout_lines(out, readout);
     ref_point_lines(out, ref_point);
     ruler_lines(out, ruler);
+    scroll_lines(out, scroll);
     section_lines(out, section);
     segmented_lines(out, segmented);
     slider_lines(out, slider);
     slider_row_lines(out, slider_row);
+    spinner_lines(out, spinner);
     swatch_lines(out, swatch);
     tab_lines(out, tab);
     title_bar_lines(out, title_bar);
@@ -1072,6 +1076,17 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.tick_minor", len(*tick_minor));
 }
 
+fn scroll_lines(out: &mut Lines, s: &ScrollTokens) {
+    let ScrollTokens { solid, floating_width, handle_opacity, track_opacity, canvas_width, thumb_inset, thumb_min } = s;
+    out.line("scroll.solid", solid);
+    out.line("scroll.floating_width", len(*floating_width));
+    out.line("scroll.handle_opacity", len(*handle_opacity));
+    out.line("scroll.track_opacity", len(*track_opacity));
+    out.line("scroll.canvas_width", len(*canvas_width));
+    out.line("scroll.thumb_inset", len(*thumb_inset));
+    out.line("scroll.thumb_min", len(*thumb_min));
+}
+
 fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
     let CursorTokens {
         crosshair_reach,
@@ -1269,10 +1284,11 @@ fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
 }
 
 fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
-    let ProgressTokens { track_height, radius, track, fill } = p;
+    let ProgressTokens { track_height, radius, track, edge, fill } = p;
     out.line("progress.track_height", len(*track_height));
     out.line("progress.radius", len(*radius));
     out.line("progress.track", hex(*track));
+    out.line("progress.edge", hex(*edge));
     out.line("progress.fill", hex(*fill));
 }
 
@@ -1293,4 +1309,10 @@ fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
     out.line("tooltip.fill", hex(*fill));
     out.line("tooltip.text", hex(*text));
     out.line("tooltip.border", hex(*border));
+}
+
+fn spinner_lines(out: &mut Lines, t: &SpinnerTokens) {
+    let SpinnerTokens { inset, stroke } = t;
+    out.line("spinner.inset", len(*inset));
+    out.line("spinner.stroke", len(*stroke));
 }

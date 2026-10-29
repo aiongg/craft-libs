@@ -6,14 +6,17 @@ use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Ui, Widget, WidgetInfo, pos2, vec2};
 
 use crate::direction;
-use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
+use crate::primitives::{Content, Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
-/// Seconds for the indeterminate segment to cross the track.
-const SWEEP: f64 = 1.6;
+/// Seconds for the indeterminate segment to cross the track (PhotoCraft's `jobs_ui::bar`, 0.8 turns
+/// a second).
+const SWEEP: f64 = 1.25;
 /// The indeterminate segment's length, as a fraction of the track.
-const SEGMENT: f32 = 0.4;
+const SEGMENT: f32 = 0.3;
+/// The bar's length when neither the caller nor a wider layout gives one, in points.
+const WIDTH: f32 = 120.0;
 /// Where the still indeterminate segment starts, as a fraction of the track.
 const STILL_START: f32 = 0.3;
 /// Dash and gap lengths of the still segment, in track heights.
@@ -44,8 +47,9 @@ enum Amount {
 
 /// A horizontal progress bar: `ui.add(Progress::new(0.4).label("Export"))`.
 ///
-/// The fill grows from the reading start, so it mirrors in a right-to-left interface. The bar
-/// takes the width the `Ui` has (or [`width`](Progress::width)). [`Progress::indeterminate`]
+/// The fill grows from the reading start, so it mirrors in a right-to-left interface, and is never
+/// narrower than the bar is thick unless it is empty. The bar is 120 points long unless
+/// [`width`](Progress::width) says otherwise. [`Progress::indeterminate`]
 /// moves a segment along the track; with reduced motion the segment stands still and is drawn as
 /// dashes, so it cannot be mistaken for a determinate fill. AccessKit sees a progress indicator
 /// with the fraction as its value between 0 and 1 (none when indeterminate).
@@ -72,7 +76,7 @@ impl Progress {
         self
     }
 
-    /// The bar's length instead of the `Ui`'s available width.
+    /// The bar's length instead of 120 points.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -84,6 +88,9 @@ impl Progress {
         let mut track = Surface::style(tokens, SurfaceKind::Sunken);
         track.fill = p.track.to_egui();
         track.radius = radius;
+        if let SurfaceEdge::Border(stroke) = &mut track.edge {
+            stroke.color = p.edge.to_egui();
+        }
         ProgressStyle { height: p.track_height, radius, track, fill: p.fill.to_egui() }
     }
 
@@ -116,7 +123,7 @@ impl Widget for Progress {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let style = Progress::style(&tokens);
-        let width = self.width.unwrap_or_else(|| ui.available_width());
+        let width = self.width.unwrap_or(WIDTH);
         let (rect, response) = ui.allocate_exact_size(vec2(width, style.height), Sense::hover());
         let value = match self.amount {
             Amount::Fraction(f) => Some(f64::from(Progress::clamped(f))),
@@ -141,7 +148,10 @@ impl Widget for Progress {
         if ui.is_rect_visible(rect) {
             let still = tokens.appearance.reduced_motion;
             let spans = match self.amount {
-                Amount::Fraction(f) => vec![(0.0, Progress::clamped(f))],
+                Amount::Fraction(f) => match Progress::clamped(f) {
+                    f if f > 0.0 => vec![(0.0, f.max(style.height / rect.width().max(1.0)).min(1.0))],
+                    _ => Vec::new(),
+                },
                 Amount::Indeterminate if still => dashes(rect.width(), style.height),
                 Amount::Indeterminate => {
                     let phase = (ui.input(|i| i.time) % SWEEP / SWEEP) as f32;

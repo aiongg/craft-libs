@@ -23,12 +23,15 @@ pub struct NoticeStyle {
     pub title_role: TypeRole,
     /// The message's type role: `caption`.
     pub message_role: TypeRole,
-    /// Icon, title and message: `notice.<tone>.fg`.
+    /// Icon and title, and the message when there is no title: `notice.<tone>.fg`.
     pub fg: Color32,
+    /// The message under a title: `text.muted`, as the bullet lines of a PhotoCraft notice.
+    pub body: Color32,
 }
 
 /// An inline status message in a dialog or a panel: the tone's icon at the reading start, an
-/// optional title and the message in the tone's colour. It has no fill and no border.
+/// optional title in the tone's colour, and the message in the tone's colour, or in `text.muted`
+/// under a title. It has no fill and no border.
 ///
 /// ```
 /// use craft_ui::composites::{Notice, Tone};
@@ -39,7 +42,8 @@ pub struct NoticeStyle {
 /// ```
 ///
 /// - Neutral has no icon and reads `text.muted`; the other tones show their icon (`info`,
-///   `success`, `warning`, `error`) and read `status.<tone>.fg`. The text wraps and can be selected.
+///   `success`, `warning`, `error`) and read `status.<tone>.fg` (PhotoCraft's `warning` and
+///   `danger`). The text wraps and can be selected.
 /// - Not interactive, not a Tab stop.
 /// - **AccessKit:** a live region by default, as WCAG 4.1.3 asks of status messages that appear
 ///   after an action: `Status` and polite, or for [`Tone::Bad`] `Alert` and assertive, named by
@@ -94,6 +98,7 @@ impl Notice {
             title_role: TypeRole::BodyStrong,
             message_role: TypeRole::Caption,
             fg: n.fg(tone).to_egui(),
+            body: tokens.color.text.muted.to_egui(),
         }
     }
 
@@ -116,7 +121,8 @@ impl Notice {
                         text(ui, &tokens, style.title_role, style.fg, title);
                         labels.add(title.as_str());
                     }
-                    text(ui, &tokens, style.message_role, style.fg, &self.message);
+                    let message = if self.title.is_some() { style.body } else { style.fg };
+                    text(ui, &tokens, style.message_role, message, &self.message);
                     labels.add(self.message.as_str());
                 });
             })
