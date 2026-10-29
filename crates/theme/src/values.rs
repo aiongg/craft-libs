@@ -1270,3 +1270,27 @@ pub const SLIDER_ROW_BASE_CONTROL: f32 = 24.0;
 pub const SLIDER_ROW_FIELD_WIDTH: f32 = 74.0;
 /// Compact space after a slider row.
 pub const SLIDER_ROW_GAP: f32 = 4.0;
+
+/// Glyph of a tool-rail button as a share of the button (PhotoCraft's Pro toolbar: two thirds,
+/// 20 of 30 points), rounded to whole points.
+pub const RAIL_TOOL_ICON_RATIO: f32 = 2.0 / 3.0;
+/// Glyph of a panel-rail button as a share of the button (PhotoCraft's rail: 0.52, 15 of 28
+/// points), rounded to whole points.
+pub const RAIL_PANEL_ICON_RATIO: f32 = 0.52;
+/// Height of the column toggle at the top of a tool rail.
+pub const RAIL_TOGGLE_HEIGHT: f32 = 14.0;
+/// Glyph of the column toggle.
+pub const RAIL_TOGGLE_ICON: f32 = 11.0;
+/// Row gap of a tool rail over its column gap, as a share of the inline gap (PhotoCraft's
+/// `item_spacing` is 2 across and 3 down; Compact inline gap 4), rounded to whole points.
+pub const RAIL_ROW_GAP_RATIO: f32 = 0.75;
+/// How much taller a flyout row is than a medium control (PhotoCraft's 26 over 24).
+pub const RAIL_FLYOUT_ROW_EXTRA: f32 = 2.0;
+/// Side of the flyout indicator triangle's legs.
+pub const RAIL_INDICATOR: f32 = 4.0;
+/// Distance of the flyout indicator from the corner of its button.
+pub const RAIL_INDICATOR_INSET: f32 = 2.0;
+/// Radius of the open-panel marker dot.
+pub const RAIL_MARKER_RADIUS: f32 = 3.0;
+/// Width of the outline of a selected rail button.
+pub const RAIL_SELECTED_BORDER_WIDTH: f32 = 1.0;

@@ -11,10 +11,10 @@ use crate::{
     CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing,
     FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
     KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
-    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens,
-    RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
-    SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens,
-    ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
+    RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens,
+    SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors,
+    ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -242,11 +242,13 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         menu,
         notice,
         options_bar,
+        panel,
         panel_footer,
         panel_header,
         popup,
         progress,
         property,
+        rail,
         readout,
         ref_point,
         ruler,
@@ -292,11 +294,13 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     menu_lines(out, menu);
     notice_lines(out, notice);
     options_bar_lines(out, options_bar);
+    panel_lines(out, panel);
     panel_footer_lines(out, panel_footer);
     panel_header_lines(out, panel_header);
     popup_lines(out, popup);
     progress_lines(out, progress);
     property_lines(out, property);
+    rail_lines(out, rail);
     readout_lines(out, readout);
     ref_point_lines(out, ref_point);
     ruler_lines(out, ruler);
@@ -876,6 +880,91 @@ fn options_bar_lines(out: &mut Lines, t: &OptionsBarTokens) {
     out.line("options_bar.field_lg", len(*field_lg));
     out.line("options_bar.scroll_bar", len(*scroll_bar));
     out.line("options_bar.button", len(*button));
+}
+
+fn panel_lines(out: &mut Lines, t: &PanelTokens) {
+    let PanelTokens { pad, footer_height, footer_gap, fill, header_line, footer_line } = t;
+    out.line("panel.pad", len(*pad));
+    out.line("panel.footer_height", len(*footer_height));
+    out.line("panel.footer_gap", len(*footer_gap));
+    out.line("panel.fill", hex(*fill));
+    out.line("panel.header.line", hex(*header_line));
+    out.line("panel.footer.line", hex(*footer_line));
+}
+
+fn rail_lines(out: &mut Lines, t: &RailTokens) {
+    let RailTokens {
+        width,
+        button,
+        panel_width,
+        panel_button,
+        icon,
+        panel_icon,
+        gap,
+        row_gap,
+        panel_gap,
+        pad_y,
+        toggle_height,
+        toggle_icon,
+        flyout_row,
+        flyout_gap,
+        flyout_icon,
+        indicator,
+        indicator_inset,
+        marker_radius,
+        selected_border_width,
+        radius,
+        fill,
+        selected,
+        selected_border,
+        selected_text,
+        hover,
+        icon_color,
+        panel_icon_color,
+        icon_hover,
+        indicator_color,
+        marker,
+        edge,
+    } = t;
+    for (k, v) in [
+        ("width", width),
+        ("button", button),
+        ("panel_width", panel_width),
+        ("panel_button", panel_button),
+        ("icon_size", icon),
+        ("panel_icon_size", panel_icon),
+        ("gap", gap),
+        ("row_gap", row_gap),
+        ("panel_gap", panel_gap),
+        ("pad_y", pad_y),
+        ("toggle_height", toggle_height),
+        ("toggle_icon", toggle_icon),
+        ("flyout_row", flyout_row),
+        ("flyout_gap", flyout_gap),
+        ("flyout_icon", flyout_icon),
+        ("indicator", indicator),
+        ("indicator_inset", indicator_inset),
+        ("marker_radius", marker_radius),
+        ("selected_border_width", selected_border_width),
+        ("radius", radius),
+    ] {
+        out.line(&format!("rail.{k}"), len(*v));
+    }
+    for (k, c) in [
+        ("fill", fill),
+        ("selected", selected),
+        ("selected.border", selected_border),
+        ("selected.text", selected_text),
+        ("hover", hover),
+        ("icon", icon_color),
+        ("icon.panel", panel_icon_color),
+        ("icon.hover", icon_hover),
+        ("indicator", indicator_color),
+        ("marker", marker),
+        ("edge", edge),
+    ] {
+        out.line(&format!("rail.{k}"), hex(*c));
+    }
 }
 
 fn panel_footer_lines(out: &mut Lines, t: &PanelFooterTokens) {

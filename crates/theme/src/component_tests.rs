@@ -1660,3 +1660,93 @@ fn fields_follow_photocraft_edge_unit_and_selection() {
         }
     }
 }
+
+fn panel_rail_at(size: Size) -> (PanelTokens, RailTokens) {
+    let appearance = Appearance { size, ..app(Mode::Dark, Contrast::Standard) };
+    let c = resolve(&grey_blue(), appearance, None).tokens.component;
+    (c.panel, c.rail)
+}
+
+/// The Compact sizes are PhotoCraft's (the tool rail 40 wide with 30 buttons and 20 point glyphs,
+/// the panel rail 36 wide with 28 buttons and 15 point glyphs, a 30 point footer bar); Comfortable
+/// scales them with the Size preset.
+#[test]
+fn panel_and_rail_sizes_follow_photocraft_compact_and_the_size_preset() {
+    let (panel, rail) = panel_rail_at(Size::Compact);
+    assert_eq!((panel.pad, panel.footer_height, panel.footer_gap), (8.0, 30.0, 2.0));
+    assert_eq!((rail.width, rail.button, rail.panel_width, rail.panel_button), (40.0, 30.0, 36.0, 28.0));
+    assert_eq!((rail.icon, rail.panel_icon), (20.0, 15.0));
+    assert_eq!((rail.gap, rail.row_gap, rail.panel_gap, rail.pad_y), (2.0, 3.0, 4.0, 8.0));
+    assert_eq!((rail.flyout_row, rail.flyout_gap, rail.flyout_icon), (26.0, 6.0, 14.0));
+    assert_eq!((rail.toggle_height, rail.toggle_icon), (14.0, 11.0));
+    assert_eq!((rail.indicator, rail.indicator_inset, rail.marker_radius, rail.selected_border_width), (4.0, 2.0, 3.0, 1.0));
+    assert_eq!(rail.radius, 3.0);
+
+    let (panel, rail) = panel_rail_at(Size::Comfortable);
+    assert_eq!((panel.pad, panel.footer_height, panel.footer_gap), (12.0, 38.0, 3.0));
+    assert_eq!((rail.width, rail.button, rail.panel_width, rail.panel_button), (50.0, 36.0, 44.0, 32.0));
+    assert_eq!((rail.icon, rail.panel_icon), (24.0, 17.0));
+    assert_eq!((rail.gap, rail.panel_gap, rail.pad_y), (3.0, 6.0, 12.0));
+}
+
+/// A rail draws on the window chrome, its rest glyph is PhotoCraft's faint text and its open
+/// panel is a quiet fill in the selected outline.
+#[test]
+fn panel_and_rail_colours_come_from_the_semantic_roles() {
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
+    let (p, r) = (&t.component.panel, &t.component.rail);
+    assert_eq!((p.fill, p.header_line, p.footer_line), (t.color(T::SurfacePanel), t.color(T::LineDivider), t.color(T::LineDivider)));
+    assert_eq!((r.fill, r.hover, r.edge), (t.color(T::SurfaceChrome), t.color(T::StateHover), t.color(T::LineDivider)));
+    assert_eq!((r.selected, r.selected_border, r.selected_text), (t.color(T::StateSelected), t.color(T::AccentBorder), t.color(T::TextOnSelected)));
+    assert_eq!((r.icon_color, r.panel_icon_color, r.icon_hover), (t.color(T::TextMuted), t.color(T::TextFaint), t.color(T::TextNormal)));
+    assert_eq!((r.indicator_color, r.marker), (t.color(T::TextFaint), t.color(T::AccentSolid)));
+}
+
+#[test]
+fn panel_and_rail_paths_round_trip_and_overrides_replace_the_defaults() {
+    let ours: Vec<_> = ComponentField::ALL.iter().filter(|f| matches!(f, ComponentField::Panel(_) | ComponentField::Rail(_))).collect();
+    assert_eq!(ours.len(), 3 + 12);
+    for f in ours {
+        assert_eq!(ComponentField::from_path(&f.path()), Some(*f), "{}", f.path());
+    }
+    assert_eq!(ComponentField::Rail(RailField::Radius).kind(), FieldKind::Length);
+    assert_eq!(ComponentField::Rail(RailField::SelectedText).kind(), FieldKind::Color);
+    for sized in ["panel.pad", "panel.footer_height", "rail.width", "rail.panel_button", "rail.flyout_row", "rail.marker_radius"] {
+        assert_eq!(ComponentField::from_path(sized), None, "{sized}");
+    }
+
+    let mut def = grey_blue();
+    def.components.insert(ComponentField::Rail(RailField::Radius), OverrideValue::Length(5.0));
+    def.components.insert(ComponentField::Rail(RailField::Edge), OverrideValue::Color(hex("#112233")));
+    def.components.insert(ComponentField::Panel(PanelField::FooterLine), OverrideValue::Color(hex("#445566")));
+    let c = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
+    assert_eq!((c.rail.radius, c.rail.edge, c.panel.footer_line), (5.0, hex("#112233"), hex("#445566")));
+}
+
+/// The rail glyphs, the open-panel glyph and the marker meet the non-text minimum on what they
+/// sit on, in every appearance.
+#[test]
+fn rail_pairs_meet_their_minimums_in_every_appearance() {
+    let pairs = [
+        (RailField::Icon, RailField::Fill),
+        (RailField::PanelIcon, RailField::Fill),
+        (RailField::IconHover, RailField::Hover),
+        (RailField::SelectedText, RailField::Selected),
+        (RailField::Marker, RailField::Fill),
+    ];
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            let ours = |t: &TokenRef| matches!(t, TokenRef::Component(ComponentField::Rail(_)));
+            assert!(r.warnings.iter().all(|w| !ours(&w.fg)), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            for (fg, bg) in pairs {
+                let (fg, bg) = (ComponentField::Rail(fg), ComponentField::Rail(bg));
+                let bg_color = over(t.component.color(bg).unwrap(), t.color(T::SurfacePanel));
+                let ratio = contrast_ratio(over(t.component.color(fg).unwrap(), bg_color), bg_color);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+            }
+        }
+    }
+}

@@ -33,11 +33,13 @@ mod marquee;
 mod menu;
 mod notice;
 mod options_bar;
+mod panel;
 mod panel_footer;
 mod panel_header;
 mod popup;
 mod progress;
 mod property;
+mod rail;
 mod readout;
 mod ref_point;
 mod ruler;
@@ -92,11 +94,13 @@ pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
+pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
+pub use rail::{RailField, RailTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
 pub use ruler::{RulerField, RulerTokens};
@@ -658,6 +662,8 @@ families! {
     notice: NoticeTokens => Notice(NoticeField);
     /// Options bars: the bar of the active tool's options.
     options_bar: OptionsBarTokens => OptionsBar(OptionsBarField);
+    /// Panels: the body of a docked or floating panel, with an optional footer bar.
+    panel: PanelTokens => Panel(PanelField);
     /// Panel footers: the bar of buttons under a panel body.
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
@@ -668,6 +674,8 @@ families! {
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.
     property: PropertyTokens => Property(PropertyField);
+    /// Rails: the tool rail, the panel rail and the flyout of a rail button.
+    rail: RailTokens => Rail(RailField);
     /// Readouts: the values beside the pointer during a canvas gesture.
     readout: ReadoutTokens => Readout(ReadoutField);
     /// Reference point pickers: the nine points of a box.
