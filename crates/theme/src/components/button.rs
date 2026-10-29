@@ -7,7 +7,7 @@ use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideVal
 use crate::color::Rgba;
 use crate::contrast::ensure_contrast;
 use crate::derive::over;
-use crate::tokens::{TokenRef, TypeRole};
+use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
 /// A button's emphasis.
@@ -352,6 +352,18 @@ impl Family for ButtonTokens {
                     bg: fill,
                     minimum: values::TEXT_MIN,
                     alternate: None,
+                });
+            }
+        }
+        // A secondary button is identified by its outline or its fill on what it sits on.
+        let fill = |state| TokenRef::Component(field(ButtonVariant::Secondary, ButtonPart::Fill, state));
+        for state in [State::Rest, State::Hover, State::Pressed] {
+            for surface in [ColorToken::SurfacePanel, ColorToken::SurfaceRaised] {
+                out.push(ContrastPair {
+                    fg: TokenRef::Component(field(ButtonVariant::Secondary, ButtonPart::Border, state)),
+                    bg: TokenRef::Color(surface),
+                    minimum: values::CONTROL_EDGE_MIN,
+                    alternate: Some(fill(state)),
                 });
             }
         }

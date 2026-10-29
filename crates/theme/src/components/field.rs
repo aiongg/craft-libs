@@ -10,7 +10,7 @@
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
-use crate::tokens::{TokenRef, TypeRole};
+use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
 /// A part of a field that has one colour while enabled and one while disabled.
@@ -344,10 +344,12 @@ impl Family for FieldTokens {
 
     /// At rest, on the field's fill: the text, the placeholder, the unit and the scrub label
     /// (text), the focused and invalid edges (state cues); and the selected text on the selection.
+    /// The rest and hover borders are the field's boundary on the panel or a popup.
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Field;
         let fill = TokenRef::Component(field(FieldField::Color { part: FieldPart::Fill, disabled: false }));
         let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum, alternate: None };
+        let [panel, raised] = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
         vec![
             pair(FieldField::Color { part: FieldPart::Text, disabled: false }, fill, values::TEXT_MIN),
             pair(FieldField::Color { part: FieldPart::Placeholder, disabled: false }, fill, values::TEXT_MIN),
@@ -356,6 +358,10 @@ impl Family for FieldTokens {
             pair(FieldField::Border(BorderState::Focused), fill, values::NON_TEXT_MIN),
             pair(FieldField::Invalid, fill, values::NON_TEXT_MIN),
             pair(FieldField::SelectedText, TokenRef::Component(field(FieldField::Selection)), values::TEXT_MIN),
+            pair(FieldField::Border(BorderState::Rest), panel, values::CONTROL_EDGE_MIN),
+            pair(FieldField::Border(BorderState::Rest), raised, values::CONTROL_EDGE_MIN),
+            pair(FieldField::Border(BorderState::Hover), panel, values::CONTROL_EDGE_MIN),
+            pair(FieldField::Border(BorderState::Hover), raised, values::CONTROL_EDGE_MIN),
         ]
     }
 }

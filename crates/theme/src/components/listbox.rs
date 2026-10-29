@@ -186,7 +186,7 @@ impl Family for ListboxTokens {
         let active = TokenRef::Component(field(ListboxField::ActiveFill));
         let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum, alternate: None };
         vec![
-            pair(ListboxField::ActiveFill, popup, values::LIST_HOVER_MIN),
+            pair(ListboxField::ActiveFill, popup, values::ACTIVE_ROW_MIN),
             pair(ListboxField::Text { disabled: false }, popup, values::TEXT_MIN),
             pair(ListboxField::Group, popup, values::TEXT_MIN),
             pair(ListboxField::ActiveText, active, values::TEXT_MIN),

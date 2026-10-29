@@ -93,7 +93,8 @@ fn builtin_field_text_and_state_edges_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_)))).collect();
-            assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
+            // Seven on the field's fill, and the rest and hover borders on the panel and a popup.
+            assert_eq!(pairs.len(), 7 + 4, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -125,8 +126,9 @@ fn builtin_menu_text_meets_its_minimum() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).collect();
-            // The active text and the shortcut, and each hue's text and shortcut on its tint.
-            assert_eq!(pairs.len(), 2 + 2 * MenuHue::ALL.len(), "{} {a:?}", theme.id);
+            // The active fill, the active text and the shortcut, and each hue's text and shortcut
+            // on its tint.
+            assert_eq!(pairs.len(), 3 + 2 * MenuHue::ALL.len(), "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -806,6 +808,47 @@ fn selected_rows_and_icon_buttons_follow_photocraft() {
                 );
             } else {
                 assert_eq!(list.thumb_border, t.color(ColorToken::LineControlEdge), "{who}");
+            }
+        }
+    }
+}
+
+/// High contrast is the accessible option: every control boundary and state cue reaches 3:1
+/// (WCAG 1.4.11) against the surface it sits on, in every built-in. Standard contrast keeps the
+/// theme's own edges.
+#[test]
+fn high_contrast_control_edges_reach_three_to_one() {
+    use super::contrast_ratio as ratio;
+    use super::derive::over;
+    let min = values::CONTROL_EDGE_MIN.1;
+    for theme in builtins() {
+        for a in appearances().into_iter().filter(|a| a.contrast == Contrast::High) {
+            let t = resolve(theme, a, None).tokens;
+            let c = &t.component;
+            let (panel, raised) = (t.color(ColorToken::SurfacePanel), t.color(ColorToken::SurfaceRaised));
+            let who = format!("{} {:?} {:?}", theme.id, a.mode, a.size);
+            let on_surfaces = |name: &str, edge: Rgba, alternate: Option<Rgba>| {
+                for surface in [panel, raised] {
+                    let best = [Some(edge), alternate].into_iter().flatten().map(|x| ratio(over(x, panel), surface)).fold(0.0, f64::max);
+                    assert!(best >= min, "{who}: {name} is {best:.2}:1 on {surface:?}");
+                }
+            };
+            on_surfaces("field.border.rest", c.field.border.rest, None);
+            on_surfaces("field.border.hover", c.field.border.hover, None);
+            let b = &c.button.secondary;
+            on_surfaces("button.secondary.border.rest", b.border.rest, Some(b.fill.rest));
+            on_surfaces("button.secondary.border.hover", b.border.hover, Some(b.fill.hover));
+            on_surfaces("button.secondary.border.pressed", b.border.pressed, Some(b.fill.pressed));
+            on_surfaces("slider.track", c.slider.track, None);
+            on_surfaces("check.off.border.rest", c.check.off.border.rest, Some(c.check.off.fill.rest));
+            on_surfaces("segmented.selected.fill.rest", c.segmented.selected.fill.rest, Some(c.segmented.selected_border.rest));
+            on_surfaces("line.focus", t.color(ColorToken::LineFocus), None);
+            for (name, row) in [("listbox.active.fill", c.listbox.active_fill), ("menu.active.fill", c.menu.active_fill)] {
+                let r = ratio(row, c.popup.fill);
+                assert!(r >= min, "{who}: {name} is {r:.2}:1 on popup.fill");
+            }
+            for fill in [c.slider.fill.rest, c.slider.fill.hover, c.slider.fill.pressed] {
+                assert!(ratio(fill, c.slider.track) >= min, "{who}: slider.fill on slider.track");
             }
         }
     }

@@ -8,7 +8,7 @@ use super::{
     thumb_from_path, thumb_path,
 };
 use crate::color::Rgba;
-use crate::tokens::TokenRef;
+use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
 
 /// `sizes` with its standard size set to `md`, the small size keeping its step under it.
@@ -222,21 +222,27 @@ impl Family for SliderTokens {
         }
     }
 
-    /// The filled part against the track: the cue of the value ([`values::STATE_CUE_MIN`]), 4.5:1
-    /// with high contrast and listed, never warned, in Standard, where the accent fill sits on
-    /// PhotoCraft's `line.control_edge` track. The thumb is neither text nor a state indicator,
-    /// so it has no minimum: where its face is close to the fill under it, its outline or shadow
-    /// gives the edge.
+    /// The track against the panel or a popup, and the filled part against the track: the
+    /// control edge minimum ([`values::CONTROL_EDGE_MIN`]), 3:1 with high contrast and listed,
+    /// never warned, in Standard, where the accent fill sits on PhotoCraft's `line.control_edge`
+    /// track. The thumb is neither text nor a state indicator, so it has no minimum: where its
+    /// face is close to the fill under it, its outline or shadow gives the edge.
+    ///
+    /// The track comes first: high contrast moves it before the fill is fitted to it.
     fn pairs() -> Vec<ContrastPair> {
         let field = |f| ComponentField::Slider(f);
-        [State::Rest, State::Hover, State::Pressed]
-            .into_iter()
-            .map(|state| ContrastPair {
-                fg: TokenRef::Component(field(SliderField::Fill(state))),
-                bg: TokenRef::Component(field(SliderField::Track)),
-                minimum: values::STATE_CUE_MIN,
-                alternate: None,
-            })
-            .collect()
+        let tracks = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|surface| ContrastPair {
+            fg: TokenRef::Component(field(SliderField::Track)),
+            bg: TokenRef::Color(surface),
+            minimum: values::CONTROL_EDGE_MIN,
+            alternate: None,
+        });
+        let fills = [State::Rest, State::Hover, State::Pressed].map(|state| ContrastPair {
+            fg: TokenRef::Component(field(SliderField::Fill(state))),
+            bg: TokenRef::Component(field(SliderField::Track)),
+            minimum: values::CONTROL_EDGE_MIN,
+            alternate: None,
+        });
+        tracks.into_iter().chain(fills).collect()
     }
 }

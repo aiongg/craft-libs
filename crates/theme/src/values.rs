@@ -313,6 +313,13 @@ pub const NON_TEXT_MIN: (f64, f64) = (3.0, 4.5);
 /// The cue of a selected or on state (a fill or an edge on what it sits on): required in high
 /// contrast only. Standard contrast keeps the theme's own fills and has no minimum for it.
 pub const STATE_CUE_MIN: (f64, f64) = (0.0, NON_TEXT_MIN.1);
+/// The edge that identifies a control (a field's or button's border, a slider track, the active
+/// row of a popup) against the surface it sits on: WCAG 1.4.11,
+/// required in high contrast only. Standard contrast keeps the theme's own edges.
+pub const CONTROL_EDGE_MIN: (f64, f64) = (0.0, 3.0);
+/// The active row of a listbox or menu against its popup: a floor in Standard, the control edge
+/// minimum in high contrast.
+pub const ACTIVE_ROW_MIN: (f64, f64) = (LIST_HOVER_MIN.0, CONTROL_EDGE_MIN.1);
 
 const TEXT_BGS: &[Bg] = &[
     Token(T::SurfaceBackground),

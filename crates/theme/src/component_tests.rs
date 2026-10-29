@@ -118,7 +118,7 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
 }
 
 /// The decided contrast scope: the filled part is an accent state indicator, 3:1 on the track
-/// (4.5:1 with high contrast).
+/// with high contrast, which also sets the track 3:1 off the panel.
 #[test]
 fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_minimum() {
     for def in [grey_blue(), violet()] {
@@ -131,7 +131,7 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
                 r.warnings
             );
             // Standard lists the pair; only high contrast needs the fill to show on the track.
-            let min = if a.contrast == Contrast::High { 4.5 } else { 0.0 };
+            let min = if a.contrast == Contrast::High { 3.0 } else { 0.0 };
             let track = ComponentField::Slider(SliderField::Track);
             for s in [State::Rest, State::Hover, State::Pressed] {
                 let fill = ComponentField::Slider(SliderField::Fill(s));
@@ -333,7 +333,13 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
         .filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_))))
         .map(|p| (p.fg, p.bg, p.minimum))
         .collect();
-    let expected: Vec<_> = field_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(fg), TokenRef::Component(bg), min)).collect();
+    let mut expected: Vec<_> = field_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(fg), TokenRef::Component(bg), min)).collect();
+    // The rest and hover borders against the panel and a popup, required in high contrast only.
+    let edges = [BorderState::Rest, BorderState::Hover].into_iter().flat_map(|state| {
+        [T::SurfacePanel, T::SurfaceRaised]
+            .map(|surface| (TokenRef::Component(ComponentField::Field(FieldField::Border(state))), TokenRef::Color(surface), (0.0, 3.0)))
+    });
+    expected.extend(edges);
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -379,7 +385,7 @@ fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
     let popup = TokenRef::Component(ComponentField::Popup(PopupField::Fill));
     let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
     vec![
-        (ListboxField::ActiveFill, popup, (1.12, 1.12)),
+        (ListboxField::ActiveFill, popup, (1.12, 3.0)),
         (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
         (ListboxField::Group, popup, (4.5, 7.0)),
         (ListboxField::ActiveText, active, (4.5, 7.0)),
@@ -454,6 +460,7 @@ fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums()
         ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).map(|p| (p.fg, p.bg)).collect();
     let menu = |f| TokenRef::Component(ComponentField::Menu(f));
     let mut expected = vec![
+        (menu(MenuField::ActiveFill), TokenRef::Component(ComponentField::Popup(PopupField::Fill))),
         (menu(MenuField::ActiveText), menu(MenuField::ActiveFill)),
         (menu(MenuField::Shortcut), TokenRef::Component(ComponentField::Popup(PopupField::Fill))),
     ];

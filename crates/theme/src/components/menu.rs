@@ -293,6 +293,13 @@ impl Family for MenuTokens {
             })
         });
         let mut pairs = vec![
+            // The active row shows against the card; its text is fitted to the fill after it.
+            ContrastPair {
+                fg: TokenRef::Component(field(MenuField::ActiveFill)),
+                bg: TokenRef::Component(ComponentField::Popup(PopupField::Fill)),
+                minimum: values::ACTIVE_ROW_MIN,
+                alternate: None,
+            },
             ContrastPair {
                 fg: TokenRef::Component(field(MenuField::ActiveText)),
                 bg: TokenRef::Component(field(MenuField::ActiveFill)),
