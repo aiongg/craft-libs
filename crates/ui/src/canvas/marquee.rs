@@ -353,7 +353,8 @@ pub enum Constraint {
     Free,
     /// Width and height keep the ratio `(w, h)`; the larger drag extent wins.
     Ratio(f64, f64),
-    /// A fixed size `(w, h)` in document units: the drag positions it.
+    /// A fixed size `(w, h)` in document units: the drag positions it. The marquee begins at
+    /// the press and follows the pointer, and a click places it there.
     Size(f64, f64),
 }
 
@@ -389,14 +390,42 @@ impl Constraint {
     }
 }
 
+/// The pixel rectangle of a fixed-size marquee between the corners `a` and `b`: exactly `size`
+/// `(w, h)` in whole pixels (at least 1 × 1). Snapping both edges outwards added a pixel to each
+/// side whenever the press sat between pixels, so 10 × 10 read 11 × 11. The near edge goes to the
+/// closest pixel edge and the far one is the size away.
+pub fn fixed_size_pixels(a: Point, b: Point, size: (f64, f64)) -> Rect {
+    let (w, h) = (size.0.round().max(1.0), size.1.round().max(1.0));
+    let (x0, y0) = (a.x.min(b.x).round(), a.y.min(b.y).round());
+    Rect::new(x0, y0, x0 + w, y0 + h)
+}
+
+/// A square marquee's pixel rectangle `r` (its corners snapped outwards to whole pixels) with
+/// equal sides. Snapping each axis on its own made one side a pixel longer than the other when
+/// the press sat between pixels (a ⇧ drag read 101 × 102). The shorter side grows to the longer
+/// one, away from the press point `start` towards `end`, so the square still covers every pixel
+/// the drag touched.
+pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect {
+    let n = r.width().max(r.height());
+    let grow = |lo: f64, hi: f64, from: f64, to: f64| {
+        let d = (n - (hi - lo)).max(0.0);
+        if to < from { (lo - d, hi) } else { (lo, hi + d) }
+    };
+    let (x0, x1) = grow(r.x0, r.x1, start.x, end.x);
+    let (y0, y1) = grow(r.y0, r.y1, start.y, end.y);
+    Rect::new(x0, y0, x1, y1)
+}
+
 /// What [`MarqueeDrag::show`] reports for a frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct MarqueeResponse {
-    /// The gesture's event this frame: `Begin` once the pointer is past the click slop, `Update`
+    /// The gesture's event this frame: `Begin` once the pointer is past the click slop (at the
+    /// press with [`Constraint::Size`]), `Update`
     /// every frame, `Commit` on release, `Cancel` on Esc.
     pub event: Option<EditEvent<MarqueeRect>>,
-    /// A press released within the click slop of where it went down (PhotoCraft deselects).
+    /// A press released within the click slop of where it went down (PhotoCraft deselects). Never
+    /// set with [`Constraint::Size`]: that marquee begins at the press and a click commits it.
     pub clicked: bool,
     /// The modifiers held at the press, for the host's selection mode (add, subtract). ⇧ and ⌥
     /// held at the press mean that mode, not square or centre, until released and pressed again.
@@ -412,7 +441,8 @@ pub struct MarqueeResponse {
 /// and skip that input while [`Claim::owner`] is set. Past `marquee.click_slop` it begins; ⇧ makes
 /// the marquee square (a circle) and ⌥ draws it from the centre, each only when pressed after the
 /// press or released and pressed again; Space held moves the whole marquee; Esc cancels. A press
-/// released inside the slop is a click, with no event. Keyboard nudging of the finished
+/// released inside the slop is a click, with no event; with [`Constraint::Size`] the gesture begins at the
+/// press instead, previewing the fixed box at the pointer, and a click commits it there. Keyboard nudging of the finished
 /// selection is the host's: [`nudge::read`](crate::behavior::nudge::read).
 ///
 /// ```
@@ -593,7 +623,8 @@ impl<'a> MarqueeDrag<'a> {
         let ended = released || !down;
         let mut rect = None;
         if !press.cancelled {
-            if !press.begun && press.pointer.distance(press.origin) > slop {
+            let at_press = matches!(self.constraint, Constraint::Size(..));
+            if !press.begun && (at_press || press.pointer.distance(press.origin) > slop) {
                 press.begun = true;
                 gesture.begin();
             }
