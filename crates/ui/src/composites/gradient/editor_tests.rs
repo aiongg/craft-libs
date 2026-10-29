@@ -993,3 +993,20 @@ fn a_location_run_moves_the_stop_from_where_it_began() {
     assert_eq!(harness.state().stops, tied);
     assert_eq!(selected(&harness), Some(StopRef::Color(2)));
 }
+
+#[test]
+fn a_screen_reader_step_in_the_frame_the_popover_s_run_ends_goes_onto_the_committed_stops() {
+    // The host turns the popover off mid hex run, and a screen reader steps the Opacity field in
+    // the same frame.
+    let mut harness = harness_with(Host { popover: true, rows: StopRows::Combined, ..Host::new(three()) });
+    hex_run(&mut harness, "FF0000");
+    harness.state_mut().popover = false;
+    let fields = harness.query_all_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Opacity"));
+    let field = fields.min_by(|a, b| a.rect().top().total_cmp(&b.rect().top())).expect("the fields row's Opacity");
+    field.decrement_accesskit();
+    harness.run();
+    let kinds = harness.state().kinds();
+    assert_eq!((kinds.first(), &kinds[kinds.len() - 2..]), (Some(&"Begin"), &["Commit", "Set"][..]), "{kinds:?}");
+    let color = harness.state().stops.color[0].color;
+    assert_eq!(color.to_rgba().to_hex(), "#ff0000fc", "the typed colour with the step's opacity");
+}

@@ -743,6 +743,84 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
 }
 
+/// In a pass where the composite's gesture ends, the other parts' events wait for the next pass
+/// and go onto the value the ending left: the host gets the ending, then the next edit, and a
+/// part drawn before the owner's commit doesn't lose its value to it either.
+#[test]
+fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    // Part `a` edits the first number, part `b` the second.
+    let host = std::cell::Cell::new((0, 0));
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    type Act<'a> = &'a dyn Fn(&mut parts::Edits<(i32, i32)>, &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, (i32, i32));
+    let mut pass = |act: Act| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(&state);
+            let part = |id: Id, event: Option<EditEvent<i32>>| {
+                let x = if id == a_id { 0.0 } else { 30.0 };
+                EditResponse::new(ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click()), event)
+            };
+            act(&mut edits, &part, shown);
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let a = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push(&part(a_id, event), |v| (v, shown.1));
+    };
+    let b = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push(&part(b_id, event), |v| (shown.0, v));
+    };
+    let run = GestureId::next();
+    let begun = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::begin(run)));
+        b(e, p, s, None);
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let committed = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::commit(run, 5, true, Modifiers::NONE)));
+        b(e, p, s, Some(EditEvent::set(9, Modifiers::NONE)));
+    });
+    assert_eq!(committed, commit(id, (5, 0), true));
+    assert_eq!(
+        pass(&|e, p, s| {
+            a(e, p, s, None);
+            b(e, p, s, None);
+        }),
+        Some(EditEvent::set((5, 9), Modifiers::NONE)),
+        "the step goes onto the committed value"
+    );
+
+    // Drawn before the owner's commit.
+    let run = GestureId::next();
+    let begun = pass(&|e, p, s| {
+        b(e, p, s, None);
+        a(e, p, s, Some(EditEvent::begin(run)));
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let committed = pass(&|e, p, s| {
+        b(e, p, s, Some(EditEvent::set(1, Modifiers::NONE)));
+        a(e, p, s, Some(EditEvent::commit(run, 6, true, Modifiers::NONE)));
+    });
+    assert_eq!(committed, commit(id, (6, 9), true));
+    assert_eq!(
+        pass(&|e, p, s| {
+            b(e, p, s, None);
+            a(e, p, s, None);
+        }),
+        Some(EditEvent::set((6, 1), Modifiers::NONE))
+    );
+    assert_eq!(host.get(), (6, 1));
+}
+
 /// A part that owns the composite's gesture and isn't drawn ends it as the part's own gesture
 /// ends ([`parts::Edits::feed`]): a typing run commits with its last value, also one no update
 /// carried; a drag cancels. The other parts' gestures are the composite's next ones. A composite

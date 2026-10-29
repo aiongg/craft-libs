@@ -443,6 +443,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
+    /// Whether the gesture ends in this frame: it committed, or a cancel goes out.
+    pub(crate) fn is_ending(&self) -> bool {
+        self.cancelled.is_some() || matches!(&self.stored.phase, Phase::Active(a) if a.ending)
+    }
+
     /// Stores the state and returns this frame's event.
     pub fn finish(self) -> Option<EditEvent<T>> {
         self.finish_as(|value| value)
