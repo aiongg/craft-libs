@@ -31,7 +31,7 @@ use super::{Menu, MenuStep, MenuStyle, mnemonic};
 use crate::controls::{Kbd, SIZE_NAMES, size_arg};
 use crate::direction;
 use crate::primitives::{Content, Interactive, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
 use keys::Keys;
 use search::Search;
@@ -598,14 +598,17 @@ fn switch_on_hover(ctx: &egui::Context, titles: &[Response], popups: &[Id]) {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/menu/menu-bar",
-        level: Level::Composites,
-        component: "MenuBar",
-        name: "Menu bar",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("search", true).with_number("width", 640.0, 60.0, 1200.0),
-        show: show_bar,
-    }]
+    vec![
+        Story::new(
+            "composites/menu/menu-bar",
+            Level::Composites,
+            "MenuBar",
+            "Menu bar",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("search", true).with_number("width", 640.0, 60.0, 1200.0),
+            show_bar,
+        )
+        .on(Surface::Chrome),
+    ]
 }
 
 /// The story's bar: File, Edit (the menus story's), View, Image, Window and Help.

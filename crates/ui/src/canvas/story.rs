@@ -8,7 +8,7 @@ use kurbo::{Point, Rect};
 use super::{CanvasScrollbars, CanvasView, Claim, Readout, ScrollbarNames, crisp, hit};
 use crate::behavior::nudge;
 use crate::primitives::{Corner, FocusRing, Handle, HandleShape};
-use crate::story::{self, Args, Level, Story};
+use crate::story::{self, Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
 /// The story document, in document units (pixels).
@@ -99,23 +99,17 @@ pub const COMPONENTS: &[&str] = &["Canvas", "Readout"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story { id: "primitives/canvas/document", level: Level::Primitives, component: "Canvas", name: "Document", args, show: show_document },
-        Story {
-            id: "primitives/canvas/scrollbars",
-            level: Level::Primitives,
-            component: "Canvas",
-            name: "Scrollbars",
-            args: || args().with_bool("overscroll", true),
-            show: show_scrollbars,
-        },
-        Story {
-            id: "primitives/readout/values",
-            level: Level::Primitives,
-            component: "Readout",
-            name: "Values",
-            args: Args::new,
-            show: show_readout,
-        },
+        Story::new("primitives/canvas/document", Level::Primitives, "Canvas", "Document", args, show_document).on(Surface::Canvas),
+        Story::new(
+            "primitives/canvas/scrollbars",
+            Level::Primitives,
+            "Canvas",
+            "Scrollbars",
+            || args().with_bool("overscroll", true),
+            show_scrollbars,
+        )
+        .on(Surface::Canvas),
+        Story::new("primitives/readout/values", Level::Primitives, "Readout", "Values", Args::new, show_readout).on(Surface::Canvas),
     ]
 }
 

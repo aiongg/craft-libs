@@ -219,22 +219,8 @@ pub const COMPONENTS: &[&str] = &["SectionHeader"];
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_number("width", 260.0, 60.0, 400.0);
     vec![
-        Story {
-            id: "composites/section-header/collapsible",
-            level: Level::Composites,
-            component: "SectionHeader",
-            name: "Collapsible",
-            args,
-            show: show_collapsible,
-        },
-        Story {
-            id: "composites/section-header/always-open",
-            level: Level::Composites,
-            component: "SectionHeader",
-            name: "Always open",
-            args,
-            show: show_always_open,
-        },
+        Story::new("composites/section-header/collapsible", Level::Composites, "SectionHeader", "Collapsible", args, show_collapsible),
+        Story::new("composites/section-header/always-open", Level::Composites, "SectionHeader", "Always open", args, show_always_open),
     ]
 }
 

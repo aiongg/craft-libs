@@ -187,22 +187,15 @@ pub const COMPONENTS: &[&str] = &["Progress"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/progress/values",
-            level: Level::Controls,
-            component: "Progress",
-            name: "Values",
-            args: || Args::new().with_number("fraction", 0.4, 0.0, 1.0),
-            show: show_values,
-        },
-        Story {
-            id: "controls/progress/indeterminate",
-            level: Level::Controls,
-            component: "Progress",
-            name: "Indeterminate",
-            args: || Args::new(),
-            show: show_indeterminate,
-        },
+        Story::new(
+            "controls/progress/values",
+            Level::Controls,
+            "Progress",
+            "Values",
+            || Args::new().with_number("fraction", 0.4, 0.0, 1.0),
+            show_values,
+        ),
+        Story::new("controls/progress/indeterminate", Level::Controls, "Progress", "Indeterminate", Args::new, show_indeterminate),
     ]
 }
 

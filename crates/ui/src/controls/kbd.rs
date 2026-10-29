@@ -260,22 +260,8 @@ const CHORDS: [(Modifiers, Key); 4] = [
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/kbd/plain",
-            level: Level::Controls,
-            component: "Kbd",
-            name: "Plain",
-            args: || Args::new(),
-            show: |ui, _| show(ui, false),
-        },
-        Story {
-            id: "controls/kbd/keycaps",
-            level: Level::Controls,
-            component: "Kbd",
-            name: "Keycaps",
-            args: || Args::new(),
-            show: |ui, _| show(ui, true),
-        },
+        Story::new("controls/kbd/plain", Level::Controls, "Kbd", "Plain", Args::new, |ui, _| show(ui, false)),
+        Story::new("controls/kbd/keycaps", Level::Controls, "Kbd", "Keycaps", Args::new, |ui, _| show(ui, true)),
     ]
 }
 

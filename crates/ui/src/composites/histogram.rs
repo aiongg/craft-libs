@@ -1005,41 +1005,13 @@ pub(crate) fn stories() -> Vec<Story> {
     let plain = || Args::new().with_number("width", 256.0, 80.0, 400.0);
     let rgb = || Args::new().with_choice("scale", SCALES, 0).with_bool("marker", false).with_number("width", 256.0, 80.0, 400.0);
     vec![
-        Story { id: "composites/histogram/tone", level: Level::Composites, component: "Histogram", name: "Tone", args: tone, show: show_tone },
-        Story { id: "composites/histogram/rgb", level: Level::Composites, component: "Histogram", name: "RGB", args: rgb, show: show_rgb },
-        Story { id: "composites/histogram/inks", level: Level::Composites, component: "Histogram", name: "Inks", args: plain, show: show_inks },
-        Story {
-            id: "composites/histogram/outline",
-            level: Level::Composites,
-            component: "Histogram",
-            name: "Outline",
-            args: plain,
-            show: show_outline,
-        },
-        Story {
-            id: "composites/histogram/markers",
-            level: Level::Composites,
-            component: "Histogram",
-            name: "Markers",
-            args: plain,
-            show: show_markers,
-        },
-        Story {
-            id: "composites/histogram/selection",
-            level: Level::Composites,
-            component: "Histogram",
-            name: "Selection",
-            args: plain,
-            show: show_selection,
-        },
-        Story {
-            id: "composites/histogram/stale-click",
-            level: Level::Composites,
-            component: "Histogram",
-            name: "Stale click",
-            args: plain,
-            show: show_stale_click,
-        },
+        Story::new("composites/histogram/tone", Level::Composites, "Histogram", "Tone", tone, show_tone),
+        Story::new("composites/histogram/rgb", Level::Composites, "Histogram", "RGB", rgb, show_rgb),
+        Story::new("composites/histogram/inks", Level::Composites, "Histogram", "Inks", plain, show_inks),
+        Story::new("composites/histogram/outline", Level::Composites, "Histogram", "Outline", plain, show_outline),
+        Story::new("composites/histogram/markers", Level::Composites, "Histogram", "Markers", plain, show_markers),
+        Story::new("composites/histogram/selection", Level::Composites, "Histogram", "Selection", plain, show_selection),
+        Story::new("composites/histogram/stale-click", Level::Composites, "Histogram", "Stale click", plain, show_stale_click),
     ]
 }
 

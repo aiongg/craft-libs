@@ -15,7 +15,7 @@ use super::{CanvasView, Claim, Readout};
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 use ants::Ants;
@@ -675,14 +675,17 @@ const CONSTRAINTS: &[&str] = &["free", "ratio 4:3", "size 200 x 120"];
 const LOOKS: &[&str] = &["ants", "band", "drawing"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/marquee/drag",
-        level: Level::Primitives,
-        component: "Marquee",
-        name: "Drag",
-        args: || super::story::args().with_choice("look", LOOKS, 0).with_choice("shape", SHAPES, 0).with_choice("style", CONSTRAINTS, 0),
-        show: show_drag,
-    }]
+    vec![
+        Story::new(
+            "primitives/marquee/drag",
+            Level::Primitives,
+            "Marquee",
+            "Drag",
+            || super::story::args().with_choice("look", LOOKS, 0).with_choice("shape", SHAPES, 0).with_choice("style", CONSTRAINTS, 0),
+            show_drag,
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// Drag a marquee on the document: ⇧ square, ⌥ from the centre, Space moves it, Esc cancels. The

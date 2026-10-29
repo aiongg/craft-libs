@@ -186,30 +186,16 @@ pub const COMPONENTS: &[&str] = &["Tooltip"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/tooltip/text",
-            level: Level::Controls,
-            component: "Tooltip",
-            name: "Text",
-            args: || Args::new().with_text("tip", "Moves the selection to the next layer"),
-            show: show_text,
-        },
-        Story {
-            id: "controls/tooltip/shortcut",
-            level: Level::Controls,
-            component: "Tooltip",
-            name: "Shortcut",
-            args: || Args::new(),
-            show: show_shortcut,
-        },
-        Story {
-            id: "controls/tooltip/custom",
-            level: Level::Controls,
-            component: "Tooltip",
-            name: "Custom",
-            args: || Args::new(),
-            show: show_custom,
-        },
+        Story::new(
+            "controls/tooltip/text",
+            Level::Controls,
+            "Tooltip",
+            "Text",
+            || Args::new().with_text("tip", "Moves the selection to the next layer"),
+            show_text,
+        ),
+        Story::new("controls/tooltip/shortcut", Level::Controls, "Tooltip", "Shortcut", Args::new, show_shortcut),
+        Story::new("controls/tooltip/custom", Level::Controls, "Tooltip", "Custom", Args::new, show_custom),
     ]
 }
 

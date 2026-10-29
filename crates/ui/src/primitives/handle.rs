@@ -5,7 +5,7 @@ use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
 
 use crate::inspect::{self, RecordKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_theme::Contrast;
 
@@ -214,7 +214,7 @@ impl Handle {
 pub const COMPONENTS: &[&str] = &["Handle"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story { id: "primitives/handle/shapes", level: Level::Primitives, component: "Handle", name: "Shapes", args: Args::new, show }]
+    vec![Story::new("primitives/handle/shapes", Level::Primitives, "Handle", "Shapes", Args::new, show).on(Surface::Canvas)]
 }
 
 /// The three shapes on a light and a dark strip, draggable.

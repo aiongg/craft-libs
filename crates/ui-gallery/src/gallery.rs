@@ -15,10 +15,10 @@ use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
-use craft_ui::story::{ArgValue, Args, Level, Story, registry};
+use craft_ui::story::{ArgValue, Args, Level, Story, Surface, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::epaint::RectShape;
-use egui::{Align, CentralPanel, Frame, Panel, Rect, ScrollArea, Sense, Shape, Ui, UiBuilder, Widget as _, pos2};
+use egui::{Align, CentralPanel, Color32, Frame, Panel, Rect, ScrollArea, Sense, Shape, Ui, UiBuilder, Widget as _, pos2};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -482,7 +482,7 @@ impl Gallery {
         }
     }
 
-    /// The story, or the grid of appearances while compare is on, on the canvas colour.
+    /// The story, or the grid of appearances while compare is on, each on its surface in the dock colour.
     fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
         let Some(story) = self.current() else {
             canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
@@ -510,7 +510,7 @@ impl Gallery {
         });
     }
 
-    /// Every component of one level, on the canvas colour: the level follows the selected
+    /// Every component of one level, each tile on its story's surface: the level follows the selected
     /// story. Each tile draws the component's default story; its name opens the Component view.
     fn overview_view(&mut self, ui: &mut Ui) {
         let nav = nav(&self.stories, &self.filter.to_lowercase());
@@ -769,12 +769,28 @@ fn set_zoom(ctx: &egui::Context, zoom: f32) {
     ctx.set_zoom_factor(zoom);
 }
 
-/// The canvas colour with the panel padding around what it holds.
+/// The dock colour with the panel padding around what a view holds.
 pub(crate) fn canvas_frame(tokens: &Tokens) -> Frame {
-    Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(margin(tokens.space.pad.panel))
+    canvas_frame_on(tokens, tokens.color.surface.background.to_egui())
 }
 
-/// The story on `surface.background` under the bar's appearance.
+/// `fill` with the panel padding around what it holds.
+pub(crate) fn canvas_frame_on(tokens: &Tokens, fill: Color32) -> Frame {
+    Frame::new().fill(fill).inner_margin(margin(tokens.space.pad.panel))
+}
+
+/// The colour of the surface a story's component sits on.
+pub(crate) fn surface_color(tokens: &Tokens, surface: Surface) -> Color32 {
+    let surfaces = &tokens.color.surface;
+    match surface {
+        Surface::Panel => surfaces.panel,
+        Surface::Canvas => surfaces.canvas,
+        Surface::Chrome => surfaces.chrome,
+    }
+    .to_egui()
+}
+
+/// The story on its surface under the bar's appearance.
 pub(crate) fn canvas(
     ui: &mut Ui,
     story: &Story,
@@ -795,7 +811,7 @@ pub(crate) fn canvas(
 /// The story in its frame, with the inspector over it when there is one.
 fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);
-    let fill = tokens.color.surface.background.to_egui();
+    let fill = surface_color(&tokens, story.surface);
     let framed = Frame::new().fill(fill).inner_margin(margin(tokens.space.pad.dialog)).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
         ui.push_id(story.id, |ui| {
@@ -841,7 +857,6 @@ pub(crate) fn overview(
         let tokens = Tokens::of(ui);
         let gap = tokens.space.gap.section;
         let pad = margin(tokens.space.pad.dialog);
-        let fill = tokens.color.surface.background.to_egui();
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
         let columns = if width >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
@@ -873,9 +888,9 @@ pub(crate) fn overview(
                     *scroll_to = None;
                 }
                 bottom = bottom.max(used.response.rect.bottom());
-                placed.push((slot, x));
+                placed.push((slot, x, surface_color(&tokens, story.surface)));
             }
-            for (slot, x) in placed {
+            for (slot, x, fill) in placed {
                 ui.painter().set(slot, Shape::Rect(RectShape::filled(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom)), 0.0, fill)));
             }
             ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());

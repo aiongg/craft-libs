@@ -1257,30 +1257,30 @@ pub const COMPONENTS: &[&str] = &["Select"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/select/states",
-            level: Level::Controls,
-            component: "Select",
-            name: "States",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
-            show: show_states,
-        },
-        Story {
-            id: "controls/select/wheel-steps",
-            level: Level::Controls,
-            component: "Select",
-            name: "Wheel steps",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
-            show: show_wheel_steps,
-        },
-        Story {
-            id: "controls/select/searchable",
-            level: Level::Controls,
-            component: "Select",
-            name: "Searchable",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_searchable,
-        },
+        Story::new(
+            "controls/select/states",
+            Level::Controls,
+            "Select",
+            "States",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
+            show_states,
+        ),
+        Story::new(
+            "controls/select/wheel-steps",
+            Level::Controls,
+            "Select",
+            "Wheel steps",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
+            show_wheel_steps,
+        ),
+        Story::new(
+            "controls/select/searchable",
+            Level::Controls,
+            "Select",
+            "Searchable",
+            || Args::new().with_choice("size", SIZE_NAMES, 1),
+            show_searchable,
+        ),
     ]
 }
 

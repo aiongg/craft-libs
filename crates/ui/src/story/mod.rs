@@ -68,6 +68,32 @@ impl Level {
     }
 }
 
+/// The surface a component sits on in an app; the gallery draws a story on it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Surface {
+    /// A dock panel (`surface.panel`): most components.
+    #[default]
+    Panel,
+    /// The document area (`surface.canvas`): components drawn over the document.
+    Canvas,
+    /// The window chrome (`surface.chrome`): option bars, title bars and other bars.
+    Chrome,
+}
+
+impl Surface {
+    /// Every surface, in the order the capture tool lists them.
+    pub const ALL: [Surface; 3] = [Surface::Panel, Surface::Canvas, Surface::Chrome];
+
+    /// The surface's lower-case name, as the capture spec spells it.
+    pub const fn slug(self) -> &'static str {
+        match self {
+            Surface::Panel => "panel",
+            Surface::Canvas => "canvas",
+            Surface::Chrome => "chrome",
+        }
+    }
+}
+
 /// One example of a component.
 #[derive(Clone, Copy)]
 pub struct Story {
@@ -83,9 +109,29 @@ pub struct Story {
     /// Draws the story. Runs inside the gallery's theme scope; read colours and fonts with
     /// [`Tokens::of`](crate::theme::TokensOf::of).
     pub show: fn(&mut egui::Ui, &mut Args),
+    /// The surface the component sits on in an app; [`Surface::Panel`] unless set with [`Story::on`].
+    pub surface: Surface,
 }
 
 impl Story {
+    /// A story on the panel surface.
+    pub const fn new(
+        id: &'static str,
+        level: Level,
+        component: &'static str,
+        name: &'static str,
+        args: fn() -> Args,
+        show: fn(&mut egui::Ui, &mut Args),
+    ) -> Self {
+        Self { id, level, component, name, args, show, surface: Surface::Panel }
+    }
+
+    /// The same story on another surface.
+    pub const fn on(mut self, surface: Surface) -> Self {
+        self.surface = surface;
+        self
+    }
+
     /// The default args, labelled with this story's id for panics on a misspelt name.
     pub fn defaults(&self) -> Args {
         (self.args)().for_story(self.id)

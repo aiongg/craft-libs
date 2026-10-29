@@ -543,12 +543,12 @@ const ROLE_NAMES: &[&str] = &["button", "check box", "tab"];
 const SURFACE_NAMES: &[&str] = &["none", "raised", "sunken", "panel"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/interactive/element",
-        level: Level::Primitives,
-        component: "Interactive",
-        name: "Element",
-        args: || {
+    vec![Story::new(
+        "primitives/interactive/element",
+        Level::Primitives,
+        "Interactive",
+        "Element",
+        || {
             Args::new()
                 .with_choice("role", ROLE_NAMES, 0)
                 .with_choice("surface", SURFACE_NAMES, 0)
@@ -556,7 +556,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 .with_bool("disabled", false)
         },
         show,
-    }]
+    )]
 }
 
 /// One element (a check box toggles, a tab sits beside a second one); clicks, Enter and Space

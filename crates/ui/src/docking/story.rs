@@ -25,7 +25,7 @@ pub const COMPONENTS: &[&str] = &["DockArea"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_number("width", 640.0, 360.0, 960.0).with_choice("locale", LOCALES, 0);
-    let story = |id, name, show| Story { id, level: Level::Patterns, component: "DockArea", name, args, show };
+    let story = |id, name, show| Story::new(id, Level::Patterns, "DockArea", name, args, show);
     vec![
         story("patterns/dock-area/docked", "Docked", show_docked),
         story("patterns/dock-area/floating", "Floating", show_floating),

@@ -150,15 +150,15 @@ pub const COMPONENTS: &[&str] = &["Focus ring"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/focus-ring/focus",
-            level: Level::Primitives,
-            component: "Focus ring",
-            name: "Focus",
-            args: || Args::new().with_number("items", 4.0, 1.0, 8.0),
-            show: show_focus,
-        },
-        Story { id: "primitives/focus-ring/ring", level: Level::Primitives, component: "Focus ring", name: "Ring", args: Args::new, show: show_ring },
+        Story::new(
+            "primitives/focus-ring/focus",
+            Level::Primitives,
+            "Focus ring",
+            "Focus",
+            || Args::new().with_number("items", 4.0, 1.0, 8.0),
+            show_focus,
+        ),
+        Story::new("primitives/focus-ring/ring", Level::Primitives, "Focus ring", "Ring", Args::new, show_ring),
     ]
 }
 

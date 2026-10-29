@@ -117,14 +117,14 @@ impl Widget for ToggleButton<'_> {
 pub const COMPONENTS: &[&str] = &["Toggle button"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "controls/toggle-button/toggle",
-        level: Level::Controls,
-        component: "Toggle button",
-        name: "Toggle",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_text("label", "Snap to grid"),
+    vec![Story::new(
+        "controls/toggle-button/toggle",
+        Level::Controls,
+        "Toggle button",
+        "Toggle",
+        || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_text("label", "Snap to grid"),
         show,
-    }]
+    )]
 }
 
 /// One toggle off and one on, with and without an icon.

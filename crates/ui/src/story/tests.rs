@@ -84,3 +84,14 @@ fn every_declared_component_has_a_story() {
     let files = count(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")));
     assert_eq!(files, DECLARED.len(), "a module declares COMPONENTS but is missing from story::DECLARED");
 }
+
+#[test]
+fn a_story_sits_on_a_panel_unless_set() {
+    let story = Story::new("controls/x/y", Level::Controls, "X", "Y", Args::new, |_, _| {});
+    assert_eq!(story.surface, Surface::Panel);
+    assert_eq!(story.on(Surface::Chrome).surface, Surface::Chrome);
+    let surface_of = |component: &str| registry().into_iter().find(|s| s.component == component).map(|s| s.surface);
+    assert_eq!(surface_of("Button"), Some(Surface::Panel));
+    assert_eq!(surface_of("Rulers"), Some(Surface::Canvas));
+    assert_eq!(surface_of("OptionsBar"), Some(Surface::Chrome));
+}

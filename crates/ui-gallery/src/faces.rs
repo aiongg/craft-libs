@@ -134,14 +134,14 @@ pub fn install(ctx: &egui::Context, ui_face: &str, mono_face: &str) {
 
 /// The stories this crate adds to the registry.
 pub fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "specimens/type/faces",
-        level: Level::Specimens,
-        component: "Faces",
-        name: "Type faces",
-        args: || Args::new().with_choice("group", GROUPS, 0).with_bool("tabular", false),
+    vec![Story::new(
+        "specimens/type/faces",
+        Level::Specimens,
+        "Faces",
+        "Type faces",
+        || Args::new().with_choice("group", GROUPS, 0).with_bool("tabular", false),
         show,
-    }]
+    )]
 }
 
 const GROUPS: &[&str] = &["UI faces", "Mono faces"];

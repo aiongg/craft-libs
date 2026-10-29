@@ -652,14 +652,14 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
 }
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/tab/states",
-        level: Level::Composites,
-        component: "Tab",
-        name: "States",
-        args: || Args::new().with_bool("large", false).with_bool("dividers", true).with_number("width", 180.0, 40.0, 320.0),
-        show: show_states,
-    }]
+    vec![Story::new(
+        "composites/tab/states",
+        Level::Composites,
+        "Tab",
+        "States",
+        || Args::new().with_bool("large", false).with_bool("dividers", true).with_number("width", 180.0, 40.0, 320.0),
+        show_states,
+    )]
 }
 
 /// Tabs in each state on a strip: inactive, hovered by the pointer, active, modified, with a

@@ -313,20 +313,20 @@ pub(crate) fn icon_arg(name: &str) -> Option<Icon> {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/button/variants",
-            level: Level::Controls,
-            component: "Button",
-            name: "Variants",
-            args: || Args::new().with_text("label", "Button").with_choice("icon", ICON_NAMES, 0),
-            show: show_variants,
-        },
-        Story {
-            id: "controls/button/playground",
-            level: Level::Controls,
-            component: "Button",
-            name: "Playground",
-            args: || {
+        Story::new(
+            "controls/button/variants",
+            Level::Controls,
+            "Button",
+            "Variants",
+            || Args::new().with_text("label", "Button").with_choice("icon", ICON_NAMES, 0),
+            show_variants,
+        ),
+        Story::new(
+            "controls/button/playground",
+            Level::Controls,
+            "Button",
+            "Playground",
+            || {
                 Args::new()
                     .with_choice("variant", VARIANT_NAMES, 0)
                     .with_choice("size", SIZE_NAMES, 1)
@@ -336,8 +336,8 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("narrow", false)
                     .with_text("label", "Save the document as a copy")
             },
-            show: show_playground,
-        },
+            show_playground,
+        ),
     ]
 }
 

@@ -248,14 +248,14 @@ pub const COMPONENTS: &[&str] = &["Checkbox"];
 pub(crate) const LONG_LABEL: &str = "Show the transform controls on the selected layer whenever the move tool is active";
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "controls/checkbox/states",
-        level: Level::Controls,
-        component: "Checkbox",
-        name: "States",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("label", "Snap to grid"),
+    vec![Story::new(
+        "controls/checkbox/states",
+        Level::Controls,
+        "Checkbox",
+        "States",
+        || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("label", "Snap to grid"),
         show,
-    }]
+    )]
 }
 
 /// Unchecked, checked and mixed boxes, enabled and disabled, then a long label. The enabled ones toggle.

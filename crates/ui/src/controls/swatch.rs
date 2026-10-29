@@ -281,22 +281,8 @@ const PALETTE: [[u8; 3]; 12] = [
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/swatch/states",
-            level: Level::Controls,
-            component: "Swatch",
-            name: "States",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_states,
-        },
-        Story {
-            id: "controls/swatch/palette",
-            level: Level::Controls,
-            component: "Swatch",
-            name: "Palette",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_palette,
-        },
+        Story::new("controls/swatch/states", Level::Controls, "Swatch", "States", || Args::new().with_choice("size", SIZE_NAMES, 1), show_states),
+        Story::new("controls/swatch/palette", Level::Controls, "Swatch", "Palette", || Args::new().with_choice("size", SIZE_NAMES, 1), show_palette),
     ]
 }
 

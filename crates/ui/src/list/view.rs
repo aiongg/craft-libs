@@ -1233,19 +1233,19 @@ impl ListOptions for Labels {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/list/ten-thousand-rows",
-        level: Level::Composites,
-        component: "List",
-        name: "10,000 rows",
-        args: || {
+    vec![Story::new(
+        "composites/list/ten-thousand-rows",
+        Level::Composites,
+        "List",
+        "10,000 rows",
+        || {
             Args::new()
                 .with_choice("selection", &["Multiple", "Single"], 0)
                 .with_bool("mixed heights", false)
                 .with_number("height", 320.0, 120.0, 600.0)
         },
-        show: show_rows,
-    }]
+        show_rows,
+    )]
 }
 
 /// The state of the story's list.

@@ -170,22 +170,22 @@ const PAD_NAMES: &[&str] = &["none", "control", "panel", "dialog"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/stack/gaps",
-            level: Level::Primitives,
-            component: "Stack",
-            name: "Gaps",
-            args: || Args::new().with_choice("gap", GAP_NAMES, 2).with_choice("pad", PAD_NAMES, 2),
-            show: show_stack,
-        },
-        Story {
-            id: "primitives/row/gaps",
-            level: Level::Primitives,
-            component: "Row",
-            name: "Gaps",
-            args: || Args::new().with_choice("gap", GAP_NAMES, 0).with_choice("pad", PAD_NAMES, 2),
-            show: show_row,
-        },
+        Story::new(
+            "primitives/stack/gaps",
+            Level::Primitives,
+            "Stack",
+            "Gaps",
+            || Args::new().with_choice("gap", GAP_NAMES, 2).with_choice("pad", PAD_NAMES, 2),
+            show_stack,
+        ),
+        Story::new(
+            "primitives/row/gaps",
+            Level::Primitives,
+            "Row",
+            "Gaps",
+            || Args::new().with_choice("gap", GAP_NAMES, 0).with_choice("pad", PAD_NAMES, 2),
+            show_row,
+        ),
     ]
 }
 

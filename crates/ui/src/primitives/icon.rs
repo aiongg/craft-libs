@@ -80,14 +80,7 @@ const SAMPLES: [icons::Icon; 6] =
     [icons::Icon::Close, icons::Icon::ChevronRight, icons::Icon::Undo, icons::Icon::Layers, icons::Icon::Eye, icons::Icon::Warning];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/icon/sizes",
-        level: Level::Primitives,
-        component: "Icon",
-        name: "Sizes",
-        args: || Args::new().with_choice("content", CONTENT_NAMES, 0),
-        show,
-    }]
+    vec![Story::new("primitives/icon/sizes", Level::Primitives, "Icon", "Sizes", || Args::new().with_choice("content", CONTENT_NAMES, 0), show)]
 }
 
 /// A row of icons per size class; chevron and undo mirror in right-to-left.

@@ -593,22 +593,22 @@ pub const COMPONENTS: &[&str] = &["Combo box"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/combo-box/states",
-            level: Level::Controls,
-            component: "Combo box",
-            name: "States",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_states,
-        },
-        Story {
-            id: "controls/combo-box/font-size",
-            level: Level::Controls,
-            component: "Combo box",
-            name: "Font size",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_font_size,
-        },
+        Story::new(
+            "controls/combo-box/states",
+            Level::Controls,
+            "Combo box",
+            "States",
+            || Args::new().with_choice("size", SIZE_NAMES, 1),
+            show_states,
+        ),
+        Story::new(
+            "controls/combo-box/font-size",
+            Level::Controls,
+            "Combo box",
+            "Font size",
+            || Args::new().with_choice("size", SIZE_NAMES, 1),
+            show_font_size,
+        ),
     ]
 }
 

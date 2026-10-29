@@ -100,7 +100,7 @@ pub const COMPONENTS: &[&str] = &["PanelFooter"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_number("width", 240.0, 60.0, 400.0);
-    vec![Story { id: "composites/panel-footer/layers", level: Level::Composites, component: "PanelFooter", name: "Layers", args, show: show_layers }]
+    vec![Story::new("composites/panel-footer/layers", Level::Composites, "PanelFooter", "Layers", args, show_layers)]
 }
 
 /// A panel `width` wide with a body and a footer of three buttons, inside the body margin.

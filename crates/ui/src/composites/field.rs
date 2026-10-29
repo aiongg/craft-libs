@@ -294,7 +294,7 @@ pub const COMPONENTS: &[&str] = &["Field"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_bool("above", false).with_bool("help", true).with_bool("error", false);
-    vec![Story { id: "composites/field/dialog", level: Level::Composites, component: "Field", name: "Dialog", args, show: show_dialog }]
+    vec![Story::new("composites/field/dialog", Level::Composites, "Field", "Dialog", args, show_dialog)]
 }
 
 const MODES: [&str; 3] = ["Normal", "Multiply", "Screen"];

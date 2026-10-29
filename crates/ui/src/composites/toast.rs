@@ -466,14 +466,14 @@ pub const COMPONENTS: &[&str] = &["Toast"];
 const TONE_NAMES: &[&str] = &["neutral", "info", "good", "warn", "bad"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/toast/stack",
-        level: Level::Composites,
-        component: "Toast",
-        name: "Stack",
-        args: || Args::new().with_choice("tone", TONE_NAMES, 0).with_bool("auto_hide", false).with_number("seconds", 6.0, 1.0, 30.0),
-        show: show_stack,
-    }]
+    vec![Story::new(
+        "composites/toast/stack",
+        Level::Composites,
+        "Toast",
+        "Stack",
+        || Args::new().with_choice("tone", TONE_NAMES, 0).with_bool("auto_hide", false).with_number("seconds", 6.0, 1.0, 30.0),
+        show_stack,
+    )]
 }
 
 /// A neutral notice, a warning with ten lines and an error in the bottom corner of the story's

@@ -9,26 +9,29 @@ use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, War
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Warp grid"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/warp-grid/warp",
-        level: Level::Primitives,
-        component: "Warp grid",
-        name: "Warp",
-        args: || {
-            super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true).with_choice(
-                "split",
-                &["Off", "Cross", "Vertical", "Horizontal"],
-                0,
-            )
-        },
-        show: show_warp,
-    }]
+    vec![
+        Story::new(
+            "primitives/warp-grid/warp",
+            Level::Primitives,
+            "Warp grid",
+            "Warp",
+            || {
+                super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true).with_choice(
+                    "split",
+                    &["Off", "Cross", "Vertical", "Horizontal"],
+                    0,
+                )
+            },
+            show_warp,
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// The English names the story and tests use.

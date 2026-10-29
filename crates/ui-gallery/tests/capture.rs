@@ -37,3 +37,21 @@ fn an_overview_shot_draws_a_level_as_wide_as_asked() {
     let error = shot(r#"[{"name": "a", "level": "nope"}]"#).err().expect("the level is wrong");
     assert!(error.contains("controls"));
 }
+
+/// A pixel just inside the top-left corner of a shot: the surface the story is drawn on.
+fn corner(json: &str) -> [u8; 3] {
+    let image = render(&shot(json).unwrap()).unwrap();
+    let [r, g, b, _] = image.get_pixel(4, 4).0;
+    [r, g, b]
+}
+
+#[test]
+fn a_shot_paints_the_surface_of_its_story() {
+    let artcraft = r#""theme": "craft.artcraft", "mode": "dark", "width": 320, "height": 120"#;
+    // A button sits on a panel, the rulers on the canvas.
+    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "button", {artcraft}}}]"#)), [0x53, 0x53, 0x53]);
+    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "rulers", {artcraft}}}]"#)), [0x28, 0x28, 0x28]);
+    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "button", "surface": "canvas", {artcraft}}}]"#)), [0x28, 0x28, 0x28]);
+    let error = shot(r#"[{"name": "a", "component": "button", "surface": "floor"}]"#).err().expect("the surface is wrong");
+    assert!(error.contains("chrome"));
+}

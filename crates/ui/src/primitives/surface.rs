@@ -262,22 +262,8 @@ const KIND_NAMES: &[&str] = &["background", "panel", "raised", "sunken", "presse
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/surface/kind",
-            level: Level::Primitives,
-            component: "Surface",
-            name: "Kind",
-            args: || Args::new().with_choice("kind", KIND_NAMES, 2),
-            show: show_kind,
-        },
-        Story {
-            id: "primitives/surface/surfaces",
-            level: Level::Primitives,
-            component: "Surface",
-            name: "Surfaces",
-            args: Args::new,
-            show: show_surfaces,
-        },
+        Story::new("primitives/surface/kind", Level::Primitives, "Surface", "Kind", || Args::new().with_choice("kind", KIND_NAMES, 2), show_kind),
+        Story::new("primitives/surface/surfaces", Level::Primitives, "Surface", "Surfaces", Args::new, show_surfaces),
     ]
 }
 

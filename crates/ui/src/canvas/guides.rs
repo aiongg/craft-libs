@@ -20,7 +20,7 @@ use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::primitives::FocusRing;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// Within this many points of its press a guide's release is a click (PhotoCraft's
@@ -987,28 +987,23 @@ pub const COMPONENTS: &[&str] = &["Guides", "Smart guides"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/guides/guides",
-            level: Level::Primitives,
-            component: "Guides",
-            name: "Guides",
-            args: || {
+        Story::new(
+            "primitives/guides/guides",
+            Level::Primitives,
+            "Guides",
+            "Guides",
+            || {
                 super::story::args()
                     .with_choice("line", &["Solid", "Dashed", "Dots"], 0)
                     .with_bool("interactive", true)
                     .with_bool("locked", false)
                     .with_bool("readout", true)
             },
-            show: show_guides,
-        },
-        Story {
-            id: "primitives/smart-guides/move",
-            level: Level::Primitives,
-            component: "Smart guides",
-            name: "Move",
-            args: super::story::args,
-            show: show_smart_guides,
-        },
+            show_guides,
+        )
+        .on(Surface::Canvas),
+        Story::new("primitives/smart-guides/move", Level::Primitives, "Smart guides", "Move", super::story::args, show_smart_guides)
+            .on(Surface::Canvas),
     ]
 }
 

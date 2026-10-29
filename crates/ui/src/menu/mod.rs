@@ -51,30 +51,30 @@ pub const COMPONENTS: &[&str] = &["Menu", "ContextMenu", "PressMenu"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/menu/menus",
-            level: Level::Composites,
-            component: "Menu",
-            name: "Menus",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true).with_number("rows", 40.0, 5.0, 200.0),
-            show: show_menus,
-        },
-        Story {
-            id: "composites/menu/context-menu",
-            level: Level::Composites,
-            component: "ContextMenu",
-            name: "Context menu",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
-            show: show_context_menu,
-        },
-        Story {
-            id: "composites/menu/press-menu",
-            level: Level::Composites,
-            component: "PressMenu",
-            name: "Press menu",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
-            show: show_press_menu,
-        },
+        Story::new(
+            "composites/menu/menus",
+            Level::Composites,
+            "Menu",
+            "Menus",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true).with_number("rows", 40.0, 5.0, 200.0),
+            show_menus,
+        ),
+        Story::new(
+            "composites/menu/context-menu",
+            Level::Composites,
+            "ContextMenu",
+            "Context menu",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
+            show_context_menu,
+        ),
+        Story::new(
+            "composites/menu/press-menu",
+            Level::Composites,
+            "PressMenu",
+            "Press menu",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
+            show_press_menu,
+        ),
     ]
 }
 

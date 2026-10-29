@@ -10,7 +10,7 @@ use super::quad::Anchor9;
 use crate::controls::TooltipExt as _;
 use crate::edit::{EditEvent, EditResponse};
 use crate::primitives::FocusRing;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// The size of a [`ReferencePoint`].
@@ -323,14 +323,17 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 pub const COMPONENTS: &[&str] = &["ReferencePoint"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/reference-point/picker",
-        level: Level::Primitives,
-        component: "ReferencePoint",
-        name: "Picker",
-        args: || Args::new().with_bool("shrink", false).with_bool("custom pivot", false),
-        show: show_story,
-    }]
+    vec![
+        Story::new(
+            "primitives/reference-point/picker",
+            Level::Primitives,
+            "ReferencePoint",
+            "Picker",
+            || Args::new().with_bool("shrink", false).with_bool("custom pivot", false),
+            show_story,
+        )
+        .on(Surface::Chrome),
+    ]
 }
 
 #[cfg(test)]

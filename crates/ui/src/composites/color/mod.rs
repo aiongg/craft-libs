@@ -296,26 +296,26 @@ const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b"
 
 pub(crate) fn stories() -> Vec<Story> {
     let mut stories = vec![
-        Story {
-            id: "composites/color-area/parts",
-            level: Level::Composites,
-            component: "ColorArea",
-            name: "Area and strip",
-            args: || {
+        Story::new(
+            "composites/color-area/parts",
+            Level::Composites,
+            "ColorArea",
+            "Area and strip",
+            || {
                 Args::new()
                     .with_choice("mode", MODE_NAMES, 0)
                     .with_bool("compact", false)
                     .with_bool("disabled", false)
                     .with_bool("web colours only", false)
             },
-            show: show_parts,
-        },
-        Story {
-            id: "composites/color/compact",
-            level: Level::Composites,
-            component: "ColorPicker",
-            name: "Compact",
-            args: || {
+            show_parts,
+        ),
+        Story::new(
+            "composites/color/compact",
+            Level::Composites,
+            "ColorPicker",
+            "Compact",
+            || {
                 Args::new()
                     .with_bool("alpha", false)
                     .with_bool("eyedropper", true)
@@ -324,40 +324,38 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("disabled", false)
                     .with_number("width", 260.0, 160.0, 480.0)
             },
-            show: show_compact,
-        },
-        Story {
-            id: "composites/color/popover",
-            level: Level::Composites,
-            component: "ColorPopover",
-            name: "Popover",
-            args: || {
+            show_compact,
+        ),
+        Story::new(
+            "composites/color/popover",
+            Level::Composites,
+            "ColorPopover",
+            "Popover",
+            || {
                 Args::new()
                     .with_choice("size", crate::controls::SIZE_NAMES, 1)
                     .with_bool("alpha", true)
                     .with_bool("eyedropper", true)
                     .with_bool("disabled", false)
             },
-            show: show_popover,
-        },
-        Story {
-            id: "composites/color/hex-field",
-            level: Level::Composites,
-            component: "HexField",
-            name: "Hex field",
-            args: || Args::new().with_choice("digits", &["2", "1"], 0).with_bool("alpha", false).with_bool("disabled", false),
-            show: show_hex_field,
-        },
-        Story {
-            id: "composites/color/palette",
-            level: Level::Composites,
-            component: "SwatchPalette",
-            name: "Palette",
-            args: || {
-                Args::new().with_choice("size", crate::controls::SIZE_NAMES, 1).with_number("width", 200.0, 60.0, 400.0).with_bool("disabled", false)
-            },
-            show: show_palette,
-        },
+            show_popover,
+        ),
+        Story::new(
+            "composites/color/hex-field",
+            Level::Composites,
+            "HexField",
+            "Hex field",
+            || Args::new().with_choice("digits", &["2", "1"], 0).with_bool("alpha", false).with_bool("disabled", false),
+            show_hex_field,
+        ),
+        Story::new(
+            "composites/color/palette",
+            Level::Composites,
+            "SwatchPalette",
+            "Palette",
+            || Args::new().with_choice("size", crate::controls::SIZE_NAMES, 1).with_number("width", 200.0, 60.0, 400.0).with_bool("disabled", false),
+            show_palette,
+        ),
     ];
     stories.extend(full_stories::stories());
     stories.extend(pair_stories::stories());

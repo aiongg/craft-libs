@@ -240,8 +240,8 @@ const ICON_ITEMS: [(Icon, &str); 5] =
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     vec![
-        Story { id: "controls/segmented/text", level: Level::Controls, component: "Segmented", name: "Text", args, show: show_text },
-        Story { id: "controls/segmented/icons", level: Level::Controls, component: "Segmented", name: "Icons", args, show: show_icons },
+        Story::new("controls/segmented/text", Level::Controls, "Segmented", "Text", args, show_text),
+        Story::new("controls/segmented/icons", Level::Controls, "Segmented", "Icons", args, show_icons),
     ]
 }
 

@@ -122,14 +122,14 @@ pub const COMPONENTS: &[&str] = &["Spinner"];
 const CONTENT_NAMES: &[&str] = &["normal", "muted", "accent"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "controls/spinner/sizes",
-        level: Level::Controls,
-        component: "Spinner",
-        name: "Sizes",
-        args: || Args::new().with_choice("content", CONTENT_NAMES, 0),
-        show: show_sizes,
-    }]
+    vec![Story::new(
+        "controls/spinner/sizes",
+        Level::Controls,
+        "Spinner",
+        "Sizes",
+        || Args::new().with_choice("content", CONTENT_NAMES, 0),
+        show_sizes,
+    )]
 }
 
 /// One spinner per icon size and the default control height, each named for a screen reader.

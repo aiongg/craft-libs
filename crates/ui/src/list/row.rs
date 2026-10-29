@@ -806,12 +806,12 @@ fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
 const THUMB_NAMES: &[&str] = &["None", "Small", "Medium", "Large"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/list-row/layers",
-        level: Level::Composites,
-        component: "ListRow",
-        name: "Layers",
-        args: || {
+    vec![Story::new(
+        "composites/list-row/layers",
+        Level::Composites,
+        "ListRow",
+        "Layers",
+        || {
             Args::new()
                 .with_choice("thumbnails", THUMB_NAMES, 0)
                 .with_bool("detail", false)
@@ -819,8 +819,8 @@ pub(crate) fn stories() -> Vec<Story> {
                 .with_bool("layer form", true)
                 .with_number("width", 280.0, 60.0, 480.0)
         },
-        show: show_layers,
-    }]
+        show_layers,
+    )]
 }
 
 /// The state of the story's layers panel.

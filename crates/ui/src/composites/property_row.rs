@@ -530,14 +530,7 @@ pub const COMPONENTS: &[&str] = &["PropertyRow"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_bool("mixed", false).with_number("width", 260.0, 60.0, 400.0);
-    vec![Story {
-        id: "composites/property-row/inspector",
-        level: Level::Composites,
-        component: "PropertyRow",
-        name: "Inspector",
-        args,
-        show: show_inspector,
-    }]
+    vec![Story::new("composites/property-row/inspector", Level::Composites, "PropertyRow", "Inspector", args, show_inspector)]
 }
 
 /// The values of the inspector story.

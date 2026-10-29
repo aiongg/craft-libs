@@ -70,28 +70,21 @@ const ROLES: [TypeRole; 7] =
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/text/roles",
-            level: Level::Primitives,
-            component: "Text",
-            name: "Roles",
-            args: || Args::new().with_choice("content", CONTENT_NAMES, 0),
-            show: show_roles,
-        },
-        Story { id: "primitives/text/contents", level: Level::Primitives, component: "Text", name: "Contents", args: Args::new, show: show_contents },
-        Story {
-            id: "primitives/text/truncate",
-            level: Level::Primitives,
-            component: "Text",
-            name: "Truncate",
-            args: || {
+        Story::new("primitives/text/roles", Level::Primitives, "Text", "Roles", || Args::new().with_choice("content", CONTENT_NAMES, 0), show_roles),
+        Story::new("primitives/text/contents", Level::Primitives, "Text", "Contents", Args::new, show_contents),
+        Story::new(
+            "primitives/text/truncate",
+            Level::Primitives,
+            "Text",
+            "Truncate",
+            || {
                 Args::new()
                     .with_choice("role", ROLE_NAMES, 2)
                     .with_text("text", "A long layer name that does not fit in the panel and ends in an ellipsis")
                     .with_number("width", 160.0, 40.0, 400.0)
             },
-            show: show_truncate,
-        },
+            show_truncate,
+        ),
     ]
 }
 

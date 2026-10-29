@@ -315,14 +315,14 @@ fn dragged(track: &Track, scale: &Scale, part: Part, anchor: (f64, f64), start: 
 pub const COMPONENTS: &[&str] = &["Range slider"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "controls/range-slider/range",
-        level: Level::Controls,
-        component: "Range slider",
-        name: "Range",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+    vec![Story::new(
+        "controls/range-slider/range",
+        Level::Controls,
+        "Range slider",
+        "Range",
+        || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
         show,
-    }]
+    )]
 }
 
 /// A continuous range and one in steps of 5.

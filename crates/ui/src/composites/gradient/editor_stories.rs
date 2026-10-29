@@ -16,12 +16,12 @@ use crate::story::{Args, Level, Story};
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/gradient/editor-split",
-            level: Level::Composites,
-            component: "GradientEditor",
-            name: "Split rows",
-            args: || {
+        Story::new(
+            "composites/gradient/editor-split",
+            Level::Composites,
+            "GradientEditor",
+            "Split rows",
+            || {
                 Args::new()
                     .with_choice("rows", &["Split", "Combined", "Color only"], 0)
                     .with_bool("midpoints", true)
@@ -31,24 +31,24 @@ pub(super) fn stories() -> Vec<Story> {
                     .with_bool("enabled", true)
                     .with_number("width", 320.0, 160.0, 480.0)
             },
-            show: show_split,
-        },
-        Story {
-            id: "composites/gradient/editor-combined",
-            level: Level::Composites,
-            component: "GradientEditor",
-            name: "Combined rows",
-            args: || Args::new().with_bool("fields", true).with_number("width", 280.0, 160.0, 480.0),
-            show: show_combined,
-        },
-        Story {
-            id: "composites/gradient/dialog",
-            level: Level::Composites,
-            component: "GradientEditor",
-            name: "Dialog",
-            args: || Args::new().with_bool("color popover", true),
-            show: show_dialog,
-        },
+            show_split,
+        ),
+        Story::new(
+            "composites/gradient/editor-combined",
+            Level::Composites,
+            "GradientEditor",
+            "Combined rows",
+            || Args::new().with_bool("fields", true).with_number("width", 280.0, 160.0, 480.0),
+            show_combined,
+        ),
+        Story::new(
+            "composites/gradient/dialog",
+            Level::Composites,
+            "GradientEditor",
+            "Dialog",
+            || Args::new().with_bool("color popover", true),
+            show_dialog,
+        ),
     ]
 }
 

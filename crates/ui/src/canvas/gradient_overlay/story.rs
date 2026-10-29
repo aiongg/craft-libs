@@ -9,7 +9,7 @@ use crate::composites::gradient::stops::{StopRules, sample};
 use crate::composites::{ColorStop, GradientEditor, GradientStops, StopRef, StopRow, StopRows};
 use crate::edit::{EditEvent, GestureHost, UndoMarks, describe};
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use craft_theme::Srgba;
 
 /// The components this module has stories for.
@@ -17,12 +17,12 @@ pub const COMPONENTS: &[&str] = &["Gradient line"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "primitives/gradient-line/edit",
-            level: Level::Primitives,
-            component: "Gradient line",
-            name: "Edit",
-            args: || {
+        Story::new(
+            "primitives/gradient-line/edit",
+            Level::Primitives,
+            "Gradient line",
+            "Edit",
+            || {
                 super::super::story::args()
                     .with_choice("rows", &["Split", "Combined"], 0)
                     .with_choice("extent", &["None", "Circle", "Square", "Mirror"], 0)
@@ -32,18 +32,18 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("alt copies", false)
                     .with_bool("editable", true)
             },
-            show: show_edit,
-        },
-        Story {
-            id: "primitives/gradient-line/with-editor",
-            level: Level::Primitives,
-            component: "Gradient line",
-            name: "With editor",
-            args: || {
-                super::super::story::args().with_choice("rows", &["Split", "Combined"], 0).with_bool("reverse", false).with_bool("midpoints", true)
-            },
-            show: show_with_editor,
-        },
+            show_edit,
+        )
+        .on(Surface::Canvas),
+        Story::new(
+            "primitives/gradient-line/with-editor",
+            Level::Primitives,
+            "Gradient line",
+            "With editor",
+            || super::super::story::args().with_choice("rows", &["Split", "Combined"], 0).with_bool("reverse", false).with_bool("midpoints", true),
+            show_with_editor,
+        )
+        .on(Surface::Canvas),
     ]
 }
 

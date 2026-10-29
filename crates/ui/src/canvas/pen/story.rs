@@ -8,20 +8,13 @@ use crate::canvas::bezier::story::sample_paths;
 use crate::canvas::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, KnotRef, PathSelection, RulerUnits};
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Pen draft"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/pen-draft/draw",
-        level: Level::Primitives,
-        component: "Pen draft",
-        name: "Draw",
-        args: crate::canvas::story::args,
-        show: show_pen,
-    }]
+    vec![Story::new("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", crate::canvas::story::args, show_pen).on(Surface::Canvas)]
 }
 
 /// A host's finished paths and open draft, as the story and the tests keep them: it keeps the

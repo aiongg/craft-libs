@@ -282,22 +282,22 @@ pub const COMPONENTS: &[&str] = &["EmptyState"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/empty-state/panel",
-            level: Level::Composites,
-            component: "EmptyState",
-            name: "Panel",
-            args: || Args::new().with_text("search", "zzz").with_bool("status", true).with_number("width", 260.0, 100.0, 400.0),
-            show: show_panel,
-        },
-        Story {
-            id: "composites/empty-state/canvas",
-            level: Level::Composites,
-            component: "EmptyState",
-            name: "Canvas",
-            args: || Args::new().with_number("width", 640.0, 200.0, 800.0).with_number("height", 360.0, 200.0, 600.0),
-            show: show_canvas,
-        },
+        Story::new(
+            "composites/empty-state/panel",
+            Level::Composites,
+            "EmptyState",
+            "Panel",
+            || Args::new().with_text("search", "zzz").with_bool("status", true).with_number("width", 260.0, 100.0, 400.0),
+            show_panel,
+        ),
+        Story::new(
+            "composites/empty-state/canvas",
+            Level::Composites,
+            "EmptyState",
+            "Canvas",
+            || Args::new().with_number("width", 640.0, 200.0, 800.0).with_number("height", 360.0, 200.0, 600.0),
+            show_canvas,
+        ),
     ]
 }
 

@@ -67,7 +67,7 @@ impl Divider {
 pub const COMPONENTS: &[&str] = &["Divider"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story { id: "primitives/divider/lines", level: Level::Primitives, component: "Divider", name: "Lines", args: Args::new, show }]
+    vec![Story::new("primitives/divider/lines", Level::Primitives, "Divider", "Lines", Args::new, show)]
 }
 
 fn show(ui: &mut Ui, _: &mut Args) {

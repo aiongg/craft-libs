@@ -10,13 +10,13 @@ use crate::direction::{self, Direction, HasDirection as _};
 use crate::icons::Icon;
 use crate::menu::MenuBar;
 use crate::menu::bar::story_bar;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["TitleBar"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let story = |id, name, show: fn(&mut Ui, &mut Args)| Story { id, level: Level::Patterns, component: "TitleBar", name, args, show };
+    let story = |id, name, show: fn(&mut Ui, &mut Args)| Story::new(id, Level::Patterns, "TitleBar", name, args, show).on(Surface::Chrome);
     vec![
         story("patterns/title-bar/windows", "Windows", |ui, args| show(ui, args, captions(CaptionFamily::Windows))),
         story("patterns/title-bar/adwaita", "Adwaita", |ui, args| show(ui, args, captions(CaptionFamily::Adwaita))),

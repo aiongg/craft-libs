@@ -223,7 +223,7 @@ pub(crate) fn stories() -> Vec<Story> {
             .with_bool("actions", false)
             .with_number("width", 280.0, 60.0, 400.0)
     };
-    vec![Story { id: "composites/panel-header/flyout", level: Level::Composites, component: "PanelHeader", name: "Flyout", args, show: show_flyout }]
+    vec![Story::new("composites/panel-header/flyout", Level::Composites, "PanelHeader", "Flyout", args, show_flyout)]
 }
 
 /// A flyout's header in a panel `width` wide, with the buttons and an action chosen by args. The

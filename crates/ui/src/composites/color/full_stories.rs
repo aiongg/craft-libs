@@ -14,12 +14,12 @@ use crate::story::{Args, Level, Story};
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/color/full",
-            level: Level::Composites,
-            component: "ColorPicker",
-            name: "Full",
-            args: || {
+        Story::new(
+            "composites/color/full",
+            Level::Composites,
+            "ColorPicker",
+            "Full",
+            || {
                 Args::new()
                     .with_bool("CMYK (host model)", true)
                     .with_bool("OKLCH", false)
@@ -29,16 +29,16 @@ pub(super) fn stories() -> Vec<Story> {
                     .with_bool("alpha", false)
                     .with_bool("disabled", false)
             },
-            show: show_full,
-        },
-        Story {
-            id: "composites/color/dialog",
-            level: Level::Composites,
-            component: "ColorPicker",
-            name: "Dialog (edit scope)",
-            args: || Args::new().with_bool("CMYK (host model)", true),
-            show: show_dialog,
-        },
+            show_full,
+        ),
+        Story::new(
+            "composites/color/dialog",
+            Level::Composites,
+            "ColorPicker",
+            "Dialog (edit scope)",
+            || Args::new().with_bool("CMYK (host model)", true),
+            show_dialog,
+        ),
     ]
 }
 

@@ -517,12 +517,12 @@ fn range_of(name: &str) -> RangeInclusive<f64> {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/angle-dial/dial",
-            level: Level::Controls,
-            component: "Angle dial",
-            name: "Angle dial",
-            args: || {
+        Story::new(
+            "controls/angle-dial/dial",
+            Level::Controls,
+            "Angle dial",
+            "Angle dial",
+            || {
                 Args::new()
                     .with_choice("range", RANGES, 0)
                     .with_choice("orientation", ORIENTATIONS, 0)
@@ -530,16 +530,9 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_choice("size", SIZE_NAMES, 1)
                     .with_bool("disabled", false)
             },
-            show: show_dial,
-        },
-        Story {
-            id: "controls/angle-dial/dialog",
-            level: Level::Controls,
-            component: "Angle dial",
-            name: "Dialog (field scope)",
-            args: Args::new,
-            show: show_dialog,
-        },
+            show_dial,
+        ),
+        Story::new("controls/angle-dial/dialog", Level::Controls, "Angle dial", "Dialog (field scope)", Args::new, show_dialog),
     ]
 }
 

@@ -57,14 +57,7 @@ pub const COMPONENTS: &[&str] = &["SectionLabel"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_text("text", "Blend mode");
-    vec![Story {
-        id: "composites/section-label/default",
-        level: Level::Composites,
-        component: "SectionLabel",
-        name: "Default",
-        args,
-        show: show_label,
-    }]
+    vec![Story::new("composites/section-label/default", Level::Composites, "SectionLabel", "Default", args, show_label)]
 }
 
 fn show_label(ui: &mut Ui, args: &mut Args) {
