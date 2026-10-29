@@ -215,9 +215,9 @@ fn fixed_and_moved_pairs_differ() {
 fn reads_are_what_both_probes_agree_on() {
     use super::explain::{PROBES, agree, default_reads, probe_reads};
     let (a, b) = (probe_reads(PROBES[0]), probe_reads(PROBES[1]));
-    // The hover fills of lists and list boxes are `state.hover` moved only when it is too close
+    // The hover fill of lists is `state.hover` moved only when it is too close
     // to the row beside it, so whether a probe reads it depends on the probe's colours.
-    let moved_when_close = [ComponentField::List(ListField::Hover), ComponentField::Listbox(ListboxField::ActiveFill)];
+    let moved_when_close = [ComponentField::List(ListField::Hover)];
     // Selected fills and their text move in lightness to show on what they sit on, so what they
     // read depends on the probe's colours too.
     let moved_to_show = |f: &ComponentField| {

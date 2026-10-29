@@ -131,7 +131,7 @@ pub struct Elevation {
 }
 
 impl Elevation {
-    /// Levels 0 (flat, no shadow) to 3 (highest), for `elevation.popup`, `.dialog`, `.floating`.
+    /// Levels 0 (flat, no shadow) to 3 (highest), for `elevation.dialog` and `.floating`.
     pub const LEVELS: [Elevation; 4] = [
         Elevation { offset: [0.0, 0.0], blur: 0.0, spread: 0.0, alpha: 0.0 },
         Elevation { offset: [0.0, 1.0], blur: 3.0, spread: 0.0, alpha: 0.14 },

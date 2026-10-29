@@ -32,6 +32,7 @@ mod marquee;
 mod menu;
 mod notice;
 mod panel_header;
+mod popup;
 mod progress;
 mod property;
 mod readout;
@@ -83,6 +84,7 @@ pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use popup::{PopupField, PopupTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
@@ -648,6 +650,8 @@ families! {
     notice: NoticeTokens => Notice(NoticeField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
+    /// Popups: the card that holds a menu or a list under a field.
+    popup: PopupTokens => Popup(PopupField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.

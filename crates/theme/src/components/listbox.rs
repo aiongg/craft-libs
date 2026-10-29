@@ -1,22 +1,20 @@
-//! List boxes: the rows of a select's or combo box's popup list, which later menus and lists can
-//! share. A row shows an option's text, with a check mark at its reading start when it is the
-//! chosen option; the active row (under the pointer, or moved to with the keys) has a fill. Group
-//! headers and separators sit between rows. The list draws on the popup surface
-//! (`surface.raised`).
+//! List boxes: the rows of a select's or combo box's popup list, which menus share. A row shows
+//! an option's text, with a check mark at its reading start when it is the chosen option. The
+//! active row (under the pointer, or moved to with the keys) and the chosen row have the accent
+//! fill with the text that sits on it, as PhotoCraft's dropdown and menu rows do. Group headers
+//! and separators sit between rows. The list draws on the popup card (`popup.fill`).
 //!
-//! The text, the chosen text and the group headers are text on the popup surface (4.5:1, 7:1 with
-//! high contrast), and the active text is text on the active fill. The check mark is the cue that
-//! shows the chosen option (3:1, 4.5:1 with high contrast) on the popup surface. A mark on the
-//! active row follows that row's text colour, as a menu's marks follow its label, so it is
-//! measured with the active text against the active fill, which is the stronger text minimum.
-//! The active fill must be visibly different from the popup surface (ratio 1.12, as a list
-//! row's hover fill); the separator is a design target with no minimum. Each pair is measured at
-//! rest.
+//! The text and the group headers are text on the popup card (4.5:1, 7:1 with high contrast), and
+//! the active text is text on the active fill. The check mark of a menu row is the cue that shows
+//! it is on (3:1, 4.5:1 with high contrast) on the popup card. A mark on the active or chosen row
+//! follows that row's text colour, as a menu's marks follow its label, so it is measured with the
+//! active text against the active fill, which is the stronger text minimum. The active fill must
+//! be visibly different from the popup card (ratio 1.12, as a list row's hover fill); the
+//! separator is a design target with no minimum. Each pair is measured at rest.
 
-use super::list::visible_hover;
-use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, Semantic};
+use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, PopupField, Semantic};
 use crate::color::Rgba;
-use crate::tokens::{ColorToken, TokenRef, TypeRole};
+use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
 
 /// List box tokens.
@@ -25,8 +23,12 @@ use crate::values;
 pub struct ListboxTokens {
     /// Height of a row and of a group header: the control height.
     pub height: BySize<f32>,
-    /// Between a row's edge and its contents: `space.pad.control`.
+    /// Between a row's edge and its contents: `space.pad.control` and [`values::LISTBOX_PAD_X`]
+    /// more (PhotoCraft's 10 point button padding).
     pub pad_x: f32,
+    /// The most a select's or combo box's list shows before it scrolls: [`values::LISTBOX_MAX_HEIGHT`]
+    /// and, above Compact, the extra height of [`values::LISTBOX_MAX_ROWS`] rows.
+    pub max_height: f32,
     /// Between the check mark, an icon and the text: `space.gap.inline`.
     pub gap: f32,
     /// Side of the check mark and of an option's icon: the icon size of the control size.
@@ -37,18 +39,15 @@ pub struct ListboxTokens {
     pub group_label: TypeRole,
     /// Above and below a separator's line: `space.gap.inline`.
     pub separator_pad: f32,
-    /// Corner radius of the active row's fill: `shape.radius.control`.
+    /// Corner radius of the active row's fill: square (PhotoCraft's menu and dropdown rows).
     pub radius: f32,
     /// An option's text: `text.normal`; disabled, `text.disabled`.
     pub text: Dimmed,
-    /// Behind the active row: `state.hover`.
+    /// Behind the active row and the chosen option: `accent.solid`.
     pub active_fill: Rgba,
-    /// The active row's text and check mark: `text.normal`.
+    /// The text and check mark of the active row and the chosen option: `text.on_accent`.
     pub active_text: Rgba,
-    /// The chosen option's text: `text.normal`.
-    pub chosen_text: Rgba,
-    /// The check mark at the chosen option: `text.normal`; on the active row it is the active
-    /// text.
+    /// A menu row's check mark: `text.normal`; on the active row it is the active text.
     pub mark: Rgba,
     /// A group header: `text.muted`.
     pub group: Rgba,
@@ -64,7 +63,6 @@ impl ListboxTokens {
             ListboxField::Text { disabled: true } => &mut self.text.disabled,
             ListboxField::ActiveFill => &mut self.active_fill,
             ListboxField::ActiveText => &mut self.active_text,
-            ListboxField::ChosenText => &mut self.chosen_text,
             ListboxField::Mark => &mut self.mark,
             ListboxField::Group => &mut self.group,
             ListboxField::Separator => &mut self.separator,
@@ -73,7 +71,7 @@ impl ListboxTokens {
 }
 
 /// An overridable list box token. Paths: `radius`, `text.rest`, `text.disabled`, `active.fill`,
-/// `active.text`, `chosen.text`, `mark`, `group`, `separator`, e.g. `listbox.active.fill`.
+/// `active.text`, `mark`, `group`, `separator`, e.g. `listbox.active.fill`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListboxField {
     /// `listbox.radius`
@@ -87,8 +85,6 @@ pub enum ListboxField {
     ActiveFill,
     /// `listbox.active.text`
     ActiveText,
-    /// `listbox.chosen.text`
-    ChosenText,
     /// `listbox.mark`
     Mark,
     /// `listbox.group`
@@ -105,7 +101,6 @@ impl Family for ListboxTokens {
         ListboxField::Text { disabled: true },
         ListboxField::ActiveFill,
         ListboxField::ActiveText,
-        ListboxField::ChosenText,
         ListboxField::Mark,
         ListboxField::Group,
         ListboxField::Separator,
@@ -115,17 +110,17 @@ impl Family for ListboxTokens {
         let (c, size) = (s.color, s.size);
         ListboxTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
-            pad_x: s.space.pad.control,
+            pad_x: s.space.pad.control + values::LISTBOX_PAD_X,
+            max_height: values::LISTBOX_MAX_HEIGHT + values::LISTBOX_MAX_ROWS * (size.control.md - values::MENU_BASE_CONTROL),
             gap: s.space.gap.inline,
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             label: TypeRole::Body,
             group_label: TypeRole::Caption,
             separator_pad: s.space.gap.inline,
-            radius: s.shape.radius.control,
+            radius: 0.0,
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
-            active_fill: visible_hover(c.state.hover, c.surface.raised, &[], c.text.normal, s.high),
-            active_text: c.text.normal,
-            chosen_text: c.text.normal,
+            active_fill: c.accent.solid,
+            active_text: c.text.on_accent,
             mark: c.text.normal,
             group: c.text.muted,
             separator: c.line.divider,
@@ -139,7 +134,6 @@ impl Family for ListboxTokens {
             ListboxField::Text { disabled: true } => "text.disabled",
             ListboxField::ActiveFill => "active.fill",
             ListboxField::ActiveText => "active.text",
-            ListboxField::ChosenText => "chosen.text",
             ListboxField::Mark => "mark",
             ListboxField::Group => "group",
             ListboxField::Separator => "separator",
@@ -164,7 +158,6 @@ impl Family for ListboxTokens {
             ListboxField::Text { disabled } => OverrideValue::Color(self.text.get(!disabled)),
             ListboxField::ActiveFill => OverrideValue::Color(self.active_fill),
             ListboxField::ActiveText => OverrideValue::Color(self.active_text),
-            ListboxField::ChosenText => OverrideValue::Color(self.chosen_text),
             ListboxField::Mark => OverrideValue::Color(self.mark),
             ListboxField::Group => OverrideValue::Color(self.group),
             ListboxField::Separator => OverrideValue::Color(self.separator),
@@ -184,18 +177,17 @@ impl Family for ListboxTokens {
         }
     }
 
-    /// At rest: the text, the chosen text and the group header on the popup surface, and the
-    /// active text (which also colours the check mark on the active row) on the active fill
-    /// (text); the check mark on the popup surface (the cue of the chosen option).
+    /// At rest: the text and the group header on the popup card, and the active text (which also
+    /// colours the check mark on the active row) on the active fill (text); the check mark on the
+    /// popup card (the cue of a checked menu row).
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Listbox;
-        let popup = TokenRef::Color(ColorToken::SurfaceRaised);
+        let popup = TokenRef::Component(ComponentField::Popup(PopupField::Fill));
         let active = TokenRef::Component(field(ListboxField::ActiveFill));
         let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum, alternate: None };
         vec![
             pair(ListboxField::ActiveFill, popup, values::LIST_HOVER_MIN),
             pair(ListboxField::Text { disabled: false }, popup, values::TEXT_MIN),
-            pair(ListboxField::ChosenText, popup, values::TEXT_MIN),
             pair(ListboxField::Group, popup, values::TEXT_MIN),
             pair(ListboxField::ActiveText, active, values::TEXT_MIN),
             pair(ListboxField::Mark, popup, values::NON_TEXT_MIN),

@@ -50,6 +50,7 @@
     "line.border": "#28282c",
     "line.control_edge": "#343439",
     "line.divider": "#26262a",
+    "popup.shadow": "#0000008c",
     "state.hover": "#2c2c30",
     "state.pressed": "#38383e",
     "surface.background": "#111112",

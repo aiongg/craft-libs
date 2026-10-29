@@ -36,6 +36,7 @@
     "line.border": "#cbd0d5",
     "line.control_edge": "#b8bfc6",
     "line.divider": "#d6dade",
+    "popup.shadow": "#0000002d",
     "state.hover": "#e2e6eb",
     "state.pressed": "#d0d6dd",
     "surface.background": "#e0e3e7",

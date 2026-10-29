@@ -10,8 +10,7 @@ use egui::text_edit::TextEditState;
 use egui::{Align2, AsIdSalt, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Sense, Shape, Ui, vec2};
 
 use super::option_list::{
-    Hover, MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view,
-    store_kept,
+    Hover, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
 };
 use super::text_field::{BoxState, Held, field_box};
 use super::{SIZE_NAMES, Select, size_arg};
@@ -263,7 +262,7 @@ impl<'a> ComboBox<'a> {
             let popup = PopupList::new(ui, typed.response())
                 .open(&mut open)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-                .height(MAX_ROWS * style.list.height)
+                .height(style.list.max_height)
                 .surface(style.popup);
             let checked = chosen(&options, typed.text());
             let rows = OptionRows::new(ui, &style.list, size, id, false, enabled, state.pressing).hover(Hover::Highlights);
@@ -329,7 +328,7 @@ impl<'a> ComboBox<'a> {
             invalid: false,
         };
         ui.painter().set(under, Shape::Vec(field_box(ui, f, rect, box_state)));
-        paint_chevron(ui, f, rect, size, if enabled { f.placeholder } else { f.placeholder_disabled });
+        paint_chevron(ui, f, rect, if enabled { f.text } else { f.text_disabled });
         state.text = listed.unwrap_or_else(|| typed.text().to_owned());
         let edit = typed.end(ui);
         if let Some(chars) = caret {

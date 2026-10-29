@@ -15,7 +15,7 @@ use egui::{
 
 use super::field_wheel;
 use super::option_list::{
-    MAX_ROWS, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
+    OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
 use super::text_field::{BoxState, field_box};
@@ -37,6 +37,8 @@ pub struct ListboxStyle {
     pub height: f32,
     /// Between a row's edge and its contents: `listbox.pad_x`.
     pub pad_x: f32,
+    /// The most a select's or combo box's list shows before it scrolls: `listbox.max_height`.
+    pub max_height: f32,
     /// Between the check mark, an icon and the text: `listbox.gap`.
     pub gap: f32,
     /// Side of the check mark and of an option's icon: `listbox.icon`.
@@ -51,11 +53,10 @@ pub struct ListboxStyle {
     /// `listbox.text.rest` and `listbox.text.disabled`.
     pub text: Color32,
     pub text_disabled: Color32,
-    /// `listbox.active.fill` and `listbox.active.text`.
+    /// `listbox.active.fill` and `listbox.active.text`: the active row and the chosen option.
     pub active_fill: Color32,
     pub active_text: Color32,
-    /// `listbox.chosen.text`, `listbox.mark`, `listbox.group` and `listbox.separator`.
-    pub chosen_text: Color32,
+    /// `listbox.mark`, `listbox.group` and `listbox.separator`.
     pub mark: Color32,
     pub group: Color32,
     pub separator: Color32,
@@ -69,9 +70,12 @@ pub struct ListboxStyle {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
-    /// The closed box: a text field's look ([`TextField::style`]), with the chevron in the
-    /// placeholder colour.
+    /// The closed box: a text field's look ([`TextField::style`]), with a drawn chevron in the
+    /// text colour.
     pub field: TextFieldStyle,
+    /// The closed box's fill under the pointer and while its list is open: `state.hover`
+    /// (PhotoCraft's dropdown). Its edge keeps the rest colour.
+    pub hover_fill: Color32,
     /// The popup list's rows.
     pub list: ListboxStyle,
     /// The popup list's surface: [`SurfaceKind::Popup`].
@@ -408,7 +412,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .open(&mut open)
                 .focus_owners(&owners)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-                .height(MAX_ROWS * style.list.height + header)
+                .height(style.list.max_height + header)
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
             keyed_active = pass.listbox.active();
@@ -484,7 +488,15 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             ui,
             &style,
             &response,
-            BoxContent { text: text.as_deref(), icon: shown_option.and_then(|o| options.icon(o)), placeholder: &placeholder, size, enabled, focused },
+            BoxContent {
+                text: text.as_deref(),
+                icon: shown_option.and_then(|o| options.icon(o)),
+                placeholder: &placeholder,
+                size,
+                enabled,
+                focused,
+                open,
+            },
         );
         ui.ctx().accesskit_node_builder(id, |node| {
             node.set_value(text.as_deref().unwrap_or_default());
@@ -512,9 +524,11 @@ impl Select<'static, ()> {
         let l = &tokens.component.listbox;
         SelectStyle {
             field: TextField::style(tokens, size),
+            hover_fill: tokens.color.state.hover.to_egui(),
             list: ListboxStyle {
                 height: l.height.get(size),
                 pad_x: l.pad_x,
+                max_height: l.max_height,
                 gap: l.gap,
                 icon: l.icon.get(size),
                 separator_pad: l.separator_pad,
@@ -525,7 +539,6 @@ impl Select<'static, ()> {
                 text_disabled: l.text.disabled.to_egui(),
                 active_fill: l.active_fill.to_egui(),
                 active_text: l.active_text.to_egui(),
-                chosen_text: l.chosen_text.to_egui(),
                 mark: l.mark.to_egui(),
                 group: l.group.to_egui(),
                 separator: l.separator.to_egui(),
@@ -1200,6 +1213,7 @@ struct BoxContent<'b> {
     size: ControlSize,
     enabled: bool,
     focused: bool,
+    open: bool,
 }
 
 /// The box: a text field's box with the chosen option's icon and text from the reading start and
@@ -1210,13 +1224,17 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
     if !ui.is_rect_visible(rect) {
         return;
     }
-    let state = BoxState { enabled: content.enabled, focused: content.focused, hovered: response.contains_pointer(), invalid: false };
-    ui.painter().add(Shape::Vec(field_box(ui, f, rect, state)));
+    let state = BoxState { enabled: content.enabled, focused: content.focused, hovered: false, invalid: false };
+    let mut lit = *f;
+    if content.enabled && (content.open || response.contains_pointer()) {
+        lit.surface.fill = style.hover_fill;
+    }
+    ui.painter().add(Shape::Vec(field_box(ui, &lit, rect, state)));
     let ppp = ui.pixels_per_point();
     let forward = direction::forward(ui);
     let (text_color, muted) = if content.enabled { (f.text, f.placeholder) } else { (f.text_disabled, f.placeholder_disabled) };
     let square = |x: f32| Rect::from_center_size(pos2(x, rect.center().y), vec2(f.icon, f.icon)).round_to_pixels(ppp);
-    paint_chevron(ui, f, rect, content.size, muted);
+    paint_chevron(ui, f, rect, if content.enabled { f.text } else { f.text_disabled });
     let end = direction::end_x(ui, rect) - forward * (f.pad_x + f.icon / 2.0);
     let mut start = direction::start_x(ui, rect) + forward * f.pad_x;
     if let Some(icon) = content.icon {

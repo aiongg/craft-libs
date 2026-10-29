@@ -10,7 +10,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Color32, Galley, Id, Rect, Response, Sense, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
+use egui::{Color32, Galley, Id, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
 
 use super::{ListboxStyle, TextFieldStyle, TooltipExt as _, icon_size};
 use crate::behavior::Listbox;
@@ -18,9 +18,6 @@ use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf, role_format};
-
-/// Rows a popup list shows at most before it scrolls.
-pub(super) const MAX_ROWS: f32 = 12.0;
 
 /// The id of option `option`'s row in the list of the control `owner`.
 pub(super) fn option_id(owner: Id, option: usize) -> Id {
@@ -142,7 +139,7 @@ struct RowLook<'r> {
     icons: bool,
     chosen: bool,
     /// Active, or under the pointer where the pointer only highlights: the active fill
-    /// (`state.hover`) and text.
+    /// (`accent.solid`) and text. The chosen option has them too.
     lit: bool,
     /// The active row is the keyboard's focus cue.
     focus: bool,
@@ -160,7 +157,8 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
         return;
     }
     let ppp = ui.pixels_per_point();
-    if look.lit && look.enabled {
+    let filled = (look.lit || look.chosen) && look.enabled;
+    if filled {
         ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, s.active_fill);
     }
     if look.focus && look.enabled {
@@ -168,8 +166,7 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     }
     let (text, mark) = match () {
         () if !look.enabled => (s.text_disabled, s.text_disabled),
-        () if look.lit => (s.active_text, s.active_text),
-        () if look.chosen => (s.chosen_text, s.mark),
+        () if filled => (s.active_text, s.active_text),
         () => (s.text, s.mark),
     };
     let forward = direction::forward(ui);
@@ -203,9 +200,19 @@ pub(super) fn chevron(ui: &Ui, f: &TextFieldStyle, rect: Rect) -> Rect {
     Rect::from_center_size(pos2(x, rect.center().y), vec2(f.icon, f.icon)).round_to_pixels(ui.pixels_per_point())
 }
 
-/// Paints the chevron of a field-like box over `rect` in `color`.
-pub(super) fn paint_chevron(ui: &Ui, f: &TextFieldStyle, rect: Rect, size: ControlSize, color: Color32) {
-    icons::paint(ui, chevron(ui, f, rect), Icon::ChevronDown, icon_size(size), color);
+/// Half the width of a drawn chevron, and its half rise, in points (PhotoCraft's `chevron_icon`,
+/// `widgets/panel.rs:149-155`).
+const CHEVRON_HALF_WIDTH: f32 = 3.2;
+const CHEVRON_STROKE: f32 = 1.3;
+/// The chevron is the text colour at this strength.
+const CHEVRON_STRENGTH: f32 = 0.8;
+
+/// Paints the chevron of a field-like box over `rect`: two strokes in `color` at 0.8 strength.
+pub(super) fn paint_chevron(ui: &Ui, f: &TextFieldStyle, rect: Rect, color: Color32) {
+    let c = chevron(ui, f, rect).center();
+    let s = CHEVRON_HALF_WIDTH;
+    let stroke = Stroke::new(CHEVRON_STROKE, color.gamma_multiply(CHEVRON_STRENGTH));
+    ui.painter().add(Shape::line(vec![c + vec2(-s, -s * 0.5), c + vec2(0.0, s * 0.5), c + vec2(s, -s * 0.5)], stroke));
 }
 
 /// Whether the primary button went down on `response`'s widget in this pass: a press, or a click
@@ -264,4 +271,44 @@ pub(super) fn load_kept<S: Clone + Send + Sync + 'static>(ui: &Ui, key: Id) -> O
 pub(super) fn store_kept<S: Clone + Send + Sync + 'static>(ui: &Ui, key: Id, state: S) {
     let (viewport, pass) = (ui.ctx().viewport_id(), ui.ctx().cumulative_pass_nr());
     ui.data_mut(|d| d.insert_temp(key, Kept { viewport, pass, state }));
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Context, RawInput, Shape};
+
+    use super::*;
+    use crate::controls::Select;
+    use crate::theme::{Base, install};
+
+    fn rect_fills(shapes: &[egui::epaint::ClippedShape]) -> Vec<Color32> {
+        shapes.iter().filter_map(|c| if let Shape::Rect(r) = &c.shape { Some(r.fill) } else { None }).collect()
+    }
+
+    /// The chosen option and the lit row have the active fill, a plain row has none; a closed box's
+    /// chevron is two strokes of the text colour at 0.8 strength.
+    #[test]
+    fn the_chosen_and_the_lit_rows_have_the_active_fill_and_the_chevron_is_drawn_as_a_line() {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut style = None;
+        let mut out = ctx.run_ui(RawInput::default(), |ui| {
+            let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
+            let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
+            let row = |chosen, lit| RowLook { text: "Normal", icon: None, icons: false, chosen, lit, focus: false, enabled: true };
+            paint_row(ui, &s.list, ControlSize::Md, rect, &row(false, false));
+            paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, false));
+            paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
+            paint_chevron(ui, &s.field, rect.translate(vec2(0.0, 120.0)), s.field.text);
+            style = Some(s);
+        });
+        out.textures_delta.clear();
+        let s = style.unwrap_or_else(|| panic!("no style"));
+        assert_eq!(rect_fills(&out.shapes), [s.list.active_fill, s.list.active_fill], "the chosen row and the lit row, not the plain one");
+        assert_eq!(s.list.radius, egui::CornerRadius::ZERO);
+        let chevron = out.shapes.iter().find_map(|c| if let Shape::Path(p) = &c.shape { Some(p.clone()) } else { None });
+        let chevron = chevron.unwrap_or_else(|| panic!("no chevron path"));
+        assert_eq!(chevron.points.len(), 3);
+        assert_eq!(chevron.stroke, egui::epaint::PathStroke::new(1.3, s.field.text.gamma_multiply(0.8)));
+    }
 }
