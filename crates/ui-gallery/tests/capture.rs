@@ -27,3 +27,13 @@ fn a_mistake_in_the_spec_names_the_valid_values() {
     assert!(error(r#"[{"name": "a", "component": "button", "size": "huge"}]"#).contains("comfortable"));
     assert!(error(r#"[{"name": "a", "component": "button", "args": {"nope": 1}}]"#).contains("args:"));
 }
+
+#[test]
+fn an_overview_shot_draws_a_level_as_wide_as_asked() {
+    let resolved = shot(r#"[{"name": "controls", "level": "controls", "width": 700}]"#).unwrap();
+    let image = render(&resolved).unwrap();
+    assert_eq!(image.width(), 700);
+    assert!(image.height() > 1000, "every control of the level is drawn: {}", image.height());
+    let error = shot(r#"[{"name": "a", "level": "nope"}]"#).err().expect("the level is wrong");
+    assert!(error.contains("controls"));
+}

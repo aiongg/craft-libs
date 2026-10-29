@@ -1,6 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
-use craft_ui_gallery::layout::PanelId;
+use craft_ui_gallery::layout::{CentreView, PanelId};
 use egui::{Context, RawInput};
 
 /// The window the dock lays out in; an empty screen would draw no panel.
@@ -13,9 +13,22 @@ fn frame(ctx: &Context, gallery: &mut Gallery) {
 }
 
 #[test]
+fn every_level_renders_in_the_overview() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    assert_eq!(gallery.view(), CentreView::Overview);
+    let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
+    for id in ids {
+        gallery.select(id);
+        frame(&ctx, &mut gallery);
+    }
+}
+
+#[test]
 fn every_story_renders_in_canvas_and_compare_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
+    gallery.set_view(CentreView::Component);
     let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
     assert!(!ids.is_empty());
     for compare in [false, true] {
@@ -80,6 +93,7 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
 fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
+    gallery.set_view(CentreView::Component);
     gallery.select("primitives/focus-ring/focus");
     gallery.set_inspect(true);
     let items: Vec<String> = (1..=4).map(|i| format!("Item {i}")).collect();
@@ -253,6 +267,7 @@ fn a_system_pick_installs_the_system_face_where_it_resolves_and_is_kept_where_no
 fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
+    gallery.set_view(CentreView::Component);
     gallery.select("primitives/canvas/document");
     let run = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| {
         let mut input = input();

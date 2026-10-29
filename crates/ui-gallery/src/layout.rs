@@ -25,14 +25,17 @@ pub enum PanelId {
 /// What the centre shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CentreView {
-    /// One component's stories, or the compare grid.
+    /// Every component of one level, each drawn from its default story.
     #[default]
+    Overview,
+    /// One component's stories, or the compare grid.
     Component,
 }
 
 impl CentreView {
     pub fn title(self) -> &'static str {
         match self {
+            CentreView::Overview => "Overview",
             CentreView::Component => "Component",
         }
     }

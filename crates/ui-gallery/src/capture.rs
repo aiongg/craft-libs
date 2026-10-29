@@ -6,11 +6,12 @@
 //! `CRAFT_FONTS_DIR`, installed by [`Appearance::configure`] as in the gallery.
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 
 use craft_theme::{ContrastChoice, ModeChoice, Size, SystemAppearance, builtins};
-use craft_ui::story::{ArgValue, Args, Story};
+use craft_ui::story::{ArgValue, Args, Level, Story};
 use craft_ui::testing::{symbols, wgpu_renderer};
 use craft_ui::theme::{Tokens, TokensOf, install};
 use egui::accesskit::{Action, Role};
@@ -22,7 +23,7 @@ use serde_json::{Map, Value};
 
 use crate::appearance::{Appearance, builtin};
 use crate::faces;
-use crate::gallery::{canvas, canvas_frame, stories};
+use crate::gallery::{args_of, canvas, canvas_frame, default_story_of, nav, overview, stories};
 
 /// The width, in points, of a shot that gives none. The story's frame fills the width it is
 /// given, so a story has no intrinsic width to fit.
@@ -47,8 +48,15 @@ pub enum State {
 pub struct Shot {
     /// The file name without `.png`.
     pub name: String,
-    /// The component's display name or id slug, ignoring case: `Button` or `button`.
-    pub component: String,
+    /// The component's display name or id slug, ignoring case: `Button` or `button`. Give this
+    /// or `level`.
+    #[serde(default)]
+    pub component: Option<String>,
+    /// A level's slug, ignoring case (`controls`): the whole Overview of that level, every
+    /// component's default story in tiles, as wide as `width`. Takes no `story`, `args` or
+    /// `state`.
+    #[serde(default)]
+    pub level: Option<String>,
     /// The story's display name or last id segment, ignoring case; the component's first story
     /// when absent.
     #[serde(default)]
@@ -72,8 +80,8 @@ pub struct Shot {
     /// Defaults to 1.
     #[serde(default = "one")]
     pub pixels_per_point: f32,
-    /// In points. Width and height are given together or not at all; without them the image is
-    /// [`DEFAULT_WIDTH`] wide and as tall as the story.
+    /// In points. Without a height the image is as tall as the content; without a width it is
+    /// [`DEFAULT_WIDTH`] wide. A height needs a width.
     #[serde(default)]
     pub width: Option<f32>,
     #[serde(default)]
@@ -87,13 +95,21 @@ fn one() -> f32 {
     1.0
 }
 
+/// What a shot draws.
+enum Content {
+    Story(Story, Args),
+    /// The default stories of one level's components, in the Overview's order.
+    Overview(Vec<Story>),
+}
+
 /// A shot with its story, args and appearance resolved.
 pub struct Resolved {
     name: String,
-    story: Story,
-    args: Args,
+    content: Content,
     appearance: Appearance,
     pixels_per_point: f32,
+    /// The image's width in points; `size` holds it with the height when both are given.
+    width: f32,
     size: Option<Vec2>,
     state: Option<State>,
 }
@@ -146,16 +162,14 @@ impl StoryNames for Story {
     }
 }
 
-/// Finds the shot's story and applies its args and appearance. The error names the valid values.
-pub fn resolve(shot: &Shot) -> Result<Resolved, String> {
-    let located = |e: String| format!("shot `{}`: {e}", shot.name);
-    let stories = stories();
-    let wanted = shot.component.to_lowercase();
+/// The story of `component` the shot names, with its args applied.
+fn story_content(shot: &Shot, component: &str, stories: &[Story]) -> Result<Content, String> {
+    let wanted = component.to_lowercase();
     let in_component: Vec<Story> = stories.iter().filter(|s| s.component.to_lowercase() == wanted || s.id_component() == wanted).copied().collect();
-    let Some(first) = in_component.first() else {
+    let Some(first) = in_component.first().and_then(|s| default_story_of(&in_component, s.component)) else {
         let mut components: Vec<&str> = stories.iter().map(|s| s.component).collect();
         components.dedup();
-        return Err(located(format!("unknown component `{}`; components: {}", shot.component, components.join(", "))));
+        return Err(format!("unknown component `{component}`; components: {}", components.join(", ")));
     };
     let story = match &shot.story {
         None => *first,
@@ -165,14 +179,44 @@ pub fn resolve(shot: &Shot) -> Result<Resolved, String> {
                 Some(story) => *story,
                 None => {
                     let names: Vec<&str> = in_component.iter().map(|s| s.slug()).collect();
-                    return Err(located(format!("{} has no story `{name}`; stories: {}", first.component, names.join(", "))));
+                    return Err(format!("{} has no story `{name}`; stories: {}", first.component, names.join(", ")));
                 }
             }
         }
     };
     let mut args = story.defaults();
-    apply_args(&mut args, &shot.args).map_err(located)?;
+    apply_args(&mut args, &shot.args)?;
+    Ok(Content::Story(story, args))
+}
 
+/// The default stories of the components of the level `slug`.
+fn overview_content(shot: &Shot, slug: &str, stories: &[Story]) -> Result<Content, String> {
+    if shot.story.is_some() || !shot.args.is_empty() || shot.state.is_some() {
+        return Err("an overview shot takes no `story`, `args` or `state`".to_owned());
+    }
+    let wanted = slug.to_lowercase();
+    let Some(level) = Level::ALL.into_iter().find(|l| l.slug() == wanted) else {
+        let slugs: Vec<&str> = Level::ALL.into_iter().map(Level::slug).collect();
+        return Err(format!("unknown level `{slug}`; levels: {}", slugs.join(", ")));
+    };
+    let tiles = nav(stories, "")
+        .into_iter()
+        .find(|(l, _)| *l == level)
+        .map(|(_, components)| components.iter().filter_map(|c| default_story_of(stories, c)).copied().collect::<Vec<_>>())
+        .filter(|tiles| !tiles.is_empty())
+        .ok_or_else(|| format!("level `{slug}` has no components"))?;
+    Ok(Content::Overview(tiles))
+}
+
+/// Finds the shot's story and applies its args and appearance. The error names the valid values.
+pub fn resolve(shot: &Shot) -> Result<Resolved, String> {
+    let located = |e: String| format!("shot `{}`: {e}", shot.name);
+    let stories = stories();
+    let content = match (&shot.component, &shot.level) {
+        (Some(component), None) => story_content(shot, component, &stories).map_err(located)?,
+        (None, Some(level)) => overview_content(shot, level, &stories).map_err(located)?,
+        _ => return Err(located("give either `component` or `level`".to_owned())),
+    };
     let mut appearance = Appearance::default();
     if let Some(theme) = &shot.theme {
         if builtin(theme).is_none() {
@@ -188,13 +232,16 @@ pub fn resolve(shot: &Shot) -> Result<Resolved, String> {
     if !(shot.pixels_per_point.is_finite() && shot.pixels_per_point > 0.0) {
         return Err(located(format!("pixels_per_point must be positive, not {}", shot.pixels_per_point)));
     }
+    if [shot.width, shot.height].into_iter().flatten().any(|v| v.is_nan() || v <= 0.0) {
+        return Err(located("width and height must be positive".to_owned()));
+    }
+    let width = shot.width.unwrap_or(DEFAULT_WIDTH);
     let size = match (shot.width, shot.height) {
-        (None, None) => None,
-        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => Some(Vec2::new(w, h)),
-        (Some(_), Some(_)) => return Err(located("width and height must be positive".to_owned())),
-        _ => return Err(located("give width and height together, or neither".to_owned())),
+        (Some(w), Some(h)) => Some(Vec2::new(w, h)),
+        (None, None) | (Some(_), None) => None,
+        (None, Some(_)) => return Err(located("give `width` with `height`".to_owned())),
     };
-    Ok(Resolved { name: shot.name.clone(), story, args, appearance, pixels_per_point: shot.pixels_per_point, size, state: shot.state })
+    Ok(Resolved { name: shot.name.clone(), content, appearance, pixels_per_point: shot.pixels_per_point, width, size, state: shot.state })
 }
 
 fn apply_args(args: &mut Args, overrides: &Map<String, Value>) -> Result<(), String> {
@@ -234,7 +281,7 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
     let fixed = shot.size;
     let setup = shot.appearance.clone();
     let mut builder = Harness::builder()
-        .with_size(fixed.unwrap_or(Vec2::new(DEFAULT_WIDTH, MAX_FIT_HEIGHT)))
+        .with_size(fixed.unwrap_or(Vec2::new(shot.width, MAX_FIT_HEIGHT)))
         .with_pixels_per_point(shot.pixels_per_point)
         .with_accessibility_check(false)
         .with_render_cursor(false)
@@ -246,26 +293,41 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
     if !faces::available() {
         builder = builder.allow_missing_glyphs();
     }
-    let story = shot.story;
     let used = Rc::new(Cell::new(Rect::NOTHING));
     let measured = Rc::clone(&used);
+    let (tiles, initial) = match &shot.content {
+        Content::Story(story, args) => (Vec::new(), HashMap::from([(story.id.to_owned(), args.clone())])),
+        Content::Overview(tiles) => (tiles.clone(), HashMap::new()),
+    };
+    let story = match &shot.content {
+        Content::Story(story, _) => Some(*story),
+        Content::Overview(_) => None,
+    };
     let mut harness = builder.build_ui_state(
-        move |ui, args: &mut Args| {
+        move |ui, args: &mut HashMap<String, Args>| {
             install(ui.ctx(), &base);
             let frame = canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
                 if fixed.is_some() {
                     ui.set_min_size(ui.available_size());
                 }
-                canvas(ui, &story, args, &appearance, system, None);
+                match &story {
+                    Some(story) => {
+                        let args = args_of(args, &HashMap::new(), story);
+                        canvas(ui, story, args, &appearance, system, None);
+                    }
+                    None => {
+                        overview(ui, &tiles, args, &HashMap::new(), &appearance, system, &mut None);
+                    }
+                }
             });
             measured.set(frame.response.rect);
         },
-        shot.args.clone(),
+        initial,
     );
     if fixed.is_none() {
         // The frame hugs the story at the tall initial size; the image is as tall as the frame.
         let _ = harness.run_ok();
-        harness.set_size(Vec2::new(DEFAULT_WIDTH, used.get().height().ceil()));
+        harness.set_size(Vec2::new(shot.width, used.get().height().ceil()));
     }
     // A spinner repaints every frame, so a story may never settle completely.
     let _ = harness.run_ok();
@@ -287,7 +349,7 @@ const INTERACTIVE: [Role; 9] =
     [Role::Button, Role::CheckBox, Role::RadioButton, Role::Switch, Role::Slider, Role::SpinButton, Role::ComboBox, Role::TextInput, Role::Tab];
 
 /// The centre of the first widget in tree order that takes focus or a click.
-fn first_interactive(harness: &Harness<'_, Args>) -> Option<Pos2> {
+fn first_interactive(harness: &Harness<'_, HashMap<String, Args>>) -> Option<Pos2> {
     harness
         .root()
         .children_recursive()
