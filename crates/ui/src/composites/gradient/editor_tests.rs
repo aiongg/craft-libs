@@ -16,6 +16,7 @@ use crate::controls::NumberField;
 use crate::direction::{self, Direction};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
@@ -648,6 +649,7 @@ fn the_bar_and_its_markers_are_in_the_accesskit_tree() {
     assert_eq!(markers(&harness)[0].value().as_deref(), Some("0%, #0033FF, opacity 100%"));
 }
 
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn the_focus_ring_shows_for_keyboard_focus_only() {
     let mut harness = rig(three());
@@ -700,6 +702,7 @@ fn the_bar_claims_its_keys_only_while_focused() {
     assert!(!KeyClaim::claimed(&harness.ctx, &delete));
 }
 
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn the_editor_stories_name_every_control() {
     for story in
