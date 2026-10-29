@@ -7,6 +7,7 @@ use super::pointer::Pass;
 use super::{GradientLineStyle, GradientOverlay};
 use crate::canvas::gradient_line::{at_screen, midpoint_location};
 use crate::canvas::{CanvasView, LineGradient, LinePart, Part, PartFocus};
+use crate::composites::curve_editor::fill;
 use crate::composites::gradient::marker_texts;
 use crate::composites::{StopRef, StopRow};
 use crate::localized::LocaleNumbers;
@@ -52,7 +53,7 @@ impl GradientOverlay<'_> {
     pub(super) fn group_value(&self, value: &LineGradient, numbers: &LocaleNumbers) -> String {
         match &self.value {
             Some(text) => text.clone(),
-            None => crate::composites::curve_editor::fill(&self.labels.bar_stops, &[("n", &numbers.format(value.stops.color.len() as f64, 0..=0))]),
+            None => fill(&self.labels.bar_stops, &[("n", &numbers.format(value.stops.color.len() as f64, 0..=0))]),
         }
     }
 
@@ -62,7 +63,9 @@ impl GradientOverlay<'_> {
         let (view, hit) = (pass.view, pass.style.hit);
         let (start, end) = (view.to_screen(shown.line.start), view.to_screen(shown.line.end));
         let around = |at: Pos2| Rect::from_center_size(at, vec2(2.0 * hit, 2.0 * hit));
-        let end_value = |p: kurbo::Point| self.units.map(|(x, y)| format!("{}, {}", x.format_value(p.x, 0.0), y.format_value(p.y, 0.0)));
+        let end_value = |p: kurbo::Point| {
+            self.units.map(|(x, y)| fill(&self.labels.point_value, &[("x", &x.format_value(p.x, 0.0)), ("y", &y.format_value(p.y, 0.0))]))
+        };
         let group = self.group_value(shown, numbers);
         let part = |part: LinePart, name: &str, value: Option<String>, rect: Rect, selected: bool| Part {
             key: part_key(part),

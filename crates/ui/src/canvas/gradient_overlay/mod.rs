@@ -159,7 +159,7 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 /// - Esc during a drag cancels it; the rest of the press does nothing.
 /// - A press while another control's typing run has the focus (the panel's Location field) waits
 ///   for the run's Commit and begins from the value it left. When the host ends the overlay's drag
-///   for another control's change, the drag goes on from the host's value at the next move, in a
+///   for another control's change, the drag goes on in the same pass from the host's value, its stop at the pointer, in a
 ///   gesture of its own.
 ///
 /// Keys (one Tab stop through [`PartFocus`]; the release of a press on a part gives the group
@@ -515,10 +515,9 @@ impl<'a> GradientOverlay<'a> {
         let marked = dragging.or(sel.picked.filter(|p| editable && matches!(p, LinePart::Start | LinePart::End)));
         let painter = ui.painter_at(view.rect);
         self.paint(&painter, &style, view, &shown, selected, marked);
-        if focus.keyboard
-            && let Some(part) = sel.picked
-        {
-            self.paint_focus(&painter, &style, view, &shown, part);
+        // With no part picked the keys act on the line, so it carries the focus marks.
+        if focus.keyboard {
+            self.paint_focus(&painter, &style, view, &shown, sel.picked.unwrap_or(LinePart::Line));
         }
         out
     }
@@ -547,8 +546,10 @@ impl<'a> GradientOverlay<'a> {
         }
         for (p, part) in [(start, LinePart::Start), (end, LinePart::End)] {
             let ring = if marked == Some(part) { Stroke::new(style.end.width, style.selected) } else { style.end };
-            painter.add(Shape::circle_stroke(p, style.end_ring + (style.end.width + style.end_halo.width) / 2.0, style.end_halo_stroke()));
-            painter.add(Shape::circle_stroke(p, style.end_ring, ring));
+            // The ring is centred on `end_ring`; a circle strokes outside its radius.
+            let inner = style.end_ring - style.end.width / 2.0;
+            painter.add(Shape::circle_stroke(p, inner - style.end_halo.width, style.end_halo_stroke()));
+            painter.add(Shape::circle_stroke(p, inner, ring));
         }
         for (i, stop) in stops.color.iter().enumerate() {
             let at = at_screen(start, end, stop.location, self.reverse);
@@ -562,7 +563,11 @@ impl<'a> GradientOverlay<'a> {
         match self.extent {
             GradientExtent::None => {}
             GradientExtent::Circle => {
-                painter.extend(outlined(style, |stroke| vec![Shape::circle_stroke(start, d.length(), stroke)]));
+                // A circle strokes outside its radius: the line's centre is the extent's edge.
+                let radius = d.length() - style.line.width / 2.0;
+                let halo = Stroke::new(style.line.width + 2.0 * style.halo.width, style.halo.color);
+                painter.add(Shape::circle_stroke(start, radius - style.halo.width, halo));
+                painter.add(Shape::circle_stroke(start, radius, style.line));
             }
             GradientExtent::Square => {
                 let turned = vec2(-d.y, d.x);
@@ -580,7 +585,7 @@ impl<'a> GradientOverlay<'a> {
     fn stop_shapes(&self, style: &GradientLineStyle, at: Pos2, color: Color32, selected: bool) -> Vec<Shape> {
         let mut out = Vec::with_capacity(4);
         let (r, ring) = (style.stop, style.stop_ring.width);
-        out.push(Shape::circle_stroke(at, r + ring + style.stop_halo.width / 2.0, style.stop_halo));
+        out.push(Shape::circle_stroke(at, r + ring, style.stop_halo));
         match self.rules.rows {
             StopRows::Split => out.push(Shape::circle_filled(at, r, Color32::from_rgb(color.r(), color.g(), color.b()))),
             StopRows::Combined => {
@@ -589,7 +594,7 @@ impl<'a> GradientOverlay<'a> {
             }
         }
         let ring_color = if selected { style.selected } else { style.stop_ring.color };
-        out.push(Shape::circle_stroke(at, r + ring / 2.0, Stroke::new(ring, ring_color)));
+        out.push(Shape::circle_stroke(at, r, Stroke::new(ring, ring_color)));
         out
     }
 }

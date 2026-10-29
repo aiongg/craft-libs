@@ -30,6 +30,20 @@ pub(super) struct Selection {
     pub picked: Option<LinePart>,
 }
 
+impl Selection {
+    /// Selects `selected` and picks the part that shows it, so the keys act on what the pointer
+    /// moved, added or selected. Nothing selected picks nothing.
+    pub(super) fn select(&mut self, selected: Option<StopRef>) {
+        self.selected = selected;
+        self.picked = match selected {
+            Some(StopRef::Color(i)) => Some(LinePart::Stop(i)),
+            Some(StopRef::Midpoint(StopRow::Color, i)) => Some(LinePart::Midpoint(i)),
+            Some(_) => self.picked,
+            None => None,
+        };
+    }
+}
+
 /// A press the overlay owns, kept between passes.
 #[derive(Clone, Debug)]
 pub(super) struct Drag {
@@ -52,8 +66,8 @@ pub(super) struct Drag {
     /// The press waits for another control's typing run to end ([`Claim::turn`]); nothing of it
     /// has run.
     pub waits: bool,
-    /// The selection before the press, restored when the drag is cancelled.
-    before: Option<StopRef>,
+    /// The selection and pick before the press, restored when the drag is cancelled.
+    before: Selection,
     /// The gesture the drag's last update went out in; another one means the host ended it and
     /// the gesture carries the drag on.
     gesture: Option<GestureId>,
@@ -62,7 +76,7 @@ pub(super) struct Drag {
 }
 
 impl Drag {
-    fn new(press: PrimaryPress, part: LinePart, base: &LineGradient, mods: Modifiers, before: Option<StopRef>) -> Self {
+    fn new(press: PrimaryPress, part: LinePart, base: &LineGradient, mods: Modifiers, before: Selection) -> Self {
         Self {
             press,
             part,
@@ -140,7 +154,7 @@ impl GradientOverlay<'_> {
             return None;
         }
         if Claim::turn(ctx, pass.canvas.id, pass.id) == Turn::Waits {
-            return Some(Drag { waits: true, ..Drag::new(press, part, value, mods, sel.selected) });
+            return Some(Drag { waits: true, ..Drag::new(press, part, value, mods, *sel) });
         }
         Some(self.start(pass, value, press, mods, sel))
     }
@@ -148,7 +162,7 @@ impl GradientOverlay<'_> {
     /// The press `press` made with `mods`, against the host's gradient now: the part it takes and
     /// the selection it makes. A press that finds no part any more does nothing.
     fn start(&self, pass: &Pass<'_>, value: &LineGradient, press: PrimaryPress, mods: Modifiers, sel: &mut Selection) -> Drag {
-        let before = sel.selected;
+        let before = *sel;
         let Some(part) = self.hit(pass, value, press.origin) else {
             return Drag { cancelled: true, ..Drag::new(press, LinePart::Line, value, mods, before) };
         };
@@ -174,21 +188,21 @@ impl GradientOverlay<'_> {
             if !gesture.is_active() {
                 // Esc, `cancel_all`, an outside change or disabling ended it.
                 d.cancelled = true;
-                sel.selected = d.before;
+                *sel = d.before;
             } else if gesture.id() != d.gesture
                 && let Some(start) = gesture.start()
                 && Some(start) != reported
             {
                 // The host ended the drag for another control's change and the gesture carries
                 // it on: it goes on from the host's gradient now.
-                d.base = start.clone();
-                self.carry_on(&mut d, gesture, sel);
+                let start = start.clone();
+                self.carry_on(&mut d, &start, gesture, sel);
             }
         }
         // Esc before the first move ends the press as it would end its drag.
         if !d.began && !d.cancelled && !d.waits && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             d.cancelled = true;
-            sel.selected = d.before;
+            *sel = d.before;
         }
         if d.waits {
             return Some(d);
@@ -221,27 +235,45 @@ impl GradientOverlay<'_> {
         } else if d.part == LinePart::Line {
             let (t, _) = self.located(pass.view, &d.base.line, d.press.origin);
             if let Some((stops, i)) = stops::add(&d.base.stops, StopRow::Color, round_location(t), pass.sampler, &self.rules) {
-                sel.selected = Some(StopRef::Color(i));
+                sel.select(Some(StopRef::Color(i)));
                 gesture.set(LineGradient { line: d.base.line, stops });
             }
         }
         None
     }
 
-    /// A stop drag carried on from the host's gradient finds its stop there by the selection,
-    /// which follows the stop (here and, shared, in a gradient editor whose change ended the
-    /// drag); an Alt copy goes on as a move of the copy. A stop torn off is not in the host's
-    /// gradient: the drag ends.
-    fn carry_on(&self, d: &mut Drag, gesture: &mut Gesture<LineGradient>, sel: &mut Selection) {
-        if !matches!(d.part, LinePart::Stop(_)) {
-            return;
-        }
-        match sel.selected {
-            Some(StopRef::Color(k)) if k < d.base.stops.color.len() => {
-                d.part = LinePart::Stop(k);
-                d.copy = false;
+    /// Carries the drag on from the host's gradient `start`, which another control's change left.
+    /// The dragged stop or midpoint is identified in it by the colour row's length and the stops'
+    /// tags: a change that adds or removes a stop, or leaves a different stop (by tag) at the
+    /// dragged one's place, ends the drag with `Cancel(External)`, unannounced. A stop is found
+    /// by the selection, which follows it here and, shared, in a gradient editor whose change
+    /// ended the drag; a midpoint by its index; an Alt copy goes on as a move of the copy; a stop
+    /// torn off is not in the host's gradient, so the drag ends. The line's ends and the line
+    /// itself need no identity.
+    fn carry_on(&self, d: &mut Drag, start: &LineGradient, gesture: &mut Gesture<LineGradient>, sel: &mut Selection) {
+        let (old, new) = (&d.base.stops.color, &start.stops.color);
+        let tag = |row: &[crate::composites::ColorStop], i: usize| row.get(i).map(|s| s.tag);
+        let found = match d.part {
+            LinePart::Start | LinePart::End | LinePart::Line => Some(d.part),
+            _ if old.len() != new.len() => None,
+            LinePart::Stop(i) => match sel.selected {
+                Some(StopRef::Color(k)) if tag(new, k).is_some() && (d.copy || tag(new, k) == tag(old, i)) => Some(LinePart::Stop(k)),
+                _ => None,
+            },
+            LinePart::Midpoint(i) => (tag(new, i) == tag(old, i) && tag(new, i + 1) == tag(old, i + 1)).then_some(d.part),
+        };
+        match found {
+            Some(part) => {
+                d.base = start.clone();
+                d.part = part;
+                if matches!(part, LinePart::Stop(_)) {
+                    d.copy = false;
+                    if let LinePart::Stop(k) = part {
+                        sel.select(Some(StopRef::Color(k)));
+                    }
+                }
             }
-            _ => {
+            None => {
                 gesture.cancel(CancelReason::External);
                 d.cancelled = true;
             }
@@ -277,7 +309,7 @@ impl GradientOverlay<'_> {
                 let torn = (d.tears && off > pass.style.tear_off).then(|| stops::remove(&base.stops, StopRow::Color, i, &self.rules)).flatten();
                 if let Some((stops, _)) = torn {
                     out.stops = stops;
-                    sel.selected = None;
+                    sel.select(None);
                     d.torn = true;
                 } else {
                     let edited = match d.copy {
@@ -286,7 +318,7 @@ impl GradientOverlay<'_> {
                     };
                     let (stops, j) = edited.unwrap_or_else(|| (base.stops.clone(), i));
                     out.stops = stops;
-                    sel.selected = Some(StopRef::Color(j));
+                    sel.select(Some(StopRef::Color(j)));
                 }
             }
             LinePart::Midpoint(i) => {
@@ -312,6 +344,7 @@ impl GradientOverlay<'_> {
             if let Some(s) = selection_of(part) {
                 sel.selected = Some(s);
             }
+            sel.picked = Some(part);
             out.context = Some(part);
         }
         if !canvas.double_clicked() || !Claim::is_owner(pass.ctx, canvas.id, pass.id) {
