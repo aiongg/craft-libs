@@ -1230,7 +1230,7 @@ fn corner_box<'a>(harness: &'a Harness<'_, Host>) -> Node<'a> {
 }
 
 #[test]
-fn corner_points_join_straight_and_the_corner_checkbox_toggles() {
+fn corner_points_split_the_curve_and_the_corner_checkbox_toggles() {
     let mut harness = corner_rig();
     assert!(corner_box(&harness).accesskit_node().is_disabled(), "no point selected");
     select_point(&mut harness, BENT[2]);
@@ -1244,9 +1244,10 @@ fn corner_points_join_straight_and_the_corner_checkbox_toggles() {
     assert_eq!(harness.state().kinds(), ["Set"]);
     assert_eq!(corner_box(&harness).accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
 
-    // The curve is straight on both sides of the corner (the sampler's own curve bulges there).
-    let samples = Curve::through(&BENT, &harness.state().curve.corner_flags(), 255.0, |p| Curve::monotone(p, 255.0));
-    assert!((samples[96] - 120.0).abs() < 1e-3 && (samples[160] - 205.0).abs() < 1e-3, "{} {}", samples[96], samples[160]);
+    // The curve is split at the corner into two runs, each the sampler's own curve.
+    let samples = Curve::through(&BENT, &harness.state().curve.corner_flags(), |p| Curve::monotone(p, 255.0));
+    let (before, after) = (Curve::monotone(&BENT[..=2], 255.0), Curve::monotone(&BENT[2..], 255.0));
+    assert!(samples[..128] == before[..128] && samples[128..] == after[128..], "a run on each side of the corner");
 
     assert_eq!(point_value(&harness, "Point 3 of 5"), "Input 128, Output 200, corner");
     assert_eq!(point_value(&harness, "Point 2 of 5"), "Input 64, Output 40");

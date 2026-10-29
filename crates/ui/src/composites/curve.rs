@@ -6,8 +6,8 @@
 pub enum Curve {
     /// Control points `[input, output]`, sorted by input, whole levels, the first and last the
     /// curve's end points. `corners[i]` marks point `i` as a corner point (the contour editor): a
-    /// corner joins both its neighbours with straight segments, and the smooth points between two
-    /// corners take the host's interpolation (its sampler). A short `corners` reads as smooth
+    /// corner breaks the curve, and the points from one corner to the next (both included) take
+    /// the host's interpolation (its sampler) as a run of their own. A short `corners` reads as smooth
     /// points; [`Curve::smooth`] and [`Curve::from_parts`] make the value.
     Points { points: Vec<[f32; 2]>, corners: Vec<bool> },
     /// A drawn curve (pencil): one output level per input level, drawn as straight segments.
@@ -121,37 +121,38 @@ impl Curve {
         changed
     }
 
-    /// The output of every input level `0..=levels` through `points`, of which `corners` marks
-    /// corner points: a segment with a corner at an end is straight, and each run of smooth points
-    /// takes `smooth` (the host's interpolation of those points alone). Constant outside the end
-    /// points.
-    pub(crate) fn through(points: &[[f32; 2]], corners: &[bool], levels: f32, smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
+    /// The output of every input level `0..=levels` through `points` (ascending inputs), of which
+    /// `corners` marks corner points (PhotoCraft's `contour_curve_lut`): the points are split at
+    /// the corners into runs `[start..=corner]`, each run is `smooth` (the host's interpolation of
+    /// those points alone, constant outside its end points), and each run owns the inputs from its
+    /// first point on. A corner is where one run ends and the next begins, so the curve bends
+    /// there and all-corner points make a polyline.
+    pub(crate) fn through(points: &[[f32; 2]], corners: &[bool], smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
         if !corners.iter().any(|&corner| corner) {
             return smooth(points);
         }
-        let count = levels.max(1.0).round() as usize + 1;
         let is_corner = |i: usize| corners.get(i).copied().unwrap_or(false);
-        let mut out: Vec<f32> = (0..count).map(|k| straight_at(points, k as f32)).collect();
-        let mut i = 0;
-        while i < points.len() {
-            if is_corner(i) {
-                i += 1;
+        let last = points.len().saturating_sub(1);
+        let mut out: Vec<f32> = Vec::new();
+        let mut start = 0;
+        for i in 1..=last {
+            if !(is_corner(i) || i == last) {
                 continue;
             }
-            let end = (i..points.len()).find(|&j| is_corner(j)).unwrap_or(points.len());
-            if end - i >= 2 {
-                let run = smooth(&points[i..end]);
-                let (from, to) = (points[i][0].ceil().max(0.0) as usize, points[end - 1][0].floor().max(0.0) as usize);
-                let to = to.min(count - 1);
-                if from <= to {
-                    for (slot, &o) in out[from..=to].iter_mut().zip(&run[from.min(run.len())..]) {
+            let run = smooth(&points[start..=i]);
+            if out.is_empty() {
+                out = run;
+            } else {
+                let from = points[start][0];
+                for (k, (slot, o)) in out.iter_mut().zip(run).enumerate() {
+                    if k as f32 >= from {
                         *slot = o;
                     }
                 }
             }
-            i = end;
+            start = i;
         }
-        out
+        if out.is_empty() { smooth(points) } else { out }
     }
 
     /// The output level of every input level `0..=levels` through `points` on a monotone cubic
@@ -169,20 +170,6 @@ impl Curve {
         };
         (0..count).map(|k| at(k as f64).clamp(0.0, f64::from(levels)) as f32).collect()
     }
-}
-
-/// `points` joined by straight segments at input `x`, constant outside the end points.
-fn straight_at(points: &[[f32; 2]], x: f32) -> f32 {
-    let (Some(first), Some(last)) = (points.first(), points.last()) else { return x };
-    if x <= first[0] {
-        return first[1];
-    }
-    if x >= last[0] {
-        return last[1];
-    }
-    let k = points.windows(2).position(|w| x < w[1][0]).unwrap_or(points.len() - 2);
-    let ([x0, y0], [x1, y1]) = (points[k], points[k + 1]);
-    if x1 > x0 { y0 + (x - x0) / (x1 - x0) * (y1 - y0) } else { y1 }
 }
 
 /// The corner flags after `before` became `after` by one insertion, one removal or moves: each flag
@@ -584,22 +571,30 @@ mod tests {
         assert_eq!((short.len(), short[1], short[200]), (256, 6.0, 200.0), "a short map is completed with the identity");
     }
 
-    /// A corner joins its neighbours with straight segments and leaves the segments between smooth
-    /// points on the spline; a curve with no corner is the spline alone.
+    /// The curve breaks at a corner: the points from one corner to the next are a run of their
+    /// own, as in PhotoCraft's `contour_curve_lut`; a curve with no corner is the spline alone.
     #[test]
-    fn a_corner_is_straight_to_both_neighbours_and_smooth_points_keep_the_spline() {
+    fn a_corner_splits_the_curve_into_runs_each_through_its_corners() {
         let points = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [192.0, 210.0], [255.0, 255.0]];
-        let spline = Curve::monotone(&points, 255.0);
         let smooth = |p: &[[f32; 2]]| Curve::monotone(p, 255.0);
-        assert_eq!(Curve::through(&points, &[false; 5], 255.0, smooth), spline);
-        let corners = [false, false, true, false, false];
-        let shaped = Curve::through(&points, &corners, 255.0, smooth);
-        assert!((shaped[96] - 120.0).abs() < 1e-3, "halfway between (64, 40) and the corner (128, 200): {}", shaped[96]);
-        assert!((shaped[160] - 205.0).abs() < 1e-3, "halfway from the corner to (192, 210): {}", shaped[160]);
-        assert!((shaped[128] - 200.0).abs() < 1e-3 && (shaped[64] - 40.0).abs() < 1e-3, "through its points");
+        assert_eq!(Curve::through(&points, &[false; 5], smooth), smooth(&points));
+        // The ends and a short flag list read as smooth where PhotoCraft's loop never looks.
+        assert_eq!(Curve::through(&points, &[true, false, false, false, true], smooth), smooth(&points));
+        let sides = |corner: usize| (smooth(&points[..=corner]), smooth(&points[corner..]));
+        let (before, after) = sides(2);
+        let shaped = Curve::through(&points, &[false, false, true, false, false], smooth);
         assert_eq!(shaped.len(), 256);
-        let alone = Curve::through(&points[..2], &[false; 2], 255.0, smooth);
-        assert_eq!(&shaped[..=64], &alone[..=64], "the two smooth points before it are their own spline");
+        assert!(shaped[..128] == before[..128] && shaped[128..] == after[128..], "a run each side, the corner on the second");
+        assert!((shaped[128] - 200.0).abs() < 1e-3 && (shaped[64] - 40.0).abs() < 1e-3, "through its points");
+        assert!((shaped[96] - 120.0).abs() > 1.0, "the segment next to a corner is the run's curve, not a straight line");
+        // Two corners: three runs; the middle one is the two corners alone, a straight line.
+        let two = Curve::through(&points, &[false, true, true, false, false], smooth);
+        let (head, tail) = (smooth(&points[..=1]), smooth(&points[2..]));
+        assert!(two[..64] == head[..64] && two[128..] == tail[128..]);
+        assert!((two[96] - 120.0).abs() < 1e-3, "{}", two[96]);
+        // All corners: a polyline.
+        let polyline = Curve::through(&points, &[true; 5], smooth);
+        assert!((polyline[96] - 120.0).abs() < 1e-3 && (polyline[160] - 205.0).abs() < 1e-3);
     }
 
     /// Toggling flips the point's flag, a point added is smooth, and a point removed takes its

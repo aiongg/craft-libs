@@ -266,9 +266,9 @@ type CornerSamples<'a> = dyn Fn(&[[f32; 2]], &[bool]) -> Vec<f32> + 'a;
 /// `+`, `=`, `-`, Insert and Cmd/Ctrl+Enter from the app's shortcuts ([`KeyClaim`]).
 ///
 /// Corners ([`corners`](CurveEditor::corners), the contour editor): a Corner checkbox under the
-/// fields makes the selected point a corner point (Photoshop's and PhotoCraft's Contour Editor). A corner
-/// point joins both its neighbours with straight segments; the smooth points between two corners
-/// take the sampler. A new point is smooth, and a point keeps its flag when it moves; the flags
+/// fields makes the selected point a corner point (Photoshop's and PhotoCraft's Contour Editor). The curve
+/// bends at a corner point: each run of points from one corner to the next (both included) is
+/// interpolated by the sampler on its own, as PhotoCraft's `contour_curve_lut` does. A new point is smooth, and a point keeps its flag when it moves; the flags
 /// are the [`Curve::Points`] value's. With corners on, smooth points are round and corner points
 /// square; without, every point is square.
 ///
@@ -424,9 +424,12 @@ impl<'a> CurveEditor<'a> {
         self
     }
 
-    /// Points can be corner points (the contour editor): a corner joins its two neighbours with
-    /// straight segments, a smooth point with the spline. Double-click, or C on the selected
-    /// point, toggles.
+    /// Points can be corner points (the contour editor): the curve bends at a corner, each run of
+    /// points from one corner to the next being interpolated on its own (PhotoCraft's
+    /// `contour_curve_lut`). The "Corner" checkbox of the fields row toggles the selected point;
+    /// with [`fields(false)`](Self::fields) there is no checkbox and so no way to toggle a
+    /// corner (PhotoCraft has no other path either): the host sets the flags in the
+    /// [`Curve::Points`] value.
     pub fn corners(mut self, on: bool) -> Self {
         self.corners = on;
         self
@@ -687,7 +690,7 @@ impl<'a> CurveEditor<'a> {
 
     /// The output of every input level through `points`: the host's sampler or a monotone cubic.
     fn samples(&self, points: &[[f32; 2]], corners: &[bool]) -> Vec<f32> {
-        Curve::through(points, corners, self.levels, |points| match self.sampler {
+        Curve::through(points, corners, |points| match self.sampler {
             Some(sampler) => sampler(points),
             None => Curve::monotone(points, self.levels),
         })
@@ -1366,7 +1369,7 @@ fn show_small(ui: &mut Ui, _: &mut Args) {
     ui.data_mut(|d| d.insert_temp(id, host));
 }
 
-/// The contour editor: 220 square, percent fields, double-click or C toggles a corner point.
+/// The contour editor: 220 square, percent fields, the Corner checkbox toggles the selected point.
 fn show_corners(ui: &mut Ui, _: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-corners", || {
