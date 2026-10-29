@@ -1182,3 +1182,29 @@ fn shift_press_starts_afresh_once_the_previous_stroke_s_curve_is_gone() {
     assert_eq!(map[120], 100.0);
     assert_ne!(map[70], 150.0, "no line from the old end");
 }
+
+/// A `+` and an arrow in one frame during a scrub of the selected point's Input field: the arrow
+/// names the point `+` selected, and the selection stays there while the arrow waits.
+#[test]
+fn a_selection_key_before_a_waiting_arrow_keeps_its_selection() {
+    const FOUR: [[f32; 2]; 4] = [[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]];
+    let mut harness = harness(Host::with_undo(&FOUR), Direction::Ltr);
+    let at = harness.state().at([100.0, 100.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    assert_eq!(selected(&harness), Some(1));
+    harness.state_mut().clear();
+    let start = input_field(&harness);
+    press(&mut harness, start);
+    for dx in [10.0, 20.0] {
+        move_to(&mut harness, start + vec2(dx, 0.0));
+    }
+    let key = |key| Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    harness.input_mut().events.extend([key(Key::Plus), key(Key::ArrowUp)]);
+    harness.step();
+    assert_eq!(harness.state().points()[2][1], 200.0, "the arrow waits");
+    assert_eq!(selected(&harness), Some(2), "the selection stays on the point `+` selected");
+    release(&mut harness, start + vec2(20.0, 0.0));
+    assert_eq!(harness.state().points()[2][1], 201.0, "the arrow moved the point `+` selected");
+    assert_eq!(selected(&harness), Some(2));
+}

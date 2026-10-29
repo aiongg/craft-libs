@@ -486,15 +486,17 @@ impl<'a> CurveEditor<'a> {
         edits.replay(ui.ctx(), |op, now| self.apply(op, now, &mut state.selected));
         // The parts keep the selection of their own events as they make them.
         let apply = |op: &EditOp, now: &Curve| self.apply(op, now, &mut None);
-        let before = state.selected;
         let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
                 let curve = edits.value().clone();
-                let (graph, graph_ops) = self.graph(ui, &style, id, &curve, policy, &mut state);
+                let (graph, graph_ops, before_ops) = self.graph(ui, &style, id, &curve, policy, &mut state);
                 // A graph edit that waits for another part's gesture isn't in the editor's value,
-                // and the selection stays where it was before it until its turn.
-                if edits.push(&graph, graph_ops.into_iter().map(EditOp::Graph), apply, |curve, _| curve) == Pushed::Waits {
-                    state.selected = before;
+                // and the selection stays where it was before its first operation until its turn:
+                // a selection key pressed ahead of it in the frame keeps its effect.
+                if edits.push(&graph, graph_ops.into_iter().map(EditOp::Graph), apply, |curve, _| curve) == Pushed::Waits
+                    && let Some(selected) = before_ops
+                {
+                    state.selected = selected;
                 }
                 if self.fields && !self.pencil && edits.value().points().is_some() {
                     self.fields_row(ui, id, state.selected, policy, &mut edits, apply);
@@ -511,7 +513,8 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The graph, a part of the editor's edit drawn from `curve` with `policy`: its interaction,
-    /// look and AccessKit nodes. Returns its edit and the operations its one-shot event made.
+    /// look and AccessKit nodes. Returns its edit, the operations its one-shot event made and the
+    /// selection before the first of them (`None` when it made none).
     fn graph(
         &self,
         ui: &mut Ui,
@@ -520,7 +523,7 @@ impl<'a> CurveEditor<'a> {
         curve: &Curve,
         policy: EditPolicy,
         state: &mut State,
-    ) -> (EditResponse<Curve>, Vec<CurveOp>) {
+    ) -> (EditResponse<Curve>, Vec<CurveOp>, Option<Option<usize>>) {
         let side = self.side.unwrap_or_else(|| ui.available_width().clamp(style.min_side, style.max_side));
         let (outer, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
         let edge = style.bar + style.bar_gap;
@@ -565,6 +568,7 @@ impl<'a> CurveEditor<'a> {
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let mut points = gesture.shown().points().map(<[_]>::to_vec).filter(|_| !self.pencil);
         let mut ops = Vec::new();
+        let mut before_ops = None;
         if self.pencil {
             state.selected = None;
             state.drag = None;
@@ -584,13 +588,15 @@ impl<'a> CurveEditor<'a> {
             state.stroke_held = None;
             if enabled {
                 let samples = |points: &[[f32; 2]]| self.samples(points);
-                let mut edit = PointEdit { gesture: &mut gesture, points, state, rules, map, style, samples: &samples, ops: Vec::new() };
+                let mut edit =
+                    PointEdit { gesture: &mut gesture, points, state, rules, map, style, samples: &samples, ops: Vec::new(), before_ops: None };
                 edit.pointer(ui, &response);
                 if response.has_focus() {
                     KeyClaim::claim(ui.ctx(), id, &CLAIMED);
                     edit.keys(ui);
                 }
                 ops = edit.ops;
+                before_ops = edit.before_ops;
             }
         } else {
             state.selected = None;
@@ -636,7 +642,7 @@ impl<'a> CurveEditor<'a> {
                 None => node.clear_active_descendant(),
             }
         });
-        (EditResponse::new(response, event), ops)
+        (EditResponse::new(response, event), ops, before_ops)
     }
 
     /// The output of every input level through `points`: the host's sampler or a monotone cubic.
@@ -869,6 +875,8 @@ struct PointEdit<'g, 'p> {
     samples: &'g dyn Fn(&[[f32; 2]]) -> Vec<f32>,
     /// The operations of this frame's one-shot changes, in order.
     ops: Vec<CurveOp>,
+    /// The selection before the first of `ops`.
+    before_ops: Option<Option<usize>>,
 }
 
 impl PointEdit<'_, '_> {
@@ -879,7 +887,9 @@ impl PointEdit<'_, '_> {
     /// A one-shot change of the points: `op` applied to them and to the selection as its replay
     /// would apply it ([`Rules::apply`]). One that changes nothing sends nothing.
     fn apply(&mut self, op: CurveOp) {
+        let before = self.state.selected;
         let Some(curve) = self.rules.apply(&op, &self.curve(), &mut self.state.selected, self.samples) else { return };
+        self.before_ops.get_or_insert(before);
         if let Some(points) = curve.points() {
             *self.points = points.to_vec();
         }

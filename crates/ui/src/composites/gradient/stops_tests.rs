@@ -201,3 +201,18 @@ fn an_untagged_key_with_two_candidates_finds_none() {
     let out = stops::apply(&BarOp::Nudge { at: second, by: 0.125 }, &tied, &mut None, &rules, &sampler).expect("found");
     assert_eq!((places(&out)[2], out.color[1].color, out.color[2].color), ((0.625, 0), BLUE, RED));
 }
+
+/// An untagged stop that another control removed isn't mistaken for the one that moved instead:
+/// its Nudge waits behind its Remove and drops, and the stop the scrub moved stays.
+#[test]
+fn an_untagged_key_does_not_find_another_stop_when_its_own_is_gone() {
+    let (rules, sampler) = (StopRules::default(), default_sampler(StopRows::Split));
+    let base = tagged(&[(0.0, 0), (0.25, 0), (0.5, 0), (1.0, 0)]);
+    let (s, t) = (StopKey::of(&base, StopRow::Color, 1).unwrap(), StopKey::of(&base, StopRow::Color, 2).unwrap());
+    // A scrub moved the stop at 0.5 to 0.4, then the stop at 0.25 was removed.
+    let scrubbed = tagged(&[(0.0, 0), (0.25, 0), (0.4, 0), (1.0, 0)]);
+    let removed = stops::apply(&BarOp::Remove(s.clone()), &scrubbed, &mut None, &rules, &sampler).expect("found");
+    assert_eq!(places(&removed), [(0.0, 0), (0.4, 0), (1.0, 0)]);
+    assert_eq!(stops::apply(&BarOp::Nudge { at: s, by: 0.125 }, &removed, &mut None, &rules, &sampler), None, "the nudge drops");
+    assert_eq!(t.find(&removed), None, "the moved stop's own key doesn't find it with a neighbour gone");
+}

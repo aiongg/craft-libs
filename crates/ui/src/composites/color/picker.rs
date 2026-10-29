@@ -405,7 +405,6 @@ impl<'a> ColorPicker<'a> {
             // Esc is the inner controls': each cancels its own gesture, which cancels this one.
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
-            let shown = outer.shown().clone();
             let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
             let mut parts = Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain };
             parts.replay(ui.ctx());
@@ -422,11 +421,13 @@ impl<'a> ColorPicker<'a> {
             }) {
                 edits.input(Input::Sample(color));
             }
-            // An input makes its value against the host's value after the typing run it ended.
+            // An input makes its value against the running value: the host's value after the typing
+            // run it ended, and the part events of this pass that went out.
             for input in edits.inputs(ui.ctx(), &mut state.parts) {
+                let now = edits.value().clone();
                 edits.set(match input {
-                    Input::Click(color) => shown.with_color(color, &constrain),
-                    Input::Sample(color) => shown.with_color(color.with_alpha(shown.color.a), &constrain),
+                    Input::Click(color) => now.with_color(color, &constrain),
+                    Input::Sample(color) => now.with_color(color.with_alpha(now.color.a), &constrain),
                 });
             }
 
