@@ -2,13 +2,27 @@
 //! by (PhotoCraft's `point_curve`, shared by Curves, Camera Raw and the contour editor).
 
 /// A tone curve in levels (`0..=levels`, 255 for 8-bit tones): input across, output up.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Curve {
     /// Control points `[input, output]`, sorted by input, whole levels, the first and last the
     /// curve's end points. The host interpolates them (its sampler).
     Points(Vec<[f32; 2]>),
     /// A drawn curve (pencil): one output level per input level, drawn as straight segments.
     Map(Vec<f32>),
+}
+
+/// Curves are equal when every level is, a NaN equal to another: the host's points, and the
+/// levels a drawn curve took from the host's sampler, may hold one, and the edit machinery
+/// compares values to tell a change from none ([`Gesture`](crate::edit::Gesture)).
+impl PartialEq for Curve {
+    fn eq(&self, other: &Self) -> bool {
+        let same = |a: &f32, b: &f32| a == b || (a.is_nan() && b.is_nan());
+        match (self, other) {
+            (Curve::Points(a), Curve::Points(b)) => a.len() == b.len() && a.iter().flatten().zip(b.iter().flatten()).all(|(a, b)| same(a, b)),
+            (Curve::Map(a), Curve::Map(b)) => a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same(a, b)),
+            _ => false,
+        }
+    }
 }
 
 impl Curve {

@@ -77,6 +77,16 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
 /// [`scope`](super::scope) only updates go out.
+///
+/// The value type's `PartialEq` tells a change from none: an update that changes nothing, a
+/// commit that changed nothing, and the host's value moving away from the one the gesture
+/// reported (an outside change, which cancels it). So it must hold every value a gesture holds
+/// equal to itself. A float that is never NaN while a gesture runs needs nothing: the
+/// single-number controls begin no gesture from a value that isn't finite. A type that may hold
+/// a NaN during a gesture (an unset value of a composite, a host's sample it carries along)
+/// implements `PartialEq` with a NaN equal to another NaN; else its every gesture would read as
+/// changed from outside and cancel. Debug builds assert it when a gesture begins and at each
+/// update.
 #[derive(Debug)]
 #[must_use = "finish the gesture to store it and get the frame's event"]
 pub struct Gesture<T> {
@@ -377,6 +387,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         if self.is_active() || !self.enabled {
             return;
         }
+        debug_assert!(equals_itself(&self.host), "{}", NOT_ITSELF);
         let generation = CancelAll::get(&self.ctx).generation;
         let id = GestureId::next();
         self.stored.phase = Phase::Active(Active {
@@ -433,6 +444,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         if let Phase::Active(a) = &mut self.stored.phase
             && !a.ending
         {
+            debug_assert!(equals_itself(&value), "{}", NOT_ITSELF);
             a.modifiers = modifiers;
             if a.current != value {
                 a.current = value;
@@ -752,6 +764,15 @@ pub(crate) enum Interrupted<T> {
     Commit(Option<T>),
     Cancel,
 }
+
+/// Whether `value` equals itself, as the value of every gesture must ([`Gesture`]).
+#[expect(clippy::eq_op, reason = "the check is whether equality is reflexive")]
+fn equals_itself<T: PartialEq>(value: &T) -> bool {
+    value == value
+}
+
+const NOT_ITSELF: &str =
+    "a gesture's value must equal itself: a value type that may hold a NaN during a gesture compares it equal to another NaN (see `Gesture`)";
 
 /// Whether this pass's input has a press of Esc that `consume_key(Modifiers::NONE, Key::Escape)`
 /// would take.

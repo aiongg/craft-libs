@@ -938,6 +938,31 @@ fn a_pencil_stroke_is_one_gesture_that_draws_straight_segments_between_samples()
     assert_eq!((map[10], map[150]), (10.0, 150.0), "outside the stroke stays");
 }
 
+/// A drawn curve holding a NaN level (the host's sampler gave none there) is still the value the
+/// stroke reported: the stroke is one gesture to its Commit, not an outside change, and the
+/// level stays as it was.
+#[test]
+fn a_pencil_stroke_on_a_curve_with_a_nan_level_is_not_an_outside_change() {
+    let mut harness = pencil_rig();
+    if let Curve::Map(map) = &mut harness.state_mut().curve {
+        map[200] = f32::NAN;
+    }
+    harness.run();
+    let from = harness.state().at([20.0, 200.0]);
+    press(&mut harness, from);
+    for x in [60.0, 100.0] {
+        let at = harness.state().at([x, 100.0]);
+        move_to(&mut harness, at);
+    }
+    let to = harness.state().at([100.0, 100.0]);
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!((kinds.first(), kinds.last()), (Some(&"Begin"), Some(&"Commit")), "{kinds:?}");
+    let map = harness.state().drawn();
+    assert_eq!((map[20], map[100]), (200.0, 100.0));
+    assert!(map[200].is_nan());
+}
+
 #[test]
 fn shift_press_continues_in_a_straight_line_from_the_previous_stroke() {
     let mut harness = pencil_rig();

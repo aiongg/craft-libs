@@ -1740,3 +1740,17 @@ fn an_input_waits_for_a_typing_run_that_ended_earlier_in_its_pass() {
     assert!(matches!(events[1], Some(EditEvent::Commit { value: 1, .. })), "{events:?}");
     assert_eq!(turns, [order::Turn::Waits, order::Turn::Runs]);
 }
+
+/// A gesture's value must equal itself, or every pass would read the host's value as an outside
+/// change ([`Gesture`]): debug builds assert it when a gesture begins.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "must equal itself")]
+fn a_gesture_from_a_value_that_is_not_equal_to_itself_panics_in_debug_builds() {
+    let ctx = Context::default();
+    let _ = ctx.run_ui(RawInput::default(), |ui| {
+        let mut gesture = Gesture::load(ui, Id::unique("nan"), &f64::NAN, EditPolicy::default());
+        gesture.begin();
+        let _ = gesture.finish();
+    });
+}

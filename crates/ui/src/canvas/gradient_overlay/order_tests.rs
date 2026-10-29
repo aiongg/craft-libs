@@ -3,7 +3,7 @@
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, Pos2, Sense, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use egui_kittest::kittest::Queryable as _;
 use kurbo::Point;
 
 use super::GradientOverlay;
