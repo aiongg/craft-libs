@@ -680,6 +680,14 @@ pub const SECTION_TITLE_OFFSET: f32 = 18.0;
 pub const DOCK_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a floating window's title bar and of a collapsed column's bar.
 pub const DOCK_BAR_HEIGHT: f32 = 14.0;
+/// The vertical gap between stacked controls in a panel body: PhotoCraft's dock bodies set item
+/// spacing to 0 in the Pro layout and 6 otherwise (`panels/panel_docking.rs:1229`).
+pub const fn dock_body_gap(size: Size) -> f32 {
+    match size {
+        Size::Compact => 0.0,
+        Size::Comfortable => 6.0,
+    }
+}
 /// Added to the icon size for the height of an iconic column's row.
 pub const DOCK_ICON_PAD: f32 = 10.0;
 /// Width of a group's border.

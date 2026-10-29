@@ -410,6 +410,7 @@ cursor.skew_head = 3.5
 cursor.skew_back = 2.5
 cursor.skew_head_outline = 1
 dock.gap = 6
+dock.body_gap = 6
 dock.border_width = 1
 dock.title_height = 18
 dock.column_bar_height = 18

@@ -21,6 +21,8 @@ pub struct DockLook {
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
+    /// Vertical gap between stacked controls in a panel body, docked or floating: `dock.body_gap`.
+    pub body_gap: f32,
     /// Room inside controls: around a title, a float hint and an icon's label.
     pub pad: f32,
     pub background: Color32,
@@ -106,6 +108,7 @@ impl DockLook {
         Self {
             tab_height: tab.panel_height,
             gap: dock.gap,
+            body_gap: dock.body_gap,
             pad: tokens.space.pad.control,
             background: dock.background.to_egui(),
             tab_strip: tab.strip.to_egui(),
@@ -153,6 +156,7 @@ impl DockLook {
         Self {
             tab_height: 26.0,
             gap: 4.0,
+            body_gap: 6.0,
             pad: 6.0,
             background: visuals.panel_fill,
             tab_strip: visuals.extreme_bg_color,
@@ -200,6 +204,7 @@ impl DockLook {
         [
             self.tab_height,
             self.gap,
+            self.body_gap,
             self.pad,
             self.border.width,
             self.font.size,

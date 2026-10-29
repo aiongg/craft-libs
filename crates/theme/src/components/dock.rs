@@ -18,6 +18,8 @@ use crate::values;
 pub struct DockTokens {
     /// Between a column's panes and around a group's parts: `space.gap.inline`.
     pub gap: f32,
+    /// Between stacked controls in a panel body, docked or floating: 0 Compact, 6 Comfortable.
+    pub body_gap: f32,
     /// Width of a group's border.
     pub border_width: f32,
     /// Height of a floating window's title bar: 14 Compact, 18 Comfortable (14 scaled by
@@ -138,6 +140,7 @@ impl Family for DockTokens {
         let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s.high).fill(c.state.selected, c.text.on_selected);
         DockTokens {
             gap: s.space.gap.inline,
+            body_gap: values::dock_body_gap(s.preset),
             border_width: values::DOCK_BORDER_WIDTH,
             title_height: (values::DOCK_BAR_HEIGHT * k).round(),
             column_bar_height: (values::DOCK_BAR_HEIGHT * k).round(),
