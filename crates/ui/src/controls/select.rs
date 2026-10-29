@@ -325,10 +325,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// Shows the box, and the list while it is open, and returns this frame's edit. The response
     /// covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<T> {
-        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, mut highlighted, placeholder, size, policy, enabled } = self;
-        if let Some(out) = highlighted.as_deref_mut() {
-            *out = None;
-        }
+        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, highlighted, placeholder, size, policy, enabled } = self;
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
@@ -368,13 +365,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
 
-        let width = if ui.layout().horizontal_justify() {
-            ui.available_width()
-        } else if fit && !options.rows() {
-            fitted_width(ui, id, &style.field, &options)
-        } else {
-            style.field.width
-        };
+        let width = box_width(ui, id, &style.field, fit.then_some(&options));
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -405,6 +396,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
         let popup_id = Popup::default_response_id(&response);
         let mut drawn_active = None;
+        let mut pointed = None;
         // The active option after the keys and before the rows: the pointer's move onto a row
         // highlights it and is not an update.
         let mut keyed_active = pass.listbox.active();
@@ -420,11 +412,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .surface(style.popup);
             let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
             keyed_active = pass.listbox.active();
-            let mut pointed = None;
             let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed);
-            if let (Some(out), Some(option)) = (highlighted.as_deref_mut(), pointed) {
-                *out = Some(options.value(option));
-            }
+
             let released = released(ui);
             if let Some(option) = picked {
                 pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
@@ -445,6 +434,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 let owner = if box_focused { Some(id) } else { pass.state.search.filter(|_| search_focused) };
                 keep_focus(ui, popup_id, owner);
             }
+        }
+        if let Some(out) = highlighted {
+            *out = pointed.map(|option| options.value(option));
         }
         // The list's value follows the keys, not the pointer; a search's first match waits for Enter.
         if !pass.searched
@@ -1160,6 +1152,16 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
         listbox.reveal(Listbox::neighbour(shown, None, true), keyboard);
     }
     changed
+}
+
+/// The box's width: all the room in a justified layout, else `field.width`, or the width that
+/// fits `fit`'s options (not rows).
+fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>) -> f32 {
+    match fit {
+        _ if ui.layout().horizontal_justify() => ui.available_width(),
+        Some(options) if !options.rows() => fitted_width(ui, id, f, options),
+        _ => f.width,
+    }
 }
 
 /// The width of a box that fits its options: the widest text, room for the chosen option's icon

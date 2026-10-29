@@ -698,7 +698,7 @@ fn badge_stays_visible_on_light_and_dark_fills() {
     let ctx = context();
     for t in builtins() {
         for mode in [Mode::Light, Mode::Dark] {
-            let tokens = tokens_of(&t, mode);
+            let tokens = tokens_of(t, mode);
             for color in [Color32::BLACK, Color32::from_gray(128), Color32::WHITE] {
                 for on in [false, true] {
                     let shapes = frame_at(&ctx, 0.0, vec![], |ui| {
