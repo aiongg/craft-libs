@@ -117,6 +117,9 @@ fn button() {
                 states(d, "fill", &s.fill);
                 states(d, "border", &s.border);
                 states(d, "text", &s.text);
+                if let Some(frame) = s.frame {
+                    d.line("frame.width", frame.width).line("frame.color", frame.color);
+                }
             });
         }
     });

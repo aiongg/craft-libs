@@ -201,8 +201,8 @@ fn builtin_accent_strong_carries_white_text() {
 
 /// The marks and outlines of check boxes, radio buttons and switches identify the control and its
 /// state, so every built-in meets their non-text minimum at rest in every appearance, pins
-/// included; a disabled one that is on doesn't look off: its box or track differs from an off
-/// one's, and its mark shows on it (off has no mark).
+/// included; a disabled one that is on doesn't look off: its mark shows on its box (off has no
+/// mark), whether or not the box differs from an off one's.
 #[test]
 fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
     for theme in builtins() {
@@ -214,7 +214,6 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
             let c = resolve(theme, a, None).tokens.component.check;
-            assert_ne!(c.on.fill.disabled, c.off.fill.disabled, "{} {a:?}: a disabled fill that is on looks off", theme.id);
             assert_ne!(c.on.mark.disabled, c.on.fill.disabled, "{} {a:?}: a disabled mark doesn't show", theme.id);
         }
     }
@@ -390,5 +389,28 @@ fn line_mark_holds_the_non_text_minimum_on_the_control_surfaces() {
                 assert!(ratio >= min, "{} {:?} {:?}: line.mark on {bg:?} is {ratio:.2}:1", theme.id.as_str(), a.mode, a.contrast);
             }
         }
+    }
+}
+
+/// Classic follows Windows 2000: white text on the navy selection, a black frame round the
+/// default (primary) button whose grey face does not change on hover or press, and a black mark on
+/// a white check box. No other built-in frames a button.
+#[test]
+fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
+    let black = Rgba::rgb(0, 0, 0);
+    let white = Rgba::rgb(255, 255, 255);
+    let face = Rgba::rgb(0xd4, 0xd0, 0xc8);
+    for theme in builtins() {
+        let t = resolve(theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens;
+        let button = &t.component.button;
+        if theme.id.as_str() != "craft.classic" {
+            assert_eq!(button.default_frame, Rgba::TRANSPARENT, "{}", theme.id);
+            continue;
+        }
+        assert_eq!(button.default_frame, black);
+        assert_eq!([button.primary.fill.rest, button.primary.fill.hover, button.primary.fill.pressed], [face; 3]);
+        assert_eq!(t.color(ColorToken::TextOnSelected), white);
+        assert_eq!(t.component.check.off.fill.rest, white);
+        assert_eq!([t.component.check.on.fill.rest, t.component.check.on.mark.rest], [white, black]);
     }
 }

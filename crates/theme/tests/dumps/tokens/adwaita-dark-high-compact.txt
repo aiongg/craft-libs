@@ -249,6 +249,7 @@ button.gap = 4
 button.label = label
 button.radius = 6
 button.border_width = 1
+button.default_frame = #00000000
 button.primary.fill.rest = #1959a3ff
 button.primary.fill.hover = #00468dff
 button.primary.fill.pressed = #003770ff
