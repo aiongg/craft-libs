@@ -282,7 +282,7 @@ impl Slider {
         let response = sensed.response().clone();
         let track = Track::new(response.rect, &style, scale);
         let sensing = Sensing::of(&response);
-        let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, track.dragged(start, origin, x));
+        let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, x, track.dragged(start, origin, x));
 
         let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER).enabled(sensing.enabled);
         let tapped = tap(ui, &response);
@@ -618,14 +618,13 @@ impl Track {
         if len > 0.0 { self.scale.at_position(self.scale.position(start) + f64::from(dx) / len) } else { start }
     }
 
-    /// `value`, or the mark whose thumb position is within `snap` points of it.
-    pub fn snap_to_marks(&self, marks: &[f64], snap: f32, value: f64) -> f64 {
-        let at = self.x_of(value);
+    /// `value`, or the mark whose thumb position is within `snap` points of the pointer at `x`.
+    pub fn snap_to_marks(&self, marks: &[f64], snap: f32, x: f32, value: f64) -> f64 {
         marks
             .iter()
             .copied()
             .filter(|m| (self.scale.min..=self.scale.max).contains(m))
-            .map(|m| (m, (self.x_of(m) - at).abs()))
+            .map(|m| (m, (self.x_of(m) - x).abs()))
             .filter(|(_, d)| *d <= snap)
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map_or(value, |(m, _)| m)

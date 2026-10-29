@@ -951,6 +951,19 @@ fn a_drag_near_a_mark_snaps_to_it() {
     let Some(EditEvent::Update { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
     assert!(value > 50.0 && value != 50.0, "beyond it the thumb follows the pointer: {value}");
     rig.release(far);
+    // Grabbed 4 points off its centre, the thumb is within the snap distance of the mark while
+    // the pointer is beyond it: the pointer decides.
+    rig.level = 40.0;
+    rig.frame(vec![]);
+    let grab = 4.0;
+    rig.press(rig.level_at(40.0, grab));
+    let id = begin(rig.level_event.clone());
+    rig.drag(rig.level_at(50.0, snap + 0.5));
+    let Some(EditEvent::Update { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
+    assert_ne!(value, 50.0, "the pointer is beyond the snap distance although the thumb is within it");
+    rig.drag(rig.level_at(50.0, snap - 1.0));
+    assert_eq!(rig.level_event, update(id, 50.0));
+    rig.release(rig.level_at(50.0, snap - 1.0));
     rig.tap(rig.level_at(25.0, -2.0));
     assert_eq!(rig.level_event, set(25.0, Modifiers::NONE), "a click near a mark snaps too");
 }
