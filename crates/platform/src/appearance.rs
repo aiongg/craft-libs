@@ -4,6 +4,8 @@
 //! Derived from PdfCraft's activation-safe subscription and GNOME schema fallback,
 //! CADCraft's BSD support, and ArtCraft Launcher's ReadOne/Read compatibility.
 //! Palettes, manual choices and the fallback when no preference exists belong to the host.
+mod reader;
+pub use reader::{Reading, SystemReader};
 use std::{
     sync::{
         Arc, Condvar, Mutex, PoisonError,
@@ -923,25 +925,14 @@ mod portal {
 /// Owned callback that supplies an observed theme and updates egui native-window hints.
 #[cfg(feature = "egui")]
 pub type SystemThemeFn = Box<dyn Fn(&egui::Context) -> Option<egui::Theme>>;
-/// Create an egui theme callback that owns the subscription and wakes its first context.
-/// Return `None` when no desktop watcher can start; the host retains its fallback policy.
+/// Create an egui theme callback over a [`SystemReader`] that wakes the first context it is
+/// called with. Return `None` when no desktop watcher can start; the host retains its fallback
+/// policy. It answers the colour scheme only: a host that also follows contrast or reduced
+/// motion uses [`SystemReader`] directly.
 #[cfg(feature = "egui")]
 pub fn egui_service() -> Option<SystemThemeFn> {
-    let context = Arc::new(std::sync::OnceLock::<egui::Context>::new());
-    let worker_context = Arc::clone(&context);
-    let watcher = Watcher::start(move || {
-        if let Some(ctx) = worker_context.get() {
-            ctx.request_repaint();
-        }
-    })?;
-    Some(Box::new(move |ctx| {
-        let _ = context.set(ctx.clone());
-        sync_native_window_theme(ctx, watcher.current());
-        watcher.current().map(|t| match t {
-            Theme::Dark => egui::Theme::Dark,
-            Theme::Light => egui::Theme::Light,
-        })
-    }))
+    let reader = SystemReader::for_egui();
+    reader.watching().then(|| Box::new(move |ctx: &egui::Context| reader.observed_theme(ctx)) as SystemThemeFn)
 }
 
 /// Supply the portal answer for native window decorations without changing egui's theme choice

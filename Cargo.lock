@@ -1015,6 +1015,7 @@ dependencies = [
  "async-channel",
  "async-io",
  "async-process",
+ "craft-theme",
  "egui",
  "futures-lite",
  "js-sys",

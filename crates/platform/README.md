@@ -8,6 +8,7 @@ third-party dependencies. Enable only the services a host uses.
 | --- | --- |
 | default | Typed dialog outcomes; no backend or toolkit. |
 | `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
+| `theme` | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
 | `egui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
 | `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
@@ -43,6 +44,8 @@ permission to discard work. Run those guards before `craft_quit::on_close_reques
 the first read. ReadOne/legacy Read, the standard namespace and GNOME fallback are handled together;
 on GNOME the "default" (Light) setting and portal value 0 read as light; elsewhere 0 is no preference.
 Malformed values retain the last valid answer, and explicit no-preference clears it.
+`SystemReader::read()` gives colour scheme, contrast and reduced motion in one call on every target: the watcher on Linux/BSD, the browser media queries on the web (scheme from egui's system theme through `read_in(&ctx)`), no answers elsewhere. `SystemReader::for_egui()` repaints the context on a change, and `read_in(&ctx)` also runs `sync_native_window_theme`. `egui_service()` is the scheme-only callback over the same reader.
+
 `Watcher::wait_first(timeout)` blocks until the first answer, a known absence, or the timeout (about 250 ms in an eframe creator), so the first frame uses the desktop theme. Disconnection
 retains the last valid value until a fresh answer. A later service owner triggers a reread; session
 reconnection has bounded backoff. Dropping cancels asynchronous work and waits at most 100 ms

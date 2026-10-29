@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, Mode, ModeChoice, SystemAppearance, TextSize, TokenRef, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::composites::PropertyRow;
@@ -21,7 +22,6 @@ use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::os::{self, Os};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -34,7 +34,7 @@ pub struct Gallery {
     story_ppp: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
-    os: Os,
+    os: SystemReader,
     /// The OS's answer `base` was resolved with.
     os_applied: SystemAppearance,
     base: Base,
@@ -74,7 +74,7 @@ impl Gallery {
             applied: None,
             story_ppp: None,
             system_face_applied: false,
-            os: Os::new(),
+            os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
             selected,
             tree,
@@ -170,7 +170,7 @@ impl Gallery {
         let inspecting = self.inspect && !self.tokens;
         inspect::set_enabled(&ctx, inspecting);
         if self.tokens {
-            self.browser.show(ui, &self.base, self.appearance.mode(os::shown(&ctx)));
+            self.browser.show(ui, &self.base, self.appearance.mode(shown_mode(&ctx)));
             return;
         }
         direction::start_panel(&ctx, "gallery.tree").default_size(240.0).show(ui, |ui| self.tree(ui));
@@ -186,7 +186,7 @@ impl Gallery {
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
         let system_face = faces::system_face(ctx).is_some();
-        let system = self.os.read(ctx);
+        let system = SystemAppearance { reduced_motion: None, ..self.os.read_in(ctx).into() };
         if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied || system != self.os_applied {
             let previous = self.applied.replace(self.appearance.clone());
             self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied, system);
@@ -502,6 +502,14 @@ fn segmented<T: PartialEq + Clone, const N: usize>(ui: &mut Ui, label: &str, val
     segmented.show(ui);
 }
 
+/// The mode `ctx` shows, which is the OS's answer while the mode choice is System.
+fn shown_mode(ctx: &egui::Context) -> Mode {
+    match ctx.theme() {
+        egui::Theme::Dark => Mode::Dark,
+        egui::Theme::Light => Mode::Light,
+    }
+}
+
 /// Sets the context's zoom factor. The gallery is the host of the craft-ui showcase: its interface
 /// scale (the appearance bar's, or a story's request) is a window setting that craft-ui has no
 /// token for.
@@ -535,7 +543,7 @@ fn tree_selection(stories: &[Story], id: Option<&str>) -> Selection<Node> {
 
 /// The story on `surface.background` under the bar's appearance.
 fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, system: SystemAppearance, inspector: Option<&mut Inspector>) {
-    let shown = os::shown(ui.ctx());
+    let shown = shown_mode(ui.ctx());
     let overrides = |o: &mut craft_ui::theme::Overrides| {
         appearance.overrides(o);
         o.mode = Some(appearance.mode(shown));
