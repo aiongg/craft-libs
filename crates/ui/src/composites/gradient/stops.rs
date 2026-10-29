@@ -10,8 +10,8 @@ use std::ops::RangeInclusive;
 
 use craft_theme::Srgba;
 
+use super::editor::StopRef;
 use super::value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
-use crate::edit::parts::Rebase;
 
 /// Gives the colour, with alpha, of a gradient at a location 0..=1. Draws the ramp and colours
 /// new stops; the default is [`default_sampler`].
@@ -54,13 +54,6 @@ pub(crate) trait Stop: Clone + PartialEq {
     fn midpoint(&self) -> f32;
     fn set_midpoint(&mut self, midpoint: f32);
     fn tag(&self) -> u64;
-    /// `self`, made from `base`, with each field it changed applied onto `now`.
-    fn rebase_fields(&self, base: &Self, now: &Self) -> Self;
-}
-
-/// `held`'s field where it differs from `base`'s, else `now`'s.
-fn pick<V: PartialEq + Copy>(held: V, base: V, now: V) -> V {
-    if held == base { now } else { held }
 }
 
 impl Stop for ColorStop {
@@ -78,14 +71,6 @@ impl Stop for ColorStop {
     }
     fn tag(&self) -> u64 {
         self.tag
-    }
-    fn rebase_fields(&self, base: &Self, now: &Self) -> Self {
-        ColorStop {
-            location: pick(self.location, base.location, now.location),
-            color: pick(self.color, base.color, now.color),
-            midpoint: pick(self.midpoint, base.midpoint, now.midpoint),
-            tag: pick(self.tag, base.tag, now.tag),
-        }
     }
 }
 
@@ -105,95 +90,183 @@ impl Stop for OpacityStop {
     fn tag(&self) -> u64 {
         self.tag
     }
-    fn rebase_fields(&self, base: &Self, now: &Self) -> Self {
-        OpacityStop {
-            location: pick(self.location, base.location, now.location),
-            opacity: pick(self.opacity, base.opacity, now.opacity),
-            midpoint: pick(self.midpoint, base.midpoint, now.midpoint),
-            tag: pick(self.tag, base.tag, now.tag),
-        }
-    }
 }
 
-/// Whether stop `k` of `new` is stop `i` of `old`: both exist and carry the same tag. Edits that
-/// apply onto a gradient another control changed find their stop by this rule (a gradient line's
-/// carried-on drag, a bar's held edit). Stops all have tag 0 unless the host sets tags, so stops
-/// an equal-length reorder swapped can't be told apart; a host that reorders stops from another
-/// control during an edit should tag them.
+/// Whether stop `k` of `new` is stop `i` of `old`: both exist and carry the same tag. A gradient
+/// line's carried-on drag finds its stop by this rule. Stops all have tag 0 unless the host sets
+/// tags, so stops an equal-length reorder swapped can't be told apart; a host that reorders stops
+/// from another control during a drag should tag them.
 pub(crate) fn same_stop<T: Stop>(old: &[T], i: usize, new: &[T], k: usize) -> bool {
     matches!((old.get(i), new.get(k)), (Some(a), Some(b)) if a.tag() == b.tag())
 }
 
-/// Whether `new` holds `old`'s stops at the same places ([`same_stop`] at each).
-fn same_places<T: Stop>(old: &[T], new: &[T]) -> bool {
-    old.len() == new.len() && (0..old.len()).all(|i| same_stop(old, i, new, i))
+/// A stop of a row as an operation names it, found again on the stops of the operation's turn
+/// ([`find`](StopKey::find)), which another control may have changed since: a stop with a tag by
+/// its tag, an untagged stop by its location.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StopKey {
+    pub row: StopRow,
+    pub tag: u64,
+    /// The stop's location when the key was made.
+    pub location: f32,
+    /// The locations of the row's untagged stops when the key was made.
+    pub untagged: Vec<f32>,
+    /// Which of the untagged stops at `location` the stop was, in row order: stops can share a
+    /// location.
+    pub nth: usize,
 }
 
-/// The stops of `row` but stop `k`.
-fn without<T>(row: &[T], k: usize) -> impl Iterator<Item = &T> {
-    row.iter().enumerate().filter(move |(i, _)| *i != k).map(|(_, s)| s)
-}
-
-/// `held`, a row an edit of one stop made from `base` (a change in place, a move past its
-/// neighbours, an added or a removed stop, as the rules make them), with that edit applied onto
-/// `now`. `None` when `now` doesn't hold `base`'s stops at their places ([`same_stop`]), the
-/// edit isn't one of those, or the row would end out of order.
-fn rebase_row<T: Stop>(held: &[T], base: &[T], now: &[T]) -> Option<Vec<T>> {
-    if held == base {
-        return Some(now.to_vec());
-    }
-    if !same_places(base, now) {
-        return None;
-    }
-    let mut out = now.to_vec();
-    let changed: Vec<usize> = (0..held.len().min(base.len())).filter(|&i| held[i] != base[i]).collect();
-    if held.len() == base.len() {
-        if let [i] = changed[..] {
-            out[i] = held[i].rebase_fields(&base[i], &now[i]);
-        } else {
-            // A stop moved past its neighbours: the others keep their order.
-            let (k, j) = (0..base.len())
-                .flat_map(|k| (0..held.len()).map(move |j| (k, j)))
-                .find(|&(k, j)| k != j && same_stop(base, k, held, j) && without(base, k).eq(without(held, j)))?;
-            let mut stop = held[j].rebase_fields(&base[k], &now[k]);
-            let location = stop.location();
-            stop.set_location(now[k].location());
-            out[k] = stop;
-            relocate(&mut out, k, location);
+impl StopKey {
+    /// The key of stop `i` of `row` (of [`GradientStops::opacity_stops`] for the opacity row);
+    /// `None` when there is no such stop.
+    pub fn of(stops: &GradientStops, row: StopRow, i: usize) -> Option<Self> {
+        match row {
+            StopRow::Color => Self::in_row(&stops.color, row, i),
+            StopRow::Opacity => Self::in_row(&stops.opacity_stops(), row, i),
         }
-    } else if held.len() == base.len() + 1 {
-        // An added stop resets the midpoint of the segment it splits.
-        let unmoved = |j: usize| {
-            without(held, j).zip(base).enumerate().all(|(i, (h, b))| {
-                let mut h = h.clone();
-                if i + 1 == j {
-                    h.set_midpoint(b.midpoint());
-                }
-                h == *b
-            })
-        };
-        let j = (0..held.len()).find(|&j| unmoved(j))?;
-        insert(&mut out, held[j].clone());
-    } else if held.len() + 1 == base.len() {
-        let k = (0..base.len()).find(|&k| without(base, k).eq(held.iter()))?;
-        out.remove(k);
-    } else {
-        return None;
     }
-    out.windows(2).all(|w| w[0].location() <= w[1].location()).then_some(out)
+
+    fn in_row<T: Stop>(list: &[T], row: StopRow, i: usize) -> Option<Self> {
+        let stop = list.get(i)?;
+        let (tag, location) = (stop.tag(), stop.location());
+        let untagged = list.iter().filter(|s| s.tag() == 0).map(Stop::location).collect();
+        let nth = list[..i].iter().filter(|s| s.tag() == 0 && s.location() == location).count();
+        Some(Self { row, tag, location, untagged, nth })
+    }
+
+    /// The stop's index in `stops`:
+    /// - with a tag only one stop of the row has, that stop; with a tag several have (an Alt-drag
+    ///   copy keeps its stop's tag), the one of them at `location`;
+    /// - untagged, the untagged stop at `location` (the `nth` while as many share it as did);
+    ///   with none there, the one untagged stop whose location isn't in `untagged`: another
+    ///   control moved it.
+    ///
+    /// `None` when the row can't tell which stop it is: an operation on it is dropped rather than
+    /// applied to another stop.
+    pub fn find(&self, stops: &GradientStops) -> Option<usize> {
+        match self.row {
+            StopRow::Color => self.find_in(&stops.color),
+            StopRow::Opacity => self.find_in(&stops.opacity_stops()),
+        }
+    }
+
+    fn find_in<T: Stop>(&self, list: &[T]) -> Option<usize> {
+        let only = |found: Vec<usize>| match found[..] {
+            [i] => Some(i),
+            _ => None,
+        };
+        let with_tag = |i: &usize| list[*i].tag() == self.tag;
+        let here = |i: &usize| list[*i].location() == self.location;
+        if self.tag != 0 {
+            let tagged: Vec<usize> = (0..list.len()).filter(with_tag).collect();
+            return only(tagged.clone()).or_else(|| only(tagged.into_iter().filter(here).collect()));
+        }
+        let at: Vec<usize> = (0..list.len()).filter(with_tag).filter(here).collect();
+        if !at.is_empty() {
+            let were = self.untagged.iter().filter(|&&l| l == self.location).count();
+            return at.get(self.nth).copied().filter(|_| at.len() == were);
+        }
+        only((0..list.len()).filter(with_tag).filter(|&i| !self.untagged.contains(&list[i].location())).collect())
+    }
 }
 
-/// A bar's held edit applies its change of one stop onto the stops of its turn, row by row
-/// ([`edit::parts`](crate::edit::parts)); `None` when a row can't take it (`rebase_row`). An
-/// implicit opacity row counts as its two stops.
-impl Rebase for GradientStops {
-    fn rebase(self, base: &GradientStops, now: &GradientStops) -> Option<GradientStops> {
-        let color = rebase_row(&self.color, &base.color, &now.color)?;
-        let opacity = match self.opacity == base.opacity {
-            true => now.opacity.clone(),
-            false => rebase_row(&self.opacity, &base.opacity_stops(), &now.opacity_stops())?,
-        };
-        Some(GradientStops { color, opacity })
+/// What a gradient bar did to the stops, as an operation on them ([`apply`]): what a bar's input
+/// that waits for its turn applies on the stops of that turn.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum BarOp {
+    /// Moves a stop by this much of the bar (Left and Right).
+    Nudge { at: StopKey, by: f32 },
+    /// Moves the midpoint after stop `left` of `row` by this much of its segment.
+    NudgeMidpoint { row: StopRow, left: StopKey, by: f32 },
+    /// Adds a stop to `row` halfway after stop `after`, or across the row's widest gap
+    /// ([`halfway`]): Insert.
+    Add { row: StopRow, after: Option<StopKey> },
+    /// Adds a stop to `row` at a location: a click on empty space.
+    AddAt { row: StopRow, location: f32 },
+    /// Removes a stop: Delete.
+    Remove(StopKey),
+}
+
+/// `op` applied to `stops`, keeping `selected` on its marker ([`keeping`]); an added stop is
+/// selected. `None` when the rules refuse it or its stop can't be found ([`StopKey::find`]).
+pub(crate) fn apply(
+    op: &BarOp,
+    stops: &GradientStops,
+    selected: &mut Option<StopRef>,
+    rules: &StopRules,
+    sampler: &Sampler,
+) -> Option<GradientStops> {
+    match op {
+        BarOp::Nudge { at, by } => {
+            let (row, i) = (at.row, at.find(stops)?);
+            keeping(stops, selected, Touch::Stop(row, i), |s| move_to(s, row, i, location(s, row, i) + by, rules))
+        }
+        BarOp::NudgeMidpoint { row, left, by } => {
+            let (row, i) = (*row, left.find(stops)?);
+            keeping(stops, selected, Touch::Stop(row, i), |s| set_midpoint(s, row, i, midpoint(s, row, i) + by, rules))
+        }
+        BarOp::Add { row, after } => {
+            let after = match after {
+                Some(key) => Some(key.find(stops)?),
+                None => None,
+            };
+            keeping(stops, selected, Touch::Adds(*row), |s| add(s, *row, halfway(s, *row, after), sampler, rules))
+        }
+        BarOp::AddAt { row, location } => keeping(stops, selected, Touch::Adds(*row), |s| add(s, *row, *location, sampler, rules)),
+        BarOp::Remove(at) => {
+            let (row, i) = (at.row, at.find(stops)?);
+            keeping(stops, selected, Touch::Stop(row, i), |s| remove(s, row, i, rules))
+        }
+    }
+}
+
+/// The marker an edit of the stops touches ([`keeping`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Touch {
+    /// Stop `i` of a row: moved, removed, or one of its fields or its midpoint edited.
+    Stop(StopRow, usize),
+    /// A stop the edit adds to a row.
+    Adds(StopRow),
+}
+
+/// `edit` applied to `stops`, with `selected` kept on its marker. `edit` returns the new stops
+/// and the index of the stop that stands for the touched one: where it moved, the one that takes
+/// a removed stop's index, or the added stop. A selection on the touched stop or its midpoint
+/// goes there and an added stop is selected; any other selection is found again by its stop's
+/// key ([`StopKey::find`]), and lost when it can't be.
+pub(crate) fn keeping(
+    stops: &GradientStops,
+    selected: &mut Option<StopRef>,
+    touch: Touch,
+    edit: impl FnOnce(&GradientStops) -> Option<(GradientStops, usize)>,
+) -> Option<GradientStops> {
+    let (out, j) = edit(stops)?;
+    let kept = match (touch, *selected) {
+        (Touch::Adds(row), _) => Some(StopRef::stop(row, j)),
+        (_, None) => None,
+        (Touch::Stop(row, i), Some(m)) if m.row() == row && m.index() == i => Some(m.with_index(j)),
+        (_, Some(m)) => StopKey::of(stops, m.row(), m.index()).and_then(|key| key.find(&out)).map(|k| m.with_index(k)),
+    };
+    *selected = kept.filter(|m| match *m {
+        StopRef::Midpoint(row, i) => i + 1 < out.len(row),
+        m => m.index() < out.len(m.row()),
+    });
+    Some(out)
+}
+
+/// The location of stop `i` of `row`.
+fn location(stops: &GradientStops, row: StopRow, i: usize) -> f32 {
+    match row {
+        StopRow::Color => stops.color[i].location,
+        StopRow::Opacity => stops.opacity_stops()[i].location,
+    }
+}
+
+/// The midpoint after stop `i` of `row`.
+fn midpoint(stops: &GradientStops, row: StopRow, i: usize) -> f32 {
+    match row {
+        StopRow::Color => stops.color[i].midpoint,
+        StopRow::Opacity => stops.opacity_stops()[i].midpoint,
     }
 }
 
