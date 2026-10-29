@@ -29,8 +29,8 @@ pub struct TabTokens {
     pub gap: f32,
     /// Least width of a panel tab before the strip overflows.
     pub min_width: f32,
-    /// Side of the × hit box.
-    pub close: f32,
+    /// Side of the × hit box: `tab.close_box`.
+    pub close_box: f32,
     /// Side of the × glyph: `size.icon.sm`.
     pub close_icon: f32,
     /// Width of the overflow button: `size.control.sm`.
@@ -184,7 +184,7 @@ impl Family for TabTokens {
             pad_x: 2.0 * s.space.pad.control,
             gap: s.space.gap.inline,
             min_width: tab.min_width,
-            close: tab.close,
+            close_box: tab.close,
             close_icon: s.size.icon.sm,
             overflow: s.size.control.sm,
             radius: if tab.rounded { s.shape.radius.control } else { 0.0 },

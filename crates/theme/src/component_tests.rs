@@ -1084,7 +1084,7 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     let compact = at(Size::Compact);
     let t = &compact.component.tab;
     assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (26.0, 34.0, 12.0, 4.0, 40.0));
-    assert_eq!((t.close, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 12.0, 20.0, 0.0, true));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (14.0, 12.0, 20.0, 0.0, true));
     assert_eq!((t.drop_width, t.drop_halo_width, t.progress_height, t.tear_off), (2.0, 1.0, 2.0, 24.0));
     assert_eq!((t.strip_height(false), t.strip_height(true)), (26.0, 34.0));
     assert_eq!((t.label_role(false), t.label_role(true), t.detail_role), (TypeRole::Label, TypeRole::Body, TypeRole::Caption));
@@ -1092,7 +1092,7 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     let comfy = at(Size::Comfortable);
     let t = &comfy.component.tab;
     assert_eq!((t.height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 38.0, 16.0, 6.0, 44.0));
-    assert_eq!((t.close, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 14.0, 24.0, comfy.shape.radius.control, false));
+    assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 14.0, 24.0, comfy.shape.radius.control, false));
 
     let t = &compact;
     let tab = &t.component.tab;

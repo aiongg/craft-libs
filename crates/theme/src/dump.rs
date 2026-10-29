@@ -560,7 +560,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         pad_x,
         gap,
         min_width,
-        close,
+        close_box,
         close_icon,
         overflow,
         radius,
@@ -590,7 +590,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     out.line("tab.pad_x", len(*pad_x));
     out.line("tab.gap", len(*gap));
     out.line("tab.min_width", len(*min_width));
-    out.line("tab.close", len(*close));
+    out.line("tab.close_box", len(*close_box));
     out.line("tab.close_icon", len(*close_icon));
     out.line("tab.overflow", len(*overflow));
     out.line("tab.radius", len(*radius));

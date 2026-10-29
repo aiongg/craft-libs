@@ -144,8 +144,8 @@ pub struct TabStyle {
     pub gap: f32,
     /// `tab.min_width`.
     pub min_width: f32,
-    /// Side of the × hit box: `tab.close`.
-    pub close: f32,
+    /// Side of the × hit box: `tab.close_box`.
+    pub close_box: f32,
     /// Side of the × glyph: `tab.close_icon`.
     pub close_icon: f32,
     /// `tab.overflow`.
@@ -216,7 +216,7 @@ impl TabStyle {
             width += self.gap + metrics.detail;
         }
         if parts.close {
-            width += self.gap + self.close;
+            width += self.gap + self.close_box;
         }
         width
     }
@@ -235,11 +235,11 @@ impl TabStyle {
         let mut close = None;
         if parts.close {
             if close_first {
-                close = Some(span(start, self.close));
-                start += self.close + self.gap;
+                close = Some(span(start, self.close_box));
+                start += self.close_box + self.gap;
             } else {
-                close = Some(span(end - self.close, self.close));
-                end -= self.close + self.gap;
+                close = Some(span(end - self.close_box, self.close_box));
+                end -= self.close_box + self.gap;
             }
         }
         let icon = parts.icon.then(|| {
@@ -287,7 +287,7 @@ pub struct TabMetrics {
 /// except the icon's, which is a square at the tab's middle.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TabLayout {
-    /// The × hit box, `tab.close` wide.
+    /// The × hit box, `tab.close_box` wide.
     pub close: Option<Rect>,
     /// The icon.
     pub icon: Option<Rect>,
@@ -351,7 +351,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             pad_x: t.pad_x,
             gap: t.gap,
             min_width: t.min_width,
-            close: t.close,
+            close_box: t.close_box,
             close_icon: t.close_icon,
             overflow: t.overflow,
             radius: t.radius,

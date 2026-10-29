@@ -64,8 +64,7 @@ fn rows(dump: &Dump) -> Rows {
 }
 
 fn mode_rows(mode: Mode, ui: &Arc<UiTokens>, style: &Style) -> ModeRows {
-    let tokens =
-        unique_keys(tokens_text(ui.tokens()).lines().filter_map(|l| l.split_once(" = ")).map(|(k, v)| (k.to_owned(), v.to_owned())).collect());
+    let tokens = tokens_text(ui.tokens()).lines().filter_map(|l| l.split_once(" = ")).map(|(k, v)| (k.to_owned(), v.to_owned())).collect();
 
     let mut d = Dump::new();
     let a = &ui.appearance;
@@ -98,19 +97,6 @@ fn mode_rows(mode: Mode, ui: &Arc<UiTokens>, style: &Style) -> ModeRows {
     style_rows.push(("right_to_left".to_owned(), style.right_to_left.to_string()));
 
     ModeRows { mode, shown: ui.mode, tokens, ui: rows(&d), style: style_rows }
-}
-
-/// The token dump lists a few paths twice (a size and a colour under `tab.close`): later
-/// occurrences get a `#2`, `#3` suffix so every key names one value.
-fn unique_keys(rows: Rows) -> Rows {
-    let mut seen: HashMap<String, usize> = HashMap::new();
-    rows.into_iter()
-        .map(|(key, value)| {
-            let n = seen.entry(key.clone()).or_insert(0);
-            *n += 1;
-            if *n == 1 { (key, value) } else { (format!("{key}#{n}"), value) }
-        })
-        .collect()
 }
 
 /// One key that differs; `None` is a key the side does not have.

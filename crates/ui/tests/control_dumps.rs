@@ -729,7 +729,7 @@ fn tab() {
     check("tab.txt", |d, t| {
         let s = Tab::<u8>::style(t);
         d.line("height", s.height).line("height_large", s.height_large).line("pad_x", s.pad_x).line("gap", s.gap).line("min_width", s.min_width);
-        d.line("close", s.close).line("close_icon", s.close_icon).line("overflow", s.overflow).line("radius", s.radius);
+        d.line("close_box", s.close_box).line("close_icon", s.close_icon).line("overflow", s.overflow).line("radius", s.radius);
         d.line("dividers", s.dividers).line("drop_width", s.drop_width).line("progress_height", s.progress_height).line("tear_off", s.tear_off);
         d.line("icon_size", s.icon_size).line("label_role", role(s.label_role)).line("label_role_large", role(s.label_role_large));
         d.line("detail_role", role(s.detail_role)).line("close_radius", s.close_radius);
