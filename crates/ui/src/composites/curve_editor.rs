@@ -11,13 +11,15 @@ use egui::{
 use craft_theme::{Rgba, TypeRole};
 
 use super::Histogram;
-use super::curve::{Curve, Rules};
+use super::curve::{Curve, CurveOp, PointKey, Rules};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::controls::NumberField;
+use crate::controls::number_field::{self, FieldRule};
+use crate::edit::ops::{self, ScalarOp};
 use crate::edit::order::{self, Turn};
-use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
@@ -137,7 +139,31 @@ struct State {
     /// Where the previous pencil stroke ended: Shift+press continues from it.
     end: Option<StrokeEnd>,
     /// The graph's and the fields' edits as the editor's one gesture.
-    parts: parts::State<()>,
+    parts: parts::State<EditOp>,
+}
+
+/// An edit of the graph or of a field, as it waits for its turn (`edit::parts`).
+#[derive(Clone, Debug)]
+enum EditOp {
+    Graph(CurveOp),
+    /// A field's operation on the point it names, in the field's units.
+    Field(Axis, PointKey, ScalarOp),
+}
+
+/// A field's axis: the point's input or output.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Axis {
+    Input,
+    Output,
+}
+
+impl Axis {
+    fn index(self) -> usize {
+        match self {
+            Axis::Input => 0,
+            Axis::Output => 1,
+        }
+    }
 }
 
 /// A press on the graph: where, which button, and whether Cmd/Ctrl was held.
@@ -231,8 +257,11 @@ pub type Sampler = dyn Fn(&[[f32; 2]]) -> Vec<f32>;
 /// movement); deletes, nudges and keyboard additions are Sets; the fields report their own
 /// gestures as curves. The graph and the fields make one edit of the curve, one gesture at a time
 /// (`edit::parts`): a screen reader's step on a field during a graph drag waits for the release
-/// and goes out as its own Set. The [`policy`](CurveEditor::policy) applies to the editor's
-/// events; the graph and the fields show every change as it happens. The selection is view state: the host reads and sets it with
+/// and goes out as its own Set. A waiting edit applies on its turn to the point it was made on,
+/// found by its input or else as the one point between its neighbours' inputs, and is dropped
+/// when that point is gone; an Insert selects its point then, and a Delete clears the selection.
+/// The [`policy`](CurveEditor::policy) applies to the editor's events; the graph and the fields
+/// show every change as it happens. The selection is view state: the host reads and sets it with
 /// [`selected`](CurveEditor::selected) and [`select`](CurveEditor::select), and it clears when the
 /// [`channel`](CurveEditor::channel) changes.
 ///
@@ -451,31 +480,24 @@ impl<'a> CurveEditor<'a> {
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.curve, self.policy.cancellable(false)).enabled(self.enabled && ui.is_enabled());
-        let shown = outer.shown().clone();
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<Curve, ()>::new(id, &state.parts, &outer, edit::in_scope(ui));
+        let mut edits = parts::Edits::<Curve, EditOp>::new(id, &state.parts, &outer, edit::in_scope(ui));
+        edits.replay(ui.ctx(), |op, now| self.apply(op, now, &mut state.selected));
+        // The parts keep the selection of their own events as they make them.
+        let apply = |op: &EditOp, now: &Curve| self.apply(op, now, &mut None);
         let before = state.selected;
         let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
-                let (graph, points, selected) = self.graph(ui, &style, id, &shown, policy, &mut state);
-                edits.push_from(&graph, &shown, |curve| curve);
-                // The fields draw from the graph's curve of this pass and map onto it, unless the
-                // graph's edit waits for another part's gesture: it isn't in the editor's value
-                // then, so they draw from the shown curve, and the selection stays where it was
-                // before the edit.
-                let waits = graph.event.is_some() && !edits.applies(graph.response.id);
-                if let Some(points) = points {
-                    let (points, selected) = match waits {
-                        false => (points, selected),
-                        true => {
-                            state.selected = before;
-                            (shown.points().map(<[_]>::to_vec).unwrap_or_default(), before)
-                        }
-                    };
-                    if self.fields {
-                        let mut running = parts::Running::new(Curve::Points(points.clone()));
-                        self.fields_row(ui, id, &points, selected, policy, &mut edits, &mut running);
-                    }
+                let curve = edits.value().clone();
+                let (graph, graph_ops) = self.graph(ui, &style, id, &curve, policy, &mut state);
+                edits.push(&graph, graph_ops.into_iter().map(EditOp::Graph), apply, |curve, _| curve);
+                // A graph edit that waits for another part's gesture isn't in the editor's value,
+                // and the selection stays where it was before it until its turn.
+                if graph.event.as_ref().and_then(EditEvent::value).is_some_and(|curve| curve != edits.value()) {
+                    state.selected = before;
+                }
+                if self.fields && !self.pencil && edits.value().points().is_some() {
+                    self.fields_row(ui, id, state.selected, policy, &mut edits, apply);
                 }
                 if let Some(hint) = &self.hint {
                     ui.add(Text::new(hint.as_str()).role(style.hint_role).content(Content::Faint));
@@ -489,8 +511,7 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The graph, a part of the editor's edit drawn from `curve` with `policy`: its interaction,
-    /// look and AccessKit nodes. Returns its edit, the points it shows (none for a drawn curve)
-    /// and the selected point.
+    /// look and AccessKit nodes. Returns its edit and the operations its one-shot event made.
     fn graph(
         &self,
         ui: &mut Ui,
@@ -499,7 +520,7 @@ impl<'a> CurveEditor<'a> {
         curve: &Curve,
         policy: EditPolicy,
         state: &mut State,
-    ) -> (EditResponse<Curve>, Option<Vec<[f32; 2]>>, Option<usize>) {
+    ) -> (EditResponse<Curve>, Vec<CurveOp>) {
         let side = self.side.unwrap_or_else(|| ui.available_width().clamp(style.min_side, style.max_side));
         let (outer, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
         let edge = style.bar + style.bar_gap;
@@ -543,6 +564,7 @@ impl<'a> CurveEditor<'a> {
 
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let mut points = gesture.shown().points().map(<[_]>::to_vec).filter(|_| !self.pencil);
+        let mut ops = Vec::new();
         if self.pencil {
             state.selected = None;
             state.drag = None;
@@ -561,12 +583,14 @@ impl<'a> CurveEditor<'a> {
             state.selected = state.selected.filter(|&i| i < points.len());
             state.stroke_held = None;
             if enabled {
-                let mut edit = PointEdit { gesture: &mut gesture, points, state, rules, map, style };
+                let samples = |points: &[[f32; 2]]| self.samples(points);
+                let mut edit = PointEdit { gesture: &mut gesture, points, state, rules, map, style, samples: &samples, ops: Vec::new() };
                 edit.pointer(ui, &response);
                 if response.has_focus() {
                     KeyClaim::claim(ui.ctx(), id, &CLAIMED);
-                    edit.keys(ui, |points| self.samples(points));
+                    edit.keys(ui);
                 }
+                ops = edit.ops;
             }
         } else {
             state.selected = None;
@@ -612,7 +636,7 @@ impl<'a> CurveEditor<'a> {
                 None => node.clear_active_descendant(),
             }
         });
-        (EditResponse::new(response, event), points, selected)
+        (EditResponse::new(response, event), ops)
     }
 
     /// The output of every input level through `points`: the host's sampler or a monotone cubic.
@@ -717,38 +741,28 @@ impl<'a> CurveEditor<'a> {
         }
     }
 
-    /// The Input/Output row of the selected point, disabled without one: two parts of the
-    /// editor's edit, drawn from `points` with `policy`, their values as curves made from the
-    /// curve `running` holds when each is pushed.
-    #[allow(clippy::too_many_arguments)]
+    /// The Input/Output row of point `selected` of the editor's value, disabled without one: two
+    /// parts of the editor's edit drawn with `policy`, whose operations name their point.
     fn fields_row(
         &self,
         ui: &mut Ui,
         id: Id,
-        points: &[[f32; 2]],
         selected: Option<usize>,
         policy: EditPolicy,
-        edits: &mut parts::Edits<Curve, ()>,
-        running: &mut parts::Running<Curve>,
+        edits: &mut parts::Edits<Curve, EditOp>,
+        apply: impl FnMut(&EditOp, &Curve) -> Option<Curve> + Copy,
     ) {
-        let rules = Rules { levels: self.levels, max_points: self.max_points };
-        let at = selected.and_then(|i| points.get(i).map(|p| (i, *p)));
-        let (x, y) = at.map_or((0.0, 0.0), |(_, p)| (p[0], p[1]));
-        // The input stays strictly between the neighbours, so the field never shows what the
-        // curve can't take.
-        let (lo, hi) = match at {
-            Some((i, _)) => {
-                let lo = i.checked_sub(1).map_or(0.0, |j| points[j][0] + 1.0);
-                let hi = points.get(i + 1).map_or(self.levels, |p| p[0] - 1.0);
-                (lo, hi.max(lo))
-            }
-            None => (0.0, self.levels),
-        };
+        let points = edits.value().points().map(<[_]>::to_vec).unwrap_or_default();
+        let at = selected.filter(|&i| i < points.len());
+        let key = at.and_then(|i| PointKey::of(&points, i));
         let enabled = self.enabled && at.is_some();
-        let field = |salt: &'static str, label: &str, value: f32, range: (f32, f32)| {
+        let field = |salt: &'static str, label: &str, axis: Axis| {
+            let value = at.map_or(0.0, |i| points[i][axis.index()]);
+            let rule = self.field_rule(&points, at, axis);
             let mut field = NumberField::new(salt, label, f64::from(self.field_value(value)), self.numbers)
-                .range(f64::from(self.field_value(range.0))..=f64::from(self.field_value(range.1)))
-                .decimals(0..=0)
+                .range(rule.bounds.0..=rule.bounds.1)
+                .step(rule.step)
+                .decimals(0..=rule.places)
                 .policy(policy)
                 .part(true)
                 .enabled(enabled);
@@ -757,29 +771,56 @@ impl<'a> CurveEditor<'a> {
             }
             field
         };
-        let moved = |base: &Curve, axis: usize, value: f64| {
-            let mut points = base.points().unwrap_or(points).to_vec();
-            if let Some((i, _)) = at
-                && let Some(mut to) = points.get(i).copied()
-            {
-                to[axis] = self.field_level(value);
-                rules.move_to(&mut points, i, to);
-            }
-            Curve::Points(points)
-        };
         let row = ui.push_id((id, "fields"), |ui| {
             PropertyRow::pair(PropertyLabel::word(self.labels.input.as_str()), PropertyLabel::word(self.labels.output.as_str())).show(
                 ui,
-                |ui, _| field("input", &self.labels.input, x, (lo, hi)).show(ui),
-                |ui, _| field("output", &self.labels.output, y, (0.0, self.levels)).show(ui),
+                |ui, _| field("input", &self.labels.input, Axis::Input).show(ui),
+                |ui, _| field("output", &self.labels.output, Axis::Output).show(ui),
             )
         });
         let (input, output) = row.inner.inner;
-        let base = running.value().clone();
-        edits.typing_mapped(ui.ctx(), &input, |v| moved(&base, 0, v));
-        running.after(edits, input.response.id);
-        let base = running.value().clone();
-        edits.typing_mapped(ui.ctx(), &output, |v| moved(&base, 1, v));
+        for (axis, edit) in [(Axis::Input, &input), (Axis::Output, &output)] {
+            let reported = ops::take::<ScalarOp>(ui.ctx(), edit.response.id);
+            let field_ops = reported.into_iter().filter_map(|op| Some(EditOp::Field(axis, key?, op)));
+            let map = |v: f64, now: &Curve| {
+                key.and_then(|key| self.apply(&EditOp::Field(axis, key, ScalarOp::Set(v)), now, &mut None)).unwrap_or_else(|| now.clone())
+            };
+            edits.typing(edit, field_ops, apply, map);
+        }
+    }
+
+    /// The rule of the `axis` field of point `at` of `points` (none: the row without a point), in
+    /// the field's units. The input stays strictly between the neighbours' inputs, so the field
+    /// never shows what the curve can't take.
+    fn field_rule(&self, points: &[[f32; 2]], at: Option<usize>, axis: Axis) -> FieldRule {
+        let (lo, hi) = match (axis, at) {
+            (Axis::Input, Some(i)) => {
+                let lo = i.checked_sub(1).map_or(0.0, |j| points[j][0] + 1.0);
+                let hi = points.get(i + 1).map_or(self.levels, |p| p[0] - 1.0);
+                (lo, hi.max(lo))
+            }
+            _ => (0.0, self.levels),
+        };
+        FieldRule::new(&(f64::from(self.field_value(lo))..=f64::from(self.field_value(hi))), 1.0, 0)
+    }
+
+    /// What `op` makes of `curve` ([`Rules::apply`], which keeps `selected` on its point). A
+    /// field's operation applies to its point with that field's rule on `curve`.
+    fn apply(&self, op: &EditOp, curve: &Curve, selected: &mut Option<usize>) -> Option<Curve> {
+        let rules = Rules { levels: self.levels, max_points: self.max_points };
+        match op {
+            EditOp::Graph(op) => rules.apply(op, curve, selected, |points| self.samples(points)),
+            EditOp::Field(axis, at, op) => {
+                let mut points = curve.points()?.to_vec();
+                let i = at.find(&points)?;
+                let from = f64::from(self.field_value(points[i][axis.index()]));
+                let value = number_field::apply(op, from, &self.field_rule(&points, Some(i), *axis));
+                let mut to = points[i];
+                to[axis.index()] = self.field_level(value);
+                rules.move_to(&mut points, i, to);
+                Some(Curve::Points(points))
+            }
+        }
     }
 }
 
@@ -824,6 +865,10 @@ struct PointEdit<'g, 'p> {
     rules: Rules,
     map: Map,
     style: &'g CurveStyle,
+    /// The output of every input level through the points.
+    samples: &'g dyn Fn(&[[f32; 2]]) -> Vec<f32>,
+    /// The operations of this frame's one-shot changes, in order.
+    ops: Vec<CurveOp>,
 }
 
 impl PointEdit<'_, '_> {
@@ -831,9 +876,14 @@ impl PointEdit<'_, '_> {
         Curve::Points(self.points.clone())
     }
 
-    /// A one-shot change of the points.
-    fn set(&mut self) {
-        let curve = self.curve();
+    /// A one-shot change of the points: `op` applied to them and to the selection as its replay
+    /// would apply it ([`Rules::apply`]). One that changes nothing sends nothing.
+    fn apply(&mut self, op: CurveOp) {
+        let Some(curve) = self.rules.apply(&op, &self.curve(), &mut self.state.selected, self.samples) else { return };
+        if let Some(points) = curve.points() {
+            *self.points = points.to_vec();
+        }
+        self.ops.push(op);
         self.gesture.set(curve);
     }
 
@@ -883,8 +933,8 @@ impl PointEdit<'_, '_> {
         let before = self.state.selected;
         match self.map.hit(self.points, pos, self.style.hit) {
             Some(i) if secondary || command => {
-                if Rules::delete(self.points, i) {
-                    self.set();
+                if let Some(at) = PointKey::of(self.points, i) {
+                    self.apply(CurveOp::Delete(at));
                 }
                 self.state.selected = None;
             }
@@ -946,7 +996,7 @@ impl PointEdit<'_, '_> {
     /// way. Each change is one Set. Only `+` takes extra modifiers (many keyboards type it with
     /// Shift); every other key needs exactly its own, so Shift+Insert (paste) and Alt+arrows stay
     /// the app's.
-    fn keys(&mut self, ui: &Ui, samples: impl Fn(&[[f32; 2]]) -> Vec<f32>) {
+    fn keys(&mut self, ui: &Ui) {
         if self.state.drag.is_some() {
             return;
         }
@@ -959,25 +1009,15 @@ impl PointEdit<'_, '_> {
         for _ in 0..take(Modifiers::NONE, Key::Minus) {
             self.state.selected = Some(self.state.selected.map_or(n - 1, |i| i.saturating_sub(1)));
         }
-        if take(Modifiers::NONE, Key::Insert) + take(Modifiers::COMMAND, Key::Enter) > 0
-            && let Some(v) = Rules::between(self.points, self.state.selected, &samples(self.points))
-        {
-            let count = self.points.len();
+        if take(Modifiers::NONE, Key::Insert) + take(Modifiers::COMMAND, Key::Enter) > 0 {
             // A gap too narrow for a point (within two levels of a neighbour) adds nothing and
             // keeps the selection.
-            if let Some(i) = self.rules.insert(self.points, v)
-                && self.points.len() != count
-            {
-                self.state.selected = Some(i);
-                self.set();
-            }
+            let after = self.state.selected.and_then(|i| PointKey::of(self.points, i));
+            self.apply(CurveOp::Insert { after });
         }
-        let Some(i) = self.state.selected else { return };
+        let Some(at) = self.state.selected.and_then(|i| PointKey::of(self.points, i)) else { return };
         if take(Modifiers::NONE, Key::Delete) + take(Modifiers::NONE, Key::Backspace) > 0 {
-            if Rules::delete(self.points, i) {
-                self.state.selected = None;
-                self.set();
-            }
+            self.apply(CurveOp::Delete(at));
             return;
         }
         let mut d = [0.0f32; 2];
@@ -985,9 +1025,8 @@ impl PointEdit<'_, '_> {
             let steps = 10 * take(Modifiers::SHIFT, key) + take(Modifiers::NONE, key);
             d = [d[0] + dx * steps as f32, d[1] + dy * steps as f32];
         }
-        let p = self.points[i];
-        if d != [0.0, 0.0] && self.rules.move_to(self.points, i, [p[0] + d[0], p[1] + d[1]]) {
-            self.set();
+        if d != [0.0, 0.0] {
+            self.apply(CurveOp::Nudge { at, by: d });
         }
     }
 }
