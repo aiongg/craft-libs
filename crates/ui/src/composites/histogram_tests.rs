@@ -1,7 +1,7 @@
 //! Histogram tests: scales, overlaps, degenerate input, the AccessKit node and the stale mark.
 
 use craft_theme::Mode;
-use egui::accesskit::Role;
+use egui::accesskit::{Action, ActionData, ActionRequest, Role, TreeId};
 use egui::{Color32, Context, Event, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, ThemePreference, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
@@ -395,8 +395,7 @@ fn channels_with_four_inks_draw_four_fills() {
     let mesh = first_mesh(&shapes);
     for (quarter, color) in colors.into_iter().enumerate() {
         let x = rect.left() + (quarter as f32 * 16.0 + 8.0) / 64.0 * rect.width();
-        let expected = style.ink(color).gamma_multiply(style.fill_alpha);
-        assert_eq!(color_at(mesh, pos2(x, rect.bottom() - 2.0)), Some(expected), "ink {quarter}");
+        assert_eq!(color_at(mesh, pos2(x, rect.bottom() - 2.0)), Some(style.ink(color)), "ink {quarter}");
     }
     let outlines = shapes.iter().filter(|s| matches!(s, egui::Shape::Path(_))).count();
     assert_eq!(outlines, 4, "an outline per ink");
@@ -449,7 +448,7 @@ fn selection_harness(start: Option<RangeInclusive<f32>>) -> Harness<'static, Opt
         |ui, range: &mut Option<RangeInclusive<f32>>| {
             let shown = Histogram::new("h", "Histogram").tone(&vec![5u32; 100], ChannelColor::Neutral).selection(range.clone()).show(ui);
             if let Some(new) = shown.selection {
-                *range = Some(new);
+                *range = new;
             }
         },
         start,
@@ -539,4 +538,170 @@ fn the_stale_mark_is_a_button_only_with_on_stale_click() {
     };
     assert_eq!(clicks(false), (Role::Image, 0));
     assert_eq!(clicks(true), (Role::Button, 1));
+}
+
+#[test]
+fn ink_fills_are_opaque_and_overlaps_are_the_product_of_the_inks() {
+    let (rect, style) = (rect(), style());
+    let (tall, short) = (vec![100u32; 16], vec![40u32; 16]);
+    let inks: [(&[u32], ChannelColor); 2] = [(&tall, ChannelColor::Cyan), (&short, ChannelColor::Magenta)];
+    let shapes = plot_shapes(rect, &HistogramData::channels(&inks), HistogramLook::Rgb, &style);
+    let mesh = first_mesh(&shapes);
+    let at = |height: f32| color_at(mesh, pos2(rect.center().x, rect.bottom() - height * rect.height()));
+    let colors = [style.ink(ChannelColor::Cyan), style.ink(ChannelColor::Magenta)];
+    assert_eq!(at(0.1), Some(product(&colors, 0b11)), "under both inks");
+    assert_eq!(at(0.6), Some(colors[0]), "under the tall ink only");
+    assert_eq!(colors[0].a(), 255);
+    // The RGB look keeps its translucent fills.
+    let rgb = plot_shapes(rect, &HistogramData::rgb([&tall, &short, &short]), HistogramLook::Rgb, &style);
+    let red = color_at(first_mesh(&rgb), pos2(rect.center().x, rect.bottom() - 0.6 * rect.height()));
+    assert_eq!(red, Some(style.ink(ChannelColor::Red).gamma_multiply(style.fill_alpha)));
+}
+
+#[test]
+fn the_selection_band_covers_whole_bin_slots() {
+    let (rect, style) = (rect(), style());
+    let slot = rect.width() / 64.0;
+    let band = |range: RangeInclusive<f32>| match &histogram::selection_shapes(rect, 64, &range, style.marker_width, Color32::WHITE)[0] {
+        egui::Shape::Rect(r) => r.rect,
+        other => panic!("{other:?}"),
+    };
+    let one = band(10.0..=10.0);
+    assert!((one.width() - slot).abs() < 1e-4 && (one.left() - (rect.left() + 10.0 * slot)).abs() < 1e-4, "{one:?}");
+    let many = band(10.0..=20.0);
+    assert!((many.left() - one.left()).abs() < 1e-4 && (many.width() - 11.0 * slot).abs() < 1e-4, "{many:?}");
+    let all = band(0.0..=63.0);
+    assert_eq!((all.left(), all.right()), (rect.left(), rect.right()));
+    let edges: Vec<_> = histogram::selection_shapes(rect, 64, &(10.0..=20.0), style.marker_width, Color32::WHITE)[1..].to_vec();
+    assert_eq!(edges.len(), 2, "an edge band at each end");
+}
+
+/// A selection histogram whose host stores the range, counts clears and keeps the level under the pointer.
+#[derive(Default)]
+struct Probe {
+    range: Option<RangeInclusive<f32>>,
+    clears: u32,
+    hovered: Option<f32>,
+    id: Option<egui::Id>,
+}
+
+fn probe(range: Option<RangeInclusive<f32>>) -> Harness<'static, Probe> {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, state: &mut Probe| {
+            let shown = Histogram::new("h", "Histogram").tone(&vec![5u32; 100], ChannelColor::Neutral).selection(state.range.clone()).show(ui);
+            state.id = Some(shown.id);
+            if let Some(new) = shown.selection {
+                state.clears += u32::from(new.is_none());
+                state.range = new;
+            }
+            state.hovered = shown.hovered_level;
+        },
+        Probe { range, ..Probe::default() },
+    );
+    harness.run();
+    harness
+}
+
+#[test]
+fn a_click_or_esc_clears_the_selection_and_is_reported() {
+    let mut harness = probe(Some(10.0..=20.0));
+    harness.get_by_label("Histogram").click();
+    harness.run();
+    assert_eq!((harness.state().range.clone(), harness.state().clears), (None, 1), "a click clears");
+    harness.get_by_label("Histogram").click();
+    harness.run();
+    assert_eq!(harness.state().clears, 1, "a click without a selection reports nothing");
+
+    let mut harness = probe(Some(10.0..=20.0));
+    harness.get_by_label("Histogram").focus();
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!((harness.state().range.clone(), harness.state().clears), (None, 1), "Esc clears");
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!(harness.state().clears, 1);
+}
+
+#[test]
+fn a_drag_does_not_clear_and_enter_does_not_either() {
+    let mut harness = probe(Some(10.0..=20.0));
+    let plot = harness.get_by_label("Histogram").rect();
+    let at = |bin: f32| pos2(plot.left() + (bin + 0.5) / 100.0 * plot.width(), plot.center().y);
+    harness.hover_at(at(50.0));
+    harness.event(Event::PointerButton { pos: at(50.0), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    harness.run();
+    harness.event(Event::PointerMoved(at(60.0)));
+    harness.run();
+    harness.event(Event::PointerButton { pos: at(60.0), button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    harness.run();
+    assert_eq!((harness.state().range.clone(), harness.state().clears), (Some(50.0..=60.0), 0));
+    harness.get_by_label("Histogram").focus();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().clears, 0, "Enter activates nothing");
+}
+
+#[test]
+fn the_response_reports_the_level_under_the_pointer() {
+    let mut harness = probe(None);
+    let plot = harness.get_by_label("Histogram").rect();
+    harness.hover_at(pos2(plot.left() + 37.5 / 100.0 * plot.width(), plot.center().y));
+    harness.run();
+    assert_eq!(harness.state().hovered, Some(37.0));
+    harness.hover_at(pos2(plot.right() - 0.1, plot.center().y));
+    harness.run();
+    assert_eq!(harness.state().hovered, Some(99.0));
+    harness.hover_at(pos2(plot.right() + 50.0, plot.center().y));
+    harness.run();
+    assert_eq!(harness.state().hovered, None);
+}
+
+#[test]
+fn a_selection_is_two_sliders_beneath_the_plot_with_values_and_steps() {
+    let mut harness = probe(Some(10.0..=20.0));
+    let parent = harness.get_by_label("Histogram").accesskit_node().id();
+    for (name, value, min, max) in [("Selection start", 10.0, 0.0, 20.0), ("Selection end", 20.0, 10.0, 99.0)] {
+        let node = harness.get_by_label(name).accesskit_node();
+        assert_eq!(node.role(), Role::Slider, "{name}");
+        assert!(std::iter::successors(node.parent(), |n| n.parent()).any(|n| n.id() == parent), "{name} is beneath the plot");
+        assert_eq!((node.numeric_value(), node.min_numeric_value(), node.max_numeric_value()), (Some(value), Some(min), Some(max)), "{name}");
+        assert!(node.data().supports_action(Action::Increment) && node.data().supports_action(Action::Decrement), "{name}");
+    }
+    let request = |harness: &mut Harness<'_, Probe>, name: &str, action, data| {
+        let edge = usize::from(name == "Selection end");
+        let target_node = histogram::selection_node(harness.state().id.expect("shown"), edge).accesskit_id();
+        harness.event(Event::AccessKitActionRequest(ActionRequest { action, target_tree: TreeId::ROOT, target_node, data }));
+        harness.run();
+    };
+    request(&mut harness, "Selection end", Action::Increment, None);
+    assert_eq!(harness.state().range, Some(10.0..=21.0));
+    request(&mut harness, "Selection start", Action::Decrement, None);
+    assert_eq!(harness.state().range, Some(9.0..=21.0));
+    request(&mut harness, "Selection start", Action::SetValue, Some(ActionData::NumericValue(30.0)));
+    assert_eq!(harness.state().range, Some(21.0..=21.0), "a start is held at the end");
+    request(&mut harness, "Selection end", Action::Decrement, None);
+    assert_eq!(harness.state().range, Some(21.0..=21.0), "an end is held at the start");
+    assert_eq!(harness.get_by_label("Selection start").accesskit_node().numeric_value(), Some(21.0));
+}
+
+#[test]
+fn no_selection_has_no_slider_nodes_and_the_names_are_the_hosts() {
+    let harness = probe(None);
+    assert!(harness.query_by_label("Selection start").is_none());
+    let mut named = harness_named();
+    named.run();
+    assert_eq!(named.get_by_label("Anfang").accesskit_node().role(), Role::Slider);
+    assert_eq!(named.get_by_label("Ende").accesskit_node().role(), Role::Slider);
+}
+
+fn harness_named() -> Harness<'static> {
+    harness(Direction::Ltr).build_ui(|ui| {
+        Histogram::new("h", "Histogram")
+            .tone(&[1u32; 8], ChannelColor::Neutral)
+            .selection(Some(2.0..=3.0))
+            .selection_labels("Anfang", "Ende")
+            .show(ui);
+    })
 }
