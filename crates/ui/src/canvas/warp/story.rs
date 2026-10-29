@@ -84,18 +84,6 @@ impl WarpHost {
     }
 }
 
-/// The patch under the mesh parameters `(s, t)` (each 0 to 1 across the whole mesh) and the
-/// parameters within it.
-fn patch(mesh: &WarpMesh, s: f64, t: f64) -> (usize, usize, f64, f64) {
-    let at = |v: f64, n: usize| {
-        let x = v.clamp(0.0, 1.0) * n as f64;
-        let k = (x.floor() as usize).min(n - 1);
-        (k, x - k as f64)
-    };
-    let ((column, u), (row, v)) = (at(s, mesh.columns), at(t, mesh.rows));
-    (column, row, u, v)
-}
-
 fn bernstein(t: f64) -> [f64; 4] {
     let s = 1.0 - t;
     [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t]
@@ -103,7 +91,7 @@ fn bernstein(t: f64) -> [f64; 4] {
 
 /// The surface point at the mesh parameters `(s, t)`.
 pub(crate) fn eval(mesh: &WarpMesh, s: f64, t: f64) -> Point {
-    let (column, row, u, v) = patch(mesh, s, t);
+    let (column, row, u, v) = mesh.locate(s, t);
     let rows: [Point; 4] = std::array::from_fn(|b| cubic(std::array::from_fn(|a| mesh.point(3 * column + a, 3 * row + b)), u));
     cubic(rows, v)
 }
@@ -111,7 +99,7 @@ pub(crate) fn eval(mesh: &WarpMesh, s: f64, t: f64) -> Point {
 /// The mesh parameters of the surface point at `p`, `None` off the surface: the nearest of a
 /// sampled grid refined by Newton steps.
 pub(crate) fn surface_at(mesh: &WarpMesh, p: Point) -> Option<(f64, f64)> {
-    let n = 16 * mesh.columns.max(mesh.rows);
+    let n = 16 * mesh.columns().max(mesh.rows());
     let (mut s, mut t) = (0..=n)
         .flat_map(|i| (0..=n).map(move |j| (i as f64 / n as f64, j as f64 / n as f64)))
         .min_by(|a, b| eval(mesh, a.0, a.1).distance(p).total_cmp(&eval(mesh, b.0, b.1).distance(p)))?;
@@ -156,7 +144,7 @@ pub(crate) fn edited(mesh: &WarpMesh, edit: &WarpEdit) -> WarpMesh {
         }
         WarpEdit::Surface { s, t, by } => {
             // The least change of the patch's control points that moves the surface point by `by`.
-            let (column, row, u, v) = patch(mesh, s, t);
+            let (column, row, u, v) = mesh.locate(s, t);
             let (bu, bv) = (bernstein(u), bernstein(v));
             let sum: f64 = bu.iter().flat_map(|a| bv.iter().map(move |b| (a * b).powi(2))).sum();
             for (b, wv) in bv.iter().enumerate() {

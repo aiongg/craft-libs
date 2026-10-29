@@ -16,16 +16,21 @@ use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
-/// A warp's control mesh: `columns` × `rows` bicubic Bézier patches sharing their edges, as
+/// A warp's control mesh: bicubic Bézier patches sharing their edges, as
 /// `(3 columns + 1) × (3 rows + 1)` control points row by row, in document units.
+///
+/// `us` and `vs` are the patch boundaries in the mesh's global parameter space (PhotoCraft's
+/// `BezierMesh::us` and `vs`): the knots of the columns and rows, increasing from 0 to 1, one more
+/// than there are columns or rows. A patch's local `(u, v)` and the mesh's `(s, t)` are related by
+/// them, `s = us[column] + u * (us[column + 1] - us[column])`; the patches need not be even.
 ///
 /// A point on a row and a column that are both multiples of 3 is an anchor, where patches meet.
 /// The other points on those rows and columns are the anchors' handles; the points inside a patch
 /// shape its inside and are neither drawn nor dragged.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WarpMesh {
-    pub columns: usize,
-    pub rows: usize,
+    pub us: Vec<f64>,
+    pub vs: Vec<f64>,
     pub points: Vec<Point>,
 }
 
@@ -40,34 +45,85 @@ pub enum WarpSide {
 }
 
 impl WarpMesh {
-    /// An unwarped mesh over `rect`: `columns` × `rows` even patches.
+    /// An unwarped mesh over `rect`: `columns` × `rows` patches with even knots.
     pub fn identity(rect: Rect, columns: usize, rows: usize) -> Self {
-        let (columns, rows) = (columns.max(1), rows.max(1));
-        let (w, h) = (3 * columns + 1, 3 * rows + 1);
-        let points = (0..h)
-            .flat_map(|j| {
-                (0..w).map(move |i| {
-                    let (u, v) = (i as f64 / (w - 1) as f64, j as f64 / (h - 1) as f64);
-                    Point::new(rect.x0 + u * rect.width(), rect.y0 + v * rect.height())
-                })
-            })
-            .collect();
-        Self { columns, rows, points }
+        let even = |n: usize| (0..=n).map(|i| i as f64 / n as f64).collect();
+        Self::straight(rect, even(columns.max(1)), even(rows.max(1)))
+    }
+
+    /// An unwarped mesh over `rect` with patch boundaries `us` and `vs` (see [`WarpMesh`]), as
+    /// PhotoCraft's `BezierMesh::fit` of the identity. `None` when the knots are not valid.
+    pub fn identity_with_knots(rect: Rect, us: Vec<f64>, vs: Vec<f64>) -> Option<Self> {
+        (Self::knots_valid(&us) && Self::knots_valid(&vs)).then(|| Self::straight(rect, us, vs))
+    }
+
+    /// The unwarped mesh over `rect` for valid knots.
+    fn straight(rect: Rect, us: Vec<f64>, vs: Vec<f64>) -> Self {
+        // Control points sit at thirds of each patch's span, which is exact for a straight mesh.
+        let along = |knots: &[f64]| -> Vec<f64> {
+            let mut out: Vec<f64> = knots.windows(2).flat_map(|k| (0..3).map(move |i| k[0] + (k[1] - k[0]) * i as f64 / 3.0)).collect();
+            out.push(1.0);
+            out
+        };
+        let (xs, ys) = (along(&us), along(&vs));
+        let points = ys.iter().flat_map(|&v| xs.iter().map(move |&u| Point::new(rect.x0 + u * rect.width(), rect.y0 + v * rect.height()))).collect();
+        Self { us, vs, points }
+    }
+
+    /// A mesh from PhotoCraft's parts: knots `us`, `vs` and the control points row by row. `None`
+    /// when they do not make a [valid](Self::is_valid) mesh.
+    pub fn new(us: Vec<f64>, vs: Vec<f64>, points: Vec<Point>) -> Option<Self> {
+        let mesh = Self { us, vs, points };
+        mesh.is_valid().then_some(mesh)
+    }
+
+    /// Whether `knots` are patch boundaries: at least two, from 0 to 1, strictly increasing.
+    fn knots_valid(knots: &[f64]) -> bool {
+        knots.len() >= 2 && knots[0] == 0.0 && knots[knots.len() - 1] == 1.0 && knots.windows(2).all(|k| k[1] > k[0])
+    }
+
+    /// The number of patch columns.
+    pub fn columns(&self) -> usize {
+        self.us.len().saturating_sub(1)
+    }
+
+    /// The number of patch rows.
+    pub fn rows(&self) -> usize {
+        self.vs.len().saturating_sub(1)
+    }
+
+    /// The mesh parameters `(s, t)` of the point `(u, v)` of patch (`column`, `row`).
+    pub fn params(&self, column: usize, row: usize, u: f64, v: f64) -> (f64, f64) {
+        (self.us[column] + u * (self.us[column + 1] - self.us[column]), self.vs[row] + v * (self.vs[row + 1] - self.vs[row]))
+    }
+
+    /// The patch under the mesh parameters `(s, t)` (each clamped to 0 to 1) and the parameters
+    /// within it: the inverse of [`params`](Self::params). A parameter on a knot belongs to the
+    /// patch before it, as in PhotoCraft's `BezierMesh::eval`.
+    pub fn locate(&self, s: f64, t: f64) -> (usize, usize, f64, f64) {
+        let at = |knots: &[f64], x: f64| {
+            let x = if x.is_finite() { x.clamp(0.0, 1.0) } else { 0.0 };
+            let k = knots[1..knots.len() - 1].partition_point(|&k| k < x);
+            (k, (x - knots[k]) / (knots[k + 1] - knots[k]))
+        };
+        let ((column, u), (row, v)) = (at(&self.us, s), at(&self.vs, t));
+        (column, row, u, v)
     }
 
     /// Control points per row: `3 columns + 1`.
     pub fn width(&self) -> usize {
-        3 * self.columns + 1
+        3 * self.columns() + 1
     }
 
     /// Control points per column: `3 rows + 1`.
     pub fn height(&self) -> usize {
-        3 * self.rows + 1
+        3 * self.rows() + 1
     }
 
-    /// Whether the mesh has at least one patch and as many points as its patches need.
+    /// Whether the knots are valid (see [`WarpMesh`]) and there are as many points as the patches
+    /// need.
     pub fn is_valid(&self) -> bool {
-        self.columns > 0 && self.rows > 0 && self.points.len() == self.width() * self.height()
+        Self::knots_valid(&self.us) && Self::knots_valid(&self.vs) && self.points.len() == self.width() * self.height()
     }
 
     /// The control point at column `i`, row `j`.
@@ -139,18 +195,21 @@ impl WarpMesh {
     /// The mesh with new lines of anchors cut through patch (`column`, `row`) at `(u, v)` (each 0
     /// to 1 across the patch): [`Vertical`](WarpSplit::Vertical) cuts the patch column at `u`,
     /// [`Horizontal`](WarpSplit::Horizontal) the patch row at `v` and [`Cross`](WarpSplit::Cross)
-    /// both. The patches on a cut line are cut by de Casteljau, so the surface is unchanged. A
-    /// line whose patch index is past the mesh or whose parameter is outside 0 to 1 is not cut.
+    /// both. The patches on a cut line are cut by de Casteljau, so the surface is unchanged, and
+    /// the new knot is the mesh parameter of the cut ([`params`](Self::params)). A line whose
+    /// patch index is past the mesh or whose parameter is not strictly between 0 and 1 is not
+    /// cut.
     pub fn split(&self, split: WarpSplit, column: usize, row: usize, u: f64, v: f64) -> WarpMesh {
         if !self.is_valid() {
             return self.clone();
         }
         let mut out = self.clone();
-        if split != WarpSplit::Horizontal && column < self.columns && (0.0..=1.0).contains(&u) {
-            out = out.split_column(column, u);
+        let inside = |x: f64| x > 0.0 && x < 1.0;
+        if split != WarpSplit::Horizontal && column < self.columns() && inside(u) {
+            out = out.split_column(column, u, self.params(column, 0, u, 0.0).0);
         }
-        if split != WarpSplit::Vertical && row < self.rows && (0.0..=1.0).contains(&v) {
-            out = out.split_row(row, v);
+        if split != WarpSplit::Vertical && row < self.rows() && inside(v) {
+            out = out.split_row(row, v, self.params(0, row, 0.0, v).1);
         }
         out
     }
@@ -160,11 +219,11 @@ impl WarpMesh {
     /// the first split of a custom warp so that the cut divides the grid on screen instead of
     /// replacing it. Any other mesh is returned as it is.
     pub fn commit_thirds(&self) -> WarpMesh {
-        if !self.is_valid() || self.columns != 1 || self.rows != 1 {
+        if !self.is_valid() || self.columns() != 1 || self.rows() != 1 {
             return self.clone();
         }
-        // The second cut is at half of what is left after the first.
-        self.split_column(0, 1.0 / 3.0).split_column(1, 0.5).split_row(0, 1.0 / 3.0).split_row(1, 0.5)
+        // The second cut is at half of what is left after the first. The knots are 0, 1/3, 2/3, 1.
+        self.split_column(0, 1.0 / 3.0, 1.0 / 3.0).split_column(1, 0.5, 2.0 / 3.0).split_row(0, 1.0 / 3.0, 1.0 / 3.0).split_row(1, 0.5, 2.0 / 3.0)
     }
 
     /// The de Casteljau cut of a cubic at `t`: the five new control points after its first.
@@ -175,19 +234,21 @@ impl WarpMesh {
         [a, d, lerp(d, e), e, c]
     }
 
-    /// A new row of anchors through patch row `index` at `t`.
-    fn split_row(&self, index: usize, t: f64) -> WarpMesh {
+    /// A new row of anchors through patch row `index` at `t`, at mesh parameter `knot`.
+    fn split_row(&self, index: usize, t: f64, knot: f64) -> WarpMesh {
         let (w, h) = (self.width(), self.height());
         let mut rows: Vec<Vec<Point>> = (0..h).map(|j| (0..w).map(|i| self.point(i, j)).collect()).collect();
         let at = 3 * index;
         let cuts: Vec<[Point; 5]> = (0..w).map(|i| Self::cut(std::array::from_fn(|k| self.point(i, at + k)), t)).collect();
         let inserted: Vec<Vec<Point>> = (0..5).map(|k| cuts.iter().map(|c| c[k]).collect()).collect();
         rows.splice(at + 1..at + 3, inserted);
-        WarpMesh { columns: self.columns, rows: self.rows + 1, points: rows.concat() }
+        let mut vs = self.vs.clone();
+        vs.insert(index + 1, knot);
+        WarpMesh { us: self.us.clone(), vs, points: rows.concat() }
     }
 
-    /// A new column of anchors through patch column `index` at `t`.
-    fn split_column(&self, index: usize, t: f64) -> WarpMesh {
+    /// A new column of anchors through patch column `index` at `t`, at mesh parameter `knot`.
+    fn split_column(&self, index: usize, t: f64, knot: f64) -> WarpMesh {
         let (w, h) = (self.width(), self.height());
         let at = 3 * index;
         let mut points = Vec::with_capacity((w + 3) * h);
@@ -197,7 +258,9 @@ impl WarpMesh {
             points.extend(Self::cut(row, t));
             points.extend((at + 3..w).map(|i| self.point(i, j)));
         }
-        WarpMesh { columns: self.columns + 1, rows: self.rows, points }
+        let mut us = self.us.clone();
+        us.insert(index + 1, knot);
+        WarpMesh { us, vs: self.vs.clone(), points }
     }
 
     /// The split a quick split (Alt or Ctrl with no tool set) makes at `(u, v)` of patch
@@ -207,15 +270,14 @@ impl WarpMesh {
     /// of the warp's source rectangle `bounds` across, within 2 to 12 % of the mesh.
     fn quick_split(&self, bounds: Rect, column: usize, row: usize, u: f64, v: f64) -> WarpSplit {
         let tolerance = |extent: f64| (8.0 / extent.abs().max(1.0)).clamp(0.02, 0.12);
-        let thirds = self.columns == 1 && self.rows == 1;
-        let near = |patches: usize, at: f64, tolerance: f64| {
-            let knots = (1..patches).map(|k| k as f64 / patches as f64);
+        let thirds = self.columns() == 1 && self.rows() == 1;
+        let near = |knots: &[f64], at: f64, tolerance: f64| {
+            let inner = knots[1..knots.len() - 1].iter().copied();
             let thirds = thirds.then_some([1.0 / 3.0, 2.0 / 3.0]).into_iter().flatten();
-            knots.chain(thirds).any(|k| (k - at).abs() < tolerance)
+            inner.chain(thirds).any(|k| (k - at).abs() < tolerance)
         };
-        let s = (column as f64 + u) / self.columns as f64;
-        let t = (row as f64 + v) / self.rows as f64;
-        match (near(self.columns, s, tolerance(bounds.width())), near(self.rows, t, tolerance(bounds.height()))) {
+        let (s, t) = self.params(column, row, u, v);
+        match (near(&self.us, s, tolerance(bounds.width())), near(&self.vs, t, tolerance(bounds.height()))) {
             (true, false) => WarpSplit::Horizontal,
             (false, true) => WarpSplit::Vertical,
             _ => WarpSplit::Cross,
@@ -228,8 +290,8 @@ impl WarpMesh {
         const COARSE: usize = 8;
         const ROUNDS: usize = 10;
         let mut best = (0, 0, 0.0, 0.0, f64::INFINITY);
-        for row in 0..self.rows {
-            for column in 0..self.columns {
+        for row in 0..self.rows() {
+            for column in 0..self.columns() {
                 let at = |u: f64, v: f64| self.patch_point(column, row, u, v).distance(p);
                 let mut found = (0.5, 0.5, f64::INFINITY);
                 for j in 0..=COARSE {
@@ -662,7 +724,7 @@ impl<'a> WarpGrid<'a> {
             // thirds put it at the same corner of the 3 × 3).
             let (base, thirds) = self.split_base();
             let (w, scale) = (self.mesh.width(), if thirds { 3 } else { 1 });
-            let (row, column) = ((anchor / w / 3 * scale).min(base.rows - 1), (anchor % w / 3 * scale).min(base.columns - 1));
+            let (row, column) = ((anchor / w / 3 * scale).min(base.rows() - 1), (anchor % w / 3 * scale).min(base.columns() - 1));
             gesture.set(WarpEdit::Split { split: tool, column, row, u: 0.5, v: 0.5, thirds });
         }
         let preview = if editable { self.split_pass(&ctx, canvas, view, id, mods, &mut gesture) } else { None };
@@ -782,7 +844,7 @@ impl<'a> WarpGrid<'a> {
 
     /// The mesh a split cuts and whether its thirds were made real first.
     fn split_base(&self) -> (Cow<'a, WarpMesh>, bool) {
-        let thirds = !self.preset && self.mesh.columns == 1 && self.mesh.rows == 1;
+        let thirds = !self.preset && self.mesh.columns() == 1 && self.mesh.rows() == 1;
         (if thirds { Cow::Owned(self.mesh.commit_thirds()) } else { Cow::Borrowed(self.mesh) }, thirds)
     }
 
@@ -929,7 +991,7 @@ impl<'a> WarpGrid<'a> {
         let painter = ui.painter_at(view.rect);
         let to_screen = view.affine();
         let tolerance = f64::from(style.flatten);
-        if self.mesh.columns == 1 && self.mesh.rows == 1 {
+        if self.mesh.columns() == 1 && self.mesh.rows() == 1 {
             for path in self.mesh.thirds() {
                 stroke_path(&painter, to_screen * path, tolerance, style.minor);
             }
