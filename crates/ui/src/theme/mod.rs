@@ -19,6 +19,18 @@
 //! });
 //! # });
 //! ```
+//!
+//! The spacing, radius and stroke steps are re-exported as [`scale`], so an app that depends on
+//! craft-ui alone writes `scale::Stroke::W1.egui(ctx, color)`. [`StrokeExt::egui`] passes the
+//! context's real pixel ratio, which keeps `Hairline` one physical pixel wide.
+//!
+//! ```
+//! use craft_ui::theme::{StrokeExt, scale};
+//! # egui::__run_test_ui(|ui| {
+//! let line = scale::Stroke::Hairline.egui(ui.ctx(), egui::Color32::WHITE);
+//! assert_eq!(line.width, scale::Stroke::Hairline.width(ui.ctx().pixels_per_point()));
+//! # });
+//! ```
 
 mod bridge;
 mod convert;
@@ -29,8 +41,8 @@ mod tests;
 mod tokens;
 
 pub use bridge::{Base, Captured, Inputs, Overrides, apply_popup_style, capture, current, install, scope, scoped_style, tokens_in_mode};
-pub use convert::{FontFamilies, ToEgui, corner_radius, margin, margin_x, stroke};
-pub use craft_theme::Tokens;
+pub use convert::{FontFamilies, StrokeExt, ToEgui, corner_radius, margin, margin_x, stroke};
+pub use craft_theme::{Tokens, scale};
 pub use roles::{TABULAR_FIGURES, role_format, style_format, tabular};
 pub use style::style_for;
 pub use tokens::{Radii, Shadows, TokensOf, UiTokens};

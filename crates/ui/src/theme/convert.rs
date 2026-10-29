@@ -74,6 +74,18 @@ pub fn stroke(width: f32, color: Rgba) -> Stroke {
     Stroke::new(width, color.to_egui())
 }
 
+/// Builds an egui stroke from a [`scale::Stroke`](craft_theme::scale::Stroke) step.
+pub trait StrokeExt {
+    /// The step as an egui stroke of `color`, with the width for `ctx`'s pixel ratio.
+    fn egui(self, ctx: &Context, color: impl Into<Color32>) -> Stroke;
+}
+
+impl StrokeExt for craft_theme::scale::Stroke {
+    fn egui(self, ctx: &Context, color: impl Into<Color32>) -> Stroke {
+        Stroke::new(self.width(ctx.pixels_per_point()), color)
+    }
+}
+
 fn to_u8(v: f32) -> u8 {
     v.round().clamp(0.0, 255.0) as u8
 }
