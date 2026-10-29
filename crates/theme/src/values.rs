@@ -542,12 +542,12 @@ pub const fn button_pad_x(size: Size) -> f32 {
 
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
-/// How much of its rest fill a primary button shows under the pointer and while pressed, and a
-/// secondary button of a filled theme while pressed (PhotoCraft draws these as the fill's alpha
-/// times the factor).
-pub const BUTTON_PRIMARY_HOVER_OPACITY: f32 = 0.9;
-pub const BUTTON_PRIMARY_PRESSED_OPACITY: f32 = 0.8;
-pub const BUTTON_SECONDARY_PRESSED_OPACITY: f32 = 0.85;
+/// How much of its rest fill a primary button shows under the pointer, and a primary or secondary
+/// button while pressed (PhotoCraft draws these as the fill's alpha times the factor:
+/// `widgets/buttons.rs:189-191`). The Pro themes pin the values of PhotoCraft's Pro buttons
+/// (`buttons.rs:165-166`: 0.9 and 0.8).
+pub const BUTTON_HOVER_OPACITY: f32 = 0.93;
+pub const BUTTON_PRESSED_OPACITY: f32 = 0.85;
 
 /// Between a segmented control's track edge and its segments, in points, at every Size.
 pub const SEGMENTED_INSET: f32 = 2.0;

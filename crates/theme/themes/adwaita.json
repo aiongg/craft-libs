@@ -29,9 +29,6 @@
   "light": {
     "accent.soft": "#3584e428",
     "accent.solid": "#3584e4",
-    "button.primary.text.hover": "{button.primary.text.rest}",
-    "button.primary.text.pressed": "{button.primary.text.rest}",
-    "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#d4d4d8",
     "caption.close_text": "#323236",
     "line.border": "#dadadd",
@@ -45,14 +42,12 @@
     "surface.sunken": "#ebebed",
     "text.faint": "#9b9ba0",
     "text.muted": "#646468",
-    "text.normal": "#323236"
+    "text.normal": "#323236",
+    "text.on_accent": "#ffffff"
   },
   "dark": {
     "accent.soft": "#3584e43c",
     "accent.solid": "#3584e4",
-    "button.primary.text.hover": "{button.primary.text.rest}",
-    "button.primary.text.pressed": "{button.primary.text.rest}",
-    "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#48484c",
     "caption.close_text": "#ffffff",
     "line.border": "#404044",
@@ -66,6 +61,7 @@
     "surface.sunken": "#404044",
     "text.faint": "#919194",
     "text.muted": "#c0c0c2",
-    "text.normal": "#ffffff"
+    "text.normal": "#ffffff",
+    "text.on_accent": "#ffffff"
   }
 }

@@ -21,9 +21,6 @@
     "accent.soft": "#d0d0d0",
     "accent.solid": "#378ef0",
     "accent.text": "#004296",
-    "button.primary.text.hover": "{button.primary.text.rest}",
-    "button.primary.text.pressed": "{button.primary.text.rest}",
-    "button.primary.text.rest": "#ffffff",
     "button.secondary.border.hover": "{text.normal}",
     "button.secondary.border.pressed": "{text.normal}",
     "button.secondary.border.rest": "{text.muted}",
@@ -46,9 +43,12 @@
     "tab.strip": "#aaaaaa",
     "text.faint": "#606060",
     "text.muted": "#343434",
-    "text.normal": "#141414"
+    "text.normal": "#141414",
+    "text.on_accent": "#ffffff"
   },
   "components": {
-    "button.border_width": 1.5
+    "button.border_width": 1.5,
+    "button.hover_opacity": 0.9,
+    "button.pressed_opacity": 0.8
   }
 }

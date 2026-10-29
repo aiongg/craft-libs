@@ -757,6 +757,7 @@ pub(super) fn component_overrides(
         };
         let _ = comp.set(f, v);
     }
+    comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)));
     layers
 }
 

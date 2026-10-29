@@ -21,9 +21,6 @@
     "accent.soft": "#d6d6d6",
     "accent.solid": "#378ef0",
     "accent.text": "#1062c4",
-    "button.primary.text.hover": "{button.primary.text.rest}",
-    "button.primary.text.pressed": "{button.primary.text.rest}",
-    "button.primary.text.rest": "#ffffff",
     "button.secondary.border.hover": "{text.normal}",
     "button.secondary.border.pressed": "{text.normal}",
     "button.secondary.border.rest": "{text.muted}",
@@ -45,7 +42,8 @@
     "surface.sunken": "#ffffff",
     "text.faint": "#787878",
     "text.muted": "#404040",
-    "text.normal": "#141414"
+    "text.normal": "#141414",
+    "text.on_accent": "#ffffff"
   },
   "dark": {
     "accent.soft": "#6e6e6e",
@@ -72,9 +70,12 @@
     "tab.strip": "#4a4a4a",
     "text.faint": "#a0a0a0",
     "text.muted": "#d4d4d4",
-    "text.normal": "#eeeeee"
+    "text.normal": "#eeeeee",
+    "text.on_accent": "#ffffff"
   },
   "components": {
-    "button.border_width": 1.5
+    "button.border_width": 1.5,
+    "button.hover_opacity": 0.9,
+    "button.pressed_opacity": 0.8
   }
 }

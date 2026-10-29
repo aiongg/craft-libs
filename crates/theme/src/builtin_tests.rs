@@ -503,8 +503,8 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
 /// PhotoCraft's buttons: the Pro themes draw the secondary button as a transparent pill outlined
 /// 1.5 points in `text.muted`, `text.normal` once hovered, filled with `state.hover` then and
 /// pressed; the other themes fill it with `surface.sunken`, 1 point edged, and show it pressed at
-/// 85% opacity. Studio and Soft take their own radius; the primary button shows 90% and 80% of its
-/// fill when hovered and pressed.
+/// 85% opacity. Studio and Soft take their own radius; the primary button shows 93% and 85% of its
+/// fill when hovered and pressed (90% and 80% in the Pro themes).
 #[test]
 fn buttons_follow_photocraft() {
     for theme in builtins() {
@@ -519,11 +519,18 @@ fn buttons_follow_photocraft() {
             let secondary = &b.secondary;
             assert_eq!((b.height.md, b.pad_x.md), (28.0, 14.0), "{id}");
             let primary = b.primary.fill;
+            let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&id);
+            let (hover, pressed) = if pro { (0.9, 0.8) } else { (0.93, 0.85) };
             if id != "craft.classic" {
-                assert_eq!(primary.hover, primary.rest.faded(0.9), "{id} {mode:?}");
-                assert_eq!(primary.pressed, primary.rest.faded(0.8), "{id} {mode:?}");
+                assert_eq!((b.hover_opacity, b.pressed_opacity), (hover, pressed), "{id}");
+                assert_eq!(primary.hover, primary.rest.faded(hover), "{id} {mode:?}");
+                assert_eq!(primary.pressed, primary.rest.faded(pressed), "{id} {mode:?}");
+                assert_eq!([b.primary.text.hover, b.primary.text.pressed], [b.primary.text.rest; 2], "{id} {mode:?}");
             }
-            if ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&id) {
+            if pro || ["craft.adwaita", "craft.breeze", "craft.soft"].contains(&id) {
+                assert_eq!(t.color(ColorToken::TextOnAccent), Rgba::WHITE, "{id} {mode:?}: PhotoCraft draws white on its accent");
+            }
+            if pro {
                 assert_eq!(b.border_width, 1.5, "{id}");
                 assert_eq!(secondary.fill.rest, Rgba::TRANSPARENT, "{id} {mode:?}");
                 assert_eq!([secondary.fill.hover, secondary.fill.pressed], [t.color(ColorToken::StateHover); 2], "{id} {mode:?}");

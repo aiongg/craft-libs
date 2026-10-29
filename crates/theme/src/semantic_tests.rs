@@ -62,6 +62,18 @@ pub(super) fn appearances() -> Vec<Appearance> {
     out
 }
 
+/// A report on the primary button's text over its fill. Standard contrast reports these: the fill
+/// is the accent, shown at PhotoCraft's hover and pressed opacities, and the text is whatever the
+/// theme draws on its accent. High contrast fixes them.
+pub(super) fn is_primary_button_pair(w: &ContrastCheck) -> bool {
+    matches!(w.fg, TokenRef::Component(ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Primary, .. })))
+}
+
+/// `warnings` without the primary button's pairs.
+pub(super) fn unexpected(warnings: &[ContrastCheck]) -> Vec<ContrastCheck> {
+    warnings.iter().filter(|w| !is_primary_button_pair(w)).copied().collect()
+}
+
 pub(super) fn app(mode: Mode, contrast: Contrast) -> Appearance {
     Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
 }
@@ -139,7 +151,7 @@ fn samples_resolve_and_derived_tokens_meet_every_minimum() {
             if pinned && a.contrast == Contrast::Standard {
                 continue;
             }
-            assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(unexpected(&r.warnings).is_empty(), "{} {a:?}: {:?}", def.name, r.warnings);
             assert_meets_spec(&def.name, &r, a.contrast);
         }
     }
@@ -164,7 +176,7 @@ fn the_focus_line_meets_3_to_1_on_the_background_in_every_built_in_and_with_a_pi
         let r = resolve(&def, a, None);
         let ratio = contrast_ratio(r.tokens.color(T::LineFocus), r.tokens.color(T::SurfaceBackground));
         assert!(ratio >= min(a), "{a:?}: {ratio:.2}");
-        assert!(r.warnings.is_empty(), "{a:?}: {:?}", r.warnings);
+        assert!(unexpected(&r.warnings).is_empty(), "{a:?}: {:?}", r.warnings);
     }
 }
 
@@ -225,7 +237,7 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, t.color(T::SurfaceRaised)),
             minimum: 4.5,
         });
-        assert_eq!(r.warnings, expected, "{mode:?}");
+        assert_eq!(unexpected(&r.warnings), expected, "{mode:?}");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
@@ -251,7 +263,7 @@ fn pinned_edge_hover_pressed_and_divider_are_kept_without_warnings() {
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(r.tokens.color(t), panel, "{mode:?} {t:?}");
         }
-        assert!(r.warnings.is_empty(), "{mode:?}: {:?}", r.warnings);
+        assert!(unexpected(&r.warnings).is_empty(), "{mode:?}: {:?}", r.warnings);
         let high = resolve(&def, app(mode, Contrast::High), None);
         for t in [T::LineControlEdge, T::StateHover, T::StatePressed, T::LineDivider] {
             assert_eq!(high.tokens.color(t), panel, "{mode:?} {t:?} in high contrast");
@@ -303,7 +315,7 @@ fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
         }
         assert_eq!(t.color(T::StateDisabledFill), panel, "{mode:?}");
         assert!(e.colors.iter().all(|o| !matches!(o.pass_move, Some(PassMove::Pulled(_)))), "{mode:?}: nothing needs a pull");
-        assert!(e.resolved.warnings.is_empty(), "{mode:?}: {:?}", e.resolved.warnings);
+        assert!(unexpected(&e.resolved.warnings).is_empty(), "{mode:?}: {:?}", e.resolved.warnings);
     }
 }
 
@@ -781,9 +793,10 @@ fn pinned_failing_text_warns_on_its_pairs_and_the_component_pairs_that_read_it()
         .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
         .into_iter()
         .collect();
-    let (semantic, component): (Vec<ContrastCheck>, Vec<ContrastCheck>) = r.warnings.iter().partition(|w| matches!(w.fg, TokenRef::Color(_)));
+    let (semantic, component): (Vec<ContrastCheck>, Vec<ContrastCheck>) =
+        r.warnings.iter().filter(|w| !is_primary_button_pair(w)).partition(|w| matches!(w.fg, TokenRef::Color(_)));
     assert_eq!(semantic, expected);
-    let failing: Vec<_> = steps.component_pairs.iter().filter(|p| !p.passes()).copied().collect();
+    let failing: Vec<_> = steps.component_pairs.iter().filter(|p| !p.passes() && !is_primary_button_pair(p)).copied().collect();
     assert!(!component.is_empty());
     assert_eq!(component, failing);
     for w in &component {
@@ -798,5 +811,5 @@ fn pinned_failing_text_warns_on_its_pairs_and_the_component_pairs_that_read_it()
     let text = ComponentField::from_path("button.secondary.text.rest").unwrap();
     def.pins.light = Pins::from_iter([(TokenRef::Component(text), pin)]);
     let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
-    assert_eq!(r.warnings.iter().map(|w| w.fg).collect::<Vec<_>>(), [TokenRef::Component(text)]);
+    assert_eq!(unexpected(&r.warnings).iter().map(|w| w.fg).collect::<Vec<_>>(), [TokenRef::Component(text)]);
 }

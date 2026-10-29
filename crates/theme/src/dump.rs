@@ -1043,7 +1043,22 @@ fn handle_lines(out: &mut Lines, h: &HandleTokens) {
 }
 
 fn button_lines(out: &mut Lines, b: &ButtonTokens) {
-    let ButtonTokens { height, pad_x, icon, gap, label, radius, border_width, primary, secondary, ghost, danger, default_frame } = b;
+    let ButtonTokens {
+        height,
+        pad_x,
+        icon,
+        gap,
+        label,
+        radius,
+        border_width,
+        hover_opacity,
+        pressed_opacity,
+        primary,
+        secondary,
+        ghost,
+        danger,
+        default_frame,
+    } = b;
     by_size(out, "button.height", height);
     by_size(out, "button.pad_x", pad_x);
     by_size(out, "button.icon", icon);
@@ -1051,6 +1066,8 @@ fn button_lines(out: &mut Lines, b: &ButtonTokens) {
     out.line("button.label", role(*label));
     out.line("button.radius", len(*radius));
     out.line("button.border_width", len(*border_width));
+    out.line("button.hover_opacity", len(*hover_opacity));
+    out.line("button.pressed_opacity", len(*pressed_opacity));
     out.line("button.default_frame", hex(*default_frame));
     for (k, colors) in [("primary", primary), ("secondary", secondary), ("ghost", ghost), ("danger", danger)] {
         let ButtonColors { fill, border, text } = colors;

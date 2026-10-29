@@ -150,7 +150,7 @@ impl Family for ToggleButtonTokens {
         out.extend([ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
             fg: on(ButtonPart::Fill),
             bg: TokenRef::Color(bg),
-            minimum: values::NON_TEXT_MIN,
+            minimum: values::STATE_CUE_MIN,
             alternate: Some(on(ButtonPart::Border)),
         }));
         out.push(ContrastPair { fg: on(ButtonPart::Text), bg: on(ButtonPart::Fill), minimum: values::TEXT_MIN, alternate: None });

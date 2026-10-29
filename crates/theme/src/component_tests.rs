@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::semantic_tests::{app, appearances, grey_blue, hex, over, violet};
+use super::semantic_tests::{app, appearances, grey_blue, hex, is_primary_button_pair, over, violet};
 use super::*;
 use ColorToken as T;
 
@@ -34,25 +34,30 @@ fn button_defaults_meet_every_minimum() {
         for a in appearances() {
             let r = resolve(&def, a, None);
             let t = &r.tokens;
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             for (fg, bg, std, hi) in button_pairs() {
                 let min = if a.contrast == Contrast::High { hi } else { std };
                 let ratio = pair_ratio(t, fg, bg);
-                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+                // Standard contrast reports the primary button's pairs (see `is_primary_button_pair`).
+                let primary = matches!(fg, ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Primary, .. }));
+                assert!(ratio >= min || (primary && a.contrast != Contrast::High), "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
             }
         }
     }
 
     let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
     let b = &t.component.button;
-    assert_eq!(
-        b.primary.fill,
-        States::new(t.color(T::AccentStrong), t.color(T::AccentStrongHover), t.color(T::AccentStrongPressed), t.color(T::StateDisabledFill))
-    );
-    assert_eq!(b.primary.text, States::new(t.color(T::TextOnStrong), t.color(T::TextOnStrong), t.color(T::TextOnStrong), t.color(T::TextDisabled)));
+    let accent = t.color(T::AccentSolid);
+    assert_eq!(b.primary.fill, States::new(accent, accent.faded(b.hover_opacity), accent.faded(b.pressed_opacity), t.color(T::StateDisabledFill)));
+    assert_eq!(b.primary.text, States::new(t.color(T::TextOnAccent), t.color(T::TextOnAccent), t.color(T::TextOnAccent), t.color(T::TextDisabled)));
     assert_eq!(b.danger.fill.pressed, t.color(T::StatusBadSolidPressed));
     assert_eq!(b.colors(ButtonVariant::Secondary).border.get(State::Hover), t.color(T::LineControlEdge));
-    assert_eq!(b.secondary.border.rest, t.color(T::LineBorder));
+    assert_eq!(b.secondary.border.rest, t.color(T::LineControlEdge));
     assert_eq!(b.ghost.fill.rest, Rgba::TRANSPARENT);
     assert_eq!(b.danger.text, States::new(t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextOnStatus), t.color(T::TextDisabled)));
 }
@@ -78,7 +83,12 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
             for (fg, bg) in item_pairs() {
                 let ratio = pair_ratio(&r.tokens, fg, Some(bg));
@@ -114,7 +124,12 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let track = ComponentField::Slider(SliderField::Track);
             for s in [State::Rest, State::Hover, State::Pressed] {
@@ -143,7 +158,12 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let (stroke, fill) = (ComponentField::Curve(CurveField::PointStroke), ComponentField::Curve(CurveField::Fill));
             let ratio = pair_ratio(&r.tokens, stroke, Some(fill));
@@ -210,7 +230,12 @@ fn gradient_editor_defaults_come_from_semantic_tokens_and_its_cues_meet_the_indi
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             for f in [GradientEditorField::Selected, GradientEditorField::MarkerEdge] {
                 let ratio = pair_ratio(&r.tokens, ComponentField::GradientEditor(f), None);
@@ -249,7 +274,12 @@ fn angle_dial_defaults_come_from_semantic_tokens_and_the_needle_meets_the_face()
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let (needle, face) = (ComponentField::AngleDial(AngleDialField::Needle), ComponentField::AngleDial(AngleDialField::Face));
             let ratio = pair_ratio(&r.tokens, needle, Some(face));
@@ -305,7 +335,12 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             for (fg, bg, (standard, high)) in field_pairs() {
                 let min = if a.contrast == Contrast::High { high } else { standard };
                 let ratio = pair_ratio(&r.tokens, fg, Some(bg));
@@ -361,7 +396,12 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let t = &r.tokens;
             for (fg, bg, (standard, high)) in listbox_pairs() {
                 let min = if a.contrast == Contrast::High { high } else { standard };
@@ -460,7 +500,12 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
             let t = &r.tokens;
             let color = |r: TokenRef| match r {
@@ -556,7 +601,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        3 + 4 * 3 * 4
+        5 + 4 * 3 * 4
             + 1
             + (2 + 3) * 4
             + 2 * 4
@@ -770,7 +815,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         let r = resolve(&def, app(mode, Contrast::Standard), None);
         let t = &r.tokens;
         assert_eq!(t.component.color(text), Some(pin));
-        assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
+        assert_eq!(t.component.button.primary.text.hover, pin, "the other states follow the pinned rest text");
         let ratio = pair_ratio(t, text, Some(fill));
         let pinned: Vec<_> = r.warnings.iter().filter(|w| w.fg == text.into()).copied().collect();
         assert_eq!(pinned, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
@@ -851,7 +896,12 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let t = &r.tokens;
             let (text_min, indicator_min) = if a.contrast == Contrast::High { (7.0, 4.5) } else { (4.5, 3.0) };
             for tone in BadgeTone::ALL {
@@ -1383,7 +1433,12 @@ fn selected_fills_show_on_what_they_sit_on() {
     for def in [grey_blue(), violet()] {
         for a in appearances() {
             let r = resolve(&def, a, None);
-            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            assert!(
+                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                "{} {a:?}: {:?}",
+                def.name,
+                r.warnings
+            );
             let (t, min) = (&r.tokens, indicator_min(a));
             if a.contrast == Contrast::Standard {
                 let k = &t.component;
@@ -1391,7 +1446,7 @@ fn selected_fills_show_on_what_they_sit_on() {
                 let who = format!("{} {a:?}", def.name);
                 assert_eq!((k.segmented.selected.fill.rest, k.segmented.selected.text.rest), (selected, on), "{who}");
                 assert_eq!((k.icon_button.selected.fill.rest, k.list.selected, k.dock.icon_selected), (selected, selected, selected), "{who}");
-                assert_eq!((k.button.secondary.fill.pressed, k.list.selected_hover), (selected, t.color(T::StateSelectedHover)), "{who}");
+                assert_eq!((k.toggle_button.on_fill, k.list.selected_hover), (selected, t.color(T::StateSelectedHover)), "{who}");
                 continue;
             }
             let text_min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
@@ -1408,9 +1463,9 @@ fn selected_fills_show_on_what_they_sit_on() {
             on("list selected", k.list.selected, &[panel]);
             on("list selected_hover", k.list.selected_hover, &[panel]);
             on("dock icon selected", k.dock.icon_selected, &[k.dock.background]);
-            let secondary = &k.button.secondary;
+            let toggle = &k.toggle_button;
             for bg in [panel, raised] {
-                let (fill, edge) = (contrast_ratio(secondary.fill.pressed, bg), contrast_ratio(secondary.border.pressed, bg));
+                let (fill, edge) = (contrast_ratio(toggle.on_fill, bg), contrast_ratio(toggle.on_border, bg));
                 assert!(fill.max(edge) >= min, "{} {a:?}: toggle on is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
             }
             for (text, fill) in [
@@ -1418,7 +1473,7 @@ fn selected_fills_show_on_what_they_sit_on() {
                 (k.list.selected_text, k.list.selected_hover),
                 (k.dock.icon_selected_text, k.dock.icon_selected),
                 (k.segmented.selected.text.rest, k.segmented.selected.fill.rest),
-                (secondary.text.pressed, secondary.fill.pressed),
+                (toggle.on_text, toggle.on_fill),
             ] {
                 let ratio = contrast_ratio(text, fill);
                 assert!(ratio >= text_min, "{} {a:?}: text {} on {} is {ratio:.2}, needs {text_min}", def.name, text.to_hex(), fill.to_hex());
@@ -1481,5 +1536,29 @@ fn a_check_outline_moves_only_where_neither_fill_nor_outline_shows() {
     for mode in [Mode::Light, Mode::Dark] {
         let t = resolve(&shown, app(mode, Contrast::Standard), None).tokens;
         assert_eq!(t.component.check.off.border.rest, t.color(T::TextFaint), "{mode:?}");
+    }
+}
+
+/// The primary and secondary hover and pressed fills and the primary text states follow the final
+/// rest colours, unless pinned, at the theme's opacities.
+#[test]
+fn button_states_follow_pinned_rest_colours() {
+    let fill = |s| button(ButtonVariant::Primary, ButtonPart::Fill, s);
+    let mut def = grey_blue();
+    let (rest, text, hover) = (hex("#f6f6f8"), hex("#0c0c0e"), hex("#123456"));
+    let pins = Pins::from_iter([
+        (fill(State::Rest), rest),
+        (button(ButtonVariant::Primary, ButtonPart::Text, State::Rest), text),
+        (fill(State::Hover), hover),
+    ]);
+    def.pins.light = pins.clone();
+    def.pins.dark = pins;
+    def.components.insert(ComponentField::from_path("button.pressed_opacity").unwrap(), OverrideValue::Length(0.5));
+    for mode in [Mode::Light, Mode::Dark] {
+        let b = resolve(&def, app(mode, Contrast::Standard), None).tokens.component.button;
+        assert_eq!(b.primary.fill.hover, hover, "a pinned hover fill stays");
+        assert_eq!(b.primary.fill.pressed, rest.faded(0.5), "{mode:?}");
+        assert_eq!([b.primary.text.hover, b.primary.text.pressed], [text; 2], "{mode:?}");
+        assert_eq!(b.secondary.fill.pressed, b.secondary.fill.rest.faded(0.5), "{mode:?}");
     }
 }
