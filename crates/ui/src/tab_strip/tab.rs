@@ -2,12 +2,13 @@
 
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use craft_theme::{Stroke as Hairline, TypeRole};
 use egui::accesskit::{Node, Role};
 use egui::emath::GuiRounding as _;
 use egui::os::OperatingSystem;
-use egui::text::LayoutJob;
+use egui::text::{Galley, LayoutJob};
 use egui::{Color32, CornerRadius, Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use crate::controls::TooltipExt as _;
@@ -42,6 +43,26 @@ impl TabStripText {
     }
 }
 
+/// Largest meaningful extent of a tab, in logical points.
+const MAX_EXTENT: f32 = 1_000_000.0;
+
+/// A label the host shaped itself (its own fonts, glyph substitution or styling), laid out
+/// without wrapping. Two are equal when they are the same layout.
+#[derive(Clone)]
+pub(crate) struct Shaped(Arc<Galley>);
+
+impl PartialEq for Shaped {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Debug for Shaped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Shaped({:?})", self.0.text())
+    }
+}
+
 /// One tab, as the host passes it to a strip each frame.
 ///
 /// The key identifies the tab across frames and in events; it is not a position.
@@ -49,6 +70,8 @@ impl TabStripText {
 #[must_use = "show the tab with `show_at`, or pass it to a strip"]
 pub struct Tab<K> {
     pub(crate) key: K,
+    pub(crate) id: Option<Id>,
+    pub(crate) shaped: Option<Shaped>,
     pub(crate) label: String,
     pub(crate) detail: Option<String>,
     pub(crate) icon: Option<Icon>,
@@ -60,13 +83,28 @@ pub struct Tab<K> {
 impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// A tab with this key and label.
     pub fn new(key: K, label: impl Into<String>) -> Self {
-        Self { key, label: label.into(), detail: None, icon: None, modified: false, closable: false, progress: None }
+        Self { key, id: None, shaped: None, label: label.into(), detail: None, icon: None, modified: false, closable: false, progress: None }
     }
 
     /// Secondary text after the label (a colour mode, a zoom): it stays readable while the label
     /// is cut, and is drawn in `tab.detail`. Empty text counts as none.
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into()).filter(|d| !d.is_empty());
+        self
+    }
+
+    /// The widget id of the tab, instead of the one derived from the strip and the key
+    /// ([`Tab::id`]). For a host that already owns its tabs' ids.
+    pub fn with_id(mut self, id: Id) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// The label as the host shaped it, laid out without wrapping and in the colour the tab
+    /// shows it in ([`TabStyle::label_color`]). The tab cuts it with an ellipsis where the
+    /// room is short; the label text stays the tab's name and tooltip.
+    pub fn shaped(mut self, galley: Arc<Galley>) -> Self {
+        self.shaped = Some(Shaped(galley));
         self
     }
 
@@ -117,6 +155,12 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// Whether the tab has a ×.
     pub fn is_closable(&self) -> bool {
         self.closable
+    }
+
+    /// The widget id of this tab in the strip `strip`: its [`with_id`](Self::with_id) id, else
+    /// [`Tab::id`].
+    pub fn widget_id(&self, strip: Id) -> Id {
+        self.id.unwrap_or_else(|| Self::id(strip, &self.key))
     }
 
     /// The widget id of the tab with `key` in the strip `strip`.
@@ -207,11 +251,11 @@ impl TabStyle {
     }
 
     /// The fill of a tab in `rect`: the active tab and a tab under the pointer take `tab.active`
-    /// with `tab.radius` on the top corners; the others show the strip. Dock and document tabs
-    /// share it.
+    /// with `tab.radius` on the top corners; the others show the strip.
     pub fn paint_surface(&self, painter: &egui::Painter, rect: Rect, filled: bool) {
         if filled {
-            paint_active_fill(painter, rect, self.radius, self.active);
+            let r = corner_radius(self.radius).nw;
+            painter.rect_filled(rect, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, self.active);
         }
     }
 
@@ -279,13 +323,6 @@ impl TabStyle {
             detail_cut: detail < metrics.detail,
         }
     }
-}
-
-/// The fill of the active tab, and of a tab under the pointer: `fill` with `radius` on the top
-/// corners. A dock group's tab and a document tab both paint through it.
-pub(crate) fn paint_active_fill(painter: &egui::Painter, rect: Rect, radius: f32, fill: Color32) {
-    let r = corner_radius(radius).nw;
-    painter.rect_filled(rect, CornerRadius { nw: r, ne: r, sw: 0, se: 0 }, fill);
 }
 
 /// Which parts of a tab are shown.
@@ -413,7 +450,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             ui.painter().layout_job(job).size().x
         };
         TabMetrics {
-            label: width(&self.label, style.label_role(large)),
+            label: self.shaped.as_ref().map_or_else(|| width(&self.label, style.label_role(large)), |s| s.0.size().x),
             detail: self.detail.as_deref().map_or(0.0, |d| width(d, style.detail_role)),
             mark: if self.modified { width("*", style.label_role(large)) } else { 0.0 },
         }
@@ -434,11 +471,27 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// responses. The × is part of the tab when the tab [`closable`](Tab::closable); a strip of
     /// panels clears that before it passes the tab.
     pub fn show_at(&self, ui: &mut Ui, rect: Rect, view: &TabView<'_>) -> TabResponse {
+        let style = Self::style(&Tokens::of(ui));
+        self.show_with(ui, rect, view, &style)
+    }
+
+    /// [`show_at`](Self::show_at) with `style` in place of the theme's: a host that keeps its own
+    /// colours or padding changes the fields of [`Tab::style`]'s result. An empty, inverted,
+    /// non-finite or oversized `rect` gets an inert, disabled response (still named, so the
+    /// accessibility tree lists the tab) and paints nothing.
+    pub fn show_with(&self, ui: &mut Ui, rect: Rect, view: &TabView<'_>, style: &TabStyle) -> TabResponse {
         let tokens = Tokens::of(ui);
-        let mut style = Self::style(&tokens);
+        let mut style = *style;
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
+        let id = self.widget_id(view.strip);
+        let size = rect.size();
+        if !rect.is_finite() || size.x <= 0.0 || size.y <= 0.0 || size.x > MAX_EXTENT || size.y > MAX_EXTENT {
+            let tab = ui.interact(Rect::from_min_size(pos2(0.0, 0.0), vec2(0.0, 0.0)), id, Sense::hover());
+            tab.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, false, view.active, &self.label));
+            let layout = style.layout(Rect::ZERO, &TabMetrics::default(), TabParts::default(), false, false);
+            return TabResponse { tab, close: None, layout };
+        }
         let rtl = direction::is_rtl(ui);
-        let id = Self::id(view.strip, &self.key);
         let metrics = self.metrics(ui, view.large);
         let parts = self.parts(true);
         let close_first = ui.ctx().os() == OperatingSystem::Mac;
@@ -469,7 +522,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let close = layout.close.map(|at| {
             let child = ui.new_child(UiBuilder::new().max_rect(at).accessibility_parent(id));
             let name = TabStripText::fill(&view.text.close, &self.label);
-            let sensed = Interactive::with_id(Self::close_id(view.strip, &self.key), Role::Button, name)
+            let sensed = Interactive::with_id(id.with("close"), Role::Button, name)
                 .sense(Sense::CLICK)
                 .state_layer(false)
                 .focus_ring(false)
@@ -478,7 +531,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         });
 
         if ui.is_rect_visible(rect) {
-            self.paint(ui, &style, view, &layout, (&tab, close.as_ref()));
+            self.paint(ui, &tokens, &style, view, &layout, (&tab, close.as_ref()));
         }
         if layout.label_cut || layout.detail_cut {
             let full = match &self.detail {
@@ -491,10 +544,17 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         TabResponse { tab, close, layout }
     }
 
-    fn paint(&self, ui: &Ui, style: &TabStyle, view: &TabView<'_>, layout: &TabLayout, (tab, close): (&Response, Option<&Response>)) {
+    fn paint(
+        &self,
+        ui: &Ui,
+        tokens: &UiTokens,
+        style: &TabStyle,
+        view: &TabView<'_>,
+        layout: &TabLayout,
+        (tab, close): (&Response, Option<&Response>),
+    ) {
         let rect = tab.rect;
         let hovered = (tab.hovered() || close.is_some_and(Response::hovered)) && ui.is_enabled();
-        let tokens = Tokens::of(ui);
         let rtl = direction::is_rtl(ui);
         let ppp = ui.pixels_per_point();
         style.paint_surface(ui.painter(), rect, view.active || hovered);
@@ -508,14 +568,30 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             if at.width() < 1.0 {
                 return;
             }
-            let mut job = LayoutJob::single_section(string.to_owned(), role_format(&tokens, text_role, color));
+            let mut job = LayoutJob::single_section(string.to_owned(), role_format(tokens, text_role, color));
             job.wrap = egui::text::TextWrapping::truncate_at_width(at.width());
             let galley = ui.painter().layout_job(job);
             let x = if rtl { at.right() - galley.size().x } else { at.left() };
             let y = at.center().y - galley.size().y / 2.0;
             ui.painter().with_clip_rect(at.expand2(vec2(0.0, 1.0))).galley(pos2(x, y).round_to_pixels(ppp), galley, color);
         };
-        run(ui, layout.label, style.label_role(large), &self.label, text);
+        match &self.shaped {
+            Some(Shaped(galley)) if layout.label.width() >= 1.0 => {
+                let at = layout.label;
+                let galley = if galley.size().x <= at.width() + 0.5 {
+                    galley.clone()
+                } else {
+                    let mut job = (*galley.job).clone();
+                    job.wrap = egui::text::TextWrapping::truncate_at_width(at.width());
+                    ui.painter().layout_job(job)
+                };
+                let x = if rtl { at.right() - galley.size().x } else { at.left() };
+                let y = at.center().y - galley.size().y / 2.0;
+                ui.painter().with_clip_rect(at.expand2(vec2(0.0, 1.0))).galley(pos2(x, y).round_to_pixels(ppp), galley, text);
+            }
+            Some(_) => {}
+            None => run(ui, layout.label, style.label_role(large), &self.label, text),
+        }
         if let (Some(at), Some(detail)) = (layout.detail, &self.detail) {
             run(ui, at, style.detail_role, detail, style.detail);
         }
@@ -551,7 +627,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             ui.painter().rect_stroke(rect, 0.0, Stroke::new(band, halo.color), StrokeKind::Inside);
             ui.painter().rect_stroke(rect.shrink(halo.width), 0.0, Stroke::new(style.drop_width, style.drop), StrokeKind::Inside);
         }
-        let ring = FocusRing::style(&tokens);
+        let ring = FocusRing::style(tokens);
         FocusRing::paint_if(ui, rect.shrink(2.0 + ring.outset()), CornerRadius::ZERO, view.focused);
     }
 }

@@ -254,21 +254,26 @@ fn the_painters_read_their_own_tokens() {
     assert!(rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "hovered tab");
     d.leave();
 
-    // Keyboard focus on a tab and on a drag bar is drawn with `float.focus`, at the focus width.
+    // Keyboard focus on a drag bar is drawn with `float.focus`, at the focus width.
     let width = look_at(Size::Compact, Mode::Light).focus_width;
-    for (hit, outline) in [(Hit::Tab(1), None), (Hit::DragBar(1), Some(1.0))] {
-        let rect = rect_of(&d, hit.clone());
-        d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &hit)));
-        d.step(vec![]);
-        d.step(vec![]);
-        let drawn = rects(&d);
-        let stroked = drawn.iter().any(|r| {
-            r.stroke.color == wanted(focus)
-                && r.stroke.width == width
-                && outline.map_or(r.rect.intersects(rect), |inset| r.rect == rect.shrink(inset))
-        });
-        assert!(stroked, "{hit:?} focus outline");
-    }
+    let bar = rect_of(&d, Hit::DragBar(1));
+    d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));
+    d.step(vec![]);
+    d.step(vec![]);
+    let stroked = rects(&d).iter().any(|r| r.stroke.color == wanted(focus) && r.stroke.width == width && r.rect == bar.shrink(1.0));
+    assert!(stroked, "drag bar focus outline");
+
+    // A tab shows the tab component's focus ring (`line.focus`, not `float.focus`) while the
+    // keyboard has the focus.
+    let tab = rect_of(&d, Hit::Tab(1));
+    d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::Tab(1))));
+    let press = egui::Event::Key { key: egui::Key::F20, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    d.step(vec![press]);
+    d.step(vec![]);
+    let ring = rects(&d)
+        .iter()
+        .any(|r| r.stroke.width > 0.0 && r.stroke.color != wanted(focus) && r.rect.intersects(tab) && r.rect.size() != tab.size() && r.fill.a() == 0);
+    assert!(ring, "tab focus ring");
 
     // The current icon cell is filled with `dock.icon.selected`, its letter in the selected text color.
     d.ctx.memory_mut(|m| m.surrender_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));

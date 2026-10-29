@@ -5,7 +5,6 @@
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis, SplitSize, split_rect};
 #[allow(deprecated)]
-use craft_ui::tabs::Tab;
 use egui::{Align, Color32, CornerRadius, Id, Layout, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 pub const CANVAS: Vec2 = vec2(128.0, 72.0);
@@ -127,13 +126,12 @@ impl State {
 pub enum Component {
     Button,
     SingleShapeButton,
-    Tab,
     HorizontalSplit,
     VerticalSplit,
 }
 
 impl Component {
-    pub const ALL: [Self; 5] = [Self::Button, Self::SingleShapeButton, Self::Tab, Self::HorizontalSplit, Self::VerticalSplit];
+    pub const ALL: [Self; 4] = [Self::Button, Self::SingleShapeButton, Self::HorizontalSplit, Self::VerticalSplit];
 
     pub fn is_split(self) -> bool {
         matches!(self, Self::HorizontalSplit | Self::VerticalSplit)
@@ -156,8 +154,6 @@ impl Case {
 
     pub fn size(self) -> Vec2 {
         match (self.component, self.compact) {
-            (Component::Tab, false) => vec2(44.0, 28.0),
-            (Component::Tab, true) => vec2(22.0, 12.0),
             (_, false) => vec2(36.0, 28.0),
             (_, true) => vec2(18.0, 12.0),
         }
@@ -193,21 +189,6 @@ pub fn icon(painter: &Painter, rect: Rect, color: Color32, compact: bool) {
     let half = if compact { vec2(3.0, 2.0) } else { vec2(6.0, 4.0) };
     painter.line_segment([rect.center() - half, rect.center() + half], Stroke::new(1.0, color));
     painter.line_segment([rect.center() + vec2(-half.x, half.y), rect.center() + vec2(half.x, -half.y)], Stroke::new(1.0, color));
-}
-
-fn tab_body(ui: &Ui, response: &Response, selected: bool, palette: Palette, compact: bool) {
-    let (fill, tint) = if selected {
-        (palette.selected, Color32::WHITE)
-    } else if response.is_pointer_button_down_on() {
-        (palette.pressed, palette.press_icon)
-    } else if response.hovered() {
-        (palette.hovered, palette.hover_icon)
-    } else {
-        (palette.normal, palette.icon)
-    };
-    ui.painter().rect_filled(response.rect, 0.0, fill);
-    ui.painter().rect_stroke(response.rect, 0.0, Stroke::new(1.0, palette.border), StrokeKind::Inside);
-    icon(ui.painter(), response.rect, tint, compact);
 }
 
 /// Actual production components, driven through egui responses and app-supplied fixture styles.
@@ -252,17 +233,9 @@ pub fn actual(ui: &mut Ui, case: Case, mutation: Mutation) -> Vec<Response> {
             ui.add_enabled_ui(case.state.enabled(), |ui| {
                 for index in 0..2 {
                     let selected = index == 0 && case.state.selected();
-                    #[allow(deprecated)]
-                    let response = if matches!(case.component, Component::Tab) {
-                        let rect = Rect::from_min_size(pos2(12.0 + index as f32 * (case.size().x + spacing), 12.0), case.size());
-                        Tab::new(Id::unique(("visual-tab", index)), "Tab", selected)
-                            .focus_stroke(style.focus_stroke)
-                            .show_at(ui, rect, |ui, r| tab_body(ui, r, selected, p, case.compact))
-                    } else {
-                        let button = IconButton::new("Action", case.size(), &style).selected(selected);
-                        let button = if matches!(case.component, Component::SingleShapeButton) { button.single_shape_frame() } else { button };
-                        button.show(ui, |ui, rect, tint| icon(ui.painter(), rect, tint, case.compact))
-                    };
+                    let button = IconButton::new("Action", case.size(), &style).selected(selected);
+                    let button = if matches!(case.component, Component::SingleShapeButton) { button.single_shape_frame() } else { button };
+                    let response = button.show(ui, |ui, rect, tint| icon(ui.painter(), rect, tint, case.compact));
                     responses.push(response);
                 }
             });
@@ -315,7 +288,7 @@ pub fn reference(ui: &Ui, case: Case) {
             _ => (p.normal, p.icon),
         };
         let rect = Rect::from_min_size(pos2(12.0 + index as f32 * (case.size().x + GAP), 12.0), case.size());
-        let radius = if matches!(case.component, Component::Tab) { 0 } else { 3 };
+        let radius = 3;
         if matches!(case.component, Component::SingleShapeButton) {
             painter.rect(rect, radius, fill, Stroke::new(1.0, p.border), StrokeKind::Inside);
         } else {

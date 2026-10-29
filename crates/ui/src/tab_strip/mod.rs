@@ -38,5 +38,4 @@ pub use layout::{
     drag_zone, focus_move, focus_spot, reorder_key, step_focus, strip_key,
 };
 pub use strip::{DragOut, TabEvent, TabMenuRequest, TabStrip, TabStripOutput};
-pub(crate) use tab::paint_active_fill;
 pub use tab::{Tab, TabLayout, TabMetrics, TabParts, TabResponse, TabStripText, TabStyle, TabView};

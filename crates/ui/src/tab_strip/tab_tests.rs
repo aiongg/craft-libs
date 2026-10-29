@@ -244,6 +244,61 @@ fn a_tab_under_the_pointer_takes_the_active_fill_and_keeps_its_label_colour() {
     assert_eq!(label_colour(&painted, "Photo"), Some(s.inactive_text));
 }
 
+/// A host's widget id replaces the derived one, and a rect that cannot be drawn gets a disabled,
+/// named response that paints nothing.
+#[test]
+fn an_explicit_id_is_the_widget_id_and_a_bad_rect_is_inert() {
+    let text = TabStripText::default();
+    let strip = egui::Id::unique("strip");
+    let own = egui::Id::unique("host-tab");
+    let tab = Tab::new(7u8, "Photo").with_id(own);
+    assert_eq!((tab.widget_id(strip), Tab::new(7u8, "Photo").widget_id(strip)), (own, Tab::id(strip, &7)));
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    for rect in [Rect::NOTHING, Rect::from_min_size(Pos2::ZERO, vec2(f32::NAN, 24.0)), Rect::from_min_size(Pos2::ZERO, vec2(0.0, 24.0))] {
+        let mut responded = None;
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            responded = Some(tab.show_at(ui, rect, &view(strip, &text, true)).tab);
+        });
+        let response = responded.expect("response");
+        assert_eq!(response.id, own);
+        assert!(!response.sense.senses_click(), "{rect:?}");
+        assert!(fills(&output.shapes.iter().map(|s| s.shape.clone()).collect::<Vec<_>>()).is_empty(), "{rect:?}");
+        output.drop_without_applying_deltas();
+    }
+}
+
+/// A shaped label is drawn as the host shaped it, in its colour, and cut with an ellipsis where
+/// the room is short.
+#[test]
+fn a_shaped_label_is_drawn_whole_or_cut() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let text = TabStripText::default();
+    let strip = egui::Id::unique("strip");
+    let colour = Color32::from_rgb(10, 200, 30);
+    let painted = |width: f32| {
+        let mut out = Vec::new();
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let galley = ui.painter().layout_no_wrap("A long shaped label".to_owned(), egui::FontId::proportional(12.0), colour);
+            let tab = Tab::new(1u8, "A long shaped label").shaped(galley);
+            let at = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 26.0));
+            tab.show_at(ui, at, &view(strip, &text, false));
+        });
+        output.shapes.iter().for_each(|s| flatten(&s.shape, &mut out));
+        output.drop_without_applying_deltas();
+        out
+    };
+    let elided =
+        |shapes: &[Shape]| -> Vec<bool> { shapes.iter().filter_map(|s| if let Shape::Text(t) = s { Some(t.galley.elided) } else { None }).collect() };
+    let wide = painted(300.0);
+    assert_eq!(elided(&wide), [false]);
+    assert_eq!(label_colour(&wide, "A long shaped label"), Some(colour));
+    let narrow = painted(70.0);
+    assert_eq!(elided(&narrow), [true]);
+    assert_eq!(label_colour(&narrow, "A long shaped label"), Some(colour));
+}
+
 #[test]
 fn the_mark_detail_and_progress_are_drawn() {
     let s = style();

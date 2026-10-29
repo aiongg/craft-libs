@@ -10,12 +10,12 @@ shared components' visual contracts; they are not historical screenshots of appl
 
 | Surface | Paired cases | Dimensions exercised |
 | --- | ---: | --- |
-| Icon buttons (separate and single-shape frames), tabs, horizontal and vertical split handles | 372 | Light/dark, 1/1.5/2 pixels per point, normal/compact, normal/hover/pressed/disabled/focused; buttons and tabs also selected/selected-pressed |
+| Icon buttons (separate and single-shape frames), horizontal and vertical split handles | 288 | Light/dark, 1/1.5/2 pixels per point, normal/compact, normal/hover/pressed/disabled/focused; buttons also selected/selected-pressed |
 | Toolbar fitting | 18 | Light/dark, three display scales, all groups visible / a group plus overflow / overflow only |
 | Widget palette | 12 | Light/dark, three display scales, normal/compact; all five widget states, both fills, radius, foreground and preserved border/expansion |
 | SVG preparation | 12 | Light/dark colors, three display scales, 12/24 point icons; literal recolor and stroke references |
 
-The 414 positive pairs require identical RGBA pixels. The 402 wgpu pairs also require identical
+The 330 positive pairs require identical RGBA pixels. The 318 wgpu pairs also require identical
 tessellated vertices, indices, texture IDs and clip rectangles. SVG pairs compare the actual
 image loader's raster output against literal prepared SVGs. Every SVG must contain visible pixels.
 
