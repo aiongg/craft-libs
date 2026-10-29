@@ -221,6 +221,7 @@ fn a_screen_readers_step_on_the_editor_during_a_canvas_drag_ends_the_drag_and_it
     let (target_node, target_tree) = h.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Location")).accesskit_node().locate();
     h.input_mut().events.push(Event::AccessKitActionRequest(ActionRequest { action: Action::Increment, target_tree, target_node, data: None }));
     h.run();
+    assert!((locations(&h)[1] - 0.5).abs() < 1e-4, "the pointer wins for the dragged stop's location: {:?}", locations(&h));
     assert_eq!(
         h.state().log,
         [("canvas", "begin"), ("bar", "set"), ("canvas", "begin")],
