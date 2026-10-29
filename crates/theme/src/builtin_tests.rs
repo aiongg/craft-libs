@@ -511,18 +511,17 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
     }
 }
 
-/// Classic casts no shadow (PhotoCraft `theme.rs:415-455`, shadow alpha 0): not a popup, a dialog,
-/// a floating window, a knob or a toast, and its popups keep a flat border.
+/// Classic casts no shadow on what its theme file can set (PhotoCraft `theme.rs:415-455`, shadow
+/// alpha 0): not a popup, a toast, a tooltip, a floating window or a knob.
 #[test]
 fn classic_casts_no_shadow() {
     let theme = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
     for size in [Size::Compact, Size::Comfortable] {
         let a = Appearance { size, ..semantic_tests::app(Mode::Light, Contrast::Standard) };
         let t = resolve(theme, a, None).tokens;
-        let e = &t.elevation;
-        assert_eq!([e.popup.alpha, e.dialog.alpha, e.floating.alpha, e.knob.alpha], [0.0; 4], "{a:?}");
         assert_eq!(t.component.popup.shadow.a(), 0, "{a:?}");
         assert_eq!(t.component.float.shadow.alpha, 0.0, "{a:?}");
+        assert_eq!(t.elevation.knob.alpha, 0.0, "{a:?}");
     }
 }
 

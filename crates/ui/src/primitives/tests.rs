@@ -79,8 +79,8 @@ fn surface_style_per_kind_flat_and_bevelled() {
         };
         assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");
     }
-    for kind in [K::Popup, K::Dialog, K::Knob] {
-        assert_eq!(Surface::style(&classic, kind).shadow, None, "{kind:?} casts no shadow in a bevelled theme");
+    for kind in [K::Popup, K::Knob] {
+        assert_eq!(Surface::style(&classic, kind).shadow, None, "{kind:?} casts no shadow in Classic");
     }
 
     // A bevel draws no outline: a fill and a mesh inside the rect, lit and shaded halves.
