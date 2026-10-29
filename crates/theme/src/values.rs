@@ -179,6 +179,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         // knob face is not a background grey, so it stays on the curve.
         T::SurfaceKnob => Neutral(pick(12, 1)),
         T::SurfaceScrim => Fixed(Rgba::BLACK.with_alpha(alpha(pickf(0.5, 0.35)))),
+        T::SurfaceShadow => Fixed(Rgba::BLACK.with_alpha(pick(SHADOW_ALPHA.1, SHADOW_ALPHA.0) as u8)),
         T::TextNormal => Neutral(12),
         T::TextMuted => Neutral(11),
         T::TextFaint => Neutral(10),
@@ -515,14 +516,15 @@ pub const fn text_size_factor(t: TextSize) -> f32 {
 /// Scaled type sizes round to multiples of this, in points.
 pub const TYPE_ROUNDING: f32 = 0.5;
 
-/// Elevation levels (DS-01 primitives) for dialogs and floating surfaces.
-pub const ELEVATION_LEVELS: (usize, usize) = (3, 2);
-/// The shadow of a popup (`elevation.popup`): PhotoCraft's `popup_shadow` (`theme.rs:1037`), 6
-/// points down with a 20 point blur. The alpha is PhotoCraft's Pro shadow (`Tokens::shadow`, 50
-/// in light and 150 in dark), the default of `popup.shadow`; themes pin their own.
+/// The shadow of a floating window (`elevation.floating`): PhotoCraft's `window_shadow`
+/// (`theme.rs:1036`), 10 points down with a 32 point blur, in `surface.shadow`'s alpha.
+pub const WINDOW_SHADOW: Elevation = Elevation { offset: [0.0, 10.0], blur: 32.0, spread: 0.0, alpha: 0.0 };
+/// The shadow of a popup, menu or dialog (`elevation.popup`): PhotoCraft's `popup_shadow` (`theme.rs:1037`), 6
+/// points down with a 20 point blur. Its alpha is `surface.shadow`'s, like every cast shadow's.
 pub const POPUP_SHADOW: Elevation = Elevation { offset: [0.0, 6.0], blur: 20.0, spread: 0.0, alpha: 0.0 };
-/// The alpha of the popup shadow in light and dark mode.
-pub const POPUP_SHADOW_ALPHA: (f32, f32) = (50.0 / 255.0, 150.0 / 255.0);
+/// The alpha of `surface.shadow` in light and dark mode (0..=255): PhotoCraft's Pro
+/// `Tokens::shadow` (`theme.rs`), 50 in light and 150 in dark; themes pin their own.
+pub const SHADOW_ALPHA: (usize, usize) = (50, 150);
 /// The shadow of a knob on a track with a flat edge (`elevation.knob`): PhotoCraft's hard circle,
 /// the knob's size grown by half a point, one point down, black at 90/255 in both modes
 /// (`slider.rs:206-207`). egui rounds a shadow's spread to whole points.
@@ -535,17 +537,6 @@ pub const KNOB_RING: f32 = 2.0;
 /// From a slider thumb's edge to its ring's centre line, in points (a 12 point knob has a ring of
 /// radius 9.5).
 pub const KNOB_RING_OFFSET: f32 = 3.5;
-/// Shadow alpha multiplier in dark mode, where shadows need more weight to show.
-pub const DARK_SHADOW_ALPHA_FACTOR: f32 = 1.5;
-
-/// `e` as drawn in `mode`: dark mode strengthens the shadow's alpha by [`DARK_SHADOW_ALPHA_FACTOR`].
-pub fn shadow_in_mode(e: Elevation, mode: Mode) -> Elevation {
-    match mode {
-        Mode::Light => e,
-        Mode::Dark => Elevation { alpha: (e.alpha * DARK_SHADOW_ALPHA_FACTOR).min(1.0), ..e },
-    }
-}
-
 /// Durations for hover feedback, opening and moving.
 pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Duration::Normal, Duration::Normal);
 /// Easing for every semantic motion.

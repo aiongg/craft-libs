@@ -25,9 +25,11 @@ pub enum SurfaceKind {
     /// A raised surface while pressed: `state.pressed`, outlined with `line.control_edge` or
     /// bevelled in.
     Pressed,
-    /// Popups and menus: `popup.fill` and `popup.border` with the popup shadow.
+    /// Popups and menus: `popup.fill` and `popup.border` (outlined in every edge style) with the
+    /// popup shadow.
     Popup,
-    /// Dialogs: `surface.raised` with the dialog shadow.
+    /// Dialogs: `surface.raised`, outlined with `line.border` in every edge style, with the popup
+    /// shadow.
     Dialog,
     /// A knob that rides on a track (slider and switch thumbs): `surface.knob` with the knob
     /// shadow, outlined with `line.knob_edge` or bevelled out. Controls give it their own corners.
@@ -124,9 +126,10 @@ impl SurfaceStyle {
 /// [`Surface::paint`] draws it over a given rect.
 ///
 /// Components ask for a kind, never for a fill or a border. With the theme's
-/// [`Edge::Bevel`], raised, popup, dialog and knob surfaces are lit on the top and left, sunken
-/// and pressed ones on the bottom and right, and none has a border. The bevel is lighting, so it
-/// does not mirror in a right-to-left interface.
+/// [`Edge::Bevel`], raised and knob surfaces are lit on the top and left, sunken and pressed ones
+/// on the bottom and right, and none has a border; popups and dialogs keep their one point border
+/// (PhotoCraft Classic draws windows flat). The bevel is lighting, so it does not mirror in a
+/// right-to-left interface.
 #[derive(Clone, Copy, Debug)]
 pub struct Surface {
     kind: SurfaceKind,
@@ -153,7 +156,7 @@ impl Surface {
         let radius = kind.corner().map_or(CornerRadius::ZERO, |corner| corner.radius(tokens));
         let shadow = match kind {
             K::Popup => Some(tokens.shadow.popup),
-            K::Dialog => Some(tokens.shadow.dialog),
+            K::Dialog => Some(tokens.shadow.popup),
             K::Knob => Some(tokens.shadow.knob),
             _ => None,
         }
@@ -162,11 +165,12 @@ impl Surface {
         let width = craft_theme::Stroke::W1.width(1.0);
         let edge = match (tokens.shape.edge, kind) {
             (_, K::Background | K::Panel) => SurfaceEdge::None,
-            (Edge::Flat, K::Popup) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
-            (Edge::Flat, K::Raised | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
+            (_, K::Popup) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
+            (_, K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
+            (Edge::Flat, K::Raised) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Sunken | K::Pressed) => SurfaceEdge::Border(Stroke::new(width, c.line.control_edge.to_egui())),
             (Edge::Flat, K::Knob) => SurfaceEdge::Border(Stroke::new(width, c.line.knob_edge.to_egui())),
-            (Edge::Bevel { light, dark, width }, K::Raised | K::Popup | K::Dialog | K::Knob) => {
+            (Edge::Bevel { light, dark, width }, K::Raised | K::Knob) => {
                 SurfaceEdge::Bevel { top_left: light.to_egui(), bottom_right: dark.to_egui(), width }
             }
             (Edge::Bevel { light, dark, width }, K::Sunken | K::Pressed) => {

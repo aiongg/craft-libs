@@ -173,8 +173,8 @@ fn type_lines(out: &mut Lines, t: &TypeTokens) {
 }
 
 fn elevation_lines(out: &mut Lines, e: &ElevationTokens) {
-    let ElevationTokens { popup, dialog, floating, knob } = e;
-    for (k, level) in [("popup", popup), ("dialog", dialog), ("floating", floating), ("knob", knob)] {
+    let ElevationTokens { popup, floating, knob } = e;
+    for (k, level) in [("popup", popup), ("floating", floating), ("knob", knob)] {
         let Elevation { offset: [x, y], blur, spread, alpha } = level;
         out.line(&format!("elevation.{k}.offset"), format!("{} {}", len(*x), len(*y)));
         out.line(&format!("elevation.{k}.blur"), len(*blur));

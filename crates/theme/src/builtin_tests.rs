@@ -511,6 +511,35 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
     }
 }
 
+/// Classic casts no shadow (PhotoCraft `theme.rs:415-455`, shadow alpha 0): `surface.shadow` is
+/// clear, so no popup, tooltip, toast, dialog, floating window or knob has one. Every other
+/// theme's shadows are its `surface.shadow` alpha.
+#[test]
+fn every_shadow_has_the_alpha_of_surface_shadow() {
+    for theme in builtins() {
+        for size in [Size::Compact, Size::Comfortable] {
+            for mode in [Mode::Light, Mode::Dark] {
+                let a = Appearance { size, ..semantic_tests::app(mode, Contrast::Standard) };
+                let t = resolve(theme, a, None).tokens;
+                let id = theme.id.as_str();
+                let alpha = t.color(ColorToken::SurfaceShadow).a();
+                let e = &t.elevation;
+                for (what, got) in [("popup", e.popup.alpha), ("floating", e.floating.alpha)] {
+                    assert_eq!((got * 255.0).round() as u8, alpha, "{id} {what} {a:?}");
+                }
+                assert_eq!((e.popup.offset, e.popup.blur), (values::POPUP_SHADOW.offset, values::POPUP_SHADOW.blur), "{id}");
+                assert_eq!((e.floating.offset, e.floating.blur), (values::WINDOW_SHADOW.offset, values::WINDOW_SHADOW.blur), "{id}");
+                assert_eq!(t.component.popup.shadow.a(), alpha, "{id} {a:?}");
+                assert_eq!((t.component.float.shadow.alpha * 255.0).round() as u8, alpha, "{id} {a:?}");
+                if id == "craft.classic" {
+                    assert_eq!(alpha, 0, "{a:?}");
+                    assert_eq!(e.knob.alpha, 0.0, "{a:?}");
+                }
+            }
+        }
+    }
+}
+
 /// The slider follows PhotoCraft (`slider.rs:104-289`, `theme.rs:831-839`) in every built-in: an
 /// 18 point control with a 12 point knob and a 3 point track in the control edge colour at
 /// Compact, two points more of knob and six more of height at Comfortable; the knob outline is
@@ -526,7 +555,11 @@ fn sliders_follow_photocraft() {
                 let t = resolve(theme, a, None).tokens;
                 let s = &t.component.slider;
                 let id = theme.id.as_str();
-                assert_eq!((s.height.md, s.track_height, s.gradient_height, s.track_radius), (height, 3.0, 5.0, 2.0), "{id} {a:?}");
+                assert_eq!(
+                    (s.height.md, s.track_height, s.gradient_height, s.track_radius),
+                    (height, 3.0, 5.0, if id == "craft.classic" { 0.0 } else { 2.0 }),
+                    "{id} {a:?}"
+                );
                 let classic = id == "craft.classic";
                 let want = if classic { (10.0, 16.0) } else { (thumb, thumb) };
                 assert_eq!((s.thumb_width.md, s.thumb.md), want, "{id} {a:?}");

@@ -41,7 +41,8 @@ pub struct SliderTokens {
     /// Thickness of a gradient track: [`values::SLIDER_GRADIENT_TRACK`]. It has square ends and
     /// no outline.
     pub gradient_height: f32,
-    /// Corners of the track: [`values::SLIDER_TRACK_RADIUS`], clamped to half its height.
+    /// Corners of the track: [`values::SLIDER_TRACK_RADIUS`] or `radius.pill` if smaller (Classic's
+    /// square track), clamped to half its height.
     pub track_radius: f32,
     /// Corners of the thumb, clamped to half its shorter side; 999 gives a round thumb.
     pub radius: f32,
@@ -158,7 +159,7 @@ impl Family for SliderTokens {
             range_thumb_radius: values::RANGE_THUMB_RADIUS,
             track_height: values::SLIDER_TRACK,
             gradient_height: values::SLIDER_GRADIENT_TRACK,
-            track_radius: values::SLIDER_TRACK_RADIUS,
+            track_radius: values::SLIDER_TRACK_RADIUS.min(s.shape.radius.pill),
             radius: s.shape.radius.pill,
             track: c.line.control_edge,
             fill: States::new(c.accent.solid, c.accent.solid, c.accent.solid, c.text.disabled),

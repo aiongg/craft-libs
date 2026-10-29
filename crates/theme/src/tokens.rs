@@ -69,6 +69,10 @@ pub struct SurfaceColors {
     pub knob: Rgba,
     /// Translucent cover behind modal surfaces.
     pub scrim: Rgba,
+    /// The colour of every cast shadow (popups, menus, dialogs, floating windows, toasts,
+    /// tooltips): black at the theme's alpha, as PhotoCraft's `Tokens::shadow`. Each use keeps its
+    /// own offset and blur (`elevation.*`).
+    pub shadow: Rgba,
 }
 
 /// Text and glyph colours.
@@ -279,7 +283,7 @@ impl ColorTokens {
     pub(super) const fn splat(c: Rgba) -> ColorTokens {
         let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
-            surface: SurfaceColors { background: c, canvas: c, panel: c, chrome: c, raised: c, sunken: c, knob: c, scrim: c },
+            surface: SurfaceColors { background: c, canvas: c, panel: c, chrome: c, raised: c, sunken: c, knob: c, scrim: c, shadow: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, border: c, text: c },
@@ -361,6 +365,8 @@ color_tokens! {
     SurfaceKnob = "surface.knob" => surface.knob;
     /// `surface.scrim`
     SurfaceScrim = "surface.scrim" => surface.scrim;
+    /// `surface.shadow`
+    SurfaceShadow = "surface.shadow" => surface.shadow;
     /// `text.normal`
     TextNormal = "text.normal" => text.normal;
     /// `text.muted`
@@ -543,7 +549,7 @@ pub enum TokenRef {
 
 impl ColorToken {
     /// Whether this is a surface that text and fills sit on, or a knob that covers them
-    /// (`surface.*` except `scrim`); those must be opaque.
+    /// (`surface.*` except `scrim` and `shadow`); those must be opaque.
     pub const fn is_opaque_surface(self) -> bool {
         use ColorToken::{SurfaceBackground, SurfaceCanvas, SurfaceChrome, SurfaceKnob, SurfacePanel, SurfaceRaised, SurfaceSunken};
         matches!(self, SurfaceBackground | SurfaceCanvas | SurfaceChrome | SurfacePanel | SurfaceRaised | SurfaceSunken | SurfaceKnob)
@@ -878,11 +884,9 @@ impl TypeTokens {
 /// Shadows of floating surfaces.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElevationTokens {
-    /// Popups and menus.
+    /// Popups, menus and dialogs (PhotoCraft's dialogs are popup frames).
     pub popup: Elevation,
-    /// Dialogs.
-    pub dialog: Elevation,
-    /// Floating panels and toolbars.
+    /// Floating windows, panels and toolbars: PhotoCraft's `window_shadow`.
     pub floating: Elevation,
     /// Knobs on a track (`surface.knob`); level 0 in bevel themes, whose bevel draws the relief.
     pub knob: Elevation,

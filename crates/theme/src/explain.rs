@@ -5,7 +5,6 @@ use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
-use super::scale::Elevation;
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
@@ -258,10 +257,7 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
     }
     let preset = values::preset(Size::Compact);
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
-    let elevation = {
-        let [dialog, floating] = [values::ELEVATION_LEVELS.0, values::ELEVATION_LEVELS.1].map(Elevation::level);
-        ElevationTokens { popup: values::POPUP_SHADOW, dialog, floating, knob: values::KNOB_SHADOW }
-    };
+    let elevation = { ElevationTokens { popup: values::POPUP_SHADOW, floating: values::WINDOW_SHADOW, knob: values::KNOB_SHADOW } };
     let defaults = ComponentTokens::defaults(&Semantic {
         color: &probe,
         shape: &shape,

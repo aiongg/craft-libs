@@ -1372,16 +1372,18 @@ fn the_float_shadow_follows_the_mode_adjusted_floating_elevation() {
     }
 }
 
-/// A `float.shadow` override names a level and gets the dark-mode alpha factor like the default.
+/// A `float.shadow` override names a level: its geometry in the alpha of `surface.shadow`, like the
+/// default.
 #[test]
-fn a_float_shadow_override_gets_the_mode_adjustment() {
+fn a_float_shadow_override_takes_the_alpha_of_surface_shadow() {
     let mut def = grey_blue();
     def.components.insert(ComponentField::Float(FloatField::Shadow), OverrideValue::Elevation(Elevation::level(2)));
     let at = |mode| resolve(&def, app(mode, Contrast::Standard), None).tokens;
-    assert_eq!(at(Mode::Light).component.float.shadow, Elevation::level(2));
-    let dark = at(Mode::Dark);
-    assert_eq!(dark.component.float.shadow, dark.elevation.floating);
-    assert!(dark.component.float.shadow.alpha > Elevation::level(2).alpha);
+    for mode in [Mode::Light, Mode::Dark] {
+        let t = at(mode);
+        let level = Elevation::level(2);
+        assert_eq!(t.component.float.shadow, Elevation { alpha: f32::from(t.color(T::SurfaceShadow).a()) / 255.0, ..level });
+    }
 }
 
 #[test]
@@ -1426,7 +1428,8 @@ fn dock_and_float_overrides_replace_the_defaults() {
     def.components.insert(ComponentField::Float(FloatField::Radius), OverrideValue::Length(6.0));
     def.components.insert(ComponentField::Dock(DockField::HintRadius), OverrideValue::Length(2.0));
     let c = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
-    assert_eq!((c.float.shadow, c.float.radius, c.dock.hint_radius), (Elevation::level(1), 6.0, 2.0));
+    let level1 = Elevation { alpha: 50.0 / 255.0, ..Elevation::level(1) };
+    assert_eq!((c.float.shadow, c.float.radius, c.dock.hint_radius), (level1, 6.0, 2.0));
     for (path, field) in [
         ("dock.icon.selected", ComponentField::Dock(DockField::IconSelected)),
         ("dock.icon.selected.text", ComponentField::Dock(DockField::IconSelectedText)),

@@ -178,14 +178,14 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let radius = seed.and_then(|s| s.radius_offset).map_or(radius, |o| o.apply(radius));
     let edge = seed.and_then(|s| s.edge).map_or(preset.edge, |e| e.resolve(&color));
 
-    let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);
-    let (dialog, floating) = values::ELEVATION_LEVELS;
-    let popup =
-        Elevation { alpha: if mode == Mode::Dark { values::POPUP_SHADOW_ALPHA.1 } else { values::POPUP_SHADOW_ALPHA.0 }, ..values::POPUP_SHADOW };
+    // Geometry per use, colour per theme: every cast shadow has `surface.shadow`'s alpha.
+    let shadow_alpha = f32::from(color.surface.shadow.a()) / 255.0;
+    let popup = Elevation { alpha: shadow_alpha, ..values::POPUP_SHADOW };
+    let floating = Elevation { alpha: shadow_alpha, ..values::WINDOW_SHADOW };
     // A bevel is the relief of a raised control, so a bevelled knob lies flat.
     let knob = if matches!(edge, Edge::Bevel { .. }) { Elevation::level(0) } else { values::KNOB_SHADOW };
 
-    let elevation = ElevationTokens { popup, dialog: shadow(dialog), floating: shadow(floating), knob };
+    let elevation = ElevationTokens { popup, floating, knob };
 
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;

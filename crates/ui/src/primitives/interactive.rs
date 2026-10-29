@@ -82,6 +82,7 @@ struct Look {
     corner: Option<Corner>,
     border_width: Option<f32>,
     outline: bool,
+    raised_outline: bool,
     colors: Option<StateColors>,
     on_colors: Option<StateColors>,
     state_layer: bool,
@@ -154,6 +155,7 @@ impl<'a> Interactive<'a> {
                 corner: None,
                 border_width: None,
                 outline: false,
+                raised_outline: false,
                 colors: None,
                 on_colors: None,
                 state_layer: true,
@@ -253,6 +255,14 @@ impl<'a> Interactive<'a> {
     /// [`border_width`](Interactive::border_width) or one point.
     pub fn outline(mut self) -> Self {
         self.look.outline = true;
+        self
+    }
+
+    /// With [`outline`](Interactive::outline): in a bevelled theme the outlined element is drawn
+    /// as a raised [`SurfaceKind::Raised`] bevel in its fill, not as an outline (a selected
+    /// segment stands out of its row).
+    pub fn raised_outline(mut self) -> Self {
+        self.look.raised_outline = true;
         self
     }
 
@@ -500,10 +510,18 @@ impl Sensed {
                     ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
                 }
                 None => {
-                    if fill != Color32::TRANSPARENT {
+                    let raised = (look.outline && look.raised_outline && colors.is_some_and(|c| c.border.is_some()))
+                        .then(|| Surface::style(&tokens, SurfaceKind::Raised))
+                        .filter(|raised| matches!(raised.edge, SurfaceEdge::Bevel { .. }));
+                    if raised.is_none() && fill != Color32::TRANSPARENT {
                         ui.painter().rect_filled(rect, radius, fill);
                     }
-                    if let (true, Some(border)) = (look.outline, colors.and_then(|c| c.border)) {
+                    if let Some(mut style) = raised {
+                        style.fill = fill;
+                        style.radius = radius;
+                        style.shadow = None;
+                        ui.painter().extend(style.shapes(rect, ui.pixels_per_point()));
+                    } else if let (true, Some(border)) = (look.outline, colors.and_then(|c| c.border)) {
                         let stroke = Stroke::new(look.border_width.unwrap_or(1.0), animated(&border));
                         ui.painter().rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
                     }
