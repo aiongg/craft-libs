@@ -218,7 +218,23 @@ fn reads_are_what_both_probes_agree_on() {
     // The hover fills of lists and list boxes are `state.hover` moved only when it is too close
     // to the row beside it, so whether a probe reads it depends on the probe's colours.
     let moved_when_close = [ComponentField::List(ListField::Hover), ComponentField::Listbox(ListboxField::ActiveFill)];
-    let steady = |reads: &[(ComponentField, Option<T>)]| reads.iter().filter(|(f, _)| !moved_when_close.contains(f)).copied().collect::<Vec<_>>();
+    // Selected fills and their text move in lightness to show on what they sit on, so what they
+    // read depends on the probe's colours too.
+    let moved_to_show = |f: &ComponentField| {
+        matches!(
+            f,
+            ComponentField::List(
+                ListField::Selected | ListField::SelectedHover | ListField::SelectedText | ListField::SelectedDimmed | ListField::SelectedDetail
+            ) | ComponentField::IconButton(_)
+                | ComponentField::Segmented(SegmentedField::Selected { .. })
+                | ComponentField::Dock(DockField::IconSelected | DockField::IconSelectedText)
+                | ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Secondary, state: State::Pressed, .. })
+                | ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest })
+        )
+    };
+    let steady = |reads: &[(ComponentField, Option<T>)]| {
+        reads.iter().filter(|(f, _)| !moved_when_close.contains(f) && !moved_to_show(f)).copied().collect::<Vec<_>>()
+    };
     assert_eq!(steady(&a), steady(&b), "today's defaults read the same tokens under either probe");
     let reads = default_reads();
     assert_eq!(steady(&reads), steady(&a));

@@ -98,7 +98,10 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
         fill: States::new(t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateSelected), t.color(T::StateDisabledFill)),
         text: States::new(t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextOnSelected), t.color(T::TextDisabled)),
     };
-    assert_eq!((icon.selected, seg.selected), (selected, selected));
+    // The fills move to show on what they sit on (`selected_fills_show_on_what_they_sit_on`); the
+    // disabled look is the semantic one.
+    assert_eq!((icon.selected.fill.disabled, seg.selected.fill.disabled), (selected.fill.disabled, selected.fill.disabled));
+    assert_eq!((icon.selected.text.disabled, seg.selected.text.disabled), (selected.text.disabled, selected.text.disabled));
     assert_eq!(seg.track, t.color(T::SurfaceSunken));
     assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, t.color(T::StateHover), t.color(T::StatePressed), Rgba::TRANSPARENT));
     assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
@@ -1021,12 +1024,11 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
 
     let t = &comfy;
     let l = &t.component.list;
-    assert_eq!(
-        (l.text, l.dimmed, l.selected_text, l.detail),
-        (t.color(T::TextNormal), t.color(T::TextFaint), t.color(T::TextOnSelected), t.color(T::TextFaint))
-    );
+    assert_eq!((l.text, l.dimmed, l.detail), (t.color(T::TextNormal), t.color(T::TextFaint), t.color(T::TextFaint)));
     assert_eq!((l.icon, l.icon_hover), (t.color(T::TextMuted), t.color(T::TextNormal)));
-    assert_eq!((l.hover, l.selected, l.selected_hover), (t.color(T::StateHover), t.color(T::StateSelected), t.color(T::StateSelectedHover)));
+    // The selected fills and their text move to show on the panel
+    // (`selected_fills_show_on_what_they_sit_on`).
+    assert_eq!(l.hover, t.color(T::StateHover));
     assert_eq!((l.divider, l.thumb_border), (t.color(T::LineDivider), t.color(T::LineBorder)));
     assert_eq!((l.ghost_fill, l.ghost_border), (t.color(T::SurfaceRaised), t.color(T::AccentSolid)));
     assert_eq!((l.drop, l.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
@@ -1224,7 +1226,8 @@ fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
     let t = &compact;
     assert_eq!((d.background, d.border), (t.color(T::SurfacePanel), t.color(T::LineBorder)));
     assert_eq!((d.resize, d.drop), (t.color(T::AccentSolid), t.color(T::AccentSolid)));
-    assert_eq!((d.icon_selected, d.icon_selected_text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    // The current icon cell's fill moves to show on the panel
+    // (`selected_fills_show_on_what_they_sit_on`).
     let f = &compact.component.float;
     assert_eq!((f.border_width, f.radius, f.shadow), (1.0, 0.0, compact.elevation.floating));
     assert_eq!((f.fill, f.border, f.blocked), (t.color(T::SurfacePanel), t.color(T::LineBorder), t.color(T::SurfaceScrim)));
@@ -1343,4 +1346,106 @@ fn a_title_bar_override_replaces_the_default() {
     assert_eq!(tokens.component.title_bar.separator, pink);
     assert_eq!(ComponentField::from_path("title_bar.glyph.inactive"), Some(ComponentField::TitleBar(TitleBarField::GlyphInactive)));
     assert_eq!(ComponentField::from_path("title_bar.height"), None);
+}
+
+/// The WCAG 1.4.11 minimum for a state indicator: standard, then high contrast.
+fn indicator_min(a: Appearance) -> f64 {
+    if a.contrast == Contrast::High { 4.5 } else { 3.0 }
+}
+
+/// Selected and on states are identifiable: the fill of a selected segment, icon button, list row
+/// and dock icon, and a toggle button's on look (its fill or its edge), reach the non-text
+/// minimum on what they sit on, and their text still reads on the fills.
+#[test]
+fn selected_fills_show_on_what_they_sit_on() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
+            let (t, min) = (&r.tokens, indicator_min(a));
+            let text_min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
+            let k = &t.component;
+            let (panel, raised) = (t.color(T::SurfacePanel), t.color(T::SurfaceRaised));
+            let on = |what: &str, fill: Rgba, bgs: &[Rgba]| {
+                for &bg in bgs {
+                    let ratio = contrast_ratio(over(fill, bg), bg);
+                    assert!(ratio >= min, "{} {a:?}: {what} is {ratio:.2} on {}, needs {min}", def.name, bg.to_hex());
+                }
+            };
+            on("segmented selected", k.segmented.selected.fill.rest, &[k.segmented.track]);
+            on("icon button selected", k.icon_button.selected.fill.rest, &[panel, raised]);
+            on("list selected", k.list.selected, &[panel]);
+            on("list selected_hover", k.list.selected_hover, &[panel]);
+            on("dock icon selected", k.dock.icon_selected, &[k.dock.background]);
+            let secondary = &k.button.secondary;
+            for bg in [panel, raised] {
+                let (fill, edge) = (contrast_ratio(secondary.fill.pressed, bg), contrast_ratio(secondary.border.pressed, bg));
+                assert!(fill.max(edge) >= min, "{} {a:?}: toggle on is {fill:.2} / {edge:.2} on {}, needs {min}", def.name, bg.to_hex());
+            }
+            for (text, fill) in [
+                (k.list.selected_text, k.list.selected),
+                (k.list.selected_text, k.list.selected_hover),
+                (k.dock.icon_selected_text, k.dock.icon_selected),
+                (k.segmented.selected.text.rest, k.segmented.selected.fill.rest),
+                (secondary.text.pressed, secondary.fill.pressed),
+            ] {
+                let ratio = contrast_ratio(text, fill);
+                assert!(ratio >= text_min, "{} {a:?}: text {} on {} is {ratio:.2}, needs {text_min}", def.name, text.to_hex(), fill.to_hex());
+            }
+        }
+    }
+}
+
+/// A selected fill that already shows stays as the theme gave it; one that doesn't moves in
+/// lightness only, and its text moves with it.
+#[test]
+fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_only() {
+    let pinned = |fill: &str| {
+        let mut def = grey_blue();
+        def.pins.light = Pins::from_iter([(T::StateSelected, hex(fill))]);
+        resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens
+    };
+    let t = pinned("#102a6b");
+    assert_eq!(t.component.icon_button.selected.fill.rest, hex("#102a6b"));
+    assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
+
+    let faint = pinned("#dfe5f5");
+    let moved = faint.component.list.selected;
+    let (before, after) = (hex("#dfe5f5").to_oklch(), moved.to_oklch());
+    assert!(after.l < before.l - 0.1, "{moved:?}");
+    assert!((after.h - before.h).abs() < 5.0 && (after.c - before.c).abs() < 0.05, "{before:?} {after:?}");
+    assert!(contrast_ratio(faint.component.list.selected_text, moved) >= 4.5);
+}
+
+/// A check box or radio button is identifiable by its fill or its outline on the panel and on a
+/// popup. Where neither shows, the outline moves and `text.faint` stays; where the fill shows, the
+/// outline is `text.faint` as it was.
+#[test]
+fn a_check_outline_moves_only_where_neither_fill_nor_outline_shows() {
+    let faint = super::semantic_tests::pinned_faint();
+    for mode in [Mode::Light, Mode::Dark] {
+        for contrast in [Contrast::Standard, Contrast::High] {
+            let t = resolve(&faint, app(mode, contrast), None).tokens;
+            let pin = faint.pins.get(mode).get(T::TextFaint).unwrap();
+            let outline = t.component.check.off.border.rest;
+            let min = if contrast == Contrast::High { 4.5 } else { 3.0 };
+            if contrast == Contrast::Standard {
+                assert_eq!(t.color(T::TextFaint), pin);
+                assert_ne!(outline, pin, "{mode:?}");
+            }
+            for bg in [T::SurfacePanel, T::SurfaceRaised] {
+                let ratio = contrast_ratio(outline, t.color(bg));
+                assert!(ratio >= min, "{mode:?} {contrast:?}: outline is {ratio:.2} on {bg:?}, needs {min}");
+            }
+        }
+    }
+
+    // A sunken fill 3:1 from both surfaces identifies the box: the outline stays.
+    let mut shown = faint.clone();
+    shown.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8")), (T::SurfaceSunken, hex("#000000"))]);
+    shown.pins.dark = Pins::from_iter([(T::TextFaint, hex("#404040")), (T::SurfaceSunken, hex("#ffffff"))]);
+    for mode in [Mode::Light, Mode::Dark] {
+        let t = resolve(&shown, app(mode, Contrast::Standard), None).tokens;
+        assert_eq!(t.component.check.off.border.rest, t.color(T::TextFaint), "{mode:?}");
+    }
 }

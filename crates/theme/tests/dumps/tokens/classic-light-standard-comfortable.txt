@@ -816,3 +816,5 @@ transform.warp_minor = 0.75
 transform.warp_anchor = 5
 transform.warp_control = 5.5
 transform.warp_reveal = 56
+warning = button.secondary.border.pressed on surface.panel: 2.57 < 3.00
+warning = button.secondary.border.pressed on surface.raised: 2.72 < 3.00

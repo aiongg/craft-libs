@@ -55,7 +55,7 @@
     "surface.background": "#222226",
     "surface.canvas": "#1d1d20",
     "surface.panel": "#36363a",
-    "surface.sunken": "#404044",
+    "surface.sunken": "#3a3a3e",
     "text.normal": "#ffffff"
   }
 }

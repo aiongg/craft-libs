@@ -58,6 +58,7 @@ impl Family for EmptyStateTokens {
             fg: TokenRef::Component(ComponentField::EmptyState(EmptyStateField::Text)),
             bg: TokenRef::Color(ColorToken::SurfacePanel),
             minimum: values::TEXT_MIN,
+            alternate: None,
         }]
     }
 }

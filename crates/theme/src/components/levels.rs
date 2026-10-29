@@ -135,7 +135,7 @@ impl Family for LevelsTokens {
     fn pairs() -> Vec<ContrastPair> {
         let edge = TokenRef::Component(ComponentField::Levels(LevelsField::ThumbEdge));
         [ColorToken::SurfacePanel, ColorToken::SurfaceRaised]
-            .map(|bg| ContrastPair { fg: edge, bg: TokenRef::Color(bg), minimum: values::NON_TEXT_MIN })
+            .map(|bg| ContrastPair { fg: edge, bg: TokenRef::Color(bg), minimum: values::NON_TEXT_MIN, alternate: None })
             .to_vec()
     }
 }

@@ -5,17 +5,19 @@
 //! sizes and the colours of the indicator while off and while on (checked, mixed, selected), of
 //! the mark, and of the switch thumb.
 //!
-//! The mark, the on fill and the off outline are the cues that identify the control and its
-//! state, so they have the WCAG non-text minimum (3:1, 4.5:1 with high contrast) at rest: the
-//! mark against the on fill, and the off outline and the on fill against the control backgrounds
-//! (`surface.panel` and `surface.raised`). Hover and pressed colours have no minimum, and neither
-//! has the switch thumb: where its face is close to the track, its outline or shadow gives the
-//! edge.
+//! The mark, the box and its state are the cues that identify the control, so they have the WCAG
+//! non-text minimum (3:1, 4.5:1 with high contrast) at rest: the mark against the on fill, and
+//! the box against the control backgrounds (`surface.panel` and `surface.raised`). The box is
+//! identifiable by its fill or its outline, on or off. Where neither the off fill nor the off
+//! outline reaches the minimum, the outline moves in lightness, just far enough; `text.faint`,
+//! its source, stays. Hover and pressed colours have no minimum, and neither has the switch
+//! thumb: where its face is close to the track, its outline or shadow gives the edge.
 //!
 //! A disabled control that is on keeps an on look: a `text.disabled` fill with a
 //! `state.disabled_fill` mark, the reverse of off's `state.disabled_fill` fill with a
 //! `text.disabled` outline.
 
+use super::identify::identifiable_outline;
 use super::{
     BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
     thumb_from_path, thumb_path,
@@ -151,7 +153,7 @@ pub struct CheckTokens {
     pub track: BySize<f32>,
     /// Between the switch track's edge and its thumb.
     pub thumb_inset: f32,
-    /// Off: `text.faint` outline on `surface.sunken`.
+    /// Off: a `text.faint` outline on `surface.sunken`, the outline moved where neither shows.
     pub off: CheckOffColors,
     /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
     /// and outline with a `state.disabled_fill` mark.
@@ -225,9 +227,11 @@ impl Family for CheckTokens {
         let (c, size) = (s.color, s.size);
         let icon = BySize { sm: size.icon.sm, md: size.icon.md };
         // `text.faint` meets the text minimum on every surface and state fill, so the outline
-        // meets the non-text minimum wherever the control sits.
-        let outline = States::new(c.text.faint, c.text.muted, c.text.muted, c.text.disabled);
+        // meets the non-text minimum wherever the control sits; where a pinned `text.faint`
+        // doesn't, and the fill doesn't either, the outline moves and `text.faint` stays.
         let sunken = c.surface.sunken;
+        let rest_outline = identifiable_outline(c.text.faint, sunken, &[c.surface.panel, c.surface.raised], s.high);
+        let outline = States::new(rest_outline, c.text.muted, c.text.muted, c.text.disabled);
         let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
         let on_accent = c.text.on_accent;
         CheckTokens {
@@ -304,14 +308,17 @@ impl Family for CheckTokens {
     }
 
     /// At rest only. The on fill comes first: high contrast moves it before the mark drawn on it.
+    /// A box is identifiable by its fill or its outline, on or off.
     fn pairs() -> Vec<ContrastPair> {
-        let on = |part| ComponentField::Check(CheckField::On { part, state: State::Rest });
-        let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
+        let field = |f| TokenRef::Component(ComponentField::Check(f));
+        let on = |part| field(CheckField::On { part, state: State::Rest });
+        let off = |part| field(CheckField::Off { part, state: State::Rest });
         let backgrounds = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(TokenRef::Color);
-        let pair = |fg, bg| ContrastPair { fg: TokenRef::Component(fg), bg, minimum: values::NON_TEXT_MIN };
-        let mut out: Vec<_> = backgrounds.map(|bg| pair(on(CheckOnPart::Fill), bg)).into();
-        out.extend(backgrounds.map(|bg| pair(off_border, bg)));
-        out.push(pair(on(CheckOnPart::Mark), TokenRef::Component(on(CheckOnPart::Fill))));
+        let min = values::NON_TEXT_MIN;
+        let mut out: Vec<_> =
+            backgrounds.map(|bg| ContrastPair { fg: on(CheckOnPart::Fill), bg, minimum: min, alternate: Some(on(CheckOnPart::Border)) }).into();
+        out.extend(backgrounds.map(|bg| ContrastPair { fg: off(CheckOffPart::Border), bg, minimum: min, alternate: Some(off(CheckOffPart::Fill)) }));
+        out.push(ContrastPair { fg: on(CheckOnPart::Mark), bg: on(CheckOnPart::Fill), minimum: min, alternate: None });
         out
     }
 }

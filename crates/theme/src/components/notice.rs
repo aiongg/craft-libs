@@ -132,6 +132,7 @@ impl Family for NoticeTokens {
                     fg: TokenRef::Component(ComponentField::Notice(NoticeField::Fg(tone))),
                     bg: TokenRef::Color(bg),
                     minimum: values::TEXT_MIN,
+                    alternate: None,
                 })
             })
             .collect()

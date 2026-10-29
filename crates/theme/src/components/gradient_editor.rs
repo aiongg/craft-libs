@@ -135,6 +135,7 @@ impl Family for GradientEditorTokens {
                 fg: TokenRef::Component(ComponentField::GradientEditor(f)),
                 bg: TokenRef::Color(T::SurfacePanel),
                 minimum: values::NON_TEXT_MIN,
+                alternate: None,
             })
             .collect()
     }

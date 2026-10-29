@@ -7,15 +7,16 @@
 //! panel and on the fills a row takes (4.5:1, 7:1 with high contrast); a selected row draws its
 //! dimmed label and detail line in their own colours, `text.on_selected` moved toward the fill. The
 //! ghost's label is text on the ghost's fill. The hover fill is a ratio of 1.12 away from the panel
-//! and from the selected fill, in every theme, mode and contrast; the other fills are design
-//! targets with no minimum. Each pair is measured at rest.
+//! and from the selected fill, in every theme, mode and contrast. The selected fill, with and
+//! without the pointer, is a state indicator: 3:1 (4.5:1 with high contrast) on the panel. The
+//! ghost's fill is a design target with no minimum. Each pair is measured at rest.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic};
 use crate::color::Oklch;
 use crate::color::Rgba;
 use crate::contrast::{contrast_ratio, ensure_contrast};
 use crate::derive::{mix, over};
-use crate::tokens::{ColorToken, ColorTokens, ThumbSizes, TokenRef, TypeRole};
+use crate::tokens::{ColorToken, ThumbSizes, TokenRef, TypeRole};
 use crate::values;
 
 /// List and list row tokens.
@@ -62,7 +63,7 @@ pub struct ListTokens {
     pub text: Rgba,
     /// The label of a dimmed row (a hidden layer): `text.faint`.
     pub dimmed: Rgba,
-    /// The label of the selected row: `text.on_selected`.
+    /// The label of the selected row: `text.on_selected`, moved to read on the moved fills.
     pub selected_text: Rgba,
     /// The label of a dimmed row that is selected: `text.on_selected` moved toward the selected
     /// fill, readable on it and on the selected fill under the pointer.
@@ -77,9 +78,11 @@ pub struct ListTokens {
     pub icon_hover: Rgba,
     /// Behind a row under the pointer: `state.hover`.
     pub hover: Rgba,
-    /// Behind the selected row: `state.selected`.
+    /// Behind the selected row: `state.selected`, moved to reach the non-text minimum on the
+    /// panel.
     pub selected: Rgba,
-    /// Behind the selected row under the pointer: `state.selected_hover`.
+    /// Behind the selected row under the pointer: `state.selected_hover`, moved to reach the
+    /// non-text minimum on the panel (and to keep its step from `selected` where the theme has one).
     pub selected_hover: Rgba,
     /// Dividers: `line.divider`.
     pub divider: Rgba,
@@ -220,6 +223,18 @@ impl Family for ListTokens {
 
     fn defaults(s: &Semantic<'_>) -> ListTokens {
         let (c, list) = (s.color, &s.size.list);
+        let panel = [c.surface.panel];
+        let min_step = if s.high { values::LIST_HOVER_MIN.1 } else { values::LIST_HOVER_MIN.0 };
+        let (selected, text) = Identify::on(&panel, s.high).fill(c.state.selected, c.text.on_selected);
+        // A theme whose selected row has a distinct hover step keeps one.
+        let stepped = contrast_ratio(over(c.state.selected_hover, c.surface.panel), over(c.state.selected, c.surface.panel)) >= min_step;
+        let apart: &[Rgba] = if stepped { &[selected] } else { &[] };
+        let (selected_hover, text) = Identify::on(&panel, s.high).apart(apart).with(&[selected]).fill(c.state.selected_hover, text);
+        let fills = [selected, selected_hover];
+        // Text that already reads on the unmoved fills stays as it is, pinned or not.
+        let selected_text =
+            if fills == [c.state.selected, c.state.selected_hover] { c.text.on_selected } else { readable_on(text, &fills, c.surface.panel, s.high) };
+        let quiet = quiet_on_selected(selected_text, &fills, c.surface.panel);
         ListTokens {
             row_height: s.size.control.md,
             thumb: list.thumb,
@@ -240,15 +255,15 @@ impl Family for ListTokens {
             detail_role: TypeRole::Caption,
             text: c.text.normal,
             dimmed: c.text.faint,
-            selected_text: c.text.on_selected,
-            selected_dimmed: quiet_on_selected(c),
+            selected_text,
+            selected_dimmed: quiet,
             detail: c.text.faint,
-            selected_detail: quiet_on_selected(c),
+            selected_detail: quiet,
             icon: c.text.muted,
             icon_hover: c.text.normal,
-            hover: visible_hover(c.state.hover, c.surface.panel, &[c.state.selected], c.text.normal, s.high),
-            selected: c.state.selected,
-            selected_hover: c.state.selected_hover,
+            hover: visible_hover(c.state.hover, c.surface.panel, &[selected], c.text.normal, s.high),
+            selected,
+            selected_hover,
             divider: c.line.divider,
             thumb_border: c.line.border,
             drop: c.accent.solid,
@@ -300,8 +315,11 @@ impl Family for ListTokens {
         let field = ComponentField::List;
         let panel = TokenRef::Color(ColorToken::SurfacePanel);
         let component = |f| TokenRef::Component(field(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum, alternate: None };
         vec![
+            // A selected row shows on the panel, also while hovered, and hovering it shows.
+            pair(ListField::Selected, panel, values::NON_TEXT_MIN),
+            pair(ListField::SelectedHover, panel, values::NON_TEXT_MIN),
             pair(ListField::Hover, panel, values::LIST_HOVER_MIN),
             pair(ListField::Hover, component(ListField::Selected), values::LIST_HOVER_MIN),
             pair(ListField::Text, panel, values::TEXT_MIN),
@@ -362,17 +380,23 @@ pub(super) fn visible_hover(hover: Rgba, rest: Rgba, beside: &[Rgba], text: Rgba
     nearest(&mut candidates.iter().copied().filter(readable)).or_else(|| nearest(&mut candidates.iter().copied())).unwrap_or(hover)
 }
 
-/// `text.on_selected` moved toward the selected fill (a hidden layer's name, a detail line on the
-/// selected row), then as far back as text needs to read on both selected fills.
-fn quiet_on_selected(c: &ColorTokens) -> Rgba {
-    let fills = [c.state.selected, c.state.selected_hover].map(|fill| over(fill, c.surface.panel));
-    let mut text = mix(c.text.on_selected, fills[0], values::LIST_SELECTED_QUIET);
+/// `text` moved until it reads (the text minimum) on every fill, over `rest`.
+fn readable_on(text: Rgba, fills: &[Rgba], rest: Rgba, high: bool) -> Rgba {
+    let min = if high { values::TEXT_MIN.1 } else { values::TEXT_MIN.0 };
+    let mut text = text;
     // Moving away from one fill can move toward the other only when they sit either side of the
     // text; a second round settles that case.
     for _ in 0..2 {
-        for fill in fills {
-            text = ensure_contrast(text, fill, values::TEXT_MIN.0);
+        for &fill in fills {
+            text = ensure_contrast(text, over(fill, rest), min);
         }
     }
     text
+}
+
+/// The selected row's text moved toward the selected fill (a hidden layer's name, a detail line
+/// on the selected row), then as far back as text needs to read on both selected fills.
+fn quiet_on_selected(text: Rgba, fills: &[Rgba; 2], rest: Rgba) -> Rgba {
+    let quiet = mix(text, over(fills[0], rest), values::LIST_SELECTED_QUIET);
+    readable_on(quiet, fills, rest, false)
 }

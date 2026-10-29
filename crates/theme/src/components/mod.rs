@@ -23,6 +23,7 @@ mod guide;
 mod handle;
 mod histogram;
 mod icon_button;
+mod identify;
 mod kbd;
 mod levels;
 mod list;
@@ -52,6 +53,8 @@ use std::fmt;
 use super::color::Rgba;
 use super::scale::Elevation;
 use super::theme::Size;
+use identify::Identify;
+
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
 pub use angle_dial::{AngleDialField, AngleDialTokens};
@@ -263,9 +266,10 @@ impl ItemColors {
     }
 
     /// The `state.selected` look: `text.on_selected` on `state.selected`, the disabled fill and
-    /// text when disabled.
-    fn selected(c: &ColorTokens) -> ItemColors {
-        let (fill, text) = (c.state.selected, c.text.on_selected);
+    /// text when disabled. The fill moves in lightness where it doesn't reach the non-text
+    /// minimum on the fills in `on` (see [`Identify`]), with the text moving to read on it.
+    fn selected(c: &ColorTokens, on: &[Rgba], high: bool) -> ItemColors {
+        let (fill, text) = Identify::on(on, high).fill(c.state.selected, c.text.on_selected);
         ItemColors { fill: States::new(fill, fill, fill, c.state.disabled_fill), text: States::new(text, text, text, c.text.disabled) }
     }
 
@@ -451,6 +455,10 @@ pub(crate) struct ContrastPair {
     pub bg: TokenRef,
     /// Minimum ratio with standard and with high contrast.
     pub minimum: (f64, f64),
+    /// Another foreground that identifies the same thing: the pair passes when `fg` or this
+    /// reaches the minimum on `bg` (a box's outline or its fill). The measured ratio is the
+    /// higher of the two, and a contrast pass that has to fix the pair moves `fg`.
+    pub alternate: Option<TokenRef>,
 }
 
 /// What a family file provides. The `families!` list turns these into [`ComponentTokens`] and

@@ -251,7 +251,7 @@ impl Family for TabTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = ComponentField::Tab;
         let component = |f| TokenRef::Component(field(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         let (text, mark) = (values::TEXT_MIN, values::NON_TEXT_MIN);
         vec![
             pair(TabField::Text, TabField::Active, text),
@@ -264,7 +264,12 @@ impl Family for TabTokens {
             pair(TabField::Close, TabField::Active, mark),
             pair(TabField::Drop, TabField::DropHalo, mark),
             // The strip's keyboard focus stroke is `float.focus`.
-            ContrastPair { fg: TokenRef::Component(ComponentField::Float(FloatField::Focus)), bg: component(TabField::Strip), minimum: mark },
+            ContrastPair {
+                fg: TokenRef::Component(ComponentField::Float(FloatField::Focus)),
+                bg: component(TabField::Strip),
+                minimum: mark,
+                alternate: None,
+            },
         ]
     }
 }

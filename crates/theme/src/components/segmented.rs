@@ -25,7 +25,8 @@ pub struct SegmentedTokens {
     pub track: Rgba,
     /// Segments that are not selected: transparent on the track until hovered.
     pub segment: ItemColors,
-    /// The selected segment: `text.on_selected` on `state.selected`.
+    /// The selected segment: `text.on_selected` on `state.selected`, the fill moved to reach the
+    /// non-text minimum on the track, the text moved to read on it.
     pub selected: ItemColors,
 }
 
@@ -93,7 +94,7 @@ impl Family for SegmentedTokens {
                 fill: States::new(clear, c.state.hover, c.state.pressed, clear),
                 text: States::new(c.text.normal, c.text.normal, c.text.normal, c.text.disabled),
             },
-            selected: ItemColors::selected(c),
+            selected: ItemColors::selected(c, &[c.surface.sunken], s.high),
         }
     }
 
@@ -146,19 +147,30 @@ impl Family for SegmentedTokens {
             fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state: State::Rest })),
             bg: TokenRef::Component(field(F::Track)),
             minimum: values::TEXT_MIN,
+            alternate: None,
         });
         for state in [State::Hover, State::Pressed] {
             out.push(ContrastPair {
                 fg: TokenRef::Component(field(F::Segment { part: ItemPart::Text, state })),
                 bg: TokenRef::Component(field(F::Segment { part: ItemPart::Fill, state })),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             });
         }
+        // The selected segment shows on the track, which is also what its unselected neighbours
+        // show. The fill comes before its text: high contrast moves the fill first.
+        out.push(ContrastPair {
+            fg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state: State::Rest })),
+            bg: TokenRef::Component(field(F::Track)),
+            minimum: values::NON_TEXT_MIN,
+            alternate: None,
+        });
         for state in [State::Rest, State::Hover, State::Pressed] {
             out.push(ContrastPair {
                 fg: TokenRef::Component(field(F::Selected { part: ItemPart::Text, state })),
                 bg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state })),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             });
         }
         out

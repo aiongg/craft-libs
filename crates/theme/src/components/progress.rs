@@ -95,6 +95,7 @@ impl Family for ProgressTokens {
             fg: TokenRef::Component(ComponentField::Progress(ProgressField::Fill)),
             bg: TokenRef::Component(ComponentField::Progress(ProgressField::Track)),
             minimum: values::NON_TEXT_MIN,
+            alternate: None,
         }]
     }
 }

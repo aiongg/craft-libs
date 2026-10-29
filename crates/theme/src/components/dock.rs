@@ -7,7 +7,7 @@
 //! on the dock background (3:1, 4.5:1); the label of the selected icon cell is text on that cell.
 //! The borders and fills are design targets with no minimum.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -59,9 +59,11 @@ pub struct DockTokens {
     pub resize: Rgba,
     /// Drop previews, the insertion marker and drop outlines: `accent.solid`.
     pub drop: Rgba,
-    /// Behind the current icon cell: `state.selected`.
+    /// Behind the current icon cell: `state.selected`, moved to reach the non-text minimum on
+    /// `background`.
     pub icon_selected: Rgba,
-    /// The label and icon on the current icon cell: `text.on_selected`.
+    /// The label and icon on the current icon cell: `text.on_selected`, moved to read on the
+    /// moved fill.
     pub icon_selected_text: Rgba,
 }
 
@@ -133,6 +135,7 @@ impl Family for DockTokens {
     fn defaults(s: &Semantic<'_>) -> DockTokens {
         let c = s.color;
         let k = s.size.control.md / values::DOCK_BASE_CONTROL;
+        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s.high).fill(c.state.selected, c.text.on_selected);
         DockTokens {
             gap: s.space.gap.inline,
             border_width: values::DOCK_BORDER_WIDTH,
@@ -155,8 +158,8 @@ impl Family for DockTokens {
             border: c.line.border,
             resize: c.accent.solid,
             drop: c.accent.solid,
-            icon_selected: c.state.selected,
-            icon_selected_text: c.text.on_selected,
+            icon_selected,
+            icon_selected_text,
         }
     }
 
@@ -202,8 +205,9 @@ impl Family for DockTokens {
 
     fn pairs() -> Vec<ContrastPair> {
         let component = |f| TokenRef::Component(ComponentField::Dock(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         vec![
+            pair(DockField::IconSelected, DockField::Background, values::NON_TEXT_MIN),
             pair(DockField::IconSelectedText, DockField::IconSelected, values::TEXT_MIN),
             pair(DockField::Drop, DockField::Background, values::NON_TEXT_MIN),
         ]

@@ -176,7 +176,7 @@ impl Family for TitleBarTokens {
 
     fn pairs() -> Vec<ContrastPair> {
         let component = |f| TokenRef::Component(ComponentField::TitleBar(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         let (text, mark) = (values::TEXT_MIN, values::NON_TEXT_MIN);
         vec![
             pair(TitleBarField::Title, TitleBarField::Bar, text),

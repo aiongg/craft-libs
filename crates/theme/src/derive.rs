@@ -769,6 +769,12 @@ pub(super) fn component_overrides(
 pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> (Vec<ContrastCheck>, Vec<ContrastCheck>) {
     if high {
         for p in &ComponentTokens::pairs() {
+            if let Some(alt) = p.alternate
+                && let (Some(a), Some(b)) = (pair_color(comp, color, alt), component_bg(comp, color, p.bg))
+                && ratio(a, b) >= p.minimum.1
+            {
+                continue;
+            }
             fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
         }
     }
@@ -782,7 +788,11 @@ pub(super) fn measure_components(comp: &ComponentTokens, color: &ColorTokens, hi
     let check = |p: &ComponentPair| {
         let minimum = if high { p.minimum.1 } else { p.minimum.0 };
         let (fg, bg) = (pair_color(comp, color, p.fg)?, component_bg(comp, color, p.bg)?);
-        Some(ContrastCheck { fg: p.fg, bg: p.bg, ratio: ratio(fg, bg), minimum })
+        let own = ratio(fg, bg);
+        // The better of the two foregrounds is the one reported.
+        let alternate = p.alternate.and_then(|alt| Some((alt, ratio(pair_color(comp, color, alt)?, bg)))).filter(|&(_, r)| r > own);
+        let (fg, ratio) = alternate.unwrap_or((p.fg, own));
+        Some(ContrastCheck { fg, bg: p.bg, ratio, minimum })
     };
     ComponentTokens::pairs().iter().filter_map(check).collect()
 }

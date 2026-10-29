@@ -278,6 +278,7 @@ impl Family for MenuTokens {
                 fg: TokenRef::Component(field(MenuField::Tint(hue, part))),
                 bg: TokenRef::Component(field(MenuField::Tint(hue, MenuTintPart::Fill))),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             })
         });
         let mut pairs = vec![
@@ -285,11 +286,13 @@ impl Family for MenuTokens {
                 fg: TokenRef::Component(field(MenuField::ActiveText)),
                 bg: TokenRef::Component(field(MenuField::ActiveFill)),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             },
             ContrastPair {
                 fg: TokenRef::Component(field(MenuField::Shortcut)),
                 bg: TokenRef::Color(ColorToken::SurfaceRaised),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             },
         ];
         pairs.extend(tints);

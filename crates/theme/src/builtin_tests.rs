@@ -28,23 +28,10 @@ fn builtins_resolve_everywhere_without_warnings_beyond_their_intent() {
             let r = resolve(theme, a, None);
             let high = a.contrast == Contrast::High;
             if high || theme.contrast_intent == ContrastIntent::Standard {
-                let reported: Vec<_> = r.warnings.iter().map(|w| (w.fg.path(), w.bg.path())).collect();
-                assert_eq!(reported, known_warnings(theme, a), "{} {a:?}: {:?}", theme.id, r.warnings);
+                assert!(r.warnings.is_empty(), "{} {a:?}: {:?}", theme.id, r.warnings);
             }
         }
     }
-}
-
-/// The warnings a built-in is known to have. Adwaita dark pins libadwaita's accent (#3584e4) and a
-/// sunken surface (#404044) 2.74:1 apart, below the accent's 3:1 on the track of progress
-/// bars and on the angle dial's face; libadwaita's own dark troughs (15 % of white over the window or view) are 2.6
-/// to 2.8:1 from that accent, so no pin true to GNOME passes. High contrast moves them apart.
-fn known_warnings(theme: &ThemeDef, a: Appearance) -> Vec<(String, String)> {
-    if theme.id.as_str() != "craft.adwaita" || a.mode != Mode::Dark || a.contrast != Contrast::Standard {
-        return Vec::new();
-    }
-    let pair = |fg: &str, bg: &str| (fg.to_owned(), bg.to_owned());
-    vec![pair("accent.solid", "surface.sunken"), pair("angle_dial.needle", "angle_dial.face"), pair("progress.fill", "progress.track")]
 }
 
 /// Links and other accent-coloured text must read as accent, not as body text: a neutral
@@ -128,7 +115,7 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
-            assert_eq!(pairs.len(), 14, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 16, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -234,8 +221,7 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
 }
 
 /// The labels of badges, the keys on keycaps, the progress fill, the swatch selection ring and the
-/// mixed dash meet their minimums in every built-in and appearance, pins included, except where a
-/// built-in has a [known warning](known_warnings).
+/// mixed dash meet their minimums in every built-in and appearance, pins included.
 #[test]
 fn builtin_small_control_pairs_meet_their_minimums() {
     for theme in builtins() {
@@ -249,10 +235,8 @@ fn builtin_small_control_pairs_meet_their_minimums() {
             };
             let pairs: Vec<_> = steps.component_pairs.iter().filter(small).collect();
             assert_eq!(pairs.len(), 12 + 1 + 1 + 2, "{} {a:?}", theme.id);
-            let known = known_warnings(theme, a);
             for p in pairs {
-                let warned = known.contains(&(p.fg.path(), p.bg.path()));
-                assert!(warned || p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
+                assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
         }
     }

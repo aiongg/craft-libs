@@ -201,11 +201,13 @@ impl Family for SwatchTokens {
                 fg: TokenRef::Component(field(SwatchColor::Selected)),
                 bg: TokenRef::Color(ColorToken::SurfacePanel),
                 minimum: values::NON_TEXT_MIN,
+                alternate: None,
             },
             ContrastPair {
                 fg: TokenRef::Component(field(SwatchColor::MixedMark)),
                 bg: TokenRef::Component(field(SwatchColor::MixedFill)),
                 minimum: values::NON_TEXT_MIN,
+                alternate: None,
             },
         ]
     }

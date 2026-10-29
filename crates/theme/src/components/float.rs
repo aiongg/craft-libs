@@ -175,13 +175,18 @@ impl Family for FloatTokens {
 
     fn pairs() -> Vec<ContrastPair> {
         let component = |f| TokenRef::Component(ComponentField::Float(f));
-        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum };
+        let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         let (text, mark) = (values::TEXT_MIN, values::NON_TEXT_MIN);
         vec![
             pair(FloatField::TitleText, FloatField::Title, text),
             pair(FloatField::TitleMuted, FloatField::Title, mark),
             pair(FloatField::Focus, FloatField::Title, mark),
-            ContrastPair { fg: component(FloatField::Focus), bg: TokenRef::Component(ComponentField::Dock(DockField::Background)), minimum: mark },
+            ContrastPair {
+                fg: component(FloatField::Focus),
+                bg: TokenRef::Component(ComponentField::Dock(DockField::Background)),
+                minimum: mark,
+                alternate: None,
+            },
         ]
     }
 }

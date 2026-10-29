@@ -163,7 +163,7 @@ impl Family for CurveTokens {
     /// High contrast moves `curve.fill` for a channel colour, which stays as the data rule left it.
     fn pairs() -> Vec<ContrastPair> {
         let fill = TokenRef::Component(ComponentField::Curve(CurveField::Fill));
-        let pair = |fg| ContrastPair { fg, bg: fill, minimum: values::NON_TEXT_MIN };
+        let pair = |fg| ContrastPair { fg, bg: fill, minimum: values::NON_TEXT_MIN, alternate: None };
         let channels = [T::DataRed, T::DataGreen, T::DataBlue, T::DataCyan, T::DataMagenta, T::DataYellow];
         std::iter::once(pair(TokenRef::Component(ComponentField::Curve(CurveField::PointStroke))))
             .chain(channels.map(|t| pair(TokenRef::Color(t))))

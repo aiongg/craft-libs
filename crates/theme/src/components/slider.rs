@@ -198,6 +198,7 @@ impl Family for SliderTokens {
                 fg: TokenRef::Component(field(SliderField::Fill(state))),
                 bg: TokenRef::Component(field(SliderField::Track)),
                 minimum: values::NON_TEXT_MIN,
+                alternate: None,
             })
             .collect()
     }

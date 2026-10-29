@@ -140,6 +140,7 @@ impl Family for ColorPickerTokens {
             fg: TokenRef::Component(field(ColorPickerField::Marker)),
             bg: TokenRef::Component(field(ColorPickerField::MarkerHalo)),
             minimum: values::NON_TEXT_MIN,
+            alternate: None,
         }]
     }
 }

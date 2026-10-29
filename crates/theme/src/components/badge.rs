@@ -280,6 +280,7 @@ impl Family for BadgeTokens {
                 fg: TokenRef::Component(field(tone, style, BadgePart::Text)),
                 bg: TokenRef::Component(field(tone, style, BadgePart::Fill)),
                 minimum: values::TEXT_MIN,
+                alternate: None,
             })
             .collect()
     }

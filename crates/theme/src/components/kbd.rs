@@ -107,6 +107,7 @@ impl Family for KbdTokens {
             fg: TokenRef::Component(ComponentField::Kbd(KbdField::Text)),
             bg: TokenRef::Component(ComponentField::Kbd(KbdField::Fill)),
             minimum: values::TEXT_MIN,
+            alternate: None,
         }]
     }
 }

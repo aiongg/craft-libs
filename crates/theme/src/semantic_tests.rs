@@ -40,7 +40,7 @@ pub(super) fn violet() -> ThemeDef {
 }
 
 /// Text pinned far too faint in both modes.
-fn pinned_faint() -> ThemeDef {
+pub(super) fn pinned_faint() -> ThemeDef {
     let mut t = grey_blue();
     t.id = ThemeId::parse("test.pinned-faint").unwrap();
     t.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
@@ -181,11 +181,8 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             .map(|bg| ContrastCheck { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
             .into_iter()
             .collect();
-        // The off outline of check boxes, radio buttons and switches is `text.faint`.
-        let off_border = ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest });
-        for bg in [T::SurfacePanel, T::SurfaceRaised] {
-            expected.push(ContrastCheck { fg: off_border.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 3.0 });
-        }
+        // The off outline of check boxes, radio buttons and switches starts as `text.faint`. Neither
+        // it nor the fill shows, so the outline moves and is not among the warnings.
         // The inline empty-state message is `text.faint` on the panel.
         expected.push(ContrastCheck {
             fg: ComponentField::EmptyState(EmptyStateField::Text).into(),

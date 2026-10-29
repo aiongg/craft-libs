@@ -1,9 +1,9 @@
 //! Push buttons: four variants, two sizes. Loading shows a spinner in the text colour and needs
 //! no tokens of its own.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
+use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
-use crate::tokens::{TokenRef, TypeRole};
+use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
 /// A button's emphasis.
@@ -186,6 +186,10 @@ impl Family for ButtonTokens {
         let none = States::new(clear, clear, clear, clear);
         let text = |t: Rgba| States::new(t, t, t, c.text.disabled);
         let bad = c.status.bad;
+        // A toggle button that is on holds the secondary pressed look, so that look identifies the
+        // state: its fill or its edge reaches the non-text minimum on the panel and on a popup.
+        let (pressed, pressed_text) =
+            Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
         ButtonTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             pad_x: BySize { sm: space.pad.control + space.gap.inline, md: values::BUTTON_PAD_X_MD * space.pad.control },
@@ -200,10 +204,10 @@ impl Family for ButtonTokens {
                 text: text(c.text.on_strong),
             },
             secondary: ButtonColors {
-                fill: States::new(c.state.hover, c.state.pressed, c.state.selected, c.state.disabled_fill),
+                fill: States::new(c.state.hover, c.state.pressed, pressed, c.state.disabled_fill),
                 border: States::new(c.line.border, c.line.control_edge, c.line.control_edge, c.line.divider),
                 // The pressed fill is `state.selected`, so its text is the text drawn on it.
-                text: States::new(c.text.normal, c.text.normal, c.text.on_selected, c.text.disabled),
+                text: States::new(c.text.normal, c.text.normal, pressed_text, c.text.disabled),
             },
             ghost: ButtonColors { fill: States::new(clear, c.state.hover, c.state.pressed, clear), border: none, text: text(c.text.normal) },
             danger: ButtonColors {
@@ -263,10 +267,24 @@ impl Family for ButtonTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = |variant, part, state| ComponentField::Button(ButtonField::Color { variant, part, state });
         let mut out = Vec::new();
+        // The secondary pressed look is a toggle button's on look. Its fill comes before its text:
+        // high contrast moves the fill first.
+        let secondary = |part| TokenRef::Component(field(ButtonVariant::Secondary, part, State::Pressed));
+        out.extend([ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
+            fg: secondary(ButtonPart::Fill),
+            bg: TokenRef::Color(bg),
+            minimum: values::NON_TEXT_MIN,
+            alternate: Some(secondary(ButtonPart::Border)),
+        }));
         for variant in ButtonVariant::ALL {
             for state in [State::Rest, State::Hover, State::Pressed] {
                 let fill = TokenRef::Component(field(variant, ButtonPart::Fill, state));
-                out.push(ContrastPair { fg: TokenRef::Component(field(variant, ButtonPart::Text, state)), bg: fill, minimum: values::TEXT_MIN });
+                out.push(ContrastPair {
+                    fg: TokenRef::Component(field(variant, ButtonPart::Text, state)),
+                    bg: fill,
+                    minimum: values::TEXT_MIN,
+                    alternate: None,
+                });
             }
         }
         out

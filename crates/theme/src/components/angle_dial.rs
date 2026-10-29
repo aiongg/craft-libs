@@ -126,6 +126,6 @@ impl Family for AngleDialTokens {
     fn pairs() -> Vec<ContrastPair> {
         let fg = TokenRef::Component(ComponentField::AngleDial(AngleDialField::Needle));
         let bg = TokenRef::Component(ComponentField::AngleDial(AngleDialField::Face));
-        vec![ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN }]
+        vec![ContrastPair { fg, bg, minimum: values::NON_TEXT_MIN, alternate: None }]
     }
 }

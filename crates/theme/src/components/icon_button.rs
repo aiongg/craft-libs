@@ -2,7 +2,7 @@
 //! this family holds its square size and the colours of a toggled-on icon button.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, ITEM_FIELDS, ItemColors, ItemPart, OverrideValue, Semantic, State};
-use crate::tokens::TokenRef;
+use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
 
 /// Icon-button tokens.
@@ -16,7 +16,8 @@ pub struct IconButtonTokens {
     /// Diameter of the badge dot: [`values::ICON_BUTTON_BADGE_RATIO`] of the icon. Not
     /// overridable.
     pub badge: BySize<f32>,
-    /// Colours while toggled on: `text.on_selected` on `state.selected`.
+    /// Colours while toggled on: `text.on_selected` on `state.selected`, the fill moved to reach
+    /// the non-text minimum on the panel and on a popup, the text moved to read on it.
     pub selected: ItemColors,
 }
 
@@ -53,7 +54,7 @@ impl Family for IconButtonTokens {
             size: BySize { sm: size.control.sm, md: size.control.md },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             badge: BySize { sm: size.icon.sm * values::ICON_BUTTON_BADGE_RATIO, md: size.icon.md * values::ICON_BUTTON_BADGE_RATIO },
-            selected: ItemColors::selected(s.color),
+            selected: ItemColors::selected(s.color, &[s.color.surface.panel, s.color.surface.raised], s.high),
         }
     }
 
@@ -84,15 +85,22 @@ impl Family for IconButtonTokens {
         }
     }
 
+    /// The fill shows on the panel and on a popup, and comes before its text: high contrast moves
+    /// the fill first.
     fn pairs() -> Vec<ContrastPair> {
-        let field = |part, state| ComponentField::IconButton(IconButtonField::Selected { part, state });
-        [State::Rest, State::Hover, State::Pressed]
-            .into_iter()
-            .map(|state| ContrastPair {
-                fg: TokenRef::Component(field(ItemPart::Text, state)),
-                bg: TokenRef::Component(field(ItemPart::Fill, state)),
-                minimum: values::TEXT_MIN,
-            })
-            .collect()
+        let field = |part, state| TokenRef::Component(ComponentField::IconButton(IconButtonField::Selected { part, state }));
+        let fill = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
+            fg: field(ItemPart::Fill, State::Rest),
+            bg: TokenRef::Color(bg),
+            minimum: values::NON_TEXT_MIN,
+            alternate: None,
+        });
+        let text = [State::Rest, State::Hover, State::Pressed].map(|state| ContrastPair {
+            fg: field(ItemPart::Text, state),
+            bg: field(ItemPart::Fill, state),
+            minimum: values::TEXT_MIN,
+            alternate: None,
+        });
+        fill.into_iter().chain(text).collect()
     }
 }
