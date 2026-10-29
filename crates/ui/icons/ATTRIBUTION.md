@@ -12,3 +12,5 @@ Each folder holds only the files `icons.toml` lists, unchanged from the pinned s
 Carbon's licence file is the repository's root `LICENSE` (the icons package has none of its own).
 
 Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are all `regular` weight.
+
+`phosphor/` also holds drawings made for this library in Phosphor's style (256 view box, 16-unit round-capped strokes): `distribute-*`, `symmetry-*` and `painting-symmetry`. The symmetry glyphs follow PhotoCraft's own axis icons.
