@@ -635,3 +635,38 @@ fn a_picker_shown_again_without_focus_on_open_leaves_the_focus() {
     rig.settle();
     assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "a dialog's picker takes it when it opens");
 }
+
+#[test]
+fn two_warning_chips_in_one_ui_keep_their_own_clicks() {
+    use crate::composites::ColorWarningChip;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut time = 0.0;
+    // Each chip's rect, id and click in the last frame.
+    let mut frame = |events: Vec<Event>| {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(300.0, 200.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let mut seen = Vec::new();
+        let output = ctx.run_ui(input, |ui| {
+            ui.horizontal(|ui| {
+                for salt in ["first", "second"] {
+                    let warning = ColorWarning::new("Not a web colour", Srgba::rgb(0.2, 0.4, 0.6));
+                    let response = ColorWarningChip::new(salt, warning).show(ui);
+                    seen.push((response.rect, response.id, response.clicked()));
+                }
+            });
+        });
+        output.drop_without_applying_deltas();
+        seen
+    };
+    let seen = frame(vec![]);
+    assert_ne!(seen[0].1, seen[1].1, "chips with different salts have different ids");
+    let at = seen[1].0.center();
+    let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(vec![Event::PointerMoved(at)]);
+    frame(vec![Event::PointerMoved(at), button(true)]);
+    let seen = frame(vec![Event::PointerMoved(at), button(false)]);
+    let clicked = [seen[0].2, seen[1].2];
+    assert_eq!(clicked, [false, true], "a click on the second chip is the second's");
+}

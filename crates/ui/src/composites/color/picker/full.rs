@@ -328,7 +328,7 @@ fn fill(shapes: &mut Vec<Shape>, swatch: &SwatchStyle, rect: Rect, color: Srgba)
 /// use craft_ui::composites::{ColorWarning, ColorWarningChip};
 /// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(1.0, 0.0, 1.0);
 /// let warning = ColorWarning::new("Out of gamut for printing", Srgba::rgb(0.9, 0.1, 0.9));
-/// if ColorWarningChip::new(warning.clone()).show(ui).clicked() {
+/// if ColorWarningChip::new("warning", warning.clone()).show(ui).clicked() {
 ///     color = warning.nearest();
 /// }
 /// # });
@@ -345,14 +345,9 @@ pub struct ColorWarningChip {
 }
 
 impl ColorWarningChip {
-    pub fn new(warning: ColorWarning) -> Self {
-        Self { id_salt: IdSalt::new("craft_ui::color_warning_chip"), warning, enabled: true }
-    }
-
-    /// Keeps the chip's state apart from another chip in the same `Ui`.
-    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
-        self.id_salt = IdSalt::new(id_salt);
-        self
+    /// A chip for `warning`; `id_salt` keeps its state apart from another chip in the same `Ui`.
+    pub fn new(id_salt: impl AsIdSalt, warning: ColorWarning) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), warning, enabled: true }
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
@@ -397,7 +392,7 @@ impl ColorWarningChip {
 
 /// A warning: its chip; a click sets the colour.
 fn show_warning(ui: &mut Ui, index: usize, warning: &ColorWarning, enabled: bool, parts: &mut Parts<'_>) {
-    let response = ColorWarningChip::new(warning.clone()).id_salt(("warning", index)).enabled(enabled).show(ui);
+    let response = ColorWarningChip::new(("warning", index), warning.clone()).enabled(enabled).show(ui);
     if response.clicked() {
         parts.edits.input(super::Input::Click(warning.nearest));
     }

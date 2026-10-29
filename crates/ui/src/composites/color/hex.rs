@@ -14,12 +14,16 @@ use crate::direction;
 use crate::edit::{EditPolicy, EditResponse};
 use crate::theme::{Tokens, TokensOf, margin_x};
 
-/// Writes a colour as uppercase `RRGGBB` and reads six digits back, with or without `#`; eight
-/// set the alpha too when the field edits it. With one digit per channel it writes `RGB` (each
-/// channel on its nearest doubled digit) and reads three, or four with alpha, doubling each.
+/// Writes a colour as uppercase `RRGGBB` (`RRGGBBAA` with `write_alpha`) and reads six
+/// digits back, with or without `#`; eight set the alpha too when the field edits it. With one
+/// digit per channel it writes `RGB` (`RGBA`) with each channel on its nearest doubled digit and
+/// reads three, or four with alpha, doubling each.
 #[derive(Clone, Debug)]
 pub(super) struct HexCodec {
+    /// Whether eight (four) digits are read as an alpha too.
     pub alpha: bool,
+    /// Whether the alpha is written; the picker's field leaves it to the opacity row.
+    pub write_alpha: bool,
     /// Digits per channel, 1 or 2.
     pub digits: usize,
     /// The invalid field's tooltip for text that can't become a colour, translated.
@@ -30,12 +34,14 @@ impl Codec for HexCodec {
     type Value = Rgba;
 
     fn format(&self, value: &Rgba) -> String {
-        let [r, g, b, _] = value.0;
+        let [r, g, b, a] = value.0;
         if self.digits == 1 {
             let nibble = |v: u8| (u16::from(v) + 8) / 17;
-            return format!("{:X}{:X}{:X}", nibble(r), nibble(g), nibble(b));
+            let alpha = if self.write_alpha { format!("{:X}", nibble(a)) } else { String::new() };
+            return format!("{:X}{:X}{:X}{alpha}", nibble(r), nibble(g), nibble(b));
         }
-        format!("{r:02X}{g:02X}{b:02X}")
+        let alpha = if self.write_alpha { format!("{a:02X}") } else { String::new() };
+        format!("{r:02X}{g:02X}{b:02X}{alpha}")
     }
 
     fn parse(&self, text: &str, start: &Rgba) -> Result<Rgba, NotAValue> {
@@ -177,8 +183,8 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
 ///
 /// - Digits: [`digits(2)`](HexField::digits) (the default) takes `RRGGBB`; `digits(1)` takes `RGB`
 ///   and doubles each digit (a web colour is three digits). A leading `#` in typed or pasted
-///   text is dropped. With [`alpha`](HexField::alpha) the field also takes the alpha digits;
-///   it shows the colour's red, green and blue only.
+///   text is dropped. With [`alpha`](HexField::alpha) the field also shows and takes the alpha
+///   digits (`RRGGBBAA`, or `RGBA` with one digit); typing six keeps the colour's alpha.
 /// - Without an alpha digit pair a typed colour keeps the colour's alpha.
 /// - AccessKit: a `TextInput` named `label`; the `#` is decoration. Focus, selection and the
 ///   edit menu are the text field's.
@@ -250,7 +256,7 @@ impl HexField {
         let id = ui.make_persistent_id(self.id_salt);
         // The limit leaves room for a pasted `#`.
         let char_limit = (3 + usize::from(self.alpha)) * self.digits + 1;
-        let codec = HexCodec { alpha: self.alpha, digits: self.digits, reason: self.reason };
+        let codec = HexCodec { alpha: self.alpha, write_alpha: self.alpha, digits: self.digits, reason: self.reason };
         show(ui, id, &self.label, self.value, codec, Options { policy: self.policy, enabled: self.enabled, prefix: true, char_limit })
     }
 }

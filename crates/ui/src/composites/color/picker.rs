@@ -568,7 +568,7 @@ impl<'a> ColorPicker<'a> {
 
     /// The hex field, `width` wide.
     fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) {
-        let codec = HexCodec { alpha: self.alpha, digits: 2, reason: translate(texts::NOT_HEX) };
+        let codec = HexCodec { alpha: self.alpha, write_alpha: false, digits: 2, reason: translate(texts::NOT_HEX) };
         let label = translate(texts::HEX_COLOUR);
         let color = parts.value().color.to_rgba();
         let field = ui
