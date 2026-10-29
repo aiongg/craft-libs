@@ -180,11 +180,10 @@ pub(crate) struct ThumbRow<const N: usize> {
 pub(crate) struct ThumbRowOutput<const N: usize> {
     /// The frame's edit event; the response covers the row.
     pub edit: EditResponse<[f64; N]>,
-    /// The values drawn: the gesture's, each in its range.
+    /// The values drawn: the gesture's, each in its range. A composite's other parts draw from
+    /// the composite's value instead, which a row edit waiting for its turn isn't in.
+    #[cfg(test)]
     pub shown: [f64; N],
-    /// The gesture's values as they are (the host's while none runs), for fields that show a
-    /// value outside the range as it is.
-    pub values: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
     /// What the row's values may be, for an edit of the row held and applied later
@@ -253,7 +252,7 @@ impl<const N: usize> RowRules<N> {
     }
 
     /// The values as drawn: each in its range, and one that isn't finite where its thumb says.
-    fn placed(&self, value: &[f64; N]) -> [f64; N] {
+    pub(crate) fn placed(&self, value: &[f64; N]) -> [f64; N] {
         std::array::from_fn(|i| {
             let scale = self.scale_of(i);
             match value[i] {
@@ -492,7 +491,13 @@ impl<const N: usize> ThumbRow<N> {
                 FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
             }
         }
-        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish_as(|row| row.0)), shown, values, dragged, rules }
+        ThumbRowOutput {
+            edit: EditResponse::new(response, gesture.finish_as(|row| row.0)),
+            #[cfg(test)]
+            shown,
+            dragged,
+            rules,
+        }
     }
 }
 

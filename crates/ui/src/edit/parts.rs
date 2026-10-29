@@ -205,8 +205,9 @@ pub(crate) struct Edits<V, C = ()> {
     /// The fields whose focus is a typing run's: the composite's gesture commits when it leaves
     /// them.
     typing: Vec<Id>,
-    /// The owner's gesture as the last pass left it ([`State::run`]).
+    /// The owner's gesture as the last pass left it ([`State::run`]), and its part.
     run: Option<(Id, GestureId)>,
+    owner: Option<Id>,
     /// The parts drawn in this pass, each with how its gesture under way would end if it stopped
     /// being drawn.
     drawn: Vec<(Id, Option<End<V>>)>,
@@ -229,6 +230,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             ctx: None,
             typing: Vec::new(),
             run: state.run,
+            owner: state.owner,
             drawn: Vec::new(),
             sets: Vec::new(),
             inputs: Vec::new(),
@@ -354,6 +356,28 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             }
             Turn::Now | Turn::Runs => inputs,
         }
+    }
+
+    /// Whether `part`'s event of this pass goes out in this pass, as far as the parts pushed so
+    /// far tell, rather than waiting for its turn ([`feed`](Edits::feed) holds it). A part drawn
+    /// after it draws from and maps onto the value that event makes only when it does; else onto
+    /// the composite's shown value. `outer` is the composite's gesture as loaded and `scoped` as
+    /// for `feed`. False when the part has no event.
+    pub fn applies(&self, outer: &Gesture<V>, scoped: bool, part: Id) -> bool {
+        let Some(at) = self.events.iter().rposition(|(id, ..)| *id == part) else { return false };
+        if scoped {
+            return true;
+        }
+        if outer.is_ending() {
+            return false;
+        }
+        if outer.is_active() {
+            return self.owner == Some(part);
+        }
+        // Idle: the first part whose event begins a gesture owns it, and the events of the other
+        // parts after it wait.
+        let begins = |event: &EditEvent<V>| matches!(event, EditEvent::Begin { .. } | EditEvent::Update { .. });
+        !self.events[..at].iter().any(|(id, event, _)| *id != part && begins(event))
     }
 
     fn is_drawn(&self, part: Id) -> bool {

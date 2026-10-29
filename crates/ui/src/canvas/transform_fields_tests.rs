@@ -332,6 +332,28 @@ fn two_fields_in_one_frame_both_reach_the_host() {
     assert!((shown(&h, Field::Angle) - 1.0).abs() < 1e-6, "{}", shown(&h, Field::Angle));
 }
 
+/// A screen reader's step on Width in the same frame as an update of an Angle scrub waits for the
+/// release: the scrub's update, mapped after X in drawing order, doesn't carry the step.
+#[test]
+fn a_step_on_an_earlier_field_in_a_scrub_update_frame_waits_for_the_release() {
+    let mut h = harness(Direction::Ltr);
+    h.run();
+    let x = shown(&h, Field::W);
+    let at = scrub(&mut h, "Angle", 3.0, 3);
+    let (target_node, target_tree) = h.get_by_label("Width").accesskit_node().locate();
+    let to = at + vec2(3.0, 0.0);
+    h.input_mut().events.extend([
+        Event::AccessKitActionRequest(ActionRequest { action: Action::Increment, target_tree, target_node, data: None }),
+        Event::PointerMoved(to),
+    ]);
+    h.step();
+    assert!((shown(&h, Field::W) - x).abs() < 1e-6, "the step waits: {} from {x}", shown(&h, Field::W));
+    release(&mut h, to);
+    let kinds = h.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    assert!((shown(&h, Field::W) - (x + 1.0)).abs() < 1e-6, "the step applies after the release: {}", shown(&h, Field::W));
+}
+
 /// Without a host link the row keeps its own, and the toggle turns it off.
 #[test]
 fn the_row_keeps_its_own_link() {

@@ -808,7 +808,8 @@ fn the_fields_edit_the_selected_marker_one_gesture_per_run_and_the_selection_fol
 
 /// An arrow on the bar during a scrub of the selected stop's Opacity field waits for the release
 /// and moves only the stop: the bar's stops from the arrow's pass don't bring back the opacity
-/// the scrub moved on from.
+/// the scrub moved on from. The scrub's update in the arrow's pass doesn't carry the arrow's move:
+/// the fields draw from the editor's shown stops, not the bar's.
 #[test]
 fn an_arrow_on_the_bar_during_a_field_scrub_keeps_the_scrubs_value() {
     let mut harness = harness_with(Host { rows: StopRows::Combined, ..Host::new(three()) });
@@ -822,8 +823,6 @@ fn an_arrow_on_the_bar_during_a_field_scrub_keeps_the_scrubs_value() {
         move_to(&mut harness, field - vec2(dx, 0.0));
     }
     assert!(bar_focused(&harness), "the scrub leaves the focus on the bar");
-    // The scrub's last update goes out before the arrow's pass.
-    harness.step();
     harness.event(Event::Key { key: Key::ArrowRight, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
     harness.step();
     let stepped = harness.state().stops.color[1].color.a;

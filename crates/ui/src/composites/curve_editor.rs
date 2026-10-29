@@ -454,14 +454,28 @@ impl<'a> CurveEditor<'a> {
         let shown = outer.shown().clone();
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
         let mut edits = parts::Edits::<Curve>::new(id, &state.parts);
+        let scoped = edit::in_scope(ui);
+        let before = state.selected;
         let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
                 let (graph, points, selected) = self.graph(ui, &style, id, &shown, policy, &mut state);
                 edits.push_from(&graph, &shown, |curve| curve);
-                if self.fields
-                    && let Some(points) = points
-                {
-                    self.fields_row(ui, id, &points, selected, policy, &mut edits);
+                // The fields draw from the graph's curve of this pass and map onto it, unless the
+                // graph's edit waits for another part's gesture: it isn't in the editor's value
+                // then, so they draw from the shown curve, and the selection stays where it was
+                // before the edit.
+                let waits = graph.event.is_some() && !edits.applies(&outer, scoped, graph.response.id);
+                if let Some(points) = points {
+                    let (points, selected) = match waits {
+                        false => (points, selected),
+                        true => {
+                            state.selected = before;
+                            (shown.points().map(<[_]>::to_vec).unwrap_or_default(), before)
+                        }
+                    };
+                    if self.fields {
+                        self.fields_row(ui, id, &points, selected, policy, &mut edits);
+                    }
                 }
                 if let Some(hint) = &self.hint {
                     ui.add(Text::new(hint.as_str()).role(style.hint_role).content(Content::Faint));
@@ -469,7 +483,7 @@ impl<'a> CurveEditor<'a> {
                 graph
             })
             .inner;
-        let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
+        let outer = edits.feed(outer, &mut state.parts, scoped);
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
         EditResponse::new(graph.response, outer.finish())
     }
