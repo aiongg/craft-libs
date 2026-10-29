@@ -174,13 +174,7 @@ impl Gallery {
         let system_face = faces::system_face(ctx).is_some();
         if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied {
             let previous = self.applied.replace(self.appearance.clone());
-            if previous.as_ref().is_none_or(|p| p.rtl != self.appearance.rtl) {
-                direction::apply(ctx, self.appearance.direction());
-            }
-            let faces_changed = previous.as_ref().is_none_or(|p| p.ui_face != self.appearance.ui_face || p.mono_face != self.appearance.mono_face);
-            if faces::available() && (faces_changed || system_face != self.system_face_applied) {
-                faces::install(ctx, &self.appearance.ui_face, &self.appearance.mono_face);
-            }
+            self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied);
             self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
                 icons::set_active(ctx, self.appearance.icon_set());
@@ -189,7 +183,6 @@ impl Gallery {
             if self.story_ppp.is_none() {
                 ctx.set_zoom_factor(self.appearance.zoom());
             }
-            self.base = self.appearance.base();
         }
         install(ctx, &self.base);
     }

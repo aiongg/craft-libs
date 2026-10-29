@@ -99,6 +99,21 @@ impl Appearance {
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 
+    /// Sets `ctx` up for these settings, given the ones it was last set up for (`None` the first
+    /// time): the interface direction and the font stack, each only when it changed.
+    /// `system_face_changed` is true when the OS's interface face resolved since. Returns the
+    /// base for [`install`](craft_ui::theme::install), which the caller runs every frame.
+    pub fn configure(&self, ctx: &egui::Context, previous: Option<&Appearance>, system_face_changed: bool) -> Base {
+        if previous.is_none_or(|p| p.rtl != self.rtl) {
+            craft_ui::direction::apply(ctx, self.direction());
+        }
+        let faces_changed = previous.is_none_or(|p| p.ui_face != self.ui_face || p.mono_face != self.mono_face);
+        if crate::faces::available() && (faces_changed || system_face_changed) {
+            crate::faces::install(ctx, &self.ui_face, &self.mono_face);
+        }
+        self.base()
+    }
+
     /// The overrides that show the bar's settings in a scope.
     pub fn overrides(&self, o: &mut Overrides) {
         o.mode = Some(self.mode());

@@ -11,6 +11,7 @@ pub mod canvas;
 pub mod capture;
 pub mod combo;
 pub mod composites;
+pub mod conformance;
 pub mod controls;
 pub mod direction;
 pub mod docking;
