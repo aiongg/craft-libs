@@ -1017,10 +1017,12 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
         badge_beside_y,
         dart_length,
         dart_half_width,
+        dart_outline,
         skew_gap,
         skew_half_length,
         skew_head,
         skew_back,
+        skew_head_outline,
         ..
     } = c;
     out.line("cursor.crosshair_reach", len(*crosshair_reach));
@@ -1031,10 +1033,12 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
     out.line("cursor.badge_beside_y", len(*badge_beside_y));
     out.line("cursor.dart_length", len(*dart_length));
     out.line("cursor.dart_half_width", len(*dart_half_width));
+    out.line("cursor.dart_outline", len(*dart_outline));
     out.line("cursor.skew_gap", len(*skew_gap));
     out.line("cursor.skew_half_length", len(*skew_half_length));
     out.line("cursor.skew_head", len(*skew_head));
     out.line("cursor.skew_back", len(*skew_back));
+    out.line("cursor.skew_head_outline", len(*skew_head_outline));
 }
 
 fn handle_lines(out: &mut Lines, h: &HandleTokens) {

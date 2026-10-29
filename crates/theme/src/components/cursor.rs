@@ -27,6 +27,8 @@ pub struct CursorTokens {
     pub dart_length: f32,
     /// Half the width of the distort arrowhead's base: `cursor.dart_half_width`.
     pub dart_half_width: f32,
+    /// Width of the halo outline drawn over the distort arrowhead's edge: `cursor.dart_outline`.
+    pub dart_outline: f32,
     /// Distance of each skew arrow from the pointer's axis: `cursor.skew_gap`.
     pub skew_gap: f32,
     /// Half the length of a skew arrow's shaft: `cursor.skew_half_length`.
@@ -35,6 +37,8 @@ pub struct CursorTokens {
     pub skew_head: f32,
     /// How far a skew arrowhead's base lies back from the shaft's end: `cursor.skew_back`.
     pub skew_back: f32,
+    /// Width of the halo outline drawn over a skew arrowhead's edge: `cursor.skew_head_outline`.
+    pub skew_head_outline: f32,
 }
 
 /// Painted pointers have no overridable field: their sizes come from the code, as every size does.
@@ -55,10 +59,12 @@ impl Family for CursorTokens {
             badge_beside_y: values::CURSOR_BADGE_BESIDE.1,
             dart_length: values::CURSOR_DART_LENGTH,
             dart_half_width: values::CURSOR_DART_HALF_WIDTH,
+            dart_outline: values::CURSOR_DART_OUTLINE,
             skew_gap: values::CURSOR_SKEW_GAP,
             skew_half_length: values::CURSOR_SKEW_HALF_LENGTH,
             skew_head: values::CURSOR_SKEW_HEAD,
             skew_back: values::CURSOR_SKEW_BACK,
+            skew_head_outline: values::CURSOR_SKEW_HEAD_OUTLINE,
         }
     }
 

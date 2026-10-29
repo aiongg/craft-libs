@@ -101,8 +101,6 @@ struct Ink {
     halo: Color32,
     line: f32,
     halo_line: f32,
-    /// The halo stroke round a filled shape.
-    outline: Stroke,
     geometry: CursorTokens,
 }
 
@@ -112,19 +110,13 @@ impl Ink {
         let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
         let halo = o.halo.to_egui();
         let halo_line = h.stroke + 2.0 * h.halo;
-        Ink { color: o.stroke.to_egui(), halo, line: h.stroke, halo_line, outline: Stroke::new(halo_line, halo), geometry: tokens.component.cursor }
+        Ink { color: o.stroke.to_egui(), halo, line: h.stroke, halo_line, geometry: tokens.component.cursor }
     }
 
     /// A segment: the halo line, then the ink line.
     fn segment(&self, painter: &Painter, a: Pos2, b: Pos2) {
         painter.line_segment([a, b], Stroke::new(self.halo_line, self.halo));
         painter.line_segment([a, b], Stroke::new(self.line, self.color));
-    }
-
-    /// A filled convex shape with the halo round it, drawn once as the outline of the shape.
-    fn fill(&self, painter: &Painter, points: Vec<Pos2>) {
-        painter.add(Shape::closed_line(points.clone(), self.outline));
-        painter.add(Shape::convex_polygon(points, self.color, Stroke::NONE));
     }
 }
 
@@ -143,7 +135,7 @@ fn screen_dir(view: &CanvasView, v: kurbo::Vec2, fallback: Vec2) -> Vec2 {
 /// this pass when `ink` is `Painted`: an arrowhead with its tip at `at`, pointing along document direction `doc_dir`
 /// as `view` shows it (from the pivot out through the corner under the pointer). A zero `doc_dir`
 /// points up and left. Colours as [`turn_cursor`]'s, at the handle widths; the halo is one
-/// outline of the whole arrowhead, under the fills.
+/// outline of the whole arrowhead, drawn over the fills.
 pub fn distort_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo::Vec2, pointer: PointerInk) {
     pointer.hide_system(ctx);
     let (ink, painter) = (Ink::of(ctx), tooltip_painter(ctx, "craft_ui::canvas::distort_cursor"));
@@ -153,10 +145,10 @@ pub fn distort_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo
     let base = at - u * length;
     let (left, right, notch) = (base + perp * half_width, base - perp * half_width, at - u * (length * DART_NOTCH));
     // Two triangles meeting along the tip and the notch: the dart is not convex.
-    painter.add(Shape::closed_line(vec![at, left, notch, right], ink.outline));
     for triangle in [vec![at, left, notch], vec![at, notch, right]] {
         painter.add(Shape::convex_polygon(triangle, ink.color, Stroke::NONE));
     }
+    painter.add(Shape::closed_line(vec![at, left, notch, right], Stroke::new(ink.geometry.dart_outline, ink.halo)));
 }
 
 /// Paints PhotoCraft's Skew pointer at screen point `at`, hiding the system pointer for this
@@ -172,14 +164,12 @@ pub fn skew_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo::V
         let centre = at + perp * offset;
         let end = centre + u * (dir * g.skew_half_length);
         ink.segment(&painter, centre - u * (dir * g.skew_half_length), end);
-        ink.fill(
-            &painter,
-            vec![
-                end + u * (dir * g.skew_head),
-                end - u * (dir * g.skew_back) + perp * g.skew_head,
-                end - u * (dir * g.skew_back) - perp * g.skew_head,
-            ],
-        );
+        let head = vec![
+            end + u * (dir * g.skew_head),
+            end - u * (dir * g.skew_back) + perp * g.skew_head,
+            end - u * (dir * g.skew_back) - perp * g.skew_head,
+        ];
+        painter.add(Shape::convex_polygon(head, ink.color, Stroke::new(g.skew_head_outline, ink.halo)));
     }
 }
 

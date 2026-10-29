@@ -79,26 +79,28 @@ fn system_ink_leaves_the_pointer_and_painted_ink_hides_it() {
 }
 
 #[test]
-fn the_distort_halo_is_one_outline_of_the_arrowhead_and_the_fills_have_no_stroke() {
+fn the_distort_halo_is_one_outline_over_the_unstroked_fills() {
     let (_, shapes) = paint(|ctx| distort_cursor(ctx, AT, &view(), kurbo::Vec2::new(1.0, 0.0), PointerInk::Painted));
     let all = path_shapes(&shapes);
-    let outlines: Vec<_> = all.iter().filter(|p| p.stroke.width > 0.0).collect();
-    let fills: Vec<_> = all.iter().filter(|p| p.fill != egui::Color32::TRANSPARENT).collect();
-    assert_eq!(outlines.len(), 1, "{all:?}");
-    assert!(outlines[0].closed && outlines[0].points.len() == 4 && outlines[0].fill == egui::Color32::TRANSPARENT);
+    let transparent = egui::Color32::TRANSPARENT;
+    let fills: Vec<_> = all.iter().filter(|p| p.fill != transparent).collect();
     assert_eq!(fills.len(), 2);
     assert!(fills.iter().all(|p| p.stroke.width == 0.0), "{fills:?}");
+    let outlines: Vec<_> = all.iter().filter(|p| p.stroke.width > 0.0).collect();
+    assert_eq!(outlines.len(), 1, "{all:?}");
+    assert!(outlines[0].closed && outlines[0].points.len() == 4 && outlines[0].fill == transparent);
+    assert_eq!(outlines[0].stroke.width, 1.5, "PhotoCraft's width");
+    // Drawn after both fills, so it covers their edges as PhotoCraft's does.
+    assert_eq!(all.iter().position(|p| p.stroke.width > 0.0), Some(all.len() - 1));
 }
 
 #[test]
-fn the_skew_arrowheads_are_filled_without_a_stroke_under_one_halo_outline_each() {
+fn the_skew_arrowheads_are_stroked_one_point_in_the_halo_and_the_shafts_are_halo_then_ink() {
     let (_, shapes) = paint(|ctx| skew_cursor(ctx, AT, &view(), kurbo::Vec2::new(1.0, 0.0), PointerInk::Painted));
     let all = path_shapes(&shapes);
-    let fills: Vec<_> = all.iter().filter(|p| p.fill != egui::Color32::TRANSPARENT).collect();
-    assert_eq!(fills.len(), 2);
-    assert!(fills.iter().all(|p| p.stroke.width == 0.0), "{fills:?}");
-    let outlines = all.iter().filter(|p| p.closed && p.fill == egui::Color32::TRANSPARENT && p.stroke.width > 0.0).count();
-    assert_eq!(outlines, 2);
+    let heads: Vec<_> = all.iter().filter(|p| p.fill != egui::Color32::TRANSPARENT).collect();
+    assert_eq!(heads.len(), 2);
+    assert!(heads.iter().all(|p| p.stroke.width == 1.0 && p.points.len() == 3), "{heads:?}");
 }
 
 #[test]

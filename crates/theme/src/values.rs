@@ -800,6 +800,8 @@ pub const CURSOR_BADGE_BESIDE: (f32, f32) = (30.0, 11.0);
 pub const CURSOR_DART_LENGTH: f32 = 16.0;
 /// Half the width of the distort arrowhead's base (PhotoCraft's).
 pub const CURSOR_DART_HALF_WIDTH: f32 = 7.0;
+/// Width of the halo outline drawn over the distort arrowhead's edge (PhotoCraft's).
+pub const CURSOR_DART_OUTLINE: f32 = 1.5;
 /// Distance of each skew arrow from the pointer's axis (PhotoCraft's).
 pub const CURSOR_SKEW_GAP: f32 = 4.0;
 /// Half the length of a skew arrow's shaft (PhotoCraft's).
@@ -808,6 +810,9 @@ pub const CURSOR_SKEW_HALF_LENGTH: f32 = 9.0;
 pub const CURSOR_SKEW_HEAD: f32 = 3.5;
 /// How far a skew arrowhead's base lies back from the shaft's end (PhotoCraft's).
 pub const CURSOR_SKEW_BACK: f32 = 2.5;
+
+/// Width of the halo outline drawn over a skew arrowhead's edge (PhotoCraft's).
+pub const CURSOR_SKEW_HEAD_OUTLINE: f32 = 1.0;
 
 /// Guide line width in points, the same at every Size: guides sit on the document.
 pub const GUIDE_WIDTH: f32 = 1.0;
