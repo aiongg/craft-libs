@@ -131,7 +131,7 @@ impl<'a> SectionHeader<'a> {
         let row = Rect::from_min_max(pos2(rect.left(), rect.top() + hairline), rect.max);
         ui.painter().hline(rect.x_range(), (rect.top() + hairline / 2.0).round_to_pixel_center(ui.pixels_per_point()), style.hairline);
 
-        let id = Interactive::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let stored = || ui.ctx().data_mut(|d| d.get_persisted::<bool>(id)).unwrap_or(true);
         let mut open = match (self.collapsible, &self.open) {
             (false, _) => true,
@@ -140,8 +140,10 @@ impl<'a> SectionHeader<'a> {
         };
 
         let mut response = if self.collapsible {
-            let element =
-                Interactive::new(self.id_salt, Role::DisclosureTriangle, self.title.as_str()).sense(Sense::click()).expanded(open).state_layer(false);
+            let element = Interactive::salted(self.id_salt, Role::DisclosureTriangle, self.title.as_str())
+                .sense(Sense::click())
+                .expanded(open)
+                .state_layer(false);
             let sensed = element.interact_at(ui, row);
             let clicked = sensed.response().clicked();
             let response = sensed.finish(ui).on_hover_cursor(CursorIcon::PointingHand);

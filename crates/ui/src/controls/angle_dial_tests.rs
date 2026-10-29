@@ -348,3 +348,82 @@ fn typing_in_the_field_is_one_gesture_of_the_dial_response() {
     assert!(matches!(events.last(), Some(EditEvent::Commit { id: c, value, .. }) if *c == id && *value == 45.0), "{events:?}");
     assert_eq!(rig.angle, 45.0);
 }
+
+/// A mixed selection (the host's NaN) draws no needle and a blank field; a press begins no
+/// gesture and a click sets the angle, as a slider's does.
+#[test]
+fn a_mixed_dial_takes_a_click_and_no_drag() {
+    let mut rig = Rig::new();
+    rig.angle = f64::NAN;
+    rig.frame(vec![]);
+    let mut events = Vec::new();
+    let start = rig.at(vec2(20.0, 0.0));
+    rig.press(start);
+    events.extend(rig.event.clone());
+    for offset in [vec2(0.0, -20.0), vec2(-20.0, 0.0)] {
+        rig.drag(rig.at(offset));
+        events.extend(rig.event.clone());
+    }
+    rig.release(start);
+    events.extend(rig.event.clone());
+    rig.frame(vec![]);
+    events.extend(rig.event.clone());
+    assert!(events.is_empty(), "{events:?}");
+    assert!(rig.angle.is_nan());
+    assert_eq!(rig.tap(vec2(0.0, -20.0)), Some(90.0));
+}
+
+#[test]
+fn typing_in_a_mixed_dials_field_commits_the_number() {
+    let mut rig = Rig::new();
+    rig.angle = f64::NAN;
+    rig.frame(vec![]);
+    let bounds = rig.node(Role::SpinButton).bounds().expect("bounds");
+    let at = pos2(((bounds.x0 + bounds.x1) / 2.0) as f32, ((bounds.y0 + bounds.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
+    rig.frame(vec![button(at, false)]);
+    let mut events = Vec::new();
+    for event in [Event::Text("45".into()), pressed(Key::Enter, Modifiers::NONE)] {
+        rig.frame(vec![event]);
+        events.extend(rig.event.clone());
+        rig.frame(vec![]);
+        events.extend(rig.event.clone());
+    }
+    let Some(EditEvent::Begin { id }) = events.first().cloned() else { panic!("expected Begin first, got {events:?}") };
+    assert!(matches!(events.last(), Some(EditEvent::Commit { id: c, value, .. }) if *c == id && *value == 45.0), "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "{events:?}");
+    assert_eq!(rig.angle, 45.0);
+}
+
+#[test]
+fn a_mixed_dial_has_no_accessible_value() {
+    let mut rig = Rig::new();
+    rig.angle = f64::NAN;
+    rig.frame(vec![]);
+    let node = rig.node(Role::Slider);
+    assert_eq!((node.numeric_value(), node.value()), (None, None));
+    assert_eq!((node.min_numeric_value(), node.max_numeric_value()), (Some(-180.0), Some(180.0)));
+    assert!(node.supports_action(Action::SetValue));
+}
+
+#[test]
+fn cancelling_a_typing_run_on_a_mixed_dial_reports_no_value_the_host_never_had() {
+    let mut rig = Rig::new();
+    rig.angle = f64::NAN;
+    rig.frame(vec![]);
+    let bounds = rig.node(Role::SpinButton).bounds().expect("bounds");
+    let at = pos2(((bounds.x0 + bounds.x1) / 2.0) as f32, ((bounds.y0 + bounds.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
+    rig.frame(vec![button(at, false)]);
+    let mut events = Vec::new();
+    for event in [Event::Text("4".into()), pressed(Key::Escape, Modifiers::NONE)] {
+        rig.frame(vec![event]);
+        events.extend(rig.event.clone());
+        rig.frame(vec![]);
+        events.extend(rig.event.clone());
+    }
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. })), "{events:?}");
+    let values: Vec<f64> = events.iter().filter_map(|e| e.value().copied()).collect();
+    assert!(values.iter().all(|v| *v == 4.0), "only what was typed: {values:?}");
+}

@@ -164,7 +164,7 @@ impl<'m, T: Clone> Search<'m, T> {
         egui::Frame::NONE.inner_margin(Margin::symmetric(pad.round() as i8, style.rows.gap.round() as i8)).show(ui, |ui| {
             ui.set_width((style.min_width - 2.0 * pad).max(0.0));
             ui.with_layout(Layout::top_down_justified(Align::Min), |ui| {
-                let field = Interactive::id_in(ui, egui::IdSalt::new(salt));
+                let field = Interactive::id_in(ui, salt);
                 // egui drops a focus given in a pass that sizes the popup, or with a click outside
                 // the field (the click on the title that opened the menu).
                 if self.state.focus && !ui.is_sizing_pass() && !ui.input(|i| i.pointer.any_click()) {

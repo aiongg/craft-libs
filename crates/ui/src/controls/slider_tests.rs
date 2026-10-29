@@ -45,6 +45,8 @@ struct Rig {
     range_event: Option<EditEvent<(f64, f64)>>,
     /// The slider's numeric value in the last AccessKit update.
     reported: Option<f64>,
+    /// The range slider's thumbs' numeric values in the last AccessKit update.
+    thumbs_reported: (Option<f64>, Option<f64>),
 }
 
 impl Rig {
@@ -73,6 +75,7 @@ impl Rig {
             level_event: None,
             range_event: None,
             reported: None,
+            thumbs_reported: (None, None),
         };
         rig.frame(vec![]);
         rig
@@ -88,8 +91,9 @@ impl Rig {
         let update = output.platform_output.accesskit_update.clone();
         output.drop_without_applying_deltas();
         if let Some(update) = update {
-            let id = self.slider_id.accesskit_id();
-            self.reported = update.nodes.iter().find(|(n, _)| *n == id).and_then(|(_, node)| node.numeric_value());
+            let value = |id: Id| update.nodes.iter().find(|(n, _)| *n == id.accesskit_id()).and_then(|(_, node)| node.numeric_value());
+            self.reported = value(self.slider_id);
+            self.thumbs_reported = (value(self.thumbs.0), value(self.thumbs.1));
         }
     }
 
@@ -425,7 +429,7 @@ fn a_value_that_is_not_finite_draws_at_the_start_and_begins_no_drag() {
     for value in [f64::NAN, f64::INFINITY] {
         rig.level = value;
         rig.frame(vec![]);
-        assert_eq!(rig.reported, Some(0.0));
+        assert_eq!(rig.reported, None, "mixed to a screen reader");
         rig.press(rig.level_at(0.0, 0.0));
         rig.drag(rig.level_at(30.0, 0.0));
         assert_eq!(rig.level_event, None);
@@ -440,6 +444,15 @@ fn a_value_that_is_not_finite_draws_at_the_start_and_begins_no_drag() {
     rig.drag(rig.range_at(35.0, 0.0));
     assert_eq!(rig.range_event, None);
     rig.release(rig.range_at(35.0, 0.0));
+}
+
+#[test]
+fn a_range_with_a_value_that_is_not_finite_reports_both_thumbs_mixed() {
+    let mut rig = Rig::new();
+    assert_eq!(rig.thumbs_reported, (Some(20.0), Some(60.0)));
+    rig.range = (f64::NAN, 50.0);
+    rig.frame(vec![]);
+    assert_eq!(rig.thumbs_reported, (None, None));
 }
 
 #[test]

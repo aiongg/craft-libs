@@ -401,7 +401,7 @@ impl<'a> WarpGrid<'a> {
                 Turn::Now => None,
             };
         }
-        if drag.is_none() && !waited && editable {
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editable {
             drag = self.press(&ctx, canvas, view, &screen, &style, id);
             starts = drag.is_some_and(|d| !d.waits);
         }

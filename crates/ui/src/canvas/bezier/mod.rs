@@ -427,7 +427,7 @@ impl<'a> BezierOverlay<'a> {
                 Turn::Now => None,
             };
         }
-        if drag.is_none() && !waited && editing {
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editing {
             drag = self.press(&pass, &parts, &mut picked, &mut out);
         }
         let reported = Gesture::<PathEdit>::reported(ui, id).map(|(_, value)| value);

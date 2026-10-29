@@ -526,9 +526,10 @@ impl<'a> MarqueeDrag<'a> {
             match turn {
                 Turn::Waits => return MarqueeResponse::default(),
                 Turn::Runs => p.waits = false,
+                // The press that waited was superseded: a press of this pass is handled below.
                 Turn::Now => {
                     ctx.data_mut(|d| d.remove::<Press>(key));
-                    return MarqueeResponse::default();
+                    press = None;
                 }
             }
         }

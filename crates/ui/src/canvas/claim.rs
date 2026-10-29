@@ -20,15 +20,32 @@ use crate::edit::order::{self, Turn};
 /// ending event (`edit::order`): [`take`](Claim::take) registers it with the order queue and the
 /// owner asks [`turn`](Claim::turn) in every pass until its press runs. The claim holds through
 /// the wait, also past the release, so a press released while it waited still runs, as a click.
+/// An overlay that kept a waiting press into a pass takes no new press while
+/// [`Claim::turn`] says [`Waits`](Turn::Waits) or [`Runs`](Turn::Runs); on [`Now`](Turn::Now) the
+/// claim has ended, and a press that superseded it is the overlay's to take in the same pass.
 ///
-/// ```ignore
-/// // The owner's pass, after it took the press:
-/// match Claim::turn(ctx, canvas.id, id) {
-///     Turn::Waits => return, // keep the press; begin nothing, change nothing
-///     Turn::Runs => start = *self.state, // the host's value now, not the one at the press
-///     Turn::Now => {}
+/// ```
+/// use craft_ui::canvas::{Claim, Turn};
+/// use egui::{Context, Id};
+///
+/// /// One pass of an overlay of the app's own, with its id `me` on the host's `canvas`.
+/// fn pass(ctx: &Context, canvas: Id, me: Id, wants_press: bool) {
+///     // At the press: take it. A second overlay's `take` fails while this one owns it.
+///     if wants_press && !Claim::take(ctx, canvas, me) {
+///         return;
+///     }
+///     if !Claim::is_owner(ctx, canvas, me) {
+///         return;
+///     }
+///     // Every pass while the press is owned, before beginning or changing anything:
+///     match Claim::turn(ctx, canvas, me) {
+///         Turn::Waits => return, // keep the press; begin nothing, change nothing
+///         Turn::Runs => {}       // begin from the host's value now, not the one at the press
+///         Turn::Now => {}        // begin from the press's own pass
+///     }
+///     // ... begin or continue the gesture ...
 /// }
-/// // ... begin the gesture from `Claim::owned_press` ...
+/// # let _ = pass;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Claim {
@@ -84,8 +101,8 @@ impl Claim {
     /// the owner begins its gesture on [`Now`](Turn::Now) (the press's own pass, or no wait) or
     /// [`Runs`](Turn::Runs) (once, in the pass its turn comes; values it took at the press are
     /// the host's value then), and does nothing on [`Waits`](Turn::Waits). `Now` also when
-    /// `overlay` owns no claim.
-    pub(crate) fn turn(ctx: &Context, canvas: Id, overlay: Id) -> Turn {
+    /// `overlay` owns no claim, or its press was superseded by a later one.
+    pub fn turn(ctx: &Context, canvas: Id, overlay: Id) -> Turn {
         let Some(mut claim) = Claim::current(ctx, canvas).filter(|c| c.owner == overlay && c.waiting.is_some()) else {
             return Turn::Now;
         };
@@ -93,6 +110,14 @@ impl Claim {
         claim.waiting = (turn == Turn::Waits).then(|| ctx.cumulative_pass_nr());
         ctx.data_mut(|d| d.insert_temp(Claim::key(canvas), claim));
         turn
+    }
+
+    /// Whether `overlay`'s waiting press still holds the claim after this pass's
+    /// [`turn`](Claim::turn), so that no new press is taken: `waited` is whether the overlay
+    /// kept a waiting press into the pass. A press that superseded it ended the claim, and the
+    /// overlay handles the new one in the same pass.
+    pub(crate) fn keeps_waiting(ctx: &Context, canvas: Id, overlay: Id, waited: bool) -> bool {
+        waited && Claim::is_owner(ctx, canvas, overlay)
     }
 
     /// The current press on `canvas` when `overlay` owns it.

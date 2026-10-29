@@ -69,7 +69,8 @@ struct Report {
 /// A numeric value with its bounds, for sliders.
 #[derive(Clone, Debug)]
 struct Numeric {
-    value: f64,
+    /// `None` for a mixed value.
+    value: Option<f64>,
     range: RangeInclusive<f64>,
     step: f64,
 }
@@ -119,7 +120,15 @@ impl<'a> Interactive<'a> {
     /// An element with the AccessKit `role` and accessible name `label`; `id_salt` keeps its
     /// focus and animations when the layout around it changes.
     pub fn new(id_salt: impl AsIdSalt, role: Role, label: impl Into<String>) -> Self {
-        Self::with_id_source(IdSource::Salt(IdSalt::new(id_salt)), role, label.into())
+        Self::salted(IdSalt::new(id_salt), role, label.into())
+    }
+
+    /// As [`new`](Interactive::new) for a control that holds `salt` already made by
+    /// `IdSalt::new`: the element has the id `ui.make_persistent_id(salt)`, the one
+    /// [`id_in`](Interactive::id_in) gives the salt's source. Passing the held salt to `new` would
+    /// hash it a second time.
+    pub fn salted(salt: IdSalt, role: Role, label: impl Into<String>) -> Self {
+        Self::with_id_source(IdSource::Salt(salt), role, label.into())
     }
 
     /// An element with the id `id` wherever it is placed: for an element whose id is needed
@@ -143,7 +152,8 @@ impl<'a> Interactive<'a> {
     }
 
     /// The id [`show`](Interactive::show) gives an element made with `id_salt` in `ui`, for a
-    /// control that needs it first (to read its focus).
+    /// control that needs it first (to read its focus). A control that holds the salt as an
+    /// `IdSalt` uses `ui.make_persistent_id(salt)`, which is the same id.
     pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
         ui.make_persistent_id(IdSalt::new(id_salt))
     }
@@ -371,7 +381,14 @@ impl Sensed {
     /// increment, a decrement (offered while the value is inside its bounds) or a value; the
     /// control reads those requests from the input.
     pub fn numeric(mut self, value: f64, range: RangeInclusive<f64>, step: f64) -> Self {
-        self.report.numeric = Some(Numeric { value, range, step });
+        self.report.numeric = Some(Numeric { value: Some(value), range, step });
+        self
+    }
+
+    /// As [`numeric`](Sensed::numeric) for a value that is mixed (a selection whose items differ):
+    /// no value, the bounds and step, and every request offered.
+    pub fn numeric_mixed(mut self, range: RangeInclusive<f64>, step: f64) -> Self {
+        self.report.numeric = Some(Numeric { value: None, range, step });
         self
     }
 
@@ -384,7 +401,7 @@ impl Sensed {
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(report.role, enabled, &report.label);
             info.current_text_value.clone_from(&report.value);
-            info.value = report.numeric.as_ref().map(|n| n.value);
+            info.value = report.numeric.as_ref().and_then(|n| n.value);
             info.selected = checked;
             info
         });
@@ -397,12 +414,15 @@ impl Sensed {
                     node.set_min_numeric_value(*range.start());
                     node.set_max_numeric_value(*range.end());
                     node.set_numeric_value_step(*step);
+                    if value.is_none() {
+                        node.clear_numeric_value();
+                    }
                     if enabled {
                         node.add_action(Action::SetValue);
-                        if value < range.end() {
+                        if value.is_none_or(|v| v < *range.end()) {
                             node.add_action(Action::Increment);
                         }
-                        if value > range.start() {
+                        if value.is_none_or(|v| v > *range.start()) {
                             node.add_action(Action::Decrement);
                         }
                     }

@@ -329,7 +329,7 @@ impl<'a> TransformBox<'a> {
                 Turn::Now => drag = None,
             }
         }
-        if drag.is_none() && !waited {
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
             drag = self.press(ui, canvas, view, &style, id);
             if let Some(d) = drag
                 && d.part != BoxPart::Outside

@@ -447,7 +447,7 @@ impl<'a> CurveEditor<'a> {
     pub fn show(self, ui: &mut Ui) -> EditResponse<Curve> {
         let tokens = Tokens::of(ui);
         let style = CurveEditor::style(&tokens);
-        let id = CurveEditor::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.curve, self.policy.cancellable(false)).enabled(self.enabled && ui.is_enabled());

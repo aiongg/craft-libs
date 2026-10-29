@@ -138,7 +138,7 @@ impl Swatch {
 
     /// The id a swatch made with `id_salt` has in `ui`.
     pub(crate) fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
-        Interactive::id_in(ui, IdSalt::new(id_salt))
+        Interactive::id_in(ui, id_salt)
     }
 
     /// Whether it takes clicks; a disabled swatch keeps its colour and fades its rings.
@@ -249,7 +249,7 @@ impl Widget for Swatch {
     fn ui(self, ui: &mut Ui) -> Response {
         let style = Swatch::style(&Tokens::of(ui), self.size);
         let role = if self.radio.is_some() { Role::RadioButton } else { Role::Button };
-        let mut element = Interactive::new(self.id_salt, role, self.label.as_str())
+        let mut element = Interactive::salted(self.id_salt, role, self.label.as_str())
             .state_layer(false)
             .focus_ring(false)
             .selected(self.selected)

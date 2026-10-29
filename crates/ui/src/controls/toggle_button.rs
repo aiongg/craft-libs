@@ -90,7 +90,7 @@ impl Widget for ToggleButton<'_> {
         let laid = face.layout(ui, &tokens, &style.off);
         let id_salt = salt(ui, self.id_salt);
         let on = self.on;
-        let response = Interactive::new(id_salt, Role::Button, self.label.as_str())
+        let response = Interactive::salted(id_salt, Role::Button, self.label.as_str())
             .surface(SurfaceKind::Raised)
             .corner(Corner::Button)
             .colors(style.off.colors())

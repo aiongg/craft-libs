@@ -296,7 +296,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
-        let id = Interactive::id_in(ui, id_salt);
+        let id = ui.make_persistent_id(id_salt);
         let enabled = enabled && ui.is_enabled();
         let options = Options::new(&source);
         let (mut state, fresh) = PopupState::load(ui, id);
@@ -968,7 +968,7 @@ impl List<'_> {
             let before = query.clone();
             if let Some((label, clear)) = self.search {
                 let salt = "craft-select-search";
-                let field = Interactive::id_in(ui, IdSalt::new(salt));
+                let field = Interactive::id_in(ui, salt);
                 // egui drops a focus given during a pass that sizes the popup (its widgets are
                 // disabled) or one with a click outside the field (the click that opened the list).
                 if focus_search && !ui.is_sizing_pass() && !ui.input(|i| i.pointer.any_click()) {

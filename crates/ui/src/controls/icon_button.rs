@@ -113,7 +113,7 @@ impl IconButton<'_> {
         let style = IconButton::style(&Tokens::of(ui), self.size);
         let mut on = self.on;
         let sense = if self.focusable { Sense::click() } else { Sense::CLICK };
-        let mut element = Interactive::new(salt(ui, self.id_salt), Role::Button, self.label.as_str())
+        let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
             .sense(sense)
             .colors(StateColors { fill: style.fill, border: None })
             .on_colors(StateColors { fill: style.selected_fill, border: None })

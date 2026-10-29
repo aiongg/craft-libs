@@ -18,6 +18,8 @@ pub mod edit;
 mod focus;
 pub mod fonts;
 pub mod icons;
+#[cfg(test)]
+mod id_tests;
 pub mod ime;
 pub mod inspect;
 pub mod layout;

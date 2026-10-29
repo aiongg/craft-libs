@@ -43,7 +43,7 @@ pub(super) fn show<K: Clone>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band
     let edit = ui
         .scope_builder(UiBuilder::new().id_salt(row_id.with("rename-scope")).max_rect(band).layout(layout), |ui| {
             // The id `TextField` gives its salt.
-            let field = Interactive::id_in(ui, egui::IdSalt::new("rename"));
+            let field = Interactive::id_in(ui, "rename");
             if fresh {
                 ui.memory_mut(|m| m.request_focus(field));
                 let mut state = TextEditState::default();

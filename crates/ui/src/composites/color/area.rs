@@ -129,7 +129,7 @@ impl ColorArea {
         let model = self.mode.model();
         let [across, down] = self.mode.area();
         let axes = Axes { across, down, x: scale_of(model, across), y: scale_of(model, down) };
-        let sensed = Interactive::new(self.id_salt, Role::Slider, self.label.as_str())
+        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
             .state_layer(false)
