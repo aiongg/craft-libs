@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, OFFSET};
 use crate::components::{ComponentField, FieldKind, OverrideValue};
 use crate::ramp::Mode;
-use crate::theme::{EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
+use crate::resolve;
+use crate::theme::{Appearance, Contrast, EdgeSeed, ModePins, PinLayer, Pins, ShapeSeed, Size, TextSize, ThemeDef, Variants};
 use crate::tokens::TokenRef;
 
 impl ThemeDef {
@@ -139,6 +140,7 @@ impl Check {
 
     /// Reports a reference cycle once, at the first reference on it in file order.
     fn references(&mut self, t: &ThemeDef) {
+        let before = self.errors.len();
         type Layer<'a> = (Vec<&'a str>, &'a ModePins);
         let theme: Layer = (vec![], &t.pins);
         let theme_high: Layer = (vec!["high_contrast"], &t.high_contrast);
@@ -187,6 +189,47 @@ impl Check {
                         }
                         chain.push(at);
                     }
+                }
+            }
+        }
+        if self.errors.len() == before {
+            self.unsettled_references(t);
+        }
+    }
+
+    /// Reports references that never settle (see `resolve::settle_references`), once per set of
+    /// references, at the first of them. Resolution runs only for themes that have references.
+    fn unsettled_references(&mut self, t: &ThemeDef) {
+        let has_refs = |m: &ModePins| !m.light.refs.is_empty() || !m.dark.refs.is_empty();
+        if !has_refs(&t.pins) && !has_refs(&t.high_contrast) && !t.apps.values().any(|a| has_refs(&a.pins) || has_refs(&a.high_contrast)) {
+            return;
+        }
+        let mut reported: Vec<Vec<String>> = Vec::new();
+        let apps = std::iter::once(None).chain(t.apps.keys().map(Some));
+        for app in apps {
+            for (mode_key, mode) in [("light", Mode::Light), ("dark", Mode::Dark)] {
+                if t.variants.mode_for(mode) != mode {
+                    continue;
+                }
+                for contrast in [Contrast::Standard, Contrast::High] {
+                    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+                    let unsettled = resolve::unsettled_references(t, appearance, app);
+                    let mut names: Vec<String> = unsettled.iter().map(|&(_, key)| key.path()).collect();
+                    names.sort();
+                    let Some(&(layer, key)) = unsettled.first() else { continue };
+                    if reported.contains(&names) {
+                        continue;
+                    }
+                    reported.push(names.clone());
+                    let mut path: Vec<String> = match (layer, app) {
+                        (PinLayer::Theme, _) => vec![],
+                        (PinLayer::ThemeHighContrast, _) => vec!["high_contrast".to_owned()],
+                        (PinLayer::App, Some(id)) => vec!["apps".to_owned(), id.as_str().to_owned()],
+                        (PinLayer::AppHighContrast, Some(id)) => vec!["apps".to_owned(), id.as_str().to_owned(), "high_contrast".to_owned()],
+                        _ => vec![],
+                    };
+                    path.extend([mode_key.to_owned(), key.path()]);
+                    self.errors.push(FormatError { path, kind: ErrorKind::ReferenceNeverSettles { tokens: names } });
                 }
             }
         }
