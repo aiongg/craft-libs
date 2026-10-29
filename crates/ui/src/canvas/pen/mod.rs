@@ -63,16 +63,25 @@ pub struct PenStyle {
 
 /// What a pass of [`PenDraft::show`] reports.
 #[derive(Clone, Debug, PartialEq)]
-#[must_use = "keep the draft the events carry and continue the resumed path"]
+#[must_use = "keep the draft the events carry, end it when finished and continue the resumed path"]
 pub struct PenResponse {
     /// The overlay's id, for [`PenDraft::remove_last`].
     pub id: Id,
-    /// The draft's edit gesture, each value the whole draft: Begin at its first change (a draft
-    /// the host hands in, a resumed path's, begins at once), Update on each change, Commit on
-    /// Enter, Esc or closing it (`closed` is set), Cancel when the last anchor is removed. A draft
-    /// begun and ended in one frame is a Set. After the host ends the gesture for another
-    /// control's change, the draft's next change begins a new gesture.
+    /// The draft's edits, each value the whole draft: Begin at its first change (a draft the host
+    /// hands in, a resumed path's, begins at once), Update on each change, Commit when the pen
+    /// ends a changed draft (`closed` is set on a close). A draft that ends with fewer than two
+    /// anchors (one left at Enter or Esc, the only one removed) is no path: Cancel while the host
+    /// holds none of it, else a Commit of the empty draft, which removes the path the host holds
+    /// (a resumed path, or the anchors kept when the host ended the gesture). A draft begun and
+    /// ended in one frame is a Set. After the host ends the gesture for another control's change,
+    /// the draft's next change begins a new gesture, and a draft ended with no change since
+    /// reports nothing: [`finished`](Self::finished) says when the draft is over.
     pub event: Option<EditEvent<EditSubpath>>,
+    /// The pen ended the draft in this pass (Enter, Esc, closing it, removing its only anchor):
+    /// the host stops handing it in. It comes with the draft's Commit or Cancel, or alone when
+    /// the host already holds every anchor (it ended the draft's gesture for another control's
+    /// change and no anchor changed since).
+    pub finished: bool,
     /// A press on the end point of an open path while no draft is open: the host makes that
     /// path's subpath the draft with the knot of that end last (reversing it for its first knot).
     pub resumed: Option<(u64, KnotRef)>,
@@ -129,9 +138,10 @@ struct Drag {
 ///   press on an open path's end point ([`ends`](Self::ends)) reports
 ///   [`resumed`](PenResponse::resumed).
 /// - Keys while a draft is open and no text field has focus: Enter and Esc end it open and keep
-///   it (a draft of one anchor is cancelled); Backspace and Delete remove the last anchor, the
-///   only one cancelling the draft; the host's Undo does the same through
-///   [`remove_last`](Self::remove_last). A press that is still down finishes first.
+///   it (a draft of one anchor is discarded, as PhotoCraft files no path under two anchors);
+///   Backspace and Delete remove the last anchor, the only one discarding the draft; the host's
+///   Undo does the same through [`remove_last`](Self::remove_last). Each ending is
+///   [`finished`](PenResponse::finished). A press that is still down finishes first.
 /// - Look: the path so far, a dashed rubber band from the last anchor to where a click would land,
 ///   the last anchor's handles, the anchors with the last one filled, and over the first anchor the
 ///   close cue.
@@ -143,7 +153,9 @@ struct Drag {
 ///   focus plays no part: a click in an options-bar field or Tab leaves the draft open. When the
 ///   host ends the gesture because another control begins a gesture or sets a value (a stroke
 ///   width in the options bar), the anchors so far are one undo step and the draft goes on: its
-///   next change begins a new gesture ([`Gesture`]'s rule for gestures the host ended).
+///   next change begins a new gesture ([`Gesture`]'s rule for gestures the host ended). Ending
+///   the draft is tool state, not an edit: the host ends it on [`finished`](PenResponse::finished),
+///   since a draft ended with no change after such a step has no event to report.
 ///   [`GestureHost`](crate::edit::GestureHost) judges an interruption from
 ///   [`ending`](crate::edit::ending).
 /// - Order: the host shows the pen after its handles and guides, as it is a tool.
@@ -212,7 +224,7 @@ impl<'a> PenDraft<'a> {
     }
 
     /// Removes the draft's last anchor on the overlay `id` ([`PenResponse::id`]) in its next
-    /// pass: the host's Undo while a draft is open (PhotoCraft ⌘Z). The only anchor cancels the
+    /// pass: the host's Undo while a draft is open (PhotoCraft ⌘Z). The only anchor discards the
     /// draft.
     pub fn remove_last(ctx: &Context, id: Id) {
         ctx.data_mut(|d| d.insert_temp(remove_key(id), true));
@@ -231,18 +243,18 @@ impl<'a> PenDraft<'a> {
         if !gesture.is_active() && !host.knots.is_empty() {
             gesture.begin();
         }
-        let mut out = PenResponse { id, event: None, resumed: None, claimed: false };
+        let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false };
 
         let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
         if drag.is_none() && editing {
             drag = self.press(&ctx, canvas, view, &style, &mut gesture, &mut out);
         }
         if let Some(d) = drag.take() {
-            drag = self.track(&ctx, view, &style, d, &mut gesture);
+            drag = self.track(&ctx, view, &style, d, &mut gesture, &mut out);
         }
         let undo = ctx.data_mut(|d| d.remove_temp::<bool>(remove_key(id))).unwrap_or(false);
         if editing && drag.is_none() {
-            self.keys(ui, undo, &mut gesture);
+            out.finished |= self.keys(ui, undo, &mut gesture);
         }
 
         let draft = gesture.shown().clone();
@@ -335,7 +347,15 @@ impl<'a> PenDraft<'a> {
     }
 
     /// One pass of a press the overlay owns: the press that goes on, if it does.
-    fn track(&self, ctx: &Context, view: &CanvasView, style: &PenStyle, mut d: Drag, gesture: &mut Gesture<EditSubpath>) -> Option<Drag> {
+    fn track(
+        &self,
+        ctx: &Context,
+        view: &CanvasView,
+        style: &PenStyle,
+        mut d: Drag,
+        gesture: &mut Gesture<EditSubpath>,
+        out: &mut PenResponse,
+    ) -> Option<Drag> {
         let (pointer, down, mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
         if let Some(pointer) = pointer {
             d.moved |= pointer.distance(d.press.origin) > style.click_slop;
@@ -354,15 +374,17 @@ impl<'a> PenDraft<'a> {
             draft.closed = true;
             gesture.update(draft, mods);
             gesture.commit();
+            out.finished = true;
         }
         None
     }
 
-    /// Enter, Esc, Backspace and Delete, and the host's undo, while a draft is open.
-    fn keys(&self, ui: &Ui, undo: bool, gesture: &mut Gesture<EditSubpath>) {
+    /// Enter, Esc, Backspace and Delete, and the host's undo, while a draft is open: whether they
+    /// ended it.
+    fn keys(&self, ui: &Ui, undo: bool, gesture: &mut Gesture<EditSubpath>) -> bool {
         let draft = gesture.shown().clone();
         if draft.knots.is_empty() || !nudge::reads(ui) {
-            return;
+            return false;
         }
         let (end, remove) = ui.input_mut(|i| {
             let end = i.consume_key(Modifiers::NONE, Key::Enter) | i.consume_key(Modifiers::NONE, Key::Escape);
@@ -372,20 +394,22 @@ impl<'a> PenDraft<'a> {
         let mods = ui.input(|i| i.modifiers);
         if remove || undo {
             if draft.knots.len() <= 1 {
-                gesture.cancel(CancelReason::UndoDuringGesture);
-            } else {
-                let mut draft = draft;
-                draft.knots.pop();
-                gesture.update(draft, mods);
+                discard(gesture, CancelReason::UndoDuringGesture, mods);
+                return true;
             }
+            let mut draft = draft;
+            draft.knots.pop();
+            gesture.update(draft, mods);
         } else if end {
             if draft.knots.len() < 2 {
-                gesture.cancel(CancelReason::Escape);
+                discard(gesture, CancelReason::Escape, mods);
             } else {
                 gesture.update(draft, mods);
                 gesture.commit();
             }
+            return true;
         }
+        false
     }
 
     /// The anchors' AccessKit nodes, the last one selected.
@@ -494,6 +518,19 @@ fn pull(knot: &mut Knot, kind: Kind, to: Point, mods: Modifiers, in_ctrl: &mut P
 
 fn drag_key(id: Id) -> Id {
     id.with("craft_ui::canvas::PenDraft::drag")
+}
+
+/// Ends a draft too short to be a path (PhotoCraft files none under two anchors). The gesture's
+/// start is what the host holds of the draft: when that is empty a cancel leaves nothing behind;
+/// when it holds anchors (a resumed path, or anchors kept when the host ended the gesture) the
+/// empty draft is committed, so the host removes them.
+fn discard(gesture: &mut Gesture<EditSubpath>, reason: CancelReason, mods: Modifiers) {
+    if gesture.start().is_some_and(|start| !start.knots.is_empty()) {
+        gesture.update(EditSubpath::default(), mods);
+        gesture.commit();
+    } else {
+        gesture.cancel(reason);
+    }
 }
 
 fn remove_key(id: Id) -> Id {

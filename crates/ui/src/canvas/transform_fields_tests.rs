@@ -7,7 +7,7 @@ use kurbo::{Point, Rect};
 use super::super::quad::Anchor9;
 use super::*;
 use crate::direction::{self, Direction};
-use crate::edit::EditEvent;
+use crate::edit::{self, CancelReason, EditEvent};
 use crate::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 50.0, 300.0, 150.0);
@@ -98,6 +98,8 @@ struct Host {
     /// Whether the host gives the row the link; without it the row keeps its own.
     host_link: bool,
     skew_v: f64,
+    /// Whether the row takes input.
+    enabled: bool,
     labels: TransformFieldLabels,
     events: Vec<EditEvent<BoxState>>,
 }
@@ -128,6 +130,7 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
         linked: true,
         host_link: true,
         skew_v: 0.0,
+        enabled: true,
         labels: TransformFieldLabels::default(),
         events: Vec::new(),
     };
@@ -143,7 +146,7 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
         .build_ui_state(
             |ui, host: &mut Host| {
                 let state = host.state;
-                let fields = TransformFields::new("fields", &state, RECT, host.labels.clone()).skew_v(&mut host.skew_v);
+                let fields = TransformFields::new("fields", &state, RECT, host.labels.clone()).skew_v(&mut host.skew_v).enabled(host.enabled);
                 let edit = if host.host_link { fields.linked(&mut host.linked).show(ui) } else { fields.show(ui) };
                 // A host that applies every update live, as a box session does.
                 match &edit.event {
@@ -242,6 +245,28 @@ fn a_cancelled_skew_scrub_restores_the_host_s_skew() {
     assert!(matches!(h.state().event(), Some(EditEvent::Cancel { .. })), "{:?}", h.state().kinds());
     assert_eq!(h.state().skew_v, 5.0);
     assert_eq!(h.state().state, BoxState::from_rect(RECT));
+}
+
+/// A cancel that doesn't come from the row (the host's undo mid-gesture through `cancel_all`,
+/// or disabling the row) restores the V skew too.
+#[test]
+fn a_skew_scrub_cancelled_by_the_host_restores_the_host_s_skew() {
+    for disable in [false, true] {
+        let mut h = harness_with(Direction::Ltr, |host| host.skew_v = 5.0);
+        h.run();
+        let at = scrub(&mut h, "Vertical skew", 3.0, 4);
+        assert!((h.state().skew_v - 17.0).abs() < 1e-9, "disable: {disable}: {}", h.state().skew_v);
+        if disable {
+            h.state_mut().enabled = false;
+        } else {
+            edit::cancel_all(&h.ctx, CancelReason::UndoDuringGesture);
+        }
+        h.run();
+        assert!(matches!(h.state().event(), Some(EditEvent::Cancel { .. })), "disable: {disable}: {:?}", h.state().kinds());
+        assert_eq!(h.state().skew_v, 5.0, "disable: {disable}");
+        assert_eq!(h.state().state, BoxState::from_rect(RECT), "disable: {disable}");
+        release(&mut h, at);
+    }
 }
 
 /// A scrub on another field while a typing run is open waits for the run: the run commits

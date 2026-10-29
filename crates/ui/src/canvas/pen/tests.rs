@@ -562,14 +562,83 @@ fn hosted() -> Harness<'static, Hosted> {
             let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
             let r = PenDraft::new("pen", draft.as_ref(), names).show(ui, &canvas, &view);
             if let Some(event) = r.event {
-                s.finished |= matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. });
                 s.host.handle(&ctx, &mut s.doc, event, |doc: &mut Drawing, path| doc.edit(|d| d.path = path));
             }
+            s.finished |= r.finished;
             options_bar(s, false);
             s.host.end_frame(&ctx, &mut s.doc);
         },
         state,
     )
+}
+
+fn hosted_click(h: &mut Harness<'_, Hosted>, x: f64, y: f64) {
+    let at = h.state().view.expect("drawn").to_screen(doc(x, y));
+    h.event(Event::PointerMoved(at));
+    h.event(button(at, true, Modifiers::NONE));
+    h.run();
+    h.event(button(at, false, Modifiers::NONE));
+    h.run();
+}
+
+/// A draft ended with one anchor is no path, whatever the host already holds of it: with nothing
+/// filed it is cancelled; after an options-bar change kept the first two anchors, its end
+/// removes them as one more undo step instead of bringing back the anchor the user removed.
+#[test]
+fn a_draft_ended_with_one_anchor_leaves_no_path() {
+    for bar in [false, true] {
+        for k in [Key::Enter, Key::Escape] {
+            let mut h = hosted();
+            h.run();
+            hosted_click(&mut h, 60.0, 60.0);
+            hosted_click(&mut h, 160.0, 60.0);
+            if bar {
+                h.state_mut().set_width = Some((4.0, true));
+                h.run();
+            }
+            h.key_press(Key::Backspace);
+            h.run();
+            h.key_press(k);
+            h.run();
+            h.run();
+
+            let s = h.state();
+            assert!(s.finished, "bar: {bar}, {k:?}");
+            assert!(s.doc.path.knots.is_empty(), "bar: {bar}, {k:?}: {:?}", s.doc.path);
+            if bar {
+                // The first two anchors, the width, their removal.
+                let mut d = s.doc.clone();
+                assert_eq!((d.undo.len(), d.width), (3, 4.0), "{k:?}");
+                d.revert_to(2);
+                assert_eq!(d.path.knots.len(), 2, "{k:?}");
+            } else {
+                assert!(s.doc.undo.is_empty(), "{k:?}: {:?}", s.doc.undo);
+            }
+        }
+    }
+}
+
+/// Enter and Esc right after an options-bar change end the draft, though its gesture has no
+/// change to report: the host already holds every anchor.
+#[test]
+fn enter_or_esc_after_an_options_bar_change_finishes_the_draft() {
+    for k in [Key::Enter, Key::Escape] {
+        let mut h = hosted();
+        h.run();
+        hosted_click(&mut h, 60.0, 60.0);
+        hosted_click(&mut h, 160.0, 60.0);
+        h.state_mut().set_width = Some((4.0, true));
+        h.run();
+        h.key_press(k);
+        h.run();
+        h.run();
+
+        let s = h.state();
+        assert!(s.finished, "{k:?}");
+        assert_eq!(s.doc.path.knots.iter().map(|k| k.anchor).collect::<Vec<_>>(), [doc(60.0, 60.0), doc(160.0, 60.0)], "{k:?}");
+        // The anchors and the width; finishing adds no step.
+        assert_eq!((s.doc.undo.len(), s.doc.width), (2, 4.0), "{k:?}");
+    }
 }
 
 /// An options-bar change during a draft keeps the anchors so far as one undo step, and the
