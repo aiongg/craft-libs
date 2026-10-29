@@ -41,13 +41,13 @@ disallowed-methods = [
     { path = "egui::color_picker::color_picker_hsva_2d", reason = "use craft_ui::composites::ColorPicker", allow-invalid = true },
     # Tooltips (stock tooltips are styled but carry no accessible description)
     { path = "egui::Response::on_hover_text", reason = "use craft_ui::controls::TooltipExt::tooltip", allow-invalid = true },
-    { path = "egui::Response::on_hover_text_at_pointer", reason = "use craft_ui::controls::TooltipExt::tooltip", allow-invalid = true },
+    { path = "egui::Response::on_hover_text_at_pointer", reason = "use craft_ui::controls::TooltipExt::tooltip_at_pointer", allow-invalid = true },
     { path = "egui::Response::on_disabled_hover_text", reason = "use craft_ui::controls::TooltipExt::tooltip", allow-invalid = true },
     { path = "egui::Response::on_hover_ui", reason = "use craft_ui::controls::TooltipExt::tooltip_ui", allow-invalid = true },
-    { path = "egui::Response::on_hover_ui_at_pointer", reason = "use craft_ui::controls::TooltipExt::tooltip_ui", allow-invalid = true },
+    { path = "egui::Response::on_hover_ui_at_pointer", reason = "use craft_ui::controls::TooltipExt::tooltip_ui_at_pointer", allow-invalid = true },
     { path = "egui::Response::on_disabled_hover_ui", reason = "use craft_ui::controls::TooltipExt::tooltip_ui", allow-invalid = true },
-    { path = "egui::Response::show_tooltip_text", reason = "use craft_ui::controls::Tooltip", allow-invalid = true },
-    { path = "egui::Response::show_tooltip_ui", reason = "use craft_ui::controls::Tooltip", allow-invalid = true },
+    { path = "egui::Response::show_tooltip_text", reason = "use craft_ui::controls::TooltipExt::show_tooltip", allow-invalid = true },
+    { path = "egui::Response::show_tooltip_ui", reason = "use craft_ui::controls::TooltipExt::show_tooltip_ui", allow-invalid = true },
     # Raw colour constructors -> semantic tokens: Tokens::of(ui).color.<group>.<name>.to_egui()
     { path = "egui::Color32::from_rgb", reason = "take colours from tokens: Tokens::of(ui).color.<group>.<name>.to_egui()", allow-invalid = true },
     { path = "egui::Color32::from_rgb_additive", reason = "take colours from tokens", allow-invalid = true },

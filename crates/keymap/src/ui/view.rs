@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use craft_ui::ComboBox;
 use craft_ui::buttons::{IconButton, IconButtonStyle};
+use craft_ui::controls::TooltipExt as _;
 use craft_ui::layout::{ResizeHandle, SplitAxis, SplitSize, split_rect};
 #[allow(deprecated)]
 use craft_ui::tabs::{self, Tab};
@@ -428,7 +429,7 @@ impl Draw<'_, '_> {
             .inner
             .labelled_by(label.id);
         self.tag(|| format!("shortcuts.{salt}"), r.rect, title);
-        if natural > width { r.on_hover_text(full) } else { r }
+        if natural > width { r.tooltip(full) } else { r }
     }
 
     fn filter_combo(&mut self, ui: &mut Ui) {
@@ -465,7 +466,7 @@ impl Draw<'_, '_> {
 
         let key_label = self.ui("Search by key");
         let searching = self.recording_target() == Some(&Target::Search);
-        let r = self.icon_button(ui, &key_label, searching, paint_keyboard).on_hover_text(self.vis(&key_label));
+        let r = self.icon_button(ui, &key_label, searching, paint_keyboard).tooltip(self.vis(&key_label));
         self.tag(|| "shortcuts.searchKey".into(), r.rect, &key_label);
         if r.clicked() {
             if searching {
@@ -836,7 +837,7 @@ impl Draw<'_, '_> {
         ui.painter().galley(pos2(m.x(rect.min.x + 20.0, g.size().x), rect.center().y - g.size().y / 2.0), g, color);
         let clicked = resp.clicked();
         if cut {
-            resp.on_hover_text(self.vis(name));
+            resp.tooltip(self.vis(name));
         }
         clicked.then(|| RowAction::Toggle(name.to_string()))
     }
@@ -910,7 +911,7 @@ impl Draw<'_, '_> {
                 tip.push(self.vis(&h));
             }
         }
-        resp.on_hover_text(tip.join("\n"));
+        resp.tooltip(tip.join("\n"));
         action.or_else(|| clicked.then(|| RowAction::Select(r.command.clone())))
     }
 
@@ -1047,7 +1048,7 @@ impl Draw<'_, '_> {
             }
         }
         if !tip.is_empty() {
-            resp.on_hover_text(tip.join("\n"));
+            resp.tooltip(tip.join("\n"));
         }
     }
 
@@ -1094,7 +1095,7 @@ impl Draw<'_, '_> {
                 ui.label(self.vis_chord(&shown, &self.chord(&binding.trigger)));
                 if editable {
                     let a11y = fill(self.ui("Remove {chord} from {label}"), &[("chord", &text), ("label", &label)]);
-                    let r = self.icon_button(ui, &a11y, false, paint_cross).on_hover_text(self.vis(&a11y));
+                    let r = self.icon_button(ui, &a11y, false, paint_cross).tooltip(self.vis(&a11y));
                     self.tag(|| format!("shortcuts.remove.{n}"), r.rect, &a11y);
                     if r.clicked() {
                         remove = Some(binding.clone());
@@ -1331,7 +1332,7 @@ impl Draw<'_, '_> {
                 act = 3;
             }
             let label = self.ui("Cancel the new shortcut");
-            let r = self.icon_button(ui, &label, false, paint_cross).on_hover_text(self.vis(&label));
+            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(self.vis(&label));
             self.tag(|| "shortcuts.conflict.cancel".into(), r.rect, &label);
             if r.clicked() {
                 act = 4;
@@ -1362,7 +1363,7 @@ impl Draw<'_, '_> {
                 act = 2;
             }
             let label = self.ui("Dismiss");
-            let r = self.icon_button(ui, &label, false, paint_cross).on_hover_text(self.vis(&label));
+            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(self.vis(&label));
             self.tag(|| "shortcuts.message.dismiss".into(), r.rect, &label);
             if r.clicked() {
                 act = 3;

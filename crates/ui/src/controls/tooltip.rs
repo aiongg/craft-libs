@@ -79,9 +79,15 @@ pub trait TooltipExt: Sized {
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self;
     /// A tooltip with any contents.
     fn tooltip_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self;
+    /// A tooltip with `text` next to the pointer instead of the control.
+    fn tooltip_at_pointer(self, text: impl Into<String>) -> Self;
+    /// A tooltip with any contents next to the pointer instead of the control.
+    fn tooltip_ui_at_pointer(self, add_contents: impl FnOnce(&mut Ui)) -> Self;
     /// Shows a tooltip with `text` now, whether or not the pointer rests on the control: for a
     /// message about the control's state, such as why its input was refused.
     fn show_tooltip(&self, text: impl Into<String>);
+    /// Shows a tooltip with any contents now, whether or not the pointer rests on the control.
+    fn show_tooltip_ui(&self, add_contents: impl FnOnce(&mut Ui));
 }
 
 impl TooltipExt for Response {
@@ -107,20 +113,46 @@ impl TooltipExt for Response {
     }
 
     fn tooltip_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
-        let mut tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
-        let style = Tooltip::style(&current(&self.ctx));
-        tooltip.popup = tooltip.popup.frame(style.frame());
-        tooltip.show(|ui| contents(ui, &style, add_contents));
+        let tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
+        show_on(&self, tooltip, add_contents);
+        self
+    }
+
+    fn tooltip_at_pointer(self, text: impl Into<String>) -> Self {
+        let text = text.into();
+        self.describe_for_accessibility(&text);
+        self.tooltip_ui_at_pointer(|ui| {
+            tip_text(ui, text);
+        })
+    }
+
+    fn tooltip_ui_at_pointer(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
+        let tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
+        show_on(&self, tooltip.at_pointer().gap(POINTER_GAP), add_contents);
         self
     }
 
     fn show_tooltip(&self, text: impl Into<String>) {
         let text = text.into();
+        self.show_tooltip_ui(|ui| tip_text(ui, text));
+    }
+
+    fn show_tooltip_ui(&self, add_contents: impl FnOnce(&mut Ui)) {
         let style = Tooltip::style(&current(&self.ctx));
         egui::Popup::from_response(self).kind(egui::PopupKind::Tooltip).frame(style.frame()).show(|ui| {
-            contents(ui, &style, |ui| tip_text(ui, text));
+            contents(ui, &style, add_contents);
         });
     }
+}
+
+/// Points between the pointer and a tooltip placed at it, as egui's `on_hover_ui_at_pointer`.
+const POINTER_GAP: f32 = 12.0;
+
+/// Shows `tooltip` for `response` with the frame and contents style of the tokens in effect.
+fn show_on(response: &Response, mut tooltip: egui::Tooltip<'_>, add_contents: impl FnOnce(&mut Ui)) {
+    let style = Tooltip::style(&current(&response.ctx));
+    tooltip.popup = tooltip.popup.frame(style.frame());
+    tooltip.show(|ui| contents(ui, &style, add_contents));
 }
 
 /// The tooltip's contents in the scope's style, with `style.text` as the colour of egui labels.
