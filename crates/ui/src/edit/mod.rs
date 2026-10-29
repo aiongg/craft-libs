@@ -23,7 +23,8 @@
 //!   control's gesture or change) is over: [`is_live`] is false for it, and its control, on its
 //!   next [`load`](Gesture::load), carries the input on in a new gesture from the host's value.
 //!   That gesture reports its [`Begin`](EditEvent::Begin) at its first change, so a drag or a
-//!   draft that goes on after an options-bar change reaches the host as a gesture of its own.
+//!   draft that goes on after an options-bar change reaches the host as a gesture of its own,
+//!   and nothing when it ends unchanged.
 //! - [`Gesture::commit_on_interrupt`] makes every interruption of a control's gesture a commit,
 //!   for work kept as it goes (a pen draft's anchors).
 //! - [`focused_gesture`] is the gesture whose control has the focus: a composite holds a press on
@@ -53,9 +54,11 @@ pub(crate) use gesture::escape_pressed;
 pub use host::{GestureHost, UndoMarks};
 pub(crate) use story::{RATES, describe, policy, stories};
 
-/// One gesture, unique within the process: a new gesture never reuses an earlier id, and a later
-/// gesture has a greater id, across contexts and memory resets alike. A [`GestureHost`] relies on
-/// that to ignore the late events of a gesture it ended.
+/// One gesture, unique within the process: a new gesture never reuses an earlier id, and a
+/// gesture whose [`Begin`](EditEvent::Begin) goes out later has a greater id, across contexts and
+/// memory resets alike (a gesture that carries on an input the host ended takes its id when its
+/// `Begin` goes out, [`Gesture::id`]). A [`GestureHost`] relies on that to ignore the late events
+/// of a gesture it ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GestureId(u64);
 

@@ -10,7 +10,7 @@ use egui::{
 use super::slider::{Scale, Track, bounds};
 use super::{ControlSize, RangeSlider, Slider};
 use crate::direction::{self, Direction};
-use crate::edit::{self, CancelReason, EditEvent, Ending, GestureId};
+use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, GestureId, UndoMarks};
 use crate::primitives::Interactive;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
@@ -692,4 +692,159 @@ fn track_colors_draw_the_gradient_under_the_thumb_and_no_fill() {
 
     let (meshes, _, _) = gradient_slider([red.with_alpha(0.0), red]);
     assert_eq!(meshes.len(), 2, "a translucent stop shows the checkerboard under the gradient");
+}
+
+/// The hosted tests' document: the slider's level, the range slider's range, and a value an
+/// options bar sets.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Values {
+    level: f64,
+    range: (f64, f64),
+    other: i32,
+}
+
+/// A document whose undo history holds whole snapshots.
+struct Doc {
+    now: Values,
+    undo: Vec<Values>,
+}
+
+impl Doc {
+    fn apply(&mut self, edit: impl FnOnce(&mut Values)) {
+        self.undo.push(self.now);
+        edit(&mut self.now);
+    }
+}
+
+impl UndoMarks for Doc {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(&before) = self.undo.get(mark) {
+            self.now = before;
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+/// The slider and the range slider behind a [`GestureHost`], with an options bar drawn after
+/// them that sets a value.
+struct Hosted {
+    ctx: Context,
+    doc: Doc,
+    host: GestureHost<Doc>,
+    tracks: Option<(Track, Track)>,
+    level_event: Option<EditEvent<f64>>,
+    range_event: Option<EditEvent<(f64, f64)>>,
+}
+
+/// What the options bar sets in a frame.
+#[derive(Clone, Copy)]
+enum Bar {
+    Other(i32),
+    Level(f64),
+    Upper(f64),
+}
+
+impl Hosted {
+    fn new() -> Self {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let doc = Doc { now: Values { level: 40.0, range: (20.0, 60.0), other: 0 }, undo: Vec::new() };
+        let mut hosted = Self { ctx, doc, host: GestureHost::new(), tracks: None, level_event: None, range_event: None };
+        hosted.frame(vec![], None);
+        hosted
+    }
+
+    fn frame(&mut self, events: Vec<Event>, bar: Option<Bar>) {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
+        let ctx = self.ctx.clone();
+        ctx.run_ui(input, |ui| {
+            let style = Slider::style(&Tokens::of(ui), ControlSize::Md);
+            let scale = Scale::new(&(RANGE.0..=RANGE.1), Some(1.0));
+            let level = Slider::new("hosted-slider", "Level", self.doc.now.level, RANGE.0..=RANGE.1).step(1.0).show(ui);
+            let range = RangeSlider::new("hosted-range", ("From", "To"), self.doc.now.range, RANGE.0..=RANGE.1).step(1.0).show(ui);
+            self.tracks = Some((Track::new(level.response.rect, &style, scale), Track::new(range.response.rect, &style, scale)));
+            (self.level_event, self.range_event) = (level.event.clone(), range.event.clone());
+            if let Some(event) = level.event {
+                self.host.handle(&ctx, &mut self.doc, event, |doc: &mut Doc, v| doc.apply(|now| now.level = v));
+            }
+            if let Some(event) = range.event {
+                self.host.handle(&ctx, &mut self.doc, event, |doc: &mut Doc, v| doc.apply(|now| now.range = v));
+            }
+            match bar {
+                Some(Bar::Other(v)) => {
+                    self.host.handle(&ctx, &mut self.doc, EditEvent::set(v, Modifiers::NONE), |doc: &mut Doc, v| doc.apply(|now| now.other = v))
+                }
+                Some(Bar::Level(v)) => {
+                    self.host.handle(&ctx, &mut self.doc, EditEvent::set(v, Modifiers::NONE), |doc: &mut Doc, v| doc.apply(|now| now.level = v))
+                }
+                Some(Bar::Upper(v)) => {
+                    self.host.handle(&ctx, &mut self.doc, EditEvent::set(v, Modifiers::NONE), |doc: &mut Doc, v| doc.apply(|now| now.range.1 = v))
+                }
+                None => {}
+            }
+            self.host.end_frame(&ctx, &mut self.doc);
+        })
+        .drop_without_applying_deltas();
+    }
+
+    fn at(&self, range: bool, value: f64, dx: f32) -> Pos2 {
+        let (level, range_track) = self.tracks.unwrap_or_else(|| panic!("no frame has run"));
+        let track = if range { range_track } else { level };
+        pos2(track.x_of(value) + dx, track.y)
+    }
+}
+
+/// A drag whose gesture the host ends for an options bar's change goes on with the pointer: the
+/// next movement begins a new gesture with the value the pointer gives, counted from the press
+/// once (the host reverted the drag), the release commits it, and a thumb grabbed off its centre
+/// stays under the pointer also when the bar set the dragged value itself. The range slider's
+/// thumb the drag doesn't move keeps the host's value, also one the bar set.
+#[test]
+fn a_drag_the_host_ended_for_another_controls_change_goes_on_with_the_pointer() {
+    for set_level in [false, true] {
+        let mut rig = Hosted::new();
+        rig.frame(vec![Event::PointerMoved(rig.at(false, 40.0, 3.0)), button(rig.at(false, 40.0, 3.0), true)], None);
+        let first = begin(rig.level_event.clone());
+        rig.frame(vec![Event::PointerMoved(rig.at(false, 50.0, 3.0))], None);
+        assert_eq!(rig.level_event, update(first, 50.0));
+        let bar = if set_level { Bar::Level(10.0) } else { Bar::Other(9) };
+        rig.frame(vec![], Some(bar));
+        let reverted = if set_level { 10.0 } else { 40.0 };
+        assert_eq!((rig.doc.now.level, rig.host.active()), (reverted, None));
+        rig.frame(vec![Event::PointerMoved(rig.at(false, 70.0, 3.0))], None);
+        let id = begin(rig.level_event.clone());
+        assert!(id > first);
+        rig.frame(vec![], None);
+        assert_eq!(rig.level_event, update(id, 70.0), "set_level: {set_level}");
+        rig.frame(vec![button(rig.at(false, 70.0, 3.0), false)], None);
+        assert_eq!(rig.level_event, commit(id, 70.0, true));
+        assert_eq!(rig.doc.now.level, 70.0);
+    }
+
+    for (bar, upper, other) in [(Bar::Other(9), 60.0, 9), (Bar::Upper(80.0), 80.0, 0)] {
+        let mut rig = Hosted::new();
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 20.0, 2.0)), button(rig.at(true, 20.0, 2.0), true)], None);
+        let first = begin(rig.range_event.clone());
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 30.0, 2.0))], None);
+        assert_eq!(rig.range_event, update(first, (30.0, 60.0)));
+        rig.frame(vec![], Some(bar));
+        assert_eq!((rig.doc.now.range, rig.host.active()), ((20.0, upper), None));
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 45.0, 2.0))], None);
+        let id = begin(rig.range_event.clone());
+        rig.frame(vec![], None);
+        assert_eq!(rig.range_event, update(id, (45.0, upper)), "the upper thumb keeps the host's value");
+        rig.frame(vec![button(rig.at(true, 45.0, 2.0), false)], None);
+        assert_eq!(rig.range_event, commit(id, (45.0, upper), true));
+        assert_eq!((rig.doc.now, rig.doc.undo.len()), (Values { level: 40.0, range: (45.0, upper), other }, 2));
+    }
 }

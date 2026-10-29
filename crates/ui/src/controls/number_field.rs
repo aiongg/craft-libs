@@ -538,7 +538,7 @@ impl<'n> Input<'n> {
         if let Some(origin) = origin {
             // A typing run ends as the focus leaves, its text read before the first step.
             ui.memory_mut(|m| m.surrender_focus(self.id));
-            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0 }));
+            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0, last: None }));
         }
         for drag in sources {
             if drag.hovered() || drag.dragged() {
@@ -567,8 +567,16 @@ impl<'n> Input<'n> {
                 scrub.steps -= n;
                 let gesture = typed.gesture();
                 if n != 0.0 {
-                    let from = gesture.shown().unwrap_or(self.base);
-                    gesture.update(Some(self.codec.settle(from + n * self.step)), m);
+                    // A gesture the host ended carries on from the host's value, which lacks the
+                    // scrub's steps when the host reverted them: the scrub goes on from the value
+                    // it set last.
+                    let from = match scrub.last {
+                        Some((id, value)) if gesture.id() != Some(id) => value,
+                        _ => *gesture.shown(),
+                    };
+                    let to = Some(self.codec.settle(from.unwrap_or(self.base) + n * self.step));
+                    gesture.update(to, m);
+                    scrub.last = gesture.id().map(|id| (id, to));
                 }
                 ui.data_mut(|d| d.insert_temp(key, scrub));
             }
@@ -623,13 +631,13 @@ impl<'n> Input<'n> {
             let slider = Slider::style(&tokens, field.size);
             let track = Track::new(Rect::from_min_size(at.min, vec2(slider.width, slider.height)), &slider, scale);
             let gesture = typed.gesture();
-            if let Some(start) = gesture.start().copied() {
+            if let Some(anchor) = gesture.anchor().copied() {
                 let dx = pos.x - origin.x;
                 // A still pointer leaves the value as it was.
                 let to = if dx == 0.0 {
-                    start
+                    anchor
                 } else {
-                    Some(self.codec.settle(scale.snap(scale.place(start.unwrap_or(self.base)) + track.value_per(dx))))
+                    Some(self.codec.settle(scale.snap(scale.place(anchor.unwrap_or(self.base)) + track.value_per(dx))))
                 };
                 gesture.update(to, self.modifiers);
             }
@@ -737,8 +745,9 @@ impl<'n> Input<'n> {
 /// A press on a scrub handle, the ▾ or the pop-up slider, until its release.
 #[derive(Clone, Copy, Debug, Default)]
 struct Press {
-    /// The gesture the press began; none before it begins.
-    gesture: Option<GestureId>,
+    /// The input the press began ([`Gesture::input`](edit::Gesture::input): the same when a
+    /// gesture the host ended carries it on); none before it begins.
+    input: Option<GestureId>,
 }
 
 impl Press {
@@ -746,17 +755,17 @@ impl Press {
     /// ended commits first); whether that gesture is under way. One that has ended (a cancel)
     /// leaves the press with nothing to do until its release.
     fn under_way(&mut self, typed: &mut Typed<Numbers<'_>>) -> bool {
-        if self.gesture.is_none() && !typed.is_typing() {
+        if self.input.is_none() && !typed.is_typing() {
             let gesture = typed.gesture();
             gesture.begin();
-            self.gesture = gesture.id();
+            self.input = gesture.input();
         }
-        self.gesture.is_some() && typed.gesture().id() == self.gesture
+        self.input.is_some() && typed.gesture().input() == self.input
     }
 
     /// Commits the press's gesture on release, while it is under way.
     fn release(self, typed: &mut Typed<Numbers<'_>>) {
-        if self.gesture.is_some() && typed.gesture().id() == self.gesture {
+        if self.input.is_some() && typed.gesture().input() == self.input {
             typed.gesture().commit();
         }
     }
@@ -771,6 +780,8 @@ struct Scrub {
     last_x: f32,
     /// Steps moved and not yet taken.
     steps: f64,
+    /// The gesture of the scrub's last change and the value it set.
+    last: Option<(GestureId, Option<f64>)>,
 }
 
 /// `range` in ascending order, a bound that is no number left open.

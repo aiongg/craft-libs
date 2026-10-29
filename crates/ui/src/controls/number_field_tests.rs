@@ -988,6 +988,35 @@ fn an_undo_mid_scrub_leaves_the_reverted_value_until_the_release() {
     assert_eq!((rig.value, rig.doc.undo.len()), (10.0, 0));
 }
 
+/// A scrub whose gesture the host ends for another control's change goes on: the host reverts
+/// the scrub's steps, the next movement begins a new gesture from where the scrub was, and the
+/// release commits it.
+#[test]
+fn a_scrub_the_host_ended_for_another_controls_change_goes_on_from_where_it_was() {
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.hosted = true;
+    });
+    let at = rig.handle();
+    rig.drag(at, &[10.0, 20.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 30.0);
+    let first = rig.host.active().expect("a scrub under way");
+    // An options bar's change: the host reverts the scrub and keeps the change as a step.
+    let ctx = rig.ctx.clone();
+    rig.host.handle(&ctx, &mut rig.doc, EditEvent::set(1, Modifiers::NONE), |doc: &mut Doc, _| doc.undo.push(doc.value));
+    rig.value = rig.doc.value;
+    assert_eq!((rig.value, rig.host.active()), (10.0, None));
+    let n = rig.events.len();
+    rig.frame(vec![Event::PointerMoved(at + vec2(30.0, 0.0))]);
+    rig.frame(vec![]);
+    rig.frame(vec![pointer(at + vec2(30.0, 0.0), false)]);
+    let events = since(&rig, n);
+    let id = begin_id(&events);
+    assert!(id > first);
+    assert_eq!(&events[1..], &[EditEvent::Update { id, value: 40.0, modifiers: Modifiers::NONE }, commit(id, 40.0, true)][..]);
+    assert_eq!((rig.value, rig.doc.undo.len()), (40.0, 2));
+}
+
 #[test]
 fn a_host_that_snaps_a_scrub_cancels_it_once() {
     let mut rig = Rig::with(10.0, |r| {

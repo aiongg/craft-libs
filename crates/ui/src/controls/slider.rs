@@ -219,8 +219,8 @@ impl Slider {
             && self.value.is_finite()
         {
             gesture.begin();
-            if let Some(start) = gesture.start().copied() {
-                gesture.update(track.dragged(scale.place(start), at.x, at.x), ui.input(|i| i.modifiers));
+            if let Some(anchor) = gesture.anchor().copied() {
+                gesture.update(track.dragged(scale.place(anchor), at.x, at.x), ui.input(|i| i.modifiers));
             }
             if !response.dragged_by(PointerButton::Primary) {
                 gesture.commit();
@@ -234,10 +234,10 @@ impl Slider {
             }
         }
         if response.dragged_by(PointerButton::Primary)
-            && let Some(start) = gesture.start().copied()
+            && let Some(anchor) = gesture.anchor().copied()
             && let Some((pos, origin)) = pointer(ui, &response)
         {
-            gesture.update(track.dragged(scale.place(start), origin.x, pos.x), ui.input(|i| i.modifiers));
+            gesture.update(track.dragged(scale.place(anchor), origin.x, pos.x), ui.input(|i| i.modifiers));
         }
         let reset = self.default.filter(|d| d.is_finite()).map(|d| scale.place(d));
         // The double-click's first click has moved the thumb to the pointer; the second resets.

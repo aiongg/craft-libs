@@ -697,7 +697,7 @@ fn a_composites_gesture_ends_as_its_parts_run() {
 }
 
 /// A composite's parts as one gesture ([`parts::Edits`]): the part that begins it owns it, another
-/// part's change joins it, and the owner's commit that changed nothing ends it at its start. A
+/// part's change joins it, and the owner's commit ends it with the owner's value. A
 /// click on a part waits while a typing run has the focus, at most `PRESS_WAIT` passes.
 #[test]
 fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
@@ -734,13 +734,20 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
         e.push(&edit(b, EditEvent::set(7, Modifiers::NONE)), |v| v);
     });
     assert_eq!(joined, update(id, 7));
-    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 3, false, Modifiers::NONE)), |v| v)), commit(id, 0, false));
+    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 0, false, Modifiers::NONE)), |v| v)), commit(id, 0, false));
 
     assert_eq!(pass(true, &|e, _, _| e.click(5)), None);
     assert_eq!(pass(true, &|_, _, _| {}), None);
     assert_eq!(pass(true, &|_, _, _| {}), Some(EditEvent::set(5, Modifiers::NONE)), "a click waits two passes at most");
     assert_eq!(pass(true, &|e, _, _| e.click(6)), None);
     assert_eq!(pass(false, &|_, _, _| {}), Some(EditEvent::set(6, Modifiers::NONE)), "the first pass without a typing run runs it");
+
+    // A map off by one stands for float drift: the owner's commit that changed nothing still ends
+    // the gesture at its start.
+    let run = GestureId::next();
+    let begun = pass(false, &|e, a, _| e.push(&edit(a, EditEvent::begin(run)), |v| v));
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(false, &|e, a, _| e.push(&edit(a, EditEvent::commit(run, 6, false, Modifiers::NONE)), |v| v + 1)), commit(id, 6, false));
 }
 
 /// In a pass where the composite's gesture ends, the other parts' events wait for the next pass
@@ -819,6 +826,26 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         Some(EditEvent::set((6, 1), Modifiers::NONE))
     );
     assert_eq!(host.get(), (6, 1));
+
+    // The composite isn't drawn in the next pass (a popover that closes with the commit): the
+    // held event goes, and isn't fed when the composite comes back.
+    let run = GestureId::next();
+    let begun = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::begin(run)));
+        b(e, p, s, None);
+    });
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let committed = pass(&|e, p, s| {
+        a(e, p, s, Some(EditEvent::commit(run, 8, true, Modifiers::NONE)));
+        b(e, p, s, Some(EditEvent::set(4, Modifiers::NONE)));
+    });
+    assert_eq!(committed, commit(id, (8, 1), true));
+    ctx.run_ui(RawInput::default(), |_| {}).drop_without_applying_deltas();
+    let shown = pass(&|e, p, s| {
+        a(e, p, s, None);
+        b(e, p, s, None);
+    });
+    assert_eq!((shown, host.get()), (None, (8, 1)));
 }
 
 /// A part that owns the composite's gesture and isn't drawn ends it as the part's own gesture
@@ -1186,7 +1213,8 @@ fn commit_on_interrupt_keeps_an_interrupted_gesture() {
 
 /// A gesture the host ended for another control's change is over, and its control carries the
 /// input on: the next change begins a new gesture from the host's value, which reaches the
-/// document as a step of its own; a carried-on gesture that ends unchanged reports nothing.
+/// document as a step of its own, also when the host ended another gesture (a dialog's) between
+/// the two; a carried-on gesture that ends unchanged reports nothing.
 #[test]
 fn a_control_whose_gesture_the_host_ended_begins_a_new_one_at_its_next_change() {
     for commit_on_interrupt in [true, false] {
@@ -1196,10 +1224,18 @@ fn a_control_whose_gesture_the_host_ended_begins_a_new_one_at_its_next_change() 
         let kept = if commit_on_interrupt { 5 } else { 0 };
         assert_eq!(pad.frame(true, Some(9), |_| {}), (None, Some(first)));
         assert_eq!(pad.doc.now, (kept, 9));
-        let (event, next) = pad.frame(true, None, |_| {});
+        let (event, waiting) = pad.frame(true, None, |_| {});
+        let waiting = waiting.expect("the input goes on");
+        assert!(event.is_none() && waiting > first, "{event:?} {waiting}");
+        // A dialog opens and closes with OK: the host ends a gesture newer than the carry-on.
+        let dialog = OuterGesture::begin(&pad.ctx);
+        pad.host.begin_outer(&pad.ctx, &mut pad.doc, dialog);
+        assert!(pad.host.commit(&mut pad.doc, dialog.id()));
+        let (event, next) = pad.frame(true, None, |g| g.update(7, Modifiers::NONE));
         let next = next.expect("the input goes on");
-        assert!(event.is_none() && next > first, "{event:?} {next}");
-        assert_eq!(pad.frame(true, None, |g| g.update(7, Modifiers::NONE)), (Some(EditEvent::begin(next)), Some(next)));
+        assert!(next > dialog.id(), "its id is taken as its Begin goes out");
+        assert_eq!(event, Some(EditEvent::begin(next)));
+        assert_eq!(pad.host.active(), Some(next));
         assert_eq!(pad.frame(true, None, |_| {}).0, update(next, 7));
         assert_eq!(pad.frame(true, None, Gesture::commit).0, commit(next, 7, true));
         assert_eq!(pad.doc.now, (7, 9));
@@ -1213,4 +1249,78 @@ fn a_control_whose_gesture_the_host_ended_begins_a_new_one_at_its_next_change() 
         assert_eq!(pad.frame(true, None, |_| {}), (None, None));
         assert_eq!(pad.doc.now, (kept, 9));
     }
+}
+
+/// An input whose gesture the host ended doesn't go on when a `cancel_all` (an undo) comes before
+/// its control loads again: the cancel stops it first.
+#[test]
+fn a_cancel_all_after_the_host_ended_a_gesture_stops_its_input() {
+    let mut pad = Pad::new(false);
+    let first = pad.preview(5);
+    pad.frame(true, Some(9), |_| {});
+    cancel_all(&pad.ctx, CancelReason::UndoDuringGesture);
+    assert_eq!(pad.frame(true, None, |_| {}), (cancel(first, CancelReason::UndoDuringGesture), None));
+    assert_eq!(pad.frame(true, None, |g| g.update(7, Modifiers::NONE)), (None, None));
+    assert_eq!((pad.doc.now, pad.host.active()), ((0, 9), None));
+}
+
+/// A composite's gesture under a [`GestureHost`] that another control's change ends mid-run: the
+/// owner's typing run carries on, and its commit ends with the owner's value against the
+/// host's, also when that value is the owner's own start. An unchanged owner's interrupted run
+/// keeps another part's value that joined the gesture.
+#[test]
+fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it_or_a_part_joined() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let mut host = GestureHost::new();
+    // The composite edits the first two numbers: part `a`, a typing run that reports no updates,
+    // the first; part `b` (a screen reader's steps) the second. An options bar sets the third.
+    let mut doc = Doc::new((40, 0, 0));
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    let mut pass = |a: &dyn Fn(&mut Gesture<i32>), b: Option<EditEvent<i32>>, bar: Option<i32>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            let outer = Gesture::load(ui, composite, &(doc.now.0, doc.now.1), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::<(i32, i32)>::new(&state);
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+            response.request_focus();
+            // The field follows its own run, as a number field does.
+            let value = Gesture::<i32>::reported(ui, a_id).map_or(shown.0, |(_, value)| value);
+            let mut gesture = Gesture::load(ui, a_id, &value, EditPolicy::default().on_release_only(true));
+            a(&mut gesture);
+            edits.typing(&ctx, &EditResponse::new(response, gesture.finish()), |v| (v, shown.1));
+            let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
+            edits.push(&EditResponse::new(response, b.clone()), |v| (shown.0, v));
+            event = edits.feed(outer, &mut state, false).finish();
+            if let Some(event) = event.clone() {
+                host.handle(&ctx, &mut doc, event, |doc: &mut Doc<(i32, i32, i32)>, (x, y)| doc.apply(|now| (now.0, now.1) = (x, y)));
+            }
+            if let Some(value) = bar {
+                host.handle(&ctx, &mut doc, EditEvent::set(value, Modifiers::NONE), |doc: &mut Doc<(i32, i32, i32)>, v| doc.apply(|now| now.2 = v));
+            }
+            host.end_frame(&ctx, &mut doc);
+        });
+        output.drop_without_applying_deltas();
+        (event, doc.now)
+    };
+    let idle = |_: &mut Gesture<i32>| {};
+
+    // Type 50, the bar's change keeps it, type 40 (the run's start) back and press Enter.
+    let typed = |g: &mut Gesture<i32>| {
+        g.begin();
+        g.update(50, Modifiers::NONE);
+    };
+    let (begun, _) = pass(&typed, None, None);
+    assert!(matches!(begun, Some(EditEvent::Begin { .. })), "{begun:?}");
+    assert_eq!(pass(&idle, None, Some(9)), (None, (50, 0, 9)));
+    assert_eq!(pass(&|g| g.update(40, Modifiers::NONE), None, None), (None, (50, 0, 9)));
+    assert_eq!(pass(&Gesture::commit, None, None), (Some(EditEvent::set((40, 0), Modifiers::NONE)), (40, 0, 9)));
+
+    // A run that changes nothing, a step on `b` that joins it, then the bar's change.
+    let (begun, _) = pass(&Gesture::begin, None, None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(&idle, Some(EditEvent::set(7, Modifiers::NONE)), None), (update(id, (40, 7)), (40, 7, 9)));
+    assert_eq!(pass(&idle, None, Some(3)), (None, (40, 7, 3)), "the joined step stays");
 }

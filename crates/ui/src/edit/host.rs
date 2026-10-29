@@ -66,8 +66,9 @@ pub trait UndoMarks {
 /// [`handle`]: GestureHost::handle
 pub struct GestureHost<U: UndoMarks> {
     active: Option<Under<U>>,
-    /// The newest gesture the host ended before its control did. Ids grow, and one gesture is
-    /// under way at a time, so events for it and every earlier gesture are stale.
+    /// The newest gesture the host ended before its control did. Ids grow in the order the
+    /// gestures' `Begin`s go out ([`GestureId`]), and one gesture is under way at a time, so events
+    /// for it and every earlier gesture are stale.
     ended: Option<GestureId>,
 }
 
