@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Oklch, Rgba};
 use super::components::{ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue};
-use super::contrast::{contrast_ratio, ensure_contrast};
+use super::contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 use super::ramp::{self, Mode, Ramp, RampKind};
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
@@ -195,7 +195,9 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
                 before_pass.get(t)
             }
             Source::Same(other) | Source::SolidFrom(other) => unpinned.get(other),
-            Source::ShiftedFrom { base, from, to } => shifted(unpinned.get(base), unpinned.get(from), unpinned.get(to)),
+            Source::ShiftedFrom { base, from, to, away_from } => {
+                shifted(unpinned.get(base), unpinned.get(from), unpinned.get(to), unpinned.get(away_from))
+            }
             // Lit like the anchored greys: from the panel's own value, pinned or not.
             Source::Lighting(amount) => lighting(before_pass.surface.panel, amount),
             Source::OnSolid(solids) => best_extreme(unpinned, solids),
@@ -400,7 +402,9 @@ fn follow(c: &mut ColorTokens, ramp: &ColorTokens, pinned: &BTreeSet<ColorToken>
             Source::Same(other) if on_solid || !is_foreground(t) => c.set(t, c.get(other)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
             Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
-            Source::ShiftedFrom { base, from, to } if on_solid => c.set(t, shifted(c.get(base), ramp.get(from), ramp.get(to))),
+            Source::ShiftedFrom { base, from, to, away_from } if on_solid => {
+                c.set(t, shifted(c.get(base), ramp.get(from), ramp.get(to), c.get(away_from)))
+            }
             Source::OnSolid(solids) if on_solid => c.set(t, best_extreme(c, solids)),
             _ => {}
         }
@@ -421,11 +425,13 @@ fn lighting(panel: Rgba, amount: f64) -> Rgba {
     Oklch { l: (o.l + amount).clamp(0.0, 1.0), ..o }.to_rgba()
 }
 
-/// `base` with its OKLCH lightness moved by what `to` lies from `from`, clamped to 0..=1, hue and
-/// chroma kept.
-fn shifted(base: Rgba, from: Rgba, to: Rgba) -> Rgba {
+/// `base` with its OKLCH lightness moved by the distance between `from` and `to`, away from
+/// `text`: darker under lighter text, lighter under darker. Clamped to 0..=1, hue and chroma kept.
+fn shifted(base: Rgba, from: Rgba, to: Rgba, text: Rgba) -> Rgba {
     let o = base.to_oklch();
-    Oklch { l: (o.l + to.to_oklch().l - from.to_oklch().l).clamp(0.0, 1.0), ..o }.to_rgba().with_alpha(base.a())
+    let step = (to.to_oklch().l - from.to_oklch().l).abs();
+    let sign = if relative_luminance(text) >= relative_luminance(base) { -1.0 } else { 1.0 };
+    Oklch { l: (o.l + sign * step).clamp(0.0, 1.0), ..o }.to_rgba().with_alpha(base.a())
 }
 
 /// White or black, whichever has the higher lowest ratio on `solids`.
@@ -497,7 +503,9 @@ fn fix_rule(c: &mut ColorTokens, pass: &Pass, rule: &PairRule, done: &[PairRule]
         {
             match values::source(t, pass.mode) {
                 Source::SolidFrom(other) => c.set(t, c.get(other)),
-                Source::ShiftedFrom { base, from, to } => c.set(t, shifted(c.get(base), pass.ramp.get(from), pass.ramp.get(to))),
+                Source::ShiftedFrom { base, from, to, away_from } => {
+                    c.set(t, shifted(c.get(base), pass.ramp.get(from), pass.ramp.get(to), c.get(away_from)));
+                }
                 _ => {}
             }
         }

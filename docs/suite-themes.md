@@ -107,7 +107,7 @@ rest of the text and a coloured one (a navy or blue selection) gets its own read
 `text.on_strong` is white, and `accent.strong` is `accent.solid` with only its OKLCH lightness
 moved, as far as white text needs to reach the minimum: the accent itself where white already
 reads on it, a slightly deeper accent where it doesn't (Pro's dark #378EF0 becomes #1B77D7). A
-`accent.strong_hover` and `accent.strong_pressed` start from `accent.strong` moved in lightness by what `accent.hover` and `accent.pressed` lie from `accent.solid`, and move further from the text where it needs them to. Accent fills that carry text use the strong pair; fills without text (check marks, slider fills) use `accent.solid`. A
+`accent.strong_hover` and `accent.strong_pressed` are `accent.strong` with its lightness moved away from the text (darker under white text) by the distance `accent.hover` and `accent.pressed` lie from `accent.solid`, in every appearance, so the three fills differ and the variants read wherever `accent.strong` does. Accent fills that carry text use the strong pair; fills without text (check marks, slider fills) use `accent.solid`. A
 pinned `accent.strong` stays in standard contrast; unpinned text on it turns black where white
 misses, as on the other solid fills, and pinned text that misses is reported.
 

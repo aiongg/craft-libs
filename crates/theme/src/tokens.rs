@@ -123,11 +123,12 @@ pub struct AccentColors {
     /// menu rows) use the strong pair; fills without text (check marks, slider fills) use
     /// `accent.solid`.
     pub strong: Rgba,
-    /// `accent.strong` under the pointer: moved in lightness as `accent.hover` lies from
-    /// `accent.solid`, and further away from `text.on_strong` where that text needs it.
+    /// `accent.strong` under the pointer: its lightness moved away from `text.on_strong` (darker
+    /// under white text) by the distance `accent.hover` lies from `accent.solid`, so it always
+    /// differs from `accent.strong` and meets the text minimum wherever `accent.strong` does.
     pub strong_hover: Rgba,
-    /// `accent.strong` while pressed: moved in lightness as `accent.pressed` lies from
-    /// `accent.solid`, and further away from `text.on_strong` where that text needs it.
+    /// `accent.strong` while pressed: its lightness moved away from `text.on_strong` by the
+    /// distance `accent.pressed` lies from `accent.solid`, further than `accent.strong_hover`.
     pub strong_pressed: Rgba,
     /// Tinted background.
     pub soft: Rgba,

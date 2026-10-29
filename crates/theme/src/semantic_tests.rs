@@ -673,27 +673,28 @@ fn pinned_on_accent_text_moves_the_unpinned_solids() {
 }
 
 /// `accent.strong_hover` and `accent.strong_pressed` carry `text.on_strong` in every built-in and
-/// appearance and for a light accent seed (where `text.on_accent` is black), and keep the
-/// lightness step `accent.hover` and `accent.pressed` have from `accent.solid` where the text
-/// allows it.
+/// appearance and for a light accent seed (where `text.on_accent` is black), and with
+/// `accent.strong` are three distinct fills, the pressed one furthest from the text.
 #[test]
-fn accent_strong_variants_carry_text_on_strong() {
+fn accent_strong_variants_are_distinct_and_carry_text_on_strong() {
     let light = theme("test.light-accent", "#8b8d98", "#78ADF6", ["#30a46c", "#ffc53d", "#e5484d", "#0090ff"]);
     let defs: Vec<&ThemeDef> = crate::builtins().iter().chain([&light]).collect();
     for def in defs {
         for a in appearances() {
             let t = resolve(def, a, None).tokens;
             let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
-            for v in [T::AccentStrong, T::AccentStrongHover, T::AccentStrongPressed] {
-                let ratio = contrast_ratio(t.color(T::TextOnStrong), t.color(v));
-                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.id, v.path());
+            let [strong, hover, pressed] = [T::AccentStrong, T::AccentStrongHover, T::AccentStrongPressed].map(|v| t.color(v));
+            for (name, c) in [("strong", strong), ("hover", hover), ("pressed", pressed)] {
+                let ratio = contrast_ratio(t.color(T::TextOnStrong), c);
+                assert!(ratio >= min, "{} {a:?}: {name} is {ratio:.2}, needs {min}", def.id);
             }
+            assert!(strong != hover && hover != pressed && strong != pressed, "{} {a:?}: {strong:?} {hover:?} {pressed:?}", def.id);
+            let l = |c: Rgba| c.to_oklch().l;
+            assert!(l(pressed) < l(hover) && l(hover) < l(strong), "{} {a:?}", def.id);
         }
     }
     let t = resolve(&light, app(Mode::Light, Contrast::Standard), None).tokens;
     assert_eq!(t.color(T::TextOnAccent), Rgba::BLACK);
-    let l = |token| t.color(token).to_oklch().l;
-    assert!(l(T::AccentStrongPressed) < l(T::AccentStrong), "the pressed fill stays deeper than the resting one");
 }
 
 /// A pinned `accent.strong` stays in standard contrast: white text that misses on it turns black,

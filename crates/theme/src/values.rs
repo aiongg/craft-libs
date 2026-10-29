@@ -87,10 +87,10 @@ pub enum ColorSource {
     /// this token's text rule, which then moves the fill's lightness away from its text as far
     /// as the text needs.
     SolidFrom(ColorToken),
-    /// A solid fill taken from `base` with its OKLCH lightness moved by what `to` lies from
-    /// `from` in the unpinned ramp defaults: the pointer or pressed variant of a solid that the
-    /// contrast pass has moved, which keeps the variant's step from the solid. The text rule
-    /// then moves it further where it needs to.
+    /// A solid fill taken from `base` with its OKLCH lightness moved away from `away_from` (darker
+    /// under light text, lighter under dark text) by how far `to` lies from `from` in the
+    /// unpinned ramp defaults: the pointer or pressed variant of a solid under text. It always
+    /// differs from `base`, and the text rule moves it further only if `base` itself misses.
     ShiftedFrom {
         /// The solid the fill starts from.
         base: ColorToken,
@@ -98,6 +98,8 @@ pub enum ColorSource {
         from: ColorToken,
         /// The token whose default the offset is measured to.
         to: ColorToken,
+        /// The text the fill moves away from.
+        away_from: ColorToken,
     },
     /// White or black, whichever has the higher lowest contrast on all of these tokens.
     OnSolid(&'static [ColorToken]),
@@ -201,8 +203,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::AccentHover => Accent(SOLID_HOVER),
         T::AccentPressed => AccentMix { from: pressed_from, to: pressed_to, t: pressed_t },
         T::AccentStrong => SolidFrom(T::AccentSolid),
-        T::AccentStrongHover => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentHover },
-        T::AccentStrongPressed => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentPressed },
+        T::AccentStrongHover => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentHover, away_from: T::TextOnStrong },
+        T::AccentStrongPressed => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentPressed, away_from: T::TextOnStrong },
         T::AccentSoft => Accent(pick(4, 3)),
         T::AccentText => Accent(11),
         T::StatusGoodFg => Status(Good, 11),
