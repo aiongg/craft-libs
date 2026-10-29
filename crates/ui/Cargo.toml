@@ -14,6 +14,7 @@ workspace = true
 craft-fonts-build = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["ecolor"] }
+craft-window = { workspace = true, features = ["egui"], optional = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }
 # Document geometry of canvas overlays (`canvas::kurbo`): the version DesignCraft and VectorCraft use.
@@ -56,6 +57,8 @@ native-windows = []
 color_fonts = ["epaint/color_fonts"]
 # Find installed fonts for characters the app's faces lack (desktop only).
 system_fonts = ["dep:fontique", "dep:unicode-script"]
+# `title_bar`: the app-drawn caption row that is the window's title bar (desktop only).
+window-frame = ["dep:craft-window", "craft-window/egui"]
 # `docking::testing`: a headless driver for application docking tests.
 testing = []
 # craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest

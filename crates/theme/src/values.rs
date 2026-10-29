@@ -707,6 +707,30 @@ pub const TAB_TEAR_OFF: f32 = 24.0;
 /// draws `hover` at 35 % over the strip).
 pub const TAB_HOVER_MIX: f64 = 0.35;
 
+/// Least title bar height with Adwaita caption buttons: libadwaita's 46 pt header plus its 1 pt
+/// separator.
+pub const TITLE_BAR_HEIGHT_ADWAITA: f32 = 47.0;
+/// Least room between a title bar's title and what is beside it.
+pub const TITLE_BAR_TITLE_GAP: f32 = 16.0;
+/// Least gap that still shows an elided title bar title.
+pub const TITLE_BAR_TITLE_MIN_GAP: f32 = 80.0;
+/// Width of the title bar's edge resize zones.
+pub const TITLE_BAR_EDGE: f32 = 8.0;
+/// Side of the title bar's corner resize zones.
+pub const TITLE_BAR_CORNER: f32 = 12.0;
+/// Windows 11 Close button under the pointer; held down it is 90 % of this.
+pub const TITLE_BAR_WINDOWS_CLOSE: Rgba = Rgba::rgb(0xC4, 0x2B, 0x1C);
+/// The glyph on Windows' Close button.
+pub const TITLE_BAR_WINDOWS_CLOSE_GLYPH: Rgba = Rgba::WHITE;
+/// KDE Breeze Close button under the pointer.
+pub const TITLE_BAR_BREEZE_CLOSE_HOVER: Rgba = Rgba::rgb(0xFF, 0x98, 0xA2);
+/// The glyph on Breeze's hovered Close button.
+pub const TITLE_BAR_BREEZE_CLOSE_HOVER_GLYPH: Rgba = Rgba::rgb(0x23, 0x26, 0x29);
+/// KDE Breeze Close button held down.
+pub const TITLE_BAR_BREEZE_CLOSE_PRESSED: Rgba = Rgba::rgb(0x6D, 0x22, 0x29);
+/// The glyph on Breeze's pressed Close button.
+pub const TITLE_BAR_BREEZE_CLOSE_PRESSED_GLYPH: Rgba = Rgba::WHITE;
+
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.
