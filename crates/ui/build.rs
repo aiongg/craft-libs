@@ -11,13 +11,15 @@ struct Set {
     title: String,
     licence: String,
     stroke_width: Option<f64>,
+    /// The base set: every icon has a file in it, and the other sets fall back to it.
+    base: bool,
 }
 
 struct Entry {
     name: String,
     directional: bool,
-    /// One file stem per set, in set order.
-    files: Vec<String>,
+    /// One file stem per set, in set order; `None` where a non-base set has no file.
+    files: Vec<Option<String>>,
 }
 
 fn main() {
@@ -53,10 +55,17 @@ fn sets(manifest: &Table) -> Vec<Set> {
                 "fill" => None,
                 other => panic!("icons/icons.toml: {what} has kind `{other}`, not `stroke` or `fill`"),
             };
-            Set { title: str_field(table, "title", &what).to_owned(), licence: str_field(table, "licence", &what).to_owned(), stroke_width, id }
+            Set {
+                title: str_field(table, "title", &what).to_owned(),
+                licence: str_field(table, "licence", &what).to_owned(),
+                stroke_width,
+                base: table.get("base").and_then(Value::as_bool).unwrap_or(false),
+                id,
+            }
         })
         .collect();
     assert!(!sets.is_empty(), "icons/icons.toml: no sets");
+    assert_eq!(sets.iter().filter(|s| s.base).count(), 1, "icons/icons.toml: exactly one [[set]] must have `base = true`");
     sets
 }
 
@@ -76,9 +85,12 @@ fn icons(manifest: &Table, sets: &[Set]) -> Vec<Entry> {
             let files = sets
                 .iter()
                 .map(|set| {
-                    let file = table.get(&set.id).and_then(Value::as_str).unwrap_or_else(|| panic!("icon `{name}` has no file in set `{}`", set.id));
-                    assert!(is_slug(file, '-'), "icon `{name}`: file `{file}` in set `{}` is not a plain file stem", set.id);
-                    file.to_owned()
+                    let file = table.get(&set.id).and_then(Value::as_str);
+                    assert!(file.is_some() || !set.base, "icon `{name}` has no file in the base set `{}`", set.id);
+                    if let Some(file) = file {
+                        assert!(is_slug(file, '-'), "icon `{name}`: file `{file}` in set `{}` is not a plain file stem", set.id);
+                    }
+                    file.map(str::to_owned)
                 })
                 .collect();
             Entry { name, directional, files }
@@ -91,10 +103,12 @@ fn check_files(dir: &Path, sets: &[Set], icons: &[Entry]) {
     for (index, set) in sets.iter().enumerate() {
         let folder = dir.join(&set.id);
         for icon in icons {
-            let path = folder.join(format!("{}.svg", icon.files[index]));
-            assert!(path.is_file(), "icon `{}` is missing from set `{}`: no file {}", icon.name, set.id, path.display());
+            if let Some(file) = &icon.files[index] {
+                let path = folder.join(format!("{file}.svg"));
+                assert!(path.is_file(), "icon `{}` is missing from set `{}`: no file {}", icon.name, set.id, path.display());
+            }
         }
-        let listed: BTreeSet<String> = icons.iter().map(|icon| format!("{}.svg", icon.files[index])).collect();
+        let listed: BTreeSet<String> = icons.iter().filter_map(|icon| icon.files[index].as_ref()).map(|file| format!("{file}.svg")).collect();
         let entries = std::fs::read_dir(&folder).unwrap_or_else(|e| panic!("read {}: {e}", folder.display()));
         for entry in entries {
             let file = entry.expect("read icon folder entry").file_name().to_string_lossy().into_owned();
@@ -136,13 +150,35 @@ fn generate(root: &str, sets: &[Set], icons: &[Entry]) -> String {
     let directional: Vec<String> = icons.iter().filter(|i| i.directional).map(|i| format!("Icon::{}", camel(&i.name))).collect();
     let body = if directional.is_empty() { "false".to_owned() } else { format!("matches!(self, {})", directional.join(" | ")) };
     let _ = writeln!(out, "    pub const fn directional(self) -> bool {{\n        {body}\n    }}\n");
-    out.push_str("    /// The icon's SVG document in `set`.\n    pub const fn svg(self, set: IconSet) -> &'static [u8] {\n        match set {\n");
+    out.push_str(
+        "    /// The icon's SVG document in `set`: the set's own file, or the base set's when the set has none.\n    pub const fn svg(self, set: IconSet) -> &'static [u8] {\n        match set {\n",
+    );
+    let base = sets.iter().find(|s| s.base).expect("a base set");
     for set in sets {
-        let _ = writeln!(out, "            IconSet::{} => {}[self as usize],", camel(&set.id), set.id.to_ascii_uppercase());
+        if set.base {
+            let _ = writeln!(out, "            IconSet::{} => {}[self as usize],", camel(&set.id), set.id.to_ascii_uppercase());
+        } else {
+            let _ = writeln!(
+                out,
+                "            IconSet::{} => match {}[self as usize] {{\n                Some(bytes) => bytes,\n                None => {}[self as usize],\n            }},",
+                camel(&set.id),
+                set.id.to_ascii_uppercase(),
+                base.id.to_ascii_uppercase()
+            );
+        }
+    }
+    out.push_str("        }\n    }\n\n");
+    out.push_str("    /// Whether `set` draws the icon from its own file; `false` means [`Icon::svg`] returns the base set's.\n    pub const fn drawn_in(self, set: IconSet) -> bool {\n        match set {\n");
+    for set in sets {
+        if set.base {
+            let _ = writeln!(out, "            IconSet::{} => true,", camel(&set.id));
+        } else {
+            let _ = writeln!(out, "            IconSet::{} => {}[self as usize].is_some(),", camel(&set.id), set.id.to_ascii_uppercase());
+        }
     }
     out.push_str("        }\n    }\n}\n\n");
 
-    out.push_str("/// A candidate icon set; the suite keeps one after the comparison.\n");
+    out.push_str("/// An icon set. The base set draws every icon; the others are packs that draw the icons they have and fall back to the base set for the rest.\n");
     out.push_str("#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]\npub enum IconSet {\n");
     for set in sets {
         let _ = writeln!(out, "    /// {}, {}.\n    {},", set.title, set.licence, camel(&set.id));
@@ -153,6 +189,11 @@ fn generate(root: &str, sets: &[Set], icons: &[Entry]) -> String {
         "    pub const ALL: [IconSet; {m}] = [{}];\n",
         sets.iter().map(|s| format!("IconSet::{}", camel(&s.id))).collect::<Vec<_>>().join(", ")
     );
+    let _ = writeln!(
+        out,
+        "    /// The base set: it draws every icon, and the other sets fall back to it.\n    pub const BASE: IconSet = IconSet::{};\n",
+        camel(&base.id)
+    );
     set_fn(&mut out, sets, "The folder name under `crates/ui/icons/`.", "id", "&'static str", |s| format!("{:?}", s.id));
     set_fn(&mut out, sets, "The set's name for display.", "title", "&'static str", |s| format!("{:?}", s.title));
     set_fn(&mut out, sets, "The SPDX licence of the set's files.", "licence", "&'static str", |s| format!("{:?}", s.licence));
@@ -162,9 +203,21 @@ fn generate(root: &str, sets: &[Set], icons: &[Entry]) -> String {
     out.push_str("}\n");
 
     for (index, set) in sets.iter().enumerate() {
-        let _ = writeln!(out, "\nconst {}: [&[u8]; {n}] = [", set.id.to_ascii_uppercase());
+        if set.base {
+            let _ = writeln!(out, "\nconst {}: [&[u8]; {n}] = [", set.id.to_ascii_uppercase());
+        } else {
+            let _ = writeln!(out, "\nconst {}: [Option<&[u8]>; {n}] = [", set.id.to_ascii_uppercase());
+        }
         for icon in icons {
-            let _ = writeln!(out, "    include_bytes!({:?}),", format!("{root}/icons/{}/{}.svg", set.id, icon.files[index]));
+            match (&icon.files[index], set.base) {
+                (Some(file), true) => {
+                    let _ = writeln!(out, "    include_bytes!({:?}),", format!("{root}/icons/{}/{file}.svg", set.id));
+                }
+                (Some(file), false) => {
+                    let _ = writeln!(out, "    Some(include_bytes!({:?})),", format!("{root}/icons/{}/{file}.svg", set.id));
+                }
+                (None, _) => out.push_str("    None,\n"),
+            }
         }
         out.push_str("];\n");
     }

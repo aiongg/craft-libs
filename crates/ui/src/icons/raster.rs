@@ -12,7 +12,7 @@ use super::{Icon, IconSet};
 /// line): the embedded sets are checked by the tests.
 pub(super) fn rasterise(icon: Icon, set: IconSet, px: u32, stroke_px: f32, mirrored: bool) -> ColorImage {
     let size = [px as usize; 2];
-    match draw(icon.svg(set), set, px, stroke_px, mirrored) {
+    match draw(icon.svg(set), if icon.drawn_in(set) { set } else { IconSet::BASE }, px, stroke_px, mirrored) {
         Ok(pixmap) => ColorImage::new(size, pixmap.pixels().iter().map(|p| Color32::from_white_alpha(p.alpha())).collect()),
         Err(error) => {
             log::error!("icon {} in {}: {error}", icon.name(), set.id());
@@ -21,6 +21,7 @@ pub(super) fn rasterise(icon: Icon, set: IconSet, px: u32, stroke_px: f32, mirro
     }
 }
 
+/// `set` is the set whose file `svg` is: strokes are rewritten only for a stroke set's own files.
 fn draw(svg: &[u8], set: IconSet, px: u32, stroke_px: f32, mirrored: bool) -> Result<tiny_skia::Pixmap, String> {
     let options = usvg::Options::default();
     let mut tree = usvg::Tree::from_data(svg, &options).map_err(|e| e.to_string())?;

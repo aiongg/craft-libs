@@ -81,3 +81,51 @@ fn a_directional_icon_is_mirrored_right_to_left() {
     assert_ne!(texture(&ctx, Icon::ChevronLeft, 16), ltr_left);
     assert_eq!(texture(&ctx, Icon::Close, 16), ltr_close);
 }
+
+/// The names the PhotoCraft button call sites need (DS-43 A8) (the base set draws all of them; a pack that lacks one falls back to it). The
+/// variants make a renamed or dropped manifest entry a compile error; the names pin the spelling.
+#[test]
+fn every_photocraft_button_icon_resolves_in_the_base_set() {
+    let wanted = [
+        (Icon::Note, "note"),
+        (Icon::Ban, "ban"),
+        (Icon::SwapHorizontal, "swap_horizontal"),
+        (Icon::NewLayer, "new_layer"),
+        (Icon::NewFolder, "new_folder"),
+        (Icon::Folder, "folder"),
+        (Icon::Target, "target"),
+        (Icon::Adjustments, "adjustments"),
+        (Icon::Grid, "grid"),
+        (Icon::GridSmall, "grid_small"),
+        (Icon::Play, "play"),
+        (Icon::AlignJustify, "align_justify"),
+        (Icon::MarqueeRect, "marquee_rect"),
+        (Icon::MarqueeEllipse, "marquee_ellipse"),
+        (Icon::Home, "home"),
+        (Icon::Scan, "scan"),
+        (Icon::Ruler, "ruler"),
+        (Icon::Stamp, "stamp"),
+        (Icon::Spline, "spline"),
+        (Icon::Sparkles, "sparkles"),
+        (Icon::TextCursor, "text_cursor"),
+        (Icon::OrientationPortrait, "orientation_portrait"),
+        (Icon::OrientationLandscape, "orientation_landscape"),
+    ];
+    for (icon, name) in wanted {
+        assert_eq!(icon.name(), name);
+        assert!(icon.drawn_in(IconSet::BASE));
+        assert!(alpha(&rasterise(icon, IconSet::BASE, 16, 1.5, false)).any(|a| a > 0), "{name} is blank in the base set");
+    }
+}
+
+#[test]
+fn a_pack_without_an_icon_draws_the_base_set_file() {
+    let missing: Vec<(Icon, IconSet)> = Icon::ALL.iter().flat_map(|i| IconSet::ALL.map(|s| (*i, s))).filter(|(i, s)| !i.drawn_in(*s)).collect();
+    assert!(!missing.is_empty(), "the manifest has no name a pack lacks");
+    for (icon, set) in missing {
+        assert_ne!(set, IconSet::BASE);
+        assert_eq!(icon.svg(set), icon.svg(IconSet::BASE), "{} in {}", icon.name(), set.id());
+        // The base file is a fill drawing, so a stroke pack does not rewrite its widths.
+        assert_eq!(rasterise(icon, set, 16, 3.0, false), rasterise(icon, IconSet::BASE, 16, 1.5, false), "{} in {}", icon.name(), set.id());
+    }
+}
