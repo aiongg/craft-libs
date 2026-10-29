@@ -1133,7 +1133,9 @@ fn dock_float_pairs() -> Vec<(ComponentField, ComponentField, (f64, f64))> {
         (dock(DockField::Drop), dock(DockField::Background), mark),
         (float(FloatField::TitleText), float(FloatField::Title), text),
         (float(FloatField::TitleMuted), float(FloatField::Title), mark),
+        (float(FloatField::Focus), float(FloatField::Title), mark),
         (float(FloatField::Focus), dock(DockField::Background), mark),
+        (float(FloatField::Focus), ComponentField::Tab(TabField::Strip), mark),
     ]
 }
 

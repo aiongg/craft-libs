@@ -9,7 +9,7 @@
 //! The fills themselves, the active tab against the strip among them, are design targets with no
 //! minimum, as row selection fills are.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, FloatField, OverrideValue, Semantic};
 use crate::color::Rgba;
 use crate::derive::{mix, over};
 use crate::tokens::{TokenRef, TypeRole};
@@ -263,6 +263,8 @@ impl Family for TabTokens {
             pair(TabField::Close, TabField::Strip, mark),
             pair(TabField::Close, TabField::Active, mark),
             pair(TabField::Drop, TabField::DropHalo, mark),
+            // The strip's keyboard focus stroke is `float.focus`.
+            ContrastPair { fg: TokenRef::Component(ComponentField::Float(FloatField::Focus)), bg: component(TabField::Strip), minimum: mark },
         ]
     }
 }

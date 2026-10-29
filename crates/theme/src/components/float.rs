@@ -3,8 +3,7 @@
 //!
 //! The title is text on the title bar; the ▾ and × at rest are the only mark of their buttons and
 //! the focus stroke the only cue for keyboard focus, so each is measured as a non-text mark (3:1,
-//! 4.5:1): the glyphs on the title bar, the focus stroke on the dock background (`line.focus` is
-//! fixed against the panel surfaces, not against `surface.background`, which the title bar uses).
+//! 4.5:1): the glyphs and the focus stroke on the title bar.
 //! The fill, border and dim are design targets with no minimum.
 
 use super::{ComponentField, ContrastPair, DockField, Family, FieldKind, OverrideValue, Semantic};
@@ -181,6 +180,7 @@ impl Family for FloatTokens {
         vec![
             pair(FloatField::TitleText, FloatField::Title, text),
             pair(FloatField::TitleMuted, FloatField::Title, mark),
+            pair(FloatField::Focus, FloatField::Title, mark),
             ContrastPair { fg: component(FloatField::Focus), bg: TokenRef::Component(ComponentField::Dock(DockField::Background)), minimum: mark },
         ]
     }

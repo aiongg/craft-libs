@@ -318,12 +318,14 @@ const TEXT_BGS: &[Bg] = &[
 ];
 const SELECTED_BGS: &[Bg] = &[Token(T::StateSelected), Token(T::StateSelectedHover)];
 const CONTROL_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
+/// The focus line also marks focus on the title bars and tab strips, which sit on the background.
+const FOCUS_BGS: &[Bg] = &[Token(T::SurfaceBackground), Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 
 /// Every contrast pair, in the order the contrast pass fixes them: fills that serve as
 /// backgrounds later (state fills, `accent.solid`) come before the text drawn on them.
 pub(super) const RULES: &[PairRule] = &[
-    rule(&[T::LineFocus], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::LineFocus], FOCUS_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
