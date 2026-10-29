@@ -784,6 +784,33 @@ pub const BEZIER_CLOSE_RING: f32 = 3.5;
 /// Distance across and down from the pointer to the close cue ring.
 pub const BEZIER_CLOSE_OFFSET: f32 = 11.0;
 
+/// Width of the gradient line.
+pub const GRADIENT_LINE_LINE: f32 = 1.5;
+/// Width of the dark halo on each side of the line.
+pub const GRADIENT_LINE_HALO: f32 = 0.75;
+/// Radius of an end handle's ring.
+pub const GRADIENT_LINE_END_RING: f32 = 8.0;
+/// Width of an end handle's ring.
+pub const GRADIENT_LINE_END_WIDTH: f32 = 2.0;
+/// Width of the dark halo on each side of an end handle's ring.
+pub const GRADIENT_LINE_END_HALO: f32 = 0.75;
+/// Radius of a colour stop's disc.
+pub const GRADIENT_LINE_STOP: f32 = 5.0;
+/// Width of the ring round a colour stop's disc.
+pub const GRADIENT_LINE_STOP_RING: f32 = 1.5;
+/// Radius of a midpoint's diamond.
+pub const GRADIENT_LINE_DIAMOND: f32 = 4.5;
+/// Distance from a part within which the pointer takes it.
+pub const GRADIENT_LINE_HIT: f32 = 8.0;
+/// Farthest a press may move and still be a click.
+pub const GRADIENT_LINE_CLICK_SLOP: f32 = 2.0;
+/// Distance from the line past which a dragged stop is torn off.
+pub const GRADIENT_LINE_TEAR_OFF: f32 = 36.0;
+/// Dash length of a mirrored extent's line.
+pub const GRADIENT_LINE_DASH: f32 = 5.0;
+/// Gap between a mirrored extent's dashes.
+pub const GRADIENT_LINE_GAP: f32 = 4.0;
+
 /// Side of the compact reference point picker, in points, at every Size (PhotoCraft's options bar).
 pub const REF_POINT_COMPACT: f32 = 16.0;
 /// Side of the large reference point picker (PhotoCraft's Canvas Size).

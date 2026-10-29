@@ -4,7 +4,7 @@
 //! `UPDATE_DUMPS=1 cargo test -p craft-ui --test control_dumps`.
 
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
-use craft_ui::canvas::{BezierOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
+use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow,
     SectionHeader, ToastStack, Tone,
@@ -621,6 +621,21 @@ fn bezier() {
             d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
         }
         d.line("control_line", s.control_line).line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
+/// Gradient lines: the line and its outline, the mirrored dash, the end rings, the stop discs and
+/// rings, the diamonds, the selected colour, the hit, click slop and tear-off distances.
+#[test]
+fn gradient_line() {
+    check("gradient_line.txt", |d, t| {
+        let s = GradientOverlay::style(t);
+        d.line("line", s.line).line("halo", s.halo).line("dash", s.dash.0).line("gap", s.dash.1);
+        d.line("end_ring", s.end_ring).line("end", s.end).line("end_halo", s.end_halo);
+        d.line("stop", s.stop).line("stop_ring", s.stop_ring).line("stop_halo", s.stop_halo);
+        d.line("diamond", s.diamond).line("diamond_fill", s.diamond_fill).line("diamond_halo", s.diamond_halo);
+        d.line("selected", s.selected).line("backing", s.backing);
+        d.line("hit", s.hit).line("click_slop", s.click_slop).line("tear_off", s.tear_off);
     });
 }
 
