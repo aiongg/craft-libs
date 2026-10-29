@@ -1,4 +1,4 @@
-//! Sliders: a sunken track, the part from the start to the value filled in a neutral colour (the accent in Classic), and
+//! Sliders: a sunken track, the part from the start to the value filled in the accent colour, and
 //! a knob on the value. The track and thumb take their edges from the `Surface` primitive (a
 //! border, or a bevel in Classic) and the thumb its shadow from `elevation.knob`; this family
 //! holds their sizes, corners and colours.
@@ -28,8 +28,8 @@ pub struct SliderTokens {
     pub radius: f32,
     /// The track's fill: `surface.sunken`.
     pub track: Rgba,
-    /// The filled part, from the start to the value: `text.muted` in every enabled state (as
-    /// PhotoCraft's `text_dim`), `text.disabled` when disabled. Classic pins the accent.
+    /// The filled part, from the start to the value: an accent state indicator (`accent.solid`,
+    /// `accent.hover`, `accent.pressed`; `text.disabled` when disabled).
     pub fill: States<Rgba>,
     /// The thumb: a knob, a `surface.knob` face with a `line.knob_edge` outline in every
     /// enabled state; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
@@ -119,7 +119,7 @@ impl Family for SliderTokens {
             track_height: values::SLIDER_TRACK,
             radius: s.shape.radius.pill,
             track: c.surface.sunken,
-            fill: States::new(c.text.muted, c.text.muted, c.text.muted, c.text.disabled),
+            fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled),
             thumb_colors: ThumbColors::knob(c),
             ring: States::new(clear, soft, soft, clear),
             ring_width: values::KNOB_RING,
@@ -187,7 +187,7 @@ impl Family for SliderTokens {
         }
     }
 
-    /// The filled part against the track: it alone shows the value (WCAG 1.4.11), 3:1 and 4.5:1
+    /// The filled part against the track: an accent state indicator (WCAG 1.4.11), 3:1 and 4.5:1
     /// with high contrast. The thumb is neither text nor a state indicator, so it has no minimum:
     /// where its face is close to the fill under it, its outline or shadow gives the edge.
     fn pairs() -> Vec<ContrastPair> {
