@@ -1,0 +1,17 @@
+# A workspace of its own, outside craft-libs': `clippy.toml` here is the template, and `app` uses every
+# entry once. The patch table repeats the egui pin of the craft-libs root.
+[workspace]
+resolver = "3"
+members = ["app", "plain"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[patch.crates-io]
+ecolor = { git = "https://github.com/aiongg/egui.git", rev = "94a2ac9917531fdf7285e4a30e7ae8372b8104b5" }
+emath = { git = "https://github.com/aiongg/egui.git", rev = "94a2ac9917531fdf7285e4a30e7ae8372b8104b5" }
+epaint = { git = "https://github.com/aiongg/egui.git", rev = "94a2ac9917531fdf7285e4a30e7ae8372b8104b5" }
+epaint_default_fonts = { git = "https://github.com/aiongg/egui.git", rev = "94a2ac9917531fdf7285e4a30e7ae8372b8104b5" }
+egui = { git = "https://github.com/aiongg/egui.git", rev = "94a2ac9917531fdf7285e4a30e7ae8372b8104b5" }
