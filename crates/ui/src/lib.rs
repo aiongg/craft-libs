@@ -37,6 +37,8 @@ pub mod tabs;
 pub mod testing;
 pub mod text;
 pub mod theme;
+#[cfg(feature = "window-frame")]
+pub mod title_bar;
 
 #[allow(deprecated, reason = "re-exports the deprecated combo box for the apps that still use it")]
 pub use combo::ComboBox;

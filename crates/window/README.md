@@ -60,7 +60,7 @@ if let Frame::Integrated(captions) = &decision.frame {
 }
 ```
 
-This crate decides *whether* and *where*; drawing the buttons stays in each app.
+This crate decides *whether* and *where*; `craft_ui::title_bar` (feature `window-frame`) draws the buttons, the drag area and the resize zones for the frame it chose.
 
 ### Live layout changes
 

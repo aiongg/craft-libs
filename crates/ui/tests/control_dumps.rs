@@ -472,6 +472,23 @@ fn dock_look() {
     });
 }
 
+/// Title bars: the sizes, the type role and every colour the bar paints.
+#[cfg(feature = "window-frame")]
+#[test]
+fn title_bar() {
+    use craft_ui::title_bar::TitleBarStyle;
+    check("title_bar.txt", |d, t| {
+        let s = TitleBarStyle::from_tokens(t);
+        d.line("height", s.height).line("height_adwaita", s.height_adwaita).line("pad", s.pad).line("title_gap", s.title_gap);
+        d.line("title_min_gap", s.title_min_gap).line("edge", s.edge).line("corner", s.corner).line("title_role", role(s.title_role));
+        d.line("bar", s.bar).line("title", s.title).line("glyph", s.glyph).line("glyph_inactive", s.glyph_inactive);
+        d.line("hover", s.hover).line("pressed", s.pressed).line("separator", s.separator);
+        d.line("windows_close", s.windows_close).line("windows_close_glyph", s.windows_close_glyph);
+        d.line("breeze_close_hover", s.breeze_close_hover).line("breeze_close_hover_glyph", s.breeze_close_hover_glyph);
+        d.line("breeze_close_pressed", s.breeze_close_pressed).line("breeze_close_pressed_glyph", s.breeze_close_pressed_glyph);
+    });
+}
+
 /// Toasts: the card's sizes and colours, and each tone's edge and title.
 #[test]
 fn toast() {

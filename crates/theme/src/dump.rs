@@ -12,7 +12,7 @@ use crate::{
     HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens,
     MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens,
     RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor,
-    SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens,
+    SwatchTokens, TabSizes, TabTokens, TitleBarTokens, ThumbColors, ThumbSizes, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens,
     TypeRole, TypeStyle, TypeTokens,
 };
 
@@ -247,6 +247,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         slider,
         swatch,
         tab,
+        title_bar,
         toast,
         toggle_button,
         tooltip,
@@ -287,6 +288,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     slider_lines(out, slider);
     swatch_lines(out, swatch);
     tab_lines(out, tab);
+    title_bar_lines(out, title_bar);
     toast_lines(out, toast);
     toggle_button_lines(out, toggle_button);
     tooltip_lines(out, tooltip);
@@ -705,6 +707,58 @@ fn float_lines(out: &mut Lines, t: &FloatTokens) {
         ("focus", focus),
     ] {
         out.line(&format!("float.{k}"), hex(*c));
+    }
+}
+
+fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
+    let TitleBarTokens {
+        height,
+        height_adwaita,
+        pad,
+        title_gap,
+        title_min_gap,
+        title_role,
+        edge,
+        corner,
+        bar,
+        title,
+        glyph,
+        glyph_inactive,
+        hover,
+        pressed,
+        separator,
+        windows_close,
+        windows_close_glyph,
+        breeze_close_hover,
+        breeze_close_hover_glyph,
+        breeze_close_pressed,
+        breeze_close_pressed_glyph,
+        ..
+    } = t;
+    out.line("title_bar.height", len(*height));
+    out.line("title_bar.height_adwaita", len(*height_adwaita));
+    out.line("title_bar.pad", len(*pad));
+    out.line("title_bar.title_gap", len(*title_gap));
+    out.line("title_bar.title_min_gap", len(*title_min_gap));
+    out.line("title_bar.title_role", role(*title_role));
+    out.line("title_bar.edge", len(*edge));
+    out.line("title_bar.corner", len(*corner));
+    for (k, c) in [
+        ("bar", bar),
+        ("title", title),
+        ("glyph", glyph),
+        ("glyph.inactive", glyph_inactive),
+        ("hover", hover),
+        ("pressed", pressed),
+        ("separator", separator),
+        ("windows_close", windows_close),
+        ("windows_close_glyph", windows_close_glyph),
+        ("breeze_close_hover", breeze_close_hover),
+        ("breeze_close_hover_glyph", breeze_close_hover_glyph),
+        ("breeze_close_pressed", breeze_close_pressed),
+        ("breeze_close_pressed_glyph", breeze_close_pressed_glyph),
+    ] {
+        out.line(&format!("title_bar.{k}"), hex(*c));
     }
 }
 

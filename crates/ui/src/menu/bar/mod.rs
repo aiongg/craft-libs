@@ -22,7 +22,9 @@ use craft_theme::ControlSize;
 use egui::accesskit::{HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
-use egui::{Color32, Galley, Id, Key, KeyboardShortcut, Modifiers, PointerButton, Popup, Pos2, Response, Sense, SetOpenCommand, Ui, vec2};
+use egui::{
+    Color32, Galley, Id, Key, KeyboardShortcut, Modifiers, PointerButton, Popup, Pos2, Rect, Response, Sense, SetOpenCommand, Ui, pos2, vec2,
+};
 
 use super::item::{MenuEntry, MenuItem};
 use super::{Menu, MenuStep, MenuStyle, mnemonic};
@@ -151,6 +153,9 @@ pub struct MenuBarResponse<T> {
     pub focused: bool,
     /// The bar.
     pub response: Response,
+    /// The menu titles alone (with "⋯" when it shows), from the first title's reading start to the
+    /// last title's inner edge. With no titles, an empty rect at the bar's reading start.
+    pub titles: Rect,
 }
 
 /// Bar state between passes.
@@ -445,7 +450,11 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         state.keys.store_focus(&ctx);
         record_open(&ctx, self.id, open);
         ctx.data_mut(|d| d.insert_temp(self.id, state));
-        MenuBarResponse { chosen, open, focused, response: bar.response }
+        let titles_rect = responses.iter().map(|r| r.rect).reduce(Rect::union).unwrap_or_else(|| {
+            let edge = direction::start_x(ui, bar.response.rect);
+            Rect::from_min_max(pos2(edge, bar.response.rect.top()), pos2(edge, bar.response.rect.bottom()))
+        });
+        MenuBarResponse { chosen, open, focused, response: bar.response, titles: titles_rect }
     }
 }
 

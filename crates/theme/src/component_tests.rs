@@ -573,6 +573,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             // Dock: five colours, the current icon's text and two radii; float: radius, shadow and eight colours.
             + 8
             + 10
+            // Title bar: seven colours.
+            + 7
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -1159,6 +1161,37 @@ fn dock_and_float_pairs_meet_their_minimums_in_every_appearance() {
     }
 }
 
+fn title_bar_pairs() -> Vec<(TitleBarField, TitleBarField, (f64, f64))> {
+    let (text, mark) = ((4.5, 7.0), (3.0, 4.5));
+    vec![
+        (TitleBarField::Title, TitleBarField::Bar, text),
+        (TitleBarField::Glyph, TitleBarField::Bar, mark),
+        (TitleBarField::Glyph, TitleBarField::Hover, mark),
+        (TitleBarField::Glyph, TitleBarField::Pressed, mark),
+        (TitleBarField::GlyphInactive, TitleBarField::Bar, mark),
+    ]
+}
+
+/// The title and the caption glyphs meet their minimums on the bar and its hover and pressed
+/// fills in every appearance.
+#[test]
+fn title_bar_pairs_meet_their_minimums_in_every_appearance() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let r = resolve(&def, a, None);
+            let is_title_bar = |w: &ContrastCheck| matches!(w.fg, TokenRef::Component(ComponentField::TitleBar(_)));
+            assert!(!r.warnings.iter().any(is_title_bar), "{} {a:?}: {:?}", def.name, r.warnings);
+            let t = &r.tokens;
+            for (fg, bg, (standard, high)) in title_bar_pairs() {
+                let min = if a.contrast == Contrast::High { high } else { standard };
+                let bg = over(t.component.color(ComponentField::TitleBar(bg)).unwrap(), t.color(T::SurfacePanel));
+                let ratio = contrast_ratio(over(t.component.color(ComponentField::TitleBar(fg)).unwrap(), bg), bg);
+                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, ComponentField::TitleBar(fg).path());
+            }
+        }
+    }
+}
+
 #[test]
 fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
@@ -1196,6 +1229,40 @@ fn the_float_shadow_follows_the_mode_adjusted_floating_elevation() {
 }
 
 #[test]
+fn title_bar_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
+    let compact = at(Size::Compact);
+    let b = &compact.component.title_bar;
+    assert_eq!((b.height, b.height_adwaita, b.pad, b.title_gap, b.title_min_gap), (32.0, 47.0, 8.0, 16.0, 80.0));
+    assert_eq!((b.edge, b.corner, b.title_role), (8.0, 12.0, TypeRole::Title));
+    let comfy = at(Size::Comfortable);
+    let b = &comfy.component.title_bar;
+    assert_eq!((b.height, b.height_adwaita, b.pad), (38.0, 47.0, 12.0));
+
+    let t = &compact;
+    let b = &t.component.title_bar;
+    assert_eq!(b.bar, t.color(T::SurfacePanel));
+    assert_eq!(
+        (b.title, b.glyph, b.glyph_inactive, b.separator),
+        (t.color(T::TextMuted), t.color(T::TextNormal), t.color(T::TextMuted), t.color(T::LineDivider))
+    );
+    assert_eq!((b.hover, b.pressed), (over(t.color(T::StateHover), b.bar), over(t.color(T::StatePressed), b.bar)));
+}
+
+/// The desktops' Close reds are fixed: no override path names them.
+#[test]
+fn title_bar_close_colours_are_fixed() {
+    let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::High), None).tokens;
+    let b = &t.component.title_bar;
+    assert_eq!((b.windows_close, b.windows_close_glyph), (Rgba::rgb(0xC4, 0x2B, 0x1C), Rgba::WHITE));
+    assert_eq!((b.breeze_close_hover, b.breeze_close_hover_glyph), (Rgba::rgb(0xFF, 0x98, 0xA2), Rgba::rgb(0x23, 0x26, 0x29)));
+    assert_eq!((b.breeze_close_pressed, b.breeze_close_pressed_glyph), (Rgba::rgb(0x6D, 0x22, 0x29), Rgba::WHITE));
+    for path in ["title_bar.windows_close", "title_bar.breeze_close_hover", "title_bar.breeze_close_pressed.glyph"] {
+        assert_eq!(ComponentField::from_path(path), None, "{path}");
+    }
+}
+
+#[test]
 fn dock_and_float_overrides_replace_the_defaults() {
     let mut def = grey_blue();
     let shadow = ComponentField::Float(FloatField::Shadow);
@@ -1219,4 +1286,29 @@ fn dock_and_float_overrides_replace_the_defaults() {
     for sized in ["dock.gap", "dock.drop_width", "dock.icon_size", "float.border_width"] {
         assert_eq!(ComponentField::from_path(sized), None, "{sized}");
     }
+}
+
+#[test]
+fn the_windows_close_glyph_reads_on_its_red() {
+    let b = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard), None).tokens.component.title_bar;
+    assert!(contrast_ratio(b.windows_close_glyph, b.windows_close) >= 4.5);
+}
+
+#[test]
+fn the_breeze_close_glyph_reads_on_its_reds() {
+    // The reds and glyphs are fixed, so this holds for light and dark bars alike.
+    let b = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens.component.title_bar;
+    assert!(contrast_ratio(b.breeze_close_hover_glyph, b.breeze_close_hover) >= 4.5);
+    assert!(contrast_ratio(b.breeze_close_pressed_glyph, b.breeze_close_pressed) >= 4.5);
+}
+
+#[test]
+fn a_title_bar_override_replaces_the_default() {
+    let mut def = grey_blue();
+    let pink = Rgba::rgb(255, 0, 128);
+    def.pins.light.0.insert(TokenRef::Component(ComponentField::TitleBar(TitleBarField::Separator)), pink);
+    let tokens = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
+    assert_eq!(tokens.component.title_bar.separator, pink);
+    assert_eq!(ComponentField::from_path("title_bar.glyph.inactive"), Some(ComponentField::TitleBar(TitleBarField::GlyphInactive)));
+    assert_eq!(ComponentField::from_path("title_bar.height"), None);
 }
