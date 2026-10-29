@@ -31,6 +31,8 @@ struct Host {
     clip: Option<LevelsClip>,
     undo: Option<Undo>,
     policy: EditPolicy,
+    /// The pass of each event.
+    passes: Vec<u64>,
     /// The pass of the last event, and whether two events came in one pass.
     event_pass: Option<u64>,
     doubled: bool,
@@ -82,6 +84,7 @@ impl Host {
             clip: None,
             undo: None,
             policy: EditPolicy::default(),
+            passes: Vec::new(),
             event_pass: None,
             doubled: false,
             outside: None,
@@ -121,6 +124,7 @@ impl Host {
             let pass = ui.ctx().cumulative_pass_nr();
             self.doubled |= self.event_pass == Some(pass);
             self.event_pass = Some(pass);
+            self.passes.push(pass);
         }
         self.clip = LevelsEditor::clipping(ui.ctx(), self.id);
         if let Some(undo) = &mut self.undo {
@@ -151,6 +155,19 @@ impl Host {
             }
             self.events.push(event);
         }
+    }
+
+    /// Forgets the events so far.
+    fn clear(&mut self) {
+        self.events.clear();
+        self.passes.clear();
+    }
+
+    /// The pass of the first event of `kind` ([`kinds`](Host::kinds)).
+    fn pass_of(&self, kind: &str) -> u64 {
+        let i = self.kinds().iter().position(|k| *k == kind);
+        assert!(i.is_some(), "no {kind} in {:?}", self.kinds());
+        self.passes[i.unwrap_or_default()]
     }
 
     fn kinds(&self) -> Vec<&'static str> {
@@ -267,7 +284,7 @@ fn a_thumb_drag_is_one_gesture_of_levels_and_the_gamma_thumb_follows_black_throu
     assert_eq!(node(&harness, Role::SpinButton, "Input black").accesskit_node().numeric_value(), Some(50.0), "the field shows the thumb's value");
 
     // A quarter of the way from black to white is gamma ln 0.25 / ln 0.5.
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let from = thumb(&harness, "Gamma");
     let to = pos2(at(&harness, "Gamma", 50.0 + 205.0 * 0.25).x, from.y);
     drag(&mut harness, from, to);
@@ -306,7 +323,7 @@ fn a_press_on_a_row_during_a_typing_run_commits_the_run_then_drags_from_it() {
     let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
     let cases = [("Input black", "30", "Output white", 200.0), ("Output black", "20", "Input white", 220.0)];
     for (step, (field, typed, row, level)) in cases.into_iter().enumerate() {
-        harness.state_mut().events.clear();
+        harness.state_mut().clear();
         let field_at = node(&harness, Role::SpinButton, field).rect().center();
         click(&mut harness, field_at);
         harness.event(Event::Text(typed.into()));
@@ -332,7 +349,7 @@ fn a_press_on_the_input_row_during_an_output_field_run_begins_one_pass_after_the
     click(&mut harness, field_at);
     harness.event(Event::Text("20".into()));
     harness.run();
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let from = thumb(&harness, "Input white");
     move_to(&mut harness, from);
     pointer(&mut harness, from, true, Modifiers::NONE);
@@ -374,7 +391,7 @@ fn a_screen_reader_step_on_a_field_during_a_row_drag_is_its_own_set_after_the_re
     press(&mut harness, from);
     move_to(&mut harness, pos2((from.x + to.x) / 2.0, from.y));
     move_to(&mut harness, to);
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     let (target, tree) = node(&harness, Role::SpinButton, "Gamma").accesskit_node().locate();
     harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
         action: egui::accesskit::Action::Increment,
@@ -393,6 +410,47 @@ fn a_screen_reader_step_on_a_field_during_a_row_drag_is_its_own_set_after_the_re
     assert_eq!(steps, Some(2), "the drag and the step, one undo step each");
 }
 
+/// A screen reader's step on the gamma thumb during a scrub of the black field waits for the
+/// release and changes only gamma: the row's value from the step's pass doesn't bring back the
+/// black the scrub moved on from.
+#[test]
+fn a_screen_reader_step_on_a_row_during_a_field_scrub_keeps_the_scrubs_value() {
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    let field = node(&harness, Role::SpinButton, "Input black").rect().center();
+    press(&mut harness, field);
+    for dx in [20.0, 40.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    let (target, tree) = node(&harness, Role::Slider, "Gamma").accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: tree,
+        target_node: target,
+        data: None,
+    }));
+    harness.step();
+    let stepped = harness.state().levels.in_black;
+    assert_eq!(harness.state().levels.gamma, 1.0, "the step waits");
+    harness.state_mut().clear();
+    for dx in [60.0, 80.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    release(&mut harness, field + vec2(80.0, 0.0));
+    assert_eq!(harness.state().kinds()[harness.state().kinds().len() - 2..], ["Commit", "Set"], "{:?}", harness.state().kinds());
+    assert_eq!(harness.state().pass_of("Set"), harness.state().pass_of("Commit") + 1, "the step goes out the pass after the release");
+    let committed = harness.state().events.iter().find_map(|e| match e {
+        EditEvent::Commit { value, .. } => Some(value.in_black),
+        _ => None,
+    });
+    assert!(committed.is_some_and(|black| black > stepped), "the scrub moved on after the step: {committed:?} vs {stepped}");
+    let levels = harness.state().levels;
+    assert_eq!(Some(levels.in_black), committed, "the step keeps the black the scrub committed");
+    assert_ne!(levels.gamma, 1.0, "the step applies");
+    assert_eq!(levels, Levels { in_black: levels.in_black, gamma: levels.gamma, ..IDENTITY });
+    let steps = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(steps, Some(2), "the scrub and the step, one undo step each");
+}
+
 /// A tap (press and release in one frame) on a row in the pass a field's typing run commits
 /// reaches the host in a later pass than the Commit: a composite reports one edit per pass.
 #[test]
@@ -403,7 +461,7 @@ fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
         click(&mut harness, field_at);
         harness.event(Event::Text("20".into()));
         harness.run();
-        harness.state_mut().events.clear();
+        harness.state_mut().clear();
         let target = node(&harness, Role::Slider, "Input white");
         let pos = pos2(at(&harness, "Input white", 240.0).x, target.rect().center().y);
         move_to(&mut harness, pos);
@@ -414,8 +472,8 @@ fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
         }
         assert!(!harness.state().doubled, "{field}: one event per pass: {:?}", harness.state().kinds());
         let kinds = harness.state().kinds();
-        assert_eq!(kinds.first(), Some(&"Commit"), "{field}: {kinds:?}");
-        assert!(kinds.len() >= 2, "{field}: the tap reports after the run: {kinds:?}");
+        assert_eq!(kinds, ["Commit", "Set"], "{field}");
+        assert_eq!(harness.state().pass_of("Set"), harness.state().pass_of("Commit") + 1, "{field}: the tap reports the pass after the run");
         assert_eq!(harness.state().levels.in_white, 240.0, "{field}");
     }
 }
@@ -455,7 +513,7 @@ fn a_thumb_edit_leaves_the_other_values_as_they_are() {
     assert_eq!((levels.in_black, levels.in_white), (-10.0, 300.0));
     assert!(levels.gamma.is_nan());
 
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     node(&harness, Role::Slider, "Input black").focus();
     harness.run();
     harness.key_press(Key::ArrowRight);
@@ -536,7 +594,7 @@ fn the_group_histogram_thumbs_and_fields_are_in_the_accesskit_tree_in_tab_order(
     harness.run();
     let ring = harness.state().focus;
     a11y::assert_focus_ring(&harness, ring);
-    harness.state_mut().events.clear();
+    harness.state_mut().clear();
     harness.key_press(Key::ArrowRight);
     harness.run();
     assert_eq!(harness.state().kinds(), ["Set"]);

@@ -43,9 +43,13 @@
 //!   drawn in the pass its turn comes, mapped onto the composite's value then, so the host gets
 //!   the ending, then the next edit (a Set, or a gesture that part owns), and no part's value is
 //!   made from the value before the ending: a screen reader's step on one part during another
-//!   part's drag is its own Set after the release. While it waits, the part's newer events
-//!   replace it. A part that isn't drawn in a pass drops its held event, and so does every part
-//!   of a composite that isn't (a popover's picker that closes with the commit).
+//!   part's drag is its own Set after the release. A part whose value holds several of the
+//!   composite's values ([`Edits::push_from`]: a row's thumbs, a graph's points) applies only
+//!   what its event changed from the value it was drawn from, onto its value of that pass
+//!   ([`Rebase`]): a step on the gamma thumb keeps the black point a field scrub committed.
+//!   While it waits, the part's newer events replace it. A part that isn't drawn in a pass drops
+//!   its held event, and so does every part of a composite that isn't (a popover's picker that
+//!   closes with the commit).
 //! - A press on a part takes its turn from the edit order too (`controls::slider::press_turn`),
 //!   and so do the composite's own inputs ([`Edits::inputs`]): they wait for another control's
 //!   typing run and for the composite's gesture to end, then the composite makes their values
@@ -91,8 +95,43 @@ impl<V: Clone + PartialEq + Send + Sync + 'static> End<V> {
     }
 }
 
-/// A part's event, as its own value, kept between passes whatever its type.
+/// A part's event, as its own value, kept between passes whatever its type: a [`PartEvent`].
 type Raw = Arc<dyn Any + Send + Sync>;
+
+/// A part's value that holds several of the composite's values (a row's thumbs, a graph's
+/// points), which a held event changes only some of ([`Edits::push_from`]).
+pub(crate) trait Rebase: Sized {
+    /// `self`, an event's value made from `base`, with what it changed from `base` applied onto
+    /// `now` instead.
+    fn rebase(self, base: &Self, now: &Self) -> Self;
+}
+
+/// A row's values ([`ThumbRow`](crate::controls::thumb_row::ThumbRow)): the thumbs the event
+/// moved take its values, the others `now`'s. A NaN that stays NaN (an unset gamma) is unchanged.
+impl<const N: usize> Rebase for [f64; N] {
+    fn rebase(mut self, base: &Self, now: &Self) -> Self {
+        for ((value, base), now) in self.iter_mut().zip(base).zip(now) {
+            if *value == *base || (value.is_nan() && base.is_nan()) {
+                *value = *now;
+            }
+        }
+        self
+    }
+}
+
+/// A part's event, with the value the part was drawn from when the event rebases
+/// ([`Edits::push_from`]).
+struct PartEvent<T> {
+    event: EditEvent<T>,
+    drawn: Option<Drawn<T>>,
+}
+
+/// The value a part was drawn from, and how an event's value made from it rebases.
+#[derive(Clone)]
+struct Drawn<T> {
+    value: T,
+    rebase: fn(T, &T, &T) -> T,
+}
 
 /// The owner's [`End`] kept between passes, whatever the composite's value type.
 #[derive(Clone)]
@@ -209,14 +248,35 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     }
 
     /// A part's edit, its value mapped to the composite's. Called for every part drawn, also
-    /// without an event.
+    /// without an event. For a part with one of the composite's values (a slider, a dial): a
+    /// held event's value is mapped onto the composite's value of the pass its turn comes.
     pub fn push<T: Clone + Send + Sync + 'static>(&mut self, edit: &EditResponse<T>, map: impl Fn(T) -> V) {
         self.push_as(&edit.response.ctx, edit.response.id, edit.event.as_ref(), map);
+    }
+
+    /// [`push`](Edits::push) for a part whose value holds several of the composite's values (a
+    /// row's thumbs, a graph's points), drawn from `drawn` in this pass. A held event applies
+    /// only what it changed from the value its part was drawn from, onto `drawn` of the pass its
+    /// turn comes ([`Rebase`]).
+    pub fn push_from<T: Rebase + Clone + Send + Sync + 'static>(&mut self, edit: &EditResponse<T>, drawn: &T, map: impl Fn(T) -> V) {
+        let drawn = Drawn { value: drawn.clone(), rebase: T::rebase };
+        self.add(&edit.response.ctx, edit.response.id, edit.event.as_ref(), Some(drawn), map);
     }
 
     /// [`push`](Edits::push) for a part whose edit carries another widget's response (a
     /// popover's picker, reported on its swatch): `id` is the part's own.
     pub fn push_as<T: Clone + Send + Sync + 'static>(&mut self, ctx: &Context, id: Id, event: Option<&EditEvent<T>>, map: impl Fn(T) -> V) {
+        self.add(ctx, id, event, None, map);
+    }
+
+    fn add<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        ctx: &Context,
+        id: Id,
+        event: Option<&EditEvent<T>>,
+        drawn: Option<Drawn<T>>,
+        map: impl Fn(T) -> V,
+    ) {
         let run = event.and_then(EditEvent::id).or_else(|| self.run.filter(|(owner, _)| *owner == id).map(|(_, run)| run));
         let end = run.filter(|&run| super::is_live(ctx, run)).map(|run| match super::ending(ctx, run) {
             Ending::Commit { changed } => End::Commit { value: super::unreported::<T>(ctx, run).map(&map), changed },
@@ -227,15 +287,19 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         if self.held_pass + 1 != ctx.cumulative_pass_nr() {
             self.held.clear();
         }
-        let new = event.map(|event| Held(Arc::new(event.clone())));
+        let new = event.map(|event| Held(Arc::new(PartEvent { event: event.clone(), drawn: drawn.clone() })));
         if let Some(i) = self.held.iter().position(|(part, _)| *part == id) {
             let (_, held) = self.held.remove(i);
             if order::turn_after(ctx, held_key(self.id, id), None, self.owned()) == Turn::Waits {
                 self.waiting.push((id, new.unwrap_or(held)));
                 return;
             }
-            if let Some(event) = held.0.downcast_ref::<EditEvent<T>>() {
-                self.events.push((id, event.clone().map(&map), held.clone()));
+            if let Some(part) = held.0.downcast_ref::<PartEvent<T>>() {
+                let event = match (&part.drawn, &drawn) {
+                    (Some(base), Some(now)) => part.event.clone().map(|value| (now.rebase)(value, &base.value, &now.value)),
+                    _ => part.event.clone(),
+                };
+                self.events.push((id, event.map(&map), held.clone()));
             }
         }
         if let (Some(event), Some(new)) = (event, new) {

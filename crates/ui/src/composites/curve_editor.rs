@@ -457,7 +457,7 @@ impl<'a> CurveEditor<'a> {
         let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
                 let (graph, points, selected) = self.graph(ui, &style, id, &shown, policy, &mut state);
-                edits.push(&graph, |curve| curve);
+                edits.push_from(&graph, &shown, |curve| curve);
                 if self.fields
                     && let Some(points) = points
                 {
