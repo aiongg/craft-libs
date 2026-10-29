@@ -411,6 +411,55 @@ fn shift_and_alt_count_only_when_pressed_after_the_press_or_pressed_again() {
 }
 
 #[test]
+fn alt_alone_draws_from_the_centre_and_shift_squares_towards_the_pointer_side() {
+    let mut h = Harness::new();
+    h.press(A);
+    h.drag(A + vec2(40.0, 30.0));
+    h.modifiers = Modifiers::ALT;
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 30.0))), [60.0, 70.0, 140.0, 130.0], "the press is the centre");
+    h.modifiers = Modifiers::SHIFT;
+    assert_eq!(corners(&h.drag(A + vec2(-40.0, 30.0))), [60.0, 100.0, 100.0, 140.0], "the square follows the pointer's quadrant");
+    h.modifiers = Modifiers::NONE;
+    assert_eq!(corners(&h.drag(A + vec2(-40.0, 30.0))), [60.0, 100.0, 100.0, 130.0], "released: free again");
+}
+
+#[test]
+fn shift_and_alt_held_at_the_press_stay_the_hosts_until_both_are_released() {
+    let mut h = Harness::new();
+    h.modifiers = Modifiers::SHIFT | Modifiers::ALT;
+    h.press(A);
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 30.0))), [100.0, 100.0, 140.0, 130.0]);
+    // ⇧ released and pressed again squares; ⌥ is still the host's.
+    h.modifiers = Modifiers::ALT;
+    h.drag(A + vec2(40.0, 30.0));
+    h.modifiers = Modifiers::SHIFT | Modifiers::ALT;
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 30.0))), [100.0, 100.0, 140.0, 140.0]);
+}
+
+#[test]
+fn a_ratio_ignores_shift_and_alt_still_centres_it() {
+    let mut h = Harness::new();
+    h.constraint = Constraint::Ratio(4.0, 3.0);
+    h.press(A);
+    h.drag(A + vec2(10.0, 10.0));
+    h.modifiers = Modifiers::SHIFT;
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 20.0))), [100.0, 100.0, 140.0, 130.0]);
+    h.modifiers = Modifiers::SHIFT | Modifiers::ALT;
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 20.0))), [60.0, 70.0, 140.0, 130.0]);
+}
+
+#[test]
+fn space_keeps_the_square_and_the_centre_while_it_moves_the_marquee() {
+    let mut h = Harness::new();
+    h.press(A);
+    h.drag(A + vec2(40.0, 30.0));
+    h.modifiers = Modifiers::SHIFT;
+    assert_eq!(corners(&h.drag(A + vec2(40.0, 30.0))), [100.0, 100.0, 140.0, 140.0]);
+    h.pass(vec![key(Key::Space, true)]);
+    assert_eq!(corners(&h.drag(A + vec2(90.0, 80.0))), [150.0, 150.0, 190.0, 190.0]);
+}
+
+#[test]
 fn space_moves_the_marquee_and_releasing_it_sizes_again() {
     let mut h = Harness::new();
     h.press(A);
