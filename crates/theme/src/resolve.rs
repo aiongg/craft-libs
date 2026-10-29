@@ -181,7 +181,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);
     let (popup, dialog, floating) = values::ELEVATION_LEVELS;
     // A bevel is the relief of a raised control, so a bevelled knob lies flat.
-    let knob = shadow(if matches!(edge, Edge::Bevel { .. }) { 0 } else { values::KNOB_ELEVATION });
+    let knob = if matches!(edge, Edge::Bevel { .. }) { Elevation::level(0) } else { values::KNOB_SHADOW };
 
     let elevation = ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating), knob };
 

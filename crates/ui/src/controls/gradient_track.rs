@@ -4,23 +4,22 @@
 use craft_theme::Srgba;
 use egui::{Color32, Mesh, Rect, Ui, pos2};
 
-use super::slider::{SliderStyle, Track};
+use super::slider::Track;
 
 /// Points sampled along each rounded end of the track.
 const CORNER_SAMPLES: usize = 8;
 
 /// Paints the track as the gradient through `stops`, spread evenly from where the thumb's centre
 /// is at the minimum to where it is at the maximum, so the colour under the thumb is the colour
-/// of its value; past those points the end colours continue to the track's ends. The track keeps
-/// its shape and edge; translucent stops show the swatch checkerboard (`checker`) under them.
-pub(super) fn paint(ui: &Ui, style: &SliderStyle, track: &Track, stops: &[Srgba], checker: [Color32; 2]) {
+/// of its value. The track has square ends and no outline (PhotoCraft `slider.rs:180-192`);
+/// translucent stops show the swatch checkerboard (`checker`) under them.
+pub(super) fn paint(ui: &Ui, track: &Track, stops: &[Srgba], checker: [Color32; 2]) {
     let ppp = ui.pixels_per_point();
     let bar = track.bar(ppp);
     if stops.is_empty() || bar.width() <= 0.0 || bar.height() <= 0.0 {
         return;
     }
-    let radius = f32::from(style.track.radius.nw).min(bar.height() / 2.0).min(bar.width() / 2.0);
-    let shape = Rounded { bar, radius };
+    let shape = Rounded { bar, radius: 0.0 };
     let colors: Vec<Color32> = stops.iter().map(|&s| s.into()).collect();
     let (x0, x1) = track.ends();
     let stop_x = |i: usize| if colors.len() < 2 { x0 } else { egui::lerp(x0..=x1, i as f32 / (colors.len() - 1) as f32) };
@@ -50,9 +49,6 @@ pub(super) fn paint(ui: &Ui, style: &SliderStyle, track: &Track, stops: &[Srgba]
         painter.add(shape.mesh(cells, &rows, |_, mid, row| checker[(cell_of(mid) + row) % 2]));
     }
     painter.add(shape.mesh(xs, &[(bar.top(), bar.bottom())], |x, _, _| color_at(x)));
-    let mut edge = style.track;
-    edge.fill = Color32::TRANSPARENT;
-    painter.extend(edge.shapes(bar, ppp));
 }
 
 /// A horizontal bar whose ends are rounded with `radius`.

@@ -26,6 +26,7 @@
     "line.border": "#d6d6d6",
     "line.control_edge": "#bababa",
     "line.divider": "#d6d6d6",
+    "line.knob_edge": "#282828",
     "seeds": {
       "neutral": "#f0f0f0",
       "status": {
@@ -51,6 +52,7 @@
     "line.border": "#1e1e1e",
     "line.control_edge": "#4a4a4a",
     "line.divider": "#1e1e1e",
+    "line.knob_edge": "#282828",
     "state.hover": "#424242",
     "state.pressed": "#4e4e4e",
     "state.selected": "#525252",

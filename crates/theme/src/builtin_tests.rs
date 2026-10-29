@@ -271,8 +271,8 @@ fn builtin_small_control_pairs_meet_their_minimums() {
 }
 
 /// Knobs are light in both modes: `surface.knob` is near white (dark mode: about 236/255) and
-/// takes a tinted neutral's tint; a light knob has a `line.control_edge` outline and a dark-mode
-/// one none, and both cast the knob shadow. Classic draws its knob as a bevelled panel-grey
+/// takes a tinted neutral's tint; a light knob has a `text.muted` outline and a dark-mode
+/// one none (the Pro themes pin PhotoCraft's #282828 ring), and both cast the knob shadow. Classic draws its knob as a bevelled panel-grey
 /// surface with no shadow.
 #[test]
 fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
@@ -282,13 +282,15 @@ fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
         let knob = t.color(ColorToken::SurfaceKnob);
         let lightness = knob.to_oklch().l;
         assert!(lightness >= 0.93, "{mode:?}: surface.knob {} has lightness {lightness:.3}", knob.to_hex());
-        let edge = t.color(ColorToken::LineKnobEdge);
+        assert_eq!(t.color(ColorToken::LineKnobEdge), Rgba::rgb(0x28, 0x28, 0x28), "{mode:?}: the Pro themes have PhotoCraft's dark ring");
+        let plain = at(&semantic_tests::grey_blue(), mode).color(ColorToken::LineKnobEdge);
         match mode {
-            Mode::Light => assert_eq!(edge, t.color(ColorToken::LineControlEdge)),
-            Mode::Dark => assert_eq!(edge.a(), 0, "dark knobs have no outline"),
+            Mode::Light => {
+                assert_eq!(plain, at(&semantic_tests::grey_blue(), mode).color(ColorToken::TextMuted), "light knobs take the muted text colour")
+            }
+            Mode::Dark => assert_eq!(plain.a(), 0, "dark knobs have no outline"),
         }
-        assert_eq!(t.elevation.knob.offset, Elevation::level(values::KNOB_ELEVATION).offset, "{mode:?}");
-        assert!(t.elevation.knob.alpha > 0.0, "{mode:?}");
+        assert_eq!(t.elevation.knob, values::KNOB_SHADOW, "{mode:?}");
 
         let tinted = at(&semantic_tests::grey_blue(), mode).color(ColorToken::SurfaceKnob).to_oklch();
         assert!(tinted.c > 0.001 && (240.0..300.0).contains(&tinted.h), "{mode:?}: {tinted:?} takes the blue-grey neutral's tint");
@@ -496,6 +498,43 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
                 );
             }
             assert_eq!(tip.radius, t.shape.radius.popup, "{} {a:?}", theme.id);
+        }
+    }
+}
+
+/// The slider follows PhotoCraft (`slider.rs:104-289`, `theme.rs:831-839`) in every built-in: an
+/// 18 point control with a 12 point knob and a 3 point track in the control edge colour at
+/// Compact, two points more of knob and six more of height at Comfortable; the knob outline is
+/// the Pro themes' #282828, the muted text colour in the other light themes and none in the
+/// other dark ones; Classic has a 10 x 16 box knob.
+#[test]
+fn sliders_follow_photocraft() {
+    let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"];
+    for theme in builtins() {
+        for (size, height, thumb) in [(Size::Compact, 18.0, 12.0), (Size::Comfortable, 24.0, 14.0)] {
+            for mode in [Mode::Light, Mode::Dark] {
+                let a = Appearance { size, ..semantic_tests::app(mode, Contrast::Standard) };
+                let t = resolve(theme, a, None).tokens;
+                let s = &t.component.slider;
+                let id = theme.id.as_str();
+                assert_eq!((s.height.md, s.track_height, s.gradient_height, s.track_radius), (height, 3.0, 5.0, 2.0), "{id} {a:?}");
+                let classic = id == "craft.classic";
+                let want = if classic { (10.0, 16.0) } else { (thumb, thumb) };
+                assert_eq!((s.thumb_width.md, s.thumb.md), want, "{id} {a:?}");
+                assert_eq!(s.track, t.color(ColorToken::LineControlEdge), "{id} {a:?}");
+                if classic {
+                    continue;
+                }
+                assert_eq!(t.elevation.knob, values::KNOB_SHADOW, "{id} {a:?}");
+                let edge = t.color(ColorToken::LineKnobEdge);
+                if pro.contains(&id) {
+                    assert_eq!(edge, Rgba::rgb(0x28, 0x28, 0x28), "{id} {a:?}");
+                } else if theme.variants.mode_for(mode) == Mode::Light {
+                    assert_eq!(edge, t.color(ColorToken::TextMuted), "{id} {a:?}");
+                } else {
+                    assert_eq!(edge.a(), 0, "{id} {a:?}");
+                }
+            }
         }
     }
 }

@@ -26,6 +26,7 @@
     "line.border": "#a0a0a0",
     "line.control_edge": "#8c8c8c",
     "line.divider": "#9e9e9e",
+    "line.knob_edge": "#282828",
     "state.hover": "#c6c6c6",
     "state.pressed": "#aaaaaa",
     "state.selected": "#d4d4d4",

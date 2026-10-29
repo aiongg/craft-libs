@@ -94,5 +94,9 @@
     "tooltip.border": "{text.normal}",
     "tooltip.fill": "#ffffe1",
     "tooltip.text": "{text.normal}"
+  },
+  "components": {
+    "slider.thumb_height": 16.0,
+    "slider.thumb_width": 10.0
   }
 }

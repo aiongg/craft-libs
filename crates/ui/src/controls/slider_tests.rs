@@ -715,7 +715,7 @@ fn track_colors_draw_the_gradient_under_the_thumb_and_no_fill() {
     let colour_at = |x: f32| meshes[0].vertices.iter().find(|v| (v.pos.x - x).abs() < 1e-3).map(|v| v.color);
     let (start, end) = track.ends();
     assert_eq!((colour_at(start), colour_at(end)), (Some(red.into()), Some(blue.into())), "the stops lie where the thumb's centre is at the ends");
-    assert!(meshes[0].vertices.iter().all(|v| track.rect.expand(0.01).contains(v.pos)));
+    assert!(meshes[0].vertices.iter().all(|v| (start - 0.01..=end + 0.01).contains(&v.pos.x)), "the gradient spans the track and no more");
 
     let (meshes, _, _) = gradient_slider([red.with_alpha(0.0), red]);
     assert_eq!(meshes.len(), 2, "a translucent stop shows the checkerboard under the gradient");

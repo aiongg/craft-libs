@@ -260,7 +260,7 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
     let elevation = {
         let [popup, dialog, floating] = [values::ELEVATION_LEVELS.0, values::ELEVATION_LEVELS.1, values::ELEVATION_LEVELS.2].map(Elevation::level);
-        ElevationTokens { popup, dialog, floating, knob: Elevation::level(values::KNOB_ELEVATION) }
+        ElevationTokens { popup, dialog, floating, knob: values::KNOB_SHADOW }
     };
     let defaults = ComponentTokens::defaults(&Semantic {
         color: &probe,

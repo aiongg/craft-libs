@@ -371,7 +371,9 @@ fn switch_track_and_thumb_follow_the_pill_radius() {
 /// ring paints only while the slider is hovered or pressed.
 #[test]
 fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() {
-    let shadows = |shapes: &[Shape]| shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.blur_width > 0.0)).count();
+    // PhotoCraft's knob shadow is a hard circle: black at 90/255, no blur.
+    let shadow = Color32::from_black_alpha(90);
+    let shadows = |shapes: &[Shape]| shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.blur_width == 0.0 && r.fill == shadow)).count();
     for enabled in [true, false] {
         let ctx = context();
         let shapes = frame_at(&ctx, 0.0, vec![], |ui| {
@@ -393,7 +395,8 @@ fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() 
     };
     let rings = |shapes: &[Shape], color: Color32| {
         let width = style.get().map_or(0.0, |s: SliderStyle| s.ring_width);
-        shapes.iter().filter(|s| matches!(s, Shape::Rect(r) if r.stroke.color == color && r.stroke.width == width)).count()
+        // The ring of a round thumb is a circle stroke.
+        shapes.iter().filter(|s| matches!(s, Shape::Circle(c) if c.stroke.color == color && c.stroke.width == width)).count()
     };
     let rest = frame(0.0, vec![]);
     let ring = style.get().map(|s| s.ring).expect("the slider is styled");
@@ -406,6 +409,41 @@ fn disabled_knobs_cast_no_shadow_and_the_slider_ring_shows_on_hover_and_press() 
     assert_eq!(rings(&frame(10.0, vec![]), ring.pressed), 1, "a ring while pressed");
     frame(10.016, vec![press(center, false), Event::PointerGone]);
     assert_eq!(rings(&frame(15.0, vec![]), ring.hover), 0, "none once the pointer leaves");
+}
+
+/// A slider is PhotoCraft's: an 18 point control, a flat 3 point track in `line.control_edge`
+/// from the first knob centre to the last (inset by the knob radius), and a 12 point round knob
+/// whose hover ring is a 2 point circle of radius 9.5 about its centre.
+#[test]
+fn a_slider_is_an_18_point_control_with_a_flat_3_point_track_and_a_12_point_knob() {
+    let ctx = context();
+    let (rect, style) = (Cell::new(Rect::NOTHING), Cell::new(None));
+    let frame = |time, events| {
+        frame_at(&ctx, time, events, |ui| {
+            style.set(Some(Slider::style(&Tokens::of(ui), ControlSize::Md)));
+            rect.set(Slider::new("pc.slider", "Opacity", 0.5, 0.0..=1.0).show(ui).response.rect);
+        })
+    };
+    let rest = frame(0.0, vec![]);
+    let style = style.get().expect("the slider is styled");
+    let rect = rect.get();
+    assert_eq!((rect.height(), style.thumb, style.thumb_width, style.track_height), (18.0, 12.0, 12.0, 3.0));
+    let track = rest.iter().find_map(|s| match s {
+        Shape::Rect(r) if r.fill == style.track.fill => Some(r.rect),
+        _ => None,
+    });
+    let track = track.expect("a flat track");
+    assert_eq!((track.height(), track.left() - rect.left(), rect.right() - track.right()), (3.0, 6.0, 6.0), "inset by the knob radius");
+
+    let center = rect.center();
+    frame(0.016, vec![Event::PointerMoved(center)]);
+    let hovered = frame(5.0, vec![]);
+    let ring = hovered.iter().find_map(|s| match s {
+        Shape::Circle(c) if c.stroke.color == style.ring.hover => Some(*c),
+        _ => None,
+    });
+    let ring = ring.expect("a ring while hovered");
+    assert_eq!((ring.radius, ring.stroke.width), (9.5, 2.0));
 }
 
 /// A context showing the suite default, with reduced motion or not.
