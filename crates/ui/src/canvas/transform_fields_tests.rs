@@ -93,7 +93,7 @@ fn position_moves_the_box_with_its_reference_point_and_every_field_has_a_limit()
 struct Host {
     state: BoxState,
     /// The box as the running gesture began, to restore on a cancel.
-    before: Option<BoxState>,
+    before: Option<TransformRow>,
     linked: bool,
     /// Whether the host gives the row the link; without it the row keeps its own.
     host_link: bool,
@@ -101,11 +101,11 @@ struct Host {
     /// Whether the row takes input.
     enabled: bool,
     labels: TransformFieldLabels,
-    events: Vec<EditEvent<BoxState>>,
+    events: Vec<EditEvent<TransformRow>>,
 }
 
 impl Host {
-    fn event(&self) -> Option<&EditEvent<BoxState>> {
+    fn event(&self) -> Option<&EditEvent<TransformRow>> {
         self.events.last()
     }
 
@@ -146,13 +146,19 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
         .build_ui_state(
             |ui, host: &mut Host| {
                 let state = host.state;
-                let fields = TransformFields::new("fields", &state, RECT, host.labels.clone()).skew_v(&mut host.skew_v).enabled(host.enabled);
+                let fields = TransformFields::new("fields", &state, RECT, host.labels.clone()).skew_v(host.skew_v).enabled(host.enabled);
                 let edit = if host.host_link { fields.linked(&mut host.linked).show(ui) } else { fields.show(ui) };
                 // A host that applies every update live, as a box session does.
                 match &edit.event {
-                    Some(EditEvent::Begin { .. }) => host.before = Some(host.state),
-                    Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => host.state = *value,
-                    Some(EditEvent::Cancel { .. }) => host.state = host.before.take().unwrap_or(host.state),
+                    Some(EditEvent::Begin { .. }) => host.before = Some(TransformRow { state: host.state, skew_v: host.skew_v }),
+                    Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => {
+                        (host.state, host.skew_v) = (value.state, value.skew_v)
+                    }
+                    Some(EditEvent::Cancel { .. }) => {
+                        if let Some(start) = host.before.take() {
+                            (host.state, host.skew_v) = (start.state, start.skew_v);
+                        }
+                    }
                     None => {}
                 }
                 host.events.extend(edit.event);
@@ -165,7 +171,7 @@ fn harness(dir: Direction) -> Harness<'static, Host> {
     harness_with(dir, |_| {})
 }
 
-fn centre(h: &Harness<'_, Host>, name: &str) -> Pos2 {
+fn centre<S>(h: &Harness<'_, S>, name: &str) -> Pos2 {
     h.get_by_label(name).rect().center()
 }
 
@@ -174,7 +180,7 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 }
 
 /// Scrubs the field `name` by `steps` moves of `dx` points, a frame each; the button stays down.
-fn scrub(h: &mut Harness<'_, Host>, name: &str, dx: f32, steps: usize) -> Pos2 {
+fn scrub<S>(h: &mut Harness<'_, S>, name: &str, dx: f32, steps: usize) -> Pos2 {
     let from = centre(h, name);
     h.event(Event::PointerMoved(from));
     h.event(button(from, true));
@@ -188,7 +194,7 @@ fn scrub(h: &mut Harness<'_, Host>, name: &str, dx: f32, steps: usize) -> Pos2 {
     at
 }
 
-fn release(h: &mut Harness<'_, Host>, at: Pos2) {
+fn release<S>(h: &mut Harness<'_, S>, at: Pos2) {
     h.event(button(at, false));
     h.run();
 }
@@ -211,6 +217,7 @@ fn the_fields_are_named_spin_buttons_and_an_arrow_step_reports_a_box() {
     h.key_press(Key::ArrowUp);
     h.run();
     let Some(EditEvent::Set { value, .. }) = h.state().event().cloned() else { panic!("{:?}", h.state().events) };
+    let value = value.state;
     // Linked, 101 % wide is 101 % high, about the centre.
     assert!((value.quad[1].x - value.quad[0].x - 202.0).abs() < 1e-6 && (value.quad[3].y - value.quad[0].y - 101.0).abs() < 1e-6, "{value:?}");
     assert!(close(value.pivot, BoxState::from_rect(RECT).pivot));
@@ -289,6 +296,7 @@ fn a_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
     let run = kinds.iter().position(|k| *k == "Commit").expect("the run commits");
     assert!(kinds[0] == "Begin" && kinds[1..run].iter().all(|k| *k == "Update"), "{kinds:?}");
     let Some(EditEvent::Commit { value, .. }) = h.state().events.get(run) else { panic!("{kinds:?}") };
+    let value = &value.state;
     let c = conversion(true);
     assert!((c.shown(value, 0.0, Field::W) - 120.0).abs() < 1e-6 && c.shown(value, 0.0, Field::Angle).abs() < 1e-6, "the run's commit: {value:?}");
     assert_eq!(kinds[run + 1], "Begin", "{kinds:?}");
@@ -344,4 +352,80 @@ fn the_units_are_the_host_s() {
     h.run();
     assert_eq!(h.get_by_label("Width").accesskit_node().value().as_deref(), Some("%100"));
     assert_eq!(h.get_by_label("Angle").accesskit_node().value().as_deref(), Some("0 deg"));
+}
+
+/// A document whose undo history holds whole snapshots: the box, the V skew and another value.
+#[derive(Clone, Copy)]
+struct Doc {
+    row: TransformRow,
+    other: i32,
+}
+
+struct History {
+    now: Doc,
+    undo: Vec<Doc>,
+}
+
+impl History {
+    fn apply(&mut self, edit: impl FnOnce(&mut Doc)) {
+        self.undo.push(self.now);
+        edit(&mut self.now);
+    }
+}
+
+impl edit::UndoMarks for History {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(&before) = self.undo.get(mark) {
+            self.now = before;
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
+}
+
+/// A V skew scrub that the host ends as a cancel because another control sets a value: the
+/// document reverts both the box and the V skew, and the row reads the reverted values.
+#[test]
+fn a_skew_scrub_ended_by_the_host_for_another_control_reads_the_reverted_row() {
+    let start = TransformRow { state: BoxState::from_rect(RECT), skew_v: 5.0 };
+    let hosted = (History { now: Doc { row: start, other: 0 }, undo: Vec::new() }, edit::GestureHost::<History>::new(), false);
+    let mut h = Harness::<(History, edit::GestureHost<History>, bool)>::builder()
+        .with_size([900.0, 200.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (doc, host, set): &mut (History, edit::GestureHost<History>, bool)| {
+                let ctx = ui.ctx().clone();
+                let row = doc.now.row;
+                let edit = TransformFields::new("fields", &row.state, RECT, TransformFieldLabels::default()).skew_v(row.skew_v).show(ui);
+                if let Some(event) = edit.event {
+                    host.handle(&ctx, doc, event, |doc: &mut History, v: TransformRow| doc.apply(|now| now.row = v));
+                }
+                if std::mem::take(set) {
+                    host.handle(&ctx, doc, EditEvent::set(7, egui::Modifiers::NONE), |doc: &mut History, v: i32| doc.apply(|now| now.other = v));
+                }
+            },
+            hosted,
+        );
+    h.run();
+    let at = scrub(&mut h, "Vertical skew", 3.0, 4);
+    assert!((h.state().0.now.row.skew_v - 17.0).abs() < 1e-9, "{}", h.state().0.now.row.skew_v);
+    h.state_mut().2 = true;
+    h.run();
+    h.run();
+    let doc = h.state().0.now;
+    assert_eq!(doc.other, 7);
+    assert_eq!(doc.row, start);
+    let c = conversion(true);
+    assert_eq!(c.shown(&doc.row.state, doc.row.skew_v, Field::SkewV), 5.0);
+    release(&mut h, at);
+    assert_eq!(h.state().0.now.row, start);
 }
