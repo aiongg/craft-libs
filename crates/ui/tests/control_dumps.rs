@@ -794,7 +794,7 @@ fn menu() {
         let s = Menu::style(t, ControlSize::Md);
         d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
-        d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label)).line("tint_alpha", s.tint_alpha);
+        d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
     });
 }
 

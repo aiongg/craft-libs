@@ -270,12 +270,15 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
         elevation: &elevation,
         preset: Size::Compact,
         typography: &preset.typography,
+        high: false,
     });
     ComponentField::ALL
         .iter()
         .filter_map(|&f| {
             let v = defaults.color(f)?;
-            Some((f, ColorToken::ALL.iter().copied().find(|&t| probe.get(t) == v)))
+            // A menu tint is derived from several tokens, not read from one.
+            let derived = matches!(f, ComponentField::Menu(crate::MenuField::Tint(..)));
+            Some((f, ColorToken::ALL.iter().copied().find(|&t| !derived && probe.get(t) == v)))
         })
         .collect()
 }

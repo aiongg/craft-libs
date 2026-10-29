@@ -115,7 +115,8 @@ fn builtin_menu_text_meets_its_minimum() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).collect();
-            assert_eq!(pairs.len(), 2, "{} {a:?}", theme.id);
+            // The active text and the shortcut, and each hue's text and shortcut on its tint.
+            assert_eq!(pairs.len(), 2 + 2 * MenuHue::ALL.len(), "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -352,4 +353,21 @@ fn builtin_overlay_line_is_the_plain_accent() {
     let t = resolve(theme, semantic_tests::app(Mode::Dark, Contrast::Standard), None).tokens;
     assert_eq!(t.color(ColorToken::OverlayLine), Rgba::rgb(0x37, 0x8e, 0xf0));
     assert_ne!(t.color(ColorToken::OverlayStroke), t.color(ColorToken::OverlayLine));
+}
+
+/// Slider marks and the badge ring are drawn in `line.mark`, which must be seen on the control
+/// surfaces and the hover and pressed fills in every theme, mode and contrast.
+#[test]
+fn line_mark_holds_the_non_text_minimum_on_the_control_surfaces() {
+    let on = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised, ColorToken::SurfaceSunken, ColorToken::StateHover, ColorToken::StatePressed];
+    for theme in builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let min = if a.contrast == Contrast::High { super::values::NON_TEXT_MIN.1 } else { super::values::NON_TEXT_MIN.0 };
+            for bg in on {
+                let ratio = contrast_ratio(t.color(ColorToken::LineMark), t.color(bg));
+                assert!(ratio >= min, "{} {:?} {:?}: line.mark on {bg:?} is {ratio:.2}:1", theme.id.as_str(), a.mode, a.contrast);
+            }
+        }
+    }
 }

@@ -43,8 +43,6 @@ pub struct MenuStyle {
     pub shortcut: Color32,
     /// `kbd.label`: a shortcut's type role.
     pub shortcut_label: TypeRole,
-    /// `menu.tint_alpha`: the alpha of a user label colour behind a row.
-    pub tint_alpha: f32,
 }
 
 impl MenuStyle {
@@ -59,7 +57,6 @@ impl MenuStyle {
             active_text: m.active_text.to_egui(),
             shortcut: m.shortcut.to_egui(),
             shortcut_label: tokens.component.kbd.label,
-            tint_alpha: m.tint_alpha,
         }
     }
 }
@@ -104,9 +101,13 @@ pub(crate) struct RowPainter<'s> {
 }
 
 impl RowPainter<'_> {
-    /// The colour a row's `tint` is drawn with: the tint at `menu.tint_alpha` of its own alpha.
-    pub fn tint_fill(&self, tint: Srgba) -> Color32 {
-        Color32::from(Srgba { a: tint.a * self.style.tint_alpha, ..tint })
+    /// The colours of a row with label colour `tint`: the theme's tokens for PhotoCraft's seven
+    /// hues, else the same derivation for the colour.
+    pub fn tint_colors(&self, tint: Srgba) -> craft_theme::MenuTint {
+        let tint = craft_theme::Rgba::from(tint);
+        self.tokens.component.menu.tint_of(tint).unwrap_or_else(|| {
+            craft_theme::MenuTint::derive(tint, &self.tokens.color, self.tokens.appearance.contrast == craft_theme::Contrast::High)
+        })
     }
 
     fn label_galley(&self, ui: &Ui, row: &RowContent<'_>, color: Color32) -> Arc<Galley> {
@@ -152,13 +153,15 @@ impl RowPainter<'_> {
         if active {
             ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, m.active_fill);
         }
-        if let (Some(tint), true, false) = (row.tint, state.enabled, active) {
-            ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, self.tint_fill(tint));
+        let tint = row.tint.filter(|_| state.enabled && !active).map(|t| self.tint_colors(t));
+        if let Some(tint) = tint {
+            ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, tint.fill.to_egui());
         }
-        let (text, mark, shortcut) = match () {
-            () if !state.enabled => (s.text_disabled, s.text_disabled, s.text_disabled),
-            () if active => (m.active_text, m.active_text, m.active_text),
-            () => (s.text, s.mark, m.shortcut),
+        let (text, mark, shortcut) = match tint {
+            _ if !state.enabled => (s.text_disabled, s.text_disabled, s.text_disabled),
+            _ if active => (m.active_text, m.active_text, m.active_text),
+            Some(tint) => (tint.text.to_egui(), tint.text.to_egui(), tint.shortcut.to_egui()),
+            None => (s.text, s.mark, m.shortcut),
         };
         let forward = direction::forward(ui);
         let start = direction::start_x(ui, rect) + forward * s.pad_x;

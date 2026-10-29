@@ -66,7 +66,7 @@ pub use components::{
     CurveField, CurveTokens, Dimmed, DockField, DockTokens, EmptyStateField, EmptyStateTokens, FieldField, FieldKind, FieldPart, FieldTokens,
     FloatField, FloatTokens, GradientEditorField, GradientEditorTokens, GradientLineField, GradientLineTokens, GuideField, GuideTokens, HandleField,
     HandleTokens, HistogramField, HistogramTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, LevelsField,
-    LevelsTokens, ListField, ListTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuTokens, NoticeField, NoticeTokens,
+    LevelsTokens, ListField, ListTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens, NoticeField, NoticeTokens,
     OverrideError, OverrideValue, PanelHeaderField, PanelHeaderTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, ReadoutField,
     ReadoutTokens, RefPointField, RefPointTokens, RulerField, RulerTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField,
     SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens,

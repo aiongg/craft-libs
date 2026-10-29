@@ -77,7 +77,7 @@ pub use levels::{LevelsField, LevelsTokens};
 pub use list::{ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
-pub use menu::{MenuField, MenuTokens};
+pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use progress::{ProgressField, ProgressTokens};
@@ -109,6 +109,8 @@ pub(crate) struct Semantic<'a> {
     pub preset: Size,
     /// After the Text size setting.
     pub typography: &'a TypeTokens,
+    /// High contrast: the derived colours of a family aim for the high minimums.
+    pub high: bool,
 }
 
 /// The two control sizes a family offers.

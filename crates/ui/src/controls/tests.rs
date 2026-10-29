@@ -66,7 +66,10 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
             assert_eq!((i.side, i.icon, i.radius), (c.icon_button.size.get(size), c.icon_button.icon.get(size), Corner::Control.radius(&t)));
             assert_eq!((i.fill, i.text), (c.button.ghost.fill.to_egui(), c.button.ghost.text.to_egui()));
             assert_eq!((i.selected_fill, i.selected_text), (c.icon_button.selected.fill.to_egui(), c.icon_button.selected.text.to_egui()));
-            assert_eq!((i.badge, i.badge_edge), (c.icon_button.badge.get(size), egui::Stroke::new(1.0, t.color.line.control_edge.to_egui())));
+            assert_eq!(
+                (i.badge, i.badge_edge),
+                (c.icon_button.badge.get(size), egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui()))
+            );
 
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));
@@ -713,7 +716,31 @@ fn badge_stays_visible_on_light_and_dark_fills() {
                     let dot = badge_circle(&shapes, color).expect("the badge is painted");
                     let style = IconButton::style(&tokens, ControlSize::Md);
                     assert_eq!(dot.radius, style.badge / 2.0);
-                    assert_eq!(dot.stroke, style.badge_edge, "{} {mode:?}: the ring is line.control_edge", t.id.as_str());
+                    assert_eq!(dot.stroke, style.badge_edge, "{} {mode:?}: the ring is line.mark", t.id.as_str());
+                }
+            }
+        }
+    }
+}
+
+/// The slider's marks and ticks and the icon button's badge ring are meaningful graphics: they
+/// reach the non-text minimum on the control surfaces and the hover and pressed fills.
+#[test]
+fn marks_and_the_badge_ring_read_on_the_control_surfaces() {
+    for t in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            for (contrast, min) in [(Contrast::Standard, 3.0), (Contrast::High, 4.5)] {
+                let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+                let tokens = UiTokens::new(resolve(t, appearance, None).tokens, appearance, mode, FontFamilies::default());
+                let c = &tokens.color;
+                let ring = IconButton::style(&tokens, ControlSize::Md).badge_edge;
+                let mark = Slider::style(&tokens, ControlSize::Md).mark_color;
+                assert_eq!(ring.width, 1.0, "the ring is the W1 stroke");
+                for (what, colour) in [("badge ring", ring.color), ("slider mark", mark)] {
+                    for bg in [c.surface.panel, c.surface.raised, c.surface.sunken, c.state.hover, c.state.pressed] {
+                        let ratio = contrast_ratio(craft_theme::Srgba::from(colour).into(), bg);
+                        assert!(ratio >= min, "{} {mode:?} {contrast:?}: the {what} on {} is {ratio:.2}:1", t.id.as_str(), bg.to_hex());
+                    }
                 }
             }
         }
