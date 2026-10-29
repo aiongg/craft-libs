@@ -79,7 +79,7 @@ pub use bezier::{
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
-pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse};
+pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};

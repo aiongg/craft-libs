@@ -1,15 +1,20 @@
 //! [`GradientOverlay`]: a gradient drawn on the canvas as PhotoCraft's live Gradient tool draws
 //! it, a line between a start and an end handle with the colour stops and midpoint diamonds on it.
 
+mod pointer;
 pub(crate) mod story;
+#[cfg(test)]
+mod tests;
 
 use std::f32::consts::FRAC_PI_2;
 
-use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
+use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Modifiers, Painter, Pos2, Rect, Response, Shape, Stroke, Ui, vec2};
+use kurbo::Point;
 
 use super::gradient_line::{at_screen, midpoint_location};
-use super::{CanvasView, GradientExtent, GradientLine, PartFocus};
-use crate::composites::{GradientStops, StopRef, StopRow, StopRows, StopRules};
+use super::{CanvasView, Claim, GradientExtent, GradientLine, LineGradient, LinePart, PartFocus};
+use crate::composites::{GradientStops, StopRef, StopRow, StopRows, StopRules, StopSampler as Sampler, default_sampler};
+use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// The names a screen reader reads for the overlay's group and parts, translated by the host.
@@ -65,6 +70,23 @@ pub struct GradientLineStyle {
     pub tear_off: f32,
 }
 
+/// What the pointer is over or doing, for the host's cursor ([`GradientOverlay::cursor`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LineCursor {
+    /// Over a part a press would take.
+    Hover(LinePart),
+    /// Dragging a part (an Alt copy: the stop it copies).
+    Drag(LinePart),
+    /// Dragging a stop torn off the line: the release removes it.
+    TornOff,
+}
+
+/// The host's snapping of a dragged end or of the line's start ([`GradientOverlay::snap`]).
+type Snap<'a> = Box<dyn Fn(LinePart, Point, Modifiers) -> Point + 'a>;
+
+/// The host's cursors ([`GradientOverlay::cursor`]).
+type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
+
 /// A gradient's line over a canvas: the line between its handles, the circle, square or mirrored
 /// half its style adds, and the colour stops and midpoint diamonds on it, as PhotoCraft's Gradient
 /// tool draws them. The host holds the gradient and passes the line and stops each frame.
@@ -97,16 +119,46 @@ pub struct GradientLineStyle {
 /// - The selected stop or midpoint ([`select`](Self::select)) is drawn with its ring or fill in
 ///   `overlay.handle_stroke`, whether or not the overlay has focus.
 /// - Nothing mirrors in a right-to-left interface: the line is the document's.
+///
+/// Pointer (PhotoCraft's live Gradient tool, VectorCraft where PhotoCraft has none):
+///
+/// - The overlay senses through the host's canvas response and takes a press on one of its parts
+///   with [`Claim`](super::Claim), before the host's guides and tool. A press off every part, or
+///   with ⌘ (Ctrl) held, is the host's.
+/// - Parts within `gradient_line.hit` of the pointer, in this order: the end handle, the start
+///   handle, the nearest stop, the nearest midpoint, the line.
+/// - A drag begins past `gradient_line.click_slop`. An end follows the pointer (⇧: 45° steps from
+///   [`angle_base`](Self::angle_base) about the other end); the line moves both ends; a stop moves
+///   to the location under the pointer and is torn off (removed while its row is above
+///   `rules.min`) more than `gradient_line.tear_off` from the line; a midpoint moves within its
+///   segment. Alt drags a copy of a stop with [`alt_copies`](Self::alt_copies). Every update is
+///   the whole edit of the gradient at the press, so a stop torn off and brought back is as it
+///   was.
+/// - A press on a stop or midpoint selects it; the selection follows a dragged stop. A click on the
+///   line adds a colour stop there and selects it. A double-click on a stop, or on an end handle
+///   for the stop at that end, asks for its colour ([`color_requested`](GradientOverlayResponse::color_requested)).
+///   A secondary click reports the part as [`context`](GradientOverlayResponse::context).
+/// - Esc during a drag cancels it; the rest of the press does nothing.
+/// - A press while another control's typing run has the focus (the panel's Location field) waits
+///   for the run's Commit and begins from the value it left. When the host ends the overlay's drag
+///   for another control's change, the drag goes on from the host's value at the next move, in a
+///   gesture of its own.
 pub struct GradientOverlay<'a> {
     id_salt: IdSalt,
     line: &'a GradientLine,
     stops: &'a GradientStops,
     names: GradientLineNames,
     rules: StopRules,
+    sampler: Option<&'a Sampler>,
     midpoints: bool,
     reverse: bool,
     extent: GradientExtent,
     editable: bool,
+    alt_copies: bool,
+    angle_base: f64,
+    snap: Option<Snap<'a>>,
+    cursor: Option<Cursor<'a>>,
+    policy: EditPolicy,
 }
 
 impl<'a> GradientOverlay<'a> {
@@ -118,16 +170,62 @@ impl<'a> GradientOverlay<'a> {
             stops,
             names,
             rules: StopRules::default(),
+            sampler: None,
             midpoints: true,
             reverse: false,
             extent: GradientExtent::None,
             editable: true,
+            alt_copies: false,
+            angle_base: 0.0,
+            snap: None,
+            cursor: None,
+            policy: EditPolicy::default(),
         }
     }
 
-    /// The rules the host gives its gradient editor; the overlay reads the row layout from them.
+    /// The rules the host gives its gradient editor: the row layout, the fewest and most stops and
+    /// the midpoint range.
     pub fn rules(mut self, rules: StopRules) -> Self {
         self.rules = rules;
+        self
+    }
+
+    /// Colours a stop added on the line; [`default_sampler`] of the rules' rows by default.
+    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
+        self.sampler = Some(sampler);
+        self
+    }
+
+    /// Whether an Alt-drag on a stop drags a copy of it (VectorCraft); off by default, where Alt is
+    /// the host's (PhotoCraft's eyedropper).
+    pub fn alt_copies(mut self, copies: bool) -> Self {
+        self.alt_copies = copies;
+        self
+    }
+
+    /// The angle in degrees, along the document's axes, that ⇧'s 45° steps of a dragged end start
+    /// from (VectorCraft's Constrain Angle); 0 by default.
+    pub fn angle_base(mut self, degrees: f64) -> Self {
+        self.angle_base = degrees;
+        self
+    }
+
+    /// The host's snapping of a dragged point (anchors, smart guides): an end handle's new place,
+    /// or for [`LinePart::Line`] the start's new place in a line drag. Given after ⇧'s 45° step.
+    pub fn snap(mut self, snap: impl Fn(LinePart, Point, Modifiers) -> Point + 'a) -> Self {
+        self.snap = Some(Box::new(snap));
+        self
+    }
+
+    /// The host's pointer over and during a drag of each part; none by default (PhotoCraft).
+    pub fn cursor(mut self, cursor: impl Fn(LineCursor) -> CursorIcon + 'a) -> Self {
+        self.cursor = Some(Box::new(cursor));
+        self
+    }
+
+    /// The drag's update rate and cost; [`EditPolicy::default`] by default.
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
         self
     }
 
@@ -149,7 +247,8 @@ impl<'a> GradientOverlay<'a> {
         self
     }
 
-    /// Whether the selection shows; true by default. False draws the line and its parts only.
+    /// Whether the overlay takes presses and shows the selection; true by default. False draws the
+    /// line and its parts only (the line a tool is drawing, a dialog over the gradient).
     pub fn editable(mut self, editable: bool) -> Self {
         self.editable = editable;
         self
@@ -196,35 +295,95 @@ impl<'a> GradientOverlay<'a> {
         }
     }
 
-    /// Draws the gradient over `view`, on the host's `canvas` response.
+    /// Draws the gradient over `view` and senses through the host's `canvas` response.
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> GradientOverlayResponse {
+        let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let style = GradientOverlay::style(&Tokens::of(ui));
         let editable = self.editable && ui.is_enabled();
-        let selected = if editable { Self::selected(ui.ctx(), id) } else { None };
-        let (start, end) = (view.to_screen(self.line.start), view.to_screen(self.line.end));
+        let default = default_sampler(self.rules.rows);
+        let sampler: &Sampler = self.sampler.unwrap_or(&default);
+        let pass = pointer::Pass { ctx: &ctx, id, canvas, view, style: &style, sampler };
+        let mut out = GradientOverlayResponse { id, event: None, color_requested: None, picked: None, hovered: None, context: None, claimed: false };
+        let at_load = pointer::Selection { selected: Self::selected(&ctx, id), picked: ctx.data(|d| d.get_temp(pointer::pick_key(id))) };
+        let mut sel = at_load;
+
+        let value = LineGradient { line: *self.line, stops: self.stops.clone() };
+        let drag = self.press_of(&pass, &value, editable, &mut sel);
+        let reported = Gesture::<LineGradient>::reported(ui, id).map(|(_, value)| value);
+        // The drag's own last report stands for the host's value while the host shows it or still
+        // shows the value at the press, so applying updates live is no outside change.
+        let host = match (&drag, &reported) {
+            (Some(d), Some(r)) if d.began && !d.cancelled && (value == d.base || value == *r) => r.clone(),
+            _ => value,
+        };
+        let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[]).enabled(editable);
+        let drag = drag.and_then(|d| self.track(&pass, d, &mut gesture, reported.as_ref(), &mut sel));
+        if editable && drag.is_none() {
+            self.clicks(&pass, gesture.shown(), &mut sel, &mut out);
+        }
+        let dragging = drag.as_ref().filter(|d| d.began && !d.cancelled).map(|d| d.part);
+        if editable && drag.is_none() {
+            out.hovered = self.hover(&pass, gesture.shown());
+        }
+
+        let shown = gesture.shown().clone();
+        out.event = gesture.finish();
+        out.claimed = Claim::is_owner(&ctx, canvas.id, id);
+        out.picked = sel.picked;
+        ctx.data_mut(|d| {
+            match &drag {
+                Some(drag) => {
+                    d.insert_temp(pointer::drag_key(id), drag.clone());
+                }
+                None => d.remove::<pointer::Drag>(pointer::drag_key(id)),
+            }
+            match sel.picked {
+                Some(part) => {
+                    d.insert_temp(pointer::pick_key(id), part);
+                }
+                None => d.remove::<LinePart>(pointer::pick_key(id)),
+            }
+        });
+        if sel.selected != at_load.selected {
+            Self::select(&ctx, id, sel.selected);
+        }
+
+        let selected = if editable { sel.selected } else { None };
         let painter = ui.painter_at(view.rect);
-        self.paint(&painter, &style, start, end, selected);
+        self.paint(&painter, &style, view, &shown, selected, dragging);
         PartFocus::new(id, &self.names.group).focusable(false).show(ui, canvas);
-        GradientOverlayResponse { id }
+        out
     }
 
-    fn paint(&self, painter: &Painter, style: &GradientLineStyle, start: Pos2, end: Pos2, selected: Option<StopRef>) {
+    /// Draws `value`; `dragged` is the part a drag holds, drawn selected.
+    fn paint(
+        &self,
+        painter: &Painter,
+        style: &GradientLineStyle,
+        view: &CanvasView,
+        value: &LineGradient,
+        selected: Option<StopRef>,
+        dragged: Option<LinePart>,
+    ) {
+        let (start, end) = (view.to_screen(value.line.start), view.to_screen(value.line.end));
+        let stops = &value.stops;
         self.paint_extent(painter, style, start, end);
         painter.extend(line_shapes(style, start, end));
         if self.midpoints {
-            for i in 0..self.stops.color.len() {
-                if let Some(t) = midpoint_location(self.stops, i) {
+            for i in 0..stops.color.len() {
+                if let Some(t) = midpoint_location(stops, i) {
                     let on = selected == Some(StopRef::Midpoint(StopRow::Color, i));
                     painter.add(diamond(style, at_screen(start, end, t, self.reverse), on));
                 }
             }
         }
-        for p in [start, end] {
+        for (p, part) in [(start, LinePart::Start), (end, LinePart::End)] {
+            let ring = if dragged == Some(part) { Stroke::new(style.end.width, style.selected) } else { style.end };
             painter.add(Shape::circle_stroke(p, style.end_ring + (style.end.width + style.end_halo.width) / 2.0, style.end_halo_stroke()));
-            painter.add(Shape::circle_stroke(p, style.end_ring, style.end));
+            painter.add(Shape::circle_stroke(p, style.end_ring, ring));
         }
-        for (i, stop) in self.stops.color.iter().enumerate() {
+        for (i, stop) in stops.color.iter().enumerate() {
             let at = at_screen(start, end, stop.location, self.reverse);
             let on = selected == Some(StopRef::Color(i));
             painter.extend(self.stop_shapes(style, at, Color32::from(stop.color), on));
@@ -269,10 +428,24 @@ impl<'a> GradientOverlay<'a> {
 }
 
 /// What [`GradientOverlay::show`] reports.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GradientOverlayResponse {
     /// The overlay's id, also its AccessKit group's.
     pub id: Id,
+    /// A drag (Begin past the click slop, Update, Commit on release; Esc cancels it) or a stop
+    /// added by a click on the line (Set).
+    pub event: Option<EditEvent<LineGradient>>,
+    /// A double-click asked for the colour of colour stop `i`; the rect is its marker on screen,
+    /// for a picker opened beside it.
+    pub color_requested: Option<(usize, Rect)>,
+    /// The part the keys act on, picked by the last press.
+    pub picked: Option<LinePart>,
+    /// The part a press at the pointer would take; `None` where it is the host's.
+    pub hovered: Option<LinePart>,
+    /// A secondary click on a part, for the host's context menu.
+    pub context: Option<LinePart>,
+    /// Whether the overlay owns the current press: the host skips its guides and tool input.
+    pub claimed: bool,
 }
 
 impl GradientLineStyle {
