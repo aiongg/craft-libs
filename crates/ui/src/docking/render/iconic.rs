@@ -8,6 +8,7 @@ use std::{fmt::Debug, hash::Hash};
 use egui::{Context, Id, Key, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{GroupKind, Renderer, dock::Edge};
+use crate::controls::TooltipExt as _;
 use crate::docking::{
     Column, DockLook, Group, GroupDrag, GroupGesture, begin_drag,
     chrome::{ChromeStyle, FloatingFrame},
@@ -260,7 +261,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             );
             painter.galley(pos2(icon.right() + self.look.pad, cell.center().y - galley.size().y * 0.5), galley, color);
         } else if response.hovered() && !response.dragged() {
-            response.clone().on_hover_text(&label);
+            response.clone().tooltip(&label);
         }
         if response.clicked() {
             if current {

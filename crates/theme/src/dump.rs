@@ -1185,5 +1185,10 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
 }
 
 fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
-    out.line("tooltip.max_width", len(t.max_width));
+    let TooltipTokens { max_width, radius, fill, text, border } = t;
+    out.line("tooltip.max_width", len(*max_width));
+    out.line("tooltip.radius", len(*radius));
+    out.line("tooltip.fill", hex(*fill));
+    out.line("tooltip.text", hex(*text));
+    out.line("tooltip.border", hex(*border));
 }

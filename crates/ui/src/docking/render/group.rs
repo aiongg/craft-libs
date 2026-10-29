@@ -3,6 +3,7 @@ use std::{fmt::Debug, hash::Hash, sync::Arc};
 use egui::{Color32, Galley, Id, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{Renderer, clamp_float, stripless};
+use crate::controls::TooltipExt as _;
 use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Placement, Target, begin_drag};
 use crate::tabs;
 
@@ -424,7 +425,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let at = pos2(rect.left() + self.look.tab_padding * 0.5, rect.center().y - galley.size().y * 0.5);
                 painter.galley(at, galley.clone(), color);
             });
-        let response = if elided { response.on_hover_text(&label) } else { response };
+        let response = if elided { response.tooltip(&label) } else { response };
         self.register_interaction(ui.ctx(), response.id);
         if response.is_pointer_button_down_on() || response.clicked_by(egui::PointerButton::Primary) {
             ui.ctx().data_mut(|d| d.insert_temp(tab_id.with("pointer-focus"), true));

@@ -92,6 +92,9 @@
     "text.muted": "#404040",
     "text.normal": "#000000",
     "text.on_selected": "{text.on_accent}",
-    "toggle_button.on_disabled.fill": "{state.pressed}"
+    "toggle_button.on_disabled.fill": "{state.pressed}",
+    "tooltip.border": "{text.normal}",
+    "tooltip.fill": "#ffffe1",
+    "tooltip.text": "{text.normal}"
   }
 }

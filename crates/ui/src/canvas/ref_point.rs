@@ -7,6 +7,7 @@ use egui::{
 };
 
 use super::quad::Anchor9;
+use crate::controls::TooltipExt as _;
 use crate::edit::{EditEvent, EditResponse};
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
@@ -226,7 +227,7 @@ impl ReferencePoint {
         self.nodes(ui, response_id, &cell_rect, shown, active, enabled);
         response.widget_info(|| WidgetInfo::labeled(Role::RadioGroup, enabled, &self.label));
         if let Some(i) = hovered {
-            response = response.on_hover_text(&self.names[i]);
+            response = response.tooltip(&self.names[i]);
         }
         let event = chosen.map(|i| {
             response.mark_changed();

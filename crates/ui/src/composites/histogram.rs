@@ -9,6 +9,7 @@ use egui::{
 };
 use std::ops::RangeInclusive;
 
+use crate::controls::TooltipExt as _;
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Corner, FocusRing, Interactive};
@@ -639,7 +640,7 @@ impl Histogram {
             FocusRing::paint(ui, mark, Corner::Control, &stale);
         }
         let clicked = stale.clicked();
-        stale.on_hover_text(label);
+        stale.tooltip(label);
         clicked
     }
 }

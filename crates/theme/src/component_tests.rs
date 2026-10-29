@@ -598,6 +598,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 3 * 7
             // Switch track while on: fill and border per state.
             + 2 * 4
+            // Tooltip: radius, fill, text and border.
+            + 4
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -712,7 +714,7 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         "swatch.size.md",
         "swatch.mixed",
         "tooltip.max_width",
-        "tooltip.fill",
+        "tooltip.nope",
         "field.fill",
         "field.fill.hover",
         "field.border.pressed",
@@ -969,10 +971,16 @@ fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_t
 }
 
 #[test]
-fn tooltips_have_a_width_and_no_overridable_path() {
+fn tooltips_have_a_width_and_default_to_the_popup_look() {
     let t = resolve(&grey_blue(), app(Mode::Light, Contrast::High), None).tokens;
-    assert_eq!(t.component.tooltip.max_width, 320.0);
-    assert!(ComponentField::ALL.iter().all(|f| !matches!(f, ComponentField::Tooltip(_))));
+    let tip = t.component.tooltip;
+    assert_eq!(tip.max_width, 320.0);
+    assert_eq!(
+        (tip.fill, tip.text, tip.border),
+        (t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder))
+    );
+    assert_eq!(tip.radius, t.shape.radius.popup);
+    assert!(ComponentField::ALL.iter().any(|f| matches!(f, ComponentField::Tooltip(_))));
 }
 
 fn list_pairs() -> Vec<(ListField, ListField, (f64, f64))> {

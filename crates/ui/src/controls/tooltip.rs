@@ -1,12 +1,14 @@
-//! [`Tooltip`] and [`TooltipExt`]: tooltips on the popup surface.
+//! [`Tooltip`] and [`TooltipExt`]: tooltips with a surface of their own.
 
-use egui::{Frame, KeyboardShortcut, Margin, Response, Shadow, Stroke, Ui};
+use egui::text::LayoutJob;
+use egui::{Frame, KeyboardShortcut, Label, Margin, Response, Shadow, Stroke, Ui};
 
 use super::Kbd;
 use crate::direction;
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Args, Level, Story};
-use crate::theme::{ToEgui, UiTokens};
+use crate::theme::{ToEgui, TokensOf, UiTokens, apply_popup_style, corner_radius, current, stroke};
+use craft_theme::TypeRole;
 
 /// A tooltip's frame and text, from [`Tooltip::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -16,22 +18,30 @@ pub struct TooltipStyle {
     pub max_width: f32,
     /// Between the frame and the text: `space.pad.control`.
     pub margin: Margin,
-    /// `Corner::Popup`: `shape.radius.popup`.
+    /// `tooltip.radius`: `shape.radius.popup`.
     pub radius: egui::CornerRadius,
     /// The popup shadow.
     pub shadow: Shadow,
-    /// The popup surface: `surface.raised`.
+    /// `tooltip.fill`: `surface.raised`.
     pub fill: egui::Color32,
-    /// `line.border`, one point wide.
+    /// `tooltip.border`, one point wide: `line.border`.
     pub border: Stroke,
-    /// `text.normal`, in the body type role.
+    /// `tooltip.text`, in the body type role: `text.normal`.
     pub text: egui::Color32,
 }
 
-/// The look of every tooltip, stock egui's `on_hover_text` and the [`TooltipExt`] helpers alike:
-/// the popup surface with the body type role and `text.normal`. egui draws tooltips with the
-/// `Style` that [`style_for`](crate::theme::style_for) generates, which popups and menus share, so
-/// this look is theirs and a tooltip has no colours or shape of its own. A tooltip shows after the
+impl TooltipStyle {
+    /// The tooltip's frame.
+    pub fn frame(&self) -> Frame {
+        Frame::new().inner_margin(self.margin).corner_radius(self.radius).shadow(self.shadow).fill(self.fill).stroke(self.border)
+    }
+}
+
+/// The look of every tooltip the [`TooltipExt`] helpers show: the popup surface and the body type
+/// role by default, with the `tooltip` tokens (fill, text, border, radius) setting a look of their
+/// own. egui draws a tooltip with the `Style` shared with popups and menus unless the caller gives
+/// the popup a frame, so the helpers are the one place tooltips get that frame: use them, not
+/// egui's `on_hover_text`, `on_hover_ui` and `show_tooltip_text`. A tooltip shows after the
 /// pointer rests [`Tooltip::DELAY`] on its control.
 #[derive(Clone, Copy, Debug)]
 pub struct Tooltip;
@@ -42,15 +52,16 @@ impl Tooltip {
     pub const DELAY: f32 = 0.35;
 
     pub fn style(tokens: &UiTokens) -> TooltipStyle {
-        let frame = Frame::popup(&tokens.style);
+        let t = &tokens.component.tooltip;
+        let popup = Frame::popup(&tokens.style);
         TooltipStyle {
-            max_width: tokens.component.tooltip.max_width,
-            margin: frame.inner_margin,
-            radius: frame.corner_radius,
-            shadow: frame.shadow,
-            fill: frame.fill,
-            border: frame.stroke,
-            text: tokens.color.text.normal.to_egui(),
+            max_width: t.max_width,
+            margin: popup.inner_margin,
+            radius: corner_radius(t.radius),
+            shadow: popup.shadow,
+            fill: t.fill.to_egui(),
+            border: stroke(1.0, t.border),
+            text: t.text.to_egui(),
         }
     }
 }
@@ -68,6 +79,9 @@ pub trait TooltipExt: Sized {
     fn tooltip_with(self, text: impl Into<String>, shortcut: &KeyboardShortcut) -> Self;
     /// A tooltip with any contents.
     fn tooltip_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self;
+    /// Shows a tooltip with `text` now, whether or not the pointer rests on the control: for a
+    /// message about the control's state, such as why its input was refused.
+    fn show_tooltip(&self, text: impl Into<String>);
 }
 
 impl TooltipExt for Response {
@@ -75,7 +89,7 @@ impl TooltipExt for Response {
         let text = text.into();
         self.describe_for_accessibility(&text);
         self.tooltip_ui(|ui| {
-            ui.add(Text::new(text));
+            tip_text(ui, text);
         })
     }
 
@@ -86,20 +100,45 @@ impl TooltipExt for Response {
         set_shortcut(&self, &keys);
         self.tooltip_ui(|ui| {
             ui.with_layout(direction::row(ui).with_main_wrap(true), |ui| {
-                ui.add(Text::new(text));
+                tip_text(ui, text);
                 ui.add(Kbd::new(shortcut));
             });
         })
     }
 
     fn tooltip_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
-        let add = |ui: &mut Ui| {
-            // Stops the area shrinking tooltips whose contents change, as egui's text tooltips do.
-            ui.set_max_width(ui.spacing().tooltip_width);
-            add_contents(ui);
-        };
-        if self.enabled() { self.on_hover_ui(add) } else { self.on_disabled_hover_ui(add) }
+        let mut tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
+        let style = Tooltip::style(&current(&self.ctx));
+        tooltip.popup = tooltip.popup.frame(style.frame());
+        tooltip.show(|ui| contents(ui, &style, add_contents));
+        self
     }
+
+    fn show_tooltip(&self, text: impl Into<String>) {
+        let text = text.into();
+        let style = Tooltip::style(&current(&self.ctx));
+        egui::Popup::from_response(self).kind(egui::PopupKind::Tooltip).frame(style.frame()).show(|ui| {
+            contents(ui, &style, |ui| tip_text(ui, text));
+        });
+    }
+}
+
+/// The tooltip's contents in the scope's style, with `style.text` as the colour of egui labels.
+fn contents(ui: &mut Ui, style: &TooltipStyle, add_contents: impl FnOnce(&mut Ui)) {
+    apply_popup_style(ui);
+    ui.visuals_mut().override_text_color = Some(style.text);
+    // Stops the area shrinking tooltips whose contents change, as egui's text tooltips do.
+    ui.set_max_width(ui.spacing().tooltip_width);
+    add_contents(ui);
+}
+
+/// Body text in the tooltip's text colour.
+fn tip_text(ui: &mut Ui, text: String) {
+    let tokens = crate::theme::Tokens::of(ui);
+    let mut format = Text::format(&tokens, TypeRole::Body, Content::Normal);
+    format.color = tokens.component.tooltip.text.to_egui();
+    format.valign = ui.text_valign();
+    ui.add(Label::new(LayoutJob::single_section(text, format)));
 }
 
 /// Sets the keyboard `shortcut`, in its spoken names, on a widget that already has a node.
@@ -142,7 +181,8 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// Hover targets: an enabled and a disabled button, and a stock egui tooltip beside them.
+/// Hover targets: an enabled and a disabled button, and a stock egui tooltip beside them, which
+/// keeps the popup look.
 fn show_text(ui: &mut Ui, args: &mut Args) {
     use super::Button;
     let tip = args.text("tip").to_owned();
