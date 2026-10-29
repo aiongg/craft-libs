@@ -389,7 +389,13 @@ fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums()
     let listed: Vec<_> =
         ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).map(|p| (p.fg, p.bg)).collect();
     let menu = |f| TokenRef::Component(ComponentField::Menu(f));
-    let expected = vec![(menu(MenuField::ActiveText), menu(MenuField::ActiveFill)), (menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
+    let mut expected =
+        vec![(menu(MenuField::ActiveText), menu(MenuField::ActiveFill)), (menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
+    for hue in MenuHue::ALL {
+        let tint = |part| menu(MenuField::Tint(hue, part));
+        expected.push((tint(MenuTintPart::Text), tint(MenuTintPart::Fill)));
+        expected.push((tint(MenuTintPart::Shortcut), tint(MenuTintPart::Fill)));
+    }
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -575,6 +581,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 10
             // Title bar: seven colours.
             + 7
+            // Menu tints: a fill, text and shortcut per hue.
+            + 3 * 7
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));

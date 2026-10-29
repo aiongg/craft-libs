@@ -10,10 +10,10 @@ use crate::{
     CheckOffColors, CheckOnColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CurveTokens, Dimmed, DockTokens,
     Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps, GradientEditorTokens, GradientLineTokens,
     GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens,
-    ListboxTokens, MarqueeTokens, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet,
-    RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens,
-    States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
-    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads, PanelHeaderTokens, ProgressTokens, PropertyTokens,
+    RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens,
+    SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
+    Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -1115,14 +1115,18 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
 }
 
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tint_alpha, .. } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tints, .. } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
     out.line("menu.active.fill", hex(*active_fill));
     out.line("menu.active.text", hex(*active_text));
     out.line("menu.shortcut", hex(*shortcut));
-    out.line("menu.tint_alpha", decimals(*tint_alpha, 2));
+    for (hue, tint) in MenuHue::ALL.into_iter().zip(tints) {
+        out.line(&format!("menu.tint.{}.fill", hue.name()), hex(tint.fill));
+        out.line(&format!("menu.tint.{}.text", hue.name()), hex(tint.text));
+        out.line(&format!("menu.tint.{}.shortcut", hue.name()), hex(tint.shortcut));
+    }
 }
 
 fn kbd_lines(out: &mut Lines, k: &KbdTokens) {

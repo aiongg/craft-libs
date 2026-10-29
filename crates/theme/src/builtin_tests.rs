@@ -115,7 +115,8 @@ fn builtin_menu_text_meets_its_minimum() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).collect();
-            assert_eq!(pairs.len(), 2, "{} {a:?}", theme.id);
+            // The active text and the shortcut, and each hue's text and shortcut on its tint.
+            assert_eq!(pairs.len(), 2 + 2 * MenuHue::ALL.len(), "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }

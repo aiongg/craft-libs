@@ -88,6 +88,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         elevation: &elevation,
         preset: appearance.size,
         typography: &typography,
+        high: appearance.contrast == Contrast::High,
     });
     let high = appearance.contrast == Contrast::High;
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
@@ -103,6 +104,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
         elevation: &elevation,
         preset: appearance.size,
         typography: &typography,
+        high,
     });
     derive::component_overrides(&mut component_before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);

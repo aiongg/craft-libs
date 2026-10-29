@@ -1038,16 +1038,15 @@ fn fills(d: &Driver) -> Vec<egui::Color32> {
     out
 }
 
-fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode) -> crate::theme::UiTokens {
-    use craft_theme::{Appearance, Contrast, Size, TextSize};
-    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode, contrast: craft_theme::Contrast) -> crate::theme::UiTokens {
+    use craft_theme::{Appearance, Size, TextSize};
+    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
     crate::theme::UiTokens::new(craft_theme::resolve(theme, appearance, None).tokens, appearance, mode, crate::theme::FontFamilies::default())
 }
 
-#[test]
-fn a_tinted_row_keeps_text_contrast_in_every_builtin_theme() {
-    // PhotoCraft's label colours (`menu_tint`).
-    let hues = [
+/// PhotoCraft's label colours (`menu_tint`).
+fn tint_hues() -> [(&'static str, Srgba); 7] {
+    [
         ("red", [190, 60, 60]),
         ("orange", [200, 120, 40]),
         ("yellow", [190, 170, 40]),
@@ -1056,18 +1055,56 @@ fn a_tinted_row_keeps_text_contrast_in_every_builtin_theme() {
         ("violet", [130, 80, 190]),
         ("gray", [120, 120, 120]),
     ]
-    .map(|(name, [r, g, b])| (name, Srgba::from(egui::Color32::from_rgb(r, g, b))));
+    .map(|(name, [r, g, b])| (name, Srgba::from(egui::Color32::from_rgb(r, g, b))))
+}
+
+/// A tinted row's text over its fill must reach: the label, shortcut (text) 4.5:1, 7:1 in high
+/// contrast; the check and radio marks, the submenu arrow and the icon (graphics) 3:1, 4.5:1.
+/// Returns each pair with its ratio over its minimum.
+fn tint_margins(painter: &RowPainter<'_>, tint: Srgba, high: bool) -> Vec<(&'static str, f64)> {
+    let (text_min, mark_min) = if high { (7.0, 4.5) } else { (4.5, 3.0) };
+    let colors = painter.tint_colors(tint);
+    let fill = colors.fill;
+    let on_fill = |fg: egui::Color32| craft_theme::contrast_ratio(craft_theme::Srgba::from(fg).into(), fill);
+    let (label, shortcut) = (colors.text.to_egui(), colors.shortcut.to_egui());
+    // The painter draws marks, arrows and icons in the label colour.
+    vec![
+        ("label", on_fill(label) / text_min),
+        ("shortcut", on_fill(shortcut) / text_min),
+        ("check and radio mark", on_fill(label) / mark_min),
+        ("submenu arrow", on_fill(label) / mark_min),
+        ("icon", on_fill(label) / mark_min),
+    ]
+}
+
+#[test]
+fn a_tinted_row_keeps_its_text_and_marks_readable_in_every_builtin_theme() {
+    use craft_theme::{Contrast, Mode};
     for theme in craft_theme::builtins() {
-        for mode in [craft_theme::Mode::Light, craft_theme::Mode::Dark] {
-            let tokens = tokens_in(theme, mode);
-            let style = Menu::style(&tokens, ControlSize::Md);
-            let (raised, text) = (tokens.color.surface.raised, tokens.color.text.normal);
-            assert_eq!(style.rows.text.to_array(), text.to_egui().to_array(), "rows use text.normal");
-            for (name, hue) in hues {
-                let fill = RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md }.tint_fill(hue);
-                let under = raised.to_egui().blend(fill).to_array();
-                let ratio = craft_theme::contrast_ratio(text, craft_theme::Rgba([under[0], under[1], under[2], 255]));
-                assert!(ratio >= 4.5, "{} {mode:?}: text on the {name} tint is {ratio:.2}:1", theme.id.as_str());
+        for mode in [Mode::Light, Mode::Dark] {
+            for contrast in [Contrast::Standard, Contrast::High] {
+                let tokens = tokens_in(theme, mode, contrast);
+                let style = Menu::style(&tokens, ControlSize::Md);
+                let painter = RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md };
+                for (name, hue) in tint_hues() {
+                    assert_eq!(tokens.component.menu.tint_of(hue.into()), Some(painter.tint_colors(hue)), "{name}: the seven hues use their tokens");
+                    for (what, margin) in tint_margins(&painter, hue, contrast == Contrast::High) {
+                        assert!(
+                            margin >= 1.0,
+                            "{} {mode:?} {contrast:?}: the {what} on the {name} tint is {margin:.3} of its minimum",
+                            theme.id.as_str()
+                        );
+                    }
+                }
+                // A colour that is not one of the seven is derived the same way.
+                let other = Srgba::rgb(0.1, 0.8, 0.8);
+                for (what, margin) in tint_margins(&painter, other, contrast == Contrast::High) {
+                    assert!(
+                        margin >= 1.0,
+                        "{} {mode:?} {contrast:?}: the {what} on an arbitrary tint is {margin:.3} of its minimum",
+                        theme.id.as_str()
+                    );
+                }
             }
         }
     }
@@ -1085,7 +1122,12 @@ fn the_active_row_ignores_the_tint() {
     let mut style = None;
     ctx.run_ui(egui::RawInput::default(), |ui| style = Some(Menu::style(&Tokens::of(ui), ControlSize::Md))).drop_without_applying_deltas();
     let style = style.unwrap_or_else(|| panic!("no style"));
-    let tinted = egui::Color32::from(Srgba { a: tint.a * style.tint_alpha, ..tint });
+    let tinted = {
+        let mut tokens = None;
+        ctx.run_ui(egui::RawInput::default(), |ui| tokens = Some(Tokens::of(ui))).drop_without_applying_deltas();
+        let tokens = tokens.unwrap_or_else(|| panic!("no tokens"));
+        RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md }.tint_colors(tint).fill.to_egui()
+    };
     let count = |d: &Driver, c| fills(d).iter().filter(|&&f| f == c).count();
     d.move_to(pos2(-10.0, -10.0));
     d.run(2);

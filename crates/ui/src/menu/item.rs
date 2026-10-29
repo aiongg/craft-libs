@@ -175,8 +175,9 @@ impl<T> MenuItem<T> {
         self
     }
 
-    /// A user label colour: the row's background at `menu.tint_alpha` of the colour's alpha, over
-    /// the menu surface. The active and disabled looks win over it.
+    /// A user label colour: the row's background is the colour over the menu surface at a strength
+    /// the theme derives so that the row's text stays readable (`menu.tint.*`; none where it
+    /// can't), scaled by the colour's alpha. The active and disabled looks win over it.
     /// The colour is document data, so the row keeps its text: colour is never the only cue.
     pub fn tint(mut self, color: impl Into<Srgba>) -> Self {
         self.tint = Some(color.into());
