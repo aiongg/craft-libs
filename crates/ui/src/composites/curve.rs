@@ -9,6 +9,11 @@ pub enum Curve {
     Points(Vec<[f32; 2]>),
     /// A drawn curve (pencil): one output level per input level, drawn as straight segments.
     Map(Vec<f32>),
+    /// [`Points`](Curve::Points) of which some are corner points: `corners[i]` marks point `i`
+    /// (the contour editor). A corner joins both its neighbours with straight segments; the
+    /// smooth points between two corners take the host's interpolation. Make one with
+    /// [`Curve::from_parts`], which gives [`Points`](Curve::Points) when no point is a corner.
+    Contour { points: Vec<[f32; 2]>, corners: Vec<bool> },
 }
 
 /// Curves are equal when every level is, a NaN equal to another: the host's points, and the
@@ -20,6 +25,9 @@ impl PartialEq for Curve {
         match (self, other) {
             (Curve::Points(a), Curve::Points(b)) => a.len() == b.len() && a.iter().flatten().zip(b.iter().flatten()).all(|(a, b)| same(a, b)),
             (Curve::Map(a), Curve::Map(b)) => a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same(a, b)),
+            (Curve::Contour { points: a, corners: ca }, Curve::Contour { points: b, corners: cb }) => {
+                ca == cb && Curve::Points(a.clone()) == Curve::Points(b.clone())
+            }
             _ => false,
         }
     }
@@ -31,18 +39,39 @@ impl Curve {
         Curve::Points(vec![[0.0, 0.0], [levels, levels]])
     }
 
+    /// `points` with `corners[i]` marking point `i` as a corner point: [`Curve::Points`] when none
+    /// is, else [`Curve::Contour`]. A short `corners` is completed with smooth points.
+    pub fn from_parts(points: Vec<[f32; 2]>, mut corners: Vec<bool>) -> Curve {
+        corners.resize(points.len(), false);
+        if corners.iter().any(|&corner| corner) { Curve::Contour { points, corners } } else { Curve::Points(points) }
+    }
+
     /// The control points, or `None` for a drawn curve.
     pub fn points(&self) -> Option<&[[f32; 2]]> {
         match self {
-            Curve::Points(points) => Some(points),
+            Curve::Points(points) | Curve::Contour { points, .. } => Some(points),
             Curve::Map(_) => None,
+        }
+    }
+
+    /// Whether point `i` is a corner point.
+    pub fn is_corner(&self, i: usize) -> bool {
+        matches!(self, Curve::Contour { corners, .. } if corners.get(i).copied().unwrap_or(false))
+    }
+
+    /// One flag per control point: whether it is a corner point.
+    pub(crate) fn corner_flags(&self) -> Vec<bool> {
+        match self {
+            Curve::Contour { corners, .. } => corners.clone(),
+            Curve::Points(points) => vec![false; points.len()],
+            Curve::Map(_) => Vec::new(),
         }
     }
 
     /// Whether the curve leaves every level as it is, within half a level.
     pub fn is_identity(&self, levels: f32) -> bool {
         match self {
-            Curve::Points(points) => points.iter().all(|p| p[0] == p[1]),
+            Curve::Points(points) | Curve::Contour { points, .. } => points.iter().all(|p| p[0] == p[1]),
             Curve::Map(map) => {
                 let last = map.len().saturating_sub(1).max(1) as f32;
                 map.iter().enumerate().all(|(k, o)| (o - k as f32 / last * levels).abs() <= 0.5)
@@ -51,12 +80,13 @@ impl Curve {
     }
 
     /// A drawn curve of `levels + 1` outputs from `curve`: a [`Curve::Map`] as it is (resized),
-    /// points through `samples`.
-    pub(crate) fn drawn(curve: &Curve, samples: impl FnOnce(&[[f32; 2]]) -> Vec<f32>, levels: f32) -> Vec<f32> {
+    /// points through `samples` (given the corner flags).
+    pub(crate) fn drawn(curve: &Curve, samples: impl FnOnce(&[[f32; 2]], &[bool]) -> Vec<f32>, levels: f32) -> Vec<f32> {
         let count = levels.max(1.0).round() as usize + 1;
         let mut map = match curve {
             Curve::Map(map) => map.clone(),
-            Curve::Points(points) => samples(points),
+            Curve::Points(points) => samples(points, &[]),
+            Curve::Contour { points, corners } => samples(points, corners),
         };
         let from = map.len();
         map.resize(count, 0.0);
@@ -89,6 +119,39 @@ impl Curve {
         changed
     }
 
+    /// The output of every input level `0..=levels` through `points`, of which `corners` marks
+    /// corner points: a segment with a corner at an end is straight, and each run of smooth points
+    /// takes `smooth` (the host's interpolation of those points alone). Constant outside the end
+    /// points.
+    pub(crate) fn through(points: &[[f32; 2]], corners: &[bool], levels: f32, smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
+        if !corners.iter().any(|&corner| corner) {
+            return smooth(points);
+        }
+        let count = levels.max(1.0).round() as usize + 1;
+        let is_corner = |i: usize| corners.get(i).copied().unwrap_or(false);
+        let mut out: Vec<f32> = (0..count).map(|k| straight_at(points, k as f32)).collect();
+        let mut i = 0;
+        while i < points.len() {
+            if is_corner(i) {
+                i += 1;
+                continue;
+            }
+            let end = (i..points.len()).find(|&j| is_corner(j)).unwrap_or(points.len());
+            if end - i >= 2 {
+                let run = smooth(&points[i..end]);
+                let (from, to) = (points[i][0].ceil().max(0.0) as usize, points[end - 1][0].floor().max(0.0) as usize);
+                let to = to.min(count - 1);
+                if from <= to {
+                    for (slot, &o) in out[from..=to].iter_mut().zip(&run[from.min(run.len())..]) {
+                        *slot = o;
+                    }
+                }
+            }
+            i = end;
+        }
+        out
+    }
+
     /// The output level of every input level `0..=levels` through `points` on a monotone cubic
     /// (Fritsch–Carlson), which never overshoots between points; constant outside the end
     /// points. Camera Raw's interpolation, and the editor's default sampler.
@@ -104,6 +167,36 @@ impl Curve {
         };
         (0..count).map(|k| at(k as f64).clamp(0.0, f64::from(levels)) as f32).collect()
     }
+}
+
+/// `points` joined by straight segments at input `x`, constant outside the end points.
+fn straight_at(points: &[[f32; 2]], x: f32) -> f32 {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else { return x };
+    if x <= first[0] {
+        return first[1];
+    }
+    if x >= last[0] {
+        return last[1];
+    }
+    let k = points.windows(2).position(|w| x < w[1][0]).unwrap_or(points.len() - 2);
+    let ([x0, y0], [x1, y1]) = (points[k], points[k + 1]);
+    if x1 > x0 { y0 + (x - x0) / (x1 - x0) * (y1 - y0) } else { y1 }
+}
+
+/// The corner flags after `before` became `after` by one insertion, one removal or moves: each flag
+/// follows its point, a new point is smooth.
+pub(crate) fn follow_corners(before: &[[f32; 2]], after: &[[f32; 2]], corners: &mut Vec<bool>) {
+    corners.resize(before.len(), false);
+    let first_diff = |a: &[[f32; 2]], b: &[[f32; 2]]| (0..a.len()).find(|&i| a.get(i) != b.get(i)).unwrap_or(a.len());
+    if after.len() == before.len() + 1 {
+        corners.insert(first_diff(after, before).min(corners.len()), false);
+    } else if after.len() + 1 == before.len() {
+        let i = first_diff(before, after);
+        if i < corners.len() {
+            corners.remove(i);
+        }
+    }
+    corners.resize(after.len(), false);
 }
 
 /// The monotone cubic through `points` (two or more, inputs ascending) at `x`.
@@ -208,6 +301,8 @@ pub(crate) enum CurveOp {
         after: Option<PointKey>,
     },
     Delete(PointKey),
+    /// Makes the point a corner point, or a smooth one if it is a corner.
+    ToggleCorner(PointKey),
 }
 
 /// The point rules of a curve with `levels` levels and at most `max_points` points.
@@ -269,8 +364,16 @@ impl Rules {
     /// nothing. `selected` stays on the point it names, found by its key after the change; an
     /// Insert selects the new point and a Delete clears the selection. A curve left unchanged
     /// leaves `selected` too.
-    pub fn apply(&self, op: &CurveOp, curve: &Curve, selected: &mut Option<usize>, samples: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Option<Curve> {
+    pub fn apply(
+        &self,
+        op: &CurveOp,
+        curve: &Curve,
+        selected: &mut Option<usize>,
+        samples: impl Fn(&[[f32; 2]], &[bool]) -> Vec<f32>,
+    ) -> Option<Curve> {
         let mut points = curve.points()?.to_vec();
+        let before = points.clone();
+        let mut corners = curve.corner_flags();
         let kept = selected.and_then(|i| PointKey::of(&points, i));
         let selects = match op {
             CurveOp::Nudge { at, by } => {
@@ -286,7 +389,7 @@ impl Rules {
                     Some(key) => Some(key.find(&points)?),
                     None => None,
                 };
-                let v = Rules::between(&points, anchor, &samples(&points))?;
+                let v = Rules::between(&points, anchor, &samples(&points, &corners))?;
                 let count = points.len();
                 let i = self.insert(&mut points, v)?;
                 // Within two levels of a neighbour: that point, nothing added.
@@ -302,9 +405,16 @@ impl Rules {
                 }
                 None
             }
+            CurveOp::ToggleCorner(at) => {
+                let i = at.find(&points)?;
+                corners.resize(points.len(), false);
+                corners[i] = !corners[i];
+                kept.and_then(|key| key.find(&points))
+            }
         };
         *selected = selects;
-        Some(Curve::Points(points))
+        follow_corners(&before, &points, &mut corners);
+        Some(Curve::from_parts(points, corners))
     }
 
     /// Where a point added from the keyboard goes: halfway between point `selected` and the next
@@ -370,7 +480,7 @@ mod tests {
     }
 
     /// The output of every input level on the identity curve, for [`Rules::apply`].
-    fn identity(_: &[[f32; 2]]) -> Vec<f32> {
+    fn identity(_: &[[f32; 2]], _: &[bool]) -> Vec<f32> {
         (0..256).map(|k| k as f32).collect()
     }
 
@@ -463,9 +573,49 @@ mod tests {
 
     #[test]
     fn a_drawn_curve_has_one_output_per_level() {
-        let from_points = Curve::drawn(&Curve::Points(vec![[0.0, 10.0], [255.0, 10.0]]), |p| Curve::monotone(p, 255.0), 255.0);
+        let from_points = Curve::drawn(&Curve::Points(vec![[0.0, 10.0], [255.0, 10.0]]), |p, _| Curve::monotone(p, 255.0), 255.0);
         assert!(from_points.len() == 256 && from_points.iter().all(|&v| v == 10.0));
-        let short = Curve::drawn(&Curve::Map(vec![5.0, 6.0]), |_| Vec::new(), 255.0);
+        let short = Curve::drawn(&Curve::Map(vec![5.0, 6.0]), |_, _| Vec::new(), 255.0);
         assert_eq!((short.len(), short[1], short[200]), (256, 6.0, 200.0), "a short map is completed with the identity");
+    }
+
+    /// A corner joins its neighbours with straight segments and leaves the segments between smooth
+    /// points on the spline; a curve with no corner is the spline alone.
+    #[test]
+    fn a_corner_is_straight_to_both_neighbours_and_smooth_points_keep_the_spline() {
+        let points = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [192.0, 210.0], [255.0, 255.0]];
+        let spline = Curve::monotone(&points, 255.0);
+        let smooth = |p: &[[f32; 2]]| Curve::monotone(p, 255.0);
+        assert_eq!(Curve::through(&points, &[false; 5], 255.0, smooth), spline);
+        let corners = [false, false, true, false, false];
+        let shaped = Curve::through(&points, &corners, 255.0, smooth);
+        assert!((shaped[96] - 120.0).abs() < 1e-3, "halfway between (64, 40) and the corner (128, 200): {}", shaped[96]);
+        assert!((shaped[160] - 205.0).abs() < 1e-3, "halfway from the corner to (192, 210): {}", shaped[160]);
+        assert!((shaped[128] - 200.0).abs() < 1e-3 && (shaped[64] - 40.0).abs() < 1e-3, "through its points");
+        assert_eq!(shaped.len(), 256);
+        let alone = Curve::through(&points[..2], &[false; 2], 255.0, smooth);
+        assert_eq!(&shaped[..=64], &alone[..=64], "the two smooth points before it are their own spline");
+    }
+
+    /// Toggling flips the point's flag, a point added is smooth, and a point removed takes its
+    /// flag; no corner left is a plain `Points` curve.
+    #[test]
+    fn corner_flags_follow_their_points_through_toggles_inserts_and_deletes() {
+        let made_on = [[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]];
+        let key = |i| PointKey::of(&made_on, i).unwrap();
+        let plain = Curve::Points(made_on.to_vec());
+        let mut selected = Some(1);
+        let cornered = RULES.apply(&CurveOp::ToggleCorner(key(2)), &plain, &mut selected, identity).unwrap();
+        assert_eq!(cornered, Curve::Contour { points: made_on.to_vec(), corners: vec![false, false, true, false] });
+        assert_eq!(selected, Some(1), "a toggle keeps the selection");
+        let inserted = RULES.apply(&CurveOp::Insert { after: Some(key(0)) }, &cornered, &mut selected, identity).unwrap();
+        assert_eq!(inserted.corner_flags(), [false, false, false, true, false], "the new point is smooth, the flag stays on its point");
+        let deleted = RULES.apply(&CurveOp::Delete(key(1)), &cornered, &mut selected, identity).unwrap();
+        assert_eq!(deleted.corner_flags(), [false, true, false]);
+        let gone = RULES.apply(&CurveOp::Delete(key(2)), &cornered, &mut selected, identity).unwrap();
+        assert_eq!(gone, Curve::Points(vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]]), "the last corner removed");
+        let back = RULES.apply(&CurveOp::ToggleCorner(key(2)), &cornered, &mut selected, identity).unwrap();
+        assert_eq!(back, plain);
+        assert_eq!(RULES.apply(&CurveOp::ToggleCorner(key(1)), &Curve::Map(vec![0.0; 256]), &mut selected, identity), None);
     }
 }

@@ -38,6 +38,7 @@ struct Host {
     width: f32,
     pencil: bool,
     percent: bool,
+    corners: bool,
     /// Hands the events to a [`GestureHost`] over a document with undo steps instead.
     undo: Option<Undo>,
     /// An app's field of the drawn curve's output at level 128, outside the editor: drawn before
@@ -97,6 +98,7 @@ impl Host {
             width: 300.0,
             pencil: false,
             percent: false,
+            corners: false,
             undo: None,
             outside: None,
             outside_events: Vec::new(),
@@ -121,7 +123,8 @@ impl Host {
             .channel(self.channel)
             .max_points(self.max_points)
             .policy(self.policy)
-            .pencil(self.pencil);
+            .pencil(self.pencil)
+            .corners(self.corners);
         if self.percent {
             editor = editor.percent();
         }
@@ -213,7 +216,7 @@ impl Host {
     fn drawn(&self) -> Vec<f32> {
         match &self.curve {
             Curve::Map(map) => map.clone(),
-            Curve::Points(_) => Vec::new(),
+            Curve::Points(_) | Curve::Contour { .. } => Vec::new(),
         }
     }
 
@@ -1207,4 +1210,95 @@ fn a_selection_key_before_a_waiting_arrow_keeps_its_selection() {
     release(&mut harness, start + vec2(20.0, 0.0));
     assert_eq!(harness.state().points()[2][1], 201.0, "the arrow moved the point `+` selected");
     assert_eq!(selected(&harness), Some(2));
+}
+
+const BENT: [[f32; 2]; 5] = [[0.0, 0.0], [64.0, 40.0], [128.0, 200.0], [192.0, 210.0], [255.0, 255.0]];
+
+/// A rig whose frames are short enough for a double-click.
+fn corner_rig() -> Harness<'static, Host> {
+    let mut harness = Harness::builder()
+        .with_size([480.0, 480.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(|ui, host: &mut Host| host.show(ui), Host { corners: true, ..Host::new(&BENT) });
+    harness.run();
+    harness
+}
+
+/// Presses and releases twice at `pos` within one frame.
+fn double_click(harness: &mut Harness<'_, Host>, pos: Pos2) {
+    move_to(harness, pos);
+    for pressed in [true, false, true, false] {
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    }
+    harness.step();
+    harness.run();
+}
+
+#[test]
+fn corner_points_join_straight_and_a_double_click_toggles() {
+    let mut harness = corner_rig();
+    let at = harness.state().at(BENT[2]);
+    double_click(&mut harness, at);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, true, false, false]);
+    assert_eq!(harness.state().points(), BENT, "the points stay where they were");
+    assert_eq!(selected(&harness), Some(2));
+    assert_eq!(harness.state().kinds(), ["Begin", "Commit unchanged", "Begin", "Commit"], "the toggle is the second click's gesture");
+
+    // The curve is straight on both sides of the corner (the sampler's own curve bulges there).
+    let shown = harness.state().curve.clone();
+    let samples = Curve::through(&BENT, &shown.corner_flags(), 255.0, |p| Curve::monotone(p, 255.0));
+    assert!((samples[96] - 120.0).abs() < 1e-3 && (samples[160] - 205.0).abs() < 1e-3, "{} {}", samples[96], samples[160]);
+
+    let value = point_value(&harness, "Point 3 of 5");
+    assert_eq!(value, "Input 128, Output 200, corner");
+    assert_eq!(point_value(&harness, "Point 2 of 5"), "Input 64, Output 40");
+
+    // Long enough after the first for the next clicks not to make a triple-click.
+    for _ in 0..12 {
+        harness.step();
+    }
+    double_click(&mut harness, at);
+    assert_eq!(harness.state().curve, Curve::Points(BENT.to_vec()), "a second double-click makes it smooth again");
+    assert_eq!(point_value(&harness, "Point 3 of 5"), "Input 128, Output 200");
+}
+
+#[test]
+fn c_toggles_the_selected_point_only_when_corners_are_on() {
+    let mut harness = corner_rig();
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::C);
+    assert_eq!(harness.state().curve, Curve::Points(BENT.to_vec()), "nothing selected");
+    let claimed = |harness: &Harness<'_, Host>| KeyClaim::claimed(&harness.ctx, &KeyboardShortcut::new(Modifiers::NONE, Key::C));
+    assert!(claimed(&harness), "C is the graph's while it has corners");
+    key(&mut harness, Modifiers::NONE, Key::Plus);
+    key(&mut harness, Modifiers::NONE, Key::Plus);
+    key(&mut harness, Modifiers::NONE, Key::C);
+    assert_eq!(harness.state().curve.corner_flags(), [false, true, false, false, false]);
+    key(&mut harness, Modifiers::NONE, Key::C);
+    assert!(!harness.state().curve.is_corner(1));
+
+    let mut harness = rig(&BENT);
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::Plus);
+    key(&mut harness, Modifiers::NONE, Key::C);
+    assert_eq!(harness.state().curve, Curve::Points(BENT.to_vec()));
+    assert!(!claimed(&harness));
+}
+
+#[test]
+fn a_corner_keeps_its_flag_when_dragged_and_a_new_point_is_smooth() {
+    let mut harness = corner_rig();
+    let at = harness.state().at(BENT[2]);
+    double_click(&mut harness, at);
+    let to = harness.state().at([140.0, 150.0]);
+    press(&mut harness, at);
+    move_to(&mut harness, to);
+    release(&mut harness, to);
+    assert_eq!(harness.state().points()[2], [140.0, 150.0]);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, true, false, false]);
+    let new = harness.state().at([20.0, 100.0]);
+    press(&mut harness, new);
+    release(&mut harness, new);
+    assert_eq!(harness.state().curve.corner_flags(), [false, false, false, true, false, false], "the flag stays on its point");
 }
