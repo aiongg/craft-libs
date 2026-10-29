@@ -100,6 +100,11 @@ pub(super) fn column(ui: &Ui, kind: &'static str, own: f32) -> (f32, bool) {
     })
 }
 
+/// The width the trailing row of `id` had on the last pass, if it was shown.
+pub(crate) fn trailing_width(ctx: &Context, id: Id) -> Option<f32> {
+    ctx.data(|d| d.get_temp::<f32>(id))
+}
+
 /// Runs `add` in a row in reading order, `spacing` between its items, placed against the
 /// trailing end of `rect` and vertically centred in it, and returns its result and the rect it
 /// used.
@@ -109,7 +114,7 @@ pub(super) fn column(ui: &Ui, kind: &'static str, own: f32) -> (f32, bool) {
 /// change of width discards the pass, so the row never shows away from the end. Wider than
 /// `rect`, it overflows past the reading start. `sense` is the row's own: [`Sense::DRAG`] keeps
 /// a press that starts in the row from dragging what lies under it.
-pub(super) fn trailing_row<R>(
+pub(crate) fn trailing_row<R>(
     ui: &mut Ui,
     id: Id,
     rect: Rect,

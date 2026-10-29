@@ -25,6 +25,8 @@ records their scope and acceptance limits. Assets (font files included), complet
 and command handling remain in each application. The suite's icons are bundled (`icons/`, with
 their licences in `icons/ATTRIBUTION.md`); fonts and application engines are not.
 
+`patterns` builds whole regions of an app window from the controls: `OptionsBar` (the bar of the active tool's options in `surface.chrome`: a leading slot with `home` and `tool_icon` (a context menu the host attaches), a body that scrolls sideways and reveals the control that takes the keyboard focus, with `cell` (a caption that scrubs the number field after it, in a `CellWidth` class), `divider`, `group` (disabled together, tooltips kept) and `hint`, and a trailing slot pinned at the reading end for `commit_cancel`; narrow is a host preference that shortens the bar; AccessKit `Toolbar`).
+
 ## Icons
 
 ```rust

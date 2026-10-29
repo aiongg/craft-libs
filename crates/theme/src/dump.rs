@@ -10,9 +10,9 @@ use crate::{
     CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
     CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps,
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
-    LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
-    PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba,
-    RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
+    LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens,
+    Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens,
+    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
     SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
     TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
@@ -105,8 +105,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.rail.button", len(*button));
     out.line("size.rail.panel_width", len(*panel_width));
     out.line("size.rail.panel_button", len(*panel_button));
-    let BarSizes { title, tab, status, options } = bar;
-    for (k, v) in [("title", title), ("tab", tab), ("status", status), ("options", options)] {
+    let BarSizes { title, tab, status, options, options_narrow } = bar;
+    for (k, v) in [("title", title), ("tab", tab), ("status", status), ("options", options), ("options_narrow", options_narrow)] {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));
@@ -240,6 +240,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         marquee,
         menu,
         notice,
+        options_bar,
         panel_footer,
         panel_header,
         popup,
@@ -286,6 +287,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     marquee_lines(out, marquee);
     menu_lines(out, menu);
     notice_lines(out, notice);
+    options_bar_lines(out, options_bar);
     panel_footer_lines(out, panel_footer);
     panel_header_lines(out, panel_header);
     popup_lines(out, popup);
@@ -820,6 +822,20 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
     ] {
         out.line(&format!("title_bar.{k}"), hex(*c));
     }
+}
+
+fn options_bar_lines(out: &mut Lines, t: &OptionsBarTokens) {
+    let OptionsBarTokens { height, height_narrow, pad, gap, divider, field_sm, field_md, field_lg, scroll_bar, button } = t;
+    out.line("options_bar.height", len(*height));
+    out.line("options_bar.height_narrow", len(*height_narrow));
+    out.line("options_bar.pad", len(*pad));
+    out.line("options_bar.gap", len(*gap));
+    out.line("options_bar.divider", len(*divider));
+    out.line("options_bar.field_sm", len(*field_sm));
+    out.line("options_bar.field_md", len(*field_md));
+    out.line("options_bar.field_lg", len(*field_lg));
+    out.line("options_bar.scroll_bar", len(*scroll_bar));
+    out.line("options_bar.button", len(*button));
 }
 
 fn panel_footer_lines(out: &mut Lines, t: &PanelFooterTokens) {

@@ -31,6 +31,7 @@ mod listbox;
 mod marquee;
 mod menu;
 mod notice;
+mod options_bar;
 mod panel_footer;
 mod panel_header;
 mod popup;
@@ -86,6 +87,7 @@ pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
+pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use popup::{PopupField, PopupTokens};
@@ -646,6 +648,8 @@ families! {
     menu: MenuTokens => Menu(MenuField);
     /// Notices: inline status messages.
     notice: NoticeTokens => Notice(NoticeField);
+    /// Options bars: the bar of the active tool's options.
+    options_bar: OptionsBarTokens => OptionsBar(OptionsBarField);
     /// Panel footers: the bar of buttons under a panel body.
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.

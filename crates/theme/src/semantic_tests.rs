@@ -606,7 +606,8 @@ fn size_presets_text_size_shape_and_motion() {
 
     assert_eq!((compact.size.control.md, compact.size.control.sm), (24.0, 20.0));
     assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
-    assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 22.0, 32.0));
+    assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 24.0, 36.0));
+    assert_eq!((compact.size.bar.options_narrow, comfy.size.bar.options, comfy.size.bar.options_narrow), (30.0, 42.0, 34.0));
     assert_eq!((comfy.size.rail.width, comfy.size.rail.button, comfy.size.panel_header), (50.0, 36.0, 34.0));
     assert_eq!((compact.size.rail.panel_width, compact.size.rail.panel_button), (36.0, 28.0));
     assert_eq!((comfy.size.rail.panel_width, comfy.size.rail.panel_button), (44.0, 32.0));
