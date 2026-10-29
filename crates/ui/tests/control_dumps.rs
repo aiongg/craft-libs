@@ -118,9 +118,6 @@ fn button() {
                 states(d, "fill", &s.fill);
                 states(d, "border", &s.border);
                 states(d, "text", &s.text);
-                if let Some(frame) = s.frame {
-                    d.line("frame.width", frame.width).line("frame.color", frame.color);
-                }
             });
         }
     });
@@ -511,7 +508,11 @@ fn panel_header() {
 fn dock_look() {
     check("dock_look.txt", |d, t| {
         let l = DockLook::from_tokens(t);
-        d.line("tab_height", l.tab_height).line("gap", l.gap).line("tab_padding", l.tab_padding).line("font_size", l.font.size);
+        d.line("tab_height", l.tab_height)
+            .line("gap", l.gap)
+            .line("body_gap", l.body_gap)
+            .line("tab_padding", l.tab_padding)
+            .line("font_size", l.font.size);
         d.line("title_height", l.title_height).line("column_bar_height", l.column_bar_height).line("icon_size", l.icon_size);
         d.line("icon_pad", l.icon_pad).line("iconic_width", l.iconic_width).line("icon_radius", l.icon_radius).line("hint_radius", l.hint_radius);
         d.line("drop_width", l.drop_width).line("focus_width", l.focus_width).line("marker_radius", l.marker_radius);
@@ -856,6 +857,7 @@ fn menu() {
         }
         let s = Menu::style(t, ControlSize::Md);
         d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
+        d.line("arrow_base", s.arrow_base).line("arrow_depth", s.arrow_depth);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
         d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
     });

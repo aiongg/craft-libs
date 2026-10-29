@@ -12,10 +12,11 @@
 //! it is on (3:1, 4.5:1 with high contrast) on the popup card. A mark on the active or chosen row
 //! follows that row's text colour, as a menu's marks follow its label, so it is measured with the
 //! active text against the active fill, which is the stronger text minimum. The active fill must
-//! be visibly different from the popup card (ratio 1.12, as a list row's hover fill); the
+//! be visibly different from the popup card (ratio 1.12, as a list row's hover fill) and its line
+//! is a control edge on the card (3:1 with high contrast); the
 //! separator is a design target with no minimum. Each pair is measured at rest.
 
-use super::list::SelectedLook;
+use super::list::{SelectedLook, visible_hover};
 use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, PopupField, Semantic};
 use crate::color::Rgba;
 use crate::tokens::{ColorTokens, TokenRef, TypeRole};
@@ -48,7 +49,8 @@ pub struct ListboxTokens {
     pub radius: f32,
     /// An option's text: `text.normal`; disabled, `text.disabled`.
     pub text: Dimmed,
-    /// Behind the active row: `state.hover`.
+    /// Behind the active row: `state.hover`, moved to stay visible on the popup card as a list row's
+    /// hover fill is.
     pub active_fill: Rgba,
     /// The text of the active row: `text.normal`.
     pub active_text: Rgba,
@@ -162,7 +164,7 @@ impl Family for ListboxTokens {
             separator_pad: s.space.gap.inline,
             radius: s.shape.radius.control,
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
-            active_fill: c.state.hover,
+            active_fill: visible_hover(c.state.hover, c.surface.panel, &[], c.text.normal, s.high),
             active_text: c.text.normal,
             active_border: c.line.control_edge,
             chosen_fill: c.accent.solid,
@@ -242,7 +244,8 @@ impl Family for ListboxTokens {
         let chosen = TokenRef::Component(field(ListboxField::ChosenFill));
         let pair = |fg, bg, minimum| ContrastPair { fg: TokenRef::Component(field(fg)), bg, minimum, alternate: None };
         vec![
-            pair(ListboxField::ActiveFill, popup, values::ACTIVE_ROW_MIN),
+            pair(ListboxField::ActiveFill, popup, values::LIST_HOVER_MIN),
+            pair(ListboxField::ActiveBorder, popup, values::CONTROL_EDGE_MIN),
             pair(ListboxField::Text { disabled: false }, popup, values::TEXT_MIN),
             pair(ListboxField::Group, popup, values::TEXT_MIN),
             pair(ListboxField::ActiveText, active, values::TEXT_MIN),

@@ -386,7 +386,8 @@ fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
     let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
     let chosen = TokenRef::Component(ComponentField::Listbox(ListboxField::ChosenFill));
     vec![
-        (ListboxField::ActiveFill, popup, (1.12, 3.0)),
+        (ListboxField::ActiveFill, popup, (1.12, 1.12)),
+        (ListboxField::ActiveBorder, popup, crate::values::CONTROL_EDGE_MIN),
         (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
         (ListboxField::Group, popup, (4.5, 7.0)),
         (ListboxField::ActiveText, active, (4.5, 7.0)),
@@ -450,8 +451,8 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     assert_eq!(l.max_height, 420.0 + 12.0 * (t.size.control.md - 24.0));
     assert_eq!((l.label, l.group_label), (TypeRole::Body, TypeRole::Caption));
     assert_eq!(l.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
-    assert_eq!((l.active_fill, l.active_text), (t.color(T::AccentSolid), t.color(T::TextOnAccent)));
-    assert_eq!((l.chosen_fill, l.chosen_text), (l.active_fill, l.active_text));
+    assert_eq!((l.active_text, l.active_border), (t.color(T::TextNormal), t.color(T::LineControlEdge)));
+    assert_eq!((l.chosen_fill, l.chosen_text, l.chosen_border), (t.color(T::AccentSolid), t.color(T::TextOnAccent), t.color(T::AccentText)));
     let popup = t.color(T::SurfacePanel);
     assert!(contrast_ratio(over(l.active_fill, popup), popup) >= values::LIST_HOVER_MIN.0);
     assert_eq!(l.mark, t.color(T::TextNormal));
@@ -643,7 +644,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        5 + 4 * 3 * 4
+        4 + 4 * 3 * 4
             + 1
             + (2 + 3) * 4
             + 2 * 4
@@ -703,8 +704,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Popup: fill, border and shadow; the menu's open fill replaced the list box's chosen text.
             + 3
-            // List box: the chosen fill and text (the menu's radius is one more).
-            + 3
+            // List box: the active and chosen borders and the chosen fill and text (the menu's radius is one more).
+            + 5
             // Histogram: the backdrop; curve: the selected point's outline.
             + 1
             + 1
@@ -1349,7 +1350,7 @@ fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
     let compact = at(Size::Compact);
     let d = &compact.component.dock;
-    assert_eq!((d.gap, d.border_width, d.title_height, d.column_bar_height), (4.0, 1.0, 14.0, 14.0));
+    assert_eq!((d.gap, d.body_gap, d.border_width, d.title_height, d.column_bar_height), (4.0, 0.0, 1.0, 14.0, 14.0));
     assert_eq!((d.icon_size, d.icon_pad, d.iconic_width), (20.0, 10.0, 36.0));
     assert_eq!((d.drop_width, d.focus_width, d.marker_radius, d.icon_radius, d.hint_radius), (2.0, 1.0, 1.0, 3.0, 4.0));
     assert_eq!((d.drop_fill, d.ghost_fill, d.ghost_stroke, d.grip_alpha, d.tab_fill), (0.15, 0.3, 0.6, 0.5, 0.08));
@@ -1366,7 +1367,7 @@ fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
 
     let comfy = at(Size::Comfortable);
     let d = &comfy.component.dock;
-    assert_eq!((d.gap, d.title_height, d.column_bar_height, d.icon_size, d.iconic_width), (6.0, 18.0, 18.0, 22.0, 44.0));
+    assert_eq!((d.gap, d.body_gap, d.title_height, d.column_bar_height, d.icon_size, d.iconic_width), (6.0, 6.0, 18.0, 18.0, 22.0, 44.0));
     assert_eq!((d.icon_radius, d.hint_radius), (comfy.shape.radius.control, comfy.shape.radius.popup));
     assert_eq!((compact.component.float.radius, comfy.component.float.radius), (0.0, 0.0));
 }

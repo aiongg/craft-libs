@@ -34,6 +34,11 @@ pub struct MenuTokens {
     /// Corner radius of a row's fill: square (PhotoCraft's spectrum menu, in every theme):
     /// `menu.radius`.
     pub radius: f32,
+    /// Width of a submenu arrow's base, as a fraction of the row's label size: `menu.arrow_base`.
+    pub arrow_base: f32,
+    /// A submenu arrow's depth from base to tip, as a fraction of the row's label size:
+    /// `menu.arrow_depth`.
+    pub arrow_depth: f32,
     /// Behind the active row: `accent.solid`.
     pub active_fill: Rgba,
     /// The active row's text, mark, shortcut and arrow: `text.on_accent`.
@@ -225,6 +230,8 @@ impl Family for MenuTokens {
             shortcut_gap: scale(values::MENU_SHORTCUT_GAP),
             scroll_strip: scale(values::MENU_SCROLL_STRIP),
             radius: 0.0,
+            arrow_base: values::MENU_ARROW_BASE,
+            arrow_depth: values::MENU_ARROW_DEPTH,
             active_fill: c.accent.solid,
             active_text: c.text.on_accent,
             open_fill: c.state.hover,

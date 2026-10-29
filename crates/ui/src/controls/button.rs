@@ -5,9 +5,8 @@ use std::sync::Arc;
 use craft_theme::{ButtonVariant, ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, Vec2, Widget, pos2, vec2};
 
 use super::{SIZE_NAMES, Spinner, TooltipExt as _, icon_size, salt, size_arg};
 use crate::direction;
@@ -42,9 +41,6 @@ pub struct ButtonStyle {
     pub border: States<Color32>,
     /// `button.<variant>.text`: label, icon and spinner.
     pub text: States<Color32>,
-    /// A primary button's frame outside its surface's edge: `button.default_frame`, `button.border_width`
-    /// wide. `None` for other variants and where the token is transparent.
-    pub frame: Option<Stroke>,
 }
 
 impl ButtonStyle {
@@ -157,7 +153,6 @@ impl Button {
             fill: colors.fill.to_egui(),
             border: colors.border.to_egui(),
             text: colors.text.to_egui(),
-            frame: (variant == ButtonVariant::Primary && b.default_frame.0[3] != 0).then(|| Stroke::new(b.border_width, b.default_frame.to_egui())),
         }
     }
 }
@@ -181,19 +176,7 @@ impl Widget for Button {
         if self.loading {
             element = element.sense(Sense::FOCUSABLE).state_layer(false);
         }
-        let response = match style.frame {
-            // The surface, with its edge, sits inside the frame; the frame belongs to the button's rect.
-            Some(frame) => {
-                let (_, outer) = ui.allocate_space(laid.size);
-                // Whole physical pixels, as a bevel's width.
-                let ppp = ui.pixels_per_point();
-                let width = (frame.width * ppp).round().max(1.0) / ppp;
-                let outer = outer.round_to_pixels(ppp);
-                ui.painter().add(RectShape::stroke(outer, style.radius, Stroke::new(width, frame.color), StrokeKind::Inside));
-                element.interact_at(ui, outer.shrink(width)).finish(ui)
-            }
-            None => element.show(ui, laid.size),
-        };
+        let response = element.show(ui, laid.size);
         let color = content_color(ui, &style.text, &response, !self.loading);
         face.paint(ui, response.rect, &laid, &style, color);
         laid.tooltip(response, &self.label)

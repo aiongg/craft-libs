@@ -40,19 +40,20 @@ pub(super) fn show<K: Clone>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band
     let height = TextField::style(&Tokens::of(ui), ControlSize::Sm).height.min(band.height());
     let band = Rect::from_center_size(band.center(), vec2(band.width(), height));
     let layout = Layout::top_down_justified(Align::Min);
-    let edit = ui
-        .scope_builder(UiBuilder::new().id_salt(row_id.with("rename-scope")).max_rect(band).layout(layout), |ui| {
-            // The id `TextField` gives its salt.
-            let field = Interactive::id_in(ui, "rename");
-            if fresh {
-                ui.memory_mut(|m| m.request_focus(field));
-                let mut state = TextEditState::default();
-                state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(draft.chars().count()))));
-                state.store(ui.ctx(), field);
-            }
-            TextField::new("rename", label, &draft).size(ControlSize::Sm).show(ui)
-        })
-        .inner;
+    // A child, not a scope: a scope would move the parent's cursor into the row it was allocated.
+    let mut child = ui.new_child(UiBuilder::new().id_salt(row_id.with("rename-scope")).max_rect(band).layout(layout));
+    let edit = {
+        let ui = &mut child;
+        // The id `TextField` gives its salt.
+        let field = Interactive::id_in(ui, "rename");
+        if fresh {
+            ui.memory_mut(|m| m.request_focus(field));
+            let mut state = TextEditState::default();
+            state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(draft.chars().count()))));
+            state.store(ui.ctx(), field);
+        }
+        TextField::new("rename", label, &draft).size(ControlSize::Sm).show(ui)
+    };
     let pressed_tab = ui.input(|i| {
         i.events.iter().find_map(|e| match e {
             Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => Some(modifiers.shift),

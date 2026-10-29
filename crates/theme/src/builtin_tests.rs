@@ -110,7 +110,7 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
-            assert_eq!(pairs.len(), 8, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -425,22 +425,17 @@ fn line_mark_holds_the_non_text_minimum_on_the_control_surfaces() {
     }
 }
 
-/// Classic follows Windows 2000: white text on the navy selection, a black frame round the
-/// default (primary) button whose grey face does not change on hover or press, and a black mark on
-/// a white check box. No other built-in frames a button.
+/// Classic follows Windows 2000 as PhotoCraft draws it: white text on the navy selection, a grey
+/// face on the primary button that does not change on hover or press (no frame round it), and a
+/// black mark on a white check box.
 #[test]
-fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
+fn classic_follows_windows_2000() {
     let black = Rgba::rgb(0, 0, 0);
     let white = Rgba::rgb(255, 255, 255);
     let face = Rgba::rgb(0xd4, 0xd0, 0xc8);
-    for theme in builtins() {
+    for theme in builtins().iter().filter(|t| t.id.as_str() == "craft.classic") {
         let t = resolve(theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens;
         let button = &t.component.button;
-        if theme.id.as_str() != "craft.classic" {
-            assert_eq!(button.default_frame, Rgba::TRANSPARENT, "{}", theme.id);
-            continue;
-        }
-        assert_eq!(button.default_frame, black);
         assert_eq!([button.primary.fill.rest, button.primary.fill.hover, button.primary.fill.pressed], [face; 3]);
         assert_eq!(t.color(ColorToken::TextOnSelected), white);
         assert_eq!(t.component.check.off.fill.rest, white);
@@ -449,7 +444,7 @@ fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
 }
 
 /// Classic's switch has a navy on track, its list box and select rows highlight in navy with
-/// white text, its secondary buttons keep the face colour at rest and under the pointer, and its
+/// white text, its secondary buttons are the field white at rest and the hover fill under the pointer, and its
 /// popups are the menu grey. Other built-ins draw the switch track in the solid accent.
 #[test]
 fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
@@ -478,7 +473,7 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
             assert_eq!((c.listbox.chosen_fill, c.listbox.chosen_text), (navy, white));
             assert_eq!(c.listbox.active_border, Rgba::rgb(0x40, 0x40, 0x40));
-            assert_eq!([c.button.secondary.fill.rest, c.button.secondary.fill.hover], [face; 2]);
+            assert_eq!((c.button.secondary.fill.rest, c.button.secondary.fill.hover), (white, t.color(ColorToken::StateHover)));
             assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
         }
@@ -699,11 +694,11 @@ fn popups_and_their_rows_follow_photocraft() {
         assert_eq!((t.elevation.popup.offset, t.elevation.popup.blur), ([0.0, 6.0], 20.0), "{who}");
         assert_eq!((l.pad_x, m.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
         // A dropdown's lit row is PhotoCraft's stock hover; a menu's is the accent.
-        assert_eq!(
-            (l.active_fill, l.active_text, l.active_border),
-            (t.color(ColorToken::StateHover), t.color(ColorToken::TextNormal), t.color(ColorToken::LineControlEdge)),
-            "{who}"
-        );
+        // Classic's line is the bevel's dark edge.
+        let line = if id == "craft.classic" { Rgba::rgb(0x40, 0x40, 0x40) } else { t.color(ColorToken::LineControlEdge) };
+        assert_eq!((l.active_text, l.active_border), (t.color(ColorToken::TextNormal), line), "{who}");
+        // The hover fill, moved only as far as it needs to show on the card.
+        assert!(contrast_ratio(derive::over(l.active_fill, popup.fill), popup.fill) >= 1.12 - 1e-6, "{who}");
         if id != "craft.classic" {
             assert_eq!(m.active_fill, t.color(ColorToken::AccentSolid), "{who}");
         }
@@ -1024,7 +1019,11 @@ fn high_contrast_control_edges_reach_three_to_one() {
             on_surfaces("check.off.border.rest", c.check.off.border.rest, Some(c.check.off.fill.rest));
             on_surfaces("segmented.selected.fill.rest", c.segmented.selected.fill.rest, Some(c.segmented.selected_border.rest));
             on_surfaces("line.focus", t.color(ColorToken::LineFocus), None);
-            for (name, row) in [("listbox.active.fill", c.listbox.active_fill), ("menu.active.fill", c.menu.active_fill)] {
+            for (name, row) in [
+                ("listbox.active.border", c.listbox.active_border),
+                ("listbox.chosen.fill", c.listbox.chosen_fill),
+                ("menu.active.fill", c.menu.active_fill),
+            ] {
                 let r = ratio(row, c.popup.fill);
                 assert!(r >= min, "{who}: {name} is {r:.2}:1 on popup.fill");
             }

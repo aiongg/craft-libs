@@ -1040,3 +1040,34 @@ fn range_slider_thumbs_are_narrow_flat_rectangles() {
     })
     .drop_without_applying_deltas();
 }
+
+/// A thumb's outline is centred on the face's edge (PhotoCraft `widgets/slider.rs:204-209`): the face
+/// is the thumb size and the outline reaches half its width beyond it. A bevel stays inside.
+#[test]
+fn a_thumb_outline_is_centred_on_the_edge_of_the_face() {
+    use egui::{Shape, StrokeKind};
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut output = ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0))), ..Default::default() }, |ui| {
+        let style = super::slider::Slider::style(&Tokens::of(ui), ControlSize::Md);
+        let paint =
+            super::slider::ThumbPaint { fill: egui::Color32::WHITE, border: egui::Color32::BLACK, ring: egui::Color32::TRANSPARENT, enabled: true };
+        let rect = super::slider::paint_thumb(ui, &style, pos2(50.0, 50.0), paint);
+        assert_eq!((rect.width(), rect.height()), (style.thumb, style.thumb));
+    });
+    output.textures_delta.clear();
+    let mut shapes = Vec::new();
+    fn flatten(shape: Shape, out: &mut Vec<Shape>) {
+        match shape {
+            Shape::Vec(v) => v.into_iter().for_each(|s| flatten(s, out)),
+            s => out.push(s),
+        }
+    }
+    output.shapes.into_iter().for_each(|c| flatten(c.shape, &mut shapes));
+    let rects: Vec<_> = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r) } else { None }).collect();
+    let outline = rects.iter().find(|r| r.stroke.width > 0.0).expect("the thumb has an outline");
+    assert_eq!(outline.stroke_kind, StrokeKind::Middle);
+    let face = rects.iter().find(|r| r.fill == egui::Color32::WHITE).expect("the thumb has a face");
+    assert_eq!(face.rect, outline.rect);
+    assert_eq!(face.stroke.width, 0.0);
+}
