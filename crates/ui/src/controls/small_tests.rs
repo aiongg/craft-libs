@@ -404,6 +404,18 @@ fn hovered_tooltip(id: &str, add: impl Fn(&mut Ui) -> egui::Response) -> (Vec<(C
 }
 
 #[test]
+fn pointer_tooltips_draw_the_themed_card() {
+    let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
+    let at_pointer = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip_at_pointer("Moves the layer");
+    let at_pointer_ui = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip_ui_at_pointer(|ui| drop(ui.label("Moves the layer")));
+    let (frames, texts) = hovered_tooltip("craft.classic", tip);
+    let (pointer_frames, pointer_texts) = hovered_tooltip("craft.classic", at_pointer);
+    assert_eq!(pointer_frames, frames, "the same card as a tooltip on the control");
+    assert_eq!(pointer_texts.last(), texts.last());
+    assert_eq!(hovered_tooltip("craft.classic", at_pointer_ui).0, frames);
+}
+
+#[test]
 fn classic_tooltips_draw_a_pale_yellow_card_with_black_text_and_edge() {
     let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
     let (frames, texts) = hovered_tooltip("craft.classic", tip);

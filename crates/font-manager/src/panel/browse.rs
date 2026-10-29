@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use craft_ui::controls::TooltipExt as _;
 use craft_ui::direction;
 use egui::{CornerRadius, FontFamily, FontId, Id, Rect, Role, Sense, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 
@@ -559,7 +560,7 @@ impl FontsPanel {
         self.card_state(&mut end, s, name, index_position, state);
         if !curated {
             widgets::badge(&mut end, s, tl!("Not curated"), s.p.warn, false)
-                .on_hover_text(tl!("This family comes from a source you added. Craft doesn't review it."));
+                .tooltip(tl!("This family comes from a source you added. Craft doesn't review it."));
         }
         let end_w = end.min_rect().width();
 
@@ -615,7 +616,7 @@ impl FontsPanel {
                     Kind::Remove => tl!("Couldn't remove"),
                     Kind::Preview => tl!("Couldn't download"),
                 };
-                widgets::label(ui, s, what, p.bad).on_hover_text(error);
+                widgets::label(ui, s, what, p.bad).tooltip(error);
             }
             CardState::Installed => {
                 widgets::badge(ui, s, tl!("Installed"), p.good, true);

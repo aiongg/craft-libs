@@ -4,6 +4,7 @@
 #![allow(deprecated, reason = "the review draws craft_ui::ComboBox until it moves to craft_ui::controls::Select")]
 
 use craft_ui::ComboBox;
+use craft_ui::controls::TooltipExt as _;
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Label, Rect, RichText, ScrollArea, TextEdit, TextStyle, Ui};
 
@@ -217,7 +218,7 @@ impl Draw<'_, '_> {
                                 }
                             }
                         });
-                        let resp = combo.response.on_hover_text(self.vis(&label));
+                        let resp = combo.response.tooltip(self.vis(&label));
                         resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, &label));
                         self.tag(|| format!("shortcuts.import.suggestion.{si}"), resp.rect, &label);
                     });

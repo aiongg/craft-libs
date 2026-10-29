@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use craft_ui::controls::TooltipExt as _;
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{
     Align, Button, Color32, CornerRadius, FontId, Layout, Rect, RichText, Role, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
@@ -587,7 +588,7 @@ impl Draw<'_, '_> {
             clicks.key = Some(key);
         }
         if !names.is_empty() {
-            resp.on_hover_text(self.vis(&names.join("\n")));
+            resp.tooltip(self.vis(&names.join("\n")));
         }
     }
 
@@ -607,10 +608,10 @@ impl Draw<'_, '_> {
             let r = ui.add_enabled(selected.is_some(), Button::new(self.vis(&label)));
             self.tag(|| "shortcuts.assignKey".into(), r.rect, &label);
             let r = match &selected {
-                Some(c) => r.on_hover_text(
-                    self.vis_chord(&fill(self.ui("Assign {chord} to {label}"), &[("chord", &chord), ("label", &self.label_of(c))]), &chord),
-                ),
-                None => r.on_disabled_hover_text(self.vis(&self.ui("Select a command first"))),
+                Some(c) => {
+                    r.tooltip(self.vis_chord(&fill(self.ui("Assign {chord} to {label}"), &[("chord", &chord), ("label", &self.label_of(c))]), &chord))
+                }
+                None => r.tooltip(self.vis(&self.ui("Select a command first"))),
             };
             if r.clicked() {
                 clicks.assign = true;

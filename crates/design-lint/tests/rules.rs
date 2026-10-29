@@ -300,6 +300,35 @@ fn style_mutation_is_flagged() {
 }
 
 #[test]
+fn stock_tooltips_name_the_tooltip_ext_replacement() {
+    for (call, replacement) in [
+        ("r.on_hover_text(\"x\")", "TooltipExt::tooltip"),
+        ("r.on_disabled_hover_text(\"x\")", "TooltipExt::tooltip"),
+        ("r.on_hover_ui(|ui| {})", "TooltipExt::tooltip_ui"),
+        ("r.on_disabled_hover_ui(|ui| {})", "TooltipExt::tooltip_ui"),
+        ("r.on_hover_text_at_pointer(\"x\")", "TooltipExt::tooltip_at_pointer"),
+        ("r.on_hover_ui_at_pointer(|ui| {})", "TooltipExt::tooltip_ui_at_pointer"),
+        ("r.show_tooltip_text(\"x\")", "TooltipExt::show_tooltip"),
+        ("r.show_tooltip_ui(|ui| {})", "TooltipExt::show_tooltip_ui"),
+        ("r.clone().on_hover_text(\"x\").on_hover_cursor(c)", "TooltipExt::tooltip"),
+    ] {
+        let found = run(&format!("fn f(r: Response) {{ {call}; }}"));
+        let hit = found.iter().find(|f| f.rule == "tooltip/stock").unwrap_or_else(|| panic!("{call}: {found:?}"));
+        assert!(hit.message.contains(replacement), "{call}: {}", hit.message);
+    }
+}
+
+#[test]
+fn stock_tooltip_construction_is_flagged_and_craft_ui_calls_are_not() {
+    assert!(flagged("fn f(r: &Response) { egui::Tooltip::for_enabled(r).show(|ui| {}); }", "tooltip/stock"));
+    assert!(flagged("use egui::Tooltip; fn f(r: &Response) { Tooltip::for_disabled(r); }", "tooltip/stock"));
+    assert!(flagged("use egui::Tooltip; fn f() { Tooltip::always_open(a, b, c, d); }", "tooltip/stock"));
+    assert!(clean(
+        "fn f(r: Response, t: &UiTokens) { r.tooltip(\"x\"); r.tooltip_ui(|ui| {}); r.show_tooltip(\"x\"); let _ = Tooltip::style(t); let _ = r.is_tooltip_open(); }"
+    ));
+}
+
+#[test]
 fn consts_resolve_by_module_and_impl_scope() {
     // A module-level const of the same name in another module is a different const.
     let src = "mod a { const GAP: f32 = 0.0; fn f(ui: &mut Ui) { ui.add_space(GAP); } }\nmod b { const GAP: f32 = 4.0; fn g(ui: &mut Ui) { ui.add_space(GAP); } }\n";

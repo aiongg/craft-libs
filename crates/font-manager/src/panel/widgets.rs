@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use craft_ui::controls::TooltipExt as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     Align2, Color32, CursorIcon, FontFamily, FontId, Galley, Painter, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, TextEdit, TextFormat,
@@ -343,7 +344,7 @@ pub fn glyph_button(ui: &mut Ui, s: &Skin, g: Glyph, tip: &str, size: f32) -> Re
     glyph(painter, g, rect.center(), 12.0, color);
     focus_ring(ui, s, rect, &resp);
     resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, tip));
-    resp.on_hover_text(tip).on_hover_cursor(CursorIcon::PointingHand)
+    resp.tooltip(tip).on_hover_cursor(CursorIcon::PointingHand)
 }
 
 /// Names a widget for screen readers (and kittest) where it has no label of its own.

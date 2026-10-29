@@ -17,11 +17,12 @@ pub const MARGIN: &str = "literal-size/margin";
 pub const FONT_ID: &str = "literal-size/font-id";
 pub const RAW_COLOUR_CONST: &str = "raw-colour/const";
 pub const STYLE_MUTATION: &str = "style-mutation";
+pub const TOOLTIP: &str = "tooltip/stock";
 pub const INNER_ALLOW: &str = "clippy/inner-allow";
 pub const PARSE: &str = "parse";
 
 /// Every rule id the checker emits, including the marker and exemption rules.
-pub const RULES: [&str; 14] = [
+pub const RULES: [&str; 15] = [
     VEC2,
     ADD_SPACE,
     CORNER_RADIUS,
@@ -30,6 +31,7 @@ pub const RULES: [&str; 14] = [
     FONT_ID,
     RAW_COLOUR_CONST,
     STYLE_MUTATION,
+    TOOLTIP,
     INNER_ALLOW,
     PARSE,
     crate::markers::EMPTY,
@@ -54,6 +56,18 @@ const STYLE_MUTATORS: [&str; 6] = ["style_mut", "spacing_mut", "visuals_mut", "s
 /// Methods and functions whose arguments may be a `(width, colour)` stroke tuple.
 const STROKE_TAKERS: [&str; 11] =
     ["stroke", "rect", "rect_stroke", "line_segment", "circle", "circle_stroke", "hline", "vline", "line", "closed_line", "dotted_line"];
+
+/// egui's tooltip methods on `Response`, each with the `TooltipExt` method that replaces it.
+const STOCK_TOOLTIPS: [(&str, &str); 8] = [
+    ("on_hover_text", "tooltip"),
+    ("on_disabled_hover_text", "tooltip"),
+    ("on_hover_ui", "tooltip_ui"),
+    ("on_disabled_hover_ui", "tooltip_ui"),
+    ("on_hover_text_at_pointer", "tooltip_at_pointer"),
+    ("on_hover_ui_at_pointer", "tooltip_ui_at_pointer"),
+    ("show_tooltip_text", "show_tooltip"),
+    ("show_tooltip_ui", "show_tooltip_ui"),
+];
 
 /// The colour constants of egui's `Rgba`.
 const RGBA_COLOURS: [&str; 5] = ["WHITE", "BLACK", "RED", "GREEN", "BLUE"];
@@ -592,6 +606,10 @@ impl Linter<'_> {
             ("Stroke" | "PathStroke", "from") => self.stroke_tuples(args),
             ("Margin", "same" | "symmetric" | "from") | ("theme", "margin" | "margin_x") => self.size_rule(MARGIN, span, args),
             ("FontId", "proportional" | "monospace" | "new") => self.size_rule(FONT_ID, span, args.take(1)),
+            ("Tooltip", "for_enabled" | "for_disabled" | "for_widget" | "always_open") => {
+                let message = format!("`{ty}::{f}` builds a stock egui tooltip; {}", hint(TOOLTIP));
+                self.report(TOOLTIP, span, message);
+            }
             _ => return false,
         }
         true
@@ -611,6 +629,16 @@ impl Linter<'_> {
             "inner_margin" | "outer_margin" => self.size_rule(MARGIN, span, call.args.iter()),
             "size" if rooted_in_rich_text(&call.receiver) => self.size_rule(FONT_ID, span, call.args.iter()),
             "into" if call.args.is_empty() => self.stroke_tuples([&*call.receiver]),
+            n if STOCK_TOOLTIPS.iter().any(|(stock, _)| *stock == n) => {
+                let replacement = STOCK_TOOLTIPS.iter().find(|(stock, _)| *stock == n).map_or("tooltip", |(_, r)| r);
+                self.report(
+                    TOOLTIP,
+                    span,
+                    format!(
+                        "`{n}` is a stock egui tooltip; use `craft_ui::controls::TooltipExt::{replacement}` or mark `// design: allow(<reason>)`"
+                    ),
+                );
+            }
             n if STYLE_MUTATORS.contains(&n) || n.starts_with("override_") => {
                 let snippet = self.snippet(span);
                 self.report(STYLE_MUTATION, span, format!("`{snippet}` changes the style from app code; {}", hint(STYLE_MUTATION)));
@@ -661,6 +689,7 @@ fn hint(rule: &str) -> &'static str {
         CORNER_RADIUS => "use a radius token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
         STROKE => "use a stroke width token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
         MARGIN => "use a spacing token (`Tokens::of(ui).space`) or mark `// design: allow(<reason>)`",
+        TOOLTIP => "use `craft_ui::controls::TooltipExt` (`tooltip`, `tooltip_ui`, `show_tooltip`) or mark `// design: allow(<reason>)`",
         STYLE_MUTATION => "set styles through the theme (craft-ui installs them from the tokens) or mark `// design: allow(<reason>)`",
         _ => "use a type-size token from `Tokens::of(ui)` or mark `// design: allow(<reason>)`",
     }

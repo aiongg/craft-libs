@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use craft_ui::controls::TooltipExt as _;
 use craft_ui::direction;
 use egui::{
     Align, Color32, Context, CornerRadius, FontFamily, FontId, Id, Layout, Margin, Order, Rect, RichText, Sense, Stroke, StrokeKind, Ui, UiBuilder,
@@ -331,7 +332,7 @@ impl FontsPanel {
             let remove =
                 ui.add_enabled_ui(family.removable(), |ui| widgets::button(ui, s, tl!("Remove all"), widgets::Kind::Danger, s.h(), 0.0)).inner;
             if !family.removable() {
-                let _ = remove.on_disabled_hover_text(tl!("System fonts are removed with your system's own font tools."));
+                let _ = remove.tooltip(tl!("System fonts are removed with your system's own font tools."));
                 widgets::label(ui, s, tl!("Removed with your system's font tools"), s.p.faint);
             } else if remove.clicked() {
                 self.remove(&ctx, &family.name, &family.faces, true);

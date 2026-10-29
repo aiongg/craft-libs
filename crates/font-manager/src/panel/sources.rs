@@ -2,6 +2,7 @@
 //! added (never curated, and flagged when their file changed since it was added), adding one,
 //! and downloading them all again.
 
+use craft_ui::controls::TooltipExt as _;
 use craft_ui::direction;
 use egui::{RichText, Ui, vec2};
 
@@ -53,7 +54,7 @@ impl FontsPanel {
                         ui.spacing_mut().item_spacing.x = 6.0;
                         widgets::badge(ui, &s, tl!("Not curated"), s.p.warn, false);
                         if source.is_some_and(|src| src.changed) {
-                            widgets::badge(ui, &s, tl!("Changed since added"), s.p.bad, true).on_hover_text(tl!(
+                            widgets::badge(ui, &s, tl!("Changed since added"), s.p.bad, true).tooltip(tl!(
                                 "The index at this address isn't the one first downloaded from it. Check the source before installing from it."
                             ));
                         }
