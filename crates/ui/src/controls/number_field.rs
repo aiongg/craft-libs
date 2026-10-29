@@ -408,15 +408,17 @@ impl<'a> NumberField<'a> {
         // before the arrows below or the field read the input. Over the text of a field without
         // the focus, a secondary press belongs to the scrub (it covers the text): it gives the
         // field the focus with its text selected, and the menu opens at the pointer.
-        if self.edit_menu && enabled {
+        let menu = if self.edit_menu && enabled {
             let scrub_text = ui.ctx().read_response(scrub_text_id(id)).filter(|_| stepping && self.scrub_text && !ui.memory(|m| m.has_focus(id)));
             let open_at = scrub_text.filter(Response::secondary_clicked).and_then(|r| r.interact_pointer_pos());
             if open_at.is_some() {
                 ui.memory_mut(|m| m.request_focus(id));
                 select_all(ui.ctx(), id, &codec.format(&host));
             }
-            edit_menu::show(ui, id, false, open_at);
-        }
+            Some(edit_menu::show(ui, id, false, open_at))
+        } else {
+            None
+        };
         // Before `TextEdit`, which would move the caret on them; an input method's own while it
         // composes.
         let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
@@ -433,7 +435,7 @@ impl<'a> NumberField<'a> {
             selected_text: style.field.selected_text,
             caret: style.field.caret,
         };
-        let typing = Typing::with_codec(id, &self.label, host, codec.clone())
+        let mut typing = Typing::with_codec(id, &self.label, host, codec.clone())
             .placeholder(BLANK)
             .policy(self.policy)
             .enabled(self.enabled)
@@ -443,6 +445,9 @@ impl<'a> NumberField<'a> {
             .edit_menu(self.edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
             .tabular(true);
+        if let Some(menu) = menu {
+            typing = typing.edit_menu_shown(menu);
+        }
         // The box goes under the text, which `TextEdit` paints as it runs.
         let under = ui.painter().add(Shape::Noop);
         let mut typed = typing.show(ui, &look);
@@ -869,9 +874,6 @@ struct Scrub {
 /// edge it is put.
 const WRAP_EDGE: f32 = 2.0;
 
-/// How far from the point the pointer was asked to go it counts as having arrived.
-const WARP_AREA: f32 = 2.0 * WRAP_EDGE;
-
 /// What one pointer position adds to a scrub.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Travel {
@@ -887,7 +889,7 @@ pub(super) struct Travel {
 
 /// The points the pointer moved from `last_x` to `x`. With the horizontal `edges` of the screen,
 /// a move that reaches one asks for the pointer at the other (`send`), once: the request stays
-/// pending until the pointer is seen within `WARP_AREA` of the target, and the position that
+/// pending until the pointer is seen nearer the target than it was, and the position that
 /// then shows up there is not a move. A pointer that stays where it was (a platform that does not
 /// move it) waits; one that moves elsewhere is an ordinary move, and the request is not sent
 /// again.
@@ -897,7 +899,7 @@ pub(super) fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32,
         if x == last_x {
             return Travel { delta: 0.0, warp, ..now };
         }
-        if (x - target).abs() <= WARP_AREA {
+        if (x - target).abs() < (x - last_x).abs() {
             return Travel { delta: 0.0, ..now };
         }
         return Travel { warp, ..now };

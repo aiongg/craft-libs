@@ -274,19 +274,36 @@ impl Rig {
         self.nodes.iter().find(|(l, ..)| l == label).map(|(_, rect, disabled)| (*rect, *disabled))
     }
 
-    /// Clicks the menu row `label`.
-    fn choose(&mut self, label: &str) {
+    /// Clicks the menu row `label`: the press and the release come in frames of their own, or in
+    /// one frame when `one_frame`.
+    fn click_row(&mut self, label: &str, one_frame: bool) {
         let (rect, disabled) = self.row(label).unwrap_or_else(|| panic!("a {label} row"));
         assert!(!disabled, "{label} is enabled");
-        self.frame(vec![Event::PointerMoved(rect.center())]);
-        self.frame(vec![Event::PointerMoved(rect.center()), button(rect.center(), true)]);
-        self.frame(vec![button(rect.center(), false)]);
+        let at = rect.center();
+        self.frame(vec![Event::PointerMoved(at)]);
+        if one_frame {
+            self.frame(vec![button(at, true), button(at, false)]);
+        } else {
+            self.frame(vec![Event::PointerMoved(at), button(at, true)]);
+            self.frame(vec![button(at, false)]);
+        }
         // The command runs in the frame of the release.
         let (commands, copied) = (self.commands.clone(), self.copied.clone());
         self.keys_chosen.clone_from(&self.keys_after);
         self.frame(vec![]);
         self.commands.extend(commands);
         self.copied.extend(copied);
+    }
+
+    /// Clicks the menu row `label`.
+    fn choose(&mut self, label: &str) {
+        self.click_row(label, false);
+    }
+
+    /// Clicks the menu row `label` with the press and the release in one frame, as a fast click
+    /// or a touch tap arrives.
+    fn choose_in_one_frame(&mut self, label: &str) {
+        self.click_row(label, true);
     }
 
     fn has_focus(&self) -> bool {
@@ -863,6 +880,19 @@ fn the_edit_menu_opens_on_a_secondary_press_and_keeps_the_focus() {
     rig.frame(vec![]);
     assert!(!rig.menu_open(), "Esc closes the menu");
     assert!(rig.has_focus(), "and has the focus after it");
+}
+
+#[test]
+fn a_click_that_presses_and_releases_in_one_frame_chooses_and_keeps_the_focus() {
+    let mut rig = Rig::new("hello");
+    rig.focus();
+    rig.type_text("!");
+    assert!(matches!(rig.event, Some(EditEvent::Begin { .. })));
+    rig.secondary_click(rig.rect.center());
+    rig.choose_in_one_frame("Select All");
+    assert!(!matches!(rig.event, Some(EditEvent::Commit { .. })), "the click that chose did not commit the run");
+    assert!(!rig.menu_open() && rig.has_focus(), "choosing closes the menu and the field keeps the focus");
+    assert_eq!(rig.cursor(), (0, 6), "Select All ran");
 }
 
 #[test]

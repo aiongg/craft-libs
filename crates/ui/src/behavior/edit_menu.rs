@@ -107,18 +107,21 @@ pub(crate) fn is_open(ctx: &Context, field: Id) -> bool {
     ctx.read_response(field).is_some_and(|r| ContextMenu::is_open(ctx, &r))
 }
 
-/// Whether the pointer is over the open menu of `field`, or just chose its command or opened it:
-/// a click there is no click away from the field, which keeps its focus.
-pub(crate) fn pointer_on(ctx: &Context, field: Id) -> bool {
-    ctx.data(|d| d.get_temp::<u64>(kept_id(field))) == Some(ctx.cumulative_pass_nr())
-        || ctx.read_response(field).is_some_and(|r| ContextMenu::pointer_on(ctx, &r))
+/// What [`show`] did this pass.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Outcome {
+    /// A click chose a command of the menu, or asked to open it from a widget over the text. The
+    /// menu has closed, or the press was on the covering widget, so only this tells the click is
+    /// no click away from the field.
+    keeps_focus: bool,
 }
 
-/// The pass in which the click that chose a command of the menu of `field`, or that asked to open
-/// it from a widget over the text, reached the field's `TextEdit`: the menu has closed, or the
-/// press was on the covering widget, so only this mark tells the click is no click away.
-fn kept_id(field: Id) -> Id {
-    field.with("craft_ui::behavior::edit_menu::chosen")
+impl Outcome {
+    /// Whether the pointer is over the open menu of `field`, or just chose its command or opened
+    /// it: a click there is no click away from the field, which keeps its focus.
+    pub(crate) fn pointer_on(self, ctx: &Context, field: Id) -> bool {
+        self.keeps_focus || ctx.read_response(field).is_some_and(|r| ContextMenu::pointer_on(ctx, &r))
+    }
 }
 
 /// What the menu of `field` gave the field this pass, to take back after its `TextEdit` ran: each
@@ -127,30 +130,19 @@ fn injected_id(field: Id) -> Id {
     field.with("craft_ui::behavior::edit_menu::injected")
 }
 
-/// The pass the menu of `field` was last shown in.
-fn shown_id(field: Id) -> Id {
-    field.with("craft_ui::behavior::edit_menu::shown")
-}
-
 /// Shows the menu of the text control `field` at the start of its pass, before any of the
 /// control's key readers: the menu takes its keys first, and a chosen command applies in this pass
 /// (see [`withdraw`]). It is anchored on the field's response of the last pass. `open_at` opens
 /// it there this pass, for a control whose text was covered by a widget of its own when the
-/// press came. Shown once per pass: a control that reads keys before [`Typing`](super::Typing)
-/// shows the menu itself, ahead of them.
-pub(crate) fn show(ui: &Ui, field: Id, password: bool, open_at: Option<Pos2>) {
+/// press came. A control that reads keys before [`Typing`](super::Typing) shows the menu itself,
+/// ahead of them, and hands the [`Outcome`] to the `Typing`
+/// ([`edit_menu_shown`](super::Typing::edit_menu_shown)), which then does not show it again.
+pub(crate) fn show(ui: &Ui, field: Id, password: bool, open_at: Option<Pos2>) -> Outcome {
     let ctx = ui.ctx();
-    let pass = ctx.cumulative_pass_nr();
-    if ctx.data(|d| d.get_temp::<u64>(shown_id(field))) == Some(pass) {
-        return;
-    }
-    ctx.data_mut(|d| d.insert_temp(shown_id(field), pass));
+    let mut outcome = Outcome { keeps_focus: open_at.is_some() };
     let Some(response) = ctx.read_response(field) else {
-        return;
+        return outcome;
     };
-    if open_at.is_some() {
-        ctx.data_mut(|d| d.insert_temp(kept_id(field), pass));
-    }
     // Esc closes only the menu: the press is taken before the field or its gesture sees it, and
     // the field keeps the focus.
     if ContextMenu::is_open(ctx, &response) && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
@@ -174,14 +166,14 @@ pub(crate) fn show(ui: &Ui, field: Id, password: bool, open_at: Option<Pos2>) {
     ];
     if let Some(action) = ContextMenu::new(&entries).open_at(open_at.map(OpenAt::Pointer)).show(ui, &response).chosen {
         run(ui, field, action);
+        outcome.keeps_focus = true;
     }
+    outcome
 }
 
 /// Gives `field` the input of the chosen command, for the `TextEdit` that runs later in this pass.
 fn run(ui: &Ui, field: Id, action: Action) {
     ui.memory_mut(|m| m.request_focus(field));
-    let pass = ui.ctx().cumulative_pass_nr();
-    ui.data_mut(|d| d.insert_temp(kept_id(field), pass));
     if action == Action::Paste {
         ui.send_viewport_cmd(ViewportCommand::RequestPaste);
     }

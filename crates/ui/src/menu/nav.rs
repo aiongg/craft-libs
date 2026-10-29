@@ -13,7 +13,7 @@
 //! [`AIM_REST`], moving away from the submenu, a click or a key switches as usual.
 
 use egui::containers::menu::{MenuState, SubMenu, find_menu_root};
-use egui::{Color32, Context, FocusDirection, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, pos2, vec2};
+use egui::{Color32, Context, Event, FocusDirection, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, pos2, vec2};
 
 use super::mnemonic;
 
@@ -393,6 +393,14 @@ impl Nav {
         if !typing {
             mnemonic::swallow_typing(ctx);
         }
+        // The arrows are the menu's whatever the modifiers: Shift or Cmd with ↓ must not reach a
+        // field under the menu. A text field in the menu keeps ← and →.
+        ctx.input_mut(|i| {
+            i.events.retain(|e| {
+                !matches!(e, Event::Key { key: Key::ArrowUp | Key::ArrowDown, pressed: true, .. })
+                    && !(!typing && matches!(e, Event::Key { key: Key::ArrowLeft | Key::ArrowRight, pressed: true, .. }))
+            });
+        });
         if acted {
             // The arrows moved the menu's highlight, not egui's focus.
             ctx.memory_mut(|m| m.move_focus(FocusDirection::None));
