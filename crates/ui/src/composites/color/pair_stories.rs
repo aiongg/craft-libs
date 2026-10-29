@@ -13,30 +13,23 @@ use crate::story::{Args, Level, Story};
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/color/pair-foreground",
-            level: Level::Composites,
-            component: "SwatchPair",
-            name: "Foreground and background",
-            args: || Args::new().with_bool("buttons", true).with_bool("disabled", false),
-            show: |ui, args| show(ui, args, "fg-bg", ["Foreground colour", "Background colour"], false),
-        },
-        Story {
-            id: "composites/color/pair-fill",
-            level: Level::Composites,
-            component: "SwatchPair",
-            name: "Fill and stroke",
-            args: || Args::new().with_bool("buttons", true).with_bool("disabled", false),
-            show: |ui, args| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true),
-        },
-        Story {
-            id: "composites/color/pair-dialog",
-            level: Level::Composites,
-            component: "SwatchPair",
-            name: "Dialog (field scope)",
-            args: Args::new,
-            show: show_dialog,
-        },
+        Story::new(
+            "composites/color/pair-foreground",
+            Level::Composites,
+            "SwatchPair",
+            "Foreground and background",
+            || Args::new().with_bool("buttons", true).with_bool("disabled", false),
+            |ui, args| show(ui, args, "fg-bg", ["Foreground colour", "Background colour"], false),
+        ),
+        Story::new(
+            "composites/color/pair-fill",
+            Level::Composites,
+            "SwatchPair",
+            "Fill and stroke",
+            || Args::new().with_bool("buttons", true).with_bool("disabled", false),
+            |ui, args| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true),
+        ),
+        Story::new("composites/color/pair-dialog", Level::Composites, "SwatchPair", "Dialog (field scope)", Args::new, show_dialog),
     ]
 }
 

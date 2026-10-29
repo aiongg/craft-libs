@@ -9,7 +9,7 @@ use super::{
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Bezier paths"];
@@ -18,14 +18,17 @@ const TOOLS: &[&str] = &["direct", "convert", "show"];
 const HANDLES: &[&str] = &["selected", "all"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/bezier-paths/edit",
-        level: Level::Primitives,
-        component: "Bezier paths",
-        name: "Edit",
-        args: || crate::canvas::story::args().with_choice("tool", TOOLS, 0).with_choice("handles", HANDLES, 0),
-        show: show_paths,
-    }]
+    vec![
+        Story::new(
+            "primitives/bezier-paths/edit",
+            Level::Primitives,
+            "Bezier paths",
+            "Edit",
+            || crate::canvas::story::args().with_choice("tool", TOOLS, 0).with_choice("handles", HANDLES, 0),
+            show_paths,
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// A host's paths and selection, as the story and the tests keep them: it applies each edit to

@@ -8,7 +8,7 @@ use crate::controls::{IconButton, TooltipExt as _};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Divider, FocusRing};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// An options bar's sizes and colours, from [`OptionsBar::style`].
@@ -317,19 +317,22 @@ fn reveal_focused_control(ui: &Ui, outset: f32) {
 pub const COMPONENTS: &[&str] = &["OptionsBar"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "patterns/options-bar/brush-and-transform",
-        level: Level::Patterns,
-        component: "OptionsBar",
-        name: "Brush and transform",
-        args: || {
-            Args::new()
-                .with_bool("narrow", false)
-                .with_bool("session", true)
-                .with_bool("disabled", false)
-                .with_bool("two_rows", false)
-                .with_number("width", 640.0, 160.0, 1200.0)
-        },
-        show: super::options_cell::show_story,
-    }]
+    vec![
+        Story::new(
+            "patterns/options-bar/brush-and-transform",
+            Level::Patterns,
+            "OptionsBar",
+            "Brush and transform",
+            || {
+                Args::new()
+                    .with_bool("narrow", false)
+                    .with_bool("session", true)
+                    .with_bool("disabled", false)
+                    .with_bool("two_rows", false)
+                    .with_number("width", 640.0, 160.0, 1200.0)
+            },
+            super::options_cell::show_story,
+        )
+        .on(Surface::Chrome),
+    ]
 }

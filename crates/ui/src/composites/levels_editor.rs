@@ -722,12 +722,12 @@ pub const COMPONENTS: &[&str] = &["LevelsEditor"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/levels-editor/levels",
-            level: Level::Composites,
-            component: "LevelsEditor",
-            name: "Levels",
-            args: || {
+        Story::new(
+            "composites/levels-editor/levels",
+            Level::Composites,
+            "LevelsEditor",
+            "Levels",
+            || {
                 Args::new()
                     .with_choice("channel", &["RGB", "Red", "Green", "Blue"], 0)
                     .with_bool("histogram", true)
@@ -737,16 +737,16 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("disabled", false)
                     .with_number("width", 300.0, 120.0, 400.0)
             },
-            show: show_levels,
-        },
-        Story {
-            id: "composites/levels-editor/event-log",
-            level: Level::Composites,
-            component: "LevelsEditor",
-            name: "Event log",
-            args: || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show: show_event_log,
-        },
+            show_levels,
+        ),
+        Story::new(
+            "composites/levels-editor/event-log",
+            Level::Composites,
+            "LevelsEditor",
+            "Event log",
+            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
+            show_event_log,
+        ),
     ]
 }
 

@@ -26,12 +26,12 @@ const LOG_LEN: usize = 20;
 pub(super) const SLIDER_MAX: f32 = 100.0;
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "foundations/edit/log",
-        level: Level::Foundations,
-        component: "Edit lifecycle",
-        name: "Event log",
-        args: || {
+    vec![Story::new(
+        "foundations/edit/log",
+        Level::Foundations,
+        "Edit lifecycle",
+        "Event log",
+        || {
             Args::new()
                 .with_choice("update rate", RATES, 0)
                 .with_bool("cancellable", true)
@@ -39,7 +39,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 .with_bool("field first", false)
         },
         show,
-    }]
+    )]
 }
 
 /// The story's policy for its controls, from the `update rate`, `cancellable` and `on release

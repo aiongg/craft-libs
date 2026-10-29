@@ -17,7 +17,7 @@ use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::Handle;
 use crate::primitives::HandleShape;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
 /// The largest position of the box's reference point, in document units (PhotoCraft).
@@ -581,14 +581,17 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 pub const COMPONENTS: &[&str] = &["TransformFields"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/transform-fields/box",
-        level: Level::Composites,
-        component: "TransformFields",
-        name: "Box",
-        args: || story::args().with_bool("linked", true).with_choice("size unit", &["%", "px"], 0),
-        show: show_story,
-    }]
+    vec![
+        Story::new(
+            "composites/transform-fields/box",
+            Level::Composites,
+            "TransformFields",
+            "Box",
+            || story::args().with_bool("linked", true).with_choice("size unit", &["%", "px"], 0),
+            show_story,
+        )
+        .on(Surface::Chrome),
+    ]
 }
 
 #[cfg(test)]

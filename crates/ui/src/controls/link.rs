@@ -99,22 +99,8 @@ pub const COMPONENTS: &[&str] = &["Link"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/link/inline",
-            level: Level::Controls,
-            component: "Link",
-            name: "Inline",
-            args: || Args::new().with_text("label", "release notes"),
-            show: show_inline,
-        },
-        Story {
-            id: "controls/link/alone",
-            level: Level::Controls,
-            component: "Link",
-            name: "Alone",
-            args: || Args::new().with_text("label", "Show all shortcuts"),
-            show: show_alone,
-        },
+        Story::new("controls/link/inline", Level::Controls, "Link", "Inline", || Args::new().with_text("label", "release notes"), show_inline),
+        Story::new("controls/link/alone", Level::Controls, "Link", "Alone", || Args::new().with_text("label", "Show all shortcuts"), show_alone),
     ]
 }
 

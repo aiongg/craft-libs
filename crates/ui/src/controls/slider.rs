@@ -1006,33 +1006,33 @@ pub const COMPONENTS: &[&str] = &["Slider"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
-    let story = |id, name, show| Story { id, level: Level::Controls, component: "Slider", name, args, show };
+    let story = |id, name, show| Story::new(id, Level::Controls, "Slider", name, args, show);
     vec![
-        Story {
-            id: "controls/slider/values",
-            level: Level::Controls,
-            component: "Slider",
-            name: "Values",
-            args: || {
+        Story::new(
+            "controls/slider/values",
+            Level::Controls,
+            "Slider",
+            "Values",
+            || {
                 Args::new()
                     .with_choice("size", SIZE_NAMES, 1)
                     .with_bool("disabled", false)
                     .with_bool("default value (50)", false)
                     .with_bool("wheel unfocused", false)
             },
-            show: show_values,
-        },
+            show_values,
+        ),
         story("controls/slider/step", "Step", show_step),
         story("controls/slider/disabled", "Disabled", show_disabled),
         story("controls/slider/right-to-left", "Right to left", show_right_to_left),
-        Story {
-            id: "controls/slider/event-log",
-            level: Level::Controls,
-            component: "Slider",
-            name: "Event log",
-            args: || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show: show_event_log,
-        },
+        Story::new(
+            "controls/slider/event-log",
+            Level::Controls,
+            "Slider",
+            "Event log",
+            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
+            show_event_log,
+        ),
     ]
 }
 

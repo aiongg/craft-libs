@@ -184,8 +184,8 @@ pub const COMPONENTS: &[&str] = &["Switch"];
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1);
     vec![
-        Story { id: "controls/switch/states", level: Level::Controls, component: "Switch", name: "States", args, show: show_states },
-        Story { id: "controls/switch/settings", level: Level::Controls, component: "Switch", name: "Settings", args, show: show_settings },
+        Story::new("controls/switch/states", Level::Controls, "Switch", "States", args, show_states),
+        Story::new("controls/switch/settings", Level::Controls, "Switch", "Settings", args, show_settings),
     ]
 }
 

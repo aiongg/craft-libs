@@ -57,3 +57,25 @@ fn colors_and_shadow_come_from_the_component_tokens() {
         assert_ne!(look.floating_shadow, Shadow::NONE);
     });
 }
+
+/// A panel body outside a dock area puts its first control at the margin inside the dock's edge,
+/// and stacks controls `body_gap` apart.
+#[test]
+fn a_panel_body_puts_its_content_at_the_margin_and_spaces_it_by_body_gap() {
+    let ctx = Context::default();
+    let mut found = None;
+    let mut output = ctx.run_ui(Default::default(), |ui| {
+        let look = DockLook::of(ui);
+        let margin = egui::Margin::same(10);
+        let body = look.panel_body(ui, margin, |ui| {
+            let first = ui.label("one").rect;
+            let second = ui.label("two").rect;
+            (first, second)
+        });
+        found = Some((look, body.response.rect, body.inner));
+    });
+    output.textures_delta.clear();
+    let (look, body, (first, second)) = found.unwrap();
+    assert_eq!(first.min, body.min + egui::vec2(look.border.width + 10.0, look.border.width + 10.0));
+    assert_eq!(second.top() - first.bottom(), look.body_gap);
+}

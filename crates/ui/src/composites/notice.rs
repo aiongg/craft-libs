@@ -165,14 +165,14 @@ pub(super) fn tone_icon(ui: &mut Ui, tone: Tone, size: IconSize, line_height: f3
 pub const COMPONENTS: &[&str] = &["Notice"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/notice/tones",
-        level: Level::Composites,
-        component: "Notice",
-        name: "Tones",
-        args: || Args::new().with_bool("announce", true).with_bool("title", true).with_number("width", 320.0, 120.0, 480.0),
-        show: show_tones,
-    }]
+    vec![Story::new(
+        "composites/notice/tones",
+        Level::Composites,
+        "Notice",
+        "Tones",
+        || Args::new().with_bool("announce", true).with_bool("title", true).with_number("width", 320.0, 120.0, 480.0),
+        show_tones,
+    )]
 }
 
 /// The five tones on the panel and on a dialog surface.

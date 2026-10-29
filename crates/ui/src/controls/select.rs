@@ -48,14 +48,19 @@ pub struct ListboxStyle {
     /// `listbox.label` and `listbox.group_label`.
     pub label: TypeRole,
     pub group_label: TypeRole,
-    /// Corners of the active row's fill: `listbox.radius`.
+    /// Corners of a row's fill: `listbox.radius`.
     pub radius: CornerRadius,
     /// `listbox.text.rest` and `listbox.text.disabled`.
     pub text: Color32,
     pub text_disabled: Color32,
-    /// `listbox.active.fill` and `listbox.active.text`: the active row and the chosen option.
+    /// `listbox.active.fill`, `.text` and `.border`: the active row.
     pub active_fill: Color32,
     pub active_text: Color32,
+    pub active_border: Color32,
+    /// `listbox.chosen.fill`, `.text` and `.border`: the chosen option, active or not.
+    pub chosen_fill: Color32,
+    pub chosen_text: Color32,
+    pub chosen_border: Color32,
     /// `listbox.mark`, `listbox.group` and `listbox.separator`.
     pub mark: Color32,
     pub group: Color32,
@@ -539,6 +544,10 @@ impl Select<'static, ()> {
                 text_disabled: l.text.disabled.to_egui(),
                 active_fill: l.active_fill.to_egui(),
                 active_text: l.active_text.to_egui(),
+                active_border: l.active_border.to_egui(),
+                chosen_fill: l.chosen_fill.to_egui(),
+                chosen_text: l.chosen_text.to_egui(),
+                chosen_border: l.chosen_border.to_egui(),
                 mark: l.mark.to_egui(),
                 group: l.group.to_egui(),
                 separator: l.separator.to_egui(),
@@ -1257,30 +1266,30 @@ pub const COMPONENTS: &[&str] = &["Select"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/select/states",
-            level: Level::Controls,
-            component: "Select",
-            name: "States",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
-            show: show_states,
-        },
-        Story {
-            id: "controls/select/wheel-steps",
-            level: Level::Controls,
-            component: "Select",
-            name: "Wheel steps",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
-            show: show_wheel_steps,
-        },
-        Story {
-            id: "controls/select/searchable",
-            level: Level::Controls,
-            component: "Select",
-            name: "Searchable",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show: show_searchable,
-        },
+        Story::new(
+            "controls/select/states",
+            Level::Controls,
+            "Select",
+            "States",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
+            show_states,
+        ),
+        Story::new(
+            "controls/select/wheel-steps",
+            Level::Controls,
+            "Select",
+            "Wheel steps",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
+            show_wheel_steps,
+        ),
+        Story::new(
+            "controls/select/searchable",
+            Level::Controls,
+            "Select",
+            "Searchable",
+            || Args::new().with_choice("size", SIZE_NAMES, 1),
+            show_searchable,
+        ),
     ]
 }
 

@@ -1215,12 +1215,12 @@ pub const COMPONENTS: &[&str] = &["CurveEditor"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/curve-editor/curves",
-            level: Level::Composites,
-            component: "CurveEditor",
-            name: "Curves",
-            args: || {
+        Story::new(
+            "composites/curve-editor/curves",
+            Level::Composites,
+            "CurveEditor",
+            "Curves",
+            || {
                 Args::new()
                     .with_choice("channel", &["RGB", "Red", "Green", "Blue"], 0)
                     .with_bool("pencil", false)
@@ -1232,24 +1232,10 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("cancellable", true)
                     .with_bool("on release only", false)
             },
-            show: show_curves,
-        },
-        Story {
-            id: "composites/curve-editor/small",
-            level: Level::Composites,
-            component: "CurveEditor",
-            name: "Small",
-            args: Args::new,
-            show: show_small,
-        },
-        Story {
-            id: "composites/curve-editor/corners",
-            level: Level::Composites,
-            component: "CurveEditor",
-            name: "Corners",
-            args: Args::new,
-            show: show_corners,
-        },
+            show_curves,
+        ),
+        Story::new("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", Args::new, show_small),
+        Story::new("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", Args::new, show_corners),
     ]
 }
 

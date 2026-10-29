@@ -1185,26 +1185,26 @@ const LOCALES: &[&str] = &["en", "de", "ar-EG"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0);
-    let story = |id, name, show| Story { id, level: Level::Controls, component: "Number field", name, args, show };
+    let story = |id, name, show| Story::new(id, Level::Controls, "Number field", name, args, show);
     vec![
-        Story {
-            id: "controls/number-field/states",
-            level: Level::Controls,
-            component: "Number field",
-            name: "States",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0).with_bool("edit menu", true),
-            show: show_states,
-        },
+        Story::new(
+            "controls/number-field/states",
+            Level::Controls,
+            "Number field",
+            "States",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0).with_bool("edit menu", true),
+            show_states,
+        ),
         story("controls/number-field/scrub", "Scrub", show_scrub),
         story("controls/number-field/right-to-left", "Right to left", show_right_to_left),
-        Story {
-            id: "controls/number-field/event-log",
-            level: Level::Controls,
-            component: "Number field",
-            name: "Event log",
-            args: || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show: show_event_log,
-        },
+        Story::new(
+            "controls/number-field/event-log",
+            Level::Controls,
+            "Number field",
+            "Event log",
+            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
+            show_event_log,
+        ),
     ]
 }
 

@@ -110,7 +110,7 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
-            assert_eq!(pairs.len(), 6, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -471,7 +471,8 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
                 continue;
             }
             assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
-            assert_eq!((c.listbox.active_fill, c.listbox.active_text), (navy, white));
+            assert_eq!((c.listbox.chosen_fill, c.listbox.chosen_text), (navy, white));
+            assert_eq!(c.listbox.active_border, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((c.button.secondary.fill.rest, c.button.secondary.fill.hover), (white, t.color(ColorToken::StateHover)));
             assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
@@ -662,7 +663,7 @@ fn buttons_follow_photocraft() {
 
 /// Popups are PhotoCraft's card (`t.card`, `t.card_border`) with its `popup_shadow` (`theme.rs:1037`):
 /// 6 points down, 20 blur, black at the alpha of `Tokens::shadow` per theme and mode. Menus and
-/// dropdown rows are square with 10 point side padding, and the active row is the accent.
+/// dropdown rows have 10 point side padding, menu rows are square, and the active row is the accent.
 #[test]
 fn popups_and_their_rows_follow_photocraft() {
     // (theme, mode, PhotoCraft's shadow alpha)
@@ -691,9 +692,56 @@ fn popups_and_their_rows_follow_photocraft() {
         assert_eq!((popup.fill, popup.border), (t.color(ColorToken::SurfacePanel), t.color(ColorToken::LineBorder)), "{who}");
         assert_eq!(popup.shadow, Rgba([0, 0, 0, alpha]), "{who}");
         assert_eq!((t.elevation.popup.offset, t.elevation.popup.blur), ([0.0, 6.0], 20.0), "{who}");
-        assert_eq!((l.pad_x, l.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
+        assert_eq!((l.pad_x, m.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
+        // A dropdown's lit row is PhotoCraft's stock hover; a menu's is the accent.
+        // Classic's line is the bevel's dark edge.
+        let line = if id == "craft.classic" { Rgba::rgb(0x40, 0x40, 0x40) } else { t.color(ColorToken::LineControlEdge) };
+        assert_eq!((l.active_text, l.active_border), (t.color(ColorToken::TextNormal), line), "{who}");
+        // The hover fill, moved only as far as it needs to show on the card.
+        assert!(contrast_ratio(derive::over(l.active_fill, popup.fill), popup.fill) >= 1.12 - 1e-6, "{who}");
         if id != "craft.classic" {
-            assert_eq!((l.active_fill, m.active_fill), (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentSolid)), "{who}");
+            assert_eq!(m.active_fill, t.color(ColorToken::AccentSolid), "{who}");
+        }
+    }
+}
+
+/// A dropdown's rows have PhotoCraft's `radius_sm` corners (`theme.rs:1043`), and its chosen row the
+/// solid accent with the on-accent text in the Pro and Classic kinds and `accent_soft` with the
+/// normal text in the others (`theme.rs:1038`). Both are theme values: Graphite has no PhotoCraft
+/// kind and follows the Pro look. High contrast moves a translucent chosen fill until it shows on the
+/// popup card, with its text readable.
+#[test]
+fn dropdown_rows_follow_photocraft_per_theme() {
+    // (theme, `radius_sm`, the chosen row is the soft accent)
+    let kinds = [
+        ("craft.artcraft", 3.0, false),
+        ("craft.pro", 3.0, false),
+        ("craft.pro-light-gray", 3.0, false),
+        ("craft.graphite", 3.0, false),
+        ("craft.classic", 0.0, false),
+        ("craft.studio", 6.0, true),
+        ("craft.adwaita", 6.0, true),
+        ("craft.breeze", 5.0, true),
+        ("craft.soft", 7.0, true),
+        ("craft.solarized-dark", 6.0, true),
+    ];
+    for (id, radius, soft) in kinds {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+        for a in appearances().into_iter().filter(|a| a.size == Size::Compact) {
+            let t = resolve(theme, a, None).tokens;
+            let who = format!("{id} {a:?}");
+            let l = &t.component.listbox;
+            assert_eq!(l.radius, radius, "{who}");
+            if a.contrast == Contrast::High {
+                // Opaque enough to identify the row, and its text reads on it.
+                let popup = t.color(ColorToken::SurfacePanel);
+                assert!(contrast_ratio(derive::over(l.chosen_fill, popup), popup) >= 4.5 - 1e-6, "{who}");
+                assert!(contrast_ratio(l.chosen_text, derive::over(l.chosen_fill, popup)) >= 7.0 - 1e-6, "{who}");
+            } else if soft {
+                assert_eq!((l.chosen_fill, l.chosen_text), (t.color(ColorToken::AccentSoft), t.color(ColorToken::TextNormal)), "{who}");
+            } else {
+                assert_eq!((l.chosen_fill, l.chosen_text), (t.color(ColorToken::AccentSolid), t.color(ColorToken::TextOnAccent)), "{who}");
+            }
         }
     }
 }
@@ -971,7 +1019,11 @@ fn high_contrast_control_edges_reach_three_to_one() {
             on_surfaces("check.off.border.rest", c.check.off.border.rest, Some(c.check.off.fill.rest));
             on_surfaces("segmented.selected.fill.rest", c.segmented.selected.fill.rest, Some(c.segmented.selected_border.rest));
             on_surfaces("line.focus", t.color(ColorToken::LineFocus), None);
-            for (name, row) in [("listbox.active.fill", c.listbox.active_fill), ("menu.active.fill", c.menu.active_fill)] {
+            for (name, row) in [
+                ("listbox.active.border", c.listbox.active_border),
+                ("listbox.chosen.fill", c.listbox.chosen_fill),
+                ("menu.active.fill", c.menu.active_fill),
+            ] {
                 let r = ratio(row, c.popup.fill);
                 assert!(r >= min, "{who}: {name} is {r:.2}:1 on popup.fill");
             }

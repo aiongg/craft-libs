@@ -19,30 +19,30 @@ use crate::theme::{Tokens, TokensOf as _, role_format};
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "composites/tab-strip/documents",
-            level: Level::Composites,
-            component: "TabStrip",
-            name: "Documents",
-            args: || Args::new().with_number("width", 640.0, 160.0, 1200.0).with_bool("large", false).with_bool("tear_off", true),
-            show: show_documents,
-        },
-        Story {
-            id: "composites/tab-strip/panels",
-            level: Level::Composites,
-            component: "TabStrip",
-            name: "Panels",
-            args: || Args::new().with_number("width", 260.0, 120.0, 480.0).with_bool("locked", false),
-            show: show_panels,
-        },
-        Story {
-            id: "composites/tab-strip/drops",
-            level: Level::Composites,
-            component: "TabStrip",
-            name: "Drops",
-            args: || Args::new().with_number("width", 480.0, 160.0, 1200.0),
-            show: show_drops,
-        },
+        Story::new(
+            "composites/tab-strip/documents",
+            Level::Composites,
+            "TabStrip",
+            "Documents",
+            || Args::new().with_number("width", 640.0, 160.0, 1200.0).with_bool("large", false).with_bool("tear_off", true),
+            show_documents,
+        ),
+        Story::new(
+            "composites/tab-strip/panels",
+            Level::Composites,
+            "TabStrip",
+            "Panels",
+            || Args::new().with_number("width", 260.0, 120.0, 480.0).with_bool("locked", false),
+            show_panels,
+        ),
+        Story::new(
+            "composites/tab-strip/drops",
+            Level::Composites,
+            "TabStrip",
+            "Drops",
+            || Args::new().with_number("width", 480.0, 160.0, 1200.0),
+            show_drops,
+        ),
     ]
 }
 

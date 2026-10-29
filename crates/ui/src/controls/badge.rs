@@ -110,15 +110,8 @@ const SAMPLES: [&str; 3] = ["Beta", "Synced", "Needs review"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story { id: "controls/badge/tones", level: Level::Controls, component: "Badge", name: "Tones", args: || Args::new(), show: show_tones },
-        Story {
-            id: "controls/badge/counts",
-            level: Level::Controls,
-            component: "Badge",
-            name: "Counts",
-            args: || Args::new().with_number("count", 7.0, 0.0, 200.0),
-            show: show_counts,
-        },
+        Story::new("controls/badge/tones", Level::Controls, "Badge", "Tones", Args::new, show_tones),
+        Story::new("controls/badge/counts", Level::Controls, "Badge", "Counts", || Args::new().with_number("count", 7.0, 0.0, 200.0), show_counts),
     ]
 }
 

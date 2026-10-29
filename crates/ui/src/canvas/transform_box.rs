@@ -12,7 +12,7 @@ use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::Unit;
 use crate::popup_list;
 use crate::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// Where a press outside the box rotates it.
@@ -845,20 +845,23 @@ fn fixed(v: f64, places: i32) -> f64 {
 pub const COMPONENTS: &[&str] = &["Transform box"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/transform-box/free-transform",
-        level: Level::Primitives,
-        component: "Transform box",
-        name: "Free transform",
-        args: || {
-            super::story::args()
-                .with_choice("mode", &["Free", "Rotate", "Skew", "Distort", "Perspective"], 0)
-                .with_choice("scale", &["Proportional", "Free"], 0)
-                .with_choice("zone", &["Outside", "Band"], 0)
-                .with_bool("readout", true)
-        },
-        show: show_transform_box,
-    }]
+    vec![
+        Story::new(
+            "primitives/transform-box/free-transform",
+            Level::Primitives,
+            "Transform box",
+            "Free transform",
+            || {
+                super::story::args()
+                    .with_choice("mode", &["Free", "Rotate", "Skew", "Distort", "Perspective"], 0)
+                    .with_choice("scale", &["Proportional", "Free"], 0)
+                    .with_choice("zone", &["Outside", "Band"], 0)
+                    .with_bool("readout", true)
+            },
+            show_transform_box,
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// The English names the stories and tests use.

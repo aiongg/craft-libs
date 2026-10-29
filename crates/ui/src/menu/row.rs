@@ -18,7 +18,7 @@ use super::mnemonic;
 use crate::controls::{Kbd, ListboxStyle, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
-use crate::theme::{ToEgui, UiTokens, role_format};
+use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
 
 /// A radio item's dot: its radius as a part of the glyph size, and the least radius (craft-menu's
 /// ● at the list box's icon size).
@@ -56,7 +56,12 @@ impl MenuStyle {
     pub(crate) fn new(tokens: &UiTokens, size: ControlSize) -> Self {
         let m = &tokens.component.menu;
         Self {
-            rows: crate::controls::Select::style(tokens, size).list,
+            rows: ListboxStyle {
+                radius: corner_radius(m.radius),
+                active_fill: m.active_fill.to_egui(),
+                active_text: m.active_text.to_egui(),
+                ..crate::controls::Select::style(tokens, size).list
+            },
             min_width: m.min_width,
             shortcut_gap: m.shortcut_gap,
             scroll_strip: m.scroll_strip,

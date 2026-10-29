@@ -39,6 +39,8 @@
     "list.layer.selected": "{state.hover}",
     "list.layer.text.selected": "{text.normal}",
     "list.selected": "{accent.soft}",
+    "listbox.chosen.fill": "{accent.soft}",
+    "listbox.chosen.text": "{text.normal}",
     "seeds": {
       "accent": "#6e80d8",
       "neutral": "#f0eef3",
@@ -78,6 +80,8 @@
     "list.layer.selected": "{state.hover}",
     "list.layer.text.selected": "{text.normal}",
     "list.selected": "{accent.soft}",
+    "listbox.chosen.fill": "{accent.soft}",
+    "listbox.chosen.text": "{text.normal}",
     "state.hover": "#444450",
     "state.pressed": "#4a4a58",
     "surface.background": "#2f2f38",
@@ -93,6 +97,7 @@
   },
   "components": {
     "button.radius": 7.0,
-    "list.thumb.radius": 5.0
+    "list.thumb.radius": 5.0,
+    "listbox.radius": 7.0
   }
 }

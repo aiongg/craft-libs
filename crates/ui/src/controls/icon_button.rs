@@ -216,24 +216,22 @@ const SAMPLES: [(Icon, &str); 5] =
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story {
-            id: "controls/icon-button/plain",
-            level: Level::Controls,
-            component: "Icon button",
-            name: "Plain",
-            args: || {
-                Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("show tooltip", true).with_bool("badge", false)
-            },
-            show: show_plain,
-        },
-        Story {
-            id: "controls/icon-button/toggle",
-            level: Level::Controls,
-            component: "Icon button",
-            name: "Toggle",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
-            show: show_toggle,
-        },
+        Story::new(
+            "controls/icon-button/plain",
+            Level::Controls,
+            "Icon button",
+            "Plain",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("show tooltip", true).with_bool("badge", false),
+            show_plain,
+        ),
+        Story::new(
+            "controls/icon-button/toggle",
+            Level::Controls,
+            "Icon button",
+            "Toggle",
+            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+            show_toggle,
+        ),
     ]
 }
 

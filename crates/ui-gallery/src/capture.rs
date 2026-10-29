@@ -1,7 +1,7 @@
 //! Renders gallery stories to PNG under a chosen appearance, without a window.
 //!
 //! The `capture` binary reads a spec: a JSON list of [`Shot`]s. Each shot draws one story the way
-//! the gallery's canvas does (canvas colour, panel padding, the story on `surface.background`)
+//! the gallery's canvas does (the story on its surface, or the shot's, in the dock colour)
 //! with `egui_kittest` and wgpu, through `craft_ui::testing`'s renderer. The faces come from
 //! `CRAFT_FONTS_DIR`, installed by [`Appearance::configure`] as in the gallery.
 
@@ -11,9 +11,9 @@ use std::path::Path;
 use std::rc::Rc;
 
 use craft_theme::{ContrastChoice, ModeChoice, Size, SystemAppearance, builtins};
-use craft_ui::story::{ArgValue, Args, Level, Story};
+use craft_ui::story::{ArgValue, Args, Level, Story, Surface};
 use craft_ui::testing::{symbols, wgpu_renderer};
-use craft_ui::theme::{Tokens, TokensOf, install};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf, install};
 use egui::accesskit::{Action, Role};
 use egui::{Pos2, Rect, Vec2};
 use egui_kittest::kittest::NodeT as _;
@@ -65,6 +65,10 @@ pub struct Shot {
     /// by the arg's kind.
     #[serde(default)]
     pub args: Map<String, Value>,
+    /// The surface the story is drawn on: `panel`, `canvas`, `chrome` or `own`; the story's own when
+    /// absent. An overview shot takes none: its tiles keep their stories' surfaces.
+    #[serde(default)]
+    pub surface: Option<String>,
     /// A built-in theme id such as `craft.artcraft`; the suite default when absent.
     #[serde(default)]
     pub theme: Option<String>,
@@ -184,6 +188,17 @@ fn story_content(shot: &Shot, component: &str, stories: &[Story]) -> Result<Cont
             }
         }
     };
+    let story = match &shot.surface {
+        None => story,
+        Some(name) => {
+            let wanted = name.to_lowercase();
+            let Some(surface) = Surface::ALL.into_iter().find(|s| s.slug() == wanted) else {
+                let names: Vec<&str> = Surface::ALL.into_iter().map(Surface::slug).collect();
+                return Err(format!("unknown surface `{name}`; surfaces: {}", names.join(", ")));
+            };
+            story.on(surface)
+        }
+    };
     let mut args = story.defaults();
     apply_args(&mut args, &shot.args)?;
     Ok(Content::Story(story, args))
@@ -193,6 +208,9 @@ fn story_content(shot: &Shot, component: &str, stories: &[Story]) -> Result<Cont
 fn overview_content(shot: &Shot, slug: &str, stories: &[Story]) -> Result<Content, String> {
     if shot.story.is_some() || !shot.args.is_empty() || shot.state.is_some() {
         return Err("an overview shot takes no `story`, `args` or `state`".to_owned());
+    }
+    if shot.surface.is_some() {
+        return Err("an overview shot takes no `surface`: its tiles keep their stories' surfaces".to_owned());
     }
     let wanted = slug.to_lowercase();
     let Some(level) = Level::ALL.into_iter().find(|l| l.slug() == wanted) else {
@@ -306,7 +324,10 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
     let mut harness = builder.build_ui_state(
         move |ui, args: &mut HashMap<String, Args>| {
             install(ui.ctx(), &base);
-            let frame = canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+            let tokens = Tokens::of(ui);
+            // The harness leaves a transparent margin around its panel; the image is all dock colour.
+            ui.painter().rect_filled(ui.ctx().content_rect(), 0.0, tokens.color.surface.background.to_egui());
+            let frame = canvas_frame(&tokens).show(ui, |ui| {
                 if fixed.is_some() {
                     ui.set_min_size(ui.available_size());
                 }

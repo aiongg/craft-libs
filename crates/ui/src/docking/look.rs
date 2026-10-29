@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 
 use craft_theme::TypeRole;
-use egui::{Color32, CornerRadius, FontId, Shadow, Stroke, Ui, Visuals};
+use egui::{Color32, CornerRadius, FontId, Frame, InnerResponse, Margin, Shadow, Stroke, Ui, Visuals};
 
 use super::{DockConfig, DockStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
@@ -97,6 +97,21 @@ pub struct DockLook {
 }
 
 impl DockLook {
+    /// Draws `add` as the body of a panel outside a dock area: the dock's body fill and edge, the
+    /// dock's `body_gap` between stacked controls, and `margin` around the content (a dock area
+    /// draws bodies edge to edge and leaves the margin to the panel's content).
+    pub fn panel_body<R>(&self, ui: &mut Ui, margin: Margin, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+        Frame::new().fill(self.background).stroke(self.border).inner_margin(margin).show(ui, |ui| {
+            self.space_body(ui);
+            add(ui)
+        })
+    }
+
+    /// Sets the spacing between the controls of a panel body.
+    pub(super) fn space_body(&self, ui: &mut Ui) {
+        ui.spacing_mut().item_spacing.y = self.body_gap;
+    }
+
     /// The look of the `ui`'s theme.
     pub fn of(ui: &Ui) -> Self {
         Self::from_tokens(&Tokens::of(ui))

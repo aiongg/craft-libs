@@ -385,8 +385,8 @@ const OPTIONS: [&str; 5] = ["Pixels", "Millimetres", "Inches", "Points", "Picas"
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     vec![
-        Story { id: "controls/radio/states", level: Level::Controls, component: "Radio", name: "States", args, show: show_states },
-        Story { id: "controls/radio/groups", level: Level::Controls, component: "Radio", name: "Groups", args, show: show_groups },
+        Story::new("controls/radio/states", Level::Controls, "Radio", "States", args, show_states),
+        Story::new("controls/radio/groups", Level::Controls, "Radio", "Groups", args, show_groups),
     ]
 }
 

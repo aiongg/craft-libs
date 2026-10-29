@@ -8,7 +8,7 @@ use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// A panel footer's bar, rule and buttons, from [`PanelFooter::style`].
@@ -100,7 +100,7 @@ pub const COMPONENTS: &[&str] = &["PanelFooter"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_number("width", 240.0, 60.0, 400.0);
-    vec![Story { id: "composites/panel-footer/layers", level: Level::Composites, component: "PanelFooter", name: "Layers", args, show: show_layers }]
+    vec![Story::new("composites/panel-footer/layers", Level::Composites, "PanelFooter", "Layers", args, show_layers).on(Surface::Own)]
 }
 
 /// The height of the story's panel.

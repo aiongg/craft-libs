@@ -603,31 +603,17 @@ pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Layer name").with_bool("edit menu", true);
     let search_args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Search");
     vec![
-        Story { id: "controls/text-field/states", level: Level::Controls, component: "Text field", name: "States", args, show: show_states },
-        Story {
-            id: "controls/text-field/event-log",
-            level: Level::Controls,
-            component: "Text field",
-            name: "Event log",
-            args: || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show: show_event_log,
-        },
-        Story {
-            id: "controls/search-field/states",
-            level: Level::Controls,
-            component: "Search field",
-            name: "States",
-            args: search_args,
-            show: show_search_states,
-        },
-        Story {
-            id: "controls/search-field/filter",
-            level: Level::Controls,
-            component: "Search field",
-            name: "Filter",
-            args: search_args,
-            show: show_filter,
-        },
+        Story::new("controls/text-field/states", Level::Controls, "Text field", "States", args, show_states),
+        Story::new(
+            "controls/text-field/event-log",
+            Level::Controls,
+            "Text field",
+            "Event log",
+            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
+            show_event_log,
+        ),
+        Story::new("controls/search-field/states", Level::Controls, "Search field", "States", search_args, show_search_states),
+        Story::new("controls/search-field/filter", Level::Controls, "Search field", "Filter", search_args, show_filter),
     ]
 }
 

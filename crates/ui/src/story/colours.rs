@@ -13,14 +13,7 @@ pub(super) const GROUPS: &[&str] = &["all", "surface", "text", "line", "accent",
 pub const COMPONENTS: &[&str] = &["Colours"];
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "foundations/colours/semantic",
-        level: Level::Foundations,
-        component: "Colours",
-        name: "Semantic",
-        args: || Args::new().with_choice("group", GROUPS, 0),
-        show,
-    }]
+    vec![Story::new("foundations/colours/semantic", Level::Foundations, "Colours", "Semantic", || Args::new().with_choice("group", GROUPS, 0), show)]
 }
 
 fn show(ui: &mut Ui, args: &mut Args) {

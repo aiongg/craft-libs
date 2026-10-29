@@ -10,14 +10,7 @@ use crate::ComboBox;
 pub const COMPONENTS: &[&str] = &["Stock egui"];
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "foundations/stock-egui/widgets",
-        level: Level::Foundations,
-        component: "Stock egui",
-        name: "Widgets",
-        args: || Args::new().with_bool("enabled", true),
-        show,
-    }]
+    vec![Story::new("foundations/stock-egui/widgets", Level::Foundations, "Stock egui", "Widgets", || Args::new().with_bool("enabled", true), show)]
 }
 
 /// A value that lives in the context between frames, keyed under `ui`.

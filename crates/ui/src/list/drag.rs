@@ -64,31 +64,10 @@ pub(super) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, 
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story { id: "composites/list/reorder", level: Level::Composites, component: "List", name: "Reorder", args: Args::new, show: show_flat },
-        Story {
-            id: "composites/list/reorder-tree",
-            level: Level::Composites,
-            component: "List",
-            name: "Reorder a tree",
-            args: Args::new,
-            show: show_tree,
-        },
-        Story {
-            id: "composites/list/reorder-refused",
-            level: Level::Composites,
-            component: "List",
-            name: "Refused targets",
-            args: Args::new,
-            show: show_refused,
-        },
-        Story {
-            id: "composites/list/reorder-copy",
-            level: Level::Composites,
-            component: "List",
-            name: "Copy with Alt",
-            args: Args::new,
-            show: show_copy,
-        },
+        Story::new("composites/list/reorder", Level::Composites, "List", "Reorder", Args::new, show_flat),
+        Story::new("composites/list/reorder-tree", Level::Composites, "List", "Reorder a tree", Args::new, show_tree),
+        Story::new("composites/list/reorder-refused", Level::Composites, "List", "Refused targets", Args::new, show_refused),
+        Story::new("composites/list/reorder-copy", Level::Composites, "List", "Copy with Alt", Args::new, show_copy),
     ]
 }
 

@@ -140,14 +140,7 @@ impl StateLayer {
 pub const COMPONENTS: &[&str] = &["State layer"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/state-layer/states",
-        level: Level::Primitives,
-        component: "State layer",
-        name: "States",
-        args: || Args::new().with_bool("disabled", false),
-        show,
-    }]
+    vec![Story::new("primitives/state-layer/states", Level::Primitives, "State layer", "States", || Args::new().with_bool("disabled", false), show)]
 }
 
 /// The rest, hover and pressed fills side by side, then live ones without and with a surface.

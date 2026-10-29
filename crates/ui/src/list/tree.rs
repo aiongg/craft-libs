@@ -328,14 +328,14 @@ pub(super) fn display(nodes: &[(&str, usize)], open: &TreeState) -> Vec<crate::b
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
     use crate::story::{Args, Level, Story};
-    vec![Story {
-        id: "composites/list/tree",
-        level: Level::Composites,
-        component: "TreeRow",
-        name: "Layer groups",
-        args: || Args::new().with_number("width", 320.0, 120.0, 480.0).with_number("height", 280.0, 120.0, 480.0),
-        show: show_tree,
-    }]
+    vec![Story::new(
+        "composites/list/tree",
+        Level::Composites,
+        "TreeRow",
+        "Layer groups",
+        || Args::new().with_number("width", 320.0, 120.0, 480.0).with_number("height", 280.0, 120.0, 480.0),
+        show_tree,
+    )]
 }
 
 /// A layers tree: ↑ and ↓ move through the rows shown, → opens a closed group or enters an open

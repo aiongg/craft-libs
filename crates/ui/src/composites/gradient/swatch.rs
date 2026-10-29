@@ -108,14 +108,14 @@ impl<'a> GradientSwatch<'a> {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "composites/gradient/swatch",
-        level: Level::Composites,
-        component: "GradientSwatch",
-        name: "Swatch and ramp",
-        args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_number("width", 96.0, 24.0, 300.0).with_bool("enabled", true),
-        show: show_swatch,
-    }]
+    vec![Story::new(
+        "composites/gradient/swatch",
+        Level::Composites,
+        "GradientSwatch",
+        "Swatch and ramp",
+        || Args::new().with_choice("size", SIZE_NAMES, 1).with_number("width", 96.0, 24.0, 300.0).with_bool("enabled", true),
+        show_swatch,
+    )]
 }
 
 fn show_swatch(ui: &mut Ui, args: &mut Args) {

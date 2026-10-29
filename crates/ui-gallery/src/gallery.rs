@@ -8,17 +8,19 @@ use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
 use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
-use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
+use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
 use craft_ui::inspect;
 use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
-use craft_ui::story::{ArgValue, Args, Level, Story, registry};
+use craft_ui::story::{ArgValue, Args, Level, Story, Surface, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::epaint::RectShape;
-use egui::{Align, CentralPanel, Frame, Panel, Rect, ScrollArea, Sense, Shape, Ui, UiBuilder, Widget as _, pos2};
+use egui::{
+    Align, CentralPanel, Color32, Frame, Margin, Panel, Rect, ScrollArea, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Widget as _, pos2,
+};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -482,7 +484,7 @@ impl Gallery {
         }
     }
 
-    /// The story, or the grid of appearances while compare is on, on the canvas colour.
+    /// The story, or the grid of appearances while compare is on, each on its surface in the dock colour.
     fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
         let Some(story) = self.current() else {
             canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
@@ -510,7 +512,7 @@ impl Gallery {
         });
     }
 
-    /// Every component of one level, on the canvas colour: the level follows the selected
+    /// Every component of one level, each tile on its story's surface: the level follows the selected
     /// story. Each tile draws the component's default story; its name opens the Component view.
     fn overview_view(&mut self, ui: &mut Ui) {
         let nav = nav(&self.stories, &self.filter.to_lowercase());
@@ -769,12 +771,57 @@ fn set_zoom(ctx: &egui::Context, zoom: f32) {
     ctx.set_zoom_factor(zoom);
 }
 
-/// The canvas colour with the panel padding around what it holds.
+/// The dock colour with the panel padding around what a view holds.
 pub(crate) fn canvas_frame(tokens: &Tokens) -> Frame {
-    Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(margin(tokens.space.pad.panel))
+    Frame::new().fill(tokens.color.surface.background.to_egui()).inner_margin(margin(tokens.space.pad.panel))
 }
 
-/// The story on `surface.background` under the bar's appearance.
+/// How a story is framed: the fill and edge of its surface, and the margin round the story.
+pub(crate) struct StoryFrame {
+    fill: Option<Color32>,
+    edge: Stroke,
+    margin: Margin,
+    /// The gap between stacked controls, when the surface is a panel body.
+    body_gap: Option<f32>,
+}
+
+impl StoryFrame {
+    /// The frame of `surface` under `ui`'s theme. A panel is a dock panel body with its margin and
+    /// item spacing, edge and fill from [`DockLook`]; canvas and chrome are their surface colours
+    /// with the dock's edge; an own surface adds nothing.
+    pub(crate) fn of(ui: &Ui, surface: Surface) -> Self {
+        let tokens = Tokens::of(ui);
+        let look = DockLook::of(ui);
+        let surfaces = &tokens.color.surface;
+        let bar = |fill: Color32| Self { fill: Some(fill), edge: look.border, margin: margin(tokens.space.pad.dialog), body_gap: None };
+        match surface {
+            Surface::Panel => {
+                Self { fill: Some(look.background), edge: look.border, margin: margin(tokens.space.pad.panel), body_gap: Some(look.body_gap) }
+            }
+            Surface::Canvas => bar(surfaces.canvas.to_egui()),
+            Surface::Chrome => bar(surfaces.chrome.to_egui()),
+            Surface::Own => Self { fill: None, edge: Stroke::NONE, margin: margin(tokens.space.pad.dialog), body_gap: None },
+        }
+    }
+
+    /// The frame to show the story in.
+    fn frame(&self) -> Frame {
+        let frame = Frame::new().inner_margin(self.margin);
+        match self.fill {
+            Some(fill) => frame.fill(fill).stroke(self.edge),
+            None => frame,
+        }
+    }
+
+    /// Applies the surface's item spacing to the story's `ui`.
+    fn space(&self, ui: &mut Ui) {
+        if let Some(gap) = self.body_gap {
+            ui.spacing_mut().item_spacing.y = gap;
+        }
+    }
+}
+
+/// The story on its surface under the bar's appearance.
 pub(crate) fn canvas(
     ui: &mut Ui,
     story: &Story,
@@ -795,9 +842,10 @@ pub(crate) fn canvas(
 /// The story in its frame, with the inspector over it when there is one.
 fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);
-    let fill = tokens.color.surface.background.to_egui();
-    let framed = Frame::new().fill(fill).inner_margin(margin(tokens.space.pad.dialog)).show(ui, |ui| {
+    let surface = StoryFrame::of(ui, story.surface);
+    let framed = surface.frame().show(ui, |ui| {
         ui.set_min_width(ui.available_width());
+        surface.space(ui);
         ui.push_id(story.id, |ui| {
             (story.show)(ui, args);
             ui.unique_id()
@@ -840,8 +888,6 @@ pub(crate) fn overview(
     scope(ui, overrides, |ui| {
         let tokens = Tokens::of(ui);
         let gap = tokens.space.gap.section;
-        let pad = margin(tokens.space.pad.dialog);
-        let fill = tokens.color.surface.background.to_egui();
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
         let columns = if width >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
@@ -858,7 +904,9 @@ pub(crate) fn overview(
                 let slot = ui.painter().add(Shape::Noop);
                 let mut cell =
                     ui.new_child(UiBuilder::new().id_salt(story.id).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))));
-                let used = Frame::new().inner_margin(pad).show(&mut cell, |ui| {
+                let surface = StoryFrame::of(&cell, story.surface);
+                let used = Frame::new().inner_margin(surface.margin).show(&mut cell, |ui| {
+                    surface.space(ui);
                     ui.set_min_width(ui.available_width());
                     if Link::new(story.component).role(TypeRole::Heading).id_salt(("tile", story.id)).ui(ui).clicked() {
                         opened = Some(story.component);
@@ -873,10 +921,13 @@ pub(crate) fn overview(
                     *scroll_to = None;
                 }
                 bottom = bottom.max(used.response.rect.bottom());
-                placed.push((slot, x));
+                placed.push((slot, x, surface));
             }
-            for (slot, x) in placed {
-                ui.painter().set(slot, Shape::Rect(RectShape::filled(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom)), 0.0, fill)));
+            for (slot, x, surface) in placed {
+                if let Some(fill) = surface.fill {
+                    let rect = Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom));
+                    ui.painter().set(slot, Shape::Rect(RectShape::new(rect, 0.0, fill, surface.edge, StrokeKind::Inside)));
+                }
             }
             ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());
             ui.add_space(gap);

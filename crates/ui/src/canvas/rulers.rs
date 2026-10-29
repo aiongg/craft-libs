@@ -14,7 +14,7 @@ use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// A top-ruler label sits this far below the strip's top edge (PhotoCraft).
@@ -486,14 +486,17 @@ pub const COMPONENTS: &[&str] = &["Rulers"];
 const UNIT_NAMES: &[&str] = &["Pixels", "Millimetres", "Inches"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "primitives/rulers/canvas",
-        level: Level::Primitives,
-        component: "Rulers",
-        name: "Canvas",
-        args: || super::story::args().with_choice("units", UNIT_NAMES, 0).with_bool("interactive", true).with_bool("locked", false),
-        show: show_canvas,
-    }]
+    vec![
+        Story::new(
+            "primitives/rulers/canvas",
+            Level::Primitives,
+            "Rulers",
+            "Canvas",
+            || super::story::args().with_choice("units", UNIT_NAMES, 0).with_bool("interactive", true).with_bool("locked", false),
+            show_canvas,
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// A ruler menu's commands in the story.

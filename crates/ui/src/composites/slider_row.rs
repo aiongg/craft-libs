@@ -258,14 +258,7 @@ pub const COMPONENTS: &[&str] = &["SliderRow"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_bool("disabled", false).with_number("width", 260.0, 120.0, 400.0);
-    vec![Story {
-        id: "composites/slider-row/adjustments",
-        level: Level::Composites,
-        component: "SliderRow",
-        name: "Adjustments",
-        args,
-        show: show_adjustments,
-    }]
+    vec![Story::new("composites/slider-row/adjustments", Level::Composites, "SliderRow", "Adjustments", args, show_adjustments)]
 }
 
 /// Opacity in percent, Exposure with two places, a gradient Hue row and an Amount row, in a

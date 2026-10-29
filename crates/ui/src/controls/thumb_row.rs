@@ -991,14 +991,7 @@ fn paint_triangle(ui: &Ui, style: &ThumbRowStyle, tip: Pos2, half: Option<Half>,
 pub const COMPONENTS: &[&str] = &["Thumb row"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story {
-        id: "controls/thumb-row/rows",
-        level: Level::Controls,
-        component: "Thumb row",
-        name: "Rows",
-        args: || Args::new().with_bool("disabled", false),
-        show,
-    }]
+    vec![Story::new("controls/thumb-row/rows", Level::Controls, "Thumb row", "Rows", || Args::new().with_bool("disabled", false), show)]
 }
 
 /// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), a
