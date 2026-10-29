@@ -5,10 +5,11 @@ use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, CornerRadius, CursorIcon, Id, Layout, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
-use super::{ColorPicker, Edits, Inner, Picked, channel_name, texts, unit_of};
+use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
 use crate::controls::{Button, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
 use crate::direction;
+use crate::edit::ops;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Gap, Interactive, Stack, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, role_format};
@@ -80,11 +81,9 @@ impl ColorPicker<'_> {
         id: Id,
         mode: &mut AreaMode,
         models: &[&dyn ColorModel],
-        shown: &Picked,
         inner: Inner,
         translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        edits: &mut Edits,
+        parts: &mut Parts<'_>,
     ) -> bool {
         let tokens = Tokens::of(ui);
         let style = ColorArea::style(&tokens);
@@ -109,9 +108,9 @@ impl ColorPicker<'_> {
             ui.allocate_ui_with_layout(vec2(side, 0.0), Layout::top_down_justified(Align::Min), |ui| {
                 ui.set_width(side);
                 let visible: Vec<&dyn ColorModel> = models.iter().copied().chain([mode.model()]).collect();
-                self.area_and_strip(ui, mode, &visible, shown, inner, translate, constrain, edits, Vec2::splat(style.area), style.strip_full);
+                self.area_and_strip(ui, mode, &visible, inner, translate, parts, Vec2::splat(style.area), style.strip_full);
                 if self.alpha {
-                    self.alpha_row(ui, shown, inner, translate, constrain, edits);
+                    self.alpha_row(ui, inner, translate, parts);
                 }
                 if let Some(label) = &self.eyedropper {
                     ui.with_layout(direction::column(ui), |ui| {
@@ -125,16 +124,16 @@ impl ColorPicker<'_> {
                 if self.compare.is_some() || !self.warnings.is_empty() {
                     top_row(ui, gap, |ui| {
                         if let Some(current) = self.compare {
-                            compare(ui, &tokens, current, shown, inner.enabled, translate, edits);
+                            compare(ui, &tokens, current, inner.enabled, translate, parts);
                         }
                         Stack::new(Gap::Stack).show(ui, |ui| {
                             for (i, warning) in self.warnings.iter().enumerate() {
-                                show_warning(ui, &tokens, i, warning, inner.enabled, edits);
+                                show_warning(ui, &tokens, i, warning, inner.enabled, parts);
                             }
                         });
                     });
                 }
-                self.grid(ui, id, &mut radios, &offered, models, shown, inner, translate, constrain, edits);
+                self.grid(ui, id, &mut radios, &offered, models, inner, translate, parts);
             });
         });
         let _ = radios.end(ui);
@@ -152,11 +151,9 @@ impl ColorPicker<'_> {
         radios: &mut PreparedRadioSet<AreaMode>,
         offered: &[AreaMode],
         models: &[&dyn ColorModel],
-        shown: &Picked,
         inner: Inner,
         translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        edits: &mut Edits,
+        parts: &mut Parts<'_>,
     ) {
         let tokens = Tokens::of(ui);
         let radio = RadioGroup::style(&tokens, ControlSize::Md);
@@ -186,8 +183,8 @@ impl ColorPicker<'_> {
                         if g > 0 {
                             ui.add_space(gap);
                         }
-                        let (_, exact) = shown.values_in(*model);
                         for (i, (ch, label)) in model.channels().iter().zip(labels).enumerate() {
+                            let value = parts.value().values_in(*model).1[i];
                             let name = channel_name(*model, i, models, translate);
                             let index = offered.iter().position(|m| m.model().id() == model.id() && m.strip() == i);
                             let edit = channel_row(
@@ -206,7 +203,7 @@ impl ColorPicker<'_> {
                                     }
                                 },
                                 |ui| {
-                                    NumberField::new(("full", model.id(), i), &name, exact[i], self.numbers)
+                                    NumberField::new(("full", model.id(), i), &name, value, self.numbers)
                                         .range(f64::from(ch.min)..=f64::from(ch.max))
                                         .step(f64::from(ch.step))
                                         .decimals(0..=usize::from(ch.decimals))
@@ -217,7 +214,10 @@ impl ColorPicker<'_> {
                                         .show(ui)
                                 },
                             );
-                            edits.typing_mapped(ui.ctx(), &edit, |x| shown.with_channel(*model, i, x, constrain));
+                            let constrain = parts.constrain;
+                            let ops = ops::take(ui.ctx(), edit.response.id);
+                            let ops = ops.into_iter().map(|op| PickerOp::Channel { model: model.id(), i, part: RowPart::Field, op });
+                            parts.typing(&edit, ops, |x, now| now.with_channel(*model, i, x, constrain));
                         }
                     }
                     if c == 0 {
@@ -232,7 +232,7 @@ impl ColorPicker<'_> {
                                 ui.add_space(radio.diameter + radio.gap);
                                 ui.add(Text::new("#").role(TypeRole::Mono).content(Content::Muted));
                             },
-                            |ui| self.hex_field(ui, id, hex_width, shown, translate, constrain, inner.enabled, edits),
+                            |ui| self.hex_field(ui, id, hex_width, translate, inner.enabled, parts),
                         );
                     }
                 });
@@ -254,8 +254,9 @@ fn channel_row<R>(ui: &mut Ui, cell: f32, width: f32, height: f32, gap: f32, lab
 
 /// The compare swatch: the colour being edited ("new") over `current`, with their captions; a
 /// click on `current` sets it.
-fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabled: bool, translate: &dyn Fn(&str) -> String, edits: &mut Edits) {
+fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, enabled: bool, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
     let t = &tokens.component.color_picker;
+    let new = parts.value().color;
     let swatch = Swatch::style(tokens, ControlSize::Md);
     ui.allocate_ui_with_layout(vec2(t.compare_width, 0.0), Layout::top_down(Align::Center), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
@@ -264,7 +265,7 @@ fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabl
         let (new_rect, current_rect) = (rect.split_top_bottom_at_fraction(0.5).0, rect.split_top_bottom_at_fraction(0.5).1);
         let _ = Interactive::new("compare-new", Role::Image, translate(texts::NEW_COLOUR))
             .sense(Sense::hover())
-            .value(Swatch::hex(shown.color.to_rgba()))
+            .value(Swatch::hex(new.to_rgba()))
             .interact_at(ui, new_rect)
             .finish(ui);
         let restore = translate(texts::RESTORE);
@@ -276,7 +277,7 @@ fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabl
             .finish(ui);
         if ui.is_rect_visible(rect) {
             let mut shapes = Vec::new();
-            fill(&mut shapes, &swatch, new_rect, shown.color);
+            fill(&mut shapes, &swatch, new_rect, new);
             fill(&mut shapes, &swatch, current_rect, current);
             let edge = if enabled { swatch.edge } else { swatch.edge.gamma_multiply(0.5) };
             shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(rect, CornerRadius::ZERO, Stroke::new(1.0, edge), StrokeKind::Outside)));
@@ -284,7 +285,7 @@ fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, shown: &Picked, enabl
         }
         let response = response.tooltip(restore);
         if response.clicked() {
-            edits.input(super::Input::Click(current));
+            parts.edits.input(super::Input::Click(current));
         }
         if enabled {
             let _ = response.on_hover_cursor(CursorIcon::PointingHand);
@@ -312,7 +313,7 @@ fn fill(shapes: &mut Vec<Shape>, swatch: &SwatchStyle, rect: Rect, color: Srgba)
 }
 
 /// A warning: its icon over a chip of its colour, one button; a click sets the colour.
-fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWarning, enabled: bool, edits: &mut Edits) {
+fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWarning, enabled: bool, parts: &mut Parts<'_>) {
     let t = &tokens.component.color_picker;
     let gap = Gap::Inline.points(tokens);
     let size = vec2(t.warning_icon.max(t.warning_chip), t.warning_icon + gap + t.warning_chip);
@@ -337,7 +338,7 @@ fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWar
     }
     let response = response.tooltip(warning.tip.as_str());
     if response.clicked() {
-        edits.input(super::Input::Click(warning.nearest));
+        parts.edits.input(super::Input::Click(warning.nearest));
     }
     if enabled {
         let _ = response.on_hover_cursor(CursorIcon::PointingHand);
