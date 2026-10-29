@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use craft_theme::{ContrastChoice, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeDef, ThemeId, ThemePair, Variants};
+use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Selection, Size, SuiteChoice, TextSize, ThemeDef, ThemeId, ThemePair, Variants};
 use serde_json::{Map, Value};
 
 /// The `selection.json` format this crate writes. Version 1 (one theme for both modes) is read
@@ -40,6 +40,7 @@ pub struct SelectionChange {
     pub theme_dark: Option<ThemeId>,
     pub mode: Option<ModeChoice>,
     pub contrast: Option<ContrastChoice>,
+    pub motion: Option<MotionChoice>,
     pub size: Option<Size>,
     pub text_size: Option<TextSize>,
 }
@@ -77,6 +78,10 @@ impl SelectionChange {
         SelectionChange { contrast: Some(contrast), ..SelectionChange::default() }
     }
 
+    pub fn motion(motion: MotionChoice) -> Self {
+        SelectionChange { motion: Some(motion), ..SelectionChange::default() }
+    }
+
     pub fn size(size: Size) -> Self {
         SelectionChange { size: Some(size), ..SelectionChange::default() }
     }
@@ -93,6 +98,7 @@ impl SelectionChange {
             theme_dark: Some(selection.theme.dark),
             mode: Some(selection.mode),
             contrast: Some(selection.contrast),
+            motion: Some(selection.motion),
             size: Some(selection.size),
             text_size: Some(selection.text_size),
         }
@@ -105,6 +111,7 @@ impl SelectionChange {
             theme_dark: later.theme_dark.or(self.theme_dark),
             mode: later.mode.or(self.mode),
             contrast: later.contrast.or(self.contrast),
+            motion: later.motion.or(self.motion),
             size: later.size.or(self.size),
             text_size: later.text_size.or(self.text_size),
         }
@@ -121,6 +128,7 @@ impl SelectionChange {
             theme_dark: self.theme_dark.clone().or_else(|| choice.theme_dark.clone()),
             mode: self.mode.or(choice.mode),
             contrast: self.contrast.or(choice.contrast),
+            motion: self.motion.or(choice.motion),
             size: self.size.or(choice.size),
             text_size: self.text_size.or(choice.text_size),
         }
@@ -145,6 +153,7 @@ pub(crate) fn merge(base: &SuiteChoice, disk: &SuiteChoice, change: &SelectionCh
         theme_dark: merge_field(base.theme_dark.as_ref(), disk.theme_dark.as_ref(), change.theme_dark.as_ref())?,
         mode: merge_field(base.mode.as_ref(), disk.mode.as_ref(), change.mode.as_ref())?,
         contrast: merge_field(base.contrast.as_ref(), disk.contrast.as_ref(), change.contrast.as_ref())?,
+        motion: merge_field(base.motion.as_ref(), disk.motion.as_ref(), change.motion.as_ref())?,
         size: merge_field(base.size.as_ref(), disk.size.as_ref(), change.size.as_ref())?,
         text_size: merge_field(base.text_size.as_ref(), disk.text_size.as_ref(), change.text_size.as_ref())?,
     })
@@ -241,6 +250,7 @@ fn parse_suite(suite: &Map<String, Value>, version: u64) -> Result<SuiteChoice, 
         theme_dark,
         mode: choice_field(suite, "mode", &MODES)?,
         contrast: choice_field(suite, "contrast", &CONTRASTS)?,
+        motion: choice_field(suite, "motion", &MOTIONS)?,
         size: choice_field(suite, "size", &SIZES)?,
         text_size: choice_field(suite, "text_size", &TEXT_SIZES)?,
     })
@@ -262,6 +272,7 @@ fn theme_id(s: &str, at: &str) -> Result<ThemeId, SelectionError> {
 const MODES: [(ModeChoice, &str); 3] = [(ModeChoice::System, "system"), (ModeChoice::Light, "light"), (ModeChoice::Dark, "dark")];
 const CONTRASTS: [(ContrastChoice, &str); 3] =
     [(ContrastChoice::System, "system"), (ContrastChoice::Standard, "standard"), (ContrastChoice::High, "high")];
+const MOTIONS: [(MotionChoice, &str); 3] = [(MotionChoice::System, "system"), (MotionChoice::Full, "full"), (MotionChoice::Reduced, "reduced")];
 const SIZES: [(Size, &str); 2] = [(Size::Compact, "compact"), (Size::Comfortable, "comfortable")];
 const TEXT_SIZES: [(TextSize, &str); 4] =
     [(TextSize::Small, "small"), (TextSize::Default, "default"), (TextSize::Large, "large"), (TextSize::Larger, "larger")];
@@ -309,6 +320,7 @@ pub(crate) fn render_selection(raw: &mut Map<String, Value>, next: &Accepted, wr
         set_or_remove(&mut suite, "theme", theme);
         set_or_remove(&mut suite, "mode", s.mode.map(|c| choice_name(&MODES, &c)));
         set_or_remove(&mut suite, "contrast", s.contrast.map(|c| choice_name(&CONTRASTS, &c)));
+        set_or_remove(&mut suite, "motion", s.motion.map(|c| choice_name(&MOTIONS, &c)));
         set_or_remove(&mut suite, "size", s.size.map(|c| choice_name(&SIZES, &c)));
         set_or_remove(&mut suite, "text_size", s.text_size.map(|c| choice_name(&TEXT_SIZES, &c)));
         raw.insert("suite".into(), Value::Object(suite));
@@ -354,7 +366,14 @@ mod tests {
     }
 
     fn sel(theme: &str, mode: ModeChoice) -> Selection {
-        Selection { theme: ThemePair::same(id(theme)), mode, contrast: ContrastChoice::System, size: Size::Compact, text_size: TextSize::Default }
+        Selection {
+            theme: ThemePair::same(id(theme)),
+            mode,
+            contrast: ContrastChoice::System,
+            motion: MotionChoice::System,
+            size: Size::Compact,
+            text_size: TextSize::Default,
+        }
     }
 
     fn choice(theme: Option<&str>, mode: Option<ModeChoice>) -> SuiteChoice {
@@ -411,6 +430,7 @@ mod tests {
                 theme_dark: Some(id("craft.pro")),
                 mode: None,
                 contrast: Some(ContrastChoice::High),
+                motion: None,
                 size: Some(Size::Comfortable),
                 text_size: Some(TextSize::Large),
             }
@@ -466,6 +486,7 @@ mod tests {
         assert_eq!(doc.accepted.suite, choice(Some("user.navy"), Some(ModeChoice::Light)));
         let whole = Selection {
             contrast: ContrastChoice::High,
+            motion: MotionChoice::System,
             size: Size::Comfortable,
             text_size: TextSize::Larger,
             ..sel("craft.graphite", ModeChoice::Dark)
@@ -480,7 +501,7 @@ mod tests {
             back["suite"],
             json!({
                 "theme": {"light": "craft.graphite", "dark": "craft.graphite", "later": 1},
-                "mode": "dark", "contrast": "high", "size": "comfortable", "text_size": "larger", "later": true
+                "mode": "dark", "contrast": "high", "motion": "system", "size": "comfortable", "text_size": "larger", "later": true
             })
         );
         assert_eq!(back["written_by"], "test 1.0");

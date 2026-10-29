@@ -1,8 +1,8 @@
 //! [`Case`]: the appearance inputs one conformance check runs for.
 
 use craft_theme::{
-    AppDefaults, AppId, Contrast, ContrastChoice, InterfaceFont, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId,
-    ThemePair, Variants, builtins,
+    AppDefaults, AppId, Contrast, ContrastChoice, InterfaceFont, Mode, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize,
+    ThemeDef, ThemeId, ThemePair, Variants, builtins,
 };
 
 use crate::direction::Direction;
@@ -36,6 +36,7 @@ impl Case {
                 theme: ThemePair::same(id),
                 mode: ModeChoice::Light,
                 contrast: ContrastChoice::Standard,
+                motion: MotionChoice::System,
                 size: Size::Compact,
                 text_size: TextSize::Default,
             },

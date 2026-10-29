@@ -67,6 +67,7 @@ pub struct Conformance<'a> {
     fonts: Fonts<'a>,
     frames: usize,
     allowed: Vec<Allowance>,
+    faces_embedded: bool,
 }
 
 impl<'a> Conformance<'a> {
@@ -75,7 +76,7 @@ impl<'a> Conformance<'a> {
     /// too, so the faces and `fit_interact_size` match. The reference's [`FontFamilies`] are
     /// checked against the interface font of the case.
     pub fn new(apply: impl Fn(&Context, &Case) + 'a, fonts: impl Fn(&Context, InterfaceFont) + 'a) -> Self {
-        Self { apply: Box::new(apply), fonts: Box::new(fonts), frames: 2, allowed: Vec::new() }
+        Self { apply: Box::new(apply), fonts: Box::new(fonts), frames: 2, allowed: Vec::new(), faces_embedded: false }
     }
 
     /// Frames run on each side before it is read, for setup that finishes on a later pass.
@@ -105,6 +106,16 @@ impl<'a> Conformance<'a> {
             panic!("conformance: `{key_prefix}` is not a key; name a key such as `style.visuals.striped`, without a trailing `.`");
         }
         self.allowed.push(Allowance { prefix: key_prefix.to_owned(), reason: reason.to_owned() });
+        self
+    }
+
+    /// Whether the app's build embeds craft-fonts faces (its `build.rs` embedded some, so its
+    /// `CRAFT_FONTS` list is not empty). Such an app installs a font stack, and a case where
+    /// `fonts` installs none differs ("no font stack installed"). Default `false`: an app
+    /// without embedded faces installs no stack and has nothing to differ. craft-ui cannot see
+    /// this from its own build, so the app says it.
+    pub fn faces_embedded(mut self, embedded: bool) -> Self {
+        self.faces_embedded = embedded;
         self
     }
 
@@ -179,7 +190,7 @@ impl<'a> Conformance<'a> {
         let base = Base::resolve(case.selection(), case.system_appearance(), case.app_defaults(), case.app_id(), &mut case.lookup());
         install(&reference_ctx, &base);
         let reference = Side::read(&reference_ctx, self.frames);
-        let fonts = font_families_diffs(&reference_ctx, case.font());
+        let fonts = font_families_diffs(&reference_ctx, case.font(), self.faces_embedded);
 
         let mut used = vec![0; self.allowed.len()];
         let mut sections = Vec::new();
@@ -223,10 +234,18 @@ impl<'a> Conformance<'a> {
 /// Where the families `fonts` installed differ from the ones craft-ui builds for `font`:
 /// `reference` is what the interface font implies, `app` what the stack installed. Only the
 /// optical size follows from the interface font; the families a stack offers are the app's. An
-/// app that installs no stack (no faces embedded in the build) has nothing to differ.
-fn font_families_diffs(ctx: &Context, font: InterfaceFont) -> Vec<Diff> {
+/// app that installs no stack differs when its build embeds faces (`faces_embedded`), and has
+/// nothing to differ when it embeds none.
+fn font_families_diffs(ctx: &Context, font: InterfaceFont, faces_embedded: bool) -> Vec<Diff> {
     if crate::fonts::installed_families(ctx).is_none() {
-        return Vec::new();
+        if !faces_embedded {
+            return Vec::new();
+        }
+        return vec![Diff {
+            key: "families.installed".to_owned(),
+            reference: Some("a font stack".to_owned()),
+            app: Some("no font stack installed".to_owned()),
+        }];
     }
     let expected = font == InterfaceFont::System && crate::fonts::system_ui_face().is_some();
     let installed = FontFamilies::installed(ctx).optical_size;
@@ -251,7 +270,7 @@ fn hints(sections: &[Section]) -> Vec<String> {
     if differs("fonts") {
         hints.push(
             "the `fonts` setup does not follow the case's interface font: the system interface face is expected exactly when the case \
-             asks for `InterfaceFont::System` and the OS has one (`UiFonts::interface_font`)."
+             asks for `InterfaceFont::System` and the OS has one (`UiFonts::interface_font`). `no font stack installed` means the build embeds faces (`faces_embedded`) and `fonts` installed none."
                 .to_owned(),
         );
     }

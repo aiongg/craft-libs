@@ -81,7 +81,8 @@ pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve};
 pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
 pub use selection::{
-    AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair, resolve_selection,
+    AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, MotionChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair,
+    resolve_selection,
 };
 pub use theme::{
     AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, SeedOverrides, Seeds,

@@ -1,4 +1,4 @@
-//! What the user picked (theme per mode, mode, contrast, size, text size), how the suite's
+//! What the user picked (theme per mode, mode, contrast, motion, size, text size), how the suite's
 //! choice, an app's own choice and the app's defaults combine, and resolution of the result
 //! against what the OS reports.
 
@@ -27,6 +27,31 @@ pub enum ContrastChoice {
     /// The OS's contrast, else standard.
     #[default]
     System,
+}
+
+/// Motion as designed, reduced, or whatever the OS reports.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+pub enum MotionChoice {
+    /// Motion as the theme designs it.
+    Full,
+    /// Reduced motion: every duration is zero.
+    Reduced,
+    /// The OS's reduced-motion setting, else full motion.
+    #[default]
+    System,
+}
+
+impl MotionChoice {
+    /// Whether motion is reduced: the chosen answer, or what the OS reports (`None`: not
+    /// reduced) when the choice is [`MotionChoice::System`].
+    pub fn reduced(self, system: Option<bool>) -> bool {
+        match self {
+            MotionChoice::Full => false,
+            MotionChoice::Reduced => true,
+            MotionChoice::System => system.unwrap_or(false),
+        }
+    }
 }
 
 /// A theme for each mode. Either slot may hold [`crate::APP_DEFAULT`].
@@ -68,6 +93,7 @@ pub struct Selection {
     pub theme: ThemePair,
     pub mode: ModeChoice,
     pub contrast: ContrastChoice,
+    pub motion: MotionChoice,
     pub size: Size,
     pub text_size: TextSize,
 }
@@ -81,6 +107,7 @@ pub struct SuiteChoice {
     pub theme_dark: Option<ThemeId>,
     pub mode: Option<ModeChoice>,
     pub contrast: Option<ContrastChoice>,
+    pub motion: Option<MotionChoice>,
     pub size: Option<Size>,
     pub text_size: Option<TextSize>,
 }
@@ -92,13 +119,14 @@ impl SuiteChoice {
     }
 
     /// What an app that follows the suite shows: the chosen fields, else the app's defaults,
-    /// contrast [`ContrastChoice::System`] and text size [`TextSize::Default`].
+    /// contrast [`ContrastChoice::System`], motion [`MotionChoice::System`] and text size [`TextSize::Default`].
     pub fn with_defaults(&self, defaults: &AppDefaults) -> Selection {
         let slot = |chosen: &Option<ThemeId>, default: &ThemeId| chosen.clone().unwrap_or_else(|| default.clone());
         Selection {
             theme: ThemePair { light: slot(&self.theme_light, &defaults.theme.light), dark: slot(&self.theme_dark, &defaults.theme.dark) },
             mode: self.mode.unwrap_or(defaults.mode),
             contrast: self.contrast.unwrap_or_default(),
+            motion: self.motion.unwrap_or_default(),
             size: self.size.unwrap_or(defaults.size),
             text_size: self.text_size.unwrap_or_default(),
         }
@@ -122,6 +150,7 @@ impl From<Selection> for SuiteChoice {
             theme_dark: Some(s.theme.dark),
             mode: Some(s.mode),
             contrast: Some(s.contrast),
+            motion: Some(s.motion),
             size: Some(s.size),
             text_size: Some(s.text_size),
         }
@@ -197,7 +226,7 @@ pub enum Fallback {
 /// Resolves `sel` for this app. Pure.
 ///
 /// `System` mode takes `system.mode`, else `fallback_mode`; `System` contrast takes
-/// `system.contrast`, else standard; reduced motion is off unless the OS says otherwise. The
+/// `system.contrast`, else standard; `System` motion takes `system.reduced_motion`, else full motion. The
 /// theme is the pair's slot for the mode; [`crate::APP_DEFAULT`] means the slot of
 /// `defaults.theme`. An id `lookup` doesn't know falls back to that slot, then to the built-in
 /// [`crate::SUITE_DEFAULT`]. `app` selects the theme's per-app overrides.
@@ -223,7 +252,8 @@ pub fn resolve_selection(
         ContrastChoice::High => Contrast::High,
         ContrastChoice::System => system.contrast.unwrap_or_default(),
     };
-    let appearance = Appearance { mode, contrast, size: sel.size, text_size: sel.text_size, reduced_motion: system.reduced_motion.unwrap_or(false) };
+    let appearance =
+        Appearance { mode, contrast, size: sel.size, text_size: sel.text_size, reduced_motion: sel.motion.reduced(system.reduced_motion) };
 
     let wanted = sel.theme.slot(mode);
     let default = defaults.theme.slot(mode);

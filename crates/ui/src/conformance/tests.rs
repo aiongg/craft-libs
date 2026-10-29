@@ -272,6 +272,16 @@ fn the_reference_font_stack_follows_the_case_font() {
     }
 }
 
+/// An app whose build embeds faces must install a stack; one without embedded faces need not.
+#[test]
+fn a_build_with_embedded_faces_must_install_a_font_stack() {
+    let case = Case::new("craft.pro");
+    let report = expect_report(&Conformance::new(reference, no_fonts).faces_embedded(true), &case);
+    assert!(report.keys().any(|k| k == "fonts: families.installed"), "{report}");
+    assert!(report.to_string().contains("no font stack installed"), "{report}");
+    Conformance::new(reference, no_fonts).check(&case).expect("no embedded faces, no stack to expect");
+}
+
 #[test]
 fn row_keys_are_unique_in_every_group() {
     let ctx = Context::default();

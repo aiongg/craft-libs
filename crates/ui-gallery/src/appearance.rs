@@ -1,7 +1,8 @@
 //! The appearance bar's settings and what they resolve to.
 
 use craft_theme::{
-    AppDefaults, Contrast, ContrastChoice, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair, builtins,
+    AppDefaults, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair,
+    builtins,
 };
 use craft_ui::direction::Direction;
 use craft_ui::icons::IconSet;
@@ -10,15 +11,6 @@ use serde::{Deserialize, Serialize};
 
 /// Interface scale limits, in percent.
 pub const SCALE: std::ops::RangeInclusive<u32> = 75..=200;
-
-/// The reduced-motion setting: forced off, forced on, or the OS's.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MotionChoice {
-    #[default]
-    Full,
-    Reduced,
-    System,
-}
 
 /// Everything the appearance bar sets.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -88,16 +80,6 @@ impl Appearance {
         }
     }
 
-    /// Whether motion is reduced: the chosen answer, or what the OS reports (not reduced when it
-    /// doesn't) when the choice is System.
-    pub fn reduced_motion(&self, system: SystemAppearance) -> bool {
-        match self.motion {
-            MotionChoice::Full => false,
-            MotionChoice::Reduced => true,
-            MotionChoice::System => system.reduced_motion.unwrap_or(false),
-        }
-    }
-
     pub fn size(&self) -> Size {
         if self.comfortable { Size::Comfortable } else { Size::Compact }
     }
@@ -123,10 +105,15 @@ impl Appearance {
     /// answer for the System choices.
     pub fn base(&self, system: SystemAppearance) -> Base {
         let id = builtin(&self.theme).map_or_else(ThemeId::suite_default, |t| t.id.clone());
-        let selection =
-            Selection { theme: ThemePair::same(id), mode: self.mode, contrast: self.contrast, size: self.size(), text_size: self.text_size() };
+        let selection = Selection {
+            theme: ThemePair::same(id),
+            mode: self.mode,
+            contrast: self.contrast,
+            motion: self.motion,
+            size: self.size(),
+            text_size: self.text_size(),
+        };
         let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size() };
-        let system = SystemAppearance { reduced_motion: Some(self.reduced_motion(system)), ..system };
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 
@@ -151,22 +138,5 @@ impl Appearance {
     pub fn overrides(&self, o: &mut Overrides) {
         o.size = Some(self.size());
         o.theme = builtin(&self.theme).cloned();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn system_motion_follows_the_reading() {
-        let os = |reduced_motion| SystemAppearance { reduced_motion, ..SystemAppearance::default() };
-        let system = Appearance { motion: MotionChoice::System, ..Appearance::default() };
-        assert!(system.reduced_motion(os(Some(true))));
-        assert!(!system.reduced_motion(os(Some(false))));
-        assert!(!system.reduced_motion(os(None)));
-        let reduced = Appearance { motion: MotionChoice::Reduced, ..Appearance::default() };
-        assert!(reduced.reduced_motion(os(Some(false))));
-        assert!(!Appearance::default().reduced_motion(os(Some(true))));
     }
 }
