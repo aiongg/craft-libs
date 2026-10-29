@@ -11,7 +11,7 @@ use egui::{
 
 use super::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
 use crate::composites::levels_editor::{LevelsEditor, gamma_at, gamma_from};
-use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureId};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
 use crate::primitives::Interactive;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
@@ -46,6 +46,40 @@ struct Rig {
     output_event: Option<EditEvent<[f64; 2]>>,
     rows: [Drawn; 2],
     nodes: HashMap<Id, Node>,
+    /// The values live in a document behind a [`GestureHost`] instead.
+    hosted: Option<(GestureHost<Levels>, Levels)>,
+}
+
+/// The hosted rig's document: the input and output values, with an undo history of snapshots.
+struct Levels {
+    now: ([f64; 3], [f64; 2]),
+    undo: Vec<([f64; 3], [f64; 2])>,
+}
+
+impl Levels {
+    fn apply(&mut self, edit: impl FnOnce(&mut ([f64; 3], [f64; 2]))) {
+        self.undo.push(self.now);
+        edit(&mut self.now);
+    }
+}
+
+impl UndoMarks for Levels {
+    type Mark = usize;
+
+    fn undo_mark(&self) -> usize {
+        self.undo.len()
+    }
+
+    fn revert_to(&mut self, mark: usize) {
+        if let Some(&before) = self.undo.get(mark) {
+            self.now = before;
+            self.undo.truncate(mark);
+        }
+    }
+
+    fn squash_since(&mut self, mark: usize) {
+        self.undo.truncate(mark + 1);
+    }
 }
 
 impl Rig {
@@ -67,6 +101,7 @@ impl Rig {
             output_event: None,
             rows: Default::default(),
             nodes: HashMap::new(),
+            hosted: None,
         };
         rig.frame(vec![]);
         rig
@@ -109,7 +144,13 @@ impl Rig {
         let out = row.show(ui, &style);
         self.rows[0] = drawn(ui, "rig-input", &style, out.edit.response.rect, out.shown.to_vec(), out.dragged);
         self.input_event.clone_from(&out.edit.event);
-        if let Some(event) = out.edit.event {
+        if let Some((host, doc)) = &mut self.hosted {
+            if let Some(event) = out.edit.event {
+                host.handle(ui.ctx(), doc, event, |doc: &mut Levels, v| doc.apply(|now| now.0 = v));
+            }
+            host.end_frame(ui.ctx(), doc);
+            self.input = doc.now.0;
+        } else if let Some(event) = out.edit.event {
             self.apply(event, |rig| &mut rig.input, |rig| rig.before.0);
         }
 
@@ -511,5 +552,38 @@ fn each_thumb_is_a_named_slider_and_a_tab_stop_in_row_order() {
     for (row, i) in [(0, 1), (0, 2), (1, 0), (1, 1)] {
         rig.key(Key::Tab);
         assert!(rig.has_focus(row, i), "Tab reaches thumb {i} of row {row}");
+    }
+}
+
+/// A thumb drag whose gesture the host ends for an options bar's change goes on with the
+/// pointer: the next movement begins a new gesture, the dragged thumb follows the pointer from
+/// where the drag began (also when the bar set it), the other thumbs keep the host's values (a
+/// white point the bar set stays), and the release commits.
+#[test]
+fn a_thumb_drag_the_host_ended_for_another_controls_change_goes_on_with_the_pointer() {
+    for (bar_thumb, bar_value) in [(2, 180.0), (0, 5.0)] {
+        let mut rig = Rig::new([20.0, 1.0, 200.0], [0.0, 255.0]);
+        rig.hosted = Some((GestureHost::new(), Levels { now: (rig.input, rig.output), undo: Vec::new() }));
+        rig.press(rig.at(0, 20.0, 3.0));
+        let first = begin(rig.input_event.clone());
+        rig.drag(rig.at(0, 50.0, 3.0));
+        assert_eq!(rig.input_event, update(first, [50.0, 1.0, 200.0]));
+        let ctx = rig.ctx.clone();
+        let (host, doc) = rig.hosted.as_mut().expect("hosted");
+        let set_thumb = move |doc: &mut Levels, v: f64| doc.apply(|now| now.0[bar_thumb] = v);
+        host.handle(&ctx, doc, EditEvent::set(bar_value, Modifiers::NONE), set_thumb);
+        let mut after = [20.0, 1.0, 200.0];
+        after[bar_thumb] = bar_value;
+        assert_eq!((doc.now.0, host.active()), (after, None));
+        rig.input = doc.now.0;
+        rig.drag(rig.at(0, 70.0, 3.0));
+        let id = begin(rig.input_event.clone());
+        assert!(id > first);
+        rig.frame(vec![]);
+        let white = if bar_thumb == 2 { bar_value } else { 200.0 };
+        assert_eq!(rig.input_event, update(id, [70.0, 1.0, white]), "the bar set thumb {bar_thumb}");
+        rig.release(rig.at(0, 70.0, 3.0));
+        assert_eq!(rig.input_event, commit(id, [70.0, 1.0, white], true));
+        assert_eq!(rig.input, [70.0, 1.0, white]);
     }
 }

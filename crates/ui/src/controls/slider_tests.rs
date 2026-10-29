@@ -751,6 +751,7 @@ struct Hosted {
 enum Bar {
     Other(i32),
     Level(f64),
+    Upper(f64),
 }
 
 impl Hosted {
@@ -786,6 +787,9 @@ impl Hosted {
                 Some(Bar::Level(v)) => {
                     self.host.handle(&ctx, &mut self.doc, EditEvent::set(v, Modifiers::NONE), |doc: &mut Doc, v| doc.apply(|now| now.level = v))
                 }
+                Some(Bar::Upper(v)) => {
+                    self.host.handle(&ctx, &mut self.doc, EditEvent::set(v, Modifiers::NONE), |doc: &mut Doc, v| doc.apply(|now| now.range.1 = v))
+                }
                 None => {}
             }
             self.host.end_frame(&ctx, &mut self.doc);
@@ -803,7 +807,8 @@ impl Hosted {
 /// A drag whose gesture the host ends for an options bar's change goes on with the pointer: the
 /// next movement begins a new gesture with the value the pointer gives, counted from the press
 /// once (the host reverted the drag), the release commits it, and a thumb grabbed off its centre
-/// stays under the pointer also when the bar set the dragged value itself.
+/// stays under the pointer also when the bar set the dragged value itself. The range slider's
+/// thumb the drag doesn't move keeps the host's value, also one the bar set.
 #[test]
 fn a_drag_the_host_ended_for_another_controls_change_goes_on_with_the_pointer() {
     for set_level in [false, true] {
@@ -826,18 +831,20 @@ fn a_drag_the_host_ended_for_another_controls_change_goes_on_with_the_pointer() 
         assert_eq!(rig.doc.now.level, 70.0);
     }
 
-    let mut rig = Hosted::new();
-    rig.frame(vec![Event::PointerMoved(rig.at(true, 20.0, 2.0)), button(rig.at(true, 20.0, 2.0), true)], None);
-    let first = begin(rig.range_event.clone());
-    rig.frame(vec![Event::PointerMoved(rig.at(true, 30.0, 2.0))], None);
-    assert_eq!(rig.range_event, update(first, (30.0, 60.0)));
-    rig.frame(vec![], Some(Bar::Other(9)));
-    assert_eq!((rig.doc.now.range, rig.host.active()), ((20.0, 60.0), None));
-    rig.frame(vec![Event::PointerMoved(rig.at(true, 45.0, 2.0))], None);
-    let id = begin(rig.range_event.clone());
-    rig.frame(vec![], None);
-    assert_eq!(rig.range_event, update(id, (45.0, 60.0)));
-    rig.frame(vec![button(rig.at(true, 45.0, 2.0), false)], None);
-    assert_eq!(rig.range_event, commit(id, (45.0, 60.0), true));
-    assert_eq!((rig.doc.now, rig.doc.undo.len()), (Values { level: 40.0, range: (45.0, 60.0), other: 9 }, 2));
+    for (bar, upper, other) in [(Bar::Other(9), 60.0, 9), (Bar::Upper(80.0), 80.0, 0)] {
+        let mut rig = Hosted::new();
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 20.0, 2.0)), button(rig.at(true, 20.0, 2.0), true)], None);
+        let first = begin(rig.range_event.clone());
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 30.0, 2.0))], None);
+        assert_eq!(rig.range_event, update(first, (30.0, 60.0)));
+        rig.frame(vec![], Some(bar));
+        assert_eq!((rig.doc.now.range, rig.host.active()), ((20.0, upper), None));
+        rig.frame(vec![Event::PointerMoved(rig.at(true, 45.0, 2.0))], None);
+        let id = begin(rig.range_event.clone());
+        rig.frame(vec![], None);
+        assert_eq!(rig.range_event, update(id, (45.0, upper)), "the upper thumb keeps the host's value");
+        rig.frame(vec![button(rig.at(true, 45.0, 2.0), false)], None);
+        assert_eq!(rig.range_event, commit(id, (45.0, upper), true));
+        assert_eq!((rig.doc.now, rig.doc.undo.len()), (Values { level: 40.0, range: (45.0, upper), other }, 2));
+    }
 }

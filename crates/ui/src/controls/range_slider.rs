@@ -153,13 +153,13 @@ impl RangeSlider {
             && let Some(anchor) = gesture.anchor().copied()
             && let Some((pos, origin)) = pointer(ui, &response)
         {
-            let start = placed(&scale, anchor);
-            let part = at(start, origin.x);
+            let (anchor, start) = (placed(&scale, anchor), placed(&scale, *gesture.start().unwrap_or(&anchor)));
+            let part = at(anchor, origin.x);
             active = Some(part);
             if part == Part::Either && pos.x != origin.x {
                 focus = Some(thumb_id(pos.x < origin.x));
             }
-            gesture.update(dragged(&track, &scale, part, start, origin.x, pos.x), ui.input(|i| i.modifiers));
+            gesture.update(dragged(&track, &scale, part, anchor, start, origin.x, pos.x), ui.input(|i| i.modifiers));
         }
         if response.drag_stopped() {
             gesture.commit();
@@ -169,7 +169,7 @@ impl RangeSlider {
         if let Some(at_x) = tap(ui, &response).map(|p| p.x) {
             let values = placed(&scale, *gesture.shown());
             focus = Some(thumb_id(pressed_lower(&track, values, at_x)));
-            gesture.set(dragged(&track, &scale, at(values, at_x), values, at_x, at_x));
+            gesture.set(dragged(&track, &scale, at(values, at_x), values, values, at_x, at_x));
         }
 
         let (lo, hi) = placed(&scale, *gesture.shown());
@@ -263,18 +263,21 @@ fn part_at(track: &Track, (lo, hi): (f64, f64), x: f32) -> Part {
     }
 }
 
-/// The value while dragging `part` from a press at `origin` to `x`, from `start`
-/// ([`Track::dragged`] for one thumb). The thumbs don't cross, and the span keeps its width
-/// inside the range; a still pointer leaves the value as it is.
-fn dragged(track: &Track, scale: &Scale, part: Part, (lo, hi): (f64, f64), origin: f32, x: f32) -> (f64, f64) {
-    let lower = || (track.dragged(lo, origin, x).min(hi), hi);
-    let upper = || (lo, track.dragged(hi, origin, x).max(lo));
+/// The value while dragging `part` from a press at `origin` to `x` ([`Track::dragged`] for one
+/// thumb): a dragged thumb from `anchor`, the value the drag began from, and a thumb the drag
+/// doesn't move at `start`, the host's value when the gesture began (a gesture the host ended
+/// carries on from it, so a value set meanwhile stays). The thumbs don't cross, and the span
+/// keeps its width inside the range; a still pointer leaves the value as it is.
+fn dragged(track: &Track, scale: &Scale, part: Part, anchor: (f64, f64), start: (f64, f64), origin: f32, x: f32) -> (f64, f64) {
+    let (lo, hi) = anchor;
+    let lower = || (track.dragged(lo, origin, x).min(start.1), start.1);
+    let upper = || (start.0, track.dragged(hi, origin, x).max(start.0));
     match part {
         Part::Lower => lower(),
         Part::Upper => upper(),
         Part::Either if x < origin => lower(),
         Part::Either if x > origin => upper(),
-        Part::Either => (lo, hi),
+        Part::Either => start,
         Part::Span if x == origin => (lo, hi),
         Part::Span => {
             let width = hi - lo;

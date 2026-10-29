@@ -275,21 +275,24 @@ impl<const N: usize> Layout<'_, N> {
         })
     }
 
-    /// The values while `press` at `origin` is dragged to `x`, from `raw` (the gesture's values).
-    /// A grabbed thumb moves by the pointer's movement and stays where it is while the pointer is
-    /// still; a jumping one goes to the pointer. The moved value snaps to its step and stays in
-    /// its bounds; the other values stay as they are.
-    fn moved(&self, raw: &[f64; N], press: Press, origin: f32, x: f32) -> [f64; N] {
+    /// The values while `press` at `origin` is dragged to `x`: the moved thumb from `anchor`, the
+    /// values the drag began from, the others at `raw`, the host's values when the gesture began
+    /// (a gesture the host ended carries on from them, so a value set meanwhile stays). A grabbed
+    /// thumb moves by the pointer's movement and stays where it was while the pointer is still; a
+    /// jumping one goes to the pointer. The moved value snaps to its step and stays in its bounds
+    /// among the others.
+    fn moved(&self, anchor: &[f64; N], raw: &[f64; N], press: Press, origin: f32, x: f32) -> [f64; N] {
         let Some(i) = press.thumb(origin, x) else { return *raw };
         let grab = !matches!(press, Press::Jump(_));
+        let mut out = *raw;
         if grab && x == origin {
-            return *raw;
+            out[i] = anchor[i];
+            return out;
         }
         let start = &self.placed(raw);
-        let at = if grab { self.at(start, i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
+        let at = if grab { self.at(&self.placed(anchor), i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
         let value = self.thumbs[i].follow.map_or(at, |f| (f.value_at)(start, at));
         let (lo, hi) = self.bounds(start, i);
-        let mut out = *raw;
         out[i] = self.scale_of(i).snap(value).clamp(lo, hi);
         out
     }
@@ -458,11 +461,11 @@ fn pointer_input<const N: usize>(
         && input.finite
     {
         gesture.begin();
-        if let Some(start) = gesture.start().copied()
-            && let Some(press) = layout.press(&layout.placed(&start), at.x)
+        if let Some(anchor) = gesture.anchor().copied()
+            && let Some(press) = layout.press(&layout.placed(&anchor), at.x)
         {
             focus = Some(press.focus());
-            gesture.update(layout.moved(&start, press, at.x, at.x), modifiers);
+            gesture.update(layout.moved(&anchor, &anchor, press, at.x, at.x), modifiers);
         }
         if !response.dragged_by(PointerButton::Primary) {
             gesture.commit();
@@ -477,16 +480,17 @@ fn pointer_input<const N: usize>(
     }
     let mut active = None;
     if response.dragged_by(PointerButton::Primary)
+        && let Some(anchor) = gesture.anchor().copied()
         && let Some(start) = gesture.start().copied()
         && let Some((pos, origin)) = pointer(ui, response)
-        && let Some(press) = layout.press(&layout.placed(&start), origin.x)
+        && let Some(press) = layout.press(&layout.placed(&anchor), origin.x)
     {
         active = Some(press);
         if let (Press::Either { .. }, Some(i)) = (press, press.thumb(origin.x, pos.x)) {
             focus = Some(i);
             active = Some(Press::Grab(i));
         }
-        gesture.update(layout.moved(&start, press, origin.x, pos.x), modifiers);
+        gesture.update(layout.moved(&anchor, &start, press, origin.x, pos.x), modifiers);
     }
     // The reset ends the second click's gesture, or is its own Set.
     let double = double_click(ui, response, layout, gesture, input.sensing);
@@ -498,7 +502,7 @@ fn pointer_input<const N: usize>(
         if let Some(press) = layout.press(&layout.placed(&raw), at.x) {
             focus = Some(press.focus());
             if double.is_none() && !waits {
-                gesture.set(layout.moved(&raw, press, at.x, at.x));
+                gesture.set(layout.moved(&raw, &raw, press, at.x, at.x));
             }
         }
     }
