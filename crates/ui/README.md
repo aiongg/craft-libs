@@ -210,7 +210,7 @@ the remembered destination still exists. Apps choose an explicit fallback when i
 Enable the optional `serde` feature to persist the shared layout, or convert to/from an existing
 workspace schema. Validate loaded input before rendering or recursively converting it.
 
-`DockArea` is an optional renderer. It takes a layout snapshot, styles, labels, panel permissions
+`DockArea` is an optional renderer. It takes a layout snapshot, a `DockSpec` (a `DockConfig` for behaviour and labels, drawn in the theme's `dock`, `float` and `tab` tokens through `DockLook`; or the flat `DockStyle`), labels, panel permissions
 and body callbacks, then returns actions for the app's command handler. Its floating groups stay
 inside the current egui viewport. Protected document canvases have no tab header. Per-panel size
 limits constrain geometry without overwriting saved preferred widths when the window shrinks.

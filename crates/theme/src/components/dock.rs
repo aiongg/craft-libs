@@ -43,6 +43,8 @@ pub struct DockTokens {
     pub ghost_fill: f32,
     /// Alpha factor of the outline of every zone under a dragged tab.
     pub ghost_stroke: f32,
+    /// Alpha factor of the light fill inside a tab drop's outline.
+    pub tab_fill: f32,
     /// Alpha factor of the resize handle's stroke at hover and focus.
     pub grip_alpha: f32,
     /// Corner radius of the current icon cell and of the letter box: `radius.control`.
@@ -145,6 +147,7 @@ impl Family for DockTokens {
             drop_fill: values::DOCK_DROP_FILL,
             ghost_fill: values::DOCK_GHOST_FILL,
             ghost_stroke: values::DOCK_GHOST_STROKE,
+            tab_fill: values::DOCK_TAB_FILL,
             grip_alpha: values::DOCK_GRIP_ALPHA,
             icon_radius: s.shape.radius.control,
             hint_radius: s.shape.radius.popup,

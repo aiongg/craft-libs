@@ -36,6 +36,8 @@ pub struct ChromeStyle {
     /// Keyboard focus ring of the title bar.
     pub focus: Color32,
     pub focus_width: f32,
+    /// Height of the title bar; the frame's minimum height keeps room for it.
+    pub title_height: f32,
     /// The diagonal resize grip, painted `drop_width` thick.
     pub grip: Color32,
     pub drop_width: f32,
@@ -70,6 +72,7 @@ impl ChromeStyle {
             accent: visuals.selection.stroke.color,
             focus: visuals.selection.stroke.color,
             focus_width: 1.0,
+            title_height: TITLE_HEIGHT,
             grip: visuals.selection.stroke.color,
             drop_width: 2.0,
             title_text: visuals.text_color(),
@@ -103,6 +106,7 @@ impl ChromeStyle {
             accent: look.focus,
             focus: look.focus,
             focus_width: look.focus_width,
+            title_height: look.title_height,
             grip: look.grip,
             drop_width: look.drop_width,
             title_text: look.title_text,
@@ -125,6 +129,7 @@ impl ChromeStyle {
             accent: style.accent,
             focus: style.accent,
             focus_width: 1.0,
+            title_height: TITLE_HEIGHT,
             grip: style.accent,
             drop_width: 2.0,
             title_text: style.text,
@@ -281,7 +286,8 @@ impl<'a> FloatingFrame<'a> {
         let mut resized = None;
         let mut started = None;
         let mut responses = Vec::new();
-        let limits = PanelLimits { min: self.limits.min.max(vec2(40.0, RESIZE_BAND + TITLE_HEIGHT + 20.0)).min(self.limits.max), ..self.limits };
+        let limits =
+            PanelLimits { min: self.limits.min.max(vec2(40.0, RESIZE_BAND + style.title_height + 20.0)).min(self.limits.max), ..self.limits };
         let canceled = ui.input(|input| input.key_pressed(Key::Escape)) || crate::focus::lost(ui.ctx());
         for (name, handle, direction) in handles(rect) {
             if !super::targets::usable(handle) {

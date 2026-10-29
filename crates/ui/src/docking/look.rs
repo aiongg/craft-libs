@@ -73,6 +73,8 @@ pub struct DockLook {
     pub ghost_fill: f32,
     /// Alpha factor of the outline of every zone under a dragged tab.
     pub ghost_stroke: f32,
+    /// Alpha factor of the light fill inside a tab drop's outline.
+    pub tab_fill: f32,
     /// Alpha factor of a handle's outline at hover and focus.
     pub grip_alpha: f32,
     /// Corner radius of a floating window's fill and outline.
@@ -130,6 +132,7 @@ impl DockLook {
             drop_fill: dock.drop_fill,
             ghost_fill: dock.ghost_fill,
             ghost_stroke: dock.ghost_stroke,
+            tab_fill: dock.tab_fill,
             grip_alpha: dock.grip_alpha,
             floating_radius: corner_radius(float.radius),
             floating_shadow: float.shadow.to_egui(),
@@ -175,6 +178,7 @@ impl DockLook {
             drop_fill: 0.15,
             ghost_fill: 0.3,
             ghost_stroke: 0.6,
+            tab_fill: 0.08,
             grip_alpha: 0.5,
             floating_radius: CornerRadius::ZERO,
             floating_shadow: Shadow::NONE,
@@ -207,6 +211,7 @@ impl DockLook {
             self.drop_fill,
             self.ghost_fill,
             self.ghost_stroke,
+            self.tab_fill,
             self.grip_alpha,
         ]
         .iter()

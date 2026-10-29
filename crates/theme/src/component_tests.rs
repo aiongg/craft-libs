@@ -1165,7 +1165,7 @@ fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
     assert_eq!((d.gap, d.border_width, d.title_height, d.column_bar_height), (4.0, 1.0, 14.0, 14.0));
     assert_eq!((d.icon_size, d.icon_pad, d.iconic_width), (20.0, 10.0, 36.0));
     assert_eq!((d.drop_width, d.focus_width, d.marker_radius, d.icon_radius, d.hint_radius), (2.0, 1.0, 1.0, 3.0, 4.0));
-    assert_eq!((d.drop_fill, d.ghost_fill, d.ghost_stroke, d.grip_alpha), (0.15, 0.3, 0.6, 0.5));
+    assert_eq!((d.drop_fill, d.ghost_fill, d.ghost_stroke, d.grip_alpha, d.tab_fill), (0.15, 0.3, 0.6, 0.5, 0.08));
     let t = &compact;
     assert_eq!((d.background, d.border), (t.color(T::SurfacePanel), t.color(T::LineBorder)));
     assert_eq!((d.resize, d.drop), (t.color(T::AccentSolid), t.color(T::AccentSolid)));

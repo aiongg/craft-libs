@@ -16,13 +16,10 @@ fn float_only(ctx: &Context) -> bool {
     ctx.input(|i| i.modifiers.command || i.modifiers.ctrl || i.modifiers.mac_cmd)
 }
 
-/// Share of the accent that fills a tab drop's outline: light, so it does not read as a line.
-const TAB_FILL: f32 = 0.08;
-
 /// The preview of a drop that joins a group as a tab, or of the rect a drop beside something
 /// gives the moved panels: a 2 pt accent outline inside `rect`, with a light fill.
-fn tab_outline(painter: &egui::Painter, rect: Rect, accent: egui::Color32, width: f32) {
-    painter.rect_filled(rect, 0.0, accent.gamma_multiply(TAB_FILL));
+fn tab_outline(painter: &egui::Painter, rect: Rect, accent: egui::Color32, width: f32, fill: f32) {
+    painter.rect_filled(rect, 0.0, accent.gamma_multiply(fill));
     painter.rect_stroke(rect, 0.0, egui::Stroke::new(width, accent), egui::StrokeKind::Inside);
 }
 
@@ -602,11 +599,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             } else if beside {
                 let to = Target::At { anchor: proposal.anchor.clone(), placement: proposal.placement.clone() };
                 match self.result_rect(action(to), members) {
-                    Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width),
+                    Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width, self.look.tab_fill),
                     None => self.paint_drop_line(ctx, proposal.preview, false),
                 }
             } else {
-                tab_outline(painter, proposal.preview.shrink(1.0), self.look.drop, self.look.drop_width);
+                tab_outline(painter, proposal.preview.shrink(1.0), self.look.drop, self.look.drop_width, self.look.tab_fill);
             }
         }
         self.paint_marker(painter, proposal);
@@ -619,7 +616,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn paint_dock_preview(&self, ctx: &Context, painter: &egui::Painter, action: Action<P>, members: &[P], drop: &DockDrop<P>) {
         let rect = (!self.config.side_edge_zones && !drop.outer).then_some(action).and_then(|action| self.result_rect(action, members));
         match rect {
-            Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width),
+            Some(rect) => tab_outline(painter, rect.shrink(1.0), self.look.drop, self.look.drop_width, self.look.tab_fill),
             None => self.paint_drop_line(ctx, drop.line, drop.outer),
         }
     }

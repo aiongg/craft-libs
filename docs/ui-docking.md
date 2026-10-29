@@ -175,7 +175,29 @@ window's resize grip holds focus only while the pointer drags it, so the app's s
 canvas arrow keys work right after; one reached with Tab or F6 keeps its focus, and arrow keys
 resize it. Hovering focuses nothing. `begin_drag` hands a drag that started in the app's own chrome to the area.
 `docking::chrome` has the floating frame, the title bar and `drop_preview` (the drag ghost
-and region preview docking and `craft_ui::panes` both draw) for apps that draw their own windows.
+and region preview docking and `craft_ui::panes` both draw; `drop_preview_with` takes the look from a `DockLook`) for apps that draw their own windows.
+
+## Look and config
+
+`DockArea::show*` takes any `DockSpec`. A `DockConfig` holds the behaviour fields and the 24 labels of
+`DockStyle` under the same names (`min_tab_width` is an `Option<f32>`: `None` is the label font's
+width plus the tab padding). A `DockLook` holds the egui-typed look. `DockLook::of(ui)` reads it from
+the theme's `dock`, `float` and `tab` component tokens, so a `DockConfig` alone is a spec that follows
+the theme:
+
+```ignore
+DockArea::new(id).show_content(ui, &layout, &DockConfig::default(), &mut content);
+```
+
+`DockWith { config, look }` pairs a config with a look the app built. The flat `DockStyle` is a spec
+too, and draws with the colours and sizes it holds (`DockLook::from_visuals`); `DockStyle::split`
+gives its two halves and `DockStyle::join` builds one from them.
+
+Sizes follow the Size preset and colours follow the theme: tab strip, active and hover tab and the
+label font come from the `tab` family, the group border, drop previews, resize handles and iconic
+column from `dock`, the floating window's fill, border, radius, shadow, title bar and grip from
+`float`. `ChromeStyle::themed(ui)` gives a host outside docking, such as a floating panel, the same
+frame and title bar.
 
 ## Tab strips
 
@@ -586,7 +608,7 @@ windows from the first frame. `DockArea::native_windows(bool)` overrides the cho
   Wayland) are part of its pass, which publishes as it does without docking.
 - **Modal dialogs.** egui's `Modal` blocks input only in the viewport it is shown in. While the
   app shows one, it passes `DockArea::input_blocked(true)`. Each native window is then drawn
-  under `DockStyle::blocked_dim` (by default the panel fill at 60 %), and its bar, tabs, body
+  under `DockStyle::blocked_dim` (by default the panel fill at 60 %; with a `DockConfig` the `float.blocked` token, `surface.scrim`), and its bar, tabs, body
   and resize edges take no input: its widgets are disabled, the pointer, key, text and scroll
   events are dropped at the start of its frame, and a layer over its content takes the pointer,
   so a popup left open takes no click either. It forwards only key releases, so a key pressed

@@ -587,6 +587,8 @@ pub const DOCK_DROP_FILL: f32 = 0.15;
 pub const DOCK_GHOST_FILL: f32 = 0.3;
 /// Alpha factor of the outline of the zones under a dragged tab.
 pub const DOCK_GHOST_STROKE: f32 = 0.6;
+/// Alpha factor of the light fill inside a tab drop's outline.
+pub const DOCK_TAB_FILL: f32 = 0.08;
 /// Alpha factor of the resize handle's stroke at hover and focus.
 pub const DOCK_GRIP_ALPHA: f32 = 0.5;
 /// Width of a floating window's border.

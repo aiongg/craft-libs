@@ -14,7 +14,7 @@ document stays the app's `CentralPanel`.
 | `egui::Window` | Free tool windows that never dock (Read Aloud, Power Query). |
 
 `panes` needs no docking types; it uses only the docking chrome (`ChromeStyle`,
-`FloatingFrame`, `TitleBar`, `live_move`).
+`FloatingFrame`, `TitleBar`, `live_move`). `ChromeStyle::from_ui` draws them from the egui visuals; `ChromeStyle::themed` draws them from the theme's `float` and `tab` tokens.
 
 ## API
 

@@ -389,6 +389,7 @@ dock.hint_radius = 4
 dock.drop_fill = 0.15
 dock.ghost_fill = 0.3
 dock.ghost_stroke = 0.6
+dock.tab_fill = 0.08
 dock.grip_alpha = 0.5
 dock.background = #f0eef3ff
 dock.border = #d0cdd7ff

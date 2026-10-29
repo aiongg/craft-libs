@@ -20,6 +20,7 @@ mod model;
 mod placement;
 mod render;
 mod resize;
+mod story;
 mod surface;
 mod targets;
 #[cfg(any(test, feature = "testing"))]
@@ -34,6 +35,7 @@ pub use hits::{Divider, Hit, ResizeEdge};
 pub use look::{DockLook, DockSpec, DockWith};
 pub use model::{Action, DockError, Floating, Layout, Location, MAX_DEPTH, MAX_PANELS, Monitor, Node, Permissions, Placement, StackEntry, Zone};
 pub use render::{close_flyout, flyout, open_flyout};
+pub(crate) use story::{COMPONENTS, stories};
 pub use surface::{
     DockArea, DockContent, DockEvent, DockHeights, DockOutput, DockStyle, DropFeedback, DropRequest, FloatSpace, HidePanels, PanelLimits,
     WindowFiles, WindowKind, begin_drag, cancel_drag, float_space, is_dragging, route_app_drag, send_keys, typing_window,
@@ -62,6 +64,8 @@ mod group_tests;
 mod iconic_tests;
 #[cfg(all(test, feature = "native-windows"))]
 mod ime_tests;
+#[cfg(test)]
+mod look_tests;
 #[cfg(test)]
 mod look_token_tests;
 #[cfg(test)]

@@ -116,3 +116,31 @@ fn a_drop_preview_follows_the_look() {
     assert_eq!(rects[0].fill, look.drop.gamma_multiply(0.5));
     assert_eq!(rects[1].fill, Color32::TRANSPARENT);
 }
+
+/// A resize cannot shrink the frame below its top band, the style's title bar and room for the
+/// contents, so the minimum height follows the style's title height.
+#[test]
+fn the_minimum_height_follows_the_title_height() {
+    let minimum = |style: ChromeStyle| {
+        let ctx = Context::default();
+        let id = Id::unique("frame");
+        let bottom = pos2(RECT.center().x, RECT.bottom() - 1.0);
+        let mut smallest = f32::MAX;
+        let pointer = |pos| Event::PointerMoved(pos);
+        let press = |pressed| Event::PointerButton { pos: bottom, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        let steps =
+            [vec![], vec![pointer(bottom)], vec![press(true)], vec![pointer(bottom - vec2(0.0, 20.0))], vec![pointer(bottom - vec2(0.0, 400.0))]];
+        for events in steps {
+            run(&ctx, events, |ui| {
+                if let Some(rect) = FloatingFrame::new(id, RECT).show(ui.ctx(), &style, |_, _| ()).resized {
+                    smallest = smallest.min(rect.height());
+                }
+            });
+        }
+        smallest
+    };
+    let visuals = ChromeStyle::from_visuals(&egui::Visuals::dark());
+    assert_eq!(visuals.title_height, super::chrome::TITLE_HEIGHT);
+    assert_eq!(minimum(visuals.clone()), super::chrome::RESIZE_BAND + super::chrome::TITLE_HEIGHT + 20.0);
+    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..visuals }), super::chrome::RESIZE_BAND + 18.0 + 20.0);
+}

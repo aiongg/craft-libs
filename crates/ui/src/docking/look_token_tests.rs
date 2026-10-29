@@ -38,6 +38,7 @@ fn compact_tokens_reproduce_the_literal_sizes() {
         assert_eq!(tokens.drop_fill, visuals.drop_fill);
         assert_eq!(tokens.ghost_fill, visuals.ghost_fill);
         assert_eq!(tokens.ghost_stroke, visuals.ghost_stroke);
+        assert_eq!(tokens.tab_fill, visuals.tab_fill);
         assert_eq!(tokens.grip_alpha, visuals.grip_alpha);
         assert_eq!(tokens.floating_radius, visuals.floating_radius);
         assert!(tokens.valid());

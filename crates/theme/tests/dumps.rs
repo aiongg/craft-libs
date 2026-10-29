@@ -709,6 +709,7 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         drop_fill,
         ghost_fill,
         ghost_stroke,
+        tab_fill,
         grip_alpha,
         icon_radius,
         hint_radius,
@@ -736,7 +737,9 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
     ] {
         out.line(&format!("dock.{k}"), len(*v));
     }
-    for (k, v) in [("drop_fill", drop_fill), ("ghost_fill", ghost_fill), ("ghost_stroke", ghost_stroke), ("grip_alpha", grip_alpha)] {
+    for (k, v) in
+        [("drop_fill", drop_fill), ("ghost_fill", ghost_fill), ("ghost_stroke", ghost_stroke), ("tab_fill", tab_fill), ("grip_alpha", grip_alpha)]
+    {
         out.line(&format!("dock.{k}"), decimals(*v, 3));
     }
     for (k, c) in [
