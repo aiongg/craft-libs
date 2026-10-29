@@ -220,7 +220,7 @@ fn pins<'a>(theme: &'a ThemeDef, app: Option<&AppId>, mode: Mode, high: bool) ->
     ];
     layers.into_iter().flatten().flat_map(move |(layer, p)| {
         let p: &Pins = p.get(mode);
-        p.0.iter().map(move |(&t, &v)| (layer, t, v))
+        p.colors.iter().map(move |(&t, &v)| (layer, t, v))
     })
 }
 

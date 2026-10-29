@@ -57,13 +57,14 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
 | `contrast_intent` | no | `"standard"` (default) or `"low"`: the theme is meant to be soft, and pickers label it "Low contrast" |
 | `seeds` | yes | `neutral`, `accent` and `status.good/warn/bad/info`, all required |
 | `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button, pill? }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs the first five keys when present; `pill` (switch, slider, progress and badge shapes, clamped to half the part's height) defaults to `"full"`, and Classic sets it to 0 |
-| `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB` or `#RRGGBBAA`; surfaces (`surface.*` except `surface.scrim`) must be opaque. A `seeds` key holds that mode's seed overrides: `neutral`, `accent` and `status.good/warn/bad/info`, each optional; a field it names replaces the theme's `seeds` value in that mode and the rest fall through |
+| `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB`, `#RRGGBBAA` or a reference `"{token.path}"` (see References); surfaces (`surface.*` except `surface.scrim`) must be opaque. A `seeds` key holds that mode's seed overrides: `neutral`, `accent` and `status.good/warn/bad/info`, each optional; a field it names replaces the theme's `seeds` value in that mode and the rest fall through |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast; no `seeds` key (it is an error there and in `apps`) |
 | `components` | no | non-colour component overrides: a length (number or `"full"`) or `{ "level": 0-3 }` |
 | `apps` | no | per-app `{ light, dark, high_contrast, components }`, applied over the theme's values for that app; its `high_contrast` pins apply after the theme's |
 
 - JSON, at most 256 KiB. `schema_version` is the format; `version` is the author's revision.
 - Paths are flat dotted strings (`"button.radius"`), never nested objects.
+- References: a pin value `"{accent.solid}"` takes the final value of that colour token or component colour field (after derivation and the contrast pass) for the theme, mode, contrast and size being resolved, so it follows the accent when the theme's accent changes. A target the theme pins reads the pinned value, and a reference may name another reference. It works in `light`, `dark`, `high_contrast` and `apps` maps. A name that is no colour token or field, and a cycle of references, are errors naming the key and the reference. Only colour pins take references; `components` values and `seeds` do not.
 - A pin map or `seeds` override for a mode the theme lacks is an error when it is not empty.
 - Two-variant themes whose modes need different seeds (Pro, Soft) put the differing fields in `light.seeds` or `dark.seeds` instead of pinning the derived colours.
 - `write` refuses a theme that would not parse back (`ThemeDef::validate`: pins for a missing

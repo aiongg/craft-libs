@@ -6,8 +6,8 @@ use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
 use super::scale::Elevation;
-use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, ThemeDef};
-use super::tokens::{Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, Tokens};
+use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, Pins, ThemeDef};
+use super::tokens::{Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
 use super::values;
 use crate::AppId;
 
@@ -53,6 +53,97 @@ pub(super) struct Steps {
 
 /// [`resolve`], and the steps on the way.
 pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
+    match resolve_references(theme, appearance, app) {
+        Some(concrete) => resolve_concrete(&concrete, appearance, app),
+        None => resolve_concrete(theme, appearance, app),
+    }
+}
+
+/// `theme` with every reference that applies to `appearance` replaced by a colour pin holding the
+/// referenced token's final value, or `None` when none applies. References resolve in rounds: one
+/// resolution of the theme without them gives the values of the references to tokens that are not
+/// references, the next those that read those, and so on. A reference to a token that another
+/// layer pins by colour reads that pin, being the token's final value.
+fn resolve_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Option<ThemeDef> {
+    let mode = theme.variants.mode_for(appearance.mode);
+    let high = appearance.contrast == Contrast::High;
+    let has_app = app.is_some_and(|a| theme.apps.contains_key(a));
+    let layers: Vec<PinLayer> = [
+        Some(PinLayer::Theme),
+        has_app.then_some(PinLayer::App),
+        high.then_some(PinLayer::ThemeHighContrast),
+        (has_app && high).then_some(PinLayer::AppHighContrast),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    // The reference each token ends with: a later layer's pin or reference replaces an earlier one.
+    let mut pending: Vec<(PinLayer, TokenRef, TokenRef)> = Vec::new();
+    for &layer in &layers {
+        let pins = layer_pins(theme, layer, app, mode)?;
+        pending.retain(|p| !pins.colors.contains_key(&p.1) && !pins.refs.contains_key(&p.1));
+        pending.extend(pins.refs.iter().map(|(&k, &t)| (layer, k, t)));
+    }
+    if pending.is_empty() {
+        return None;
+    }
+
+    let mut work = theme.clone();
+    for pins in all_pins_mut(&mut work) {
+        pins.refs.clear();
+    }
+    while !pending.is_empty() {
+        let tokens = resolve_concrete(&work, appearance, app).0.tokens;
+        let (ready, rest): (Vec<_>, Vec<_>) = pending.iter().partition(|p| !pending.iter().any(|q| q.1 == p.2));
+        // Without a ready reference the rest lead back to themselves, which a validated theme never does.
+        if ready.is_empty() {
+            break;
+        }
+        for &(layer, key, target) in ready {
+            let value = match target {
+                TokenRef::Color(t) => Some(tokens.color(t)),
+                TokenRef::Component(f) => tokens.component.color(f),
+            };
+            if let (Some(value), Some(pins)) = (value, layer_pins_mut(&mut work, layer, app, mode)) {
+                pins.colors.insert(key, value);
+            }
+        }
+        pending = rest.into_iter().copied().collect();
+    }
+    Some(work)
+}
+
+fn layer_pins<'a>(theme: &'a ThemeDef, layer: PinLayer, app: Option<&AppId>, mode: Mode) -> Option<&'a Pins> {
+    let app = app.and_then(|a| theme.apps.get(a));
+    Some(match layer {
+        PinLayer::Theme => theme.pins.get(mode),
+        PinLayer::ThemeHighContrast => theme.high_contrast.get(mode),
+        PinLayer::App => app?.pins.get(mode),
+        PinLayer::AppHighContrast => app?.high_contrast.get(mode),
+    })
+}
+
+fn layer_pins_mut<'a>(theme: &'a mut ThemeDef, layer: PinLayer, app: Option<&AppId>, mode: Mode) -> Option<&'a mut Pins> {
+    let app = app.and_then(|a| theme.apps.get_mut(a));
+    let modes = match layer {
+        PinLayer::Theme => &mut theme.pins,
+        PinLayer::ThemeHighContrast => &mut theme.high_contrast,
+        PinLayer::App => &mut app?.pins,
+        PinLayer::AppHighContrast => &mut app?.high_contrast,
+    };
+    Some(match mode {
+        Mode::Light => &mut modes.light,
+        Mode::Dark => &mut modes.dark,
+    })
+}
+
+fn all_pins_mut(theme: &mut ThemeDef) -> impl Iterator<Item = &mut Pins> {
+    let apps = theme.apps.values_mut().flat_map(|a| [&mut a.pins, &mut a.high_contrast]);
+    [&mut theme.pins, &mut theme.high_contrast].into_iter().chain(apps).flat_map(|m| [&mut m.light, &mut m.dark])
+}
+
+fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
     let mode = theme.variants.mode_for(appearance.mode);
     let (color, color_steps) = derive::colors(theme, app, mode, appearance.contrast);
     let mut warnings: Vec<ContrastCheck> = color_steps.warnings().collect();

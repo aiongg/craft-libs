@@ -230,7 +230,7 @@ fn a_pinned_curve_fill_is_checked_against_the_channel_colours() {
     let fill = ComponentField::Curve(CurveField::Fill);
     let mut def = grey_blue();
     let red = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens.color(T::DataRed);
-    def.pins.dark.0.insert(TokenRef::Component(fill), red);
+    def.pins.dark.colors.insert(TokenRef::Component(fill), red);
     let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     let warned = |r: &crate::Resolved| r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::DataRed) && w.bg == TokenRef::Component(fill));
     assert!(warned(&r), "{:?}", r.warnings);
@@ -1307,7 +1307,7 @@ fn the_breeze_close_glyph_reads_on_its_reds() {
 fn a_title_bar_override_replaces_the_default() {
     let mut def = grey_blue();
     let pink = Rgba::rgb(255, 0, 128);
-    def.pins.light.0.insert(TokenRef::Component(ComponentField::TitleBar(TitleBarField::Separator)), pink);
+    def.pins.light.colors.insert(TokenRef::Component(ComponentField::TitleBar(TitleBarField::Separator)), pink);
     let tokens = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens;
     assert_eq!(tokens.component.title_bar.separator, pink);
     assert_eq!(ComponentField::from_path("title_bar.glyph.inactive"), Some(ComponentField::TitleBar(TitleBarField::GlyphInactive)));

@@ -41,9 +41,17 @@ pub fn parse(bytes: &[u8]) -> Result<ThemeFile, FormatErrors> {
     let mut p = Parser::new();
     let theme = p.theme(&raw);
     match theme {
-        Some(theme) if p.errors.is_empty() => Ok(ThemeFile { theme, raw }),
+        Some(theme) if p.errors.is_empty() => {
+            let cycles = theme.reference_errors();
+            if cycles.is_empty() { Ok(ThemeFile { theme, raw }) } else { Err(FormatErrors(cycles)) }
+        }
         _ => Err(FormatErrors(p.errors)),
     }
+}
+
+/// The token path inside a reference, `"{accent.solid}"` giving `accent.solid`.
+fn reference_name(s: &str) -> Option<&str> {
+    s.strip_prefix('{')?.strip_suffix('}')
 }
 
 /// Collects errors while walking the file; `path` is the position being read.
@@ -350,13 +358,29 @@ impl Parser {
                     p.fail(ErrorKind::PinNotColor);
                     return false;
                 }
+                if let Some(name) = v.as_str().and_then(reference_name) {
+                    return match TokenRef::from_path(name) {
+                        None => {
+                            p.fail(ErrorKind::UnknownReference { name: name.to_owned() });
+                            false
+                        }
+                        Some(TokenRef::Component(f)) if f.kind() != FieldKind::Color => {
+                            p.fail(ErrorKind::ReferenceNotColor { name: name.to_owned() });
+                            false
+                        }
+                        Some(target) => {
+                            pins.refs.insert(token, target);
+                            true
+                        }
+                    };
+                }
                 match p.colour(v) {
                     Some(c) if c.a() < 255 && matches!(token, TokenRef::Color(t) if t.is_opaque_surface()) => {
                         p.fail(ErrorKind::NotOpaque);
                         false
                     }
                     Some(c) => {
-                        pins.0.insert(token, c);
+                        pins.colors.insert(token, c);
                         true
                     }
                     None => false,

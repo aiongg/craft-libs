@@ -49,7 +49,7 @@ fn pins_report_their_layer() {
     let grey = Rgba::rgb(0x40, 0x40, 0x40);
     let mut def = unpinned();
     def.pins.dark = Pins::from_iter([(T::LineDivider, grey), (T::SurfaceRaised, grey)]);
-    def.pins.dark.0.insert(TokenRef::Component(field("button.ghost.border.rest")), grey);
+    def.pins.dark.colors.insert(TokenRef::Component(field("button.ghost.border.rest")), grey);
     def.high_contrast.dark = Pins::from_iter([(T::LineBorder, grey)]);
     def.apps.insert(
         photo.clone(),
@@ -111,8 +111,8 @@ fn every_warning_is_a_failing_pair_with_its_ratio() {
     let mut def = unpinned();
     let panel = resolve(&def, a, None).tokens.color(T::SurfacePanel);
     def.pins.dark = Pins::from_iter([(TokenRef::Color(T::TextNormal), panel)]);
-    def.pins.dark.0.insert(TokenRef::Component(field("button.primary.fill.rest")), Rgba::rgb(0x80, 0x80, 0x80));
-    def.pins.dark.0.insert(TokenRef::Component(field("button.primary.text.rest")), Rgba::rgb(0x88, 0x88, 0x88));
+    def.pins.dark.colors.insert(TokenRef::Component(field("button.primary.fill.rest")), Rgba::rgb(0x80, 0x80, 0x80));
+    def.pins.dark.colors.insert(TokenRef::Component(field("button.primary.text.rest")), Rgba::rgb(0x88, 0x88, 0x88));
 
     let mut cases: Vec<(ThemeDef, Appearance)> = vec![(def, a)];
     for theme in builtins() {
