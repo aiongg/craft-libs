@@ -175,7 +175,10 @@ fn serde_forms_round_trip() {
         ..SuiteChoice::default()
     };
     let json = serde_json::to_string(&suite).unwrap();
-    assert_eq!(json, r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"default"}"#);
+    assert_eq!(
+        json,
+        r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"default"}"#
+    );
     assert_eq!(serde_json::from_str::<SuiteChoice>(&json).unwrap(), suite);
     assert_eq!(
         serde_json::from_str::<SuiteChoice>(r#"{"size":"compact"}"#).unwrap(),
