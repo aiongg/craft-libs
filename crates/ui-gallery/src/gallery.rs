@@ -6,7 +6,7 @@ use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
-use craft_ui::controls::{Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
+use craft_ui::controls::{Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -24,7 +24,7 @@ use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::layout::{PanelId, default_workspace, reconciled};
+use crate::layout::{CentreView, PanelId, default_workspace, reconciled};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -43,6 +43,7 @@ pub struct Gallery {
     base: Base,
     selected: Option<String>,
     filter: String,
+    view: CentreView,
     compare: bool,
     compare_themes: Vec<String>,
     compare_high: bool,
@@ -77,6 +78,7 @@ impl Gallery {
             os_applied: SystemAppearance::default(),
             selected,
             filter: saved.filter,
+            view: saved.view,
             compare: saved.compare,
             compare_themes,
             compare_high: saved.compare_high,
@@ -108,17 +110,13 @@ impl Gallery {
         self.compare_themes = ids.iter().filter(|id| builtin(id).is_some()).map(|id| (*id).to_owned()).collect();
     }
 
-    /// Shows the token browser tab instead of the canvas tab.
-    pub fn set_tokens(&mut self, tokens: bool) {
-        self.activate(if tokens { PanelId::Tokens } else { PanelId::Canvas });
-    }
-
     /// Shows the inspector tab, which turns inspect mode on, instead of the properties tab.
     pub fn set_inspect(&mut self, inspect: bool) {
         self.activate(if inspect { PanelId::Inspect } else { PanelId::Properties });
     }
 
-    fn activate(&mut self, panel: PanelId) {
+    /// Brings `panel` to the front of its tab group.
+    pub fn activate(&mut self, panel: PanelId) {
         let _ = self.workspace.apply(Action::Activate { panel }, PanelId::permissions);
     }
 
@@ -169,7 +167,7 @@ impl Gallery {
         let tokens = Tokens::of(ui);
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| self.options_bar(ui));
         let layout = &self.workspace.layout;
-        let inspecting = layout.panel_state(&PanelId::Inspect) == PanelState::Front && layout.panel_state(&PanelId::Canvas) == PanelState::Front;
+        let inspecting = layout.panel_state(&PanelId::Inspect) == PanelState::Front && layout.panel_state(&PanelId::View) == PanelState::Front;
         inspect::set_enabled(&ctx, inspecting);
         if inspecting {
             self.inspector.begin(&ctx, Arc::clone(&tokens));
@@ -288,7 +286,7 @@ impl Gallery {
                     }
                 });
                 OptionsBar::divider(ui);
-                segmented(ui, "View", compare, [("Canvas", false), ("Compare", true)]);
+                ui.add(ToggleButton::new("Compare", compare).size(ControlSize::Sm));
             });
             bar.trailing(|ui| {
                 if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
@@ -439,8 +437,15 @@ impl Gallery {
         }
     }
 
-    /// The story, or the grid of appearances in the compare view, on the canvas colour.
-    fn canvas_panel(&mut self, ui: &mut Ui, inspecting: bool) {
+    /// The centre: the current view.
+    fn view_panel(&mut self, ui: &mut Ui, inspecting: bool) {
+        match self.view {
+            CentreView::Component => self.component_view(ui, inspecting),
+        }
+    }
+
+    /// The story, or the grid of appearances while compare is on, on the canvas colour.
+    fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
         let Some(story) = self.current() else {
             canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
                 ui.set_min_size(ui.available_size());
@@ -513,13 +518,17 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::Stories => padded(ui, |ui| self.gallery.stories_panel(ui)),
             PanelId::Properties => scrolled(ui, |ui| self.gallery.properties_panel(ui)),
             PanelId::Inspect => padded(ui, |ui| self.gallery.inspector.panel(ui)),
-            PanelId::Canvas => self.gallery.canvas_panel(ui, self.inspecting),
-            PanelId::Tokens => self.gallery.tokens_panel(ui),
+            PanelId::View => self.gallery.view_panel(ui, self.inspecting),
+            PanelId::Tokens => padded(ui, |ui| self.gallery.tokens_panel(ui)),
         }
     }
 
     fn logical_label(&self, panel: &PanelId) -> String {
-        panel.title().to_owned()
+        match panel {
+            PanelId::View => self.gallery.view.title(),
+            _ => panel.title(),
+        }
+        .to_owned()
     }
 
     fn permissions(&self, panel: &PanelId) -> Permissions {
@@ -567,6 +576,7 @@ impl eframe::App for Gallery {
             appearance: self.appearance.clone(),
             selected: self.selected.clone(),
             filter: self.filter.clone(),
+            view: self.view,
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             compare_high: self.compare_high,
@@ -836,7 +846,7 @@ mod tests {
     #[test]
     fn the_dock_layout_round_trips_through_storage() {
         let mut gallery = Gallery::new(None);
-        gallery.set_tokens(true);
+        gallery.activate(PanelId::Tokens);
         gallery.workspace.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
         let mut storage = Memory::default();
         eframe::App::save(&mut gallery, &mut storage);
@@ -849,10 +859,24 @@ mod tests {
     fn an_invalid_saved_layout_falls_back_to_the_default() {
         use craft_ui::docking::{Layout, Node};
         let broken =
-            Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::Canvas, PanelId::Canvas], active: 0 }), floating: Vec::new() });
+            Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::View, PanelId::View], active: 0 }), floating: Vec::new() });
         let mut storage = Memory::default();
         eframe::set_value(&mut storage, persist::LAYOUT_KEY, &broken);
         assert_eq!(Gallery::new(Some(&storage)).workspace, default_workspace());
+    }
+
+    #[test]
+    fn a_layout_saved_before_the_views_frame_loads_as_the_default_and_keeps_the_rest() {
+        use craft_ui::docking::{Layout, Node};
+        // The earlier layout held the token browser as a tab beside the canvas in the centre.
+        let centre = Node::Tabs { panels: vec![PanelId::View, PanelId::Tokens], active: 1 };
+        let old = Workspace::new(Layout { root: Some(centre), floating: Vec::new() });
+        let mut storage = Memory::default();
+        eframe::set_value(&mut storage, KEY, &Saved { filter: "button".to_owned(), ..Saved::default() });
+        eframe::set_value(&mut storage, "craft-ui-gallery.layout", &old);
+        let gallery = Gallery::new(Some(&storage));
+        assert_eq!(gallery.workspace, default_workspace());
+        assert_eq!(gallery.filter, "button");
     }
 
     #[test]

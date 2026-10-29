@@ -1,5 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
+use craft_ui_gallery::layout::PanelId;
 use egui::{Context, RawInput};
 
 /// The window the dock lays out in; an empty screen would draw no panel.
@@ -54,7 +55,7 @@ fn the_system_choices_render_in_canvas_and_compare_views() {
     frame(&ctx, &mut gallery);
     gallery.set_compare(true);
     frame(&ctx, &mut gallery);
-    gallery.set_tokens(true);
+    gallery.activate(PanelId::Tokens);
     frame(&ctx, &mut gallery);
 }
 
@@ -63,7 +64,7 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
     use craft_theme::{ColorToken, ComponentField, TokenRef};
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    gallery.set_tokens(true);
+    gallery.activate(PanelId::Tokens);
     let field = ComponentField::from_path("button.primary.text.rest").unwrap();
     for (dark, selected) in [(false, TokenRef::Color(ColorToken::TextFaint)), (true, TokenRef::Component(field))] {
         let a = gallery.appearance_mut();
@@ -101,7 +102,7 @@ fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
     }
     assert_eq!(gallery.focus_badges().len(), 2, "dark standard and dark high contrast");
     assert!(craft_ui::inspect::enabled(&ctx));
-    gallery.set_tokens(true);
+    gallery.activate(PanelId::Tokens);
     frame(&ctx, &mut gallery);
     assert!(!craft_ui::inspect::enabled(&ctx), "the token browser has no inspector");
 }

@@ -10,10 +10,9 @@ use craft_theme::{
 };
 use craft_theme::{ControlSize, TypeRole};
 use craft_ui::controls::{Checkbox, SearchField, ToggleButton};
-use craft_ui::direction;
 use craft_ui::primitives::Divider;
 use craft_ui::theme::{Base, StrokeExt, ToEgui, Tokens, TokensOf, scale};
-use egui::{CentralPanel, Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
+use egui::{Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
 
 use crate::fields;
 
@@ -21,6 +20,9 @@ use crate::fields;
 const SWATCH: egui::Vec2 = vec2(28.0, 16.0);
 // design: allow[literal-size/vec2](a colour chip is a specimen of the colour, not a control; no size token fits)
 const RAMP_SWATCH: egui::Vec2 = vec2(22.0, 22.0);
+
+/// The share of the panel's height under the filters that the token list takes.
+const LIST_SHARE: f32 = 0.55;
 
 /// The browser's filters, selection and last explanation.
 #[derive(Default)]
@@ -39,23 +41,21 @@ impl Browser {
         self.selected = Some(token);
     }
 
-    /// Draws the page for the theme and appearance `base` shows in `mode`: the detail of the
-    /// selected row at the end side, the tables in the centre.
+    /// Draws the panel for the theme and appearance `base` shows in `mode`: the filters, the
+    /// token list, and under it the detail of the selected row. The list and the detail each
+    /// scroll in their own part of the panel, so both stay in view at any list length.
     pub fn show(&mut self, ui: &mut Ui, base: &Base, mode: Mode) {
         let explained = self.explained(base, mode);
-        let ctx = ui.ctx().clone();
-        direction::end_panel(&ctx, "gallery.tokens.detail").default_size(360.0).show(ui, |ui| {
-            ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained));
+        self.filters(ui, base, mode, &explained);
+        Divider::horizontal().show(ui);
+        let list_height = ui.available_height() * LIST_SHARE;
+        ScrollArea::both().id_salt("gallery.tokens.list").max_height(list_height).auto_shrink([false, false]).show(ui, |ui| {
+            self.color_list(ui, &explained);
+            ui.add_space(Tokens::of(ui).space.gap.section);
+            self.component_list(ui, &explained);
         });
-        CentralPanel::default().show(ui, |ui| {
-            self.filters(ui, base, mode, &explained);
-            Divider::horizontal().show(ui);
-            ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                self.color_table(ui, &explained);
-                ui.add_space(Tokens::of(ui).space.gap.section);
-                self.component_table(ui, &explained);
-            });
-        });
+        Divider::horizontal().show(ui);
+        ScrollArea::both().id_salt("gallery.tokens.detail").auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained));
     }
 
     /// `explain` for what `base` shows in `mode`, computed again only when that changes.
@@ -105,49 +105,41 @@ impl Browser {
             && (!self.failing_only || e.pairs_of(token).any(|p| !p.pair.passes()))
     }
 
-    fn color_table(&mut self, ui: &mut Ui, e: &Explained) {
+    fn color_list(&mut self, ui: &mut Ui, e: &Explained) {
         ui.heading("Colour tokens");
-        let muted = Tokens::of(ui).color.text.muted.to_egui();
-        Grid::new("gallery.tokens.colors").num_columns(6).striped(true).show(ui, |ui| {
-            let mut group = "";
-            for o in &e.colors {
-                let token = TokenRef::Color(o.token);
-                if !self.shows(e, token, o.pin.is_some(), o.contrast_move.is_some()) {
-                    continue;
-                }
-                let g = group_of(o.token);
-                if g != group {
-                    group = g;
-                    ui.label(RichText::new(g).strong());
-                    ui.end_row();
-                }
-                swatch(ui, o.value, SWATCH);
-                self.path_cell(ui, token);
-                ui.monospace(o.value.to_hex());
-                ui.label(o.source_words());
-                ui.label(RichText::new(o.pin.map_or("", pin_words)).color(muted));
-                ui.label(moved_words(o.contrast_move));
-                ui.end_row();
+        let mut group = "";
+        for o in &e.colors {
+            let token = TokenRef::Color(o.token);
+            if !self.shows(e, token, o.pin.is_some(), o.contrast_move.is_some()) {
+                continue;
             }
-        });
+            let g = group_of(o.token);
+            if g != group {
+                group = g;
+                ui.label(RichText::new(g).strong());
+            }
+            self.row(ui, token, o.value);
+        }
     }
 
-    fn component_table(&mut self, ui: &mut Ui, e: &Explained) {
+    fn component_list(&mut self, ui: &mut Ui, e: &Explained) {
         ui.heading("Component colours");
-        let muted = Tokens::of(ui).color.text.muted.to_egui();
-        Grid::new("gallery.tokens.components").num_columns(5).striped(true).show(ui, |ui| {
-            for o in &e.components {
-                let field = TokenRef::Component(o.field);
-                if !self.shows(e, field, o.pin.is_some(), o.contrast_move.is_some()) {
-                    continue;
-                }
-                swatch(ui, o.value, SWATCH);
-                self.path_cell(ui, field);
-                ui.label(reads_words(o));
-                ui.label(RichText::new(o.pin.map_or(String::new(), |l| format!("override ({})", pin_words(l)))).color(muted));
-                ui.label(moved_words(o.contrast_move));
-                ui.end_row();
+        for o in &e.components {
+            let field = TokenRef::Component(o.field);
+            if !self.shows(e, field, o.pin.is_some(), o.contrast_move.is_some()) {
+                continue;
             }
+            self.row(ui, field, o.value);
+        }
+    }
+
+    /// A list row: the token's path, the value's swatch and hex. The origin, pin and
+    /// contrast move are in the detail.
+    fn row(&mut self, ui: &mut Ui, token: TokenRef, value: Rgba) {
+        ui.horizontal(|ui| {
+            self.path_cell(ui, token);
+            swatch(ui, value, SWATCH);
+            ui.monospace(value.to_hex());
         });
     }
 
@@ -350,10 +342,6 @@ fn pin_words(layer: PinLayer) -> &'static str {
 
 fn reads_words(o: &FieldOrigin) -> String {
     o.reads.map_or_else(|| "computed".to_owned(), |t| format!("reads {}", t.path()))
-}
-
-fn moved_words(before: Option<Rgba>) -> String {
-    before.map_or_else(String::new, |c| format!("moved from {}", c.to_hex()))
 }
 
 #[cfg(test)]
