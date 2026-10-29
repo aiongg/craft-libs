@@ -8,8 +8,13 @@
 //! ([`Edits::click`], [`Edits::clicks`]). [`Edits::feed`] then gives them to its gesture:
 //!
 //! - The part whose Begin (or first Update) starts the gesture owns it; its Commit commits and
-//!   its Cancel cancels. An owner's Commit that changed nothing ends the gesture at its start.
-//!   Other parts' values join the gesture; Sets are [`set`](Gesture::set).
+//!   its Cancel cancels. Other parts' values join the gesture; Sets are [`set`](Gesture::set).
+//! - The owner's Commit ends the gesture with the owner's value as the composite's, which changed
+//!   the gesture when it differs from the composite's start. While the gesture holds only the
+//!   owner's values from the composite's start (no other value joined it, and the host didn't
+//!   end it, so it doesn't carry on from the host's value), an owner's value that is the owner's
+//!   own start is the composite's start exactly: a value that doesn't map back to the same
+//!   composite value (float units, colour spaces) doesn't make a change of nothing.
 //! - Inside [`scope`](super::scope) every value is a `set`, so only Updates go out.
 //! - The typing fields are the gesture's [`focus_owners`](Gesture::focus_owners). While the
 //!   owner's typing run is under way, its ending event ends the composite's gesture, also when the
@@ -35,9 +40,10 @@
 //!   the host gets the ending, then the next edit (a Set, or a gesture that part owns), and no
 //!   part's value is made from the value before the ending: a screen reader's step on one part
 //!   in the pass another part's typing run commits on Enter steps the committed value. A part
-//!   that isn't drawn again drops its held event. The composite's own one-shot values
-//!   ([`Edits::set`]) are made from the value at the pass start, so they go only into a gesture
-//!   that goes on.
+//!   that isn't drawn in the next pass drops its held event, and so does every part of a composite
+//!   that isn't (a popover's picker that closes with the commit). The composite's own one-shot
+//!   values ([`Edits::set`]) are made from the value at the pass start, so they go only into a
+//!   gesture that goes on.
 //! - A press on a part while another part's typing run has the focus waits for that run's event
 //!   (`controls::slider::press_turn`); a click on a button part waits the same way
 //!   ([`Edits::clicks`]).
@@ -56,22 +62,25 @@ use crate::controls::slider::PRESS_WAIT;
 /// composite's value.
 #[derive(Clone)]
 enum End<V> {
-    /// A commit that changed nothing: the composite's gesture ends at its start.
-    Start,
-    /// A commit with the part's last value, which the composite's gesture has.
-    Current,
-    /// A commit with a value no update carried.
-    Value(V),
+    /// A commit with the part's last value: `value` when no update carried it, else the value
+    /// the composite's gesture has. `changed` is the part's own: whether that value differs from
+    /// the part's start.
+    Commit {
+        value: Option<V>,
+        changed: bool,
+    },
     Cancel,
 }
 
 impl<V: Clone + PartialEq + Send + Sync + 'static> End<V> {
     /// The value a commit ends the composite's `outer` gesture with, when not its current one.
-    fn value(&self, outer: &Gesture<V>) -> Option<V> {
+    /// `pure`: the gesture holds only its owner's values from the composite's start
+    /// ([`State::pure`]), so an unchanged owner leaves the composite at its start.
+    fn value(&self, outer: &Gesture<V>, pure: bool) -> Option<V> {
         match self {
-            End::Start => outer.start().cloned(),
-            End::Value(value) => Some(value.clone()),
-            End::Current | End::Cancel => None,
+            End::Commit { changed: false, .. } if pure => outer.start().cloned(),
+            End::Commit { value, .. } => value.clone(),
+            End::Cancel => None,
         }
     }
 }
@@ -107,8 +116,15 @@ pub(crate) struct State<C> {
     end: Option<KeptEnd>,
     /// Whether the composite's gesture went on after the last pass.
     active: bool,
+    /// The composite's gesture while it holds only its owner's values from the composite's
+    /// start: no other part's value or one-shot value joined it, and it isn't a gesture carried
+    /// on from the host's value (which has another id). The owner's start is then the
+    /// composite's start.
+    pure: Option<GestureId>,
     /// The parts' events that wait for the pass after the one their gesture ended in.
     late: Vec<(Id, Late)>,
+    /// The pass that held `late`: they are fed only in the next.
+    late_pass: u64,
     /// Clicks that wait for a typing run to end ([`Edits::clicks`]): the pass of the first, the
     /// last pass that held them, and the clicks.
     held: Option<(u64, u64, Vec<C>)>,
@@ -116,7 +132,7 @@ pub(crate) struct State<C> {
 
 impl<C> Default for State<C> {
     fn default() -> Self {
-        Self { owner: None, run: None, end: None, active: false, late: Vec::new(), held: None }
+        Self { owner: None, run: None, end: None, active: false, pure: None, late: Vec::new(), late_pass: 0, held: None }
     }
 }
 
@@ -135,8 +151,10 @@ impl fmt::Debug for Late {
 pub(crate) struct Edits<V, C = ()> {
     /// Each with the part's own event, held if the composite's gesture ends first.
     events: Vec<(Id, EditEvent<V>, Late)>,
-    /// The events held from the last pass, fed when their parts are pushed.
+    /// The events held from the last pass, fed when their parts are pushed, and the pass that
+    /// held them: they are dropped in any pass but the next.
     late: Vec<(Id, Late)>,
+    late_pass: u64,
     /// The owner, and whether the composite's gesture went on, as the last pass left them.
     owner: Option<Id>,
     active: bool,
@@ -160,6 +178,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         Self {
             events: Vec::new(),
             late: state.late.clone(),
+            late_pass: state.late_pass,
             owner: state.owner,
             active: state.active,
             ctx: None,
@@ -182,12 +201,14 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     pub fn push_as<T: Clone + Send + Sync + 'static>(&mut self, ctx: &Context, id: Id, event: Option<&EditEvent<T>>, map: impl Fn(T) -> V) {
         let run = event.and_then(EditEvent::id).or_else(|| self.run.filter(|(owner, _)| *owner == id).map(|(_, run)| run));
         let end = run.filter(|&run| super::is_live(ctx, run)).map(|run| match super::ending(ctx, run) {
-            Ending::Commit { changed: false } => End::Start,
-            Ending::Commit { changed: true } => super::unreported::<T>(ctx, run).map_or(End::Current, |value| End::Value(map(value))),
+            Ending::Commit { changed } => End::Commit { value: super::unreported::<T>(ctx, run).map(&map), changed },
             Ending::Cancel => End::Cancel,
         });
         self.drawn.push((id, end));
         self.ctx.get_or_insert_with(|| ctx.clone());
+        if self.late_pass + 1 != ctx.cumulative_pass_nr() {
+            self.late.clear();
+        }
         if let Some(i) = self.late.iter().position(|(part, _)| *part == id) {
             let (_, late) = self.late.remove(i);
             if let Some(held) = late.0.downcast_ref::<EditEvent<T>>() {
@@ -265,7 +286,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             match ended.and_then(|end| end.get::<V>()).unwrap_or(End::Cancel) {
                 End::Cancel => outer.cancel(CancelReason::Removed),
                 end => {
-                    if let Some(value) = end.value(&outer) {
+                    if let Some(value) = end.value(&outer, is_pure(&outer, state)) {
                         outer.update(value, Modifiers::NONE);
                     }
                     outer.commit();
@@ -281,6 +302,9 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             }
             let run = event.id();
             let owner = state.owner == Some(who);
+            if outer.is_active() && !owner && event.value().is_some_and(|value| value != outer.shown()) {
+                state.pure = None;
+            }
             match event {
                 // Inside a scope the parts report only updates, each a change of its own.
                 event if scoped => {
@@ -292,19 +316,22 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
                     if !outer.is_active() {
                         outer.begin();
                         state.owner = Some(who);
+                        state.pure = outer.id();
                     }
                 }
                 EditEvent::Update { value, modifiers, .. } => {
                     if !outer.is_active() {
                         outer.begin();
                         state.owner = Some(who);
+                        state.pure = outer.id();
                     }
                     outer.update(value, modifiers);
                 }
                 EditEvent::Commit { value, changed, modifiers, .. } => match outer.start().cloned() {
                     None => outer.set(value),
                     Some(start) if owner => {
-                        outer.update(if changed { value } else { start }, modifiers);
+                        let value = if !changed && is_pure(&outer, state) { start } else { value };
+                        outer.update(value, modifiers);
                         outer.commit();
                     }
                     Some(_) => outer.update(value, modifiers),
@@ -323,6 +350,9 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             }
         }
         for value in self.sets {
+            if outer.is_active() && value != *outer.shown() {
+                state.pure = None;
+            }
             outer.set(value);
         }
         let owner_end = state.owner.filter(|_| outer.is_active()).and_then(|owner| {
@@ -336,14 +366,21 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             }
             outer.interrupted_as(match &end {
                 End::Cancel => Interrupted::Cancel,
-                end => Interrupted::Commit(end.value(&outer)),
+                end => Interrupted::Commit(end.value(&outer, is_pure(&outer, state))),
             });
             state.end = Some(KeptEnd(Arc::new(end)));
         }
         state.active = outer.is_active() && !outer.is_ending();
         if let Some(ctx) = self.ctx.as_ref().filter(|_| !state.late.is_empty()) {
+            state.late_pass = ctx.cumulative_pass_nr();
             ctx.request_repaint();
         }
         outer
     }
+}
+
+/// Whether the composite's `outer` gesture holds only its owner's values from its start
+/// ([`State::pure`]).
+fn is_pure<V: Clone + PartialEq + Send + Sync + 'static, C>(outer: &Gesture<V>, state: &State<C>) -> bool {
+    outer.id().is_some() && outer.id() == state.pure
 }

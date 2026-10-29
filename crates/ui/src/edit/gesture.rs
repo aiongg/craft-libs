@@ -23,12 +23,11 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///     if response.drag_started() {
 ///         gesture.begin();
 ///     }
-///     if response.dragged()
-///         && let Some(start) = gesture.start().copied()
-///     {
-///         let moved = ui.input(|i| i.pointer.interact_pos().zip(i.pointer.press_origin()));
-///         let delta = moved.map_or(0.0, |(pos, origin)| pos.x - origin.x);
-///         gesture.update(start + delta, ui.input(|i| i.modifiers));
+///     if response.dragged() {
+///         // From the value shown, not the start: a gesture the host ended carries on from the
+///         // host's value.
+///         let value = gesture.shown() + response.drag_delta().x;
+///         gesture.update(value, ui.input(|i| i.modifiers));
 ///     }
 ///     if response.drag_stopped() {
 ///         gesture.commit();
@@ -63,8 +62,14 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 /// - A gesture the host ended before its control did (another control began a gesture or set a
 ///   value, [`GestureHost`](super::GestureHost)) is over: [`load`](Gesture::load) replaces it
 ///   with a new gesture of the same input (the same drag, typing run or draft), started from the
-///   host's value. That gesture reports its [`Begin`](EditEvent::Begin) at its first change and
-///   nothing if it ends unchanged, so the input goes on and its later changes reach the host.
+///   host's value. That gesture reports its [`Begin`](EditEvent::Begin) at its first change, with
+///   an id it takes at that change ([`id`](Gesture::id)), and nothing if it ends unchanged, so
+///   the input goes on and its later changes reach the host. Its [`start`](Gesture::start) is
+///   the host's value, so a drag computes its value from [`shown`](Gesture::shown) and the
+///   pointer's movement since the last frame, not from the start and the movement since the
+///   press. A control whose commit also signals that the user finished (a pen draft's Enter)
+///   can't rely on the commit for that: an unchanged carried-on gesture reports nothing, so the
+///   control reports the finish another way.
 ///
 /// At most one event goes out per frame: a gesture that begins and commits in one frame reports
 /// [`Set`](EditEvent::Set) (nothing when the value didn't change). Inside a
@@ -293,7 +298,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         matches!(self.stored.phase, Phase::Active(_))
     }
 
-    /// The active gesture's id.
+    /// The active gesture's id: the one its events go out with. A gesture that carries on an
+    /// input the host ended takes its id at its first change, the one its
+    /// [`Begin`](EditEvent::Begin) goes out with, so the id is greater than that of every gesture
+    /// the host has ended before ([`GestureHost`](super::GestureHost)).
     pub fn id(&self) -> Option<GestureId> {
         match &self.stored.phase {
             Phase::Active(a) => Some(a.id),
@@ -314,7 +322,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         }
     }
 
-    /// The active gesture's start value: the host's value when it began.
+    /// The active gesture's start value: the host's value when it began. For a gesture that
+    /// carries on an input the host ended, that is the host's value when the host ended it, not
+    /// the value the input started from.
     pub fn start(&self) -> Option<&T> {
         match &self.stored.phase {
             Phase::Active(a) => Some(&a.start),
@@ -395,6 +405,12 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             if a.current != value {
                 a.current = value;
                 a.changed_at = self.now;
+                // A carried-on gesture announces itself in the frame of a change. An id taken
+                // earlier could be older than a gesture the host ended meanwhile, and the host
+                // would ignore this one.
+                if a.waits && !a.announced {
+                    a.id = GestureId::next();
+                }
             }
         }
     }
@@ -488,7 +504,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Replaces a gesture the host ended with a new one of the same input, started from the host's
-    /// value; its `Begin` waits for its first change. The focus, drag and held updates go on.
+    /// value; its `Begin` waits for its first change, which gives it its id
+    /// ([`update`](Gesture::update)). The focus, drag and held updates go on. Runs after
+    /// [`apply_cancel_all`](Gesture::apply_cancel_all): an input that a `cancel_all` stops
+    /// doesn't go on.
     fn carry_on_ended(&mut self) {
         let generation = CancelAll::get(&self.ctx).generation;
         let Phase::Active(a) = &mut self.stored.phase else { return };
