@@ -1,6 +1,6 @@
 # Icon sources
 
-Each folder holds only the files `icons.toml` lists, unchanged from the pinned source, and the set's licence as `LICENSE`. To add an icon, copy its file from the same commit.
+Each folder holds only the files `icons.toml` lists, unchanged from the pinned source (exception: the drawings named below the table), and the set's licence as `LICENSE`. To add an icon, copy its file from the same commit.
 
 | Folder | Set | Licence | Source (tag, commit) | Files taken from |
 |---|---|---|---|---|
@@ -12,3 +12,5 @@ Each folder holds only the files `icons.toml` lists, unchanged from the pinned s
 Carbon's licence file is the repository's root `LICENSE` (the icons package has none of its own).
 
 Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are all `regular` weight.
+
+Phosphor has no glyph for `bandage-sparkle`, `brush-replace`, `clip-below`, `clip-release`, `convert-point`, `direct-select`, `eraser-background`, `eraser-magic` and `font-similar`. Their files in `phosphor/` are our own drawings, in Phosphor's regular weight (16-unit stroke on the 256 view box, round caps and joins), after PhotoCraft's glyphs.
