@@ -9,9 +9,9 @@ use super::story::{LineHost, english_names};
 use super::{GradientOverlay, LineCursor};
 use crate::canvas::guides::GuideHost;
 use crate::canvas::tests::TypingField;
-use crate::canvas::{CanvasView, GradientLine, Guide, GuideNames, Guides, LineGradient, LinePart, Orientation, RulerUnits};
+use crate::canvas::{CanvasView, GradientExtent, GradientLine, Guide, GuideNames, Guides, LineGradient, LinePart, Orientation, RulerUnits};
 use crate::composites::gradient::stops::sample;
-use crate::composites::{ColorStop, GradientStops, StopRef, StopRow, StopRows, StopRules};
+use crate::composites::{ColorStop, GradientLabels, GradientStops, StopRef, StopRow, StopRows, StopRules};
 use crate::edit::{self, CancelReason, EditEvent, GestureHost};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
@@ -48,6 +48,9 @@ struct Host {
     editable: bool,
     units: bool,
     value_text: Option<String>,
+    labels: GradientLabels,
+    extent: GradientExtent,
+    enter_left: usize,
     claimed: bool,
     cursors: Vec<LineCursor>,
     guides: Option<GuideHost>,
@@ -72,6 +75,9 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
         editable: true,
         units: false,
         value_text: None,
+        labels: GradientLabels::default(),
+        extent: GradientExtent::None,
+        enter_left: 0,
         claimed: false,
         cursors: Vec::new(),
         guides: None,
@@ -98,6 +104,8 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
             }
             let r = overlay
                 .editable(host.editable)
+                .labels(host.labels.clone())
+                .extent(host.extent)
                 .rules(host.rules.clone())
                 .reverse(host.reverse)
                 .alt_copies(host.alt_copies)
@@ -108,6 +116,7 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
                 })
                 .show(ui, &canvas, &view);
             host.cursors.extend(seen.into_inner());
+            host.enter_left += usize::from(ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)));
             host.host.apply(&r);
             host.typing.note(r.event.is_some());
             host.events.extend(r.event.clone());
@@ -160,7 +169,7 @@ pub(super) fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
     Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers }
 }
 
-/// Moves to `from`, presses, moves to `to` and releases there in one frame, with `modifiers` held.
+/// Moves to `from`, presses, moves to `to` and releases there, a frame per event, with `modifiers` held.
 fn drag(h: &mut Harness<'_, Host>, from: Pos2, to: Pos2, modifiers: Modifiers) {
     h.event(Event::ModifiersChanged(modifiers));
     h.event(Event::PointerMoved(from));
@@ -520,7 +529,7 @@ impl edit::UndoMarks for History {
 type Shared = (History, GestureHost<History>, Option<LineGradient>, Option<CanvasView>, Vec<EditEvent<LineGradient>>);
 
 /// Another control's Set during a stop drag (a gradient editor's, made from the stops it shows)
-/// ends the drag; the drag goes on from the host's value at its next move, as a gesture of its
+/// ends the drag; the drag goes on from the host's value in the same pass, its stop at the pointer, as a gesture of its
 /// own.
 #[test]
 fn a_drag_the_host_ended_for_another_controls_set_goes_on_from_the_hosts_value() {
@@ -992,4 +1001,202 @@ fn a_one_frame_double_click_asks_for_the_colour_and_a_one_frame_secondary_click_
     h.run();
     assert_eq!(h.state().context, Some(LinePart::Stop(1)));
     assert_eq!(selected(&h), Some(StopRef::Color(1)));
+}
+
+#[test]
+fn a_dragged_stop_stays_picked_where_it_lands_so_the_keys_follow_it() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    drag(&mut h, s.t(0.3), s.t(0.7), Modifiers::NONE);
+    assert_eq!((picked(&h), selected(&h)), (Some(LinePart::Stop(2)), Some(StopRef::Color(2))), "past its neighbour");
+    key(&mut h, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(value(&h).stops.color[2].tag, 7);
+    assert!(near(locations(&h)[2], 0.71), "{:?}", locations(&h));
+    key(&mut h, Modifiers::NONE, Key::Delete);
+    assert_eq!(value(&h).stops.color.iter().filter(|s| s.tag == 7).count(), 0, "Delete removes the dragged stop, not its neighbour");
+}
+
+#[test]
+fn an_alt_copy_a_line_click_and_a_torn_off_stop_leave_the_pick_with_the_selection() {
+    let mut h = harness(|host| host.alt_copies = true);
+    h.run();
+    let s = spots(&h);
+    drag(&mut h, s.t(0.3), s.t(0.2), Modifiers::ALT);
+    assert_eq!((picked(&h), selected(&h)), (Some(LinePart::Stop(1)), Some(StopRef::Color(1))), "the copy");
+    click(&mut h, s.t(0.9));
+    let new = locations(&h).iter().position(|l| near(*l, 0.9)).expect("added");
+    assert_eq!(picked(&h), Some(LinePart::Stop(new)), "the stop a line click adds");
+    assert_eq!(selected(&h), Some(StopRef::Color(new)));
+    drag(&mut h, s.t(0.6), s.t(0.6) + vec2(0.0, 80.0), Modifiers::NONE);
+    assert_eq!((picked(&h), selected(&h)), (None, None), "a stop torn off leaves nothing picked");
+}
+
+#[test]
+fn esc_and_a_secondary_click_leave_the_pick_with_the_selection() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    click(&mut h, s.t(1.0));
+    click(&mut h, s.t(0.6));
+    press(&mut h, s.t(0.3));
+    move_to(&mut h, s.t(0.5));
+    assert_eq!(picked(&h), Some(LinePart::Stop(1)));
+    key(&mut h, Modifiers::NONE, Key::Escape);
+    release(&mut h, s.t(0.5));
+    assert_eq!((picked(&h), selected(&h)), (Some(LinePart::Stop(2)), Some(StopRef::Color(2))), "Esc restores the pick with the selection");
+
+    let secondary = |at: Pos2, pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    let end = s.t(1.0);
+    frame(&mut h, [Event::PointerMoved(end), secondary(end, true), secondary(end, false)]);
+    h.run();
+    assert_eq!(h.state().context, Some(LinePart::End));
+    assert_eq!(picked(&h), Some(LinePart::End), "the part the secondary click took");
+}
+
+#[test]
+fn the_stop_ring_starts_at_the_disc_and_the_ends_and_extent_sit_on_their_spec_radii() {
+    let mut h = harness(|host| host.extent = GradientExtent::Circle);
+    h.run();
+    let s = spots(&h);
+    click(&mut h, s.t(0.3));
+    let style = style(&h);
+    let circles = |color| -> Vec<(Pos2, f32, f32)> {
+        painted(&h, color)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Circle(c) => Some((c.center, c.radius, c.stroke.width)),
+                _ => None,
+            })
+            .collect()
+    };
+    // A circle strokes outside its radius: the ring begins where the disc ends, the halo where the ring ends.
+    assert!(circles(style.selected).contains(&(s.t(0.3), style.stop, style.stop_ring.width)), "the selected ring on the disc");
+    assert!(circles(style.stop_halo.color).contains(&(s.t(0.3), style.stop + style.stop_ring.width, style.stop_halo.width)));
+    let ring = style.end_ring - style.end.width / 2.0;
+    assert!(circles(style.end.color).contains(&(s.t(1.0), ring, style.end.width)), "the end ring centred on `end_ring`");
+    let halo = style.end.width + 2.0 * style.end_halo.width;
+    assert!(circles(style.end_halo.color).contains(&(s.t(1.0), ring - style.end_halo.width, halo)));
+    let radius = 200.0 - style.line.width / 2.0;
+    assert!(circles(style.line.color).contains(&(s.t(0.0), radius, style.line.width)), "the circle extent's line centred on its edge");
+}
+
+#[test]
+fn a_picked_part_that_goes_leaves_the_focus_marks_on_the_line() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Midpoint(2));
+    let focus = style(&h).focus.color;
+    h.state_mut().host.value.stops.color.truncate(2);
+    h.run();
+    assert_eq!(picked(&h), None);
+    assert_eq!(painted(&h, focus).len(), 2, "the keys act on the line, so it shows the focus lines");
+}
+
+#[test]
+fn enter_is_taken_only_where_it_asks_for_a_colour() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Line);
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    pick(&mut h, LinePart::Midpoint(0));
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(h.state().enter_left, 2, "left to the host on the line and a midpoint");
+    pick(&mut h, LinePart::Stop(0));
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(h.state().enter_left, 2, "a stop takes it");
+}
+
+#[test]
+fn the_end_values_use_the_labels_point_template() {
+    let mut h = harness(|host| {
+        host.units = true;
+        host.labels.point_value = "{y} / {x}".into();
+    });
+    h.run();
+    assert_eq!(objects(&h)[1].1, "150.0 px / 100.0 px");
+}
+
+#[test]
+fn a_quick_end_drag_in_one_frame_moves_that_end() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let (from, to) = (s.t(1.0), s.t(1.0) + vec2(0.0, 40.0));
+    frame(&mut h, [Event::PointerMoved(from), button(from, true, Modifiers::NONE), Event::PointerMoved(to), button(to, false, Modifiers::NONE)]);
+    h.run();
+    assert_eq!(value(&h).line.end, Point::new(300.0, 190.0));
+    assert_eq!(value(&h).line.start, LINE.start);
+}
+
+/// A host whose other control makes `change` of the gradient while a drag of `part` is under way.
+fn drag_then_set(part_t: f64, change: impl Fn(&mut LineGradient)) -> (LineGradient, LineGradient, Vec<&'static str>) {
+    type State = (History, GestureHost<History>, Option<LineGradient>, Option<CanvasView>, Vec<EditEvent<LineGradient>>);
+    let state: State = (History { now: gradient(), undo: Vec::new() }, GestureHost::new(), None, None, Vec::new());
+    let mut h = Harness::<State>::builder()
+        .with_size([480.0, 400.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (doc, host, set, view_out, events): &mut State| {
+                let ctx = ui.ctx().clone();
+                ui.add_space(40.0);
+                let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
+                let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
+                *view_out = Some(view);
+                let value = doc.now.clone();
+                let r = GradientOverlay::new("gradient", &value.line, &value.stops, english_names()).show(ui, &canvas, &view);
+                if let Some(event) = r.event {
+                    events.push(event.clone());
+                    host.handle(&ctx, doc, event, History::apply);
+                }
+                if let Some(value) = set.take() {
+                    host.handle(&ctx, doc, EditEvent::set(value, Modifiers::NONE), History::apply);
+                }
+            },
+            state,
+        );
+    h.run();
+    let view = h.state().3.expect("drawn");
+    let at = |t: f64| view.to_screen(Point::new(100.0 + 200.0 * t, 150.0));
+    h.event(Event::PointerMoved(at(part_t)));
+    h.event(button(at(part_t), true, Modifiers::NONE));
+    h.run();
+    h.event(Event::PointerMoved(at(part_t + 0.1)));
+    h.run();
+    let mut changed = h.state().0.now.clone();
+    change(&mut changed);
+    h.state_mut().2 = Some(changed.clone());
+    h.run();
+    h.event(Event::PointerMoved(at(part_t + 0.15)));
+    h.run();
+    h.event(button(at(part_t + 0.15), false, Modifiers::NONE));
+    h.run();
+    (h.state().0.now.clone(), changed, kinds(&h.state().4))
+}
+
+/// A drag the host ended is carried on only while its stop or midpoint is identified in the
+/// host's new value: the colour row's length and the stops' tags. Otherwise it ends, unannounced,
+/// and nothing of the rest of the press edits.
+#[test]
+fn a_carried_on_drag_ends_when_its_stop_or_midpoint_cannot_be_identified() {
+    // A stop removed before the dragged one: the selection's index is another stop's.
+    let (now, set, kinds) = drag_then_set(0.6, |g| {
+        g.stops.color.remove(0);
+    });
+    assert_eq!(now, set, "nothing moves after the Set");
+    assert!(!kinds.contains(&"cancel"), "unannounced: {kinds:?}");
+    // A stop added during a midpoint drag: its index is another segment now.
+    let (now, set, _) = drag_then_set(0.45, |g| {
+        g.stops.color.insert(0, ColorStop::new(0.0, Srgba::rgb(0.0, 0.0, 0.0)));
+    });
+    assert_eq!(now, set);
+    // The same count with another stop (by tag) at the dragged one's place.
+    let (now, set, _) = drag_then_set(0.3, |g| {
+        g.stops.color[1].tag = 9;
+        g.stops.color[2].tag = 7;
+    });
+    assert_eq!(now, set);
+    // A change that leaves the stop identified goes on (the existing carry-on test covers it).
+    let (now, set, _) = drag_then_set(0.3, |g| g.stops.color[3].color = Srgba::rgb(0.0, 1.0, 0.0));
+    assert_ne!(now.stops.color[1].location, set.stops.color[1].location);
 }

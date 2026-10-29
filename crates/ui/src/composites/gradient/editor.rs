@@ -103,6 +103,8 @@ pub struct GradientLabels {
     pub bar_stops: String,
     /// A value in percent: "{n}%".
     pub percent: String,
+    /// A canvas gradient overlay's end handle value, a point in document units: "{x}, {y}".
+    pub point_value: String,
     /// The fields row's labels, which name their fields: "Color", "Opacity", "Location",
     /// "Midpoint".
     pub color: String,
@@ -126,6 +128,7 @@ impl Default for GradientLabels {
             bar_value: "{n} color stops, {m} opacity stops".into(),
             bar_stops: "{n} stops".into(),
             percent: "{n}%".into(),
+            point_value: "{x}, {y}".into(),
             color: "Color".into(),
             opacity: "Opacity".into(),
             location: "Location".into(),

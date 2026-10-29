@@ -38,8 +38,11 @@ impl GradientOverlay<'_> {
                 part = LinePart::Stop(i);
             }
         }
-        if take(Modifiers::NONE, Key::Enter) + take(Modifiers::NONE, Key::Space) > 0 {
-            out.color_requested = self.color_request(pass, &shown, part);
+        // Enter and Space are taken only where they ask for a colour; elsewhere they are the host's.
+        if let Some(request) = self.color_request(pass, &shown, part)
+            && take(Modifiers::NONE, Key::Enter) + take(Modifiers::NONE, Key::Space) > 0
+        {
+            out.color_requested = Some(request);
         }
         match part {
             LinePart::Stop(i) | LinePart::Midpoint(i) if i < value.stops.color.len() => {
