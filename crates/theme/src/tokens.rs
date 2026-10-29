@@ -672,6 +672,10 @@ pub struct RailSizes {
     pub width: f32,
     /// Square button inside the rail.
     pub button: f32,
+    /// Width of a panel rail: the iconic column of a dock and a panel rail.
+    pub panel_width: f32,
+    /// Square button inside a panel rail.
+    pub panel_button: f32,
 }
 
 /// Bar heights, in logical pixels.
