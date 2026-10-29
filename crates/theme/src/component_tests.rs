@@ -335,6 +335,7 @@ fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
     let popup = TokenRef::Color(T::SurfaceRaised);
     let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
     vec![
+        (ListboxField::ActiveFill, popup, (1.12, 1.12)),
         (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
         (ListboxField::ChosenText, popup, (4.5, 7.0)),
         (ListboxField::Group, popup, (4.5, 7.0)),
@@ -377,7 +378,9 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     assert_eq!((l.pad_x, l.gap, l.separator_pad, l.radius), (t.space.pad.control, t.space.gap.inline, t.space.gap.inline, t.shape.radius.control));
     assert_eq!((l.label, l.group_label), (TypeRole::Body, TypeRole::Caption));
     assert_eq!(l.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
-    assert_eq!((l.active_fill, l.active_text), (t.color(T::StateHover), t.color(T::TextNormal)));
+    assert_eq!(l.active_text, t.color(T::TextNormal));
+    let popup = t.color(T::SurfaceRaised);
+    assert!(contrast_ratio(over(l.active_fill, popup), popup) >= values::LIST_HOVER_MIN.0);
     assert_eq!((l.chosen_text, l.mark), (t.color(T::TextNormal), t.color(T::TextNormal)));
     assert_eq!((l.group, l.separator), (t.color(T::TextMuted), t.color(T::LineDivider)));
 }
@@ -504,7 +507,11 @@ fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
         assert_eq!(t.component.check.radius, radius, "{size:?}");
     }
     let mut def = grey_blue();
-    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }), edge: None });
+    def.shape = Some(ShapeSeed {
+        radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius_offset: None,
+        edge: None,
+    });
     assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 0.0);
 }
 
@@ -934,7 +941,11 @@ fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_t
     let comfy = at(Size::Comfortable);
     assert_eq!((comfy.swatch.radius, comfy.kbd.radius), (4.0, 3.0));
     let mut def = grey_blue();
-    def.shape = Some(ShapeSeed { radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }), edge: None });
+    def.shape = Some(ShapeSeed {
+        radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius_offset: None,
+        edge: None,
+    });
     let t = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
     assert_eq!((t.swatch.radius, t.kbd.radius), (2.0, 2.0));
 

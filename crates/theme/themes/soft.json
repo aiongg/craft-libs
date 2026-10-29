@@ -16,7 +16,13 @@
       "warn": "#f0c882"
     }
   },
-  "shape": null,
+  "shape": {
+    "radius_offset": {
+      "control": 1.0,
+      "popup": 2.0,
+      "window": 2.0
+    }
+  },
   "light": {
     "accent.soft": "#6e80d82c",
     "accent.solid": "#6e80d8",

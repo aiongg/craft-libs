@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value};
 
-use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES, SCHEMA, SCHEMA_VERSION, ThemeFile};
+use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES, OFFSET, SCHEMA, SCHEMA_VERSION, ThemeFile};
 use crate::color::Rgba;
 use crate::components::{ComponentField, FieldKind, OverrideValue};
 use crate::scale::{Elevation, Radius};
-use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, SeedOverrides, Seeds, ShapeSeed, ThemeDef, Variants};
+use crate::theme::{
+    AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, RadiusOffset, SeedOverrides, Seeds, ShapeSeed, ThemeDef, Variants,
+};
 use crate::tokens::{ColorToken, RadiusSet, Status, TokenRef};
 use crate::{AppId, ThemeId};
 
@@ -220,11 +222,15 @@ impl Parser {
                 Some(r) => p.at("radius", |p| p.radius_set(r)).map(Some),
                 None => Some(None),
             };
+            let radius_offset = match p.optional_object(shape, "radius_offset") {
+                Some(r) => p.at("radius_offset", |p| p.radius_offset(r)).map(Some),
+                None => Some(None),
+            };
             let edge = p.at("edge", |p| match shape.get("edge") {
                 None | Some(Value::Null) => Some(None),
                 Some(v) => p.edge(v).map(Some),
             });
-            Some(Some(ShapeSeed { radius: radius?, edge: edge? }))
+            Some(Some(ShapeSeed { radius: radius?, radius_offset: radius_offset?, edge: edge? }))
         })
     }
 
@@ -245,6 +251,25 @@ impl Parser {
             Some(v) => self.at("pill", |p| p.length(v))?,
         };
         Some(RadiusSet { control: control?, popup: popup?, window: window?, panel: panel?, button: button?, pill })
+    }
+
+    /// The radius offsets; each key is optional and defaults to 0.
+    fn radius_offset(&mut self, r: &Map<String, Value>) -> Option<RadiusOffset> {
+        let mut get = |key: &str| match r.get(key) {
+            None | Some(Value::Null) => Some(0.0),
+            Some(v) => self.at(key, |p| p.offset(v)),
+        };
+        let (control, popup, window) = (get("control"), get("popup"), get("window"));
+        Some(RadiusOffset { control: control?, popup: popup?, window: window? })
+    }
+
+    /// A signed length in logical pixels.
+    fn offset(&mut self, v: &Value) -> Option<f32> {
+        let out = v.as_f64().filter(|x| x.is_finite()).map(|x| x as f32);
+        if out.is_none() {
+            self.fail(ErrorKind::BadValue { expected: OFFSET });
+        }
+        out
     }
 
     /// A length in logical pixels: a number of 0 or more, or `"full"`.

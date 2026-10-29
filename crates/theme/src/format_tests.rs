@@ -123,7 +123,7 @@ fn defaults_and_exported_themes() {
 
     let mut def = grey_blue();
     def.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
-    def.shape = Some(ShapeSeed { radius: None, edge: Some(EdgeSeed::Flat) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, edge: Some(EdgeSeed::Flat) });
     let file = format::to_file(&def).unwrap();
     let text = format::write(&file).unwrap();
     assert_eq!(format::parse(text.as_bytes()).unwrap().theme, def);
@@ -312,6 +312,7 @@ fn write_refuses_what_parse_rejects() {
     def.pins.light = Pins::from_iter([(TokenRef::Color(T::SurfacePanel), hex("#ffffff80")), (TokenRef::Component(radius), Rgba::WHITE)]);
     def.shape = Some(ShapeSeed {
         radius: Some(RadiusSet { control: -1.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius_offset: None,
         edge: Some(EdgeSeed::Bevel { width: 0.0 }),
     });
     let got = paths(def.validate().unwrap_err());
@@ -383,7 +384,11 @@ fn a_float_shadow_override_round_trips_through_the_file() {
 #[test]
 fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     let mut def = grey_blue();
-    let radius = |pill| ShapeSeed { radius: Some(RadiusSet { control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }), edge: None };
+    let radius = |pill| ShapeSeed {
+        radius: Some(RadiusSet { control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }),
+        radius_offset: None,
+        edge: None,
+    };
     let written = |def: &ThemeDef| -> Value { serde_json::from_str(&format::write(&format::to_file(def).unwrap()).unwrap()).unwrap() };
     def.shape = Some(radius(Radius::Full.px()));
     assert!(written(&def)["shape"]["radius"].get("pill").is_none());

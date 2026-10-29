@@ -94,7 +94,7 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
-            assert_eq!(pairs.len(), 6, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
@@ -128,12 +128,54 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
-            assert_eq!(pairs.len(), 12, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 14, "{} {a:?}", theme.id);
             for p in pairs {
                 assert!(p.passes(), "{} {a:?}: {} on {} is {:.2}, needs {}", theme.id, p.fg.path(), p.bg.path(), p.ratio, p.minimum);
             }
         }
     }
+}
+
+/// The hover row of a list, tree or list box differs from the rest row and from the selected row
+/// by the least ratio, and the label still reads on it, in every built-in and appearance.
+#[test]
+fn builtin_list_hover_is_visible_beside_the_rest_and_selected_rows() {
+    let (min_std, min_high) = values::LIST_HOVER_MIN;
+    for theme in builtins() {
+        for a in appearances() {
+            let min = if a.contrast == Contrast::High { min_high } else { min_std };
+            let t = resolve(theme, a, None).tokens;
+            let c = &t.component;
+            let panel = t.color(ColorToken::SurfacePanel);
+            let over_panel = |f: Rgba| crate::derive::over(f, panel);
+            let list = c.color(ComponentField::List(ListField::Hover)).unwrap();
+            let selected = c.color(ComponentField::List(ListField::Selected)).unwrap();
+            let who = format!("{} {a:?}", theme.id);
+            assert!(contrast_ratio(over_panel(list), panel) >= min, "{who}: list hover on the rest row");
+            assert!(contrast_ratio(over_panel(list), over_panel(selected)) >= min, "{who}: list hover on the selected row");
+            let popup = t.color(ColorToken::SurfaceRaised);
+            let active = c.color(ComponentField::Listbox(ListboxField::ActiveFill)).unwrap();
+            assert!(contrast_ratio(crate::derive::over(active, popup), popup) >= min, "{who}: list box active row");
+        }
+    }
+}
+
+/// Soft keeps its own rounder corners at every Size (7/10/14 at Comfortable); the other built-ins
+/// that set no offset take the Size preset's radii.
+#[test]
+fn soft_offsets_the_size_preset_radii_and_others_keep_them() {
+    let radii = |theme: &ThemeDef, size| {
+        let a = Appearance { size, ..appearances()[0] };
+        let r = resolve(theme, a, None).tokens.shape.radius;
+        (r.control, r.popup, r.window, r.panel, r.button, r.pill)
+    };
+    let full = scale::Radius::Full.px();
+    let soft = builtins().iter().find(|t| t.id.as_str() == "craft.soft").unwrap();
+    assert_eq!(radii(soft, Size::Comfortable), (7.0, 10.0, 14.0, 0.0, full, full));
+    assert_eq!(radii(soft, Size::Compact), (4.0, 6.0, 8.0, 0.0, full, full));
+    let pro = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
+    assert_eq!(radii(pro, Size::Comfortable), (6.0, 8.0, 12.0, 0.0, full, full));
+    assert_eq!(radii(pro, Size::Compact), (3.0, 4.0, 6.0, 0.0, full, full));
 }
 
 /// `text.on_strong` is white and reads on `accent.strong` in every built-in and appearance;

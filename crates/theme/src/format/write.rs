@@ -111,6 +111,16 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
             }
         });
     }
+    match s.radius_offset {
+        None => {
+            shape.remove("radius_offset");
+        }
+        Some(o) => with_object(shape, "radius_offset", |m| {
+            for (key, v) in [("control", o.control), ("popup", o.popup), ("window", o.window)] {
+                m.insert(key.to_owned(), length(v));
+            }
+        }),
+    }
     if let Some(e) = s.edge {
         shape.insert("edge".to_owned(), edge(e));
     }

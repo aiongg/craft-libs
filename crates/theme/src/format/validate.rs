@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH};
+use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, OFFSET};
 use crate::components::{ComponentField, FieldKind, OverrideValue};
 use crate::ramp::Mode;
 use crate::theme::{EdgeSeed, ModePins, Pins, ShapeSeed, ThemeDef, Variants};
@@ -74,6 +74,17 @@ impl Check {
                     [("control", r.control), ("popup", r.popup), ("window", r.window), ("panel", r.panel), ("button", r.button), ("pill", r.pill)]
                 {
                     c.at(key, |c| c.length(v));
+                }
+            });
+        }
+        if let Some(o) = shape.radius_offset {
+            self.at("radius_offset", |c| {
+                for (key, v) in [("control", o.control), ("popup", o.popup), ("window", o.window)] {
+                    c.at(key, |c| {
+                        if !v.is_finite() {
+                            c.fail(ErrorKind::BadValue { expected: OFFSET });
+                        }
+                    });
                 }
             });
         }

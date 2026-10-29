@@ -56,7 +56,7 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
 | `variants` | no | `"both"` (default), `"light"` or `"dark"` |
 | `contrast_intent` | no | `"standard"` (default) or `"low"`: the theme is meant to be soft, and pickers label it "Low contrast" |
 | `seeds` | yes | `neutral`, `accent` and `status.good/warn/bad/info`, all required |
-| `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button, pill? }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs the first five keys when present; `pill` (switch, slider, progress and badge shapes, clamped to half the part's height) defaults to `"full"`, and Classic sets it to 0 |
+| `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button, pill? }, "radius_offset": { control?, popup?, window? }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs the first five keys when present and fixes the radii at every Size; `radius_offset` (numbers, negative allowed, missing keys 0) is added to the control, popup and window radii in force, so the theme keeps its own shape at every Size (Soft: control +1, popup +2, window +2, which makes 7/10/14 at Comfortable and 4/6/8 at Compact); a "full" radius and `panel`, `button` and `pill` are not offset, and a sum below 0 is 0; `pill` (switch, slider, progress and badge shapes, clamped to half the part's height) defaults to `"full"`, and Classic sets it to 0 |
 | `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB`, `#RRGGBBAA` or a reference `"{token.path}"` (see References); surfaces (`surface.*` except `surface.scrim`) must be opaque. A `seeds` key holds that mode's seed overrides: `neutral`, `accent` and `status.good/warn/bad/info`, each optional; a field it names replaces the theme's `seeds` value in that mode and the rest fall through |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast; no `seeds` key (it is an error there and in `apps`) |
 | `components` | no | non-colour component overrides: a length (number or `"full"`) or `{ "level": 0-3 }` |
@@ -95,6 +95,8 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill | 4.5 | 7 |
 | `text.on_strong` on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed` (primary buttons, solid accent badges, active menu rows) | 4.5 | 7 |
 | `line.focus` on control backgrounds; `line.mark` (slider marks and ticks, the badge ring) on the control surfaces, `state.hover` and `state.pressed`; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
+
+The hover fill of a list, tree or list box row (`list.hover`, `listbox.active.fill`; the mouse cue must always show) is at least 1.12:1 from the rest surface (`surface.panel`; `surface.raised` in a list box) and, in a list, from the selected fill. Its default is `state.hover`, moved along OKLCH lightness to the nearest step that satisfies this and keeps `text.normal` readable; a pinned value is measured and reported.
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
 or pinned values in every contrast, as do the guide colours and `overlay.line`, the bare accent
