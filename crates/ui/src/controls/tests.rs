@@ -290,13 +290,13 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
         let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
         let (off, on) = (IndicatorColors::from(&c.off), IndicatorColors::from(&c.on));
         assert_eq!((off.mark, on.mark), (None, Some(c.on.mark.to_egui())), "off has no mark");
-        let text = |s: State| if s == State::Disabled { t.color.text.disabled.to_egui() } else { t.color.text.normal.to_egui() };
+        let text = |s: State, normal: craft_theme::Rgba| if s == State::Disabled { t.color.text.disabled.to_egui() } else { normal.to_egui() };
         for size in SIZES {
             let b = Checkbox::style(&t, size);
-            assert_eq!((b.height, b.side, b.gap, b.label, b.mark), (c.height.get(size), c.size.get(size), c.gap, c.label, c.mark.get(size)));
-            assert_eq!((b.radius, b.surface, b.off, b.on), (egui::CornerRadius::from(c.radius), sunken, off, on));
+            assert_eq!((b.height, b.side, b.gap, b.label, b.mark), (c.height.get(size), c.box_size.get(size), c.box_gap, c.label, c.mark.get(size)));
+            assert_eq!((b.radius, b.outline, b.off, b.on), (egui::CornerRadius::from(c.radius), c.outline, off, on));
             let r = RadioGroup::style(&t, size);
-            assert_eq!((r.height, r.diameter, r.dot, r.surface, r.off, r.on), (b.height, b.side, c.dot.get(size), sunken, off, on));
+            assert_eq!((r.height, r.diameter, r.dot, r.outline, r.off, r.on), (b.height, b.side, c.dot.get(size), c.outline, off, on));
             let s = Switch::style(&t, size);
             assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
             assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
@@ -304,7 +304,8 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
             assert_eq!((s.thumb_fill, s.thumb_border), (c.thumb.fill.to_egui(), c.thumb.border.to_egui()));
             assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
             for state in State::ALL {
-                assert_eq!([b.text.get(state), r.text.get(state), s.text.get(state)], [text(state); 3], "{state:?}");
+                let muted = text(state, t.color.text.muted);
+                assert_eq!([b.text.get(state), r.text.get(state), s.text.get(state)], [muted, muted, text(state, t.color.text.normal)], "{state:?}");
             }
         }
     }
@@ -513,37 +514,83 @@ fn a_switch_thumb_slides_from_the_reading_start_over_motion_move_and_at_once_wit
 }
 
 #[test]
-fn bevel_themes_sink_check_boxes_radio_buttons_and_switch_tracks() {
+fn bevel_themes_sink_switch_tracks() {
     let classic = theme("craft.classic");
     let t = tokens_of(&classic, Mode::Light);
     let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken).edge;
     let crate::primitives::SurfaceEdge::Bevel { top_left: dark, bottom_right: light, .. } = sunken else { panic!("Classic bevels: {sunken:?}") };
     let ctx = context();
-    for control in 0..3 {
-        let rect = Cell::new(Rect::NOTHING);
-        let shapes = pass(&ctx, &classic, vec![], |ui| {
-            let response = match control {
-                0 => Checkbox::bool("Grid", &mut true).show(ui).response,
-                1 => {
-                    let mut set = RadioSet::new("grid", "Grid", &mut 0).item(0).begin(ui);
-                    let _ = set.radio(ui, 0, "Grid");
-                    set.end(ui).response
-                }
-                _ => Switch::new("Grid", &mut false).show(ui).response,
-            };
-            rect.set(response.rect);
-        });
+    let rect = Cell::new(Rect::NOTHING);
+    let shapes = pass(&ctx, &classic, vec![], |ui| {
+        rect.set(Switch::new("Grid", &mut false).show(ui).response.rect);
+    });
+    let style = Switch::style(&t, ControlSize::Md);
+    // The track sits at the left, centred; Classic squares it (`radius.pill` 0).
+    let track =
+        Rect::from_min_size(egui::pos2(rect.get().left(), rect.get().center().y - style.track_height / 2.0), vec2(style.width, style.track_height));
+    assert_eq!(bevel_corners(&shapes, track), (dark, light), "a sunken track, shaded on the top left");
+}
+
+fn flatten(shape: Shape, out: &mut Vec<Shape>) {
+    match shape {
+        Shape::Vec(shapes) => shapes.into_iter().for_each(|s| flatten(s, out)),
+        shape => out.push(shape),
+    }
+}
+
+/// One frame of `add` at `time` with `events`: the shapes and the cursor icon.
+fn frame_with_cursor(ctx: &Context, time: f64, events: Vec<Event>, add: impl FnOnce(&mut Ui)) -> (Vec<Shape>, egui::CursorIcon) {
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), time: Some(time), events, ..Default::default() };
+    let mut add = Some(add);
+    let mut output = ctx.run_ui(input, |ui| {
+        if let Some(add) = add.take() {
+            add(ui);
+        }
+    });
+    output.textures_delta.clear();
+    let mut flat = Vec::new();
+    for clipped in output.shapes {
+        flatten(clipped.shape, &mut flat);
+    }
+    (flat, output.platform_output.cursor_icon)
+}
+
+/// A check box is flat in every theme (Classic too): a filled box with an inside outline. The
+/// pointer is a hand over its label, and pressing the label shows the box pressed.
+#[test]
+fn check_boxes_are_flat_outlined_boxes_with_a_hand_over_box_and_label_and_press_with_the_label() {
+    for id in ["craft.pro", "craft.classic"] {
+        let ctx = motion_context_in(id, true);
+        let t = tokens_of(&theme(id), Mode::Light);
         let s = Checkbox::style(&t, ControlSize::Md);
-        // The box sits at the left, centred: its rect is the indicator's.
-        let side = if control == 2 { vec2(Switch::style(&t, ControlSize::Md).width, s.side) } else { vec2(s.side, s.side) };
-        let indicator = Rect::from_min_size(egui::pos2(rect.get().left(), rect.get().center().y - side.y / 2.0), side);
-        // The radio is round: the bevel splits at 45 degrees through the corners, so compare the
-        // top and bottom middle. Classic squares the switch track (`radius.pill` 0).
-        let (top_left, bottom_right) = match control {
-            1 => bevel_at(&shapes, indicator, indicator.center_top(), indicator.center_bottom()),
-            _ => bevel_corners(&shapes, indicator),
+        let rect = Cell::new(Rect::NOTHING);
+        let frame = |time, events| {
+            frame_with_cursor(&ctx, time, events, |ui| {
+                rect.set(Checkbox::bool("Grid", &mut false).show(ui).response.rect);
+            })
         };
-        assert_eq!((top_left, bottom_right), (dark, light), "control {control}: a sunken indicator, shaded on the top left");
+        let boxed = |shapes: &[Shape]| {
+            let boxes: Vec<_> = shapes
+                .iter()
+                .filter_map(|sh| match sh {
+                    Shape::Rect(r) if (r.rect.size() - Vec2::splat(s.side)).length() < 0.01 => Some(r.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(boxes.len(), 1, "{id}: one box");
+            boxes[0].clone()
+        };
+        let (shapes, cursor) = frame(0.0, vec![]);
+        let at_rest = boxed(&shapes);
+        assert_eq!((at_rest.fill, at_rest.corner_radius, cursor), (s.off.fill.rest, s.radius, egui::CursorIcon::Default), "{id}");
+        assert_eq!((at_rest.stroke, at_rest.stroke_kind), (egui::Stroke::new(s.outline, s.off.border.rest), egui::StrokeKind::Inside), "{id}");
+        let label = egui::pos2(rect.get().left() + s.side + s.gap + 4.0, rect.get().center().y);
+        let (shapes, cursor) = frame(0.1, vec![Event::PointerMoved(label)]);
+        assert_eq!((boxed(&shapes).stroke.color, cursor), (s.off.border.hover, egui::CursorIcon::PointingHand), "{id}: hover on the label");
+        let (shapes, _) = frame(0.2, vec![press(label, true)]);
+        let pressed = boxed(&shapes);
+        assert_eq!((pressed.fill, pressed.stroke.color), (s.off.fill.pressed, s.off.border.pressed), "{id}: pressing the label presses the box");
+        assert_ne!(pressed.fill, s.off.fill.rest, "{id}");
     }
 }
 

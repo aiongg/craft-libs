@@ -476,14 +476,20 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     let c = &t.component.check;
     assert_eq!(c.height, BySize { sm: t.size.control.sm, md: t.size.control.md });
     assert_eq!(c.size, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
-    assert_eq!((c.gap, c.label, c.radius, c.thumb_inset), (t.space.gap.inline, TypeRole::Body, 3.0, 2.0));
-    assert_eq!((c.mark, c.dot.md, c.track.md), (BySize { sm: 1.5, md: 2.0 }, t.size.icon.md * 0.4, t.size.icon.md * 2.0));
+    assert_eq!(c.box_size, BySize { sm: t.size.icon.sm, md: t.size.icon.md - 2.0 });
+    assert_eq!((c.gap, c.box_gap, c.label, c.radius, c.thumb_inset), (t.space.gap.inline, t.space.gap.stack, TypeRole::Body, 2.0, 2.0));
+    assert_eq!((c.mark.md, c.dot.md, c.track.md), (c.box_size.md * 0.125, c.box_size.md * 0.4, t.size.icon.md * 2.0));
     let outline = States::new(t.color(T::TextFaint), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled));
     assert_eq!(c.off.border, outline);
     let sunken = t.color(T::SurfaceSunken);
-    assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
-    assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
-    assert_eq!(c.on.border, c.on.fill);
+    let darker = Rgba(sunken.0.map(|v| (f32::from(v) * 0.82).round() as u8)).with_alpha(sunken.a());
+    assert_eq!(c.off.fill, States::new(sunken, sunken, darker, t.color(T::StateDisabledFill)));
+    let accent = t.color(T::AccentSolid);
+    assert_eq!(c.on.fill, States::new(accent, accent, accent.with_alpha((f32::from(accent.a()) * 0.75).round() as u8), t.color(T::TextDisabled)));
+    let none = Rgba::TRANSPARENT;
+    assert_eq!(c.on.border, States::new(none, none, none, t.color(T::TextDisabled)));
+    assert_eq!(c.switch.fill, States::new(accent, t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    assert_eq!(c.switch.border, c.switch.fill);
     let on_accent = t.color(T::TextOnAccent);
     assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::StateDisabledFill)));
     assert_eq!(c.thumb, knob(&t));
@@ -504,11 +510,10 @@ fn a_disabled_check_that_is_on_differs_from_one_that_is_off() {
 }
 
 #[test]
-fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
-    for (size, radius) in [(Size::Compact, 3.0), (Size::Comfortable, 3.0)] {
+fn a_check_box_radius_is_two_in_every_theme_and_an_override_stays_below_the_cap() {
+    for size in [Size::Compact, Size::Comfortable] {
         let t = resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-        assert!(t.shape.radius.control >= radius);
-        assert_eq!(t.component.check.radius, radius, "{size:?}");
+        assert_eq!(t.component.check.radius, 2.0, "{size:?}");
     }
     let mut def = grey_blue();
     def.shape = Some(ShapeSeed {
@@ -516,7 +521,9 @@ fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
         radius_offset: None,
         edge: None,
     });
-    assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 0.0);
+    assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 2.0);
+    def.components.insert(ComponentField::from_path("check.radius").unwrap(), OverrideValue::Length(9.0));
+    assert_eq!(resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component.check.radius, 3.0);
 }
 
 #[test]

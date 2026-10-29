@@ -5,10 +5,10 @@
 
 use std::sync::Arc;
 
-use craft_theme::{CheckOffColors, CheckOnColors, States, TypeRole};
+use craft_theme::{CheckOffColors, CheckOnColors, Rgba, States, TypeRole};
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, TextWrapMode, Ui, Vec2, pos2, vec2};
+use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, StrokeKind, TextWrapMode, Ui, Vec2, pos2, vec2};
 
 use super::TooltipExt as _;
 use crate::direction;
@@ -59,10 +59,16 @@ impl Paint {
     }
 }
 
-/// The label colours: `text.normal`, and `text.disabled` when disabled.
-pub(crate) fn label_colors(tokens: &UiTokens) -> States<Color32> {
-    let (normal, disabled) = (tokens.color.text.normal.to_egui(), tokens.color.text.disabled.to_egui());
+/// The label colours: `normal`, and `text.disabled` when disabled.
+pub(crate) fn label_colors(tokens: &UiTokens, normal: Rgba) -> States<Color32> {
+    let (normal, disabled) = (normal.to_egui(), tokens.color.text.disabled.to_egui());
     States::new(normal, normal, normal, disabled)
+}
+
+/// A check box or radio button in `rect`: the fill, then an outline of `width` drawn inside, in
+/// the colours of `paint`. Flat in every theme.
+pub(crate) fn box_shape(rect: Rect, radius: CornerRadius, width: f32, paint: Paint) -> egui::Shape {
+    egui::epaint::RectShape::new(rect, radius, paint.fill, Stroke::new(width, paint.border), StrokeKind::Inside).into()
 }
 
 /// The sunken surface the indicator draws on, with `fill`, `border` (a flat edge's colour) and

@@ -989,13 +989,21 @@ pub const READOUT_COL_GAP: f32 = 12.0;
 /// Compact gap between a readout's rows.
 pub const READOUT_ROW_GAP: f32 = 1.0;
 
-/// Largest corner radius of a check box, in points: `shape.radius.control` up to this, so a
-/// small box keeps square corners and never reads as a radio button.
+/// Corner radius of a check box, in points, in every theme.
+pub const CHECK_RADIUS: f32 = 2.0;
+/// Largest corner radius a theme may give a check box, in points: a small box keeps square
+/// corners and never reads as a radio button.
 pub const CHECK_RADIUS_MAX: f32 = 3.0;
-/// Stroke width of a check box's check and dash, in points, at the small and standard sizes.
-pub const CHECK_MARK_SM: f32 = 1.5;
-/// See [`CHECK_MARK_SM`].
-pub const CHECK_MARK_MD: f32 = 2.0;
+/// How far under the standard icon size a check box or radio button is, in points.
+pub const CHECK_BOX_INSET: f32 = 2.0;
+/// Width of a check box's outline, in points, drawn inside the box.
+pub const CHECK_OUTLINE: f32 = 1.5;
+/// Stroke width of a check box's check and dash, as a fraction of the box.
+pub const CHECK_MARK_RATIO: f32 = 0.125;
+/// How far toward black an unchecked box's fill goes while pressed.
+pub const CHECK_OFF_PRESSED_DARKEN: f32 = 0.18;
+/// The opacity a checked box's fill has while pressed.
+pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
 /// Diameter of a radio button's dot as a fraction of the circle's.
 pub const RADIO_DOT_RATIO: f32 = 0.4;
 /// Diameter of an icon button's badge dot as a fraction of its icon.

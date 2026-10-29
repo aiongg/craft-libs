@@ -5,16 +5,16 @@ use std::sync::Arc;
 
 use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
 use super::button::content_color;
-use super::check::{IndicatorColors, Labelled, Layout, Paint, indicator_shapes, label_colors};
+use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
 use super::{SIZE_NAMES, size_arg};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
-use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
+use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf, UiTokens};
 
@@ -24,22 +24,21 @@ use crate::theme::{Tokens, TokensOf, UiTokens};
 pub struct RadioStyle {
     /// Height of one line: `check.height`.
     pub height: f32,
-    /// Diameter of the circle: `check.size`.
+    /// Diameter of the circle: `check.box_size`.
     pub diameter: f32,
-    /// Between the circle and the label: `check.gap`.
+    /// Between the circle and the label: `check.box_gap`.
     pub gap: f32,
     /// `check.label`.
     pub label: TypeRole,
     /// Diameter of the dot: `check.dot`.
     pub dot: f32,
-    /// The sunken surface the circle draws on, for its edge (a border, or a bevel in bevel
-    /// themes); the fill is the circle's own.
-    pub surface: SurfaceStyle,
+    /// Width of the outline, drawn inside the circle: `check.outline`.
+    pub outline: f32,
     /// Not selected: `check.off.*`.
     pub off: IndicatorColors,
     /// Selected: `check.on.*`.
     pub on: IndicatorColors,
-    /// The label: `text.normal`, `text.disabled`.
+    /// The label: `text.muted`, `text.disabled`.
     pub text: States<Color32>,
 }
 
@@ -51,12 +50,15 @@ impl RadioStyle {
 
 /// Reports a sensed radio button with its settled state and paints its circle, dot and label.
 fn paint(ui: &Ui, style: &RadioStyle, laid: &Labelled, sensed: Sensed, on: bool) -> Response {
-    let response = sensed.checked(on).finish(ui);
+    let mut response = sensed.checked(on).finish(ui);
+    if response.enabled() {
+        response = response.on_hover_cursor(CursorIcon::PointingHand);
+    }
     if ui.is_rect_visible(response.rect) {
         let (rect, label) = laid.place(ui, response.rect);
         let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
         let round = CornerRadius::from(style.diameter / 2.0);
-        ui.painter().extend(indicator_shapes(ui, &style.surface, rect, round, paint));
+        ui.painter().add(box_shape(rect, round, style.outline, paint));
         if let Some(dot) = paint.mark {
             ui.painter().circle_filled(rect.center(), style.dot / 2.0, dot);
         }
@@ -202,14 +204,14 @@ impl RadioGroup<'static, ()> {
         let c = &tokens.component.check;
         RadioStyle {
             height: c.height.get(size),
-            diameter: c.size.get(size),
-            gap: c.gap,
+            diameter: c.box_size.get(size),
+            gap: c.box_gap,
             label: c.label,
             dot: c.dot.get(size),
-            surface: Surface::style(tokens, SurfaceKind::Sunken),
+            outline: c.outline,
             off: IndicatorColors::from(&c.off),
             on: IndicatorColors::from(&c.on),
-            text: label_colors(tokens),
+            text: label_colors(tokens, tokens.color.text.muted),
         }
     }
 }

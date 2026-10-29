@@ -417,8 +417,7 @@ fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
 
 /// Classic's switch has a navy on track, its list box and select rows highlight in navy with
 /// white text, its secondary buttons keep the face colour at rest and under the pointer, and its
-/// popups are the menu grey. Other built-ins keep the switch track equal to the check box's on
-/// fill.
+/// popups are the menu grey. Other built-ins draw the switch track in the solid accent.
 #[test]
 fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
     let navy = Rgba::rgb(0x0a, 0x24, 0x6a);
@@ -429,7 +428,8 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             let t = resolve(theme, a, None).tokens;
             let c = &t.component;
             if theme.id.as_str() != "craft.classic" {
-                assert_eq!((c.check.switch.fill, c.check.switch.border), (c.check.on.fill, c.check.on.border), "{} {a:?}", theme.id);
+                assert_eq!(c.check.switch.fill, c.check.switch.border, "{} {a:?}", theme.id);
+                assert_eq!(c.check.switch.fill.rest, t.color.accent.solid, "{} {a:?}", theme.id);
                 continue;
             }
             if a.contrast == Contrast::High || a.mode != Mode::Light {
@@ -467,6 +467,34 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
                 );
             }
             assert_eq!(tip.radius, t.shape.radius.popup, "{} {a:?}", theme.id);
+        }
+    }
+}
+
+/// A check box or radio button is PhotoCraft's: 14 points at Compact, a 6 point label gap, radius
+/// 2 and a 1.5 point outline in every theme; unchecked, the outline is the faint text colour at
+/// rest and the muted text colour hovered, and the fill darkens when pressed; checked, the fill
+/// is the solid accent at rest and hovered and a quarter less opaque when pressed.
+#[test]
+fn check_boxes_are_photocraft_boxes_in_every_theme() {
+    for theme in builtins() {
+        for a in appearances() {
+            let r = resolve(theme, a, None).tokens;
+            let (c, color) = (&r.component.check, &r.color);
+            let compact = a.size == Size::Compact;
+            let which = format!("{} {a:?}", theme.id);
+            assert_eq!((c.box_size.md, c.box_gap), if compact { (14.0, 6.0) } else { (16.0, 8.0) }, "{which}");
+            assert_eq!((c.radius, c.outline), (2.0, 1.5), "{which}");
+            assert_eq!(c.mark.md, c.box_size.md * 0.125, "{which}");
+            assert_eq!([c.off.border.hover, c.off.border.pressed], [color.text.muted; 2], "{which}");
+            let [rest, pressed] = [c.off.fill.rest, c.off.fill.pressed].map(|f| f.0.iter().take(3).map(|&v| u32::from(v)).sum::<u32>());
+            assert!(pressed < rest || rest == 0, "{which}: pressed darkens");
+            if theme.id.as_str() == "craft.classic" {
+                continue;
+            }
+            assert_eq!([c.on.fill.rest, c.on.fill.hover], [color.accent.solid; 2], "{which}");
+            assert_eq!(c.on.fill.pressed, color.accent.solid.with_alpha(191), "{which}");
+            assert_eq!(c.on.border.rest, Rgba::TRANSPARENT, "{which}: no outline on");
         }
     }
 }

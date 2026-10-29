@@ -26,6 +26,18 @@ use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
 
+/// `color` moved `amount` of the way to black, channel by channel in sRGB.
+fn darken(color: Rgba, amount: f32) -> Rgba {
+    let [r, g, b, a] = color.0;
+    let channel = |c: u8| (f32::from(c) * (1.0 - amount)).round() as u8;
+    Rgba([channel(r), channel(g), channel(b), a])
+}
+
+/// `color` with its opacity multiplied by `opacity`.
+fn fade(color: Rgba, opacity: f32) -> Rgba {
+    color.with_alpha((f32::from(color.a()) * opacity).round() as u8)
+}
+
 /// One coloured part of a check box, radio button or switch indicator while off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CheckOffPart {
@@ -142,16 +154,24 @@ pub type CheckSwitchColors = CheckOffColors;
 pub struct CheckTokens {
     /// Height of a check box, radio button or switch with its label: the control height.
     pub height: BySize<f32>,
-    /// Side of the box, diameter of the circle, height of the switch track: the icon size.
+    /// Height of the switch track: the icon size.
     pub size: BySize<f32>,
-    /// Between the indicator and the label.
+    /// Between the switch track and the label.
     pub gap: f32,
+    /// Side of the check box, diameter of the radio button: PhotoCraft's 14 at Compact, two
+    /// points under the icon size.
+    pub box_size: BySize<f32>,
+    /// Between the check box or radio button and the label: `space.gap.stack`.
+    pub box_gap: f32,
+    /// Width of the off outline and the on outline, drawn inside the box.
+    pub outline: f32,
     /// Label type role.
     pub label: TypeRole,
-    /// Corner radius of the box: `shape.radius.control` or the theme's `check.radius`, at most
-    /// [`CHECK_RADIUS_MAX`](values::CHECK_RADIUS_MAX).
+    /// Corner radius of the box: [`CHECK_RADIUS`](values::CHECK_RADIUS) in every theme, or the
+    /// theme's `check.radius`, at most [`CHECK_RADIUS_MAX`](values::CHECK_RADIUS_MAX).
     pub radius: f32,
-    /// Stroke width of the check and the dash.
+    /// Stroke width of the check and the dash: [`CHECK_MARK_RATIO`](values::CHECK_MARK_RATIO) of
+    /// the box.
     pub mark: BySize<f32>,
     /// Diameter of the radio dot.
     pub dot: BySize<f32>,
@@ -159,10 +179,11 @@ pub struct CheckTokens {
     pub track: BySize<f32>,
     /// Between the switch track's edge and its thumb.
     pub thumb_inset: f32,
-    /// Off: a `text.faint` outline on `surface.sunken`, the outline moved where neither shows.
+    /// Off: a `text.faint` outline (`text.muted` hovered and pressed) on `surface.sunken`, the
+    /// outline moved where neither shows; pressed, the fill darkens.
     pub off: CheckOffColors,
-    /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
-    /// and outline with a `state.disabled_fill` mark.
+    /// On: an `accent.solid` fill (translucent when pressed), no outline, a `text.on_accent`
+    /// mark; disabled, a `text.disabled` fill and outline with a `state.disabled_fill` mark.
     pub on: CheckOnColors,
     /// A switch track while on: the same as the check box's on fill and outline unless the theme
     /// pins it. A switch has no mark, so the track alone shows the state.
@@ -255,19 +276,32 @@ impl Family for CheckTokens {
         let rest_outline = identifiable_outline(c.text.faint, sunken, &[c.surface.panel, c.surface.raised], s.high);
         let outline = States::new(rest_outline, c.text.muted, c.text.muted, c.text.disabled);
         let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
+        let solid = c.accent.solid;
+        let no_outline = Rgba::TRANSPARENT;
+        let box_size = BySize { sm: icon.sm, md: icon.md - values::CHECK_BOX_INSET };
         let on_accent = c.text.on_accent;
         CheckTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             size: icon,
             gap: s.space.gap.inline,
             label: TypeRole::Body,
-            radius: s.shape.radius.control.min(values::CHECK_RADIUS_MAX),
-            mark: BySize { sm: values::CHECK_MARK_SM, md: values::CHECK_MARK_MD },
-            dot: BySize { sm: icon.sm * values::RADIO_DOT_RATIO, md: icon.md * values::RADIO_DOT_RATIO },
+            box_size,
+            box_gap: s.space.gap.stack,
+            outline: values::CHECK_OUTLINE,
+            radius: values::CHECK_RADIUS,
+            mark: BySize { sm: box_size.sm * values::CHECK_MARK_RATIO, md: box_size.md * values::CHECK_MARK_RATIO },
+            dot: BySize { sm: box_size.sm * values::RADIO_DOT_RATIO, md: box_size.md * values::RADIO_DOT_RATIO },
             track: BySize { sm: icon.sm * values::SWITCH_ASPECT, md: icon.md * values::SWITCH_ASPECT },
             thumb_inset: values::SWITCH_THUMB_INSET,
-            off: CheckOffColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline },
-            on: CheckOnColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
+            off: CheckOffColors {
+                fill: States::new(sunken, sunken, darken(sunken, values::CHECK_OFF_PRESSED_DARKEN), c.state.disabled_fill),
+                border: outline,
+            },
+            on: CheckOnColors {
+                fill: States::new(solid, solid, fade(solid, values::CHECK_ON_PRESSED_OPACITY), c.text.disabled),
+                border: States::new(no_outline, no_outline, no_outline, c.text.disabled),
+                mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
+            },
             switch: CheckSwitchColors { fill: accent, border: accent },
             thumb: ThumbColors::knob(c),
         }
