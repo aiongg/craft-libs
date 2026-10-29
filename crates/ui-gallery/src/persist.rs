@@ -18,10 +18,8 @@ pub struct Saved {
     pub selected: Option<String>,
     pub filter: String,
     pub compare: bool,
-    /// The dock as JSON text, so that a layout this build cannot read costs only the layout.
-    /// (The dock's floating windows read only from self-describing formats that allow a bare
-    /// optional value, which eframe's RON storage does not.)
-    pub layout: Option<String>,
+    /// The dock: where each panel is. Validated against the default when loaded.
+    pub layout: Option<Workspace<PanelId>>,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,
     /// The compare grid's high-contrast columns.
@@ -42,16 +40,6 @@ pub enum SavedValue {
     Choice(usize),
     Text(String),
     Number(f64),
-}
-
-/// `workspace` as the text [`Saved::layout`] keeps.
-pub fn save_layout(workspace: &Workspace<PanelId>) -> Option<String> {
-    serde_json::to_string(workspace).ok()
-}
-
-/// The workspace in `text`, if it reads.
-pub fn load_layout(text: &str) -> Option<Workspace<PanelId>> {
-    serde_json::from_str(text).ok()
 }
 
 impl Saved {

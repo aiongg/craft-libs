@@ -6,7 +6,7 @@ use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader, SectionLabel};
-use craft_ui::controls::{Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
+use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -83,7 +83,7 @@ impl Gallery {
             compare_high: saved.compare_high,
             browser: Browser::default(),
             inspector: Inspector::default(),
-            workspace: saved.layout.as_deref().and_then(persist::load_layout).map_or_else(default_workspace, reconciled),
+            workspace: saved.layout.map_or_else(default_workspace, reconciled),
             reset_layout: false,
             args: HashMap::new(),
             saved_args: saved.args,
@@ -290,7 +290,7 @@ impl Gallery {
                 segmented(ui, "View", compare, [("Canvas", false), ("Compare", true)]);
             });
             bar.trailing(|ui| {
-                if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
+                if ui.add(Button::new("Reset layout").size(ControlSize::Sm)).clicked() {
                     *reset_layout = true;
                 }
             });
@@ -556,7 +556,7 @@ impl eframe::App for Gallery {
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             compare_high: self.compare_high,
-            layout: persist::save_layout(&self.workspace),
+            layout: Some(self.workspace.clone()),
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
@@ -813,12 +813,7 @@ mod tests {
         let broken =
             Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::Canvas, PanelId::Canvas], active: 0 }), floating: Vec::new() });
         let mut storage = Memory::default();
-        eframe::set_value(&mut storage, KEY, &Saved { layout: persist::save_layout(&broken), ..Saved::default() });
+        eframe::set_value(&mut storage, KEY, &Saved { layout: Some(broken), ..Saved::default() });
         assert_eq!(Gallery::new(Some(&storage)).workspace, default_workspace());
-        let unreadable = Saved { layout: Some("{".to_owned()), filter: "button".to_owned(), ..Saved::default() };
-        eframe::set_value(&mut storage, KEY, &unreadable);
-        let gallery = Gallery::new(Some(&storage));
-        assert_eq!(gallery.workspace, default_workspace());
-        assert_eq!(gallery.filter, "button", "the rest of the saved state is kept");
     }
 }

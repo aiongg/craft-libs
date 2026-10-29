@@ -589,6 +589,23 @@ mod serde_tests {
         assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": rect})).is_err());
     }
 
+    /// RON (eframe's storage format) marks optional values, so a window must read back from the
+    /// plain values it writes, in each of its shapes.
+    #[test]
+    fn a_workspace_with_floating_windows_round_trips_through_ron() {
+        let rect = [1.0, 2.0, 300.0, 200.0];
+        let plain = Floating::single(vec![4u32], 0, rect).with_id(1);
+        let minimized = Floating { minimized: true, ..Floating::single(vec![5u32], 0, rect).with_id(2) };
+        let stacked = Floating::stack(vec![g(&[6], 0), g(&[7], 0)], rect).unwrap().with_id(3);
+        let native = Floating { native: Some(rect), monitor_size: Some([1920.0, 1080.0]), ..Floating::single(vec![8u32], 0, rect).with_id(4) };
+        let layout = Layout { root: Some(Node::Tabs { panels: vec![1, 2, 3], active: 0 }), floating: vec![plain, minimized, stacked, native] };
+        let workspace = Workspace::new(layout);
+        let saved = ron::to_string(&workspace).unwrap();
+        let loaded: Workspace<u32> = ron::from_str(&saved).unwrap_or_else(|e| panic!("{e}: {saved}"));
+        assert_eq!(loaded, workspace);
+        assert_eq!(loaded.layout.floating.iter().map(|w| w.id).collect::<Vec<_>>(), [1, 2, 3, 4]);
+    }
+
     #[test]
     fn in_window_windows_keep_their_ids_through_a_save() {
         let rect = [1.0, 2.0, 300.0, 200.0];

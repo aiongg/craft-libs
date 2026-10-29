@@ -254,3 +254,22 @@ fn the_story_names_every_control() {
         a11y::assert_labelled(&harness);
     }
 }
+
+/// A text button in the trailing slot has its whole label on the first frame: the slot's width is
+/// not known yet, and must not be taken as zero.
+#[test]
+fn a_text_button_in_the_trailing_slot_shows_its_full_label_on_the_first_frame() {
+    let button = Rc::new(Cell::new(Rect::NOTHING));
+    let seen = Rc::clone(&button);
+    let mut harness = harness(Direction::Ltr, 600.0).build_ui(move |ui| {
+        OptionsBar::new("test").show(ui, |bar| {
+            bar.trailing(|ui| seen.set(ui.add(crate::controls::Button::new("Reset layout")).rect));
+        });
+    });
+    harness.step();
+    let first = button.get().width();
+    harness.run();
+    let settled = button.get().width();
+    assert!(first > 60.0, "the label was cut to {first}");
+    assert!((first - settled).abs() < 0.5, "{first} on the first frame, {settled} settled");
+}
