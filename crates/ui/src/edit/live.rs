@@ -47,8 +47,18 @@ impl std::fmt::Debug for Entry {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Live {
     entries: Vec<Entry>,
-    /// Each with its viewport and the pass its ending event went out in.
-    finished: Vec<(GestureId, ViewportId, u64)>,
+    finished: Vec<Finished>,
+}
+
+/// A gesture whose control reported its ending.
+#[derive(Clone, Copy, Debug)]
+struct Finished {
+    id: GestureId,
+    viewport: ViewportId,
+    /// The pass its ending event went out in.
+    pass: u64,
+    /// Whether it was a typing run when its control last recorded it live.
+    typing: bool,
 }
 
 /// A gesture's state as seen from the viewport running now.
@@ -69,7 +79,7 @@ impl Live {
     /// gesture the host has ended stays ended until its control learns of it.
     fn mark(&mut self, entry: Entry, pass_for: impl Fn(ViewportId) -> u64) {
         self.entries.retain(|e| e.id == entry.id || e.pass + 1 >= pass_for(e.viewport));
-        self.finished.retain(|&(_, viewport, pass)| pass >= pass_for(viewport));
+        self.finished.retain(|f| f.pass >= pass_for(f.viewport));
         match self.entries.iter_mut().find(|e| e.id == entry.id) {
             Some(e) if e.ended => *e = Entry { focused: false, typing: None, ended: true, ..entry },
             Some(e) => *e = entry,
@@ -83,9 +93,10 @@ impl Live {
 
     /// Drops `id`'s entry: its control reported its ending in `pass` of `viewport`.
     fn finish(&mut self, id: GestureId, viewport: ViewportId, pass: u64, pass_for: impl Fn(ViewportId) -> u64) {
+        let typing = self.entries.iter().any(|e| e.id == id && e.typing.is_some());
         self.forget(id);
-        self.finished.retain(|&(_, viewport, pass)| pass >= pass_for(viewport));
-        self.finished.push((id, viewport, pass));
+        self.finished.retain(|f| f.pass >= pass_for(f.viewport));
+        self.finished.push(Finished { id, viewport, pass, typing });
     }
 
     /// Marks `id` ended by the host: no longer live or focused. The entry stays until its control
@@ -140,8 +151,14 @@ impl Live {
     pub(super) fn gone(&self, id: GestureId, pass_for: impl Fn(ViewportId) -> u64) -> bool {
         match self.entries.iter().find(|e| e.id == id) {
             Some(e) => e.ended || e.pass + 1 < pass_for(e.viewport),
-            None => !self.finished.iter().any(|&(f, viewport, pass)| f == id && pass >= pass_for(viewport)),
+            None => !self.finished.iter().any(|f| f.id == id && f.pass >= pass_for(f.viewport)),
         }
+    }
+
+    /// The typing runs of `current` whose control reported their ending in its pass `pass`: they
+    /// lost the focus in this pass, and their ending hasn't gone out before it.
+    pub(super) fn typing_ended(&self, current: ViewportId, pass: u64) -> impl Iterator<Item = GestureId> + '_ {
+        self.finished.iter().filter(move |f| f.typing && f.viewport == current && f.pass == pass).map(|f| f.id)
     }
 
     /// The newest typing run of `current` whose control had the focus in this pass or the last,
@@ -216,6 +233,10 @@ pub(super) fn focused(ctx: &Context) -> Option<GestureId> {
 
 pub(super) fn typing(ctx: &Context) -> Option<(GestureId, Id)> {
     Live::get(ctx).typing(ctx.viewport_id(), ctx.cumulative_pass_nr())
+}
+
+pub(super) fn typing_ended(ctx: &Context) -> Vec<GestureId> {
+    Live::get(ctx).typing_ended(ctx.viewport_id(), ctx.cumulative_pass_nr()).collect()
 }
 
 pub(super) fn gone(ctx: &Context, id: GestureId) -> bool {

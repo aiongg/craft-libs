@@ -1706,3 +1706,51 @@ fn a_scrub_on_the_field_that_owns_the_run_runs_at_once() {
     }
     assert!(ctx.memory(|m| m.has_focus(field)), "the scrub ends the run itself");
 }
+
+/// A click (press and release in one frame) away from a field drawn before the clicked control
+/// moves the focus off the field in that pass, so its typing run ends before the input arrives.
+/// The run is still one to wait for: the input runs in the next pass, after the run's Commit.
+#[test]
+fn an_input_waits_for_a_typing_run_that_ended_earlier_in_its_pass() {
+    let (field, press) = (Id::unique("field"), Id::unique("press"));
+    let ctx = Context::default();
+    let away = Pos2::new(200.0, 200.0);
+    let mut events = Vec::new();
+    let mut turns = Vec::new();
+    for pass in 0..3 {
+        let input = match pass {
+            1 => vec![Event::PointerMoved(away), button(away, true), button(away, false)],
+            _ => vec![],
+        };
+        let output = ctx.run_ui(RawInput { events: input, ..RawInput::default() }, |ui| {
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), field, Sense::click());
+            let mut g = Gesture::load(ui, field, &0, EditPolicy::default());
+            if pass == 0 {
+                response.request_focus();
+                g.begin();
+            }
+            g.update(pass, Modifiers::NONE);
+            events.push(g.finish());
+            if pass > 0 {
+                turns.push(order::turn(ui.ctx(), press, None));
+            }
+        });
+        output.drop_without_applying_deltas();
+    }
+    assert!(matches!(events[1], Some(EditEvent::Commit { value: 1, .. })), "{events:?}");
+    assert_eq!(turns, [order::Turn::Waits, order::Turn::Runs]);
+}
+
+/// A gesture's value must equal itself, or every pass would read the host's value as an outside
+/// change ([`Gesture`]): debug builds assert it when a gesture begins.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "must equal itself")]
+fn a_gesture_from_a_value_that_is_not_equal_to_itself_panics_in_debug_builds() {
+    let ctx = Context::default();
+    let _ = ctx.run_ui(RawInput::default(), |ui| {
+        let mut gesture = Gesture::load(ui, Id::unique("nan"), &f64::NAN, EditPolicy::default());
+        gesture.begin();
+        let _ = gesture.finish();
+    });
+}

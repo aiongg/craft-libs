@@ -2,6 +2,8 @@
 //! it, a line between a start and an end handle with the colour stops and midpoint diamonds on it.
 
 mod keys;
+#[cfg(test)]
+mod order_tests;
 mod parts;
 mod pointer;
 #[cfg(test)]
