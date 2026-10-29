@@ -25,6 +25,7 @@ mod color_model;
 mod components;
 pub mod contrast;
 mod derive;
+pub mod dump;
 mod explain;
 pub mod format;
 mod id;

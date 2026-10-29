@@ -59,6 +59,12 @@ impl Dump {
         &self.text
     }
 
+    /// The `(key, value)` pairs written so far, keys with their group prefixes; comments are
+    /// skipped.
+    pub fn entries(&self) -> impl Iterator<Item = (String, &str)> {
+        self.text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once(" = ")).map(|(key, value)| (key.to_owned(), value))
+    }
+
     /// Compares with the file at `path`, or rewrites it when [`update_requested`]. The error
     /// names the file and lists the differing lines.
     pub fn compare(&self, path: impl AsRef<Path>) -> Result<(), String> {

@@ -11,6 +11,7 @@
 //!   process's one device; use it for every rendering harness.
 
 pub mod dump;
+pub mod style_dump;
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod a11y;
