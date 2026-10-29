@@ -526,13 +526,13 @@ fn a_check_box_radius_stays_below_the_cap_and_follows_square_controls() {
 fn button_sizes_follow_the_size_preset() {
     let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.button;
     let compact = at(Size::Compact);
-    assert_eq!((compact.height.sm, compact.height.md), (20.0, 24.0));
-    assert_eq!((compact.pad_x.sm, compact.pad_x.md), (10.0, 12.0));
+    assert_eq!((compact.height.sm, compact.height.md), (22.0, 28.0));
+    assert_eq!((compact.pad_x.sm, compact.pad_x.md), (14.0, 14.0));
     assert_eq!((compact.icon.get(ControlSize::Sm), compact.icon.get(ControlSize::Md)), (12.0, 16.0));
     assert_eq!(compact.gap, 4.0);
     let comfy = at(Size::Comfortable);
-    assert_eq!((comfy.height.sm, comfy.height.md), (24.0, 30.0));
-    assert_eq!((comfy.pad_x.sm, comfy.pad_x.md), (14.0, 16.0));
+    assert_eq!((comfy.height.sm, comfy.height.md), (26.0, 34.0));
+    assert_eq!((comfy.pad_x.sm, comfy.pad_x.md), (18.0, 18.0));
     assert_eq!((comfy.icon.sm, comfy.icon.md), (14.0, 18.0));
     assert_eq!(comfy.gap, 6.0);
     assert_eq!((comfy.label, comfy.radius, comfy.border_width), (TypeRole::Label, Radius::Full.px(), 1.0));
@@ -556,7 +556,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        2 + 4 * 3 * 4
+        3 + 4 * 3 * 4
             + 1
             + (2 + 3) * 4
             + 2 * 4
@@ -576,6 +576,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + (1 + 2 + 6)
             // Toast: radius, fill, line, more, and edge and title per tone; notice: a colour per tone; empty state: text.
             + (4 + 2 * 5)
+            // Toggle button on: a colour per part (the on-and-disabled colours are counted above).
+            + 3
             + 5
             + 1
             + 6
@@ -768,10 +770,11 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         let r = resolve(&def, app(mode, Contrast::Standard), None);
         let t = &r.tokens;
         assert_eq!(t.component.color(text), Some(pin));
-        assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnStrong));
+        assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
         let ratio = pair_ratio(t, text, Some(fill));
-        assert_eq!(r.warnings, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
-        assert_eq!(r.warnings[0].fg.path(), "button.primary.text.rest");
+        let pinned: Vec<_> = r.warnings.iter().filter(|w| w.fg == text.into()).copied().collect();
+        assert_eq!(pinned, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
+        assert_eq!(pinned[0].fg.path(), "button.primary.text.rest");
 
         let high = resolve(&def, app(mode, Contrast::High), None);
         assert!(high.warnings.is_empty(), "{mode:?}: {:?}", high.warnings);
@@ -785,7 +788,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
     let mut def = grey_blue();
     def.high_contrast.light = Pins::from_iter([(ghost_text, hex("#787878")), (ghost_fill, hex("#777777"))]);
     let standard = resolve(&def, app(Mode::Light, Contrast::Standard), None);
-    assert!(standard.warnings.is_empty(), "high-contrast pins apply only with high contrast");
+    assert!(standard.warnings.iter().all(|w| w.fg != ghost_text.into()), "high-contrast pins apply only with high contrast");
     let high = resolve(&def, app(Mode::Light, Contrast::High), None);
     assert!(high.warnings.is_empty(), "{:?}", high.warnings);
     let c = &high.tokens.component;

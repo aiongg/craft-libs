@@ -499,3 +499,52 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
         }
     }
 }
+
+/// PhotoCraft's buttons: the Pro themes draw the secondary button as a transparent pill outlined
+/// 1.5 points in `text.muted`, `text.normal` once hovered, filled with `state.hover` then and
+/// pressed; the other themes fill it with `surface.sunken`, 1 point edged, and show it pressed at
+/// 85% opacity. Studio and Soft take their own radius; the primary button shows 90% and 80% of its
+/// fill when hovered and pressed.
+#[test]
+fn buttons_follow_photocraft() {
+    for theme in builtins() {
+        let id = theme.id.as_str();
+        for mode in [Mode::Light, Mode::Dark] {
+            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
+                continue;
+            }
+            let a = semantic_tests::app(mode, Contrast::Standard);
+            let t = resolve(theme, a, None).tokens;
+            let b = &t.component.button;
+            let secondary = &b.secondary;
+            assert_eq!((b.height.md, b.pad_x.md), (28.0, 14.0), "{id}");
+            let primary = b.primary.fill;
+            if id != "craft.classic" {
+                assert_eq!(primary.hover, primary.rest.faded(0.9), "{id} {mode:?}");
+                assert_eq!(primary.pressed, primary.rest.faded(0.8), "{id} {mode:?}");
+            }
+            if ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&id) {
+                assert_eq!(b.border_width, 1.5, "{id}");
+                assert_eq!(secondary.fill.rest, Rgba::TRANSPARENT, "{id} {mode:?}");
+                assert_eq!([secondary.fill.hover, secondary.fill.pressed], [t.color(ColorToken::StateHover); 2], "{id} {mode:?}");
+                assert_eq!(secondary.border.rest, t.color(ColorToken::TextMuted), "{id} {mode:?}");
+                assert_eq!([secondary.border.hover, secondary.border.pressed], [t.color(ColorToken::TextNormal); 2], "{id} {mode:?}");
+                assert_eq!(b.radius, 999.0, "{id}");
+            } else {
+                assert_eq!(b.border_width, 1.0, "{id}");
+                if id != "craft.classic" {
+                    let sunken = t.color(ColorToken::SurfaceSunken);
+                    assert_eq!(secondary.fill.rest, sunken, "{id} {mode:?}");
+                    assert_eq!(secondary.fill.pressed, sunken.faded(0.85), "{id} {mode:?}");
+                    assert_eq!(secondary.fill.hover, t.color(ColorToken::StateHover), "{id} {mode:?}");
+                    assert_eq!(secondary.border.rest, t.color(ColorToken::LineControlEdge), "{id} {mode:?}");
+                }
+            }
+            match id {
+                "craft.studio" => assert_eq!(b.radius, 6.0),
+                "craft.soft" => assert_eq!(b.radius, 7.0),
+                _ => {}
+            }
+        }
+    }
+}

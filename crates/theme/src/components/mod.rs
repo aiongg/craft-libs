@@ -672,7 +672,7 @@ families! {
     title_bar: TitleBarTokens => TitleBar(TitleBarField);
     /// Toasts: cards stacked in a corner of the window.
     toast: ToastTokens => Toast(ToastField);
-    /// Toggle buttons that are on and disabled.
+    /// Toggle buttons that are on.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);

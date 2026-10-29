@@ -521,10 +521,33 @@ pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Du
 /// Easing for every semantic motion.
 pub const MOTION_EASING: Easing = Easing::Standard;
 
-/// Button padding at the standard size, as a multiple of `pad.control`.
-pub const BUTTON_PAD_X_MD: f32 = 2.0;
+/// Button heights in points, small and standard: Compact is PhotoCraft's status-bar button (22)
+/// and its Pro button (28); Comfortable adds the 4 and 6 points its control heights have over
+/// Compact's.
+pub const fn button_height(size: Size) -> (f32, f32) {
+    match size {
+        Size::Compact => (22.0, 28.0),
+        Size::Comfortable => (26.0, 34.0),
+    }
+}
+
+/// Button padding at the start and end, in points, at both button sizes: PhotoCraft's 14 at
+/// Compact, and the 4 points Comfortable's control padding adds.
+pub const fn button_pad_x(size: Size) -> f32 {
+    match size {
+        Size::Compact => 14.0,
+        Size::Comfortable => 18.0,
+    }
+}
+
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
+/// How much of its rest fill a primary button shows under the pointer and while pressed, and a
+/// secondary button of a filled theme while pressed (PhotoCraft draws these as the fill's alpha
+/// times the factor).
+pub const BUTTON_PRIMARY_HOVER_OPACITY: f32 = 0.9;
+pub const BUTTON_PRIMARY_PRESSED_OPACITY: f32 = 0.8;
+pub const BUTTON_SECONDARY_PRESSED_OPACITY: f32 = 0.85;
 
 /// Between a segmented control's track edge and its segments, in points, at every Size.
 pub const SEGMENTED_INSET: f32 = 2.0;

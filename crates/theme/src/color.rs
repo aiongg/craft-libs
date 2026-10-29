@@ -103,6 +103,12 @@ impl Rgba {
     pub const fn with_alpha(self, a: u8) -> Rgba {
         Rgba([self.0[0], self.0[1], self.0[2], a])
     }
+
+    /// The same colour with its alpha multiplied by `factor`, rounded as egui's
+    /// `Color32::gamma_multiply` rounds it.
+    pub fn faded(self, factor: f32) -> Rgba {
+        self.with_alpha((f32::from(self.0[3]) * factor + 0.5) as u8)
+    }
 }
 
 /// egui's colours are premultiplied, so a translucent one comes back to its straight channels only

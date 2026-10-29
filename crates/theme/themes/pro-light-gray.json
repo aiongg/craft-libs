@@ -21,6 +21,16 @@
     "accent.soft": "#d0d0d0",
     "accent.solid": "#378ef0",
     "accent.text": "#004296",
+    "button.primary.text.hover": "{button.primary.text.rest}",
+    "button.primary.text.pressed": "{button.primary.text.rest}",
+    "button.primary.text.rest": "#ffffff",
+    "button.secondary.border.hover": "{text.normal}",
+    "button.secondary.border.pressed": "{text.normal}",
+    "button.secondary.border.rest": "{text.muted}",
+    "button.secondary.fill.disabled": "#00000000",
+    "button.secondary.fill.hover": "{state.hover}",
+    "button.secondary.fill.pressed": "{state.hover}",
+    "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "line.border": "#a0a0a0",
@@ -37,5 +47,8 @@
     "text.faint": "#606060",
     "text.muted": "#343434",
     "text.normal": "#141414"
+  },
+  "components": {
+    "button.border_width": 1.5
   }
 }

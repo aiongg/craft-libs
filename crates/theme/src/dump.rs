@@ -418,7 +418,10 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
 }
 
 fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {
-    let ToggleButtonTokens { on_disabled_fill, on_disabled_border, on_disabled_text } = t;
+    let ToggleButtonTokens { on_fill, on_border, on_text, on_disabled_fill, on_disabled_border, on_disabled_text } = t;
+    out.line("toggle_button.on.fill", hex(*on_fill));
+    out.line("toggle_button.on.border", hex(*on_border));
+    out.line("toggle_button.on.text", hex(*on_text));
     out.line("toggle_button.on_disabled.fill", hex(*on_disabled_fill));
     out.line("toggle_button.on_disabled.border", hex(*on_disabled_border));
     out.line("toggle_button.on_disabled.text", hex(*on_disabled_text));

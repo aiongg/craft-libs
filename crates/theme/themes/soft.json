@@ -27,7 +27,11 @@
     "accent.soft": "#6e80d82c",
     "accent.solid": "#6e80d8",
     "accent.text": "#2e3a92",
+    "button.primary.fill.hover": "#5062bee6",
+    "button.primary.fill.pressed": "#5062becc",
     "button.primary.fill.rest": "#5062be",
+    "button.primary.text.hover": "{button.primary.text.rest}",
+    "button.primary.text.pressed": "{button.primary.text.rest}",
     "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#c83c48",
     "caption.close_text": "#ffffff",
@@ -58,7 +62,11 @@
     "accent.soft": "#8a9ae830",
     "accent.solid": "#8a9ae8",
     "accent.text": "#bec8fc",
+    "button.primary.fill.hover": "#5668c4e6",
+    "button.primary.fill.pressed": "#5668c4cc",
     "button.primary.fill.rest": "#5668c4",
+    "button.primary.text.hover": "{button.primary.text.rest}",
+    "button.primary.text.pressed": "{button.primary.text.rest}",
     "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#c84856",
     "caption.close_text": "#ffffff",
@@ -74,5 +82,8 @@
     "text.faint": "#bebece",
     "text.muted": "#d4d4e0",
     "text.normal": "#eeeef6"
+  },
+  "components": {
+    "button.radius": 7.0
   }
 }

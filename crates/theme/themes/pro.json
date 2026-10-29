@@ -21,6 +21,16 @@
     "accent.soft": "#d6d6d6",
     "accent.solid": "#378ef0",
     "accent.text": "#1062c4",
+    "button.primary.text.hover": "{button.primary.text.rest}",
+    "button.primary.text.pressed": "{button.primary.text.rest}",
+    "button.primary.text.rest": "#ffffff",
+    "button.secondary.border.hover": "{text.normal}",
+    "button.secondary.border.pressed": "{text.normal}",
+    "button.secondary.border.rest": "{text.muted}",
+    "button.secondary.fill.disabled": "#00000000",
+    "button.secondary.fill.hover": "{state.hover}",
+    "button.secondary.fill.pressed": "{state.hover}",
+    "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "line.border": "#d6d6d6",
@@ -46,6 +56,16 @@
   "dark": {
     "accent.soft": "#4e4e4e",
     "accent.solid": "#378ef0",
+    "button.primary.text.hover": "{button.primary.text.rest}",
+    "button.primary.text.pressed": "{button.primary.text.rest}",
+    "button.primary.text.rest": "#ffffff",
+    "button.secondary.border.hover": "{text.normal}",
+    "button.secondary.border.pressed": "{text.normal}",
+    "button.secondary.border.rest": "{text.muted}",
+    "button.secondary.fill.disabled": "#00000000",
+    "button.secondary.fill.hover": "{state.hover}",
+    "button.secondary.fill.pressed": "{state.hover}",
+    "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "line.border": "#1e1e1e",
@@ -62,5 +82,8 @@
     "text.faint": "#808080",
     "text.muted": "#b2b2b2",
     "text.normal": "#dedede"
+  },
+  "components": {
+    "button.border_width": 1.5
   }
 }
