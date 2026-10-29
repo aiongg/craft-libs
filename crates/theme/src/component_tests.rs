@@ -45,7 +45,11 @@ fn button_defaults_meet_every_minimum() {
 
     let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
     let b = &t.component.button;
-    assert_eq!(b.primary.fill.hover, t.color(T::AccentHover));
+    assert_eq!(
+        b.primary.fill,
+        States::new(t.color(T::AccentStrong), t.color(T::AccentStrongHover), t.color(T::AccentStrongPressed), t.color(T::StateDisabledFill))
+    );
+    assert_eq!(b.primary.text, States::new(t.color(T::TextOnStrong), t.color(T::TextOnStrong), t.color(T::TextOnStrong), t.color(T::TextDisabled)));
     assert_eq!(b.danger.fill.pressed, t.color(T::StatusBadSolidPressed));
     assert_eq!(b.colors(ButtonVariant::Secondary).border.get(State::Hover), t.color(T::LineControlEdge));
     assert_eq!(b.secondary.border.rest, t.color(T::LineBorder));
@@ -731,7 +735,7 @@ fn pinned_failing_button_text_warns_in_standard_and_is_fixed_in_high() {
         let r = resolve(&def, app(mode, Contrast::Standard), None);
         let t = &r.tokens;
         assert_eq!(t.component.color(text), Some(pin));
-        assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnAccent));
+        assert_eq!(t.component.button.primary.text.hover, t.color(T::TextOnStrong));
         let ratio = pair_ratio(t, text, Some(fill));
         assert_eq!(r.warnings, vec![ContrastCheck { fg: text.into(), bg: fill.into(), ratio, minimum: 4.5 }], "{mode:?}");
         assert_eq!(r.warnings[0].fg.path(), "button.primary.text.rest");

@@ -195,9 +195,9 @@ impl Family for ButtonTokens {
             radius: s.shape.radius.button,
             border_width: values::BUTTON_BORDER_WIDTH,
             primary: ButtonColors {
-                fill: States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.state.disabled_fill),
+                fill: States::new(c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.state.disabled_fill),
                 border: none,
-                text: text(c.text.on_accent),
+                text: text(c.text.on_strong),
             },
             secondary: ButtonColors {
                 fill: States::new(c.state.hover, c.state.pressed, c.state.selected, c.state.disabled_fill),

@@ -59,7 +59,13 @@ impl Ramps {
             Source::AccentMix { from, to, .. } => (&self.accent, from, Some(to)),
             Source::Status(kind, n) => (self.status.get(kind), n, None),
             Source::StatusMix { kind, from, to, .. } => (self.status.get(kind), from, Some(to)),
-            Source::Fixed(_) | Source::Oklch(..) | Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
+            Source::Fixed(_)
+            | Source::Oklch(..)
+            | Source::Same(_)
+            | Source::SolidFrom(_)
+            | Source::ShiftedFrom { .. }
+            | Source::OnSolid(_)
+            | Source::Lighting(_) => return None,
         })
     }
 }
@@ -153,14 +159,14 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     // Tokens defined by other tokens follow their pinned values; aliases follow the contrast
     // pass too. On-solid text, solids taken from other tokens and aliases that are a pair's
     // foreground are the pass's own choice, so they are not re-derived afterwards.
-    follow(&mut c, &pinned, mode, true);
+    follow(&mut c, &unpinned, &pinned, mode, true);
     let before_pass = c;
-    let pass = Pass { pinned: &pinned, high, mode, anchors: &anchors };
+    let pass = Pass { pinned: &pinned, ramp: &unpinned, high, mode, anchors: &anchors };
     let mut moves = Moves::new();
     for (i, rule) in RULES.iter().enumerate() {
         fix_rule(&mut c, &pass, rule, &RULES[..=i], &mut moves);
     }
-    follow(&mut c, &pinned, mode, false);
+    follow(&mut c, &unpinned, &pinned, mode, false);
     moves.retain(|&t, _| c.get(t) != before_pass.get(t));
     let steps = ColorSteps {
         ramps,
@@ -183,8 +189,13 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
     let mut out = *unpinned;
     for &t in ColorToken::ALL {
         let value = match values::source(t, mode) {
-            Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) if !pinned.contains(&t) => before_pass.get(t),
+            Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_)
+                if !pinned.contains(&t) =>
+            {
+                before_pass.get(t)
+            }
             Source::Same(other) | Source::SolidFrom(other) => unpinned.get(other),
+            Source::ShiftedFrom { base, from, to } => shifted(unpinned.get(base), unpinned.get(from), unpinned.get(to)),
             // Lit like the anchored greys: from the panel's own value, pinned or not.
             Source::Lighting(amount) => lighting(before_pass.surface.panel, amount),
             Source::OnSolid(solids) => best_extreme(unpinned, solids),
@@ -313,6 +324,8 @@ impl Anchor {
 /// What the contrast pass may move.
 struct Pass<'a> {
     pinned: &'a BTreeSet<ColorToken>,
+    /// Every token's ramp default, before pins and the pass.
+    ramp: &'a ColorTokens,
     high: bool,
     mode: Mode,
     anchors: &'a Anchors,
@@ -372,13 +385,13 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
         Source::StatusMix { kind, from, to, t } => mix(r.status.get(kind).step(from), r.status.get(kind).step(to), t),
         Source::Fixed(c) => c,
         Source::Oklch(l, c, h) => super::color::Oklch { l, c, h }.to_rgba(),
-        Source::Same(_) | Source::SolidFrom(_) | Source::OnSolid(_) | Source::Lighting(_) => return None,
+        Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_) => return None,
     })
 }
 
 /// Sets every unpinned token whose source refers to other tokens; on-solid text, solids taken
 /// from other tokens and aliases that are a pair's foreground only when `on_solid`.
-fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_solid: bool) {
+fn follow(c: &mut ColorTokens, ramp: &ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_solid: bool) {
     for &t in ColorToken::ALL {
         if pinned.contains(&t) {
             continue;
@@ -387,6 +400,7 @@ fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_sol
             Source::Same(other) if on_solid || !is_foreground(t) => c.set(t, c.get(other)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
             Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
+            Source::ShiftedFrom { base, from, to } if on_solid => c.set(t, shifted(c.get(base), ramp.get(from), ramp.get(to))),
             Source::OnSolid(solids) if on_solid => c.set(t, best_extreme(c, solids)),
             _ => {}
         }
@@ -405,6 +419,13 @@ pub(crate) fn is_foreground(t: ColorToken) -> bool {
 fn lighting(panel: Rgba, amount: f64) -> Rgba {
     let o = panel.to_oklch();
     Oklch { l: (o.l + amount).clamp(0.0, 1.0), ..o }.to_rgba()
+}
+
+/// `base` with its OKLCH lightness moved by what `to` lies from `from`, clamped to 0..=1, hue and
+/// chroma kept.
+fn shifted(base: Rgba, from: Rgba, to: Rgba) -> Rgba {
+    let o = base.to_oklch();
+    Oklch { l: (o.l + to.to_oklch().l - from.to_oklch().l).clamp(0.0, 1.0), ..o }.to_rgba().with_alpha(base.a())
 }
 
 /// White or black, whichever has the higher lowest ratio on `solids`.
@@ -473,9 +494,12 @@ fn fix_rule(c: &mut ColorTokens, pass: &Pass, rule: &PairRule, done: &[PairRule]
     for &b in rule.bgs {
         if let Bg::Token(t) = b
             && !pinned.contains(&t)
-            && let Source::SolidFrom(other) = values::source(t, pass.mode)
         {
-            c.set(t, c.get(other));
+            match values::source(t, pass.mode) {
+                Source::SolidFrom(other) => c.set(t, c.get(other)),
+                Source::ShiftedFrom { base, from, to } => c.set(t, shifted(c.get(base), pass.ramp.get(from), pass.ramp.get(to))),
+                _ => {}
+            }
         }
     }
     let s = Step { pass, bgs: rule.bgs, min: minimum(rule, high), done };
