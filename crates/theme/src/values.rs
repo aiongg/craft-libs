@@ -629,6 +629,25 @@ pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
+/// The control height the Compact form grid gaps are set for; other sizes scale them by their
+/// control height over this.
+pub const FORM_BASE_CONTROL: f32 = 24.0;
+/// Compact gap between a form grid's label column and its control column: the spacing of
+/// PhotoCraft's `egui::Grid` forms (`panels/properties.rs:116`).
+pub const FORM_COLUMN_GAP: f32 = 12.0;
+/// Compact gap between a form grid's rows (same source).
+pub const FORM_ROW_GAP: f32 = 6.0;
+/// Compact least width of a form grid's label column: none, the widest label sets it.
+pub const FORM_LABEL_MIN: f32 = 0.0;
+/// Compact column gap of the roomy form grid, a preferences page's: PhotoCraft's
+/// `Grid::spacing([14.0, 7.0])` (`prefs/prefs_ui/fields.rs:327`).
+pub const FORM_ROOMY_COLUMN_GAP: f32 = 14.0;
+/// Compact row gap of the roomy form grid (same source).
+pub const FORM_ROOMY_ROW_GAP: f32 = 7.0;
+/// Compact least width of the roomy form grid's label column: PhotoCraft's
+/// `Grid::min_col_width(150.0)` (same source).
+pub const FORM_ROOMY_LABEL_MIN: f32 = 150.0;
+
 /// The control height the Compact histogram height is set for.
 pub const HISTOGRAM_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a histogram plot (PhotoCraft's panel).
