@@ -16,6 +16,7 @@ use craft_ui::controls::{
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
 use craft_ui::testing::dump::Dump;
@@ -477,6 +478,19 @@ fn panel_footer() {
         let s = PanelFooter::style(t, 1.0);
         d.line("height", s.height).line("gap", s.gap).line("button", s.button).line("margin", s.margin);
         d.line("rule", s.rule.width).line("rule_color", s.rule.color).line("reserved", PanelFooter::reserved_height(&s));
+    });
+}
+
+/// Options bars: the heights, ends, gap, divider, field widths, scroll bar, buttons and colours.
+#[test]
+fn options_bar() {
+    check("options_bar.txt", |d, t| {
+        let s = OptionsBar::style(t, false);
+        let narrow = OptionsBar::style(t, true);
+        d.line("height", s.height).line("height_narrow", narrow.height).line("pad", s.pad).line("gap", s.gap);
+        d.line("divider", s.divider).line("divider_box", s.divider_box).line("button", s.button).line("scroll_bar", s.scroll_bar);
+        d.line("field_sm", s.fields[0]).line("field_md", s.fields[1]).line("field_lg", s.fields[2]);
+        d.line("fill", s.fill).line("chevron", s.chevron);
     });
 }
 

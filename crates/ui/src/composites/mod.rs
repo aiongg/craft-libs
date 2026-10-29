@@ -74,7 +74,7 @@ pub(crate) mod levels_editor;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod levels_editor_tests;
 pub mod live;
-mod measure;
+pub(crate) mod measure;
 pub(crate) mod notice;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod notice_tests;

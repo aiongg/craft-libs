@@ -598,6 +598,19 @@ fn single_variant_theme_resolves_both_modes() {
 }
 
 #[test]
+fn options_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
+    let def = grey_blue();
+    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.options_bar;
+    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
+    assert_eq!((compact.height, compact.height_narrow, compact.pad, compact.gap, compact.divider), (36.0, 30.0, 10.0, 8.0, 22.0));
+    assert_eq!((compact.field_sm, compact.field_md, compact.field_lg), (58.0, 62.0, 76.0));
+    assert_eq!((compact.scroll_bar, compact.button), (4.0, 26.0));
+    assert_eq!((comfy.height, comfy.height_narrow, comfy.pad, comfy.gap, comfy.divider), (42.0, 34.0, 10.0, 10.0, 28.0));
+    assert_eq!((comfy.field_sm, comfy.field_md, comfy.field_lg), (72.0, 78.0, 95.0));
+    assert_eq!((comfy.scroll_bar, comfy.button), (4.0, 32.0));
+}
+
+#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
@@ -606,7 +619,8 @@ fn size_presets_text_size_shape_and_motion() {
 
     assert_eq!((compact.size.control.md, compact.size.control.sm), (24.0, 20.0));
     assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
-    assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 22.0, 32.0));
+    assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 24.0, 36.0));
+    assert_eq!((compact.size.bar.options_narrow, comfy.size.bar.options, comfy.size.bar.options_narrow), (30.0, 42.0, 34.0));
     assert_eq!((comfy.size.rail.width, comfy.size.rail.button, comfy.size.panel_header), (50.0, 36.0, 34.0));
     assert_eq!((compact.size.rail.panel_width, compact.size.rail.panel_button), (36.0, 28.0));
     assert_eq!((comfy.size.rail.panel_width, comfy.size.rail.panel_button), (44.0, 32.0));

@@ -28,6 +28,7 @@ pub mod list;
 pub mod localized;
 pub mod menu;
 pub mod panes;
+pub mod patterns;
 mod popup_list;
 pub mod primitives;
 pub mod printing;

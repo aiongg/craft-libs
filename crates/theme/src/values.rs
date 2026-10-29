@@ -430,7 +430,7 @@ pub(super) const COMPACT: Preset = Preset {
         control: ControlSizes { sm: 20.0, md: 24.0 },
         icon: IconSizes { sm: 12.0, md: 16.0, lg: 20.0 },
         rail: RailSizes { width: 40.0, button: 30.0, panel_width: 36.0, panel_button: 28.0 },
-        bar: BarSizes { title: 32.0, tab: 26.0, status: 22.0, options: 32.0 },
+        bar: BarSizes { title: 32.0, tab: 26.0, status: 24.0, options: 36.0, options_narrow: 30.0 },
         panel_header: 28.0,
         list: ListSizes {
             thumb: ThumbSizes { sm: 18.0, md: 24.0, lg: 48.0 },
@@ -465,7 +465,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
         control: ControlSizes { sm: 24.0, md: 30.0 },
         icon: IconSizes { sm: 14.0, md: 18.0, lg: 22.0 },
         rail: RailSizes { width: 50.0, button: 36.0, panel_width: 44.0, panel_button: 32.0 },
-        bar: BarSizes { title: 38.0, tab: 30.0, status: 26.0, options: 38.0 },
+        bar: BarSizes { title: 38.0, tab: 30.0, status: 30.0, options: 42.0, options_narrow: 34.0 },
         panel_header: 34.0,
         list: ListSizes {
             thumb: ThumbSizes { sm: 18.0, md: 34.0, lg: 48.0 },
@@ -1091,6 +1091,21 @@ pub const RULER_STEP_MIN: f32 = 60.0;
 pub const RULER_TICK_MID: f32 = 6.0;
 /// Length of the other minor ticks.
 pub const RULER_TICK_MINOR: f32 = 3.0;
+
+/// The control height the Compact options bar sizes are set for.
+pub const OPTIONS_BAR_BASE_CONTROL: f32 = 24.0;
+/// Space at the ends of the options bar (`panels/options_bar.rs:47`), the same at every Size.
+pub const OPTIONS_BAR_PAD: f32 = 10.0;
+/// Between the items of the options bar and between a caption and its control (`theme.rs:1073`).
+pub const OPTIONS_BAR_GAP: f32 = 8.0;
+/// Length of a divider between groups of the options bar (`widgets::vline(ui, 22.0)`).
+pub const OPTIONS_BAR_DIVIDER: f32 = 22.0;
+/// Width classes of the options bar's fields: the 50, 54 and 56 wide ones, the 62 wide ones and the widest.
+pub const OPTIONS_BAR_FIELD_SM: f32 = 58.0;
+pub const OPTIONS_BAR_FIELD_MD: f32 = 62.0;
+pub const OPTIONS_BAR_FIELD_LG: f32 = 76.0;
+/// Width of the options bar's floating scroll bar (`panels/options_bar.rs:49`), the same at every Size.
+pub const OPTIONS_BAR_SCROLL_BAR: f32 = 4.0;
 
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
