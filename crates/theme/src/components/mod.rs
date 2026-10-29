@@ -44,6 +44,7 @@ mod scroll;
 mod section;
 mod segmented;
 mod slider;
+mod slider_row;
 mod spinner;
 mod swatch;
 mod tab;
@@ -100,6 +101,7 @@ pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
+pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use tab::{TabField, TabTokens};
@@ -674,6 +676,8 @@ families! {
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
+    /// Slider rows: a caption and number field over a full-width slider.
+    slider_row: SliderRowTokens => SliderRow(SliderRowField);
     /// Spinners: the ring of an indeterminate wait.
     spinner: SpinnerTokens => Spinner(SpinnerField);
     /// Colour wells.

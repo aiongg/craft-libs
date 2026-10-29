@@ -150,6 +150,7 @@ pub struct Slider {
     wheel_unfocused: bool,
     track_colors: Option<Vec<Srgba>>,
     part: bool,
+    width: Option<f32>,
     scale: SliderScale,
     marks: Vec<f64>,
     thumb: SliderThumb,
@@ -176,6 +177,7 @@ impl Slider {
             wheel_unfocused: false,
             track_colors: None,
             part: false,
+            width: None,
             scale: SliderScale::Linear,
             marks: Vec::new(),
             thumb: SliderThumb::Round,
@@ -234,6 +236,12 @@ impl Slider {
         self
     }
 
+    /// The slider's length in points instead of `slider.width`, for a slider that fills a row.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
     /// Draws the track as a gradient through `stops`, spread evenly from the range's start to its
     /// end, over the checkerboard where a stop is translucent, and without the filled part: the
     /// track of a colour channel (hue, a channel with the others fixed, opacity). The track keeps
@@ -284,7 +292,7 @@ impl Slider {
             .sense(Sense::drag())
             .enabled(self.enabled)
             .state_layer(false)
-            .interact(ui, vec2(style.width, style.height));
+            .interact(ui, vec2(self.width.unwrap_or(style.width), style.height));
         let response = sensed.response().clone();
         let track = Track::new(response.rect, &style, scale);
         let track = if self.track_colors.is_some() { track.with_height(style.gradient_height) } else { track };

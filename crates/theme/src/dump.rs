@@ -12,9 +12,9 @@ use crate::{
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens,
     Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens,
-    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
-    SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
-    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
+    SpinnerTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
+    Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -253,6 +253,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         section,
         segmented,
         slider,
+        slider_row,
         spinner,
         swatch,
         tab,
@@ -300,6 +301,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     section_lines(out, section);
     segmented_lines(out, segmented);
     slider_lines(out, slider);
+    slider_row_lines(out, slider_row);
     spinner_lines(out, spinner);
     swatch_lines(out, swatch);
     tab_lines(out, tab);
@@ -519,6 +521,12 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.pair_ring", len(*pair_ring));
     out.line("color_picker.marker", hex(*marker));
     out.line("color_picker.marker_halo", hex(*marker_halo));
+}
+
+fn slider_row_lines(out: &mut Lines, t: &SliderRowTokens) {
+    let SliderRowTokens { field_width, gap } = t;
+    out.line("slider_row.field_width", len(*field_width));
+    out.line("slider_row.gap", len(*gap));
 }
 
 fn property_lines(out: &mut Lines, p: &PropertyTokens) {
