@@ -210,6 +210,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::AccentStrongHover => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentHover, away_from: T::TextOnStrong },
         T::AccentStrongPressed => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentPressed, away_from: T::TextOnStrong },
         T::AccentSoft => Accent(pick(4, 3)),
+        T::AccentBorder => Same(T::AccentSolid),
         T::AccentText => Accent(11),
         T::StatusGoodFg => Status(Good, 11),
         T::StatusGoodBg => Status(Good, 3),
@@ -348,6 +349,9 @@ const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 pub(super) const RULES: &[PairRule] = &[
     rule(&[T::LineFocus], FOCUS_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    // The outline of a selected or on control is a state cue: Standard keeps PhotoCraft's translucent
+    // one. Unpinned, it is the final `accent.solid`.
+    rule(&[T::AccentBorder], CONTROL_BGS, STATE_CUE_MIN.0, STATE_CUE_MIN.1),
     rule(&[T::LineMark], MARK_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     // A canvas scroll bar's thumb is a boundary on its track: Standard keeps the theme's own greys.
@@ -797,6 +801,8 @@ pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 /// Opacity of the hover fill of a list row (PhotoCraft `hover.gamma_multiply(0.5)`:
 /// `layer_row.rs:285`, `history.rs:63`, `channels_panel.rs`, `actions.rs`).
 pub const LIST_HOVER_OPACITY: f32 = 0.5;
+/// Opacity of the accent tint over the hover fill of a layer-form row (`layer_row.rs:286`).
+pub const LIST_LAYER_TINT_OPACITY: f32 = 0.12;
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).

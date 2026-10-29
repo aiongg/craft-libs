@@ -1,6 +1,6 @@
 //! Square icon-only buttons. Off, an icon button is a ghost button and takes `button.ghost`;
 //! this family holds its square size and the colours of a toggled-on icon button: the look of a
-//! toggle button that is on (`accent.soft` inside a 1 pt `accent.solid` outline, the glyph in
+//! toggle button that is on (`accent.soft` inside a 1 pt `accent.border` outline, the glyph in
 //! `accent.text`).
 
 use super::{ButtonPart, BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, ToggleButtonTokens};

@@ -185,6 +185,20 @@ pub struct ListRowStyle {
     /// `list.thumb.border` and `list.thumb.border.selected`.
     pub thumb_border: Color32,
     pub thumb_border_selected: Color32,
+    /// `list.thumb.radius`: the corners of the thumbnail's frame.
+    pub thumb_radius: f32,
+    /// The layer form's fills: `list.layer.hover` and `list.layer.selected`, and the 1 pt inside
+    /// outline of the selected row, `list.layer.outline` (clear when the theme has none).
+    pub layer_hover: Color32,
+    pub layer_selected: Color32,
+    pub layer_outline: Color32,
+    /// `list.layer.radius`: the corners of the layer form's fills and outline.
+    pub layer_radius: f32,
+    /// `list.layer.text.selected`, `list.layer.text.selected.dimmed` and
+    /// `list.layer.detail.selected`.
+    pub layer_selected_text: Color32,
+    pub layer_selected_dimmed: Color32,
+    pub layer_selected_detail: Color32,
     /// `list.drop`.
     pub drop: Color32,
     /// The outline under the drop marker: `list.drop_halo_width` of `list.drop_halo` on each side.
@@ -236,6 +250,9 @@ impl ListRowStyle {
 ///   [indent](ListRow::indent), a [thumbnail](ListRow::thumb) or [icon](ListRow::icon), the label
 ///   with an optional [detail](ListRow::detail) line under it, the trailing items. The row
 ///   mirrors in a right-to-left interface.
+/// - **Form.** A plain row (history, actions, swatches) has no dividers and the plain hover. The
+///   [layer form](ListRow::layer) (layers, channels) adds the dividers, the accent tint on the
+///   hover and the layer look of the selected row.
 /// - **States** are inputs: [`selected`](ListRow::selected) (the `list.selected` fill,
 ///   rounded in Comfortable, no border), [`focused`](ListRow::focused) (the focus ring, drawn
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
@@ -269,6 +286,7 @@ pub struct ListRow<'a, K> {
     focused: bool,
     dimmed: bool,
     highlight: bool,
+    layer: bool,
     renaming: bool,
     drop: Option<DropMark>,
     indent: f32,
@@ -302,6 +320,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             focused: false,
             dimmed: false,
             highlight: false,
+            layer: false,
             renaming: false,
             drop: None,
             indent: 0.0,
@@ -413,6 +432,15 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self
     }
 
+    /// The layer form of the row, for lists of layers and channels: dividers under the row and at
+    /// each toggle column's edge (where `list.dividers` is on; plain rows have none), the hover
+    /// fill with the accent tint, and the selected row in the layer look (`list.layer.*`: in themes
+    /// whose PhotoCraft kind is not a Pro kind, the hover fill in a 1 pt outline).
+    pub fn layer(mut self, layer: bool) -> Self {
+        self.layer = layer;
+        self
+    }
+
     /// The rename field replaces the label.
     pub fn renaming(mut self, renaming: bool) -> Self {
         self.renaming = renaming;
@@ -480,6 +508,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
             thumb_border_selected: l.thumb_border_selected.to_egui(),
+            thumb_radius: l.thumb_radius,
+            layer_hover: l.layer_hover.to_egui(),
+            layer_selected: l.layer_selected.to_egui(),
+            layer_outline: l.layer_outline.to_egui(),
+            layer_radius: l.layer_radius,
+            layer_selected_text: l.layer_selected_text.to_egui(),
+            layer_selected_dimmed: l.layer_selected_dimmed.to_egui(),
+            layer_selected_detail: l.layer_selected_detail.to_egui(),
             drop: l.drop.to_egui(),
             drop_halo: Stroke::new(l.drop_halo_width, l.drop_halo.to_egui()),
             ghost_fill: l.ghost_fill.to_egui(),
@@ -503,6 +539,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             focused,
             dimmed,
             highlight,
+            layer,
             renaming,
             drop,
             indent,
@@ -552,7 +589,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
-            paint_background(ui, &style, rect, selected, hovered || highlight, columns.len(), &geometry);
+            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer }, columns.len(), &geometry);
         }
 
         for (index, column) in columns.iter().enumerate() {
@@ -577,9 +614,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         }
 
         let band = geometry.label_band(rect);
+        let (selected_text, selected_dimmed, selected_detail) = if layer {
+            (style.layer_selected_text, style.layer_selected_dimmed, style.layer_selected_detail)
+        } else {
+            (style.selected_text, style.selected_dimmed, style.selected_detail)
+        };
         let (text, detail_text) = match (selected, dimmed) {
-            (true, true) => (style.selected_dimmed, style.selected_detail),
-            (true, false) => (style.selected_text, style.selected_detail),
+            (true, true) => (selected_dimmed, selected_detail),
+            (true, false) => (selected_text, selected_detail),
             (false, true) => (style.dimmed, style.detail),
             (false, false) => (style.text, style.detail),
         };
@@ -677,18 +719,32 @@ impl Geometry {
     }
 }
 
-fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, selected: bool, lit: bool, columns: usize, geometry: &Geometry) {
-    let fill = match (selected, lit) {
-        (true, true) => style.selected_hover,
-        (true, false) => style.selected,
-        (false, true) => style.hover,
-        (false, false) => Color32::TRANSPARENT,
+/// What a row's background shows: the selection, the pointer (or a highlight), and the form.
+struct Fill {
+    selected: bool,
+    lit: bool,
+    layer: bool,
+}
+
+fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, lit, layer }: Fill, columns: usize, geometry: &Geometry) {
+    let fill = match (selected, lit, layer) {
+        // The layer form shows no change under the pointer once selected.
+        (true, _, true) => style.layer_selected,
+        (true, true, false) => style.selected_hover,
+        (true, false, false) => style.selected,
+        (false, true, true) => style.layer_hover,
+        (false, true, false) => style.hover,
+        (false, false, _) => Color32::TRANSPARENT,
     };
     let painter = ui.painter();
+    let radius = corner_radius(if layer { style.layer_radius } else { style.radius });
     if fill != Color32::TRANSPARENT {
-        painter.rect_filled(rect, corner_radius(style.radius), fill);
+        painter.rect_filled(rect, radius, fill);
     }
-    if style.dividers {
+    if layer && selected && style.layer_outline != Color32::TRANSPARENT {
+        painter.rect_stroke(rect, radius, Stroke::new(1.0, style.layer_outline), StrokeKind::Inside);
+    }
+    if layer && style.dividers {
         let ppp = ui.pixels_per_point();
         painter.hline(rect.x_range(), (rect.bottom() - style.divider.width / 2.0).round_to_pixel_center(ppp), style.divider);
         for i in 1..=columns {
@@ -703,7 +759,7 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
         paint(&ui.painter().with_clip_rect(at), at);
     }
     let color = if selected { style.thumb_border_selected } else { style.thumb_border };
-    ui.painter().rect_stroke(at, 0.0, Stroke::new(1.0, color), StrokeKind::Outside);
+    ui.painter().rect_stroke(at, corner_radius(style.thumb_radius), Stroke::new(1.0, color), StrokeKind::Outside);
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
@@ -760,6 +816,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 .with_choice("thumbnails", THUMB_NAMES, 0)
                 .with_bool("detail", false)
                 .with_bool("highlight second row", false)
+                .with_bool("layer form", true)
                 .with_number("width", 280.0, 60.0, 480.0)
         },
         show: show_layers,
@@ -803,7 +860,7 @@ impl Default for Layers {
 pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
     let width = args.number("width") as f32;
     let thumb = ThumbSize::ALL.into_iter().find(|t| t.name() == args.choice("thumbnails")).unwrap_or_default();
-    let (detail, highlight) = (args.bool("detail"), args.bool("highlight second row"));
+    let (detail, highlight, layer) = (args.bool("detail"), args.bool("highlight second row"), args.bool("layer form"));
     let state_id = ui.scope_id().with("list-row-story");
     let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_default();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -825,6 +882,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
                 .selected(layers.selected == Some(i))
                 .dimmed(!row.visible)
                 .highlight(highlight && i == 1)
+                .layer(layer)
                 .renaming(layers.renaming == Some(i))
                 .position_in_set(i);
             if detail {

@@ -163,6 +163,10 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
     // pass too. On-solid text, solids taken from other tokens and aliases that are a pair's
     // foreground are the pass's own choice, so they are not re-derived afterwards.
     follow(&mut c, &unpinned, &pinned, mode, true);
+    if high {
+        // A boundary that has to be identifiable is drawn opaque.
+        c.set(ColorToken::AccentBorder, over(c.accent.border, c.surface.panel));
+    }
     let before_pass = c;
     let pass = Pass { pinned: &pinned, ramp: &unpinned, high, mode, anchors: &anchors };
     let mut moves = Moves::new();
@@ -170,6 +174,10 @@ pub(super) fn colors(theme: &ThemeDef, app: Option<&AppId>, mode: Mode, contrast
         fix_rule(&mut c, &pass, rule, &RULES[..=i], &mut moves);
     }
     follow(&mut c, &unpinned, &pinned, mode, false);
+    // An unpinned outline is the accent the pass settled on, which later rules may still move.
+    if !pinned.contains(&ColorToken::AccentBorder) {
+        c.set(ColorToken::AccentBorder, c.accent.solid);
+    }
     moves.retain(|&t, _| c.get(t) != before_pass.get(t));
     let steps = ColorSteps {
         ramps,

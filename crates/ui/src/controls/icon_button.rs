@@ -45,7 +45,7 @@ pub struct IconButtonStyle {
 /// It looks like a ghost button: transparent until hovered, no edge. The required `label` is its
 /// accessible name and its hover tooltip, since the icon alone names nothing to a screen reader
 /// and may be unclear to anyone. [`toggle`](IconButton::toggle) makes it a toggle button: on, it
-/// shows `accent.soft` inside a 1 pt `accent.solid` outline and tints the icon `accent.text`, and
+/// shows `accent.soft` inside a 1 pt `accent.border` outline and tints the icon `accent.text`, and
 /// AccessKit reports it toggled. [`selected`](IconButton::selected) shows the same look for a state the host owns.
 #[derive(Debug)]
 pub struct IconButton<'a> {

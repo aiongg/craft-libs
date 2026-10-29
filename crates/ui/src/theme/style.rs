@@ -3,7 +3,7 @@
 
 use craft_theme::{ButtonColors, Tokens, relative_luminance};
 use egui::style::{Selection, TextCursorStyle, WidgetVisuals, Widgets};
-use egui::{Stroke, Style, TextStyle, Visuals, vec2};
+use egui::{Color32, Stroke, Style, TextStyle, Visuals, vec2};
 
 use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
 
@@ -110,9 +110,14 @@ fn visuals(tokens: &Tokens) -> Visuals {
     v
 }
 
-/// egui's widget states take the secondary button's colours: `inactive` its rest state,
+/// egui's widget states take the secondary button's fills and text: `inactive` its rest state,
 /// `hovered` hover, `active` pressed, `open` (a menu button whose menu is open) pressed with the
-/// rest text. `noninteractive` is the panel itself: labels, separators, frames.
+/// rest text; the strokes are the field edge, and `accent.border` while pressed. `noninteractive` is the panel itself: labels, separators, frames.
+struct Edges {
+    rest: Color32,
+    hover: Color32,
+}
+
 fn widgets(tokens: &Tokens, colors: &ButtonColors) -> Widgets {
     let c = &tokens.color;
     let button = &tokens.component.button;
@@ -126,7 +131,10 @@ fn widgets(tokens: &Tokens, colors: &ButtonColors) -> Widgets {
         corner_radius: control,
         expansion: 0.0,
     };
-    let (fill, border, text) = (&colors.fill, &colors.border, &colors.text);
+    let (fill, text) = (&colors.fill, &colors.text);
+    // PhotoCraft (`theme.rs:1049-1053`): the field edge at rest, hovered and open, `accent_border` pressed.
+    let field = &tokens.component.field.border;
+    let edge = Edges { rest: field.rest.to_egui(), hover: field.hover.to_egui() };
     Widgets {
         noninteractive: WidgetVisuals {
             bg_fill: c.surface.panel.to_egui(),
@@ -141,10 +149,10 @@ fn widgets(tokens: &Tokens, colors: &ButtonColors) -> Widgets {
         // the button's).
         inactive: WidgetVisuals {
             bg_fill: c.surface.sunken.to_egui(),
-            ..state(defaults.inactive, fill.rest.to_egui(), border.rest.to_egui(), text.rest.to_egui())
+            ..state(defaults.inactive, fill.rest.to_egui(), edge.rest, text.rest.to_egui())
         },
-        hovered: state(defaults.hovered, fill.hover.to_egui(), border.hover.to_egui(), text.hover.to_egui()),
-        active: state(defaults.active, fill.pressed.to_egui(), border.pressed.to_egui(), text.pressed.to_egui()),
-        open: state(defaults.open, fill.pressed.to_egui(), border.pressed.to_egui(), text.rest.to_egui()),
+        hovered: state(defaults.hovered, fill.hover.to_egui(), edge.hover, text.hover.to_egui()),
+        active: state(defaults.active, fill.pressed.to_egui(), c.accent.border.to_egui(), text.pressed.to_egui()),
+        open: state(defaults.open, fill.pressed.to_egui(), edge.hover, text.rest.to_egui()),
     }
 }

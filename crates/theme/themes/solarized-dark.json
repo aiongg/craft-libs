@@ -18,6 +18,7 @@
   },
   "shape": null,
   "dark": {
+    "accent.border": "#268bd278",
     "accent.soft": "#268bd22e",
     "accent.solid": "#268bd2",
     "button.primary.text.rest": "#fdf6e3",
@@ -28,6 +29,9 @@
     "line.border": "#00252f",
     "line.control_edge": "#15505f",
     "line.divider": "#00252f",
+    "list.layer.outline": "{line.control_edge}",
+    "list.layer.selected": "{state.hover}",
+    "list.layer.text.selected": "{text.normal}",
     "list.selected": "{accent.soft}",
     "state.hover": "#0e4a5a",
     "state.pressed": "#12596b",
@@ -39,5 +43,8 @@
     "text.muted": "#657b83",
     "text.normal": "#839496",
     "toggle_button.on.text": "#fdf6e3"
+  },
+  "components": {
+    "list.thumb.radius": 5.0
   }
 }

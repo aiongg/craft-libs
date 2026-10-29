@@ -27,6 +27,7 @@
     }
   },
   "light": {
+    "accent.border": "#3aace8aa",
     "accent.soft": "#3aace830",
     "accent.solid": "#3aace8",
     "accent.text": "#1e5e88",
@@ -37,6 +38,9 @@
     "line.border": "#cbd0d5",
     "line.control_edge": "#b8bfc6",
     "line.divider": "#d6dade",
+    "list.layer.outline": "{line.control_edge}",
+    "list.layer.selected": "{state.hover}",
+    "list.layer.text.selected": "{text.normal}",
     "list.selected": "{accent.soft}",
     "popup.shadow": "#0000002d",
     "state.hover": "#e2e6eb",
@@ -52,6 +56,7 @@
     "text.on_accent": "#ffffff"
   },
   "dark": {
+    "accent.border": "#3aace8a0",
     "accent.soft": "#3aace828",
     "accent.solid": "#3aace8",
     "accent.text": "#50b8ee",
@@ -62,6 +67,9 @@
     "line.border": "#34383d",
     "line.control_edge": "#44494f",
     "line.divider": "#2e3236",
+    "list.layer.outline": "{line.control_edge}",
+    "list.layer.selected": "{state.hover}",
+    "list.layer.text.selected": "{text.normal}",
     "list.selected": "{accent.soft}",
     "state.hover": "#32363b",
     "state.pressed": "#3a3f45",
@@ -74,5 +82,8 @@
     "text.muted": "#c8ced5",
     "text.normal": "#fafbfd",
     "text.on_accent": "#ffffff"
+  },
+  "components": {
+    "list.thumb.radius": 5.0
   }
 }
