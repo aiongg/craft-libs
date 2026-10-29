@@ -102,6 +102,8 @@ struct Host {
     enabled: bool,
     labels: TransformFieldLabels,
     events: Vec<EditEvent<TransformRow>>,
+    /// The egui pass in which each event was reported.
+    passes: Vec<u64>,
 }
 
 impl Host {
@@ -133,6 +135,7 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
         enabled: true,
         labels: TransformFieldLabels::default(),
         events: Vec::new(),
+        passes: Vec::new(),
     };
     setup(&mut host);
     Harness::<Host>::builder()
@@ -161,6 +164,7 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
                     }
                     None => {}
                 }
+                host.passes.extend(edit.event.iter().map(|_| ui.ctx().cumulative_pass_nr()));
                 host.events.extend(edit.event);
             },
             host,
@@ -300,6 +304,8 @@ fn a_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
     let c = conversion(true);
     assert!((c.shown(value, 0.0, Field::W) - 120.0).abs() < 1e-6 && c.shown(value, 0.0, Field::Angle).abs() < 1e-6, "the run's commit: {value:?}");
     assert_eq!(kinds[run + 1], "Begin", "{kinds:?}");
+    let passes = &h.state().passes;
+    assert_eq!(passes[run + 1], passes[run] + 1, "the scrub begins in the pass after the run's commit: {passes:?}");
     assert_eq!(kinds.last(), Some(&"Commit"), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(kinds.iter().filter(|k| **k == "Begin").count(), 2, "{kinds:?}");
