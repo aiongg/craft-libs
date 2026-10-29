@@ -401,3 +401,523 @@ lucide = "squares-subtract"
 phosphor = "subtract-square"
 carbon = "intersect"
 tabler = "layers-subtract"
+
+[[icon]]
+name = "adjustment_layer"
+directional = false
+lucide = "contrast"
+phosphor = "circle-half"
+carbon = "contrast"
+tabler = "contrast-2"
+
+[[icon]]
+name = "align_center"
+directional = false
+lucide = "align-center"
+phosphor = "text-align-center"
+carbon = "text--align--center"
+tabler = "align-center"
+
+[[icon]]
+name = "align_justify"
+directional = false
+lucide = "align-justify"
+phosphor = "text-align-justify"
+carbon = "text--align--justify"
+tabler = "align-justified"
+
+[[icon]]
+name = "align_left"
+directional = false
+lucide = "align-left"
+phosphor = "text-align-left"
+carbon = "text--align--left"
+tabler = "align-left"
+
+[[icon]]
+name = "align_right"
+directional = false
+lucide = "align-right"
+phosphor = "text-align-right"
+carbon = "text--align--right"
+tabler = "align-right"
+
+[[icon]]
+name = "align_edge_bottom"
+directional = false
+lucide = "align-end-horizontal"
+phosphor = "align-bottom"
+carbon = "align--vertical-bottom"
+tabler = "layout-align-bottom"  # near: one box instead of two
+
+[[icon]]
+name = "align_edge_hcenter"
+directional = false
+lucide = "align-center-vertical"
+phosphor = "align-center-horizontal"
+carbon = "align--horizontal-center"
+tabler = "layout-align-center"  # near: one box instead of two
+
+[[icon]]
+name = "align_edge_left"
+directional = false
+lucide = "align-start-vertical"
+phosphor = "align-left"
+carbon = "align--horizontal-left"
+tabler = "layout-align-left"  # near: one box instead of two
+
+[[icon]]
+name = "align_edge_right"
+directional = false
+lucide = "align-end-vertical"
+phosphor = "align-right"
+carbon = "align--horizontal-right"
+tabler = "layout-align-right"  # near: one box instead of two
+
+[[icon]]
+name = "align_edge_top"
+directional = false
+lucide = "align-start-horizontal"
+phosphor = "align-top"
+carbon = "align--vertical-top"
+tabler = "layout-align-top"  # near: one box instead of two
+
+[[icon]]
+name = "align_edge_vcenter"
+directional = false
+lucide = "align-center-horizontal"
+phosphor = "align-center-vertical"
+carbon = "align--vertical-center"
+tabler = "layout-align-middle"  # near: one box instead of two
+
+[[icon]]
+name = "app_window"
+directional = false
+lucide = "app-window"
+phosphor = "app-window"
+carbon = "application--web"  # near: browser window with address bar
+tabler = "app-window"
+
+[[icon]]
+name = "swap_horizontal"
+directional = false
+lucide = "arrow-left-right"
+phosphor = "arrows-left-right"
+carbon = "arrows--horizontal"
+tabler = "arrows-exchange"
+
+[[icon]]
+name = "ban"
+directional = false
+lucide = "ban"
+phosphor = "prohibit"
+carbon = "misuse"  # near: circle with X, not slash
+tabler = "ban"
+
+[[icon]]
+name = "marquee_ellipse"
+directional = false
+lucide = "circle-dashed"
+phosphor = "circle-dashed"
+carbon = "circle-dash"
+tabler = "circle-dashed"
+
+[[icon]]
+name = "target"
+directional = false
+lucide = "circle-dot"
+phosphor = "radio-button"
+carbon = "radio-button--checked"
+tabler = "circle-dot"
+
+[[icon]]
+name = "clock"
+directional = false
+lucide = "clock"
+phosphor = "clock"
+carbon = "time"
+tabler = "clock"
+
+[[icon]]
+name = "cloud"
+directional = false
+lucide = "cloud"
+phosphor = "cloud"
+carbon = "cloud"
+tabler = "cloud"
+
+[[icon]]
+name = "compass"
+directional = false
+lucide = "compass"
+phosphor = "compass"
+carbon = "compass"
+tabler = "compass"
+
+[[icon]]
+name = "contrast"
+directional = false
+lucide = "contrast"
+phosphor = "circle-half"
+carbon = "contrast"
+tabler = "contrast-2"
+
+[[icon]]
+name = "crop"
+directional = false
+lucide = "crop"
+phosphor = "crop"
+carbon = "crop"
+tabler = "crop"
+
+[[icon]]
+name = "diamond"
+directional = false
+lucide = "diamond"
+phosphor = "diamond"
+carbon = "diamond--outline"
+tabler = "diamond"
+
+[[icon]]
+name = "droplet"
+directional = false
+lucide = "droplet"
+phosphor = "drop"
+carbon = "rain-drop"  # near: drop with inner highlight
+tabler = "droplet"
+
+[[icon]]
+name = "ellipse_dashed"
+directional = false
+lucide = "circle-dashed"  # near: dashed circle, not ellipse
+phosphor = "circle-dashed"  # near: dashed circle, not ellipse
+carbon = "circle-dash"  # near: dashed circle, not ellipse
+tabler = "circle-dashed"  # near: dashed circle, not ellipse
+
+[[icon]]
+name = "file"
+directional = false
+lucide = "file"
+phosphor = "file"
+carbon = "document"
+tabler = "file"
+
+[[icon]]
+name = "flame"
+directional = false
+lucide = "flame"
+phosphor = "flame"
+carbon = "fire"
+tabler = "flame"
+
+[[icon]]
+name = "folder"
+directional = false
+lucide = "folder"
+phosphor = "folder"
+carbon = "folder"
+tabler = "folder"
+
+[[icon]]
+name = "new_folder"
+directional = false
+lucide = "folder-plus"
+phosphor = "folder-plus"
+carbon = "folder--add"
+tabler = "folder-plus"
+
+[[icon]]
+name = "gauge"
+directional = false
+lucide = "gauge"
+phosphor = "gauge"
+carbon = "meter"
+tabler = "gauge"
+
+[[icon]]
+name = "grid_small"
+directional = false
+lucide = "grid-2x2"
+phosphor = "grid-four"
+carbon = "grid"
+tabler = "layout-grid"
+
+[[icon]]
+name = "grid"
+directional = false
+lucide = "grid-3x3"
+phosphor = "grid-nine"
+carbon = "view--matrix"  # near: nine cells inside brackets
+tabler = "grid-3x3"
+
+[[icon]]
+name = "home"
+directional = false
+lucide = "house"
+phosphor = "house"
+carbon = "home"
+tabler = "home"
+
+[[icon]]
+name = "maximize_2"
+directional = false
+lucide = "maximize-2"
+phosphor = "arrows-out-simple"
+carbon = "maximize"
+tabler = "arrows-diagonal"
+
+[[icon]]
+name = "note"
+directional = false
+lucide = "message-square"
+phosphor = "chat"
+carbon = "chat"
+tabler = "message"
+
+[[icon]]
+name = "monitor"
+directional = false
+lucide = "monitor"
+phosphor = "monitor"
+carbon = "screen"
+tabler = "device-desktop"
+
+[[icon]]
+name = "moon"
+directional = false
+lucide = "moon"
+phosphor = "moon"
+carbon = "moon"
+tabler = "moon"
+
+[[icon]]
+name = "mouse_pointer_2"
+directional = false
+lucide = "mouse-pointer-2"
+phosphor = "cursor"
+carbon = "cursor--2"
+tabler = "pointer"
+
+[[icon]]
+name = "navigation"
+directional = false
+lucide = "navigation"
+phosphor = "navigation-arrow"
+carbon = "location--current"  # near: arrow in a circle
+tabler = "navigation"
+
+[[icon]]
+name = "palette"
+directional = false
+lucide = "palette"
+phosphor = "palette"
+carbon = "color-palette"
+tabler = "palette"
+
+[[icon]]
+name = "panels_top_left"
+directional = false
+lucide = "panels-top-left"
+phosphor = "layout"  # near: generic layout
+carbon = "template"  # near: generic layout
+tabler = "layout-2"  # near: generic layout
+
+[[icon]]
+name = "pause"
+directional = false
+lucide = "pause"
+phosphor = "pause"
+carbon = "pause"
+tabler = "player-pause"
+
+[[icon]]
+name = "pen_tool"
+directional = false
+lucide = "pen-tool"
+phosphor = "pen-nib"
+carbon = "pen--fountain"
+tabler = "vector-bezier-2"  # near: bezier curve, no pen nib
+
+[[icon]]
+name = "pentagon"
+directional = false
+lucide = "pentagon"
+phosphor = "polygon"
+carbon = "pentagon--outline"
+tabler = "pentagon"
+
+[[icon]]
+name = "play"
+directional = false
+lucide = "play"
+phosphor = "play"
+carbon = "play"
+tabler = "player-play"
+
+[[icon]]
+name = "pointer"
+directional = false
+lucide = "pointer"
+phosphor = "hand-pointing"
+carbon = "touch--1"
+tabler = "hand-finger"
+
+[[icon]]
+name = "ruler"
+directional = false
+lucide = "ruler"
+phosphor = "ruler"
+carbon = "ruler"
+tabler = "ruler"
+
+[[icon]]
+name = "sampler"
+directional = false
+lucide = "crosshair"
+phosphor = "crosshair"
+carbon = "target"  # near: rings without ticks
+tabler = "crosshair"
+
+[[icon]]
+name = "scan"
+directional = false
+lucide = "scan"
+phosphor = "scan"
+carbon = "scan"
+tabler = "scan"
+
+[[icon]]
+name = "scan_line"
+directional = false
+lucide = "scan-line"
+phosphor = "scan"  # near: frame without line
+carbon = "scan--alt"  # near: frame without line
+tabler = "line-scan"
+
+[[icon]]
+name = "scissors"
+directional = false
+lucide = "scissors"
+phosphor = "scissors"
+carbon = "cut"
+tabler = "scissors"
+
+[[icon]]
+name = "slice_knife"
+directional = false
+lucide = "slice"
+phosphor = "knife"  # near: kitchen knife
+carbon = "cut"  # near: scissors, not blade
+tabler = "slice"
+
+[[icon]]
+name = "adjustments"
+directional = false
+lucide = "sliders-horizontal"
+phosphor = "sliders-horizontal"
+carbon = "settings--adjust"
+tabler = "adjustments-horizontal"
+
+[[icon]]
+name = "spline"
+directional = false
+lucide = "spline"
+phosphor = "bezier-curve"
+carbon = "curved-line--solid"  # near: plain curve without nodes
+tabler = "vector-spline"
+
+[[icon]]
+name = "marquee_rect"
+directional = false
+lucide = "square-dashed"
+phosphor = "selection"
+carbon = "select--01"  # near: dashed square with crosshair
+tabler = "square-dashed"
+
+[[icon]]
+name = "new_layer"
+directional = false
+lucide = "square-plus"
+phosphor = "plus-square"
+carbon = "add--alt"  # near: plus in a circle, not square
+tabler = "square-plus"
+
+[[icon]]
+name = "squares_subtract"
+directional = false
+lucide = "squares-intersect"
+phosphor = "intersect-square"
+carbon = "intersect"
+tabler = "layers-intersect"
+
+[[icon]]
+name = "stamp"
+directional = false
+lucide = "stamp"
+phosphor = "stamp"
+carbon = "stamp"
+tabler = "rubber-stamp"
+
+[[icon]]
+name = "star"
+directional = false
+lucide = "star"
+phosphor = "star"
+carbon = "star"
+tabler = "star"
+
+[[icon]]
+name = "sun"
+directional = false
+lucide = "sun"
+phosphor = "sun"
+carbon = "sun"
+tabler = "sun"
+
+[[icon]]
+name = "swatch_book"
+directional = false
+lucide = "swatch-book"
+phosphor = "swatches"
+carbon = "color-palette"  # near: palette, not swatch book
+tabler = "color-swatch"
+
+[[icon]]
+name = "toggle_left"
+directional = true
+lucide = "toggle-left"
+phosphor = "toggle-left"
+carbon = "toggle-off"
+tabler = "toggle-left"
+
+[[icon]]
+name = "toggle_right"
+directional = true
+lucide = "toggle-right"
+phosphor = "toggle-right"
+carbon = "toggle-on"
+tabler = "toggle-right"
+
+[[icon]]
+name = "triangle"
+directional = false
+lucide = "triangle"
+phosphor = "triangle"
+carbon = "triangle--outline"
+tabler = "triangle"
+
+[[icon]]
+name = "wand"
+directional = false
+lucide = "wand"
+phosphor = "magic-wand"  # near: with sparkles
+carbon = "magic-wand"  # near: with sparkles
+tabler = "wand"
+
+[[icon]]
+name = "wand_sparkles"
+directional = false
+lucide = "wand-sparkles"
+phosphor = "magic-wand"
+carbon = "magic-wand"
+tabler = "wand"  # near: wand without sparkles

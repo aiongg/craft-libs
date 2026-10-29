@@ -81,3 +81,36 @@ fn a_directional_icon_is_mirrored_right_to_left() {
     assert_ne!(texture(&ctx, Icon::ChevronLeft, 16), ltr_left);
     assert_eq!(texture(&ctx, Icon::Close, 16), ltr_close);
 }
+
+/// The names the PhotoCraft button call sites need (DS-43 A8) that every set has a file for. The
+/// variants make a renamed or dropped manifest entry a compile error; the names pin the spelling.
+#[test]
+fn every_photocraft_button_icon_resolves_in_every_set() {
+    let wanted = [
+        (Icon::Note, "note"),
+        (Icon::Ban, "ban"),
+        (Icon::SwapHorizontal, "swap_horizontal"),
+        (Icon::NewLayer, "new_layer"),
+        (Icon::NewFolder, "new_folder"),
+        (Icon::Folder, "folder"),
+        (Icon::Target, "target"),
+        (Icon::Adjustments, "adjustments"),
+        (Icon::Grid, "grid"),
+        (Icon::GridSmall, "grid_small"),
+        (Icon::Play, "play"),
+        (Icon::AlignJustify, "align_justify"),
+        (Icon::MarqueeRect, "marquee_rect"),
+        (Icon::MarqueeEllipse, "marquee_ellipse"),
+        (Icon::Home, "home"),
+        (Icon::Scan, "scan"),
+        (Icon::Ruler, "ruler"),
+        (Icon::Stamp, "stamp"),
+        (Icon::Spline, "spline"),
+    ];
+    for (icon, name) in wanted {
+        assert_eq!(icon.name(), name);
+        for set in IconSet::ALL {
+            assert!(alpha(&rasterise(icon, set, 16, 1.5, false)).any(|a| a > 0), "{name} is blank in {set:?}");
+        }
+    }
+}

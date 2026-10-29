@@ -10,3 +10,5 @@ Each folder holds only the files `icons.toml` lists, unchanged from the pinned s
 | `tabler/` | [Tabler Icons](https://tabler.io/icons), outline | MIT | [tabler/tabler-icons](https://github.com/tabler/tabler-icons) `v3.50.0`, `6904efd245391ad396df17654738f52f6da8c40e` | `icons/outline/` |
 
 Carbon's licence file is the repository's root `LICENSE` (the icons package has none of its own).
+
+Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are all `regular` weight.
