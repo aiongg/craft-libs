@@ -71,7 +71,7 @@ impl Claim {
             Some(owner) => owner == overlay,
             None => match PrimaryPress::current(ctx) {
                 Some(press) => {
-                    let waiting = (order::turn(ctx, overlay, None) == Turn::Waits).then(|| ctx.cumulative_pass_nr());
+                    let waiting = (order::turn(ctx, press.key(overlay), None) == Turn::Waits).then(|| ctx.cumulative_pass_nr());
                     ctx.data_mut(|d| d.insert_temp(Claim::key(canvas), Claim { owner: overlay, press, waiting }));
                     true
                 }
@@ -89,7 +89,7 @@ impl Claim {
         let Some(mut claim) = Claim::current(ctx, canvas).filter(|c| c.owner == overlay && c.waiting.is_some()) else {
             return Turn::Now;
         };
-        let turn = order::turn(ctx, overlay, None);
+        let turn = order::turn(ctx, claim.press.key(overlay), None);
         claim.waiting = (turn == Turn::Waits).then(|| ctx.cumulative_pass_nr());
         ctx.data_mut(|d| d.insert_temp(Claim::key(canvas), claim));
         turn
@@ -144,6 +144,12 @@ impl PrimaryPress {
                 Some(PrimaryPress { origin: p.press_origin()?, time: p.press_start_time()? })
             })
         })
+    }
+
+    /// The queue key of `overlay`'s input for this press: a later press of the same overlay never
+    /// finds this one's entry.
+    fn key(self, overlay: Id) -> Id {
+        overlay.with((self.origin.x.to_bits(), self.origin.y.to_bits(), self.time.to_bits()))
     }
 
     /// Whether a newer primary press has begun.

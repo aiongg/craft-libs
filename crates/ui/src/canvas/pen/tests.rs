@@ -6,6 +6,7 @@ use kurbo::{Point, Vec2};
 
 use super::story::PenHost;
 use super::{PenDraft, PenNames, PenResponse};
+use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, EditPath, EditSubpath, Guide, GuideNames, Guides, Knot, KnotRef, Orientation, RulerUnits};
 use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
@@ -27,6 +28,7 @@ struct Host {
     guide_events: usize,
     last: Option<PenResponse>,
     resumed: Vec<(u64, KnotRef)>,
+    field: TypingField,
 }
 
 fn open_path() -> EditPath {
@@ -47,9 +49,11 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         guide_events: 0,
         last: None,
         resumed: Vec::new(),
+        field: TypingField::default(),
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
+            host.field.show(ui);
             ui.add_space(40.0);
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() | Sense::FOCUSABLE);
             if host.focus {
@@ -70,6 +74,7 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
             let ends = host.pen.ends();
             let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
             let response = PenDraft::new("pen", host.pen.draft.as_ref(), names).ends(&ends).units(&px, &px).show(ui, &canvas, &view);
+            host.field.note(response.event.is_some());
             host.events.extend(response.event.clone());
             host.resumed.extend(response.resumed);
             host.pen.apply(&response);
@@ -711,4 +716,37 @@ fn anchors_are_graphics_objects_in_a_group_that_is_not_a_tab_stop() {
     let focused = h.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label());
     assert_ne!(focused.as_deref(), Some("Path being drawn"));
     let _ = Vec2::ZERO;
+}
+
+/// A press during another control's typing run begins after that run's Commit; the pen's own
+/// draft, which has the focus, never makes a press wait.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit_but_the_pens_draft_never_waits() {
+    let mut h = empty();
+    h.state_mut().field.on = true;
+    h.step();
+    let at = screen(&h, doc(60.0, 60.0));
+    h.event(Event::PointerMoved(at));
+    h.step();
+    h.event(button(at, true, Modifiers::NONE));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    h.event(button(at, false, Modifiers::NONE));
+    for _ in 0..5 {
+        h.step();
+    }
+    assert!(matches!(h.state().events.first(), Some(EditEvent::Begin { .. })), "{:?}", h.state().events);
+    assert!(h.state().field.commit_came_first());
+    assert_eq!(draft(&h).knots, [Knot::corner(doc(60.0, 60.0))]);
+
+    // The draft is under way and the canvas has the focus: the next press runs in its own pass.
+    h.state_mut().focus = true;
+    h.step();
+    let before = h.state().events.len();
+    let next = screen(&h, doc(160.0, 60.0));
+    h.event(Event::PointerMoved(next));
+    h.step();
+    h.event(button(next, true, Modifiers::NONE));
+    h.step();
+    assert_eq!(draft(&h).knots.len(), 2, "no wait: {:?}", &h.state().events[before..]);
 }

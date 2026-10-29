@@ -7,6 +7,7 @@ use kurbo::{Point, Rect, Vec2};
 use super::story::{WarpHost, english_names, eval, surface_at};
 use super::{WarpEdit, WarpGrid, WarpMesh};
 use crate::canvas::guides::GuideHost;
+use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
@@ -29,6 +30,7 @@ struct Host {
     claimed: bool,
     guides: Option<GuideHost>,
     guide_events: usize,
+    field: TypingField,
 }
 
 fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -43,10 +45,12 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
         claimed: false,
         guides: None,
         guide_events: 0,
+        field: TypingField::default(),
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
+            host.field.show(ui);
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the grid.
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -60,6 +64,7 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
                 .units(&px, &px)
                 .show(ui, &canvas, &view);
             host.host.apply(&r);
+            host.field.note(r.event.is_some());
             host.events.extend(r.event.clone());
             (host.picked, host.claimed) = (r.picked, r.claimed);
             if let Some(guides) = &mut host.guides {
@@ -387,4 +392,29 @@ fn a_mesh_names_its_anchors_and_handles() {
     assert_eq!(m.anchor_of(3 * 10 + 5), Some(36));
     assert_eq!(m.anchor_of(4 * 10 + 3), Some(33));
     assert_eq!(m.anchor_of(4 * 10 + 4), None);
+}
+
+/// A press on a point during a text field's typing run begins after the run's Commit and still
+/// drags from the press.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
+    let mut h = harness(|host| host.field.on = true);
+    h.step();
+    let anchor = screen(&h, Point::new(RECT.x1, RECT.y1));
+    h.event(Event::PointerMoved(anchor));
+    h.step();
+    h.event(button(anchor, true));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    for i in 1..=6 {
+        h.event(Event::PointerMoved(anchor + vec2(4.0 * i as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(anchor + vec2(24.0, 0.0), false));
+    h.step();
+    h.step();
+    let events = &h.state().events;
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
+    assert!(h.state().field.commit_came_first());
 }

@@ -9,6 +9,7 @@ use super::{
     BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS, PathEdit,
     PathSelection,
 };
+use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
@@ -30,6 +31,7 @@ struct Host {
     last: Option<BezierResponse>,
     inserts: Vec<(u64, KnotRef, f64)>,
     deletes: Vec<(u64, Vec<KnotRef>)>,
+    field: TypingField,
 }
 
 /// Path 1: an open subpath of four anchors: a straight segment, then two curved ones.
@@ -65,9 +67,11 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         last: None,
         inserts: Vec::new(),
         deletes: Vec::new(),
+        field: TypingField::default(),
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
+            host.field.show(ui);
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the paths.
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -85,6 +89,7 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
                 let g = Guides::new("guides", &guides, &px, &px, names).interactive(true).show(ui, &canvas, &view);
                 host.guide_events += usize::from(g.event.is_some());
             }
+            host.field.note(response.event.is_some());
             host.events.extend(response.event.clone());
             host.inserts.extend(response.insert);
             host.deletes.extend(response.delete.clone());
@@ -524,4 +529,30 @@ fn anchors_and_shown_handles_are_graphics_objects_until_the_anchor_limit() {
     h.run();
     assert_eq!(h.get_by_label("Paths").accesskit_node().role(), Role::Group);
     assert!(objects(&h).is_empty(), "over the limit only the group");
+}
+
+/// A press on an anchor during a text field's typing run begins after the run's Commit and still
+/// drags from the press.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
+    let mut h = two_paths();
+    h.state_mut().field.on = true;
+    h.step();
+    let at = screen(&h, Point::new(60.0, 60.0));
+    h.event(Event::PointerMoved(at));
+    h.step();
+    h.event(button(at, true, Modifiers::NONE));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    for i in 1..=6 {
+        h.event(Event::PointerMoved(at + vec2(5.0 * i as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(at + vec2(30.0, 0.0), false, Modifiers::NONE));
+    h.step();
+    h.step();
+    let events = &h.state().events;
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { changed: true, .. })), "{events:?}");
+    assert!(h.state().field.commit_came_first());
 }

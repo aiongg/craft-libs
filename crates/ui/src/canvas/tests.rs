@@ -450,3 +450,105 @@ fn a_claimed_press_waits_for_a_typing_run_and_holds_through_the_wait() {
     assert_eq!(turns.last(), Some(&Turn::Now), "it runs once");
     assert_eq!(Claim::owner(&ctx, canvas), None, "a released press's claim ends with its turn");
 }
+
+/// A text field's typing run beside a canvas under test: begun with the focus in the first pass it
+/// is drawn, ended by whatever takes the focus. It records the pass of its Commit and the pass of
+/// the overlay's first event, so a test can tell which went out first.
+#[derive(Default)]
+pub(super) struct TypingField {
+    pub on: bool,
+    passes: usize,
+    began: bool,
+    committed: Option<usize>,
+    first_event: Option<usize>,
+}
+
+impl TypingField {
+    /// Draws the field; call it in every pass, before the overlay.
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.passes += 1;
+        if !self.on {
+            return;
+        }
+        let first = !self.began;
+        self.began = true;
+        let id = ui.make_persistent_id("typing field");
+        let response = ui.interact(ScreenRect::from_min_size(pos2(0.0, 0.0), vec2(20.0, 20.0)), id, egui::Sense::click());
+        if first {
+            response.request_focus();
+        }
+        let mut gesture = Gesture::load(ui, id, &0, EditPolicy::default());
+        if first {
+            gesture.begin();
+        }
+        if matches!(gesture.finish(), Some(crate::edit::EditEvent::Commit { .. })) {
+            self.committed = Some(self.passes);
+        }
+    }
+
+    /// Records the overlay's result of this pass.
+    pub fn note(&mut self, event: bool) {
+        if event && self.first_event.is_none() {
+            self.first_event = Some(self.passes);
+        }
+    }
+
+    /// The field's Commit went out in a pass before the overlay's first event.
+    pub fn commit_came_first(&self) -> bool {
+        matches!((self.committed, self.first_event), (Some(c), Some(e)) if c < e)
+    }
+}
+
+/// A new press taken in the pass after a waiting press was superseded gets its own turn: the old
+/// press's queue entry is not its entry, and the queue is empty once it has run.
+#[test]
+fn a_new_press_does_not_inherit_the_queue_entry_of_a_superseded_one() {
+    let ctx = Context::default();
+    let canvas = Id::unique("claim-canvas");
+    let (overlay, field) = (Id::unique("overlay"), Id::unique("field"));
+    let at = pos2(100.0, 100.0);
+    let nr = std::cell::Cell::new(0);
+    let committed = std::cell::Cell::new(None);
+    let run = |events: Vec<Event>, take: bool, turns: &mut Vec<Turn>| {
+        nr.set(nr.get() + 1);
+        let input = RawInput { screen_rect: Some(screen()), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            let response = ui.interact(ScreenRect::from_min_size(pos2(300.0, 300.0), vec2(20.0, 20.0)), field, egui::Sense::click());
+            if nr.get() <= 2 {
+                response.request_focus();
+            }
+            let mut gesture = Gesture::load(ui, field, &0, EditPolicy::default());
+            if nr.get() == 1 {
+                gesture.begin();
+            }
+            if matches!(gesture.finish(), Some(crate::edit::EditEvent::Commit { .. })) {
+                committed.set(Some(nr.get()));
+            }
+            if take {
+                assert!(Claim::take(ui.ctx(), canvas, overlay));
+            }
+            turns.push(Claim::turn(ui.ctx(), canvas, overlay));
+        })
+        .drop_without_applying_deltas();
+    };
+    let mut turns = Vec::new();
+    run(vec![Event::PointerMoved(at)], false, &mut turns);
+    run(vec![button(at, true)], true, &mut turns);
+    run(vec![button(at, false)], false, &mut turns);
+    assert_eq!(turns.last(), Some(&Turn::Waits));
+    // A second press while the first still waits: the first's claim is superseded.
+    turns.clear();
+    run(vec![button(at, true)], true, &mut turns);
+    let mut runs = 0;
+    for _ in 0..8 {
+        run(vec![], false, &mut turns);
+        runs += turns.iter().filter(|&&t| t == Turn::Runs).count();
+        turns.clear();
+    }
+    assert_eq!(runs, 1, "the second press runs once");
+    assert!(committed.get().is_some());
+    ctx.run_ui(RawInput { screen_rect: Some(screen()), ..RawInput::default() }, |ui| {
+        assert_eq!(crate::edit::order::turn(ui.ctx(), Id::unique("probe"), None), Turn::Now, "no entry is left");
+    })
+    .drop_without_applying_deltas();
+}
