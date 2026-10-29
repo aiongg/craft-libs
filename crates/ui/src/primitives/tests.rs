@@ -79,7 +79,7 @@ fn surface_style_per_kind_flat_and_bevelled() {
         };
         assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");
     }
-    for kind in [K::Popup, K::Knob] {
+    for kind in [K::Popup, K::Dialog, K::Knob] {
         assert_eq!(Surface::style(&classic, kind).shadow, None, "{kind:?} casts no shadow in Classic");
     }
 

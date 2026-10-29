@@ -511,17 +511,30 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
     }
 }
 
-/// Classic casts no shadow on what its theme file can set (PhotoCraft `theme.rs:415-455`, shadow
-/// alpha 0): not a popup, a toast, a tooltip, a floating window or a knob.
+/// Classic casts no shadow (PhotoCraft `theme.rs:415-455`, shadow alpha 0): `surface.shadow` is
+/// clear, so no popup, tooltip, toast, dialog, floating window or knob has one. Every other
+/// theme's shadows are its `surface.shadow` alpha.
 #[test]
-fn classic_casts_no_shadow() {
-    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
-    for size in [Size::Compact, Size::Comfortable] {
-        let a = Appearance { size, ..semantic_tests::app(Mode::Light, Contrast::Standard) };
-        let t = resolve(theme, a, None).tokens;
-        assert_eq!(t.component.popup.shadow.a(), 0, "{a:?}");
-        assert_eq!(t.component.float.shadow.alpha, 0.0, "{a:?}");
-        assert_eq!(t.elevation.knob.alpha, 0.0, "{a:?}");
+fn every_shadow_has_the_alpha_of_surface_shadow() {
+    for theme in builtins() {
+        for size in [Size::Compact, Size::Comfortable] {
+            for mode in [Mode::Light, Mode::Dark] {
+                let a = Appearance { size, ..semantic_tests::app(mode, Contrast::Standard) };
+                let t = resolve(theme, a, None).tokens;
+                let id = theme.id.as_str();
+                let alpha = t.color(ColorToken::SurfaceShadow).a();
+                let e = &t.elevation;
+                for (what, got) in [("popup", e.popup.alpha), ("dialog", e.dialog.alpha), ("floating", e.floating.alpha)] {
+                    assert_eq!((got * 255.0).round() as u8, alpha, "{id} {what} {a:?}");
+                }
+                assert_eq!(t.component.popup.shadow.a(), alpha, "{id} {a:?}");
+                assert_eq!((t.component.float.shadow.alpha * 255.0).round() as u8, alpha, "{id} {a:?}");
+                if id == "craft.classic" {
+                    assert_eq!(alpha, 0, "{a:?}");
+                    assert_eq!(e.knob.alpha, 0.0, "{a:?}");
+                }
+            }
+        }
     }
 }
 

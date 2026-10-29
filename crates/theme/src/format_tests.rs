@@ -373,7 +373,8 @@ fn a_float_shadow_override_round_trips_through_the_file() {
         assert_eq!(written["components"]["float.shadow"], json!({ "level": level }));
         let back = format::parse(text.as_bytes()).unwrap().theme;
         assert_eq!(back.components[&shadow], OverrideValue::Elevation(Elevation::level(level)));
-        assert_eq!(resolve(&back, appearance(Mode::Light), None).tokens.component.float.shadow, Elevation::level(level));
+        let alpha = if level == 0 { 0.0 } else { 50.0 / 255.0 };
+        assert_eq!(resolve(&back, appearance(Mode::Light), None).tokens.component.float.shadow, Elevation { alpha, ..Elevation::level(level) });
     }
     let bad = json!({ "level": 4 });
     let mut v = full();

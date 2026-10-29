@@ -127,7 +127,7 @@ pub enum ErrorKind {
         /// The token paths of the references that still change after the last round.
         tokens: Vec<String>,
     },
-    /// A translucent colour on a surface (`surface.*` except `surface.scrim`).
+    /// A translucent colour on a surface (`surface.*` except `surface.scrim` and `surface.shadow`).
     NotOpaque,
 }
 

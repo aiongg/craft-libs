@@ -11,6 +11,7 @@ use super::components::{
 };
 use super::contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 use super::ramp::{self, Mode, Ramp, RampKind};
+use super::scale::Elevation;
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, ColorSource as Source, PairRule, RULES};
@@ -763,10 +764,12 @@ pub(super) fn component_overrides(
         if f.kind() == FieldKind::Color {
             continue;
         }
-        // A shadow override names a preset level, which gets the same mode adjustment as the
-        // default shadow.
+        // A shadow override names a preset level: its geometry, in the alpha of `surface.shadow`
+        // (level 0 casts none).
         let v = match v {
-            OverrideValue::Elevation(e) => OverrideValue::Elevation(values::shadow_in_mode(e, mode)),
+            OverrideValue::Elevation(e) if e.alpha > 0.0 => {
+                OverrideValue::Elevation(Elevation { alpha: f32::from(color.surface.shadow.a()) / 255.0, ..e })
+            }
             v => v,
         };
         let _ = comp.set(f, v);
