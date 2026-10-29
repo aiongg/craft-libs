@@ -269,12 +269,13 @@ impl Face<'_> {
         let ppp = ui.pixels_per_point();
         let text = laid.galley.size();
         let icon = vec2(style.icon, style.icon);
-        let spinner = self.loading.then(|| icon_size(self.size).stroke());
+        let spinner = self.loading;
         let Some(lead) = self.icon else {
-            match spinner {
-                // Without an icon the spinner takes the label's place; the width stays.
-                Some(stroke) => Spinner::paint(ui, Rect::from_center_size(rect.center(), icon), stroke, color),
-                None => paint_galley(ui, &laid.galley, rect.center() - text / 2.0, color),
+            // Without an icon the spinner takes the label's place; the width stays.
+            if spinner {
+                Spinner::paint(ui, Rect::from_center_size(rect.center(), icon), color);
+            } else {
+                paint_galley(ui, &laid.galley, rect.center() - text / 2.0, color);
             }
             return;
         };
@@ -282,9 +283,10 @@ impl Face<'_> {
         let start = rect.center().x - content / 2.0;
         let (icon_x, text_x) = if direction::is_rtl(ui) { (start + content - style.icon, start) } else { (start, start + style.icon + style.gap) };
         let icon_rect = Rect::from_min_size(pos2(icon_x, rect.center().y - style.icon / 2.0), icon).round_to_pixels(ppp);
-        match spinner {
-            Some(stroke) => Spinner::paint(ui, icon_rect, stroke, color),
-            None => icons::paint(ui, icon_rect, lead, icon_size(self.size), color),
+        if spinner {
+            Spinner::paint(ui, icon_rect, color);
+        } else {
+            icons::paint(ui, icon_rect, lead, icon_size(self.size), color);
         }
         paint_galley(ui, &laid.galley, pos2(text_x, rect.center().y - text.y / 2.0), color);
     }

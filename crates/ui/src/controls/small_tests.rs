@@ -263,16 +263,16 @@ fn a_button_draws_its_loading_ring_through_the_spinner() {
         shapes.into_iter().filter_map(|s| if let Shape::Path(p) = s { Some(p) } else { None }).count()
     };
     assert_eq!((ring(false), ring(true)), (0, 1));
-    // The ring is the spinner's own polyline, still at turn 0 with reduced motion, in an icon's
-    // square: the ends sit at 0° and 270°, its widest points at 90° and 180°.
+    // The ring is the spinner's own arc, still at its widest with reduced motion, in an icon's square.
     let (shapes, _) = frame(&ctx, 0.0, |ui| {
         ui.add(Button::new("Export").loading(true));
     });
     let points = shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p.points) } else { None }).unwrap();
-    let quarter = (points.len() - 1) / 3;
-    let center = Pos2::new((points[0].x + points[2 * quarter].x) / 2.0, (points[quarter].y + points[3 * quarter].y) / 2.0);
-    let side = Spinner::style(&tokens_in(&ctx), Some(IconSize::Md), Content::Muted).points;
-    let expected = Spinner::points(Rect::from_center_size(center, vec2(side, side)), 0.0);
+    let tokens = tokens_in(&ctx);
+    let side = Spinner::style(&tokens, Some(IconSize::Md), Content::Muted).points;
+    let radius = side / 2.0 - tokens.component.spinner.inset;
+    let center = points[0] - vec2(radius, 0.0);
+    let expected = Spinner::points(Rect::from_center_size(center, vec2(side, side)), radius, 0.0, 240f32.to_radians());
     assert_eq!(points.len(), expected.len());
     for (p, e) in points.iter().zip(&expected) {
         assert!(p.distance(*e) < 1e-3, "{p:?} is not the spinner's {e:?}");
@@ -309,6 +309,30 @@ fn a_bar_is_120_long_and_its_fill_is_never_narrower_than_the_bar_is_thick() {
     let width_of = |fill: Color32| shapes.iter().find_map(|s| if let Shape::Rect(r) = s { (r.fill == fill).then_some(r.rect.width()) } else { None });
     assert_eq!(width_of(style.track.fill), Some(120.0), "the track");
     assert_eq!(width_of(style.fill), Some(style.height), "a 1% fill is as wide as the bar is thick");
+}
+
+#[test]
+fn a_spinner_is_egus_ring_with_the_token_stroke_and_its_end_sweeps() {
+    let ctx = motion_context(false);
+    let tokens = tokens_in(&ctx);
+    let spinner = &tokens.component.spinner;
+    let ring = |time: f64| {
+        for settle in [0.0, 0.1, 0.2] {
+            frame(&ctx, settle, |ui| {
+                ui.add(Spinner::new());
+            });
+        }
+        let (shapes, _) = frame(&ctx, time, |ui| {
+            ui.add(Spinner::new());
+        });
+        shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p) } else { None }).unwrap()
+    };
+    let path = ring(0.5);
+    assert_eq!(path.stroke.width, spinner.stroke);
+    let radius = tokens.size.control.md / 2.0 - spinner.inset;
+    assert_eq!(path.points.len(), (radius.round() as usize).clamp(8, 128));
+    let sweep = |time: f64| ring(time).points.last().unwrap().distance(ring(time).points[0]);
+    assert_ne!(sweep(0.5), sweep(1.5), "the end of the arc moves relative to its start");
 }
 
 #[test]

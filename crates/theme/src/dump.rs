@@ -12,9 +12,9 @@ use crate::{
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
     PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba,
-    RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes,
-    TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole,
-    TypeStyle, TypeTokens,
+    RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, SwatchColor,
+    SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens,
+    TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -251,6 +251,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         section,
         segmented,
         slider,
+        spinner,
         swatch,
         tab,
         title_bar,
@@ -295,6 +296,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     section_lines(out, section);
     segmented_lines(out, segmented);
     slider_lines(out, slider);
+    spinner_lines(out, spinner);
     swatch_lines(out, swatch);
     tab_lines(out, tab);
     title_bar_lines(out, title_bar);
@@ -1286,4 +1288,10 @@ fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
     out.line("tooltip.fill", hex(*fill));
     out.line("tooltip.text", hex(*text));
     out.line("tooltip.border", hex(*border));
+}
+
+fn spinner_lines(out: &mut Lines, t: &SpinnerTokens) {
+    let SpinnerTokens { inset, stroke } = t;
+    out.line("spinner.inset", len(*inset));
+    out.line("spinner.stroke", len(*stroke));
 }
