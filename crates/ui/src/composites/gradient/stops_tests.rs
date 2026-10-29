@@ -2,8 +2,8 @@
 
 use craft_theme::Srgba;
 
-use super::stops::{self, StopRules, default_sampler, sample};
-use super::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
+use super::stops::{self, BarOp, StopKey, StopRules, default_sampler, sample};
+use super::{ColorStop, GradientStops, OpacityStop, StopRef, StopRow, StopRows};
 
 const RED: Srgba = Srgba::rgb(1.0, 0.0, 0.0);
 const BLUE: Srgba = Srgba::rgb(0.0, 0.0, 1.0);
@@ -134,4 +134,70 @@ fn the_default_sampler_bends_each_segment_to_its_midpoint_and_splits_alpha_by_la
     assert_eq!(sample(&stops, StopRows::Split, 0.0).a, 1.0);
     // Combined: the colours' alpha.
     assert_eq!(sample(&stops, StopRows::Combined, 0.0).a, 0.0);
+}
+
+/// Tagged stops at `(location, tag)`.
+fn tagged(stops: &[(f32, u64)]) -> GradientStops {
+    GradientStops::new(stops.iter().map(|&(at, tag)| ColorStop { tag, ..ColorStop::new(at, RED) }).collect())
+}
+
+fn places(stops: &GradientStops) -> Vec<(f32, u64)> {
+    stops.color.iter().map(|s| (s.location, s.tag)).collect()
+}
+
+/// A bar's operation applies to the stop its key names on the stops of its turn, which another
+/// control changed, and keeps the selection on its stop.
+#[test]
+fn a_bar_operation_applies_to_its_stop_on_the_stops_of_its_turn() {
+    let (rules, sampler) = (StopRules::default(), default_sampler(StopRows::Split));
+    let base = tagged(&[(0.0, 1), (0.25, 2), (0.5, 3), (1.0, 4)]);
+    let key = |i| StopKey::of(&base, StopRow::Color, i).unwrap();
+    // Another control moved stop 2 past stop 3.
+    let now = tagged(&[(0.0, 1), (0.5, 3), (0.75, 2), (1.0, 4)]);
+    let apply = |op: BarOp, selected: &mut Option<StopRef>| stops::apply(&op, &now, selected, &rules, &sampler).map(|s| places(&s));
+
+    let mut selected = Some(StopRef::Color(2));
+    assert_eq!(apply(BarOp::Nudge { at: key(1), by: 0.125 }, &mut selected), Some(vec![(0.0, 1), (0.5, 3), (0.875, 2), (1.0, 4)]));
+    assert_eq!(selected, Some(StopRef::Color(2)), "on the moved stop");
+
+    let mut selected = Some(StopRef::Color(2));
+    assert_eq!(apply(BarOp::Nudge { at: key(2), by: 0.375 }, &mut selected), Some(vec![(0.0, 1), (0.75, 2), (0.875, 3), (1.0, 4)]));
+    assert_eq!(selected, Some(StopRef::Color(1)), "the selected stop the move passed keeps the selection");
+
+    let mut selected = Some(StopRef::Color(2));
+    assert_eq!(apply(BarOp::Add { row: StopRow::Color, after: Some(key(0)) }, &mut selected).map(|p| p[1]), Some((0.25, 0)));
+    assert_eq!(selected, Some(StopRef::Color(1)), "the added stop");
+
+    let mut selected = Some(StopRef::Color(2));
+    assert_eq!(apply(BarOp::Remove(key(3)), &mut selected), Some(vec![(0.0, 1), (0.5, 3), (0.75, 2)]));
+    assert_eq!(selected, Some(StopRef::Color(2)));
+    let mut selected = Some(StopRef::Color(2));
+    assert_eq!(apply(BarOp::Remove(key(1)), &mut selected), Some(vec![(0.0, 1), (0.5, 3), (1.0, 4)]));
+    assert_eq!(selected, Some(StopRef::Color(2)), "the stop that takes the removed one's index");
+
+    let mut selected = Some(StopRef::Color(1));
+    let gone = StopKey { tag: 9, ..key(1) };
+    assert_eq!(apply(BarOp::Nudge { at: gone, by: 0.125 }, &mut selected), None, "no stop with its tag");
+    assert_eq!(selected, Some(StopRef::Color(1)));
+}
+
+#[test]
+fn an_untagged_key_with_two_candidates_finds_none() {
+    let base = tagged(&[(0.0, 0), (0.25, 0), (0.5, 0), (1.0, 0)]);
+    let key = StopKey::of(&base, StopRow::Color, 1).unwrap();
+    assert_eq!(key.find(&base), Some(1));
+    assert_eq!(key.find(&tagged(&[(0.0, 0), (0.5, 0), (0.625, 0), (1.0, 0)])), Some(2), "the one stop that moved");
+    assert_eq!(key.find(&tagged(&[(0.0, 0), (0.375, 0), (0.625, 0), (1.0, 0)])), None, "two stops moved");
+    assert_eq!(key.find(&tagged(&[(0.0, 0), (0.25, 0), (0.25, 0), (1.0, 0)])), None, "another stop moved to its location");
+    let (rules, sampler) = (StopRules::default(), default_sampler(StopRows::Split));
+    let two_moved = tagged(&[(0.0, 0), (0.375, 0), (0.625, 0), (1.0, 0)]);
+    assert_eq!(stops::apply(&BarOp::Nudge { at: key, by: 0.125 }, &two_moved, &mut None, &rules, &sampler), None, "the operation drops");
+
+    // Stops that share a location are told apart by their order there.
+    let mut tied = tagged(&[(0.0, 0), (0.5, 0), (0.5, 0), (1.0, 0)]);
+    tied.color[1].color = BLUE;
+    let second = StopKey::of(&tied, StopRow::Color, 2).unwrap();
+    assert_eq!(second.find(&tied), Some(2));
+    let out = stops::apply(&BarOp::Nudge { at: second, by: 0.125 }, &tied, &mut None, &rules, &sampler).expect("found");
+    assert_eq!((places(&out)[2], out.color[1].color, out.color[2].color), ((0.625, 0), BLUE, RED));
 }

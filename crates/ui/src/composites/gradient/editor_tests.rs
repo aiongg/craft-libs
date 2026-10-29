@@ -865,43 +865,6 @@ fn steps_on_two_fields_in_one_frame_both_reach_the_host() {
     assert_eq!(state.locations(), [0.0, 0.51, 1.0], "the location step applies");
 }
 
-/// A held bar edit applies its change of one stop onto the stops of its turn: a change in place, a
-/// move past a neighbour (found by its tag), an added or a removed stop. When the stops of its
-/// turn aren't its base's at their places (by tag), or the result is out of order, it gives none.
-#[test]
-fn a_held_bar_edit_rebases_by_stop_and_gives_none_when_it_cant_tell_them() {
-    use crate::edit::parts::Rebase as _;
-    let base = GradientStops::new(vec![stop(0.0, 1), stop(0.4, 2), stop(0.6, 3), stop(1.0, 4)]);
-    let mut now = base.clone();
-    now.color[1].color = Srgba::rgb(1.0, 0.0, 0.0);
-    let red = |mut s: ColorStop| {
-        s.color = Srgba::rgb(1.0, 0.0, 0.0);
-        s
-    };
-    let moved = |s: ColorStop, at: f32| ColorStop { location: at, ..s };
-    let b = &base.color;
-    let cases: [(Vec<ColorStop>, Option<Vec<ColorStop>>); 4] = [
-        (vec![b[0], moved(b[1], 0.45), b[2], b[3]], Some(vec![b[0], red(moved(b[1], 0.45)), b[2], b[3]])),
-        (vec![b[0], b[2], moved(b[1], 0.7), b[3]], Some(vec![b[0], b[2], red(moved(b[1], 0.7)), b[3]])),
-        (vec![b[0], b[1], stop(0.5, 0), b[2], b[3]], Some(vec![b[0], red(b[1]), stop(0.5, 0), b[2], b[3]])),
-        (vec![b[0], b[1], b[3]], Some(vec![b[0], red(b[1]), b[3]])),
-    ];
-    for (held, rebased) in cases {
-        let got = GradientStops::new(held.clone()).rebase(&base, &now);
-        assert_eq!(got.map(|s| s.color), rebased, "held {held:?}");
-    }
-    // The stop the field moved past its neighbour (tags 2 and 3 swapped places).
-    let mut swapped = base.clone();
-    swapped.color.swap(1, 2);
-    let held = GradientStops::new(vec![b[0], b[1], moved(b[2], 0.65), b[3]]);
-    assert_eq!(held.clone().rebase(&base, &swapped), None, "the stops of its turn aren't at their places");
-    // A move of stop 3 below stop 2, where stop 2 now sits above it.
-    let mut above = base.clone();
-    above.color[1].location = 0.55;
-    let held = GradientStops::new(vec![b[0], b[1], moved(b[2], 0.5), b[3]]);
-    assert_eq!(held.rebase(&base, &above), None, "out of order");
-}
-
 #[test]
 fn enter_on_an_opacity_stop_or_a_midpoint_focuses_its_first_field() {
     let mut harness = rig(three());
@@ -1120,4 +1083,94 @@ fn a_screen_reader_step_in_the_frame_the_popover_s_run_ends_goes_onto_the_commit
     assert_eq!((kinds.first(), &kinds[kinds.len() - 2..]), (Some(&"Begin"), &["Commit", "Set"][..]), "{kinds:?}");
     let color = harness.state().stops.color[0].color;
     assert_eq!(color.to_rgba().to_hex(), "#ff0000fc", "the typed colour with the step's opacity");
+}
+
+/// A key press on the bar while the pointer scrubs a field.
+fn bar_key_during_scrub(harness: &mut Harness<'_, Host>, modifiers: Modifiers, key: Key) {
+    harness.event(Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
+    harness.step();
+}
+
+/// The value of the editor's last Commit.
+fn committed(harness: &Harness<'_, Host>) -> GradientStops {
+    harness
+        .state()
+        .events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            EditEvent::Commit { value, .. } => Some(value.clone()),
+            _ => None,
+        })
+        .expect("a Commit")
+}
+
+#[test]
+fn a_held_bar_arrow_during_a_location_scrub_of_the_same_stop_steps_from_the_committed_location() {
+    let mut harness = rig(three());
+    focus(&mut harness);
+    select(&mut harness, Some(StopRef::Color(1)));
+    harness.state_mut().events.clear();
+    let field = spin(&harness, "Location").rect().center();
+    press(&mut harness, field);
+    for dx in [5.0, 10.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    assert!(bar_focused(&harness), "the scrub leaves the focus on the bar");
+    bar_key_during_scrub(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    for dx in [15.0, 20.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    release(&mut harness, field + vec2(20.0, 0.0));
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let at = committed(&harness).color[1].location;
+    assert!(at > 0.55, "the scrub moved on after the arrow: {at}");
+    assert_eq!(harness.state().locations(), [0.0, at + 0.01, 1.0], "the arrow steps from the committed location");
+}
+
+#[test]
+fn a_held_move_past_a_neighbour_keeps_the_selection_on_the_moved_stop() {
+    let stops = GradientStops::new(vec![stop(0.0, 1), stop(0.5, 2), stop(0.55, 3), stop(1.0, 4)]);
+    let mut harness = harness_with(Host { rows: StopRows::Combined, ..Host::new(stops) });
+    focus(&mut harness);
+    select(&mut harness, Some(StopRef::Color(1)));
+    let field = spin(&harness, "Opacity").rect().center();
+    press(&mut harness, field);
+    for dx in [5.0, 10.0] {
+        move_to(&mut harness, field - vec2(dx, 0.0));
+    }
+    bar_key_during_scrub(&mut harness, Modifiers::SHIFT, Key::ArrowRight);
+    assert_eq!(selected(&harness), Some(StopRef::Color(1)), "the selection waits with the move");
+    move_to(&mut harness, field - vec2(15.0, 0.0));
+    release(&mut harness, field - vec2(15.0, 0.0));
+    let state = harness.state();
+    assert_eq!(state.kinds()[state.kinds().len() - 2..], ["Commit", "Set"]);
+    assert_eq!(state.locations(), [0.0, 0.55, 0.6, 1.0]);
+    assert_eq!(state.stops.color[2].tag, 2);
+    assert_eq!(selected(&harness), Some(StopRef::Color(2)), "the selection follows the moved stop");
+}
+
+#[test]
+fn a_held_step_on_an_untagged_stop_follows_it_past_a_neighbour() {
+    let untagged = GradientStops::new(vec![stop(0.0, 0), stop(0.4, 0), stop(0.6, 0), stop(1.0, 0)]);
+    let mut harness = rig(untagged);
+    focus(&mut harness);
+    select(&mut harness, Some(StopRef::Color(1)));
+    harness.state_mut().events.clear();
+    let field = spin(&harness, "Location").rect().center();
+    press(&mut harness, field);
+    for dx in [5.0, 10.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    bar_key_during_scrub(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    for dx in [20.0, 35.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    release(&mut harness, field + vec2(35.0, 0.0));
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let at = committed(&harness).color[2].location;
+    assert!(at > 0.6, "the scrub moved the stop past its neighbour: {at}");
+    assert_eq!(harness.state().locations(), [0.0, 0.6, at + 0.01, 1.0], "the moved stop steps; the other stays");
 }
