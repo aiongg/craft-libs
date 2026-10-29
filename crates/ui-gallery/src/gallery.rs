@@ -17,7 +17,7 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
-use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui, UiBuilder};
+use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -60,8 +60,7 @@ pub struct Gallery {
 impl Gallery {
     pub fn new(storage: Option<&dyn eframe::Storage>) -> Self {
         let saved = Saved::load(storage);
-        let mut stories = registry();
-        stories.extend(faces::stories());
+        let stories = stories();
         let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| first_story(&stories).map(str::to_owned));
         let mut compare_themes: Vec<String> = saved.compare_themes.into_iter().filter(|id| builtin(id).is_some()).collect();
         if compare_themes.is_empty() {
@@ -339,7 +338,7 @@ impl Gallery {
 
     /// Opens the first story of `component`.
     fn select_component(&mut self, component: &str) {
-        if let Some(story) = self.stories.iter().find(|s| s.component == component) {
+        if let Some(story) = first_story_of(&self.stories, component) {
             self.selected = Some(story.id.to_owned());
         }
     }
@@ -442,13 +441,11 @@ impl Gallery {
 
     /// The story, or the grid of appearances in the compare view, on the canvas colour.
     fn canvas_panel(&mut self, ui: &mut Ui, inspecting: bool) {
-        let tokens = Tokens::of(ui);
-        let rect = ui.max_rect();
-        ui.painter().rect_filled(rect, 0.0, tokens.color.surface.canvas.to_egui());
-        let mut inner = ui.new_child(UiBuilder::new().max_rect(rect.shrink(tokens.space.pad.panel)));
-        let ui = &mut inner;
         let Some(story) = self.current() else {
-            ui.label("No story selected.");
+            canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+                ui.set_min_size(ui.available_size());
+                ui.label("No story selected.");
+            });
             return;
         };
         let appearance = self.appearance.clone();
@@ -458,12 +455,15 @@ impl Gallery {
         let high = self.compare_high;
         let args = args_of(&mut self.args, &self.saved_args, &story);
         let inspector = inspecting.then_some(&mut self.inspector);
-        ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-            if compare {
-                compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
-            } else {
-                canvas(ui, &story, args, &appearance, system, inspector);
-            }
+        canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+            ui.set_min_size(ui.available_size());
+            ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+                if compare {
+                    compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
+                } else {
+                    canvas(ui, &story, args, &appearance, system, inspector);
+                }
+            });
         });
     }
 
@@ -585,6 +585,18 @@ fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<
     })
 }
 
+/// Every story the gallery shows: the library's and the gallery's own.
+pub(crate) fn stories() -> Vec<Story> {
+    let mut stories = registry();
+    stories.extend(faces::stories());
+    stories
+}
+
+/// The first story of `component`.
+pub(crate) fn first_story_of<'a>(stories: &'a [Story], component: &str) -> Option<&'a Story> {
+    stories.iter().find(|s| s.component == component)
+}
+
 /// The story the navigation lists first: the first story of its first level's first component.
 fn first_story(stories: &[Story]) -> Option<&'static str> {
     let (level, components) = nav(stories, "").into_iter().next()?;
@@ -665,8 +677,20 @@ fn set_zoom(ctx: &egui::Context, zoom: f32) {
     ctx.set_zoom_factor(zoom);
 }
 
+/// The canvas colour with the panel padding around what it holds.
+pub(crate) fn canvas_frame(tokens: &Tokens) -> Frame {
+    Frame::new().fill(tokens.color.surface.canvas.to_egui()).inner_margin(margin(tokens.space.pad.panel))
+}
+
 /// The story on `surface.background` under the bar's appearance.
-fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, system: SystemAppearance, inspector: Option<&mut Inspector>) {
+pub(crate) fn canvas(
+    ui: &mut Ui,
+    story: &Story,
+    args: &mut Args,
+    appearance: &Appearance,
+    system: SystemAppearance,
+    inspector: Option<&mut Inspector>,
+) {
     let shown = shown_mode(ui.ctx());
     let overrides = |o: &mut craft_ui::theme::Overrides| {
         appearance.overrides(o);

@@ -1154,7 +1154,10 @@ dependencies = [
  "craft-ui",
  "eframe",
  "egui",
+ "egui_kittest",
+ "image",
  "serde",
+ "serde_json",
  "wasm-bindgen-futures",
 ]
 

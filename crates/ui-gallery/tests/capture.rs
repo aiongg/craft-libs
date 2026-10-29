@@ -1,0 +1,29 @@
+use craft_ui_gallery::capture::{parse_spec, render, resolve};
+
+fn shot(json: &str) -> Result<craft_ui_gallery::capture::Resolved, String> {
+    resolve(&parse_spec(json)?.remove(0))
+}
+
+#[test]
+fn a_shot_renders_to_a_png_of_the_requested_size() {
+    let resolved = shot(
+        r#"[{"name": "button", "component": "button", "theme": "craft.artcraft", "mode": "dark", "size": "compact",
+             "width": 320, "height": 120, "pixels_per_point": 2, "state": "hover"}]"#,
+    )
+    .unwrap();
+    let image = render(&resolved).unwrap();
+    assert_eq!((image.width(), image.height()), (640, 240));
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("capture-button.png");
+    image.save(&path).unwrap();
+    assert!(std::fs::metadata(&path).unwrap().len() > 0);
+}
+
+#[test]
+fn a_mistake_in_the_spec_names_the_valid_values() {
+    let error = |json: &str| shot(json).err().expect("the spec is wrong");
+    assert!(error(r#"[{"name": "a", "component": "button", "theme": "nope"}]"#).contains("craft.artcraft"));
+    assert!(error(r#"[{"name": "a", "component": "nope"}]"#).contains("Button"));
+    assert!(error(r#"[{"name": "a", "component": "button", "mode": "dim"}]"#).contains("dark"));
+    assert!(error(r#"[{"name": "a", "component": "button", "size": "huge"}]"#).contains("comfortable"));
+    assert!(error(r#"[{"name": "a", "component": "button", "args": {"nope": 1}}]"#).contains("args:"));
+}

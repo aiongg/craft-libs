@@ -9,6 +9,8 @@
 
 mod appearance;
 mod browser;
+#[cfg(feature = "capture")]
+pub mod capture;
 pub mod faces;
 mod fields;
 mod gallery;
