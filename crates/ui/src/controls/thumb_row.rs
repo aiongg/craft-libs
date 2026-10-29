@@ -10,7 +10,7 @@ use egui::{
     Vec2, pos2, vec2,
 };
 
-use super::slider::{KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
+use super::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
 
@@ -450,9 +450,10 @@ impl<const N: usize> ThumbRow<N> {
             }
             let values = layout.placed(gesture.shown());
             let sensing = Sensing { falling: rules.thumbs[i].falling, ..sensing };
-            if let Some(v) = stepped(ui, thumb, sensing, None, values[i], layout.bounds(&values, i), &layout.scale_of(i)) {
+            let scale = layout.scale_of(i);
+            if let Some(op) = stepped(ui, thumb, sensing, None, &scale) {
                 let mut out = *gesture.shown();
-                out[i] = v;
+                out[i] = slider::apply(&op, values[i], layout.bounds(&values, i), &scale);
                 gesture.set(out);
             }
         }

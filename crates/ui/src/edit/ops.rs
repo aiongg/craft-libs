@@ -6,8 +6,6 @@
 //! [`NumberField`](crate::controls::NumberField)) reports its operations through the context
 //! instead ([`report`], [`take`]).
 
-#![allow(dead_code, reason = "the controls report operations and the composites take them from DS-13ol T2 on")]
-
 use egui::{Context, Id, Modifiers, ViewportId};
 
 /// An operation on a one-value control's value: a slider's, a number field's, a dial's angle.

@@ -419,7 +419,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
     /// the part's event, made with `apply` from the composite's value (see the module docs).
     /// Called once a pass, before the first part is drawn, by a composite whose parts report
     /// operations.
-    #[allow(dead_code, reason = "the composites push operations from DS-13ol T2 on")]
     pub fn replay(&mut self, ctx: &Context, mut apply: impl FnMut(&O, &V) -> Option<V>) {
         self.arrive(ctx);
         let key = queue_key(self.id);
@@ -456,7 +455,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
 
     /// The composite's value the parts draw from and map onto: the replay's, then each event of
     /// this pass pushed so far that goes out in this pass.
-    #[allow(dead_code, reason = "the composites push operations from DS-13ol T2 on")]
     pub fn value(&self) -> &V {
         &self.value
     }
@@ -466,7 +464,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
     /// (a Set with none: its value with `map`); a gesture's event's is `map(part value,
     /// value())`. An event that goes out in this pass leaves [`value`](Edits::value) at its
     /// value; one that waits joins the queue as `ops`.
-    #[allow(dead_code, reason = "the composites push operations from DS-13ol T2 on")]
     pub fn push<T: Clone + Send + Sync + 'static>(
         &mut self,
         edit: &EditResponse<T>,
@@ -512,7 +509,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
     }
 
     /// [`push`](Edits::push) for a field whose focus is a typing run's.
-    #[allow(dead_code, reason = "the composites push operations from DS-13ol T2 on")]
     pub fn typing<T: Clone + Send + Sync + 'static>(
         &mut self,
         field: &EditResponse<T>,

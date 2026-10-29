@@ -427,3 +427,35 @@ fn cancelling_a_typing_run_on_a_mixed_dial_reports_no_value_the_host_never_had()
     let values: Vec<f64> = events.iter().filter_map(|e| e.value().copied()).collect();
     assert!(values.iter().all(|v| *v == 4.0), "only what was typed: {values:?}");
 }
+
+/// A screen reader's Increment on the dial while the field's typing run owns the gesture waits
+/// for the run's commit, then steps from the typed angle: the typed value is the value of its
+/// turn.
+#[test]
+fn an_increment_during_the_fields_typing_run_steps_from_the_typed_value() {
+    let mut rig = Rig::new();
+    let bounds = rig.node(Role::SpinButton).bounds().expect("bounds");
+    let at = pos2(((bounds.x0 + bounds.x1) / 2.0) as f32, ((bounds.y0 + bounds.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
+    rig.frame(vec![button(at, false)]);
+    rig.frame(vec![pressed(Key::A, Modifiers::COMMAND)]);
+    let mut events = Vec::new();
+    rig.frame(vec![Event::Text("45".into())]);
+    events.extend(rig.event.clone());
+    rig.action(Action::Increment, None);
+    events.extend(rig.event.clone());
+    for _ in 0..2 {
+        rig.frame(vec![]);
+        events.extend(rig.event.clone());
+    }
+    rig.frame(vec![pressed(Key::Enter, Modifiers::NONE)]);
+    events.extend(rig.event.clone());
+    for _ in 0..3 {
+        rig.frame(vec![]);
+        events.extend(rig.event.clone());
+    }
+    let commit = events.iter().position(|e| matches!(e, EditEvent::Commit { value, .. } if *value == 45.0));
+    let set = events.iter().position(|e| matches!(e, EditEvent::Set { .. }));
+    assert!(commit.is_some() && commit < set, "the typed commit, then the step: {events:?}");
+    assert_eq!(rig.angle, 46.0, "{events:?}");
+}

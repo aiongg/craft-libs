@@ -10,9 +10,11 @@ use egui::{
     Vec2, vec2,
 };
 
+use super::number_field::{self, FieldRule};
 use super::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
 use super::{NumberField, SIZE_NAMES, size_arg};
 use crate::behavior::FieldTab;
+use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{FocusRing, Gap, Interactive, Row};
@@ -22,6 +24,15 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 /// Degrees of a quarter turn's half: the step Page Up and Page Down take, and the grid Shift
 /// snaps the pointer to.
 const OCTANT: f64 = 45.0;
+
+/// An operation of an angle dial's parts, on its value (`None`: mixed).
+#[derive(Clone, Debug, PartialEq)]
+enum DialOp {
+    /// The dial's ([`apply`]).
+    Dial(ScalarOp),
+    /// The degree field's ([`number_field::apply`]).
+    Field(ScalarOp),
+}
 
 /// Where the dial's zero is and which way the value grows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -222,25 +233,31 @@ impl<'a> AngleDial<'a> {
         let tokens = Tokens::of(ui);
         let style = AngleDial::style(&tokens);
         let enabled = self.enabled && ui.is_enabled();
-        let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id)).unwrap_or_default();
+        let mut state = ui.data(|d| d.get_temp::<parts::State<DialOp>>(id)).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         // `None` is a mixed value (the host's is not a finite number): a gesture needs a host
         // value equal to itself, which a NaN is not.
         let host = self.value.is_finite().then_some(self.value);
         let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
-        let shown = *outer.shown();
-        let mixed = shown.is_none();
-        let shown = shown.unwrap_or(f64::NAN);
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<Option<f64>, ()>::new(id, &state, &outer, edit::in_scope(ui));
+        let mut edits = parts::Edits::<Option<f64>, DialOp>::new(id, &state, &outer, edit::in_scope(ui));
+        let (scale, rule) = (self.scale(), self.rule());
+        let apply_op = |op: &DialOp, now: &Option<f64>| {
+            Some(Some(match op {
+                DialOp::Dial(op) => apply(op, *now, &scale),
+                DialOp::Field(op) => number_field::apply(op, now.unwrap_or_else(|| rule.blank()), &rule),
+            }))
+        };
+        edits.replay(ui.ctx(), apply_op);
 
         let dial = Row::new(Gap::Inline)
             .show(ui, |ui| {
-                let dial = self.dial(ui, &style, shown, mixed, policy, enabled);
-                edits.push_mapped(&dial, Some);
+                let (dial, dial_ops) = self.dial(ui, &style, *edits.value(), policy, enabled);
+                edits.push(&dial, dial_ops.into_iter().map(DialOp::Dial), apply_op, |v, _| Some(v));
                 if self.field {
-                    let field = self.degrees(ui, shown, policy, enabled);
-                    edits.typing_mapped(ui.ctx(), &field, Some);
+                    let field = self.degrees(ui, edits.value().unwrap_or(f64::NAN), policy, enabled);
+                    let field_ops = ops::take::<ScalarOp>(ui.ctx(), field.response.id);
+                    edits.typing(&field, field_ops.into_iter().map(DialOp::Field), apply_op, |v, _| Some(v));
                 }
                 dial
             })
@@ -250,6 +267,15 @@ impl<'a> AngleDial<'a> {
         // The host's own value stands for a mixed one in the events that carry none.
         let event = outer.finish().map(|event| event.map(|value| value.unwrap_or(self.value)));
         EditResponse::new(dial.response, event)
+    }
+
+    fn scale(&self) -> Scale {
+        Scale::new(&self.range, Some(self.step))
+    }
+
+    /// How the degree field takes its operations.
+    fn rule(&self) -> FieldRule {
+        FieldRule::new(&self.range, self.step, decimals_of(self.step))
     }
 
     /// The degree field, `°` inside, as wide as the range's largest value needs.
@@ -272,9 +298,11 @@ impl<'a> AngleDial<'a> {
         .inner
     }
 
-    /// The dial: its interaction, look and AccessKit node.
-    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, shown: f64, mixed: bool, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
-        let scale = Scale::new(&self.range, Some(self.step));
+    /// The dial, showing `value` (`None`: mixed): its interaction, look and AccessKit node, and
+    /// the operations its one-shot inputs made.
+    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, value: Option<f64>, policy: EditPolicy, enabled: bool) -> (EditResponse<f64>, Vec<ScalarOp>) {
+        let (shown, mixed) = (value.unwrap_or(f64::NAN), value.is_none());
+        let scale = self.scale();
         let sensed = Interactive::new("dial", Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(enabled)
@@ -325,13 +353,20 @@ impl<'a> AngleDial<'a> {
         if tapped.is_some() {
             response.request_focus();
         }
+        // The one-shot inputs, each an operation applied to the value the ones before it left.
+        let mut ops = Vec::new();
+        let mut set = |gesture: &mut Gesture<f64>, op: ScalarOp| {
+            let now = *gesture.shown();
+            gesture.set(apply(&op, now.is_finite().then_some(now), &scale));
+            ops.push(op);
+        };
         if let Some(pos) = tapped.filter(|_| !waits)
             && let Some(value) = pointing.at(pos, scale.place(*gesture.shown()), shift())
         {
-            gesture.set(value);
+            set(&mut gesture, ScalarOp::Set(value));
         }
-        if let Some(value) = keys(ui, &response, dragging, &scale, scale.place(*gesture.shown())) {
-            gesture.set(value);
+        if let Some(op) = keys(ui, &response, dragging, &scale) {
+            set(&mut gesture, op);
         }
 
         let value = scale.place(*gesture.shown());
@@ -347,7 +382,7 @@ impl<'a> AngleDial<'a> {
         }
         let radius = CornerRadius::same((style.size / 2.0).round() as u8);
         FocusRing::paint_radius(ui, rect, radius, &response);
-        EditResponse::new(response, gesture.finish())
+        (EditResponse::new(response, gesture.finish()), ops)
     }
 
     fn paint(&self, ui: &Ui, style: &AngleDialStyle, rect: Rect, value: Option<f64>, active: bool, enabled: bool) {
@@ -400,9 +435,10 @@ impl Pointing {
     }
 }
 
-/// The value this frame's keys and screen-reader requests give the focused dial, or `None`. The
-/// keys are taken during a drag too, which they don't change.
-fn keys(ui: &Ui, response: &Response, dragging: bool, scale: &Scale, value: f64) -> Option<f64> {
+/// The operation this frame's keys and screen-reader requests make on the focused dial, or
+/// `None`. The keys are taken during a drag too, which they don't change. A screen reader's value
+/// wins over the steps of the same frame.
+fn keys(ui: &Ui, response: &Response, dragging: bool, scale: &Scale) -> Option<ScalarOp> {
     let enabled = response.enabled();
     let focused = enabled && ui.memory(|m| m.has_focus(response.id));
     let step = scale.key_step();
@@ -434,8 +470,22 @@ fn keys(ui: &Ui, response: &Response, dragging: bool, scale: &Scale, value: f64)
     if dragging || (delta == 0.0 && to.is_none()) {
         return None;
     }
-    let target = to.unwrap_or_else(|| wrapped(scale, scale.moved(value, delta)));
-    Some(scale.snap(target))
+    Some(to.map_or(ScalarOp::By(delta), ScalarOp::Set))
+}
+
+/// The value `op` gives a dial at `value` (`None`: mixed, which steps from the range's start), on
+/// the step grid and in the range. A step wraps round a range of exactly one turn ([`wrapped`]);
+/// [`Presses`](ScalarOp::Presses) count as arrow keys (Shift: ten steps).
+pub(crate) fn apply(op: &ScalarOp, value: Option<f64>, scale: &Scale) -> f64 {
+    let by = |delta| wrapped(scale, scale.moved(scale.place(value.unwrap_or(f64::NAN)), delta));
+    let target = match op {
+        ScalarOp::By(delta) => by(*delta),
+        ScalarOp::Presses(presses) => by(scale.key_step() * presses.iter().map(|(m, n)| if m.shift { 10.0 * n } else { *n }).sum::<f64>()),
+        ScalarOp::Set(v) => *v,
+        ScalarOp::ToBound(Bound::Low) => scale.min,
+        ScalarOp::ToBound(Bound::High) => scale.max,
+    };
+    scale.snap(target)
 }
 
 /// `value` brought back into a range of exactly one turn from the end it passed; any other range
@@ -501,7 +551,7 @@ fn show_dial(ui: &mut Ui, args: &mut Args) {
             .size(size_arg(args.choice("size")))
             .enabled(!args.bool("disabled"))
             .show(ui);
-        super::slider::apply(&dial, &mut state[0]);
+        super::slider::store(&dial, &mut state[0]);
         let last = dial.event.as_ref().map(edit::describe);
         let key = ui.scope_id().with("log");
         let log = ui.data_mut(|d| {
@@ -529,7 +579,7 @@ fn show_dialog(ui: &mut Ui, _: &mut Args) {
                     *name = text;
                 }
                 let dial = AngleDial::new("angle-dial-dialog-angle", "Angle", *angle, &numbers).show(ui);
-                super::slider::apply(&dial, angle);
+                super::slider::store(&dial, angle);
                 if let Some(text) = TextField::new("angle-dial-dialog-note", "Note", note).show(ui).event.and_then(|e| e.value().cloned()) {
                     *note = text;
                 }

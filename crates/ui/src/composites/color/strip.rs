@@ -5,7 +5,7 @@ use egui::accesskit::{Orientation, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::{AreaMode, ColorArea, ColorPartsStyle, faded, faded_stroke, fraction, scale_of, value_at};
-use crate::controls::slider::{KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
+use crate::controls::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf, UiTokens};
@@ -166,9 +166,9 @@ impl ColorStrip {
         let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
         let shown = *gesture.shown();
         let value = scale.place(f64::from(shown.values[channel]));
-        if let Some(to) = stepped(ui, response.id, sensing, None, value, (scale.min, scale.max), &scale) {
+        if let Some(op) = stepped(ui, response.id, sensing, None, &scale) {
             let mut values = shown;
-            values.values[channel] = to as f32;
+            values.values[channel] = slider::apply(&op, value, (scale.min, scale.max), &scale) as f32;
             gesture.set(values);
         }
 

@@ -14,6 +14,7 @@ use egui::{
 };
 
 use super::{RangeSlider, SIZE_NAMES, Swatch, field_wheel, gradient_track, size_arg};
+use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
@@ -241,12 +242,18 @@ impl Slider {
         {
             gesture.update(track.dragged(scale.place(anchor), origin.x, pos.x), ui.input(|i| i.modifiers));
         }
-        let reset = self.default.filter(|d| d.is_finite()).map(|d| scale.place(d));
+        // The one-shot inputs, each an operation applied to the value the ones before it left.
+        let mut ops = Vec::new();
+        let mut set = |gesture: &mut Gesture<f64>, op: ScalarOp| {
+            gesture.set(apply(&op, scale.place(*gesture.shown()), (scale.min, scale.max), &scale));
+            ops.push(op);
+        };
+        let reset = self.default.filter(|d| d.is_finite());
         // The double-click's first click has moved the thumb to the pointer; the second resets.
         let double = reset.filter(|_| sensing.enabled && sensing.hovered && ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary)));
         if let Some(value) = double {
             response.request_focus();
-            gesture.set(value);
+            set(&mut gesture, ScalarOp::Set(value));
         }
         if response.drag_stopped() {
             gesture.commit();
@@ -255,7 +262,7 @@ impl Slider {
             response.request_focus();
             if double.is_none() && !waits {
                 let shown = scale.place(*gesture.shown());
-                gesture.set(track.dragged(shown, at.x, at.x));
+                set(&mut gesture, ScalarOp::Set(track.dragged(shown, at.x, at.x)));
             }
         }
         // Taken during a drag too, which it doesn't change, as the arrows are.
@@ -265,11 +272,14 @@ impl Slider {
             && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Backspace))
             && !sensing.dragging
         {
-            gesture.set(value);
+            set(&mut gesture, ScalarOp::Set(value));
         }
         let wheel_over = self.wheel_unfocused.then_some(response.rect);
-        if let Some(value) = stepped(ui, response.id, sensing, wheel_over, scale.place(*gesture.shown()), (scale.min, scale.max), &scale) {
-            gesture.set(value);
+        if let Some(op) = stepped(ui, response.id, sensing, wheel_over, &scale) {
+            set(&mut gesture, op);
+        }
+        if self.part && !ops.is_empty() {
+            ops::report(ui.ctx(), response.id, ops);
         }
 
         let shown = scale.place(*gesture.shown());
@@ -580,13 +590,14 @@ impl Sensing {
     }
 }
 
-/// The value this frame's keys, wheel and screen-reader requests give the thumb `id` at `value`,
-/// kept within `bounds`; `None` when nothing asked for a change. Keys and the wheel act while the
-/// thumb has focus, the wheel only while the pointer is over the control. While a drag is under
-/// way they change nothing; keys and the wheel are still taken. With a `wheel_over` rect, a
-/// thumb without focus takes the wheel gestures that start over that rect too
-/// ([`field_wheel::notches`]).
-pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, value: f64, bounds: (f64, f64), scale: &Scale) -> Option<f64> {
+/// The operation this frame's keys, wheel and screen-reader requests make on the thumb `id`;
+/// `None` when nothing asked for a change. [`apply`] gives its value. Keys and the wheel act
+/// while the thumb has focus, the wheel only while the pointer is over the control. While a drag
+/// is under way they change nothing; keys and the wheel are still taken. With a `wheel_over`
+/// rect, a thumb without focus takes the wheel gestures that start over that rect too
+/// ([`field_wheel::notches`]). A move to an end or a screen reader's value wins over the steps of
+/// the same frame.
+pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, scale: &Scale) -> Option<ScalarOp> {
     let (step, page) = (scale.key_step(), scale.page_step());
     let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
     let mut delta = if sensing.wheel { wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging) } else { 0.0 };
@@ -596,7 +607,7 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
         delta += step * field_wheel::notches(ui, id.with("craft_ui::slider::unfocused"), false, rect, sensing.enabled && !sensing.dragging, 10.0);
     }
     let mut to = None;
-    let ends = if sensing.falling { (bounds.1, bounds.0) } else { bounds };
+    let ends = if sensing.falling { (Bound::High, Bound::Low) } else { (Bound::Low, Bound::High) };
     if focused {
         ui.input_mut(|i| {
             let mut count = |modifiers, key| i.count_and_consume_key(modifiers, key) as f64;
@@ -606,10 +617,10 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
             }
             delta += page * (count(Modifiers::NONE, Key::PageUp) - count(Modifiers::NONE, Key::PageDown));
             if count(Modifiers::NONE, Key::Home) > 0.0 {
-                to = Some(ends.0);
+                to = Some(ScalarOp::ToBound(ends.0));
             }
             if count(Modifiers::NONE, Key::End) > 0.0 {
-                to = Some(ends.1);
+                to = Some(ScalarOp::ToBound(ends.1));
             }
         });
     }
@@ -625,15 +636,29 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
                 _ => None,
             });
             if let Some(v) = set.last() {
-                to = Some(v);
+                to = Some(ScalarOp::Set(v));
             }
         });
     }
     if sensing.dragging || (delta == 0.0 && to.is_none()) {
         return None;
     }
-    let target = to.unwrap_or_else(|| scale.moved(value.clamp(bounds.0, bounds.1), delta));
-    Some(scale.snap(target).clamp(bounds.0, bounds.1))
+    Some(to.unwrap_or(ScalarOp::By(delta)))
+}
+
+/// The value `op` gives a thumb at `value` with `bounds` (the range, or what its neighbours leave
+/// it): on the scale's stops and within `bounds`. A step goes on from `value` kept within
+/// `bounds`; [`Presses`](ScalarOp::Presses) count as arrow keys (Shift: ten steps).
+pub(crate) fn apply(op: &ScalarOp, value: f64, bounds: (f64, f64), scale: &Scale) -> f64 {
+    let by = |delta| scale.moved(value.clamp(bounds.0, bounds.1), delta);
+    let target = match op {
+        ScalarOp::By(delta) => by(*delta),
+        ScalarOp::Presses(presses) => by(scale.key_step() * presses.iter().map(|(m, n)| if m.shift { 10.0 * n } else { *n }).sum::<f64>()),
+        ScalarOp::Set(v) => *v,
+        ScalarOp::ToBound(Bound::Low) => bounds.0,
+        ScalarOp::ToBound(Bound::High) => bounds.1,
+    };
+    scale.snap(target).clamp(bounds.0, bounds.1)
 }
 
 /// A slider's (or a thumb's) wheel input between frames.
@@ -796,7 +821,7 @@ pub(crate) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
 }
 
 /// A one-shot or gesture value into the host, as a host without undo applies it.
-pub(crate) fn apply<T: Clone>(edit: &EditResponse<T>, value: &mut T) {
+pub(crate) fn store<T: Clone>(edit: &EditResponse<T>, value: &mut T) {
     if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
         *value = v.clone();
     }
@@ -826,7 +851,7 @@ fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mu
         if let Some(step) = step {
             slider = slider.step(step);
         }
-        apply(&more(slider).show(ui), value);
+        store(&more(slider).show(ui), value);
     });
 }
 
