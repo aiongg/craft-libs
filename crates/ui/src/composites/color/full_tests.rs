@@ -507,6 +507,36 @@ fn a_restore_click_that_ends_a_typing_run_restores_the_current_colour() {
     assert_eq!(hex(rig.color), "#ff0000");
 }
 
+/// A screen reader's click on the compare swatch's current half takes no focus: the typing run in
+/// H still ends (the field leaves editing, the typed value is committed), then the current
+/// colour is set as its own step.
+#[test]
+fn a_screen_readers_compare_click_during_a_typing_run_ends_the_run_and_restores() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.compare = Some(Srgba::rgb(1.0, 0.0, 0.0));
+    rig.settle();
+    rig.tab_to("Hue");
+    rig.type_text("12");
+    rig.events.clear();
+    let target = rig
+        .nodes
+        .iter()
+        .find(|(_, n)| n.role() == Role::Button && rig.name(n) == "Restore current colour")
+        .map(|(id, _)| *id)
+        .expect("restore button");
+    rig.frame(vec![Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Click,
+        target_tree: egui::accesskit::TreeId::ROOT,
+        target_node: target,
+        data: None,
+    })]);
+    rig.settle();
+    assert_eq!(kinds(&rig.events), ["Commit", "Set"], "the typed hue is committed, then the current colour is set");
+    assert!(matches!(rig.events[0], EditEvent::Commit { changed: true, .. }));
+    assert_eq!(rig.focused_name(), None, "the field left editing");
+    assert_eq!(hex(rig.color), "#ff0000");
+}
+
 /// A tap on the area (press and release in one frame) that ends a partial hex run sets the
 /// tapped colour.
 #[test]

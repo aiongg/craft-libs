@@ -405,16 +405,19 @@ impl<'a> ColorPicker<'a> {
                 ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
                 ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, &shown, inner, &translate, &constrain, &mut edits),
             };
-            // A click sets its colour against the host's value after the typing run it ended.
-            for color in edits.inputs(ui.ctx(), &mut state.parts) {
-                edits.set(shown.with_color(color, &constrain));
-            }
             if let Some(color) = ui.data_mut(|d| {
                 let color = d.get_temp::<Srgba>(sample_key(id));
                 d.remove::<Srgba>(sample_key(id));
                 color
             }) {
-                edits.set(shown.with_color(color.with_alpha(shown.color.a), &constrain));
+                edits.input(Input::Sample(color));
+            }
+            // An input makes its value against the host's value after the typing run it ended.
+            for input in edits.inputs(ui.ctx(), &mut state.parts) {
+                edits.set(match input {
+                    Input::Click(color) => shown.with_color(color, &constrain),
+                    Input::Sample(color) => shown.with_color(color.with_alpha(shown.color.a), &constrain),
+                });
             }
 
             let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
@@ -723,9 +726,9 @@ fn sample_key(id: Id) -> Id {
 struct State {
     /// The value the picker last reported: the colour with the values that made it.
     kept: Option<Picked>,
-    /// The inner controls' edits: the owner of the picker's gesture, and the colours set by
-    /// clicks that wait for their turn ([`Edits::inputs`]).
-    parts: parts::State<Srgba>,
+    /// The inner controls' edits: the owner of the picker's gesture, and the inputs (clicks and
+    /// samples) that wait for their turn ([`Edits::inputs`]).
+    parts: parts::State<Input>,
     /// The model of the Compact rows.
     model: Option<&'static str>,
     mode: AreaMode,
@@ -856,4 +859,13 @@ fn model_of(values: &ModelValues) -> Option<&'static dyn ColorModel> {
 
 /// The inner controls' edits of a pass, as the picker's values; the clicks are the colours the
 /// compare swatch's current half and the warning chips set.
-type Edits = parts::Edits<Picked, Srgba>;
+type Edits = parts::Edits<Picked, Input>;
+
+/// One of the picker's own inputs, which wait for their turn.
+#[derive(Clone, Copy, Debug)]
+enum Input {
+    /// A click on a swatch that sets the colour (alpha as the swatch has it).
+    Click(Srgba),
+    /// The eyedropper's sample; the host's alpha stays.
+    Sample(Srgba),
+}

@@ -28,6 +28,9 @@ struct Host {
     stops: GradientStops,
     before: Option<GradientStops>,
     events: Vec<EditEvent<GradientStops>>,
+    /// The egui pass in which each of `events` and `field_events` was reported.
+    passes: Vec<u64>,
+    field_passes: Vec<u64>,
     rows: StopRows,
     min: usize,
     /// Shown inside `edit::scope`.
@@ -63,6 +66,8 @@ impl Host {
             stops,
             before: None,
             events: Vec::new(),
+            passes: Vec::new(),
+            field_passes: Vec::new(),
             rows: StopRows::Split,
             min: 2,
             scoped: false,
@@ -103,6 +108,7 @@ impl Host {
                 {
                     self.stops = stops;
                 }
+                self.field_passes.push(ui.ctx().cumulative_pass_nr());
                 self.field_events.push(event);
             }
         }
@@ -157,6 +163,7 @@ impl Host {
                     }
                 }
             }
+            self.passes.push(ui.ctx().cumulative_pass_nr());
             self.events.push(event);
         }
     }
@@ -543,6 +550,7 @@ fn a_press_during_a_typing_run_waits_for_its_commit_and_edits_the_stops_it_leave
     move_to(&mut harness, to);
     release(&mut harness, to);
     assert_eq!(kinds(&harness.state().field_events), ["Begin", "Update", "Commit"]);
+    assert_eq!(harness.state().passes[0], harness.state().field_passes[2] + 1, "the drag begins in the pass after the run's commit");
     let kinds = harness.state().kinds();
     assert_eq!((kinds.first(), kinds.last()), (Some(&"Begin"), Some(&"Commit")), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "the drag starts from the typed value: {kinds:?}");
@@ -821,6 +829,8 @@ fn delete_removes_the_selected_stop_after_a_typing_run_and_is_off_at_the_minimum
     let delete = button(&harness, "Delete stop").rect().center();
     click(&mut harness, delete, PointerButton::Primary);
     assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"]);
+    let passes = &harness.state().passes;
+    assert_eq!(passes[3], passes[2] + 1, "the delete sets in the pass after the run's commit: {passes:?}");
     assert_eq!(harness.state().locations(), [0.0, 1.0]);
     assert_eq!(selected(&harness), Some(StopRef::Color(1)));
     assert!(button(&harness, "Delete stop").accesskit_node().is_disabled(), "two stops are the minimum");
@@ -877,6 +887,8 @@ fn a_press_during_the_location_field_s_typing_run_waits_and_drags_from_the_commi
     assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "the run commits first: {kinds:?}");
     assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"));
+    let passes = &harness.state().passes;
+    assert_eq!(passes[3], passes[2] + 1, "the drag begins in the pass after the run's commit: {passes:?}");
     assert_eq!(harness.state().locations(), [0.0, 0.3, 0.9]);
 }
 

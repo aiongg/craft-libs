@@ -406,6 +406,26 @@ fn constrained_drags_stay_one_gesture_and_samples_arrive_as_sets() {
     assert_eq!(hex(rig.color), "#ff990080", "the sample, snapped, with the picker's alpha");
 }
 
+/// An eyedropper sample that arrives during a field's typing run keeps the typed value as one
+/// step, takes the field out of editing, then applies the sample as the next step with the alpha
+/// the committed value has.
+#[test]
+fn a_sample_during_a_typing_run_commits_the_run_then_sets_the_sample() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6).with_alpha(0.5));
+    rig.tab_to(0);
+    rig.type_text("12");
+    let typed = rig.color;
+    assert_eq!(kinds_of(&rig.events), ["Begin", "Update"]);
+    ColorPicker::sampled(&rig.ctx, rig.picker, Srgba::rgb(1.0, 0.6, 0.0));
+    rig.settle();
+    assert_eq!(kinds_of(&rig.events), ["Begin", "Update", "Commit", "Set"], "the run's step, then the sample's");
+    assert!(matches!(rig.events[2], EditEvent::Commit { changed: true, .. }), "the typed value is kept");
+    assert_ne!(rig.events[0].id(), rig.events[3].id(), "two undo steps");
+    assert_ne!(hex(typed), hex(rig.color));
+    assert_eq!(hex(rig.color), "#ff990080", "the sample with the committed alpha");
+    assert_eq!(rig.focused_name(), None, "the field is out of editing");
+}
+
 /// A press on the area or a slider while a field's typing run has the focus waits a pass: the
 /// run's commit goes out first, and the press's gesture starts from the host's value after it
 /// instead of being cancelled by it. Here the commit moves the value: the run's text reads as no
@@ -533,4 +553,8 @@ fn every_word_the_picker_translates_is_a_listed_key() {
     }
     let unlisted: Vec<_> = asked.iter().filter(|k| !listed.contains(&k.as_str())).collect();
     assert!(unlisted.is_empty(), "asked for but not listed: {unlisted:?}");
+}
+
+fn kinds_of(events: &[EditEvent<PickedColor>]) -> Vec<&'static str> {
+    events.iter().map(kind).collect()
 }
