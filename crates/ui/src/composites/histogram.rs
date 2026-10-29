@@ -1,16 +1,17 @@
 //! [`Histogram`]: a plot of bins, one tone channel or RGB ribbons.
 
 use craft_theme::{Mode, Rgba, TypeRole};
-use egui::accesskit::Role;
+use egui::accesskit::ActionData;
+use egui::accesskit::{Action, Role};
 use egui::{
-    Color32, CornerRadius, CursorIcon, EventFilter, Key, Mesh, Modifiers, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo,
-    pos2, vec2,
+    Color32, CornerRadius, CursorIcon, EventFilter, Id, Key, Mesh, Modifiers, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder,
+    WidgetInfo, pos2, vec2,
 };
 use std::ops::RangeInclusive;
 
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
-use crate::primitives::{Corner, FocusRing};
+use crate::primitives::{Corner, FocusRing, Interactive};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, tokens_in_mode};
 
@@ -172,8 +173,8 @@ impl HistogramData {
         Self { plot: Plot::Channels { channels, blend: Blend::Max }, scale: HistogramScale::Peak }
     }
 
-    /// Any number of channels, each `(bins, color)`, as ribbons whose fills multiply where they
-    /// overlap: the inks of a CMYK or spot-colour image. The slices should have one length.
+    /// Any number of channels, each `(bins, color)`, as opaque ribbons whose fills multiply where
+    /// they overlap: the inks of a CMYK or spot-colour image. The slices should have one length.
     pub fn channels<B: BinCount>(channels: &[(&[B], ChannelColor)]) -> Self {
         let channels = channels.iter().take(MAX_CHANNELS).map(|(bins, color)| (bins.iter().map(|b| b.height()).collect(), *color)).collect();
         Self { plot: Plot::Channels { channels, blend: Blend::Multiply }, scale: HistogramScale::Peak }
@@ -208,7 +209,7 @@ pub struct HistogramStyle {
     /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
     /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
     pub inks: [Color32; 7],
-    /// Alpha of the ribbons' fills: `histogram.fill_alpha`.
+    /// Alpha of the RGB ribbons' fills: `histogram.fill_alpha`. Ink fills are opaque.
     pub fill_alpha: f32,
     /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
     pub backdrop_alpha: f32,
@@ -252,19 +253,23 @@ impl HistogramStyle {
 /// - **Tone look:** a filled area on `field.fill` with `field.border.rest`, in the channel's data
 ///   token (`text.muted` for neutral).
 /// - **RGB look** ([`rgb`](Histogram::rgb), [`channels`](Histogram::channels)): the bins smoothed
-///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale,
-///   fills at `histogram.fill_alpha` and a `histogram.line` outline per channel. Where fills
-///   overlap, `rgb` takes the channel-wise maximum of the channel colours and `channels` their
-///   product. The plot sits on `data.scope` and draws the dark mode's data colours.
-/// - **Outline:** the original histogram as a `histogram.line` line over the plot.
+///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale
+///   and a `histogram.line` outline per channel. `rgb` fills at `histogram.fill_alpha` and takes
+///   the channel-wise maximum of the channel colours where fills overlap; `channels` fills opaque
+///   and takes their product. The plot sits on `data.scope` and draws the dark mode's data
+///   colours.
+/// - **Outline:** the original histogram as a `histogram.line` line over the plot, on the plot's
+///   scale in the tone look (a taller original is clamped to the top of the plot) and on its own
+///   scale in the RGB look.
 /// - **Marker, markers:** a 2 pt band at a level; markers add a caption beside the band.
-/// - **Selection:** a band over a range of levels with 2 pt edges, dragged with the pointer or
-///   moved with the arrow keys (Shift moves the start edge) while the plot has focus. Levels are
-///   bin positions, whole numbers.
+/// - **Selection:** a band over the whole bin slots of a range of levels with 2 pt edges, dragged
+///   with the pointer or moved with the arrow keys (Shift moves the start edge) while the plot
+///   has focus. A click or Esc clears it. Levels are bin positions, whole numbers.
 /// - **Stale:** a warning icon at the top trailing corner with a tooltip; with
 ///   [`on_stale_click`](Histogram::on_stale_click) it is a button.
 /// - **AccessKit:** one `Image` node named by the label, whose value is [`value`](Histogram::value);
-///   the stale mark and each marker caption are named nodes too.
+///   the stale mark and each marker caption are named nodes too. A selection is two `Slider`
+///   nodes beneath the plot's node, its start and its end level, with Increment and Decrement.
 #[must_use = "show the histogram with `show`"]
 pub struct Histogram {
     id_salt: egui::IdSalt,
@@ -275,6 +280,7 @@ pub struct Histogram {
     markers: Vec<(f32, String)>,
     outline: Option<(Vec<f32>, ChannelColor)>,
     selection: Option<Option<RangeInclusive<f32>>>,
+    selection_labels: [String; 2],
     stale: bool,
     stale_label: String,
     stale_click: Option<String>,
@@ -287,9 +293,15 @@ pub struct Histogram {
 pub struct HistogramResponse {
     /// The plot's response.
     pub response: egui::Response,
-    /// The range the user set this frame by dragging or with the keys, in levels; `None` when
-    /// [`Histogram::selection`] is off or the user changed nothing.
-    pub selection: Option<RangeInclusive<f32>>,
+    /// What the user did to the selection this frame: `None` when [`Histogram::selection`] is off
+    /// or nothing changed, `Some(Some(range))` for a range set by dragging, the keys or a screen
+    /// reader (in levels), `Some(None)` when a click or Esc cleared it. The host stores the inner
+    /// value and passes it back to [`Histogram::selection`]:
+    /// `if let Some(new) = shown.selection { stored = new; }`.
+    pub selection: Option<Option<RangeInclusive<f32>>>,
+    /// The whole level under the pointer while it is over the plot or dragging from it, clamped to
+    /// the bins; `None` otherwise.
+    pub hovered_level: Option<f32>,
     /// The stale mark was clicked; only with [`Histogram::on_stale_click`].
     pub clicked: bool,
 }
@@ -305,7 +317,10 @@ impl std::ops::Deref for HistogramResponse {
 /// Channels a plot draws; the overlap masks are 32-bit.
 const MAX_CHANNELS: usize = 32;
 
-const SELECTION_KEYS: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
+/// The keys a focused plot keeps from focus navigation; Esc only while there is a selection to clear.
+const fn selection_keys(clearable: bool) -> EventFilter {
+    EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: clearable }
+}
 
 impl Histogram {
     /// An empty histogram named `label`. `id_salt` is its id.
@@ -319,6 +334,7 @@ impl Histogram {
             markers: Vec::new(),
             outline: None,
             selection: None,
+            selection_labels: ["Selection start".to_owned(), "Selection end".to_owned()],
             stale: false,
             stale_label: "Cached data".to_owned(),
             stale_click: None,
@@ -358,8 +374,8 @@ impl Histogram {
     }
 
     /// An outline of the original histogram over the current one, in `channel`'s colour. In the
-    /// tone look it shares the plot's scale (the taller of the two sets it); in the RGB look it has
-    /// its own.
+    /// tone look it is drawn on the plot's own scale, so a taller original is clamped to the top of
+    /// the plot; in the RGB look it has its own scale.
     pub fn outline<B: BinCount>(mut self, bins: &[B], channel: ChannelColor) -> Self {
         self.outline = Some((bins.iter().map(|b| b.height()).collect(), channel));
         self
@@ -381,10 +397,19 @@ impl Histogram {
     }
 
     /// A selected range of levels (bin positions) that the user changes by dragging over the plot
-    /// or with the arrow keys; `None` is no selection yet. The new range is
-    /// [`HistogramResponse::selection`]; the host stores it and passes it back.
+    /// or with the arrow keys and clears with a click or Esc; `None` is no selection. The change
+    /// is [`HistogramResponse::selection`]; the host stores it and passes it back. A selection
+    /// is two `Slider` nodes for screen readers, named by
+    /// [`selection_labels`](Histogram::selection_labels).
     pub fn selection(mut self, range: Option<RangeInclusive<f32>>) -> Self {
         self.selection = Some(range);
+        self
+    }
+
+    /// The accessible names of the selection's start and end sliders; "Selection start" and
+    /// "Selection end" by default. The host translates them.
+    pub fn selection_labels(mut self, start: impl Into<String>, end: impl Into<String>) -> Self {
+        self.selection_labels = [start.into(), end.into()];
         self
     }
 
@@ -471,8 +496,12 @@ impl Histogram {
             info.current_text_value.clone_from(&self.value);
             info
         });
-        let selection = if selectable { self.edit_selection(ui, &response, rect, bins) } else { None };
-        let shown = selection.clone().or_else(|| self.selection.clone().flatten());
+        let selection = if selectable { self.edit_selection(ui, &response, id, rect, bins) } else { None };
+        let shown = selection.clone().unwrap_or_else(|| self.selection.clone().flatten());
+        let hovered_level = (bins > 0 && (response.hovered() || response.dragged()))
+            .then(|| response.interact_pointer_pos().or_else(|| response.hover_pos()))
+            .flatten()
+            .map(|at| level_at(rect, bins, at.x));
         let mut clicked = false;
         if ui.is_rect_visible(rect) {
             let painter = ui.painter().with_clip_rect(rect);
@@ -508,13 +537,38 @@ impl Histogram {
                 clicked = self.stale_mark(ui, id, rect, &tokens, style.stale);
             }
         }
-        HistogramResponse { response, selection, clicked }
+        if bins > 0
+            && let Some(range) = &shown
+        {
+            self.selection_nodes(ui, id, rect, bins, range, style.marker_width);
+        }
+        HistogramResponse { response, selection, hovered_level, clicked }
     }
 
-    /// The range the pointer or keys set this frame.
-    fn edit_selection(&self, ui: &Ui, response: &egui::Response, rect: Rect, bins: usize) -> Option<RangeInclusive<f32>> {
+    /// The selection as two sliders, beneath the plot's node, at the band's edges.
+    fn selection_nodes(&self, ui: &mut Ui, id: Id, rect: Rect, bins: usize, range: &RangeInclusive<f32>, width: f32) {
+        let Some(band) = selection_band(rect, bins, range) else { return };
+        let (start, end) = ordered(range);
+        let last = bins as f32 - 1.0;
+        let nodes = ui.new_child(UiBuilder::new().max_rect(rect).accessibility_parent(id));
+        let sliders = [(start, 0.0..=end), (end, start..=last)];
+        for (i, (edge, (value, bounds))) in selection_edges(band, width).into_iter().zip(sliders).enumerate() {
+            Interactive::with_id(selection_node(id, i), Role::Slider, self.selection_labels[i].as_str())
+                .sense(Sense::hover())
+                .enabled(ui.is_enabled())
+                .state_layer(false)
+                .focus_ring(false)
+                .interact_at(&nodes, edge)
+                .numeric(f64::from(value), f64::from(*bounds.start())..=f64::from(*bounds.end()), 1.0)
+                .finish(&nodes);
+        }
+    }
+
+    /// What the pointer, the keys or a screen reader did to the selection this frame.
+    fn edit_selection(&self, ui: &Ui, response: &egui::Response, id: Id, rect: Rect, bins: usize) -> Option<Option<RangeInclusive<f32>>> {
         let current = self.selection.clone().flatten();
         let level = |x: f32| level_at(rect, bins, x);
+        let last = bins as f32 - 1.0;
         let mut changed = None;
         if response.hovered() || response.dragged() {
             ui.set_cursor_icon(CursorIcon::Crosshair);
@@ -523,10 +577,20 @@ impl Histogram {
             && let Some((from, to)) = ui.input(|i| i.pointer.press_origin().zip(i.pointer.interact_pos()))
         {
             let (a, b) = (level(from.x), level(to.x));
-            changed = Some(a.min(b)..=a.max(b));
+            changed = Some(Some(a.min(b)..=a.max(b)));
+        } else if response.clicked() && current.is_some() && ui.input(|i| i.pointer.any_released()) {
+            // Not a click from Enter or Space, which activate nothing here.
+            changed = Some(None);
+        }
+        if let Some(range) = &current {
+            let (start, end) = ordered(range);
+            let moved = [(0, start, 0.0..=end), (1, end, start..=last)].map(|(i, value, bounds)| requested(ui, selection_node(id, i), value, bounds));
+            if moved.iter().any(Option::is_some) {
+                changed = Some(Some(moved[0].unwrap_or(start)..=moved[1].unwrap_or(end)));
+            }
         }
         if response.has_focus() {
-            ui.memory_mut(|m| m.set_focus_lock_filter(response.id, SELECTION_KEYS));
+            ui.memory_mut(|m| m.set_focus_lock_filter(response.id, selection_keys(current.is_some())));
             let (start_step, end_step) = ui.input_mut(|i| {
                 let mut step = |modifiers| i8::from(i.consume_key(modifiers, Key::ArrowRight)) - i8::from(i.consume_key(modifiers, Key::ArrowLeft));
                 let start = step(Modifiers::SHIFT);
@@ -534,11 +598,13 @@ impl Histogram {
             });
             if (start_step, end_step) != (0, 0) {
                 let middle = self.marker.unwrap_or((bins as f32 - 1.0) / 2.0).round();
-                let range = current.unwrap_or(middle..=middle);
-                let last = bins as f32 - 1.0;
+                let range = current.clone().unwrap_or(middle..=middle);
                 let start = (range.start() + f32::from(start_step)).clamp(0.0, last);
                 let end = (range.end() + f32::from(end_step)).clamp(0.0, last);
-                changed = Some(start.min(end)..=start.max(end));
+                changed = Some(Some(start.min(end)..=start.max(end)));
+            }
+            if current.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+                changed = Some(None);
             }
         }
         changed
@@ -645,7 +711,11 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
             let colors: Vec<Color32> = channels.iter().map(|(_, channel)| style.ink(*channel)).collect();
             let bins: Vec<Vec<f32>> = channels.iter().map(|(bins, _)| bins.clone()).collect();
             let heights = rgb_heights(&bins, data.scale);
-            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &colors, style.fill_alpha, *blend))];
+            let alpha = match blend {
+                Blend::Max => style.fill_alpha,
+                Blend::Multiply => 1.0,
+            };
+            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &colors, alpha, *blend))];
             for (values, color) in heights.iter().zip(colors) {
                 if values.iter().any(|&v| v > 0.0) {
                     shapes.push(Shape::line(outline(rect, values), Stroke::new(style.line, color)));
@@ -673,21 +743,70 @@ fn level_x(rect: Rect, bins: usize, level: f32) -> f32 {
     rect.left() + ((level + 0.5) / bins.max(1) as f32).clamp(0.0, 1.0) * rect.width()
 }
 
-/// The whole bin position under `x`, clamped to the bins.
+/// The whole bin position under `x`, clamped to the bins. A bin owns the whole slot it is centred in.
 fn level_at(rect: Rect, bins: usize, x: f32) -> f32 {
     ((x - rect.left()) / rect.width() * bins as f32 - 0.5).round().clamp(0.0, bins.saturating_sub(1) as f32)
 }
 
-/// The selected range: the marker colour over the range and a marker band at each edge.
-pub(super) fn selection_shapes(rect: Rect, bins: usize, range: &RangeInclusive<f32>, width: f32, color: Color32) -> Vec<Shape> {
+/// The range's ends in ascending order.
+fn ordered(range: &RangeInclusive<f32>) -> (f32, f32) {
+    let (a, b) = (*range.start(), *range.end());
+    (a.min(b), a.max(b))
+}
+
+/// The whole bin slots of `range`, from the first bin's left edge to the last bin's right edge, so
+/// a one-bin range has the bin's width. `None` for a degenerate plot or a range that isn't finite.
+fn selection_band(rect: Rect, bins: usize, range: &RangeInclusive<f32>) -> Option<Rect> {
     if !usable(rect) || bins == 0 || !range.start().is_finite() || !range.end().is_finite() {
-        return Vec::new();
+        return None;
     }
-    let (start, end) = (level_x(rect, bins, *range.start()), level_x(rect, bins, *range.end()));
-    let mut shapes = vec![Shape::rect_filled(Rect::from_min_max(pos2(start, rect.top()), pos2(end, rect.bottom())), 0.0, color)];
-    shapes.extend(marker_shapes(rect, bins, *range.start(), width, color));
-    shapes.extend(marker_shapes(rect, bins, *range.end(), width, color));
+    let slot = |level: f32| rect.left() + (level / bins as f32).clamp(0.0, 1.0) * rect.width();
+    let (first, last) = ordered(range);
+    Some(Rect::from_min_max(pos2(slot(first), rect.top()), pos2(slot(last + 1.0), rect.bottom())))
+}
+
+/// The two edge bands of `band`, each `width` wide inside it and snapped to whole points (a band
+/// narrower than two edges is split between them).
+fn selection_edges(band: Rect, width: f32) -> [Rect; 2] {
+    let (left, right) = (band.left().round(), band.right().round());
+    let width = width.min((right - left) / 2.0);
+    [
+        Rect::from_min_max(pos2(left, band.top()), pos2(left + width, band.bottom())),
+        Rect::from_min_max(pos2(right - width, band.top()), pos2(right, band.bottom())),
+    ]
+}
+
+/// The selected range: the marker colour over the whole slots of the range and a marker band at
+/// each edge.
+pub(super) fn selection_shapes(rect: Rect, bins: usize, range: &RangeInclusive<f32>, width: f32, color: Color32) -> Vec<Shape> {
+    let Some(band) = selection_band(rect, bins, range) else { return Vec::new() };
+    let mut shapes = vec![Shape::rect_filled(band, 0.0, color)];
+    shapes.extend(selection_edges(band, width).into_iter().map(|edge| Shape::rect_filled(edge.intersect(rect), 0.0, color)));
     shapes
+}
+
+/// The id of the selection's start (0) or end (1) slider.
+pub(super) fn selection_node(id: Id, edge: usize) -> Id {
+    id.with(("selection", edge))
+}
+
+/// The value a screen reader asked of the slider `node` this frame, within `bounds`: its
+/// Increment and Decrement steps of one level, or the last SetValue. `None` when it changed nothing.
+fn requested(ui: &Ui, node: Id, value: f32, bounds: RangeInclusive<f32>) -> Option<f32> {
+    if !ui.is_enabled() {
+        return None;
+    }
+    let (steps, set) = ui.input(|i| {
+        let steps = i.num_accesskit_action_requests(node, Action::Increment) as f32 - i.num_accesskit_action_requests(node, Action::Decrement) as f32;
+        let set = i.accesskit_action_requests(node, Action::SetValue).filter_map(|r| match r.data {
+            Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v as f32),
+            _ => None,
+        });
+        (steps, set.last())
+    });
+    let (lo, hi) = (*bounds.start(), *bounds.end());
+    let wanted = set.unwrap_or(value + steps).round().clamp(lo, hi.max(lo));
+    (wanted != value).then_some(wanted)
 }
 
 /// The outline of `bins` over `data`: in the tone look on the plot's scale, so a taller outline
@@ -1009,15 +1128,16 @@ pub(super) fn show_markers(ui: &mut Ui, args: &mut Args) {
 pub(super) fn show_selection(ui: &mut Ui, args: &mut Args) {
     sized(ui, args, |ui| {
         let id = ui.scope_id().with("story-selection");
-        let current = ui.data(|d| d.get_temp::<(f32, f32)>(id)).map(|(a, b)| a..=b);
+        let current = ui.data(|d| d.get_temp::<Option<(f32, f32)>>(id)).flatten().map(|(a, b)| a..=b);
         let shown = Histogram::new("story-selection", "Histogram")
             .tone(&story_bins(), ChannelColor::Neutral)
             .selection(current)
             .value("Selected levels")
             .show(ui);
-        if let Some(range) = shown.selection {
-            ui.data_mut(|d| d.insert_temp(id, (*range.start(), *range.end())));
+        if let Some(new) = shown.selection {
+            ui.data_mut(|d| d.insert_temp(id, new.map(|r| (*r.start(), *r.end()))));
         }
+        ui.label(shown.hovered_level.map_or_else(|| "Level: none".to_owned(), |level| format!("Level: {level}")));
     });
 }
 
