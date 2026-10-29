@@ -43,6 +43,14 @@ struct Win {
     response: TitleBarResponse,
     slots: Option<BarSlots>,
     regions: Recorded,
+    /// A split bar with this title and groups of these widths, instead of the "File" button.
+    titled: Option<(Title, f32, f32)>,
+    /// An `egui::Modal` is open and the shell calls the drag overlay.
+    modal: bool,
+    /// A modal window of the rect is open.
+    modal_rect: Option<Rect>,
+    popup: bool,
+    shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 impl Win {
@@ -57,6 +65,11 @@ impl Win {
             response: TitleBarResponse::default(),
             slots: None,
             regions: Recorded::default(),
+            titled: None,
+            modal: false,
+            modal_rect: None,
+            popup: false,
+            shapes: Vec::new(),
         }
     }
 
@@ -77,13 +90,41 @@ impl Win {
         let (frame, slots) = (&self.frame, &mut self.slots);
         self.regions = Recorded::default();
         let regions = &mut self.regions;
+        let (titled, modal, modal_rect, popup) = (&self.titled, self.modal, self.modal_rect, self.popup);
         let mut response = TitleBarResponse::default();
         let mut out = self.ctx.run_ui(input, |ui| {
-            response = TitleBar::new(frame).regions(regions).show(ui, |ui, s| {
-                *slots = Some(s);
-                let _ = ui.put(Rect::from_min_size(pos2(s.content.left() + 10.0, 0.0), vec2(60.0, H)), egui::Button::new("File"));
-            });
+            let bar = TitleBar::new(frame).regions(regions);
+            response = match titled {
+                None => bar.show(ui, |ui, s| {
+                    *slots = Some(s);
+                    let _ = ui.put(Rect::from_min_size(pos2(s.content.left() + 10.0, 0.0), vec2(60.0, H)), egui::Button::new("File"));
+                }),
+                Some((title, lead, trail)) => bar.title(title.clone()).show_titled(
+                    ui,
+                    |ui, s| {
+                        *slots = Some(s);
+                        ui.allocate_exact_size(vec2(*lead, H), egui::Sense::click());
+                        LeadingEnd::from_ui(ui)
+                    },
+                    |ui, _| {
+                        ui.allocate_exact_size(vec2(*trail, H), egui::Sense::click());
+                    },
+                ),
+            };
+            if popup {
+                egui::Popup::open_id(ui.ctx(), egui::Id::unique("test-popup"));
+            }
+            if modal {
+                egui::Modal::new(egui::Id::unique("test-modal")).show(ui.ctx(), |ui| {
+                    ui.label("A dialog");
+                });
+                if let Some(rect) = modal_rect {
+                    ModalRects::push(ui.ctx(), ViewportId::ROOT, rect);
+                }
+                TitleBar::modal_drag_overlay(ui.ctx(), ViewportId::ROOT, &ModalRects::take(ui.ctx(), ViewportId::ROOT));
+            }
         });
+        self.shapes = out.shapes.clone();
         // A click answers on the frame of its release; keep it for the gesture.
         if response != TitleBarResponse::default() {
             self.response = response;
@@ -343,7 +384,8 @@ fn mac_inset_reserves_the_leading_width() {
             leading_caption: 78.0,
             trailing_caption: 0.0,
             centre_line: 14.0,
-            height: H
+            height: H,
+            gap: Rect::NOTHING
         })
     );
     assert!(w.ctx.read_response(caption_id(ViewportId::ROOT, Caption::Close)).is_none());
@@ -697,4 +739,343 @@ fn two_windows_keep_their_hand_offs_and_caption_ids_apart() {
     assert_ne!(caption_id("a", Caption::Close), caption_id(a, Caption::Close));
     assert!(ctx.read_response(caption_id("a", Caption::Close)).is_some());
     assert!(ctx.read_response(caption_id(a, Caption::Close)).is_none());
+}
+
+// DS-36c: the title, the split slots, the drag overlay under a modal.
+
+const TITLE: &str = "Poster.psd";
+const LONG: &str = "Poster.psd and a document name too long for the gap";
+
+fn titled(frame: Frame, width: f32, lead: f32, trail: f32) -> Win {
+    let mut w = Win::new(frame, width);
+    w.titled = Some((Title::new(TITLE), lead, trail));
+    w
+}
+
+/// The title as the last frame painted it.
+fn painted_title(w: &Win) -> Option<Rect> {
+    w.shapes.iter().find_map(|s| match &s.shape {
+        egui::Shape::Text(t) if t.galley.text() == TITLE => Some(Rect::from_min_size(t.pos, t.galley.size())),
+        _ => None,
+    })
+}
+
+fn starts(cmds: &[ViewportCommand]) -> usize {
+    cmds.iter().filter(|c| matches!(c, ViewportCommand::StartDrag)).count()
+}
+
+#[test]
+fn title_x_centres_slides_or_gives_up() {
+    use super::title::title_x;
+    // Wide window: centred.
+    assert_eq!(title_x(800.0, 420.0, 1300.0, 60.0, 16.0), Some(770.0));
+    // Centre would hit the menus: slid right into the gap.
+    assert_eq!(title_x(400.0, 420.0, 1300.0, 60.0, 16.0), Some(436.0));
+    // Centre would hit the controls: slid left.
+    assert_eq!(title_x(1280.0, 420.0, 1300.0, 60.0, 16.0), Some(1224.0));
+    // No room for the whole title.
+    assert_eq!(title_x(400.0, 420.0, 480.0, 60.0, 16.0), None);
+    assert_eq!(title_x(f32::NAN, 420.0, 1300.0, 60.0, 16.0), Some(436.0));
+    assert_eq!(title_x(400.0, f32::INFINITY, 1300.0, 60.0, 16.0), None);
+}
+
+#[test]
+fn the_title_centres_between_the_groups_and_the_gap_is_reported() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    let rect = painted_title(&w).expect("title");
+    assert!((rect.center().x - 400.0).abs() < 0.01, "{rect:?}");
+    assert!((rect.center().y - H / 2.0).abs() < 0.5, "{rect:?}");
+    let right = 800.0 - 3.0 * WINDOWS_BUTTON_WIDTH;
+    let gap = w.slots.expect("slots").gap;
+    assert_eq!((gap.left(), gap.right(), gap.top(), gap.bottom()), (pad + 100.0, right - 100.0, 0.0, H));
+
+    // A narrower window: what the last pass measured at another width is not used.
+    w.width = 700.0;
+    w.frame(vec![]);
+    assert_eq!(w.slots.expect("slots").gap, Rect::NOTHING);
+    w.frame(vec![]);
+    assert!(w.slots.expect("slots").gap.is_positive());
+}
+
+#[test]
+fn a_title_that_does_not_fit_is_elided_at_the_menus_and_a_small_gap_hides_it() {
+    // Gap 108..262: 154 pt, more than the 80 pt minimum, less than the title needs.
+    let mut w = titled(windows(), 500.0, 100.0, 100.0);
+    w.titled = Some((Title::new(LONG).unsaved(true), 100.0, 100.0));
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let gap = w.slots.expect("slots").gap;
+    let shown = w
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.text().starts_with(TITLE) => Some(t.clone()),
+            _ => None,
+        })
+        .expect("an elided title");
+    let rect = Rect::from_min_size(shown.pos, shown.galley.size());
+    assert_eq!(rect.left(), gap.left() + 16.0, "starts beside the menus");
+    assert!(rect.right() <= gap.right() - 16.0 + 0.01, "{rect:?} in {gap:?}");
+    let drawn: String = shown.galley.rows.iter().map(|r| r.text()).collect();
+    assert!(drawn.ends_with('\u{2026}'), "{drawn:?}");
+
+    // 54 pt is under the minimum.
+    let mut w = titled(windows(), 400.0, 100.0, 100.0);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    assert!(painted_title(&w).is_none());
+}
+
+#[test]
+fn the_title_mirrors_in_a_right_to_left_ui() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    crate::direction::apply(&w.ctx, crate::direction::Direction::Rtl);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let caption = 3.0 * WINDOWS_BUTTON_WIDTH;
+    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    // The menus' group at the right end, the controls' at the left beside the buttons.
+    let gap = w.slots.expect("slots").gap;
+    assert_eq!((gap.left(), gap.right()), (caption + 100.0, 800.0 - pad - 100.0));
+    assert!(painted_title(&w).is_some());
+
+    // Elided: it starts at the menus' side, the right.
+    let mut w = titled(windows(), 500.0, 100.0, 100.0);
+    crate::direction::apply(&w.ctx, crate::direction::Direction::Rtl);
+    w.titled = Some((Title::new(LONG).unsaved(true), 100.0, 100.0));
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let gap = w.slots.expect("slots").gap;
+    let rect = w
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.text().starts_with(TITLE) => Some(Rect::from_min_size(t.pos, t.galley.size())),
+            _ => None,
+        })
+        .expect("an elided title");
+    assert!((rect.right() - (gap.right() - 16.0)).abs() < 0.01, "{rect:?} in {gap:?}");
+}
+
+#[test]
+fn a_native_frame_draws_no_title_and_pads_both_ends() {
+    let mut w = titled(Frame::Native, 800.0, 100.0, 100.0);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    assert!(painted_title(&w).is_none());
+    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    let s = w.slots.expect("slots");
+    assert_eq!((s.content.left(), s.content.right()), (pad, 800.0 - pad));
+
+    // The macOS inset replaces the margin at the leading end; the trailing end keeps its own.
+    let mut w = titled(Frame::Inset(MacInset { leading: 78.0, centre_from_top: 14.0 }), 800.0, 100.0, 100.0);
+    w.frame(vec![]);
+    let s = w.slots.expect("slots");
+    assert_eq!((s.content.left(), s.content.right()), (78.0, 800.0 - pad));
+    assert!(painted_title(&w).is_some(), "the inset window draws its own title");
+}
+
+#[test]
+fn a_press_on_the_title_drags_the_window() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let at = painted_title(&w).expect("title").center();
+    assert_eq!(w.drag(at), 1);
+}
+
+#[test]
+fn the_drag_area_is_a_title_bar_node_named_by_the_title_and_not_clickable() {
+    use egui::accesskit::{Action, Role};
+    let mut w = Win::new(windows(), 800.0);
+    w.titled = Some((Title::new(TITLE).unsaved(true), 100.0, 100.0));
+    w.ctx.enable_accesskit();
+    let mut update = None;
+    for _ in 0..2 {
+        update = w.frame(vec![]).platform_output.accesskit_update;
+    }
+    let nodes = update.expect("an update").nodes;
+    let node = nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::TitleBar).expect("a title bar node");
+    assert_eq!(node.label(), Some("Poster.psd \u{2022}"));
+    assert!(!node.supports_action(Action::Click) && !node.supports_action(Action::Focus));
+}
+
+#[test]
+fn the_bar_background_is_painted_unless_the_app_does_it() {
+    let fill = |background: bool| {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))), time: Some(0.0), ..Default::default() };
+        let mut colour = Color32::TRANSPARENT;
+        let mut out = ctx.run_ui(input, |ui| {
+            colour = TitleBar::style(&Tokens::of(ui)).bar;
+            TitleBar::new(&windows()).background(background).show(ui, |_, _| {});
+        });
+        out.textures_delta.clear();
+        let bar = Rect::from_min_size(Pos2::ZERO, vec2(800.0, H));
+        out.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == colour && r.rect == bar))
+    };
+    assert!(fill(true));
+    assert!(!fill(false));
+}
+
+#[test]
+fn each_window_keeps_its_own_gap() {
+    let mut a = titled(windows(), 800.0, 100.0, 100.0);
+    let mut b = titled(windows(), 800.0, 200.0, 50.0);
+    for _ in 0..2 {
+        a.frame(vec![]);
+        b.frame(vec![]);
+    }
+    assert_ne!(a.slots.expect("slots").gap, b.slots.expect("slots").gap);
+    // One context, two window keys.
+    let ctx = Context::default();
+    let (one, two) = (captions::window_scope("one"), captions::window_scope("two"));
+    measure::store(&ctx, one, 800.0, Rect::from_min_max(pos2(1.0, 0.0), pos2(2.0, 3.0)));
+    measure::store(&ctx, two, 800.0, Rect::from_min_max(pos2(4.0, 0.0), pos2(5.0, 3.0)));
+    assert_eq!(measure::drawn(&ctx, one).map(|r| r.left()), Some(1.0));
+    assert_eq!(measure::drawn(&ctx, two).map(|r| r.left()), Some(4.0));
+}
+
+/// A modal window is open, so the bar's own drag area gets no input; the overlay over the gap does.
+fn under_a_modal() -> Win {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.modal = true;
+    w.frame(vec![]);
+    w.frame(vec![]);
+    w.frame(vec![]);
+    w
+}
+
+const IN_THE_GAP: Pos2 = pos2(300.0, H / 2.0);
+
+#[test]
+fn a_drag_in_the_gap_under_a_modal_moves_the_window_once() {
+    let mut w = under_a_modal();
+    assert_eq!(w.drag(IN_THE_GAP), 1);
+    // The bar's controls get nothing under the modal, and the overlay does not reach them.
+    let controls = w.gesture(&[pos2(30.0, H / 2.0), pos2(40.0, H / 2.0), pos2(60.0, H / 2.0)]);
+    assert_eq!(starts(&controls), 0);
+}
+
+#[test]
+fn a_middle_button_drag_under_a_modal_moves_nothing() {
+    let mut w = under_a_modal();
+    let cmds = w.gesture_by(&[IN_THE_GAP, IN_THE_GAP + vec2(12.0, 4.0), IN_THE_GAP + vec2(30.0, 8.0)], PointerButton::Middle);
+    assert_eq!(starts(&cmds), 0);
+}
+
+#[test]
+fn a_double_click_in_the_gap_under_a_modal_maximizes() {
+    let mut w = under_a_modal();
+    let cmds: Vec<_> = (0..2).flat_map(|_| w.gesture(&[IN_THE_GAP])).collect();
+    assert!(cmds.iter().any(|c| matches!(c, ViewportCommand::Maximized(true))), "{cmds:?}");
+}
+
+#[test]
+fn a_dialog_rect_over_the_gap_turns_the_overlay_off() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.modal = true;
+    w.modal_rect = Some(Rect::from_min_max(pos2(250.0, 0.0), pos2(450.0, 80.0)));
+    for _ in 0..3 {
+        w.frame(vec![]);
+    }
+    assert_eq!(w.drag(IN_THE_GAP), 0, "a dialog dragged into the title bar stays in front");
+}
+
+#[test]
+fn an_open_popup_turns_the_overlay_off() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.modal = true;
+    w.popup = true;
+    for _ in 0..3 {
+        w.frame(vec![]);
+    }
+    assert_eq!(w.drag(IN_THE_GAP), 0);
+}
+
+#[test]
+fn without_a_modal_there_is_no_overlay_and_the_bar_drags_by_itself() {
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    for _ in 0..3 {
+        w.frame(vec![]);
+    }
+    assert_eq!(w.drag(IN_THE_GAP), 1);
+    assert!(w.ctx.memory(|m| m.areas().visible_layer_ids()).iter().all(|l| l.order != egui::Order::Tooltip));
+}
+
+#[test]
+fn the_overlay_needs_a_titled_bar_outside_full_screen() {
+    let mut w = titled(Frame::Native, 800.0, 100.0, 100.0);
+    w.modal = true;
+    for _ in 0..3 {
+        w.frame(vec![]);
+    }
+    assert_eq!(w.drag(IN_THE_GAP), 0, "the OS bar moves a native window");
+
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.modal = true;
+    w.fullscreen = true;
+    for _ in 0..3 {
+        w.frame(vec![]);
+    }
+    assert_eq!(w.drag(IN_THE_GAP), 0);
+}
+
+#[test]
+fn the_menu_titles_and_the_help_search_field_stay_clear_of_the_gap() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let frame = windows();
+    let menus = crate::menu::bar::story_bar();
+    let mut time = 0.0;
+    // The titles' rect, the gap the pass was given and the search field's bounds, if shown.
+    let mut run = |events: Vec<Event>| {
+        time += 0.05;
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, HEIGHT))), time: Some(time), events, ..Default::default() };
+        let (mut titles, mut gap) = (Rect::NOTHING, Rect::NOTHING);
+        let mut out = ctx.run_ui(input, |ui| {
+            TitleBar::new(&frame).title(Title::new(TITLE)).show_titled(
+                ui,
+                |ui, s| {
+                    gap = s.gap;
+                    titles = crate::menu::MenuBar::new(&menus).help_search(menus.len() - 1).show(ui).titles;
+                    LeadingEnd::from_ui(ui)
+                },
+                |ui, _| {
+                    ui.allocate_exact_size(vec2(60.0, H), egui::Sense::click());
+                },
+            );
+        });
+        out.textures_delta.clear();
+        let field = out.platform_output.accesskit_update.take().and_then(|update| {
+            update.nodes.iter().map(|(_, n)| n).find(|n| matches!(n.role(), Role::TextInput | Role::SearchInput)).and_then(|n| n.bounds())
+        });
+        (titles, gap, field)
+    };
+    for _ in 0..3 {
+        run(vec![]);
+    }
+    let (titles, ..) = run(vec![]);
+    let help = pos2(titles.right() - 10.0, H / 2.0);
+    run(vec![Event::PointerMoved(help)]);
+    run(vec![button(help, true, PointerButton::Primary)]);
+    run(vec![button(help, false, PointerButton::Primary)]);
+    let mut shown = None;
+    let (mut titles, mut gap) = (titles, Rect::NOTHING);
+    for _ in 0..3 {
+        let (t, g, f) = run(vec![]);
+        (titles, gap) = (t, g);
+        shown = shown.or(f);
+    }
+    let b = shown.expect("the open Help menu shows its search field");
+    let field = Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32));
+    assert!(!field.intersects(titles) && !field.intersects(gap), "{field:?} vs titles {titles:?}, gap {gap:?}");
+    assert_eq!(gap.left(), titles.right(), "the gap starts at the titles' inner edge, not the bar's");
 }

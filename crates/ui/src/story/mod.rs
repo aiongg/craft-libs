@@ -156,6 +156,8 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::list::stories());
     all.extend(crate::menu::stories());
     all.extend(crate::menu::bar::stories());
+    #[cfg(feature = "window-frame")]
+    all.extend(crate::title_bar::stories::stories());
     all.extend(composites::color::stories());
     all
 }
@@ -222,6 +224,8 @@ const DECLARED: &[&[&str]] = &[
     crate::list::COMPONENTS,
     crate::menu::COMPONENTS,
     crate::menu::bar::COMPONENTS,
+    #[cfg(feature = "window-frame")]
+    crate::title_bar::stories::COMPONENTS,
     composites::color::COMPONENTS,
 ];
 

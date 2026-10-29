@@ -71,6 +71,8 @@ fn every_declared_component_has_a_story() {
             .unwrap()
             .map(|entry| entry.unwrap().path())
             .map(|path| match path.is_dir() {
+                // Compiled only with the feature, like its entry in `DECLARED`.
+                true if path.ends_with("title_bar") && cfg!(not(feature = "window-frame")) => 0,
                 true => count(&path),
                 false if path.extension().is_some_and(|e| e == "rs") => {
                     std::fs::read_to_string(&path).unwrap().lines().filter(|l| l.starts_with("pub const COMPONENTS:")).count()
