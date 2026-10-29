@@ -46,8 +46,9 @@
 //!   part's drag is its own Set after the release. A part whose value holds several of the
 //!   composite's values ([`Edits::push_from`]: a row's thumbs, a graph's points) applies only
 //!   what its event changed from the value it was drawn from, onto its value of that pass
-//!   ([`Rebase`]): a step on the gamma thumb keeps the black point a field scrub committed.
-//!   While it waits, the part's newer events replace it. A part that isn't drawn in a pass drops
+//!   ([`Rebase`]): a step on the gamma thumb keeps the black point a field scrub committed. An
+//!   event whose change can't be told on that value is dropped rather than replayed whole,
+//!   which would undo what went out meanwhile. While it waits, the part's newer events replace it. A part that isn't drawn in a pass drops
 //!   its held event, and so does every part of a composite that isn't (a popover's picker that
 //!   closes with the commit).
 //! - A press on a part takes its turn from the edit order too (`controls::slider::press_turn`),
@@ -98,26 +99,18 @@ impl<V: Clone + PartialEq + Send + Sync + 'static> End<V> {
 /// A part's event, as its own value, kept between passes whatever its type: a [`PartEvent`].
 type Raw = Arc<dyn Any + Send + Sync>;
 
-/// A part's value that holds several of the composite's values (a row's thumbs, a graph's
-/// points), which a held event changes only some of ([`Edits::push_from`]).
+/// A part's value that holds several of the composite's values (a graph's points), which a held
+/// event changes only some of ([`Edits::push_from`]).
 pub(crate) trait Rebase: Sized {
     /// `self`, an event's value made from `base`, with what it changed from `base` applied onto
-    /// `now` instead.
-    fn rebase(self, base: &Self, now: &Self) -> Self;
+    /// `now` instead, keeping the rules the part keeps on its own edits. `None` when that change
+    /// can't be told on `now`, or doesn't fit it: the held event is dropped, as no guess at it
+    /// may undo what went out after `base`.
+    fn rebase(self, base: &Self, now: &Self) -> Option<Self>;
 }
 
-/// A row's values ([`ThumbRow`](crate::controls::thumb_row::ThumbRow)): the thumbs the event
-/// moved take its values, the others `now`'s. A NaN that stays NaN (an unset gamma) is unchanged.
-impl<const N: usize> Rebase for [f64; N] {
-    fn rebase(mut self, base: &Self, now: &Self) -> Self {
-        for ((value, base), now) in self.iter_mut().zip(base).zip(now) {
-            if *value == *base || (value.is_nan() && base.is_nan()) {
-                *value = *now;
-            }
-        }
-        self
-    }
-}
+/// How a part's value made from one value applies onto another ([`Rebase::rebase`]).
+type Rebaser<T> = Arc<dyn Fn(T, &T, &T) -> Option<T> + Send + Sync>;
 
 /// A part's event, with the value the part was drawn from when the event rebases
 /// ([`Edits::push_from`]).
@@ -130,7 +123,7 @@ struct PartEvent<T> {
 #[derive(Clone)]
 struct Drawn<T> {
     value: T,
-    rebase: fn(T, &T, &T) -> T,
+    rebase: Rebaser<T>,
 }
 
 /// The owner's [`End`] kept between passes, whatever the composite's value type.
@@ -255,11 +248,23 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     }
 
     /// [`push`](Edits::push) for a part whose value holds several of the composite's values (a
-    /// row's thumbs, a graph's points), drawn from `drawn` in this pass. A held event applies
-    /// only what it changed from the value its part was drawn from, onto `drawn` of the pass its
-    /// turn comes ([`Rebase`]).
+    /// graph's points), drawn from `drawn` in this pass. A held event applies only what it
+    /// changed from the value its part was drawn from, onto `drawn` of the pass its turn comes
+    /// ([`Rebase`]), or is dropped.
     pub fn push_from<T: Rebase + Clone + Send + Sync + 'static>(&mut self, edit: &EditResponse<T>, drawn: &T, map: impl Fn(T) -> V) {
-        let drawn = Drawn { value: drawn.clone(), rebase: T::rebase };
+        self.push_rebased(edit, drawn, T::rebase, map);
+    }
+
+    /// [`push_from`](Edits::push_from) for a part whose rules depend on how it is set up (a
+    /// row's thumb order): `rebase` is the part's own, as [`Rebase::rebase`].
+    pub fn push_rebased<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        edit: &EditResponse<T>,
+        drawn: &T,
+        rebase: impl Fn(T, &T, &T) -> Option<T> + Send + Sync + 'static,
+        map: impl Fn(T) -> V,
+    ) {
+        let drawn = Drawn { value: drawn.clone(), rebase: Arc::new(rebase) };
         self.add(&edit.response.ctx, edit.response.id, edit.event.as_ref(), Some(drawn), map);
     }
 
@@ -295,11 +300,15 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
                 return;
             }
             if let Some(part) = held.0.downcast_ref::<PartEvent<T>>() {
-                let event = match (&part.drawn, &drawn) {
-                    (Some(base), Some(now)) => part.event.clone().map(|value| (now.rebase)(value, &base.value, &now.value)),
-                    _ => part.event.clone(),
+                let event = match (&part.drawn, &drawn, part.event.value()) {
+                    (Some(base), Some(now), Some(value)) => {
+                        (now.rebase)(value.clone(), &base.value, &now.value).map(|value| part.event.clone().map(|_| value))
+                    }
+                    _ => Some(part.event.clone()),
                 };
-                self.events.push((id, event.map(&map), held.clone()));
+                if let Some(event) = event {
+                    self.events.push((id, event.map(&map), held.clone()));
+                }
             }
         }
         if let (Some(event), Some(new)) = (event, new) {

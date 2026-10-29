@@ -1649,6 +1649,42 @@ fn a_part_event_during_another_parts_drag_waits_for_the_release() {
     assert_eq!(host.get(), (6, 9));
 }
 
+/// A held event whose change its part can't tell on the value of its turn is dropped: no Set
+/// replays the value it was made from over the drag's commit.
+#[test]
+fn a_held_part_event_that_cannot_be_rebased_is_dropped() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let host = std::cell::Cell::new((0, 0));
+    let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
+    // Part `a` drags the first number; part `b` has the whole pair and can't rebase.
+    let mut pass = |a: Option<EditEvent<i32>>, b: Option<EditEvent<(i32, i32)>>| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(composite, &state);
+            let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
+            edits.push(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
+            edits.push_rebased(&EditResponse::new(part(b_id, 30.0), b.clone()), &shown, |_, _, _| None, |v| v);
+            event = edits.feed(outer, &mut state, false).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let run = GestureId::next();
+    let begun = pass(Some(EditEvent::begin(run)), None);
+    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let step = Some(EditEvent::set((5, 9), Modifiers::NONE));
+    assert_eq!(pass(Some(EditEvent::update(run, 5, Modifiers::NONE)), step), update(id, (5, 0)), "the step doesn't join");
+    assert_eq!(pass(Some(EditEvent::commit(run, 6, true, Modifiers::NONE)), None), commit(id, (6, 0), true));
+    assert_eq!(pass(None, None), None, "the step is dropped");
+    assert_eq!(host.get(), (6, 0));
+}
+
 /// Runs passes of `ctx` with a control `control` that has the focus and a gesture under way, made
 /// as `gesture` says, and returns the turn of a press asked in the last.
 fn turn_beside(ctx: &Context, control: Id, own: Option<GestureId>, gesture: impl Fn(Gesture<i32>) -> Gesture<i32>) -> order::Turn {

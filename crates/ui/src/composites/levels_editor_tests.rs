@@ -451,6 +451,40 @@ fn a_screen_reader_step_on_a_row_during_a_field_scrub_keeps_the_scrubs_value() {
     assert_eq!(steps, Some(2), "the scrub and the step, one undo step each");
 }
 
+/// A screen reader's step on the black thumb during a scrub of the white field that ends closer
+/// to black than the step allows: the held step keeps the thumbs' order on the row of its turn,
+/// as a drag of the thumb would stop at white less the gap, so it moves nothing.
+#[test]
+fn a_held_row_step_keeps_the_thumb_order_on_the_row_of_its_turn() {
+    let mut harness = harness(Host::with_undo(Levels { in_black: 40.0, ..IDENTITY }), Direction::Ltr);
+    let field = node(&harness, Role::SpinButton, "Input white").rect().center();
+    press(&mut harness, field);
+    for dx in [-20.0, -40.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    let (target, tree) = node(&harness, Role::Slider, "Input black").accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: tree,
+        target_node: target,
+        data: None,
+    }));
+    harness.step();
+    assert_eq!(harness.state().levels.in_black, 40.0, "the step waits");
+    for dx in [-150.0, -250.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    release(&mut harness, field + vec2(-250.0, 0.0));
+    harness.run();
+    let levels = harness.state().levels;
+    assert_eq!(
+        (levels.in_black, levels.in_white),
+        (40.0, 42.0),
+        "white stops two levels above black, and the step can't move black: {:?}",
+        harness.state().kinds()
+    );
+}
+
 /// A tap (press and release in one frame) on a row in the pass a field's typing run commits
 /// reaches the host in a later pass than the Commit: a composite reports one edit per pass.
 #[test]

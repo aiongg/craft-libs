@@ -27,26 +27,27 @@ impl PartialEq for Curve {
     }
 }
 
-/// A graph's event moves, adds or removes points from the curve it was drawn from: a held one
+/// A graph's event moves, adds or removes one point of the curve it was drawn from: a held one
 /// moves the levels it changed, or adds or removes its point, on the curve of its turn
-/// ([`edit::parts`](crate::edit::parts)). When that leaves the inputs out of order, or the curve
-/// changed in any other way (a drawn curve, points the host added), the event's curve stands.
+/// ([`edit::parts`](crate::edit::parts)). It can't be applied (`None`) when the inputs would end
+/// out of order, or when the change isn't one of those or the curve of its turn has other points
+/// (a drawn curve, points the host added or removed).
 impl Rebase for Curve {
-    fn rebase(self, base: &Curve, now: &Curve) -> Curve {
+    fn rebase(self, base: &Curve, now: &Curve) -> Option<Curve> {
         if base == now {
-            return self;
+            return Some(self);
         }
         let (Curve::Points(points), Curve::Points(base), Curve::Points(now)) = (&self, base, now) else {
-            return self;
+            return None;
         };
         if base.len() != now.len() {
-            return self;
+            return None;
         }
         let level = |a: f32, b: f32| a == b || (a.is_nan() && b.is_nan());
         let same = |a: &[f32; 2], b: &[f32; 2]| level(a[0], b[0]) && level(a[1], b[1]);
         // The first point the event changed, and whether the rest is the base's from there on.
         let first = points.iter().zip(base).position(|(p, b)| !same(p, b)).unwrap_or(points.len().min(base.len()));
-        let rebased = if points.len() == base.len() {
+        let rebased: Vec<[f32; 2]> = if points.len() == base.len() {
             points.iter().zip(base).zip(now).map(|((p, b), n)| [0, 1].map(|c| if level(p[c], b[c]) { n[c] } else { p[c] })).collect()
         } else if points.len() == base.len() + 1 && points[first + 1..].iter().zip(&base[first..]).all(|(p, b)| same(p, b)) {
             let mut rebased = now.clone();
@@ -57,12 +58,9 @@ impl Rebase for Curve {
             rebased.remove(first);
             rebased
         } else {
-            return self;
+            return None;
         };
-        match rebased.windows(2).all(|w: &[[f32; 2]]| w[0][0] < w[1][0]) {
-            true => Curve::Points(rebased),
-            false => self,
-        }
+        rebased.windows(2).all(|w| w[0][0] < w[1][0]).then_some(Curve::Points(rebased))
     }
 }
 

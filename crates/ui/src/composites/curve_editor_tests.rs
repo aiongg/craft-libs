@@ -743,28 +743,32 @@ fn an_arrow_on_the_graph_during_a_field_scrub_keeps_the_scrubs_value() {
 }
 
 /// A held graph curve applies its change to the curve of its turn: the levels it moved, the point
-/// it added or removed. A change that would put the inputs out of order keeps the held curve.
+/// it added or removed. A change it can't apply there (inputs out of order, two points added, a
+/// curve of its turn with other points) gives none.
 #[test]
 fn a_held_graph_curve_rebases_its_moves_additions_and_removals() {
     let base = Curve::Points(vec![[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
     let now = Curve::Points(vec![[0.0, 0.0], [110.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
-    let cases = [
-        (vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]], vec![[0.0, 0.0], [110.0, 101.0], [200.0, 200.0], [255.0, 255.0]]),
+    type Points = Vec<[f32; 2]>;
+    let cases: [(Points, Option<Points>); 6] = [
+        (vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [110.0, 101.0], [200.0, 200.0], [255.0, 255.0]])),
         (
             vec![[0.0, 0.0], [100.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
-            vec![[0.0, 0.0], [110.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
+            Some(vec![[0.0, 0.0], [110.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]]),
         ),
-        (vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]], vec![[0.0, 0.0], [110.0, 100.0], [255.0, 255.0]]),
-        (vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]], vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]]),
-        (
-            vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
-            vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
-        ),
+        (vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [110.0, 100.0], [255.0, 255.0]])),
+        (vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]])),
+        (vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]], None),
+        (vec![[0.0, 0.0], [50.0, 9.0], [100.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]], None),
     ];
     for (held, rebased) in cases {
         let got = Curve::Points(held.clone()).rebase(&base, &now);
-        assert_eq!(got, Curve::Points(rebased), "held {held:?}");
+        assert_eq!(got, rebased.map(Curve::Points), "held {held:?}");
     }
+    let host_added = Curve::Points(vec![[0.0, 0.0], [50.0, 50.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
+    let held = Curve::Points(vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]]);
+    assert_eq!(held.clone().rebase(&base, &host_added), None, "the points of its turn aren't the ones it changed");
+    assert_eq!(held.rebase(&base, &Curve::Map(vec![0.0; 256])), None, "a drawn curve");
 }
 
 /// The Input field's centre.
