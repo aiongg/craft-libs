@@ -8,7 +8,7 @@ use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
 use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
-use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
+use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
 use craft_ui::inspect;
 use craft_ui::list::{List, ListEvent, ListRow};
@@ -18,7 +18,7 @@ use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::story::{ArgValue, Args, Level, Story, Surface, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::epaint::RectShape;
-use egui::{Align, CentralPanel, Color32, Frame, Panel, Rect, ScrollArea, Sense, Shape, Ui, UiBuilder, Widget as _, pos2};
+use egui::{Align, CentralPanel, Color32, Frame, Panel, Rect, ScrollArea, Sense, Shape, StrokeKind, Ui, UiBuilder, Widget as _, pos2};
 
 use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
@@ -812,7 +812,8 @@ pub(crate) fn canvas(
 fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);
     let fill = surface_color(&tokens, story.surface);
-    let framed = Frame::new().fill(fill).inner_margin(margin(tokens.space.pad.dialog)).show(ui, |ui| {
+    // The edge is the dock's separator stroke: it tells the story's panel from the dock around it.
+    let framed = Frame::new().fill(fill).stroke(DockLook::of(ui).border).inner_margin(margin(tokens.space.pad.dialog)).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
         ui.push_id(story.id, |ui| {
             (story.show)(ui, args);
@@ -858,6 +859,7 @@ pub(crate) fn overview(
         let gap = tokens.space.gap.section;
         let pad = margin(tokens.space.pad.dialog);
         let rtl = direction::is_rtl(ui);
+        let edge = DockLook::of(ui).border;
         let width = ui.available_width();
         let columns = if width >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
         let tile_width = (width - gap * (columns - 1) as f32) / columns as f32;
@@ -891,7 +893,10 @@ pub(crate) fn overview(
                 placed.push((slot, x, surface_color(&tokens, story.surface)));
             }
             for (slot, x, fill) in placed {
-                ui.painter().set(slot, Shape::Rect(RectShape::filled(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom)), 0.0, fill)));
+                ui.painter().set(
+                    slot,
+                    Shape::Rect(RectShape::new(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom)), 0.0, fill, edge, StrokeKind::Inside)),
+                );
             }
             ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());
             ui.add_space(gap);
