@@ -7,7 +7,7 @@ use super::render::tab_outline;
 use super::{Column, DockArea, DockConfig, DockContent, DockLook, Floating, Group, Hit, Layout, Node, Permissions, Side, flyout, open_flyout};
 use crate::direction;
 use crate::layout::{SplitAxis, SplitSize};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 
 const CANVAS: u32 = 0;
 const LAYERS: u32 = 1;
@@ -25,7 +25,7 @@ pub const COMPONENTS: &[&str] = &["DockArea"];
 
 pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_number("width", 640.0, 360.0, 960.0).with_choice("locale", LOCALES, 0);
-    let story = |id, name, show| Story::new(id, Level::Patterns, "DockArea", name, args, show);
+    let story = |id, name, show| Story::new(id, Level::Patterns, "DockArea", name, args, show).on(Surface::Own);
     vec![
         story("patterns/dock-area/docked", "Docked", show_docked),
         story("patterns/dock-area/floating", "Floating", show_floating),

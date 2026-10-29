@@ -4,7 +4,7 @@ use craft_theme::{Mode, TypeRole};
 use egui::{Align2, Frame, Rect, Sense, Ui, vec2};
 
 use super::{Icon, IconSet, IconSize, paint_in};
-use crate::story::{Args, Level, Story};
+use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, scope};
 
 const SETS: &[&str] = &["all", "lucide", "phosphor", "carbon", "tabler"];
@@ -16,14 +16,17 @@ const CELL: f32 = 36.0;
 
 /// The icon module's stories.
 pub fn stories() -> Vec<Story> {
-    vec![Story::new(
-        "specimens/icons/compare",
-        Level::Specimens,
-        "Icons",
-        "Compare",
-        || Args::new().with_choice("set", SETS, 0).with_choice("size", SIZES, 0).with_choice("mode", MODES, 0),
-        show,
-    )]
+    vec![
+        Story::new(
+            "specimens/icons/compare",
+            Level::Specimens,
+            "Icons",
+            "Compare",
+            || Args::new().with_choice("set", SETS, 0).with_choice("size", SIZES, 0).with_choice("mode", MODES, 0),
+            show,
+        )
+        .on(Surface::Own),
+    ]
 }
 
 fn show(ui: &mut Ui, args: &mut Args) {

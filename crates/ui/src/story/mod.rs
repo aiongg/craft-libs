@@ -78,11 +78,13 @@ pub enum Surface {
     Canvas,
     /// The window chrome (`surface.chrome`): option bars, title bars and other bars.
     Chrome,
+    /// The story draws its own panel or dock, so the gallery adds no surface round it.
+    Own,
 }
 
 impl Surface {
     /// Every surface, in the order the capture tool lists them.
-    pub const ALL: [Surface; 3] = [Surface::Panel, Surface::Canvas, Surface::Chrome];
+    pub const ALL: [Surface; 4] = [Surface::Panel, Surface::Canvas, Surface::Chrome, Surface::Own];
 
     /// The surface's lower-case name, as the capture spec spells it.
     pub const fn slug(self) -> &'static str {
@@ -90,6 +92,7 @@ impl Surface {
             Surface::Panel => "panel",
             Surface::Canvas => "canvas",
             Surface::Chrome => "chrome",
+            Surface::Own => "own",
         }
     }
 }

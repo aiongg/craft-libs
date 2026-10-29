@@ -423,7 +423,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let mut child =
             ui.new_child(UiBuilder::new().scope_id(self.id.with(("body", panel))).max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
-        child.spacing_mut().item_spacing.y = self.look.body_gap;
+        self.look.space_body(&mut child);
         self.content.body(&mut child, panel);
         let at = self.contents.get(panel).copied();
         let at = self.float_space.record_content(at, panel.clone(), child.min_rect().height(), rect.height());

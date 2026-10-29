@@ -1,7 +1,7 @@
 //! Renders gallery stories to PNG under a chosen appearance, without a window.
 //!
 //! The `capture` binary reads a spec: a JSON list of [`Shot`]s. Each shot draws one story the way
-//! the gallery's canvas does (the story on its surface, or the shot's, with the dialog padding)
+//! the gallery's canvas does (the story on its surface, or the shot's, in the dock colour)
 //! with `egui_kittest` and wgpu, through `craft_ui::testing`'s renderer. The faces come from
 //! `CRAFT_FONTS_DIR`, installed by [`Appearance::configure`] as in the gallery.
 
@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 
 use crate::appearance::{Appearance, builtin};
 use crate::faces;
-use crate::gallery::{args_of, canvas, canvas_frame_on, default_story_of, nav, overview, stories, surface_color};
+use crate::gallery::{args_of, canvas, canvas_frame, default_story_of, nav, overview, stories};
 
 /// The width, in points, of a shot that gives none. The story's frame fills the width it is
 /// given, so a story has no intrinsic width to fit.
@@ -65,7 +65,7 @@ pub struct Shot {
     /// by the arg's kind.
     #[serde(default)]
     pub args: Map<String, Value>,
-    /// The surface the story is drawn on: `panel`, `canvas` or `chrome`; the story's own when
+    /// The surface the story is drawn on: `panel`, `canvas`, `chrome` or `own`; the story's own when
     /// absent. An overview shot takes none: its tiles keep their stories' surfaces.
     #[serde(default)]
     pub surface: Option<String>,
@@ -325,13 +325,9 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
         move |ui, args: &mut HashMap<String, Args>| {
             install(ui.ctx(), &base);
             let tokens = Tokens::of(ui);
-            let fill = match &story {
-                Some(story) => surface_color(&tokens, story.surface),
-                None => tokens.color.surface.background.to_egui(),
-            };
-            // The harness leaves a transparent margin around its panel; the image is all surface.
-            ui.painter().rect_filled(ui.ctx().content_rect(), 0.0, fill);
-            let frame = canvas_frame_on(&tokens, fill).show(ui, |ui| {
+            // The harness leaves a transparent margin around its panel; the image is all dock colour.
+            ui.painter().rect_filled(ui.ctx().content_rect(), 0.0, tokens.color.surface.background.to_egui());
+            let frame = canvas_frame(&tokens).show(ui, |ui| {
                 if fixed.is_some() {
                     ui.set_min_size(ui.available_size());
                 }

@@ -38,20 +38,22 @@ fn an_overview_shot_draws_a_level_as_wide_as_asked() {
     assert!(error.contains("controls"));
 }
 
-/// A pixel just inside the top-left corner of a shot: the surface the story is drawn on.
-fn corner(json: &str) -> [u8; 3] {
+/// A pixel of a shot on its row 60, `at` pixels from the left.
+fn pixel(json: &str, at: u32) -> [u8; 3] {
     let image = render(&shot(json).unwrap()).unwrap();
-    let [r, g, b, _] = image.get_pixel(4, 4).0;
+    let [r, g, b, _] = image.get_pixel(at, 60).0;
     [r, g, b]
 }
 
 #[test]
-fn a_shot_paints_the_surface_of_its_story() {
+fn a_shot_paints_the_surface_of_its_story_in_the_dock_colour() {
     let artcraft = r#""theme": "craft.artcraft", "mode": "dark", "width": 320, "height": 120"#;
-    // A button sits on a panel, the rulers on the canvas.
-    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "button", {artcraft}}}]"#)), [0x53, 0x53, 0x53]);
-    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "rulers", {artcraft}}}]"#)), [0x28, 0x28, 0x28]);
-    assert_eq!(corner(&format!(r#"[{{"name": "a", "component": "button", "surface": "canvas", {artcraft}}}]"#)), [0x28, 0x28, 0x28]);
+    let on = |component: &str, extra: &str| pixel(&format!(r#"[{{"name": "a", "component": "{component}", {extra} {artcraft}}}]"#), 20);
+    // The dock colour surrounds the story's frame; a button sits in a panel body, the rulers on the canvas.
+    assert_eq!(pixel(&format!(r#"[{{"name": "a", "component": "button", {artcraft}}}]"#), 4), [0x42, 0x42, 0x42]);
+    assert_eq!(on("button", ""), [0x53, 0x53, 0x53]);
+    assert_eq!(on("rulers", ""), [0x28, 0x28, 0x28]);
+    assert_eq!(on("button", r#""surface": "canvas","#), [0x28, 0x28, 0x28]);
     let error = shot(r#"[{"name": "a", "component": "button", "surface": "floor"}]"#).err().expect("the surface is wrong");
     assert!(error.contains("chrome"));
 }
