@@ -16,6 +16,10 @@
 //!   stopped being live: its control wasn't drawn in a whole pass, or the host ended it. Its
 //!   control's draw order doesn't matter: a run drawn after the pressed part ends in the press
 //!   pass, one drawn before it in the next, and the input runs in the pass after either.
+//! - A typing run is **under way** until its ending has gone out. A run that ended in this pass
+//!   is one to wait for: a click (press and release in one frame) moves the focus off a field
+//!   drawn before the clicked control, so the run ends before the input arrives, and the input
+//!   runs in the next pass all the same.
 //! - Inputs never ask a drag to end: a press can't happen during one, and a screen reader's step
 //!   on another part waits for the release.
 //!
@@ -108,10 +112,11 @@ pub(crate) fn turn_after(ctx: &Context, key: Id, own: Option<GestureId>, gesture
     turn
 }
 
-/// A new input: it runs now when nothing waits and no other control's typing run has the focus;
-/// else it queues, and the typing run is asked to end.
+/// A new input: it runs now when nothing waits and no other control's typing run is under way
+/// (it has the focus, or its ending went out in this pass); else it queues, and a run that has
+/// the focus is asked to end.
 fn arrive(ctx: &Context, queue: &mut Queue, key: Id, own: Option<GestureId>, gesture: Option<GestureId>, pass: u64) -> Turn {
-    let mut awaits = Vec::new();
+    let mut awaits: Vec<GestureId> = live::typing_ended(ctx).into_iter().filter(|&run| Some(run) != own).collect();
     if let Some((run, widget)) = live::typing(ctx).filter(|&(run, _)| Some(run) != own) {
         ctx.memory_mut(|m| m.surrender_focus(widget));
         awaits.push(run);

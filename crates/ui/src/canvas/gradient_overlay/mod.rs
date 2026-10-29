@@ -1,6 +1,8 @@
 //! [`GradientOverlay`]: a gradient drawn on the canvas as PhotoCraft's live Gradient tool draws
 //! it, a line between a start and an end handle with the colour stops and midpoint diamonds on it.
 
+#[cfg(test)]
+mod order_tests;
 mod pointer;
 pub(crate) mod story;
 #[cfg(test)]

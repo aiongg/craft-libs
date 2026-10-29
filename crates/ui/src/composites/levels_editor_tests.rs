@@ -7,6 +7,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::*;
+use crate::controls::NumberField;
 use crate::direction::{self, Direction};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
@@ -33,6 +34,9 @@ struct Host {
     /// The pass of the last event, and whether two events came in one pass.
     event_pass: Option<u64>,
     doubled: bool,
+    /// A gamma field of the same levels outside the editor, drawn before it, with its policy.
+    outside: Option<EditPolicy>,
+    outside_events: Vec<EditEvent<f64>>,
 }
 
 struct Undo {
@@ -80,6 +84,8 @@ impl Host {
             policy: EditPolicy::default(),
             event_pass: None,
             doubled: false,
+            outside: None,
+            outside_events: Vec::new(),
         }
     }
 
@@ -94,7 +100,16 @@ impl Host {
         }
         let numbers = LocaleNumbers::from_tag("en");
         self.focus = Tokens::of(ui).color.line.focus.to_egui();
+        // The editor draws the value of the frame's start, as a host that applies the frame's
+        // events after its controls shows it.
         let levels = self.levels;
+        if let Some(policy) = self.outside {
+            let edit = NumberField::new("outside", "Outside gamma", levels.gamma, &numbers).policy(policy).show(ui);
+            if let Some(&gamma) = edit.event.as_ref().and_then(EditEvent::value) {
+                self.levels.gamma = gamma;
+            }
+            self.outside_events.extend(edit.event);
+        }
         let editor =
             LevelsEditor::new("levels", "Levels", &levels, &numbers).value("Red channel").width(300.0).enabled(self.enabled).policy(self.policy);
         let edit = match self.scoped {
@@ -224,6 +239,13 @@ fn click(harness: &mut Harness<'_, Host>, pos: Pos2) {
     pointer(harness, pos, true, Modifiers::NONE);
     pointer(harness, pos, false, Modifiers::NONE);
     harness.run();
+}
+
+/// A press and release at `pos` in one frame (`Harness::event` would give each its own).
+fn tap(harness: &mut Harness<'_, Host>, pos: Pos2) {
+    let tap = [true, false].map(|pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    harness.input_mut().events.extend(tap);
+    harness.step();
 }
 
 #[track_caller]
@@ -385,8 +407,7 @@ fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
         let target = node(&harness, Role::Slider, "Input white");
         let pos = pos2(at(&harness, "Input white", 240.0).x, target.rect().center().y);
         move_to(&mut harness, pos);
-        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
-        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        tap(&mut harness, pos);
         harness.state_mut().doubled = false;
         for _ in 0..4 {
             harness.step();
@@ -397,6 +418,29 @@ fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
         assert!(kinds.len() >= 2, "{field}: the tap reports after the run: {kinds:?}");
         assert_eq!(harness.state().levels.in_white, 240.0, "{field}");
     }
+}
+
+/// A tap on a row in the pass a field outside the editor ends its typing run (the tap's click
+/// moves the focus off the field, which is drawn first) goes out after the run's Commit, made from
+/// the committed value: a value no update reported isn't lost to the tap.
+#[test]
+fn a_tap_ending_an_outside_fields_run_keeps_the_value_the_run_committed() {
+    let host = Host { outside: Some(EditPolicy::default().on_release_only(true)), ..Host::new(IDENTITY) };
+    let mut harness = harness(host, Direction::Ltr);
+    let field_at = node(&harness, Role::SpinButton, "Outside gamma").rect().center();
+    click(&mut harness, field_at);
+    harness.event(Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND });
+    harness.event(Event::Text("2".into()));
+    harness.run();
+    assert_eq!(harness.state().levels.gamma, 1.0, "the field reports no update");
+    let target = node(&harness, Role::Slider, "Input white");
+    let pos = pos2(at(&harness, "Input white", 240.0).x, target.rect().center().y);
+    move_to(&mut harness, pos);
+    tap(&mut harness, pos);
+    harness.run();
+    let state = harness.state();
+    assert!(matches!(state.outside_events.as_slice(), [EditEvent::Begin { .. }, EditEvent::Commit { value: 2.0, .. }]), "{:?}", state.outside_events);
+    assert_eq!((state.levels.in_white, state.levels.gamma), (240.0, 2.0), "{:?}", state.kinds());
 }
 
 #[test]
