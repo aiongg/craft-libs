@@ -6,7 +6,7 @@ use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{PropertyRow, SectionHeader};
-use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
+use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -307,7 +307,11 @@ impl Gallery {
                 });
                 OptionsBar::divider(ui);
                 segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
-                ui.add(ToggleButton::new("Compare", compare).size(ControlSize::Sm));
+                let overview = *view == CentreView::Overview;
+                let toggle = ui.add(ToggleButton::new("Compare", compare).size(ControlSize::Sm).enabled(!overview));
+                if overview {
+                    let _ = toggle.tooltip("Compare works on the Component view");
+                }
             });
             bar.trailing(|ui| {
                 if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
@@ -530,7 +534,7 @@ impl Gallery {
                 }
                 let _ = select.policy(fields::policy()).show(ui);
             });
-            let tiles: Vec<Story> = components.iter().filter_map(|c| default_story_of(&self.stories, c)).copied().collect();
+            let tiles = overview_tiles(&self.stories, components, current);
             let scroll_to = &mut self.scroll_to;
             ScrollArea::vertical().id_salt(shown_level.slug()).auto_shrink([false, false]).show(ui, |ui| {
                 opened = overview(ui, &tiles, &mut self.args, &self.saved_args, &appearance, system, scroll_to);
@@ -805,6 +809,12 @@ fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut In
     }
 }
 
+/// The story each of `components` draws in the Overview: its default story, except the selected
+/// component's, which draws the selected story so Stories and Properties change what is seen.
+fn overview_tiles(stories: &[Story], components: &[&'static str], selected: Option<Story>) -> Vec<Story> {
+    components.iter().filter_map(|c| selected.filter(|s| s.component == *c).or_else(|| default_story_of(stories, c).copied())).collect()
+}
+
 /// The narrowest a tile may be: PhotoCraft's dock panels are 290 pt wide, and a story drawn in
 /// less than a panel's width is no longer what the apps show.
 const TILE_MIN_WIDTH: f32 = 290.0;
@@ -1007,6 +1017,19 @@ mod tests {
         assert_eq!(gallery.scroll_to, None, "the tile was drawn and scrolled to");
         assert_eq!(gallery.view, CentreView::Overview);
         assert_eq!(gallery.current().unwrap().component, story.component);
+    }
+
+    #[test]
+    fn the_selected_components_tile_draws_the_selected_story() {
+        let stories = stories();
+        let multi = stories.iter().find(|s| stories.iter().filter(|o| o.component == s.component).count() > 1).unwrap().component;
+        let other = stories.iter().find(|s| s.component != multi && s.level == stories.iter().find(|m| m.component == multi).unwrap().level).unwrap();
+        let second = *stories.iter().filter(|s| s.component == multi).nth(1).unwrap();
+        let components = [multi, other.component];
+        let tiles = overview_tiles(&stories, &components, Some(second));
+        assert_eq!(tiles[0].id, second.id);
+        assert_eq!(tiles[1].id, default_story_of(&stories, other.component).unwrap().id);
+        assert_eq!(overview_tiles(&stories, &components, None)[0].id, default_story_of(&stories, multi).unwrap().id);
     }
 
     #[test]
