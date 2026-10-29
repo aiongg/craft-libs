@@ -17,6 +17,7 @@ use super::claim::PrimaryPress;
 use super::units::tick_snap;
 use super::{CanvasView, Claim, Readout, RulerUnits, crisp_shape, hit, resize_cursor};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
@@ -256,6 +257,9 @@ struct Drag {
     press: PrimaryPress,
     /// Whether the gesture began: past the click distance, or out of a ruler.
     began: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]); the guide's
+    /// place is read again when its turn comes.
+    waits: bool,
 }
 
 /// The ruler guides of a canvas: drawn, taken by the pointer, moved with the keyboard, and in the
@@ -416,7 +420,7 @@ impl<'a> Guides<'a> {
     pub fn drag_from_ruler(ctx: &Context, guides: Id, orientation: Orientation) {
         let Some(press) = PrimaryPress::current(ctx) else { return };
         let start = GuidePlace { orientation, position: None };
-        ctx.data_mut(|d| d.insert_temp(drag_key(guides), Drag { key: None, base: orientation, start, press, began: false }));
+        ctx.data_mut(|d| d.insert_temp(drag_key(guides), Drag { key: None, base: orientation, start, press, began: false, waits: false }));
     }
 
     /// Draws the guides over `view` and senses through the host's `canvas` response.
@@ -446,9 +450,21 @@ impl<'a> Guides<'a> {
 
         // A drag whose press ended while the guides were not shown is dropped. A gesture it began
         // ended then too: a gesture is over once its control misses a pass.
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
+        let mut drag: Option<Drag> =
+            ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.is_some_and(|d| d.waits);
+        if let Some(d) = drag
+            && d.waits
+        {
+            drag = match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => drag,
+                // The guide the press took, as it is now; gone, the press does nothing.
+                Turn::Runs => d.key.and_then(|key| self.find(key)).map(|g| Drag { base: g.orientation, start: g.place(), waits: false, ..d }),
+                Turn::Now => None,
+            };
+        }
         // The press comes first, so that a drag starting in this pass reports under its own guide.
-        if drag.is_none() {
+        if drag.is_none() && !waited {
             drag = self.press(ui, &pass, focused, &mut out);
         }
         let reported = Gesture::<GuidePlace>::reported(ui, id).map(|(_, value)| value);
@@ -463,7 +479,9 @@ impl<'a> Guides<'a> {
             drag = None;
         }
         let mut live = None;
-        if let Some(d) = drag {
+        if let Some(d) = drag
+            && !d.waits
+        {
             (drag, live) = self.track(ui, &pass, d, &mut gesture, &mut out);
         }
         if self.interactive && drag.is_none() {
@@ -526,7 +544,8 @@ impl<'a> Guides<'a> {
             && Claim::take(&pass.ctx, pass.canvas.id, pass.id)
         {
             let g = &self.guides[i];
-            return Some(Drag { key: Some(g.key), base: g.orientation, start: g.place(), press, began: false });
+            let waits = Claim::turn(&pass.ctx, pass.canvas.id, pass.id) == Turn::Waits;
+            return Some(Drag { key: Some(g.key), base: g.orientation, start: g.place(), press, began: false, waits });
         }
         if on.is_none() && self.selected.is_some() {
             out.select = Some(None);

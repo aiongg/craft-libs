@@ -7,6 +7,7 @@ use super::claim::PrimaryPress;
 use super::quad::{self, BoxPart, BoxRules, BoxState, ScaleRule, TransformMode};
 use super::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, resize_cursor, turn_cursor};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::Unit;
 use crate::popup_list;
@@ -139,6 +140,9 @@ struct Drag {
     cancelled: bool,
     /// A ⌥-press away from the handles: a click there moves the reference point.
     alt_pivot: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]); nothing of it
+    /// has run.
+    waits: bool,
 }
 
 /// The box of Free Transform: 8 handles and a reference point over the host's content, dragged by
@@ -313,8 +317,19 @@ impl<'a> TransformBox<'a> {
         let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id)));
 
         // A drag whose press ended while the box was not shown is dropped, and its gesture with it.
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
-        if drag.is_none() {
+        let mut drag: Option<Drag> =
+            ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.is_some_and(|d| d.waits);
+        if let Some(d) = &mut drag
+            && d.waits
+        {
+            match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => {}
+                Turn::Runs => self.rebase(d),
+                Turn::Now => drag = None,
+            }
+        }
+        if drag.is_none() && !waited {
             drag = self.press(ui, canvas, view, &style, id);
             if let Some(d) = drag
                 && d.part != BoxPart::Outside
@@ -344,7 +359,9 @@ impl<'a> TransformBox<'a> {
             d.cancelled = true;
         }
         let pointer = ctx.input(|i| i.pointer.latest_pos());
-        if let Some(d) = &mut drag {
+        if let Some(d) = &mut drag
+            && !d.waits
+        {
             self.track(&ctx, canvas, view, &style, d, &mut gesture, &mut out);
         }
         if self.double_clicked_inside(&ctx, canvas, view, id, style.hit) {
@@ -388,7 +405,7 @@ impl<'a> TransformBox<'a> {
         out.event = gesture.finish();
         out.claimed = Claim::is_owner(&ctx, canvas.id, id);
         out.picked = picked;
-        let held = drag.filter(|_| ctx.input(|i| i.pointer.primary_down()));
+        let held = drag.filter(|d| d.waits || ctx.input(|i| i.pointer.primary_down()));
         ctx.data_mut(|data| {
             match held {
                 Some(d) => {
@@ -430,7 +447,16 @@ impl<'a> TransformBox<'a> {
         let from = view.to_doc(press.origin);
         let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, press.origin, style.hit) != BoxPart::Pivot;
         let start = if alt_pivot { BoxState { pivot: from, ..*self.state } } else { *self.state };
-        Some(Drag { part, at_press: *self.state, start, from, press, began: false, cancelled: false, alt_pivot })
+        let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
+        Some(Drag { part, at_press: *self.state, start, from, press, began: false, cancelled: false, alt_pivot, waits })
+    }
+
+    /// Takes the host's box as the press's start when its turn comes: a typing run that ended
+    /// first may have changed it.
+    fn rebase(&self, d: &mut Drag) {
+        d.waits = false;
+        d.at_press = *self.state;
+        d.start = if d.alt_pivot { BoxState { pivot: d.from, ..*self.state } } else { *self.state };
     }
 
     /// The part a press at screen point `p` with `mods` takes from the box mapped to the screen;

@@ -5,6 +5,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
 use super::{Guide, GuideHost, GuideNames, GuidePlace, Guides, Orientation};
+use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
@@ -24,6 +25,7 @@ struct Host {
     interactive: bool,
     /// The host skips the guides (another tool, guides hidden).
     hidden: bool,
+    field: TypingField,
 }
 
 fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
@@ -37,9 +39,11 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
         ruler: None,
         interactive: true,
         hidden: false,
+        field: TypingField::default(),
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
+            host.field.show(ui);
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the guides.
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -59,6 +63,7 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
             if let Some(orientation) = host.ruler.take() {
                 Guides::drag_from_ruler(ui.ctx(), response.id, orientation);
             }
+            host.field.note(response.event.is_some());
             host.events.extend(response.event.clone());
             host.clicked.extend(response.clicked);
             host.guides.apply(&response);
@@ -531,4 +536,29 @@ fn guide_nodes_follow_the_keyboard_order() {
     let values: Vec<String> =
         descendants(group.accesskit_node()).into_iter().filter(|n| n.role() == Role::GraphicsObject).map(|n| n.value().unwrap_or_default()).collect();
     assert_eq!(values, ["100.0 px", "300.0 px", "20.0 px", "50.0 px"]);
+}
+
+/// A press on a guide during a text field's typing run begins after the run's Commit and the
+/// guide still goes where the pointer is released.
+#[test]
+fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 200.0)], 0.0);
+    h.state_mut().field.on = true;
+    h.step();
+    let from = screen(&h, Point::new(200.0, 100.0));
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true, Modifiers::NONE));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    for i in 1..=6 {
+        h.event(Event::PointerMoved(from + vec2(5.0 * i as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(from + vec2(30.0, 0.0), false, Modifiers::NONE));
+    h.step();
+    h.step();
+    assert!(matches!(events(&h).first(), Some((Some(1), "begin", _))), "{:?}", events(&h));
+    assert!(h.state().field.commit_came_first());
+    assert!(near(positions(&h)[0].2, 230.0), "{:?}", positions(&h));
 }

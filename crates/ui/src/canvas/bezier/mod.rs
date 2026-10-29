@@ -12,6 +12,7 @@ pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, Path
 use super::claim::PrimaryPress;
 use super::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits, hit};
 use crate::behavior::nudge;
+use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -207,6 +208,9 @@ struct Drag {
     began: bool,
     /// Esc ended it: the rest of the press does nothing.
     cancelled: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]), with the
+    /// modifiers at the press; its target and selection are made when its turn comes.
+    waits: Option<Modifiers>,
 }
 
 /// A keyboard part: an anchor or one of its shown handles.
@@ -410,8 +414,20 @@ impl<'a> BezierOverlay<'a> {
         let mut picked: Option<u64> = ctx.data(|d| d.get_temp(picked_key)).filter(|k| parts.iter().any(|(p, _)| p.key == *k));
 
         // A press whose end the overlay missed is dropped, its gesture with it.
-        let mut drag: Option<Drag> = ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx));
-        if drag.is_none() && editing {
+        let mut drag: Option<Drag> = ctx
+            .data(|d| d.get_temp(drag_key(id)))
+            .filter(|d: &Drag| d.press.holds(&ctx) || (d.waits.is_some() && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.as_ref().is_some_and(|d| d.waits.is_some());
+        if let Some(d) = &drag
+            && let Some(mods) = d.waits
+        {
+            drag = match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => drag,
+                Turn::Runs => Some(self.start(&pass, &parts, &mut picked, &mut out, d.press, mods)),
+                Turn::Now => None,
+            };
+        }
+        if drag.is_none() && !waited && editing {
             drag = self.press(&pass, &parts, &mut picked, &mut out);
         }
         let reported = Gesture::<PathEdit>::reported(ui, id).map(|(_, value)| value);
@@ -421,12 +437,12 @@ impl<'a> BezierOverlay<'a> {
                 // Esc, `cancel_all` or a missed pass ended it; the press stays claimed.
                 d.cancelled = true;
             }
-            if !d.began && !d.cancelled && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+            if !d.began && !d.cancelled && d.waits.is_none() && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
                 d.cancelled = true;
             }
         }
         if let Some(d) = drag.take() {
-            drag = self.track(&pass, d, &mut gesture);
+            drag = if d.waits.is_some() { Some(d) } else { self.track(&pass, d, &mut gesture) };
         }
         let marquee_id = canvas.id.with_salt(IdSalt::new(marquee_salt(id)));
         if editing && self.tool == BezierTool::Direct && drag.is_none() {
@@ -497,6 +513,27 @@ impl<'a> BezierOverlay<'a> {
             return None;
         }
         let mods = ctx.input(|i| i.modifiers);
+        if Claim::turn(ctx, pass.canvas.id, pass.id) == Turn::Waits {
+            return Some(Drag { press, target: Target::Nothing, began: false, cancelled: false, waits: Some(mods) });
+        }
+        Some(self.start(pass, parts, picked, out, press, mods))
+    }
+
+    /// The press `press` made with `mods`, against the paths now: the target it drags and the
+    /// selection it makes.
+    fn start(
+        &self,
+        pass: &Pass<'_>,
+        parts: &[(Part, PartRef)],
+        picked: &mut Option<u64>,
+        out: &mut BezierResponse,
+        press: PrimaryPress,
+        mods: Modifiers,
+    ) -> Drag {
+        let nothing = Drag { press, target: Target::Nothing, began: false, cancelled: true, waits: None };
+        let Some(hit) = self.hit_at(pass, press.origin).filter(|hit| self.takes(hit)) else {
+            return nothing;
+        };
         let part_key = |path: u64, knot: KnotRef, side: Option<HandleSide>| {
             parts.iter().find(|(_, r)| self.paths[r.path].key == path && r.knot == knot && r.side == side).map(|(p, _)| p.key)
         };
@@ -518,7 +555,7 @@ impl<'a> BezierOverlay<'a> {
                     } else if mods.shift && selected {
                         let rest: Vec<KnotRef> = self.selection.anchors.iter().copied().filter(|&k| k != knot).collect();
                         out.select = Some(PathSelection { path: Some(path), anchors: rest, segment: None });
-                        return Some(Drag { press, target: Target::Nothing, began: false, cancelled: false });
+                        return Drag { press, target: Target::Nothing, began: false, cancelled: false, waits: None };
                     } else if mods.shift && self.selection.path == Some(path) {
                         self.selection.anchors.iter().copied().chain([knot]).collect()
                     } else if selected {
@@ -551,7 +588,7 @@ impl<'a> BezierOverlay<'a> {
                 }
             }
         };
-        Some(Drag { press, target, began: false, cancelled: false })
+        Drag { press, target, began: false, cancelled: false, waits: None }
     }
 
     /// One pass of a press the overlay owns: the press that goes on, if it does.
