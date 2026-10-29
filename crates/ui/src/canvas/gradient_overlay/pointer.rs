@@ -88,7 +88,11 @@ pub(super) fn pick_key(id: Id) -> Id {
     id.with("craft_ui::canvas::GradientOverlay::picked")
 }
 
-fn selection_of(part: LinePart) -> Option<StopRef> {
+pub(super) fn seen_key(id: Id) -> Id {
+    id.with("craft_ui::canvas::GradientOverlay::seen")
+}
+
+pub(super) fn selection_of(part: LinePart) -> Option<StopRef> {
     match part {
         LinePart::Stop(i) => Some(StopRef::Color(i)),
         LinePart::Midpoint(i) => Some(StopRef::Midpoint(StopRow::Color, i)),
@@ -313,19 +317,29 @@ impl GradientOverlay<'_> {
         if !canvas.double_clicked() || !Claim::is_owner(pass.ctx, canvas.id, pass.id) {
             return;
         }
+        let part = canvas.interact_pointer_pos().and_then(|p| self.hit(pass, shown, p));
+        out.color_requested = part.and_then(|part| self.color_request(pass, shown, part));
+    }
+
+    /// The colour a part asks for: a colour stop's, or the one at the end handle (stop 0 or the
+    /// last, swapped under `.reverse`, PC `click`), with the screen rect of the stop's marker.
+    pub(super) fn color_request(&self, pass: &Pass<'_>, shown: &LineGradient, part: LinePart) -> Option<(usize, Rect)> {
         let len = shown.stops.color.len();
-        let stop = match canvas.interact_pointer_pos().and_then(|p| self.hit(pass, shown, p)) {
-            Some(LinePart::Stop(i)) => Some(i),
-            // The stop at that end of the line.
-            Some(end @ (LinePart::Start | LinePart::End)) if len > 0 => Some(if (end == LinePart::Start) != self.reverse { 0 } else { len - 1 }),
-            _ => None,
+        let i = match part {
+            LinePart::Stop(i) => i,
+            LinePart::Start | LinePart::End if len > 0 => {
+                if (part == LinePart::Start) != self.reverse {
+                    0
+                } else {
+                    len - 1
+                }
+            }
+            _ => return None,
         };
-        if let Some(i) = stop {
-            let (start, end) = (pass.view.to_screen(shown.line.start), pass.view.to_screen(shown.line.end));
-            let at = at_screen(start, end, shown.stops.color[i].location, self.reverse);
-            let size = 2.0 * (pass.style.stop + pass.style.stop_ring.width);
-            out.color_requested = Some((i, Rect::from_center_size(at, Vec2::splat(size))));
-        }
+        let (start, end) = (pass.view.to_screen(shown.line.start), pass.view.to_screen(shown.line.end));
+        let at = at_screen(start, end, shown.stops.color.get(i)?.location, self.reverse);
+        let size = 2.0 * (pass.style.stop + pass.style.stop_ring.width);
+        Some((i, Rect::from_center_size(at, Vec2::splat(size))))
     }
 
     /// The part a press at the pointer would take, with the host's cursor over it.

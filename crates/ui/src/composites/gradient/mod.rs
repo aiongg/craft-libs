@@ -23,6 +23,7 @@ mod swatch;
 mod swatch_tests;
 mod value;
 
+pub(crate) use editor::marker_texts;
 pub use editor::{GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, StopDrop, StopRef};
 pub use ramp::{GradientRamp, GradientRampStyle};
 pub use stops::{Sampler, StopRules, default_sampler};

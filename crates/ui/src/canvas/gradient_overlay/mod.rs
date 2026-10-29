@@ -1,20 +1,29 @@
 //! [`GradientOverlay`]: a gradient drawn on the canvas as PhotoCraft's live Gradient tool draws
 //! it, a line between a start and an end handle with the colour stops and midpoint diamonds on it.
 
+mod keys;
+mod parts;
 mod pointer;
+#[cfg(test)]
+mod share_tests;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
 
 use std::f32::consts::FRAC_PI_2;
 
-use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Modifiers, Painter, Pos2, Rect, Response, Shape, Stroke, Ui, vec2};
+use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, Stroke, Ui, vec2};
 use kurbo::Point;
 
 use super::gradient_line::{at_screen, midpoint_location};
-use super::{CanvasView, Claim, GradientExtent, GradientLine, LineGradient, LinePart, PartFocus};
-use crate::composites::{GradientStops, StopRef, StopRow, StopRows, StopRules, StopSampler as Sampler, default_sampler};
+use super::{CanvasView, Claim, GradientExtent, GradientLine, LineGradient, LinePart, PartFocus, RulerUnits};
+use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::composites::{
+    GradientEditor, GradientLabels, GradientStops, StopRef, StopRow, StopRows, StopRules, StopSampler as Sampler, default_sampler,
+};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::LocaleNumbers;
+use crate::primitives::FocusRing;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// The names a screen reader reads for the overlay's group and parts, translated by the host.
@@ -68,6 +77,13 @@ pub struct GradientLineStyle {
     pub click_slop: f32,
     /// Distance from the line past which a dragged stop is torn off: `gradient_line.tear_off`.
     pub tear_off: f32,
+    /// The lines beside the picked line and the ring round a picked part: the focus ring's stroke.
+    pub focus: Stroke,
+    /// Under each focus line, so it reads on any image: `overlay.halo`, `handle.halo` wider than
+    /// the line on each side.
+    pub focus_halo: Stroke,
+    /// From the line's edge to the focus lines: the focus ring's offset.
+    pub focus_offset: f32,
 }
 
 /// What the pointer is over or doing, for the host's cursor ([`GradientOverlay::cursor`]).
@@ -143,6 +159,31 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 ///   for the run's Commit and begins from the value it left. When the host ends the overlay's drag
 ///   for another control's change, the drag goes on from the host's value at the next move, in a
 ///   gesture of its own.
+///
+/// Keys (one Tab stop through [`PartFocus`]; the release of a press on a part gives the group
+/// focus too):
+///
+/// - Page Down and Page Up pick the next and previous part, Home and End the first and last: the
+///   line, the start, the stops and midpoints in location order, the end. Picking a stop or
+///   midpoint selects it; a handle or the line keeps the selection. The picked end is drawn
+///   selected.
+/// - Left and Right move a picked stop or midpoint by 1 %, 10 % with Shift, Left always lowering
+///   the location; Up and Down are the host's. The arrows move a picked end, or the line (with
+///   nothing picked too), by 1 document unit, 10 with Shift. Delete and Backspace remove a stop,
+///   Insert and Cmd/Ctrl+Enter add one halfway after the picked stop, and the stop that takes
+///   the picked index or the new stop is picked and selected. Enter and Space on a colour stop
+///   or an end set [`color_requested`](GradientOverlayResponse::color_requested). Esc cancels a
+///   drag and is otherwise the host's. Every key needs exactly its modifiers. Each change is one
+///   Set.
+/// - After keyboard input a focus ring shows round the picked handle, stop or diamond, and two
+///   focus lines beside the picked line.
+/// - The group's AccessKit children are the parts, named and valued as the bar's markers are
+///   ([`labels`](Self::labels), [`numbers`](Self::numbers)), the end handles valued through
+///   [`units`](Self::units).
+///
+/// With [`selection_of`](Self::selection_of) the overlay and a gradient editor share one selected
+/// stop. A selection another control makes becomes the picked part, and a stop moved past its
+/// neighbour on the canvas moves the shared selection with it.
 pub struct GradientOverlay<'a> {
     id_salt: IdSalt,
     line: &'a GradientLine,
@@ -159,6 +200,12 @@ pub struct GradientOverlay<'a> {
     snap: Option<Snap<'a>>,
     cursor: Option<Cursor<'a>>,
     policy: EditPolicy,
+    labels: GradientLabels,
+    numbers: Option<&'a LocaleNumbers>,
+    location_decimals: usize,
+    units: Option<(&'a RulerUnits, &'a RulerUnits)>,
+    shared: Option<Id>,
+    value: Option<String>,
 }
 
 impl<'a> GradientOverlay<'a> {
@@ -180,6 +227,12 @@ impl<'a> GradientOverlay<'a> {
             snap: None,
             cursor: None,
             policy: EditPolicy::default(),
+            labels: GradientLabels::default(),
+            numbers: None,
+            location_decimals: 0,
+            units: None,
+            shared: None,
+            value: None,
         }
     }
 
@@ -229,6 +282,49 @@ impl<'a> GradientOverlay<'a> {
         self
     }
 
+    /// The words of the stops' and midpoints' accessible names and values, the host's
+    /// [`GradientLabels`] for its gradient editor, so a stop reads the same in the panel and on the
+    /// canvas.
+    pub fn labels(mut self, labels: GradientLabels) -> Self {
+        self.labels = labels;
+        self
+    }
+
+    /// The numbers' format of the stops' accessible values; English by default. Give the editor's.
+    pub fn numbers(mut self, numbers: &'a LocaleNumbers) -> Self {
+        self.numbers = Some(numbers);
+        self
+    }
+
+    /// Decimals of a stop's location in its accessible value; 0 by default, as the editor's.
+    pub fn location_decimals(mut self, decimals: usize) -> Self {
+        self.location_decimals = decimals;
+        self
+    }
+
+    /// The ruler units of the document's x and y axes: the end handles' accessible values. They
+    /// have none without.
+    pub fn units(mut self, x: &'a RulerUnits, y: &'a RulerUnits) -> Self {
+        self.units = Some((x, y));
+        self
+    }
+
+    /// Shares the selected stop with the [`GradientEditor`] whose id is `editor`
+    /// ([`GradientEditor::id_in`]): the overlay reads and writes the editor's selection, so a stop
+    /// picked on the canvas is the one under the panel's bar and the other way round. Without it
+    /// the overlay keeps a selection of its own ([`selected`](Self::selected)).
+    pub fn selection_of(mut self, editor: Id) -> Self {
+        self.shared = Some(editor);
+        self
+    }
+
+    /// The group's and the line's accessible value; "{n} stops" ([`GradientLabels::bar_stops`])
+    /// by default.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
     /// Whether midpoint diamonds show; true by default.
     pub fn midpoints(mut self, midpoints: bool) -> Self {
         self.midpoints = midpoints;
@@ -254,12 +350,13 @@ impl<'a> GradientOverlay<'a> {
         self
     }
 
-    /// The overlay `id`'s selected stop or midpoint.
+    /// The overlay `id`'s selected stop or midpoint, when it keeps its own selection (no
+    /// [`selection_of`](Self::selection_of)).
     pub fn selected(ctx: &Context, id: Id) -> Option<StopRef> {
         ctx.data(|d| d.get_temp(id.with(SELECTED)))
     }
 
-    /// Selects a stop or midpoint of the overlay `id`.
+    /// Selects a stop or midpoint of the overlay `id`, when it keeps its own selection.
     pub fn select(ctx: &Context, id: Id, selected: Option<StopRef>) {
         ctx.data_mut(|d| match selected {
             Some(s) => {
@@ -274,6 +371,7 @@ impl<'a> GradientOverlay<'a> {
     pub fn style(tokens: &UiTokens) -> GradientLineStyle {
         let (g, o, h) = (&tokens.component.gradient_line, &tokens.color.overlay, &tokens.component.handle);
         let (fill, halo) = (o.handle_fill.to_egui(), o.halo.to_egui());
+        let ring = FocusRing::style(tokens);
         GradientLineStyle {
             line: Stroke::new(g.line, fill),
             halo: Stroke::new(g.halo, halo),
@@ -292,6 +390,24 @@ impl<'a> GradientOverlay<'a> {
             hit: g.hit,
             click_slop: g.click_slop,
             tear_off: g.tear_off,
+            focus: ring.stroke,
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * h.halo, halo),
+            focus_offset: ring.offset,
+        }
+    }
+
+    /// The selected stop or midpoint: the shared editor's, or the overlay's own.
+    fn selection(&self, ctx: &Context, id: Id) -> Option<StopRef> {
+        match self.shared {
+            Some(editor) => GradientEditor::selected(ctx, editor),
+            None => Self::selected(ctx, id),
+        }
+    }
+
+    fn store_selection(&self, ctx: &Context, id: Id, selected: Option<StopRef>) {
+        match self.shared {
+            Some(editor) => GradientEditor::select(ctx, editor, selected),
+            None => Self::select(ctx, id, selected),
         }
     }
 
@@ -305,10 +421,19 @@ impl<'a> GradientOverlay<'a> {
         let sampler: &Sampler = self.sampler.unwrap_or(&default);
         let pass = pointer::Pass { ctx: &ctx, id, canvas, view, style: &style, sampler };
         let mut out = GradientOverlayResponse { id, event: None, color_requested: None, picked: None, hovered: None, context: None, claimed: false };
-        let at_load = pointer::Selection { selected: Self::selected(&ctx, id), picked: ctx.data(|d| d.get_temp(pointer::pick_key(id))) };
+        let at_load = pointer::Selection { selected: self.selection(&ctx, id), picked: ctx.data(|d| d.get_temp(pointer::pick_key(id))) };
         let mut sel = at_load;
-
         let value = LineGradient { line: *self.line, stops: self.stops.clone() };
+        // A selection another control made (the panel's bar) is the one the keys act on.
+        let seen = ctx.data(|d| d.get_temp::<Option<StopRef>>(pointer::seen_key(id))).unwrap_or(at_load.selected);
+        if editable
+            && at_load.selected != seen
+            && let Some(part) = self.part_selected(&value, at_load.selected)
+        {
+            sel.picked = Some(part);
+        }
+
+        let press_held = ctx.data(|d| d.get_temp::<pointer::Drag>(pointer::drag_key(id))).is_some();
         let drag = self.press_of(&pass, &value, editable, &mut sel);
         let reported = Gesture::<LineGradient>::reported(ui, id).map(|(_, value)| value);
         // The drag's own last report stands for the host's value while the host shows it or still
@@ -325,6 +450,40 @@ impl<'a> GradientOverlay<'a> {
         let dragging = drag.as_ref().filter(|d| d.began && !d.cancelled).map(|d| d.part);
         if editable && drag.is_none() {
             out.hovered = self.hover(&pass, gesture.shown());
+        }
+        // The release of a press the overlay held gives the group the keyboard, so the keys act on
+        // what the pointer took, even where a drag has moved the part from under the press.
+        if editable && press_held && drag.is_none() {
+            ctx.memory_mut(|m| m.request_focus(id));
+        }
+
+        let english;
+        let numbers = match self.numbers {
+            Some(numbers) => numbers,
+            None => {
+                english = LocaleNumbers::from_tag("en");
+                &english
+            }
+        };
+        let parts = self.parts(&pass, gesture.shown(), numbers, sel.selected.filter(|_| editable));
+        let mut focus = PartFocus::new(id, &self.names.group).parts(&parts.list).picked(sel.picked.map(parts::part_key)).focusable(editable);
+        focus = focus.value(self.group_value(gesture.shown(), numbers));
+        let focus = focus.show(ui, canvas);
+        match focus.pick {
+            Some(Some(key)) => {
+                sel.picked = parts::key_part(key);
+                if let Some(selected) = sel.picked.and_then(pointer::selection_of) {
+                    sel.selected = Some(selected);
+                }
+            }
+            Some(None) => sel.picked = None,
+            None => {}
+        }
+        if focus.focused {
+            KeyClaim::claim(&ctx, id, &CLAIMED);
+            if editable && drag.is_none() {
+                self.keys(ui, &pass, &mut gesture, &mut sel, &mut out);
+            }
         }
 
         let shown = gesture.shown().clone();
@@ -344,19 +503,25 @@ impl<'a> GradientOverlay<'a> {
                 }
                 None => d.remove::<LinePart>(pointer::pick_key(id)),
             }
+            d.insert_temp(pointer::seen_key(id), sel.selected);
         });
         if sel.selected != at_load.selected {
-            Self::select(&ctx, id, sel.selected);
+            self.store_selection(&ctx, id, sel.selected);
         }
 
         let selected = if editable { sel.selected } else { None };
+        let marked = dragging.or(sel.picked.filter(|p| editable && matches!(p, LinePart::Start | LinePart::End)));
         let painter = ui.painter_at(view.rect);
-        self.paint(&painter, &style, view, &shown, selected, dragging);
-        PartFocus::new(id, &self.names.group).focusable(false).show(ui, canvas);
+        self.paint(&painter, &style, view, &shown, selected, marked);
+        if focus.keyboard
+            && let Some(part) = sel.picked
+        {
+            self.paint_focus(&painter, &style, view, &shown, part);
+        }
         out
     }
 
-    /// Draws `value`; `dragged` is the part a drag holds, drawn selected.
+    /// Draws `value`; `marked` is the end a drag holds or the keys picked, drawn selected.
     fn paint(
         &self,
         painter: &Painter,
@@ -364,7 +529,7 @@ impl<'a> GradientOverlay<'a> {
         view: &CanvasView,
         value: &LineGradient,
         selected: Option<StopRef>,
-        dragged: Option<LinePart>,
+        marked: Option<LinePart>,
     ) {
         let (start, end) = (view.to_screen(value.line.start), view.to_screen(value.line.end));
         let stops = &value.stops;
@@ -379,7 +544,7 @@ impl<'a> GradientOverlay<'a> {
             }
         }
         for (p, part) in [(start, LinePart::Start), (end, LinePart::End)] {
-            let ring = if dragged == Some(part) { Stroke::new(style.end.width, style.selected) } else { style.end };
+            let ring = if marked == Some(part) { Stroke::new(style.end.width, style.selected) } else { style.end };
             painter.add(Shape::circle_stroke(p, style.end_ring + (style.end.width + style.end_halo.width) / 2.0, style.end_halo_stroke()));
             painter.add(Shape::circle_stroke(p, style.end_ring, ring));
         }
@@ -454,6 +619,14 @@ impl GradientLineStyle {
         Stroke::new(self.end.width + 2.0 * self.end_halo.width, self.end_halo.color)
     }
 }
+
+/// The keys a focused overlay keeps from the app's shortcuts.
+const CLAIMED: [ClaimedKey; 4] = [
+    ClaimedKey::exact(Modifiers::NONE, Key::Delete),
+    ClaimedKey::exact(Modifiers::NONE, Key::Backspace),
+    ClaimedKey::exact(Modifiers::NONE, Key::Insert),
+    ClaimedKey::exact(Modifiers::COMMAND, Key::Enter),
+];
 
 const SELECTED: &str = "craft_ui::canvas::GradientOverlay::selected";
 

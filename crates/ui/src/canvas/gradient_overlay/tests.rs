@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, PointerButton, Pos2, Sense, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Point;
 
 use super::story::{LineHost, english_names};
@@ -19,7 +20,7 @@ use craft_theme::Srgba;
 const LINE: GradientLine = GradientLine { start: Point::new(100.0, 150.0), end: Point::new(300.0, 150.0) };
 
 /// Four stops at 0, 0.3, 0.6 and 1; the second carries tag 7. Midpoints at 0.15, 0.45 and 0.8.
-fn gradient() -> LineGradient {
+pub(super) fn gradient() -> LineGradient {
     let color = vec![
         ColorStop::new(0.0, Srgba::rgb(0.0, 0.0, 1.0)),
         ColorStop { tag: 7, ..ColorStop::new(0.3, Srgba::rgb(1.0, 1.0, 0.0)) },
@@ -43,6 +44,10 @@ struct Host {
     color_requested: Vec<usize>,
     context: Option<LinePart>,
     hovered: Option<LinePart>,
+    picked: Option<LinePart>,
+    editable: bool,
+    units: bool,
+    value_text: Option<String>,
     claimed: bool,
     cursors: Vec<LineCursor>,
     guides: Option<GuideHost>,
@@ -63,6 +68,10 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
         color_requested: Vec::new(),
         context: None,
         hovered: None,
+        picked: None,
+        editable: true,
+        units: false,
+        value_text: None,
         claimed: false,
         cursors: Vec::new(),
         guides: None,
@@ -79,7 +88,16 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
             host.view = Some(view);
             let value = host.host.value.clone();
             let seen = RefCell::new(Vec::new());
-            let r = GradientOverlay::new("gradient", &value.line, &value.stops, english_names())
+            let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+            let mut overlay = GradientOverlay::new("gradient", &value.line, &value.stops, english_names());
+            if host.units {
+                overlay = overlay.units(&px, &px);
+            }
+            if let Some(text) = &host.value_text {
+                overlay = overlay.value(text);
+            }
+            let r = overlay
+                .editable(host.editable)
                 .rules(host.rules.clone())
                 .reverse(host.reverse)
                 .alt_copies(host.alt_copies)
@@ -95,7 +113,7 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
             host.events.extend(r.event.clone());
             host.color_requested.extend(r.color_requested.map(|(i, _)| i));
             host.context = r.context.or(host.context);
-            (host.id, host.hovered, host.claimed) = (Some(r.id), r.hovered, r.claimed);
+            (host.id, host.hovered, host.claimed, host.picked) = (Some(r.id), r.hovered, r.claimed, r.picked);
             if let Some(guides) = &mut host.guides {
                 let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
                 let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
@@ -138,7 +156,7 @@ fn selected(h: &Harness<'_, Host>) -> Option<StopRef> {
     GradientOverlay::selected(&h.ctx, h.state().id.expect("drawn"))
 }
 
-fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
+pub(super) fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
     Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers }
 }
 
@@ -179,7 +197,7 @@ fn frame(h: &mut Harness<'_, Host>, events: impl IntoIterator<Item = Event>) {
 }
 
 /// The events' kinds without the updates.
-fn kinds(events: &[EditEvent<LineGradient>]) -> Vec<&'static str> {
+pub(super) fn kinds(events: &[EditEvent<LineGradient>]) -> Vec<&'static str> {
     events
         .iter()
         .filter_map(|e| match e {
@@ -468,13 +486,13 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
 }
 
 /// A document whose undo history holds whole snapshots.
-struct History {
-    now: LineGradient,
-    undo: Vec<LineGradient>,
+pub(super) struct History {
+    pub(super) now: LineGradient,
+    pub(super) undo: Vec<LineGradient>,
 }
 
 impl History {
-    fn apply(&mut self, value: LineGradient) {
+    pub(super) fn apply(&mut self, value: LineGradient) {
         self.undo.push(self.now.clone());
         self.now = value;
     }
@@ -560,4 +578,357 @@ fn a_drag_the_host_ended_for_another_controls_set_goes_on_from_the_hosts_value()
     assert_eq!(begins.len(), 2, "a gesture of its own: {:?}", kinds(&h.state().4));
     assert_ne!(begins[0], begins[1]);
     assert!(matches!(h.state().4.last(), Some(EditEvent::Commit { .. })));
+}
+
+fn click(h: &mut Harness<'_, Host>, at: Pos2) {
+    press(h, at);
+    release(h, at);
+}
+
+fn key(h: &mut Harness<'_, Host>, modifiers: Modifiers, key: Key) {
+    h.key_press_modifiers(modifiers, key);
+    h.run();
+}
+
+fn picked(h: &Harness<'_, Host>) -> Option<LinePart> {
+    h.state().picked
+}
+
+/// Tab into the group, then Home and Page Down to `want`.
+fn pick(h: &mut Harness<'_, Host>, want: LinePart) {
+    if !h.ctx.memory(|m| m.has_focus(h.state().id.expect("drawn"))) {
+        key(h, Modifiers::NONE, Key::Tab);
+    }
+    key(h, Modifiers::NONE, Key::Home);
+    for _ in 0..12 {
+        if picked(h) == Some(want) {
+            break;
+        }
+        key(h, Modifiers::NONE, Key::PageDown);
+    }
+    assert_eq!(picked(h), Some(want));
+    h.state_mut().events.clear();
+}
+
+fn near(a: f32, b: f32) -> bool {
+    (a - b).abs() < 1e-4
+}
+
+#[test]
+fn the_page_keys_pick_the_line_the_start_the_stops_and_midpoints_by_location_then_the_end() {
+    let mut h = harness(|_| {});
+    h.run();
+    key(&mut h, Modifiers::NONE, Key::Tab);
+    assert_eq!(picked(&h), Some(LinePart::Line), "gaining focus picks the first part");
+    let order = [
+        LinePart::Start,
+        LinePart::Stop(0),
+        LinePart::Midpoint(0),
+        LinePart::Stop(1),
+        LinePart::Midpoint(1),
+        LinePart::Stop(2),
+        LinePart::Midpoint(2),
+        LinePart::Stop(3),
+        LinePart::End,
+    ];
+    let mut selected_then = selected(&h);
+    for part in order {
+        key(&mut h, Modifiers::NONE, Key::PageDown);
+        assert_eq!(picked(&h), Some(part));
+        selected_then = match part {
+            LinePart::Stop(i) => Some(StopRef::Color(i)),
+            LinePart::Midpoint(i) => Some(StopRef::Midpoint(StopRow::Color, i)),
+            _ => selected_then,
+        };
+        assert_eq!(selected(&h), selected_then, "{part:?}: picking a stop or midpoint selects it, a handle keeps the selection");
+    }
+    key(&mut h, Modifiers::NONE, Key::PageDown);
+    assert_eq!(picked(&h), Some(LinePart::End), "the end is last");
+    key(&mut h, Modifiers::NONE, Key::PageUp);
+    assert_eq!(picked(&h), Some(LinePart::Stop(3)));
+    assert!(h.state().events.is_empty(), "picking edits nothing");
+}
+
+#[test]
+fn left_and_right_move_a_stop_or_midpoint_by_one_percent_and_ten_with_shift_whichever_way_the_line_runs() {
+    for reverse in [false, true] {
+        let mut h = harness(|host| host.reverse = reverse);
+        h.run();
+        pick(&mut h, LinePart::Stop(1));
+        key(&mut h, Modifiers::NONE, Key::ArrowRight);
+        assert!(near(locations(&h)[1], 0.31), "reverse {reverse}: {:?}", locations(&h));
+        key(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+        assert!(near(locations(&h)[1], 0.21), "Left lowers the location, reverse {reverse}: {:?}", locations(&h));
+        assert_eq!(value(&h).stops.color[1].tag, 7, "the stop is the one moved");
+        assert_eq!(kinds(&h.state().events), ["set", "set"]);
+
+        h.state_mut().events.clear();
+        for (modifiers, k) in [
+            (Modifiers::NONE, Key::ArrowUp),
+            (Modifiers::NONE, Key::ArrowDown),
+            (Modifiers::ALT, Key::ArrowRight),
+            (Modifiers::COMMAND, Key::ArrowLeft),
+        ] {
+            key(&mut h, modifiers, k);
+        }
+        assert!(h.state().events.is_empty(), "Up, Down and the Alt and Cmd arrows are the host's");
+
+        pick(&mut h, LinePart::Midpoint(0));
+        key(&mut h, Modifiers::NONE, Key::ArrowRight);
+        assert!(near(value(&h).stops.color[0].midpoint, 0.51));
+        key(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+        assert!(near(value(&h).stops.color[0].midpoint, 0.41));
+        for _ in 0..6 {
+            key(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+        }
+        assert!(near(value(&h).stops.color[0].midpoint, 0.05), "a midpoint stays in its range");
+    }
+}
+
+#[test]
+fn a_stop_moved_past_its_neighbour_by_the_keys_stays_picked_and_selected() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Stop(1));
+    for _ in 0..40 {
+        key(&mut h, Modifiers::NONE, Key::ArrowRight);
+    }
+    assert!(near(locations(&h)[2], 0.7), "{:?}", locations(&h));
+    assert_eq!(value(&h).stops.color[2].tag, 7);
+    assert_eq!(picked(&h), Some(LinePart::Stop(2)));
+    assert_eq!(selected(&h), Some(StopRef::Color(2)));
+}
+
+#[test]
+fn the_arrows_move_an_end_or_the_line_in_document_units() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::End);
+    key(&mut h, Modifiers::NONE, Key::ArrowRight);
+    key(&mut h, Modifiers::SHIFT, Key::ArrowDown);
+    assert_eq!((value(&h).line.start, value(&h).line.end), (LINE.start, Point::new(301.0, 160.0)));
+    pick(&mut h, LinePart::Start);
+    key(&mut h, Modifiers::NONE, Key::ArrowLeft);
+    assert_eq!(value(&h).line.start, Point::new(99.0, 150.0));
+    pick(&mut h, LinePart::Line);
+    key(&mut h, Modifiers::SHIFT, Key::ArrowUp);
+    assert_eq!((value(&h).line.start, value(&h).line.end), (Point::new(99.0, 140.0), Point::new(301.0, 150.0)));
+    assert_eq!(kinds(&h.state().events), ["set"]);
+    assert_eq!(value(&h).stops, gradient().stops, "the stops stay");
+}
+
+#[test]
+fn delete_and_backspace_remove_a_stop_and_pick_the_one_that_takes_its_index_but_not_below_the_minimum() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Stop(1));
+    key(&mut h, Modifiers::NONE, Key::Delete);
+    assert_eq!(locations(&h), [0.0, 0.6, 1.0]);
+    assert_eq!((picked(&h), selected(&h)), (Some(LinePart::Stop(1)), Some(StopRef::Color(1))));
+    key(&mut h, Modifiers::NONE, Key::Backspace);
+    assert_eq!(locations(&h), [0.0, 1.0]);
+    assert_eq!(kinds(&h.state().events), ["set", "set"]);
+    h.state_mut().events.clear();
+    key(&mut h, Modifiers::NONE, Key::Delete);
+    assert_eq!(locations(&h), [0.0, 1.0], "the row keeps its minimum");
+    assert!(h.state().events.is_empty());
+
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Midpoint(1));
+    key(&mut h, Modifiers::NONE, Key::Delete);
+    assert!(h.state().events.is_empty(), "Delete acts on a stop, not a midpoint");
+}
+
+#[test]
+fn insert_and_cmd_enter_add_a_stop_halfway_after_the_picked_one_and_pick_it() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Stop(1));
+    key(&mut h, Modifiers::NONE, Key::Insert);
+    assert!(near(locations(&h)[2], 0.45), "{:?}", locations(&h));
+    assert_eq!((picked(&h), selected(&h)), (Some(LinePart::Stop(2)), Some(StopRef::Color(2))));
+    key(&mut h, Modifiers::COMMAND, Key::Enter);
+    assert!(near(locations(&h)[3], 0.525), "{:?}", locations(&h));
+    assert_eq!(picked(&h), Some(LinePart::Stop(3)));
+    assert_eq!(kinds(&h.state().events), ["set", "set"]);
+
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Line);
+    key(&mut h, Modifiers::NONE, Key::Insert);
+    assert!(near(locations(&h)[3], 0.8), "with nothing picked, across the widest gap: {:?}", locations(&h));
+    let colored = value(&h).stops.color[3].color;
+    assert_eq!(colored, Srgba { a: 1.0, ..sample(&gradient().stops, StopRows::Split, 0.8) });
+}
+
+#[test]
+fn enter_and_space_on_a_colour_stop_or_an_end_ask_for_the_colour() {
+    let mut h = harness(|_| {});
+    h.run();
+    pick(&mut h, LinePart::Stop(2));
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    key(&mut h, Modifiers::NONE, Key::Space);
+    pick(&mut h, LinePart::End);
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    pick(&mut h, LinePart::Start);
+    key(&mut h, Modifiers::NONE, Key::Space);
+    pick(&mut h, LinePart::Midpoint(0));
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    pick(&mut h, LinePart::Line);
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(h.state().color_requested, [2, 2, 3, 0], "a stop, an end (the stop there), not a midpoint or the line");
+    assert!(h.state().events.is_empty());
+
+    let mut h = harness(|host| host.reverse = true);
+    h.run();
+    pick(&mut h, LinePart::Start);
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(h.state().color_requested, [3], "reversed, the start is the last stop");
+}
+
+#[test]
+fn the_release_of_a_drag_gives_the_group_the_keys() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    drag(&mut h, s.t(0.3), s.t(0.5), Modifiers::NONE);
+    assert_eq!(picked(&h), Some(LinePart::Stop(1)));
+    assert!(near(locations(&h)[1], 0.5));
+    key(&mut h, Modifiers::NONE, Key::ArrowRight);
+    assert!(near(locations(&h)[1], 0.51), "the key acts on the dragged stop: {:?}", locations(&h));
+
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let end = s.t(1.0);
+    drag(&mut h, end, end + vec2(0.0, 30.0), Modifiers::NONE);
+    key(&mut h, Modifiers::NONE, Key::ArrowDown);
+    assert_eq!(value(&h).line.end, Point::new(300.0, 181.0));
+}
+
+/// The stroked shapes of the last frame in `color`.
+fn painted(h: &Harness<'_, Host>, color: egui::Color32) -> Vec<egui::Shape> {
+    fn collect(shape: &egui::Shape, color: egui::Color32, out: &mut Vec<egui::Shape>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, color, out)),
+            egui::Shape::LineSegment { stroke, .. } if stroke.color == color => out.push(shape.clone()),
+            egui::Shape::Rect(r) if r.stroke.color == color && r.stroke.width > 0.0 => out.push(shape.clone()),
+            egui::Shape::Circle(c) if c.stroke.color == color && c.stroke.width > 0.0 => out.push(shape.clone()),
+            egui::Shape::Path(p) if p.stroke.color == egui::epaint::ColorMode::Solid(color) && p.stroke.width > 0.0 => out.push(shape.clone()),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    h.output().shapes.iter().for_each(|c| collect(&c.shape, color, &mut out));
+    out
+}
+
+fn style(h: &Harness<'_, Host>) -> super::GradientLineStyle {
+    GradientOverlay::style(&crate::theme::current(&h.ctx))
+}
+
+#[test]
+fn the_focus_marks_show_after_keyboard_input_only() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let focus = style(&h).focus.color;
+    click(&mut h, s.t(0.3));
+    assert!(painted(&h, focus).is_empty(), "no ring after the pointer");
+    key(&mut h, Modifiers::NONE, Key::PageDown);
+    assert_eq!(picked(&h), Some(LinePart::Midpoint(1)));
+    assert_eq!(painted(&h, focus).len(), 1, "a ring round the picked diamond");
+    key(&mut h, Modifiers::NONE, Key::Home);
+    assert_eq!(painted(&h, focus).len(), 2, "two focus lines beside the picked line");
+    key(&mut h, Modifiers::NONE, Key::PageDown);
+    assert_eq!(painted(&h, focus).len(), 1, "a ring round the start handle");
+}
+
+#[test]
+fn a_picked_end_is_drawn_selected() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let selected_color = style(&h).selected;
+    let at_end =
+        |h: &Harness<'_, Host>| painted(h, selected_color).iter().any(|shape| matches!(shape, egui::Shape::Circle(c) if c.center == s.t(1.0)));
+    assert!(!at_end(&h));
+    click(&mut h, s.t(1.0));
+    assert_eq!(picked(&h), Some(LinePart::End));
+    assert!(at_end(&h), "the end the press picked is selected");
+    click(&mut h, s.t(0.3));
+    assert!(!at_end(&h), "picking a stop clears it");
+}
+
+fn descendants(node: egui_kittest::kittest::AccessKitNode<'_>) -> Vec<egui_kittest::kittest::AccessKitNode<'_>> {
+    node.children().flat_map(|child| std::iter::once(child).chain(descendants(child))).collect()
+}
+
+/// The group's graphics objects: name, value and `selected`.
+fn objects(h: &Harness<'_, Host>) -> Vec<(String, String, bool)> {
+    let group = h.get_by_label("Gradient");
+    descendants(group.accesskit_node())
+        .into_iter()
+        .filter(|n| n.role() == egui::accesskit::Role::GraphicsObject)
+        .map(|n| (n.label().unwrap_or_default(), n.value().unwrap_or_default(), n.data().is_selected() == Some(true)))
+        .collect()
+}
+
+#[test]
+fn the_group_and_parts_are_named_and_valued_as_the_bar_reads_them() {
+    let mut h = harness(|host| host.units = true);
+    h.run();
+    GradientOverlay::select(&h.ctx, h.state().id.expect("drawn"), Some(StopRef::Color(1)));
+    h.run();
+    let group = h.get_by_label("Gradient");
+    assert_eq!(group.accesskit_node().role(), egui::accesskit::Role::Group);
+    assert_eq!(group.accesskit_node().value().as_deref(), Some("4 stops"));
+    let want = [
+        ("Gradient line", "4 stops", false),
+        ("Start point", "100.0 px, 150.0 px", false),
+        ("Color stop 1 of 4", "0%, #0000FF", false),
+        ("Midpoint 1", "50%", false),
+        ("Color stop 2 of 4", "30%, #FFFF00", true),
+        ("Midpoint 2", "50%", false),
+        ("Color stop 3 of 4", "60%, #FF0000", false),
+        ("Midpoint 3", "50%", false),
+        ("Color stop 4 of 4", "100%, #FFFFFF", false),
+        ("End point", "300.0 px, 150.0 px", false),
+    ];
+    let want: Vec<_> = want.iter().map(|(n, v, s)| (n.to_string(), v.to_string(), *s)).collect();
+    assert_eq!(objects(&h), want);
+
+    key(&mut h, Modifiers::NONE, Key::Tab);
+    key(&mut h, Modifiers::NONE, Key::End);
+    let group = h.get_by_label("Gradient");
+    assert_eq!(group.accesskit_node().active_descendant().and_then(|n| n.label()).as_deref(), Some("End point"));
+}
+
+#[test]
+fn the_group_value_and_the_end_values_are_the_hosts_and_the_ends_have_none_without_units() {
+    let mut h = harness(|host| host.value_text = Some("Radial, 4 stops".into()));
+    h.run();
+    let group = h.get_by_label("Gradient");
+    assert_eq!(group.accesskit_node().value().as_deref(), Some("Radial, 4 stops"));
+    let o = objects(&h);
+    assert_eq!((o[0].1.as_str(), o[1].1.as_str(), o[9].1.as_str()), ("Radial, 4 stops", "", ""));
+}
+
+#[test]
+fn a_not_editable_overlay_has_its_parts_but_no_tab_stop_and_no_selection() {
+    let mut h = harness(|host| host.editable = false);
+    h.run();
+    GradientOverlay::select(&h.ctx, h.state().id.expect("drawn"), Some(StopRef::Color(1)));
+    h.run();
+    let o = objects(&h);
+    assert_eq!(o.len(), 10);
+    assert!(o.iter().all(|(_, _, selected)| !selected));
+    let group = h.get_by_label("Gradient");
+    assert!(!group.accesskit_node().data().supports_action(egui::accesskit::Action::Focus), "no Tab stop");
+    key(&mut h, Modifiers::NONE, Key::Tab);
+    key(&mut h, Modifiers::NONE, Key::PageDown);
+    key(&mut h, Modifiers::NONE, Key::Insert);
+    assert_eq!(picked(&h), None);
+    assert!(h.state().events.is_empty(), "the keys do nothing");
 }
