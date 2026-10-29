@@ -683,6 +683,53 @@ fn modifiers_override_replaces_the_input_modifiers_in_each_overlay() {
     }
 }
 
+/// PC `pointer`: ⌥ on a press inside or outside the box (away from the handles) puts the
+/// reference point there and drags it, so the box itself stays.
+#[test]
+fn alt_beyond_the_box_places_the_reference_point_there_and_drags_it() {
+    let far = Point::new(340.0, 260.0);
+    let mut h = harness(|_| {});
+    h.run();
+    let start = state(&h);
+    let at = screen(&h, far);
+    drag(&mut h, at, at + vec2(-20.0, 10.0), Modifiers::ALT);
+    let got = state(&h);
+    assert_eq!(got.quad, start.quad, "the box doesn't turn");
+    let want = view(&h).to_doc(at + vec2(-20.0, 10.0));
+    assert!(got.pivot.distance(want) < 1e-3, "the reference point follows the pointer: {:?} vs {want:?}", got.pivot);
+    assert_eq!(h.state().applied, 0);
+
+    // A press without a drag only places it.
+    let mut h = harness(|_| {});
+    h.run();
+    drag(&mut h, at, at, Modifiers::ALT);
+    assert!(state(&h).pivot.distance(view(&h).to_doc(at)) < 1e-3, "{:?}", state(&h).pivot);
+    assert_eq!(h.state().applied, 0, "no apply");
+}
+
+#[test]
+fn the_rotate_zone_beyond_the_corners_turns_about_the_reference_point_and_shift_snaps_the_turn() {
+    let mut h = harness(|_| {});
+    h.run();
+    let start = state(&h);
+    // Far outside a corner, on the diagonal.
+    let from = screen(&h, Point::new(380.0, 290.0));
+    let to = from + vec2(-60.0, 50.0);
+    drag(&mut h, from, to, Modifiers::NONE);
+    let free = state(&h);
+    assert_eq!(free.pivot, start.pivot, "turning keeps the reference point");
+    assert!(free.angle().abs() > 1.0);
+    // The turn is the pointer's angle about the pivot, with the corners rigid.
+    assert!((free.quad[0].distance(free.quad[1]) - start.quad[0].distance(start.quad[1])).abs() < 1e-6);
+
+    let mut h = harness(|_| {});
+    h.run();
+    drag(&mut h, from, to, Modifiers::SHIFT);
+    let snapped = state(&h).angle();
+    assert!((snapped / 15.0 - (snapped / 15.0).round()).abs() < 1e-6, "{snapped}");
+    assert!((snapped - free.angle()).abs() <= 7.5 + 1e-6, "{snapped} vs {}", free.angle());
+}
+
 /// Presses the bottom-right corner and moves in 30 steps to `by` away, the host feeding each
 /// emitted box back as `state`.
 fn grid_drag(h: &mut Harness<'_, Host>, steps: u8, by: egui::Vec2) -> (BoxState, Pos2, Pos2) {
