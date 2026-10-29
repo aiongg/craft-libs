@@ -134,6 +134,8 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
     setup(&mut host);
     Harness::<Host>::builder()
         .with_size([900.0, 200.0])
+        // A press that waits for a typing run repaints until it runs.
+        .with_max_steps(8)
         .with_context_setup(move |ctx: &Context| {
             install(ctx, &Base::suite_default());
             direction::apply(ctx, dir);
@@ -242,29 +244,34 @@ fn a_cancelled_skew_scrub_restores_the_host_s_skew() {
     assert_eq!(h.state().state, BoxState::from_rect(RECT));
 }
 
-/// A scrub on W while X's typing run is open joins the run's gesture: the host sees one gesture,
-/// and its commit carries both.
+/// A scrub on another field while a typing run is open waits for the run: the run commits
+/// first, and the scrub is a gesture of its own from the box the run left. The angle's scrub
+/// changes what W reads, so W's run would otherwise end as moved by something else.
 #[test]
-fn a_scrub_during_another_field_s_typing_run_joins_its_gesture() {
+fn a_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
     let mut h = harness(Direction::Ltr);
     h.run();
-    let x = centre(&h, "X position");
-    h.event(Event::PointerMoved(x));
-    h.event(button(x, true));
-    h.event(button(x, false));
+    let w = centre(&h, "Width");
+    h.event(Event::PointerMoved(w));
+    h.event(button(w, true));
+    h.event(button(w, false));
     h.run();
-    h.event(Event::Text("5".into()));
+    h.event(Event::Text("120".into()));
     h.run();
-    let at = scrub(&mut h, "Width", 2.0, 5);
+    let at = scrub(&mut h, "Angle", 3.0, 7);
     release(&mut h, at);
-    h.key_press(Key::Enter);
-    h.run();
     let kinds = h.state().kinds();
-    assert_eq!(kinds.iter().filter(|k| **k == "Begin").count(), 1, "{kinds:?}");
+    let run = kinds.iter().position(|k| *k == "Commit").expect("the run commits");
+    assert!(kinds[0] == "Begin" && kinds[1..run].iter().all(|k| *k == "Update"), "{kinds:?}");
+    let Some(EditEvent::Commit { value, .. }) = h.state().events.get(run) else { panic!("{kinds:?}") };
+    let c = conversion(true);
+    assert!((c.shown(value, 0.0, Field::W) - 120.0).abs() < 1e-6 && c.shown(value, 0.0, Field::Angle).abs() < 1e-6, "the run's commit: {value:?}");
+    assert_eq!(kinds[run + 1], "Begin", "{kinds:?}");
     assert_eq!(kinds.last(), Some(&"Commit"), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
-    assert!((h.state().state.pivot.x - 5.0).abs() < 1e-9, "{:?}", h.state().state);
-    assert!((shown(&h, Field::W) - 110.0).abs() < 1e-6, "{}", shown(&h, Field::W));
+    assert_eq!(kinds.iter().filter(|k| **k == "Begin").count(), 2, "{kinds:?}");
+    assert!((shown(&h, Field::W) - 120.0).abs() < 1e-6, "{}", shown(&h, Field::W));
+    assert!(shown(&h, Field::Angle) > 1.0, "the scrub turned the box: {}", shown(&h, Field::Angle));
 }
 
 /// Two fields reporting in one frame (an arrow in the focused field while a screen reader steps

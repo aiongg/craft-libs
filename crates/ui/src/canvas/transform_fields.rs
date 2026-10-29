@@ -250,7 +250,9 @@ const FIELDS: usize = 7;
 /// - **One gesture.** The row is one edit of the box, as a colour picker is of its colour: the
 ///   field whose gesture (a scrub, a typing run) begins it owns it, and its Commit or Cancel ends
 ///   it; the other fields' values in the meantime join it, and an arrow step outside a gesture is
-///   a Set. Every field's event in a frame counts, each from the box the ones before it left.
+///   a Set. A press on a field while another field's typing run is open waits for the run: the
+///   run commits first, and the press begins a gesture of its own from the box the run left.
+///   Every field's event in a frame counts, each from the box the ones before it left.
 ///   While the box is the one a field's value gave, the field reads that value back, so a
 ///   scrub or a capped linked size isn't taken for the box moving under it.
 /// - **V skew.** The V field is the host's `skew_v` ([`skew_v`](Self::skew_v)): the box does not
@@ -370,6 +372,9 @@ impl<'a> TransformFields<'a> {
             }
         }
         let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
+        // A press on a field waits while another field's typing run has the focus: the run's
+        // event goes out first, and the press edits the box it leaves.
+        let waits = edit::focused_gesture(ui.ctx()).is_some();
 
         let tokens = Tokens::of(ui);
         let row_style = PropertyRow::style(&tokens, size);
@@ -398,6 +403,7 @@ impl<'a> TransformFields<'a> {
                 .decimals(0..=decimals)
                 .unit(unit)
                 .policy(inner)
+                .press_waits(waits)
                 .size(size)
                 .enabled(enabled)
                 .show(ui)
