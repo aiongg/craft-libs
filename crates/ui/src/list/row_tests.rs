@@ -695,6 +695,7 @@ fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft
             shapes.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.layer_outline && r.stroke.width == 1.0 && r.stroke_kind == egui::StrokeKind::Inside))
         };
         assert_eq!(row_outline(&selected), outlined, "{id}");
+        assert_eq!(shapes_radius(&selected), corner_radius(s.layer_radius), "{id}: the fill and outline radius");
         assert!(!row_outline(&plain), "{id}: a plain row has no outline");
         assert_eq!(s.layer_outline != egui::Color32::TRANSPARENT, outlined, "{id}");
         let frame = selected.iter().find_map(|s2| match s2 {
@@ -705,4 +706,8 @@ fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft
         let text = label_colors(&selected);
         assert_eq!(text.first(), Some(&s.layer_selected_text), "{id}");
     }
+}
+
+fn shapes_radius(shapes: &[Shape]) -> egui::CornerRadius {
+    shapes.iter().find_map(|s| if let Shape::Rect(r) = s { Some(r.corner_radius) } else { None }).unwrap_or_default()
 }

@@ -646,7 +646,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             // layer form's hover, selected fill, outline and the three selected texts.
             + 1
             + 1
-            + 6
+            + 7
             // Segmented: a colour per part and state of plain and selected pills, and the selected pill's outline per state.
             + 2 * 2 * 4
             + 4

@@ -575,6 +575,7 @@ list.trailing_pad = 12
 list.radius = 6
 list.dividers = false
 list.thumb.radius = 0
+list.layer.radius = 6
 list.drop_width = 2
 list.drop_halo_width = 1
 list.label = body

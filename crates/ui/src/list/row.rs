@@ -192,6 +192,8 @@ pub struct ListRowStyle {
     pub layer_hover: Color32,
     pub layer_selected: Color32,
     pub layer_outline: Color32,
+    /// `list.layer.radius`: the corners of the layer form's fills and outline.
+    pub layer_radius: f32,
     /// `list.layer.text.selected`, `list.layer.text.selected.dimmed` and
     /// `list.layer.detail.selected`.
     pub layer_selected_text: Color32,
@@ -510,6 +512,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             layer_hover: l.layer_hover.to_egui(),
             layer_selected: l.layer_selected.to_egui(),
             layer_outline: l.layer_outline.to_egui(),
+            layer_radius: l.layer_radius,
             layer_selected_text: l.layer_selected_text.to_egui(),
             layer_selected_dimmed: l.layer_selected_dimmed.to_egui(),
             layer_selected_detail: l.layer_selected_detail.to_egui(),
@@ -734,7 +737,7 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
         (false, false, _) => Color32::TRANSPARENT,
     };
     let painter = ui.painter();
-    let radius = corner_radius(style.radius);
+    let radius = corner_radius(if layer { style.layer_radius } else { style.radius });
     if fill != Color32::TRANSPARENT {
         painter.rect_filled(rect, radius, fill);
     }

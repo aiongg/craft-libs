@@ -102,6 +102,9 @@ pub struct ListTokens {
     /// Behind the selected layer-form row, with or without the pointer: `list.selected`; the themes
     /// whose PhotoCraft kind is not a Pro kind pin `state.hover` with a `layer_outline`.
     pub layer_selected: Rgba,
+    /// Corner radius of the layer-form row's hover and selected fills and outline: `radius.popup`
+    /// (PhotoCraft's `t.radius`) where the theme gives the selected row an outline, else `radius`.
+    pub layer_radius: f32,
     /// An inside outline of the selected layer-form row, 1 pt: clear unless pinned
     /// (`line.control_edge` in the themes that pin `state.hover` as the fill).
     pub layer_outline: Rgba,
@@ -161,6 +164,9 @@ impl ListTokens {
     /// it pins none, the layer form takes the plain selected look as it is. Each stays as pinned
     /// where the theme pins it too.
     fn follow_layer(&mut self, color: &ColorTokens, high: bool, pinned: &impl Fn(ListField) -> bool) {
+        if !pinned(ListField::LayerRadius) && self.layer_outline.a() == 0 {
+            self.layer_radius = self.radius;
+        }
         if !pinned(ListField::LayerHover) {
             self.layer_hover = layer_hover(self.hover, color, high);
         }
@@ -193,7 +199,7 @@ impl ListTokens {
 
     fn color_mut(&mut self, f: ListField) -> Option<&mut Rgba> {
         Some(match f {
-            ListField::Radius | ListField::ThumbRadius => return None,
+            ListField::Radius | ListField::ThumbRadius | ListField::LayerRadius => return None,
             ListField::Text => &mut self.text,
             ListField::Dimmed => &mut self.dimmed,
             ListField::SelectedText => &mut self.selected_text,
@@ -225,7 +231,7 @@ impl ListTokens {
 /// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`,
 /// `text.selected.dimmed`, `detail`, `detail.selected`, `icon`, `icon.hover`, `hover`,
 /// `selected`, `selected.hover`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
-/// `layer.hover`, `layer.selected`, `layer.outline`, `layer.text.selected`,
+/// `layer.hover`, `layer.selected`, `layer.outline`, `layer.radius`, `layer.text.selected`,
 /// `layer.text.selected.dimmed`, `layer.detail.selected`, `drop`, `drop.halo`, `ghost.fill`,
 /// `ghost.border`, e.g. `list.selected.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -268,6 +274,8 @@ pub enum ListField {
     LayerSelected,
     /// `list.layer.outline`
     LayerOutline,
+    /// `list.layer.radius`
+    LayerRadius,
     /// `list.layer.text.selected`
     LayerSelectedText,
     /// `list.layer.text.selected.dimmed`
@@ -306,6 +314,7 @@ impl ListField {
             ListField::LayerHover => "layer.hover",
             ListField::LayerSelected => "layer.selected",
             ListField::LayerOutline => "layer.outline",
+            ListField::LayerRadius => "layer.radius",
             ListField::LayerSelectedText => "layer.text.selected",
             ListField::LayerSelectedDimmed => "layer.text.selected.dimmed",
             ListField::LayerSelectedDetail => "layer.detail.selected",
@@ -339,6 +348,7 @@ impl Family for ListTokens {
         ListField::LayerHover,
         ListField::LayerSelected,
         ListField::LayerOutline,
+        ListField::LayerRadius,
         ListField::LayerSelectedText,
         ListField::LayerSelectedDimmed,
         ListField::LayerSelectedDetail,
@@ -389,6 +399,7 @@ impl Family for ListTokens {
             layer_hover: layer_hover(hover, c, s.high),
             layer_selected: selected,
             layer_outline: Rgba::TRANSPARENT,
+            layer_radius: s.shape.radius.popup,
             layer_selected_text: look.text,
             layer_selected_dimmed: look.quiet,
             layer_selected_detail: look.quiet,
@@ -409,7 +420,7 @@ impl Family for ListTokens {
 
     fn kind(f: ListField) -> FieldKind {
         match f {
-            ListField::Radius | ListField::ThumbRadius => FieldKind::Length,
+            ListField::Radius | ListField::ThumbRadius | ListField::LayerRadius => FieldKind::Length,
             _ => FieldKind::Color,
         }
     }
@@ -418,6 +429,7 @@ impl Family for ListTokens {
         match f {
             ListField::Radius => OverrideValue::Length(self.radius),
             ListField::ThumbRadius => OverrideValue::Length(self.thumb_radius),
+            ListField::LayerRadius => OverrideValue::Length(self.layer_radius),
             f => {
                 let mut copy = *self;
                 OverrideValue::Color(copy.color_mut(f).map_or(Rgba::TRANSPARENT, |c| *c))
@@ -429,6 +441,7 @@ impl Family for ListTokens {
         match (f, v) {
             (ListField::Radius, OverrideValue::Length(r)) => self.radius = r,
             (ListField::ThumbRadius, OverrideValue::Length(r)) => self.thumb_radius = r,
+            (ListField::LayerRadius, OverrideValue::Length(r)) => self.layer_radius = r,
             (f, OverrideValue::Color(c)) => {
                 if let Some(slot) = self.color_mut(f) {
                     *slot = c;

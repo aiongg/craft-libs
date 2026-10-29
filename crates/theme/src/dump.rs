@@ -581,6 +581,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         layer_hover,
         layer_selected,
         layer_outline,
+        layer_radius,
         layer_selected_text,
         layer_selected_dimmed,
         layer_selected_detail,
@@ -606,6 +607,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.radius", len(*radius));
     out.line("list.dividers", dividers);
     out.line("list.thumb.radius", len(*thumb_radius));
+    out.line("list.layer.radius", len(*layer_radius));
     out.line("list.drop_width", len(*drop_width));
     out.line("list.drop_halo_width", len(*drop_halo_width));
     out.line("list.label", role(*label));

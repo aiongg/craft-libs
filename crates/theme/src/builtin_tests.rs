@@ -891,9 +891,11 @@ fn accent_border_and_the_layer_row_follow_photocraft() {
             let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray", "craft.graphite"].contains(&id);
             if pro {
                 assert_eq!((list.layer_selected, list.layer_outline, list.thumb_radius), (list.selected, Rgba::TRANSPARENT, 0.0), "{who}");
+                assert_eq!(list.layer_radius, list.radius, "{who}");
             } else {
                 let hover = t.color(ColorToken::StateHover);
                 assert_eq!((list.layer_selected, list.layer_outline), (hover, t.color(ColorToken::LineControlEdge)), "{who}");
+                assert_eq!(list.layer_radius, t.shape.radius.popup, "{who}: PhotoCraft's t.radius");
                 assert_eq!((list.layer_selected_text, list.thumb_radius), (t.color(ColorToken::TextNormal), 5.0), "{who}");
             }
             // The hover is the plain one with the accent laid over it, so it differs from it.
