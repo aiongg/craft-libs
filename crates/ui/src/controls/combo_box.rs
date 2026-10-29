@@ -18,8 +18,8 @@ use crate::behavior::{ListOptions, Listbox, Typed, Typing, TypingLook, take_ente
 use crate::direction;
 use crate::edit::{self, CancelReason, EditPolicy, EditResponse, GestureId};
 use crate::popup_list::{self, PopupList};
-use crate::primitives::{Content, Gap, Row, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
+use crate::story::{Args, Level, Story, variant_row};
 use crate::theme::{Tokens, TokensOf, margin_x};
 
 /// A line of text with a list of suggestions:
@@ -617,14 +617,6 @@ const FONT_SIZES: [&str; 16] =
 
 const FONTS: [&str; 8] = ["Baskerville", "Bodoni", "Caslon", "Futura", "Garamond", "Gill Sans", "Helvetica", "Optima"];
 
-/// `label` at the reading start of a row, then the control.
-fn row(ui: &mut Ui, label: &str, control: impl FnOnce(&mut Ui)) {
-    Row::new(Gap::Inline).show(ui, |ui| {
-        ui.add(Text::new(label).content(Content::Muted));
-        control(ui);
-    });
-}
-
 /// Empty with a placeholder, an option's text, free text, and disabled.
 fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
@@ -632,14 +624,18 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     super::slider::with_values(ui, "combo-box-states", initial, |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [empty, option, free, font] = values;
-            row(ui, "Empty", |ui| {
+            variant_row(ui, "Empty", |ui| {
                 empty.apply(ComboBox::new("combo-empty", "Font size", &empty.text).options(FONT_SIZES).placeholder("Size").size(size).show(ui))
             });
-            row(ui, "Option", |ui| option.apply(ComboBox::new("combo-option", "Font size", &option.text).options(FONT_SIZES).size(size).show(ui)));
-            row(ui, "Free text", |ui| free.apply(ComboBox::new("combo-free", "Font size", &free.text).options(FONT_SIZES).size(size).show(ui)));
-            row(ui, "Font", |ui| font.apply(ComboBox::new("combo-font", "Font", &font.text).options(FONTS).size(size).show(ui)));
-            row(ui, "Disabled", |ui| {
-                let _ = ComboBox::new("combo-disabled", "Locked size", "12 pt").options(FONT_SIZES).size(size).enabled(false).show(ui);
+            variant_row(ui, "Option", |ui| {
+                option.apply(ComboBox::new("combo-option", "Font size", &option.text).options(FONT_SIZES).size(size).show(ui))
+            });
+            variant_row(ui, "Free text", |ui| {
+                free.apply(ComboBox::new("combo-free", "Font size", &free.text).options(FONT_SIZES).size(size).show(ui))
+            });
+            variant_row(ui, "Font", |ui| font.apply(ComboBox::new("combo-font", "Font", &font.text).options(FONTS).size(size).show(ui)));
+            variant_row(ui, "Disabled", |ui| {
+                ComboBox::new("combo-disabled", "Locked size", "12 pt").options(FONT_SIZES).size(size).enabled(false).show(ui)
             });
         });
     });
@@ -663,14 +659,14 @@ fn show_font_size(ui: &mut Ui, args: &mut Args) {
     super::slider::with_values(ui, "combo-box-font-size", initial, |ui, values| {
         let state = &mut values[0];
         Stack::new(Gap::Stack).show(ui, |ui| {
-            row(ui, "Size", |ui| {
+            variant_row(ui, "Size", |ui| {
                 let edit =
                     ComboBox::new("combo-font-size", "Font size", &state.held.text).options(FONT_SIZES).placeholder("Size").size(size).show(ui);
                 if let Some(event) = &edit.event {
                     state.log.push_front(edit::describe(event));
                     state.log.truncate(LOG_LEN);
                 }
-                state.held.apply(edit);
+                state.held.apply(edit)
             });
             let points = state.held.text.trim_end_matches("pt").trim().parse::<f32>().ok().filter(|p| (1.0..=200.0).contains(p));
             match points {

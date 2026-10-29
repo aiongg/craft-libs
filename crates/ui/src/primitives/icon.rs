@@ -88,8 +88,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
     let content = Content::from_name(args.choice("content")).unwrap_or_default();
     super::Stack::new(super::Gap::Stack).show(ui, |ui| {
         for (size, name) in IconSize::ALL.into_iter().zip(["Sm", "Md", "Lg"]) {
-            super::Row::new(super::Gap::Inline).show(ui, |ui| {
-                ui.add(super::Text::new(name).role(craft_theme::TypeRole::Label).content(Content::Muted));
+            crate::story::variant_cluster(ui, name, |ui| {
                 for icon in SAMPLES {
                     ui.add(Icon::new(icon).size(size).content(content));
                 }

@@ -1152,9 +1152,11 @@ fn the_states_story_s_mixed_field_is_blank_again_after_esc_and_scrubs_while_mixe
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(move |ui, args: &mut Args| show(ui, args), (story.args)());
     harness.run();
-    let shown = |harness: &Harness<'_, Args>| harness.get_by_label("Size").accesskit_node().value().unwrap_or_default().to_owned();
+    let shown = |harness: &Harness<'_, Args>| {
+        harness.get_by_role_and_label(Role::SpinButton, "Mixed").accesskit_node().value().unwrap_or_default().to_owned()
+    };
     assert_eq!(shown(&harness), "", "mixed: blank");
-    harness.get_by_label("Size").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Mixed").focus();
     harness.run();
     harness.event(Event::Text("5".to_owned()));
     harness.run();
@@ -1163,7 +1165,7 @@ fn the_states_story_s_mixed_field_is_blank_again_after_esc_and_scrubs_while_mixe
     harness.run();
     assert_eq!(shown(&harness), "", "Esc puts the blank field back");
 
-    let from = harness.get_by_label("Size").rect().center();
+    let from = harness.get_by_role_and_label(Role::SpinButton, "Mixed").rect().center();
     harness.event(Event::PointerMoved(from));
     harness.event(pointer(from, true));
     harness.run();

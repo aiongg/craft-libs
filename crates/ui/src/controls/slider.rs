@@ -17,8 +17,8 @@ use super::{RangeSlider, SIZE_NAMES, Swatch, field_wheel, gradient_track, size_a
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
-use crate::primitives::{Content, Gap, Interactive, Row, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
+use crate::story::{Args, Level, Story, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, scale};
 
 /// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`](super::RangeSlider)
@@ -1050,21 +1050,23 @@ pub(crate) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
 }
 
 /// A one-shot or gesture value into the host, as a host without undo applies it.
-pub(crate) fn store<T: Clone>(edit: &EditResponse<T>, value: &mut T) {
+pub(crate) fn store<T: Clone>(edit: &EditResponse<T>, value: &mut T) -> Response {
     if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
         *value = v.clone();
     }
+    edit.response.clone()
 }
 
-/// A labelled row: the name at the reading start, then the control and its value. The control and
+/// A property row: the name in the label column, then the control and its value. The control and
 /// its value keep their geometry right to left.
-pub(super) fn labelled(ui: &mut Ui, label: &str, value: &str, control: impl FnOnce(&mut Ui)) {
-    Row::new(Gap::Inline).show(ui, |ui| {
-        ui.add(Text::new(label));
+pub(super) fn labelled(ui: &mut Ui, label: &str, value: &str, control: impl FnOnce(&mut Ui) -> Response) {
+    crate::story::variant_row(ui, label, |ui| {
         crate::direction::unmirrored_row(ui, crate::direction::Unmirrored::SliderValue, |ui| {
-            control(ui);
+            let response = control(ui);
             ui.add(Text::new(value).content(Content::Muted));
-        });
+            response
+        })
+        .inner
     });
 }
 
@@ -1080,14 +1082,14 @@ fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mu
         if let Some(step) = step {
             slider = slider.step(step);
         }
-        store(&more(slider).show(ui), value);
+        store(&more(slider).show(ui), value)
     });
 }
 
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
+        variant_list(ui, "slider-values", 100.0, |ui| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
             for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
                 let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
@@ -1100,19 +1102,19 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
             let [power, log, marked, triangle] = shaped else { return };
             labelled(ui, "Power 2", &format!("{power:.1}"), |ui| {
                 let slider = Slider::new("slider-power", "Power 2", *power, 0.0..=100.0).scale(SliderScale::Power(2.0));
-                store(&slider.size(size).enabled(enabled).show(ui), power);
+                store(&slider.size(size).enabled(enabled).show(ui), power)
             });
             labelled(ui, "Log", &format!("{log:.1}"), |ui| {
                 let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
-                store(&slider.size(size).enabled(enabled).show(ui), log);
+                store(&slider.size(size).enabled(enabled).show(ui), log)
             });
             labelled(ui, "Marks", &format!("{marked:.1}"), |ui| {
                 let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
-                store(&slider.size(size).enabled(enabled).show(ui), marked);
+                store(&slider.size(size).enabled(enabled).show(ui), marked)
             });
             labelled(ui, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
                 let slider = Slider::new("slider-triangle", "Triangle", *triangle, 0.0..=100.0).thumb(SliderThumb::Triangle).ticks(10);
-                store(&slider.size(size).enabled(enabled).show(ui), triangle);
+                store(&slider.size(size).enabled(enabled).show(ui), triangle)
             });
         });
     });
@@ -1135,7 +1137,7 @@ fn show_disabled(ui: &mut Ui, args: &mut Args) {
     Stack::new(Gap::Stack).show(ui, |ui| {
         for (i, value) in [0.0, 30.0, 100.0].into_iter().enumerate() {
             labelled(ui, &format!("Disabled {}", i + 1), &format!("{value:.1}"), |ui| {
-                let _ = Slider::new(("slider-disabled", i), format!("Disabled {}", i + 1), value, 0.0..=100.0).size(size).enabled(false).show(ui);
+                Slider::new(("slider-disabled", i), format!("Disabled {}", i + 1), value, 0.0..=100.0).size(size).enabled(false).show(ui).response
             });
         }
     });
@@ -1255,11 +1257,13 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
         labelled(ui, "Level", &format!("{level:.0}"), |ui| {
             let edit = Slider::new("slider-log-level", "Level", level, 0.0..=100.0).step(1.0).policy(policy).show(ui);
             state.handle(ui, "slider", edit.event, |doc, value| doc.edit(|d| d.level = value));
+            edit.response
         });
         let range = state.doc.range;
         labelled(ui, "Range", &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
             let edit = RangeSlider::new("slider-log-range", ("Range from", "Range to"), range, 0.0..=100.0).step(1.0).policy(policy).show(ui);
             state.handle(ui, "range slider", edit.event, |doc, value| doc.edit(|d| d.range = value));
+            edit.response
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             let line = format!("host: {}", edit::describe(&event));

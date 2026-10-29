@@ -11,8 +11,8 @@ use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sens
 use super::{SIZE_NAMES, Spinner, TooltipExt as _, icon_size, salt, size_arg};
 use crate::direction;
 use crate::icons::{self, Icon};
-use crate::primitives::{Corner, Interactive, Row, Stack, StateColors, StateLayer, SurfaceKind, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Corner, Interactive, StateColors, StateLayer, SurfaceKind, Text};
+use crate::story::{Args, Level, Story, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 
 /// A push button's sizes and colours, from [`Button::style`].
@@ -328,12 +328,11 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_variants(ui: &mut Ui, args: &mut Args) {
     let label = args.text("label").to_owned();
     let icon = icon_arg(args.choice("icon"));
-    Stack::new(crate::primitives::Gap::Stack).show(ui, |ui| {
+    variant_list(ui, "button-variants", 100.0, |ui| {
         for variant in ButtonVariant::ALL {
             for size in super::SIZES {
                 let size_name = super::size_name(size);
-                Row::new(crate::primitives::Gap::Inline).show(ui, |ui| {
-                    ui.add(Text::new(format!("{} {size_name}", variant.name())).content(crate::primitives::Content::Muted));
+                variant_cluster(ui, &format!("{} {size_name}", variant.name()), |ui| {
                     for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
                         let mut button = Button::new(label.as_str()).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
                             "button-variants",

@@ -314,3 +314,23 @@ pub fn request_pixels_per_point(ctx: &egui::Context, pixels_per_point: f32) {
 pub fn take_pixels_per_point_request(ctx: &egui::Context) -> Option<f32> {
     ctx.data_mut(|d| d.remove_temp::<f32>(pixels_per_point_key()))
 }
+
+/// A row of a story that lists labelled variants: `label` in the word column of a
+/// [`PropertyRow`](composites::PropertyRow), the control filling the rest.
+pub(crate) fn variant_row<C: composites::FieldControl>(ui: &mut egui::Ui, label: &str, control: impl FnOnce(&mut egui::Ui) -> C) {
+    composites::PropertyRow::word(label).show(ui, |ui, _| control(ui));
+}
+
+/// As [`variant_row`] for a row of several controls side by side.
+pub(crate) fn variant_cluster(ui: &mut egui::Ui, label: &str, controls: impl FnOnce(&mut egui::Ui)) {
+    variant_row(ui, label, |ui| {
+        use crate::primitives::{Gap, Row};
+        Row::new(Gap::Inline).show(ui, controls).response
+    });
+}
+
+/// A list of [`variant_row`]s whose label column is `word_width` wide, for labels longer than the
+/// default column.
+pub(crate) fn variant_list<R>(ui: &mut egui::Ui, id_salt: &str, word_width: f32, rows: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    composites::PropertyGroup::new(id_salt).word_width(word_width).show(ui, rows).inner
+}

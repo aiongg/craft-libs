@@ -16,8 +16,8 @@ use crate::behavior::{Escape, Typing, TypingLook};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::primitives::{Content, Gap, Row, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Content, Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
+use crate::story::{Args, Level, Story, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, margin_x};
 
 /// A text field's sizes and colours, from [`TextField::style`]; [`SearchField`] draws with the
@@ -629,7 +629,7 @@ impl Held {
         Self { text: text.to_owned(), start: text.to_owned() }
     }
 
-    pub(super) fn apply(&mut self, edit: EditResponse<String>) {
+    pub(super) fn apply(&mut self, edit: EditResponse<String>) -> egui::Response {
         match edit.event {
             Some(EditEvent::Begin { .. }) => self.start.clone_from(&self.text),
             Some(EditEvent::Cancel { reason, .. }) if reason != CancelReason::External => self.text.clone_from(&self.start),
@@ -640,15 +640,8 @@ impl Held {
             }
             None => {}
         }
+        edit.response
     }
-}
-
-/// `label` at the reading start of a row, then the control.
-fn row(ui: &mut Ui, label: &str, control: impl FnOnce(&mut Ui)) {
-    Row::new(Gap::Inline).show(ui, |ui| {
-        ui.add(Text::new(label).content(Content::Muted));
-        control(ui);
-    });
 }
 
 const STATE_ROWS: [(&str, &str); 6] = [
@@ -667,9 +660,9 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     let placeholder = args.text("placeholder").to_owned();
     let edit_menu = args.bool("edit menu");
     with_values(ui, "text-field-states", STATE_ROWS.map(|(_, text)| Held::new(text)), |ui, values| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
+        variant_list(ui, "text-field-states", 100.0, |ui| {
             for (i, ((name, _), held)) in STATE_ROWS.iter().zip(values.iter_mut()).enumerate() {
-                row(ui, name, |ui| {
+                variant_row(ui, name, |ui| {
                     let field = TextField::new(("text-field-state", i), *name, &held.text).placeholder(&placeholder).size(size).edit_menu(edit_menu);
                     let field = match i {
                         3 => field.invalid(true),
@@ -677,19 +670,19 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                         5 => field.leading(Icon::Layers),
                         _ => field,
                     };
-                    held.apply(field.show(ui));
+                    held.apply(field.show(ui))
                 });
             }
             with_values(ui, "text-field-multiline", [Held::new("Shot list\nGolden hour, wide\nDetail of the hands")], |ui, notes| {
-                row(ui, "Multiline", |ui| {
+                variant_row(ui, "Multiline", |ui| {
                     let field = TextField::new("text-field-multiline", "Notes", &notes[0].text).multiline(3).size(size).edit_menu(edit_menu);
-                    notes[0].apply(field.show(ui));
+                    notes[0].apply(field.show(ui))
                 });
             });
             for (i, text) in ["", "Locked layer"].into_iter().enumerate() {
                 let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
-                row(ui, name, |ui| {
-                    let _ = TextField::new(("text-field-disabled", i), name, text).placeholder(&placeholder).size(size).enabled(false).show(ui);
+                variant_row(ui, name, |ui| {
+                    TextField::new(("text-field-disabled", i), name, text).placeholder(&placeholder).size(size).enabled(false).show(ui).response
                 });
             }
         });
@@ -703,16 +696,17 @@ fn show_search_states(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "search-field-states", [Held::new(""), Held::new("brush")], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (i, (name, held)) in ["Empty", "With text"].into_iter().zip(values.iter_mut()).enumerate() {
-                row(ui, name, |ui| {
-                    held.apply(SearchField::new(("search-field-state", i), name, &held.text, "Clear").placeholder(&placeholder).size(size).show(ui));
+                variant_row(ui, name, |ui| {
+                    held.apply(SearchField::new(("search-field-state", i), name, &held.text, "Clear").placeholder(&placeholder).size(size).show(ui))
                 });
             }
-            row(ui, "Disabled", |ui| {
-                let _ = SearchField::new("search-field-disabled", "Disabled", "brush", "Clear")
+            variant_row(ui, "Disabled", |ui| {
+                SearchField::new("search-field-disabled", "Disabled", "brush", "Clear")
                     .placeholder(&placeholder)
                     .size(size)
                     .enabled(false)
-                    .show(ui);
+                    .show(ui)
+                    .response
             });
         });
     });
@@ -815,7 +809,7 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
     }
     Stack::new(Gap::Stack).show(ui, |ui| {
         let text = state.doc.text.clone();
-        row(ui, "Name", |ui| {
+        variant_row(ui, "Name", |ui| {
             let edit = TextField::new("text-field-log", "Name", &text).placeholder("Type, then Enter, Esc or Tab").policy(policy).show(ui);
             state.field = Some(edit.response.id);
             if edit.submitted {
@@ -831,6 +825,7 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
                     doc.text = value;
                 });
             }
+            edit.response
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             let line = format!("host: {}", edit::describe(&event));

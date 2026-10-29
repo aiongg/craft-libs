@@ -6,8 +6,8 @@ use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Ui, Widget, WidgetInfo, pos2, vec2};
 
 use crate::direction;
-use crate::primitives::{Content, Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};
+use crate::story::{Args, Level, Story, variant_cluster};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
 /// Seconds for the indeterminate segment to cross the track (PhotoCraft's `jobs_ui::bar`, 0.8 turns
@@ -204,15 +204,17 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
     let chosen = args.number("fraction") as f32;
     Stack::new(Gap::Stack).show(ui, |ui| {
         for (name, fraction) in [("Empty", 0.0), ("Chosen", chosen), ("Full", 1.0)] {
-            ui.add(Text::new(format!("{name}: {:.0}%", fraction * 100.0)).content(Content::Muted));
-            ui.add(Progress::new(fraction).label(name));
+            variant_cluster(ui, &format!("{:.0}%", fraction * 100.0), |ui| {
+                ui.add(Progress::new(fraction).label(name));
+            });
         }
     });
 }
 
 fn show_indeterminate(ui: &mut Ui, _: &mut Args) {
     Stack::new(Gap::Stack).show(ui, |ui| {
-        ui.add(Text::new("Working").content(Content::Muted));
-        ui.add(Progress::indeterminate().label("Working"));
+        variant_cluster(ui, "Working", |ui| {
+            ui.add(Progress::indeterminate().label("Working"));
+        });
     });
 }

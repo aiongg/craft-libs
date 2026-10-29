@@ -96,9 +96,9 @@ fn role_arg(args: &Args) -> TypeRole {
 /// Every role in the chosen content colour.
 fn show_roles(ui: &mut Ui, args: &mut Args) {
     let content = Content::from_name(args.choice("content")).unwrap_or_default();
-    super::Stack::new(super::Gap::Inline).show(ui, |ui| {
+    crate::story::variant_list(ui, "text-roles", 90.0, |ui| {
         for (role, name) in ROLES.into_iter().zip(ROLE_NAMES) {
-            ui.add(Text::new(format!("{name}: The quick brown fox, 0123456789")).role(role).content(content));
+            crate::story::variant_row(ui, name, |ui| ui.add(Text::new("The quick brown fox").role(role).content(content)));
         }
     });
 }

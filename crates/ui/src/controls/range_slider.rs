@@ -339,7 +339,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
                     if i == 1 {
                         slider = slider.step(5.0);
                     }
-                    store(&slider.show(ui), value);
+                    store(&slider.show(ui), value)
                 });
             }
         });

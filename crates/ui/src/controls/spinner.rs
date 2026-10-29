@@ -6,8 +6,8 @@ use egui::accesskit::Role;
 use egui::{Rect, Response, Sense, Shape, Stroke, Ui, Widget, WidgetInfo, vec2};
 
 use crate::icons::IconSize;
-use crate::primitives::{Content, Gap, Icon, IconStyle, Row, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Content, Gap, Icon, IconStyle, Stack};
+use crate::story::{Args, Level, Story, variant_cluster};
 use crate::theme::{Tokens, TokensOf, UiTokens};
 
 /// The widest the arc gets, in degrees (egui's stock spinner).
@@ -136,13 +136,14 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_sizes(ui: &mut Ui, args: &mut Args) {
     let content = Content::from_name(args.choice("content")).unwrap_or(Content::Normal);
     let sizes = IconSize::ALL.map(Some).into_iter().chain([None]);
-    Row::new(Gap::Section).show(ui, |ui| {
+    Stack::new(Gap::Stack).show(ui, |ui| {
         for (size, name) in sizes.zip(["Sm", "Md", "Lg", "Control"]) {
-            ui.add(Text::new(name).content(Content::Muted));
-            let spinner = Spinner::new().content(content).label(format!("Loading {name}"));
-            ui.add(match size {
-                Some(size) => spinner.size(size),
-                None => spinner,
+            variant_cluster(ui, name, |ui| {
+                let spinner = Spinner::new().content(content).label(format!("Loading {name}"));
+                ui.add(match size {
+                    Some(size) => spinner.size(size),
+                    None => spinner,
+                });
             });
         }
     });

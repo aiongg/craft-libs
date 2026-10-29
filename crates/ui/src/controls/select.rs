@@ -25,8 +25,8 @@ use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::popup_list::{self, PopupList};
-use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story};
+use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
+use crate::story::{Args, Level, Story, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
 /// The rows of a popup list, from [`Select::style`].
@@ -1293,14 +1293,6 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// `label` at the reading start of a row, then the control.
-fn row(ui: &mut Ui, label: &str, control: impl FnOnce(&mut Ui)) {
-    Row::new(Gap::Inline).show(ui, |ui| {
-        ui.add(Text::new(label).content(Content::Muted));
-        control(ui);
-    });
-}
-
 /// The stories' values, kept between frames.
 fn with_choices<const N: usize>(ui: &mut Ui, key: &str, initial: [usize; N], show: impl FnOnce(&mut Ui, &mut [usize; N])) {
     let id = ui.scope_id().with(key);
@@ -1322,17 +1314,15 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     with_choices(ui, "select-states", [0, 1, 0, usize::MAX], |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [units, sampling, tool, empty] = choices;
-            row(ui, "Units", |ui| {
+            variant_row(ui, "Units", |ui| {
                 let mut select = Select::new("select-units", "Units", units).size(size).enabled(enabled).fit(fit).highlighted(&mut hovered);
                 for (i, unit) in UNITS.into_iter().enumerate() {
                     select = select.option(i, unit);
                 }
-                let _ = select.show(ui);
-                let text = hovered.map_or("Highlighted: none".to_owned(), |i| format!("Highlighted: {}", UNITS[i]));
-                ui.add(Text::new(text).content(Content::Muted));
+                select.show(ui)
             });
-            row(ui, "Resampling", |ui| {
-                let _ = Select::new("select-resampling", "Resampling", sampling)
+            variant_row(ui, "Resampling", |ui| {
+                Select::new("select-resampling", "Resampling", sampling)
                     .size(size)
                     .enabled(enabled)
                     .fit(fit)
@@ -1347,32 +1337,34 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .option(3, "Nearest neighbour")
                     .option(4, "Preserve details (AI)")
                     .option_enabled(false)
-                    .show(ui);
+                    .show(ui)
             });
-            row(ui, "Tool", |ui| {
-                let _ = Select::new("select-tool", "Tool", tool)
+            variant_row(ui, "Tool", |ui| {
+                Select::new("select-tool", "Tool", tool)
                     .size(size)
                     .enabled(enabled)
                     .option_icon(0, Icon::Brush, "Brush")
                     .option_icon(1, Icon::Eraser, "Eraser")
                     .option_icon(2, Icon::Eyedropper, "Eyedropper")
-                    .show(ui);
+                    .show(ui)
             });
-            row(ui, "No choice", |ui| {
+            variant_row(ui, "No choice", |ui| {
                 let mut select = Select::new("select-empty", "Profile", empty).size(size).enabled(enabled).placeholder("Choose a profile");
                 for (i, name) in ["sRGB", "Display P3", "Adobe RGB"].into_iter().enumerate() {
                     select = select.option(i, name);
                 }
-                let _ = select.show(ui);
+                select.show(ui)
             });
-            row(ui, "Disabled", |ui| {
+            variant_row(ui, "Disabled", |ui| {
                 let mut fixed = 2;
                 let mut select = Select::new("select-disabled", "Locked units", &mut fixed).size(size).enabled(false);
                 for (i, unit) in UNITS.into_iter().enumerate() {
                     select = select.option(i, unit);
                 }
-                let _ = select.show(ui);
+                select.show(ui)
             });
+            let text = hovered.map_or("Highlighted: none".to_owned(), |i| format!("Highlighted: {}", UNITS[i]));
+            ui.add(Text::new(text).content(Content::Muted));
         });
     });
     ui.data_mut(|d| d.insert_temp(hovered_id, hovered));
@@ -1435,7 +1427,7 @@ fn show_wheel_steps(ui: &mut Ui, args: &mut Args) {
     let state_id = ui.scope_id().with("select-wheel-steps");
     let mut state = ui.data(|d| d.get_temp::<WheelStepsState>(state_id)).unwrap_or_default();
     Stack::new(Gap::Stack).show(ui, |ui| {
-        row(ui, "Blend mode", |ui| {
+        variant_row(ui, "Blend mode", |ui| {
             let mut mode = state.doc.mode;
             let mut select = Select::new("select-blend", "Blend mode", &mut mode).size(size).wheel_steps(wheel_steps);
             for (i, (name, _)) in BLEND_MODES.iter().enumerate() {
@@ -1453,8 +1445,11 @@ fn show_wheel_steps(ui: &mut Ui, args: &mut Args) {
                     doc.mode = mode;
                 });
             }
+            edit.response
+        });
+        variant_row(ui, "Result", |ui| {
             let [r, g, b] = BLEND_MODES[state.doc.mode].1;
-            ui.add(Swatch::new("select-blend-result", "Result", Color32::from_rgb(r, g, b)));
+            ui.add(Swatch::new("select-blend-result", "Result", Color32::from_rgb(r, g, b)))
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             state.log.push_front(format!("host: {}", edit::describe(&event)));
@@ -1485,12 +1480,12 @@ fn show_searchable(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let font = |i: usize| format!("{}{}", FONT_STEMS[i / FONT_STYLES.len()], FONT_STYLES[i % FONT_STYLES.len()]);
     with_choices(ui, "select-searchable", [6], |ui, choices| {
-        row(ui, "Font", |ui| {
-            let _ = Select::new("select-font", "Font", &mut choices[0])
+        variant_row(ui, "Font", |ui| {
+            Select::new("select-font", "Font", &mut choices[0])
                 .size(size)
                 .rows(FONT_STEMS.len() * FONT_STYLES.len(), |i| i, font)
                 .searchable("Search fonts", "Clear")
-                .show(ui);
+                .show(ui)
         });
     });
 }
