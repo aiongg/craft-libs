@@ -27,7 +27,7 @@ const OCTANT: f64 = 45.0;
 
 /// An operation of an angle dial's parts, on its value (`None`: mixed).
 #[derive(Clone, Debug, PartialEq)]
-enum DialOp {
+pub(crate) enum DialOp {
     /// The dial's ([`apply`]).
     Dial(ScalarOp),
     /// The degree field's ([`number_field::apply`]).
