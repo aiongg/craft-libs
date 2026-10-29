@@ -207,6 +207,30 @@ fn bevel_themes_bevel_buttons_and_press_them_in() {
     assert_eq!(bevel_corners(&released, rect.get()), (light, dark));
 }
 
+/// PhotoCraft Classic draws the selected pill with `surface(.., raised)` (`panel.rs:44-63`): a
+/// bevel lit on the top left in `state.hover`, and no bevel on the pills that are not selected.
+#[test]
+fn classic_raises_the_selected_pill() {
+    let classic = theme("craft.classic");
+    let t = tokens_of(&classic, Mode::Light);
+    let crate::primitives::SurfaceEdge::Bevel { top_left: light, bottom_right: dark, .. } =
+        crate::primitives::Surface::style(&t, SurfaceKind::Raised).edge
+    else {
+        panic!("Classic bevels")
+    };
+    let ctx = context();
+    let mut value = 0;
+    let shapes = pass(&ctx, &classic, vec![], |ui| {
+        Segmented::new("seg", "Mode", &mut value).item(0, "First").item(1, "Second").show(ui);
+    });
+    let meshes = shapes.iter().filter(|s| matches!(s, Shape::Mesh(_))).count();
+    assert_eq!(meshes, 1, "one bevel, on the selected pill");
+    let mesh = shapes.iter().find_map(|s| if let Shape::Mesh(mesh) = s { Some(mesh) } else { None }).expect("a bevel mesh");
+    assert!(mesh.vertices.iter().any(|v| v.color == light) && mesh.vertices.iter().any(|v| v.color == dark));
+    let fill = t.component.segmented.selected.fill.rest.to_egui();
+    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == fill)), "the pill is filled with state.hover");
+}
+
 #[test]
 fn loading_keeps_the_width_and_does_not_activate() {
     let graphite = theme("craft.graphite");

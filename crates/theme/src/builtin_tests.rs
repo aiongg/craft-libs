@@ -511,6 +511,21 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
     }
 }
 
+/// Classic casts no shadow (PhotoCraft `theme.rs:415-455`, shadow alpha 0): not a popup, a dialog,
+/// a floating window, a knob or a toast, and its popups keep a flat border.
+#[test]
+fn classic_casts_no_shadow() {
+    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
+    for size in [Size::Compact, Size::Comfortable] {
+        let a = Appearance { size, ..semantic_tests::app(Mode::Light, Contrast::Standard) };
+        let t = resolve(theme, a, None).tokens;
+        let e = &t.elevation;
+        assert_eq!([e.popup.alpha, e.dialog.alpha, e.floating.alpha, e.knob.alpha], [0.0; 4], "{a:?}");
+        assert_eq!(t.component.popup.shadow.a(), 0, "{a:?}");
+        assert_eq!(t.component.float.shadow.alpha, 0.0, "{a:?}");
+    }
+}
+
 /// The slider follows PhotoCraft (`slider.rs:104-289`, `theme.rs:831-839`) in every built-in: an
 /// 18 point control with a 12 point knob and a 3 point track in the control edge colour at
 /// Compact, two points more of knob and six more of height at Comfortable; the knob outline is
@@ -526,7 +541,11 @@ fn sliders_follow_photocraft() {
                 let t = resolve(theme, a, None).tokens;
                 let s = &t.component.slider;
                 let id = theme.id.as_str();
-                assert_eq!((s.height.md, s.track_height, s.gradient_height, s.track_radius), (height, 3.0, 5.0, 2.0), "{id} {a:?}");
+                assert_eq!(
+                    (s.height.md, s.track_height, s.gradient_height, s.track_radius),
+                    (height, 3.0, 5.0, if id == "craft.classic" { 0.0 } else { 2.0 }),
+                    "{id} {a:?}"
+                );
                 let classic = id == "craft.classic";
                 let want = if classic { (10.0, 16.0) } else { (thumb, thumb) };
                 assert_eq!((s.thumb_width.md, s.thumb.md), want, "{id} {a:?}");

@@ -72,12 +72,16 @@ fn surface_style_per_kind_flat_and_bevelled() {
     for &kind in K::ALL {
         let want = match kind {
             K::Background | K::Panel => SurfaceEdge::None,
-            K::Raised | K::Popup | K::Dialog | K::Knob => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
+            K::Raised | K::Knob => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
+            K::Popup => SurfaceEdge::Border(Stroke::new(1.0, classic.component.popup.border.to_egui())),
+            K::Dialog => SurfaceEdge::Border(Stroke::new(1.0, classic.color.line.border.to_egui())),
             K::Sunken | K::Pressed => SurfaceEdge::Bevel { top_left: dark, bottom_right: light, width },
         };
         assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");
     }
-    assert_eq!(Surface::style(&classic, K::Knob).shadow, None, "a bevelled knob casts no shadow");
+    for kind in [K::Popup, K::Dialog, K::Knob] {
+        assert_eq!(Surface::style(&classic, kind).shadow, None, "{kind:?} casts no shadow in a bevelled theme");
+    }
 
     // A bevel draws no outline: a fill and a mesh inside the rect, lit and shaded halves.
     let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 20.0));

@@ -165,6 +165,7 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
                     .colors(StateColors { fill: style.fill, border: None })
                     .on_colors(StateColors { fill: style.selected_fill, border: Some(style.selected_border) })
                     .outline()
+                    .raised_outline()
                     .corner(Corner::Control)
                     .enabled(enabled && item.enabled)
                     .interact(&mut group, vec2(widths[i], style.height))

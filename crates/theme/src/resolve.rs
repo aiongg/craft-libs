@@ -178,12 +178,18 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let radius = seed.and_then(|s| s.radius_offset).map_or(radius, |o| o.apply(radius));
     let edge = seed.and_then(|s| s.edge).map_or(preset.edge, |e| e.resolve(&color));
 
-    let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);
+    // A bevel is the relief of a raised control, so in a bevelled theme (PhotoCraft Classic: shadow
+    // alpha 0) the knob lies flat and no popup, dialog or floating window casts a shadow.
+    let bevelled = matches!(edge, Edge::Bevel { .. });
+    let shadow = |level: usize| values::shadow_in_mode(Elevation::level(if bevelled { 0 } else { level }), mode);
     let (dialog, floating) = values::ELEVATION_LEVELS;
-    let popup =
-        Elevation { alpha: if mode == Mode::Dark { values::POPUP_SHADOW_ALPHA.1 } else { values::POPUP_SHADOW_ALPHA.0 }, ..values::POPUP_SHADOW };
-    // A bevel is the relief of a raised control, so a bevelled knob lies flat.
-    let knob = if matches!(edge, Edge::Bevel { .. }) { Elevation::level(0) } else { values::KNOB_SHADOW };
+    let popup_alpha = match (bevelled, mode) {
+        (true, _) => 0.0,
+        (false, Mode::Dark) => values::POPUP_SHADOW_ALPHA.1,
+        (false, _) => values::POPUP_SHADOW_ALPHA.0,
+    };
+    let popup = Elevation { alpha: popup_alpha, ..values::POPUP_SHADOW };
+    let knob = if bevelled { Elevation::level(0) } else { values::KNOB_SHADOW };
 
     let elevation = ElevationTokens { popup, dialog: shadow(dialog), floating: shadow(floating), knob };
 
