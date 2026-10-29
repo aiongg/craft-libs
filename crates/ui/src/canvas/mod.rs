@@ -24,6 +24,8 @@
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
+//! - [`GradientOverlay`]: a gradient's line with its end handles, colour stops and midpoints;
+//!   [`gradient_line`] is where each sits.
 //! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
@@ -48,6 +50,8 @@
 pub(crate) mod bezier;
 mod claim;
 mod crisp;
+pub mod gradient_line;
+pub(crate) mod gradient_overlay;
 pub(crate) mod guides;
 pub mod hit;
 pub(crate) mod marquee;
@@ -74,6 +78,8 @@ pub use bezier::{
 };
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
+pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};

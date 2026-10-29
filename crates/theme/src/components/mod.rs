@@ -15,6 +15,7 @@ mod curve;
 mod empty_state;
 mod field;
 mod gradient_editor;
+mod gradient_line;
 mod guide;
 mod handle;
 mod histogram;
@@ -59,6 +60,7 @@ pub use curve::{CurveField, CurveTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
+pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
@@ -594,6 +596,8 @@ families! {
     field: FieldTokens => Field(FieldField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
+    /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
+    gradient_line: GradientLineTokens => GradientLine(GradientLineField);
     /// Ruler guides and smart guides.
     guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.
