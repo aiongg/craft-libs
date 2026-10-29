@@ -1,7 +1,9 @@
 # The suite's icons by meaning, and each candidate set's file for them (without `.svg`).
 #
-# `build.rs` turns this into `craft_ui::icons::Icon` and `IconSet`. A name without a file in a
-# set, or a file a set folder holds but no icon lists, fails the build. Sources and licences:
+# `build.rs` turns this into `craft_ui::icons::Icon` and `IconSet`. The `base` set (Phosphor) has a
+# file for every name; a name without one fails the build. Every other set is a pack: it lists the
+# names it has and may omit the rest, and `Icon::svg` returns the base set's file for an omitted
+# name. A file a set folder holds but no icon lists fails the build. Sources and licences:
 # ATTRIBUTION.md.
 #
 # `directional`: mirrored in a right-to-left interface (arrows of reading order, undo, redo).
@@ -20,6 +22,7 @@ id = "phosphor"
 title = "Phosphor (regular)"
 licence = "MIT"
 kind = "fill"
+base = true
 
 [[set]]
 id = "carbon"
@@ -921,3 +924,92 @@ lucide = "wand-sparkles"
 phosphor = "magic-wand"
 carbon = "magic-wand"
 tabler = "wand"  # near: wand without sparkles
+
+[[icon]]
+name = "artboard"
+directional = false
+lucide = "frame"  # near: frame with guide lines, no ticks
+phosphor = "frame-corners"  # near: corner brackets only
+tabler = "artboard"
+
+[[icon]]
+name = "bandage"
+directional = false
+lucide = "bandage"
+phosphor = "bandaids"  # near: two crossed plasters
+tabler = "bandage"
+
+[[icon]]
+name = "blend"
+directional = false
+lucide = "blend"
+phosphor = "intersect"
+tabler = "blend-mode"
+
+[[icon]]
+name = "brush_cleaning"
+directional = false
+lucide = "brush-cleaning"
+phosphor = "broom"  # near: broom without brush
+carbon = "clean"  # near: broom without brush
+
+[[icon]]
+name = "frame_placeholder"
+directional = false
+lucide = "square-x"  # near: box with small X, not corner to corner
+phosphor = "x-square"  # near: box with small X, not corner to corner
+tabler = "square-x"  # near: box with small X, not corner to corner
+
+[[icon]]
+name = "gradient"
+directional = false
+phosphor = "gradient"
+carbon = "gradient"
+
+[[icon]]
+name = "paint_bucket"
+directional = false
+lucide = "paint-bucket"
+phosphor = "paint-bucket"
+tabler = "bucket-droplet"
+
+[[icon]]
+name = "perspective_crop"
+directional = false
+phosphor = "perspective"  # near: trapezoid, no crop marks
+tabler = "perspective"  # near: trapezoid, no crop marks
+
+[[icon]]
+name = "orientation_landscape"
+directional = false
+lucide = "rectangle-horizontal"
+phosphor = "rectangle"
+tabler = "rectangle"
+
+[[icon]]
+name = "orientation_portrait"
+directional = false
+lucide = "rectangle-vertical"
+phosphor = "rectangle"  # near: rectangle turned 90 degrees
+tabler = "rectangle-vertical"
+
+[[icon]]
+name = "slash"
+directional = false
+lucide = "slash"
+phosphor = "line-segment"  # near: adds end nodes
+tabler = "slash"
+
+[[icon]]
+name = "sparkles"
+directional = false
+lucide = "sparkles"
+phosphor = "sparkle"
+tabler = "sparkles"
+
+[[icon]]
+name = "text_cursor"
+directional = false
+lucide = "text-cursor"
+phosphor = "cursor-text"
+tabler = "cursor-text"

@@ -1,7 +1,9 @@
 //! The suite's icons: an [`Icon`] by meaning, rasterised once per pixel size and tinted when drawn.
 //!
-//! `crates/ui/icons/icons.toml` lists the icons and, for each candidate [`IconSet`], the file
-//! that draws them; `build.rs` embeds the files. [`paint`] draws an icon at a size class in the
+//! `crates/ui/icons/icons.toml` lists the icons and, for each [`IconSet`], the file
+//! that draws them. [`IconSet::BASE`] (Phosphor) has a file for every icon; any other set is a
+//! pack that lists only the icons it has, and [`Icon::svg`] gives the base set's file for the rest
+//! ([`Icon::drawn_in`] tells which); `build.rs` embeds the files. [`paint`] draws an icon at a size class in the
 //! context's set ([`set_active`], Lucide by default). Each (icon, set, pixel size, stroke,
 //! mirroring) is rasterised once per context with `resvg`, in white, into an egui texture.
 //!
