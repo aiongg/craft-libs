@@ -8,7 +8,7 @@ use egui_kittest::{Harness, Node};
 
 use super::*;
 use crate::direction::{self, Direction};
-use crate::edit::{CancelReason, EditEvent, GestureHost, UndoMarks};
+use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
@@ -29,6 +29,10 @@ struct Host {
     /// [`LevelsEditor::clipping`] after the last frame.
     clip: Option<LevelsClip>,
     undo: Option<Undo>,
+    policy: EditPolicy,
+    /// The pass of the last event, and whether two events came in one pass.
+    event_pass: Option<u64>,
+    doubled: bool,
 }
 
 struct Undo {
@@ -73,6 +77,9 @@ impl Host {
             hidden: false,
             clip: None,
             undo: None,
+            policy: EditPolicy::default(),
+            event_pass: None,
+            doubled: false,
         }
     }
 
@@ -88,12 +95,18 @@ impl Host {
         let numbers = LocaleNumbers::from_tag("en");
         self.focus = Tokens::of(ui).color.line.focus.to_egui();
         let levels = self.levels;
-        let editor = LevelsEditor::new("levels", "Levels", &levels, &numbers).value("Red channel").width(300.0).enabled(self.enabled);
+        let editor =
+            LevelsEditor::new("levels", "Levels", &levels, &numbers).value("Red channel").width(300.0).enabled(self.enabled).policy(self.policy);
         let edit = match self.scoped {
             true => crate::edit::scope(ui, |ui| editor.show(ui)).inner,
             false => editor.show(ui),
         };
         self.id = edit.response.id;
+        if edit.event.is_some() {
+            let pass = ui.ctx().cumulative_pass_nr();
+            self.doubled |= self.event_pass == Some(pass);
+            self.event_pass = Some(pass);
+        }
         self.clip = LevelsEditor::clipping(ui.ctx(), self.id);
         if let Some(undo) = &mut self.undo {
             if let Some(event) = edit.event.clone() {
@@ -306,6 +319,84 @@ fn a_press_on_the_input_row_during_an_output_field_run_begins_one_pass_after_the
     assert_eq!(harness.state().kinds(), ["Commit", "Begin"], "the press begins one pass later");
     release(&mut harness, from);
     assert_eq!(harness.state().levels, Levels { out_black: 20.0, ..IDENTITY });
+}
+
+/// An on-release policy withholds the field's updates, and the thumbs still follow the scrub: every
+/// part draws from the composite's shown value, not the host's.
+#[test]
+fn a_field_scrub_moves_its_thumb_under_an_on_release_policy() {
+    let host = Host { policy: EditPolicy::default().on_release_only(true), ..Host::new(IDENTITY) };
+    let mut harness = harness(host, Direction::Ltr);
+    let field = node(&harness, Role::SpinButton, "Input black").rect().center();
+    press(&mut harness, field);
+    for dx in [20.0, 40.0, 60.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    harness.run();
+    let shown = node(&harness, Role::SpinButton, "Input black").accesskit_node().numeric_value().expect("the field has a value");
+    assert!(shown > 0.0, "the scrub moved the field");
+    assert_eq!(harness.state().kinds(), ["Begin"], "the host sees no update before the release");
+    assert_near(thumb(&harness, "Input black").x, at(&harness, "Input black", shown).x, "the thumb follows the field");
+    assert_near(thumb(&harness, "Gamma").x, at(&harness, "Gamma", shown + (255.0 - shown) * 0.5).x, "and the gamma thumb follows black");
+    release(&mut harness, field + vec2(60.0, 0.0));
+    assert_eq!(harness.state().levels.in_black, shown);
+}
+
+/// A screen reader's step on a field while a row is dragged waits for the release: the drag is
+/// undisturbed and the step is its own Set, and its own undo step, after the Commit.
+#[test]
+fn a_screen_reader_step_on_a_field_during_a_row_drag_is_its_own_set_after_the_release() {
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    let from = thumb(&harness, "Output white");
+    let to = pos2(at(&harness, "Output white", 200.0).x, from.y);
+    press(&mut harness, from);
+    move_to(&mut harness, pos2((from.x + to.x) / 2.0, from.y));
+    move_to(&mut harness, to);
+    harness.state_mut().events.clear();
+    let (target, tree) = node(&harness, Role::SpinButton, "Gamma").accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: tree,
+        target_node: target,
+        data: None,
+    }));
+    harness.step();
+    harness.step();
+    assert!(harness.state().events.is_empty(), "the step doesn't join the drag: {:?}", harness.state().kinds());
+    assert_eq!(harness.state().levels.gamma, 1.0);
+    release(&mut harness, to);
+    assert_eq!(harness.state().kinds(), ["Commit", "Set"], "the step is its own Set after the release");
+    assert_eq!(harness.state().levels, Levels { gamma: 1.01, out_white: 200.0, ..IDENTITY });
+    let steps = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(steps, Some(2), "the drag and the step, one undo step each");
+}
+
+/// A tap (press and release in one frame) on a row in the pass a field's typing run commits
+/// reaches the host in a later pass than the Commit: a composite reports one edit per pass.
+#[test]
+fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
+    for field in ["Input black", "Output black"] {
+        let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+        let field_at = node(&harness, Role::SpinButton, field).rect().center();
+        click(&mut harness, field_at);
+        harness.event(Event::Text("20".into()));
+        harness.run();
+        harness.state_mut().events.clear();
+        let target = node(&harness, Role::Slider, "Input white");
+        let pos = pos2(at(&harness, "Input white", 240.0).x, target.rect().center().y);
+        move_to(&mut harness, pos);
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        harness.state_mut().doubled = false;
+        for _ in 0..4 {
+            harness.step();
+        }
+        assert!(!harness.state().doubled, "{field}: one event per pass: {:?}", harness.state().kinds());
+        let kinds = harness.state().kinds();
+        assert_eq!(kinds.first(), Some(&"Commit"), "{field}: {kinds:?}");
+        assert!(kinds.len() >= 2, "{field}: the tap reports after the run: {kinds:?}");
+        assert_eq!(harness.state().levels.in_white, 240.0, "{field}");
+    }
 }
 
 #[test]

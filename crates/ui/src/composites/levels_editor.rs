@@ -12,7 +12,7 @@ use super::curve_editor::{gradient, story_bins};
 use super::histogram::{ChannelColor, Histogram, HistogramData};
 use crate::controls::NumberField;
 use crate::controls::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
@@ -20,7 +20,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// One channel's levels: the input black and white points with the gamma between them, and the
 /// output black and white points.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Levels {
     pub in_black: f64,
     /// The midtone gamma: above 1 brightens.
@@ -29,6 +29,20 @@ pub struct Levels {
     /// Output black; above `out_white` it inverts.
     pub out_black: f64,
     pub out_white: f64,
+}
+
+/// Levels are equal when every value is, an unset (NaN) value equal to another: the edit
+/// machinery compares values to tell a change from none, and a value that is never equal to
+/// itself reads as an outside change of every gesture.
+impl PartialEq for Levels {
+    fn eq(&self, other: &Self) -> bool {
+        let same = |a: f64, b: f64| a == b || (a.is_nan() && b.is_nan());
+        same(self.in_black, other.in_black)
+            && same(self.gamma, other.gamma)
+            && same(self.in_white, other.in_white)
+            && same(self.out_black, other.out_black)
+            && same(self.out_white, other.out_white)
+    }
 }
 
 impl Levels {
@@ -151,6 +165,10 @@ const GAMMA_STEP: f64 = 0.01;
 const GAMMA_T: f64 = 1e-6;
 
 const CLIP: &str = "craft_ui::levels_clip";
+const STATE: &str = "craft_ui::levels_editor";
+const EDIT: &str = "craft_ui::levels_editor::edit";
+
+type Edits = parts::Edits<Levels>;
 
 /// The input level the gamma thumb sits at: the level that maps to 50 % grey. `values` are the
 /// input row's (black, gamma, white).
@@ -195,7 +213,8 @@ pub(crate) fn gamma_from(values: &[f64], x: f64) -> f64 {
 ///
 /// Events: a row's press-drag-release is Begin, Updates and Commit; taps, keys, the wheel,
 /// screen-reader requests and resets are Sets; a field's scrub or typing run is its own gesture.
-/// The parts never report in one pass.
+/// The parts report as one edit ([`edit::parts`]): a part's event while another part's gesture is
+/// under way waits for its ending.
 ///
 /// AccessKit: a `Group` named by the label, valued by [`value`](LevelsEditor::value) (the
 /// channel); the histogram's `Image`, five `Slider`s and five `SpinButton`s inside it.
@@ -406,7 +425,14 @@ impl<'a> LevelsEditor<'a> {
         let rows = ThumbRowStyle::from(style);
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
-        let levels = *self.levels;
+        let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id.with(STATE))).unwrap_or_default();
+        // Esc is the parts': each cancels its own gesture, which cancels this one.
+        let outer = Gesture::load(ui, id.with(EDIT), self.levels, self.policy.cancellable(false)).enabled(enabled);
+        // Every part draws from the composite's shown value; the parts report each update and the
+        // composite's gesture applies the policy.
+        let levels = *outer.shown();
+        let inner = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
+        let mut edits = Edits::new(id, &state);
         let stack_gap = ui.spacing().item_spacing.y;
 
         if self.captions {
@@ -435,7 +461,7 @@ impl<'a> LevelsEditor<'a> {
         ];
         let input = ThumbRow::new("input", levels.input(), &self.range, Some(self.step), thumbs)
             .width(width)
-            .policy(self.policy)
+            .policy(inner)
             .enabled(enabled)
             .part(true)
             .show(ui, &rows);
@@ -458,17 +484,17 @@ impl<'a> LevelsEditor<'a> {
             (
                 fields.at_start(full.min(w3)),
                 "in-black",
-                level(self.field("in-black", &self.labels.in_black, black, start..=(white_at - gap).clamp(start, end))),
+                level(self.field(inner, "in-black", &self.labels.in_black, black, start..=(white_at - gap).clamp(start, end))),
             ),
             (
                 fields.centred(self.field_width(ui, self.gamma_range.clone(), 2).min(w3)),
                 "gamma",
-                self.field("gamma", &self.labels.gamma, gamma, self.gamma_range.clone()).step(GAMMA_STEP).decimals(2..=2),
+                self.field(inner, "gamma", &self.labels.gamma, gamma, self.gamma_range.clone()).step(GAMMA_STEP).decimals(2..=2),
             ),
             (
                 fields.at_end(full.min(w3)),
                 "in-white",
-                level(self.field("in-white", &self.labels.in_white, white, (black_at + gap).clamp(start, end)..=end)),
+                level(self.field(inner, "in-white", &self.labels.in_white, white, (black_at + gap).clamp(start, end)..=end)),
             ),
         ];
         let in_edits = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
@@ -490,7 +516,7 @@ impl<'a> LevelsEditor<'a> {
         ];
         let output = ThumbRow::new("output", levels.output(), &self.range, Some(self.step), thumbs)
             .width(width)
-            .policy(self.policy)
+            .policy(inner)
             .enabled(enabled)
             .part(true)
             .show(ui, &rows);
@@ -498,8 +524,8 @@ impl<'a> LevelsEditor<'a> {
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w2 = full.min(fields.share(2));
         let out_fields = [
-            (fields.at_start(w2), "out-black", level(self.field("out-black", &self.labels.out_black, out_black, start..=end))),
-            (fields.at_end(w2), "out-white", level(self.field("out-white", &self.labels.out_white, out_white, start..=end))),
+            (fields.at_start(w2), "out-black", level(self.field(inner, "out-black", &self.labels.out_black, out_black, start..=end))),
+            (fields.at_end(w2), "out-white", level(self.field(inner, "out-white", &self.labels.out_white, out_white, start..=end))),
         ];
         let out_edits = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
 
@@ -507,27 +533,24 @@ impl<'a> LevelsEditor<'a> {
         let [ob, ow] = out_edits;
         let submitted = [&b, &g, &w, &ob, &ow].iter().any(|e| e.submitted);
         let escaped = [&b, &g, &w, &ob, &ow].iter().any(|e| e.escaped);
-        let events = [
-            input.edit.map(|v| levels.with_input(v)).event,
-            b.map(|v| Levels { in_black: v, ..levels }).event,
-            g.map(|v| Levels { gamma: v, ..levels }).event,
-            w.map(|v| Levels { in_white: v, ..levels }).event,
-            output.edit.map(|v| levels.with_output(v)).event,
-            ob.map(|v| Levels { out_black: v, ..levels }).event,
-            ow.map(|v| Levels { out_white: v, ..levels }).event,
-        ];
-        // A press on a row waits while a field's gesture ends, and the rows have the focus during
-        // their own gestures: the parts never report in one pass.
-        debug_assert!(events.iter().filter(|e| e.is_some()).count() <= 1, "parts reporting in one pass: {events:?}");
-        (events.into_iter().flatten().next(), submitted, escaped)
+        edits.push(&input.edit, |v| levels.with_input(v));
+        edits.typing(ui.ctx(), &b, |v| Levels { in_black: v, ..levels });
+        edits.typing(ui.ctx(), &g, |v| Levels { gamma: v, ..levels });
+        edits.typing(ui.ctx(), &w, |v| Levels { in_white: v, ..levels });
+        edits.push(&output.edit, |v| levels.with_output(v));
+        edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..levels });
+        edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..levels });
+        let outer = edits.feed(outer, &mut state, edit::in_scope(ui));
+        ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
+        (outer.finish(), submitted, escaped)
     }
 
     fn caption(&self, ui: &mut Ui, style: &LevelsStyle, text: &str) {
         ui.add(Text::new(text).role(style.caption_role).content(Content::Muted));
     }
 
-    fn field(&self, salt: &'static str, label: &str, value: f64, range: RangeInclusive<f64>) -> NumberField<'a> {
-        NumberField::new(salt, label, value, self.numbers).range(range).policy(self.policy)
+    fn field(&self, policy: EditPolicy, salt: &'static str, label: &str, value: f64, range: RangeInclusive<f64>) -> NumberField<'a> {
+        NumberField::new(salt, label, value, self.numbers).range(range).policy(policy)
     }
 
     /// The width that shows every value of `range` with `decimals` digits.
