@@ -216,6 +216,16 @@ pub struct ThumbRow<const N: usize> {
     enabled: bool,
     part: bool,
     wrap: Option<f64>,
+    anchored: Option<Anchored>,
+}
+
+/// The order of a wrapping row's thumbs round the period ([`ThumbRow::wrap_from`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Anchored {
+    /// The thumb the others are measured from.
+    first: usize,
+    /// The most the last thumb may be past the first, in value units.
+    max_span: f64,
 }
 
 /// What a [`ThumbRow`] shows and reports in a frame.
@@ -297,6 +307,7 @@ pub(crate) struct RowRules<const N: usize> {
     scale: Scale,
     /// The period values wrap at ([`ThumbRow::wrap`]).
     wrap: Option<f64>,
+    anchored: Option<Anchored>,
 }
 
 impl<const N: usize> RowRules<N> {
@@ -335,6 +346,9 @@ impl<const N: usize> RowRules<N> {
     /// In a wrapping row the bounds are measured the short way round from the thumb's own value,
     /// and open where it has no neighbour.
     fn order_bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
+        if let Some(anchored) = self.anchored {
+            return self.anchored_bounds(values, i, anchored);
+        }
         let scale = self.scale_of(i);
         let Order::Between { below, above, gap } = self.thumbs[i].order else {
             return if self.wrap.is_some() { (f64::NEG_INFINITY, f64::INFINITY) } else { (scale.min, scale.max) };
@@ -347,6 +361,48 @@ impl<const N: usize> RowRules<N> {
         let open = if self.wrap.is_some() { (f64::NEG_INFINITY, f64::INFINITY) } else { (scale.min, scale.max) };
         let (lo, hi) = (side(below, gap, open.0), side(above, -gap, open.1));
         (lo.min(hi), hi)
+    }
+
+    /// How far past the first thumb each thumb is, going round from it in index order: the
+    /// distance from the thumb before it, the short way on, and at most the span.
+    fn offsets(&self, values: &[f64; N], anchored: Anchored, period: f64) -> [f64; N] {
+        let mut offset = [0.0; N];
+        let mut before = anchored.first;
+        for k in 1..N {
+            let j = (anchored.first + k) % N;
+            offset[j] = (offset[before] + (values[j] - values[before]).rem_euclid(period)).min(anchored.max_span);
+            before = j;
+        }
+        offset
+    }
+
+    /// Where thumb `i` may go in an anchored row, in values counted from the first thumb's: a
+    /// thumb between its neighbours' places and, for the last, the span; the first thumb at most
+    /// half a period before the next one and so that the last stays within the span.
+    fn anchored_bounds(&self, values: &[f64; N], i: usize, anchored: Anchored) -> (f64, f64) {
+        let Some(period) = self.wrap else { return (f64::NEG_INFINITY, f64::INFINITY) };
+        let offset = self.offsets(values, anchored, period);
+        let base = values[anchored.first];
+        let at = |k: usize| offset[(anchored.first + k) % N];
+        match (i + N - anchored.first) % N {
+            0 if N == 1 => (f64::NEG_INFINITY, f64::INFINITY),
+            0 => (base + (at(1) - period / 2.0).max(at(N - 1) - anchored.max_span), base + at(1)),
+            k if k + 1 == N => (base + at(k - 1), base + anchored.max_span),
+            k => (base + at(k - 1), base + at(k + 1)),
+        }
+    }
+
+    /// `value` as thumb `i` is aimed at it: in an anchored row the first thumb goes the short way
+    /// round, the others to where the value is, counted from the first thumb forward.
+    fn aim(&self, values: &[f64; N], i: usize, value: f64) -> f64 {
+        match (self.anchored, self.wrap) {
+            (Some(anchored), Some(period)) if i != anchored.first => {
+                let base = values[anchored.first];
+                base + (value - base).rem_euclid(period)
+            }
+            (Some(_), _) => values[i] + self.short(value - values[i]),
+            _ => value,
+        }
     }
 
     /// Where thumb `i` may go, with the others at `values`: among the thumbs it is ordered with,
@@ -400,20 +456,22 @@ impl<const N: usize> RowRules<N> {
     }
 
     /// [`slider::apply`] for a wrapping row: a step goes on past the range's end and comes back
-    /// at its start, and Home and End go to the neighbours, or the range's ends where there are
-    /// none.
+    /// at its start, and Home and End go to the neighbours, or the range's start and its end less
+    /// a step where there are none.
     fn apply_wrapped(&self, op: &ScalarOp, values: &[f64; N], i: usize) -> f64 {
         let scale = self.scale_of(i);
         let bounds = self.bounds(values, i);
-        let by = |delta| scale.moved(values[i].clamp(bounds.0, bounds.1), delta);
+        let from = if self.anchored.is_some() { self.aim(values, i, values[i]) } else { values[i] };
+        let by = |delta| scale.moved(from.clamp(bounds.0, bounds.1), delta);
         let target = match op {
             ScalarOp::By(delta) => by(*delta),
             ScalarOp::Presses(presses) => by(scale.key_step() * presses.iter().map(|(m, n)| if m.shift { 10.0 * n } else { *n }).sum::<f64>()),
-            ScalarOp::Set(v) => *v,
+            ScalarOp::Set(v) => self.aim(values, i, *v),
             ScalarOp::ToBound(Bound::Low) if bounds.0.is_finite() => bounds.0,
             ScalarOp::ToBound(Bound::Low) => scale.min,
             ScalarOp::ToBound(Bound::High) if bounds.1.is_finite() => bounds.1,
-            ScalarOp::ToBound(Bound::High) => scale.max,
+            // The range's end is its start again.
+            ScalarOp::ToBound(Bound::High) => scale.max - scale.key_step(),
         };
         self.settle(i, target, bounds)
     }
@@ -501,10 +559,18 @@ impl<const N: usize> Layout<'_, N> {
         }
         let start = &self.placed(raw);
         let from = self.placed(anchor);
-        let at = if grab { self.at(&from, i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
+        let placed_at = if self.anchored.is_some() { self.aim(start, i, self.at(&from, i)) } else { self.at(&from, i) };
+        let at = if grab { placed_at + self.track.value_per(x - origin) } else { self.track.value_at(x) };
         let value = self.thumbs[i].follow.map_or(at, |f| (f.value_at)(start, at));
-        // A jump in a wrapping row goes the short way round.
-        let value = if grab || self.wrap.is_none() { value } else { start[i] + self.short(value - start[i]) };
+        // A jump in a wrapping row goes the short way round, in an anchored row forward from the
+        // first thumb.
+        let value = if grab || self.wrap.is_none() {
+            value
+        } else if self.anchored.is_some() {
+            self.aim(start, i, value)
+        } else {
+            start[i] + self.short(value - start[i])
+        };
         if let Some(j) = pair {
             let (lo_i, hi_i) = self.order_bounds(start, i);
             let (lo_j, hi_j) = self.order_bounds(start, j);
@@ -535,17 +601,45 @@ impl<const N: usize> ThumbRow<N> {
             enabled: true,
             part: false,
             wrap: None,
+            anchored: None,
         }
     }
 
     /// Values wrap at `period` (a hue bar of 360), counted from the start of the range: a thumb
     /// dragged or stepped past the end appears at the start. Distances between thumbs, for the
     /// thumb a press grabs and for the bounds of an [`Order::Between`], are measured the short way
-    /// round. Home and End of a thumb without neighbours go to the range's ends.
+    /// round. Home of a thumb without neighbours goes to the range's start, End to its end less a
+    /// step (the end is the start again).
     pub fn wrap(mut self, period: f64) -> Self {
         debug_assert!(period.is_finite() && period > 0.0, "a wrapping row needs a positive period, not {period}");
         self.wrap = Some(period).filter(|p| p.is_finite() && *p > 0.0);
         self
+    }
+
+    /// Values wrap at `period` ([`wrap`](Self::wrap)) and the thumbs keep their index order going
+    /// round the period from thumb `anchor`, which is free to turn (a hue range bar of four
+    /// thumbs: outer low, inner low, inner high, outer high). Every other thumb stays between its
+    /// neighbours, measured forward from the anchor, and the last at most `max_span` past it. The
+    /// anchor goes the short way round and stays at most half a period before the next thumb, and
+    /// far enough forward that the last stays within the span. Home and End of a thumb go to its
+    /// neighbours' places. An [`Order`] on a thumb of an anchored row has no meaning and stays
+    /// `Free`. The values the row reports change only for the thumb that moved.
+    ///
+    /// The order belongs to the row, which is why this is a row builder and not an [`Order`]
+    /// variant: the thumbs share one anchor and one span, and a thumb's bounds depend on all the
+    /// others.
+    pub fn wrap_from(mut self, period: f64, anchor: usize, max_span: f64) -> Self {
+        debug_assert!(anchor < N, "the anchor thumb {anchor} is not in a row of {N}");
+        debug_assert!(max_span > 0.0 && max_span < period, "the span {max_span} must be positive and less than the period {period}");
+        self = self.wrap(period);
+        self.anchored = (self.wrap.is_some() && anchor < N).then_some(Anchored { first: anchor, max_span });
+        self
+    }
+
+    /// What the values of this row may be, for the tests.
+    #[cfg(test)]
+    pub(crate) fn row_rules(&self) -> RowRules<N> {
+        RowRules { thumbs: self.thumbs.clone(), scale: self.scale, wrap: self.wrap, anchored: self.anchored }
     }
 
     /// A thumb row's sizes and colours from the theme's `levels.*` tokens, which the rows of a
@@ -585,7 +679,7 @@ impl<const N: usize> ThumbRow<N> {
     /// What the values of a row of `thumbs` on `range` with `step` may be, as [`new`](Self::new)
     /// takes them: a composite applies the row's operations with them before drawing it.
     pub(crate) fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
-        RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step), wrap: None }
+        RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step), wrap: None, anchored: None }
     }
 
     /// Whether the row is a part of a composite reporting through one edit, whose press takes
@@ -603,7 +697,11 @@ impl<const N: usize> ThumbRow<N> {
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let response = ui.interact_opt(rect, id, Sense::DRAG, options);
         let sensing = Sensing::of(&response);
-        let rules = RowRules { thumbs: self.thumbs, scale: self.scale, wrap: self.wrap };
+        let rules = RowRules { thumbs: self.thumbs, scale: self.scale, wrap: self.wrap, anchored: self.anchored };
+        debug_assert!(
+            rules.anchored.is_none() || rules.thumbs.iter().all(|t| t.order == Order::Free),
+            "an anchored row orders its thumbs itself; their `Order` stays `Free`"
+        );
         debug_assert!(
             rules.thumbs.iter().enumerate().all(|(i, t)| !t.split || (i + 1 < N && !rules.thumbs[i + 1].split && rules.wrap.is_none())),
             "a split thumb needs a high half after it, which isn't split itself, in a row that doesn't wrap"
@@ -903,8 +1001,8 @@ pub(crate) fn stories() -> Vec<Story> {
     }]
 }
 
-/// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), and a
-/// hue range that wraps round.
+/// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), a
+/// hue range that wraps round, and a four-thumb hue range bar ordered round from its first thumb.
 fn show(ui: &mut Ui, args: &mut Args) {
     let enabled = !args.bool("disabled");
     let style = ThumbRow::<2>::style(&Tokens::of(ui));
@@ -930,6 +1028,18 @@ fn show(ui: &mut Ui, args: &mut Args) {
         super::slider::with_values(ui, "thumb-row-hue", [[330.0, 40.0]], |ui, values| {
             let thumbs = [Thumb::new("Hue from", Color32::from_rgb(220, 60, 60)), Thumb::new("Hue to", Color32::from_rgb(220, 160, 60))];
             let out = ThumbRow::new("thumb-row-hue", values[0], &(0.0..=360.0), Some(1.0), thumbs).wrap(360.0).enabled(enabled).show(ui, &style);
+            super::slider::store(&out.edit, &mut values[0]);
+        });
+        super::slider::with_values(ui, "thumb-row-hue-range", [[340.0, 10.0, 50.0, 80.0]], |ui, values| {
+            let thumbs = [
+                Thumb::new("Range outer start", Color32::from_gray(150)),
+                Thumb::new("Range inner start", Color32::from_gray(230)),
+                Thumb::new("Range inner end", Color32::from_gray(230)),
+                Thumb::new("Range outer end", Color32::from_gray(150)),
+            ];
+            let style = ThumbRow::<4>::style(&Tokens::of(ui));
+            let row = ThumbRow::new("thumb-row-hue-range", values[0], &(0.0..=360.0), Some(1.0), thumbs).wrap_from(360.0, 0, 359.0);
+            let out = row.enabled(enabled).show(ui, &style);
             super::slider::store(&out.edit, &mut values[0]);
         });
     });
