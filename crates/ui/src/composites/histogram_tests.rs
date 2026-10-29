@@ -288,18 +288,18 @@ fn a_light_theme_draws_the_dark_modes_inks() {
 }
 
 #[test]
-fn marker_is_a_two_point_band_clipped_to_the_plot() {
+fn marker_is_a_tick_on_the_bottom_clipped_to_the_plot() {
     let rect = rect();
-    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, 2.0, Color32::WHITE)[0] {
+    let band = |level: f32| match &histogram::marker_shapes(rect, 256, level, (1.5, 9.0), Color32::WHITE)[0] {
         egui::Shape::Rect(r) => r.rect,
         other => panic!("{other:?}"),
     };
     let middle = band(127.5);
-    assert_eq!(middle.width(), 2.0);
+    assert_eq!(middle.width(), 1.5);
     assert!((middle.center().x - rect.center().x).abs() <= 1.0);
-    assert_eq!((middle.top(), middle.bottom()), (rect.top(), rect.bottom()));
+    assert_eq!((middle.height(), middle.bottom()), (9.0, rect.bottom()));
     assert!(rect.contains_rect(band(-50.0)) && rect.contains_rect(band(5000.0)));
-    assert!(histogram::marker_shapes(rect, 256, f32::NAN, 2.0, Color32::WHITE).is_empty());
+    assert!(histogram::marker_shapes(rect, 256, f32::NAN, (1.5, 9.0), Color32::WHITE).is_empty());
 }
 
 #[test]

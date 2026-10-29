@@ -29,6 +29,13 @@ pub struct SliderTokens {
     pub thumb: BySize<f32>,
     /// Width of the thumb: its height unless the theme sets another shape.
     pub thumb_width: BySize<f32>,
+    /// Width of a range slider's thumb: [`values::RANGE_THUMB_WIDTH`] at the Compact control
+    /// height, scaled by the control height of the size. Not overridable.
+    pub range_thumb_width: BySize<f32>,
+    /// Height of a range slider's thumb: [`values::RANGE_THUMB_HEIGHT`], scaled the same way.
+    pub range_thumb_height: BySize<f32>,
+    /// Corners of a range slider's thumb: [`values::RANGE_THUMB_RADIUS`]. Not overridable.
+    pub range_thumb_radius: f32,
     /// Thickness of the track: [`values::SLIDER_TRACK`].
     pub track_height: f32,
     /// Thickness of a gradient track: [`values::SLIDER_GRADIENT_TRACK`]. It has square ends and
@@ -140,6 +147,15 @@ impl Family for SliderTokens {
             width: BySize { sm: values::SLIDER_WIDTH * size.control.sm, md: values::SLIDER_WIDTH * size.control.md },
             thumb,
             thumb_width: thumb,
+            range_thumb_width: BySize {
+                sm: (values::RANGE_THUMB_WIDTH * size.control.sm / values::SLIDER_BASE_CONTROL).round(),
+                md: (values::RANGE_THUMB_WIDTH * size.control.md / values::SLIDER_BASE_CONTROL).round(),
+            },
+            range_thumb_height: BySize {
+                sm: (values::RANGE_THUMB_HEIGHT * size.control.sm / values::SLIDER_BASE_CONTROL).round(),
+                md: (values::RANGE_THUMB_HEIGHT * size.control.md / values::SLIDER_BASE_CONTROL).round(),
+            },
+            range_thumb_radius: values::RANGE_THUMB_RADIUS,
             track_height: values::SLIDER_TRACK,
             gradient_height: values::SLIDER_GRADIENT_TRACK,
             track_radius: values::SLIDER_TRACK_RADIUS,

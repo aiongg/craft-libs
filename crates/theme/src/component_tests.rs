@@ -688,7 +688,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Popup: fill, border and shadow; the menu's open fill replaced the list box's chosen text.
             + 3
-            // Histogram: the backdrop.
+            // Histogram: the backdrop; curve: the selected point's outline.
+            + 1
             + 1
     );
     for &f in ComponentField::ALL {

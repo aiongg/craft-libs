@@ -16,10 +16,10 @@ pub struct HistogramTokens {
     pub line: f32,
     /// Alpha of the selected range's band, in the accent colour: `histogram.selection_alpha`.
     pub selection_alpha: f32,
-    /// Alpha of the marker band at a level: `histogram.marker_alpha`.
-    pub marker_alpha: f32,
-    /// Width of the marker band: `histogram.marker_width`.
+    /// Width of the tick at a marked level and of the selection's edges: `histogram.marker_width`.
     pub marker_width: f32,
+    /// Height of the tick at a marked level: `histogram.marker_height`.
+    pub marker_height: f32,
 }
 
 /// An overridable histogram field. Path: `backdrop`.
@@ -41,8 +41,8 @@ impl Family for HistogramTokens {
             backdrop: values::HISTOGRAM_BACKDROP,
             line: values::HISTOGRAM_LINE,
             selection_alpha: values::HISTOGRAM_SELECTION_ALPHA,
-            marker_alpha: values::HISTOGRAM_MARKER_ALPHA,
             marker_width: values::HISTOGRAM_MARKER_WIDTH,
+            marker_height: values::HISTOGRAM_MARKER_HEIGHT,
         }
     }
 

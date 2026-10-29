@@ -580,7 +580,7 @@ fn histogram() {
         let s = Histogram::style(t);
         d.line("height", s.height).line("fill", s.fill).line("border", s.border).line("scope", s.scope);
         d.line("backdrop", s.backdrop).line("selection", s.selection).line("line", s.line);
-        d.line("marker", s.marker).line("marker_alpha", s.marker_alpha).line("marker_width", s.marker_width).line("stale", s.stale);
+        d.line("marker_width", s.marker_width).line("marker_height", s.marker_height).line("stale", s.stale);
         for channel in ChannelColor::ALL {
             d.line(&format!("tone.{}", channel.name()), s.tone(channel));
         }

@@ -43,10 +43,13 @@ pub struct CurveTokens {
     /// An unselected point's outline, a selected point's inside and a neutral channel's curve:
     /// `text.normal`.
     pub point_stroke: Rgba,
+    /// The outline round a selected point: black, PhotoCraft's own literal (`curves.rs:318`), which
+    /// no token role means: `curve.point_halo`.
+    pub point_halo: Rgba,
 }
 
 /// An overridable curve field. Paths: `fill`, `border`, `grid`, `baseline`, `point_fill`,
-/// `point_stroke`.
+/// `point_stroke`, `point_halo`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CurveField {
     /// `curve.fill`
@@ -61,11 +64,20 @@ pub enum CurveField {
     PointFill,
     /// `curve.point_stroke`
     PointStroke,
+    /// `curve.point_halo`
+    PointHalo,
 }
 
 impl CurveField {
-    const ALL: [CurveField; 6] =
-        [CurveField::Fill, CurveField::Border, CurveField::Grid, CurveField::Baseline, CurveField::PointFill, CurveField::PointStroke];
+    const ALL: [CurveField; 7] = [
+        CurveField::Fill,
+        CurveField::Border,
+        CurveField::Grid,
+        CurveField::Baseline,
+        CurveField::PointFill,
+        CurveField::PointStroke,
+        CurveField::PointHalo,
+    ];
 
     const fn name(self) -> &'static str {
         match self {
@@ -75,6 +87,7 @@ impl CurveField {
             CurveField::Baseline => "baseline",
             CurveField::PointFill => "point_fill",
             CurveField::PointStroke => "point_stroke",
+            CurveField::PointHalo => "point_halo",
         }
     }
 }
@@ -88,6 +101,7 @@ impl CurveTokens {
             CurveField::Baseline => self.baseline,
             CurveField::PointFill => self.point_fill,
             CurveField::PointStroke => self.point_stroke,
+            CurveField::PointHalo => self.point_halo,
         }
     }
 
@@ -99,6 +113,7 @@ impl CurveTokens {
             CurveField::Baseline => &mut self.baseline,
             CurveField::PointFill => &mut self.point_fill,
             CurveField::PointStroke => &mut self.point_stroke,
+            CurveField::PointHalo => &mut self.point_halo,
         }
     }
 }
@@ -132,6 +147,7 @@ impl Family for CurveTokens {
             baseline: c.line.control_edge,
             point_fill: field_fill,
             point_stroke: c.text.normal,
+            point_halo: Rgba::BLACK,
         }
     }
 

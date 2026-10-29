@@ -4,16 +4,18 @@ use std::ops::RangeInclusive;
 
 use craft_theme::{ControlSize, States};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Ui, Vec2, pos2};
+use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Stroke, Ui, Vec2, pos2};
 
 use super::slider::{
-    KEY_FILTER, Scale, Sensing, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, store, tap, with_values,
+    KEY_FILTER, Scale, Sensing, SliderStyle, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, store, tap,
+    with_values,
 };
 use super::{SIZE_NAMES, Slider, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::primitives::SurfaceEdge;
 use crate::primitives::{FocusRing, Gap, Interactive, Stack, StateLayer};
 use crate::story::{Args, Level, Story};
-use crate::theme::{Tokens, TokensOf};
+use crate::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, corner_radius};
 
 /// A range within a range, set with two thumbs on one track:
 ///
@@ -122,7 +124,7 @@ impl RangeSlider {
     /// `(lower, upper)`. The response covers the track.
     pub fn show(self, ui: &mut Ui) -> EditResponse<(f64, f64)> {
         let tokens = Tokens::of(ui);
-        let style = Slider::style(&tokens, self.size);
+        let style = range_style(&tokens, self.size);
         let scale = Scale::new(&self.range, self.step);
         let (_, rect) = ui.allocate_space(Vec2::new(style.width, style.height));
         let id = ui.make_persistent_id(self.id_salt);
@@ -227,6 +229,23 @@ impl RangeSlider {
         }
         EditResponse::new(response, gesture.finish())
     }
+}
+
+/// The slider's look with PhotoCraft's range handle for a thumb: a 5 by 12 rectangle of
+/// `text.normal` with a 1 point `text.muted` outline and 1 point corners, flat (`text.disabled`
+/// when disabled).
+fn range_style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
+    let (s, c) = (&tokens.component.slider, &tokens.color);
+    let mut style = Slider::style(tokens, size);
+    style.thumb_width = s.range_thumb_width.get(size);
+    style.thumb = s.range_thumb_height.get(size);
+    style.thumb_surface.radius = corner_radius(s.range_thumb_radius);
+    style.thumb_surface.shadow = None;
+    style.thumb_surface.edge = SurfaceEdge::Border(Stroke::new(1.0, c.text.muted.to_egui()));
+    let lit = |on: Color32| States::new(on, on, on, c.text.disabled.to_egui());
+    style.thumb_fill = lit(c.text.normal.to_egui());
+    style.thumb_border = lit(c.text.muted.to_egui());
+    style
 }
 
 /// The value with its lower end first.

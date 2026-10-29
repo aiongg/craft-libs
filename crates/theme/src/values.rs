@@ -602,10 +602,10 @@ pub const HISTOGRAM_BACKDROP: Rgba = Rgba([190, 190, 190, 191]);
 pub const HISTOGRAM_SELECTION_ALPHA: f32 = 0.35;
 /// Width of the RGB ribbons' outlines.
 pub const HISTOGRAM_LINE: f32 = 1.0;
-/// Alpha of the marker band (PhotoCraft's `paint_sample`).
-pub const HISTOGRAM_MARKER_ALPHA: f32 = 0.4;
-/// Width of the marker band (PhotoCraft's `paint_sample`).
-pub const HISTOGRAM_MARKER_WIDTH: f32 = 2.0;
+/// Width of a marker tick (PhotoCraft's sampler mark, `histogram_panel.rs:661`).
+pub const HISTOGRAM_MARKER_WIDTH: f32 = 1.5;
+/// Height of a marker tick.
+pub const HISTOGRAM_MARKER_HEIGHT: f32 = 9.0;
 
 /// Points added to `space.pad.control` for the side padding of a list box row: PhotoCraft's
 /// button padding of 10 beside a 6 point control padding (`style_spectrum_popup_menu`,
@@ -862,6 +862,13 @@ pub const SLIDER_HEIGHT_INSET: (f32, f32) = (4.0, 6.0);
 pub const SLIDER_THUMB_INSET: (f32, f32) = (2.0, 4.0);
 /// The control height the Compact slider mark height is set for.
 pub const SLIDER_BASE_CONTROL: f32 = 24.0;
+/// Compact width of a range slider's thumb: PhotoCraft's range handle, a 5 by 12 rectangle
+/// (`hue_saturation.rs:144-210`).
+pub const RANGE_THUMB_WIDTH: f32 = 5.0;
+/// Compact height of a range slider's thumb.
+pub const RANGE_THUMB_HEIGHT: f32 = 12.0;
+/// Corner radius of a range slider's thumb.
+pub const RANGE_THUMB_RADIUS: f32 = 1.0;
 /// Compact height of a slider's marks and ticks, in points.
 pub const SLIDER_MARK: f32 = 4.0;
 /// How near a mark (in points) a drag snaps the slider's thumb to it.

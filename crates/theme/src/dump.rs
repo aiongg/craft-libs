@@ -419,6 +419,9 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
         width,
         thumb,
         thumb_width,
+        range_thumb_width,
+        range_thumb_height,
+        range_thumb_radius,
         track_height,
         gradient_height,
         track_radius,
@@ -436,6 +439,9 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
     by_size(out, "slider.width", width);
     by_size(out, "slider.thumb", thumb);
     by_size(out, "slider.thumb_width", thumb_width);
+    by_size(out, "slider.range_thumb_width", range_thumb_width);
+    by_size(out, "slider.range_thumb_height", range_thumb_height);
+    out.line("slider.range_thumb_radius", len(*range_thumb_radius));
     out.line("slider.track_height", len(*track_height));
     out.line("slider.gradient_height", len(*gradient_height));
     out.line("slider.track_radius", len(*track_radius));
@@ -842,6 +848,7 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
         baseline,
         point_fill,
         point_stroke,
+        point_halo,
     } = t;
     out.line("curve.min_side", len(*min_side));
     out.line("curve.max_side", len(*max_side));
@@ -859,6 +866,7 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
     out.line("curve.baseline", hex(*baseline));
     out.line("curve.point_fill", hex(*point_fill));
     out.line("curve.point_stroke", hex(*point_stroke));
+    out.line("curve.point_halo", hex(*point_halo));
 }
 
 fn levels_lines(out: &mut Lines, t: &LevelsTokens) {
@@ -893,13 +901,13 @@ fn gradient_editor_lines(out: &mut Lines, t: &GradientEditorTokens) {
 }
 
 fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
-    let HistogramTokens { height, backdrop, line, selection_alpha, marker_alpha, marker_width } = t;
+    let HistogramTokens { height, backdrop, line, selection_alpha, marker_width, marker_height } = t;
     out.line("histogram.height", len(*height));
     out.line("histogram.backdrop", hex(*backdrop));
     out.line("histogram.selection_alpha", len(*selection_alpha));
     out.line("histogram.line", len(*line));
-    out.line("histogram.marker_alpha", len(*marker_alpha));
     out.line("histogram.marker_width", len(*marker_width));
+    out.line("histogram.marker_height", len(*marker_height));
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {

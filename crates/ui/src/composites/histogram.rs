@@ -216,12 +216,10 @@ pub struct HistogramStyle {
     pub selection: Color32,
     /// Width of the ribbons' outlines: `histogram.line`.
     pub line: f32,
-    /// The marker on the tone look: `text.normal` at `histogram.marker_alpha`.
-    pub marker: Color32,
-    /// Alpha of the marker, also on the RGB look: `histogram.marker_alpha`.
-    pub marker_alpha: f32,
-    /// Width of the marker band: `histogram.marker_width`.
+    /// Width of a marker tick and of the selection's edges: `histogram.marker_width`.
     pub marker_width: f32,
+    /// Height of a marker tick, from the bottom of the plot: `histogram.marker_height`.
+    pub marker_height: f32,
     /// The stale mark: `status.warn.fg`.
     pub stale: Color32,
 }
@@ -261,7 +259,7 @@ impl HistogramStyle {
 /// - **Outline:** the original histogram as a `histogram.line` line over the plot, on the plot's
 ///   scale in the tone look (a taller original is clamped to the top of the plot) and on its own
 ///   scale in the RGB look.
-/// - **Marker, markers:** a 2 pt band at a level; markers add a caption beside the band.
+/// - **Marker, markers:** a tick at a level, standing on the bottom of the plot (PhotoCraft's sampler mark); markers add a caption beside the tick.
 /// - **Selection:** a band over the whole bin slots of a range of levels with 2 pt edges, dragged
 ///   with the pointer or moved with the arrow keys (Shift moves the start edge) while the plot
 ///   has focus. A click or Esc clears it. Levels are bin positions, whole numbers.
@@ -470,9 +468,8 @@ impl Histogram {
             backdrop: h.backdrop.to_egui(),
             selection: tokens.color.accent.solid.to_egui().gamma_multiply(h.selection_alpha),
             line: h.line,
-            marker: tokens.color.text.normal.to_egui().gamma_multiply(h.marker_alpha),
-            marker_alpha: h.marker_alpha,
             marker_width: h.marker_width,
+            marker_height: h.marker_height,
             stale: tokens.color.status.warn.fg.to_egui(),
         }
     }
@@ -521,20 +518,15 @@ impl Histogram {
                 if let Some((bins, channel)) = &self.outline {
                     painter.extend(outline_shapes(rect, data, bins, *channel, &style));
                 }
-                let (color, solid) = if rgb {
-                    let solid = sum(&style.ribbons, 0b111);
-                    (solid.gamma_multiply(style.marker_alpha), solid)
-                } else {
-                    (style.marker, tokens.color.text.normal.to_egui())
-                };
+                let solid = if rgb { sum(&style.ribbons, 0b111) } else { tokens.color.text.normal.to_egui() };
                 if let Some(range) = &shown {
                     painter.extend(selection_shapes(rect, bins, range, style.marker_width, style.selection));
                 }
                 if let Some(level) = self.marker {
-                    painter.extend(marker_shapes(rect, bins, level, style.marker_width, color));
+                    painter.extend(marker_shapes(rect, bins, level, (style.marker_width, style.marker_height), solid));
                 }
                 for (i, (level, caption)) in self.markers.iter().enumerate() {
-                    painter.extend(marker_shapes(rect, bins, *level, style.marker_width, color));
+                    painter.extend(marker_shapes(rect, bins, *level, (style.marker_width, style.marker_height), solid));
                     Self::caption(ui, id.with(("marker", i)), rect, level_x(rect, bins, *level), caption, solid, &tokens);
                 }
             }
@@ -734,14 +726,14 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
     }
 }
 
-/// The marker band of `width` at bin position `level`, snapped to whole points and clipped to
-/// `rect`.
-pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, width: f32, color: Color32) -> Vec<Shape> {
+/// The marker tick of `width` by `height` at bin position `level`, standing on the bottom of `rect`,
+/// snapped to whole points and clipped to `rect`.
+pub(super) fn marker_shapes(rect: Rect, bins: usize, level: f32, (width, height): (f32, f32), color: Color32) -> Vec<Shape> {
     if !usable(rect) || bins == 0 || !level.is_finite() {
         return Vec::new();
     }
     let left = (level_x(rect, bins, level) - width / 2.0).round();
-    let band = Rect::from_min_max(pos2(left, rect.top()), pos2(left + width, rect.bottom())).intersect(rect);
+    let band = Rect::from_min_max(pos2(left, rect.bottom() - height), pos2(left + width, rect.bottom())).intersect(rect);
     vec![Shape::rect_filled(band, 0.0, color)]
 }
 
