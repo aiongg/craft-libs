@@ -27,6 +27,29 @@ pub const RESIZE_HANDLES: [&str; 8] =
 /// of the contents: it takes the pointer there, and the contents draw to the frame's top.
 pub const RESIZE_BAND: f32 = 4.0;
 
+/// Where a [`FloatingFrame`] collects the hit rects of the [`TitleBar`] buttons drawn in its
+/// contents, per layer. The frame is active only while its contents run, so a title bar outside a
+/// frame records nothing.
+fn button_rects_key(layer: LayerId) -> Id {
+    layer.id.with("title-buttons")
+}
+
+/// The widest part of `handle` that no `buttons` rect covers, for a handle a button overlaps: a
+/// title-bar button's whole hit rect belongs to the button, also where a resize band lies over it.
+/// Only the horizontal extent is cut; `None` when the buttons cover the handle.
+fn clear_of_buttons(handle: Rect, buttons: &[Rect]) -> Option<Rect> {
+    let mut spans = vec![(handle.left(), handle.right())];
+    for button in buttons.iter().filter(|b| b.top() < handle.bottom() && b.bottom() > handle.top()) {
+        spans = spans
+            .into_iter()
+            .flat_map(|(from, to)| [(from, to.min(button.left())), (from.max(button.right()), to)])
+            .filter(|(from, to)| to > from)
+            .collect();
+    }
+    let (from, to) = spans.into_iter().max_by(|a, b| (a.1 - a.0).total_cmp(&(b.1 - b.0)))?;
+    Some(Rect::from_x_y_ranges(from..=to, handle.y_range()))
+}
+
 /// Colors and font of the frame and title bar.
 #[derive(Clone, Debug)]
 pub struct ChromeStyle {
@@ -285,9 +308,13 @@ impl<'a> FloatingFrame<'a> {
                 ui.painter().add(style.shadow.as_shape(rect, style.radius));
             }
             ui.painter().rect_filled(rect, style.radius, style.background);
+            let buttons_key = button_rects_key(ui.layer_id());
+            ui.data_mut(|data| data.insert_temp(buttons_key, Vec::<Rect>::new()));
             let inner = add_contents(ui, rect);
+            let buttons = ui.data_mut(|data| data.remove_temp::<Vec<Rect>>(buttons_key)).unwrap_or_default();
             ui.painter().rect_stroke(rect, style.radius, style.stroke, StrokeKind::Outside);
-            let (resized, resize_started, handles) = if self.resizable { self.handles(ui, rect, bounds, style) } else { (None, None, Vec::new()) };
+            let (resized, resize_started, handles) =
+                if self.resizable { self.handles(ui, rect, bounds, &buttons, style) } else { (None, None, Vec::new()) };
             FrameResponse { inner, rect, layer: Self::layer(self.id), resized, resize_started, handles }
         });
         shown.inner
@@ -300,15 +327,17 @@ impl<'a> FloatingFrame<'a> {
     /// Escape or focus loss cancels that drag. Keyboard arrow steps move an edge by 8 pt; pointer
     /// drags derive the next rect from the cursor relative to the press origin. Limits clamp the
     /// proposal. Stored pointer anchors are removed on cancellation or once the primary button is
-    /// released. Handles are accessibility buttons; the diagonal one is painted while hovered,
+    /// released. A handle gives up the part of its hit rect that a title-bar button's hit rect covers
+    /// (`buttons`). Handles are accessibility buttons; the diagonal one is painted while hovered,
     /// dragged or focused, and the others while focused.
-    fn handles(&self, ui: &mut Ui, rect: Rect, bounds: Rect, style: &ChromeStyle) -> (Option<Rect>, Option<Id>, Vec<Response>) {
+    fn handles(&self, ui: &mut Ui, rect: Rect, bounds: Rect, buttons: &[Rect], style: &ChromeStyle) -> (Option<Rect>, Option<Id>, Vec<Response>) {
         let mut resized = None;
         let mut started = None;
         let mut responses = Vec::new();
         let limits = PanelLimits { min: self.limits.min.max(vec2(40.0, style.title_height + 20.0)).min(self.limits.max), ..self.limits };
         let canceled = ui.input(|input| input.key_pressed(Key::Escape)) || crate::focus::lost(ui.ctx());
         for (name, handle, direction) in handles(rect) {
+            let Some(handle) = clear_of_buttons(handle, buttons) else { continue };
             if !super::targets::usable(handle) {
                 continue;
             }
@@ -514,6 +543,11 @@ impl<'a> TitleBar<'a> {
         let buttons = menu_rect.or(close_rect).map_or(rect.right(), |r| r.left());
         let bar_rect = mirror(Rect::from_min_max(rect.min, pos2(buttons.max(rect.left()), rect.bottom())));
         let (close_rect, menu_rect) = (close_rect.map(mirror), menu_rect.map(mirror));
+        let key = button_rects_key(ui.layer_id());
+        if let Some(mut recorded) = ui.data(|data| data.get_temp::<Vec<Rect>>(key)) {
+            recorded.extend(close_rect.into_iter().chain(menu_rect));
+            ui.data_mut(|data| data.insert_temp(key, recorded));
+        }
         let bar = ui.interact(bar_rect, self.id, Sense::click_and_drag());
         let bar = if self.movable { bar.on_hover_cursor(egui::CursorIcon::Grab) } else { bar };
         bar.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), self.move_label));

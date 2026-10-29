@@ -665,6 +665,64 @@ fn chrome_frame_and_title_bar_work_without_a_dock_area() {
 }
 
 #[test]
+/// A title-bar button's whole hit rect belongs to the button, also where the top resize band lies
+/// over it: a press at the top edge of × or ▾ clicks it and resizes nothing, while the same edge
+/// above the title text still resizes.
+fn the_top_resize_band_leaves_the_title_bar_buttons_their_top_edge() {
+    use chrome::{ChromeStyle, FloatingFrame, TitleBar};
+    let ctx = Context::default();
+    let id = Id::unique("button-edge");
+    let rect = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
+    let mut time = 0.0;
+    let mut frame = |events: Vec<Event>| {
+        time += 1.0 / 60.0;
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), events, time: Some(time), ..Default::default() };
+        let mut result = None;
+        done(ctx.run_ui(input, |ui| {
+            let style = ChromeStyle::from_ui(ui);
+            let shown = FloatingFrame::new(id, rect).show(ui.ctx(), &style, |ui, inner| {
+                let title = Rect::from_min_size(inner.min, vec2(inner.width(), 22.0));
+                let bar = TitleBar::new(id.with("title"), "Move pane").title("Styles").menu("Pane menu").close("Close pane").show(ui, title, &style);
+                (bar.menu.is_some_and(|r| r.clicked()), bar.close.is_some_and(|r| r.clicked()))
+            });
+            result = Some((shown.inner, shown.resized));
+        }));
+        result.unwrap()
+    };
+    frame(vec![]);
+    frame(vec![]);
+    // Press at the button's top edge (inside the 4 pt band), drag upward, release.
+    let press_and_drag_up = |frame: &mut dyn FnMut(Vec<Event>) -> ((bool, bool), Option<Rect>), x: f32| {
+        let at = pos2(x, 100.5);
+        let mut resized = frame(vec![Event::PointerMoved(at), button(at, true)]).1;
+        resized = resized.or(frame(vec![Event::PointerMoved(at - vec2(0.0, 30.0))]).1);
+        let (clicks, last) = frame(vec![button(at, false)]);
+        (clicks, resized.or(last))
+    };
+    // A release over the pressed button is a click even when the pointer left: `clicked` needs the
+    // pointer over the widget, so test the click and the resize separately.
+    let at = pos2(390.0, 100.5);
+    frame(vec![Event::PointerMoved(at), button(at, true)]);
+    let ((_, closed), resized) = frame(vec![button(at, false)]);
+    assert!(closed && resized.is_none(), "× top edge closes, closed {closed}, resized {resized:?}");
+    let at = pos2(362.0, 100.5);
+    frame(vec![Event::PointerMoved(at), button(at, true)]);
+    let ((menu, _), resized) = frame(vec![button(at, false)]);
+    assert!(menu && resized.is_none(), "▾ top edge opens the menu, menu {menu}, resized {resized:?}");
+    for x in [390.0, 362.0] {
+        let (_, resized) = press_and_drag_up(&mut frame, x);
+        assert_eq!(resized, None, "a drag from the button at x {x} resizes nothing");
+    }
+    // Above the title text the top edge still resizes.
+    let at = pos2(200.0, 100.5);
+    frame(vec![Event::PointerMoved(at), button(at, true)]);
+    frame(vec![Event::PointerMoved(at - vec2(0.0, 10.0))]);
+    let (_, resized) = frame(vec![Event::PointerMoved(at - vec2(0.0, 30.0))]);
+    assert_eq!(resized, Some(Rect::from_min_max(pos2(100.0, 70.0), rect.max)));
+}
+
+#[test]
 /// Hidden panels give up their split space; the remaining split hit is named by its layout path and
 /// dragging it emits `ResizeSplit` for exactly that path while the nested ratio changes.
 fn hidden_panels_leave_their_split_and_resizing_names_the_layout_path() {
