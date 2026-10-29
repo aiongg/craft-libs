@@ -83,7 +83,7 @@ impl Gallery {
             compare_high: saved.compare_high,
             browser: Browser::default(),
             inspector: Inspector::default(),
-            workspace: saved.layout.map_or_else(default_workspace, reconciled),
+            workspace: persist::load_layout(storage).map_or_else(default_workspace, reconciled),
             reset_layout: false,
             args: HashMap::new(),
             saved_args: saved.args,
@@ -568,10 +568,10 @@ impl eframe::App for Gallery {
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             compare_high: self.compare_high,
-            layout: Some(self.workspace.clone()),
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
+        eframe::set_value(storage, persist::LAYOUT_KEY, &self.workspace);
     }
 }
 
@@ -825,7 +825,17 @@ mod tests {
         let broken =
             Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::Canvas, PanelId::Canvas], active: 0 }), floating: Vec::new() });
         let mut storage = Memory::default();
-        eframe::set_value(&mut storage, KEY, &Saved { layout: Some(broken), ..Saved::default() });
+        eframe::set_value(&mut storage, persist::LAYOUT_KEY, &broken);
         assert_eq!(Gallery::new(Some(&storage)).workspace, default_workspace());
+    }
+
+    #[test]
+    fn an_unreadable_saved_layout_costs_only_the_layout() {
+        let mut storage = Memory::default();
+        eframe::set_value(&mut storage, KEY, &Saved { filter: "button".to_owned(), ..Saved::default() });
+        eframe::Storage::set_string(&mut storage, persist::LAYOUT_KEY, "(version:9,layout:(root:Some(Frobnicate(".to_owned());
+        let gallery = Gallery::new(Some(&storage));
+        assert_eq!(gallery.workspace, default_workspace());
+        assert_eq!(gallery.filter, "button", "the rest of the saved state is kept");
     }
 }
