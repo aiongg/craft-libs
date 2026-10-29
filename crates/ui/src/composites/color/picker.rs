@@ -1,15 +1,21 @@
 //! [`ColorPicker`]: the colour picker's body, the area and strip with the channel rows, the hex
 //! field and the hooks a host adds.
 
-use craft_theme::{ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
+use std::ops::RangeInclusive;
+
+use craft_theme::{Channel, ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
 use egui::accesskit::Role;
 use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Vec2, pos2, vec2};
 
+use super::area::{self, AreaOp};
 use super::hex::{self, HexCodec};
-use super::{AreaMode, ColorArea, ColorStrip};
+use super::{AreaMode, ColorArea, ColorStrip, strip};
 use crate::composites::PropertyRow;
+use crate::controls::number_field::{self, FieldRule};
+use crate::controls::slider::{self, Scale};
 use crate::controls::{Button, IconButton, NumberField, Slider};
 use crate::direction;
+use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
@@ -102,7 +108,9 @@ pub struct ColorPickerResponse {
 ///   of the picker's models with its unit ([`NumberField::fit_width`]).
 /// - Edits: every inner control's gesture is the picker's, with the whole colour as its value:
 ///   an area or strip drag, a slider drag, a scrub or a typing run is one Begin … Commit (or
-///   Cancel); keys, the wheel, Enter and a sample are [`Set`](EditEvent::Set)s. Esc during a
+///   Cancel); keys, the wheel, Enter and a sample are [`Set`](EditEvent::Set)s. A control's
+///   step during another control's gesture waits for that gesture to end, then steps the colour
+///   it left, as a Set of its own. Esc during a
 ///   gesture cancels it; Esc without one is the host's. Inside [`edit::scope`] only updates go
 ///   out. The host's [`EditPolicy`] decides how the picker's gesture reports.
 /// - Kept components: the picker keeps the values the user last edited, in that model, while
@@ -399,12 +407,14 @@ impl<'a> ColorPicker<'a> {
             let start = outer.start().cloned();
             let shown = outer.shown().clone();
             let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
-            let mut edits = Edits::new(id, &state.parts, &outer, edit::in_scope(ui));
+            let mut parts = Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain };
+            parts.replay(ui.ctx());
 
             eyedropper_requested = match self.layout {
-                ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
-                ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, &shown, inner, &translate, &constrain, &mut edits),
+                ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts),
+                ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts),
             };
+            let mut edits = parts.edits;
             if let Some(color) = ui.data_mut(|d| {
                 let color = d.get_temp::<Srgba>(sample_key(id));
                 d.remove::<Srgba>(sample_key(id));
@@ -448,11 +458,9 @@ impl<'a> ColorPicker<'a> {
         mode: AreaMode,
         models: &[&dyn ColorModel],
         state: &mut State,
-        shown: &Picked,
         inner: Inner,
         translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        edits: &mut Edits,
+        parts: &mut Parts<'_>,
     ) -> bool {
         let style = ColorArea::style(&Tokens::of(ui));
         let height = self.area_height.unwrap_or(style.area_height);
@@ -460,49 +468,44 @@ impl<'a> ColorPicker<'a> {
         let area_width = (ui.available_width() - gap - ColorStrip::outer_width(&style, style.strip)).max(0.0);
         let model = models.iter().copied().find(|m| Some(m.id()) == state.model).or_else(|| models.first().copied());
         let visible: Vec<&dyn ColorModel> = model.into_iter().chain([mode.model()]).collect();
-        self.area_and_strip(ui, mode, &visible, shown, inner, translate, constrain, edits, vec2(area_width, height), style.strip);
+        self.area_and_strip(ui, mode, &visible, inner, translate, parts, vec2(area_width, height), style.strip);
         if let Some(model) = model {
-            let (values, exact) = shown.values_in(model);
+            let constrain = parts.constrain;
             for (i, ch) in model.channels().iter().enumerate() {
                 let name = channel_name(model, i, &visible, translate);
-                let unit = unit_of(ch.unit, translate);
-                let range = f64::from(ch.min)..=f64::from(ch.max);
+                let row = RowRule::of(ch);
+                let channel_op = |part| move |op| PickerOp::Channel { model: model.id(), i, part, op };
+                let field =
+                    row_field(ui, ("channel", i), &name, parts.value().values_in(model).1[i], &row, unit_of(ch.unit, translate), self.numbers, inner);
+                let map = |x, now: &Picked| now.with_channel(model, i, x, constrain);
+                parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(channel_op(RowPart::Field)), map);
+                let (values, exact) = parts.value().values_in(model);
                 let track = self.dynamic_tracks.then(|| model.track(i, &values));
-                let (field, slider) =
-                    slider_row(ui, ("channel", i), &name, exact[i], range, f64::from(ch.step), ch.decimals, unit, track, self.numbers, inner);
-                let map = |x| shown.with_channel(model, i, x, constrain);
-                edits.typing_mapped(ui.ctx(), &field, map);
-                edits.push_mapped(&slider, map);
+                let slider = row_slider(ui, ("channel", i), &name, exact[i], &row, track, inner);
+                parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(channel_op(RowPart::Slider)), map);
             }
             if models.len() > 1 {
                 state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
             }
         }
-        let requested = self.hex_row(ui, id, shown, translate, constrain, inner.enabled, edits);
+        let requested = self.hex_row(ui, id, translate, inner.enabled, parts);
         if self.alpha {
-            self.alpha_row(ui, shown, inner, translate, constrain, edits);
+            self.alpha_row(ui, inner, translate, parts);
         }
         requested
     }
 
     /// The "Opacity" slider row, 0–100 % over the checkerboard.
-    fn alpha_row(
-        &self,
-        ui: &mut Ui,
-        shown: &Picked,
-        inner: Inner,
-        translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        edits: &mut Edits,
-    ) {
+    fn alpha_row(&self, ui: &mut Ui, inner: Inner, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
         let name = translate(texts::OPACITY);
-        let opaque = shown.color.with_alpha(1.0);
-        let track = Some(vec![opaque.with_alpha(0.0), opaque]);
-        let unit = unit_of("%", translate);
-        let (field, slider) = slider_row(ui, "alpha", &name, shown.alpha, 0.0..=100.0, 1.0, 0, unit, track, self.numbers, inner);
-        let map = |pct| shown.with_alpha(pct, constrain);
-        edits.typing_mapped(ui.ctx(), &field, map);
-        edits.push_mapped(&slider, map);
+        let constrain = parts.constrain;
+        let map = |pct, now: &Picked| now.with_alpha(pct, constrain);
+        let field = row_field(ui, "alpha", &name, parts.value().alpha, &ALPHA, unit_of("%", translate), self.numbers, inner);
+        parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Field, op)), map);
+        let now = parts.value();
+        let opaque = now.color.with_alpha(1.0);
+        let slider = row_slider(ui, "alpha", &name, now.alpha, &ALPHA, Some(vec![opaque.with_alpha(0.0), opaque]), inner);
+        parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Slider, op)), map);
     }
 
     /// The area `area` large and, at the reading end, the strip `strip` wide. The strip and the
@@ -513,49 +516,39 @@ impl<'a> ColorPicker<'a> {
         ui: &mut Ui,
         mode: AreaMode,
         visible: &[&dyn ColorModel],
-        shown: &Picked,
         inner: Inner,
         translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        edits: &mut Edits,
+        parts: &mut Parts<'_>,
         area: Vec2,
         strip: f32,
     ) {
         let model = mode.model();
-        let (values, _) = shown.values_in(model);
         let [across, down] = mode.area();
         let area_name = translate(mode.name());
+        let constrain = parts.constrain;
+        let map = |v: ModelValues, now: &Picked| now.with_values(&v, v.values.map(f64::from), constrain);
         Row::new(Gap::Inline).show(ui, |ui| {
-            let area = ColorArea::new("area", area_name, mode, values)
+            let (area, ops) = ColorArea::new("area", area_name, mode, parts.value().values_in(model).0)
                 .channel_names(channel_name(model, across, visible, translate), channel_name(model, down, visible, translate))
                 .size(area)
                 .policy(inner.policy)
                 .enabled(inner.enabled)
                 .part(true)
-                .show(ui);
-            edits.push_from(&area, &values, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
-            let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
-                .size(vec2(strip, area.response.rect.height()))
-                .policy(inner.policy)
-                .enabled(inner.enabled)
-                .part(true)
-                .show(ui);
-            edits.push_from(&strip, &values, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
+                .show_with_ops(ui);
+            parts.push(&area, ops.into_iter().map(|op| PickerOp::Area(op, mode)), map);
+            let (strip, ops) =
+                ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, parts.value().values_in(model).0)
+                    .size(vec2(strip, area.response.rect.height()))
+                    .policy(inner.policy)
+                    .enabled(inner.enabled)
+                    .part(true)
+                    .show_with_ops(ui);
+            parts.push(&strip, ops.into_iter().map(|op| PickerOp::Strip(op, mode)), map);
         });
     }
 
     /// "#", the hex field and the eyedropper button; whether the button was pressed.
-    #[allow(clippy::too_many_arguments)]
-    fn hex_row(
-        &self,
-        ui: &mut Ui,
-        id: Id,
-        shown: &Picked,
-        translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        enabled: bool,
-        edits: &mut Edits,
-    ) -> bool {
+    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) -> bool {
         let tokens = Tokens::of(ui);
         let gap = Gap::Inline.points(&tokens);
         let button = self.eyedropper.as_ref().map(|_| IconButton::style(&tokens, ControlSize::Md).side + gap);
@@ -563,7 +556,7 @@ impl<'a> ColorPicker<'a> {
         Row::new(Gap::Inline).show(ui, |ui| {
             ui.add(Text::new("#").role(TypeRole::Mono).content(Content::Muted));
             let width = (ui.available_width() - button.unwrap_or(0.0)).max(0.0);
-            self.hex_field(ui, id, width, shown, translate, constrain, enabled, edits);
+            self.hex_field(ui, id, width, translate, enabled, parts);
             if let Some(label) = &self.eyedropper {
                 let pressed = ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)).clicked();
                 requested = pressed;
@@ -573,34 +566,18 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// The hex field, `width` wide.
-    #[allow(clippy::too_many_arguments)]
-    fn hex_field(
-        &self,
-        ui: &mut Ui,
-        id: Id,
-        width: f32,
-        shown: &Picked,
-        translate: &dyn Fn(&str) -> String,
-        constrain: &dyn Fn(Srgba) -> Srgba,
-        enabled: bool,
-        edits: &mut Edits,
-    ) {
+    fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) {
         let codec = HexCodec { alpha: self.alpha, reason: translate(texts::NOT_HEX) };
         let label = translate(texts::HEX_COLOUR);
+        let color = parts.value().color.to_rgba();
         let field = ui
             .allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
-                hex::show(
-                    ui,
-                    hex::hex_id(id),
-                    &label,
-                    shown.color.to_rgba(),
-                    codec,
-                    EditPolicy::default().cancellable(self.policy.cancellable),
-                    enabled,
-                )
+                hex::show(ui, hex::hex_id(id), &label, color, codec, EditPolicy::default().cancellable(self.policy.cancellable), enabled)
             })
             .inner;
-        edits.typing_mapped(ui.ctx(), &field, |rgba| shown.with_hex(rgba, constrain));
+        let constrain = parts.constrain;
+        let ops = field.event.as_ref().and_then(EditEvent::value).map(|rgba| PickerOp::Hex(*rgba));
+        parts.typing(&field, ops, |rgba, now| now.with_hex(rgba, constrain));
     }
 }
 
@@ -637,31 +614,55 @@ fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorMod
     translate(if clash { ch.qualified } else { ch.name })
 }
 
-/// A Compact slider row: the word label `name`, which scrubs and names the number field at the
-/// row's end, then the slider under them; the field's and the slider's edits.
+/// How a slider row's or a channel field's value steps and settles: a channel's or the alpha's.
+struct RowRule {
+    range: RangeInclusive<f64>,
+    step: f64,
+    decimals: u8,
+}
+
+/// The alpha row's rule: 0–100 %, whole percents.
+const ALPHA: RowRule = RowRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
+
+impl RowRule {
+    fn of(channel: &Channel) -> RowRule {
+        RowRule { range: f64::from(channel.min)..=f64::from(channel.max), step: f64::from(channel.step), decimals: channel.decimals }
+    }
+
+    /// The value `op` of `part` gives the row at `from`, as that part applies it.
+    fn apply(&self, part: RowPart, op: &ScalarOp, from: f64) -> f64 {
+        match part {
+            RowPart::Slider => {
+                let scale = Scale::new(&self.range, Some(self.step));
+                slider::apply(op, scale.place(from), (scale.min, scale.max), &scale)
+            }
+            RowPart::Field => number_field::apply(op, from, &FieldRule::new(&self.range, self.step, usize::from(self.decimals))),
+        }
+    }
+}
+
+/// The word label `name` of a Compact slider row, which scrubs and names the number field at the
+/// row's end; the field's edit.
 #[allow(clippy::too_many_arguments)]
-fn slider_row(
+fn row_field(
     ui: &mut Ui,
     salt: impl AsIdSalt + Copy,
     name: &str,
     value: f64,
-    range: std::ops::RangeInclusive<f64>,
-    step: f64,
-    decimals: u8,
+    rule: &RowRule,
     unit: Unit,
-    track: Option<Vec<Srgba>>,
     numbers: &LocaleNumbers,
     inner: Inner,
-) -> (EditResponse<f64>, EditResponse<f64>) {
+) -> EditResponse<f64> {
     let Inner { policy, enabled, width } = inner;
-    let field = PropertyRow::word(name)
+    PropertyRow::word(name)
         .scrubs()
         .show(ui, |ui, row| {
             at_end(ui, width, |ui| {
                 let field = NumberField::new(("field", salt), name, value, numbers)
-                    .range(range.clone())
-                    .step(step)
-                    .decimals(0..=usize::from(decimals))
+                    .range(rule.range.clone())
+                    .step(rule.step)
+                    .decimals(0..=usize::from(rule.decimals))
                     .unit(unit)
                     .policy(policy)
                     .part(true)
@@ -673,12 +674,25 @@ fn slider_row(
                 .show(ui)
             })
         })
-        .inner;
-    let mut slider = Slider::new(("slider", salt), name, value, range).step(step).policy(policy).enabled(enabled).part(true);
+        .inner
+}
+
+/// The slider under a Compact row's label, over `track`'s colours; its edit.
+fn row_slider(
+    ui: &mut Ui,
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    rule: &RowRule,
+    track: Option<Vec<Srgba>>,
+    inner: Inner,
+) -> EditResponse<f64> {
+    let mut slider =
+        Slider::new(("slider", salt), name, value, rule.range.clone()).step(rule.step).policy(inner.policy).enabled(inner.enabled).part(true);
     if let Some(stops) = track {
         slider = slider.track_colors(stops);
     }
-    (field, slider.show(ui))
+    slider.show(ui)
 }
 
 /// `add` in a column `width` wide at the reading end of the `Ui`.
@@ -728,7 +742,7 @@ struct State {
     kept: Option<Picked>,
     /// The inner controls' edits: the owner of the picker's gesture, and the inputs (clicks and
     /// samples) that wait for their turn ([`Edits::inputs`]).
-    parts: parts::State<(), Input>,
+    parts: parts::State<PickerOp, Input>,
     /// The model of the Compact rows.
     model: Option<&'static str>,
     mode: AreaMode,
@@ -842,6 +856,23 @@ impl Picked {
         if rgba == self.color.to_rgba() { self.clone() } else { self.with_color(rgba.into(), constrain) }
     }
 
+    /// This value with `op` applied, a channel's in its model among `models`; `None` when that
+    /// model isn't one of them.
+    fn apply(&self, op: &PickerOp, models: &[&dyn ColorModel], constrain: &dyn Fn(Srgba) -> Srgba) -> Option<Picked> {
+        let with_values = |values: ModelValues| self.with_values(&values, values.values.map(f64::from), constrain);
+        Some(match op {
+            PickerOp::Area(op, mode) => with_values(area::apply(op, &self.values_in(mode.model()).0, *mode)),
+            PickerOp::Strip(op, mode) => with_values(strip::apply(op, &self.values_in(mode.model()).0, *mode)),
+            PickerOp::Channel { model, i, part, op } => {
+                let model = models.iter().copied().find(|m| m.id() == *model)?;
+                let rule = RowRule::of(model.channels().get(*i)?);
+                self.with_channel(model, *i, rule.apply(*part, op, self.values_in(model).1[*i]), constrain)
+            }
+            PickerOp::Alpha(part, op) => self.with_alpha(ALPHA.apply(*part, op, self.alpha), constrain),
+            PickerOp::Hex(rgba) => self.with_hex(*rgba, constrain),
+        })
+    }
+
     fn report(self) -> PickedColor {
         PickedColor { color: self.color, model: self.values.filter(|_| self.made && self.faithful) }
     }
@@ -859,7 +890,74 @@ fn model_of(values: &ModelValues) -> Option<&'static dyn ColorModel> {
 
 /// The inner controls' edits of a pass, as the picker's values; the clicks are the colours the
 /// compare swatch's current half and the warning chips set.
-type Edits = parts::Edits<Picked, (), Input>;
+type Edits = parts::Edits<Picked, PickerOp, Input>;
+
+/// The picker's parts in a pass: their edits, and what their operations apply with.
+struct Parts<'a> {
+    edits: Edits,
+    models: &'a [&'a dyn ColorModel],
+    constrain: &'a dyn Fn(Srgba) -> Srgba,
+}
+
+impl Parts<'_> {
+    /// Applies the queued operations whose turn has come ([`Edits::replay`]), before any part is
+    /// drawn.
+    fn replay(&mut self, ctx: &Context) {
+        let (models, constrain) = (self.models, self.constrain);
+        self.edits.replay(ctx, |op, now| now.apply(op, models, constrain));
+    }
+
+    /// The picker's value with the replay and the edits pushed so far: each part draws from it.
+    fn value(&self) -> Picked {
+        self.edits.value().clone()
+    }
+
+    /// A part's edit and its operations ([`Edits::push`]); `map` puts a gesture's value on the
+    /// picker's.
+    fn push<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        edit: &EditResponse<T>,
+        ops: impl IntoIterator<Item = PickerOp>,
+        map: impl Fn(T, &Picked) -> Picked,
+    ) {
+        let (models, constrain) = (self.models, self.constrain);
+        self.edits.push(edit, ops, |op, now| now.apply(op, models, constrain), map);
+    }
+
+    /// [`push`](Parts::push) for a field whose focus is a typing run's.
+    fn typing<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        field: &EditResponse<T>,
+        ops: impl IntoIterator<Item = PickerOp>,
+        map: impl Fn(T, &Picked) -> Picked,
+    ) {
+        let (models, constrain) = (self.models, self.constrain);
+        self.edits.typing(field, ops, |op, now| now.apply(op, models, constrain), map);
+    }
+}
+
+/// What the user did to one of the picker's parts, which applies to the picker's value of its
+/// turn ([`Picked::apply`]).
+#[derive(Clone, Debug, PartialEq)]
+enum PickerOp {
+    /// The area's, in its mode.
+    Area(AreaOp, AreaMode),
+    /// The strip's, in its mode.
+    Strip(ScalarOp, AreaMode),
+    /// Channel `i` of the model with id `model`: its slider's or its number field's.
+    Channel { model: &'static str, i: usize, part: RowPart, op: ScalarOp },
+    /// The alpha row's slider's or field's.
+    Alpha(RowPart, ScalarOp),
+    /// The hex field's colour.
+    Hex(Rgba),
+}
+
+/// Which control of a row made an operation: each applies its own way ([`RowRule::apply`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RowPart {
+    Slider,
+    Field,
+}
 
 /// One of the picker's own inputs, which wait for their turn.
 #[derive(Clone, Copy, Debug)]

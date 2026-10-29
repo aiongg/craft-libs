@@ -537,6 +537,61 @@ fn a_screen_reader_step_on_the_strip_during_a_field_scrub_keeps_the_scrubs_value
     assert!(model.values[0] > hue, "the step raised the hue: {} from {hue}", model.values[0]);
 }
 
+/// A screen reader's step on the hue strip during a scrub of the Hue field waits for the release,
+/// then steps from the hue the scrub committed: the scrub's travel stays.
+#[test]
+fn a_strip_step_during_a_same_channel_field_scrub_steps_from_the_committed_value() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    let b = rig.node(Role::SpinButton, "Hue").bounds().expect("field bounds");
+    let from = pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+    rig.frame(vec![Event::PointerMoved(from), button(from, true)]);
+    for dx in [10.0, 12.0, 14.0] {
+        rig.frame(vec![Event::PointerMoved(from + vec2(dx, 0.0))]);
+    }
+    let strip = rig
+        .nodes
+        .iter()
+        .find(|(_, n)| n.role() == Role::Slider && n.orientation() == Some(egui::accesskit::Orientation::Vertical))
+        .map(|(id, _)| *id)
+        .expect("the strip");
+    rig.frame(vec![Event::AccessKitActionRequest(increment(strip))]);
+    let stepped = rig.last_model().expect("HSB values").values[0];
+    for dx in [16.0, 18.0, 20.0] {
+        rig.frame(vec![Event::PointerMoved(from + vec2(dx, 0.0))]);
+    }
+    rig.frame(vec![button(from + vec2(20.0, 0.0), false)]);
+    rig.settle();
+    let kinds: Vec<_> = rig.events.iter().map(kind).collect();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let committed = rig
+        .events
+        .iter()
+        .find_map(|e| match e {
+            EditEvent::Commit { value, .. } => value.model.map(|m| m.values[0]),
+            _ => None,
+        })
+        .expect("the scrub's hue");
+    assert!(committed > stepped, "the scrub moved on after the step: {committed} vs {stepped}");
+    let model = rig.last_model().expect("HSB values");
+    assert_eq!(model.values[0], committed + 1.0, "one step from the committed hue");
+}
+
+/// Screen-reader steps on two channel sliders in one frame both reach the host: the second
+/// slider steps the colour the first one left.
+#[test]
+fn two_channel_steps_in_one_frame_both_reach_the_host() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    let slider =
+        |rig: &Rig, name: &str| rig.nodes.iter().find(|(_, n)| n.role() == Role::Slider && rig.name(n) == name).map(|(id, _)| *id).expect(name);
+    let (saturation, brightness) = (slider(&rig, "Saturation"), slider(&rig, "Brightness"));
+    rig.frame(vec![Event::AccessKitActionRequest(increment(saturation)), Event::AccessKitActionRequest(increment(brightness))]);
+    rig.settle();
+    assert_eq!(kinds_of(&rig.events), ["Set"]);
+    let model = rig.last_model().expect("HSB values");
+    assert_eq!(model.values[0].round(), 210.0, "the hue stays");
+    assert_eq!(model.values[1..3], [67.0, 61.0], "both steps, from 66.7 % and 60 %");
+}
+
 /// The model switch is a press menu: a click on the button opens the models as radio items, and
 /// a click on one switches the rows to it.
 #[test]
@@ -597,6 +652,15 @@ fn every_word_the_picker_translates_is_a_listed_key() {
     }
     let unlisted: Vec<_> = asked.iter().filter(|k| !listed.contains(&k.as_str())).collect();
     assert!(unlisted.is_empty(), "asked for but not listed: {unlisted:?}");
+}
+
+fn increment(target: NodeId) -> egui::accesskit::ActionRequest {
+    egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: egui::accesskit::TreeId::ROOT,
+        target_node: target,
+        data: None,
+    }
 }
 
 fn kinds_of(events: &[EditEvent<PickedColor>]) -> Vec<&'static str> {
