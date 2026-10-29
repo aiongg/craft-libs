@@ -600,7 +600,7 @@ fn border_color(surface: &SurfaceStyle) -> Color32 {
 pub const COMPONENTS: &[&str] = &["Text field", "Search field"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Layer name");
+    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Layer name").with_bool("edit menu", true);
     let search_args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Search");
     vec![
         Story { id: "controls/text-field/states", level: Level::Controls, component: "Text field", name: "States", args, show: show_states },
@@ -674,15 +674,17 @@ const STATE_ROWS: [(&str, &str); 6] = [
     ("Leading icon", "Layers"),
 ];
 
-/// Empty, filled, long, invalid, password and leading-icon fields, then two disabled ones.
+/// Empty, filled, long, invalid, password and leading-icon fields, a multiline one, then two
+/// disabled ones. A secondary click opens the edit menu unless the argument turns it off.
 fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let placeholder = args.text("placeholder").to_owned();
+    let edit_menu = args.bool("edit menu");
     with_values(ui, "text-field-states", STATE_ROWS.map(|(_, text)| Held::new(text)), |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (i, ((name, _), held)) in STATE_ROWS.iter().zip(values.iter_mut()).enumerate() {
                 row(ui, name, |ui| {
-                    let field = TextField::new(("text-field-state", i), *name, &held.text).placeholder(&placeholder).size(size);
+                    let field = TextField::new(("text-field-state", i), *name, &held.text).placeholder(&placeholder).size(size).edit_menu(edit_menu);
                     let field = match i {
                         3 => field.invalid(true),
                         4 => field.password(true),
@@ -692,6 +694,12 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     held.apply(field.show(ui));
                 });
             }
+            with_values(ui, "text-field-multiline", [Held::new("Shot list\nGolden hour, wide\nDetail of the hands")], |ui, notes| {
+                row(ui, "Multiline", |ui| {
+                    let field = TextField::new("text-field-multiline", "Notes", &notes[0].text).multiline(3).size(size).edit_menu(edit_menu);
+                    notes[0].apply(field.show(ui));
+                });
+            });
             for (i, text) in ["", "Locked layer"].into_iter().enumerate() {
                 let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
                 row(ui, name, |ui| {

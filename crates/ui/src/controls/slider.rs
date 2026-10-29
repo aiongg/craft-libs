@@ -1041,15 +1041,34 @@ fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mu
 
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut Args) {
-    with_values(ui, "slider-values", [0.0, 50.0, 100.0], |ui, values| {
+    with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(values.iter_mut()).enumerate() {
+            let (minimum_to_maximum, shaped) = values.split_at_mut(3);
+            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
                 let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
                 slider_row_with(ui, args, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel);
                     if default { slider.default_value(50.0) } else { slider }
                 });
             }
+            let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+            let [power, log, marked, triangle] = shaped else { return };
+            labelled(ui, "Power 2", &format!("{power:.1}"), |ui| {
+                let slider = Slider::new("slider-power", "Power 2", *power, 0.0..=100.0).scale(SliderScale::Power(2.0));
+                store(&slider.size(size).enabled(enabled).show(ui), power);
+            });
+            labelled(ui, "Log", &format!("{log:.1}"), |ui| {
+                let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
+                store(&slider.size(size).enabled(enabled).show(ui), log);
+            });
+            labelled(ui, "Marks", &format!("{marked:.1}"), |ui| {
+                let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
+                store(&slider.size(size).enabled(enabled).show(ui), marked);
+            });
+            labelled(ui, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
+                let slider = Slider::new("slider-triangle", "Triangle", *triangle, 0.0..=100.0).thumb(SliderThumb::Triangle).ticks(10);
+                store(&slider.size(size).enabled(enabled).show(ui), triangle);
+            });
         });
     });
 }

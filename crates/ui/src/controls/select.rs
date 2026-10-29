@@ -1236,9 +1236,15 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
 pub const COMPONENTS: &[&str] = &["Select"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     vec![
-        Story { id: "controls/select/states", level: Level::Controls, component: "Select", name: "States", args, show: show_states },
+        Story {
+            id: "controls/select/states",
+            level: Level::Controls,
+            component: "Select",
+            name: "States",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
+            show: show_states,
+        },
         Story {
             id: "controls/select/wheel-steps",
             level: Level::Controls,
@@ -1277,27 +1283,36 @@ fn with_choices<const N: usize>(ui: &mut Ui, key: &str, initial: [usize; N], sho
 const UNITS: [&str; 4] = ["Pixels", "Inches", "Centimetres", "Points"];
 
 /// Plain, grouped with a separator and a disabled option, with icons, with no option chosen, and
-/// disabled.
+/// disabled. The `fit` argument sizes the boxes to their options; row tooltips and the pointer's
+/// highlighted option show on the first two.
 fn show_states(ui: &mut Ui, args: &mut Args) {
     let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+    let fit = args.bool("fit");
+    let hovered_id = ui.scope_id().with("select-highlighted");
+    let mut hovered = ui.data(|d| d.get_temp::<Option<usize>>(hovered_id).unwrap_or_default());
     with_choices(ui, "select-states", [0, 1, 0, usize::MAX], |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [units, sampling, tool, empty] = choices;
             row(ui, "Units", |ui| {
-                let mut select = Select::new("select-units", "Units", units).size(size).enabled(enabled);
+                let mut select = Select::new("select-units", "Units", units).size(size).enabled(enabled).fit(fit).highlighted(&mut hovered);
                 for (i, unit) in UNITS.into_iter().enumerate() {
                     select = select.option(i, unit);
                 }
                 let _ = select.show(ui);
+                let text = hovered.map_or("Highlighted: none".to_owned(), |i| format!("Highlighted: {}", UNITS[i]));
+                ui.add(Text::new(text).content(Content::Muted));
             });
             row(ui, "Resampling", |ui| {
                 let _ = Select::new("select-resampling", "Resampling", sampling)
                     .size(size)
                     .enabled(enabled)
+                    .fit(fit)
                     .option(0, "Automatic")
+                    .option_tooltip("Picks a method from the scale factor.")
                     .separator()
                     .group("Smooth")
                     .option(1, "Bicubic")
+                    .option_tooltip("Best for enlarging smooth gradients.")
                     .option(2, "Bilinear")
                     .group("Sharp")
                     .option(3, "Nearest neighbour")
@@ -1331,6 +1346,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
             });
         });
     });
+    ui.data_mut(|d| d.insert_temp(hovered_id, hovered));
 }
 
 const BLEND_MODES: [(&str, [u8; 3]); 8] = [

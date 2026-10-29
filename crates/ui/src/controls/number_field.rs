@@ -1168,7 +1168,14 @@ pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0);
     let story = |id, name, show| Story { id, level: Level::Controls, component: "Number field", name, args, show };
     vec![
-        story("controls/number-field/states", "States", show_states),
+        Story {
+            id: "controls/number-field/states",
+            level: Level::Controls,
+            component: "Number field",
+            name: "States",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0).with_bool("edit menu", true),
+            show: show_states,
+        },
         story("controls/number-field/scrub", "Scrub", show_scrub),
         story("controls/number-field/right-to-left", "Right to left", show_right_to_left),
         Story {
@@ -1196,11 +1203,12 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let numbers = numbers(args);
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
-    with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0], |ui, values| {
+    let edit_menu = args.bool("edit menu");
+    with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0, 100.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            let [plain, unit, mixed, invalid, opacity] = values;
+            let [plain, unit, mixed, invalid, opacity, zoom] = values;
             row(ui, "Plain", *plain, |ui| {
-                let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).or_parse(sum).show(ui);
+                let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).edit_menu(edit_menu).or_parse(sum).show(ui);
                 super::slider::store(&edit, plain);
             });
             row(ui, "With unit", *unit, |ui| {
@@ -1237,6 +1245,17 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, opacity);
             });
+            row(ui, "Zoom stops", *zoom, |ui| {
+                let edit = NumberField::new("number-field-zoom", "Zoom", *zoom, &numbers)
+                    .range(12.5..=800.0)
+                    .decimals(0..=1)
+                    .unit(Unit::new("{n}%"))
+                    .steps_with(zoom_step)
+                    .edit_menu(edit_menu)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, zoom);
+            });
             row(ui, "Disabled", 64.0, |ui| {
                 let _ = NumberField::new("number-field-disabled", "Disabled", 64.0, &numbers)
                     .unit(Unit::new("{n} px"))
@@ -1252,13 +1271,24 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     });
 }
 
+const ZOOM_STOPS: [f64; 8] = [12.5, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0];
+
+/// The next zoom stop above `value` for a positive `notches`, the previous one below it otherwise.
+fn zoom_step(value: f64, notches: i32) -> f64 {
+    let mut stops = ZOOM_STOPS.into_iter();
+    match notches > 0 {
+        true => stops.find(|s| *s > value).unwrap_or(value),
+        false => stops.rfind(|s| *s < value).unwrap_or(value),
+    }
+}
+
 /// Scrub labels and icons inside the field, and a label before it.
 fn show_scrub(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let numbers = numbers(args);
-    with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0], |ui, values| {
+    with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0, 50.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            let [w, h, angle, radius] = values;
+            let [w, h, angle, radius, wrapped] = values;
             for (salt, letter, value) in [("number-field-w", "W", w), ("number-field-h", "H", h)] {
                 row(ui, letter, *value, |ui| {
                     let edit = NumberField::new(salt, letter, *value, &numbers)
@@ -1290,9 +1320,19 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, radius);
             });
+            row(ui, "Wrap", *wrapped, |ui| {
+                let edit = NumberField::new("number-field-wrap", "Wrapping scrub", *wrapped, &numbers)
+                    .range(0.0..=100.0)
+                    .unit(Unit::new("{n}%"))
+                    .scrub_label("%")
+                    .scrub_wrap(true)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, wrapped);
+            });
             ui.add(
                 Text::new(
-                    "Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it.",
+                    "Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it. The Wrap field carries the pointer to the opposite screen edge in a full-screen window.",
                 )
                 .content(Content::Muted),
             );
