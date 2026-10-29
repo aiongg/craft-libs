@@ -9,9 +9,10 @@ use egui::{
     Color32, Context, Event, Id, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, TouchPhase, Ui, pos2, vec2,
 };
 
-use super::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
+use super::thumb_row::{Follow, Order, RowOp, Thumb, ThumbRow, ThumbRowStyle};
 use crate::composites::levels_editor::{LevelsEditor, gamma_at, gamma_from};
 use crate::controls::NumberField;
+use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::primitives::Interactive;
@@ -60,6 +61,17 @@ struct Rig {
     nodes: HashMap<Id, Node>,
     /// The values live in a document behind a [`GestureHost`] instead.
     hosted: Option<(GestureHost<Levels>, Levels)>,
+}
+
+/// The input row's thumbs: black and white `GAP` apart, the gamma between them.
+fn input_thumbs() -> [Thumb; 3] {
+    let ordered = |below, above| Order::Between { below, above, gap: GAP };
+    let gamma = Follow { at: gamma_at, value_at: gamma_from };
+    [
+        Thumb::new("Input black", Color32::BLACK).order(ordered(None, Some(2))).default_value(0.0),
+        Thumb::new("Gamma", Color32::from_gray(128)).follows(&(0.01..=9.99), 0.01, gamma).default_value(1.0).unset_at(1.0).falling(),
+        Thumb::new("Input white", Color32::WHITE).order(ordered(Some(0), None)).default_value(255.0),
+    ]
 }
 
 /// The hosted rig's document: the input and output values, with an undo history of snapshots.
@@ -152,14 +164,7 @@ impl Rig {
                 field.value = value;
             }
         }
-        let ordered = |below, above| Order::Between { below, above, gap: GAP };
-        let gamma = Follow { at: gamma_at, value_at: gamma_from };
-        let thumbs = [
-            Thumb::new("Input black", Color32::BLACK).order(ordered(None, Some(2))).default_value(0.0),
-            Thumb::new("Gamma", Color32::from_gray(128)).follows(&(0.01..=9.99), 0.01, gamma).default_value(1.0).unset_at(1.0).falling(),
-            Thumb::new("Input white", Color32::WHITE).order(ordered(Some(0), None)).default_value(255.0),
-        ];
-        let row = ThumbRow::new("rig-input", self.input, &range, Some(1.0), thumbs)
+        let row = ThumbRow::new("rig-input", self.input, &range, Some(1.0), input_thumbs())
             .width(width)
             .policy(EditPolicy::default())
             .enabled(self.enabled)
@@ -649,4 +654,21 @@ fn a_thumb_drag_the_host_ended_for_another_controls_change_goes_on_with_the_poin
         assert_eq!(rig.input_event, commit(id, [70.0, 1.0, white], true));
         assert_eq!(rig.input, [70.0, 1.0, white]);
     }
+}
+
+/// A thumb's operation applies within its bounds on the row it is applied to: a step and an End
+/// stop at the neighbour less the gap, the other thumbs keep their values (an unset gamma stays
+/// unset), and an unset gamma steps from where it is drawn.
+#[test]
+fn a_row_operation_applies_within_the_thumbs_bounds_on_the_row_it_meets() {
+    let rules = ThumbRow::rules(&(0.0..=255.0), Some(1.0), &input_thumbs());
+    let apply = |thumb, op, row: [f64; 3]| rules.apply(&RowOp { thumb, op }, &row);
+    assert_eq!(apply(0, ScalarOp::By(1.0), [40.0, 1.0, 200.0]), [41.0, 1.0, 200.0]);
+    assert_eq!(apply(0, ScalarOp::By(1.0), [40.0, 1.0, 42.0]), [40.0, 1.0, 42.0], "black stays the gap below white");
+    assert_eq!(apply(2, ScalarOp::ToBound(Bound::Low), [40.0, 1.0, 200.0]), [40.0, 1.0, 42.0], "Home goes to black plus the gap");
+    assert_eq!(apply(0, ScalarOp::Set(250.0), [40.0, 1.0, 200.0]), [198.0, 1.0, 200.0], "a set stops where a drag would");
+    let unset = apply(0, ScalarOp::By(1.0), [0.0, f64::NAN, 255.0]);
+    assert!(unset[0] == 1.0 && unset[1].is_nan() && unset[2] == 255.0, "{unset:?}");
+    let gamma = apply(1, ScalarOp::By(0.01), [0.0, f64::NAN, 255.0]);
+    assert!((gamma[1] - 1.01).abs() < 1e-9, "an unset gamma steps from 1: {gamma:?}");
 }
