@@ -135,7 +135,7 @@ impl Family for DockTokens {
     fn defaults(s: &Semantic<'_>) -> DockTokens {
         let c = s.color;
         let k = s.size.control.md / values::DOCK_BASE_CONTROL;
-        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s).fill(c.state.selected, c.text.on_selected);
+        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s.high).fill(c.state.selected, c.text.on_selected);
         DockTokens {
             gap: s.space.gap.inline,
             border_width: values::DOCK_BORDER_WIDTH,
@@ -207,7 +207,7 @@ impl Family for DockTokens {
         let component = |f| TokenRef::Component(ComponentField::Dock(f));
         let pair = |fg, bg, minimum| ContrastPair { fg: component(fg), bg: component(bg), minimum, alternate: None };
         vec![
-            pair(DockField::IconSelected, DockField::Background, values::NON_TEXT_MIN),
+            pair(DockField::IconSelected, DockField::Background, values::STATE_CUE_MIN),
             pair(DockField::IconSelectedText, DockField::IconSelected, values::TEXT_MIN),
             pair(DockField::Drop, DockField::Background, values::NON_TEXT_MIN),
         ]

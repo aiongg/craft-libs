@@ -199,7 +199,6 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         preset: appearance.size,
         typography: &typography,
         high: appearance.contrast == Contrast::High,
-        selected_pinned: color_steps.pins.contains_key(&crate::ColorToken::StateSelected),
     });
     let high = appearance.contrast == Contrast::High;
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high);
@@ -216,7 +215,6 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         preset: appearance.size,
         typography: &typography,
         high,
-        selected_pinned: color_steps.pins.contains_key(&crate::ColorToken::StateSelected),
     });
     derive::component_overrides(&mut component_before, theme, app, mode, high);
     let component_pairs_before = derive::measure_components(&component_before, before, high);

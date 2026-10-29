@@ -196,7 +196,7 @@ impl Family for ButtonTokens {
         // A toggle button that is on holds the secondary pressed look, so that look identifies the
         // state: its fill or its edge reaches the non-text minimum on the panel and on a popup.
         let (pressed, pressed_text) =
-            Identify::on(&[c.surface.panel, c.surface.raised], s).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
+            Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
         ButtonTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             pad_x: BySize { sm: space.pad.control + space.gap.inline, md: values::BUTTON_PAD_X_MD * space.pad.control },
@@ -287,7 +287,7 @@ impl Family for ButtonTokens {
         out.extend([ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
             fg: secondary(ButtonPart::Fill),
             bg: TokenRef::Color(bg),
-            minimum: values::NON_TEXT_MIN,
+            minimum: values::STATE_CUE_MIN,
             alternate: Some(secondary(ButtonPart::Border)),
         }));
         for variant in ButtonVariant::ALL {

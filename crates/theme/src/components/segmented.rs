@@ -94,7 +94,7 @@ impl Family for SegmentedTokens {
                 fill: States::new(clear, c.state.hover, c.state.pressed, clear),
                 text: States::new(c.text.normal, c.text.normal, c.text.normal, c.text.disabled),
             },
-            selected: ItemColors::selected(s, &[c.surface.sunken]),
+            selected: ItemColors::selected(c, &[c.surface.sunken], s.high),
         }
     }
 
@@ -162,7 +162,7 @@ impl Family for SegmentedTokens {
         out.push(ContrastPair {
             fg: TokenRef::Component(field(F::Selected { part: ItemPart::Fill, state: State::Rest })),
             bg: TokenRef::Component(field(F::Track)),
-            minimum: values::NON_TEXT_MIN,
+            minimum: values::STATE_CUE_MIN,
             alternate: None,
         });
         for state in [State::Rest, State::Hover, State::Pressed] {

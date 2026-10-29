@@ -309,6 +309,9 @@ const fn rule(fgs: &'static [ColorToken], bgs: &'static [Bg], standard: f64, hig
 pub const TEXT_MIN: (f64, f64) = (4.5, 7.0);
 /// WCAG non-text minimum (control boundaries, focus, indicators, overlays).
 pub const NON_TEXT_MIN: (f64, f64) = (3.0, 4.5);
+/// The cue of a selected or on state (a fill or an edge on what it sits on): required in high
+/// contrast only. Standard contrast keeps the theme's own fills and has no minimum for it.
+pub const STATE_CUE_MIN: (f64, f64) = (0.0, NON_TEXT_MIN.1);
 
 const TEXT_BGS: &[Bg] = &[
     Token(T::SurfaceBackground),

@@ -54,7 +54,7 @@ impl Family for IconButtonTokens {
             size: BySize { sm: size.control.sm, md: size.control.md },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             badge: BySize { sm: size.icon.sm * values::ICON_BUTTON_BADGE_RATIO, md: size.icon.md * values::ICON_BUTTON_BADGE_RATIO },
-            selected: ItemColors::selected(s, &[s.color.surface.panel, s.color.surface.raised]),
+            selected: ItemColors::selected(s.color, &[s.color.surface.panel, s.color.surface.raised], s.high),
         }
     }
 
@@ -92,7 +92,7 @@ impl Family for IconButtonTokens {
         let fill = [ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
             fg: field(ItemPart::Fill, State::Rest),
             bg: TokenRef::Color(bg),
-            minimum: values::NON_TEXT_MIN,
+            minimum: values::STATE_CUE_MIN,
             alternate: None,
         });
         let text = [State::Rest, State::Hover, State::Pressed].map(|state| ContrastPair {

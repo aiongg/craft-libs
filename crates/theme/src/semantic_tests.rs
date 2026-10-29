@@ -476,8 +476,7 @@ fn anchored_fills_are_pulled_toward_the_panel_for_pinned_text() {
         assert!(o.value.to_oklch().l >= panel.to_oklch().l && o.value.to_oklch().l < o.derived.to_oklch().l, "{bg:?}");
     }
     assert_eq!(t.color(T::StateSelected), hex("#6b6b6b"));
-    // The pinned selected fill stays; only its indicator pairs are reported.
-    assert!(e.resolved.warnings.iter().all(|w| matches!(w.fg, TokenRef::Component(_)) && w.minimum == 3.0), "{:?}", e.resolved.warnings);
+    assert!(e.resolved.warnings.is_empty(), "{:?}", e.resolved.warnings);
 }
 
 #[test]

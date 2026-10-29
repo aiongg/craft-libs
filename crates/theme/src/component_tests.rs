@@ -1371,9 +1371,10 @@ fn indicator_min(a: Appearance) -> f64 {
     if a.contrast == Contrast::High { 4.5 } else { 3.0 }
 }
 
-/// Selected and on states are identifiable: the fill of a selected segment, icon button, list row
-/// and dock icon, and a toggle button's on look (its fill or its edge), reach the non-text
-/// minimum on what they sit on, and their text still reads on the fills.
+/// Selected and on states are identifiable in high contrast: the fill of a selected segment, icon
+/// button, list row and dock icon, and a toggle button's on look (its fill or its edge), reach the
+/// non-text minimum on what they sit on, and their text still reads on the fills. Standard
+/// contrast keeps `state.selected` and `text.on_selected`.
 #[test]
 fn selected_fills_show_on_what_they_sit_on() {
     for def in [grey_blue(), violet()] {
@@ -1381,6 +1382,15 @@ fn selected_fills_show_on_what_they_sit_on() {
             let r = resolve(&def, a, None);
             assert!(r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))), "{} {a:?}: {:?}", def.name, r.warnings);
             let (t, min) = (&r.tokens, indicator_min(a));
+            if a.contrast == Contrast::Standard {
+                let k = &t.component;
+                let (selected, on) = (t.color(T::StateSelected), t.color(T::TextOnSelected));
+                let who = format!("{} {a:?}", def.name);
+                assert_eq!((k.segmented.selected.fill.rest, k.segmented.selected.text.rest), (selected, on), "{who}");
+                assert_eq!((k.icon_button.selected.fill.rest, k.list.selected, k.dock.icon_selected), (selected, selected, selected), "{who}");
+                assert_eq!((k.button.secondary.fill.pressed, k.list.selected_hover), (selected, t.color(T::StateSelectedHover)), "{who}");
+                continue;
+            }
             let text_min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
             let k = &t.component;
             let (panel, raised) = (t.color(T::SurfacePanel), t.color(T::SurfaceRaised));
@@ -1414,9 +1424,8 @@ fn selected_fills_show_on_what_they_sit_on() {
     }
 }
 
-/// A selected fill that already shows stays as the theme gave it; one that doesn't moves in
-/// lightness only, and its text moves with it. A pinned `state.selected` stays in standard
-/// contrast whether it shows or not, and moves in high contrast.
+/// In high contrast a selected fill that already shows stays as the theme gave it; one that
+/// doesn't moves in lightness only, and its text moves with it. Standard contrast keeps either.
 #[test]
 fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_only() {
     let pinned = |fill: &str, contrast| {
@@ -1424,7 +1433,7 @@ fn a_selected_fill_that_shows_is_kept_and_one_that_does_not_moves_in_lightness_o
         def.pins.light = Pins::from_iter([(T::StateSelected, hex(fill))]);
         resolve(&def, app(Mode::Light, contrast), None).tokens
     };
-    let t = pinned("#102a6b", Contrast::Standard);
+    let t = pinned("#102a6b", Contrast::High);
     assert_eq!(t.component.icon_button.selected.fill.rest, hex("#102a6b"));
     assert_eq!(t.component.segmented.selected.text.rest, t.color(T::TextOnSelected));
 

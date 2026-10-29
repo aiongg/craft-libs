@@ -14,7 +14,7 @@
 //! use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, builtins, resolve};
 //!
 //! let theme = builtins().iter().find(|t| t.id.as_str() == "craft.graphite").unwrap();
-//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
 //! let resolved = resolve(theme, appearance, None);
 //! assert!(resolved.warnings.is_empty());
 //! ```
