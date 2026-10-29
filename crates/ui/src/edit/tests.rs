@@ -703,6 +703,36 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert_eq!(unreported::<i32>(&ctx, id), Some(5));
 }
 
+/// A composite whose value holds a NaN (an unset gamma) asks for a repaint when a part's event
+/// changes it and not otherwise: the decision never compares values, which are never equal to
+/// themselves.
+#[test]
+fn a_composite_with_a_nan_value_repaints_only_for_an_event() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let (part, composite) = (Id::unique("part"), Id::unique("composite"));
+    let mut pass = |event: Option<EditEvent<f64>>| {
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &f64::NAN, EditPolicy::default());
+            let mut edits = parts::Edits::new(composite, &state);
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), part, Sense::click());
+            edits.push(&EditResponse::new(response, event.clone()), |v| v);
+            edits.feed(outer, &mut state, false).finish();
+        });
+        let delay = output.viewport_output.values().map(|v| v.repaint_delay).min().unwrap();
+        output.drop_without_applying_deltas();
+        delay != std::time::Duration::MAX
+    };
+    // The first passes repaint for the context's own setup.
+    for _ in 0..3 {
+        pass(None);
+    }
+    assert!(!pass(None), "an idle pass settles");
+    assert!(pass(Some(EditEvent::set(f64::NAN, Modifiers::NONE))), "a part's event asks for a repaint");
+    let settled = (0..4).any(|_| !pass(None));
+    assert!(settled, "and the passes after it settle again");
+}
+
 /// A composite's parts as one gesture ([`parts::Edits`]): the part that begins it owns it, and
 /// the owner's commit ends it with the owner's value. Another part's change never joins it: it
 /// asks the owner's typing run to end and is its own Set in the pass after the run's commit. A

@@ -51,7 +51,7 @@
 //!   typing run and for the composite's gesture to end, then the composite makes their values
 //!   ([`Edits::set`]) from the host's value. Inputs that run in one pass make one Set with the
 //!   last value.
-//! - Every event that changes the value the composite shows asks for a repaint, so a part drawn
+//! - Every event a pass applies (not a mere Begin) asks for a repaint, so a part drawn
 //!   before the change shows it in the next frame whatever the host's update policy.
 
 use std::any::Any;
@@ -297,7 +297,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     /// taken with [`inputs`](Edits::inputs) are dropped.
     pub fn feed(self, outer: Gesture<V>, state: &mut State<C>, scoped: bool) -> Gesture<V> {
         let mut outer = outer.focus_owners(&self.typing);
-        let shown = outer.shown().clone();
         let ended = state.end.take();
         // The owner wasn't drawn: the composite's gesture ends in this pass.
         let gone = outer.is_active() && state.owner.is_some_and(|owner| !self.is_drawn(owner));
@@ -308,6 +307,9 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         // What a held event waits for: the gesture under way, or the one cancelled as it loaded.
         let gesture = outer.id().or(state.gesture);
         let mut held = self.waiting;
+        // Decided from the events, not by comparing values: a value type holding a NaN is never
+        // equal to itself.
+        let mut moved = gone || !self.sets.is_empty();
         if gone {
             // A gesture no control recorded is cancelled (`edit::ending`).
             match ended.and_then(|end| end.get::<V>()).unwrap_or(End::Cancel) {
@@ -334,6 +336,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
                 continue;
             }
             let run = event.id();
+            moved |= !matches!(event, EditEvent::Begin { .. });
             match event {
                 // Inside a scope the parts report only updates, each a change of its own.
                 event if scoped => {
@@ -403,7 +406,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         state.held = held;
         if let Some(ctx) = &self.ctx {
             state.held_pass = ctx.cumulative_pass_nr();
-            if *outer.shown() != shown {
+            if moved || !state.held.is_empty() {
                 ctx.request_repaint();
             }
         }

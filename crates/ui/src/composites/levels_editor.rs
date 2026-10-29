@@ -20,7 +20,7 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// One channel's levels: the input black and white points with the gamma between them, and the
 /// output black and white points.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Levels {
     pub in_black: f64,
     /// The midtone gamma: above 1 brightens.
@@ -29,6 +29,20 @@ pub struct Levels {
     /// Output black; above `out_white` it inverts.
     pub out_black: f64,
     pub out_white: f64,
+}
+
+/// Levels are equal when every value is, an unset (NaN) value equal to another: the edit
+/// machinery compares values to tell a change from none, and a value that is never equal to
+/// itself reads as an outside change of every gesture.
+impl PartialEq for Levels {
+    fn eq(&self, other: &Self) -> bool {
+        let same = |a: f64, b: f64| a == b || (a.is_nan() && b.is_nan());
+        same(self.in_black, other.in_black)
+            && same(self.gamma, other.gamma)
+            && same(self.in_white, other.in_white)
+            && same(self.out_black, other.out_black)
+            && same(self.out_white, other.out_white)
+    }
 }
 
 impl Levels {

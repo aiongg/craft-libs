@@ -30,6 +30,9 @@ struct Host {
     clip: Option<LevelsClip>,
     undo: Option<Undo>,
     policy: EditPolicy,
+    /// The pass of the last event, and whether two events came in one pass.
+    event_pass: Option<u64>,
+    doubled: bool,
 }
 
 struct Undo {
@@ -75,6 +78,8 @@ impl Host {
             clip: None,
             undo: None,
             policy: EditPolicy::default(),
+            event_pass: None,
+            doubled: false,
         }
     }
 
@@ -97,6 +102,11 @@ impl Host {
             false => editor.show(ui),
         };
         self.id = edit.response.id;
+        if edit.event.is_some() {
+            let pass = ui.ctx().cumulative_pass_nr();
+            self.doubled |= self.event_pass == Some(pass);
+            self.event_pass = Some(pass);
+        }
         self.clip = LevelsEditor::clipping(ui.ctx(), self.id);
         if let Some(undo) = &mut self.undo {
             if let Some(event) = edit.event.clone() {
@@ -359,6 +369,34 @@ fn a_screen_reader_step_on_a_field_during_a_row_drag_is_its_own_set_after_the_re
     assert_eq!(harness.state().levels, Levels { gamma: 1.01, out_white: 200.0, ..IDENTITY });
     let steps = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
     assert_eq!(steps, Some(2), "the drag and the step, one undo step each");
+}
+
+/// A tap (press and release in one frame) on a row in the pass a field's typing run commits
+/// reaches the host in a later pass than the Commit: a composite reports one edit per pass.
+#[test]
+fn a_tap_on_a_row_during_a_typing_run_reports_after_the_runs_commit() {
+    for field in ["Input black", "Output black"] {
+        let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+        let field_at = node(&harness, Role::SpinButton, field).rect().center();
+        click(&mut harness, field_at);
+        harness.event(Event::Text("20".into()));
+        harness.run();
+        harness.state_mut().events.clear();
+        let target = node(&harness, Role::Slider, "Input white");
+        let pos = pos2(at(&harness, "Input white", 240.0).x, target.rect().center().y);
+        move_to(&mut harness, pos);
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        harness.state_mut().doubled = false;
+        for _ in 0..4 {
+            harness.step();
+        }
+        assert!(!harness.state().doubled, "{field}: one event per pass: {:?}", harness.state().kinds());
+        let kinds = harness.state().kinds();
+        assert_eq!(kinds.first(), Some(&"Commit"), "{field}: {kinds:?}");
+        assert!(kinds.len() >= 2, "{field}: the tap reports after the run: {kinds:?}");
+        assert_eq!(harness.state().levels.in_white, 240.0, "{field}");
+    }
 }
 
 #[test]
