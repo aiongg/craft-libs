@@ -169,7 +169,7 @@ fn builtin_list_hover_is_visible_beside_the_rest_and_selected_rows() {
             let who = format!("{} {a:?}", theme.id);
             assert!(contrast_ratio(over_panel(list), panel) >= min, "{who}: list hover on the rest row");
             assert!(contrast_ratio(over_panel(list), over_panel(selected)) >= min, "{who}: list hover on the selected row");
-            let popup = t.color(ColorToken::SurfaceRaised);
+            let popup = t.color(ColorToken::SurfacePanel);
             let active = c.color(ComponentField::Listbox(ListboxField::ActiveFill)).unwrap();
             assert!(contrast_ratio(crate::derive::over(active, popup), popup) >= min, "{who}: list box active row");
         }
@@ -626,6 +626,44 @@ fn buttons_follow_photocraft() {
                 "craft.soft" => assert_eq!(b.radius, 7.0),
                 _ => {}
             }
+        }
+    }
+}
+
+/// Popups are PhotoCraft's card (`t.card`, `t.card_border`) with its `popup_shadow` (`theme.rs:1037`):
+/// 6 points down, 20 blur, black at the alpha of `Tokens::shadow` per theme and mode. Menus and
+/// dropdown rows are square with 10 point side padding, and the active row is the accent.
+#[test]
+fn popups_and_their_rows_follow_photocraft() {
+    // (theme, mode, PhotoCraft's shadow alpha)
+    let alphas = [
+        ("craft.artcraft", Mode::Dark, 150),
+        ("craft.artcraft", Mode::Light, 50),
+        ("craft.pro", Mode::Dark, 150),
+        ("craft.pro", Mode::Light, 50),
+        ("craft.pro-light-gray", Mode::Light, 70),
+        ("craft.studio", Mode::Dark, 140),
+        ("craft.studio", Mode::Light, 50),
+        ("craft.classic", Mode::Light, 0),
+        ("craft.adwaita", Mode::Light, 45),
+        ("craft.adwaita", Mode::Dark, 140),
+        ("craft.breeze", Mode::Light, 45),
+        ("craft.breeze", Mode::Dark, 150),
+        ("craft.soft", Mode::Dark, 110),
+        ("craft.soft", Mode::Light, 40),
+        ("craft.solarized-dark", Mode::Dark, 150),
+    ];
+    for (id, mode, alpha) in alphas {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+        let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+        let (popup, l, m) = (&t.component.popup, &t.component.listbox, &t.component.menu);
+        let who = format!("{id} {mode:?}");
+        assert_eq!((popup.fill, popup.border), (t.color(ColorToken::SurfacePanel), t.color(ColorToken::LineBorder)), "{who}");
+        assert_eq!(popup.shadow, Rgba([0, 0, 0, alpha]), "{who}");
+        assert_eq!((t.elevation.popup.offset, t.elevation.popup.blur), ([0.0, 6.0], 20.0), "{who}");
+        assert_eq!((l.pad_x, l.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
+        if id != "craft.classic" {
+            assert_eq!((l.active_fill, m.active_fill), (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentSolid)), "{who}");
         }
     }
 }

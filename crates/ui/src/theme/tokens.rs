@@ -54,6 +54,11 @@ pub struct Shadows {
 const ROLES: [TypeRole; 7] =
     [TypeRole::Caption, TypeRole::Label, TypeRole::Body, TypeRole::BodyStrong, TypeRole::Title, TypeRole::Heading, TypeRole::Mono];
 
+/// The popup shadow: `elevation.popup`'s offset and blur in the colour of `popup.shadow`.
+pub(crate) fn popup_shadow(tokens: &Tokens) -> Shadow {
+    Shadow { color: tokens.component.popup.shadow.to_egui(), ..tokens.elevation.popup.to_egui() }
+}
+
 impl UiTokens {
     pub fn new(tokens: Tokens, appearance: Appearance, mode: Mode, families: FontFamilies) -> Self {
         let r = &tokens.shape.radius;
@@ -66,7 +71,7 @@ impl UiTokens {
             pill: corner_radius(r.pill),
         };
         let e = &tokens.elevation;
-        let shadow = Shadows { popup: e.popup.to_egui(), dialog: e.dialog.to_egui(), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
+        let shadow = Shadows { popup: popup_shadow(&tokens), dialog: e.dialog.to_egui(), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
         let fonts = ROLES.map(|role| families.font_id(tokens.typography.get(role)));
         let style = Arc::new(style_for(&tokens, &families));
         Self { tokens: Arc::new(tokens), appearance, mode, style, radius, shadow, families, fonts }

@@ -48,10 +48,11 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 /// at least `menu.min_width`, never wrapping; a mark column at the reading start on every row of a
 /// level that has a check or radio item, an icon column on every row of a level that has an icon;
 /// shortcuts right-aligned in [`Kbd`](crate::controls::Kbd)'s text form in `menu.shortcut`; the
-/// popup frame is `surface.raised` with `radius.popup` and `elevation.popup`. The active row (the
+/// popup frame is `popup.fill` and `popup.border` with `radius.popup` and `popup.shadow`. The active row (the
 /// pointer's or the keyboard's) has `menu.active.fill` with everything on it in
 /// `menu.active.text`: the menu keeps the keyboard focus away from its rows, so that fill is the
-/// visible focus. A level taller than the window scrolls, with ▲ / ▼ strips that scroll while the
+/// visible focus. A submenu's row is `menu.open.fill` while its submenu is open and the row is not
+/// active. A level taller than the window scrolls, with ▲ / ▼ strips that scroll while the
 /// pointer rests on them.
 ///
 /// Pointer: a click on an enabled row runs it and closes every level; a click on a disabled row or
@@ -466,7 +467,9 @@ impl Draw<'_> {
                     false
                 }
             };
-            self.painter.paint(ui, r.rect, &content, cols, RowState { enabled, active: lit || open });
+            // Once a row of its submenu is highlighted the parent row is only open, as in PhotoCraft.
+            let active = lit && !(open && nav.highlighted(depth).is_some());
+            self.painter.paint(ui, r.rect, &content, cols, RowState { enabled, active, open });
             row::access(&r, &RowContent { mnemonic, ..content }, open);
             let r = match it.tooltip_of() {
                 Some(text) => r.tooltip(text),

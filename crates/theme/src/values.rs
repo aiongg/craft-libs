@@ -497,8 +497,14 @@ pub const fn text_size_factor(t: TextSize) -> f32 {
 /// Scaled type sizes round to multiples of this, in points.
 pub const TYPE_ROUNDING: f32 = 0.5;
 
-/// Elevation levels (DS-01 primitives) for popups, dialogs and floating surfaces.
-pub const ELEVATION_LEVELS: (usize, usize, usize) = (2, 3, 2);
+/// Elevation levels (DS-01 primitives) for dialogs and floating surfaces.
+pub const ELEVATION_LEVELS: (usize, usize) = (3, 2);
+/// The shadow of a popup (`elevation.popup`): PhotoCraft's `popup_shadow` (`theme.rs:1037`), 6
+/// points down with a 20 point blur. The alpha is PhotoCraft's Pro shadow (`Tokens::shadow`, 50
+/// in light and 150 in dark), the default of `popup.shadow`; themes pin their own.
+pub const POPUP_SHADOW: Elevation = Elevation { offset: [0.0, 6.0], blur: 20.0, spread: 0.0, alpha: 0.0 };
+/// The alpha of the popup shadow in light and dark mode.
+pub const POPUP_SHADOW_ALPHA: (f32, f32) = (50.0 / 255.0, 150.0 / 255.0);
 /// The shadow of a knob on a track with a flat edge (`elevation.knob`): PhotoCraft's hard circle,
 /// the knob's size grown by half a point, one point down, black at 90/255 in both modes
 /// (`slider.rs:206-207`). egui rounds a shadow's spread to whole points.
@@ -596,6 +602,16 @@ pub const HISTOGRAM_MARKER_ALPHA: f32 = 0.4;
 /// Width of the marker band (PhotoCraft's `paint_sample`).
 pub const HISTOGRAM_MARKER_WIDTH: f32 = 2.0;
 
+/// Points added to `space.pad.control` for the side padding of a list box row: PhotoCraft's
+/// button padding of 10 beside a 6 point control padding (`style_spectrum_popup_menu`,
+/// `panel.rs:3-21`).
+pub const LISTBOX_PAD_X: f32 = 4.0;
+/// The most a select's or combo box's list shows before it scrolls, at Compact: PhotoCraft's
+/// dropdown height (`dropdown.rs:74`).
+pub const LISTBOX_MAX_HEIGHT: f32 = 420.0;
+/// Rows a list gains of `LISTBOX_MAX_HEIGHT` for each point its control height has over the
+/// Compact one: the 12 rows a list showed.
+pub const LISTBOX_MAX_ROWS: f32 = 12.0;
 /// The control height the Compact menu sizes are set for.
 pub const MENU_BASE_CONTROL: f32 = 24.0;
 /// Compact least width of a menu (PhotoCraft's).

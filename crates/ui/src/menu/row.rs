@@ -2,7 +2,8 @@
 //! (height, padding, text) with a mark column at the reading start (a check, or a dot for a
 //! radio item), an icon column, the label with its mnemonic underlined, and at the reading end the
 //! shortcut in [`Kbd`]'s text form or the submenu arrow. The active row has the accent fill and
-//! draws everything in the active text colour.
+//! draws everything in the active text colour; a submenu's row whose submenu is open has the hover
+//! fill. Marks and the arrow are as large as the label's type, as PhotoCraft's ✔ and ⏵ glyphs are.
 
 use std::sync::Arc;
 
@@ -19,9 +20,9 @@ use crate::direction;
 use crate::icons::{self, Icon};
 use crate::theme::{ToEgui, UiTokens, role_format};
 
-/// A radio item's dot: its radius as a part of the icon size, and the least radius (craft-menu's
+/// A radio item's dot: its radius as a part of the glyph size, and the least radius (craft-menu's
 /// ● at the list box's icon size).
-const RADIO_DOT: f32 = 1.0 / 6.0;
+const RADIO_DOT: f32 = 1.0 / 4.0;
 const RADIO_DOT_MIN: f32 = 2.0;
 
 /// A menu's sizes and colours, from [`Menu::style`](super::Menu::style).
@@ -39,6 +40,8 @@ pub struct MenuStyle {
     /// `menu.active.fill` and `menu.active.text`: the active row.
     pub active_fill: Color32,
     pub active_text: Color32,
+    /// `menu.open.fill`: a submenu's row while its submenu is open.
+    pub open_fill: Color32,
     /// `menu.shortcut`: a shortcut's colour.
     pub shortcut: Color32,
     /// `kbd.label`: a shortcut's type role.
@@ -55,6 +58,7 @@ impl MenuStyle {
             scroll_strip: m.scroll_strip,
             active_fill: m.active_fill.to_egui(),
             active_text: m.active_text.to_egui(),
+            open_fill: m.open_fill.to_egui(),
             shortcut: m.shortcut.to_egui(),
             shortcut_label: tokens.component.kbd.label,
         }
@@ -89,8 +93,10 @@ pub(crate) struct RowContent<'r> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RowState {
     pub enabled: bool,
-    /// Highlighted (pointer or keyboard), or its submenu is open.
+    /// Highlighted (pointer or keyboard).
     pub active: bool,
+    /// Its submenu is open.
+    pub open: bool,
 }
 
 /// Draws rows with `style` at `size`.
@@ -106,7 +112,12 @@ impl RowPainter<'_> {
     pub fn tint_colors(&self, tint: Srgba) -> craft_theme::MenuTint {
         let tint = craft_theme::Rgba::from(tint);
         self.tokens.component.menu.tint_of(tint).unwrap_or_else(|| {
-            craft_theme::MenuTint::derive(tint, &self.tokens.color, self.tokens.appearance.contrast == craft_theme::Contrast::High)
+            craft_theme::MenuTint::derive(
+                tint,
+                self.tokens.component.popup.fill,
+                &self.tokens.color,
+                self.tokens.appearance.contrast == craft_theme::Contrast::High,
+            )
         })
     }
 
@@ -123,10 +134,27 @@ impl RowPainter<'_> {
         ui.painter().layout_job(LayoutJob::single_section(text, role_format(self.tokens, self.style.shortcut_label, color)))
     }
 
+    /// Side of the check mark, the radio dot and the submenu arrow: the label's type size.
+    fn glyph(&self) -> f32 {
+        self.tokens.font(self.style.rows.label).size
+    }
+
+    /// The width of the mark column, with its gap, when the level has one.
+    fn marks_width(&self, cols: &Columns) -> f32 {
+        if cols.marks { self.glyph() + self.style.rows.gap } else { 0.0 }
+    }
+
     /// From a row's reading start to its label, inside the padding.
     fn label_offset(&self, cols: &Columns) -> f32 {
         let s = &self.style.rows;
-        (s.icon + s.gap) * (f32::from(u8::from(cols.marks)) + f32::from(u8::from(cols.icons)))
+        self.marks_width(cols) + if cols.icons { s.icon + s.gap } else { 0.0 }
+    }
+
+    /// Draws a mark or an arrow `icon` centred at `center_x`, as large as the label's type.
+    fn glyph_icon(&self, ui: &Ui, center_x: f32, y: f32, icon: Icon, color: Color32) {
+        let side = self.glyph();
+        let rect = Rect::from_center_size(pos2(center_x, y), vec2(side, side));
+        icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), side, icon_size(self.size).stroke(), color);
     }
 
     /// The width `row` needs in a level with `cols`' columns.
@@ -134,7 +162,7 @@ impl RowPainter<'_> {
         let s = &self.style.rows;
         let label = self.label_galley(ui, row, Color32::PLACEHOLDER).size().x;
         let trailing = match (row.submenu, row.shortcut) {
-            (true, _) => s.icon,
+            (true, _) => self.glyph(),
             (false, Some(kbd)) => self.shortcut_galley(ui, kbd, Color32::PLACEHOLDER).size().x,
             (false, None) => 0.0,
         };
@@ -150,10 +178,13 @@ impl RowPainter<'_> {
         let (s, m) = (&self.style.rows, self.style);
         let ppp = ui.pixels_per_point();
         let active = state.active && state.enabled;
+        let open = state.open && !state.active && state.enabled;
         if active {
             ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, m.active_fill);
+        } else if open {
+            ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, m.open_fill);
         }
-        let tint = row.tint.filter(|_| state.enabled && !active).map(|t| self.tint_colors(t));
+        let tint = row.tint.filter(|_| state.enabled && !active && !open).map(|t| self.tint_colors(t));
         if let Some(tint) = tint {
             ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, tint.fill.to_egui());
         }
@@ -167,23 +198,24 @@ impl RowPainter<'_> {
         let start = direction::start_x(ui, rect) + forward * s.pad_x;
         let end = direction::end_x(ui, rect) - forward * s.pad_x;
         let square = |center_x: f32| Rect::from_center_size(pos2(center_x, rect.center().y), vec2(s.icon, s.icon)).round_to_pixels(ppp);
-        let column = |n: f32| start + forward * (n * (s.icon + s.gap) + s.icon / 2.0);
+        let mark_center = start + forward * self.glyph() / 2.0;
         match row.kind {
-            ItemKind::Check(true) => icons::paint(ui, square(column(0.0)), Icon::Check, icon_size(self.size), mark),
+            ItemKind::Check(true) => self.glyph_icon(ui, mark_center, rect.center().y, Icon::Check, mark),
             ItemKind::Radio(true) => {
-                ui.painter().circle_filled(pos2(column(0.0), rect.center().y), (s.icon * RADIO_DOT).max(RADIO_DOT_MIN), mark);
+                ui.painter().circle_filled(pos2(mark_center, rect.center().y), (self.glyph() * RADIO_DOT).max(RADIO_DOT_MIN), mark);
             }
             _ => {}
         }
         if let Some(icon) = row.icon.filter(|_| cols.icons) {
-            icons::paint(ui, square(column(f32::from(u8::from(cols.marks)))), icon, icon_size(self.size), text);
+            let icon_center = start + forward * (self.marks_width(cols) + s.icon / 2.0);
+            icons::paint(ui, square(icon_center), icon, icon_size(self.size), text);
         }
         let galley = self.label_galley(ui, row, text);
         let x = start + forward * self.label_offset(cols);
         let x = if direction::is_rtl(ui) { x - galley.size().x } else { x };
         ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, text);
         if row.submenu {
-            icons::paint(ui, square(end - forward * s.icon / 2.0), Icon::ChevronRight, icon_size(self.size), text);
+            self.glyph_icon(ui, end - forward * self.glyph() / 2.0, rect.center().y, Icon::ChevronRight, text);
         } else if let Some(kbd) = row.shortcut {
             let galley = self.shortcut_galley(ui, kbd, shortcut);
             let x = if direction::is_rtl(ui) { end } else { end - galley.size().x };
@@ -195,8 +227,7 @@ impl RowPainter<'_> {
     pub fn separator(&self, ui: &mut Ui, width: f32) {
         let s = &self.style.rows;
         let (rect, _) = ui.allocate_exact_size(vec2(width, 2.0 * s.separator_pad + 1.0), egui::Sense::hover());
-        let x = rect.x_range().shrink(s.pad_x);
-        ui.painter().hline(x, rect.center().y.round_to_pixels(ui.pixels_per_point()), Stroke::new(1.0, s.separator));
+        ui.painter().hline(rect.x_range(), rect.center().y.round_to_pixels(ui.pixels_per_point()), Stroke::new(1.0, s.separator));
     }
 }
 

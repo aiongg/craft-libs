@@ -87,7 +87,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     v.window_stroke = stroke(1.0, c.line.border);
     v.menu_corner_radius = corner_radius(radius.popup);
     v.panel_fill = c.surface.panel.to_egui();
-    v.popup_shadow = tokens.elevation.popup.to_egui();
+    v.popup_shadow = super::tokens::popup_shadow(tokens);
     v.resize_corner_size = tokens.size.icon.sm;
     v.text_cursor = TextCursorStyle { stroke: Stroke { color: c.text.normal.to_egui(), ..v.text_cursor.stroke }, ..v.text_cursor };
     v

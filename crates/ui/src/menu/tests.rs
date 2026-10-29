@@ -1139,6 +1139,33 @@ fn the_active_row_ignores_the_tint() {
 }
 
 #[test]
+fn the_active_row_is_the_accent_and_a_submenu_row_is_hover_grey_while_the_pointer_is_in_its_submenu() {
+    let mut d = two_submenus();
+    rest_on_mode(&mut d);
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let (mut style, mut accent) = (None, None);
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::of(ui);
+        style = Some(Menu::style(&tokens, ControlSize::Md));
+        accent = Some((tokens.color.accent.solid.to_egui(), tokens.color.state.hover.to_egui()));
+    })
+    .drop_without_applying_deltas();
+    let (style, (accent, hover)) = (style.unwrap_or_else(|| panic!("no style")), accent.unwrap_or_else(|| panic!("no tokens")));
+    assert_eq!((style.active_fill, style.open_fill), (accent, hover), "accent.solid and state.hover");
+    let count = |d: &Driver, c| fills(d).iter().filter(|&&f| f == c).count();
+    assert_eq!((count(&d, style.active_fill), count(&d, style.open_fill)), (1, 0), "the pointer on Mode: Mode is the accent");
+    let inside = d.rect("Mode 6").center();
+    d.move_to(inside);
+    d.run(3);
+    assert_eq!(
+        (count(&d, style.active_fill), count(&d, style.open_fill)),
+        (1, 1),
+        "the pointer in the submenu: its row is the accent and Mode stays grey"
+    );
+}
+
+#[test]
 fn a_row_tooltip_shows_after_the_delay() {
     let mut d = Driver::new(vec![MenuItem::new("Save", "save").tooltip("Writes the file").into(), item("Quit", "quit")]);
     d.click("Open");

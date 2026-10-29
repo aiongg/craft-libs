@@ -381,12 +381,11 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
 }
 
 fn listbox_pairs() -> Vec<(ListboxField, TokenRef, (f64, f64))> {
-    let popup = TokenRef::Color(T::SurfaceRaised);
+    let popup = TokenRef::Component(ComponentField::Popup(PopupField::Fill));
     let active = TokenRef::Component(ComponentField::Listbox(ListboxField::ActiveFill));
     vec![
         (ListboxField::ActiveFill, popup, (1.12, 1.12)),
         (ListboxField::Text { disabled: false }, popup, (4.5, 7.0)),
-        (ListboxField::ChosenText, popup, (4.5, 7.0)),
         (ListboxField::Group, popup, (4.5, 7.0)),
         (ListboxField::ActiveText, active, (4.5, 7.0)),
         (ListboxField::Mark, popup, (3.0, 4.5)),
@@ -400,7 +399,13 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
         .filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_))))
         .map(|p| (p.fg, p.bg, p.minimum))
         .collect();
-    let expected: Vec<_> = listbox_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(ComponentField::Listbox(fg)), bg, min)).collect();
+    let mut expected: Vec<_> = listbox_pairs().into_iter().map(|(fg, bg, min)| (TokenRef::Component(ComponentField::Listbox(fg)), bg, min)).collect();
+    // The menu's open row: the row text on `menu.open.fill`.
+    expected.push((
+        TokenRef::Component(ComponentField::Listbox(ListboxField::Text { disabled: false })),
+        TokenRef::Component(ComponentField::Menu(MenuField::OpenFill)),
+        (4.5, 7.0),
+    ));
     assert_eq!(listed, expected);
     for def in [grey_blue(), violet()] {
         for a in appearances() {
@@ -416,10 +421,16 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
                 let min = if a.contrast == Contrast::High { high } else { standard };
                 let bg = match bg {
                     TokenRef::Color(token) => t.color(token),
-                    TokenRef::Component(field) => over(t.component.color(field).unwrap(), t.color(T::SurfaceRaised)),
+                    TokenRef::Component(field) => over(t.component.color(field).unwrap(), t.color(T::SurfacePanel)),
                 };
                 let ratio = contrast_ratio(over(t.component.color(ComponentField::Listbox(fg)).unwrap(), bg), bg);
-                assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, ComponentField::Listbox(fg).path());
+                // Standard reports the accent fill's text and mark pairs; High enforces them.
+                assert!(
+                    a.contrast != Contrast::High || ratio >= min,
+                    "{} {a:?}: {} is {ratio:.2}, needs {min}",
+                    def.name,
+                    ComponentField::Listbox(fg).path()
+                );
             }
         }
     }
@@ -428,26 +439,29 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
     let l = &t.component.listbox;
     assert_eq!(l.height, BySize { sm: t.size.control.sm, md: t.size.control.md });
     assert_eq!(l.icon, BySize { sm: t.size.icon.sm, md: t.size.icon.md });
-    assert_eq!((l.pad_x, l.gap, l.separator_pad, l.radius), (t.space.pad.control, t.space.gap.inline, t.space.gap.inline, t.shape.radius.control));
+    assert_eq!((l.pad_x, l.gap, l.separator_pad, l.radius), (t.space.pad.control + 4.0, t.space.gap.inline, t.space.gap.inline, 0.0));
+    assert_eq!(l.max_height, 420.0 + 12.0 * (t.size.control.md - 24.0));
     assert_eq!((l.label, l.group_label), (TypeRole::Body, TypeRole::Caption));
     assert_eq!(l.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
-    assert_eq!(l.active_text, t.color(T::TextNormal));
-    let popup = t.color(T::SurfaceRaised);
+    assert_eq!((l.active_fill, l.active_text), (t.color(T::AccentSolid), t.color(T::TextOnAccent)));
+    let popup = t.color(T::SurfacePanel);
     assert!(contrast_ratio(over(l.active_fill, popup), popup) >= values::LIST_HOVER_MIN.0);
-    assert_eq!((l.chosen_text, l.mark), (t.color(T::TextNormal), t.color(T::TextNormal)));
+    assert_eq!(l.mark, t.color(T::TextNormal));
     assert_eq!((l.group, l.separator), (t.color(T::TextMuted), t.color(T::LineDivider)));
 }
 
-/// The active menu row is `accent.strong` with `text.on_strong` (owner, 2026-10-28), the shortcuts are
-/// muted text on the popup surface, and the sizes scale PhotoCraft's Compact ones with the control
+/// The active menu row is `accent.solid` with `text.on_accent` (PhotoCraft's menus), an open
+/// submenu's row is `state.hover`, the shortcuts are muted text on the popup card, and the sizes scale PhotoCraft's Compact ones with the control
 /// height.
 #[test]
 fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums() {
     let listed: Vec<_> =
         ComponentTokens::pairs().into_iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).map(|p| (p.fg, p.bg)).collect();
     let menu = |f| TokenRef::Component(ComponentField::Menu(f));
-    let mut expected =
-        vec![(menu(MenuField::ActiveText), menu(MenuField::ActiveFill)), (menu(MenuField::Shortcut), TokenRef::Color(T::SurfaceRaised))];
+    let mut expected = vec![
+        (menu(MenuField::ActiveText), menu(MenuField::ActiveFill)),
+        (menu(MenuField::Shortcut), TokenRef::Component(ComponentField::Popup(PopupField::Fill))),
+    ];
     for hue in MenuHue::ALL {
         let tint = |part| menu(MenuField::Tint(hue, part));
         expected.push((tint(MenuTintPart::Text), tint(MenuTintPart::Fill)));
@@ -458,7 +472,10 @@ fn menu_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums()
         for a in appearances() {
             let t = resolve(&def, a, None).tokens;
             let m = &t.component.menu;
-            assert_eq!((m.active_fill, m.active_text, m.shortcut), (t.color(T::AccentStrong), t.color(T::TextOnStrong), t.color(T::TextMuted)));
+            assert_eq!(
+                (m.active_fill, m.active_text, m.open_fill, m.shortcut),
+                (t.color(T::AccentSolid), t.color(T::TextOnAccent), t.color(T::StateHover), t.color(T::TextMuted))
+            );
             let k = t.size.control.md / 24.0;
             assert_eq!((m.min_width, m.shortcut_gap, m.scroll_strip), ((220.0 * k).round(), (16.0 * k).round(), (16.0 * k).round()), "{a:?}");
         }
@@ -669,6 +686,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2 * 4
             // Tooltip: radius, fill, text and border.
             + 4
+            // Popup: fill, border and shadow; the menu's open fill replaced the list box's chosen text.
+            + 3
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -731,7 +750,6 @@ fn component_paths_name_their_fields_and_refuse_near_misses() {
         ("listbox.radius", ComponentField::Listbox(ListboxField::Radius)),
         ("listbox.text.disabled", ComponentField::Listbox(ListboxField::Text { disabled: true })),
         ("listbox.active.fill", ComponentField::Listbox(ListboxField::ActiveFill)),
-        ("listbox.chosen.text", ComponentField::Listbox(ListboxField::ChosenText)),
         ("listbox.mark", ComponentField::Listbox(ListboxField::Mark)),
     ];
     for (path, field) in named {

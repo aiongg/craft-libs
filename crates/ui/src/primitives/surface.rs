@@ -25,7 +25,7 @@ pub enum SurfaceKind {
     /// A raised surface while pressed: `state.pressed`, outlined with `line.control_edge` or
     /// bevelled in.
     Pressed,
-    /// Popups and menus: `surface.raised` with the popup shadow.
+    /// Popups and menus: `popup.fill` and `popup.border` with the popup shadow.
     Popup,
     /// Dialogs: `surface.raised` with the dialog shadow.
     Dialog,
@@ -144,7 +144,8 @@ impl Surface {
         let fill = match kind {
             K::Background => c.surface.background,
             K::Panel => c.surface.panel,
-            K::Raised | K::Popup | K::Dialog => c.surface.raised,
+            K::Raised | K::Dialog => c.surface.raised,
+            K::Popup => tokens.component.popup.fill,
             K::Sunken => c.surface.sunken,
             K::Pressed => c.state.pressed,
             K::Knob => c.surface.knob,
@@ -161,7 +162,8 @@ impl Surface {
         let width = craft_theme::Stroke::W1.width(1.0);
         let edge = match (tokens.shape.edge, kind) {
             (_, K::Background | K::Panel) => SurfaceEdge::None,
-            (Edge::Flat, K::Raised | K::Popup | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
+            (Edge::Flat, K::Popup) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
+            (Edge::Flat, K::Raised | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Sunken | K::Pressed) => SurfaceEdge::Border(Stroke::new(width, c.line.control_edge.to_egui())),
             (Edge::Flat, K::Knob) => SurfaceEdge::Border(Stroke::new(width, c.line.knob_edge.to_egui())),
             (Edge::Bevel { light, dark, width }, K::Raised | K::Popup | K::Dialog | K::Knob) => {

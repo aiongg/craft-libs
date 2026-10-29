@@ -250,12 +250,13 @@ fn select() {
         }
         let style = Select::style(t, ControlSize::Md);
         let s = style.list;
-        d.line("pad_x", s.pad_x).line("gap", s.gap).line("separator_pad", s.separator_pad);
+        d.line("pad_x", s.pad_x).line("max_height", s.max_height).line("gap", s.gap).line("separator_pad", s.separator_pad);
         d.line("label", role(s.label)).line("group_label", role(s.group_label)).line("radius", s.radius);
         d.line("text.rest", s.text).line("text.disabled", s.text_disabled);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
-        d.line("chosen.text", s.chosen_text).line("mark", s.mark).line("group", s.group).line("separator", s.separator);
+        d.line("mark", s.mark).line("group", s.group).line("separator", s.separator);
         d.line("focus", s.focus);
+        d.line("hover_fill", style.hover_fill);
         surface(d, "popup", &style.popup);
     });
 }

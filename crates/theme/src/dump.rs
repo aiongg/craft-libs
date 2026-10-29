@@ -11,9 +11,10 @@ use crate::{
     CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps,
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
-    PanelHeaderTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SectionTokens,
-    SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors,
-    ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens,
+    SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens,
+    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle,
+    TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -238,6 +239,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         menu,
         notice,
         panel_header,
+        popup,
         progress,
         property,
         readout,
@@ -280,6 +282,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     menu_lines(out, menu);
     notice_lines(out, notice);
     panel_header_lines(out, panel_header);
+    popup_lines(out, popup);
     progress_lines(out, progress);
     property_lines(out, property);
     readout_lines(out, readout);
@@ -1130,6 +1133,7 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
     let ListboxTokens {
         height,
         pad_x,
+        max_height,
         gap,
         icon,
         label,
@@ -1139,13 +1143,13 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
         text,
         active_fill,
         active_text,
-        chosen_text,
         mark,
         group,
         separator,
     } = l;
     by_size(out, "listbox.height", height);
     out.line("listbox.pad_x", len(*pad_x));
+    out.line("listbox.max_height", len(*max_height));
     out.line("listbox.gap", len(*gap));
     by_size(out, "listbox.icon", icon);
     out.line("listbox.label", role(*label));
@@ -1156,7 +1160,6 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
     out.line("listbox.text.disabled", hex(text.disabled));
     out.line("listbox.active.fill", hex(*active_fill));
     out.line("listbox.active.text", hex(*active_text));
-    out.line("listbox.chosen.text", hex(*chosen_text));
     out.line("listbox.mark", hex(*mark));
     out.line("listbox.group", hex(*group));
     out.line("listbox.separator", hex(*separator));
@@ -1193,13 +1196,21 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
     }
 }
 
+fn popup_lines(out: &mut Lines, p: &PopupTokens) {
+    let PopupTokens { fill, border, shadow } = p;
+    out.line("popup.fill", hex(*fill));
+    out.line("popup.border", hex(*border));
+    out.line("popup.shadow", hex(*shadow));
+}
+
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tints } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, open_fill, shortcut, tints } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
     out.line("menu.active.fill", hex(*active_fill));
     out.line("menu.active.text", hex(*active_text));
+    out.line("menu.open.fill", hex(*open_fill));
     out.line("menu.shortcut", hex(*shortcut));
     for (hue, tint) in MenuHue::ALL.into_iter().zip(tints) {
         out.line(&format!("menu.tint.{}.fill", hue.name()), hex(tint.fill));

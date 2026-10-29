@@ -34,6 +34,7 @@
     "line.control_edge": "#bebbc9",
     "line.divider": "#d2cfda",
     "list.selected": "{accent.soft}",
+    "popup.shadow": "#00000028",
     "seeds": {
       "accent": "#6e80d8",
       "neutral": "#f0eef3",
@@ -66,6 +67,7 @@
     "line.control_edge": "#545462",
     "line.divider": "#24242c",
     "list.selected": "{accent.soft}",
+    "popup.shadow": "#0000006e",
     "state.hover": "#444450",
     "state.pressed": "#4a4a58",
     "surface.background": "#2f2f38",
