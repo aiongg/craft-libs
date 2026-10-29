@@ -10,8 +10,10 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AngleDialTokens {
-    /// Diameter of the face: `angle_dial.size`.
+    /// Side of the dial's box: `angle_dial.size`.
     pub size: f32,
+    /// Between the box and the face's edge: `angle_dial.margin`.
+    pub margin: f32,
     /// Width of the needle: `angle_dial.needle_width`.
     pub needle_width: f32,
     /// Distance from the face's edge to the needle's tip: `angle_dial.needle_inset`.
@@ -88,6 +90,7 @@ impl Family for AngleDialTokens {
         let c = s.color;
         AngleDialTokens {
             size: scale(values::ANGLE_DIAL_SIZE),
+            margin: scale(values::ANGLE_DIAL_MARGIN),
             needle_width: scale(values::ANGLE_DIAL_NEEDLE_WIDTH),
             needle_inset: scale(values::ANGLE_DIAL_NEEDLE_INSET),
             hub: scale(values::ANGLE_DIAL_HUB),

@@ -302,7 +302,7 @@ fn angle_dial_defaults_come_from_semantic_tokens_and_the_needle_meets_the_face()
     // The Compact sizes scale with the control height.
     let k = t.size.control.md / 24.0;
     let scaled = |v: f32| (v * k).round();
-    assert_eq!((d.size, d.needle_width, d.needle_inset), (scaled(42.0), scaled(2.0), scaled(4.0)));
+    assert_eq!((d.size, d.margin, d.needle_width, d.needle_inset), (scaled(42.0), scaled(2.0), scaled(2.0), scaled(4.0)));
     assert_eq!((d.hub, d.dead_zone), (scaled(2.0), scaled(2.0)));
 }
 
@@ -367,15 +367,16 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
     assert_eq!(f.fill, Dimmed { rest: t.color(T::SurfaceSunken), disabled: t.color(T::StateDisabledFill) });
     let border = BorderColors {
         rest: t.color(T::LineControlEdge),
-        hover: t.color(T::TextFaint),
+        hover: t.color(T::LineControlEdge),
         focused: t.color(T::LineFocus),
         disabled: t.color(T::LineDivider),
     };
     assert_eq!(f.border, border);
     assert_eq!(f.text, Dimmed { rest: t.color(T::TextNormal), disabled: t.color(T::TextDisabled) });
     assert_eq!(f.placeholder, Dimmed { rest: t.color(T::TextFaint), disabled: t.color(T::TextDisabled) });
-    assert_eq!((f.unit, f.scrub), (Dimmed { rest: t.color(T::TextMuted), disabled: t.color(T::TextDisabled) }, f.unit));
-    assert_eq!((f.selection, f.selected_text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    assert_eq!(f.unit, Dimmed { rest: t.color(T::TextFaint), disabled: t.color(T::TextDisabled) });
+    assert_eq!(f.scrub, Dimmed { rest: t.color(T::TextMuted), disabled: t.color(T::TextDisabled) });
+    assert_eq!((f.selection, f.selected_text), (t.color(T::AccentSoft), t.color(T::TextNormal)));
     assert_eq!((f.caret, f.invalid), (t.color(T::TextNormal), t.color(T::StatusBadFg)));
 }
 
@@ -974,11 +975,12 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
     let s = &c.swatch;
     assert_eq!(s.size, BySize { sm: t.size.control.sm, md: t.size.control.md });
     assert_eq!((s.edge, s.selected), (t.color(T::LineControlEdge), t.color(T::AccentSolid)));
-    assert_eq!((s.selected_gap, s.selected_width), (1.0, 2.0));
+    assert_eq!(s.selected_width, 2.0);
     assert_eq!((s.mixed_fill, s.mixed_mark), (t.color(T::SurfaceSunken), t.color(T::TextMuted)));
-    assert_eq!((s.checker_a, s.checker_b), (Rgba::rgb(64, 64, 64), Rgba::rgb(102, 102, 102)), "dark greys in a dark theme");
+    // PhotoCraft's checker is the same light pair in every theme and mode.
+    assert_eq!((s.checker_a, s.checker_b), (Rgba::rgb(250, 250, 250), Rgba::rgb(214, 214, 214)));
     let light = resolve(&grey_blue(), app(Mode::Light, Contrast::Standard), None).tokens.component.swatch;
-    assert_eq!((light.checker_a, light.checker_b), (Rgba::WHITE, Rgba::rgb(204, 204, 204)), "light greys in a light theme");
+    assert_eq!((light.checker_a, light.checker_b), (s.checker_a, s.checker_b));
 }
 
 /// Badges and keycaps hold one caption line, so they grow with the Text size setting.
@@ -1050,10 +1052,10 @@ fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_t
 fn tooltips_have_a_width_and_default_to_the_popup_look() {
     let t = resolve(&grey_blue(), app(Mode::Light, Contrast::High), None).tokens;
     let tip = t.component.tooltip;
-    assert_eq!(tip.max_width, 320.0);
+    assert_eq!(tip.max_width, 280.0);
     assert_eq!(
         (tip.fill, tip.text, tip.border),
-        (t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder))
+        (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder))
     );
     assert_eq!(tip.radius, t.shape.radius.popup);
     assert!(ComponentField::ALL.iter().any(|f| matches!(f, ComponentField::Tooltip(_))));
@@ -1585,5 +1587,30 @@ fn button_states_follow_pinned_rest_colours() {
         assert_eq!(b.primary.fill.pressed, rest.faded(0.5), "{mode:?}");
         assert_eq!([b.primary.text.hover, b.primary.text.pressed], [text; 2], "{mode:?}");
         assert_eq!(b.secondary.fill.pressed, b.secondary.fill.rest.faded(0.5), "{mode:?}");
+    }
+}
+
+/// Text and number fields follow PhotoCraft (`text_field.rs:46-116`, `fields.rs:94-340`,
+/// `theme.rs:824`): the edge doesn't change under the pointer, the unit is faint, and the text
+/// selection is grey in the Pro themes (96 dark, 201 light) and `accent.soft` elsewhere.
+#[test]
+fn fields_follow_photocraft_edge_unit_and_selection() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let shown = theme.variants.mode_for(mode);
+            let t = resolve(theme, app(mode, Contrast::Standard), None).tokens;
+            let f = &t.component.field;
+            if theme.id.as_str() != "craft.classic" {
+                assert_eq!(f.border.hover, f.border.rest, "{} {mode:?}", theme.id);
+            }
+            assert_eq!(f.unit.rest, t.color(T::TextFaint), "{} {mode:?}", theme.id);
+            let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&theme.id.as_str());
+            let expected = match (pro, shown) {
+                (true, Mode::Dark) => Rgba::rgb(96, 96, 96),
+                (true, Mode::Light) => Rgba::rgb(201, 201, 201),
+                _ => t.color(T::AccentSoft),
+            };
+            assert_eq!(f.selection, expected, "{} {mode:?}", theme.id);
+        }
     }
 }

@@ -178,7 +178,7 @@ fn segmented() {
 fn link() {
     check("link.txt", |d, t| {
         let s = Link::style(t);
-        d.line("color", s.color).line("underline", s.underline.name()).line("stroke", s.stroke);
+        d.line("color", s.color).line("stroke", s.stroke);
     });
 }
 
@@ -335,7 +335,12 @@ fn switch() {
 fn angle_dial() {
     check("angle_dial.txt", |d, t| {
         let s = AngleDial::style(t);
-        d.line("size", s.size).line("face", s.face).line("edge", s.edge.width).line("edge_color", s.edge.color).line("edge_active", s.edge_active);
+        d.line("size", s.size)
+            .line("margin", s.margin)
+            .line("face", s.face)
+            .line("edge", s.edge.width)
+            .line("edge_color", s.edge.color)
+            .line("edge_active", s.edge_active);
         d.line("needle", s.needle.width).line("needle_color", s.needle.color).line("needle_inset", s.needle_inset);
         d.line("hub", s.hub).line("hub_fill", s.hub_fill).line("dead_zone", s.dead_zone).line("gap", s.gap);
     });
@@ -348,14 +353,13 @@ fn swatch() {
             d.line(&format!("size.{name}.side"), Swatch::style(t, size).side);
         }
         let s = Swatch::style(t, ControlSize::Md);
-        d.line("inset", s.inset)
-            .line("radius", s.radius)
-            .line("outline_radius", Swatch::outline_radius(&s))
+        d.line("radius", s.radius)
             .line("edge", s.edge)
             .line("inner_edge.panel", s.inner_edge(Some(t.color.surface.panel)))
             .line("inner_edge.mixed", s.inner_edge(None))
             .line("checker.a", s.checker[0])
             .line("checker.b", s.checker[1])
+            .line("checker_cell", s.checker_cell)
             .line("selected", s.selected)
             .line("mixed.fill", s.mixed_fill)
             .line("mixed.mark", s.mixed_mark);

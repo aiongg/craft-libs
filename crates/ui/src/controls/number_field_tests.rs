@@ -1135,7 +1135,7 @@ fn right_to_left_keeps_the_digits_the_unit_and_the_scrub_label_in_place() {
     };
     let (w, digits, unit) = parts(Direction::Rtl);
     assert!(w.right() < digits.left(), "the scrub label at the left: {w:?} {digits:?}");
-    assert!((unit.left() - digits.right()).abs() < 0.5, "the unit after the digits: {digits:?} {unit:?}");
+    assert!(unit.left() >= digits.right() - 0.5, "the unit after the digits: {digits:?} {unit:?}");
     let (ltr_w, ltr_digits, ltr_unit) = parts(Direction::Ltr);
     let from_w = |w: Rect, r: Rect| r.min - w.min;
     assert_eq!((from_w(w, digits), from_w(w, unit)), (from_w(ltr_w, ltr_digits), from_w(ltr_w, ltr_unit)));

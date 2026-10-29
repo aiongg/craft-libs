@@ -1,8 +1,6 @@
 //! [`Link`]: text in the accent colour that opens a URL or reports a click.
 
-use std::sync::Arc;
-
-use craft_theme::{TypeRole, contrast_ratio};
+use craft_theme::{Contrast, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
@@ -13,45 +11,21 @@ use crate::primitives::{Content, Corner, Gap, Interactive, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 
-/// The contrast between link text and the text around it below which colour alone doesn't set a
-/// link apart, so it is always underlined (WCAG 1.4.1, technique G183).
-pub const DISTINCT_FROM_TEXT: f64 = 3.0;
-
-/// When a link is underlined.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum LinkUnderline {
-    /// Under the pointer: `accent.text` stands out from `text.normal` by colour.
-    Hover,
-    /// Always: `accent.text` is below [`DISTINCT_FROM_TEXT`] against `text.normal`.
-    Always,
-}
-
-impl LinkUnderline {
-    /// The name in dumps, e.g. `"hover"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            LinkUnderline::Hover => "hover",
-            LinkUnderline::Always => "always",
-        }
-    }
-}
-
 /// A link's look, from [`Link::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct LinkStyle {
-    /// `accent.text`.
+    /// `accent.solid`, as PhotoCraft's links; `accent.text` with high contrast, which meets the
+    /// text contrast `accent.solid` doesn't.
     pub color: Color32,
-    pub underline: LinkUnderline,
-    /// The underline: one point in the link's colour.
+    /// The underline, always drawn (WCAG 1.4.1): one point in the link's colour.
     pub stroke: Stroke,
 }
 
 /// A link: `ui.add(Link::new("Release notes").url("https://…"))`.
 ///
-/// Drawn in `accent.text` in a type role (body by default), underlined on hover, and always when
-/// `accent.text` is too close to `text.normal` to tell apart by colour. With a
+/// Drawn in the accent colour in a type role (body by default) and underlined, so colour isn't
+/// its only cue. With a
 /// [`url`](Link::url) a click opens it (in a new tab with a modifier held or a middle click, on
 /// the web); without one the caller acts on [`clicked`](Response::clicked). AccessKit role
 /// `Link`, with the URL. Enter and Space activate it, as a link in the suite's apps does.
@@ -88,9 +62,8 @@ impl Link {
 
     pub fn style(tokens: &UiTokens) -> LinkStyle {
         let c = &tokens.color;
-        let underline = if contrast_ratio(c.accent.text, c.text.normal) < DISTINCT_FROM_TEXT { LinkUnderline::Always } else { LinkUnderline::Hover };
-        let color = Content::Accent.color(tokens).to_egui();
-        LinkStyle { color, underline, stroke: Stroke::new(craft_theme::Stroke::W1.width(1.0), color) }
+        let color = if tokens.appearance.contrast == Contrast::High { c.accent.text } else { c.accent.solid }.to_egui();
+        LinkStyle { color, stroke: Stroke::new(craft_theme::Stroke::W1.width(1.0), color) }
     }
 }
 
@@ -98,8 +71,10 @@ impl Widget for Link {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let style = Link::style(&tokens);
-        let format = role_format(&tokens, self.role, style.color);
-        let galley = ui.painter().layout_job(LayoutJob::single_section(self.label.clone(), format.clone()));
+        let mut format = role_format(&tokens, self.role, style.color);
+        format.valign = ui.text_valign();
+        format.underline = style.stroke;
+        let galley = ui.painter().layout_job(LayoutJob::single_section(self.label.clone(), format));
         let response = Interactive::salted(salt(ui, self.id_salt), Role::Link, self.label.as_str())
             .state_layer(false)
             .corner(Corner::Control)
@@ -113,15 +88,7 @@ impl Widget for Link {
             }
         }
         if ui.is_rect_visible(response.rect) {
-            let underlined = style.underline == LinkUnderline::Always || response.hovered();
-            let galley = if underlined {
-                let mut format = format;
-                format.underline = style.stroke;
-                ui.painter().layout_job(LayoutJob::single_section(self.label, format))
-            } else {
-                galley
-            };
-            ui.painter().galley(response.rect.min.round_to_pixels(ui.pixels_per_point()), Arc::clone(&galley), style.color);
+            ui.painter().galley(response.rect.min.round_to_pixels(ui.pixels_per_point()), galley, style.color);
         }
         response
     }

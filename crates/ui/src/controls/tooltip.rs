@@ -22,7 +22,7 @@ pub struct TooltipStyle {
     pub radius: egui::CornerRadius,
     /// The popup shadow.
     pub shadow: Shadow,
-    /// `tooltip.fill`: `surface.raised`.
+    /// `tooltip.fill`: `surface.panel`.
     pub fill: egui::Color32,
     /// `tooltip.border`, one point wide: `line.border`.
     pub border: Stroke,

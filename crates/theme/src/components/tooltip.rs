@@ -16,7 +16,7 @@ pub struct TooltipTokens {
     pub max_width: f32,
     /// Corner radius: `shape.radius.popup`.
     pub radius: f32,
-    /// Card fill: `surface.raised`.
+    /// Card fill: `surface.panel`, the card of PhotoCraft's windows.
     pub fill: Rgba,
     /// Text on the card: `text.normal`.
     pub text: Rgba,
@@ -46,7 +46,7 @@ impl Family for TooltipTokens {
         TooltipTokens {
             max_width: values::TOOLTIP_WIDTH,
             radius: s.shape.radius.popup,
-            fill: c.surface.raised,
+            fill: c.surface.panel,
             text: c.text.normal,
             border: c.line.border,
         }

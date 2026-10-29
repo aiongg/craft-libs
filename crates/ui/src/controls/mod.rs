@@ -107,7 +107,7 @@ pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use kbd::{Kbd, KbdStyle};
-pub use link::{Link, LinkStyle, LinkUnderline};
+pub use link::{Link, LinkStyle};
 pub use number_field::{NumberField, NumberFieldStyle};
 pub(crate) use option_list::{pressed_on, released};
 pub use progress::{Progress, ProgressStyle};

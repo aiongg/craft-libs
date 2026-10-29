@@ -83,7 +83,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
 
     v.window_corner_radius = corner_radius(radius.window);
     v.window_shadow = tokens.elevation.floating.to_egui();
-    v.window_fill = c.surface.raised.to_egui();
+    v.window_fill = c.surface.panel.to_egui();
     v.window_stroke = stroke(1.0, c.line.border);
     v.menu_corner_radius = corner_radius(radius.popup);
     v.panel_fill = c.surface.panel.to_egui();

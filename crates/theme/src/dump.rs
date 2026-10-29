@@ -808,8 +808,9 @@ fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
 }
 
 fn angle_dial_lines(out: &mut Lines, t: &AngleDialTokens) {
-    let AngleDialTokens { size, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill } = t;
+    let AngleDialTokens { size, margin, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill } = t;
     out.line("angle_dial.size", len(*size));
+    out.line("angle_dial.margin", len(*margin));
     out.line("angle_dial.needle_width", len(*needle_width));
     out.line("angle_dial.needle_inset", len(*needle_inset));
     out.line("angle_dial.hub", len(*hub));
@@ -1230,7 +1231,7 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
     by_size(out, "swatch.size", &s.size);
     out.line("swatch.radius", len(s.radius));
     out.line("swatch.selected_width", len(s.selected_width));
-    out.line("swatch.selected_gap", len(s.selected_gap));
+    out.line("swatch.checker_cell", len(s.checker_cell));
     for color in SwatchColor::ALL {
         out.line(&format!("swatch.{}", color.name()), hex(s.color(color)));
     }

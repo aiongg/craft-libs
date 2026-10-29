@@ -499,7 +499,7 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
             } else {
                 assert_eq!(
                     (tip.fill, tip.text, tip.border),
-                    (t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder)),
+                    (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder)),
                     "{} {a:?}",
                     theme.id
                 );
