@@ -9,8 +9,8 @@ use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Stroke, StrokeKi
 
 pub use craft_theme::{BadgeStyle, BadgeTone};
 
-use crate::primitives::{Gap, Row, Stack};
-use crate::story::{Args, Level, Story, variant_cluster};
+use crate::primitives::{Gap, Row};
+use crate::story::{Args, Level, Story, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 
 /// The largest count a count badge shows; more reads `99+`.
@@ -117,9 +117,9 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// Every tone in each style.
 fn show_tones(ui: &mut Ui, _: &mut Args) {
-    Stack::new(Gap::Stack).show(ui, |ui| {
+    variant_list(ui, "badge-tones", |form| {
         for style in BadgeStyle::ALL {
-            variant_cluster(ui, style.name(), |ui| {
+            variant_cluster(form, style.name(), |ui| {
                 for (tone, text) in BadgeTone::ALL.into_iter().zip(SAMPLES.into_iter().cycle()) {
                     ui.add(Badge::new(format!("{text} {}", tone.name())).tone(tone).style(style));
                 }

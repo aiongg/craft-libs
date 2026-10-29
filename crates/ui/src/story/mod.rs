@@ -317,22 +317,22 @@ pub fn take_pixels_per_point_request(ctx: &egui::Context) -> Option<f32> {
     ctx.data_mut(|d| d.remove_temp::<f32>(pixels_per_point_key()))
 }
 
-/// A row of a story that lists labelled variants: `label` in the word column of a
-/// [`PropertyRow`](composites::PropertyRow), the control filling the rest.
-pub(crate) fn variant_row<C: composites::FieldControl>(ui: &mut egui::Ui, label: &str, control: impl FnOnce(&mut egui::Ui) -> C) {
-    composites::PropertyRow::word(label).show(ui, |ui, _| control(ui));
+/// A row of a story that lists labelled variants: `label` in the label column of a
+/// [`FormGrid`](composites::FormGrid), the control beside it at its own width.
+pub(crate) fn variant_row<C: composites::FieldControl>(form: &mut composites::Form<'_>, label: &str, control: impl FnOnce(&mut egui::Ui) -> C) {
+    form.row(label, control);
 }
 
 /// As [`variant_row`] for a row of several controls side by side.
-pub(crate) fn variant_cluster(ui: &mut egui::Ui, label: &str, controls: impl FnOnce(&mut egui::Ui)) {
-    variant_row(ui, label, |ui| {
+pub(crate) fn variant_cluster(form: &mut composites::Form<'_>, label: &str, controls: impl FnOnce(&mut egui::Ui)) {
+    variant_row(form, label, |ui| {
         use crate::primitives::{Gap, Row};
         Row::new(Gap::Inline).show(ui, controls).response
     });
 }
 
-/// A list of [`variant_row`]s whose label column is `word_width` wide, for labels longer than the
-/// default column.
-pub(crate) fn variant_list<R>(ui: &mut egui::Ui, id_salt: &str, word_width: f32, rows: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    composites::PropertyGroup::new(id_salt).word_width(word_width).show(ui, rows).inner
+/// A list of [`variant_row`]s: a form grid whose labels read at the start and whose label column
+/// is as wide as the widest label.
+pub(crate) fn variant_list<R>(ui: &mut egui::Ui, id_salt: &str, rows: impl FnOnce(&mut composites::Form<'_>) -> R) -> R {
+    composites::FormGrid::new(id_salt).label_align(composites::LabelAlign::Start).show(ui, rows).inner
 }

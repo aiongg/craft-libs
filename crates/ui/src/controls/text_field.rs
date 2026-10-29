@@ -659,10 +659,13 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let placeholder = args.text("placeholder").to_owned();
     let edit_menu = args.bool("edit menu");
-    with_values(ui, "text-field-states", STATE_ROWS.map(|(_, text)| Held::new(text)), |ui, values| {
-        variant_list(ui, "text-field-states", 100.0, |ui| {
+    let initial: [Held; STATE_ROWS.len() + 1] =
+        std::array::from_fn(|i| Held::new(STATE_ROWS.get(i).map_or("Shot list\nGolden hour, wide\nDetail of the hands", |(_, text)| text)));
+    with_values(ui, "text-field-states", initial, |ui, values| {
+        variant_list(ui, "text-field-states", |form| {
+            let Some((notes, values)) = values.split_last_mut() else { return };
             for (i, ((name, _), held)) in STATE_ROWS.iter().zip(values.iter_mut()).enumerate() {
-                variant_row(ui, name, |ui| {
+                variant_row(form, name, |ui| {
                     let field = TextField::new(("text-field-state", i), *name, &held.text).placeholder(&placeholder).size(size).edit_menu(edit_menu);
                     let field = match i {
                         3 => field.invalid(true),
@@ -673,15 +676,13 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     held.apply(field.show(ui))
                 });
             }
-            with_values(ui, "text-field-multiline", [Held::new("Shot list\nGolden hour, wide\nDetail of the hands")], |ui, notes| {
-                variant_row(ui, "Multiline", |ui| {
-                    let field = TextField::new("text-field-multiline", "Notes", &notes[0].text).multiline(3).size(size).edit_menu(edit_menu);
-                    notes[0].apply(field.show(ui))
-                });
+            variant_row(form, "Multiline", |ui| {
+                let field = TextField::new("text-field-multiline", "Notes", &notes.text).multiline(3).size(size).edit_menu(edit_menu);
+                notes.apply(field.show(ui))
             });
             for (i, text) in ["", "Locked layer"].into_iter().enumerate() {
                 let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
-                variant_row(ui, name, |ui| {
+                variant_row(form, name, |ui| {
                     TextField::new(("text-field-disabled", i), name, text).placeholder(&placeholder).size(size).enabled(false).show(ui).response
                 });
             }
@@ -694,13 +695,13 @@ fn show_search_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let placeholder = args.text("placeholder").to_owned();
     with_values(ui, "search-field-states", [Held::new(""), Held::new("brush")], |ui, values| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
+        variant_list(ui, "search-field-states", |form| {
             for (i, (name, held)) in ["Empty", "With text"].into_iter().zip(values.iter_mut()).enumerate() {
-                variant_row(ui, name, |ui| {
+                variant_row(form, name, |ui| {
                     held.apply(SearchField::new(("search-field-state", i), name, &held.text, "Clear").placeholder(&placeholder).size(size).show(ui))
                 });
             }
-            variant_row(ui, "Disabled", |ui| {
+            variant_row(form, "Disabled", |ui| {
                 SearchField::new("search-field-disabled", "Disabled", "brush", "Clear")
                     .placeholder(&placeholder)
                     .size(size)
@@ -809,23 +810,25 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
     }
     Stack::new(Gap::Stack).show(ui, |ui| {
         let text = state.doc.text.clone();
-        variant_row(ui, "Name", |ui| {
-            let edit = TextField::new("text-field-log", "Name", &text).placeholder("Type, then Enter, Esc or Tab").policy(policy).show(ui);
-            state.field = Some(edit.response.id);
-            if edit.submitted {
-                state.log("field: submitted".to_owned());
-            }
-            if edit.escaped {
-                state.log("field: escaped (the press goes on)".to_owned());
-            }
-            if let Some(event) = edit.event {
-                state.log(format!("field: {}", edit::describe(&event)));
-                state.host.handle(ui.ctx(), &mut state.doc, event, |doc, value| {
-                    doc.undo.push(doc.text.clone());
-                    doc.text = value;
-                });
-            }
-            edit.response
+        variant_list(ui, "text-field-event-log", |form| {
+            variant_row(form, "Name", |ui| {
+                let edit = TextField::new("text-field-log", "Name", &text).placeholder("Type, then Enter, Esc or Tab").policy(policy).show(ui);
+                state.field = Some(edit.response.id);
+                if edit.submitted {
+                    state.log("field: submitted".to_owned());
+                }
+                if edit.escaped {
+                    state.log("field: escaped (the press goes on)".to_owned());
+                }
+                if let Some(event) = edit.event {
+                    state.log(format!("field: {}", edit::describe(&event)));
+                    state.host.handle(ui.ctx(), &mut state.doc, event, |doc, value| {
+                        doc.undo.push(doc.text.clone());
+                        doc.text = value;
+                    });
+                }
+                edit.response
+            });
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             let line = format!("host: {}", edit::describe(&event));

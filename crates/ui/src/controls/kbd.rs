@@ -7,8 +7,8 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{Color32, Key, KeyboardShortcut, ModifierNames, Modifiers, Rect, Response, Sense, Ui, Vec2, Widget, WidgetInfo, pos2, vec2};
 
-use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, SurfaceStyle};
-use crate::story::{Args, Level, Story, variant_cluster};
+use crate::primitives::{Content, Surface, SurfaceKind, SurfaceStyle};
+use crate::story::{Args, Level, Story, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 
 /// A key chord's sizes and colours, from [`Kbd::style`].
@@ -267,9 +267,9 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A few chords in macOS and other notation side by side.
 fn show(ui: &mut Ui, keycaps: bool) {
-    Stack::new(Gap::Stack).show(ui, |ui| {
+    variant_list(ui, "kbd-chords", |form| {
         for (os, name) in [(OperatingSystem::Mac, "macOS"), (OperatingSystem::Nix, "Other")] {
-            variant_cluster(ui, name, |ui| {
+            variant_cluster(form, name, |ui| {
                 for (modifiers, key) in CHORDS {
                     ui.add(Kbd::new(&KeyboardShortcut::new(modifiers, key)).keycaps(keycaps).os(os));
                 }

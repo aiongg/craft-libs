@@ -14,6 +14,7 @@ use egui::{
 };
 
 use super::{RangeSlider, SIZE_NAMES, Swatch, field_wheel, gradient_track, size_arg};
+use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
@@ -1059,8 +1060,8 @@ pub(crate) fn store<T: Clone>(edit: &EditResponse<T>, value: &mut T) -> Response
 
 /// A property row: the name in the label column, then the control and its value. The control and
 /// its value keep their geometry right to left.
-pub(super) fn labelled(ui: &mut Ui, label: &str, value: &str, control: impl FnOnce(&mut Ui) -> Response) {
-    crate::story::variant_row(ui, label, |ui| {
+pub(super) fn labelled(form: &mut Form<'_>, label: &str, value: &str, control: impl FnOnce(&mut Ui) -> Response) {
+    crate::story::variant_row(form, label, |ui| {
         crate::direction::unmirrored_row(ui, crate::direction::Unmirrored::SliderValue, |ui| {
             let response = control(ui);
             ui.add(Text::new(value).content(Content::Muted));
@@ -1070,14 +1071,22 @@ pub(super) fn labelled(ui: &mut Ui, label: &str, value: &str, control: impl FnOn
     });
 }
 
-fn slider_row(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>) {
-    slider_row_with(ui, args, salt, label, value, step, |slider| slider);
+fn slider_row(form: &mut Form<'_>, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>) {
+    slider_row_with(form, args, salt, label, value, step, |slider| slider);
 }
 
-fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>, more: impl FnOnce(Slider) -> Slider) {
+fn slider_row_with(
+    form: &mut Form<'_>,
+    args: &Args,
+    salt: &str,
+    label: &str,
+    value: &mut f64,
+    step: Option<f64>,
+    more: impl FnOnce(Slider) -> Slider,
+) {
     let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
     let text = format!("{value:.1}");
-    labelled(ui, label, &text, |ui| {
+    labelled(form, label, &text, |ui| {
         let mut slider = Slider::new(salt, label, *value, 0.0..=100.0).size(size).enabled(enabled);
         if let Some(step) = step {
             slider = slider.step(step);
@@ -1089,30 +1098,30 @@ fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mu
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
-        variant_list(ui, "slider-values", 100.0, |ui| {
+        variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
             for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
                 let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
-                slider_row_with(ui, args, &format!("slider-values-{i}"), label, value, None, |slider| {
+                slider_row_with(form, args, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel);
                     if default { slider.default_value(50.0) } else { slider }
                 });
             }
             let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
             let [power, log, marked, triangle] = shaped else { return };
-            labelled(ui, "Power 2", &format!("{power:.1}"), |ui| {
+            labelled(form, "Power 2", &format!("{power:.1}"), |ui| {
                 let slider = Slider::new("slider-power", "Power 2", *power, 0.0..=100.0).scale(SliderScale::Power(2.0));
                 store(&slider.size(size).enabled(enabled).show(ui), power)
             });
-            labelled(ui, "Log", &format!("{log:.1}"), |ui| {
+            labelled(form, "Log", &format!("{log:.1}"), |ui| {
                 let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
                 store(&slider.size(size).enabled(enabled).show(ui), log)
             });
-            labelled(ui, "Marks", &format!("{marked:.1}"), |ui| {
+            labelled(form, "Marks", &format!("{marked:.1}"), |ui| {
                 let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
                 store(&slider.size(size).enabled(enabled).show(ui), marked)
             });
-            labelled(ui, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
+            labelled(form, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
                 let slider = Slider::new("slider-triangle", "Triangle", *triangle, 0.0..=100.0).thumb(SliderThumb::Triangle).ticks(10);
                 store(&slider.size(size).enabled(enabled).show(ui), triangle)
             });
@@ -1123,9 +1132,9 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
 /// Steps of 10 and of 25.
 fn show_step(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "slider-step", [40.0, 50.0], |ui, values| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
+        variant_list(ui, "slider-step", |form| {
             for (i, (step, value)) in [10.0, 25.0].into_iter().zip(values.iter_mut()).enumerate() {
-                slider_row(ui, args, &format!("slider-step-{i}"), &format!("Step {step}"), value, Some(step));
+                slider_row(form, args, &format!("slider-step-{i}"), &format!("Step {step}"), value, Some(step));
             }
         });
     });
@@ -1134,9 +1143,9 @@ fn show_step(ui: &mut Ui, args: &mut Args) {
 /// Disabled sliders at the minimum, a value and the maximum.
 fn show_disabled(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
-    Stack::new(Gap::Stack).show(ui, |ui| {
+    variant_list(ui, "slider-disabled", |form| {
         for (i, value) in [0.0, 30.0, 100.0].into_iter().enumerate() {
-            labelled(ui, &format!("Disabled {}", i + 1), &format!("{value:.1}"), |ui| {
+            labelled(form, &format!("Disabled {}", i + 1), &format!("{value:.1}"), |ui| {
                 Slider::new(("slider-disabled", i), format!("Disabled {}", i + 1), value, 0.0..=100.0).size(size).enabled(false).show(ui).response
             });
         }
@@ -1150,7 +1159,7 @@ fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let note = "With the direction set to right to left the label moves to the right. The slider keeps its geometry: the value grows to the right and the arrow keys act as they are.";
             ui.add(Text::new(note).content(Content::Muted));
-            slider_row(ui, args, "slider-rtl", "Opacity", &mut values[0], Some(1.0));
+            variant_list(ui, "slider-rtl", |form| slider_row(form, args, "slider-rtl", "Opacity", &mut values[0], Some(1.0)));
         });
     });
 }
@@ -1253,17 +1262,19 @@ fn show_event_log(ui: &mut Ui, args: &mut Args) {
         state.undo(ui);
     }
     Stack::new(Gap::Stack).show(ui, |ui| {
-        let level = state.doc.level;
-        labelled(ui, "Level", &format!("{level:.0}"), |ui| {
-            let edit = Slider::new("slider-log-level", "Level", level, 0.0..=100.0).step(1.0).policy(policy).show(ui);
-            state.handle(ui, "slider", edit.event, |doc, value| doc.edit(|d| d.level = value));
-            edit.response
-        });
-        let range = state.doc.range;
-        labelled(ui, "Range", &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
-            let edit = RangeSlider::new("slider-log-range", ("Range from", "Range to"), range, 0.0..=100.0).step(1.0).policy(policy).show(ui);
-            state.handle(ui, "range slider", edit.event, |doc, value| doc.edit(|d| d.range = value));
-            edit.response
+        variant_list(ui, "slider-event-log", |form| {
+            let level = state.doc.level;
+            labelled(form, "Level", &format!("{level:.0}"), |ui| {
+                let edit = Slider::new("slider-log-level", "Level", level, 0.0..=100.0).step(1.0).policy(policy).show(ui);
+                state.handle(ui, "slider", edit.event, |doc, value| doc.edit(|d| d.level = value));
+                edit.response
+            });
+            let range = state.doc.range;
+            labelled(form, "Range", &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
+                let edit = RangeSlider::new("slider-log-range", ("Range from", "Range to"), range, 0.0..=100.0).step(1.0).policy(policy).show(ui);
+                state.handle(ui, "range slider", edit.event, |doc, value| doc.edit(|d| d.range = value));
+                edit.response
+            });
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             let line = format!("host: {}", edit::describe(&event));

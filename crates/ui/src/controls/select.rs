@@ -26,7 +26,7 @@ use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gestu
 use crate::icons::{self, Icon};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story, variant_row};
+use crate::story::{Args, Level, Story, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 
 /// The rows of a popup list, from [`Select::style`].
@@ -1314,54 +1314,56 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     with_choices(ui, "select-states", [0, 1, 0, usize::MAX], |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [units, sampling, tool, empty] = choices;
-            variant_row(ui, "Units", |ui| {
-                let mut select = Select::new("select-units", "Units", units).size(size).enabled(enabled).fit(fit).highlighted(&mut hovered);
-                for (i, unit) in UNITS.into_iter().enumerate() {
-                    select = select.option(i, unit);
-                }
-                select.show(ui)
-            });
-            variant_row(ui, "Resampling", |ui| {
-                Select::new("select-resampling", "Resampling", sampling)
-                    .size(size)
-                    .enabled(enabled)
-                    .fit(fit)
-                    .option(0, "Automatic")
-                    .option_tooltip("Picks a method from the scale factor.")
-                    .separator()
-                    .group("Smooth")
-                    .option(1, "Bicubic")
-                    .option_tooltip("Best for enlarging smooth gradients.")
-                    .option(2, "Bilinear")
-                    .group("Sharp")
-                    .option(3, "Nearest neighbour")
-                    .option(4, "Preserve details (AI)")
-                    .option_enabled(false)
-                    .show(ui)
-            });
-            variant_row(ui, "Tool", |ui| {
-                Select::new("select-tool", "Tool", tool)
-                    .size(size)
-                    .enabled(enabled)
-                    .option_icon(0, Icon::Brush, "Brush")
-                    .option_icon(1, Icon::Eraser, "Eraser")
-                    .option_icon(2, Icon::Eyedropper, "Eyedropper")
-                    .show(ui)
-            });
-            variant_row(ui, "No choice", |ui| {
-                let mut select = Select::new("select-empty", "Profile", empty).size(size).enabled(enabled).placeholder("Choose a profile");
-                for (i, name) in ["sRGB", "Display P3", "Adobe RGB"].into_iter().enumerate() {
-                    select = select.option(i, name);
-                }
-                select.show(ui)
-            });
-            variant_row(ui, "Disabled", |ui| {
-                let mut fixed = 2;
-                let mut select = Select::new("select-disabled", "Locked units", &mut fixed).size(size).enabled(false);
-                for (i, unit) in UNITS.into_iter().enumerate() {
-                    select = select.option(i, unit);
-                }
-                select.show(ui)
+            variant_list(ui, "select-states", |form| {
+                variant_row(form, "Units", |ui| {
+                    let mut select = Select::new("select-units", "Units", units).size(size).enabled(enabled).fit(fit).highlighted(&mut hovered);
+                    for (i, unit) in UNITS.into_iter().enumerate() {
+                        select = select.option(i, unit);
+                    }
+                    select.show(ui)
+                });
+                variant_row(form, "Resampling", |ui| {
+                    Select::new("select-resampling", "Resampling", sampling)
+                        .size(size)
+                        .enabled(enabled)
+                        .fit(fit)
+                        .option(0, "Automatic")
+                        .option_tooltip("Picks a method from the scale factor.")
+                        .separator()
+                        .group("Smooth")
+                        .option(1, "Bicubic")
+                        .option_tooltip("Best for enlarging smooth gradients.")
+                        .option(2, "Bilinear")
+                        .group("Sharp")
+                        .option(3, "Nearest neighbour")
+                        .option(4, "Preserve details (AI)")
+                        .option_enabled(false)
+                        .show(ui)
+                });
+                variant_row(form, "Tool", |ui| {
+                    Select::new("select-tool", "Tool", tool)
+                        .size(size)
+                        .enabled(enabled)
+                        .option_icon(0, Icon::Brush, "Brush")
+                        .option_icon(1, Icon::Eraser, "Eraser")
+                        .option_icon(2, Icon::Eyedropper, "Eyedropper")
+                        .show(ui)
+                });
+                variant_row(form, "No choice", |ui| {
+                    let mut select = Select::new("select-empty", "Profile", empty).size(size).enabled(enabled).placeholder("Choose a profile");
+                    for (i, name) in ["sRGB", "Display P3", "Adobe RGB"].into_iter().enumerate() {
+                        select = select.option(i, name);
+                    }
+                    select.show(ui)
+                });
+                variant_row(form, "Disabled", |ui| {
+                    let mut fixed = 2;
+                    let mut select = Select::new("select-disabled", "Locked units", &mut fixed).size(size).enabled(false);
+                    for (i, unit) in UNITS.into_iter().enumerate() {
+                        select = select.option(i, unit);
+                    }
+                    select.show(ui)
+                });
             });
             let text = hovered.map_or("Highlighted: none".to_owned(), |i| format!("Highlighted: {}", UNITS[i]));
             ui.add(Text::new(text).content(Content::Muted));
@@ -1427,29 +1429,31 @@ fn show_wheel_steps(ui: &mut Ui, args: &mut Args) {
     let state_id = ui.scope_id().with("select-wheel-steps");
     let mut state = ui.data(|d| d.get_temp::<WheelStepsState>(state_id)).unwrap_or_default();
     Stack::new(Gap::Stack).show(ui, |ui| {
-        variant_row(ui, "Blend mode", |ui| {
-            let mut mode = state.doc.mode;
-            let mut select = Select::new("select-blend", "Blend mode", &mut mode).size(size).wheel_steps(wheel_steps);
-            for (i, (name, _)) in BLEND_MODES.iter().enumerate() {
-                select = select.option(i, *name);
-                if i == 0 || i == 2 || i == 4 {
-                    select = select.separator();
+        variant_list(ui, "select-wheel-steps", |form| {
+            variant_row(form, "Blend mode", |ui| {
+                let mut mode = state.doc.mode;
+                let mut select = Select::new("select-blend", "Blend mode", &mut mode).size(size).wheel_steps(wheel_steps);
+                for (i, (name, _)) in BLEND_MODES.iter().enumerate() {
+                    select = select.option(i, *name);
+                    if i == 0 || i == 2 || i == 4 {
+                        select = select.separator();
+                    }
                 }
-            }
-            let edit = select.show(ui);
-            if let Some(event) = edit.event {
-                state.log.push_front(edit::describe(&event.clone().map(|i| BLEND_MODES[i].0)));
-                state.log.truncate(LOG_LEN);
-                state.host.handle(ui.ctx(), &mut state.doc, event, |doc, mode| {
-                    doc.undo.push(doc.mode);
-                    doc.mode = mode;
-                });
-            }
-            edit.response
-        });
-        variant_row(ui, "Result", |ui| {
-            let [r, g, b] = BLEND_MODES[state.doc.mode].1;
-            ui.add(Swatch::new("select-blend-result", "Result", Color32::from_rgb(r, g, b)))
+                let edit = select.show(ui);
+                if let Some(event) = edit.event {
+                    state.log.push_front(edit::describe(&event.clone().map(|i| BLEND_MODES[i].0)));
+                    state.log.truncate(LOG_LEN);
+                    state.host.handle(ui.ctx(), &mut state.doc, event, |doc, mode| {
+                        doc.undo.push(doc.mode);
+                        doc.mode = mode;
+                    });
+                }
+                edit.response
+            });
+            variant_row(form, "Result", |ui| {
+                let [r, g, b] = BLEND_MODES[state.doc.mode].1;
+                ui.add(Swatch::new("select-blend-result", "Result", Color32::from_rgb(r, g, b)))
+            });
         });
         if let Some(event) = state.host.end_frame(ui.ctx(), &mut state.doc) {
             state.log.push_front(format!("host: {}", edit::describe(&event)));
@@ -1480,12 +1484,14 @@ fn show_searchable(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let font = |i: usize| format!("{}{}", FONT_STEMS[i / FONT_STYLES.len()], FONT_STYLES[i % FONT_STYLES.len()]);
     with_choices(ui, "select-searchable", [6], |ui, choices| {
-        variant_row(ui, "Font", |ui| {
-            Select::new("select-font", "Font", &mut choices[0])
-                .size(size)
-                .rows(FONT_STEMS.len() * FONT_STYLES.len(), |i| i, font)
-                .searchable("Search fonts", "Clear")
-                .show(ui)
+        variant_list(ui, "select-searchable", |form| {
+            variant_row(form, "Font", |ui| {
+                Select::new("select-font", "Font", &mut choices[0])
+                    .size(size)
+                    .rows(FONT_STEMS.len() * FONT_STYLES.len(), |i| i, font)
+                    .searchable("Search fonts", "Clear")
+                    .show(ui)
+            });
         });
     });
 }

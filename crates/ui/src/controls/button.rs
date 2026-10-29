@@ -328,11 +328,11 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_variants(ui: &mut Ui, args: &mut Args) {
     let label = args.text("label").to_owned();
     let icon = icon_arg(args.choice("icon"));
-    variant_list(ui, "button-variants", 100.0, |ui| {
+    variant_list(ui, "button-variants", |form| {
         for variant in ButtonVariant::ALL {
             for size in super::SIZES {
                 let size_name = super::size_name(size);
-                variant_cluster(ui, &format!("{} {size_name}", variant.name()), |ui| {
+                variant_cluster(form, &format!("{} {size_name}", variant.name()), |ui| {
                     for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
                         let mut button = Button::new(label.as_str()).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
                             "button-variants",

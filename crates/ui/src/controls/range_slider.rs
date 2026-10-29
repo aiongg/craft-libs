@@ -13,7 +13,7 @@ use super::slider::{
 use super::{SIZE_NAMES, Slider, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::SurfaceEdge;
-use crate::primitives::{FocusRing, Gap, Interactive, Stack, StateLayer};
+use crate::primitives::{FocusRing, Interactive, StateLayer};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, corner_radius};
 
@@ -329,10 +329,10 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show(ui: &mut Ui, args: &mut Args) {
     let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
     with_values(ui, "range-slider", [(20.0, 60.0), (25.0, 75.0)], |ui, values| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
+        crate::story::variant_list(ui, "range-slider", |form| {
             for (i, (name, value)) in ["Levels", "Steps of 5"].into_iter().zip(values.iter_mut()).enumerate() {
                 let text = format!("{:.1} to {:.1}", value.0, value.1);
-                labelled(ui, name, &text, |ui| {
+                labelled(form, name, &text, |ui| {
                     let mut slider = RangeSlider::new(("range-slider", i), (format!("{name} from"), format!("{name} to")), *value, 0.0..=100.0)
                         .size(size)
                         .enabled(enabled);

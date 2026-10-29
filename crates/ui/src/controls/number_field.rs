@@ -16,17 +16,16 @@ use egui::{
 };
 
 use super::field_wheel;
-use super::slider::{PressTurn, Scale, Track, pointer, press_turn, with_values};
+use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
-use crate::composites::PropertyRow;
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story, variant_list, variant_row};
+use crate::story::{Args, Level, Story, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
 
 /// A number field's colours beyond a text field's, from [`NumberField::style`].
@@ -1219,14 +1218,16 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     let numbers = numbers(args);
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
     let edit_menu = args.bool("edit menu");
+    let mixed_key = ui.scope_id().with("number-field-mixed");
+    let is_mixed = ui.data(|d| d.get_temp::<bool>(mixed_key)).unwrap_or(true);
     with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0, 100.0], |ui, values| {
-        variant_list(ui, "number-field-states", 96.0, |ui| {
+        variant_list(ui, "number-field-states", |form| {
             let [plain, unit, mixed, invalid, opacity, zoom] = values;
-            variant_row(ui, "Plain", |ui| {
+            labelled(form, "Plain", &format!("{}", *plain), |ui| {
                 let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).edit_menu(edit_menu).or_parse(sum).show(ui);
                 super::slider::store(&edit, plain)
             });
-            variant_row(ui, "With unit", |ui| {
+            labelled(form, "With unit", &format!("{}", *unit), |ui| {
                 let edit = NumberField::new("number-field-unit", "Gap", *unit, &numbers)
                     .range(0.0..=100.0)
                     .step(0.5)
@@ -1236,9 +1237,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, unit)
             });
-            let mixed_key = ui.scope_id().with("number-field-mixed");
-            let is_mixed = ui.data(|d| d.get_temp::<bool>(mixed_key)).unwrap_or(true);
-            variant_row(ui, "Mixed", |ui| {
+            labelled(form, "Mixed", &format!("{}", *mixed), |ui| {
                 let edit =
                     NumberField::new("number-field-mixed", "Size", *mixed, &numbers).unit(Unit::new("{n} pt")).mixed(is_mixed).size(size).show(ui);
                 if edit.event.as_ref().is_some_and(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Commit { changed: true, .. })) {
@@ -1246,12 +1245,12 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                 }
                 super::slider::store(&edit, mixed)
             });
-            variant_row(ui, "Invalid", |ui| {
+            labelled(form, "Invalid", &format!("{}", *invalid), |ui| {
                 let edit =
                     NumberField::new("number-field-invalid", "Columns", *invalid, &numbers).range(1.0..=12.0).invalid(true).size(size).show(ui);
                 super::slider::store(&edit, invalid)
             });
-            variant_row(ui, "Pop-up slider", |ui| {
+            labelled(form, "Pop-up slider", &format!("{}", *opacity), |ui| {
                 let edit = NumberField::new("number-field-popup", "Opacity", *opacity, &numbers)
                     .range(0.0..=100.0)
                     .unit(Unit::new("{n}%"))
@@ -1260,7 +1259,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, opacity)
             });
-            variant_row(ui, "Zoom stops", |ui| {
+            labelled(form, "Zoom stops", &format!("{}", *zoom), |ui| {
                 let edit = NumberField::new("number-field-zoom", "Zoom", *zoom, &numbers)
                     .range(0.1..=12_800.0)
                     .decimals(0..=1)
@@ -1271,15 +1270,18 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, zoom)
             });
-            variant_row(ui, "Disabled", |ui| {
+            labelled(form, "Disabled", &format!("{}", 64.0), |ui| {
                 NumberField::new("number-field-disabled", "Disabled", 64.0, &numbers)
                     .unit(Unit::new("{n} px"))
                     .scrub_label("W")
                     .enabled(false)
                     .size(size)
                     .show(ui)
+                    .response
             });
-            variant_row(ui, "Not a number", |ui| NumberField::new("number-field-nan", "Not a number", f64::NAN, &numbers).size(size).show(ui));
+            labelled(form, "Not a number", &f64::NAN.to_string(), |ui| {
+                NumberField::new("number-field-nan", "Not a number", f64::NAN, &numbers).size(size).show(ui).response
+            });
         });
     });
 }
@@ -1303,8 +1305,9 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
     with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0, 50.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [w, h, angle, radius, wrapped] = values;
+            variant_list(ui, "number-field-scrub", |form| {
             for (salt, letter, value) in [("number-field-w", "W", w), ("number-field-h", "H", h)] {
-                variant_row(ui, letter, |ui| {
+                labelled(form, letter, &format!("{}", *value), |ui| {
                     let edit = NumberField::new(salt, letter, *value, &numbers)
                         .range(1.0..=30_000.0)
                         .unit(Unit::new("{n} px"))
@@ -1314,7 +1317,7 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     super::slider::store(&edit, value)
                 });
             }
-            variant_row(ui, "Angle", |ui| {
+            labelled(form, "Angle", &format!("{}", *angle), |ui| {
                 let edit = NumberField::new("number-field-angle", "Angle", *angle, &numbers)
                     .range(-180.0..=180.0)
                     .decimals(0..=1)
@@ -1324,15 +1327,7 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, angle)
             });
-            PropertyRow::word("Radius").scrubs().show(ui, |ui, label| {
-                let field = NumberField::new("number-field-radius", "Radius", *radius, &numbers).range(0.0..=500.0).unit(Unit::new("{n} px")).size(size);
-                let field = match label.scrub() {
-                    Some(label) => field.scrub_by(label),
-                    None => field,
-                };
-                super::slider::store(&field.show(ui), radius)
-            });
-            variant_row(ui, "Wrap", |ui| {
+            labelled(form, "Wrap", &format!("{}", *wrapped), |ui| {
                 let edit = NumberField::new("number-field-wrap", "Wrapping scrub", *wrapped, &numbers)
                     .range(0.0..=100.0)
                     .unit(Unit::new("{n}%"))
@@ -1341,6 +1336,17 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .size(size)
                     .show(ui);
                 super::slider::store(&edit, wrapped)
+            });
+            });
+            Row::new(Gap::Inline).show(ui, |ui| {
+                let label = ui.add(Text::new("Radius"));
+                let edit = NumberField::new("number-field-radius", "Radius", *radius, &numbers)
+                    .range(0.0..=500.0)
+                    .unit(Unit::new("{n} px"))
+                    .scrub_by(&label)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, radius);
             });
             ui.add(
                 Text::new(
@@ -1361,10 +1367,10 @@ fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
             let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits stay centred, the unit stays at the box's end and the scrub label stays at the left.";
             ui.add(Text::new(note).content(Content::Muted));
             let value = &mut values[0];
-            variant_row(ui, "Width", |ui| {
+            variant_list(ui, "number-field-rtl", |form| labelled(form, "Width", &format!("{}", *value), |ui| {
                 let edit = NumberField::new("number-field-rtl", "Width", *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
                 super::slider::store(&edit, value)
-            });
+            }));
         });
     });
 }

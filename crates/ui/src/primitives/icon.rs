@@ -86,9 +86,9 @@ pub(crate) fn stories() -> Vec<Story> {
 /// A row of icons per size class; chevron and undo mirror in right-to-left.
 fn show(ui: &mut Ui, args: &mut Args) {
     let content = Content::from_name(args.choice("content")).unwrap_or_default();
-    super::Stack::new(super::Gap::Stack).show(ui, |ui| {
+    crate::story::variant_list(ui, "icon-sizes", |form| {
         for (size, name) in IconSize::ALL.into_iter().zip(["Sm", "Md", "Lg"]) {
-            crate::story::variant_cluster(ui, name, |ui| {
+            crate::story::variant_cluster(form, name, |ui| {
                 for icon in SAMPLES {
                     ui.add(Icon::new(icon).size(size).content(content));
                 }
