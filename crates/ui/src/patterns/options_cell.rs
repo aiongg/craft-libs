@@ -78,9 +78,49 @@ impl Default for Demo {
     }
 }
 
+fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &mut f64, mode: &mut String) {
+    OptionsBar::cell(ui, "Size:", super::CellWidth::Sm, |ui, caption| {
+        let edit = NumberField::new("demo-size", "Size", *size, numbers)
+            .range(1.0..=5000.0)
+            .unit(Unit::new("{n} px"))
+            .size(ControlSize::Sm)
+            .scrub_by(caption)
+            .show(ui);
+        if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
+            *size = *v;
+        }
+    });
+    OptionsBar::cell(ui, "Opacity:", super::CellWidth::Md, |ui, caption| {
+        let edit = NumberField::new("demo-opacity", "Opacity", *opacity, numbers)
+            .range(1.0..=100.0)
+            .unit(Unit::new("{n}%"))
+            .size(ControlSize::Sm)
+            .scrub_by(caption)
+            .show(ui);
+        if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
+            *opacity = *v;
+        }
+    });
+    OptionsBar::cell(ui, "Mode:", super::CellWidth::Content, |ui, _| {
+        let _ = Select::new("demo-mode", "Mode", mode)
+            .option("Normal".to_owned(), "Normal")
+            .option("Multiply".to_owned(), "Multiply")
+            .option("Screen".to_owned(), "Screen")
+            .size(ControlSize::Sm)
+            .show(ui);
+    });
+}
+
+fn sample_group(ui: &mut Ui, state: &mut CheckState, disabled: bool) {
+    OptionsBar::group(ui, !disabled, |ui| {
+        let _ = Checkbox::new("Sample all layers", state).size(ControlSize::Sm).show(ui);
+        OptionsBar::hint(ui, "Samples the visible image");
+    });
+}
+
 /// The bar of PhotoCraft's brush tool, with a disabled group and, while a session is on, commit and cancel.
 pub(super) fn show_story(ui: &mut Ui, args: &mut Args) {
-    let (narrow, session, disabled) = (args.bool("narrow"), args.bool("session"), args.bool("disabled"));
+    let (narrow, session, disabled, two_rows) = (args.bool("narrow"), args.bool("session"), args.bool("disabled"), args.bool("two_rows"));
     let width = args.number("width") as f32;
     let state_id = ui.scope_id().with("options-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
@@ -93,43 +133,16 @@ pub(super) fn show_story(ui: &mut Ui, args: &mut Args) {
                 OptionsBar::home(ui, &mut demo.home, "Home");
                 OptionsBar::tool_icon(ui, crate::icons::Icon::Brush, "Brush");
             });
-            bar.body(|ui| {
-                OptionsBar::cell(ui, "Size:", super::CellWidth::Sm, |ui, caption| {
-                    let edit = NumberField::new("demo-size", "Size", demo.size, &numbers)
-                        .range(1.0..=5000.0)
-                        .unit(Unit::new("{n} px"))
-                        .size(ControlSize::Sm)
-                        .scrub_by(caption)
-                        .show(ui);
-                    if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                        demo.size = *v;
-                    }
+            if two_rows {
+                bar.row(|ui| brush_cells(ui, &numbers, &mut demo.size, &mut demo.opacity, &mut demo.mode));
+                bar.row(|ui| sample_group(ui, &mut demo.sample_all, disabled));
+            } else {
+                bar.row(|ui| {
+                    brush_cells(ui, &numbers, &mut demo.size, &mut demo.opacity, &mut demo.mode);
+                    OptionsBar::divider(ui);
+                    sample_group(ui, &mut demo.sample_all, disabled);
                 });
-                OptionsBar::cell(ui, "Opacity:", super::CellWidth::Md, |ui, caption| {
-                    let edit = NumberField::new("demo-opacity", "Opacity", demo.opacity, &numbers)
-                        .range(1.0..=100.0)
-                        .unit(Unit::new("{n}%"))
-                        .size(ControlSize::Sm)
-                        .scrub_by(caption)
-                        .show(ui);
-                    if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                        demo.opacity = *v;
-                    }
-                });
-                OptionsBar::cell(ui, "Mode:", super::CellWidth::Content, |ui, _| {
-                    let _ = Select::new("demo-mode", "Mode", &mut demo.mode)
-                        .option("Normal".to_owned(), "Normal")
-                        .option("Multiply".to_owned(), "Multiply")
-                        .option("Screen".to_owned(), "Screen")
-                        .size(ControlSize::Sm)
-                        .show(ui);
-                });
-                OptionsBar::divider(ui);
-                OptionsBar::group(ui, !disabled, |ui| {
-                    let _ = Checkbox::new("Sample all layers", &mut demo.sample_all).size(ControlSize::Sm).show(ui);
-                    OptionsBar::hint(ui, "Samples the visible image");
-                });
-            });
+            }
             if session {
                 bar.trailing(|ui| finished = Some(OptionsBar::commit_cancel(ui, "Commit transform", "Cancel transform")));
             }

@@ -241,12 +241,13 @@ fn the_leading_slot_is_at_the_right_edge_when_mirrored() {
 
 #[test]
 fn the_story_names_every_control() {
-    for dir in [Direction::Ltr, Direction::Rtl] {
+    for (dir, two_rows) in [(Direction::Ltr, false), (Direction::Rtl, false), (Direction::Ltr, true)] {
         let story = stories().remove(0);
         let mut args = Args::new()
             .with_bool("narrow", false)
             .with_bool("session", true)
             .with_bool("disabled", false)
+            .with_bool("two_rows", two_rows)
             .with_number("width", 1200.0, 160.0, 1200.0);
         let show = story.show;
         let mut harness = harness(dir, 800.0).build_ui(move |ui| show(ui, &mut args));
@@ -272,4 +273,77 @@ fn a_text_button_in_the_trailing_slot_shows_its_full_label_on_the_first_frame() 
     let settled = button.get().width();
     assert!(first > 60.0, "the label was cut to {first}");
     assert!((first - settled).abs() < 0.5, "{first} on the first frame, {settled} settled");
+}
+
+/// A two-row bar: three buttons in row 1, `second` in row 2, commit and cancel pinned.
+fn two_row_bar(ui: &mut Ui, bar_rect: &Cell<Rect>, narrow: bool, second: usize) {
+    let response = OptionsBar::new("test").narrow(narrow).show(ui, |bar| {
+        bar.leading(|ui| {
+            OptionsBar::tool_icon(ui, Icon::Brush, "Brush");
+        });
+        bar.row(|ui| {
+            for i in 0..3 {
+                ui.add(crate::controls::Button::new(format!("Top {i}")));
+            }
+        });
+        bar.row(|ui| {
+            for i in 0..second {
+                ui.add(crate::controls::Button::new(format!("Low {i}")));
+            }
+        });
+        bar.trailing(|ui| {
+            OptionsBar::commit_cancel(ui, "Commit transform", "Cancel transform");
+        });
+    });
+    bar_rect.set(response.rect);
+}
+
+/// Each further row adds a button height and a row gap; rows sit one under the other and the
+/// leading slot is on the first row.
+#[test]
+fn a_two_row_bar_is_a_row_and_a_gap_taller_and_stacks_its_rows() {
+    for narrow in [false, true] {
+        let style = style(narrow);
+        let rect = Rc::new(Cell::new(Rect::NOTHING));
+        let seen = rect.clone();
+        let mut harness = harness(Direction::Ltr, 600.0).build_ui(move |ui| two_row_bar(ui, &seen, narrow, 3));
+        harness.run();
+        let bar = rect.get();
+        assert_eq!(bar.height(), style.height + style.button + style.row_gap);
+        assert_eq!(OptionsBar::height_of(&style, 2), bar.height());
+        let (top, low) = (harness.get_by_label("Top 0").rect(), harness.get_by_label("Low 0").rect());
+        assert!((low.center().y - top.center().y - (style.button + style.row_gap)).abs() < 0.5, "{top:?} {low:?}");
+        assert!((low.left() - bar.left() - style.pad).abs() < 0.5, "row 2 starts at the bar's padding: {low:?} in {bar:?}");
+        let brush = harness.get_by_label("Brush").rect();
+        assert!(brush.center().y < bar.center().y, "the tool icon is on the first row: {brush:?} in {bar:?}");
+        let commit = harness.get_by_label("Commit transform").rect();
+        assert!((commit.center().y - bar.center().y).abs() < 0.5, "the trailing slot is centred over the rows: {commit:?} in {bar:?}");
+        assert!((bar.right() - style.pad - commit.right()).abs() < 1.0);
+    }
+}
+
+/// A row that is too wide scrolls on its own: focusing its last control moves that row only.
+#[test]
+fn each_row_scrolls_on_its_own() {
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let seen = rect.clone();
+    let mut harness = harness(Direction::Ltr, 300.0).build_ui(move |ui| two_row_bar(ui, &seen, false, 12));
+    harness.run();
+    assert!(harness.get_by_label("Low 11").rect().left() > rect.get().right());
+    let top_before = harness.get_by_label("Top 0").rect();
+    harness.get_by_label("Low 11").focus();
+    harness.run();
+    assert!(rect.get().contains_rect(harness.get_by_label("Low 11").rect()));
+    assert_eq!(harness.get_by_label("Top 0").rect(), top_before, "the first row did not move");
+}
+
+/// One bar, one toolbar; each row of a multi-row bar is a group.
+#[test]
+fn a_multi_row_bar_is_one_toolbar_of_groups() {
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let seen = rect.clone();
+    let mut harness = harness(Direction::Ltr, 600.0).build_ui(move |ui| two_row_bar(ui, &seen, false, 3));
+    harness.run();
+    assert_eq!(harness.query_all_by_role(Role::Toolbar).count(), 1);
+    assert_eq!(harness.query_all_by_role(Role::Group).count(), 2);
 }

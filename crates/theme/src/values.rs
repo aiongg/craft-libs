@@ -1096,6 +1096,8 @@ pub const RULER_TICK_MINOR: f32 = 3.0;
 pub const OPTIONS_BAR_BASE_CONTROL: f32 = 24.0;
 /// Space at the ends of the options bar (`panels/options_bar.rs:47`), the same at every Size.
 pub const OPTIONS_BAR_PAD: f32 = 10.0;
+/// Between two rows of an options bar with more than one row (the Compact bar's 36 holds a 26 button).
+pub const OPTIONS_BAR_ROW_GAP: f32 = 4.0;
 /// Between the items of the options bar and between a caption and its control (`theme.rs:1073`).
 pub const OPTIONS_BAR_GAP: f32 = 8.0;
 /// Length of a divider between groups of the options bar (`widgets::vline(ui, 22.0)`).

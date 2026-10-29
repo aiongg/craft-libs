@@ -849,9 +849,10 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
 }
 
 fn options_bar_lines(out: &mut Lines, t: &OptionsBarTokens) {
-    let OptionsBarTokens { height, height_narrow, pad, gap, divider, field_sm, field_md, field_lg, scroll_bar, button } = t;
+    let OptionsBarTokens { height, height_narrow, row_gap, pad, gap, divider, field_sm, field_md, field_lg, scroll_bar, button } = t;
     out.line("options_bar.height", len(*height));
     out.line("options_bar.height_narrow", len(*height_narrow));
+    out.line("options_bar.row_gap", len(*row_gap));
     out.line("options_bar.pad", len(*pad));
     out.line("options_bar.gap", len(*gap));
     out.line("options_bar.divider", len(*divider));
