@@ -798,6 +798,9 @@ fn list_row() {
         d.line("icon", s.icon).line("icon_hover", s.icon_hover);
         d.line("hover", s.hover).line("selected", s.selected).line("selected_hover", s.selected_hover);
         d.line("divider", s.divider.color).line("thumb_border", s.thumb_border).line("drop", s.drop);
+        d.line("thumb_radius", s.thumb_radius).line("layer_hover", s.layer_hover).line("layer_selected", s.layer_selected);
+        d.line("layer_outline", s.layer_outline).line("layer_selected_text", s.layer_selected_text);
+        d.line("layer_selected_dimmed", s.layer_selected_dimmed).line("layer_selected_detail", s.layer_selected_detail);
         d.line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
         d.line("ghost_fill", s.ghost_fill).line("ghost_border", s.ghost_border).line("ghost_radius", s.ghost_radius);
     });

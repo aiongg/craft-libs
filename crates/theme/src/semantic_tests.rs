@@ -581,7 +581,7 @@ fn the_aliases_the_contrast_pass_moves_are_pinned() {
             .copied()
             .filter(|&t| matches!(values::source(t, mode), values::ColorSource::Same(_)) && derive::is_foreground(t))
             .collect();
-        assert_eq!(moved, [T::OverlayHandleStroke], "{mode:?}");
+        assert_eq!(moved, [T::AccentBorder, T::OverlayHandleStroke], "{mode:?}");
     }
 }
 

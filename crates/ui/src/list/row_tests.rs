@@ -115,17 +115,17 @@ fn the_selected_row_is_a_fill_only_rounded_in_comfortable() {
 }
 
 #[test]
-fn dividers_belong_to_compact_and_a_dimmed_label_and_detail_take_the_selected_fill_into_account() {
+fn dividers_belong_to_the_layer_form_in_compact_and_a_dimmed_label_and_detail_take_the_selected_fill_into_account() {
     let ctx = context();
     let s = style();
-    let lines = |size| {
+    let lines = |size, layer| {
         shapes(&ctx, |ui| {
             scope(
                 ui,
                 |o| o.size = Some(size),
                 |ui| {
                     panel(ui, 240.0, |ui| {
-                        let _ = ListRow::new(1u8, "Layer").toggle(ToggleColumn::eye("Visibility {row}", true)).show(ui);
+                        let _ = ListRow::new(1u8, "Layer").toggle(ToggleColumn::eye("Visibility {row}", true)).layer(layer).show(ui);
                     })
                 },
             )
@@ -134,8 +134,9 @@ fn dividers_belong_to_compact_and_a_dimmed_label_and_detail_take_the_selected_fi
         .filter(|s| matches!(s, Shape::LineSegment { .. }))
         .count()
     };
-    assert_eq!(lines(Size::Compact), 2, "one under the row and one at the column's trailing edge");
-    assert_eq!(lines(Size::Comfortable), 0);
+    assert_eq!(lines(Size::Compact, true), 2, "one under the row and one at the column's trailing edge");
+    assert_eq!(lines(Size::Comfortable, true), 0);
+    assert_eq!(lines(Size::Compact, false), 0, "a plain row has none");
     let label = |dimmed, selected| {
         let drawn = shapes(&ctx, |ui| {
             panel(ui, 240.0, |ui| {
@@ -640,11 +641,68 @@ fn the_list_story_names_every_control_in_both_directions() {
                     .with_choice("thumbnails", &["None", "Small", "Medium", "Large"], if thumbs == "None" { 0 } else { 3 })
                     .with_bool("detail", true)
                     .with_bool("highlight second row", true)
+                    .with_bool("layer form", true)
                     .with_number("width", width, 60.0, 480.0);
                 let mut a = args.clone();
                 let harness = harness(dir).build_ui(move |ui| show_layers(ui, &mut a));
                 a11y::assert_labelled(&harness);
             }
         }
+    }
+}
+
+/// The layer form (PhotoCraft `layer_row.rs:283-292,547`): the hover carries the accent tint; in a
+/// theme whose PhotoCraft kind is not a Pro kind the selected row is the hover fill in a 1 pt inside
+/// outline with normal text and the thumbnail frame is rounded; in a Pro theme it is the plain
+/// selected fill. The plain form keeps the plain hover and selected fills.
+#[test]
+fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft_does() {
+    let ctx = context();
+    for (id, outlined) in [("craft.artcraft", false), ("craft.studio", true), ("craft.classic", true)] {
+        let theme = craft_theme::builtins().iter().find(|t| t.id.as_str() == id).expect("built-in theme").clone();
+        let drawn = |layer: bool, selected: bool, hovered: bool| {
+            let mut style = None;
+            let drawn = shapes(&ctx, |ui| {
+                scope(
+                    ui,
+                    |o| o.theme = Some(theme.clone()),
+                    |ui| {
+                        style = Some(ListRow::<u8>::style(&Tokens::of(ui)));
+                        panel(ui, 240.0, |ui| {
+                            let _ = ListRow::new(1u8, "Layer")
+                                .thumb(ThumbSize::Small, |_, _| {})
+                                .layer(layer)
+                                .selected(selected)
+                                .highlight(hovered)
+                                .show(ui);
+                        })
+                    },
+                )
+            });
+            (style.expect("style"), drawn)
+        };
+        let (s, plain_hover) = drawn(false, false, true);
+        assert_eq!(fills(&plain_hover).first().map(|r| r.fill), Some(s.hover), "{id}: the plain hover");
+        let (_, hover) = drawn(true, false, true);
+        assert_eq!(fills(&hover).first().map(|r| r.fill), Some(s.layer_hover), "{id}: the layer hover");
+        assert_ne!(s.layer_hover, s.hover, "{id}");
+
+        let (_, plain) = drawn(false, true, false);
+        assert_eq!(fills(&plain).first().map(|r| r.fill), Some(s.selected), "{id}");
+        let (_, selected) = drawn(true, true, true);
+        assert_eq!(fills(&selected).first().map(|r| r.fill), Some(s.layer_selected), "{id}: no change under the pointer");
+        let row_outline = |shapes: &[Shape]| {
+            shapes.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.layer_outline && r.stroke.width == 1.0 && r.stroke_kind == egui::StrokeKind::Inside))
+        };
+        assert_eq!(row_outline(&selected), outlined, "{id}");
+        assert!(!row_outline(&plain), "{id}: a plain row has no outline");
+        assert_eq!(s.layer_outline != egui::Color32::TRANSPARENT, outlined, "{id}");
+        let frame = selected.iter().find_map(|s2| match s2 {
+            Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside => Some(r.corner_radius),
+            _ => None,
+        });
+        assert_eq!(frame, Some(corner_radius(if outlined { 5.0 } else { 0.0 })), "{id}: the thumbnail frame");
+        let text = label_colors(&selected);
+        assert_eq!(text.first(), Some(&s.layer_selected_text), "{id}");
     }
 }

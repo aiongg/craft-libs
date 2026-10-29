@@ -138,6 +138,10 @@ pub struct AccentColors {
     pub strong_pressed: Rgba,
     /// Tinted background.
     pub soft: Rgba,
+    /// The outline of a selected or on control (a selected icon button, a toggle button that is
+    /// on): `accent.solid` unless pinned. PhotoCraft's is translucent in several themes, so it
+    /// reads on the control's own fill; high contrast draws it opaque.
+    pub border: Rgba,
     /// Accent-coloured text and links.
     pub text: Rgba,
 }
@@ -278,7 +282,7 @@ impl ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, chrome: c, raised: c, sunken: c, knob: c, scrim: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
-            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, text: c },
+            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, border: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
             overlay: OverlayColors {
@@ -399,6 +403,8 @@ color_tokens! {
     AccentStrongPressed = "accent.strong_pressed" => accent.strong_pressed;
     /// `accent.soft`
     AccentSoft = "accent.soft" => accent.soft;
+    /// `accent.border`
+    AccentBorder = "accent.border" => accent.border;
     /// `accent.text`
     AccentText = "accent.text" => accent.text;
     /// `status.good.fg`

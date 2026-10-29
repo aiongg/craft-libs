@@ -73,6 +73,9 @@
     "line.border": "#808080",
     "line.control_edge": "{line.border}",
     "line.divider": "{line.border}",
+    "list.layer.outline": "{line.control_edge}",
+    "list.layer.selected": "{state.hover}",
+    "list.layer.text.selected": "{text.normal}",
     "listbox.active.fill": "{state.selected}",
     "listbox.active.text": "{text.on_selected}",
     "popup.shadow": "#00000000",
@@ -102,6 +105,7 @@
     "tooltip.text": "{text.normal}"
   },
   "components": {
+    "list.thumb.radius": 5.0,
     "slider.thumb_height": 16.0,
     "slider.thumb_width": 10.0
   }

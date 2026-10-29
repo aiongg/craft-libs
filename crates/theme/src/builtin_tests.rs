@@ -145,7 +145,7 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve::resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
-            assert_eq!(pairs.len(), 15, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 21, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -797,7 +797,7 @@ fn editors_follow_photocraft() {
 /// Selected rows and icon buttons follow PhotoCraft (`theme.rs` `row_selected`, `accent_soft`,
 /// `accent_border`, `accent_text`; `layer_row.rs:283-286`, `icons.rs:156-163`): the selected row
 /// is `state.selected`, or `accent.soft` where PhotoCraft's `row_selected` is transparent; hover is
-/// half-opacity `state.hover`; a selected icon button is `accent.soft` in a `accent.solid`
+/// half-opacity `state.hover`; a selected icon button is `accent.soft` in an `accent.border`
 /// outline with PhotoCraft's `accent_text` glyph; the thumbnail frame is #141414 in the Pro themes.
 #[test]
 fn selected_rows_and_icon_buttons_follow_photocraft() {
@@ -835,7 +835,7 @@ fn selected_rows_and_icon_buttons_follow_photocraft() {
             assert_eq!(list.row_height, 24.0, "{who}");
             assert_eq!(
                 (icon.selected.on_fill, icon.selected.on_border),
-                (t.color(ColorToken::AccentSoft), t.color(ColorToken::AccentSolid)),
+                (t.color(ColorToken::AccentSoft), t.color(ColorToken::AccentBorder)),
                 "{who}"
             );
             assert_eq!((icon.size.md, icon.icon.md, icon.size.sm, icon.icon.sm), (24.0, 12.0, 20.0, 10.0), "{who}");
@@ -850,6 +850,61 @@ fn selected_rows_and_icon_buttons_follow_photocraft() {
                 );
             } else {
                 assert_eq!(list.thumb_border, t.color(ColorToken::LineControlEdge), "{who}");
+            }
+        }
+    }
+}
+
+/// `accent.border` is PhotoCraft's `accent_border` (`theme.rs:313-740`): opaque accent in the Pro
+/// kinds and Classic, a translucent accent in the others; high contrast draws it opaque, 3:1 on the
+/// control surfaces. The layer form of a list row is PhotoCraft's `layer_row.rs:283-292,547`: the
+/// Pro kinds select with the plain selected fill, the others with `state.hover` in a 1 pt
+/// control-edge outline and normal text, and round the thumbnail frame by 5.
+#[test]
+fn accent_border_and_the_layer_row_follow_photocraft() {
+    let translucent = [
+        ("craft.studio", Mode::Dark, "#a094ff6e"),
+        ("craft.studio", Mode::Light, "#6c5ce778"),
+        ("craft.adwaita", Mode::Dark, "#78aeed8c"),
+        ("craft.adwaita", Mode::Light, "#3584e482"),
+        ("craft.breeze", Mode::Dark, "#3aace8a0"),
+        ("craft.breeze", Mode::Light, "#3aace8aa"),
+        ("craft.soft", Mode::Dark, "#8a9ae896"),
+        ("craft.soft", Mode::Light, "#6e80d8aa"),
+        ("craft.solarized-dark", Mode::Dark, "#268bd278"),
+    ];
+    for theme in builtins() {
+        let id = theme.id.as_str();
+        for mode in [Mode::Light, Mode::Dark] {
+            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
+                continue;
+            }
+            let who = format!("{id} {mode:?}");
+            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+            let expected = translucent
+                .iter()
+                .find(|(i, m, _)| *i == id && *m == mode)
+                .map_or(t.color(ColorToken::AccentSolid), |(_, _, c)| semantic_tests::hex(c));
+            assert_eq!(t.color(ColorToken::AccentBorder), expected, "{who}");
+
+            let list = &t.component.list;
+            let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray", "craft.graphite"].contains(&id);
+            if pro {
+                assert_eq!((list.layer_selected, list.layer_outline, list.thumb_radius), (list.selected, Rgba::TRANSPARENT, 0.0), "{who}");
+            } else {
+                let hover = t.color(ColorToken::StateHover);
+                assert_eq!((list.layer_selected, list.layer_outline), (hover, t.color(ColorToken::LineControlEdge)), "{who}");
+                assert_eq!((list.layer_selected_text, list.thumb_radius), (t.color(ColorToken::TextNormal), 5.0), "{who}");
+            }
+            // The hover is the plain one with the accent laid over it, so it differs from it.
+            assert_ne!(list.layer_hover, list.hover, "{who}");
+
+            let high = resolve(theme, semantic_tests::app(mode, Contrast::High), None).tokens;
+            let border = high.color(ColorToken::AccentBorder);
+            assert_eq!(border.a(), 255, "{who}: opaque in high contrast");
+            for surface in [ColorToken::SurfacePanel, ColorToken::SurfaceRaised, ColorToken::SurfaceSunken] {
+                let ratio = contrast_ratio(border, high.color(surface));
+                assert!(ratio >= values::CONTROL_EDGE_MIN.1, "{who}: accent.border on {surface:?} is {ratio:.2}");
             }
         }
     }

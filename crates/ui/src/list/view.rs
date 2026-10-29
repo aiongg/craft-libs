@@ -1249,8 +1249,10 @@ pub(super) fn show_rows(ui: &mut Ui, args: &mut Args) {
             list = list.heights(move |at| if at % 4 == 3 { tall } else { plain });
         }
         let out = list.show(ui, |at, &key| {
-            let row =
-                ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide)).dimmed(!visible[key]);
+            let row = ListRow::new(key, names[key].clone())
+                .toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide))
+                .dimmed(!visible[key])
+                .layer(true);
             if mixed && at % 4 == 3 { row.detail("Smart filter") } else { row }
         });
         for event in out.events {

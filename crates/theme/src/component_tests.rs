@@ -109,8 +109,8 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     assert_eq!(seg.selected.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
     let edge = t.color(T::LineControlEdge);
     assert_eq!(seg.selected_border, States::new(edge, edge, edge, t.color(T::LineDivider)));
-    // An icon button that is on is `accent.soft` inside an `accent.solid` outline.
-    assert_eq!((icon.selected.on_fill, icon.selected.on_border), (t.color(T::AccentSoft), t.color(T::AccentSolid)));
+    // An icon button that is on is `accent.soft` inside an `accent.border` outline.
+    assert_eq!((icon.selected.on_fill, icon.selected.on_border), (t.color(T::AccentSoft), t.color(T::AccentBorder)));
     assert_eq!((icon.selected.on_disabled_fill, icon.selected.on_disabled_text), (t.color(T::AccentSoft), t.color(T::TextDisabled)));
     let half = hover.faded(values::SEGMENT_HOVER_OPACITY);
     assert_eq!(seg.segment.fill, States::new(Rgba::TRANSPARENT, half, half, Rgba::TRANSPARENT));
@@ -642,8 +642,11 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2 * 4
             // Icon button toggled on: a colour per part, and per part toggled on and disabled.
             + 2 * 3
-            // List: the frame of the selected row's thumbnail.
+            // List: the frame of the selected row's thumbnail, the thumbnail's radius, and the
+            // layer form's hover, selected fill, outline and the three selected texts.
             + 1
+            + 1
+            + 6
             // Segmented: a colour per part and state of plain and selected pills, and the selected pill's outline per state.
             + 2 * 2 * 4
             + 4

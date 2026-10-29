@@ -14,7 +14,7 @@ pub struct ToggleButtonTokens {
     /// Fill while on: `accent.soft`, or where that fill does not show on the panel and on a
     /// popup and the outline does not either, the nearest lightness that does.
     pub on_fill: Rgba,
-    /// Outline while on: `accent.solid`.
+    /// Outline while on: `accent.border`.
     pub on_border: Rgba,
     /// Label and icon while on: `accent.text`, moved to read on the fill.
     pub on_text: Rgba,
@@ -28,14 +28,14 @@ pub struct ToggleButtonTokens {
 
 impl ToggleButtonTokens {
     /// The look of a button that is on, shared with the icon button: `accent.soft` inside a
-    /// 1 pt `accent.solid` outline, the label in `accent.text`. The state is identified by its
+    /// 1 pt `accent.border` outline, the label in `accent.text`. The state is identified by its
     /// fill or its outline: one of them reaches the non-text minimum on the panel and on a popup.
     pub(super) fn accent_look(s: &Semantic<'_>) -> ToggleButtonTokens {
         let c = s.color;
-        let (on_fill, on_text) = Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.accent.solid).fill(c.accent.soft, c.accent.text);
+        let (on_fill, on_text) = Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.accent.border).fill(c.accent.soft, c.accent.text);
         ToggleButtonTokens {
             on_fill,
-            on_border: c.accent.solid,
+            on_border: c.accent.border,
             on_text,
             on_disabled_fill: c.accent.soft,
             on_disabled_border: c.line.divider,

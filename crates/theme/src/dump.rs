@@ -577,6 +577,13 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         divider,
         thumb_border,
         thumb_border_selected,
+        thumb_radius,
+        layer_hover,
+        layer_selected,
+        layer_outline,
+        layer_selected_text,
+        layer_selected_dimmed,
+        layer_selected_detail,
         drop,
         drop_halo,
         ghost_fill,
@@ -598,6 +605,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.trailing_pad", len(*trailing_pad));
     out.line("list.radius", len(*radius));
     out.line("list.dividers", dividers);
+    out.line("list.thumb.radius", len(*thumb_radius));
     out.line("list.drop_width", len(*drop_width));
     out.line("list.drop_halo_width", len(*drop_halo_width));
     out.line("list.label", role(*label));
@@ -617,6 +625,12 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         ("divider", divider),
         ("thumb.border", thumb_border),
         ("thumb.border.selected", thumb_border_selected),
+        ("layer.hover", layer_hover),
+        ("layer.selected", layer_selected),
+        ("layer.outline", layer_outline),
+        ("layer.text.selected", layer_selected_text),
+        ("layer.text.selected.dimmed", layer_selected_dimmed),
+        ("layer.detail.selected", layer_selected_detail),
         ("drop", drop),
         ("drop.halo", drop_halo),
         ("ghost.fill", ghost_fill),

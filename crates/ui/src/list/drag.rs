@@ -368,7 +368,7 @@ fn show_story(ui: &mut Ui, preset: Preset) {
             let out = list.tree(preset == Preset::Tree).show(ui, |_, &key| {
                 let layer = doc.at(key).map(|at| &doc.layers[at]);
                 let (name, group, locked) = layer.map_or(("", false, false), |l| (l.name.as_str(), l.group, l.locked));
-                let mut row = ListRow::new(key, name);
+                let mut row = ListRow::new(key, name).layer(true);
                 if group {
                     row = row.icon(Icon::FolderOpen);
                 }

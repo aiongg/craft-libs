@@ -93,6 +93,24 @@ pub struct ListTokens {
     pub thumb_border: Rgba,
     /// The frame of the thumbnail of the selected row: `text.normal`.
     pub thumb_border_selected: Rgba,
+    /// Corner radius of a thumbnail's frame: 0; the themes whose PhotoCraft kind is not a Pro
+    /// kind pin its 5.
+    pub thumb_radius: f32,
+    /// Behind a layer-form row under the pointer: `list.hover` with `accent.solid` at
+    /// [`values::LIST_LAYER_TINT_OPACITY`] laid over it.
+    pub layer_hover: Rgba,
+    /// Behind the selected layer-form row, with or without the pointer: `list.selected`; the themes
+    /// whose PhotoCraft kind is not a Pro kind pin `state.hover` with a `layer_outline`.
+    pub layer_selected: Rgba,
+    /// An inside outline of the selected layer-form row, 1 pt: clear unless pinned
+    /// (`line.control_edge` in the themes that pin `state.hover` as the fill).
+    pub layer_outline: Rgba,
+    /// The label of the selected layer-form row: `list.selected_text`.
+    pub layer_selected_text: Rgba,
+    /// The label of a dimmed selected layer-form row.
+    pub layer_selected_dimmed: Rgba,
+    /// The detail line of the selected layer-form row.
+    pub layer_selected_detail: Rgba,
     /// The drop marker: `accent.solid`.
     pub drop: Rgba,
     /// The outline under the drop marker that separates it from the row fills: `surface.panel`.
@@ -115,14 +133,18 @@ impl ListTokens {
     /// laid over it, and in high contrast the fills and the text moved as for an unpinned one.
     /// Each stays as pinned where the theme pins it too.
     pub(crate) fn follow(&mut self, color: &ColorTokens, high: bool, pinned: impl Fn(ListField) -> bool) {
-        if !pinned(ListField::Selected) {
-            return;
+        if pinned(ListField::Selected) {
+            self.follow_selected(color, high, &pinned);
         }
+        self.follow_layer(color, high, &pinned);
+    }
+
+    fn follow_selected(&mut self, color: &ColorTokens, high: bool, pinned: &impl Fn(ListField) -> bool) {
         if !pinned(ListField::Hover) {
             self.hover = visible_hover(self.hover, color.surface.panel, &[self.selected], color.text.normal, high);
         }
         let hover = if pinned(ListField::SelectedHover) { self.selected_hover } else { stack(self.hover, self.selected) };
-        let look = SelectedLook::of(color, self.selected, hover, high);
+        let look = SelectedLook::of(color, self.selected, hover, color.text.on_selected, None, high);
         let set = |f, slot: &mut Rgba, value| {
             if !pinned(f) {
                 *slot = value;
@@ -135,9 +157,43 @@ impl ListTokens {
         self.selected = look.selected;
     }
 
+    /// The layer form follows `hover` and the fill, outline and text the theme pins for it. Where
+    /// it pins none, the layer form takes the plain selected look as it is. Each stays as pinned
+    /// where the theme pins it too.
+    fn follow_layer(&mut self, color: &ColorTokens, high: bool, pinned: &impl Fn(ListField) -> bool) {
+        if !pinned(ListField::LayerHover) {
+            self.layer_hover = layer_hover(self.hover, color, high);
+        }
+        let own = [ListField::LayerSelected, ListField::LayerOutline, ListField::LayerSelectedText].into_iter().any(pinned);
+        if !own {
+            let set = |f, slot: &mut Rgba, value| {
+                if !pinned(f) {
+                    *slot = value;
+                }
+            };
+            set(ListField::LayerSelected, &mut self.layer_selected, self.selected);
+            set(ListField::LayerSelectedText, &mut self.layer_selected_text, self.selected_text);
+            set(ListField::LayerSelectedDimmed, &mut self.layer_selected_dimmed, self.selected_dimmed);
+            set(ListField::LayerSelectedDetail, &mut self.layer_selected_detail, self.selected_detail);
+            return;
+        }
+        let text = if pinned(ListField::LayerSelectedText) { self.layer_selected_text } else { color.text.on_selected };
+        let edge = (self.layer_outline.a() > 0).then_some(self.layer_outline);
+        let look = SelectedLook::of(color, self.layer_selected, self.layer_selected, text, edge, high);
+        let set = |f, slot: &mut Rgba, value| {
+            if !pinned(f) {
+                *slot = value;
+            }
+        };
+        set(ListField::LayerSelectedText, &mut self.layer_selected_text, look.text);
+        set(ListField::LayerSelectedDimmed, &mut self.layer_selected_dimmed, look.quiet);
+        set(ListField::LayerSelectedDetail, &mut self.layer_selected_detail, look.quiet);
+        self.layer_selected = look.selected;
+    }
+
     fn color_mut(&mut self, f: ListField) -> Option<&mut Rgba> {
         Some(match f {
-            ListField::Radius => return None,
+            ListField::Radius | ListField::ThumbRadius => return None,
             ListField::Text => &mut self.text,
             ListField::Dimmed => &mut self.dimmed,
             ListField::SelectedText => &mut self.selected_text,
@@ -152,6 +208,12 @@ impl ListTokens {
             ListField::Divider => &mut self.divider,
             ListField::ThumbBorder => &mut self.thumb_border,
             ListField::ThumbBorderSelected => &mut self.thumb_border_selected,
+            ListField::LayerHover => &mut self.layer_hover,
+            ListField::LayerSelected => &mut self.layer_selected,
+            ListField::LayerOutline => &mut self.layer_outline,
+            ListField::LayerSelectedText => &mut self.layer_selected_text,
+            ListField::LayerSelectedDimmed => &mut self.layer_selected_dimmed,
+            ListField::LayerSelectedDetail => &mut self.layer_selected_detail,
             ListField::Drop => &mut self.drop,
             ListField::DropHalo => &mut self.drop_halo,
             ListField::GhostFill => &mut self.ghost_fill,
@@ -162,7 +224,9 @@ impl ListTokens {
 
 /// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`,
 /// `text.selected.dimmed`, `detail`, `detail.selected`, `icon`, `icon.hover`, `hover`,
-/// `selected`, `selected.hover`, `divider`, `thumb.border`, `thumb.border.selected`, `drop`, `drop.halo`, `ghost.fill`,
+/// `selected`, `selected.hover`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
+/// `layer.hover`, `layer.selected`, `layer.outline`, `layer.text.selected`,
+/// `layer.text.selected.dimmed`, `layer.detail.selected`, `drop`, `drop.halo`, `ghost.fill`,
 /// `ghost.border`, e.g. `list.selected.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListField {
@@ -196,6 +260,20 @@ pub enum ListField {
     ThumbBorder,
     /// `list.thumb.border.selected`
     ThumbBorderSelected,
+    /// `list.thumb.radius`
+    ThumbRadius,
+    /// `list.layer.hover`
+    LayerHover,
+    /// `list.layer.selected`
+    LayerSelected,
+    /// `list.layer.outline`
+    LayerOutline,
+    /// `list.layer.text.selected`
+    LayerSelectedText,
+    /// `list.layer.text.selected.dimmed`
+    LayerSelectedDimmed,
+    /// `list.layer.detail.selected`
+    LayerSelectedDetail,
     /// `list.drop`
     Drop,
     /// `list.drop.halo`
@@ -224,6 +302,13 @@ impl ListField {
             ListField::Divider => "divider",
             ListField::ThumbBorder => "thumb.border",
             ListField::ThumbBorderSelected => "thumb.border.selected",
+            ListField::ThumbRadius => "thumb.radius",
+            ListField::LayerHover => "layer.hover",
+            ListField::LayerSelected => "layer.selected",
+            ListField::LayerOutline => "layer.outline",
+            ListField::LayerSelectedText => "layer.text.selected",
+            ListField::LayerSelectedDimmed => "layer.text.selected.dimmed",
+            ListField::LayerSelectedDetail => "layer.detail.selected",
             ListField::Drop => "drop",
             ListField::DropHalo => "drop.halo",
             ListField::GhostFill => "ghost.fill",
@@ -250,6 +335,13 @@ impl Family for ListTokens {
         ListField::Divider,
         ListField::ThumbBorder,
         ListField::ThumbBorderSelected,
+        ListField::ThumbRadius,
+        ListField::LayerHover,
+        ListField::LayerSelected,
+        ListField::LayerOutline,
+        ListField::LayerSelectedText,
+        ListField::LayerSelectedDimmed,
+        ListField::LayerSelectedDetail,
         ListField::Drop,
         ListField::DropHalo,
         ListField::GhostFill,
@@ -258,8 +350,9 @@ impl Family for ListTokens {
 
     fn defaults(s: &Semantic<'_>) -> ListTokens {
         let (c, list) = (s.color, &s.size.list);
-        let look = SelectedLook::of(c, c.state.selected, c.state.selected_hover, s.high);
+        let look = SelectedLook::of(c, c.state.selected, c.state.selected_hover, c.text.on_selected, None, s.high);
         let selected = look.selected;
+        let hover = visible_hover(half(c.state.hover, values::LIST_HOVER_OPACITY), c.surface.panel, &[selected], c.text.normal, s.high);
         ListTokens {
             row_height: s.size.control.md,
             thumb: list.thumb,
@@ -286,12 +379,19 @@ impl Family for ListTokens {
             selected_detail: look.quiet,
             icon: c.text.muted,
             icon_hover: c.text.normal,
-            hover: visible_hover(half(c.state.hover, values::LIST_HOVER_OPACITY), c.surface.panel, &[selected], c.text.normal, s.high),
+            hover,
             selected,
             selected_hover: look.selected_hover,
             divider: c.line.divider,
             thumb_border: c.line.control_edge,
             thumb_border_selected: c.text.normal,
+            thumb_radius: 0.0,
+            layer_hover: layer_hover(hover, c, s.high),
+            layer_selected: selected,
+            layer_outline: Rgba::TRANSPARENT,
+            layer_selected_text: look.text,
+            layer_selected_dimmed: look.quiet,
+            layer_selected_detail: look.quiet,
             drop: c.accent.solid,
             drop_halo: c.surface.panel,
             ghost_fill: c.surface.raised,
@@ -309,7 +409,7 @@ impl Family for ListTokens {
 
     fn kind(f: ListField) -> FieldKind {
         match f {
-            ListField::Radius => FieldKind::Length,
+            ListField::Radius | ListField::ThumbRadius => FieldKind::Length,
             _ => FieldKind::Color,
         }
     }
@@ -317,6 +417,7 @@ impl Family for ListTokens {
     fn get(&self, f: ListField) -> OverrideValue {
         match f {
             ListField::Radius => OverrideValue::Length(self.radius),
+            ListField::ThumbRadius => OverrideValue::Length(self.thumb_radius),
             f => {
                 let mut copy = *self;
                 OverrideValue::Color(copy.color_mut(f).map_or(Rgba::TRANSPARENT, |c| *c))
@@ -327,6 +428,7 @@ impl Family for ListTokens {
     fn set(&mut self, f: ListField, v: OverrideValue) {
         match (f, v) {
             (ListField::Radius, OverrideValue::Length(r)) => self.radius = r,
+            (ListField::ThumbRadius, OverrideValue::Length(r)) => self.thumb_radius = r,
             (f, OverrideValue::Color(c)) => {
                 if let Some(slot) = self.color_mut(f) {
                     *slot = c;
@@ -358,6 +460,13 @@ impl Family for ListTokens {
             pair(ListField::SelectedDimmed, component(ListField::SelectedHover), values::TEXT_MIN),
             pair(ListField::SelectedDetail, component(ListField::Selected), values::TEXT_MIN),
             pair(ListField::SelectedDetail, component(ListField::SelectedHover), values::TEXT_MIN),
+            // The layer form: hovering shows, the selected row shows by its fill or its outline.
+            pair(ListField::LayerHover, panel, values::LIST_HOVER_MIN),
+            ContrastPair { alternate: Some(component(ListField::LayerOutline)), ..pair(ListField::LayerSelected, panel, values::STATE_CUE_MIN) },
+            pair(ListField::Text, component(ListField::LayerHover), values::TEXT_MIN),
+            pair(ListField::LayerSelectedText, component(ListField::LayerSelected), values::TEXT_MIN),
+            pair(ListField::LayerSelectedDimmed, component(ListField::LayerSelected), values::TEXT_MIN),
+            pair(ListField::LayerSelectedDetail, component(ListField::LayerSelected), values::TEXT_MIN),
             pair(ListField::Drop, component(ListField::DropHalo), values::NON_TEXT_MIN),
         ]
     }
@@ -426,6 +535,18 @@ fn quiet_on_selected(text: Rgba, fills: &[Rgba; 2], rest: Rgba) -> Rgba {
     readable_on(quiet, fills, rest, false)
 }
 
+/// `hover` with `accent.solid` at [`values::LIST_LAYER_TINT_OPACITY`] laid over it (PhotoCraft
+/// paints the half-opacity hover, then the accent tint), moved to stay visible on the panel. It is
+/// never drawn beside the selected row's fill, so it keeps no step from it. Where the tint would
+/// leave the text unreadable on it (a light accent over a dark hover in high contrast), `hover`
+/// stays without it.
+fn layer_hover(hover: Rgba, color: &ColorTokens, high: bool) -> Rgba {
+    let tinted = stack(color.accent.solid.faded(values::LIST_LAYER_TINT_OPACITY), hover);
+    let moved = visible_hover(tinted, color.surface.panel, &[], color.text.normal, high);
+    let min = if high { values::TEXT_MIN.1 } else { values::TEXT_MIN.0 };
+    if contrast_ratio(color.text.normal, over(moved, color.surface.panel)) >= min { moved } else { hover }
+}
+
 /// An opaque `state.hover` at `opacity`; a translucent one is already a partial overlay.
 pub(super) fn half(hover: Rgba, opacity: f32) -> Rgba {
     if hover.a() == 255 { hover.faded(opacity) } else { hover }
@@ -452,17 +573,20 @@ struct SelectedLook {
 }
 
 impl SelectedLook {
-    fn of(c: &ColorTokens, selected: Rgba, selected_hover: Rgba, high: bool) -> SelectedLook {
+    /// `text` is the label on the unmoved fills; `edge` an outline that identifies the selected row
+    /// as well as its fill.
+    fn of(c: &ColorTokens, selected: Rgba, selected_hover: Rgba, text: Rgba, edge: Option<Rgba>, high: bool) -> SelectedLook {
         let panel = [c.surface.panel];
         let min_step = if high { values::LIST_HOVER_MIN.1 } else { values::LIST_HOVER_MIN.0 };
-        let (moved, text) = Identify::on(&panel, high).fill(selected, c.text.on_selected);
+        let identify = || edge.map_or_else(|| Identify::on(&panel, high), |e| Identify::on(&panel, high).edge(e));
+        let (moved, text_on) = identify().fill(selected, text);
         // A theme whose selected row has a distinct hover step keeps one.
         let stepped = contrast_ratio(over(selected_hover, c.surface.panel), over(selected, c.surface.panel)) >= min_step;
         let apart: &[Rgba] = if stepped { &[moved] } else { &[] };
-        let (moved_hover, text) = Identify::on(&panel, high).apart(apart).with(&[moved]).fill(selected_hover, text);
+        let (moved_hover, text_on) = identify().apart(apart).with(&[moved]).fill(selected_hover, text_on);
         let fills = [moved, moved_hover];
         // Text that already reads on the unmoved fills stays as it is, pinned or not.
-        let text = if fills == [selected, selected_hover] { c.text.on_selected } else { readable_on(text, &fills, c.surface.panel, high) };
+        let text = if fills == [selected, selected_hover] { text } else { readable_on(text_on, &fills, c.surface.panel, high) };
         let quiet = quiet_on_selected(text, &fills, c.surface.panel);
         SelectedLook { selected: moved, selected_hover: moved_hover, text, quiet }
     }
