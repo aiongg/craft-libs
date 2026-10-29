@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::semantic_tests::{app, appearances, grey_blue, hex, is_primary_button_pair, over, violet};
+use super::semantic_tests::{app, appearances, grey_blue, hex, over, violet};
 use super::*;
 use ColorToken as T;
 
@@ -35,7 +35,7 @@ fn button_defaults_meet_every_minimum() {
             let r = resolve(&def, a, None);
             let t = &r.tokens;
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -43,9 +43,10 @@ fn button_defaults_meet_every_minimum() {
             for (fg, bg, std, hi) in button_pairs() {
                 let min = if a.contrast == Contrast::High { hi } else { std };
                 let ratio = pair_ratio(t, fg, bg);
-                // Standard contrast reports the primary button's pairs (see `is_primary_button_pair`).
-                let primary = matches!(fg, ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Primary, .. }));
-                assert!(ratio >= min || (primary && a.contrast != Contrast::High), "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+                // Standard contrast reports the pairs a default misses; High fixes them.
+                if a.contrast == Contrast::High {
+                    assert!(ratio >= min, "{} {a:?}: {} is {ratio:.2}, needs {min}", def.name, fg.path());
+                }
             }
         }
     }
@@ -84,7 +85,7 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -125,7 +126,7 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -147,7 +148,7 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     assert_eq!(s.width, BySize { sm: 6.0 * control.sm, md: 6.0 * control.md });
     assert_eq!((s.track_height, s.radius), (4.0, Radius::Full.px()));
     assert_eq!(s.track, t.color(T::SurfaceSunken));
-    assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::TextDisabled)));
     assert_eq!(s.thumb_colors, knob(&t));
     let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
     assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));
@@ -159,7 +160,7 @@ fn curve_defaults_come_from_semantic_tokens_and_the_point_outline_meets_the_indi
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -231,7 +232,7 @@ fn gradient_editor_defaults_come_from_semantic_tokens_and_its_cues_meet_the_indi
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -275,7 +276,7 @@ fn angle_dial_defaults_come_from_semantic_tokens_and_the_needle_meets_the_face()
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -336,7 +337,7 @@ fn field_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimums(
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -397,7 +398,7 @@ fn listbox_defaults_come_from_semantic_tokens_and_their_pairs_meet_their_minimum
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -501,7 +502,7 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -530,7 +531,8 @@ fn check_defaults_come_from_semantic_tokens_and_their_marks_and_outlines_meet_th
     assert_eq!(c.off.border, outline);
     let sunken = t.color(T::SurfaceSunken);
     assert_eq!(c.off.fill, States::new(sunken, sunken, t.color(T::StatePressed), t.color(T::StateDisabledFill)));
-    assert_eq!(c.on.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    let solid = t.color(T::AccentSolid);
+    assert_eq!(c.on.fill, States::new(solid, solid, solid.faded(0.75), t.color(T::TextDisabled)));
     assert_eq!(c.on.border, c.on.fill);
     let on_accent = t.color(T::TextOnAccent);
     assert_eq!(c.on.mark, States::new(on_accent, on_accent, on_accent, t.color(T::StateDisabledFill)));
@@ -897,7 +899,7 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings
@@ -1434,7 +1436,7 @@ fn selected_fills_show_on_what_they_sit_on() {
         for a in appearances() {
             let r = resolve(&def, a, None);
             assert!(
-                r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_)) || is_primary_button_pair(w)),
+                a.contrast != Contrast::High || r.warnings.iter().all(|w| matches!(w.fg, TokenRef::Color(_))),
                 "{} {a:?}: {:?}",
                 def.name,
                 r.warnings

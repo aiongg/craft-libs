@@ -516,10 +516,11 @@ fn fix_rule(c: &mut ColorTokens, pass: &Pass, rule: &PairRule, done: &[PairRule]
     for round in 0..2 {
         for &fg in rule.fgs {
             if pinned.contains(&fg) && !high {
-                // Pinned text stays; the unpinned solids or anchored greys under it still move.
-                if rule.on_solid {
-                    move_solids(c, &s, fg, moves);
-                } else {
+                // Pinned text stays and the pairs it misses are reported. The anchored greys
+                // under it still move; the solids under it stay where the theme's ramps put them
+                // (PhotoCraft's white on its accent must not darken the hover and pressed
+                // accents), and move in high contrast.
+                if !rule.on_solid {
                     pull(c, &s, fg, moves);
                 }
                 continue;

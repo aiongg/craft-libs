@@ -458,7 +458,15 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             let t = resolve(theme, a, None).tokens;
             let c = &t.component;
             if theme.id.as_str() != "craft.classic" {
-                assert_eq!((c.check.switch.fill, c.check.switch.border), (c.check.on.fill, c.check.on.border), "{} {a:?}", theme.id);
+                // A switch is the check box's on fill, which a press makes less opaque only on a check box.
+                let (switch, on) = (c.check.switch, c.check.on);
+                assert_eq!(
+                    (switch.fill.rest, switch.fill.hover, switch.fill.disabled),
+                    (on.fill.rest, on.fill.hover, on.fill.disabled),
+                    "{} {a:?}",
+                    theme.id
+                );
+                assert_eq!(switch.fill, switch.border, "{} {a:?}", theme.id);
                 continue;
             }
             if a.contrast == Contrast::High || a.mode != Mode::Light {

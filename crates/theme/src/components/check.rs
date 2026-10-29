@@ -161,7 +161,7 @@ pub struct CheckTokens {
     pub thumb_inset: f32,
     /// Off: a `text.faint` outline on `surface.sunken`, the outline moved where neither shows.
     pub off: CheckOffColors,
-    /// On: `accent.*` fill and outline, a `text.on_accent` mark; disabled, a `text.disabled` fill
+    /// On: an `accent.solid` fill and outline (a little less opaque while pressed), a `text.on_accent` mark; disabled, a `text.disabled` fill
     /// and outline with a `state.disabled_fill` mark.
     pub on: CheckOnColors,
     /// A switch track while on: the same as the check box's on fill and outline unless the theme
@@ -254,7 +254,11 @@ impl Family for CheckTokens {
         let sunken = c.surface.sunken;
         let rest_outline = identifiable_outline(c.text.faint, sunken, &[c.surface.panel, c.surface.raised], s.high);
         let outline = States::new(rest_outline, c.text.muted, c.text.muted, c.text.disabled);
-        let accent = States::new(c.accent.solid, c.accent.hover, c.accent.pressed, c.text.disabled);
+        // PhotoCraft draws no separate accent hover: the fill is the accent in every state, a
+        // check box a little less opaque while pressed (`widgets/buttons.rs:244-249`).
+        let solid = c.accent.solid;
+        let switch = States::new(solid, solid, solid, c.text.disabled);
+        let on_fill = States::new(solid, solid, solid.faded(values::CHECK_ON_PRESSED_OPACITY), c.text.disabled);
         let on_accent = c.text.on_accent;
         CheckTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
@@ -267,8 +271,8 @@ impl Family for CheckTokens {
             track: BySize { sm: icon.sm * values::SWITCH_ASPECT, md: icon.md * values::SWITCH_ASPECT },
             thumb_inset: values::SWITCH_THUMB_INSET,
             off: CheckOffColors { fill: States::new(sunken, sunken, c.state.pressed, c.state.disabled_fill), border: outline },
-            on: CheckOnColors { fill: accent, border: accent, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
-            switch: CheckSwitchColors { fill: accent, border: accent },
+            on: CheckOnColors { fill: on_fill, border: on_fill, mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill) },
+            switch: CheckSwitchColors { fill: switch, border: switch },
             thumb: ThumbColors::knob(c),
         }
     }

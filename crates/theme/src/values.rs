@@ -521,6 +521,9 @@ pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Du
 /// Easing for every semantic motion.
 pub const MOTION_EASING: Easing = Easing::Standard;
 
+/// How much of its fill a check box that is on shows while pressed (`widgets/buttons.rs:247`).
+pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
+
 /// Button heights in points, small and standard: Compact is PhotoCraft's status-bar button (22)
 /// and its Pro button (28); Comfortable adds the 4 and 6 points its control heights have over
 /// Compact's.
