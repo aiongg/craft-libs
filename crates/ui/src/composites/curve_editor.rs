@@ -16,7 +16,8 @@ use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::controls::NumberField;
-use crate::edit::{self, EditPolicy, EditResponse, Gesture};
+use crate::edit::order::{self, Turn};
+use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
@@ -127,12 +128,16 @@ struct State {
     channel: Option<usize>,
     selected: Option<usize>,
     drag: Option<Drag>,
-    /// A press held for a pass while another control's gesture with the focus ends.
-    held: Option<Press>,
+    /// A press that waits for its turn (`edit::order`), and the last pass that held it.
+    held: Option<(u64, Press)>,
     /// The last level a pencil stroke under way drew to.
     stroke: Option<[f32; 2]>,
+    /// A pencil press that waits for its turn (`edit::order`), and the last pass that held it.
+    stroke_held: Option<(u64, StrokePress)>,
     /// Where the previous pencil stroke ended: Shift+press continues from it.
     end: Option<StrokeEnd>,
+    /// The graph's and the fields' edits as the editor's one gesture.
+    parts: parts::State<()>,
 }
 
 /// A press on the graph: where, which button, and whether Cmd/Ctrl was held.
@@ -141,6 +146,13 @@ struct Press {
     pos: Pos2,
     secondary: bool,
     command: bool,
+}
+
+/// A pencil press: where, and whether Shift was held.
+#[derive(Clone, Copy, Debug)]
+struct StrokePress {
+    pos: Pos2,
+    shift: bool,
 }
 
 /// The end of the previous pencil stroke and the curve it left; the end goes once the host's
@@ -163,6 +175,8 @@ struct Drag {
 }
 
 const STATE: &str = "craft_ui::curve_editor";
+/// The editor's gesture, made of the graph's and the fields' (`edit::parts`).
+const EDIT: &str = "craft_ui::curve_editor::edit";
 
 /// The keys a focused graph keeps from the app's shortcuts. Only `+` is matched logically: many
 /// keyboards type it with Shift.
@@ -202,8 +216,8 @@ pub type Sampler = dyn Fn(&[[f32; 2]]) -> Vec<f32>;
 /// and takes it to the pointer, as one gesture (PhotoCraft). Dragged more than `curve.drag_off`
 /// off the plot an interior point is removed, and comes back on re-entry within the drag. A
 /// right-click or a Cmd/Ctrl press on a point deletes it. A press gives the graph keyboard focus;
-/// while a field's typing run has it, the press waits a pass, so the run's commit goes out first
-/// and the press edits the curve it leaves.
+/// while a typing run has it (a field's), the press waits for the run's commit to go out and then
+/// edits the curve the run leaves (`edit::order`).
 ///
 /// Keys while the graph has focus: `+` (or `=`) and `-` select the next and previous point (the
 /// first and last with nothing selected; they stop at the ends); arrows move the selected point one
@@ -215,7 +229,10 @@ pub type Sampler = dyn Fn(&[[f32; 2]]) -> Vec<f32>;
 ///
 /// Events: a press-drag-release is Begin, Updates and Commit (unchanged for a press without
 /// movement); deletes, nudges and keyboard additions are Sets; the fields report their own
-/// gestures as curves. The selection is view state: the host reads and sets it with
+/// gestures as curves. The graph and the fields make one edit of the curve, one gesture at a time
+/// (`edit::parts`): a screen reader's step on a field during a graph drag waits for the release
+/// and goes out as its own Set. The [`policy`](CurveEditor::policy) applies to the editor's
+/// events; the graph and the fields show every change as it happens. The selection is view state: the host reads and sets it with
 /// [`selected`](CurveEditor::selected) and [`select`](CurveEditor::select), and it clears when the
 /// [`channel`](CurveEditor::channel) changes.
 ///
@@ -431,31 +448,44 @@ impl<'a> CurveEditor<'a> {
         let tokens = Tokens::of(ui);
         let style = CurveEditor::style(&tokens);
         let id = CurveEditor::id_in(ui, self.id_salt);
-        Stack::new(Gap::Stack)
+        let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
+        // Esc is the parts': each cancels its own gesture, which cancels this one.
+        let outer = Gesture::load(ui, id.with(EDIT), self.curve, self.policy.cancellable(false)).enabled(self.enabled && ui.is_enabled());
+        let shown = outer.shown().clone();
+        let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
+        let mut edits = parts::Edits::<Curve>::new(id, &state.parts);
+        let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
-                let (graph, points, selected) = self.graph(ui, &style, id);
-                let mut edit = graph;
+                let (graph, points, selected) = self.graph(ui, &style, id, &shown, policy, &mut state);
+                edits.push(&graph, |curve| curve);
                 if self.fields
                     && let Some(points) = points
                 {
-                    let fields = self.fields_row(ui, id, &points, selected);
-                    // A press on the graph or a field waits a pass while a field's gesture ends, and
-                    // the graph has the focus during its own gestures: the two never report in one
-                    // pass.
-                    debug_assert!(edit.event.is_none() || fields.is_none(), "graph {:?} and field {:?} in one pass", edit.event, fields);
-                    edit.event = edit.event.or(fields);
+                    self.fields_row(ui, id, &points, selected, policy, &mut edits);
                 }
                 if let Some(hint) = &self.hint {
                     ui.add(Text::new(hint.as_str()).role(style.hint_role).content(Content::Faint));
                 }
-                edit
+                graph
             })
-            .inner
+            .inner;
+        let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
+        ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
+        EditResponse::new(graph.response, outer.finish())
     }
 
-    /// The graph: its interaction, look and AccessKit nodes. Returns its edit, the points it
-    /// shows (none for a drawn curve) and the selected point.
-    fn graph(&self, ui: &mut Ui, style: &CurveStyle, id: Id) -> (EditResponse<Curve>, Option<Vec<[f32; 2]>>, Option<usize>) {
+    /// The graph, a part of the editor's edit drawn from `curve` with `policy`: its interaction,
+    /// look and AccessKit nodes. Returns its edit, the points it shows (none for a drawn curve)
+    /// and the selected point.
+    fn graph(
+        &self,
+        ui: &mut Ui,
+        style: &CurveStyle,
+        id: Id,
+        curve: &Curve,
+        policy: EditPolicy,
+        state: &mut State,
+    ) -> (EditResponse<Curve>, Option<Vec<[f32; 2]>>, Option<usize>) {
         let side = self.side.unwrap_or_else(|| ui.available_width().clamp(style.min_side, style.max_side));
         let (outer, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
         let edge = style.bar + style.bar_gap;
@@ -478,8 +508,7 @@ impl<'a> CurveEditor<'a> {
         let enabled = response.enabled();
 
         let filter = if self.pencil { egui::EventFilter::default() } else { KEY_FILTER };
-        let mut gesture = Gesture::load(ui, id, self.curve, self.policy).event_filter(filter).enabled(enabled);
-        let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
+        let mut gesture = Gesture::load(ui, id, curve, policy).event_filter(filter).enabled(enabled);
         if state.channel.is_some_and(|c| c != self.channel) {
             state.selected = None;
             state.drag = None;
@@ -504,19 +533,21 @@ impl<'a> CurveEditor<'a> {
             state.selected = None;
             state.drag = None;
             state.held = None;
-            if !gesture.is_active() && state.end.as_ref().is_some_and(|end| end.curve != *self.curve) {
+            if !enabled {
+                state.stroke_held = None;
+            }
+            if !gesture.is_active() && state.end.as_ref().is_some_and(|end| end.curve != *curve) {
                 state.end = None;
             }
             if enabled {
                 let outputs = Curve::drawn(gesture.shown(), |points| self.samples(points), self.levels);
-                StrokeEdit { gesture: &mut gesture, state: &mut state, outputs, map }.pointer(ui, &response);
+                StrokeEdit { gesture: &mut gesture, state, outputs, map }.pointer(ui, &response);
             }
         } else if let Some(points) = points.as_mut() {
             state.selected = state.selected.filter(|&i| i < points.len());
+            state.stroke_held = None;
             if enabled {
-                // A press that ends a field's gesture waits for it ([`edit::focused_gesture`]).
-                let hold = self.fields && edit::focused_gesture(ui.ctx()).is_some_and(|g| gesture.id() != Some(g));
-                let mut edit = PointEdit { gesture: &mut gesture, points, state: &mut state, rules, map, style, hold };
+                let mut edit = PointEdit { gesture: &mut gesture, points, state, rules, map, style };
                 edit.pointer(ui, &response);
                 if response.has_focus() {
                     KeyClaim::claim(ui.ctx(), id, &CLAIMED);
@@ -527,15 +558,12 @@ impl<'a> CurveEditor<'a> {
             state.selected = None;
             state.drag = None;
             state.held = None;
+            state.stroke_held = None;
         }
 
         let shown = gesture.shown().clone();
         let event = gesture.finish();
         let selected = state.selected;
-        if state.held.is_some() {
-            ui.ctx().request_repaint();
-        }
-        ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
 
         let tokens = Tokens::of(ui);
         let channel = self.channels.get(self.channel);
@@ -675,9 +703,9 @@ impl<'a> CurveEditor<'a> {
         }
     }
 
-    /// The Input/Output row of the selected point, disabled without one. Returns its event as a
-    /// curve.
-    fn fields_row(&self, ui: &mut Ui, id: Id, points: &[[f32; 2]], selected: Option<usize>) -> Option<crate::edit::EditEvent<Curve>> {
+    /// The Input/Output row of the selected point, disabled without one: two parts of the
+    /// editor's edit, drawn from `points` with `policy`, their values as curves.
+    fn fields_row(&self, ui: &mut Ui, id: Id, points: &[[f32; 2]], selected: Option<usize>, policy: EditPolicy, edits: &mut parts::Edits<Curve>) {
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let at = selected.and_then(|i| points.get(i).map(|p| (i, *p)));
         let (x, y) = at.map_or((0.0, 0.0), |(_, p)| (p[0], p[1]));
@@ -696,7 +724,7 @@ impl<'a> CurveEditor<'a> {
             let mut field = NumberField::new(salt, label, f64::from(self.field_value(value)), self.numbers)
                 .range(f64::from(self.field_value(range.0))..=f64::from(self.field_value(range.1)))
                 .decimals(0..=0)
-                .policy(self.policy)
+                .policy(policy)
                 .part(true)
                 .enabled(enabled);
             if self.percent {
@@ -721,7 +749,8 @@ impl<'a> CurveEditor<'a> {
             )
         });
         let (input, output) = row.inner.inner;
-        input.map(|v| moved(0, v)).event.or(output.map(|v| moved(1, v)).event)
+        edits.typing(ui.ctx(), &input, |v| moved(0, v));
+        edits.typing(ui.ctx(), &output, |v| moved(1, v));
     }
 }
 
@@ -766,8 +795,6 @@ struct PointEdit<'g, 'p> {
     rules: Rules,
     map: Map,
     style: &'g CurveStyle,
-    /// Another control's gesture has the focus: a press waits a pass for it to end.
-    hold: bool,
 }
 
 impl PointEdit<'_, '_> {
@@ -782,9 +809,10 @@ impl PointEdit<'_, '_> {
     }
 
     /// The press, drag and release of PhotoCraft's `point_curve`, and the right-click and
-    /// Cmd/Ctrl-click deletes. A press gives the graph the focus. While another control's gesture
-    /// has it (the Input field's typing run), the press waits a pass: that gesture's ending event
-    /// goes out first, and the press edits the curve it leaves.
+    /// Cmd/Ctrl-click deletes. A press gives the graph the focus and takes its turn from the edit
+    /// order (`edit::order`): while a typing run has the focus (the Input field's), the press
+    /// waits, keeping its button and Cmd/Ctrl, until the run's ending event has gone out, and
+    /// then edits the curve the run leaves. A press released while it waited still runs.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
         // Hit-test where the button went down, not where egui first recognises a drag.
         let press = response.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed());
@@ -796,14 +824,15 @@ impl PointEdit<'_, '_> {
         } else {
             None
         };
-        if let Some(held) = self.state.held.take() {
-            self.press(ui, held);
-        }
-        if let Some(new) = new {
+        if new.is_some() {
             response.request_focus();
-            match self.hold {
-                true => self.state.held = Some(new),
-                false => self.press(ui, new),
+        }
+        let pass = ui.ctx().cumulative_pass_nr();
+        let held = self.state.held.take().filter(|(last, _)| last + 1 == pass).map(|(_, press)| press);
+        if let Some(press) = held.or(new) {
+            match order::turn(ui.ctx(), response.id, self.gesture.id()) {
+                Turn::Waits => self.state.held = Some((pass, press)),
+                Turn::Now | Turn::Runs => self.press(ui, press),
             }
         }
         let released = ui.input(|i| i.pointer.primary_released());
@@ -956,19 +985,25 @@ struct StrokeEdit<'g> {
 
 impl StrokeEdit<'_> {
     /// Press, drag and release as one gesture; a Shift press starts at the previous stroke's end.
+    /// A press gives the graph the focus and takes its turn from the edit order (`edit::order`):
+    /// while a typing run has the focus (an app's field of the same curve), the press waits,
+    /// keeping its Shift, until the run's ending event has gone out, and then draws on the curve
+    /// the run leaves. A press released while it waited still draws its point.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
         let down = response.is_pointer_button_down_on();
         let press = down && ui.input(|i| i.pointer.primary_pressed());
-        if press && let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
+        let new =
+            press.then(|| ui.input(|i| i.pointer.press_origin())).flatten().map(|pos| StrokePress { pos, shift: ui.input(|i| i.modifiers.shift) });
+        if new.is_some() {
             response.request_focus();
-            let at = self.map.value_at(pos);
-            let from = match ui.input(|i| i.modifiers.shift) {
-                true => self.state.end.as_ref().map_or(at, |end| end.at),
-                false => at,
-            };
-            self.gesture.begin();
-            self.state.stroke = Some(at);
-            self.draw(ui, from, at);
+        }
+        let pass = ui.ctx().cumulative_pass_nr();
+        let held = self.state.stroke_held.take().filter(|(last, _)| last + 1 == pass).map(|(_, press)| press);
+        if let Some(stroke) = held.or(new) {
+            match order::turn(ui.ctx(), response.id, self.gesture.id()) {
+                Turn::Waits => self.state.stroke_held = Some((pass, stroke)),
+                Turn::Now | Turn::Runs => self.start(ui, stroke),
+            }
         }
         let released = ui.input(|i| i.pointer.primary_released());
         if !press
@@ -985,6 +1020,17 @@ impl StrokeEdit<'_> {
             self.state.end = Some(StrokeEnd { at, curve: self.gesture.shown().clone() });
             self.gesture.commit();
         }
+    }
+
+    fn start(&mut self, ui: &Ui, press: StrokePress) {
+        let at = self.map.value_at(press.pos);
+        let from = match press.shift {
+            true => self.state.end.as_ref().map_or(at, |end| end.at),
+            false => at,
+        };
+        self.gesture.begin();
+        self.state.stroke = Some(at);
+        self.draw(ui, from, at);
     }
 
     fn draw(&mut self, ui: &Ui, from: [f32; 2], to: [f32; 2]) {
@@ -1028,6 +1074,9 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("fields", true)
                     .with_number("width", 300.0, 120.0, 400.0)
                     .with_choice("values", &["levels", "percent"], 0)
+                    .with_choice("update rate", edit::RATES, 0)
+                    .with_bool("cancellable", true)
+                    .with_bool("on release only", false)
             },
             show: show_curves,
         },
@@ -1097,7 +1146,8 @@ fn story_points(map: &[f32]) -> Curve {
 }
 
 /// PhotoCraft's Curves on an RGB image: a channel per arg, the other channels' curves and a
-/// histogram behind the RGB curve, a pencil mode, a hint, the fields in levels or percent.
+/// histogram behind the RGB curve, a pencil mode, a hint, the fields in levels or percent, and
+/// the host's edit policy.
 fn show_curves(ui: &mut Ui, args: &mut Args) {
     let channels = [
         CurveChannel::new("RGB", ChannelColor::Neutral),
@@ -1129,6 +1179,7 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
             .overlays(&overlays)
             .pencil(pencil)
             .fields(args.bool("fields"))
+            .policy(edit::policy(args))
             .hint(match pencil {
                 true => "Drag to draw · Shift-click for a straight line from the last stroke · Esc cancels",
                 false => "Click to add a point · drag off or Ctrl-click or Delete to remove",
