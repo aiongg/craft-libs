@@ -1,10 +1,10 @@
 //! Stories of [`DockArea`]: the docked, floating, drag-preview and iconic looks, drawn from the
 //! `dock` and `float` tokens of the gallery's theme.
 
-use egui::{Id, Rect, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{Id, Rect, Sense, Ui, UiBuilder, vec2};
 
-use super::chrome::drop_preview_with;
-use super::{Column, DockArea, DockConfig, DockContent, DockLook, Floating, Group, Layout, Node, Permissions, Side, flyout, open_flyout};
+use super::render::tab_outline;
+use super::{Column, DockArea, DockConfig, DockContent, DockLook, Floating, Group, Hit, Layout, Node, Permissions, Side, flyout, open_flyout};
 use crate::direction;
 use crate::layout::{SplitAxis, SplitSize};
 use crate::story::{Args, Level, Story};
@@ -129,20 +129,24 @@ pub(super) fn show_floating(ui: &mut Ui, args: &mut Args) {
     show_area(ui, args, "floating", floating_layout, None);
 }
 
-/// The docked layout with the previews of a tab dragged over a group (a tab drop), over the dock's
-/// edge (a new column) and over the canvas. A pointer drag draws these live; the story holds them
-/// still.
+/// The docked layout with the previews of a tab dragged over a group (a tab drop), over the canvas
+/// beside the dock and over the dock's edge (a new column), placed from the area's own layout and
+/// drawn as a live drop draws them. A pointer drag draws these live; the story holds them still.
 pub(super) fn show_drag(ui: &mut Ui, args: &mut Args) {
-    let (_, rect) = show_area(ui, args, "drag", docked_layout, None);
+    let (id, rect) = show_area(ui, args, "drag", docked_layout, None);
+    let hits = DockArea::<u32>::hit_rects(ui.ctx(), id);
+    let hit = |hit: Hit<u32>| hits.iter().find(|(h, _)| *h == hit).map(|(_, rect)| *rect);
+    let (Some(bar), Some(strip), Some(icons)) = (hit(Hit::ColumnBar(LAYERS)), hit(Hit::Tab(PROPERTIES)), hit(Hit::Icon(BRUSHES))) else { return };
     let look = DockLook::of(ui);
     let painter = ui.painter_at(rect);
-    let dock = Rect::from_min_max(pos2(rect.right() - 250.0, rect.top()), rect.right_bottom());
-    let group = Rect::from_min_size(dock.min + vec2(0.0, 4.0), vec2(200.0, 150.0));
-    let edge = Rect::from_min_size(dock.min, vec2(40.0, dock.height()));
-    let canvas = Rect::from_min_max(rect.min, pos2(dock.left() - 8.0, rect.bottom())).shrink(30.0);
-    drop_preview_with(&painter, group, &look, true);
-    drop_preview_with(&painter, canvas, &look, false);
-    drop_preview_with(&painter, edge, &look, false);
+    let dock = bar.union(icons);
+    let group = Rect::from_x_y_ranges(bar.x_range(), strip.top()..=rect.bottom());
+    let line = DockConfig::default().drop_line_width;
+    let (canvas, edge) =
+        if dock.center().x > rect.center().x { (rect.left()..=dock.left(), dock.left()) } else { (dock.right()..=rect.right(), dock.right() - line) };
+    tab_outline(&painter, group.shrink(1.0), &look);
+    tab_outline(&painter, Rect::from_x_y_ranges(canvas, rect.y_range()).shrink(1.0), &look);
+    painter.rect_filled(Rect::from_x_y_ranges(edge..=edge + line, rect.y_range()), look.marker_radius, look.drop);
 }
 
 /// An iconic column with the flyout of its first group open.

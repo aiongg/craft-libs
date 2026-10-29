@@ -21,7 +21,7 @@ pub(in crate::docking) use native::WindowDrag;
 #[cfg(all(test, feature = "native-windows"))]
 pub(in crate::docking) use {
     cross::DragPointer,
-    native::{APPKIT_CORNER, INACTIVE_PALETTE, MACOS_CLOSE, Session, appkit_resize_areas, close_rects, drag_opacity, resize_bands, session, wayland},
+    native::{APPKIT_CORNER, INACTIVE_PALETTE, Session, appkit_resize_areas, close_rects, drag_opacity, macos_close, resize_bands, session, wayland},
 };
 
 #[cfg(all(test, feature = "native-windows"))]
@@ -75,6 +75,7 @@ pub(in crate::docking) fn native_viewport(area: Id, window: u64) -> egui::Viewpo
 }
 
 pub(in crate::docking) use frame::{FrameState, view};
+pub(in crate::docking) use preview::tab_outline;
 
 pub(in crate::docking) use group::GroupKind;
 

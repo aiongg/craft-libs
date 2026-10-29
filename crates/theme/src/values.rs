@@ -4,7 +4,7 @@
 
 use super::color::Rgba;
 use super::ramp::Mode;
-use super::scale::{Duration, Easing, Radius};
+use super::scale::{Duration, Easing, Elevation, Radius};
 use super::theme::{Size, TextSize};
 use super::tokens::{
     BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, ListSizes, Pads, RadiusSet, RailSizes, SizeTokens, SpaceTokens, StatusKind,
@@ -498,6 +498,14 @@ pub const KNOB_RING: f32 = 2.0;
 /// Shadow alpha multiplier in dark mode, where shadows need more weight to show.
 pub const DARK_SHADOW_ALPHA_FACTOR: f32 = 1.5;
 
+/// `e` as drawn in `mode`: dark mode strengthens the shadow's alpha by [`DARK_SHADOW_ALPHA_FACTOR`].
+pub fn shadow_in_mode(e: Elevation, mode: Mode) -> Elevation {
+    match mode {
+        Mode::Light => e,
+        Mode::Dark => Elevation { alpha: (e.alpha * DARK_SHADOW_ALPHA_FACTOR).min(1.0), ..e },
+    }
+}
+
 /// Durations for hover feedback, opening and moving.
 pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Duration::Normal, Duration::Normal);
 /// Easing for every semantic motion.
@@ -598,6 +606,8 @@ pub const DOCK_TAB_FILL: f32 = 0.08;
 pub const DOCK_GRIP_ALPHA: f32 = 0.5;
 /// Width of a floating window's border.
 pub const FLOAT_BORDER_WIDTH: f32 = 1.0;
+/// Corner radius of a floating window by default: square, lifted by its shadow.
+pub const FLOAT_RADIUS: f32 = 0.0;
 
 /// The control height the Compact colour picker sizes are set for; other sizes scale them by
 /// their control height over this.

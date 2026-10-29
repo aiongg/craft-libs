@@ -201,14 +201,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if self.minimizes(owner) && response.double_clicked() {
             self.output.actions.push(Action::SetMinimized { panel: owner.selected.clone(), minimized: !owner.minimized });
         }
-        let active = response.has_focus() || response.hovered();
-        if active {
-            ui.painter().with_clip_rect(hit).rect_stroke(
-                hit.shrink(1.0),
-                0.0,
-                Stroke::new(self.look.focus_width, self.look.resize.gamma_multiply(self.look.grip_alpha)),
-                StrokeKind::Inside,
-            );
+        if let Some(color) = self.bar_outline(&response) {
+            ui.painter().with_clip_rect(hit).rect_stroke(hit.shrink(1.0), 0.0, Stroke::new(self.look.focus_width, color), StrokeKind::Inside);
         }
         let keyboard = response.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Space));
         let command = if response.secondary_clicked() || keyboard {
@@ -219,6 +213,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             None
         };
         egui::Popup::menu(&response).open_memory(command).show(|ui| self.group_menu(ui, owner, owner.selected));
+    }
+
+    /// The outline of a drag bar or column bar under the pointer (the handle's hover color) or
+    /// with keyboard focus (the focus color, which wins), `None` otherwise.
+    pub(super) fn bar_outline(&self, response: &egui::Response) -> Option<Color32> {
+        if response.has_focus() {
+            Some(self.look.focus)
+        } else if response.hovered() {
+            Some(self.look.resize.gamma_multiply(self.look.grip_alpha))
+        } else {
+            None
+        }
     }
 
     /// The wheel over a group's strip: down selects the next tab, up the previous, one tab per

@@ -10,6 +10,7 @@ use crate::docking::{
     Action, Column, DockContent, DockEvent, Floating, Group, HidePanels, Layout, Node, Placement, Target, Zone,
     dock_model::{Place, node_at, tree_panels},
 };
+use crate::theme::StrokeExt;
 
 /// How far below the pointer the float hint sits, clear of the cursor.
 const HINT_OFFSET: f32 = 28.0;
@@ -296,9 +297,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let key = if ctx.os() == egui::os::OperatingSystem::Mac { "⌘" } else { "Ctrl" };
         let painter = self.preview_painter(ctx);
         let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", key), self.look.font.clone(), self.look.text);
-        let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(12.0, 6.0));
+        let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(2.0 * self.look.pad, self.look.pad));
         let rect = crate::docking::chrome::clamp(rect, self.float_bounds);
-        painter.rect(rect, self.look.hint_radius, self.look.floating_background, egui::Stroke::new(1.0, self.look.drop), egui::StrokeKind::Inside);
+        painter.rect(
+            rect,
+            self.look.hint_radius,
+            self.look.floating_background,
+            craft_theme::scale::Stroke::W1.egui(ctx, self.look.drop),
+            egui::StrokeKind::Inside,
+        );
         painter.galley(rect.center() - galley.size() * 0.5, galley, self.look.text);
     }
 

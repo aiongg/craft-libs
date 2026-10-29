@@ -62,13 +62,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     let radius = seed.and_then(|s| s.radius).unwrap_or(preset.radius);
     let edge = seed.and_then(|s| s.edge).map_or(preset.edge, |e| e.resolve(&color));
 
-    let shadow = |level: usize| {
-        let e = Elevation::level(level);
-        match mode {
-            Mode::Light => e,
-            Mode::Dark => Elevation { alpha: (e.alpha * values::DARK_SHADOW_ALPHA_FACTOR).min(1.0), ..e },
-        }
-    };
+    let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);
     let (popup, dialog, floating) = values::ELEVATION_LEVELS;
     // A bevel is the relief of a raised control, so a bevelled knob lies flat.
     let knob = shadow(if matches!(edge, Edge::Bevel { .. }) { 0 } else { values::KNOB_ELEVATION });

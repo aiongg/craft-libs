@@ -117,8 +117,7 @@ fn a_drop_preview_follows_the_look() {
     assert_eq!(rects[1].fill, Color32::TRANSPARENT);
 }
 
-/// A resize cannot shrink the frame below its top band, the style's title bar and room for the
-/// contents, so the minimum height follows the style's title height.
+/// A resize cannot shrink the frame below the style's title bar and room for the contents, so the minimum height follows the style's title height.
 #[test]
 fn the_minimum_height_follows_the_title_height() {
     let minimum = |style: ChromeStyle| {
@@ -141,6 +140,74 @@ fn the_minimum_height_follows_the_title_height() {
     };
     let visuals = ChromeStyle::from_visuals(&egui::Visuals::dark());
     assert_eq!(visuals.title_height, super::chrome::TITLE_HEIGHT);
-    assert_eq!(minimum(visuals.clone()), super::chrome::RESIZE_BAND + super::chrome::TITLE_HEIGHT + 20.0);
-    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..visuals }), super::chrome::RESIZE_BAND + 18.0 + 20.0);
+    assert_eq!(minimum(visuals.clone()), super::chrome::TITLE_HEIGHT + 20.0);
+    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..visuals }), 18.0 + 20.0);
+}
+
+/// A resizable frame hands its contents the whole rect: the title bar starts at the frame's top,
+/// so its rounded top corners follow the frame's, and the resize band is a hit area over it.
+#[test]
+fn a_resizable_frame_with_a_radius_draws_its_title_bar_from_the_top() {
+    let radius = CornerRadius::same(6);
+    let style = ChromeStyle { radius, ..ChromeStyle::from_visuals(&egui::Visuals::dark()) };
+    let ctx = Context::default();
+    let id = Id::unique("frame");
+    let draw = || {
+        let mut contents = None;
+        let shapes = run(&ctx, vec![], |ui| {
+            FloatingFrame::new(id, RECT).show(ui.ctx(), &style, |ui, inner| {
+                contents = Some(inner);
+                let bar = Rect::from_min_size(inner.min, vec2(inner.width(), style.title_height));
+                TitleBar::new(id.with("title"), "Move").title("Title").show(ui, bar, &style);
+            });
+        });
+        (contents.unwrap(), rects(&shapes))
+    };
+    draw();
+    let (contents, shapes) = draw();
+    assert_eq!(contents, RECT);
+    let title = shapes.iter().find(|r| r.fill == style.title_background).expect("title bar");
+    assert_eq!(title.rect.top(), RECT.top());
+    assert_eq!(title.corner_radius, CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 });
+    let inset = style.body_inset();
+    assert!((inset - 6.0 * (1.0 - std::f32::consts::FRAC_1_SQRT_2)).abs() < 1e-6, "{inset}");
+    assert_eq!(ChromeStyle { radius: CornerRadius::ZERO, ..style }.body_inset(), 0.0);
+}
+
+/// A focused edge handle shows the focus stroke on its band; the corner grip turns to the focus
+/// color. Hover leaves the edge handles unpainted.
+#[test]
+fn a_focused_resize_handle_shows_the_focus_stroke() {
+    let style = ChromeStyle { focus: Color32::GOLD, focus_width: 2.0, ..ChromeStyle::from_visuals(&egui::Visuals::dark()) };
+    let ctx = Context::default();
+    let id = Id::unique("frame");
+    let draw = |ctx: &Context| run(ctx, vec![], |ui| drop(FloatingFrame::new(id, RECT).show(ui.ctx(), &style, |_, _| ())));
+    draw(&ctx);
+    assert!(rects(&draw(&ctx)).iter().all(|r| r.stroke.color != Color32::GOLD), "no focus yet");
+
+    ctx.memory_mut(|m| m.request_focus(id.with("resize-left")));
+    draw(&ctx);
+    let left = Rect::from_min_max(pos2(RECT.left(), RECT.top() + 12.0), pos2(RECT.left() + 4.0, RECT.bottom() - 12.0));
+    let focus = rects(&draw(&ctx)).into_iter().find(|r| r.rect == left).expect("the focused left handle is outlined");
+    assert_eq!((focus.stroke.color, focus.stroke.width), (Color32::GOLD, 2.0));
+
+    ctx.memory_mut(|m| m.request_focus(id.with("resize")));
+    draw(&ctx);
+    let shapes = draw(&ctx);
+    let grip = shapes.iter().find_map(|s| if let Shape::LineSegment { stroke, .. } = &s.shape { Some(*stroke) } else { None }).expect("grip");
+    assert_eq!(grip.color, Color32::GOLD);
+}
+
+/// `ChromeStyle::themed` mirrors the title bar in a right-to-left ui.
+#[test]
+fn the_themed_chrome_follows_the_direction_of_the_ui() {
+    let ctx = Context::default();
+    let themed = |ctx: &Context| {
+        let mut rtl = false;
+        run(ctx, vec![], |ui| rtl = ChromeStyle::themed(ui).right_to_left);
+        rtl
+    };
+    assert!(!themed(&ctx));
+    crate::direction::apply(&ctx, crate::direction::Direction::Rtl);
+    assert!(themed(&ctx));
 }

@@ -3,7 +3,7 @@ use std::{fmt::Debug, hash::Hash};
 use egui::{Context, Id, Key, Pos2, Rect, Ui, pos2, vec2};
 
 use super::{GroupKind, Renderer, clamp_float, node_limits};
-use crate::docking::chrome::{ChromeStyle, FloatingFrame, RESIZE_BAND, TitleBar};
+use crate::docking::chrome::{ChromeStyle, FloatingFrame, TitleBar};
 use crate::docking::{Action, DropProposal, Floating, GroupDrag, GroupGesture, Node, PanelLimits, Placement, Target};
 
 pub(in crate::docking) use crate::docking::chrome::RESIZE_HANDLES;
@@ -37,14 +37,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// Size limits of a floating window: its title bar and, unless it is minimized, its tree.
     pub(super) fn window_limits(&self, window: &Floating<P>) -> PanelLimits {
-        let chrome = self.window_chrome(window);
+        let chrome = self.window_chrome();
         let tree = node_limits(&window.root, self.config, self.look, &*self.content);
         let body = match window.minimized {
             true => (self.minimized_body(window), self.minimized_body(window)),
             false => (tree.min.y, tree.max.y),
         };
-        let min = vec2(tree.min.x, chrome + body.0).min(vec2(1_000_000.0, 1_000_000.0));
-        PanelLimits { min, max: vec2(tree.max.x, chrome + body.1).max(min).min(vec2(1_000_000.0, 1_000_000.0)) }
+        let sides = 2.0 * self.body_inset();
+        let min = vec2(tree.min.x + sides, chrome + body.0).min(vec2(1_000_000.0, 1_000_000.0));
+        PanelLimits { min, max: vec2(tree.max.x + sides, chrome + body.1).max(min).min(vec2(1_000_000.0, 1_000_000.0)) }
     }
 
     /// The height of a minimized window's body: the tab strip of its only group, or nothing.
@@ -52,10 +53,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if matches!(window.root, Node::Tabs { .. }) { self.look.tab_height } else { 0.0 }
     }
 
-    /// The title bar and, for a movable (resizable) window, the resize band above it.
-    fn window_chrome(&self, window: &Floating<P>) -> f32 {
-        let band = if window.panels().all(|panel| self.permissions(panel).movable) { RESIZE_BAND } else { 0.0 };
-        band + self.look.title_height
+    /// The title bar and the inset below the body that keeps its corners inside a rounded frame.
+    fn window_chrome(&self) -> f32 {
+        self.look.title_height + self.body_inset()
+    }
+
+    /// How far a window's body sits inside the frame's side and bottom edges.
+    fn body_inset(&self) -> f32 {
+        ChromeStyle::from_look(self.look, self.config).body_inset()
+    }
+
+    /// The part of a window's `frame` below the title bar that the tree fills.
+    fn body_of(&self, frame: Rect) -> Rect {
+        let inset = self.body_inset();
+        let top = (frame.top() + self.look.title_height).min(frame.bottom());
+        Rect::from_min_max(pos2(frame.left() + inset, top), pos2(frame.right() - inset, frame.bottom() - inset))
     }
 
     /// Where a floating window draws its tree, as [`Self::floating_window`] places it.
@@ -64,7 +76,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let limits = self.window_limits(window);
         let size = vec2(width, height).max(limits.min).min(limits.max);
         let rect = crate::docking::chrome::clamp(Rect::from_min_size(pos2(x, y), size), self.float_bounds);
-        Rect::from_min_max(pos2(rect.left(), (rect.top() + self.window_chrome(window)).min(rect.bottom())), rect.max)
+        self.body_of(rect)
     }
 
     fn floating_window(&mut self, ctx: &Context, window: &Floating<P>, screen: Rect) {
@@ -85,7 +97,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             FloatingFrame::new(id, rect).bounds(screen).limits(limits).resizable(movable).resize_label(&resize_label).opacity(opacity).show(
                 ctx,
                 &style,
-                |ui, contents| self.window_contents(ui, window, contents, rect, &style),
+                |ui, _| self.window_contents(ui, window, rect, &style),
             );
         for handle in &response.handles {
             self.register_interaction(ctx, handle.id);
@@ -118,13 +130,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if moving && highlighted { super::DRAG_OPACITY } else { 1.0 }
     }
 
-    /// The title bar, then the window's tree below it, in `contents`. Moves carry the whole
-    /// `frame`, resize band included.
-    fn window_contents(&mut self, ui: &mut Ui, window: &Floating<P>, contents: Rect, frame: Rect, style: &ChromeStyle) {
-        let title = Rect::from_min_max(contents.min, pos2(contents.right(), (contents.top() + self.look.title_height).min(contents.bottom())));
+    /// The title bar, then the window's tree below it, in `frame`; the resize band lies over the
+    /// title bar's top edge. Moves carry the whole `frame`.
+    fn window_contents(&mut self, ui: &mut Ui, window: &Floating<P>, frame: Rect, style: &ChromeStyle) {
+        let title = Rect::from_min_max(frame.min, pos2(frame.right(), (frame.top() + self.look.title_height).min(frame.bottom())));
         self.title_bar(ui, window, title, frame, style);
-        let body = Rect::from_min_max(pos2(contents.left(), title.bottom()), contents.max);
-        self.floating_body(ui, window, body, frame);
+        self.floating_body(ui, window, self.body_of(frame), frame);
     }
 
     /// A floating window's tree in `body`, like the docked layout's: splits, groups, dividers

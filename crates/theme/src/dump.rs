@@ -668,8 +668,8 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         ("drop_width", drop_width),
         ("focus_width", focus_width),
         ("marker_radius", marker_radius),
-        ("icon_radius", icon_radius),
-        ("hint_radius", hint_radius),
+        ("icon.radius", icon_radius),
+        ("hint.radius", hint_radius),
     ] {
         out.line(&format!("dock.{k}"), len(*v));
     }
@@ -683,8 +683,8 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         ("border", border),
         ("resize", resize),
         ("drop", drop),
-        ("icon_selected", icon_selected),
-        ("icon_selected_text", icon_selected_text),
+        ("icon.selected", icon_selected),
+        ("icon.selected.text", icon_selected_text),
     ] {
         out.line(&format!("dock.{k}"), hex(*c));
     }
@@ -704,8 +704,8 @@ fn float_lines(out: &mut Lines, t: &FloatTokens) {
         ("border", border),
         ("blocked", blocked),
         ("title", title),
-        ("title_text", title_text),
-        ("title_muted", title_muted),
+        ("title.text", title_text),
+        ("title.muted", title_muted),
         ("grip", grip),
         ("focus", focus),
     ] {

@@ -22,6 +22,7 @@ fn compact_tokens_reproduce_the_literal_sizes() {
         let visuals = DockLook::from_visuals(&egui::Visuals::default());
         assert_eq!(tokens.tab_height, visuals.tab_height);
         assert_eq!(tokens.gap, visuals.gap);
+        assert_eq!(tokens.pad, visuals.pad);
         assert_eq!(tokens.tab_padding, visuals.tab_padding);
         assert_eq!(tokens.border.width, visuals.border.width);
         assert_eq!(tokens.floating_stroke.width, visuals.floating_stroke.width);

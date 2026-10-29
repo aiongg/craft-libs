@@ -14,12 +14,11 @@ use crate::docking::{
     is_dragging,
     targets::{DockDrop, DockTarget, horizontal_line, usable},
 };
+use crate::theme::StrokeExt;
 
 /// How far an icon group's drag band reaches into its first icon. The band also covers the
 /// separator room above the group; it reserves no height of its own.
 const GROUP_BAND: f32 = 4.0;
-/// Room between two icon groups, with the separator line in its middle.
-const SEPARATOR: f32 = 7.0;
 /// Height of a flyout, or of a panel floated from an icon, when nothing else sizes it.
 const FLYOUT_HEIGHT: f32 = 320.0;
 
@@ -118,7 +117,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             open_flyout(ui.ctx(), self.id, panel.clone());
         }
         let total: f32 =
-            column.groups.iter().map(|g| self.icon_group_height(g)).sum::<f32>() + column.groups.len().saturating_sub(1) as f32 * SEPARATOR;
+            column.groups.iter().map(|g| self.icon_group_height(g)).sum::<f32>() + column.groups.len().saturating_sub(1) as f32 * self.separator();
         if total > body.height() + 0.5 {
             let Some(first) = column.groups.first().and_then(|g| g.panels.first()) else { return };
             let mut child =
@@ -137,21 +136,27 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
     }
 
+    /// Room between two icon groups: a pad around the separator line, which is a border wide.
+    fn separator(&self) -> f32 {
+        self.look.pad + self.look.border.width
+    }
+
     /// Icon groups in `area` (the scrolled content when the column scrolls), their drop bands
     /// clipped to the visible `view`.
     fn icon_groups(&mut self, ui: &mut Ui, column: &Column<P>, area: Rect, view: Rect, edge: Edge) {
         let open = flyout::<P>(ui.ctx(), self.id);
         let labels = view.width() >= self.config.iconic_label_width;
         let xs = view.x_range();
+        let separator = self.separator();
         let mut top = area.top();
         let mut bands = Vec::new();
         for (index, group) in column.groups.iter().enumerate() {
             let Some(first) = group.panels.first() else { continue };
             let band_top = if index > 0 { top } else { area.top() };
             if index > 0 {
-                let y = top + SEPARATOR * 0.5;
-                ui.painter().with_clip_rect(view).hline(area.x_range().shrink(4.0), y, self.look.border);
-                top += SEPARATOR;
+                let y = top + separator * 0.5;
+                ui.painter().with_clip_rect(view).hline(area.x_range().shrink(self.look.gap), y, self.look.border);
+                top += separator;
             }
             let rect = Rect::from_min_size(pos2(area.left(), top), vec2(area.width(), self.icon_group_height(group)));
             let showing = open.as_ref().filter(|p| group.panels.contains(p));
@@ -176,8 +181,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let count = bands.len();
         for (index, (anchor, rect)) in bands.into_iter().enumerate() {
             let middle = rect.center().y;
-            let upper_top = if index == 0 { view.top() } else { rect.top() - SEPARATOR * 0.5 };
-            let lower_bottom = if index + 1 == count { view.bottom() } else { rect.bottom() + SEPARATOR * 0.5 };
+            let upper_top = if index == 0 { view.top() } else { rect.top() - separator * 0.5 };
+            let lower_bottom = if index + 1 == count { view.bottom() } else { rect.bottom() + separator * 0.5 };
             for (below, ys, line) in [(false, upper_top..=middle, rect.top()), (true, middle..=lower_bottom, rect.bottom())] {
                 let band = Rect::from_x_y_ranges(xs, ys).intersect(view);
                 if usable(band) {
@@ -241,15 +246,19 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 egui::Image::new(source).tint(color).paint_at(ui, icon.intersect(cell));
             } else {
                 let initial: String = label.chars().next().into_iter().flat_map(char::to_uppercase).collect();
-                painter.rect_stroke(icon, self.look.icon_radius, Stroke::new(1.0, color), StrokeKind::Inside);
+                painter.rect_stroke(icon, self.look.icon_radius, craft_theme::scale::Stroke::W1.egui(ui.ctx(), color), StrokeKind::Inside);
                 painter.text(icon.center(), egui::Align2::CENTER_CENTER, initial, self.look.font.clone(), color);
             }
         }
         if labels {
             let text = self.content.label(ui, panel, &label, &self.look.font, color);
-            let galley =
-                text.into_galley(ui, Some(egui::TextWrapMode::Truncate), (cell.right() - icon.right() - 12.0).max(0.0), self.look.font.clone());
-            painter.galley(pos2(icon.right() + 6.0, cell.center().y - galley.size().y * 0.5), galley, color);
+            let galley = text.into_galley(
+                ui,
+                Some(egui::TextWrapMode::Truncate),
+                (cell.right() - icon.right() - 2.0 * self.look.pad).max(0.0),
+                self.look.font.clone(),
+            );
+            painter.galley(pos2(icon.right() + self.look.pad, cell.center().y - galley.size().y * 0.5), galley, color);
         } else if response.hovered() && !response.dragged() {
             response.clone().on_hover_text(&label);
         }
