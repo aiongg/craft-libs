@@ -575,6 +575,26 @@ fn values_outside_the_range_draw_at_the_ends_and_one_that_is_not_finite_begins_n
     assert_eq!(rig.output_event, Some(EditEvent::Cancel { id, reason: CancelReason::Disabled }), "disabling mid-drag cancels");
 }
 
+/// An unset (NaN) value is reported to a screen reader as mixed: no value, the bounds, and both
+/// steps offered; an Increment sets it from where its thumb is drawn.
+#[test]
+fn a_thumb_whose_value_is_not_finite_is_reported_mixed() {
+    let mut rig = Rig::new([10.0, f64::NAN, 200.0], [0.0, 255.0]);
+    let gamma = &rig.nodes[&rig.id(0, 1)];
+    assert_eq!((gamma.numeric_value(), gamma.min_numeric_value(), gamma.max_numeric_value()), (None, Some(0.01), Some(9.99)));
+    assert!(gamma.supports_action(Action::Increment) && gamma.supports_action(Action::Decrement));
+    assert_eq!(rig.nodes[&rig.id(0, 0)].numeric_value(), Some(10.0), "a set value keeps its value");
+    let increment = Event::AccessKitActionRequest(ActionRequest {
+        action: Action::Increment,
+        target_tree: TreeId::ROOT,
+        target_node: rig.id(0, 1).accesskit_id(),
+        data: None,
+    });
+    rig.frame(vec![increment]);
+    let Some(EditEvent::Set { value, .. }) = &rig.input_event else { panic!("{:?}", rig.input_event) };
+    assert!(value[1].is_finite(), "{value:?}");
+}
+
 #[test]
 fn each_thumb_is_a_named_slider_and_a_tab_stop_in_row_order() {
     let mut rig = Rig::new([20.0, 1.5, 200.0], [0.0, 255.0]);

@@ -544,7 +544,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let shown = outer.shown().clone();
         let mut edits = Edits::new(id, &state.parts);
         let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
-        edits.push(&bar.edit, |stops| stops);
+        edits.push_from(&bar.edit, &shown, |stops| stops);
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();

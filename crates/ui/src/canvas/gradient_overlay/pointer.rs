@@ -252,15 +252,14 @@ impl GradientOverlay<'_> {
     /// itself need no identity.
     fn carry_on(&self, d: &mut Drag, start: &LineGradient, gesture: &mut Gesture<LineGradient>, sel: &mut Selection) {
         let (old, new) = (&d.base.stops.color, &start.stops.color);
-        let tag = |row: &[crate::composites::ColorStop], i: usize| row.get(i).map(|s| s.tag);
         let found = match d.part {
             LinePart::Start | LinePart::End | LinePart::Line => Some(d.part),
             _ if old.len() != new.len() => None,
             LinePart::Stop(i) => match sel.selected {
-                Some(StopRef::Color(k)) if tag(new, k).is_some() && (d.copy || tag(new, k) == tag(old, i)) => Some(LinePart::Stop(k)),
+                Some(StopRef::Color(k)) if k < new.len() && (d.copy || stops::same_stop(old, i, new, k)) => Some(LinePart::Stop(k)),
                 _ => None,
             },
-            LinePart::Midpoint(i) => (tag(new, i) == tag(old, i) && tag(new, i + 1) == tag(old, i + 1)).then_some(d.part),
+            LinePart::Midpoint(i) => (stops::same_stop(old, i, new, i) && stops::same_stop(old, i + 1, new, i + 1)).then_some(d.part),
         };
         match found {
             Some(part) => {

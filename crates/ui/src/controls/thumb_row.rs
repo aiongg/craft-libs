@@ -150,7 +150,7 @@ impl Thumb {
 /// them.
 ///
 /// - Each thumb is a Tab stop and an AccessKit `Slider` named by its label, with its value and
-///   bounds.
+///   bounds; a value that isn't finite (an unset gamma) is reported as mixed, with no value.
 /// - Pointer (primary button): a press within `levels.hit` of a thumb grabs it, so it moves with
 ///   the pointer and doesn't jump; a press elsewhere moves the nearest thumb there. Where thumbs
 ///   overlap under the press, the drag's direction picks: left the first of them in row order,
@@ -456,14 +456,20 @@ impl<const N: usize> ThumbRow<N> {
         let thumb_rect = |x: f32| Rect::from_min_size(pos2(x - style.thumb.x / 2.0, rect.top()), style.thumb);
         let thumbs: [Response; N] = std::array::from_fn(|i| {
             let (lo, hi) = layout.bounds(&shown, i);
-            Interactive::new(id.with(("thumb", i)), Role::Slider, rules.thumbs[i].label.as_str())
+            let sensed = Interactive::new(id.with(("thumb", i)), Role::Slider, rules.thumbs[i].label.as_str())
                 .sense(Sense::FOCUSABLE)
                 .enabled(sensing.enabled)
                 .state_layer(false)
                 .focus_ring(false)
-                .interact_at(ui, thumb_rect(xs[i]))
-                .numeric(shown[i], lo..=hi, layout.scale_of(i).key_step())
-                .finish(ui)
+                .interact_at(ui, thumb_rect(xs[i]));
+            // A value that isn't finite (an unset gamma) is drawn where its thumb says but reported
+            // as mixed, with no value.
+            let step = layout.scale_of(i).key_step();
+            match values[i].is_finite() {
+                true => sensed.numeric(shown[i], lo..=hi, step),
+                false => sensed.numeric_mixed(lo..=hi, step),
+            }
+            .finish(ui)
         });
         if let Some(thumb) = focus
             && !ui.memory(|m| m.has_focus(thumb))

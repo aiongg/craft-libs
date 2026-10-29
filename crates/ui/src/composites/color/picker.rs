@@ -533,14 +533,14 @@ impl<'a> ColorPicker<'a> {
                 .enabled(inner.enabled)
                 .part(true)
                 .show(ui);
-            edits.push(&area, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
+            edits.push_from(&area, &values, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
             let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, values)
                 .size(vec2(strip, area.response.rect.height()))
                 .policy(inner.policy)
                 .enabled(inner.enabled)
                 .part(true)
                 .show(ui);
-            edits.push(&strip, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
+            edits.push_from(&strip, &values, |v| shown.with_values(&v, v.values.map(f64::from), constrain));
         });
     }
 
