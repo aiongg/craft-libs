@@ -900,3 +900,46 @@ fn high_contrast_control_edges_reach_three_to_one() {
         }
     }
 }
+
+/// `surface.chrome` is PhotoCraft's `chrome`: the panel's colour where PhotoCraft's chrome equals
+/// its card, pinned to its own value in the Studio, Adwaita dark, Breeze, and Soft themes.
+#[test]
+fn chrome_is_the_panel_except_where_photocraft_pins_its_own() {
+    let hex = |s: &str| Rgba::from_hex(s).unwrap();
+    let pinned = [
+        ("craft.studio", Mode::Dark, "#141415"),
+        ("craft.studio", Mode::Light, "#f6f6f8"),
+        ("craft.adwaita", Mode::Dark, "#2e2e32"),
+        ("craft.breeze", Mode::Light, "#dbdee2"),
+        ("craft.breeze", Mode::Dark, "#262a30"),
+        ("craft.soft", Mode::Dark, "#3a3a44"),
+        ("craft.soft", Mode::Light, "#e8e6ec"),
+    ];
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
+                continue;
+            }
+            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
+            let chrome = t.color(ColorToken::SurfaceChrome);
+            match pinned.iter().find(|(id, m, _)| *id == theme.id.as_str() && *m == mode) {
+                Some((_, _, value)) => assert_eq!(chrome, hex(value), "{} {mode:?}", theme.id),
+                None => assert_eq!(chrome, t.color(ColorToken::SurfacePanel), "{} {mode:?}", theme.id),
+            }
+            assert_eq!(TokenRef::from_path("surface.chrome"), Some(TokenRef::Color(ColorToken::SurfaceChrome)));
+        }
+    }
+}
+
+/// Panel scroll areas are PhotoCraft's thin bars, solid in the bevelled Classic theme; canvas bars
+/// are 12 points with a 3 point thumb inset and a 24 point thumb.
+#[test]
+fn scroll_bars_are_photocraft_thin_bars_and_classic_solid() {
+    for theme in builtins() {
+        let t = resolve(theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens;
+        let s = &t.component.scroll;
+        assert_eq!(s.solid, theme.id.as_str() == "craft.classic", "{}", theme.id);
+        assert_eq!((s.floating_width, s.handle_opacity, s.track_opacity), (4.0, 1.0, 0.4), "{}", theme.id);
+        assert_eq!((s.canvas_width, s.thumb_inset, s.thumb_min), (12.0, 3.0, 24.0), "{}", theme.id);
+    }
+}

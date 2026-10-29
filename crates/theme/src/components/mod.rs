@@ -38,6 +38,7 @@ mod property;
 mod readout;
 mod ref_point;
 mod ruler;
+mod scroll;
 mod section;
 mod segmented;
 mod slider;
@@ -90,6 +91,7 @@ pub use property::{PropertyField, PropertyTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
 pub use ruler::{RulerField, RulerTokens};
+pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
@@ -654,6 +656,8 @@ families! {
     ref_point: RefPointTokens => RefPoint(RefPointField);
     /// Rulers along the top and left of a canvas.
     ruler: RulerTokens => Ruler(RulerField);
+    /// Scroll bars: the thin bars of panel scroll areas and the bars of a canvas.
+    scroll: ScrollTokens => Scroll(ScrollField);
     /// Section headers: the row, chevron and title of a collapsible section.
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options as separate pills.

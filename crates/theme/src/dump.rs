@@ -12,9 +12,9 @@ use crate::{
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
     PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens,
-    SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle,
-    TypeTokens,
+    ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes,
+    TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole,
+    TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -247,6 +247,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         readout,
         ref_point,
         ruler,
+        scroll,
         section,
         segmented,
         slider,
@@ -290,6 +291,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     readout_lines(out, readout);
     ref_point_lines(out, ref_point);
     ruler_lines(out, ruler);
+    scroll_lines(out, scroll);
     section_lines(out, section);
     segmented_lines(out, segmented);
     slider_lines(out, slider);
@@ -1053,6 +1055,17 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.step_min", len(*step_min));
     out.line("ruler.tick_mid", len(*tick_mid));
     out.line("ruler.tick_minor", len(*tick_minor));
+}
+
+fn scroll_lines(out: &mut Lines, s: &ScrollTokens) {
+    let ScrollTokens { solid, floating_width, handle_opacity, track_opacity, canvas_width, thumb_inset, thumb_min } = s;
+    out.line("scroll.solid", solid);
+    out.line("scroll.floating_width", len(*floating_width));
+    out.line("scroll.handle_opacity", len(*handle_opacity));
+    out.line("scroll.track_opacity", len(*track_opacity));
+    out.line("scroll.canvas_width", len(*canvas_width));
+    out.line("scroll.thumb_inset", len(*thumb_inset));
+    out.line("scroll.thumb_min", len(*thumb_min));
 }
 
 fn cursor_lines(out: &mut Lines, c: &CursorTokens) {

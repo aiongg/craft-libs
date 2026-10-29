@@ -92,11 +92,12 @@ High contrast meets every minimum below: it moves pinned values that miss one. S
 
 | Pair | Standard | High |
 |---|---|---|
-| `text.normal`, `text.muted`, `text.faint` on surfaces, `state.hover` and `state.pressed` | 4.5 | 7 |
+| `text.normal`, `text.muted`, `text.faint` on surfaces (background, panel, chrome, raised, sunken), `state.hover` and `state.pressed` | 4.5 | 7 |
 | `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill, the active and chosen row of a popup list or menu (`listbox.active.text` on `listbox.active.fill`, `menu.active.text` on `menu.active.fill`) | 4.5 | 7 |
 | `text.on_strong` on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed` (solid accent badges) | 4.5 | 7 |
 | Control boundaries: the rest and hover borders of a field (`field.border.*`) and of a secondary button (`button.secondary.border.*`, or its fill) on `surface.panel` and `surface.raised`; the slider track (`slider.track`) on the same two, and the slider fill on the track; the active row of a popup list or menu (`listbox.active.fill`, `menu.active.fill`) on `popup.fill` | 0 (listed, never warned; the active row 1.12) | 3 |
+| The thumb of a canvas scroll bar (`text.faint`, `text.muted`) on its track (`surface.chrome`) | 0 (listed, never warned) | 3 |
 | `line.focus` on control backgrounds; `line.mark` (slider marks and ticks, the badge ring) on the control surfaces, `state.hover` and `state.pressed`; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
 
 The hover fill of a list or tree row (`list.hover`; the mouse cue must always show) is at least 1.12:1 from the rest surface (`surface.panel`) and from the selected fill. Its default is `state.hover` at half opacity (a translucent `state.hover` as it is), moved along OKLCH lightness to the nearest step that satisfies this and keeps `text.normal` readable; a pinned value is measured and reported. The active row of a popup list or menu (`listbox.active.fill`, `menu.active.fill`) is `accent.solid`, 1.12:1 from the popup card (`popup.fill`, `surface.panel`).

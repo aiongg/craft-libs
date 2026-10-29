@@ -20,7 +20,7 @@ use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
 /// - `Spacing`: `indent`, `interact_size.x`, `slider_width`, `slider_rail_height`, `combo_width`,
 ///   `text_edit_width`, `extra_text_line_spacing`, `icon_width_inner`, `default_area_size`,
 ///   `menu_width`, `menu_spacing`, `indent_ends_with_horizontal_line`,
-///   `combo_height`, `scroll`.
+///   `combo_height`.
 /// - `Style`: everything outside `visuals`, `spacing`, `text_styles` and `animation_time`
 ///   (interaction but `tooltip_delay`, wrapping, number formatting, scroll animation, debug
 ///   options, direction). `TextStyle::Name` styles are not added.
@@ -50,10 +50,27 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.icon_width = size.icon.sm;
     s.icon_spacing = space.gap.inline;
     s.tooltip_width = tokens.component.tooltip.max_width;
+    s.scroll = scroll_style(&tokens.component.scroll);
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
     style.interaction.tooltip_delay = crate::controls::Tooltip::DELAY;
     style
+}
+
+/// Panel scroll areas: thin floating bars whose handle stays visible under the pointer, or solid
+/// bars where the theme bevels. egui paints a bar's track in `extreme_bg_color` (`surface.sunken`)
+/// and its handle in `widgets.{inactive,hovered,active}.bg_fill`: the field fill, `state.hover`
+/// and `state.pressed`.
+fn scroll_style(scroll: &craft_theme::ScrollTokens) -> egui::style::ScrollStyle {
+    if scroll.solid {
+        return egui::style::ScrollStyle::solid();
+    }
+    egui::style::ScrollStyle {
+        floating_width: scroll.floating_width,
+        interact_handle_opacity: scroll.handle_opacity,
+        interact_background_opacity: scroll.track_opacity,
+        ..egui::style::ScrollStyle::thin()
+    }
 }
 
 /// Whether the text is lighter than the panel: tokens don't name their mode.
@@ -86,7 +103,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     v.window_fill = c.surface.panel.to_egui();
     v.window_stroke = stroke(1.0, c.line.border);
     v.menu_corner_radius = corner_radius(radius.popup);
-    v.panel_fill = c.surface.panel.to_egui();
+    v.panel_fill = c.surface.chrome.to_egui();
     v.popup_shadow = super::tokens::popup_shadow(tokens);
     v.resize_corner_size = tokens.size.icon.sm;
     v.text_cursor = TextCursorStyle { stroke: Stroke { color: c.text.normal.to_egui(), ..v.text_cursor.stroke }, ..v.text_cursor };
@@ -119,7 +136,13 @@ fn widgets(tokens: &Tokens, colors: &ButtonColors) -> Widgets {
             corner_radius: corner_radius(tokens.shape.radius.control),
             expansion: 0.0,
         },
-        inactive: state(defaults.inactive, fill.rest.to_egui(), border.rest.to_egui(), text.rest.to_egui()),
+        // `bg_fill` is what egui draws a scroll bar's handle, a slider rail and a check box in at rest:
+        // the field fill, since the secondary button's rest fill can be clear (`weak_bg_fill` is
+        // the button's).
+        inactive: WidgetVisuals {
+            bg_fill: c.surface.sunken.to_egui(),
+            ..state(defaults.inactive, fill.rest.to_egui(), border.rest.to_egui(), text.rest.to_egui())
+        },
         hovered: state(defaults.hovered, fill.hover.to_egui(), border.hover.to_egui(), text.hover.to_egui()),
         active: state(defaults.active, fill.pressed.to_egui(), border.pressed.to_egui(), text.pressed.to_egui()),
         open: state(defaults.open, fill.pressed.to_egui(), border.pressed.to_egui(), text.rest.to_egui()),

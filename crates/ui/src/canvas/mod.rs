@@ -14,6 +14,8 @@
 //! - [`Readout`]: labelled values beside the pointer during a gesture.
 //! - [`RulerUnits`]: the ruler unit of a document axis, for ruler ticks and guide values.
 //! - [`Rulers`]: the strips along the top and left of a canvas, with the zero point's corner.
+//! - [`CanvasScrollbars`]: the bars along the bottom and right of a canvas, and the clamp that keeps
+//!   the view on the document when overscroll is off.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
@@ -63,6 +65,7 @@ pub mod quad;
 mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
+mod scrollbars;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
@@ -93,6 +96,7 @@ pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
 pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
 pub use turn::{
