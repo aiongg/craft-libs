@@ -742,6 +742,36 @@ fn an_arrow_on_the_graph_during_a_field_scrub_keeps_the_scrubs_value() {
     assert_eq!(undo, Some(2), "the scrub and the arrow, one step each");
 }
 
+/// An arrow on the graph in the same pass as an update of the Input field's scrub doesn't go out
+/// with the update: the fields draw from the editor's shown curve, not the graph's, so the
+/// update carries only the scrub's input and the arrow waits for the release.
+#[test]
+fn an_arrow_on_the_graph_in_a_field_scrubs_update_pass_waits_for_the_release() {
+    let mut harness = harness(Host::with_undo(&THREE), Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    harness.state_mut().clear();
+    let start = input_field(&harness);
+    press(&mut harness, start);
+    move_to(&mut harness, start + vec2(10.0, 0.0));
+    let to = start + vec2(20.0, 0.0);
+    harness.input_mut().events.extend([
+        Event::PointerMoved(to),
+        Event::Key { key: Key::ArrowUp, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE },
+    ]);
+    harness.step();
+    let points = harness.state().points();
+    assert!(points[1][0] > 128.0, "the scrub's update went out: {points:?}");
+    assert_eq!(points[1][1], 128.0, "the arrow waits: {:?}", harness.state().kinds());
+    release(&mut harness, to);
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    assert_eq!(harness.state().points()[1][1], 129.0, "the arrow applies after the release");
+    let undo = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(undo, Some(2), "the scrub and the arrow, one step each");
+}
+
 /// A held graph curve applies its change to the curve of its turn: the levels it moved, the point
 /// it added or removed. A change it can't apply there (inputs out of order, two points added, a
 /// curve of its turn with other points) gives none.

@@ -451,6 +451,35 @@ fn a_screen_reader_step_on_a_row_during_a_field_scrub_keeps_the_scrubs_value() {
     assert_eq!(steps, Some(2), "the scrub and the step, one undo step each");
 }
 
+/// A screen reader's step on the black thumb during a scrub of the black field waits for the
+/// release without disturbing the scrub: the field draws from the editor's value, which the
+/// waiting step isn't in, so the field sees no outside change of its value.
+#[test]
+fn a_held_row_step_on_the_scrubbed_value_leaves_the_scrub_running() {
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    let field = node(&harness, Role::SpinButton, "Input black").rect().center();
+    press(&mut harness, field);
+    for dx in [20.0, 40.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    let (target, tree) = node(&harness, Role::Slider, "Input black").accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+        action: egui::accesskit::Action::Increment,
+        target_tree: tree,
+        target_node: target,
+        data: None,
+    }));
+    harness.step();
+    harness.step();
+    for dx in [60.0, 80.0] {
+        move_to(&mut harness, field + vec2(dx, 0.0));
+    }
+    release(&mut harness, field + vec2(80.0, 0.0));
+    let kinds = harness.state().kinds();
+    assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+}
+
 /// A screen reader's step on the black thumb during a scrub of the white field that ends closer
 /// to black than the step allows: the held step keeps the thumbs' order on the row of its turn,
 /// as a drag of the thumb would stop at white less the gap, so it moves nothing.

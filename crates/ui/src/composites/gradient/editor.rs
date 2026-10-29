@@ -545,23 +545,36 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let mut edits = Edits::new(id, &state.parts);
         let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
         edits.push_from(&bar.edit, &shown, |stops| stops);
+        // The fields, the popover and Delete draw from the bar's stops of this pass and map onto
+        // them, unless the bar's edit waits for another part's gesture: it isn't in the editor's
+        // value then, so they draw from the shown stops, and the selection stays where it was
+        // before the edit.
+        let scoped = edit::in_scope(ui);
+        let waits = bar.edit.event.is_some() && !edits.applies(&outer, scoped, bar.edit.response.id);
+        let drawn = match waits {
+            false => &bar.value,
+            true => {
+                state.selected = before;
+                &shown
+            }
+        };
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
         if self.fields {
-            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
+            (requested, picker) = self.fields_row(ui, id, drawn, &mut state, &mut edits, enabled, requested);
         } else if self.color_popover {
-            picker = self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
+            picker = self.popover(ui, bar.edit.response.clone(), drawn, &mut state, &mut edits, enabled, requested);
         }
         for () in edits.inputs(ui.ctx(), &mut state.parts) {
             if let Some(m) = state.selected.filter(|m| m.is_stop())
-                && let Some((stops, j)) = stops::remove(&bar.value, m.row(), m.index(), &self.rules)
+                && let Some((stops, j)) = stops::remove(drawn, m.row(), m.index(), &self.rules)
             {
                 state.selected = Some(StopRef::stop(m.row(), j));
                 edits.set(stops);
             }
         }
-        let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
+        let outer = edits.feed(outer, &mut state.parts, scoped);
         if !active && outer.is_active() {
             state.start_selected = before;
         }

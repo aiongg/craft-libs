@@ -461,7 +461,9 @@ impl<'a> TransformFields<'a> {
             });
         });
 
-        // Each field's value applies to the row the fields before it in this pass left.
+        // Each field's value applies to the row the fields before it in this pass left, with the
+        // values that go out in this pass: one that waits for another field's gesture isn't in it.
+        let scoped = edit::in_scope(ui);
         let mut edits = parts::Edits::<TransformRow>::new(id, &kept.parts);
         let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
         let mut running = shown;
@@ -469,11 +471,14 @@ impl<'a> TransformFields<'a> {
             let (which, base) = (*which, running);
             edits.typing(ui.ctx(), edit, |value| convert.row(&base, which, value));
             if let Some(&value) = edit.event.as_ref().and_then(EditEvent::value) {
-                running = convert.row(&base, which, value);
-                values.push((which, value, running));
+                let row = convert.row(&base, which, value);
+                if edits.applies(&outer, scoped, edit.response.id) {
+                    running = row;
+                }
+                values.push((which, value, row));
             }
         }
-        let outer = edits.feed(outer, &mut kept.parts, edit::in_scope(ui));
+        let outer = edits.feed(outer, &mut kept.parts, scoped);
         if let Some(gesture) = outer.id() {
             for (which, value, row) in values {
                 kept.reported[which as usize] = Some((gesture, value, row));
