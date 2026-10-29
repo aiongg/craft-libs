@@ -198,6 +198,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
                 Same(T::LineControlEdge)
             }
         }
+        // The contrast pass moves it to the non-text minimum on the control surfaces.
+        T::LineMark => Neutral(8),
         T::LineFocus => Accent(9),
         T::AccentSolid => Accent(9),
         T::AccentHover => Accent(SOLID_HOVER),
@@ -320,6 +322,10 @@ const SELECTED_BGS: &[Bg] = &[Token(T::StateSelected), Token(T::StateSelectedHov
 const CONTROL_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
 /// The focus line also marks focus on the title bars and tab strips, which sit on the background.
 const FOCUS_BGS: &[Bg] = &[Token(T::SurfaceBackground), Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken)];
+/// Where a mark or a badge ring is drawn: control surfaces and the hover and pressed fills. The
+/// selected fills are left out: no single colour reaches the minimum on both a light panel and
+/// Classic's dark selection fill.
+const MARK_BGS: &[Bg] = &[Token(T::SurfacePanel), Token(T::SurfaceRaised), Token(T::SurfaceSunken), Token(T::StateHover), Token(T::StatePressed)];
 const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 
 /// Every contrast pair, in the order the contrast pass fixes them: fills that serve as
@@ -327,6 +333,7 @@ const HALO_BGS: &[Bg] = &[HaloOver(Rgba::BLACK), HaloOver(Rgba::WHITE)];
 pub(super) const RULES: &[PairRule] = &[
     rule(&[T::LineFocus], FOCUS_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::AccentSolid], CONTROL_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
+    rule(&[T::LineMark], MARK_BGS, NON_TEXT_MIN.0, NON_TEXT_MIN.1),
     rule(&[T::TextNormal, T::TextMuted, T::TextFaint], TEXT_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::TextOnSelected], SELECTED_BGS, TEXT_MIN.0, TEXT_MIN.1),
     rule(&[T::AccentText], CONTROL_BGS, TEXT_MIN.0, TEXT_MIN.1),

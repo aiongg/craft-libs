@@ -34,7 +34,7 @@ pub struct IconButtonStyle {
     pub selected_text: States<Color32>,
     /// Diameter of the badge dot: `icon_button.badge`.
     pub badge: f32,
-    /// The 1 point ring around the badge dot: `line.control_edge`.
+    /// The ring around the badge dot: `line.mark`.
     pub badge_edge: Stroke,
 }
 
@@ -100,7 +100,7 @@ impl<'a> IconButton<'a> {
         self
     }
 
-    /// A small dot of `color` at the end-bottom corner of the icon, ringed in `line.control_edge`
+    /// A small dot of `color` at the end-bottom corner of the icon, ringed in `line.mark`
     /// so it shows on any fill. The colour is the user's content (an eyedropper's black, grey or
     /// white point), so it has no contrast pair. The label names the button, not the dot.
     pub fn badge(mut self, color: impl Into<Srgba>) -> Self {
@@ -140,7 +140,7 @@ impl<'a> IconButton<'a> {
             selected_fill: c.icon_button.selected.fill.to_egui(),
             selected_text: c.icon_button.selected.text.to_egui(),
             badge: c.icon_button.badge.get(size),
-            badge_edge: Stroke::new(1.0, tokens.color.line.control_edge.to_egui()),
+            badge_edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), tokens.color.line.mark.to_egui()),
         }
     }
 }

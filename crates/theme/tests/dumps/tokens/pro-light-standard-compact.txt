@@ -18,6 +18,7 @@ line.divider = #d6d6d6ff
 line.border = #d6d6d6ff
 line.control_edge = #bababaff
 line.knob_edge = #bababaff
+line.mark = #737373ff
 line.focus = #2a82e3ff
 accent.solid = #358ceeff
 accent.hover = #1e77d5ff

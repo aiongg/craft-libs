@@ -104,6 +104,9 @@ pub struct LineColors {
     /// The outline of a `surface.knob` face; clear where the face stands out on its own (dark
     /// mode).
     pub knob_edge: Rgba,
+    /// Marks that carry meaning and sit on control surfaces: slider marks and ticks, the ring
+    /// around a badge dot. Holds the non-text minimum on them.
+    pub mark: Rgba,
     /// Keyboard focus ring.
     pub focus: Rgba,
 }
@@ -271,7 +274,7 @@ impl ColorTokens {
         ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, knob: c, scrim: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
-            line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, focus: c },
+            line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
@@ -373,6 +376,8 @@ color_tokens! {
     LineControlEdge = "line.control_edge" => line.control_edge;
     /// `line.knob_edge`
     LineKnobEdge = "line.knob_edge" => line.knob_edge;
+    /// `line.mark`
+    LineMark = "line.mark" => line.mark;
     /// `line.focus`
     LineFocus = "line.focus" => line.focus;
     /// `accent.solid`

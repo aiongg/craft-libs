@@ -55,7 +55,7 @@ pub struct SliderStyle {
     pub mark: f32,
     /// How near a mark a drag snaps the thumb to it, in points: `slider.snap`.
     pub snap: f32,
-    /// The colour of marks and ticks: `line.divider`.
+    /// The colour of marks and ticks: `line.mark`.
     pub mark_color: Color32,
 }
 
@@ -403,7 +403,7 @@ impl Slider {
             ring_width: s.ring_width,
             mark: s.mark.get(size),
             snap: s.snap,
-            mark_color: tokens.color.line.divider.to_egui(),
+            mark_color: tokens.color.line.mark.to_egui(),
         }
     }
 }
