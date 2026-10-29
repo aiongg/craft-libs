@@ -88,7 +88,7 @@ impl<'a> GradientSwatch<'a> {
         let ramp = GradientRamp::style(&tokens);
         let default = default_sampler(self.rows);
         let sampler: &Sampler = self.sampler.unwrap_or(&default);
-        let response = Interactive::new(self.id_salt, Role::Button, self.label.as_str())
+        let response = Interactive::salted(self.id_salt, Role::Button, self.label.as_str())
             .state_layer(false)
             .focus_ring(false)
             .enabled(self.enabled)

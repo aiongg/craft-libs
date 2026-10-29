@@ -203,7 +203,7 @@ impl Slider {
         let tokens = Tokens::of(ui);
         let style = Slider::style(&tokens, self.size);
         let scale = Scale::new(&self.range, self.step);
-        let sensed = Interactive::new(self.id_salt, Role::Slider, self.label.as_str())
+        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
             .state_layer(false)

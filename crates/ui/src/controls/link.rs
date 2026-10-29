@@ -100,7 +100,7 @@ impl Widget for Link {
         let style = Link::style(&tokens);
         let format = role_format(&tokens, self.role, style.color);
         let galley = ui.painter().layout_job(LayoutJob::single_section(self.label.clone(), format.clone()));
-        let response = Interactive::new(salt(ui, self.id_salt), Role::Link, self.label.as_str())
+        let response = Interactive::salted(salt(ui, self.id_salt), Role::Link, self.label.as_str())
             .state_layer(false)
             .corner(Corner::Control)
             .show(ui, galley.size())

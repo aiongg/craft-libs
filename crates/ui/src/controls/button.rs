@@ -161,7 +161,7 @@ impl Widget for Button {
         let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: self.loading };
         let mut laid = face.layout(ui, &tokens, &style);
         laid.size.x = laid.size.x.max(self.min_width.min(ui.available_width()));
-        let mut element = Interactive::new(salt(ui, self.id_salt), Role::Button, self.label.as_str())
+        let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
             .colors(style.colors())
             .corner(Corner::Button)
             .enabled(self.enabled)

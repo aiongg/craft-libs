@@ -106,7 +106,7 @@ impl<'a> Switch<'a> {
         let style = Switch::style(&tokens, self.size);
         let layout = Layout { height: style.height, gap: style.gap, label: style.label, indicator: vec2(style.width, style.track_height) };
         let laid = Labelled::layout(ui, &tokens, &layout, &self.label);
-        let sensed = Interactive::new(salt(ui, self.id_salt), Role::Switch, self.label.as_str())
+        let sensed = Interactive::salted(salt(ui, self.id_salt), Role::Switch, self.label.as_str())
             .state_layer(false)
             .enabled(self.enabled)
             .interact(ui, laid.size);

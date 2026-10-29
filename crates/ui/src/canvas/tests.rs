@@ -451,6 +451,41 @@ fn a_claimed_press_waits_for_a_typing_run_and_holds_through_the_wait() {
     assert_eq!(Claim::owner(&ctx, canvas), None, "a released press's claim ends with its turn");
 }
 
+/// A second press while the first waits supersedes it: the owner's turn is `Now`, its waiting
+/// press no longer holds the claim, and the new press can be taken in the same pass.
+#[test]
+fn a_press_that_supersedes_a_waiting_one_is_taken_in_its_own_pass() {
+    let ctx = Context::default();
+    let canvas = Id::unique("claim-canvas");
+    let (overlay, field) = (Id::unique("overlay"), Id::unique("field"));
+    let at = pos2(100.0, 100.0);
+    let mut nr = 0;
+    let mut run = |events: Vec<Event>, check: &dyn Fn(&Context)| {
+        nr += 1;
+        let input = RawInput { screen_rect: Some(screen()), time: Some(f64::from(nr)), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            let response = ui.interact(ScreenRect::from_min_size(pos2(300.0, 300.0), vec2(20.0, 20.0)), field, egui::Sense::click());
+            let mut gesture = Gesture::load(ui, field, &0, EditPolicy::default());
+            if nr == 1 {
+                response.request_focus();
+                gesture.begin();
+            }
+            let _ = gesture.finish();
+            check(ui.ctx());
+        })
+        .drop_without_applying_deltas();
+    };
+    run(vec![Event::PointerMoved(at)], &|_| {});
+    run(vec![button(at, true)], &|ctx| assert!(Claim::take(ctx, canvas, overlay)));
+    assert!(Claim::is_owner(&ctx, canvas, overlay));
+    run(vec![button(at, false), button(at, true)], &|ctx| {
+        assert_eq!(Claim::turn(ctx, canvas, overlay), Turn::Now, "the superseded press's turn is over");
+        assert!(!Claim::keeps_waiting(ctx, canvas, overlay, true), "so the overlay takes the new press now");
+        assert!(Claim::take(ctx, canvas, overlay), "which it can take in this pass");
+    });
+    assert!(Claim::is_owner(&ctx, canvas, overlay));
+}
+
 /// A text field's typing run beside a canvas under test: begun with the focus in the first pass it
 /// is drawn, ended by whatever takes the focus. It records the pass of its Commit and the pass of
 /// the overlay's first event, so a test can tell which went out first.

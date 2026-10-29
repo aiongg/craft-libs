@@ -112,6 +112,11 @@ pub struct AngleDialStyle {
 /// - The dial keeps its geometry right to left ([`Unmirrored::Graph`](crate::direction::Unmirrored)):
 ///   the angle is the document's. The row order follows the reading direction.
 ///
+/// - **Mixed**: a `value` that isn't a finite number (a mixed selection) draws no needle and
+///   leaves the field blank. A press on the dial focuses it and begins no drag; a click sets the
+///   angle it points at, and a number typed in the field commits, both from the range's start.
+///   The accessible value reads as the range's start.
+///
 /// Drawing it with [`field(false)`](AngleDial::field) leaves the dial alone.
 #[derive(Clone, Debug)]
 #[must_use = "show the dial with `show`"]
@@ -208,7 +213,7 @@ impl<'a> AngleDial<'a> {
 
     /// Shows the dial and its field and returns this frame's edit. The response is the dial's.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
-        let id = Interactive::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let inner = ui.scope_builder(UiBuilder::new().scope_id(id), |ui| self.show_inside(ui, id));
         inner.inner
     }
@@ -219,17 +224,22 @@ impl<'a> AngleDial<'a> {
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id)).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
-        let outer = Gesture::load(ui, id, &self.value, self.policy.cancellable(false)).enabled(enabled);
+        // A value that isn't finite (a mixed selection) is held at the range's start for the
+        // gestures, which need a host value equal to itself; the dial and the field show it as
+        // mixed until a value is set.
+        let host = Scale::new(&self.range, Some(self.step)).place(self.value);
+        let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
         let shown = *outer.shown();
+        let mixed = !self.value.is_finite() && shown == host;
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
         let mut edits = parts::Edits::<f64>::new(id, &state);
 
         let dial = Row::new(Gap::Inline)
             .show(ui, |ui| {
-                let dial = self.dial(ui, &style, shown, policy, enabled);
+                let dial = self.dial(ui, &style, shown, mixed, policy, enabled);
                 edits.push(&dial, |v| v);
                 if self.field {
-                    let field = self.degrees(ui, shown, policy, enabled);
+                    let field = self.degrees(ui, if mixed { f64::NAN } else { shown }, policy, enabled);
                     edits.typing(ui.ctx(), &field, |v| v);
                 }
                 dial
@@ -261,7 +271,7 @@ impl<'a> AngleDial<'a> {
     }
 
     /// The dial: its interaction, look and AccessKit node.
-    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, shown: f64, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
+    fn dial(&self, ui: &mut Ui, style: &AngleDialStyle, shown: f64, mixed: bool, policy: EditPolicy, enabled: bool) -> EditResponse<f64> {
         let scale = Scale::new(&self.range, Some(self.step));
         let sensed = Interactive::new("dial", Role::Slider, self.label.as_str())
             .sense(Sense::drag())
@@ -278,7 +288,11 @@ impl<'a> AngleDial<'a> {
         let tapped = tap(ui, &response);
         let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
         let turn = press_turn(ui, response.id, true, gesture.id(), pressed.or(tapped));
-        if let PressTurn::Held(held) = turn {
+        // As a slider's, a press begins no gesture while the value is mixed; a click still sets one.
+        let begins = !mixed;
+        if let PressTurn::Held(held) = turn
+            && begins
+        {
             gesture.begin();
             if let Some(start) = gesture.start().copied()
                 && let Some(value) = pointing.at(held, start, shift())
@@ -292,7 +306,7 @@ impl<'a> AngleDial<'a> {
         let waits = matches!(turn, PressTurn::Waits);
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            if !waits {
+            if begins && !waits {
                 gesture.begin();
             }
         }
@@ -323,22 +337,24 @@ impl<'a> AngleDial<'a> {
         let response = sensed.numeric(value, scale.min..=scale.max, self.step).value(text).finish(ui);
         if ui.is_rect_visible(rect) {
             let active = enabled && (response.hovered() || dragging);
-            self.paint(ui, style, rect, value, active, enabled);
+            self.paint(ui, style, rect, (!mixed).then_some(value), active, enabled);
         }
         let radius = CornerRadius::same((style.size / 2.0).round() as u8);
         FocusRing::paint_radius(ui, rect, radius, &response);
         EditResponse::new(response, gesture.finish())
     }
 
-    fn paint(&self, ui: &Ui, style: &AngleDialStyle, rect: Rect, value: f64, active: bool, enabled: bool) {
+    fn paint(&self, ui: &Ui, style: &AngleDialStyle, rect: Rect, value: Option<f64>, active: bool, enabled: bool) {
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
         let painter = ui.painter();
         let (center, radius) = (rect.center(), rect.width() / 2.0);
         painter.add(Shape::circle_filled(center, radius, style.face));
         let edge = Stroke::new(style.edge.width, if active { style.edge_active } else { style.edge.color });
         painter.add(Shape::circle_stroke(center, radius - edge.width / 2.0, Stroke::new(edge.width, fade(edge.color))));
-        let tip = center + self.orientation.direction(value) * (radius - style.needle_inset).max(0.0);
-        painter.add(Shape::line_segment([center, tip], Stroke::new(style.needle.width, fade(style.needle.color))));
+        if let Some(value) = value {
+            let tip = center + self.orientation.direction(value) * (radius - style.needle_inset).max(0.0);
+            painter.add(Shape::line_segment([center, tip], Stroke::new(style.needle.width, fade(style.needle.color))));
+        }
         painter.add(Shape::circle_filled(center, style.hub, fade(style.hub_fill)));
     }
 }

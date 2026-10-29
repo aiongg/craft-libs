@@ -464,7 +464,7 @@ impl<'a> Guides<'a> {
             };
         }
         // The press comes first, so that a drag starting in this pass reports under its own guide.
-        if drag.is_none() && !waited {
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
             drag = self.press(ui, &pass, focused, &mut out);
         }
         let reported = Gesture::<GuidePlace>::reported(ui, id).map(|(_, value)| value);

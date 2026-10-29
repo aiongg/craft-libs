@@ -262,7 +262,7 @@ impl<'a> PenDraft<'a> {
                 Turn::Now => None,
             };
         }
-        if drag.is_none() && !waited && editing {
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editing {
             drag = self.press(&ctx, canvas, view, &style, &mut gesture, &mut out);
         }
         if let Some(d) = drag.take() {

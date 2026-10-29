@@ -71,6 +71,7 @@ mod units;
 mod view;
 pub(crate) mod warp;
 
+pub use crate::edit::order::Turn;
 pub use ::kurbo;
 pub use bezier::{
     BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,

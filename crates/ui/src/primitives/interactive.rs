@@ -119,7 +119,15 @@ impl<'a> Interactive<'a> {
     /// An element with the AccessKit `role` and accessible name `label`; `id_salt` keeps its
     /// focus and animations when the layout around it changes.
     pub fn new(id_salt: impl AsIdSalt, role: Role, label: impl Into<String>) -> Self {
-        Self::with_id_source(IdSource::Salt(IdSalt::new(id_salt)), role, label.into())
+        Self::salted(IdSalt::new(id_salt), role, label.into())
+    }
+
+    /// As [`new`](Interactive::new) for a control that holds `salt` already made by
+    /// `IdSalt::new`: the element has the id `ui.make_persistent_id(salt)`, the one
+    /// [`id_in`](Interactive::id_in) gives the salt's source. Passing the held salt to `new` would
+    /// hash it a second time.
+    pub fn salted(salt: IdSalt, role: Role, label: impl Into<String>) -> Self {
+        Self::with_id_source(IdSource::Salt(salt), role, label.into())
     }
 
     /// An element with the id `id` wherever it is placed: for an element whose id is needed
@@ -143,7 +151,8 @@ impl<'a> Interactive<'a> {
     }
 
     /// The id [`show`](Interactive::show) gives an element made with `id_salt` in `ui`, for a
-    /// control that needs it first (to read its focus).
+    /// control that needs it first (to read its focus). A control that holds the salt as an
+    /// `IdSalt` uses `ui.make_persistent_id(salt)`, which is the same id.
     pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
         ui.make_persistent_id(IdSalt::new(id_salt))
     }

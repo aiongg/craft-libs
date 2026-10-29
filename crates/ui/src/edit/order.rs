@@ -37,9 +37,9 @@ use egui::{Context, Id};
 
 use super::{GestureId, live};
 
-/// When an input runs ([`turn`]).
+/// When an input runs, as [`Claim::turn`](crate::canvas::Claim::turn) answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Turn {
+pub enum Turn {
     /// Nothing to wait for: the input runs in this pass with this pass's input, and the holder
     /// keeps nothing.
     Now,

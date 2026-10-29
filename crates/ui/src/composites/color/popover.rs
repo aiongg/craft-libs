@@ -149,7 +149,7 @@ pub(crate) fn popup<'a, 'b>(
     let tokens = Tokens::of(ui);
     let parts = ColorArea::style(&tokens);
     let width = parts.area + Gap::Inline.points(&tokens) + parts.strip;
-    let picker_salt = IdSalt::new("picker");
+
     let mut shown = None;
     PopupList::with_popup(popup, ui, &swatch)
         .open(&mut open)
@@ -159,7 +159,7 @@ pub(crate) fn popup<'a, 'b>(
         .surface(Surface::style(&tokens, SurfaceKind::Popup))
         .show_ui(|ui| {
             ui.set_width(width);
-            let picker_id = Interactive::id_in(ui, picker_salt);
+            let picker_id = Interactive::id_in(ui, "picker");
             let hex = hex_id(picker_id);
             if fresh && laid_out {
                 ColorPicker::focus_hex(ui.ctx(), picker_id);

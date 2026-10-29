@@ -14,7 +14,7 @@ use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
-use crate::primitives::{Content, Gap, Interactive, Row, Text};
+use crate::primitives::{Content, Gap, Row, Text};
 use crate::theme::{Tokens, TokensOf};
 pub use full::ColorWarning;
 
@@ -360,7 +360,7 @@ impl<'a> ColorPicker<'a> {
 
     /// Shows the picker and returns this frame's edit.
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
-        let id = Interactive::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let builder = UiBuilder::new()
             .scope_id(id)
             .layout(Layout::top_down_justified(Align::Min))

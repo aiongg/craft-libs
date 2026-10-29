@@ -356,7 +356,7 @@ impl<'a> NumberField<'a> {
         let tokens = Tokens::of(ui);
         let style = NumberField::style(&tokens, self.size);
         let enabled = self.enabled && ui.is_enabled();
-        let id = Interactive::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let real = (!self.mixed && self.value.is_finite()).then_some(self.value);
         let host = Follow::host(ui, id, real);
         let codec = Numbers { numbers: self.numbers, decimals: self.decimals.clone(), unit: &self.unit, fallback: self.fallback.as_deref(), bounds };

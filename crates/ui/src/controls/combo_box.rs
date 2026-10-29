@@ -19,7 +19,7 @@ use crate::behavior::{ListOptions, Listbox, Typed, Typing, TypingLook, take_ente
 use crate::direction;
 use crate::edit::{self, CancelReason, EditPolicy, EditResponse, GestureId};
 use crate::popup_list::{self, PopupList};
-use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
+use crate::primitives::{Content, Gap, Row, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{Tokens, TokensOf, margin_x};
 
@@ -162,7 +162,7 @@ impl<'a> ComboBox<'a> {
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
         let f = &style.field;
-        let id = Interactive::id_in(ui, id_salt);
+        let id = ui.make_persistent_id(id_salt);
         let enabled = enabled && ui.is_enabled();
         let (mut state, fresh) = ComboState::load(ui, id, value);
         let mut listbox = Listbox::load(ui, id.with("list"));

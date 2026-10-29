@@ -385,7 +385,7 @@ impl<'a> LevelsEditor<'a> {
     pub fn show(self, ui: &mut Ui) -> EditResponse<Levels> {
         let tokens = Tokens::of(ui);
         let style = LevelsEditor::style(&tokens);
-        let id = LevelsEditor::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let width = self.width.unwrap_or_else(|| ui.available_width().clamp(style.min_width, style.max_width));
         let enabled = self.enabled && ui.is_enabled();
         let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(&self.label);

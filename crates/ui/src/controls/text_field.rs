@@ -16,7 +16,7 @@ use crate::behavior::{Escape, Typing, TypingLook};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
+use crate::primitives::{Content, Gap, Row, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, margin_x};
 
@@ -436,7 +436,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         selected_text: style.selected_text,
         caret: style.caret,
     };
-    let id = Interactive::id_in(ui, spec.id_salt);
+    let id = ui.make_persistent_id(spec.id_salt);
     let (escape, role) = if spec.clear.is_some() { (Escape::Clear, Role::SearchInput) } else { (Escape::PassThrough, Role::TextInput) };
     let typing = Typing::new(id, spec.label, spec.value)
         .placeholder(spec.placeholder)

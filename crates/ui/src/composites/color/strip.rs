@@ -113,7 +113,7 @@ impl ColorStrip {
         let model = self.mode.model();
         let channel = self.mode.strip();
         let scale = scale_of(model, channel);
-        let sensed = Interactive::new(self.id_salt, Role::Slider, self.label.as_str())
+        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
             .state_layer(false)
