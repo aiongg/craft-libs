@@ -11,4 +11,4 @@ Each folder holds only the files `icons.toml` lists, unchanged from the pinned s
 
 Carbon's licence file is the repository's root `LICENSE` (the icons package has none of its own).
 
-Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are all `regular` weight.
+Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are `regular` weight, with two kinds of exception. `star-filled.svg` is Phosphor's `fill` weight (`star-fill.svg`). These files are drawn for the suite in Phosphor's regular style (256 grid, 16-unit round strokes, converted to filled outlines) and carry the suite's own licence: `font-variable`, `scaling`, `slice-select`, `square-dashed-mouse-pointer`, `text-warp`, `triangle-right`, `type-mask`, `type-mask-vertical`.

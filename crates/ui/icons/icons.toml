@@ -286,6 +286,26 @@ carbon = "text--font"
 tabler = "typography"
 
 [[icon]]
+name = "font_variable"
+directional = false
+phosphor = "font-variable"
+
+[[icon]]
+name = "text_warp"
+directional = false
+phosphor = "text-warp"
+
+[[icon]]
+name = "type_mask"
+directional = false
+phosphor = "type-mask"
+
+[[icon]]
+name = "type_mask_vertical"
+directional = false
+phosphor = "type-mask-vertical"
+
+[[icon]]
 name = "square"
 directional = false
 lucide = "square"
@@ -670,6 +690,11 @@ carbon = "maximize"
 tabler = "arrows-diagonal"
 
 [[icon]]
+name = "scaling"
+directional = false
+phosphor = "scaling"
+
+[[icon]]
 name = "note"
 directional = false
 lucide = "message-square"
@@ -814,6 +839,11 @@ carbon = "cut"  # near: scissors, not blade
 tabler = "slice"
 
 [[icon]]
+name = "slice_select"
+directional = false
+phosphor = "slice-select"
+
+[[icon]]
 name = "adjustments"
 directional = false
 lucide = "sliders-horizontal"
@@ -836,6 +866,11 @@ lucide = "square-dashed"
 phosphor = "selection"
 carbon = "select--01"  # near: dashed square with crosshair
 tabler = "square-dashed"
+
+[[icon]]
+name = "object_select"
+directional = false
+phosphor = "square-dashed-mouse-pointer"
 
 [[icon]]
 name = "new_layer"
@@ -868,6 +903,11 @@ lucide = "star"
 phosphor = "star"
 carbon = "star"
 tabler = "star"
+
+[[icon]]
+name = "star_filled"
+directional = false
+phosphor = "star-filled"
 
 [[icon]]
 name = "sun"
@@ -908,6 +948,11 @@ lucide = "triangle"
 phosphor = "triangle"
 carbon = "triangle--outline"
 tabler = "triangle"
+
+[[icon]]
+name = "triangle_right"
+directional = false
+phosphor = "triangle-right"
 
 [[icon]]
 name = "wand"
