@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 
 use super::format::{self, ErrorKind, FormatErrors, ThemeFile};
-use super::semantic_tests::{app, grey_blue, hex};
+use super::semantic_tests::{app, appearances, grey_blue, hex};
 use super::*;
 use crate::AppId;
 use ColorToken as T;
@@ -392,4 +392,77 @@ fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     assert_eq!(w["shape"]["radius"]["pill"], 0.0);
     let back = format::parse(serde_json::to_string(&w).unwrap().as_bytes()).unwrap().theme;
     assert_eq!(back.shape.unwrap().radius.unwrap().pill, 0.0);
+}
+
+/// A theme file with the given light-mode pins.
+fn with_light(pins: Value) -> Value {
+    let mut v = full();
+    v["light"] = pins;
+    v
+}
+
+#[test]
+fn references_resolve_to_the_final_value_in_every_appearance() {
+    let v = with_light(json!({
+        "slider.fill.rest": "{accent.solid}", "slider.fill.hover": "{accent.hover}",
+        "text.muted": "{slider.fill.rest}", "accent.solid": "#204080"
+    }));
+    let mut v = v;
+    v["dark"] = json!({ "slider.fill.rest": "{accent.solid}", "slider.fill.hover": "{accent.hover}" });
+    v["high_contrast"] = json!({ "light": { "slider.fill.rest": "{text.normal}" }, "dark": {} });
+    let file = parse_value(&v).unwrap();
+    for a in appearances() {
+        let t = resolve(&file.theme, a, None).tokens;
+        let (s, accent) = (&t.component.slider.fill, |c| t.color(c));
+        let high_light = a.contrast == Contrast::High && a.mode == Mode::Light;
+        assert_eq!(s.rest, if high_light { accent(T::TextNormal) } else { accent(T::AccentSolid) }, "{a:?}");
+        if !high_light {
+            assert_eq!(s.hover, accent(T::AccentHover), "{a:?}");
+        }
+        if a.mode == Mode::Light {
+            // A reference to a reference reads the pinned token's value, and a pin is read as pinned.
+            assert_eq!(accent(T::TextMuted), s.rest, "{a:?}");
+            if a.contrast == Contrast::Standard {
+                assert_eq!(accent(T::AccentSolid), hex("#204080"));
+            }
+        }
+    }
+}
+
+#[test]
+fn references_survive_a_write_and_parse() {
+    let file = parse_value(&with_light(json!({ "slider.fill.rest": "{accent.solid}" }))).unwrap();
+    let again = format::parse(format::write(&file).unwrap().as_bytes()).unwrap();
+    assert_eq!(again.theme.pins.light.refs, file.theme.pins.light.refs);
+    assert!(again.theme.pins.light.colors.is_empty());
+}
+
+#[test]
+fn unknown_reference_names_the_key_and_the_reference() {
+    let e = errors(&with_light(json!({ "slider.fill.rest": "{accent.nope}" })));
+    assert_eq!(e, ["light.\"slider.fill.rest\": reference {accent.nope} names no token"]);
+    let e = errors(&with_light(json!({ "text.muted": "{button.radius}" })));
+    assert_eq!(e, ["light.\"text.muted\": reference {button.radius} is not a colour field"]);
+}
+
+#[test]
+fn reference_cycles_are_errors() {
+    let e = errors(&with_light(json!({ "text.muted": "{text.faint}", "text.faint": "{text.muted}" })));
+    assert_eq!(e.len(), 1, "{e:?}");
+    assert!(
+        e[0].contains("references form a cycle: text.faint -> text.muted -> text.faint") || e[0].contains("text.muted -> text.faint -> text.muted"),
+        "{e:?}"
+    );
+    let e = errors(&with_light(json!({ "text.muted": "{text.muted}" })));
+    assert_eq!(e.len(), 1, "{e:?}");
+}
+
+#[test]
+fn classic_slider_fill_follows_its_accent_states() {
+    let classic = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
+    for a in appearances() {
+        let t = resolve(classic, a, None).tokens;
+        let s = &t.component.slider.fill;
+        assert_eq!((s.rest, s.hover, s.pressed), (t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed)), "{a:?}");
+    }
 }

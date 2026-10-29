@@ -185,7 +185,8 @@ fn set_map(dst: &mut Map<String, Value>, key: &str, map: Map<String, Value>) {
 }
 
 fn pin_map(pins: &Pins) -> Map<String, Value> {
-    pins.0.iter().map(|(t, c)| (t.path(), Value::from(c.to_hex()))).collect()
+    let refs = pins.refs.iter().map(|(t, target)| (t.path(), Value::from(format!("{{{}}}", target.path()))));
+    pins.colors.iter().filter(|(t, _)| !pins.refs.contains_key(t)).map(|(t, c)| (t.path(), Value::from(c.to_hex()))).chain(refs).collect()
 }
 
 fn component_map(components: &BTreeMap<ComponentField, OverrideValue>) -> Map<String, Value> {

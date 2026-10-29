@@ -139,7 +139,7 @@ impl Overrides {
     /// `inner` over `self`.
     fn then(&self, inner: Overrides) -> Overrides {
         let mut colors = self.colors.clone();
-        colors.0.extend(inner.colors.0);
+        colors.colors.extend(inner.colors.colors);
         Overrides {
             mode: inner.mode.or(self.mode),
             contrast: inner.contrast.or(self.contrast),
@@ -150,7 +150,7 @@ impl Overrides {
     }
 
     fn changes_tokens(&self) -> bool {
-        self.contrast.is_some() || self.theme.is_some() || self.size.is_some() || !self.colors.0.is_empty()
+        self.contrast.is_some() || self.theme.is_some() || self.size.is_some() || !self.colors.colors.is_empty()
     }
 }
 
@@ -350,7 +350,7 @@ impl Installed {
             ..shown.appearance
         };
         let app = self.base.inputs.app.as_ref();
-        if !overrides.colors.0.is_empty() {
+        if !overrides.colors.colors.is_empty() {
             // The last layer resolution applies: high-contrast pins, else the app's, else the theme's.
             let pins = match (appearance.contrast, app) {
                 (Contrast::High, _) => &mut theme.high_contrast,
@@ -358,7 +358,10 @@ impl Installed {
                 (Contrast::Standard, None) => &mut theme.pins,
             };
             for layer in [&mut pins.light, &mut pins.dark] {
-                layer.0.extend(overrides.colors.0.iter().map(|(k, v)| (*k, *v)));
+                for (&token, &color) in &overrides.colors.colors {
+                    layer.refs.remove(&token);
+                    layer.colors.insert(token, color);
+                }
             }
         }
         let resolved = resolve(&theme, appearance, app);

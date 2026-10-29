@@ -105,6 +105,21 @@ pub enum ErrorKind {
     NoSuchMode,
     /// `seeds` in a map that does not take them (high-contrast and app maps).
     SeedsNotAllowed,
+    /// A reference such as `"{accent.solid}"` naming no token or field.
+    UnknownReference {
+        /// The name between the braces.
+        name: String,
+    },
+    /// A reference to a component field that is not a colour.
+    ReferenceNotColor {
+        /// The name between the braces.
+        name: String,
+    },
+    /// References that lead back to the token that starts them.
+    ReferenceCycle {
+        /// The token paths along the cycle, the first repeated at the end.
+        chain: Vec<String>,
+    },
     /// A translucent colour on a surface (`surface.*` except `surface.scrim`).
     NotOpaque,
 }
@@ -147,6 +162,9 @@ impl FormatError {
             ErrorKind::WrongKind { expected, found } => format!("expected a {expected:?} value, found {found:?}"),
             ErrorKind::NoSuchMode => "the theme's variants leave this mode out".to_owned(),
             ErrorKind::SeedsNotAllowed => "seeds are set in the theme's own light and dark maps only".to_owned(),
+            ErrorKind::UnknownReference { name } => format!("reference {{{name}}} names no token"),
+            ErrorKind::ReferenceNotColor { name } => format!("reference {{{name}}} is not a colour field"),
+            ErrorKind::ReferenceCycle { chain } => format!("references form a cycle: {}", chain.join(" -> ")),
             ErrorKind::NotOpaque => "surfaces must be opaque".to_owned(),
         }
     }

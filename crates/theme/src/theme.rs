@@ -86,7 +86,7 @@ impl ThemeDef {
 
 fn pin_errors<'a>(pins: impl IntoIterator<Item = &'a Pins>, out: &mut Vec<OverrideError>) {
     for pins in pins {
-        for &key in pins.0.keys() {
+        for &key in pins.colors.keys().chain(pins.refs.keys()) {
             if let TokenRef::Component(field) = key
                 && field.kind() != FieldKind::Color
             {
@@ -155,20 +155,34 @@ impl ModeSeeds {
     }
 }
 
-/// Fixed colours for some semantic tokens and component colour fields.
+/// Fixed colours for some semantic tokens and component colour fields, and references: tokens
+/// that take another token's final value (`"{accent.solid}"` in a theme file).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Pins(pub BTreeMap<TokenRef, Rgba>);
+pub struct Pins {
+    /// Tokens pinned to a colour.
+    pub colors: BTreeMap<TokenRef, Rgba>,
+    /// Tokens pinned to the final value of another colour token or colour field, after
+    /// derivation and the contrast pass, in the same theme, mode, contrast and size. Resolution
+    /// replaces each with a colour pin. A reference to a token pinned in the theme reads the
+    /// pinned value. A token in `colors` and `refs` of the same layer takes the reference.
+    pub refs: BTreeMap<TokenRef, TokenRef>,
+}
 
 impl Pins {
-    /// The pinned value of `token`, if any.
+    /// The pinned colour of `token`, if any. A reference is not a colour until resolution.
     pub fn get(&self, token: impl Into<TokenRef>) -> Option<Rgba> {
-        self.0.get(&token.into()).copied()
+        self.colors.get(&token.into()).copied()
+    }
+
+    /// Whether nothing is pinned or referenced.
+    pub fn is_empty(&self) -> bool {
+        self.colors.is_empty() && self.refs.is_empty()
     }
 }
 
 impl<K: Into<TokenRef>> FromIterator<(K, Rgba)> for Pins {
     fn from_iter<I: IntoIterator<Item = (K, Rgba)>>(iter: I) -> Pins {
-        Pins(iter.into_iter().map(|(k, v)| (k.into(), v)).collect())
+        Pins { colors: iter.into_iter().map(|(k, v)| (k.into(), v)).collect(), refs: BTreeMap::new() }
     }
 }
 

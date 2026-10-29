@@ -318,7 +318,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
 fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
     let mut defaults = 0;
     for def in builtins() {
-        let pins_ring = [&def.pins.light, &def.pins.dark].iter().any(|p| p.0.keys().any(|k| k.path().starts_with("slider.ring.")));
+        let pins_ring = [&def.pins.light, &def.pins.dark].iter().any(|p| p.colors.keys().any(|k| k.path().starts_with("slider.ring.")));
         for mode in [Mode::Light, Mode::Dark] {
             let t = tokens_of(def, mode);
             let c = &t.color;

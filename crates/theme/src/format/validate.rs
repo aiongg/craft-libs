@@ -37,7 +37,17 @@ impl ThemeDef {
                 });
             }
         });
+        c.references(self);
         if c.errors.is_empty() { Ok(()) } else { Err(FormatErrors(c.errors)) }
+    }
+
+    /// The reference cycles of this theme, each at the path of a reference on the cycle. Layers
+    /// that can apply together are followed together: the theme's pins, its high-contrast pins,
+    /// and each app's over them.
+    pub(super) fn reference_errors(&self) -> Vec<FormatError> {
+        let mut c = Check { errors: Vec::new(), path: Vec::new() };
+        c.references(self);
+        c.errors
     }
 }
 
@@ -90,7 +100,7 @@ impl Check {
         for (key, mode) in [("light", Mode::Light), ("dark", Mode::Dark)] {
             let map = pins.get(mode);
             self.at(key, |c| {
-                if variants.mode_for(mode) != mode && !map.0.is_empty() {
+                if variants.mode_for(mode) != mode && !map.is_empty() {
                     c.fail(ErrorKind::NoSuchMode);
                 } else {
                     c.pins(map);
@@ -100,12 +110,74 @@ impl Check {
     }
 
     fn pins(&mut self, pins: &Pins) {
-        for (&token, colour) in &pins.0 {
+        for &token in pins.refs.keys() {
+            self.at(&token.path(), |c| {
+                if matches!(token, TokenRef::Component(f) if f.kind() != FieldKind::Color) {
+                    c.fail(ErrorKind::PinNotColor);
+                }
+            });
+        }
+        for (&token, colour) in &pins.colors {
             self.at(&token.path(), |c| match token {
                 TokenRef::Component(f) if f.kind() != FieldKind::Color => c.fail(ErrorKind::PinNotColor),
                 TokenRef::Color(t) if t.is_opaque_surface() && colour.a() < 255 => c.fail(ErrorKind::NotOpaque),
                 _ => {}
             });
+        }
+    }
+
+    /// Reports a reference cycle once, at the first reference on it in file order.
+    fn references(&mut self, t: &ThemeDef) {
+        type Layer<'a> = (Vec<&'a str>, &'a ModePins);
+        let theme: Layer = (vec![], &t.pins);
+        let theme_high: Layer = (vec!["high_contrast"], &t.high_contrast);
+        let mut stacks: Vec<Vec<Layer>> = vec![vec![theme.clone()], vec![theme.clone(), theme_high.clone()]];
+        for (id, app) in &t.apps {
+            let id = id.as_str();
+            let own: Layer = (vec!["apps", id], &app.pins);
+            let own_high: Layer = (vec!["apps", id, "high_contrast"], &app.high_contrast);
+            stacks.push(vec![theme.clone(), own.clone()]);
+            stacks.push(vec![theme.clone(), own, theme_high.clone(), own_high]);
+        }
+        let mut reported: Vec<Vec<String>> = Vec::new();
+        for stack in &stacks {
+            for (mode_key, mode) in [("light", Mode::Light), ("dark", Mode::Dark)] {
+                // The reference each token ends with, and where it is written.
+                let mut effective: BTreeMap<TokenRef, Option<(TokenRef, Vec<String>)>> = BTreeMap::new();
+                for (prefix, pins) in stack {
+                    let pins = pins.get(mode);
+                    for &k in pins.colors.keys() {
+                        effective.insert(k, None);
+                    }
+                    for (&k, &target) in &pins.refs {
+                        let path = prefix.iter().map(|s| (*s).to_owned()).chain([mode_key.to_owned(), k.path()]).collect();
+                        effective.insert(k, Some((target, path)));
+                    }
+                }
+                for (&start, entry) in &effective {
+                    let Some((_, path)) = entry else { continue };
+                    let mut chain = vec![start];
+                    let mut at = start;
+                    while let Some(Some((next, _))) = effective.get(&at) {
+                        at = *next;
+                        if at == start {
+                            chain.push(at);
+                            let names: Vec<String> = chain.iter().map(|t| t.path()).collect();
+                            let mut key = names[..names.len() - 1].to_vec();
+                            key.sort();
+                            if !reported.contains(&key) {
+                                reported.push(key);
+                                self.errors.push(FormatError { path: path.clone(), kind: ErrorKind::ReferenceCycle { chain: names } });
+                            }
+                            break;
+                        }
+                        if chain.contains(&at) {
+                            break;
+                        }
+                        chain.push(at);
+                    }
+                }
+            }
         }
     }
 
