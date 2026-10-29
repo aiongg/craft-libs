@@ -27,8 +27,9 @@
 //!   and nothing when it ends unchanged.
 //! - [`Gesture::commit_on_interrupt`] makes every interruption of a control's gesture a commit,
 //!   for work kept as it goes (a pen draft's anchors).
-//! - [`focused_gesture`] is the gesture whose control has the focus: a composite holds a press on
-//!   one of its parts while another part's gesture ends.
+//! - An input that starts an edit in a composite or on a canvas overlay while another control's
+//!   typing run has the focus asks the run to end and runs after the run's ending event has gone
+//!   out (`edit::order`); a composite reports one edit at a time (`edit::parts`).
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one [`OuterGesture`].
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
@@ -39,6 +40,7 @@
 mod gesture;
 mod host;
 mod live;
+pub(crate) mod order;
 pub(crate) mod parts;
 mod story;
 #[cfg(test)]
@@ -393,16 +395,8 @@ pub fn unreported<T: Clone + 'static>(ctx: &Context, id: GestureId) -> Option<T>
 }
 
 /// The active gesture whose control had the keyboard focus in its last pass of the current
-/// viewport, such as a typing run. A press that takes the focus ends it, as [`ending`] says.
-///
-/// A composite that reports its parts through one [`EditResponse`] (a curve editor's graph and
-/// its Input field) holds a press on one part while such a gesture is under way: the press takes
-/// the focus, the part that had it sends its ending event, and the press edits the value the host
-/// has after it, in a later pass. The part with the focus sees it go in the press pass when it is
-/// drawn after the pressed part (the press runs in the next pass), and in the next pass when it is
-/// drawn before (the press waits a pass more). So the composite drops no event, and the gesture
-/// of the press starts from the value the other one left.
-pub fn focused_gesture(ctx: &Context) -> Option<GestureId> {
+/// viewport: a typing run, or a drag that took the focus with its press.
+pub(crate) fn focused_gesture(ctx: &Context) -> Option<GestureId> {
     live::focused(ctx)
 }
 
@@ -448,7 +442,7 @@ impl OuterGesture {
     /// A new gesture, live in the current pass.
     pub fn begin(ctx: &Context) -> Self {
         let id = GestureId::next();
-        live::mark(ctx, id, Ending::Cancel, None, false);
+        live::mark(ctx, id, Ending::Cancel, None, false, None);
         Self { id }
     }
 
@@ -458,7 +452,7 @@ impl OuterGesture {
 
     /// Marks the gesture live in this pass; call it every frame the dialog is shown.
     pub fn keep(self, ui: &Ui) {
-        live::mark(ui.ctx(), self.id, Ending::Cancel, None, false);
+        live::mark(ui.ctx(), self.id, Ending::Cancel, None, false, None);
     }
 }
 

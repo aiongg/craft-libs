@@ -140,7 +140,7 @@ impl Rig {
             .width(width)
             .policy(EditPolicy::default())
             .enabled(self.enabled)
-            .press_waits(self.waits);
+            .part(self.waits);
         let out = row.show(ui, &style);
         self.rows[0] = drawn(ui, "rig-input", &style, out.edit.response.rect, out.shown.to_vec(), out.dragged);
         self.input_event.clone_from(&out.edit.event);
@@ -159,7 +159,7 @@ impl Rig {
             .width(width)
             .policy(EditPolicy::default())
             .enabled(self.enabled)
-            .press_waits(self.waits);
+            .part(self.waits);
         let out = row.show(ui, &style);
         self.rows[1] = drawn(ui, "rig-output", &style, out.edit.response.rect, out.shown.to_vec(), out.dragged);
         self.output_event.clone_from(&out.edit.event);

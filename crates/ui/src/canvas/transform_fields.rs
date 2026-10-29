@@ -377,10 +377,6 @@ impl<'a> TransformFields<'a> {
             }
         }
         let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
-        // A press on a field waits while another field's typing run has the focus: the run's
-        // event goes out first, and the press edits the box it leaves.
-        let waits = edit::focused_gesture(ui.ctx()).is_some();
-
         let tokens = Tokens::of(ui);
         let row_style = PropertyRow::style(&tokens, size);
         let cell = row_style.glyph_width + row_style.label_gap + NumberField::style(&tokens, size).field.width;
@@ -408,7 +404,7 @@ impl<'a> TransformFields<'a> {
                 .decimals(0..=decimals)
                 .unit(unit)
                 .policy(inner)
-                .press_waits(waits)
+                .part(true)
                 .size(size)
                 .enabled(enabled)
                 .show(ui)
@@ -460,7 +456,7 @@ impl<'a> TransformFields<'a> {
         });
 
         // Each field's value applies to the row the fields before it in this pass left.
-        let mut edits = parts::Edits::<TransformRow>::new(&kept.parts);
+        let mut edits = parts::Edits::<TransformRow>::new(id, &kept.parts);
         let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
         let mut running = shown;
         for (which, edit) in &fields {

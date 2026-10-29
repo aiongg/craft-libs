@@ -407,10 +407,6 @@ impl<'a> LevelsEditor<'a> {
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
         let levels = *self.levels;
-        // A press on a row or a field's scrub waits while another control's gesture has the focus
-        // (a field's typing run, `press_turn`): the run's ending event goes out first, and the
-        // press edits the levels it leaves.
-        let waits = edit::focused_gesture(ui.ctx()).is_some();
         let stack_gap = ui.spacing().item_spacing.y;
 
         if self.captions {
@@ -441,7 +437,7 @@ impl<'a> LevelsEditor<'a> {
             .width(width)
             .policy(self.policy)
             .enabled(enabled)
-            .press_waits(waits)
+            .part(true)
             .show(ui, &rows);
         let alt = ui.input(|i| i.modifiers.alt);
         let clip = match input.dragged {
@@ -475,7 +471,7 @@ impl<'a> LevelsEditor<'a> {
                 level(self.field("in-white", &self.labels.in_white, white, (black_at + gap).clamp(start, end)..=end)),
             ),
         ];
-        let in_edits = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.press_waits(waits)));
+        let in_edits = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
 
         if self.captions {
             self.caption(ui, style, &self.labels.output);
@@ -496,7 +492,7 @@ impl<'a> LevelsEditor<'a> {
             .width(width)
             .policy(self.policy)
             .enabled(enabled)
-            .press_waits(waits)
+            .part(true)
             .show(ui, &rows);
         let [out_black, out_white] = output.values;
         let fields = FieldStrip::new(ui, width, style.field_gap);
@@ -505,7 +501,7 @@ impl<'a> LevelsEditor<'a> {
             (fields.at_start(w2), "out-black", level(self.field("out-black", &self.labels.out_black, out_black, start..=end))),
             (fields.at_end(w2), "out-white", level(self.field("out-white", &self.labels.out_white, out_white, start..=end))),
         ];
-        let out_edits = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.press_waits(waits)));
+        let out_edits = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
 
         let [b, g, w] = in_edits;
         let [ob, ow] = out_edits;

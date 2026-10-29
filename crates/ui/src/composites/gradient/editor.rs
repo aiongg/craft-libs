@@ -21,7 +21,7 @@ use super::value::{GradientStops, StopRow, StopRows};
 use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::composites::color::ColorPicker;
 use crate::composites::curve_editor::{fill, take_exact};
-use crate::controls::slider::PRESS_WAIT;
+use crate::edit::order::{self, Turn};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{self, LocaleNumbers};
 use crate::primitives::{FocusRing, Gap, Stack};
@@ -173,7 +173,7 @@ pub struct GradientEditorStyle {
 struct State {
     selected: Option<StopRef>,
     drag: Option<Drag>,
-    /// Pointer input that waits while another control's gesture with the focus ends.
+    /// Pointer input that waits for its turn ([`BarEdit::turn`]).
     held: Option<Held>,
     parts: parts::State<()>,
     /// The selection as the editor's gesture began, restored when it is cancelled.
@@ -222,10 +222,9 @@ enum Input {
     Click(Pos2),
 }
 
-/// Inputs held since pass `since`; `last` is the last pass that held them.
+/// Inputs held for their turn; `last` is the last pass that held them.
 #[derive(Clone, Debug)]
 struct Held {
-    since: u64,
     last: u64,
     inputs: Vec<Input>,
 }
@@ -535,26 +534,23 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     fn show_inside(&self, ui: &mut Ui, id: Id, style: &GradientEditorStyle) -> GradientEditorResponse<T> {
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
-        // A typing run had the focus as the pass began: the Delete button's click and a scrub on
-        // another field wait for it.
-        let waits = edit::focused_gesture(ui.ctx()).is_some();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.stops, self.policy.cancellable(false)).enabled(enabled);
         let active = outer.is_active();
         let before = state.selected;
         let shown = outer.shown().clone();
-        let mut edits = Edits::new(&state.parts);
+        let mut edits = Edits::new(id, &state.parts);
         let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
         edits.push(&bar.edit, |stops| stops);
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
         if self.fields {
-            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, waits, requested);
+            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
         } else if self.color_popover {
             picker = self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
         }
-        for () in edits.clicks(ui.ctx(), &mut state.parts, waits) {
+        for () in edits.inputs(ui.ctx(), &mut state.parts) {
             if let Some(m) = state.selected.filter(|m| m.is_stop())
                 && let Some((stops, j)) = stops::remove(&bar.value, m.row(), m.index(), &self.rules)
             {
@@ -620,7 +616,6 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 state.selected = drag.before;
             }
         }
-        let waits = edit::focused_gesture(ui.ctx()).is_some_and(|g| gesture.id() != Some(g));
         state.selected = state.selected.filter(|&s| geo.valid(gesture.shown(), s));
 
         let default = default_sampler(rows);
@@ -630,7 +625,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let mut drop_at = None;
         if enabled {
             let mut edit = BarEdit { gesture: &mut gesture, state, geo, rules: &self.rules, sampler };
-            edit.pointer(ui, &response, waits);
+            edit.pointer(ui, &response);
             if response.double_clicked()
                 && let Some(pos) = response.interact_pointer_pos()
                 && let Some(StopRef::Color(i)) = geo.hit(edit.gesture.shown(), pos, edit.state.selected)
@@ -1009,9 +1004,9 @@ struct BarEdit<'g> {
 
 impl BarEdit<'_> {
     /// Press, drag and release of a marker; a click on empty space; a right-click. A press gives
-    /// the bar the focus and, while another control's gesture has it, waits for that gesture's
+    /// the bar the focus and, while another control's typing run has it, waits for that run's
     /// ending event ([`turn`](BarEdit::turn)).
-    fn pointer(&mut self, ui: &Ui, response: &Response, waits: bool) {
+    fn pointer(&mut self, ui: &Ui, response: &Response) {
         // Hit-test where the button went down, not where egui first recognises a drag.
         let down = response.is_pointer_button_down_on();
         let press = down && ui.input(|i| i.pointer.primary_pressed());
@@ -1032,7 +1027,7 @@ impl BarEdit<'_> {
         if new.iter().any(|i| !matches!(i, Input::Click(_))) {
             response.request_focus();
         }
-        for input in self.turn(ui.ctx(), waits, new) {
+        for input in self.turn(ui.ctx(), response.id, new) {
             match input {
                 Input::Press { pos, alt } => self.press(pos, alt),
                 Input::Secondary(pos) => {
@@ -1057,20 +1052,25 @@ impl BarEdit<'_> {
         }
     }
 
-    /// The inputs that run in this pass: those held from earlier passes, then `new`. While
-    /// `waits`, they wait as a composite's press does (`controls::slider::press_turn`), at most
-    /// [`PRESS_WAIT`] passes.
-    fn turn(&mut self, ctx: &Context, waits: bool, new: Vec<Input>) -> Vec<Input> {
+    /// The inputs that run in this pass: those held from earlier passes, then `new`. They take
+    /// their turn from the edit order as a composite's press does (`controls::slider::press_turn`):
+    /// while another control's typing run has the focus, they ask it to end and wait, and run in
+    /// the first pass after its ending event has gone out. The bar's own gesture is no reason to
+    /// wait.
+    fn turn(&mut self, ctx: &Context, bar: Id, new: Vec<Input>) -> Vec<Input> {
         let pass = ctx.cumulative_pass_nr();
-        let held = self.state.held.take().filter(|h| h.last + 1 == pass);
-        let (since, mut inputs) = held.map_or((pass, Vec::new()), |h| (h.since, h.inputs));
+        let mut inputs = self.state.held.take().filter(|h| h.last + 1 == pass).map_or_else(Vec::new, |h| h.inputs);
         inputs.extend(new);
-        if waits && !inputs.is_empty() && pass < since + PRESS_WAIT {
-            self.state.held = Some(Held { since, last: pass, inputs });
-            ctx.request_repaint();
-            return Vec::new();
+        if inputs.is_empty() {
+            return inputs;
         }
-        inputs
+        match order::turn(ctx, bar, self.gesture.id()) {
+            Turn::Waits => {
+                self.state.held = Some(Held { last: pass, inputs });
+                Vec::new()
+            }
+            Turn::Now | Turn::Runs => inputs,
+        }
     }
 
     fn press(&mut self, pos: Pos2, alt: bool) {
