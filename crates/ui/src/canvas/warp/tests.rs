@@ -25,6 +25,9 @@ struct Host {
     flip: bool,
     editable: bool,
     split: Option<WarpSplit>,
+    modifiers: Option<Modifiers>,
+    bounds: Rect,
+    preset: bool,
     view: Option<CanvasView>,
     events: Vec<EditEvent<WarpEdit>>,
     picked: Option<usize>,
@@ -41,6 +44,9 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
         flip,
         editable: true,
         split: None,
+        modifiers: None,
+        bounds: RECT,
+        preset: false,
         view: None,
         events: Vec::new(),
         picked: None,
@@ -60,12 +66,11 @@ fn harness_with(mesh: WarpMesh, rotation: f64, flip: bool, setup: impl FnOnce(&m
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
             let mesh = host.host.mesh.clone();
-            let r = WarpGrid::new("warp", &mesh, english_names())
-                .editable(host.editable)
-                .split(host.split)
-                .surface(|p| surface_at(&mesh, p))
-                .units(&px, &px)
-                .show(ui, &canvas, &view);
+            let mut grid = WarpGrid::new("warp", &mesh, host.bounds, english_names()).editable(host.editable).split(host.split).preset(host.preset);
+            if let Some(m) = host.modifiers {
+                grid = grid.modifiers(m);
+            }
+            let r = grid.surface(|p| surface_at(&mesh, p)).units(&px, &px).show(ui, &canvas, &view);
             host.host.apply(&r);
             host.field.note(r.event.is_some());
             host.events.extend(r.event.clone());
@@ -433,29 +438,65 @@ fn click(h: &mut Harness<'_, Host>, at: Pos2, modifiers: Modifiers) {
     h.run();
 }
 
-#[test]
-fn a_split_inserts_a_line_at_the_click_and_alt_switches_direction() {
-    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
-    h.run();
-    let at = screen(&h, Point::new(RECT.x0 + 0.25 * RECT.width(), RECT.y0 + 0.4 * RECT.height()));
-    click(&mut h, at, Modifiers::NONE);
-    assert_eq!(kinds(&h), ["set"], "one Set, no drag");
-    let Some(WarpEdit::Split { split: WarpSplit::Crosswise, index: 0, t }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
-    assert!((t - 0.4).abs() < 0.01, "{t}");
-    assert_eq!((mesh(&h).columns, mesh(&h).rows), (1, 2));
-    // The new row of anchors lies on the click's line.
-    let anchor = mesh(&h).point(0, 3);
-    assert!((anchor.y - (RECT.y0 + 0.4 * RECT.height())).abs() < 0.5, "{anchor:?}");
+/// The lines the split preview strokes in the last frame.
+fn preview_lines(h: &Harness<'_, Host>) -> usize {
+    let style = WarpGrid::style(&current(&h.ctx));
+    let shapes: Vec<Shape> = h.output().shapes.iter().map(|c| c.shape.clone()).collect();
+    flat(&shapes).iter().filter(|s| matches!(s, Shape::Path(p) if p.stroke == style.split.into())).count()
+}
 
-    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
+fn cursor(h: &Harness<'_, Host>) -> egui::CursorIcon {
+    h.output().platform_output.cursor_icon
+}
+
+fn hover(h: &mut Harness<'_, Host>, at: Pos2, modifiers: Modifiers) {
+    h.event(Event::ModifiersChanged(modifiers));
+    h.event(Event::PointerMoved(at));
     h.run();
-    click(&mut h, at, Modifiers::ALT);
-    let Some(WarpEdit::Split { split: WarpSplit::Lengthwise, index: 0, t }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
-    assert!((t - 0.25).abs() < 0.01, "{t}");
-    assert_eq!((mesh(&h).columns, mesh(&h).rows), (2, 1));
+}
+
+/// The pointer at fractions `(u, v)` across the one-patch mesh.
+fn at_fraction(h: &Harness<'_, Host>, u: f64, v: f64) -> Pos2 {
+    screen(h, Point::new(RECT.x0 + u * RECT.width(), RECT.y0 + v * RECT.height()))
+}
+
+#[test]
+fn a_split_tool_inserts_the_lines_it_names_at_the_click() {
+    let at = |h: &Harness<'_, Host>| at_fraction(h, 0.25, 0.4);
+    let cases = [(WarpSplit::Horizontal, (1, 2)), (WarpSplit::Vertical, (2, 1)), (WarpSplit::Cross, (2, 2))];
+    for (split, size) in cases {
+        let mut h = harness(|host| {
+            host.split = Some(split);
+            host.preset = true;
+        });
+        h.run();
+        let p = at(&h);
+        click(&mut h, p, Modifiers::NONE);
+        assert_eq!(kinds(&h), ["set"], "{split:?}: one Set, no drag");
+        let Some(WarpEdit::Split { split: edit, column: 0, row: 0, u, v, .. }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
+        assert_eq!(edit, split);
+        assert!((u - 0.25).abs() < 0.01 && (v - 0.4).abs() < 0.01, "({u}, {v})");
+        assert_eq!((mesh(&h).columns(), mesh(&h).rows()), size, "{split:?}");
+        // The new row and column of anchors lie on the click's lines.
+        if split != WarpSplit::Vertical {
+            let anchor = mesh(&h).point(0, 3);
+            assert!((anchor.y - (RECT.y0 + 0.4 * RECT.height())).abs() < 0.5, "{anchor:?}");
+        }
+        if split != WarpSplit::Horizontal {
+            let anchor = mesh(&h).point(3, 0);
+            assert!((anchor.x - (RECT.x0 + 0.25 * RECT.width())).abs() < 0.5, "{anchor:?}");
+        }
+    }
+
+    // Alt does not change the tool's lines.
+    let mut h = harness(|host| host.split = Some(WarpSplit::Horizontal));
+    h.run();
+    let p = at(&h);
+    click(&mut h, p, Modifiers::ALT);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Horizontal, .. })), "{:?}", last_edit(&h));
 
     // Off the surface nothing is inserted, and the press is not a drag of a point.
-    let mut h = harness(|host| host.split = Some(WarpSplit::Crosswise));
+    let mut h = harness(|host| host.split = Some(WarpSplit::Cross));
     h.run();
     let off = screen(&h, Point::new(RECT.x1 + 60.0, RECT.y1 + 40.0));
     click(&mut h, off, Modifiers::NONE);
@@ -467,22 +508,399 @@ fn a_split_inserts_a_line_at_the_click_and_alt_switches_direction() {
 }
 
 #[test]
+fn the_preview_and_the_pointer_follow_the_split_tool() {
+    for (split, lines, icon) in [
+        (WarpSplit::Cross, 2, egui::CursorIcon::Crosshair),
+        (WarpSplit::Vertical, 1, egui::CursorIcon::ResizeHorizontal),
+        (WarpSplit::Horizontal, 1, egui::CursorIcon::ResizeVertical),
+    ] {
+        let mut h = harness(|host| host.split = Some(split));
+        h.run();
+        assert_eq!(preview_lines(&h), 0, "no pointer");
+        let p = at_fraction(&h, 0.3, 0.6);
+        hover(&mut h, p, Modifiers::NONE);
+        assert_eq!(preview_lines(&h), lines, "{split:?}");
+        assert_eq!(cursor(&h), icon, "{split:?}");
+    }
+}
+
+#[test]
+fn a_split_on_an_existing_line_inserts_nothing_and_a_cross_inserts_its_other_line() {
+    let mut h = harness_with(WarpMesh::identity(RECT, 2, 1), 0.0, false, |host| host.split = Some(WarpSplit::Vertical));
+    h.run();
+    // The middle line of a 2 x 1 mesh is at half the width.
+    let on = at_fraction(&h, 0.5, 0.4);
+    hover(&mut h, on, Modifiers::NONE);
+    assert_eq!(preview_lines(&h), 0, "an existing line previews nothing");
+    click(&mut h, on, Modifiers::NONE);
+    assert!(kinds(&h).is_empty(), "{:?}", h.state().events);
+
+    let mut h = harness_with(WarpMesh::identity(RECT, 2, 1), 0.0, false, |host| host.split = Some(WarpSplit::Cross));
+    h.run();
+    hover(&mut h, on, Modifiers::NONE);
+    assert_eq!(preview_lines(&h), 1, "only the line that is not there yet");
+    click(&mut h, on, Modifiers::NONE);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Horizontal, .. })), "{:?}", last_edit(&h));
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (2, 2));
+}
+
+#[test]
+fn esc_drops_a_split_press() {
+    let mut h = harness(|host| host.split = Some(WarpSplit::Cross));
+    h.run();
+    let p = at_fraction(&h, 0.3, 0.6);
+    h.event(Event::PointerMoved(p));
+    h.event(button(p, true));
+    h.run();
+    assert!(h.state().claimed);
+    h.key_press(Key::Escape);
+    h.run();
+    h.event(button(p, false));
+    h.run();
+    assert!(kinds(&h).is_empty(), "{:?}", h.state().events);
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (1, 1));
+}
+
+#[test]
+fn alt_or_ctrl_with_no_tool_is_a_quick_split_chosen_by_the_pointer() {
+    // In the open a cross; close to an existing line of a direction the perpendicular line.
+    let mut h = harness_with(WarpMesh::identity(RECT, 2, 2), 0.0, false, |_| {});
+    h.run();
+    let open = screen(&h, Point::new(RECT.x0 + 0.25 * RECT.width(), RECT.y0 + 0.25 * RECT.height()));
+    hover(&mut h, open, Modifiers::ALT);
+    assert_eq!(preview_lines(&h), 2);
+    assert_eq!(cursor(&h), egui::CursorIcon::Crosshair);
+    click(&mut h, open, Modifiers::ALT);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Cross, .. })), "{:?}", last_edit(&h));
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (3, 3));
+
+    for (modifiers, u, v, want, icon) in [
+        (Modifiers::COMMAND, 0.51, 0.25, WarpSplit::Horizontal, egui::CursorIcon::ResizeVertical),
+        (Modifiers::ALT, 0.25, 0.49, WarpSplit::Vertical, egui::CursorIcon::ResizeHorizontal),
+    ] {
+        let mut h = harness_with(WarpMesh::identity(RECT, 2, 2), 0.0, false, |_| {});
+        h.run();
+        let p = at_fraction(&h, u, v);
+        hover(&mut h, p, modifiers);
+        assert_eq!(preview_lines(&h), 1, "{want:?}");
+        assert_eq!(cursor(&h), icon, "{want:?}");
+        click(&mut h, p, modifiers);
+        assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split, .. }) if split == want), "{:?}", last_edit(&h));
+    }
+
+    // A one-patch mesh's thirds lines count as existing lines.
+    let mut h = harness(|_| {});
+    h.run();
+    let p = at_fraction(&h, 1.0 / 3.0 + 0.01, 0.5);
+    click(&mut h, p, Modifiers::ALT);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Horizontal, .. })), "{:?}", last_edit(&h));
+
+    // Without the key the press pulls the surface as ever.
+    let mut h = harness(|_| {});
+    h.run();
+    let from = at_fraction(&h, 0.5, 0.5);
+    drag(&mut h, from, from + vec2(10.0, 0.0));
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Surface { .. })), "{:?}", last_edit(&h));
+}
+
+#[test]
+fn the_modifiers_override_replaces_the_input_modifiers() {
+    let mut h = harness(|host| host.modifiers = Some(Modifiers::ALT));
+    h.run();
+    let p = at_fraction(&h, 0.25, 0.5);
+    click(&mut h, p, Modifiers::NONE);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Cross, .. })), "{:?}", last_edit(&h));
+
+    // Alt in the input alone does nothing when the host says no modifier is held.
+    let mut h = harness(|host| host.modifiers = Some(Modifiers::NONE));
+    h.run();
+    click(&mut h, p, Modifiers::ALT);
+    assert!(!matches!(last_edit(&h), Some(WarpEdit::Split { .. })), "{:?}", last_edit(&h));
+}
+
+/// A split press during a text field's typing run lands after the run's Commit.
+#[test]
+fn a_split_during_a_typing_run_lands_after_the_runs_commit() {
+    let mut h = harness(|host| {
+        host.field.on = true;
+        host.split = Some(WarpSplit::Horizontal);
+    });
+    h.step();
+    let at = at_fraction(&h, 0.25, 0.4);
+    h.event(Event::PointerMoved(at));
+    h.step();
+    h.event(button(at, true));
+    h.step();
+    assert!(h.state().events.is_empty(), "the press waits: {:?}", h.state().events);
+    for i in 1..=6 {
+        h.event(Event::PointerMoved(at + vec2(4.0 * i as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(at + vec2(24.0, 0.0), false));
+    h.step();
+    h.step();
+    assert_eq!(kinds(&h), ["set"], "{:?}", h.state().events);
+    assert!(h.state().field.commit_came_first());
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (3, 4), "the thirds and the new row");
+}
+
+#[test]
+fn enter_splits_the_focused_anchors_patch_in_the_middle() {
+    let mut h = harness_with(WarpMesh::identity(RECT, 2, 1), 0.0, false, |host| host.split = Some(WarpSplit::Cross));
+    h.run();
+    // Tab into the grid, then Page Down to the first anchor (the top left one).
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    let Some(WarpEdit::Split { split: WarpSplit::Cross, column: 0, row: 0, u, v, .. }) = last_edit(&h) else { panic!("{:?}", last_edit(&h)) };
+    assert_eq!((u, v), (0.5, 0.5));
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (3, 2));
+
+    // The last anchor of a row splits the last patch.
+    let mut h = harness_with(WarpMesh::identity(RECT, 2, 1), 0.0, false, |host| host.split = Some(WarpSplit::Vertical));
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::End);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split: WarpSplit::Vertical, column: 1, row: 0, .. })), "{:?}", last_edit(&h));
+
+    // With no tool set Enter does nothing.
+    let mut h = harness(|_| {});
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert!(kinds(&h).is_empty());
+}
+
+#[test]
 fn splitting_keeps_the_surface_where_it_was() {
     let mut warped = WarpMesh::identity(RECT, 2, 2);
     for (k, p) in warped.points.iter_mut().enumerate() {
         *p += Vec2::new((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
     }
-    for (split, index, t) in [(WarpSplit::Crosswise, 1, 0.3), (WarpSplit::Lengthwise, 0, 0.7)] {
-        let cut = warped.split(split, index, t);
+    let (column, row, cu, cv) = (0, 1, 0.7, 0.3);
+    for split in [WarpSplit::Horizontal, WarpSplit::Vertical, WarpSplit::Cross] {
+        let cut = warped.split(split, column, row, cu, cv);
+        let (dc, dr) = (usize::from(split != WarpSplit::Horizontal), usize::from(split != WarpSplit::Vertical));
+        assert_eq!((cut.columns(), cut.rows()), (2 + dc, 2 + dr), "{split:?}");
         for (u, v) in [(0.1, 0.2), (0.5, 0.5), (0.9, 0.8)] {
-            // The same surface point, in the half of the patch that holds it.
-            let (a, b) = match split {
-                WarpSplit::Crosswise => ((0, 1, u, v), if v < t { (0, 1, u, v / t) } else { (0, 2, u, (v - t) / (1.0 - t)) }),
-                WarpSplit::Lengthwise => ((0, 1, u, v), if u < t { (0, 1, u / t, v) } else { (1, 1, (u - t) / (1.0 - t), v) }),
+            // The same surface point, in the piece of the patch that holds it.
+            let (c, local_u) = if dc == 1 && u >= cu {
+                (column + 1, (u - cu) / (1.0 - cu))
+            } else if dc == 1 {
+                (column, u / cu)
+            } else {
+                (column, u)
             };
-            let (before, after) = (warped.patch_point(a.0, a.1, a.2, a.3), cut.patch_point(b.0, b.1, b.2, b.3));
+            let (r, local_v) = if dr == 1 && v >= cv {
+                (row + 1, (v - cv) / (1.0 - cv))
+            } else if dr == 1 {
+                (row, v / cv)
+            } else {
+                (row, v)
+            };
+            let (before, after) = (warped.patch_point(column, row, u, v), cut.patch_point(c, r, local_u, local_v));
             assert!(before.distance(after) < 1e-9, "{split:?} {before:?} {after:?}");
         }
         assert!(cut.is_valid());
+    }
+}
+
+/// The x of the anchors along the top row of the mesh, as fractions of `RECT`'s width.
+fn knots(mesh: &WarpMesh) -> Vec<f64> {
+    (0..=mesh.columns()).map(|k| (mesh.point(3 * k, 0).x - RECT.x0) / RECT.width()).collect()
+}
+
+fn assert_knots(got: &[f64], want: &[f64]) {
+    assert!(got.len() == want.len() && got.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-3), "{got:?} vs {want:?}");
+}
+
+#[test]
+fn the_first_split_of_a_custom_one_patch_mesh_keeps_its_thirds() {
+    // A cross at the middle of the default grid: 4 x 4 patches with knots 0, 1/3, 1/2, 2/3, 1.
+    let mut h = harness(|host| host.split = Some(WarpSplit::Cross));
+    h.run();
+    let p = at_fraction(&h, 0.5, 0.5);
+    click(&mut h, p, Modifiers::NONE);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { thirds: true, .. })), "{:?}", last_edit(&h));
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (4, 4));
+    assert_knots(&knots(mesh(&h)), &[0.0, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0]);
+
+    // A release inside the first third cuts that third.
+    let mut h = harness(|host| host.split = Some(WarpSplit::Vertical));
+    h.run();
+    let p = at_fraction(&h, 0.25, 0.5);
+    click(&mut h, p, Modifiers::NONE);
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (4, 3), "the horizontal thirds stay too");
+    assert_knots(&knots(mesh(&h)), &[0.0, 0.25, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+
+    // On a third's line nothing is cut.
+    let mut h = harness(|host| host.split = Some(WarpSplit::Vertical));
+    h.run();
+    let p = at_fraction(&h, 1.0 / 3.0, 0.5);
+    click(&mut h, p, Modifiers::NONE);
+    assert!(kinds(&h).is_empty(), "{:?}", h.state().events);
+}
+
+#[test]
+fn a_fitted_preset_is_split_without_its_thirds() {
+    let mut h = harness(|host| {
+        host.split = Some(WarpSplit::Cross);
+        host.preset = true;
+    });
+    h.run();
+    let p = at_fraction(&h, 0.5, 0.5);
+    click(&mut h, p, Modifiers::NONE);
+    assert!(matches!(last_edit(&h), Some(WarpEdit::Split { thirds: false, .. })), "{:?}", last_edit(&h));
+    assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (2, 2));
+    assert_knots(&knots(mesh(&h)), &[0.0, 0.5, 1.0]);
+}
+
+#[test]
+fn committing_the_thirds_keeps_the_surface_and_only_a_one_patch_mesh_has_them() {
+    let mut warped = WarpMesh::identity(RECT, 1, 1);
+    for (k, p) in warped.points.iter_mut().enumerate() {
+        *p += Vec2::new((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
+    }
+    let cut = warped.commit_thirds();
+    assert_eq!((cut.columns(), cut.rows()), (3, 3));
+    for (u, v) in [(0.1, 0.2), (0.5, 0.5), (0.9, 0.8)] {
+        let (c, r) = (((u * 3.0) as usize).min(2), ((v * 3.0) as usize).min(2));
+        let (before, after) = (warped.patch_point(0, 0, u, v), cut.patch_point(c, r, u * 3.0 - c as f64, v * 3.0 - r as f64));
+        assert!(before.distance(after) < 1e-9, "{before:?} {after:?}");
+    }
+    let two = WarpMesh::identity(RECT, 2, 1);
+    assert_eq!(two.commit_thirds(), two);
+}
+
+#[test]
+fn the_quick_splits_reach_is_8_units_of_the_source_rectangle() {
+    // 0.03 of the width from the middle line of a 2 x 2 mesh: within 8 / 180 of it for the mesh's
+    // own rectangle, outside the 2 % floor for a rectangle six times as wide.
+    for (width, want) in [(RECT.width(), WarpSplit::Horizontal), (6.0 * RECT.width(), WarpSplit::Cross)] {
+        let bounds = Rect::new(RECT.x0, RECT.y0, RECT.x0 + width, RECT.y1);
+        let mut h = harness_with(WarpMesh::identity(RECT, 2, 2), 0.0, false, |host| host.bounds = bounds);
+        h.run();
+        let p = at_fraction(&h, 0.53, 0.25);
+        click(&mut h, p, Modifiers::ALT);
+        assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split, .. }) if split == want), "{width}: {:?}", last_edit(&h));
+    }
+}
+
+/// PhotoCraft's `quick_split_kind` (`transform_tool/warp.rs`) on a mesh's knots, for the mesh
+/// parameters `(s, t)`.
+fn photocraft_quick_split(us: &[f64], vs: &[f64], bounds: Rect, (s, t): (f64, f64)) -> WarpSplit {
+    let w = bounds.width().abs().max(1.0);
+    let h = bounds.height().abs().max(1.0);
+    let (su, sv) = ((8.0 / w).clamp(0.02, 0.12), (8.0 / h).clamp(0.02, 0.12));
+    let thirds = us.len() == 2 && vs.len() == 2;
+    let near = |knots: &[f64], v: f64, tol: f64| {
+        knots.iter().any(|k| *k > 0.0 && *k < 1.0 && (k - v).abs() < tol) || (thirds && [1.0 / 3.0, 2.0 / 3.0].iter().any(|k| (k - v).abs() < tol))
+    };
+    match (near(us, s, su), near(vs, t, sv)) {
+        (true, false) => WarpSplit::Horizontal,
+        (false, true) => WarpSplit::Vertical,
+        _ => WarpSplit::Cross,
+    }
+}
+
+fn uneven() -> WarpMesh {
+    WarpMesh::identity_with_knots(RECT, vec![0.0, 0.1, 0.2, 1.0], vec![0.0, 0.7, 1.0]).unwrap()
+}
+
+#[test]
+fn the_quick_split_picks_as_photocraft_does_on_uneven_meshes() {
+    let wide = Rect::new(0.0, 0.0, 400.0, 400.0);
+    let meshes = [uneven(), WarpMesh::identity(RECT, 1, 1), WarpMesh::identity(RECT, 2, 3)];
+    for mesh in &meshes {
+        for bounds in [RECT, wide] {
+            for i in 0..=100 {
+                for j in 0..=100 {
+                    let (s, t) = (i as f64 / 100.0, j as f64 / 100.0);
+                    let (column, row, u, v) = mesh.locate(s, t);
+                    let got = mesh.quick_split(bounds, column, row, u, v);
+                    assert_eq!(got, photocraft_quick_split(&mesh.us, &mesh.vs, bounds, (s, t)), "{:?} {:?} at ({s}, {t})", mesh.us, mesh.vs);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_quick_split_near_an_uneven_line_cuts_across_it() {
+    // The mesh's knots are 0, 0.1, 0.2, 1 across. With the source rectangle 400 wide the reach is
+    // 0.02 of the mesh. At 0.224 the pointer is clear of the line at 0.2 (even patches would put
+    // it at 0.677, next to the line at two thirds), and at 0.21 it is beside it.
+    let bounds = Rect::new(RECT.x0, RECT.y0, RECT.x0 + 400.0, RECT.y1);
+    let cases = [(0.224, WarpSplit::Cross, (4, 2)), (0.21, WarpSplit::Horizontal, (3, 2))];
+    for (s, want, (columns, rows)) in cases {
+        let start = WarpMesh::identity_with_knots(RECT, vec![0.0, 0.1, 0.2, 1.0], vec![0.0, 1.0]).unwrap();
+        let mut h = harness_with(start, 0.0, false, |host| host.bounds = bounds);
+        h.run();
+        let p = at_fraction(&h, s, 0.5);
+        click(&mut h, p, Modifiers::ALT);
+        assert!(matches!(last_edit(&h), Some(WarpEdit::Split { split, .. }) if split == want), "{s}: {:?}", last_edit(&h));
+        assert_eq!((mesh(&h).columns(), mesh(&h).rows()), (columns, rows), "{s}");
+    }
+}
+
+#[test]
+fn a_split_inserts_the_knot_of_the_cut() {
+    let cut = uneven().split(WarpSplit::Cross, 2, 0, 0.5, 0.5);
+    assert_knots(&cut.us, &[0.0, 0.1, 0.2, 0.6, 1.0]);
+    assert_knots(&cut.vs, &[0.0, 0.35, 0.7, 1.0]);
+    assert!(cut.is_valid());
+    // A cut on a patch's edge would make a zero-width patch and is not made.
+    assert_eq!(uneven().split(WarpSplit::Cross, 0, 0, 0.0, 1.0), uneven());
+}
+
+#[test]
+fn the_thirds_have_knots_at_thirds_and_a_cross_at_the_middle_adds_the_half() {
+    let thirds = WarpMesh::identity(RECT, 1, 1).commit_thirds();
+    assert_knots(&thirds.us, &[0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    assert_knots(&thirds.vs, &[0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    assert!(thirds.is_valid());
+    let (column, row, u, v) = thirds.locate(0.5, 0.5);
+    let cut = thirds.split(WarpSplit::Cross, column, row, u, v);
+    assert_knots(&cut.us, &[0.0, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0]);
+    assert_knots(&cut.vs, &[0.0, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0]);
+}
+
+#[test]
+fn params_and_locate_follow_the_knots_and_a_mesh_hands_over_with_its_knots() {
+    let mesh = uneven();
+    let (s, t) = mesh.params(2, 1, 0.5, 0.5);
+    assert!((s - 0.6).abs() < 1e-12 && (t - 0.85).abs() < 1e-12);
+    let (column, row, u, v) = mesh.locate(0.6, 0.85);
+    assert_eq!((column, row), (2, 1));
+    assert!((u - 0.5).abs() < 1e-12 && (v - 0.5).abs() < 1e-12);
+    // A knot belongs to the patch before it, as PhotoCraft's eval has it.
+    assert_eq!(mesh.locate(0.1, 0.0).0, 0);
+
+    let again = WarpMesh::new(mesh.us.clone(), mesh.vs.clone(), mesh.points.clone());
+    assert_eq!(again, Some(mesh));
+    assert!(WarpMesh::new(vec![0.0, 0.5], vec![0.0, 1.0], uneven().points).is_none());
+    assert!(WarpMesh::identity_with_knots(RECT, vec![0.0, 0.5, 0.5, 1.0], vec![0.0, 1.0]).is_none());
+}
+
+#[test]
+fn an_uneven_split_keeps_the_surface_where_it_was() {
+    let mut warped = uneven();
+    for (k, p) in warped.points.iter_mut().enumerate() {
+        *p += Vec2::new((k % 5) as f64 * 3.0, (k % 7) as f64 * 2.0);
+    }
+    let eval = |m: &WarpMesh, s: f64, t: f64| {
+        let (c, r, u, v) = m.locate(s, t);
+        m.patch_point(c, r, u, v)
+    };
+    let cut = warped.split(WarpSplit::Cross, 2, 1, 0.3, 0.6);
+    for (s, t) in [(0.05, 0.2), (0.15, 0.8), (0.4, 0.75), (0.9, 0.95), (0.5, 0.9)] {
+        assert!(eval(&warped, s, t).distance(eval(&cut, s, t)) < 1e-9, "({s}, {t})");
     }
 }
