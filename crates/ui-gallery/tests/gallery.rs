@@ -1,3 +1,4 @@
+use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
 use egui::{Context, RawInput};
 
@@ -27,14 +28,28 @@ fn appearance_changes_render() {
     frame(&ctx, &mut gallery);
     {
         let a = gallery.appearance_mut();
-        a.dark = true;
-        a.high_contrast = true;
+        a.mode = ModeChoice::Dark;
+        a.contrast = ContrastChoice::High;
         a.comfortable = true;
         a.rtl = true;
         a.text_size = 3;
         a.scale = 150;
     }
     frame(&ctx, &mut gallery);
+    frame(&ctx, &mut gallery);
+}
+
+#[test]
+fn the_system_choices_render_in_canvas_and_compare_views() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    let a = gallery.appearance_mut();
+    a.mode = ModeChoice::System;
+    a.contrast = ContrastChoice::System;
+    frame(&ctx, &mut gallery);
+    gallery.set_compare(true);
+    frame(&ctx, &mut gallery);
+    gallery.set_tokens(true);
     frame(&ctx, &mut gallery);
 }
 
@@ -47,8 +62,8 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
     let field = ComponentField::from_path("button.primary.text.rest").unwrap();
     for (dark, selected) in [(false, TokenRef::Color(ColorToken::TextFaint)), (true, TokenRef::Component(field))] {
         let a = gallery.appearance_mut();
-        a.dark = dark;
-        a.high_contrast = dark;
+        a.mode = if dark { ModeChoice::Dark } else { ModeChoice::Light };
+        a.contrast = if dark { ContrastChoice::High } else { ContrastChoice::Standard };
         gallery.select_token(selected);
         frame(&ctx, &mut gallery);
         frame(&ctx, &mut gallery);

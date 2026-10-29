@@ -17,8 +17,8 @@ pub const SCALE: std::ops::RangeInclusive<u32> = 75..=200;
 pub struct Appearance {
     /// A built-in theme id.
     pub theme: String,
-    pub dark: bool,
-    pub high_contrast: bool,
+    pub mode: ModeChoice,
+    pub contrast: ContrastChoice,
     pub comfortable: bool,
     /// Index into [`TextSize::ALL`].
     pub text_size: usize,
@@ -39,8 +39,8 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             theme: ThemeId::suite_default().as_str().to_owned(),
-            dark: false,
-            high_contrast: false,
+            mode: ModeChoice::Light,
+            contrast: ContrastChoice::Standard,
             comfortable: false,
             text_size: 1,
             reduced_motion: false,
@@ -59,12 +59,24 @@ pub fn builtin(id: &str) -> Option<&'static ThemeDef> {
 }
 
 impl Appearance {
-    pub fn mode(&self) -> Mode {
-        if self.dark { Mode::Dark } else { Mode::Light }
+    /// The mode shown: the chosen one, or `shown` (the mode the context displays) when the
+    /// choice is System.
+    pub fn mode(&self, shown: Mode) -> Mode {
+        match self.mode {
+            ModeChoice::Light => Mode::Light,
+            ModeChoice::Dark => Mode::Dark,
+            ModeChoice::System => shown,
+        }
     }
 
-    pub fn contrast(&self) -> Contrast {
-        if self.high_contrast { Contrast::High } else { Contrast::Standard }
+    /// The contrast shown: the chosen one, or what the OS reports (standard when it doesn't)
+    /// when the choice is System.
+    pub fn contrast(&self, system: SystemAppearance) -> Contrast {
+        match self.contrast {
+            ContrastChoice::Standard => Contrast::Standard,
+            ContrastChoice::High => Contrast::High,
+            ContrastChoice::System => system.contrast.unwrap_or(Contrast::Standard),
+        }
     }
 
     pub fn size(&self) -> Size {
@@ -88,22 +100,23 @@ impl Appearance {
         self.scale.clamp(*SCALE.start(), *SCALE.end()) as f32 / 100.0
     }
 
-    /// The theme and settings resolved for the gallery's own chrome.
-    pub fn base(&self) -> Base {
+    /// The theme and settings resolved for the gallery's own chrome, with `system` as the OS's
+    /// answer for the System choices.
+    pub fn base(&self, system: SystemAppearance) -> Base {
         let id = builtin(&self.theme).map_or_else(ThemeId::suite_default, |t| t.id.clone());
-        let mode = if self.dark { ModeChoice::Dark } else { ModeChoice::Light };
-        let contrast = if self.high_contrast { ContrastChoice::High } else { ContrastChoice::Standard };
-        let selection = Selection { theme: ThemePair::same(id), mode, contrast, size: self.size(), text_size: self.text_size() };
-        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode, size: self.size() };
-        let system = SystemAppearance { reduced_motion: Some(self.reduced_motion), ..SystemAppearance::default() };
+        let selection =
+            Selection { theme: ThemePair::same(id), mode: self.mode, contrast: self.contrast, size: self.size(), text_size: self.text_size() };
+        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size() };
+        let system = SystemAppearance { reduced_motion: Some(self.reduced_motion), ..system };
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 
     /// Sets `ctx` up for these settings, given the ones it was last set up for (`None` the first
     /// time): the interface direction and the font stack, each only when it changed.
-    /// `system_face_changed` is true when the OS's interface face resolved since. Returns the
-    /// base for [`install`](craft_ui::theme::install), which the caller runs every frame.
-    pub fn configure(&self, ctx: &egui::Context, previous: Option<&Appearance>, system_face_changed: bool) -> Base {
+    /// `system_face_changed` is true when the OS's interface face resolved since; `system` is
+    /// what the OS reports for the System mode and contrast. Returns the base for
+    /// [`install`](craft_ui::theme::install), which the caller runs every frame.
+    pub fn configure(&self, ctx: &egui::Context, previous: Option<&Appearance>, system_face_changed: bool, system: SystemAppearance) -> Base {
         if previous.is_none_or(|p| p.rtl != self.rtl) {
             craft_ui::direction::apply(ctx, self.direction());
         }
@@ -111,13 +124,12 @@ impl Appearance {
         if crate::faces::available() && (faces_changed || system_face_changed) {
             crate::faces::install(ctx, &self.ui_face, &self.mono_face);
         }
-        self.base()
+        self.base(system)
     }
 
-    /// The overrides that show the bar's settings in a scope.
+    /// The overrides that show the bar's theme and size in a scope; the mode and contrast are the
+    /// scope's own to set, see [`mode`](Self::mode) and [`contrast`](Self::contrast).
     pub fn overrides(&self, o: &mut Overrides) {
-        o.mode = Some(self.mode());
-        o.contrast = Some(self.contrast());
         o.size = Some(self.size());
         o.theme = builtin(&self.theme).cloned();
     }

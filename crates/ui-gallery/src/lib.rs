@@ -12,6 +12,7 @@ pub mod faces;
 mod fields;
 mod gallery;
 mod inspector;
+mod os;
 mod persist;
 
 pub use appearance::Appearance;

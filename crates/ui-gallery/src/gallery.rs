@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use craft_theme::{Mode, TextSize, TokenRef, builtins};
+use craft_theme::{ContrastChoice, Mode, ModeChoice, SystemAppearance, TextSize, TokenRef, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::composites::PropertyRow;
 use craft_ui::controls::{Button, Checkbox, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
@@ -21,6 +21,7 @@ use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
+use crate::os::{self, Os};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -33,6 +34,9 @@ pub struct Gallery {
     story_ppp: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
+    os: Os,
+    /// The OS's answer `base` was resolved with.
+    os_applied: SystemAppearance,
     base: Base,
     selected: Option<String>,
     /// The story tree's selection and keyboard position; groups can hold them too.
@@ -65,11 +69,13 @@ impl Gallery {
         let tree = tree_selection(&stories, selected.as_deref());
         Self {
             stories,
-            base: saved.appearance.base(),
+            base: saved.appearance.base(SystemAppearance::default()),
             appearance: saved.appearance,
             applied: None,
             story_ppp: None,
             system_face_applied: false,
+            os: Os::new(),
+            os_applied: SystemAppearance::default(),
             selected,
             tree,
             filter: saved.filter,
@@ -164,7 +170,7 @@ impl Gallery {
         let inspecting = self.inspect && !self.tokens;
         inspect::set_enabled(&ctx, inspecting);
         if self.tokens {
-            self.browser.show(ui, &self.base, self.appearance.mode());
+            self.browser.show(ui, &self.base, self.appearance.mode(os::shown(&ctx)));
             return;
         }
         direction::start_panel(&ctx, "gallery.tree").default_size(240.0).show(ui, |ui| self.tree(ui));
@@ -180,9 +186,11 @@ impl Gallery {
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
         let system_face = faces::system_face(ctx).is_some();
-        if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied {
+        let system = self.os.read(ctx);
+        if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied || system != self.os_applied {
             let previous = self.applied.replace(self.appearance.clone());
-            self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied);
+            self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied, system);
+            self.os_applied = system;
             self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
                 icons::set_active(ctx, self.appearance.icon_set());
@@ -211,8 +219,13 @@ impl Gallery {
                 theme = theme.option(t.id.as_str().to_owned(), &t.name);
             }
             let _ = theme.policy(fields::policy()).show(ui);
-            segmented(ui, "Mode", &mut a.dark, [("Light", false), ("Dark", true)]);
-            segmented(ui, "Contrast", &mut a.high_contrast, [("Standard", false), ("High", true)]);
+            segmented(ui, "Mode", &mut a.mode, [("Light", ModeChoice::Light), ("Dark", ModeChoice::Dark), ("System", ModeChoice::System)]);
+            segmented(
+                ui,
+                "Contrast",
+                &mut a.contrast,
+                [("Standard", ContrastChoice::Standard), ("High", ContrastChoice::High), ("System", ContrastChoice::System)],
+            );
             segmented(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]);
             ui.label("Text");
             let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size);
@@ -403,6 +416,7 @@ impl Gallery {
             return;
         };
         let appearance = self.appearance.clone();
+        let system = self.os_applied;
         let themes = self.compare_themes.clone();
         let compare = self.compare;
         let high = self.compare_high;
@@ -412,7 +426,7 @@ impl Gallery {
             if compare {
                 compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
             } else {
-                canvas(ui, &story, args, &appearance, inspector);
+                canvas(ui, &story, args, &appearance, system, inspector);
             }
         });
     }
@@ -478,11 +492,14 @@ fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, shown: &s
     }
 }
 
-/// A labelled pair of exclusive choices.
-fn segmented(ui: &mut Ui, label: &str, value: &mut bool, options: [(&str, bool); 2]) {
+/// A labelled set of exclusive choices.
+fn segmented<T: PartialEq + Clone, const N: usize>(ui: &mut Ui, label: &str, value: &mut T, options: [(&str, T); N]) {
     ui.label(label);
-    let [(first, first_value), (second, second_value)] = options;
-    Segmented::new(("gallery.segmented", label), label, value).item(first_value, first).item(second_value, second).show(ui);
+    let mut segmented = Segmented::new(("gallery.segmented", label), label, value);
+    for (name, option) in options {
+        segmented = segmented.item(option, name);
+    }
+    segmented.show(ui);
 }
 
 /// Sets the context's zoom factor. The gallery is the host of the craft-ui showcase: its interface
@@ -517,8 +534,14 @@ fn tree_selection(stories: &[Story], id: Option<&str>) -> Selection<Node> {
 }
 
 /// The story on `surface.background` under the bar's appearance.
-fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, inspector: Option<&mut Inspector>) {
-    scope(ui, |o| appearance.overrides(o), |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
+fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, system: SystemAppearance, inspector: Option<&mut Inspector>) {
+    let shown = os::shown(ui.ctx());
+    let overrides = |o: &mut craft_ui::theme::Overrides| {
+        appearance.overrides(o);
+        o.mode = Some(appearance.mode(shown));
+        o.contrast = Some(appearance.contrast(system));
+    };
+    scope(ui, overrides, |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
 }
 
 /// The story in its frame, with the inspector over it when there is one.
