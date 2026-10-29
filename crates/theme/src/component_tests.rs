@@ -659,6 +659,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 7
             + (1 + 5 * 2 + 4 + 4)
             + (1 + 2 + 6)
+            // Progress: the track's edge.
+            + 1
             // Toast: radius, fill, line, more, and edge and title per tone; notice: a colour per tone; empty state: text.
             + (4 + 2 * 5)
             // Toggle button on: a colour per part (the on-and-disabled colours are counted above).
@@ -989,14 +991,19 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
     let accent = c.badge.colors(BadgeTone::Accent, BadgeStyle::Solid);
     assert_eq!((accent.fill, accent.text), (t.color(T::AccentSolid), t.color(T::TextOnAccent)));
     let soft = c.badge.colors(BadgeTone::Accent, BadgeStyle::Soft);
-    assert_eq!((soft.fill, soft.text), (t.color(T::StateSelected), t.color(T::TextOnSelected)));
+    assert_eq!(
+        (soft.fill, soft.text, soft.border),
+        (t.color(T::StateSelected), t.color(T::TextOnSelected), t.color(T::AccentSolid)),
+        "the selected look"
+    );
     let neutral = c.badge.colors(BadgeTone::Neutral, BadgeStyle::Soft);
     assert_eq!((neutral.fill, neutral.text, neutral.border), (t.color(T::SurfaceSunken), t.color(T::TextMuted), t.color(T::LineBorder)));
     let caption = t.typography.caption.line_height;
     assert_eq!((c.badge.height, c.badge.pad_y, c.badge.radius, c.badge.label), (caption + 2.0, 1.0, Radius::Full.px(), TypeRole::Caption));
     assert_eq!((c.kbd.height, c.kbd.pad_y, c.kbd.label), (caption + 2.0, 1.0, TypeRole::Caption));
     assert_eq!((c.kbd.fill, c.kbd.text), (t.color(T::SurfaceRaised), t.color(T::TextMuted)));
-    assert_eq!((c.progress.track, c.progress.fill, c.progress.track_height), (t.color(T::SurfaceSunken), t.color(T::AccentSolid), 4.0));
+    assert_eq!((c.progress.track, c.progress.fill, c.progress.track_height), (t.color(T::SurfaceSunken), t.color(T::AccentSolid), 6.0));
+    assert_eq!(c.progress.edge, t.color(T::LineControlEdge));
     let s = &c.swatch;
     assert_eq!(s.size, BySize { sm: t.size.control.sm, md: t.size.control.md });
     assert_eq!((s.edge, s.selected), (t.color(T::LineControlEdge), t.color(T::AccentSolid)));

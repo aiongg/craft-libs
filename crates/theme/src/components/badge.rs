@@ -215,7 +215,7 @@ impl Family for BadgeTokens {
             label,
             colors: [
                 [soft(c.surface.sunken, c.text.muted, c.line.border), solid(c.text.muted, c.surface.panel)],
-                [soft(c.state.selected, c.text.on_selected, c.state.selected), solid(c.accent.strong, c.text.on_strong)],
+                [soft(c.state.selected, c.text.on_selected, c.accent.solid), solid(c.accent.strong, c.text.on_strong)],
                 status(&c.status.good),
                 status(&c.status.warn),
                 status(&c.status.bad),

@@ -113,3 +113,37 @@ fn the_story_is_labelled_in_both_directions() {
         a11y::assert_labelled(&harness);
     }
 }
+
+/// The colour of each text shape a notice paints, in order.
+fn text_colors(title: Option<&str>) -> Vec<egui::Color32> {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut colors = Vec::new();
+    let mut output = ctx.run_ui(
+        egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))), ..Default::default() },
+        |ui| {
+            let mut notice = Notice::new("The message").tone(Tone::Warn);
+            if let Some(title) = title {
+                notice = notice.title(title);
+            }
+            notice.show(ui);
+        },
+    );
+    output.textures_delta.clear();
+    for clipped in output.shapes {
+        if let egui::Shape::Text(t) = clipped.shape {
+            colors.push(t.galley.job.sections[0].format.color);
+        }
+    }
+    colors
+}
+
+#[test]
+fn a_message_under_a_title_is_muted_and_a_lone_message_has_the_tone_colour() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let style = Notice::style(&crate::theme::current(&ctx), Tone::Warn);
+    assert_ne!(style.fg, style.body);
+    assert_eq!(text_colors(Some("The title")), [style.fg, style.body]);
+    assert_eq!(text_colors(None), [style.fg]);
+}

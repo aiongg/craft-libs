@@ -1125,8 +1125,8 @@ pub const KBD_RADIUS_MAX: f32 = 3.0;
 /// Above and below a keycap's caption line, in points.
 pub const KBD_PAD_Y: f32 = 1.0;
 
-/// Thickness of a progress bar's track, in points, at every Size.
-pub const PROGRESS_TRACK: f32 = 4.0;
+/// Thickness of a progress bar's track, in points, at every Size (PhotoCraft's `bar_h`, `jobs_ui.rs:631`).
+pub const PROGRESS_TRACK: f32 = 6.0;
 
 /// Widest a tooltip's text grows before it wraps, in points (PhotoCraft's `tooltip_width`, `theme.rs:1093`).
 pub const TOOLTIP_WIDTH: f32 = 280.0;

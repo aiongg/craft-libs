@@ -9,7 +9,7 @@ use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifi
 use super::tests::{every_builtin, frame_at, motion_context, motion_context_in, theme, tokens_of};
 use super::*;
 use crate::icons::IconSize;
-use crate::primitives::{Content, Surface, SurfaceKind};
+use crate::primitives::{Content, Surface, SurfaceEdge, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
 use egui::StrokeKind;
 
@@ -49,7 +49,10 @@ fn small_control_styles_are_their_tokens() {
 
         let p = Progress::style(&t);
         assert_eq!((p.height, p.fill, p.track.fill), (c.progress.track_height, c.progress.fill.to_egui(), c.progress.track.to_egui()));
-        assert_eq!(p.track.edge, Surface::style(&t, SurfaceKind::Sunken).edge);
+        match p.track.edge {
+            SurfaceEdge::Border(edge) => assert_eq!(edge.color, c.progress.edge.to_egui()),
+            edge => assert_eq!(edge, Surface::style(&t, SurfaceKind::Sunken).edge, "a bevelled track keeps the theme's bevel"),
+        }
 
         let tip = Tooltip::style(&t);
         assert_eq!(tip.max_width, c.tooltip.max_width);
@@ -268,7 +271,7 @@ fn a_button_draws_its_loading_ring_through_the_spinner() {
     let points = shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p.points) } else { None }).unwrap();
     let quarter = (points.len() - 1) / 3;
     let center = Pos2::new((points[0].x + points[2 * quarter].x) / 2.0, (points[quarter].y + points[3 * quarter].y) / 2.0);
-    let side = Spinner::style(&tokens_in(&ctx), IconSize::Md, Content::Muted).points;
+    let side = Spinner::style(&tokens_in(&ctx), Some(IconSize::Md), Content::Muted).points;
     let expected = Spinner::points(Rect::from_center_size(center, vec2(side, side)), 0.0);
     assert_eq!(points.len(), expected.len());
     for (p, e) in points.iter().zip(&expected) {
@@ -294,6 +297,29 @@ fn a_progress_fill_is_the_clamped_fraction_of_the_track_and_nan_draws_empty() {
     assert!(fills(Progress::new(-3.0)).is_empty(), "negative draws empty");
     assert!(fills(Progress::new(f32::NAN)).is_empty(), "NaN draws empty");
     assert_eq!((Progress::clamped(f32::NAN), Progress::clamped(0.5)), (0.0, 0.5));
+}
+
+#[test]
+fn a_bar_is_120_long_and_its_fill_is_never_narrower_than_the_bar_is_thick() {
+    let ctx = motion_context(true);
+    let (shapes, _) = frame(&ctx, 0.0, |ui| {
+        ui.add(Progress::new(0.01));
+    });
+    let style = Progress::style(&tokens_in(&ctx));
+    let width_of = |fill: Color32| shapes.iter().find_map(|s| if let Shape::Rect(r) = s { (r.fill == fill).then_some(r.rect.width()) } else { None });
+    assert_eq!(width_of(style.track.fill), Some(120.0), "the track");
+    assert_eq!(width_of(style.fill), Some(style.height), "a 1% fill is as wide as the bar is thick");
+}
+
+#[test]
+fn a_spinner_is_the_control_height_unless_an_icon_size_is_given() {
+    let ctx = motion_context(true);
+    let tokens = tokens_in(&ctx);
+    assert_eq!(Spinner::style(&tokens, None, Content::Normal).points, tokens.size.control.md);
+    for size in IconSize::ALL {
+        assert_eq!(Spinner::style(&tokens, Some(size), Content::Normal).points, size.points(&tokens));
+    }
+    assert_eq!(Spinner::style(&tokens, None, Content::Normal).color, tokens.color.text.normal.to_egui(), "PhotoCraft's strong text colour");
 }
 
 #[test]

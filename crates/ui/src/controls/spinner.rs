@@ -22,13 +22,16 @@ const RADIUS: f32 = 10.0 / 24.0;
 /// A three-quarter ring that turns once a second:
 /// `ui.add(Spinner::new().size(IconSize::Lg).label("Loading"))`.
 ///
-/// It is the size of an icon of its [`IconSize`] and draws in the icon stroke width and a
-/// [`Content`] colour ([`Content::Muted`] by default). With reduced motion it is still. It is
+/// It is the control height (`size.control.md`) unless [`size`](Spinner::size) gives an icon
+/// size, and draws in the icon stroke width and a [`Content`] colour ([`Content::Normal`] by
+/// default, as PhotoCraft's spinners draw in the strong text colour). With reduced motion it is
+/// still. It is
 /// in the AccessKit tree as a busy progress indicator when [`label`](Spinner::label) names it;
 /// one inside a button or another control that reports busy is decoration.
 #[derive(Clone, Debug)]
 pub struct Spinner {
-    size: IconSize,
+    /// `None` is the control height.
+    size: Option<IconSize>,
     content: Content,
     label: Option<String>,
 }
@@ -41,11 +44,12 @@ impl Default for Spinner {
 
 impl Spinner {
     pub fn new() -> Self {
-        Self { size: IconSize::Md, content: Content::Muted, label: None }
+        Self { size: None, content: Content::Normal, label: None }
     }
 
+    /// The side of an icon of `size` instead of the control height.
     pub fn size(mut self, size: IconSize) -> Self {
-        self.size = size;
+        self.size = Some(size);
         self
     }
 
@@ -60,9 +64,13 @@ impl Spinner {
         self
     }
 
-    /// The side, stroke width and colour of the ring: those of an icon of `size` in `content`.
-    pub fn style(tokens: &UiTokens, size: IconSize, content: Content) -> IconStyle {
-        Icon::style(tokens, size, content)
+    /// The side, stroke width and colour of the ring: those of an icon of `size` in `content`; for
+    /// no size the control height with the stroke of a large icon.
+    pub fn style(tokens: &UiTokens, size: Option<IconSize>, content: Content) -> IconStyle {
+        match size {
+            Some(size) => Icon::style(tokens, size, content),
+            None => IconStyle { points: tokens.size.control.md, ..Icon::style(tokens, IconSize::Lg, content) },
+        }
     }
 
     /// The ring's points at `turn` radians in `rect`.
@@ -107,7 +115,7 @@ impl Widget for Spinner {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Spinner"];
 
-const CONTENT_NAMES: &[&str] = &["muted", "normal", "accent"];
+const CONTENT_NAMES: &[&str] = &["normal", "muted", "accent"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![Story {
@@ -120,13 +128,18 @@ pub(crate) fn stories() -> Vec<Story> {
     }]
 }
 
-/// One spinner per icon size, each named for a screen reader.
+/// One spinner per icon size and the default control height, each named for a screen reader.
 fn show_sizes(ui: &mut Ui, args: &mut Args) {
-    let content = Content::from_name(args.choice("content")).unwrap_or(Content::Muted);
+    let content = Content::from_name(args.choice("content")).unwrap_or(Content::Normal);
+    let sizes = IconSize::ALL.map(Some).into_iter().chain([None]);
     Row::new(Gap::Section).show(ui, |ui| {
-        for (size, name) in IconSize::ALL.into_iter().zip(["Sm", "Md", "Lg"]) {
+        for (size, name) in sizes.zip(["Sm", "Md", "Lg", "Control"]) {
             ui.add(Text::new(name).content(Content::Muted));
-            ui.add(Spinner::new().size(size).content(content).label(format!("Loading {name}")));
+            let spinner = Spinner::new().content(content).label(format!("Loading {name}"));
+            ui.add(match size {
+                Some(size) => spinner.size(size),
+                None => spinner,
+            });
         }
     });
 }

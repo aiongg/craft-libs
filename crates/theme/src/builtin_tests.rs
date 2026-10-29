@@ -263,7 +263,7 @@ fn builtin_small_control_pairs_meet_their_minimums() {
                 )
             };
             let pairs: Vec<_> = steps.component_pairs.iter().filter(small).collect();
-            assert_eq!(pairs.len(), 12 + 1 + 1 + 2, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 12 + 1 + 3 + 2, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }
@@ -882,6 +882,7 @@ fn high_contrast_control_edges_reach_three_to_one() {
             on_surfaces("button.secondary.border.hover", b.border.hover, Some(b.fill.hover));
             on_surfaces("button.secondary.border.pressed", b.border.pressed, Some(b.fill.pressed));
             on_surfaces("slider.track", c.slider.track, None);
+            on_surfaces("progress.edge", c.progress.edge, None);
             on_surfaces("check.off.border.rest", c.check.off.border.rest, Some(c.check.off.fill.rest));
             on_surfaces("segmented.selected.fill.rest", c.segmented.selected.fill.rest, Some(c.segmented.selected_border.rest));
             on_surfaces("line.focus", t.color(ColorToken::LineFocus), None);

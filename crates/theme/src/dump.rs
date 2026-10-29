@@ -1261,10 +1261,11 @@ fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
 }
 
 fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
-    let ProgressTokens { track_height, radius, track, fill } = p;
+    let ProgressTokens { track_height, radius, track, edge, fill } = p;
     out.line("progress.track_height", len(*track_height));
     out.line("progress.radius", len(*radius));
     out.line("progress.track", hex(*track));
+    out.line("progress.edge", hex(*edge));
     out.line("progress.fill", hex(*fill));
 }
 
