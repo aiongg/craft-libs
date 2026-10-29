@@ -11,9 +11,12 @@ use egui::{
 };
 
 use super::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
-use crate::edit::ops::ScalarOp;
+use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
+use crate::primitives::{Gap, Stack};
+use crate::story::{Args, Level, Story};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// Width of a thumb's edge, in points.
 const EDGE: f32 = 1.0;
@@ -45,7 +48,7 @@ impl<const N: usize> DerefMut for Row<N> {
 
 /// A thumb row's sizes and colours, built from the levels editor's style.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ThumbRowStyle {
+pub struct ThumbRowStyle {
     /// Height of the row: `levels.row`.
     pub height: f32,
     /// A triangle's width and height: `levels.thumb_width`, `levels.thumb_height`.
@@ -72,7 +75,7 @@ impl ThumbRowStyle {
 
 /// How a thumb's value is kept among the row's other values.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Order {
+pub enum Order {
     /// Anywhere in its range: it passes the other thumbs.
     Free,
     /// At least `gap` above the value of thumb `below` and below that of thumb `above`. A drag
@@ -83,7 +86,7 @@ pub(crate) enum Order {
 /// Where a thumb sits that a function of the row's values places (a levels gamma thumb, between
 /// the black and the white one). The functions get the row's values as drawn.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Follow {
+pub struct Follow {
     /// The row value (a level on the row's range) the thumb sits at, for its value.
     pub at: fn(&[f64], f64) -> f64,
     /// The thumb's value that puts it at row value `x`, unsnapped and finite.
@@ -92,7 +95,7 @@ pub(crate) struct Follow {
 
 /// One thumb of a [`ThumbRow`].
 #[derive(Clone, Debug)]
-pub(crate) struct Thumb {
+pub struct Thumb {
     label: String,
     face: Color32,
     /// Its own range and step; the row's when `None`.
@@ -102,13 +105,14 @@ pub(crate) struct Thumb {
     default: Option<f64>,
     unset: Option<f64>,
     falling: bool,
+    split: bool,
 }
 
 impl Thumb {
     /// A thumb named `label` (its accessible name, a whole phrase the app translates) with a
     /// triangle of `face`, whose value is the row's range and step, free among the others.
     pub fn new(label: impl Into<String>, face: Color32) -> Self {
-        Self { label: label.into(), face, scale: None, follow: None, order: Order::Free, default: None, unset: None, falling: false }
+        Self { label: label.into(), face, scale: None, follow: None, order: Order::Free, default: None, unset: None, falling: false, split: false }
     }
 
     /// How the value is kept among the others.
@@ -133,6 +137,20 @@ impl Thumb {
     /// Where a value that isn't a finite number is drawn; the start of its range by default.
     pub fn unset_at(mut self, value: f64) -> Self {
         self.unset = Some(value);
+        self
+    }
+
+    /// The thumb is split into two halves, and the next thumb of the row is its high half: this
+    /// one is the low half, drawn as the left half of a triangle and named "<label> low"; the next
+    /// is named "<label> high" after this thumb's label, and only its face, scale and order are its
+    /// own. The row's values `[low, high]` of the pair sit in consecutive entries, `low <= high`.
+    ///
+    /// A press that begins without Alt held moves the pair together, keeping the spread between the
+    /// halves; with Alt held it moves only the half it grabs, which splits the pair. Where the
+    /// halves coincide they are drawn as one triangle. Keys, the wheel and screen-reader requests
+    /// move one half. A row doesn't combine `split` with [`wrap`](ThumbRow::wrap).
+    pub fn split(mut self) -> Self {
+        self.split = true;
         self
     }
 
@@ -165,7 +183,7 @@ impl Thumb {
 /// - The row keeps its geometry right to left: values grow to the right.
 #[derive(Clone, Debug)]
 #[must_use = "show the thumb row with `show`"]
-pub(crate) struct ThumbRow<const N: usize> {
+pub struct ThumbRow<const N: usize> {
     id_salt: IdSalt,
     value: [f64; N],
     scale: Scale,
@@ -174,11 +192,12 @@ pub(crate) struct ThumbRow<const N: usize> {
     policy: EditPolicy,
     enabled: bool,
     part: bool,
+    wrap: Option<f64>,
 }
 
 /// What a [`ThumbRow`] shows and reports in a frame.
 #[derive(Debug)]
-pub(crate) struct ThumbRowOutput<const N: usize> {
+pub struct ThumbRowOutput<const N: usize> {
     /// The frame's edit event; the response covers the row.
     pub edit: EditResponse<[f64; N]>,
     /// The values drawn: the gesture's, each in its range. A composite's other parts draw from
@@ -189,7 +208,7 @@ pub(crate) struct ThumbRowOutput<const N: usize> {
     pub dragged: Option<usize>,
     /// What the frame's Set did, in order: each applies to the row the ones before it left
     /// ([`RowRules::apply`]).
-    pub ops: Vec<RowOp>,
+    pub(crate) ops: Vec<RowOp>,
 }
 
 /// An operation on one thumb of a row: what a key, the wheel, a screen-reader request, a reset or
@@ -253,6 +272,8 @@ impl Press {
 pub(crate) struct RowRules<const N: usize> {
     thumbs: [Thumb; N],
     scale: Scale,
+    /// The period values wrap at ([`ThumbRow::wrap`]).
+    wrap: Option<f64>,
 }
 
 impl<const N: usize> RowRules<N> {
@@ -260,24 +281,84 @@ impl<const N: usize> RowRules<N> {
         self.thumbs[i].scale.unwrap_or(self.scale)
     }
 
+    /// The other half of the split thumb that thumb `i` is a half of.
+    fn partner(&self, i: usize) -> Option<usize> {
+        if self.thumbs[i].split { Some(i + 1).filter(|j| *j < N) } else { i.checked_sub(1).filter(|j| self.thumbs[*j].split) }
+    }
+
+    /// `value` in a wrapping row: from the start of `scale`, less than a period on.
+    fn wrapped(&self, scale: &Scale, value: f64) -> f64 {
+        self.wrap.map_or(value, |period| scale.min + (value - scale.min).rem_euclid(period))
+    }
+
+    /// `delta` as the short way round a wrapping row, in `-period / 2..=period / 2`.
+    fn short(&self, delta: f64) -> f64 {
+        self.wrap.map_or(delta, |period| delta - period * (delta / period).round())
+    }
+
     /// The values as drawn: each in its range, and one that isn't finite where its thumb says.
     pub(crate) fn placed(&self, value: &[f64; N]) -> [f64; N] {
         std::array::from_fn(|i| {
             let scale = self.scale_of(i);
+            let place = |v: f64| if self.wrap.is_some() { self.wrapped(&scale, v) } else { scale.place(v) };
             match value[i] {
-                v if v.is_finite() => scale.place(v),
-                _ => self.thumbs[i].unset.map_or(scale.min, |u| scale.place(u)),
+                v if v.is_finite() => place(v),
+                _ => self.thumbs[i].unset.map_or(scale.min, place),
             }
         })
     }
 
-    /// Where thumb `i` may go, with the others at `values`.
-    fn bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
+    /// Where thumb `i` may go among the other thumbs it is ordered with, which are at `values`.
+    /// In a wrapping row the bounds are measured the short way round from the thumb's own value,
+    /// and open where it has no neighbour.
+    fn order_bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
         let scale = self.scale_of(i);
-        let Order::Between { below, above, gap } = self.thumbs[i].order else { return (scale.min, scale.max) };
-        let side = |j: Option<usize>, gap: f64, end: f64| j.and_then(|j| values.get(j)).map_or(end, |v| (v + gap).clamp(scale.min, scale.max));
-        let (lo, hi) = (side(below, gap, scale.min), side(above, -gap, scale.max));
+        let Order::Between { below, above, gap } = self.thumbs[i].order else {
+            return if self.wrap.is_some() { (f64::NEG_INFINITY, f64::INFINITY) } else { (scale.min, scale.max) };
+        };
+        let side = |j: Option<usize>, gap: f64, end: f64| {
+            j.and_then(|j| values.get(j)).map_or(end, |v| {
+                if self.wrap.is_some() { values[i] + self.short(v - values[i]) + gap } else { (v + gap).clamp(scale.min, scale.max) }
+            })
+        };
+        let open = if self.wrap.is_some() { (f64::NEG_INFINITY, f64::INFINITY) } else { (scale.min, scale.max) };
+        let (lo, hi) = (side(below, gap, open.0), side(above, -gap, open.1));
         (lo.min(hi), hi)
+    }
+
+    /// Where thumb `i` may go, with the others at `values`: among the thumbs it is ordered with,
+    /// and a half of a split thumb between its partner and the end.
+    fn bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
+        let (mut lo, mut hi) = self.order_bounds(values, i);
+        match self.partner(i) {
+            Some(j) if j > i => {
+                hi = hi.min(values[j]);
+                lo = lo.min(hi);
+            }
+            Some(j) => {
+                lo = lo.max(values[j]);
+                hi = hi.max(lo);
+            }
+            None => {}
+        }
+        (lo, hi)
+    }
+
+    /// The bounds a screen reader reports for thumb `i`: the range of a wrapping row, else
+    /// [`bounds`](Self::bounds).
+    fn reported_bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
+        let scale = self.scale_of(i);
+        if self.wrap.is_some() { (scale.min, scale.max) } else { self.bounds(values, i) }
+    }
+
+    /// `value` for thumb `i`: within `bounds` and on its stops; in a wrapping row, then wrapped.
+    fn settle(&self, i: usize, value: f64, (lo, hi): (f64, f64)) -> f64 {
+        let scale = self.scale_of(i);
+        if self.wrap.is_none() {
+            return scale.snap(value).clamp(lo, hi);
+        }
+        let wrap = |v: f64| self.wrapped(&scale, v);
+        wrap(scale.snap(wrap(value.clamp(lo, hi))))
     }
 
     /// `row` with `op` applied to its thumb ([`slider::apply`]): from where the thumb is drawn
@@ -287,8 +368,31 @@ impl<const N: usize> RowRules<N> {
         let values = self.placed(row);
         let i = op.thumb;
         let mut out = *row;
-        out[i] = slider::apply(&op.op, values[i], self.bounds(&values, i), &self.scale_of(i));
+        out[i] = if self.wrap.is_some() {
+            self.apply_wrapped(&op.op, &values, i)
+        } else {
+            slider::apply(&op.op, values[i], self.bounds(&values, i), &self.scale_of(i))
+        };
         out
+    }
+
+    /// [`slider::apply`] for a wrapping row: a step goes on past the range's end and comes back
+    /// at its start, and Home and End go to the neighbours, or the range's ends where there are
+    /// none.
+    fn apply_wrapped(&self, op: &ScalarOp, values: &[f64; N], i: usize) -> f64 {
+        let scale = self.scale_of(i);
+        let bounds = self.bounds(values, i);
+        let by = |delta| scale.moved(values[i].clamp(bounds.0, bounds.1), delta);
+        let target = match op {
+            ScalarOp::By(delta) => by(*delta),
+            ScalarOp::Presses(presses) => by(scale.key_step() * presses.iter().map(|(m, n)| if m.shift { 10.0 * n } else { *n }).sum::<f64>()),
+            ScalarOp::Set(v) => *v,
+            ScalarOp::ToBound(Bound::Low) if bounds.0.is_finite() => bounds.0,
+            ScalarOp::ToBound(Bound::Low) => scale.min,
+            ScalarOp::ToBound(Bound::High) if bounds.1.is_finite() => bounds.1,
+            ScalarOp::ToBound(Bound::High) => scale.max,
+        };
+        self.settle(i, target, bounds)
     }
 
     /// The operation that sets thumb `i` to its default, if it has one.
@@ -303,6 +407,10 @@ struct Layout<'a, const N: usize> {
     track: Track,
     /// Thumbs whose centres are closer than this overlap: a triangle's width.
     overlap: f32,
+    /// The press moves only the half of a split thumb it grabs (Alt was held when it began).
+    alone: bool,
+    /// A wrapping row's period in points; 0 when the row doesn't wrap.
+    period: f32,
 }
 
 impl<const N: usize> Deref for Layout<'_, N> {
@@ -319,6 +427,12 @@ impl<const N: usize> Layout<'_, N> {
         self.thumbs[i].follow.map_or(values[i], |f| (f.at)(values, values[i]))
     }
 
+    /// `a - b` in points, the short way round in a wrapping row.
+    fn dx(&self, a: f32, b: f32) -> f32 {
+        let d = a - b;
+        if self.period > 0.0 { d - self.period * (d / self.period).round() } else { d }
+    }
+
     fn xs(&self, values: &[f64; N]) -> [f32; N] {
         std::array::from_fn(|i| self.track.x_of(self.at(values, i)))
     }
@@ -326,19 +440,19 @@ impl<const N: usize> Layout<'_, N> {
     /// What a press at `x` moves, with the thumbs at `values`.
     fn press(&self, values: &[f64; N], x: f32) -> Option<Press> {
         let xs = self.xs(values);
-        let d = |i: usize| (x - xs[i]).abs();
+        let d = |i: usize| self.dx(x, xs[i]).abs();
         let nearest = (0..N).min_by(|&a, &b| d(a).total_cmp(&d(b)))?;
         let at = xs[nearest];
         let on = d(nearest) <= self.track.reach;
         // Off the thumbs, thumbs stacked at one place: the side of the press picks, as a drag's
         // direction does on them.
-        let group = |i: usize| if on { d(i) <= self.track.reach && (xs[i] - at).abs() < self.overlap } else { xs[i] == at };
+        let group = |i: usize| if on { d(i) <= self.track.reach && self.dx(xs[i], at).abs() < self.overlap } else { self.dx(xs[i], at) == 0.0 };
         let first = (0..N).find(|&i| group(i)).unwrap_or(nearest);
         let last = (0..N).rev().find(|&i| group(i)).unwrap_or(nearest);
         Some(match (on, first == last) {
             (true, true) => Press::Grab(nearest),
             (true, false) => Press::Either { first, last, nearest },
-            (false, _) if x < at => Press::Jump(first),
+            (false, _) if self.dx(x, at) < 0.0 => Press::Jump(first),
             (false, _) => Press::Jump(last),
         })
     }
@@ -348,20 +462,37 @@ impl<const N: usize> Layout<'_, N> {
     /// (a gesture the host ended carries on from them, so a value set meanwhile stays). A grabbed
     /// thumb moves by the pointer's movement and stays where it was while the pointer is still; a
     /// jumping one goes to the pointer. The moved value snaps to its step and stays in its bounds
-    /// among the others.
+    /// among the others. A half of a split thumb takes its partner along, keeping the spread,
+    /// unless the press moves it alone.
     fn moved(&self, anchor: &[f64; N], raw: &[f64; N], press: Press, origin: f32, x: f32) -> [f64; N] {
         let Some(i) = press.thumb(origin, x) else { return *raw };
         let grab = !matches!(press, Press::Jump(_));
+        let pair = self.partner(i).filter(|_| !self.alone);
         let mut out = *raw;
         if grab && x == origin {
             out[i] = anchor[i];
+            if let Some(j) = pair {
+                out[j] = anchor[j];
+            }
             return out;
         }
         let start = &self.placed(raw);
-        let at = if grab { self.at(&self.placed(anchor), i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
+        let from = self.placed(anchor);
+        let at = if grab { self.at(&from, i) + self.track.value_per(x - origin) } else { self.track.value_at(x) };
         let value = self.thumbs[i].follow.map_or(at, |f| (f.value_at)(start, at));
-        let (lo, hi) = self.bounds(start, i);
-        out[i] = self.scale_of(i).snap(value).clamp(lo, hi);
+        // A jump in a wrapping row goes the short way round.
+        let value = if grab || self.wrap.is_none() { value } else { start[i] + self.short(value - start[i]) };
+        if let Some(j) = pair {
+            let (lo_i, hi_i) = self.order_bounds(start, i);
+            let (lo_j, hi_j) = self.order_bounds(start, j);
+            let (lo, hi) = ((lo_i - from[i]).max(lo_j - from[j]), (hi_i - from[i]).min(hi_j - from[j]));
+            let lo = lo.min(hi);
+            let moved = self.scale_of(i).snap(from[i] + (value - from[i]).clamp(lo, hi)).clamp(from[i] + lo, from[i] + hi);
+            out[i] = moved;
+            out[j] = from[j] + (moved - from[i]);
+            return out;
+        }
+        out[i] = self.settle(i, value, self.bounds(start, i));
         out
     }
 }
@@ -380,6 +511,32 @@ impl<const N: usize> ThumbRow<N> {
             policy: EditPolicy::default(),
             enabled: true,
             part: false,
+            wrap: None,
+        }
+    }
+
+    /// Values wrap at `period` (a hue bar of 360), counted from the start of the range: a thumb
+    /// dragged or stepped past the end appears at the start. Distances between thumbs, for the
+    /// thumb a press grabs and for the bounds of an [`Order::Between`], are measured the short way
+    /// round. Home and End of a thumb without neighbours go to the range's ends.
+    pub fn wrap(mut self, period: f64) -> Self {
+        debug_assert!(period.is_finite() && period > 0.0, "a wrapping row needs a positive period, not {period}");
+        self.wrap = Some(period).filter(|p| p.is_finite() && *p > 0.0);
+        self
+    }
+
+    /// A thumb row's sizes and colours from the theme's `levels.*` tokens, which the rows of a
+    /// levels editor use: the look of every row of triangle thumbs.
+    pub fn style(tokens: &UiTokens) -> ThumbRowStyle {
+        let l = &tokens.component.levels;
+        ThumbRowStyle {
+            height: l.row,
+            thumb: vec2(l.thumb_width, l.thumb_height),
+            hit: l.hit,
+            edge: l.thumb_edge.to_egui(),
+            disabled_edge: l.disabled_edge.to_egui(),
+            ring: l.ring.to_egui(),
+            ring_width: tokens.component.slider.ring_width,
         }
     }
 
@@ -402,8 +559,8 @@ impl<const N: usize> ThumbRow<N> {
 
     /// What the values of a row of `thumbs` on `range` with `step` may be, as [`new`](Self::new)
     /// takes them: a composite applies the row's operations with them before drawing it.
-    pub fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
-        RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step) }
+    pub(crate) fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
+        RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step), wrap: None }
     }
 
     /// Whether the row is a part of a composite reporting through one edit, whose press takes
@@ -421,8 +578,26 @@ impl<const N: usize> ThumbRow<N> {
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let response = ui.interact_opt(rect, id, Sense::DRAG, options);
         let sensing = Sensing::of(&response);
-        let rules = RowRules { thumbs: self.thumbs, scale: self.scale };
-        let layout = Layout { rules: &rules, track: Track::inset(rect, style.inset(), style.hit, self.scale), overlap: style.thumb.x };
+        let rules = RowRules { thumbs: self.thumbs, scale: self.scale, wrap: self.wrap };
+        debug_assert!(
+            rules.thumbs.iter().enumerate().all(|(i, t)| !t.split || (i + 1 < N && !rules.thumbs[i + 1].split && rules.wrap.is_none())),
+            "a split thumb needs a high half after it, which isn't split itself, in a row that doesn't wrap"
+        );
+        // Alt decides at the press whether it moves a half alone; the choice stays for the drag.
+        let alone_key = id.with("alone");
+        if !response.dragged() || response.drag_started() {
+            let alt = ui.input(|i| i.modifiers.alt);
+            ui.data_mut(|d| d.insert_temp(alone_key, alt));
+        }
+        let alone = ui.data(|d| d.get_temp::<bool>(alone_key)).unwrap_or(false);
+        let track = Track::inset(rect, style.inset(), style.hit, self.scale);
+        let period = match self.wrap {
+            Some(period) if self.scale.max > self.scale.min => {
+                (track.x_of(self.scale.max) - track.x_of(self.scale.min)) * (period / (self.scale.max - self.scale.min)) as f32
+            }
+            _ => 0.0,
+        };
+        let layout = Layout { rules: &rules, track, overlap: style.thumb.x, alone, period };
         let ids: [Id; N] = std::array::from_fn(|i| Interactive::id_in(ui, id.with(("thumb", i))));
         let finite = self.value.iter().all(|v| v.is_finite());
 
@@ -458,15 +633,32 @@ impl<const N: usize> ThumbRow<N> {
         let values = gesture.shown().0;
         let shown = layout.placed(&values);
         let xs = layout.xs(&shown);
-        let thumb_rect = |x: f32| Rect::from_min_size(pos2(x - style.thumb.x / 2.0, rect.top()), style.thumb);
+        let halves: [Option<Half>; N] = std::array::from_fn(|i| match rules.partner(i) {
+            Some(j) if shown[i] != shown[j] => Some(if j > i { Half::Low } else { Half::High }),
+            _ => None,
+        });
+        let thumb_rect = |x: f32, half: Option<Half>| {
+            let (w, h) = (style.thumb.x, style.thumb.y);
+            let (left, width) = match half {
+                None => (x - w / 2.0, w),
+                Some(Half::Low) => (x - w / 2.0, w / 2.0),
+                Some(Half::High) => (x, w / 2.0),
+            };
+            Rect::from_min_size(pos2(left, rect.top()), vec2(width, h))
+        };
         let thumbs: [Response; N] = std::array::from_fn(|i| {
-            let (lo, hi) = layout.bounds(&shown, i);
-            let sensed = Interactive::new(id.with(("thumb", i)), Role::Slider, rules.thumbs[i].label.as_str())
+            let (lo, hi) = rules.reported_bounds(&shown, i);
+            let name = match rules.partner(i) {
+                Some(j) if j > i => format!("{} low", rules.thumbs[i].label),
+                Some(j) => format!("{} high", rules.thumbs[j].label),
+                None => rules.thumbs[i].label.clone(),
+            };
+            let sensed = Interactive::new(id.with(("thumb", i)), Role::Slider, name)
                 .sense(Sense::FOCUSABLE)
                 .enabled(sensing.enabled)
                 .state_layer(false)
                 .focus_ring(false)
-                .interact_at(ui, thumb_rect(xs[i]));
+                .interact_at(ui, thumb_rect(xs[i], halves[i]));
             // A value that isn't finite (an unset gamma) is drawn where its thumb says but reported
             // as mixed, with no value.
             let step = layout.scale_of(i).key_step();
@@ -487,14 +679,32 @@ impl<const N: usize> ThumbRow<N> {
             let lit = active.or_else(|| response.hover_pos().and_then(|p| layout.press(&shown, p.x)));
             let down = response.is_pointer_button_down_on();
             for (i, thumb) in thumbs.iter().enumerate() {
-                let lit = lit.is_some_and(|p| p.lights(i));
-                let paint = TrianglePaint {
+                let lit_at = |k: usize| lit.is_some_and(|p| p.lights(k));
+                let lit = lit_at(i);
+                let mut paint = TrianglePaint {
                     face: rules.thumbs[i].face,
                     edge: if sensing.enabled { style.edge } else { style.disabled_edge },
                     ring: StateLayer::color_of(ui, &style.ring, thumb.id, sensing.enabled, lit, lit && down),
                 };
-                let bounds = paint_triangle(ui, style, pos2(xs[i], rect.top()), paint);
-                FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
+                let tip = pos2(xs[i], rect.top());
+                match (halves[i], rules.partner(i)) {
+                    // Coinciding halves are one triangle, which the low half draws.
+                    (None, Some(j)) if j < i => {
+                        let bounds = thumb_rect(xs[i], None);
+                        FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
+                    }
+                    (None, Some(j)) => {
+                        if paint.ring == Color32::TRANSPARENT {
+                            paint.ring = StateLayer::color_of(ui, &style.ring, thumbs[j].id, sensing.enabled, lit_at(j), lit_at(j) && down);
+                        }
+                        paint_triangle(ui, style, tip, None, paint);
+                        FocusRing::paint_radius(ui, thumb_rect(xs[i], None), CornerRadius::ZERO, thumb);
+                    }
+                    (half, _) => {
+                        paint_triangle(ui, style, tip, half, paint);
+                        FocusRing::paint_radius(ui, thumb_rect(xs[i], half), CornerRadius::ZERO, thumb);
+                    }
+                }
             }
         }
         ThumbRowOutput {
@@ -622,20 +832,80 @@ struct TrianglePaint {
     ring: Color32,
 }
 
-/// Paints a triangle thumb, tip up at `tip`, and returns its bounding rect.
-fn paint_triangle(ui: &Ui, style: &ThumbRowStyle, tip: Pos2, paint: TrianglePaint) -> Rect {
+/// A half of a split thumb, drawn as the half of a triangle on its side of the tip's vertical.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Half {
+    Low,
+    High,
+}
+
+/// Paints a triangle thumb, tip up at `tip`, or one `half` of it.
+fn paint_triangle(ui: &Ui, style: &ThumbRowStyle, tip: Pos2, half: Option<Half>, paint: TrianglePaint) {
     let (w, h) = (style.thumb.x, style.thumb.y);
-    let points = [tip, pos2(tip.x + w / 2.0, tip.y + h), pos2(tip.x - w / 2.0, tip.y + h)];
+    let (left, right) = match half {
+        None => (tip.x - w / 2.0, tip.x + w / 2.0),
+        Some(Half::Low) => (tip.x - w / 2.0, tip.x),
+        Some(Half::High) => (tip.x, tip.x + w / 2.0),
+    };
+    let points = [tip, pos2(right, tip.y + h), pos2(left, tip.y + h)];
     if paint.ring != Color32::TRANSPARENT {
         // The triangle grown by the ring and the outer half of the edge on every side: its sides
-        // move out by `out` when it scales about its incentre by (r + out) / r.
-        let side = (w * w / 4.0 + h * h).sqrt();
-        let r = w * h / (w + 2.0 * side);
-        let centre = pos2(tip.x, tip.y + h - r);
+        // move out by `out` when it scales about its incentre by (r + out) / r. The incentre
+        // is the corners weighted by the lengths of the opposite sides.
+        let len = |a: Pos2, b: Pos2| (a - b).length();
+        let (a, b, c) = (len(points[1], points[2]), len(points[0], points[2]), len(points[0], points[1]));
+        let perimeter = a + b + c;
+        let centre = ((points[0].to_vec2() * a + points[1].to_vec2() * b + points[2].to_vec2() * c) / perimeter).to_pos2();
+        let r = (right - left) * h / perimeter;
         let k = (r + EDGE / 2.0 + style.ring_width) / r;
         let ring = points.map(|p| centre + (p - centre) * k).to_vec();
         ui.painter().add(Shape::convex_polygon(ring, paint.ring, Stroke::NONE));
     }
     ui.painter().add(Shape::convex_polygon(points.to_vec(), paint.face, Stroke::new(EDGE, paint.edge)));
-    Rect::from_min_size(pos2(tip.x - w / 2.0, tip.y), vec2(w, h))
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Thumb row"];
+
+pub(crate) fn stories() -> Vec<Story> {
+    vec![Story {
+        id: "controls/thumb-row/rows",
+        level: Level::Controls,
+        component: "Thumb row",
+        name: "Rows",
+        args: || Args::new().with_bool("disabled", false),
+        show,
+    }]
+}
+
+/// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), and a
+/// hue range that wraps round.
+fn show(ui: &mut Ui, args: &mut Args) {
+    let enabled = !args.bool("disabled");
+    let style = ThumbRow::<2>::style(&Tokens::of(ui));
+    let faces = [Color32::BLACK, Color32::WHITE];
+    Stack::new(Gap::Stack).show(ui, |ui| {
+        super::slider::with_values(ui, "thumb-row-free", [[0.0, 255.0]], |ui, values| {
+            let thumbs = [Thumb::new("Output black", faces[0]).default_value(0.0), Thumb::new("Output white", faces[1]).default_value(255.0)];
+            let out = ThumbRow::new("thumb-row-free", values[0], &(0.0..=255.0), Some(1.0), thumbs).enabled(enabled).show(ui, &style);
+            super::slider::store(&out.edit, &mut values[0]);
+        });
+        super::slider::with_values(ui, "thumb-row-split", [[30.0, 60.0, 190.0, 220.0]], |ui, values| {
+            let ordered = |below, above| Order::Between { below, above, gap: 0.0 };
+            let thumbs = [
+                Thumb::new("Black", Color32::from_gray(20)).split().order(ordered(None, Some(2))),
+                Thumb::new("Black", Color32::from_gray(20)).order(ordered(Some(0), Some(2))),
+                Thumb::new("White", Color32::from_gray(240)).split().order(ordered(Some(1), None)),
+                Thumb::new("White", Color32::from_gray(240)).order(ordered(Some(1), None)),
+            ];
+            let style = ThumbRow::<4>::style(&Tokens::of(ui));
+            let out = ThumbRow::new("thumb-row-split", values[0], &(0.0..=255.0), Some(1.0), thumbs).enabled(enabled).show(ui, &style);
+            super::slider::store(&out.edit, &mut values[0]);
+        });
+        super::slider::with_values(ui, "thumb-row-hue", [[330.0, 40.0]], |ui, values| {
+            let thumbs = [Thumb::new("Hue from", Color32::from_rgb(220, 60, 60)), Thumb::new("Hue to", Color32::from_rgb(220, 160, 60))];
+            let out = ThumbRow::new("thumb-row-hue", values[0], &(0.0..=360.0), Some(1.0), thumbs).wrap(360.0).enabled(enabled).show(ui, &style);
+            super::slider::store(&out.edit, &mut values[0]);
+        });
+    });
 }

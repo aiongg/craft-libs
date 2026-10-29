@@ -18,6 +18,8 @@
 //! - [`Slider`] and [`RangeSlider`]: one value, or a lower and an upper value, on a track; they
 //!   report through the edit lifecycle ([`crate::edit`]) and return an
 //!   [`EditResponse`](crate::edit::EditResponse).
+//! - [`ThumbRow`]: triangle thumbs on one row under a ramp, each its own value, optionally split
+//!   into halves or wrapping round (`levels.*` tokens).
 //! - [`TextField`] and [`SearchField`]: one line of text; a typing run is one edit gesture.
 //! - [`NumberField`]: a number in the region's digits, typed, scrubbed, stepped or set on a
 //!   pop-up slider, one edit gesture at a time.
@@ -118,6 +120,7 @@ pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle};
 pub use switch::{Switch, SwitchStyle};
 pub use text_field::{SearchField, TextField, TextFieldStyle};
+pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowOutput, ThumbRowStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
 
