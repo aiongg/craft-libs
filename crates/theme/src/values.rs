@@ -190,12 +190,13 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::LineDivider => Anchored(6),
         T::LineBorder => Anchored(7),
         T::LineControlEdge => Anchored(8),
-        // A light knob needs an outline on a light panel; on a dark one its face is the edge.
+        // A light knob needs an outline on a light panel (PhotoCraft's `text_dim`); on a dark one
+        // its face is the edge. The Pro themes pin PhotoCraft's dark ring.
         T::LineKnobEdge => {
             if dark {
                 Fixed(Rgba::TRANSPARENT)
             } else {
-                Same(T::LineControlEdge)
+                Same(T::TextMuted)
             }
         }
         // The contrast pass moves it to the non-text minimum on the control surfaces.
@@ -498,13 +499,18 @@ pub const TYPE_ROUNDING: f32 = 0.5;
 
 /// Elevation levels (DS-01 primitives) for popups, dialogs and floating surfaces.
 pub const ELEVATION_LEVELS: (usize, usize, usize) = (2, 3, 2);
-/// Elevation level of a knob on a track (`elevation.knob`) with a flat edge.
-pub const KNOB_ELEVATION: usize = 1;
+/// The shadow of a knob on a track with a flat edge (`elevation.knob`): PhotoCraft's hard circle,
+/// the knob's size grown by half a point, one point down, black at 90/255 in both modes
+/// (`slider.rs:206-207`). egui rounds a shadow's spread to whole points.
+pub const KNOB_SHADOW: Elevation = Elevation { offset: [0.0, 1.0], blur: 0.0, spread: 0.5, alpha: 90.0 / 255.0 };
 /// How far a disabled knob's face moves from `surface.knob` toward `surface.panel`, 0..=1: far
 /// enough to recede in both modes, short of vanishing on the panel in dark mode.
 pub const KNOB_DISABLED: f64 = 0.5;
 /// Width of the ring round a slider thumb while hovered or pressed, in points.
 pub const KNOB_RING: f32 = 2.0;
+/// From a slider thumb's edge to its ring's centre line, in points (a 12 point knob has a ring of
+/// radius 9.5).
+pub const KNOB_RING_OFFSET: f32 = 3.5;
 /// Shadow alpha multiplier in dark mode, where shadows need more weight to show.
 pub const DARK_SHADOW_ALPHA_FACTOR: f32 = 1.5;
 
@@ -817,8 +823,18 @@ pub const TITLE_BAR_BREEZE_CLOSE_PRESSED_GLYPH: Rgba = Rgba::WHITE;
 
 /// A slider's default length, in control heights of its size.
 pub const SLIDER_WIDTH: f32 = 6.0;
-/// Thickness of a slider's track, in points, at every Size.
-pub const SLIDER_TRACK: f32 = 4.0;
+/// Thickness of a slider's track, in points, at every Size (PhotoCraft `slider.rs:104-289`).
+pub const SLIDER_TRACK: f32 = 3.0;
+/// Thickness of a slider's gradient track, in points.
+pub const SLIDER_GRADIENT_TRACK: f32 = 5.0;
+/// Corner radius of a slider's track, in points.
+pub const SLIDER_TRACK_RADIUS: f32 = 2.0;
+/// How far under the control height a slider is, in points, at the small and standard sizes
+/// (Compact 18, PhotoCraft's).
+pub const SLIDER_HEIGHT_INSET: (f32, f32) = (4.0, 6.0);
+/// How far under the icon size a slider's thumb is, in points, at the small and standard sizes
+/// (Compact 12, PhotoCraft's).
+pub const SLIDER_THUMB_INSET: (f32, f32) = (2.0, 4.0);
 /// The control height the Compact slider mark height is set for.
 pub const SLIDER_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a slider's marks and ticks, in points.

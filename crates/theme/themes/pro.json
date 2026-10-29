@@ -33,6 +33,7 @@
     "line.border": "#d6d6d6",
     "line.control_edge": "#bababa",
     "line.divider": "#d6d6d6",
+    "line.knob_edge": "#282828",
     "list.thumb.border": "#141414",
     "list.thumb.border.selected": "{list.thumb.border}",
     "seeds": {
@@ -69,6 +70,7 @@
     "line.border": "#1e1e1e",
     "line.control_edge": "#4a4a4a",
     "line.divider": "#1e1e1e",
+    "line.knob_edge": "#282828",
     "list.thumb.border": "#141414",
     "list.thumb.border.selected": "{list.thumb.border}",
     "state.hover": "#424242",

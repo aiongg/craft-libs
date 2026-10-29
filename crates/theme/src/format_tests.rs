@@ -409,16 +409,16 @@ fn with_light(pins: Value) -> Value {
 #[test]
 fn references_resolve_to_the_final_value_in_every_appearance() {
     let v = with_light(json!({
-        "slider.fill.rest": "{accent.solid}", "slider.fill.hover": "{accent.hover}",
-        "text.muted": "{slider.fill.rest}", "accent.solid": "#204080"
+        "slider.ring.rest": "{accent.solid}", "slider.ring.hover": "{accent.hover}",
+        "text.muted": "{slider.ring.rest}", "accent.solid": "#204080"
     }));
     let mut v = v;
-    v["dark"] = json!({ "slider.fill.rest": "{accent.solid}", "slider.fill.hover": "{accent.hover}" });
-    v["high_contrast"] = json!({ "light": { "slider.fill.rest": "{text.normal}" }, "dark": {} });
+    v["dark"] = json!({ "slider.ring.rest": "{accent.solid}", "slider.ring.hover": "{accent.hover}" });
+    v["high_contrast"] = json!({ "light": { "slider.ring.rest": "{text.normal}" }, "dark": {} });
     let file = parse_value(&v).unwrap();
     for a in appearances() {
         let t = resolve(&file.theme, a, None).tokens;
-        let (s, accent) = (&t.component.slider.fill, |c| t.color(c));
+        let (s, accent) = (&t.component.slider.ring, |c| t.color(c));
         let high_light = a.contrast == Contrast::High && a.mode == Mode::Light;
         assert_eq!(s.rest, if high_light { accent(T::TextNormal) } else { accent(T::AccentSolid) }, "{a:?}");
         if !high_light {
@@ -490,6 +490,10 @@ fn classic_slider_fill_is_the_accent_in_every_state() {
     for a in appearances() {
         let t = resolve(classic, a, None).tokens;
         let s = &t.component.slider.fill;
+        // High contrast moves the fill to show on the track.
+        if a.contrast == Contrast::High {
+            continue;
+        }
         assert_eq!((s.rest, s.hover, s.pressed), [t.color(T::AccentSolid); 3].into(), "{a:?}");
     }
 }

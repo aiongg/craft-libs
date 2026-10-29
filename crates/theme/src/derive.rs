@@ -5,7 +5,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Oklch, Rgba};
-use super::components::{ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue};
+use super::components::{
+    ButtonField, ButtonPart, ButtonVariant, ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, OverrideValue, State,
+};
 use super::contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 use super::ramp::{self, Mode, Ramp, RampKind};
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
@@ -731,11 +733,12 @@ fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastCheck
 /// whose pin it takes.
 pub(super) fn component_overrides(
     comp: &mut ComponentTokens,
-    color: &ColorTokens,
     theme: &ThemeDef,
     app: Option<&AppId>,
     mode: Mode,
     high: bool,
+    color: &ColorTokens,
+    on_accent_pinned: bool,
 ) -> BTreeMap<ComponentField, PinLayer> {
     let mut layers = BTreeMap::new();
     // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
@@ -759,7 +762,9 @@ pub(super) fn component_overrides(
         };
         let _ = comp.set(f, v);
     }
-    comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)));
+    let field = |state| ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Primary, part: ButtonPart::Text, state });
+    let text_pinned = on_accent_pinned || layers.contains_key(&field(State::Rest));
+    comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)), text_pinned, color.surface.panel, high);
     comp.list.follow(color, high, |f| layers.contains_key(&ComponentField::List(f)));
     layers
 }

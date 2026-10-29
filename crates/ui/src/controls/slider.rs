@@ -30,27 +30,33 @@ pub struct SliderStyle {
     pub height: f32,
     /// Default length: `slider.width`.
     pub width: f32,
-    /// Diameter (or side) of a thumb: `slider.thumb`.
+    /// Height of a thumb, its diameter while round: `slider.thumb`.
     pub thumb: f32,
+    /// Width of a thumb: `slider.thumb_width`.
+    pub thumb_width: f32,
     /// Thickness of the track: `slider.track_height`.
     pub track_height: f32,
-    /// The track: a sunken [`Surface`] (its border, or bevel) filled with `slider.track`, with
-    /// `slider.radius` corners clamped to half its height.
+    /// Thickness of a gradient track: `slider.gradient_height`.
+    pub gradient_height: f32,
+    /// The track: flat, with no outline, filled with `slider.track`, with `slider.track_radius`
+    /// corners clamped to half its height.
     pub track: SurfaceStyle,
     /// The filled part, from the start to the value: `slider.fill`.
     pub fill: States<Color32>,
-    /// A thumb's shape: a knob [`Surface`] (its border, or bevel, and the knob shadow) with
-    /// `slider.radius` corners clamped to half its side. Its fill and border colour change with
+    /// A thumb's shape: a knob [`Surface`] (its outline, or bevel, and the knob shadow) with
+    /// `slider.radius` corners clamped to half its shorter side. Its fill and border colour change with
     /// the state; a disabled thumb has no shadow.
     pub thumb_surface: SurfaceStyle,
     /// `slider.thumb.fill`.
     pub thumb_fill: States<Color32>,
     /// `slider.thumb.border`; a bevel keeps its own colours.
     pub thumb_border: States<Color32>,
-    /// The ring round a thumb, outside its edge: `slider.ring`.
+    /// The ring round a thumb, clear of its edge: `slider.ring`.
     pub ring: States<Color32>,
     /// `slider.ring_width`.
     pub ring_width: f32,
+    /// From a thumb's edge to the ring's centre line: `slider.ring_offset`.
+    pub ring_offset: f32,
     /// Height of the marks and ticks under the track: `slider.mark`.
     pub mark: f32,
     /// How near a mark a drag snaps the thumb to it, in points: `slider.snap`.
@@ -281,6 +287,7 @@ impl Slider {
             .interact(ui, vec2(style.width, style.height));
         let response = sensed.response().clone();
         let track = Track::new(response.rect, &style, scale);
+        let track = if self.track_colors.is_some() { track.with_height(style.gradient_height) } else { track };
         let sensing = Sensing::of(&response);
         let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, x, track.dragged(start, origin, x));
 
@@ -363,10 +370,10 @@ impl Slider {
             let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
             let x = track.x_of(shown);
             match &self.track_colors {
-                Some(stops) => gradient_track::paint(ui, &style, &track, stops, Swatch::style(&tokens, self.size).checker),
+                Some(stops) => gradient_track::paint(ui, &track, stops, Swatch::style(&tokens, self.size).checker),
                 None => {
                     paint_track(ui, &style, &track);
-                    paint_fill(ui, &style, &track, track.rect.left(), x, color(&style.fill));
+                    paint_fill(ui, &style, &track, track.ends().0, x, color(&style.fill));
                 }
             }
             let paint =
@@ -382,18 +389,23 @@ impl Slider {
 
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
-        let thumb = s.thumb.get(size);
-        let mut track = Surface::style(tokens, SurfaceKind::Sunken);
-        track.fill = s.track.to_egui();
-        track.radius = corner_radius(s.radius.min(s.track_height / 2.0));
+        let (thumb, thumb_width) = (s.thumb.get(size), s.thumb_width.get(size));
+        let track = SurfaceStyle {
+            fill: s.track.to_egui(),
+            radius: corner_radius(s.track_radius.min(s.track_height / 2.0)),
+            edge: SurfaceEdge::None,
+            shadow: None,
+        };
         let mut thumb_surface = Surface::style(tokens, SurfaceKind::Knob);
-        thumb_surface.radius = corner_radius(s.radius.min(thumb / 2.0));
+        thumb_surface.radius = corner_radius(s.radius.min(thumb.min(thumb_width) / 2.0));
         let thumb_surface = knob(thumb_surface, s.thumb_colors.fill.rest.to_egui(), s.thumb_colors.border.rest.to_egui(), true);
         SliderStyle {
             height: s.height.get(size),
             width: s.width.get(size),
             thumb,
+            thumb_width,
             track_height: s.track_height,
+            gradient_height: s.gradient_height,
             track,
             fill: s.fill.to_egui(),
             thumb_surface,
@@ -401,6 +413,7 @@ impl Slider {
             thumb_border: s.thumb_colors.border.to_egui(),
             ring: s.ring.to_egui(),
             ring_width: s.ring_width,
+            ring_offset: s.ring_offset,
             mark: s.mark.get(size),
             snap: s.snap,
             mark_color: tokens.color.line.mark.to_egui(),
@@ -563,10 +576,10 @@ fn on_stop(at: f64) -> bool {
 }
 
 /// Where values sit along a control's rect: a thumb's centre runs from half a thumb inside the
-/// start to half a thumb inside the end, so the thumb stays inside the control.
+/// start to half a thumb inside the end, so the thumb stays inside the control, and the track
+/// runs between the same two points.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Track {
-    pub rect: Rect,
     /// The thumb centre's x at the minimum and the maximum.
     x0: f32,
     x1: f32,
@@ -580,15 +593,21 @@ pub(super) struct Track {
 
 impl Track {
     pub fn new(rect: Rect, style: &SliderStyle, scale: Scale) -> Self {
-        let reach = style.thumb / 2.0;
-        Self { rect, x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
+        let reach = style.thumb_width / 2.0;
+        Self { x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
+    }
+
+    /// This track with a bar `height` thick.
+    pub fn with_height(mut self, height: f32) -> Self {
+        self.track_height = height;
+        self
     }
 
     /// A track on `rect` for thumbs of another look: a thumb centre runs from `inset` inside the
     /// start to `inset` inside the end, and a press within `reach` of it grabs the thumb. It has
     /// no bar.
     pub fn inset(rect: Rect, inset: f32, reach: f32, scale: Scale) -> Self {
-        Self { rect, x0: rect.left() + inset, x1: rect.right() - inset, y: rect.center().y, reach, scale, track_height: 0.0 }
+        Self { x0: rect.left() + inset, x1: rect.right() - inset, y: rect.center().y, reach, scale, track_height: 0.0 }
     }
 
     /// The thumb centre's x for `value`, as [placed](Scale::place).
@@ -657,7 +676,7 @@ impl Track {
     /// The track's rect, on the pixel grid.
     pub(super) fn bar(&self, pixels_per_point: f32) -> Rect {
         let half = self.track_height / 2.0;
-        Rect::from_min_max(pos2(self.rect.left(), self.y - half), pos2(self.rect.right(), self.y + half)).round_to_pixels(pixels_per_point)
+        Rect::from_min_max(pos2(self.x0, self.y - half), pos2(self.x1, self.y + half)).round_to_pixels(pixels_per_point)
     }
 }
 
@@ -907,11 +926,17 @@ pub(super) struct ThumbPaint {
 /// Paints a thumb centred on `center` and returns its rect.
 pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, paint: ThumbPaint) -> Rect {
     let ppp = ui.pixels_per_point();
-    let rect = Rect::from_center_size(center, Vec2::splat(style.thumb)).round_to_pixels(ppp);
+    let rect = Rect::from_center_size(center, vec2(style.thumb_width, style.thumb)).round_to_pixels(ppp);
     let surface = knob(style.thumb_surface, paint.fill, paint.border, paint.enabled);
     ui.painter().extend(surface.shapes(rect, ppp));
     if paint.ring != Color32::TRANSPARENT {
-        ui.painter().rect_stroke(rect, surface.radius, Stroke::new(style.ring_width, paint.ring), StrokeKind::Outside);
+        let stroke = Stroke::new(style.ring_width, paint.ring);
+        let radius = f32::from(surface.radius.nw);
+        if rect.width() == rect.height() && radius * 2.0 >= rect.width() {
+            ui.painter().circle_stroke(rect.center(), rect.width() / 2.0 + style.ring_offset, stroke);
+        } else {
+            ui.painter().rect_stroke(rect.expand(style.ring_offset), corner_radius(radius + style.ring_offset), stroke, StrokeKind::Middle);
+        }
     }
     rect
 }
@@ -931,8 +956,8 @@ fn paint_marks(ui: &Ui, style: &SliderStyle, track: &Track, marks: &[f64], ticks
 
 /// The triangle thumb: the round thumb's fill and border, a pointer under the track.
 fn paint_pointer(ui: &Ui, style: &SliderStyle, track: &Track, x: f32, paint: ThumbPaint) {
-    let (half, top) = (style.thumb / 2.0, track.bar(ui.pixels_per_point()).bottom());
-    let points = vec![pos2(x, top), pos2(x + half, top + half), pos2(x - half, top + half)];
+    let (half, drop, top) = (style.thumb_width / 2.0, style.thumb / 2.0, track.bar(ui.pixels_per_point()).bottom());
+    let points = vec![pos2(x, top), pos2(x + half, top + drop), pos2(x - half, top + drop)];
     let width = match style.thumb_surface.edge {
         SurfaceEdge::Border(stroke) => stroke.width,
         _ => scale::Stroke::Hairline.egui(ui.ctx(), paint.border).width,

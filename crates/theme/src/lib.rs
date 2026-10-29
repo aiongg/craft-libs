@@ -11,11 +11,14 @@
 //! ones.
 //!
 //! ```
-//! use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, builtins, resolve};
+//! use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, format, resolve};
 //!
-//! let theme = builtins().iter().find(|t| t.id.as_str() == "craft.graphite").unwrap();
+//! let file = br##"{"schema": "craft-design-theme", "schema_version": 1, "id": "example",
+//!     "seeds": {"neutral": "#8b8d98", "accent": "#3e63dd",
+//!               "status": {"good": "#30a46c", "warn": "#ffc53d", "bad": "#e5484d", "info": "#0090ff"}}}"##;
+//! let theme = format::parse(file).unwrap().theme;
 //! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
-//! let resolved = resolve(theme, appearance, None);
+//! let resolved = resolve(&theme, appearance, None);
 //! assert!(resolved.warnings.is_empty());
 //! ```
 

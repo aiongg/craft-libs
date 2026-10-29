@@ -184,7 +184,7 @@ impl RangeSlider {
         let mixed = !(gesture.shown().0.is_finite() && gesture.shown().1.is_finite());
         let (lo, hi) = placed(&scale, *gesture.shown());
         let (x_lo, x_hi) = (track.x_of(lo), track.x_of(hi));
-        let thumb_rect = |x: f32| egui::Rect::from_center_size(pos2(x, track.y), Vec2::splat(style.thumb));
+        let thumb_rect = |x: f32| egui::Rect::from_center_size(pos2(x, track.y), egui::vec2(style.thumb_width, style.thumb));
         let thumbs = [(salts.0, &self.labels.0, lo, scale.min..=hi, x_lo), (salts.1, &self.labels.1, hi, lo..=scale.max, x_hi)].map(
             |(salt, label, value, bounds, x)| {
                 let sensed = Interactive::new(salt, Role::Slider, label.as_str())

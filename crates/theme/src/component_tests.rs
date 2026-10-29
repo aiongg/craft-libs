@@ -135,7 +135,8 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
                 def.name,
                 r.warnings
             );
-            let min = if a.contrast == Contrast::High { 4.5 } else { 3.0 };
+            // Standard lists the pair; only high contrast needs the fill to show on the track.
+            let min = if a.contrast == Contrast::High { 4.5 } else { 0.0 };
             let track = ComponentField::Slider(SliderField::Track);
             for s in [State::Rest, State::Hover, State::Pressed] {
                 let fill = ComponentField::Slider(SliderField::Fill(s));
@@ -148,14 +149,16 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     let t = resolve(&grey_blue(), app(Mode::Dark, Contrast::Standard), None).tokens;
     let s = &t.component.slider;
     let control = BySize { sm: t.size.control.sm, md: t.size.control.md };
-    assert_eq!((s.height, s.thumb), (control, BySize { sm: t.size.icon.sm, md: t.size.icon.md }));
+    let thumb = BySize { sm: t.size.icon.sm - 2.0, md: t.size.icon.md - 4.0 };
+    assert_eq!((s.height, s.thumb, s.thumb_width), (BySize { sm: control.sm - 4.0, md: control.md - 6.0 }, thumb, thumb));
     assert_eq!(s.width, BySize { sm: 6.0 * control.sm, md: 6.0 * control.md });
-    assert_eq!((s.track_height, s.radius), (4.0, Radius::Full.px()));
-    assert_eq!(s.track, t.color(T::SurfaceSunken));
+    assert_eq!((s.track_height, s.gradient_height, s.track_radius, s.radius), (3.0, 5.0, 2.0, Radius::Full.px()));
+    assert_eq!(s.track, t.color(T::LineControlEdge));
     assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::TextDisabled)));
     assert_eq!(s.thumb_colors, knob(&t));
     let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
     assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));
+    assert_eq!(s.ring_offset, 3.5);
 }
 
 #[test]
@@ -623,7 +626,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             + 1
             + 2 * 2 * 4
-            + 2
+            // Slider: radius, track and the two thumb lengths; fill, thumb and ring per state.
+            + 4
             + 4
             + 2 * 4
             + 4

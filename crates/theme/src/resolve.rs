@@ -7,7 +7,7 @@ use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
 use super::scale::Elevation;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, Pins, ThemeDef};
-use super::tokens::{Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
+use super::tokens::{ColorToken, Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
 use super::values;
 use crate::AppId;
 
@@ -181,7 +181,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let shadow = |level: usize| values::shadow_in_mode(Elevation::level(level), mode);
     let (popup, dialog, floating) = values::ELEVATION_LEVELS;
     // A bevel is the relief of a raised control, so a bevelled knob lies flat.
-    let knob = shadow(if matches!(edge, Edge::Bevel { .. }) { 0 } else { values::KNOB_ELEVATION });
+    let knob = if matches!(edge, Edge::Bevel { .. }) { Elevation::level(0) } else { values::KNOB_SHADOW };
 
     let elevation = ElevationTokens { popup: shadow(popup), dialog: shadow(dialog), floating: shadow(floating), knob };
 
@@ -201,7 +201,8 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         high: appearance.contrast == Contrast::High,
     });
     let high = appearance.contrast == Contrast::High;
-    let component_pins = derive::component_overrides(&mut component, &color, theme, app, mode, high);
+    let on_accent_pinned = color_steps.pins.contains_key(&ColorToken::TextOnAccent);
+    let component_pins = derive::component_overrides(&mut component, theme, app, mode, high, &color, on_accent_pinned);
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &color, high);
     warnings.extend(component_warnings);
 
@@ -216,7 +217,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         typography: &typography,
         high,
     });
-    derive::component_overrides(&mut component_before, before, theme, app, mode, high);
+    derive::component_overrides(&mut component_before, theme, app, mode, high, before, on_accent_pinned);
     let component_pairs_before = derive::measure_components(&component_before, before, high);
 
     let tokens = Tokens {
