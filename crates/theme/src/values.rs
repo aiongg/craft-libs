@@ -87,6 +87,20 @@ pub enum ColorSource {
     /// this token's text rule, which then moves the fill's lightness away from its text as far
     /// as the text needs.
     SolidFrom(ColorToken),
+    /// A solid fill taken from `base` with its OKLCH lightness moved away from `away_from` (darker
+    /// under light text, lighter under dark text) by how far `to` lies from `from` in the
+    /// unpinned ramp defaults: the pointer or pressed variant of a solid under text. It always
+    /// differs from `base`, and the text rule moves it further only if `base` itself misses.
+    ShiftedFrom {
+        /// The solid the fill starts from.
+        base: ColorToken,
+        /// The token whose default the offset is measured from.
+        from: ColorToken,
+        /// The token whose default the offset is measured to.
+        to: ColorToken,
+        /// The text the fill moves away from.
+        away_from: ColorToken,
+    },
     /// White or black, whichever has the higher lowest contrast on all of these tokens.
     OnSolid(&'static [ColorToken]),
 }
@@ -144,7 +158,8 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
     use ColorSource::{
-        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, SolidFrom, StateVariant, Status, StatusMix,
+        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status,
+        StatusMix,
     };
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
@@ -188,6 +203,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::AccentHover => Accent(SOLID_HOVER),
         T::AccentPressed => AccentMix { from: pressed_from, to: pressed_to, t: pressed_t },
         T::AccentStrong => SolidFrom(T::AccentSolid),
+        T::AccentStrongHover => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentHover, away_from: T::TextOnStrong },
+        T::AccentStrongPressed => ShiftedFrom { base: T::AccentStrong, from: T::AccentSolid, to: T::AccentPressed, away_from: T::TextOnStrong },
         T::AccentSoft => Accent(pick(4, 3)),
         T::AccentText => Accent(11),
         T::StatusGoodFg => Status(Good, 11),
@@ -321,6 +338,8 @@ pub(super) const RULES: &[PairRule] = &[
     },
     // After every rule that moves `accent.solid`, which `accent.strong` starts from.
     PairRule { on_solid: true, ..rule(&[T::TextOnStrong], &[Token(T::AccentStrong)], TEXT_MIN.0, TEXT_MIN.1) },
+    // After the rule on `accent.strong`, which the variants start from.
+    PairRule { on_solid: true, ..rule(&[T::TextOnStrong], &[Token(T::AccentStrongHover), Token(T::AccentStrongPressed)], TEXT_MIN.0, TEXT_MIN.1) },
     PairRule {
         on_solid: true,
         ..rule(

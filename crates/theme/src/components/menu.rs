@@ -3,7 +3,7 @@
 //! menu adds: its least width, the gap before a row's shortcut or submenu arrow, the scroll strips
 //! of a menu taller than the window, and the active row's colours. The active row (under the
 //! pointer, or moved to with the keys) is filled with the accent, as in PhotoCraft Pro and macOS:
-//! `accent.strong`, deepened where white text on `accent.solid` would miss its minimum. The menu
+//! `accent.strong`, the accent fill that carries text. The menu
 //! keeps the keyboard focus, so that fill is the visible focus.
 //!
 //! The active text (with its mark and shortcut) is text on the active fill, and the shortcuts are

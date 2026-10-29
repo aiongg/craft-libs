@@ -152,7 +152,7 @@ impl BadgeTokens {
     /// The colours of `tone` in `style`. Soft: `status.<tone>.bg`, `fg` and `border`; solid:
     /// `status.<tone>.solid` with `text.on_status`. Neutral is `surface.sunken` with `text.muted`
     /// (solid: `text.muted` with `surface.panel`); accent is `state.selected` with `text.on_selected`, the
-    /// pair the semantic pass keeps readable (solid: `accent.solid` with `text.on_accent`).
+    /// pair the semantic pass keeps readable (solid: `accent.strong` with `text.on_strong`).
     pub fn colors(&self, tone: BadgeTone, style: BadgeStyle) -> &BadgeColors {
         &self.colors[tone as usize][style as usize]
     }
@@ -215,7 +215,7 @@ impl Family for BadgeTokens {
             label,
             colors: [
                 [soft(c.surface.sunken, c.text.muted, c.line.border), solid(c.text.muted, c.surface.panel)],
-                [soft(c.state.selected, c.text.on_selected, c.state.selected), solid(c.accent.solid, c.text.on_accent)],
+                [soft(c.state.selected, c.text.on_selected, c.state.selected), solid(c.accent.strong, c.text.on_strong)],
                 status(&c.status.good),
                 status(&c.status.warn),
                 status(&c.status.bad),

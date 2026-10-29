@@ -92,7 +92,7 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 | `text.normal`, `text.muted`, `text.faint` on surfaces, `state.hover` and `state.pressed` | 4.5 | 7 |
 | `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
 | `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill | 4.5 | 7 |
-| `text.on_strong` on `accent.strong` (active menu rows) | 4.5 | 7 |
+| `text.on_strong` on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed` (primary buttons, solid accent badges, active menu rows) | 4.5 | 7 |
 | `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
@@ -107,6 +107,7 @@ rest of the text and a coloured one (a navy or blue selection) gets its own read
 `text.on_strong` is white, and `accent.strong` is `accent.solid` with only its OKLCH lightness
 moved, as far as white text needs to reach the minimum: the accent itself where white already
 reads on it, a slightly deeper accent where it doesn't (Pro's dark #378EF0 becomes #1B77D7). A
+`accent.strong_hover` and `accent.strong_pressed` are `accent.strong` with its lightness moved away from the text (darker under white text) by the distance `accent.hover` and `accent.pressed` lie from `accent.solid`, in every appearance, so the three fills differ and the variants read wherever `accent.strong` does. Accent fills that carry text use the strong pair; fills without text (check marks, slider fills) use `accent.solid`. A
 pinned `accent.strong` stays in standard contrast; unpinned text on it turns black where white
 misses, as on the other solid fills, and pinned text that misses is reported.
 

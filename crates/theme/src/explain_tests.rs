@@ -98,8 +98,8 @@ fn contrast_moves_report_the_value_before_the_pass() {
 fn component_fields_read_their_semantic_token() {
     let e = explain(&graphite(), appearance(Mode::Light, Contrast::Standard, Size::Compact), None);
     let reads = |path: &str| e.field(field(path)).unwrap().reads;
-    assert_eq!(reads("button.primary.fill.rest"), Some(T::AccentSolid));
-    assert_eq!(reads("button.primary.text.rest"), Some(T::TextOnAccent));
+    assert_eq!(reads("button.primary.fill.rest"), Some(T::AccentStrong));
+    assert_eq!(reads("button.primary.text.rest"), Some(T::TextOnStrong));
     assert_eq!(reads("button.secondary.border.rest"), Some(T::LineBorder));
     assert_eq!(reads("button.ghost.fill.rest"), None, "transparent is a constant");
     assert!(e.field(field("button.radius")).is_none(), "only colour fields are listed");

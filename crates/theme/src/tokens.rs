@@ -79,9 +79,12 @@ pub struct TextColors {
     pub faint: Rgba,
     /// Disabled text; exempt from contrast minimums.
     pub disabled: Rgba,
-    /// Text on `accent.solid`, `accent.hover` and `accent.pressed`.
+    /// Text on `accent.solid`, `accent.hover` and `accent.pressed`. The components'
+    /// accent fills that carry text use `accent.strong` and `text.on_strong` instead.
     pub on_accent: Rgba,
-    /// Text on `accent.strong`: white.
+    /// Text on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed`: white. Every
+    /// accent fill that carries text (primary buttons, solid badges, active menu rows) uses this
+    /// pair.
     pub on_strong: Rgba,
     /// Text on every `status.<s>.solid`, `solid_hover` and `solid_pressed`.
     pub on_status: Rgba,
@@ -114,10 +117,19 @@ pub struct AccentColors {
     pub hover: Rgba,
     /// Solid fill while pressed.
     pub pressed: Rgba,
-    /// Solid fill under `text.on_strong` (active menu rows): `accent.solid` with its lightness
-    /// moved away from that text only as far as the text needs to reach its minimum, and
-    /// `accent.solid` itself where the text already does.
+    /// Solid fill under `text.on_strong`: `accent.solid` with its lightness moved away from that
+    /// text only as far as the text needs to reach its minimum, and `accent.solid` itself where
+    /// the text already does. Accent fills that carry text (primary buttons, solid badges, active
+    /// menu rows) use the strong pair; fills without text (check marks, slider fills) use
+    /// `accent.solid`.
     pub strong: Rgba,
+    /// `accent.strong` under the pointer: its lightness moved away from `text.on_strong` (darker
+    /// under white text) by the distance `accent.hover` lies from `accent.solid`, so it always
+    /// differs from `accent.strong` and meets the text minimum wherever `accent.strong` does.
+    pub strong_hover: Rgba,
+    /// `accent.strong` while pressed: its lightness moved away from `text.on_strong` by the
+    /// distance `accent.pressed` lies from `accent.solid`, further than `accent.strong_hover`.
+    pub strong_pressed: Rgba,
     /// Tinted background.
     pub soft: Rgba,
     /// Accent-coloured text and links.
@@ -260,7 +272,7 @@ impl ColorTokens {
             surface: SurfaceColors { background: c, canvas: c, panel: c, raised: c, sunken: c, knob: c, scrim: c },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, focus: c },
-            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, soft: c, text: c },
+            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
             overlay: OverlayColors {
@@ -371,6 +383,10 @@ color_tokens! {
     AccentPressed = "accent.pressed" => accent.pressed;
     /// `accent.strong`
     AccentStrong = "accent.strong" => accent.strong;
+    /// `accent.strong_hover`
+    AccentStrongHover = "accent.strong_hover" => accent.strong_hover;
+    /// `accent.strong_pressed`
+    AccentStrongPressed = "accent.strong_pressed" => accent.strong_pressed;
     /// `accent.soft`
     AccentSoft = "accent.soft" => accent.soft;
     /// `accent.text`

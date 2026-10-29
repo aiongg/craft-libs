@@ -84,7 +84,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
     p.extend([T::StateSelected, T::StateSelectedHover].map(|bg| (T::TextOnSelected, bg, 4.5, 7.0)));
     p.extend(CONTROL_BGS.map(|bg| (T::AccentText, bg, 4.5, 7.0)));
     p.extend([T::AccentSolid, T::AccentHover, T::AccentPressed].map(|bg| (T::TextOnAccent, bg, 4.5, 7.0)));
-    p.push((T::TextOnStrong, T::AccentStrong, 4.5, 7.0));
+    p.extend([T::AccentStrong, T::AccentStrongHover, T::AccentStrongPressed].map(|bg| (T::TextOnStrong, bg, 4.5, 7.0)));
     for (fg, bg, solids) in [
         (T::StatusGoodFg, T::StatusGoodBg, [T::StatusGoodSolid, T::StatusGoodSolidHover, T::StatusGoodSolidPressed]),
         (T::StatusWarnFg, T::StatusWarnBg, [T::StatusWarnSolid, T::StatusWarnSolidHover, T::StatusWarnSolidPressed]),
@@ -670,6 +670,31 @@ fn pinned_on_accent_text_moves_the_unpinned_solids() {
         assert!(relative_luminance(new) < relative_luminance(old), "{} {old:?} -> {new:?}", s.path());
         assert!(contrast_ratio(Rgba::WHITE, new) >= 4.5, "{}", s.path());
     }
+}
+
+/// `accent.strong_hover` and `accent.strong_pressed` carry `text.on_strong` in every built-in and
+/// appearance and for a light accent seed (where `text.on_accent` is black), and with
+/// `accent.strong` are three distinct fills, the pressed one furthest from the text.
+#[test]
+fn accent_strong_variants_are_distinct_and_carry_text_on_strong() {
+    let light = theme("test.light-accent", "#8b8d98", "#78ADF6", ["#30a46c", "#ffc53d", "#e5484d", "#0090ff"]);
+    let defs: Vec<&ThemeDef> = crate::builtins().iter().chain([&light]).collect();
+    for def in defs {
+        for a in appearances() {
+            let t = resolve(def, a, None).tokens;
+            let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
+            let [strong, hover, pressed] = [T::AccentStrong, T::AccentStrongHover, T::AccentStrongPressed].map(|v| t.color(v));
+            for (name, c) in [("strong", strong), ("hover", hover), ("pressed", pressed)] {
+                let ratio = contrast_ratio(t.color(T::TextOnStrong), c);
+                assert!(ratio >= min, "{} {a:?}: {name} is {ratio:.2}, needs {min}", def.id);
+            }
+            assert!(strong != hover && hover != pressed && strong != pressed, "{} {a:?}: {strong:?} {hover:?} {pressed:?}", def.id);
+            let l = |c: Rgba| c.to_oklch().l;
+            assert!(l(pressed) < l(hover) && l(hover) < l(strong), "{} {a:?}", def.id);
+        }
+    }
+    let t = resolve(&light, app(Mode::Light, Contrast::Standard), None).tokens;
+    assert_eq!(t.color(T::TextOnAccent), Rgba::BLACK);
 }
 
 /// A pinned `accent.strong` stays in standard contrast: white text that misses on it turns black,
