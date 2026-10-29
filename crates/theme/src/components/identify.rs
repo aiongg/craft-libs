@@ -3,6 +3,9 @@
 //! alone, its derived colour moves in OKLCH lightness to the nearest step that does, with its text
 //! still readable on it. Standard contrast keeps the theme's own fills.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use crate::color::{Oklch, Rgba};
 use crate::contrast::{contrast_ratio, ensure_contrast};
 use crate::derive::over;
@@ -11,6 +14,26 @@ use crate::values;
 /// Resolution of the lightness scan, then bisected to the exact step.
 const SCAN: f64 = 0.01;
 const BISECT_STEPS: usize = 24;
+
+/// The inputs of a high-contrast [`Identify::fill`] search, which is a pure function of them.
+/// Resolving the same colours again (another size, text size or settling round) finds the answers
+/// here instead of repeating the lightness scan.
+#[derive(PartialEq, Eq, Hash)]
+struct MemoKey {
+    on: Box<[Rgba]>,
+    apart: Box<[Rgba]>,
+    edge: Option<Rgba>,
+    with: Box<[Rgba]>,
+    fill: Rgba,
+    text: Rgba,
+}
+
+/// Entries kept per thread before the memo starts over.
+const MEMO_LIMIT: usize = 4096;
+
+thread_local! {
+    static MEMO: RefCell<HashMap<MemoKey, (Rgba, Rgba)>> = RefCell::default();
+}
 
 /// What a selected fill has to show against.
 pub(super) struct Identify<'a> {
@@ -93,8 +116,27 @@ impl<'a> Identify<'a> {
     /// the nearest lightness along its hue and chroma where it does and `text`, moved if it has
     /// to, reads on it. When no lightness satisfies both, the one that comes closest.
     pub fn fill(&self, fill: Rgba, text: Rgba) -> (Rgba, Rgba) {
+        if !self.high {
+            return (fill, text);
+        }
+        let key = MemoKey { on: self.on.into(), apart: self.apart.into(), edge: self.edge, with: self.with.into(), fill, text };
+        if let Some(found) = MEMO.with(|m| m.borrow().get(&key).copied()) {
+            return found;
+        }
+        let found = self.search(fill, text);
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= MEMO_LIMIT {
+                m.clear();
+            }
+            m.insert(key, found);
+        });
+        found
+    }
+
+    fn search(&self, fill: Rgba, text: Rgba) -> (Rgba, Rgba) {
         let text_min = self.pick(values::TEXT_MIN);
-        if !self.high || ((self.shows(fill) || self.edge.is_some_and(|e| self.shows(e))) && self.separate(fill)) {
+        if (self.shows(fill) || self.edge.is_some_and(|e| self.shows(e))) && self.separate(fill) {
             return (fill, text);
         }
         let start = fill.to_oklch();
