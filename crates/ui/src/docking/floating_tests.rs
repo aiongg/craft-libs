@@ -536,7 +536,7 @@ fn hide_panels_keeps_protected_panels_and_the_except_set() {
     }
     // A window keeps its rect with its hidden groups left out.
     d.step(vec![]);
-    assert_eq!(d.title(6).min, pos2(300.0, 84.0), "below the resize band");
+    assert_eq!(d.title(6).min, pos2(300.0, 80.0), "at the window's top edge");
 }
 
 #[test]
@@ -565,7 +565,7 @@ fn native_window_falls_back_in_window_when_viewports_are_embedded() {
     assert!(d.ctx.embed_viewports());
     let out = d.step(vec![]);
     assert!(out.actions.is_empty(), "{out:?}");
-    assert_eq!(d.title(5).min, pos2(300.0, 84.0));
+    assert_eq!(d.title(5).min, pos2(300.0, 80.0));
     assert_eq!(d.layout, layout);
 }
 
@@ -647,8 +647,8 @@ fn chrome_frame_and_title_bar_work_without_a_dock_area() {
         frame(vec![button(at, false)])
     };
     let ((_, _, _, closed), _) = click(&mut frame, pos2(390.0, 111.0));
-    assert!(closed, "× 10 pt in from the right");
-    let ((_, _, menu, _), _) = click(&mut frame, pos2(374.0, 111.0));
+    assert!(closed, "× at the right edge");
+    let ((_, _, menu, _), _) = click(&mut frame, pos2(362.0, 111.0));
     assert!(menu, "▾ left of ×");
 
     frame(vec![Event::PointerMoved(pos2(200.0, 110.0)), button(pos2(200.0, 110.0), true)]);
@@ -718,9 +718,9 @@ fn a_hidden_floating_window_does_not_cover_dock_targets() {
 }
 
 #[test]
-/// Each top resize edge sits directly above the title bar and keeps the opposite edges while
+/// Each top resize edge lies over the top of the title bar and keeps the opposite edges while
 /// dragging; the title bar still moves the window, and a focused top edge responds to arrow keys.
-fn top_edges_resize_from_the_band_above_the_title_bar() {
+fn top_edges_resize_from_the_band_over_the_title_bar() {
     // W2 holds [8] at [560, 300, 200, 200]; each top handle keeps the opposite edges.
     let area = Id::unique(AREA);
     for (edge, by, expected) in [
@@ -730,14 +730,19 @@ fn top_edges_resize_from_the_band_above_the_title_bar() {
     ] {
         let mut d = Driver::new(workspace(), false);
         let handle = d.response(DockArea::hit_id(area, &Hit::Resize(8u32, edge))).unwrap();
-        assert_eq!(handle.bottom(), d.title(8).top(), "{edge:?} lies above the title bar");
+        assert_eq!(
+            (handle.top(), handle.bottom()),
+            (d.title(8).top(), d.title(8).top() + chrome::RESIZE_BAND),
+            "{edge:?} lies over the title bar's top"
+        );
         d.drag(handle.center(), handle.center() + by);
         assert_eq!(window_of(&d.layout, 8).unwrap().rect, expected, "{edge:?}");
     }
     // The title bar still moves the window, and arrow keys move the focused top edge.
     let mut d = Driver::new(workspace(), false);
     let title = d.title(8);
-    d.drag(pos2(title.center().x, title.top() + 1.0), pos2(title.center().x - 50.0, title.top() + 1.0));
+    let below = title.top() + chrome::RESIZE_BAND + 1.0;
+    d.drag(pos2(title.center().x, below), pos2(title.center().x - 50.0, below));
     assert_eq!(window_of(&d.layout, 8).unwrap().rect, [510.0, 300.0, 200.0, 200.0]);
     d.ctx.memory_mut(|m| m.request_focus(DockArea::hit_id(area, &Hit::Resize(8u32, ResizeEdge::Top))));
     d.step(vec![Event::Key { key: egui::Key::ArrowUp, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);

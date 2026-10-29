@@ -13,7 +13,7 @@ use std::{fmt::Debug, hash::Hash};
 use egui::{Context, Key, Pos2, Rect, Ui, Vec2, vec2};
 
 use super::floating::WindowHit;
-use super::native::{BAR_HEIGHT, WindowDrag};
+use super::native::WindowDrag;
 use super::preview::DragInput;
 use super::{Renderer, clamp_float, dock::group_action};
 use crate::docking::desktop::{Over, window_at};
@@ -265,7 +265,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             _ if !self.permissions(&drag.panel).floatable => {}
             _ => {
                 let size = self.float_size(&drag.panel, drag.source.size());
-                let grab = drag.grab.min(vec2(size.x, self.look.tab_height)) + vec2(0.0, BAR_HEIGHT);
+                let grab = drag.grab.min(vec2(size.x, self.look.tab_height)) + vec2(0.0, self.look.title_height);
                 let rect = self.desktop_float(&pointer, size, grab);
                 let action = Action::Float { panel: drag.panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] };
                 self.push_checked(Some(action), &drag.panel);
@@ -309,7 +309,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             }
             _ => {
                 let size = self.group_float_size(&drag.members, drag.source.size());
-                let grab = (drag.origin - drag.source.min).clamp(Vec2::ZERO, size) + vec2(0.0, BAR_HEIGHT);
+                let grab = (drag.origin - drag.source.min).clamp(Vec2::ZERO, size) + vec2(0.0, self.look.title_height);
                 let rect = self.desktop_float(&pointer, size, grab);
                 let action = group_action(drag, Target::Float { rect: Some([rect.left(), rect.top(), rect.width(), rect.height()]) });
                 self.push_checked(Some(action), &drag.panel);

@@ -746,9 +746,16 @@ pub(super) fn component_overrides(
     }
     let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
     for (&f, &v) in theme.components.iter().chain(app_components.into_iter().flatten()) {
-        if f.kind() != FieldKind::Color {
-            let _ = comp.set(f, v);
+        if f.kind() == FieldKind::Color {
+            continue;
         }
+        // A shadow override names a preset level, which gets the same mode adjustment as the
+        // default shadow.
+        let v = match v {
+            OverrideValue::Elevation(e) => OverrideValue::Elevation(values::shadow_in_mode(e, mode)),
+            v => v,
+        };
+        let _ = comp.set(f, v);
     }
     layers
 }

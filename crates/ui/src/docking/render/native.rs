@@ -20,7 +20,6 @@ use super::Renderer;
 use super::body_drag::{BodyRoute, Held, Queued};
 use super::cross::{DragPointer, Surface};
 use crate::docking::chrome::{ChromeStyle, TitleBar};
-pub(in crate::docking) use crate::docking::placement::BAR_HEIGHT;
 use crate::docking::placement::{kept_reachable, monitor_of, restore, sanitized};
 use crate::docking::{Action, Drag, Floating, GroupDrag, GroupGesture, Node, WindowFiles, WindowKind};
 
@@ -82,18 +81,32 @@ pub(in crate::docking) struct CloseLayout {
     pub hit_down: f32,
 }
 
-/// The × on macOS, where macOS puts the close button of its own windows: centered in the
-/// 18 pt bar, its trailing side 8 pt in. AppKit's corner resize area ([`APPKIT_CORNER`])
-/// covers its trailing half and takes presses there, so the hit area reaches away from the
-/// corner: left of the glyph, and down to the bar's bottom.
-pub(in crate::docking) const MACOS_CLOSE: CloseLayout =
-    CloseLayout { glyph_top: 4.5, glyph_trailing: 8.0, glyph_size: 9.0, hit_left: 10.0, hit_right: 0.0, hit_up: 0.0, hit_down: 4.5 };
+/// Side of a native bar's × glyph.
+const CLOSE_GLYPH: f32 = 9.0;
 
-/// The × elsewhere: an 18 pt square the height of the bar, its trailing side 7 pt in so the
-/// side's resize band ([`EDGE`]) and the corner's grab run down beside it, with the glyph at
-/// its center.
-pub(in crate::docking) const OTHER_CLOSE: CloseLayout =
-    CloseLayout { glyph_top: 4.5, glyph_trailing: 11.5, glyph_size: 9.0, hit_left: 4.5, hit_right: 4.5, hit_up: 4.5, hit_down: 4.5 };
+/// The × on macOS, where macOS puts the close button of its own windows: centered in the `bar`
+/// high bar, its trailing side 8 pt in. AppKit's corner resize area ([`APPKIT_CORNER`]) covers its
+/// trailing half and takes presses there, so the hit area reaches away from the corner: left of
+/// the glyph, and down to the bar's bottom.
+pub(in crate::docking) fn macos_close(bar: f32) -> CloseLayout {
+    let inset = (bar - CLOSE_GLYPH) / 2.0;
+    CloseLayout { glyph_top: inset, glyph_trailing: 8.0, glyph_size: CLOSE_GLYPH, hit_left: 10.0, hit_right: 0.0, hit_up: 0.0, hit_down: inset }
+}
+
+/// The × elsewhere: a square the height of the `bar`, its trailing side 7 pt in so the side's
+/// resize band ([`EDGE`]) and the corner's grab run down beside it, with the glyph at its center.
+pub(in crate::docking) fn other_close(bar: f32) -> CloseLayout {
+    let inset = (bar - CLOSE_GLYPH) / 2.0;
+    CloseLayout {
+        glyph_top: inset,
+        glyph_trailing: 7.0 + inset,
+        glyph_size: CLOSE_GLYPH,
+        hit_left: inset,
+        hit_right: inset,
+        hit_up: inset,
+        hit_down: inset,
+    }
+}
 
 /// Opacity of the native window that a bar drag of the area `area` moves, by the rule for every
 /// floating window ([`super::DRAG_OPACITY`]): faded while the drag highlights a drop target, as
@@ -555,7 +568,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let info = ctx.input(|i| i.raw.viewports.get(&viewport).cloned());
         let frame = info.as_ref().and_then(content_of).map_or(Vec2::ZERO, |(_, frame)| frame);
         // A minimized window shows its bar and what `floating_body` draws below it.
-        let collapsed = window.minimized.then(|| BAR_HEIGHT + self.minimized_body(window));
+        let collapsed = window.minimized.then(|| self.look.title_height + self.minimized_body(window));
         let shown = |[x, y, w, h]: [f32; 4]| [x, y, w, collapsed.unwrap_or(h)];
         let mut place = match ctx.data(|d| d.get_temp::<Place>(key)) {
             Some(mut place) => {
@@ -564,7 +577,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 if !moving(ctx)
                     && let Some(native) = window.native.filter(|native| differs(*native, place.known))
                 {
-                    let target = kept_reachable(native, &self.monitors);
+                    let target = kept_reachable(native, &self.monitors, self.look.title_height);
                     place_window(ctx, viewport, shown(target), frame);
                     (place.known, place.pending) = (target, Some(now + MOVE_WAIT));
                 }
@@ -577,7 +590,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let mut seen = ctx.data(|d| d.get_temp::<std::collections::HashSet<u64>>(seen_key)).unwrap_or_default();
                 let spawn = if window.native.is_some() && !seen.contains(&window.id) {
                     let (main, size) = ctx.input(|i| (i.viewport().inner_rect, i.viewport().monitor_size));
-                    restore(rect, window.monitor.as_ref(), &self.monitors, main, size)
+                    restore(rect, window.monitor.as_ref(), &self.monitors, main, size, self.look.title_height)
                 } else {
                     sanitized(rect)
                 };
@@ -649,7 +662,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let released = if blocked && own { block_input(ui) } else { Vec::new() };
             ui.painter().rect_filled(full, 0.0, self.look.floating_background);
             let buttons = self.native_bar(ui, window);
-            let body = Rect::from_min_max(pos2(full.left(), (full.top() + BAR_HEIGHT).min(full.bottom())), full.max);
+            let body = Rect::from_min_max(pos2(full.left(), (full.top() + self.look.title_height).min(full.bottom())), full.max);
             self.cross.pointed = None;
             if own {
                 crate::ime::window::begin_window(ui.ctx());
@@ -787,9 +800,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let full = ui.max_rect();
         // The operating system draws the window's corners and shadow.
         let style = ChromeStyle { radius: egui::CornerRadius::ZERO, shadow: egui::Shadow::NONE, ..ChromeStyle::from_look(self.look, self.config) };
-        let rect = Rect::from_min_size(full.min, vec2(full.width(), BAR_HEIGHT.min(full.height())));
+        let rect = Rect::from_min_size(full.min, vec2(full.width(), self.look.title_height.min(full.height())));
         ui.painter().rect_filled(rect, 0.0, style.title_background);
-        let (close_hit, close_glyph) = close_rects(rect, if OS_RESIZES { MACOS_CLOSE } else { OTHER_CLOSE }, style.right_to_left);
+        let (close_hit, close_glyph) = close_rects(
+            rect,
+            if OS_RESIZES { macos_close(self.look.title_height) } else { other_close(self.look.title_height) },
+            style.right_to_left,
+        );
         let movable = window.panels().all(|p| self.permissions(p).movable);
         let closable = self.config.close_button && window.panels().all(|p| self.permissions(p).closable);
         let (move_label, close_label) = (self.config.move_window_label.clone(), self.config.close_window_label.clone());
@@ -920,7 +937,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ui.ctx().data_mut(|d| d.remove::<WindowDrag>(key));
             // Left with too little of its bar on a monitor to grab it: back onto the nearest.
             if let Some(size) = ui.input(|i| i.viewport().inner_rect.map(|r| r.size())) {
-                let [x, y, ..] = kept_reachable([drag.to.x, drag.to.y, size.x, size.y], &self.monitors);
+                let [x, y, ..] = kept_reachable([drag.to.x, drag.to.y, size.x, size.y], &self.monitors, self.look.title_height);
                 if pos2(x, y).distance(drag.to) > 0.5 {
                     move_to(self, pos2(x, y));
                 }
@@ -977,7 +994,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if ended {
             // Left with too little of its bar on a monitor to grab it: back onto the nearest.
             if let Some(size) = ui.input(|i| i.viewport().inner_rect.map(|r| r.size())) {
-                let [x, y, ..] = kept_reachable([drag.to.x, drag.to.y, size.x, size.y], &self.monitors);
+                let [x, y, ..] = kept_reachable([drag.to.x, drag.to.y, size.x, size.y], &self.monitors, self.look.title_height);
                 if pos2(x, y).distance(drag.to) > 0.5 {
                     let frame = ui.input(|i| content_of(i.viewport())).map_or(Vec2::ZERO, |(_, frame)| frame);
                     ctx.send_viewport_cmd(ViewportCommand::OuterPosition(pos2(x, y) - frame));

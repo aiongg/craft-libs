@@ -10,7 +10,8 @@
 
 use std::{fmt::Debug, hash::Hash};
 
-use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, UiBuilder, epaint::ClippedShape, vec2};
+use craft_theme::Pins;
+use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, UiBuilder, epaint::ClippedShape, vec2};
 
 use super::{DockArea, DockConfig, DockContent, DockLook, DockOutput, DockStyle, DockWith, Hit, Layout, Monitor};
 
@@ -67,6 +68,7 @@ pub struct DockDriver<P, C> {
     style: Option<StyleFn>,
     config: Option<ConfigFn>,
     look: Option<LookFn>,
+    pins: Option<Pins>,
     shapes: Vec<ClippedShape>,
     ime: Option<egui::output::IMEOutput>,
     time: f64,
@@ -102,6 +104,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             style: None,
             config: None,
             look: None,
+            pins: None,
             shapes: Vec::new(),
             ime: None,
             time: 0.0,
@@ -128,6 +131,15 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
     /// Adjust the [`DockLook`] each frame, like [`Self::with_config`]. Settles again.
     pub fn with_look(mut self, look: impl Fn(&mut DockLook) + 'static) -> Self {
         self.look = Some(Box::new(look));
+        self.settle();
+        self
+    }
+
+    /// Draw from the `dock`, `float` and `tab` tokens of the ui's theme ([`DockLook::of`]) rather
+    /// than from the visuals, with `pins` over the theme's colours. [`Self::with_config`] and
+    /// [`Self::with_look`] still adjust the result. Settles again.
+    pub fn themed(mut self, pins: Pins) -> Self {
+        self.pins = Some(pins);
         self.settle();
         self
     }
@@ -177,48 +189,55 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             self.native_windows,
             self.input_blocked,
         );
+        let pins = self.pins.clone();
         let mut full = self.ctx.run_ui(input, |ui| {
-            let mut style = DockStyle::from_ui(ui);
-            if let Some(adjust) = style_fn {
-                adjust(&mut style);
+            let mut draw = |ui: &mut Ui| {
+                let mut style = DockStyle::from_ui(ui);
+                if let Some(adjust) = style_fn {
+                    adjust(&mut style);
+                }
+                let with = (pins.is_some() || config_fn.is_some() || look_fn.is_some()).then(|| {
+                    let (mut config, mut look) = if pins.is_some() { (DockConfig::default(), DockLook::of(ui)) } else { style.split() };
+                    if let Some(adjust) = config_fn {
+                        adjust(&mut config);
+                    }
+                    if let Some(adjust) = look_fn {
+                        adjust(&mut look);
+                    }
+                    DockWith { config, look }
+                });
+                ui.scope_builder(UiBuilder::new().max_rect(area), |ui| {
+                    let mut dock = DockArea::new(id)
+                        .maximized(maximized.clone())
+                        .auto_collapse_iconic(auto)
+                        .monitors(monitors.clone())
+                        .locked(locked)
+                        .native_windows(native)
+                        .input_blocked(blocked);
+                    if let Some(panel) = raise.clone() {
+                        dock = dock.raise_panel(panel);
+                    }
+                    if let Some(bounds) = bounds {
+                        dock = dock.float_bounds(bounds);
+                    }
+                    #[cfg(feature = "native-windows")]
+                    {
+                        dock = dock.window_system(window_system);
+                    }
+                    #[cfg(feature = "native-windows")]
+                    if let Some(hook) = input_hook.clone() {
+                        dock = dock.native_input_hook(move |ctx, input| hook(ctx, input));
+                    }
+                    output = match &with {
+                        Some(with) => dock.show_content(ui, layout, with, content),
+                        None => dock.show_content(ui, layout, &style, content),
+                    };
+                });
+            };
+            match &pins {
+                Some(pins) => crate::theme::scope(ui, |o| o.colors = pins.clone(), draw),
+                None => draw(ui),
             }
-            let with = (config_fn.is_some() || look_fn.is_some()).then(|| {
-                let (mut config, mut look) = style.split();
-                if let Some(adjust) = config_fn {
-                    adjust(&mut config);
-                }
-                if let Some(adjust) = look_fn {
-                    adjust(&mut look);
-                }
-                DockWith { config, look }
-            });
-            ui.scope_builder(UiBuilder::new().max_rect(area), |ui| {
-                let mut dock = DockArea::new(id)
-                    .maximized(maximized.clone())
-                    .auto_collapse_iconic(auto)
-                    .monitors(monitors.clone())
-                    .locked(locked)
-                    .native_windows(native)
-                    .input_blocked(blocked);
-                if let Some(panel) = raise.clone() {
-                    dock = dock.raise_panel(panel);
-                }
-                if let Some(bounds) = bounds {
-                    dock = dock.float_bounds(bounds);
-                }
-                #[cfg(feature = "native-windows")]
-                {
-                    dock = dock.window_system(window_system);
-                }
-                #[cfg(feature = "native-windows")]
-                if let Some(hook) = input_hook.clone() {
-                    dock = dock.native_input_hook(move |ctx, input| hook(ctx, input));
-                }
-                output = match &with {
-                    Some(with) => dock.show_content(ui, layout, with, content),
-                    None => dock.show_content(ui, layout, &style, content),
-                };
-            });
         });
         full.textures_delta.clear();
         #[cfg(feature = "native-windows")]

@@ -5,6 +5,8 @@ use crate::layout::{SplitAxis, SplitSize};
 use egui::{Context, Event, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, UiBuilder, pos2, vec2};
 
 const AREA: &str = "dock-area";
+/// The width of a column bar's »/« button in the test look: the column bar's height.
+const COLUMN_BAR_HEIGHT: f32 = 14.0;
 
 fn group(panels: &[u32]) -> Group<u32> {
     Group::new(panels.to_vec(), 0)
@@ -562,7 +564,7 @@ fn column_bar_drag_moves_the_column_and_away_from_a_dock_floats_its_groups() {
     d.settle();
     // Away from the dock: a floating window holding the column's groups.
     let source = Rect::from_min_max(pos2(240.0, 0.0), pos2(480.0, 600.0));
-    assert_eq!(d.rect("column-bar", 2).left(), 240.0 + 18.0);
+    assert_eq!(d.rect("column-bar", 2).left(), 240.0 + COLUMN_BAR_HEIGHT);
     let grab = d.rect("column-bar", 2).center();
     d.hold(grab, pos2(560.0, 300.0));
     // The column's width; a docked column floats at most 320 pt tall.
@@ -698,7 +700,7 @@ fn right_to_left_mirrors_docks_their_edges_and_new_docks() {
     let mut d = Driver::with(layout.clone(), TestContent::default(), true);
     // The start dock is on the right, its »/« button at the window edge.
     let column_bar = d.rect("column-bar", 2);
-    assert_eq!((column_bar.left(), column_bar.right()), (360.0, 600.0 - 18.0));
+    assert_eq!((column_bar.left(), column_bar.right()), (360.0, 600.0 - COLUMN_BAR_HEIGHT));
     // Its inner edge is on the left: dragging it left widens the column.
     d.drag(pos2(360.0, 300.0), pos2(320.0, 300.0));
     assert_eq!(column(&d.layout, 0).width, 280.0);

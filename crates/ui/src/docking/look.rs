@@ -20,6 +20,8 @@ pub struct DockLook {
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
+    /// Room inside controls: around a title, a float hint and an icon's label.
+    pub pad: f32,
     pub background: Color32,
     /// Tab strip, column bar and floating title bar.
     pub tab_strip: Color32,
@@ -80,7 +82,6 @@ pub struct DockLook {
     /// Corner radius of a floating window's fill and outline.
     pub floating_radius: CornerRadius,
     pub floating_shadow: Shadow,
-    /// Title of a floating window.
     /// Fill of a floating window's title bar.
     pub title_background: Color32,
     pub title_text: Color32,
@@ -102,6 +103,7 @@ impl DockLook {
         Self {
             tab_height: tab.height,
             gap: dock.gap,
+            pad: tokens.space.pad.control,
             background: dock.background.to_egui(),
             tab_strip: tab.strip.to_egui(),
             tab_active: tab.active.to_egui(),
@@ -148,6 +150,7 @@ impl DockLook {
         Self {
             tab_height: 26.0,
             gap: 4.0,
+            pad: 6.0,
             background: visuals.panel_fill,
             tab_strip: visuals.extreme_bg_color,
             tab_active: visuals.widgets.active.bg_fill,
@@ -194,6 +197,7 @@ impl DockLook {
         [
             self.tab_height,
             self.gap,
+            self.pad,
             self.border.width,
             self.font.size,
             self.tab_padding,

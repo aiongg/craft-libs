@@ -1,10 +1,11 @@
 //! [L] The dock look: token resolution per Size, parity of the `DockStyle` split, scope overrides,
 //! the token path's accessible names, and the stories.
 
-use craft_theme::{Appearance, ComponentField, Contrast, Mode, Pins, Rgba, Size, TabField, TextSize, builtins, resolve};
+use craft_theme::{Appearance, ComponentField, Contrast, DockField, FloatField, Mode, Pins, Rgba, Size, TabField, TextSize, builtins, resolve};
 use egui::{Context, FontId, Ui, Visuals};
 
-use super::{DockArea, DockConfig, DockContent, DockLook, DockSpec, DockStyle, Floating, Layout, Node, Permissions};
+use super::testing::DockDriver;
+use super::{Column, DockArea, DockConfig, DockContent, DockLook, DockSpec, DockStyle, Floating, Group, Hit, Layout, Node, Permissions, Side};
 use crate::theme::{FontFamilies, ToEgui as _, UiTokens, scope};
 
 fn look_at(size: Size, mode: Mode) -> DockLook {
@@ -123,8 +124,15 @@ impl DockContent<u32> for Names {
     }
 }
 
-/// The accessible names of tabs, drag bars, dividers, resize handles and title bar buttons are
-/// the same whether the area draws from a `DockStyle` or from the token path.
+/// A dock column of one group per panel, iconic when `iconic`.
+fn dock_column(iconic: bool, panels: [u32; 2]) -> Column<u32> {
+    let mut column = Column::new(panels.map(|panel| Group::new(vec![panel], 0)).to_vec(), 100.0);
+    column.iconic = iconic;
+    column
+}
+
+/// The accessible names of tabs, drag bars, column bars, iconic cells, dividers, resize handles
+/// and title bar buttons are the same whether the area draws from a `DockStyle` or from the token path.
 #[test]
 fn the_accessible_names_are_the_same_on_the_token_path() {
     use egui_kittest::{Harness, kittest::NodeT as _};
@@ -133,7 +141,12 @@ fn the_accessible_names_are_the_same_on_the_token_path() {
             axis: crate::layout::SplitAxis::Horizontal,
             size: crate::layout::SplitSize::FixedSecond(200.0),
             first: Box::new(Node::Tabs { panels: vec![0], active: 0 }),
-            second: Box::new(Node::Tabs { panels: vec![1, 2], active: 0 }),
+            second: Box::new(Node::Split {
+                axis: crate::layout::SplitAxis::Horizontal,
+                size: crate::layout::SplitSize::FixedSecond(120.0),
+                first: Box::new(Node::Tabs { panels: vec![1, 2], active: 0 }),
+                second: Box::new(Node::Dock { side: Side::End, columns: vec![dock_column(false, [5, 6]), dock_column(true, [7, 8])] }),
+            }),
         }),
         floating: vec![Floating::single(vec![3, 4], 0, [20.0, 20.0, 160.0, 160.0]).with_id(1)],
     };
@@ -159,6 +172,9 @@ fn the_accessible_names_are_the_same_on_the_token_path() {
     };
     let (flat, tokens) = (names(false), names(true));
     assert!(flat.iter().any(|n| n.contains("Panel 1")), "{flat:?}");
+    for iconic in ["Panel 7", "Panel 8"] {
+        assert!(flat.iter().any(|n| n.contains(iconic)), "{iconic} in {flat:?}");
+    }
     assert_eq!(flat, tokens);
 }
 
@@ -191,4 +207,101 @@ fn the_dock_stories_are_fully_labelled_in_both_locales() {
             }
         }
     }
+}
+
+/// Pins distinct colors on the hover, focus and current-icon tokens: the tab strip, drag bar and
+/// icon cell painters read them, each from its own token.
+#[test]
+fn the_painters_read_their_own_tokens() {
+    let hover = Rgba([10, 200, 30, 255]);
+    let focus = Rgba([200, 10, 220, 255]);
+    let selected = Rgba([20, 60, 230, 255]);
+    let selected_text = Rgba([250, 120, 10, 255]);
+    let pins: Pins = [
+        (ComponentField::Tab(TabField::Hover), hover),
+        (ComponentField::Float(FloatField::Focus), focus),
+        (ComponentField::Dock(DockField::IconSelected), selected),
+        (ComponentField::Dock(DockField::IconSelectedText), selected_text),
+    ]
+    .into_iter()
+    .collect();
+    let layout = Layout {
+        root: Some(Node::Split {
+            axis: crate::layout::SplitAxis::Horizontal,
+            size: crate::layout::SplitSize::FixedSecond(340.0),
+            first: Box::new(Node::Tabs { panels: vec![0], active: 0 }),
+            second: Box::new(Node::Dock {
+                side: Side::End,
+                columns: vec![Column::new(vec![Group::new(vec![1, 2], 0)], 240.0), dock_column(true, [3, 4])],
+            }),
+        }),
+        floating: Vec::new(),
+    };
+    let mut d = DockDriver::new(layout, Names).themed(pins);
+    let rect_of = |d: &DockDriver<u32, Names>, hit: Hit<u32>| d.hit(&hit).unwrap_or_else(|| panic!("{hit:?}"));
+    let rects = |d: &DockDriver<u32, Names>| -> Vec<egui::epaint::RectShape> {
+        d.shapes().iter().filter_map(|s| if let egui::Shape::Rect(r) = &s.shape { Some(r.clone()) } else { None }).collect()
+    };
+    let wanted = |color: Rgba| color.to_egui();
+
+    // A tab under the pointer is filled with `tab.hover`.
+    let tab = rect_of(&d, Hit::Tab(2));
+    assert_ne!(tab, rect_of(&d, Hit::Tab(1)));
+    d.move_to(tab.center());
+    d.step(vec![]);
+    assert!(rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "hovered tab");
+    d.leave();
+
+    // Keyboard focus on a tab and on a drag bar is drawn with `float.focus`, at the focus width.
+    let width = look_at(Size::Compact, Mode::Light).focus_width;
+    for (hit, outline) in [(Hit::Tab(1), None), (Hit::DragBar(1), Some(1.0))] {
+        let rect = rect_of(&d, hit.clone());
+        d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &hit)));
+        d.step(vec![]);
+        d.step(vec![]);
+        let drawn = rects(&d);
+        let stroked = drawn.iter().any(|r| {
+            r.stroke.color == wanted(focus)
+                && r.stroke.width == width
+                && outline.map_or(r.rect.intersects(rect), |inset| r.rect == rect.shrink(inset))
+        });
+        assert!(stroked, "{hit:?} focus outline");
+    }
+
+    // The current icon cell is filled with `dock.icon.selected`, its letter in the selected text color.
+    d.ctx.memory_mut(|m| m.surrender_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));
+    let cell = rect_of(&d, Hit::Icon(3));
+    d.click(cell.center());
+    d.leave();
+    d.settle();
+    let drawn = rects(&d);
+    assert!(drawn.iter().any(|r| r.rect == cell.shrink(2.0) && r.fill == wanted(selected)), "current icon cell");
+    assert!(drawn.iter().any(|r| r.stroke.color == wanted(selected_text)), "the letter box in the selected text color");
+}
+
+/// A floating window with rounded corners draws its title bar from the frame's top and keeps its
+/// body inside the rounded bottom corners; a square window fills the frame. The top resize band
+/// lies over the title bar.
+#[test]
+fn a_rounded_floating_window_insets_its_body_below_a_title_bar_from_the_top() {
+    let at = |radius: u8| {
+        let layout = Layout {
+            root: Some(Node::Tabs { panels: vec![0], active: 0 }),
+            floating: vec![Floating::single(vec![1], 0, [100.0, 100.0, 300.0, 200.0]).with_id(1)],
+        };
+        let d = DockDriver::new(layout, Names).with_look(move |l| l.floating_radius = egui::CornerRadius::same(radius));
+        let hit = |hit: Hit<u32>| d.hit(&hit).unwrap_or_else(|| panic!("{hit:?}"));
+        (hit(Hit::Title(1)), hit(Hit::Tab(1)), hit(Hit::Resize(1, super::ResizeEdge::Top)))
+    };
+    let title_height = DockLook::from_visuals(&Visuals::dark()).title_height;
+    let (title, tab, band) = at(0);
+    assert_eq!((title.left(), title.top()), (100.0, 100.0));
+    assert_eq!((tab.left(), tab.top()), (100.0, 100.0 + title_height));
+    assert_eq!((band.top(), band.bottom()), (100.0, 100.0 + super::chrome::RESIZE_BAND), "the band lies over the title bar");
+
+    let inset = 10.0 * (1.0 - std::f32::consts::FRAC_1_SQRT_2);
+    let (title, tab, _) = at(10);
+    assert_eq!((title.left(), title.top()), (100.0, 100.0));
+    assert!((tab.left() - (100.0 + inset)).abs() < 1e-4, "{tab:?}");
+    assert_eq!(tab.top(), 100.0 + title_height);
 }

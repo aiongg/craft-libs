@@ -9,11 +9,9 @@ use super::Monitor;
 const MAX_SIZE: f32 = 16_384.0;
 const MAX_POSITION: f32 = 100_000.0;
 const MIN_SIZE: [f32; 2] = [160.0, 100.0];
-/// Height of the bar at the top of a native window.
-pub(super) const BAR_HEIGHT: f32 = 18.0;
-/// How much of a window's bar must lie on one monitor for the window to be reachable: wide
-/// enough to grab, and half its height.
-const REACHABLE: [f32; 2] = [40.0, BAR_HEIGHT / 2.0];
+/// Width of a window's bar that must lie on one monitor for the window to be reachable: wide
+/// enough to grab. Half the bar's height must lie there too.
+const REACHABLE_WIDTH: f32 = 40.0;
 
 /// A rect safe to hand to the windowing system: finite, its size and position bounded.
 /// Hostile workspace files and bad monitor reports included.
@@ -47,21 +45,22 @@ pub(super) fn monitor_of(monitors: &[Monitor], rect: [f32; 4]) -> Option<&Monito
         .or_else(|| monitors().min_by(|a, b| to_rect(a.rect).distance_sq_to_pos(center).total_cmp(&to_rect(b.rect).distance_sq_to_pos(center))))
 }
 
-/// Whether enough of the bar along the top of `rect` lies on one of `monitors` to grab it.
-fn reachable(rect: [f32; 4], monitors: &[Monitor]) -> bool {
+/// Whether enough of the `bar`-high bar along the top of `rect` lies on one of `monitors` to
+/// grab it.
+fn reachable(rect: [f32; 4], monitors: &[Monitor], bar: f32) -> bool {
     let [x, y, w, _] = rect;
-    let bar = to_rect([x, y, w, BAR_HEIGHT]);
+    let bar_rect = to_rect([x, y, w, bar]);
     monitors.iter().filter(|m| usable(m)).any(|m| {
-        let on = bar.intersect(to_rect(m.rect));
-        on.width() >= REACHABLE[0].min(w) && on.height() >= REACHABLE[1]
+        let on = bar_rect.intersect(to_rect(m.rect));
+        on.width() >= REACHABLE_WIDTH.min(w) && on.height() >= bar / 2.0
     })
 }
 
-/// `rect` made safe, and moved wholly onto the nearest of `monitors` when too little of its
+/// `rect` made safe (its bar `bar` high), and moved wholly onto the nearest of `monitors` when too little of its
 /// bar lies on any to grab it. Without a monitor list, only made safe.
-pub(super) fn kept_reachable(rect: [f32; 4], monitors: &[Monitor]) -> [f32; 4] {
+pub(super) fn kept_reachable(rect: [f32; 4], monitors: &[Monitor], bar: f32) -> [f32; 4] {
     let rect = sanitized(rect);
-    if !monitors.iter().any(usable) || reachable(rect, monitors) {
+    if !monitors.iter().any(usable) || reachable(rect, monitors, bar) {
         return rect;
     }
     monitor_of(monitors, rect).map_or(rect, |m| clamp_onto(rect, m.rect))
@@ -87,7 +86,14 @@ fn clamp_onto(rect: [f32; 4], area: [f32; 4]) -> [f32; 4] {
 ///   which holds for a row or grid of monitors of one size.
 ///
 /// A window that moves to another monitor ends up wholly on it.
-pub(super) fn restore(saved: [f32; 4], monitor: Option<&Monitor>, monitors: &[Monitor], main: Option<Rect>, monitor_size: Option<Vec2>) -> [f32; 4] {
+pub(super) fn restore(
+    saved: [f32; 4],
+    monitor: Option<&Monitor>,
+    monitors: &[Monitor],
+    main: Option<Rect>,
+    monitor_size: Option<Vec2>,
+    bar: f32,
+) -> [f32; 4] {
     let saved = sanitized(saved);
     let main = main.filter(|r| r.is_finite()).map(|r| [r.left(), r.top(), r.width().max(1.0), r.height().max(1.0)]);
     if !monitors.iter().any(usable) {
@@ -104,7 +110,7 @@ pub(super) fn restore(saved: [f32; 4], monitor: Option<&Monitor>, monitors: &[Mo
     let [x, y, w, h] = saved;
     match (connected, monitor) {
         (Some((old, now)), _) if old.rect == now.rect => {
-            if reachable(saved, monitors) {
+            if reachable(saved, monitors, bar) {
                 saved
             } else {
                 clamp_onto(saved, now.rect)
@@ -125,7 +131,7 @@ pub(super) fn restore(saved: [f32; 4], monitor: Option<&Monitor>, monitors: &[Mo
         }
         // No saved monitor: the window stays where its bar can be grabbed.
         (None, None) => {
-            if reachable(saved, monitors) {
+            if reachable(saved, monitors, bar) {
                 return saved;
             }
             main_monitor.map_or(saved, |target| clamp_onto(saved, target.rect))
@@ -137,6 +143,17 @@ pub(super) fn restore(saved: [f32; 4], monitor: Option<&Monitor>, monitors: &[Mo
 mod tests {
     use super::*;
     use egui::vec2;
+
+    /// The bar height the expectations below are set for.
+    const BAR: f32 = 18.0;
+
+    fn restore(saved: [f32; 4], monitor: Option<&Monitor>, monitors: &[Monitor], main: Option<Rect>, size: Option<Vec2>) -> [f32; 4] {
+        super::restore(saved, monitor, monitors, main, size, BAR)
+    }
+
+    fn kept_reachable(rect: [f32; 4], monitors: &[Monitor]) -> [f32; 4] {
+        super::kept_reachable(rect, monitors, BAR)
+    }
 
     fn monitor(name: &str, rect: [f32; 4], scale: f32) -> Monitor {
         Monitor { name: Some(name.into()), rect, scale }

@@ -1215,7 +1215,7 @@ fn dock_and_float_defaults_follow_the_size_preset_and_the_semantic_tokens() {
     let d = &comfy.component.dock;
     assert_eq!((d.gap, d.title_height, d.column_bar_height, d.icon_size, d.iconic_width), (6.0, 18.0, 18.0, 22.0, 44.0));
     assert_eq!((d.icon_radius, d.hint_radius), (comfy.shape.radius.control, comfy.shape.radius.popup));
-    assert_eq!(comfy.component.float.radius, comfy.shape.radius.panel);
+    assert_eq!((compact.component.float.radius, comfy.component.float.radius), (0.0, 0.0));
 }
 
 /// The default shadow is the dark-adjusted floating level, so a dark theme's window shadow is as
@@ -1226,6 +1226,18 @@ fn the_float_shadow_follows_the_mode_adjusted_floating_elevation() {
         let t = resolve(&grey_blue(), app(mode, Contrast::Standard), None).tokens;
         assert_eq!(t.component.float.shadow, t.elevation.floating, "{mode:?}");
     }
+}
+
+/// A `float.shadow` override names a level and gets the dark-mode alpha factor like the default.
+#[test]
+fn a_float_shadow_override_gets_the_mode_adjustment() {
+    let mut def = grey_blue();
+    def.components.insert(ComponentField::Float(FloatField::Shadow), OverrideValue::Elevation(Elevation::level(2)));
+    let at = |mode| resolve(&def, app(mode, Contrast::Standard), None).tokens;
+    assert_eq!(at(Mode::Light).component.float.shadow, Elevation::level(2));
+    let dark = at(Mode::Dark);
+    assert_eq!(dark.component.float.shadow, dark.elevation.floating);
+    assert!(dark.component.float.shadow.alpha > Elevation::level(2).alpha);
 }
 
 #[test]

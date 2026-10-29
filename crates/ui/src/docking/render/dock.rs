@@ -19,9 +19,6 @@ use crate::docking::{
 };
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
-/// Width of the »/« button at the outer end of a column bar.
-const COLLAPSE_WIDTH: f32 = 18.0;
-
 /// [D] An open group of a dock column: its visible body, and the target and line of its left,
 /// right, top and bottom zones (see [`DockStyle::side_zone_fraction`]). The top and bottom
 /// stack a group above or below it; the left and right make a column on that side.
@@ -580,7 +577,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// toggles iconic on double-click (M2) and opens the column menu (U1).
     fn column_bar(&mut self, ui: &mut Ui, column: &Column<P>, first: &P, bar: Rect, rect: Rect, edge: Edge) {
         ui.painter().rect_filled(bar, 0.0, self.look.tab_strip);
-        let width = COLLAPSE_WIDTH.min(bar.width());
+        let width = self.look.column_bar_height.min(bar.width());
         let (button, grip) = match edge {
             Edge::Left => (
                 Rect::from_min_max(bar.min, pos2(bar.left() + width, bar.bottom())),
@@ -628,13 +625,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if response.double_clicked() {
             self.output.actions.push(Action::SetIconic { panel: first.clone(), iconic: !column.iconic });
         }
-        if response.has_focus() || response.hovered() {
-            ui.painter().with_clip_rect(grip).rect_stroke(
-                grip.shrink(1.0),
-                0.0,
-                Stroke::new(self.look.focus_width, self.look.resize.gamma_multiply(self.look.grip_alpha)),
-                StrokeKind::Inside,
-            );
+        if let Some(color) = self.bar_outline(&response) {
+            ui.painter().with_clip_rect(grip).rect_stroke(grip.shrink(1.0), 0.0, Stroke::new(self.look.focus_width, color), StrokeKind::Inside);
         }
         let keyboard = response.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Space));
         let command = if response.secondary_clicked() || keyboard {

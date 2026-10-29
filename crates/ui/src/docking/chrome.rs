@@ -10,6 +10,10 @@ use egui::{
     WidgetText, pos2, vec2,
 };
 
+use craft_theme::scale::Stroke::W1;
+
+use crate::theme::StrokeExt;
+
 use super::{DockConfig, DockLook, DockStyle, PanelLimits, resize::AnchoredResize};
 
 /// Height of a floating window's title bar.
@@ -19,8 +23,8 @@ pub const TITLE_HEIGHT: f32 = 14.0;
 pub const RESIZE_HANDLES: [&str; 8] =
     ["resize", "resize-left", "resize-right", "resize-bottom", "resize-bottom-left", "resize-top", "resize-top-left", "resize-top-right"];
 
-/// Height of the top resize band of a resizable frame. The frame's contents start below it, so
-/// the band takes no moves or clicks from a title bar.
+/// Height of the top resize band of a resizable frame. The band is a hit area over the top edge
+/// of the contents: it takes the pointer there, and the contents draw to the frame's top.
 pub const RESIZE_BAND: f32 = 4.0;
 
 /// Colors and font of the frame and title bar.
@@ -38,6 +42,10 @@ pub struct ChromeStyle {
     pub focus_width: f32,
     /// Height of the title bar; the frame's minimum height keeps room for it.
     pub title_height: f32,
+    /// Room between the title bar's edge and its text, and (halved) its trailing button.
+    pub pad: f32,
+    /// Room between the title bar's ▾ and ×, halved.
+    pub gap: f32,
     /// The diagonal resize grip, painted `drop_width` thick.
     pub grip: Color32,
     pub drop_width: f32,
@@ -45,7 +53,8 @@ pub struct ChromeStyle {
     pub title_text: Color32,
     /// The ▾ and × glyphs at rest.
     pub title_muted: Color32,
-    /// Corners of the frame's fill, outline and shadow; the title bar rounds its top corners.
+    /// Corners of the frame's fill, outline and shadow; the title bar rounds its top corners and
+    /// [`Self::body_inset`] keeps the body inside the bottom ones.
     pub radius: CornerRadius,
     pub shadow: Shadow,
     /// Fill of a selected or hovered control, such as an icon rail's open item.
@@ -73,6 +82,8 @@ impl ChromeStyle {
             focus: visuals.selection.stroke.color,
             focus_width: 1.0,
             title_height: TITLE_HEIGHT,
+            pad: 6.0,
+            gap: 4.0,
             grip: visuals.selection.stroke.color,
             drop_width: 2.0,
             title_text: visuals.text_color(),
@@ -85,10 +96,17 @@ impl ChromeStyle {
         }
     }
 
-    /// The chrome of the `ui`'s theme (the `float` and `tab` tokens), left to right. Hosts outside
-    /// docking, such as a floating panel, draw [`FloatingFrame`] and [`TitleBar`] with it.
+    /// How far a rectangular body sits inside the frame's left, right and bottom edges so that its
+    /// corners stay within the rounded bottom corners: `radius × (1 - 1/√2)`.
+    pub fn body_inset(&self) -> f32 {
+        (1.0 - std::f32::consts::FRAC_1_SQRT_2) * f32::from(self.radius.sw.max(self.radius.se))
+    }
+
+    /// The chrome of the `ui`'s theme (the `float` and `tab` tokens), in the `ui`'s direction.
+    /// Hosts outside docking, such as a floating panel, draw [`FloatingFrame`] and [`TitleBar`]
+    /// with it.
     pub fn themed(ui: &Ui) -> Self {
-        Self::with_look(&DockLook::of(ui), false)
+        Self::with_look(&DockLook::of(ui), crate::direction::is_rtl(ui))
     }
 
     /// The colors of `look` and the direction of `config`; the accent is the look's focus color.
@@ -107,6 +125,8 @@ impl ChromeStyle {
             focus: look.focus,
             focus_width: look.focus_width,
             title_height: look.title_height,
+            pad: look.pad,
+            gap: look.gap,
             grip: look.grip,
             drop_width: look.drop_width,
             title_text: look.title_text,
@@ -130,6 +150,8 @@ impl ChromeStyle {
             focus: style.accent,
             focus_width: 1.0,
             title_height: TITLE_HEIGHT,
+            pad: 6.0,
+            gap: style.gap,
             grip: style.accent,
             drop_width: 2.0,
             title_text: style.text,
@@ -242,8 +264,8 @@ impl<'a> FloatingFrame<'a> {
         LayerId::new(Order::Middle, id)
     }
 
-    /// Draw the frame, then `add_contents` with the rect for its contents (the frame's rect below
-    /// the top resize band when resizable), then the outline and handles.
+    /// Draw the frame, then `add_contents` with the rect for its contents (the frame's rect; a
+    /// resizable frame's top band lies over its top edge), then the outline and handles.
     pub fn show<R>(self, ctx: &Context, style: &ChromeStyle, add_contents: impl FnOnce(&mut Ui, Rect) -> R) -> FrameResponse<R> {
         let bounds = self.bounds.unwrap_or_else(|| ctx.content_rect());
         let rect = clamp(self.rect, bounds);
@@ -263,9 +285,7 @@ impl<'a> FloatingFrame<'a> {
                 ui.painter().add(style.shadow.as_shape(rect, style.radius));
             }
             ui.painter().rect_filled(rect, style.radius, style.background);
-            let contents =
-                if self.resizable { Rect::from_min_max(pos2(rect.left(), (rect.top() + RESIZE_BAND).min(rect.bottom())), rect.max) } else { rect };
-            let inner = add_contents(ui, contents);
+            let inner = add_contents(ui, rect);
             ui.painter().rect_stroke(rect, style.radius, style.stroke, StrokeKind::Outside);
             let (resized, resize_started, handles) = if self.resizable { self.handles(ui, rect, bounds, style) } else { (None, None, Vec::new()) };
             FrameResponse { inner, rect, layer: Self::layer(self.id), resized, resize_started, handles }
@@ -281,13 +301,12 @@ impl<'a> FloatingFrame<'a> {
     /// drags derive the next rect from the cursor relative to the press origin. Limits clamp the
     /// proposal. Stored pointer anchors are removed on cancellation or once the primary button is
     /// released. Handles are accessibility buttons; the diagonal one is painted while hovered,
-    /// dragged or focused.
+    /// dragged or focused, and the others while focused.
     fn handles(&self, ui: &mut Ui, rect: Rect, bounds: Rect, style: &ChromeStyle) -> (Option<Rect>, Option<Id>, Vec<Response>) {
         let mut resized = None;
         let mut started = None;
         let mut responses = Vec::new();
-        let limits =
-            PanelLimits { min: self.limits.min.max(vec2(40.0, RESIZE_BAND + style.title_height + 20.0)).min(self.limits.max), ..self.limits };
+        let limits = PanelLimits { min: self.limits.min.max(vec2(40.0, style.title_height + 20.0)).min(self.limits.max), ..self.limits };
         let canceled = ui.input(|input| input.key_pressed(Key::Escape)) || crate::focus::lost(ui.ctx());
         for (name, handle, direction) in handles(rect) {
             if !super::targets::usable(handle) {
@@ -352,8 +371,12 @@ impl<'a> FloatingFrame<'a> {
             if canceled || !ui.input(|input| input.pointer.primary_down()) {
                 ui.ctx().data_mut(|data| data.remove::<AnchoredResize>(anchor_id));
             }
-            if name == "resize" && (response.hovered() || response.dragged() || response.has_focus()) {
-                ui.painter().line_segment([handle.left_bottom(), handle.right_top()], Stroke::new(style.drop_width, style.grip));
+            let focus = response.has_focus();
+            if name == "resize" && (response.hovered() || response.dragged() || focus) {
+                let color = if focus { style.focus } else { style.grip };
+                ui.painter().line_segment([handle.left_bottom(), handle.right_top()], Stroke::new(style.drop_width, color));
+            } else if focus {
+                ui.painter().rect_stroke(handle, 0.0, Stroke::new(style.focus_width, style.focus), StrokeKind::Inside);
             }
             responses.push(response);
         }
@@ -398,8 +421,8 @@ pub(super) fn truncated(ui: &Ui, text: WidgetText, width: f32, font: FontId) -> 
     ui.painter().layout_job(job)
 }
 
-/// A title bar: an optional title, an optional ▾ menu button and an optional ×, by default 10 pt
-/// in from the right edge, mirrored when [`ChromeStyle::right_to_left`] is set. The bar senses
+/// A title bar: an optional title, an optional ▾ menu button and an optional ×, by default
+/// `pad / 2` in from the right edge, mirrored when [`ChromeStyle::right_to_left`] is set. The bar senses
 /// clicks and drags; double-clicks are the caller's.
 pub struct TitleBar<'a> {
     id: Id,
@@ -446,8 +469,8 @@ impl<'a> TitleBar<'a> {
     }
 
     /// Place the × at `glyph`, taking clicks in `hit`: rects as drawn, already mirrored in a
-    /// right-to-left layout. By default the × is a square the bar's height, its center 10 pt
-    /// in from the trailing edge.
+    /// right-to-left layout. By default the × is a square the bar's height, `pad / 2` in from the
+    /// trailing edge.
     pub fn close_at(mut self, hit: Rect, glyph: Rect) -> Self {
         self.close_at = Some((hit, glyph));
         self
@@ -462,7 +485,7 @@ impl<'a> TitleBar<'a> {
     /// Draw the title bar into `rect` and return its responses.
     ///
     /// `close_at` rects are in logical points, already mirrored in a right-to-left layout; without it
-    /// the × is a square the bar's height centered 10 pt in from the trailing edge. Menu and close
+    /// the × is a square the bar's height, `pad / 2` in from the trailing edge. Menu and close
     /// buttons reserve space on the trailing side, the draggable bar excludes them, and a title is
     /// truncated to the bar's remaining width. The bar senses clicks and drags, while double-click
     /// behavior (for example minimizing or closing) is the caller's. A right-to-left style mirrors
@@ -473,6 +496,7 @@ impl<'a> TitleBar<'a> {
         let top = CornerRadius { sw: 0, se: 0, ..style.radius };
         painter.rect_filled(rect, top, style.title_background);
         let side = rect.height();
+        let edge = style.pad * 0.5;
         // Laid out left to right, then mirrored in a right-to-left layout.
         let mirror = |r: Rect| {
             if style.right_to_left {
@@ -483,9 +507,9 @@ impl<'a> TitleBar<'a> {
         };
         let close_rect = self.close.map(|_| match self.close_at {
             Some((hit, _)) => mirror(hit),
-            None => Rect::from_center_size(pos2(rect.right() - 10.0, rect.center().y), vec2(side, side)),
+            None => Rect::from_center_size(pos2(rect.right() - edge - side * 0.5, rect.center().y), vec2(side, side)),
         });
-        let menu_right = close_rect.map_or(rect.right() - 3.0, |close| close.left() - 2.0);
+        let menu_right = close_rect.map_or(rect.right() - edge, |close| close.left() - style.gap * 0.5);
         let menu_rect = self.menu.map(|_| Rect::from_min_max(pos2(menu_right - side, rect.top()), pos2(menu_right, rect.bottom())));
         let buttons = menu_rect.or(close_rect).map_or(rect.right(), |r| r.left());
         let bar_rect = mirror(Rect::from_min_max(rect.min, pos2(buttons.max(rect.left()), rect.bottom())));
@@ -494,8 +518,8 @@ impl<'a> TitleBar<'a> {
         let bar = if self.movable { bar.on_hover_cursor(egui::CursorIcon::Grab) } else { bar };
         bar.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), self.move_label));
         if let Some(title) = self.title {
-            let galley = truncated(ui, title, (bar_rect.width() - 12.0).max(0.0), style.font.clone());
-            let x = if style.right_to_left { bar_rect.right() - 6.0 - galley.size().x } else { bar_rect.left() + 6.0 };
+            let galley = truncated(ui, title, (bar_rect.width() - 2.0 * style.pad).max(0.0), style.font.clone());
+            let x = if style.right_to_left { bar_rect.right() - style.pad - galley.size().x } else { bar_rect.left() + style.pad };
             painter.galley(pos2(x, rect.center().y - galley.size().y * 0.5), galley, style.title_text);
         }
         if bar.has_focus() {
@@ -505,12 +529,18 @@ impl<'a> TitleBar<'a> {
             let response = ui.interact(rect, self.id.with(name), Sense::click());
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
             let color = if response.hovered() || response.has_focus() { style.title_text } else { style.title_muted };
-            (response, Stroke::new(1.2, color))
+            (response, W1.egui(ui.ctx(), color))
         };
         let menu = menu_rect.zip(self.menu).map(|(menu_rect, label)| {
             let (response, stroke) = button(ui, menu_rect, "menu", label);
             let c = menu_rect.center();
-            painter.add(egui::Shape::convex_polygon(vec![c + vec2(-3.5, -1.5), c + vec2(3.5, -1.5), c + vec2(0.0, 2.5)], stroke.color, Stroke::NONE));
+            let (half, depth) = (side * 0.25, side / 3.5);
+            let (top, bottom) = (-depth * 0.375, depth * 0.625);
+            painter.add(egui::Shape::convex_polygon(
+                vec![c + vec2(-half, top), c + vec2(half, top), c + vec2(0.0, bottom)],
+                stroke.color,
+                Stroke::NONE,
+            ));
             response
         });
         let close = close_rect.zip(self.close).map(|(close_rect, label)| {

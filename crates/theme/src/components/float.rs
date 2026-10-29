@@ -18,7 +18,7 @@ use crate::values;
 pub struct FloatTokens {
     /// Width of the border.
     pub border_width: f32,
-    /// Corner radius of the fill, the border and the shadow: `radius.panel`.
+    /// Corner radius of the fill, the border and the shadow: square by default.
     pub radius: f32,
     /// The shadow: `elevation.floating`.
     pub shadow: Elevation,
@@ -119,7 +119,7 @@ impl Family for FloatTokens {
         let c = s.color;
         FloatTokens {
             border_width: values::FLOAT_BORDER_WIDTH,
-            radius: s.shape.radius.panel,
+            radius: values::FLOAT_RADIUS,
             shadow: s.elevation.floating,
             fill: c.surface.panel,
             border: c.line.border,

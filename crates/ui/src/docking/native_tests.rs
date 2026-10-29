@@ -4,7 +4,7 @@
 use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, epaint::ClippedShape, pos2, vec2};
 
 use super::render::{
-    APPKIT_CORNER, DragPointer, INACTIVE_PALETTE, MACOS_CLOSE, WindowDrag, appkit_resize_areas, close_rects, drag_opacity, resize_bands, wayland,
+    APPKIT_CORNER, DragPointer, INACTIVE_PALETTE, WindowDrag, appkit_resize_areas, close_rects, drag_opacity, macos_close, resize_bands, wayland,
 };
 use super::testing::DockDriver;
 use super::{Action, DockContent, Floating, Hit, Layout, Monitor, Node, Permissions, Placement, Target, WindowKind, Workspace};
@@ -695,8 +695,8 @@ fn a_native_window_saves_its_id_place_and_monitor() {
     assert!(serde_json::to_string(&in_window).unwrap().contains(r#""id":3"#));
 }
 
-/// Height of the bar at the top of a native window.
-const BAR: f32 = 18.0;
+/// Height of the bar at the top of a native window: the look's title height.
+const BAR: f32 = super::chrome::TITLE_HEIGHT;
 /// A tab row's middle in a native window, below the bar.
 const TAB_ROW: f32 = BAR + 13.0;
 
@@ -1662,12 +1662,13 @@ fn resize_bands_are_a_few_points_deep_and_leave_out_the_bar_buttons() {
 /// reachable outside AppKit's corner resize region.
 fn on_macos_the_close_glyph_sits_by_the_corner_and_its_hit_area_reaches_away_from_it() {
     use crate::docking::chrome::{ChromeStyle, TitleBar};
-    use crate::docking::placement::BAR_HEIGHT;
     let ctx = egui::Context::default();
     let full = Rect::from_min_size(Pos2::ZERO, vec2(240.0, 300.0));
-    let bar = Rect::from_min_size(full.min, vec2(full.width(), BAR_HEIGHT));
+    // The geometry macOS gives its own windows' close buttons, in an 18 pt bar.
+    const BAR: f32 = 18.0;
+    let bar = Rect::from_min_size(full.min, vec2(full.width(), BAR));
     for right_to_left in [false, true] {
-        let (hit, glyph) = close_rects(bar, MACOS_CLOSE, right_to_left);
+        let (hit, glyph) = close_rects(bar, macos_close(BAR), right_to_left);
         // Distances from the corner the × sits by: across from the trailing edge, and down.
         let across = |x: f32| if right_to_left { x - full.left() } else { full.right() - x };
         let (glyph_near, glyph_far) = (across(glyph.right()).min(across(glyph.left())), across(glyph.right()).max(across(glyph.left())));
@@ -1675,7 +1676,7 @@ fn on_macos_the_close_glyph_sits_by_the_corner_and_its_hit_area_reaches_away_fro
         let (hit_near, hit_far) = (across(hit.right()).min(across(hit.left())), across(hit.right()).max(across(hit.left())));
         assert_eq!(hit_near, glyph_near, "the hit area reaches no closer to the corner than the glyph");
         assert_eq!(hit_far, glyph_far + 10.0, "the hit area reaches away from the corner");
-        assert_eq!((hit.top(), hit.bottom()), (glyph.top(), BAR_HEIGHT), "the hit area reaches down to the bar's bottom, not below");
+        assert_eq!((hit.top(), hit.bottom()), (glyph.top(), BAR), "the hit area reaches down to the bar's bottom, not below");
         // AppKit's corner area takes the presses nearest the corner; the rest reach the ×.
         let [top_left, top_right, ..] = appkit_resize_areas(full);
         let corner = if right_to_left { top_left } else { top_right };
