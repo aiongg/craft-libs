@@ -444,7 +444,7 @@ fn classic_follows_windows_2000() {
 }
 
 /// Classic's switch has a navy on track, its list box and select rows highlight in navy with
-/// white text, its secondary buttons are the field white at rest and under the pointer, and its
+/// white text, its secondary buttons are the field white at rest and the hover fill under the pointer, and its
 /// popups are the menu grey. Other built-ins draw the switch track in the solid accent.
 #[test]
 fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
@@ -472,7 +472,7 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             }
             assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
             assert_eq!((c.listbox.active_fill, c.listbox.active_text), (navy, white));
-            assert_eq!([c.button.secondary.fill.rest, c.button.secondary.fill.hover], [white; 2]);
+            assert_eq!((c.button.secondary.fill.rest, c.button.secondary.fill.hover), (white, t.color(ColorToken::StateHover)));
             assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
         }
