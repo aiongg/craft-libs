@@ -496,6 +496,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                 self.update(value, modifiers);
             }
             Phase::Idle | Phase::Restoring { .. } => {
+                debug_assert!(equals_itself(&value), "{}", NOT_ITSELF);
                 self.stored.phase = Phase::Idle;
                 let modifiers = self.ctx.input(|i| i.modifiers);
                 self.stored.set = (value != self.host).then_some((value, modifiers));
@@ -559,6 +560,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         if !a.announced || !live::ended(&self.ctx, a.id) {
             return;
         }
+        debug_assert!(equals_itself(&self.host), "{}", NOT_ITSELF);
         live::forget(&self.ctx, a.id);
         *a = Active {
             id: GestureId::next(),

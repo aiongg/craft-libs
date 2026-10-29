@@ -1,7 +1,7 @@
 //! [`ThumbRow`]: triangle thumbs on one row, each setting a value of its own: a levels editor's
 //! input row (black, gamma, white) and output row (black, white).
 
-use std::ops::RangeInclusive;
+use std::ops::{Deref, DerefMut, RangeInclusive};
 
 use craft_theme::States;
 use egui::accesskit::Role;
@@ -16,6 +16,31 @@ use crate::primitives::{FocusRing, Interactive, StateLayer};
 
 /// Width of a thumb's edge, in points.
 const EDGE: f32 = 1.0;
+
+/// The row's values as its gesture holds them. An unset value (a levels editor's NaN gamma)
+/// equals another, as the gesture's comparisons need ([`Gesture`]).
+#[derive(Clone, Copy, Debug)]
+struct Row<const N: usize>([f64; N]);
+
+impl<const N: usize> PartialEq for Row<N> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.iter().zip(&other.0).all(|(a, b)| a == b || (a.is_nan() && b.is_nan()))
+    }
+}
+
+impl<const N: usize> Deref for Row<N> {
+    type Target = [f64; N];
+
+    fn deref(&self) -> &[f64; N] {
+        &self.0
+    }
+}
+
+impl<const N: usize> DerefMut for Row<N> {
+    fn deref_mut(&mut self) -> &mut [f64; N] {
+        &mut self.0
+    }
+}
 
 /// A thumb row's sizes and colours, built from the levels editor's style.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -366,7 +391,7 @@ impl<const N: usize> ThumbRow<N> {
         let finite = self.value.iter().all(|v| v.is_finite());
 
         // The gesture lives on the row, which takes every press; the focus goes to the thumbs.
-        let mut gesture = Gesture::load(ui, id, &self.value, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(sensing.enabled);
+        let mut gesture = Gesture::load(ui, id, &Row(self.value), self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(sensing.enabled);
         let (focus, active) = pointer_input(ui, &response, &layout, &mut gesture, PressInput { sensing, part: self.part, finite });
         let dragged = active.and_then(Press::single);
         let mut focus = focus.map(|i| ids[i]);
@@ -382,7 +407,7 @@ impl<const N: usize> ThumbRow<N> {
                 && ui.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::Backspace))
                 && !sensing.dragging
             {
-                gesture.set(reset);
+                gesture.set(Row(reset));
             }
             let values = layout.placed(gesture.shown());
             let sensing = Sensing { falling: self.thumbs[i].falling, ..sensing };
@@ -393,7 +418,7 @@ impl<const N: usize> ThumbRow<N> {
             }
         }
 
-        let values = *gesture.shown();
+        let values = gesture.shown().0;
         let shown = layout.placed(&values);
         let xs = layout.xs(&shown);
         let thumb_rect = |x: f32| Rect::from_min_size(pos2(x - style.thumb.x / 2.0, rect.top()), style.thumb);
@@ -429,7 +454,7 @@ impl<const N: usize> ThumbRow<N> {
                 FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
             }
         }
-        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish()), shown, values, dragged }
+        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish_as(|row| row.0)), shown, values, dragged }
     }
 }
 
@@ -449,7 +474,7 @@ fn pointer_input<const N: usize>(
     ui: &Ui,
     response: &Response,
     layout: &Layout<'_, N>,
-    gesture: &mut Gesture<[f64; N]>,
+    gesture: &mut Gesture<Row<N>>,
     input: PressInput,
 ) -> (Option<usize>, Option<Press>) {
     let modifiers = ui.input(|i| i.modifiers);
@@ -465,7 +490,7 @@ fn pointer_input<const N: usize>(
             && let Some(press) = layout.press(&layout.placed(&anchor), at.x)
         {
             focus = Some(press.focus());
-            gesture.update(layout.moved(&anchor, &anchor, press, at.x, at.x), modifiers);
+            gesture.update(Row(layout.moved(&anchor, &anchor, press, at.x, at.x)), modifiers);
         }
         if !response.dragged_by(PointerButton::Primary) {
             gesture.commit();
@@ -490,7 +515,7 @@ fn pointer_input<const N: usize>(
             focus = Some(i);
             active = Some(Press::Grab(i));
         }
-        gesture.update(layout.moved(&anchor, &start, press, origin.x, pos.x), modifiers);
+        gesture.update(Row(layout.moved(&anchor, &start, press, origin.x, pos.x)), modifiers);
     }
     // The reset ends the second click's gesture, or is its own Set.
     let double = double_click(ui, response, layout, gesture, input.sensing);
@@ -502,7 +527,7 @@ fn pointer_input<const N: usize>(
         if let Some(press) = layout.press(&layout.placed(&raw), at.x) {
             focus = Some(press.focus());
             if double.is_none() && !waits {
-                gesture.set(layout.moved(&raw, &raw, press, at.x, at.x));
+                gesture.set(Row(layout.moved(&raw, &raw, press, at.x, at.x)));
             }
         }
     }
@@ -515,14 +540,14 @@ fn double_click<const N: usize>(
     ui: &Ui,
     response: &Response,
     layout: &Layout<'_, N>,
-    gesture: &mut Gesture<[f64; N]>,
+    gesture: &mut Gesture<Row<N>>,
     sensing: Sensing,
 ) -> Option<usize> {
     if !(sensing.enabled && sensing.hovered && ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary))) {
         return None;
     }
     let i = layout.press(&layout.placed(gesture.shown()), response.hover_pos()?.x)?.focus();
-    gesture.set(layout.reset(gesture.shown(), i)?);
+    gesture.set(Row(layout.reset(gesture.shown(), i)?));
     Some(i)
 }
 
