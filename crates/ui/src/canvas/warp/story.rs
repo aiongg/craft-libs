@@ -23,7 +23,7 @@ pub(crate) fn stories() -> Vec<Story> {
         args: || {
             super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true).with_choice(
                 "split",
-                &["Off", "Crosswise", "Lengthwise"],
+                &["Off", "Cross", "Vertical", "Horizontal"],
                 0,
             )
         },
@@ -150,7 +150,7 @@ pub(crate) fn edited(mesh: &WarpMesh, edit: &WarpEdit) -> WarpMesh {
             }
         }
         WarpEdit::Point { .. } => {}
-        WarpEdit::Split { split, index, t } => return mesh.split(split, index, t),
+        WarpEdit::Split { split, column, row, u, v } => return mesh.split(split, column, row, u, v),
         WarpEdit::Surface { s, t, by } => {
             // The least change of the patch's control points that moves the surface point by `by`.
             let (column, row, u, v) = patch(mesh, s, t);
@@ -186,8 +186,9 @@ fn show_warp(ui: &mut Ui, args: &mut Args) {
     let r = WarpGrid::new("story-warp", &mesh, english_names())
         .editable(args.bool("editable"))
         .split(match args.choice("split") {
-            "Crosswise" => Some(WarpSplit::Crosswise),
-            "Lengthwise" => Some(WarpSplit::Lengthwise),
+            "Cross" => Some(WarpSplit::Cross),
+            "Vertical" => Some(WarpSplit::Vertical),
+            "Horizontal" => Some(WarpSplit::Horizontal),
             _ => None,
         })
         .surface(|p| surface_at(&mesh, p))
