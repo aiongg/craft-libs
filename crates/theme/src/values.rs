@@ -664,6 +664,11 @@ pub const MENU_SHORTCUT_GAP: f32 = 16.0;
 pub const MENU_TINT_ALPHA: f32 = 0.24;
 /// Compact height of a menu's scroll strip (PhotoCraft's scroll arrows).
 pub const MENU_SCROLL_STRIP: f32 = 16.0;
+/// The submenu arrow's base, as a fraction of the label size (egui's `SubMenuButton::arrow_atom`,
+/// which PhotoCraft's menus draw).
+pub const MENU_ARROW_BASE: f32 = 0.55;
+/// The submenu arrow's depth (tip to base), as a fraction of the label size.
+pub const MENU_ARROW_DEPTH: f32 = 0.35;
 
 /// The control height the Compact section header sizes are set for.
 pub const SECTION_BASE_CONTROL: f32 = 24.0;

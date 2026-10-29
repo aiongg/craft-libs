@@ -11,7 +11,7 @@ use craft_theme::{ControlSize, Srgba, TypeRole};
 use egui::accesskit::{HasPopup, Role, Toggled};
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
-use egui::{Color32, Galley, Rect, Response, Stroke, Ui, pos2, vec2};
+use egui::{Color32, Galley, Pos2, Rect, Response, Shape, Stroke, Ui, pos2, vec2};
 
 use super::item::ItemKind;
 use super::mnemonic;
@@ -37,6 +37,10 @@ pub struct MenuStyle {
     pub shortcut_gap: f32,
     /// `menu.scroll_strip`: height of a scroll strip.
     pub scroll_strip: f32,
+    /// `menu.arrow_base` and `menu.arrow_depth`: the submenu arrow's base and depth, as fractions
+    /// of the label size.
+    pub arrow_base: f32,
+    pub arrow_depth: f32,
     /// `menu.active.fill` and `menu.active.text`: the active row.
     pub active_fill: Color32,
     pub active_text: Color32,
@@ -56,6 +60,8 @@ impl MenuStyle {
             min_width: m.min_width,
             shortcut_gap: m.shortcut_gap,
             scroll_strip: m.scroll_strip,
+            arrow_base: m.arrow_base,
+            arrow_depth: m.arrow_depth,
             active_fill: m.active_fill.to_egui(),
             active_text: m.active_text.to_egui(),
             open_fill: m.open_fill.to_egui(),
@@ -151,6 +157,16 @@ impl RowPainter<'_> {
     }
 
     /// Draws a mark or an arrow `icon` centred at `center_x`, as large as the label's type.
+    /// The submenu arrow: a filled triangle centred on `center`, pointing to the reading end.
+    fn submenu_arrow(&self, ui: &Ui, center: Pos2, color: Color32) {
+        let side = self.glyph();
+        // Unrotated, the triangle points down; a quarter turn points it right (left in RTL).
+        let rect = Rect::from_center_size(center, vec2(side * self.style.arrow_base, side * self.style.arrow_depth));
+        let quarter = std::f32::consts::TAU / 4.0;
+        let turn = if direction::is_rtl(ui) { quarter } else { -quarter };
+        ui.painter().add(Shape::rotated_triangle(rect, turn, color));
+    }
+
     fn glyph_icon(&self, ui: &Ui, center_x: f32, y: f32, icon: Icon, color: Color32) {
         let side = self.glyph();
         let rect = Rect::from_center_size(pos2(center_x, y), vec2(side, side));
@@ -215,7 +231,7 @@ impl RowPainter<'_> {
         let x = if direction::is_rtl(ui) { x - galley.size().x } else { x };
         ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, text);
         if row.submenu {
-            self.glyph_icon(ui, end - forward * self.glyph() / 2.0, rect.center().y, Icon::ChevronRight, text);
+            self.submenu_arrow(ui, pos2(end - forward * self.glyph() / 2.0, rect.center().y), text);
         } else if let Some(kbd) = row.shortcut {
             let galley = self.shortcut_galley(ui, kbd, shortcut);
             let x = if direction::is_rtl(ui) { end } else { end - galley.size().x };

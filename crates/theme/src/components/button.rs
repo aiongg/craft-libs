@@ -1,6 +1,5 @@
 //! Push buttons: four variants, two sizes. Loading shows a spinner in the text colour and needs
-//! no tokens of its own. A theme can frame the primary button (`default_frame`); no built-in but
-//! Classic does. The defaults are PhotoCraft's filled look; the Pro themes pin its outlined
+//! no tokens of its own. The defaults are PhotoCraft's filled look; the Pro themes pin its outlined
 //! secondary button.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
@@ -125,9 +124,6 @@ pub struct ButtonTokens {
     pub ghost: ButtonColors,
     /// Danger colours.
     pub danger: ButtonColors,
-    /// The one-pixel frame round a primary button, outside its bevel, as the default button had in
-    /// Windows 2000. Transparent draws none.
-    pub default_frame: Rgba,
 }
 
 impl ButtonTokens {
@@ -178,7 +174,7 @@ impl ButtonTokens {
     }
 }
 
-/// An overridable button field. Paths: `radius`, `border_width`, `default_frame`, `<variant>.<part>.<state>`.
+/// An overridable button field. Paths: `radius`, `border_width`, `<variant>.<part>.<state>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ButtonField {
     /// `button.radius`
@@ -189,8 +185,6 @@ pub enum ButtonField {
     HoverOpacity,
     /// `button.pressed_opacity`
     PressedOpacity,
-    /// `button.default_frame`
-    DefaultFrame,
     /// `button.<variant>.<part>.<state>`, e.g. `button.primary.fill.hover`.
     Color {
         /// The variant.
@@ -202,15 +196,14 @@ pub enum ButtonField {
     },
 }
 
-const FIELD_COUNT: usize = 5 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
+const FIELD_COUNT: usize = 4 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
 
 const FIELDS: [ButtonField; FIELD_COUNT] = {
     let mut out = [ButtonField::Radius; FIELD_COUNT];
     out[1] = ButtonField::BorderWidth;
     out[2] = ButtonField::HoverOpacity;
     out[3] = ButtonField::PressedOpacity;
-    out[4] = ButtonField::DefaultFrame;
-    let mut i = 5;
+    let mut i = 4;
     let (mut v, mut p, mut s) = (0, 0, 0);
     while v < ButtonVariant::ALL.len() {
         while p < ButtonPart::ALL.len() {
@@ -273,7 +266,6 @@ impl Family for ButtonTokens {
                 border: none,
                 text: text(c.text.on_status),
             },
-            default_frame: clear,
         }
     }
 
@@ -283,7 +275,6 @@ impl Family for ButtonTokens {
             ButtonField::BorderWidth => "border_width".to_owned(),
             ButtonField::HoverOpacity => "hover_opacity".to_owned(),
             ButtonField::PressedOpacity => "pressed_opacity".to_owned(),
-            ButtonField::DefaultFrame => "default_frame".to_owned(),
             ButtonField::Color { variant, part, state } => format!("{}.{}.{}", variant.name(), part.name(), state.name()),
         }
     }
@@ -294,7 +285,6 @@ impl Family for ButtonTokens {
             "border_width" => return Some(ButtonField::BorderWidth),
             "hover_opacity" => return Some(ButtonField::HoverOpacity),
             "pressed_opacity" => return Some(ButtonField::PressedOpacity),
-            "default_frame" => return Some(ButtonField::DefaultFrame),
             _ => {}
         }
         let mut segments = path.split('.');
@@ -312,7 +302,6 @@ impl Family for ButtonTokens {
     fn kind(f: ButtonField) -> FieldKind {
         match f {
             ButtonField::Radius | ButtonField::BorderWidth | ButtonField::HoverOpacity | ButtonField::PressedOpacity => FieldKind::Length,
-            ButtonField::DefaultFrame => FieldKind::Color,
             ButtonField::Color { .. } => FieldKind::Color,
         }
     }
@@ -323,7 +312,6 @@ impl Family for ButtonTokens {
             ButtonField::BorderWidth => OverrideValue::Length(self.border_width),
             ButtonField::HoverOpacity => OverrideValue::Length(self.hover_opacity),
             ButtonField::PressedOpacity => OverrideValue::Length(self.pressed_opacity),
-            ButtonField::DefaultFrame => OverrideValue::Color(self.default_frame),
             ButtonField::Color { variant, part, state } => OverrideValue::Color(self.colors(variant).part(part).get(state)),
         }
     }
@@ -334,7 +322,6 @@ impl Family for ButtonTokens {
             (ButtonField::BorderWidth, OverrideValue::Length(w)) => self.border_width = w,
             (ButtonField::HoverOpacity, OverrideValue::Length(o)) => self.hover_opacity = o,
             (ButtonField::PressedOpacity, OverrideValue::Length(o)) => self.pressed_opacity = o,
-            (ButtonField::DefaultFrame, OverrideValue::Color(c)) => self.default_frame = c,
             (ButtonField::Color { variant, part, state }, OverrideValue::Color(c)) => *self.colors_mut(variant).part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}

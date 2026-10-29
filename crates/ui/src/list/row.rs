@@ -772,9 +772,10 @@ fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect,
     let line = |ui: &mut Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32| {
         let at = Rect::from_x_y_ranges(band.x_range(), top..=top + height);
         let format = role_format(tokens, role, color);
-        ui.scope_builder(UiBuilder::new().max_rect(at).layout(direction::row(ui)), |ui| {
-            ui.add(Label::new(egui::text::LayoutJob::single_section(text.to_owned(), format)).truncate().selectable(false));
-        });
+        // A child, not a scope: a scope would move the parent's cursor to the label's bottom, back
+        // up into the row that was allocated whole.
+        let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(direction::row(ui)));
+        child.add(Label::new(egui::text::LayoutJob::single_section(text.to_owned(), format)).truncate().selectable(false));
     };
     line(ui, top, style.label_line, label, style.label_role, color);
     if let Some((detail, detail_color)) = detail {

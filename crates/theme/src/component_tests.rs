@@ -636,7 +636,7 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
     assert_eq!(paths.len(), ComponentField::ALL.len());
     assert_eq!(
         ComponentField::ALL.len(),
-        5 + 4 * 3 * 4
+        4 + 4 * 3 * 4
             + 1
             + (2 + 3) * 4
             + 2 * 4
