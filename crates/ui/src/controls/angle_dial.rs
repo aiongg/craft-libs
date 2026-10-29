@@ -114,7 +114,7 @@ pub struct AngleDialStyle {
 ///
 /// - **Mixed**: a `value` that isn't a finite number (a mixed selection) draws no needle and
 ///   leaves the field blank. A press on the dial focuses it and begins no drag; a click sets the
-///   angle it points at, and a number typed in the field commits, both from the range's start.
+///   angle it points at (taking the nearest of several in a range wider than a turn from the range's start), and a number typed in the field commits.
 ///   The accessible node has no value, as a mixed number field's.
 ///
 /// Drawing it with [`field(false)`](AngleDial::field) leaves the dial alone.
@@ -224,30 +224,32 @@ impl<'a> AngleDial<'a> {
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id)).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
-        // A value that isn't finite (a mixed selection) is held at the range's start for the
-        // gestures, which need a host value equal to itself; the dial and the field show it as
-        // mixed until a value is set.
-        let host = Scale::new(&self.range, Some(self.step)).place(self.value);
+        // `None` is a mixed value (the host's is not a finite number): a gesture needs a host
+        // value equal to itself, which a NaN is not.
+        let host = self.value.is_finite().then_some(self.value);
         let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
         let shown = *outer.shown();
-        let mixed = !self.value.is_finite() && shown == host;
+        let mixed = shown.is_none();
+        let shown = shown.unwrap_or(f64::NAN);
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<f64>::new(id, &state);
+        let mut edits = parts::Edits::<Option<f64>>::new(id, &state);
 
         let dial = Row::new(Gap::Inline)
             .show(ui, |ui| {
                 let dial = self.dial(ui, &style, shown, mixed, policy, enabled);
-                edits.push(&dial, |v| v);
+                edits.push(&dial, Some);
                 if self.field {
-                    let field = self.degrees(ui, if mixed { f64::NAN } else { shown }, policy, enabled);
-                    edits.typing(ui.ctx(), &field, |v| v);
+                    let field = self.degrees(ui, shown, policy, enabled);
+                    edits.typing(ui.ctx(), &field, Some);
                 }
                 dial
             })
             .inner;
         let outer = edits.feed(outer, &mut state, edit::in_scope(ui));
         ui.data_mut(|d| d.insert_temp(id, state));
-        EditResponse::new(dial.response, outer.finish())
+        // The host's own value stands for a mixed one in the events that carry none.
+        let event = outer.finish().map(|event| event.map(|value| value.unwrap_or(self.value)));
+        EditResponse::new(dial.response, event)
     }
 
     /// The degree field, `°` inside, as wide as the range's largest value needs.
@@ -324,7 +326,7 @@ impl<'a> AngleDial<'a> {
             response.request_focus();
         }
         if let Some(pos) = tapped.filter(|_| !waits)
-            && let Some(value) = pointing.at(pos, *gesture.shown(), shift())
+            && let Some(value) = pointing.at(pos, scale.place(*gesture.shown()), shift())
         {
             gesture.set(value);
         }

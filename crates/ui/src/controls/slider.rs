@@ -96,7 +96,8 @@ pub struct SliderStyle {
 ///
 /// With a step, values snap to its multiples from the range's start, and the range's end is a
 /// stop too when the step doesn't divide the range. A value outside the range is drawn at the
-/// nearer end; a value that isn't a finite number is drawn at the start, and a drag begins no
+/// nearer end; a value that isn't a finite number is drawn at the start and reported to AccessKit
+/// without a value (mixed), and a drag begins no
 /// gesture until the host gives a finite value.
 #[derive(Clone, Debug)]
 #[must_use = "show the slider with `show`"]
@@ -272,7 +273,12 @@ impl Slider {
         }
 
         let shown = scale.place(*gesture.shown());
-        let response = sensed.numeric(shown, scale.min..=scale.max, scale.key_step()).finish(ui);
+        // A value that isn't finite is drawn at the start but reported as mixed, with no value.
+        let response = if gesture.shown().is_finite() {
+            sensed.numeric(shown, scale.min..=scale.max, scale.key_step()).finish(ui)
+        } else {
+            sensed.numeric_mixed(scale.min..=scale.max, scale.key_step()).finish(ui)
+        };
         if ui.is_rect_visible(response.rect) {
             let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
             let x = track.x_of(shown);

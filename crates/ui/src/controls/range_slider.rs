@@ -181,6 +181,7 @@ impl RangeSlider {
             gesture.set((lo, hi));
         }
 
+        let mixed = !(gesture.shown().0.is_finite() && gesture.shown().1.is_finite());
         let (lo, hi) = placed(&scale, *gesture.shown());
         let (x_lo, x_hi) = (track.x_of(lo), track.x_of(hi));
         let thumb_rect = |x: f32| egui::Rect::from_center_size(pos2(x, track.y), Vec2::splat(style.thumb));
@@ -192,7 +193,11 @@ impl RangeSlider {
                     .state_layer(false)
                     .focus_ring(false)
                     .interact_at(ui, thumb_rect(x));
-                sensed.numeric(value, bounds, scale.key_step()).finish(ui)
+                // A pair with a value that isn't finite is drawn at the start but reported mixed.
+                match mixed {
+                    true => sensed.numeric_mixed(bounds, scale.key_step()).finish(ui),
+                    false => sensed.numeric(value, bounds, scale.key_step()).finish(ui),
+                }
             },
         );
         if let Some(thumb) = focus
