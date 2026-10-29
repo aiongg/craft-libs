@@ -1226,6 +1226,8 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
         text,
         active_fill,
         active_text,
+        chosen_fill,
+        chosen_text,
         mark,
         group,
         separator,
@@ -1243,6 +1245,8 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
     out.line("listbox.text.disabled", hex(text.disabled));
     out.line("listbox.active.fill", hex(*active_fill));
     out.line("listbox.active.text", hex(*active_text));
+    out.line("listbox.chosen.fill", hex(*chosen_fill));
+    out.line("listbox.chosen.text", hex(*chosen_text));
     out.line("listbox.mark", hex(*mark));
     out.line("listbox.group", hex(*group));
     out.line("listbox.separator", hex(*separator));
@@ -1290,10 +1294,11 @@ fn popup_lines(out: &mut Lines, p: &PopupTokens) {
 }
 
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, open_fill, shortcut, tints } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, radius, active_fill, active_text, open_fill, shortcut, tints } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
+    out.line("menu.radius", len(*radius));
     out.line("menu.active.fill", hex(*active_fill));
     out.line("menu.active.text", hex(*active_text));
     out.line("menu.open.fill", hex(*open_fill));

@@ -48,14 +48,17 @@ pub struct ListboxStyle {
     /// `listbox.label` and `listbox.group_label`.
     pub label: TypeRole,
     pub group_label: TypeRole,
-    /// Corners of the active row's fill: `listbox.radius`.
+    /// Corners of a row's fill: `listbox.radius`.
     pub radius: CornerRadius,
     /// `listbox.text.rest` and `listbox.text.disabled`.
     pub text: Color32,
     pub text_disabled: Color32,
-    /// `listbox.active.fill` and `listbox.active.text`: the active row and the chosen option.
+    /// `listbox.active.fill` and `listbox.active.text`: the active row.
     pub active_fill: Color32,
     pub active_text: Color32,
+    /// `listbox.chosen.fill` and `listbox.chosen.text`: the chosen option while it is not active.
+    pub chosen_fill: Color32,
+    pub chosen_text: Color32,
     /// `listbox.mark`, `listbox.group` and `listbox.separator`.
     pub mark: Color32,
     pub group: Color32,
@@ -539,6 +542,8 @@ impl Select<'static, ()> {
                 text_disabled: l.text.disabled.to_egui(),
                 active_fill: l.active_fill.to_egui(),
                 active_text: l.active_text.to_egui(),
+                chosen_fill: l.chosen_fill.to_egui(),
+                chosen_text: l.chosen_text.to_egui(),
                 mark: l.mark.to_egui(),
                 group: l.group.to_egui(),
                 separator: l.separator.to_egui(),

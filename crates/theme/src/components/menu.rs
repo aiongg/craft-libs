@@ -31,6 +31,9 @@ pub struct MenuTokens {
     pub shortcut_gap: f32,
     /// Height of the ▲ / ▼ strip at either end of a menu that scrolls: `menu.scroll_strip`.
     pub scroll_strip: f32,
+    /// Corner radius of a row's fill: square (PhotoCraft's spectrum menu, in every theme):
+    /// `menu.radius`.
+    pub radius: f32,
     /// Behind the active row: `accent.solid`.
     pub active_fill: Rgba,
     /// The active row's text, mark, shortcut and arrow: `text.on_accent`.
@@ -156,7 +159,7 @@ impl MenuTintPart {
     }
 }
 
-/// An overridable menu field. Paths: `active.fill`, `active.text`, `open.fill`, `shortcut` and
+/// An overridable menu field. Paths: `radius`, `active.fill`, `active.text`, `open.fill`, `shortcut` and
 /// `tint.<hue>.<fill|text|shortcut>`, e.g. `menu.active.fill`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MenuField {
@@ -168,20 +171,23 @@ pub enum MenuField {
     OpenFill,
     /// `menu.shortcut`
     Shortcut,
+    /// `menu.radius`
+    Radius,
     /// `menu.tint.<hue>.<part>`
     Tint(MenuHue, MenuTintPart),
 }
 
-const FIELD_COUNT: usize = 4 + MenuHue::ALL.len() * MenuTintPart::ALL.len();
+const FIELD_COUNT: usize = 5 + MenuHue::ALL.len() * MenuTintPart::ALL.len();
 
 const FIELDS: [MenuField; FIELD_COUNT] = {
     let mut out = [MenuField::ActiveFill; FIELD_COUNT];
     out[1] = MenuField::ActiveText;
     out[2] = MenuField::OpenFill;
     out[3] = MenuField::Shortcut;
-    let mut i = 4;
+    out[4] = MenuField::Radius;
+    let mut i = 5;
     while i < FIELD_COUNT {
-        let n = i - 4;
+        let n = i - 5;
         out[i] = MenuField::Tint(MenuHue::ALL[n / MenuTintPart::ALL.len()], MenuTintPart::ALL[n % MenuTintPart::ALL.len()]);
         i += 1;
     }
@@ -218,6 +224,7 @@ impl Family for MenuTokens {
             min_width: scale(values::MENU_MIN_WIDTH),
             shortcut_gap: scale(values::MENU_SHORTCUT_GAP),
             scroll_strip: scale(values::MENU_SCROLL_STRIP),
+            radius: 0.0,
             active_fill: c.accent.solid,
             active_text: c.text.on_accent,
             open_fill: c.state.hover,
@@ -232,6 +239,7 @@ impl Family for MenuTokens {
             MenuField::ActiveText => "active.text",
             MenuField::OpenFill => "open.fill",
             MenuField::Shortcut => "shortcut",
+            MenuField::Radius => "radius",
             MenuField::Tint(hue, part) => return format!("tint.{}.{}", hue.name(), part.name()),
         }
         .to_owned()
@@ -245,12 +253,16 @@ impl Family for MenuTokens {
         Self::FIELDS.iter().copied().find(|&f| Self::path(f) == path)
     }
 
-    fn kind(_: MenuField) -> FieldKind {
-        FieldKind::Color
+    fn kind(f: MenuField) -> FieldKind {
+        match f {
+            MenuField::Radius => FieldKind::Length,
+            _ => FieldKind::Color,
+        }
     }
 
     fn get(&self, f: MenuField) -> OverrideValue {
         OverrideValue::Color(match f {
+            MenuField::Radius => return OverrideValue::Length(self.radius),
             MenuField::ActiveFill => self.active_fill,
             MenuField::ActiveText => self.active_text,
             MenuField::OpenFill => self.open_fill,
@@ -260,11 +272,16 @@ impl Family for MenuTokens {
     }
 
     fn set(&mut self, f: MenuField, v: OverrideValue) {
+        if let (MenuField::Radius, OverrideValue::Length(r)) = (f, v) {
+            self.radius = r;
+            return;
+        }
         let OverrideValue::Color(c) = v else {
             // Mismatched kinds are rejected before this is called.
             return;
         };
         match f {
+            MenuField::Radius => {}
             MenuField::ActiveFill => self.active_fill = c,
             MenuField::ActiveText => self.active_text = c,
             MenuField::OpenFill => self.open_fill = c,
