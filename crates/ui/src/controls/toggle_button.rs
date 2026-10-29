@@ -17,8 +17,8 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 pub struct ToggleButtonStyle {
     /// Off: a secondary button.
     pub off: ButtonStyle,
-    /// On: the secondary button's pressed fill (`state.selected`), border and text, held in
-    /// every state but disabled, and `toggle_button.on_disabled.*` when disabled.
+    /// On: `toggle_button.on.*`, held in every state but disabled, and
+    /// `toggle_button.on_disabled.*` when disabled.
     pub on_fill: States<Color32>,
     pub on_border: States<Color32>,
     pub on_text: States<Color32>,
@@ -27,10 +27,10 @@ pub struct ToggleButtonStyle {
 /// A secondary-looking button that stays pressed while on:
 /// `ui.add(ToggleButton::new("Snap", &mut snap))`.
 ///
-/// On, it keeps the secondary button's pressed look (`button.secondary.*.pressed`: the
-/// `state.selected` fill) and its raised surface draws pressed in, so a bevel theme shows it
-/// sunk. Disabled while on, it draws `toggle_button.on_disabled.*`, which still looks on. A click flips the value; AccessKit reports the button toggled, after the click, in the
-/// same frame.
+/// On, it draws `toggle_button.on.*` (the `state.selected` fill) and its raised surface draws
+/// pressed in, so a bevel theme shows it sunk. Disabled while on, it draws
+/// `toggle_button.on_disabled.*`, which still looks on. A click flips the value; AccessKit reports
+/// the button toggled, after the click, in the same frame.
 #[derive(Debug)]
 pub struct ToggleButton<'a> {
     label: String,
@@ -79,13 +79,11 @@ impl<'a> ToggleButton<'a> {
     pub fn style(tokens: &UiTokens, size: ControlSize) -> ToggleButtonStyle {
         let off = super::Button::style(tokens, ButtonVariant::Secondary, size);
         let on = &tokens.component.toggle_button;
-        let held = |s: States<Color32>, part| States::new(s.pressed, s.pressed, s.pressed, on.on_disabled(part).to_egui());
-        ToggleButtonStyle {
-            off,
-            on_fill: held(off.fill, ButtonPart::Fill),
-            on_border: held(off.border, ButtonPart::Border),
-            on_text: held(off.text, ButtonPart::Text),
-        }
+        let held = |part| {
+            let on_color = on.on(part).to_egui();
+            States::new(on_color, on_color, on_color, on.on_disabled(part).to_egui())
+        };
+        ToggleButtonStyle { off, on_fill: held(ButtonPart::Fill), on_border: held(ButtonPart::Border), on_text: held(ButtonPart::Text) }
     }
 }
 
@@ -103,6 +101,7 @@ impl Widget for ToggleButton<'_> {
         let response = Interactive::salted(id_salt, Role::Button, self.label.as_str())
             .surface(SurfaceKind::Raised)
             .corner(Corner::Button)
+            .border_width(style.off.border_width)
             .colors(style.off.colors())
             .on_colors(StateColors { fill: style.on_fill, border: Some(style.on_border) })
             .enabled(self.enabled)

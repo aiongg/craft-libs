@@ -527,10 +527,36 @@ pub const MOTION_DURATIONS: (Duration, Duration, Duration) = (Duration::Fast, Du
 /// Easing for every semantic motion.
 pub const MOTION_EASING: Easing = Easing::Standard;
 
-/// Button padding at the standard size, as a multiple of `pad.control`.
-pub const BUTTON_PAD_X_MD: f32 = 2.0;
+/// How much of its fill a check box that is on shows while pressed (`widgets/buttons.rs:247`).
+pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
+
+/// Button heights in points, small and standard: Compact is PhotoCraft's status-bar button (22)
+/// and its Pro button (28); Comfortable adds the 4 and 6 points its control heights have over
+/// Compact's.
+pub const fn button_height(size: Size) -> (f32, f32) {
+    match size {
+        Size::Compact => (22.0, 28.0),
+        Size::Comfortable => (26.0, 34.0),
+    }
+}
+
+/// Button padding at the start and end, in points, at both button sizes: PhotoCraft's 14 at
+/// Compact, and the 4 points Comfortable's control padding adds.
+pub const fn button_pad_x(size: Size) -> f32 {
+    match size {
+        Size::Compact => 14.0,
+        Size::Comfortable => 18.0,
+    }
+}
+
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
+/// How much of its rest fill a primary button shows under the pointer, and a primary or secondary
+/// button while pressed (PhotoCraft draws these as the fill's alpha times the factor:
+/// `widgets/buttons.rs:189-191`). The Pro themes pin the values of PhotoCraft's Pro buttons
+/// (`buttons.rs:165-166`: 0.9 and 0.8).
+pub const BUTTON_HOVER_OPACITY: f32 = 0.93;
+pub const BUTTON_PRESSED_OPACITY: f32 = 0.85;
 
 /// Between a segmented control's track edge and its segments, in points, at every Size.
 pub const SEGMENTED_INSET: f32 = 2.0;
@@ -1008,13 +1034,19 @@ pub const READOUT_COL_GAP: f32 = 12.0;
 /// Compact gap between a readout's rows.
 pub const READOUT_ROW_GAP: f32 = 1.0;
 
-/// Largest corner radius of a check box, in points: `shape.radius.control` up to this, so a
-/// small box keeps square corners and never reads as a radio button.
+/// Corner radius of a check box, in points, in every theme.
+pub const CHECK_RADIUS: f32 = 2.0;
+/// Largest corner radius a theme may give a check box, in points: a small box keeps square
+/// corners and never reads as a radio button.
 pub const CHECK_RADIUS_MAX: f32 = 3.0;
-/// Stroke width of a check box's check and dash, in points, at the small and standard sizes.
-pub const CHECK_MARK_SM: f32 = 1.5;
-/// See [`CHECK_MARK_SM`].
-pub const CHECK_MARK_MD: f32 = 2.0;
+/// How far under the standard icon size a check box or radio button is, in points.
+pub const CHECK_BOX_INSET: f32 = 2.0;
+/// Width of a check box's outline, in points, drawn inside the box.
+pub const CHECK_OUTLINE: f32 = 1.5;
+/// Stroke width of a check box's check and dash, as a fraction of the box.
+pub const CHECK_MARK_RATIO: f32 = 0.125;
+/// How far toward black an unchecked box's fill goes while pressed.
+pub const CHECK_OFF_PRESSED_DARKEN: f32 = 0.18;
 /// Diameter of a radio button's dot as a fraction of the circle's.
 pub const RADIO_DOT_RATIO: f32 = 0.4;
 /// Diameter of an icon button's badge dot as a fraction of its icon.

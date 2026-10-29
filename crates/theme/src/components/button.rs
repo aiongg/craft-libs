@@ -1,10 +1,11 @@
 //! Push buttons: four variants, two sizes. Loading shows a spinner in the text colour and needs
 //! no tokens of its own. A theme can frame the primary button (`default_frame`); no built-in but
-//! Classic does.
+//! Classic does. The defaults are PhotoCraft's filled look; the Pro themes pin its outlined
+//! secondary button.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic, State, States};
+use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
-use crate::tokens::{ColorToken, TokenRef, TypeRole};
+use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
 
 /// A button's emphasis.
@@ -105,8 +106,15 @@ pub struct ButtonTokens {
     pub label: TypeRole,
     /// Corner radius; 999 gives pills.
     pub radius: f32,
-    /// Outline width in logical pixels.
+    /// Outline width in logical pixels, drawn inside the button; the width of a primary button's
+    /// default frame as well.
     pub border_width: f32,
+    /// How much of its rest fill a primary button shows under the pointer, 0 to 1. Its hover fill
+    /// is the final rest fill at this opacity unless pinned.
+    pub hover_opacity: f32,
+    /// How much of its rest fill a primary or secondary button shows while pressed, 0 to 1. The
+    /// pressed fill is the final rest fill at this opacity unless pinned.
+    pub pressed_opacity: f32,
     /// Primary colours.
     pub primary: ButtonColors,
     /// Secondary colours.
@@ -131,6 +139,28 @@ impl ButtonTokens {
         }
     }
 
+    /// Derives what follows a pinned rest colour, after the theme's overrides: the primary and
+    /// secondary hover and pressed fills at the opacities of the final rest fill, and the primary
+    /// text of every state as the rest text. A field `pinned` says is kept.
+    pub(crate) fn follow(&mut self, pinned: impl Fn(ButtonField) -> bool) {
+        let field = |variant, part, state| ButtonField::Color { variant, part, state };
+        let (hover, pressed) = (self.hover_opacity, self.pressed_opacity);
+        let set = |variant: ButtonVariant, part: ButtonPart, state: State, value: Rgba, colors: &mut ButtonColors| {
+            if !pinned(field(variant, part, state)) {
+                *colors.part_mut(part).get_mut(state) = value;
+            }
+        };
+        let rest = self.primary.fill.rest;
+        set(ButtonVariant::Primary, ButtonPart::Fill, State::Hover, rest.faded(hover), &mut self.primary);
+        set(ButtonVariant::Primary, ButtonPart::Fill, State::Pressed, rest.faded(pressed), &mut self.primary);
+        let text = self.primary.text.rest;
+        for state in [State::Hover, State::Pressed] {
+            set(ButtonVariant::Primary, ButtonPart::Text, state, text, &mut self.primary);
+        }
+        let rest = self.secondary.fill.rest;
+        set(ButtonVariant::Secondary, ButtonPart::Fill, State::Pressed, rest.faded(pressed), &mut self.secondary);
+    }
+
     fn colors_mut(&mut self, variant: ButtonVariant) -> &mut ButtonColors {
         match variant {
             ButtonVariant::Primary => &mut self.primary,
@@ -141,11 +171,17 @@ impl ButtonTokens {
     }
 }
 
-/// An overridable button field. Paths: `radius`, `default_frame`, `<variant>.<part>.<state>`.
+/// An overridable button field. Paths: `radius`, `border_width`, `default_frame`, `<variant>.<part>.<state>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ButtonField {
     /// `button.radius`
     Radius,
+    /// `button.border_width`
+    BorderWidth,
+    /// `button.hover_opacity`
+    HoverOpacity,
+    /// `button.pressed_opacity`
+    PressedOpacity,
     /// `button.default_frame`
     DefaultFrame,
     /// `button.<variant>.<part>.<state>`, e.g. `button.primary.fill.hover`.
@@ -159,12 +195,15 @@ pub enum ButtonField {
     },
 }
 
-const FIELD_COUNT: usize = 2 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
+const FIELD_COUNT: usize = 5 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
 
 const FIELDS: [ButtonField; FIELD_COUNT] = {
     let mut out = [ButtonField::Radius; FIELD_COUNT];
-    out[1] = ButtonField::DefaultFrame;
-    let mut i = 2;
+    out[1] = ButtonField::BorderWidth;
+    out[2] = ButtonField::HoverOpacity;
+    out[3] = ButtonField::PressedOpacity;
+    out[4] = ButtonField::DefaultFrame;
+    let mut i = 5;
     let (mut v, mut p, mut s) = (0, 0, 0);
     while v < ButtonVariant::ALL.len() {
         while p < ButtonPart::ALL.len() {
@@ -188,33 +227,38 @@ impl Family for ButtonTokens {
 
     fn defaults(s: &Semantic<'_>) -> ButtonTokens {
         let c = s.color;
-        let (size, space) = (s.size, s.space);
+        let size = s.size;
         let clear = Rgba::TRANSPARENT;
         let none = States::new(clear, clear, clear, clear);
         let text = |t: Rgba| States::new(t, t, t, c.text.disabled);
         let bad = c.status.bad;
-        // A toggle button that is on holds the secondary pressed look, so that look identifies the
-        // state: its fill or its edge reaches the non-text minimum on the panel and on a popup.
-        let (pressed, pressed_text) =
-            Identify::on(&[c.surface.panel, c.surface.raised], s.high).edge(c.line.control_edge).fill(c.state.selected, c.text.on_selected);
+        let (sm, md) = values::button_height(s.preset);
+        let pad_x = values::button_pad_x(s.preset);
+        let primary = c.accent.solid;
         ButtonTokens {
-            height: BySize { sm: size.control.sm, md: size.control.md },
-            pad_x: BySize { sm: space.pad.control + space.gap.inline, md: values::BUTTON_PAD_X_MD * space.pad.control },
+            height: BySize { sm, md },
+            pad_x: BySize { sm: pad_x, md: pad_x },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
-            gap: space.gap.inline,
+            gap: s.space.gap.inline,
             label: TypeRole::Label,
             radius: s.shape.radius.button,
             border_width: values::BUTTON_BORDER_WIDTH,
+            hover_opacity: values::BUTTON_HOVER_OPACITY,
+            pressed_opacity: values::BUTTON_PRESSED_OPACITY,
             primary: ButtonColors {
-                fill: States::new(c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.state.disabled_fill),
+                fill: States::new(
+                    primary,
+                    primary.faded(values::BUTTON_HOVER_OPACITY),
+                    primary.faded(values::BUTTON_PRESSED_OPACITY),
+                    c.state.disabled_fill,
+                ),
                 border: none,
-                text: text(c.text.on_strong),
+                text: text(c.text.on_accent),
             },
             secondary: ButtonColors {
-                fill: States::new(c.state.hover, c.state.pressed, pressed, c.state.disabled_fill),
-                border: States::new(c.line.border, c.line.control_edge, c.line.control_edge, c.line.divider),
-                // The pressed fill is `state.selected`, so its text is the text drawn on it.
-                text: States::new(c.text.normal, c.text.normal, pressed_text, c.text.disabled),
+                fill: States::new(c.surface.sunken, c.state.hover, c.surface.sunken.faded(values::BUTTON_PRESSED_OPACITY), c.state.disabled_fill),
+                border: States::new(c.line.control_edge, c.line.control_edge, c.line.control_edge, c.line.divider),
+                text: text(c.text.normal),
             },
             ghost: ButtonColors { fill: States::new(clear, c.state.hover, c.state.pressed, clear), border: none, text: text(c.text.normal) },
             danger: ButtonColors {
@@ -229,6 +273,9 @@ impl Family for ButtonTokens {
     fn path(f: ButtonField) -> String {
         match f {
             ButtonField::Radius => "radius".to_owned(),
+            ButtonField::BorderWidth => "border_width".to_owned(),
+            ButtonField::HoverOpacity => "hover_opacity".to_owned(),
+            ButtonField::PressedOpacity => "pressed_opacity".to_owned(),
             ButtonField::DefaultFrame => "default_frame".to_owned(),
             ButtonField::Color { variant, part, state } => format!("{}.{}.{}", variant.name(), part.name(), state.name()),
         }
@@ -237,6 +284,9 @@ impl Family for ButtonTokens {
     fn from_path(path: &str) -> Option<ButtonField> {
         match path {
             "radius" => return Some(ButtonField::Radius),
+            "border_width" => return Some(ButtonField::BorderWidth),
+            "hover_opacity" => return Some(ButtonField::HoverOpacity),
+            "pressed_opacity" => return Some(ButtonField::PressedOpacity),
             "default_frame" => return Some(ButtonField::DefaultFrame),
             _ => {}
         }
@@ -254,7 +304,7 @@ impl Family for ButtonTokens {
 
     fn kind(f: ButtonField) -> FieldKind {
         match f {
-            ButtonField::Radius => FieldKind::Length,
+            ButtonField::Radius | ButtonField::BorderWidth | ButtonField::HoverOpacity | ButtonField::PressedOpacity => FieldKind::Length,
             ButtonField::DefaultFrame => FieldKind::Color,
             ButtonField::Color { .. } => FieldKind::Color,
         }
@@ -263,6 +313,9 @@ impl Family for ButtonTokens {
     fn get(&self, f: ButtonField) -> OverrideValue {
         match f {
             ButtonField::Radius => OverrideValue::Length(self.radius),
+            ButtonField::BorderWidth => OverrideValue::Length(self.border_width),
+            ButtonField::HoverOpacity => OverrideValue::Length(self.hover_opacity),
+            ButtonField::PressedOpacity => OverrideValue::Length(self.pressed_opacity),
             ButtonField::DefaultFrame => OverrideValue::Color(self.default_frame),
             ButtonField::Color { variant, part, state } => OverrideValue::Color(self.colors(variant).part(part).get(state)),
         }
@@ -271,6 +324,9 @@ impl Family for ButtonTokens {
     fn set(&mut self, f: ButtonField, v: OverrideValue) {
         match (f, v) {
             (ButtonField::Radius, OverrideValue::Length(r)) => self.radius = r,
+            (ButtonField::BorderWidth, OverrideValue::Length(w)) => self.border_width = w,
+            (ButtonField::HoverOpacity, OverrideValue::Length(o)) => self.hover_opacity = o,
+            (ButtonField::PressedOpacity, OverrideValue::Length(o)) => self.pressed_opacity = o,
             (ButtonField::DefaultFrame, OverrideValue::Color(c)) => self.default_frame = c,
             (ButtonField::Color { variant, part, state }, OverrideValue::Color(c)) => *self.colors_mut(variant).part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
@@ -281,15 +337,6 @@ impl Family for ButtonTokens {
     fn pairs() -> Vec<ContrastPair> {
         let field = |variant, part, state| ComponentField::Button(ButtonField::Color { variant, part, state });
         let mut out = Vec::new();
-        // The secondary pressed look is a toggle button's on look. Its fill comes before its text:
-        // high contrast moves the fill first.
-        let secondary = |part| TokenRef::Component(field(ButtonVariant::Secondary, part, State::Pressed));
-        out.extend([ColorToken::SurfacePanel, ColorToken::SurfaceRaised].map(|bg| ContrastPair {
-            fg: secondary(ButtonPart::Fill),
-            bg: TokenRef::Color(bg),
-            minimum: values::STATE_CUE_MIN,
-            alternate: Some(secondary(ButtonPart::Border)),
-        }));
         for variant in ButtonVariant::ALL {
             for state in [State::Rest, State::Hover, State::Pressed] {
                 let fill = TokenRef::Component(field(variant, ButtonPart::Fill, state));

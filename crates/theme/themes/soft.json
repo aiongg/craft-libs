@@ -28,7 +28,6 @@
     "accent.solid": "#6e80d8",
     "accent.text": "#2e3a92",
     "button.primary.fill.rest": "#5062be",
-    "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#c83c48",
     "caption.close_text": "#ffffff",
     "line.border": "#d0cdd7",
@@ -52,14 +51,14 @@
     "surface.sunken": "#faf9fc",
     "text.faint": "#504e60",
     "text.muted": "#3e3c4c",
-    "text.normal": "#2c2a38"
+    "text.normal": "#2c2a38",
+    "text.on_accent": "#ffffff"
   },
   "dark": {
     "accent.soft": "#8a9ae830",
     "accent.solid": "#8a9ae8",
     "accent.text": "#bec8fc",
     "button.primary.fill.rest": "#5668c4",
-    "button.primary.text.rest": "#ffffff",
     "caption.close_hover": "#c84856",
     "caption.close_text": "#ffffff",
     "line.border": "#464652",
@@ -73,6 +72,10 @@
     "surface.sunken": "#40404b",
     "text.faint": "#bebece",
     "text.muted": "#d4d4e0",
-    "text.normal": "#eeeef6"
+    "text.normal": "#eeeef6",
+    "text.on_accent": "#ffffff"
+  },
+  "components": {
+    "button.radius": 7.0
   }
 }

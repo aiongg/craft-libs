@@ -20,6 +20,7 @@
   "dark": {
     "accent.soft": "#268bd22e",
     "accent.solid": "#268bd2",
+    "button.primary.text.rest": "#fdf6e3",
     "caption.close_hover": "#dc322f",
     "caption.close_text": "#fdf6e3",
     "data.scope": "#002b36",

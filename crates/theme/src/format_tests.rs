@@ -485,7 +485,7 @@ fn reference_cycles_are_errors() {
 }
 
 #[test]
-fn classic_slider_fill_follows_its_accent_states() {
+fn classic_slider_fill_is_the_accent_in_every_state() {
     let classic = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
     for a in appearances() {
         let t = resolve(classic, a, None).tokens;
@@ -494,6 +494,6 @@ fn classic_slider_fill_follows_its_accent_states() {
         if a.contrast == Contrast::High {
             continue;
         }
-        assert_eq!((s.rest, s.hover, s.pressed), (t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed)), "{a:?}");
+        assert_eq!((s.rest, s.hover, s.pressed), [t.color(T::AccentSolid); 3].into(), "{a:?}");
     }
 }

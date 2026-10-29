@@ -448,8 +448,7 @@ fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
 
 /// Classic's switch has a navy on track, its list box and select rows highlight in navy with
 /// white text, its secondary buttons keep the face colour at rest and under the pointer, and its
-/// popups are the menu grey. Other built-ins keep the switch track equal to the check box's on
-/// fill.
+/// popups are the menu grey. Other built-ins draw the switch track in the solid accent.
 #[test]
 fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
     let navy = Rgba::rgb(0x0a, 0x24, 0x6a);
@@ -460,7 +459,15 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             let t = resolve(theme, a, None).tokens;
             let c = &t.component;
             if theme.id.as_str() != "craft.classic" {
-                assert_eq!((c.check.switch.fill, c.check.switch.border), (c.check.on.fill, c.check.on.border), "{} {a:?}", theme.id);
+                // A switch is the check box's on fill, which a press makes less opaque only on a check box.
+                let (switch, on) = (c.check.switch, c.check.on);
+                assert_eq!(
+                    (switch.fill.rest, switch.fill.hover, switch.fill.disabled),
+                    (on.fill.rest, on.fill.hover, on.fill.disabled),
+                    "{} {a:?}",
+                    theme.id
+                );
+                assert_eq!(switch.fill, switch.border, "{} {a:?}", theme.id);
                 continue;
             }
             if a.contrast == Contrast::High || a.mode != Mode::Light {
@@ -534,6 +541,90 @@ fn sliders_follow_photocraft() {
                 } else {
                     assert_eq!(edge.a(), 0, "{id} {a:?}");
                 }
+            }
+        }
+    }
+}
+
+/// A check box or radio button is PhotoCraft's: 14 points at Compact, a 6 point label gap, radius
+/// 2 and a 1.5 point outline in every theme; unchecked, the outline is the faint text colour at
+/// rest and the muted text colour hovered, and the fill darkens when pressed; checked, the fill
+/// is the solid accent at rest and hovered and a quarter less opaque when pressed.
+#[test]
+fn check_boxes_are_photocraft_boxes_in_every_theme() {
+    for theme in builtins() {
+        for a in appearances() {
+            let r = resolve(theme, a, None).tokens;
+            let (c, color) = (&r.component.check, &r.color);
+            let compact = a.size == Size::Compact;
+            let which = format!("{} {a:?}", theme.id);
+            assert_eq!((c.box_size.md, c.box_gap), if compact { (14.0, 6.0) } else { (16.0, 8.0) }, "{which}");
+            assert_eq!((c.radius, c.outline), (2.0, 1.5), "{which}");
+            assert_eq!(c.mark.md, c.box_size.md * 0.125, "{which}");
+            assert_eq!([c.off.border.hover, c.off.border.pressed], [color.text.muted; 2], "{which}");
+            let [rest, pressed] = [c.off.fill.rest, c.off.fill.pressed].map(|f| f.0.iter().take(3).map(|&v| u32::from(v)).sum::<u32>());
+            assert!(pressed < rest || rest == 0, "{which}: pressed darkens");
+            if theme.id.as_str() == "craft.classic" {
+                continue;
+            }
+            assert_eq!([c.on.fill.rest, c.on.fill.hover], [color.accent.solid; 2], "{which}");
+            assert_eq!(c.on.fill.pressed, color.accent.solid.with_alpha(191), "{which}");
+            assert_eq!(c.on.border.rest, Rgba::TRANSPARENT, "{which}: no outline on");
+        }
+    }
+}
+
+/// PhotoCraft's buttons: the Pro themes draw the secondary button as a transparent pill outlined
+/// 1.5 points in `text.muted`, `text.normal` once hovered, filled with `state.hover` then and
+/// pressed; the other themes fill it with `surface.sunken`, 1 point edged, and show it pressed at
+/// 85% opacity. Studio and Soft take their own radius; the primary button shows 93% and 85% of its
+/// fill when hovered and pressed (90% and 80% in the Pro themes).
+#[test]
+fn buttons_follow_photocraft() {
+    for theme in builtins() {
+        let id = theme.id.as_str();
+        for mode in [Mode::Light, Mode::Dark] {
+            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
+                continue;
+            }
+            let a = semantic_tests::app(mode, Contrast::Standard);
+            let t = resolve(theme, a, None).tokens;
+            let b = &t.component.button;
+            let secondary = &b.secondary;
+            assert_eq!((b.height.md, b.pad_x.md), (28.0, 14.0), "{id}");
+            let primary = b.primary.fill;
+            let pro = ["craft.artcraft", "craft.pro", "craft.pro-light-gray"].contains(&id);
+            let (hover, pressed) = if pro { (0.9, 0.8) } else { (0.93, 0.85) };
+            if id != "craft.classic" {
+                assert_eq!((b.hover_opacity, b.pressed_opacity), (hover, pressed), "{id}");
+                assert_eq!(primary.hover, primary.rest.faded(hover), "{id} {mode:?}");
+                assert_eq!(primary.pressed, primary.rest.faded(pressed), "{id} {mode:?}");
+                assert_eq!([b.primary.text.hover, b.primary.text.pressed], [b.primary.text.rest; 2], "{id} {mode:?}");
+            }
+            if pro || ["craft.adwaita", "craft.breeze", "craft.soft"].contains(&id) {
+                assert_eq!(t.color(ColorToken::TextOnAccent), Rgba::WHITE, "{id} {mode:?}: PhotoCraft draws white on its accent");
+            }
+            if pro {
+                assert_eq!(b.border_width, 1.5, "{id}");
+                assert_eq!(secondary.fill.rest, Rgba::TRANSPARENT, "{id} {mode:?}");
+                assert_eq!([secondary.fill.hover, secondary.fill.pressed], [t.color(ColorToken::StateHover); 2], "{id} {mode:?}");
+                assert_eq!(secondary.border.rest, t.color(ColorToken::TextMuted), "{id} {mode:?}");
+                assert_eq!([secondary.border.hover, secondary.border.pressed], [t.color(ColorToken::TextNormal); 2], "{id} {mode:?}");
+                assert_eq!(b.radius, 999.0, "{id}");
+            } else {
+                assert_eq!(b.border_width, 1.0, "{id}");
+                if id != "craft.classic" {
+                    let sunken = t.color(ColorToken::SurfaceSunken);
+                    assert_eq!(secondary.fill.rest, sunken, "{id} {mode:?}");
+                    assert_eq!(secondary.fill.pressed, sunken.faded(0.85), "{id} {mode:?}");
+                    assert_eq!(secondary.fill.hover, t.color(ColorToken::StateHover), "{id} {mode:?}");
+                    assert_eq!(secondary.border.rest, t.color(ColorToken::LineControlEdge), "{id} {mode:?}");
+                }
+            }
+            match id {
+                "craft.studio" => assert_eq!(b.radius, 6.0),
+                "craft.soft" => assert_eq!(b.radius, 7.0),
+                _ => {}
             }
         }
     }

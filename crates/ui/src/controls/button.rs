@@ -32,6 +32,8 @@ pub struct ButtonStyle {
     pub label: TypeRole,
     /// `Corner::Button`: `button.radius`.
     pub radius: CornerRadius,
+    /// `button.border_width`: the border's width, drawn inside the button.
+    pub border_width: f32,
     /// Raised, or none for a ghost button, which rests transparent with no edge.
     pub surface: Option<SurfaceKind>,
     /// `button.<variant>.fill`.
@@ -150,6 +152,7 @@ impl Button {
             icon: b.icon.get(size),
             label: b.label,
             radius: Corner::Button.radius(tokens),
+            border_width: b.border_width,
             surface: (variant != ButtonVariant::Ghost).then_some(SurfaceKind::Raised),
             fill: colors.fill.to_egui(),
             border: colors.border.to_egui(),
@@ -169,6 +172,7 @@ impl Widget for Button {
         let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
             .colors(style.colors())
             .corner(Corner::Button)
+            .border_width(style.border_width)
             .enabled(self.enabled)
             .busy(self.loading);
         if let Some(kind) = style.surface {
