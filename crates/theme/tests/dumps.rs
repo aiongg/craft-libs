@@ -458,7 +458,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
 }
 
 fn slider_lines(out: &mut Lines, s: &SliderTokens) {
-    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, ring, ring_width, .. } = s;
+    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, ring, ring_width, mark, snap, .. } = s;
     by_size(out, "slider.height", height);
     by_size(out, "slider.width", width);
     by_size(out, "slider.thumb", thumb);
@@ -469,6 +469,8 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
     thumb_lines(out, "slider.thumb", thumb_colors);
     states(out, "slider.ring", ring);
     out.line("slider.ring_width", len(*ring_width));
+    by_size(out, "slider.mark", mark);
+    out.line("slider.snap", len(*snap));
 }
 
 fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {

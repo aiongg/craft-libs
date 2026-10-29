@@ -711,6 +711,12 @@ pub const TAB_HOVER_MIX: f64 = 0.35;
 pub const SLIDER_WIDTH: f32 = 6.0;
 /// Thickness of a slider's track, in points, at every Size.
 pub const SLIDER_TRACK: f32 = 4.0;
+/// The control height the Compact slider mark height is set for.
+pub const SLIDER_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a slider's marks and ticks, in points.
+pub const SLIDER_MARK: f32 = 4.0;
+/// How near a mark (in points) a drag snaps the slider's thumb to it.
+pub const SLIDER_SNAP: f32 = 6.0;
 
 /// Canvas handle side or diameter in points, the same at every Size: handles sit on the
 /// document, not in the chrome.
