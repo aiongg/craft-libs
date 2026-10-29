@@ -70,11 +70,11 @@ pub use components::{
     FieldPart, FieldTokens, FloatField, FloatTokens, GradientEditorField, GradientEditorTokens, GradientLineField, GradientLineTokens, GuideField,
     GuideTokens, HandleField, HandleTokens, HistogramField, HistogramTokens, IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField,
     KbdTokens, LevelsField, LevelsTokens, ListField, ListTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuHue,
-    MenuTint, MenuTintPart, MenuTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue, PanelHeaderField, PanelHeaderTokens, PopupField,
-    PopupTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, ReadoutField, ReadoutTokens, RefPointField, RefPointTokens,
-    RulerField, RulerTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField, SliderTokens, State, States, SwatchColor,
-    SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens, ToastField, ToastTokens,
-    ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens, TransformField, TransformTokens,
+    MenuTint, MenuTintPart, MenuTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue, PanelFooterField, PanelFooterTokens,
+    PanelHeaderField, PanelHeaderTokens, PopupField, PopupTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, ReadoutField,
+    ReadoutTokens, RefPointField, RefPointTokens, RulerField, RulerTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField,
+    SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens,
+    ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens, TransformField, TransformTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

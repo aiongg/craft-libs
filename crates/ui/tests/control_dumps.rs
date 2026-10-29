@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelHeader, PropertyRow,
-    SectionHeader, ToastStack, Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader, PropertyRow,
+    SectionHeader, SectionLabel, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -449,6 +449,25 @@ fn section_header() {
             .line("title_offset", s.title_offset);
         d.line("hairline", s.hairline.width).line("hairline_color", s.hairline.color).line("chevron_color", s.chevron_color);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Section labels: the type role and colour.
+#[test]
+fn section_label() {
+    check("section_label.txt", |d, t| {
+        let s = SectionLabel::style(t);
+        d.line("role", role(s.role)).line("color", s.color);
+    });
+}
+
+/// Panel footers: the bar, buttons, gap and rule, and the reserved height.
+#[test]
+fn panel_footer() {
+    check("panel_footer.txt", |d, t| {
+        let s = PanelFooter::style(t, 1.0);
+        d.line("height", s.height).line("gap", s.gap).line("button", s.button).line("margin", s.margin);
+        d.line("rule", s.rule.width).line("rule_color", s.rule.color).line("reserved", PanelFooter::reserved_height(&s));
     });
 }
 

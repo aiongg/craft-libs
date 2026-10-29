@@ -162,7 +162,7 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 ///   alone when it isn't selected) without changing it. The target row shows the drop marker;
 ///   a box with the grabbed row's label follows the pointer; the list scrolls while the pointer
 ///   is near its top or bottom edge. The drag is egui's [`DragAndDrop`] payload [`ListDrag`], so
-///   other widgets take drops from it (a footer's Delete button). Cmd+] and Cmd+[ (Ctrl+] and
+///   other widgets take drops from it (the Delete button of a [`PanelFooter`](crate::composites::PanelFooter)). Cmd+] and Cmd+[ (Ctrl+] and
 ///   Ctrl+[ off macOS) move the selected rows one row toward the start or end, with Shift to the
 ///   start or end. The list reports [`ListEvent::Reorder`]; the host moves the rows. The target
 ///   under the pointer is [`ListOutput::drop_target`].

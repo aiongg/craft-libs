@@ -11,10 +11,10 @@ use crate::{
     CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps,
     GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
     LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, Pads,
-    PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba, RulerTokens,
-    SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes, TabTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle,
-    TypeTokens,
+    PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens, Rgba,
+    RulerTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, States, SwatchColor, SwatchTokens, TabSizes,
+    TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole,
+    TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -240,6 +240,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         marquee,
         menu,
         notice,
+        panel_footer,
         panel_header,
         popup,
         progress,
@@ -283,6 +284,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     marquee_lines(out, marquee);
     menu_lines(out, menu);
     notice_lines(out, notice);
+    panel_footer_lines(out, panel_footer);
     panel_header_lines(out, panel_header);
     popup_lines(out, popup);
     progress_lines(out, progress);
@@ -814,6 +816,13 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
     ] {
         out.line(&format!("title_bar.{k}"), hex(*c));
     }
+}
+
+fn panel_footer_lines(out: &mut Lines, t: &PanelFooterTokens) {
+    let PanelFooterTokens { height, gap, button } = t;
+    out.line("panel_footer.height", len(*height));
+    out.line("panel_footer.gap", len(*gap));
+    out.line("panel_footer.button", len(*button));
 }
 
 fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
