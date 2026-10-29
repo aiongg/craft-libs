@@ -8,6 +8,7 @@ use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::testing::{a11y, symbols};
 use crate::theme::{Base, ToEgui as _, install};
+use craft_theme::TypeRole;
 
 fn harness<State>() -> HarnessBuilder<State> {
     Harness::<State>::builder().with_size([640.0, 320.0]).with_context_setup(|ctx| {
@@ -917,4 +918,85 @@ fn text_fields_report_their_role_name_value_placeholder_and_state() {
     // One Tab stop per enabled field: the clear button and the disabled field are none.
     let stops: Vec<_> = a11y::tab_order(&mut harness).into_iter().map(|stop| stop.label).collect();
     assert_eq!(stops, ["Name", "Code", "Password", "Search layers"]);
+}
+
+/// The baseline of every text shape whose text is `text`: the galley's top plus its first row's
+/// baseline offset (the row's bottom less the glyph descent, here the row's `max_y`).
+fn baseline_of(harness: &Harness<'_>, text: &str) -> Vec<f32> {
+    let mut found = Vec::new();
+    for clipped in &harness.output().shapes {
+        collect_baselines(&clipped.shape, text, &mut found);
+    }
+    found
+}
+
+fn collect_baselines(shape: &egui::Shape, text: &str, found: &mut Vec<f32>) {
+    match shape {
+        egui::Shape::Text(t) if t.galley.job.text.contains(text) => {
+            let row = &t.galley.rows[0];
+            found.push(t.pos.y + row.pos.y + row.row.glyphs[0].pos.y);
+        }
+        egui::Shape::Vec(v) => v.iter().for_each(|s| collect_baselines(s, text, found)),
+        _ => {}
+    }
+}
+
+#[test]
+fn a_link_in_running_text_shares_the_baseline_of_the_text_around_it() {
+    use crate::primitives::Text;
+    for role in [TypeRole::Caption, TypeRole::Body, TypeRole::Title] {
+        // Row heights: the line's own, the default, and a control-sized row.
+        for row_height in [0.0, 24.0, 40.0] {
+            for wrapped in [true, false] {
+                let mut harness = harness().build_ui(move |ui| {
+                    ui.spacing_mut().interact_size.y = row_height;
+                    let add = |ui: &mut Ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        ui.add(Text::new("before ").role(role));
+                        ui.add(Link::new("linked").role(role).url("https://example.com").id_salt("link"));
+                        ui.add(Text::new(" after").role(role));
+                    };
+                    if wrapped {
+                        ui.horizontal_wrapped(add)
+                    } else {
+                        ui.horizontal(add)
+                    };
+                });
+                harness.run();
+                let at = |text| baseline_of(&harness, text);
+                let (before, linked, after) = (at("before"), at("linked"), at("after"));
+                assert_eq!(before.len(), 1, "{role:?}");
+                let context = format!("{role:?}, row {row_height}, wrapped {wrapped}");
+                assert_eq!(before, linked, "{context}");
+                assert_eq!(before, after, "{context}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_toggle_button_label_takes_its_type_role() {
+    let family_of = |role: Option<TypeRole>| {
+        let mut on = false;
+        let mut harness = harness().build_ui(move |ui| {
+            let toggle = ToggleButton::new("tokens.color.accent", &mut on);
+            ui.add(if let Some(role) = role { toggle.role(role) } else { toggle });
+        });
+        harness.run();
+        let mut families = Vec::new();
+        for clipped in &harness.output().shapes {
+            text_families(&clipped.shape, "tokens.color.accent", &mut families);
+        }
+        families
+    };
+    assert_eq!(family_of(Some(TypeRole::Mono)), [egui::FontFamily::Monospace]);
+    assert_eq!(family_of(None), [egui::FontFamily::Proportional]);
+}
+
+fn text_families(shape: &egui::Shape, text: &str, found: &mut Vec<egui::FontFamily>) {
+    match shape {
+        egui::Shape::Text(t) if t.galley.job.text.contains(text) => found.push(t.galley.job.sections[0].format.font_id.family.clone()),
+        egui::Shape::Vec(v) => v.iter().for_each(|s| text_families(s, text, found)),
+        _ => {}
+    }
 }

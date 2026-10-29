@@ -1,6 +1,6 @@
 //! [`ToggleButton`]: a button that stays pressed while on.
 
-use craft_theme::{ButtonPart, ButtonVariant, ControlSize, States};
+use craft_theme::{ButtonPart, ButtonVariant, ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Ui, Widget};
 
@@ -37,13 +37,14 @@ pub struct ToggleButton<'a> {
     on: &'a mut bool,
     size: ControlSize,
     icon: Option<Icon>,
+    role: Option<TypeRole>,
     enabled: bool,
     id_salt: Option<IdSalt>,
 }
 
 impl<'a> ToggleButton<'a> {
     pub fn new(label: impl Into<String>, on: &'a mut bool) -> Self {
-        Self { label: label.into(), on, size: ControlSize::Md, icon: None, enabled: true, id_salt: None }
+        Self { label: label.into(), on, size: ControlSize::Md, icon: None, role: None, enabled: true, id_salt: None }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -54,6 +55,12 @@ impl<'a> ToggleButton<'a> {
     /// A leading icon.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// The type role of the label, for a path or a value in `Mono`; `button.label` by default.
+    pub fn role(mut self, role: TypeRole) -> Self {
+        self.role = Some(role);
         self
     }
 
@@ -85,7 +92,10 @@ impl<'a> ToggleButton<'a> {
 impl Widget for ToggleButton<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
-        let style = ToggleButton::style(&tokens, self.size);
+        let mut style = ToggleButton::style(&tokens, self.size);
+        if let Some(role) = self.role {
+            style.off.label = role;
+        }
         let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: false };
         let laid = face.layout(ui, &tokens, &style.off);
         let id_salt = salt(ui, self.id_salt);
