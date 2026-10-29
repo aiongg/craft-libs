@@ -198,6 +198,7 @@ pub struct TransformBox<'a> {
     snap: Option<Snap<'a>>,
     value: Option<String>,
     policy: EditPolicy,
+    modifiers: Option<Modifiers>,
 }
 
 impl<'a> TransformBox<'a> {
@@ -216,6 +217,7 @@ impl<'a> TransformBox<'a> {
             snap: None,
             value: None,
             policy: EditPolicy::default(),
+            modifiers: None,
         }
     }
 
@@ -223,6 +225,13 @@ impl<'a> TransformBox<'a> {
     /// PhotoCraft's Free Transform by default.
     pub fn rules(mut self, rules: BoxRules) -> Self {
         self.rules = rules;
+        self
+    }
+
+    /// The modifiers every test of this box reads (the press, the drag, the host's snap) in place
+    /// of the input state: a touch host's sticky modifiers, or Ctrl turning snapping off.
+    pub fn modifiers(mut self, modifiers: Modifiers) -> Self {
+        self.modifiers = Some(modifiers);
         self
     }
 
@@ -438,7 +447,7 @@ impl<'a> TransformBox<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let mods = ctx.input(|i| i.modifiers);
+        let mods = self.modifiers.unwrap_or_else(|| ctx.input(|i| i.modifiers));
         let screen = on_screen(view, self.state);
         let part = self.takes(&screen, press.origin, style, mods)?;
         if !Claim::take(ctx, canvas.id, id) {
@@ -491,7 +500,8 @@ impl<'a> TransformBox<'a> {
         if d.cancelled {
             return;
         }
-        let (pointer, down, mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let (pointer, down, input_mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let mods = self.modifiers.unwrap_or(input_mods);
         let mut far = false;
         if let Some(pointer) = pointer {
             let moved = pointer.distance(d.press.origin);

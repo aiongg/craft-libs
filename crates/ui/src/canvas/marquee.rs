@@ -433,6 +433,7 @@ pub struct MarqueeDrag<'a> {
     constraint: Constraint,
     snap: Option<Box<dyn Fn(Point, Modifiers) -> Point + 'a>>,
     policy: EditPolicy,
+    modifiers: Option<Modifiers>,
 }
 
 /// The press being tracked, in egui memory between frames.
@@ -466,7 +467,14 @@ impl<'a> MarqueeDrag<'a> {
     /// A marquee gesture; `id_source` tells it from other gestures on the canvas (the rectangle
     /// and the ellipse tool).
     pub fn new(id_source: impl AsIdSalt) -> Self {
-        Self { salt: IdSalt::new(id_source), shape: MarqueeShape::Rect, constraint: Constraint::Free, snap: None, policy: EditPolicy::default() }
+        Self {
+            salt: IdSalt::new(id_source),
+            shape: MarqueeShape::Rect,
+            constraint: Constraint::Free,
+            snap: None,
+            policy: EditPolicy::default(),
+            modifiers: None,
+        }
     }
 
     /// What the marquee outlines; see [`MarqueeShape::marquee`].
@@ -484,6 +492,13 @@ impl<'a> MarqueeDrag<'a> {
     /// The host's snapping of a corner, given the document point and the modifiers held.
     pub fn snap(mut self, snap: impl Fn(Point, Modifiers) -> Point + 'a) -> Self {
         self.snap = Some(Box::new(snap));
+        self
+    }
+
+    /// The modifiers every test of the marquee reads (the press, the Shift and Alt rules, the snap) in place of the input state: a touch
+    /// host's sticky modifiers, or Ctrl turning snapping off.
+    pub fn modifiers(mut self, modifiers: Modifiers) -> Self {
+        self.modifiers = Some(modifiers);
         self
     }
 
@@ -508,7 +523,7 @@ impl<'a> MarqueeDrag<'a> {
         let id = canvas.id.with_salt(self.salt);
         let key = id.with("press");
         let slop = Marquee::style(&Tokens::of(ui)).click_slop;
-        let (pressed, down, released, modifiers, pointer, origin) = ctx.input(|i| {
+        let (pressed, down, released, input_modifiers, pointer, origin) = ctx.input(|i| {
             (
                 i.pointer.primary_pressed(),
                 i.pointer.primary_down(),
@@ -518,6 +533,7 @@ impl<'a> MarqueeDrag<'a> {
                 i.pointer.press_origin(),
             )
         });
+        let modifiers = self.modifiers.unwrap_or(input_modifiers);
         let mut press: Option<Press> = ctx.data(|d| d.get_temp(key));
         if let Some(p) = &mut press
             && p.waits

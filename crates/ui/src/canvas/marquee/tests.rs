@@ -218,6 +218,8 @@ struct Harness {
     view: CanvasView,
     time: f64,
     modifiers: Modifiers,
+    /// The modifiers the gesture reads in place of the input state.
+    forced: Option<Modifiers>,
     constraint: Constraint,
     canvas: Id,
     /// Whether the marquee owned the press at the end of the last pass.
@@ -246,6 +248,7 @@ impl Harness {
             view: view(0.0),
             time: 0.0,
             modifiers: Modifiers::NONE,
+            forced: None,
             constraint: Constraint::Free,
             canvas: Id::NULL,
             owned: false,
@@ -263,7 +266,7 @@ impl Harness {
         let mut all = vec![Event::ModifiersChanged(self.modifiers)];
         all.extend(events);
         let input = RawInput { screen_rect: Some(SCREEN), time: Some(self.time), events: all, ..RawInput::default() };
-        let (view, constraint) = (self.view, self.constraint);
+        let (view, constraint, forced) = (self.view, self.constraint, self.forced);
         let mut out = MarqueeResponse::default();
         let mut canvas_id = Id::NULL;
         let mut owned = false;
@@ -288,7 +291,11 @@ impl Harness {
                 }
                 let canvas = ui.allocate_rect(view.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
                 canvas_id = canvas.id;
-                out = MarqueeDrag::new("test").shape(MarqueeShape::Rect).constraint(constraint).show(ui, &canvas, &view);
+                let mut drag = MarqueeDrag::new("test").shape(MarqueeShape::Rect).constraint(constraint);
+                if let Some(m) = forced {
+                    drag = drag.modifiers(m);
+                }
+                out = drag.show(ui, &canvas, &view);
                 owned = Claim::owner(ui.ctx(), canvas.id).is_some();
             })
             .drop_without_applying_deltas();
@@ -508,4 +515,17 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
     assert!(!h.release(A).clicked, "the click waits");
     let clicks = (0..5).filter(|_| h.pass(vec![]).clicked).count();
     assert_eq!(clicks, 1, "and runs once");
+}
+
+#[test]
+fn modifiers_override_replaces_the_input_modifiers_in_the_marquee() {
+    for (input, forced) in [(Modifiers::NONE, Modifiers::SHIFT), (Modifiers::SHIFT, Modifiers::NONE)] {
+        let mut h = Harness::new();
+        h.modifiers = input;
+        h.forced = Some(forced);
+        h.press(A);
+        let end = h.release(A);
+        assert!(end.clicked);
+        assert_eq!(end.press_modifiers, forced, "input {input:?}");
+    }
 }

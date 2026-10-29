@@ -42,6 +42,12 @@ struct Host {
     pass: usize,
     box_passes: Vec<usize>,
     typing_passes: Vec<usize>,
+    /// The modifiers the box reads in place of the input state.
+    modifiers: Option<Modifiers>,
+    /// A host that snaps each event's quad to whole document units for its document, and the
+    /// last one it applied. The box keeps the state the events report.
+    round: bool,
+    rounded: Option<BoxState>,
 }
 
 fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -66,6 +72,9 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
         pass: 0,
         box_passes: Vec::new(),
         typing_passes: Vec::new(),
+        modifiers: None,
+        round: false,
+        rounded: None,
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -94,7 +103,11 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
             let state = host.host.state;
-            let r = TransformBox::new("box", &state, english_names())
+            let mut b = TransformBox::new("box", &state, english_names());
+            if let Some(m) = host.modifiers {
+                b = b.modifiers(m);
+            }
+            let r = b
                 .rules(host.rules)
                 .rotate_zone(host.zone)
                 .inside_moves(host.inside_moves)
@@ -104,6 +117,12 @@ fn harness_with(state: BoxState, rotation: f64, flip: bool, setup: impl FnOnce(&
                 .value("W 100%")
                 .show(ui, &canvas, &view);
             host.host.apply(&r);
+            if host.round
+                && let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) = &r.event
+            {
+                let whole = |p: Point| Point::new(p.x.round(), p.y.round());
+                host.rounded = Some(BoxState { quad: value.quad.map(whole), pivot: whole(value.pivot) });
+            }
             host.box_passes.extend(r.event.iter().map(|_| host.pass));
             host.events.extend(r.event.clone());
             host.applied += usize::from(r.apply);
@@ -655,4 +674,43 @@ fn a_press_released_while_it_waited_runs_as_a_click() {
     assert_eq!(h.state().applied, 1, "and runs once");
     h.step();
     assert_eq!((h.state().applied, h.state().claimed), (1, false));
+}
+
+#[test]
+fn modifiers_override_replaces_the_input_modifiers_in_each_overlay() {
+    let (part, at) = (BoxPart::Corner(2), Point::new(300.0, 220.0));
+    for (input, held) in [(Modifiers::NONE, Modifiers::SHIFT), (Modifiers::SHIFT, Modifiers::NONE)] {
+        let mut h = harness(|host| host.modifiers = Some(held));
+        h.run();
+        let start = state(&h);
+        let (from, to) = (screen(&h, at), screen(&h, at) + vec2(40.0, 10.0));
+        let want = expected(&h, &start, part, from, to, held);
+        assert!(!near(&want, &expected(&h, &start, part, from, to, input)), "the two modifier sets drag differently");
+        drag(&mut h, from, to, input);
+        assert!(near(&state(&h), &want), "input {input:?}, override {held:?}: {:?}", state(&h));
+    }
+}
+
+#[test]
+fn a_host_rounded_quad_does_not_drift_over_a_drag() {
+    let mut h = harness(|host| host.round = true);
+    h.run();
+    let (from, to) = (screen(&h, Point::new(300.0, 220.0)), screen(&h, Point::new(300.0, 220.0)) + vec2(30.4, 20.4));
+    let start = state(&h);
+    h.event(Event::PointerMoved(from));
+    h.event(button(from, true, Modifiers::NONE));
+    h.run();
+    for i in 1..=30_u8 {
+        h.event(Event::PointerMoved(from.lerp(to, f32::from(i) / 30.0)));
+        h.run();
+    }
+    h.event(button(to, false, Modifiers::NONE));
+    h.run();
+    let v = view(&h);
+    let unrounded = quad::drag(&start, &start, BoxPart::Corner(2), v.to_doc(from), v.to_doc(to), Modifiers::NONE, &h.state().rules);
+    assert!(near(&state(&h), &unrounded), "the box follows the pointer from the press: {:?}", state(&h));
+    let whole = |p: Point| Point::new(p.x.round(), p.y.round());
+    let want = BoxState { quad: unrounded.quad.map(whole), pivot: whole(unrounded.pivot) };
+    let applied = h.state().rounded.expect("an event");
+    assert!(near(&applied, &want), "{applied:?} != {want:?} {:?}", kinds(&h));
 }

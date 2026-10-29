@@ -26,6 +26,7 @@ struct Host {
     /// The host skips the guides (another tool, guides hidden).
     hidden: bool,
     field: TypingField,
+    modifiers: Option<Modifiers>,
 }
 
 fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
@@ -40,6 +41,7 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
         interactive: true,
         hidden: false,
         field: TypingField::default(),
+        modifiers: None,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -54,7 +56,11 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
             }
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
             let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
-            let response = Guides::new("guides", &host.guides.guides, &px, &px, names)
+            let mut guides = Guides::new("guides", &host.guides.guides, &px, &px, names);
+            if let Some(m) = host.modifiers {
+                guides = guides.modifiers(m);
+            }
+            let response = guides
                 .selected(host.guides.selected)
                 .interactive(host.interactive)
                 .bounds(Rect::new(0.0, 0.0, 400.0, 300.0))
@@ -561,4 +567,18 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit() {
     assert!(matches!(events(&h).first(), Some((Some(1), "begin", _))), "{:?}", events(&h));
     assert!(h.state().field.commit_came_first());
     assert!(near(positions(&h)[0].2, 230.0), "{:?}", positions(&h));
+}
+
+#[test]
+fn modifiers_override_replaces_the_input_modifiers_in_the_guides() {
+    // Shift snaps to ticks counted from x = 5; the override decides, not the keys held.
+    for (input, held, end) in [(Modifiers::NONE, Modifiers::SHIFT, 145.0), (Modifiers::SHIFT, Modifiers::NONE, 143.0)] {
+        let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0)], 0.0);
+        h.state_mut().zero = Point::new(5.0, 0.0);
+        h.state_mut().modifiers = Some(held);
+        h.run();
+        let (from, to) = (screen(&h, Point::new(100.0, 50.0)), screen(&h, Point::new(143.0, 50.0)));
+        drag(&mut h, from, to, input);
+        assert_eq!(last(&h), Some((Some(1), "commit", place(Orientation::Vertical, end))), "input {input:?}, override {held:?}");
+    }
 }

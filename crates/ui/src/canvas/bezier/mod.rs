@@ -127,6 +127,12 @@ pub struct BezierStyle {
     pub click_slop: f32,
     /// Largest distance between a curve and the lines it is drawn with: `bezier.flatten`.
     pub flatten: f32,
+    /// Side of an anchor drawn by [`BezierOverlay::highlight`]: `bezier.close_anchor`.
+    pub highlight_anchor: f32,
+    /// Under a highlighted segment: `overlay.halo`, `handle.halo` wider on each side.
+    pub highlight_halo: f32,
+    /// The colour of [`highlight_halo`](Self::highlight_halo): `overlay.halo`.
+    pub halo: Color32,
 }
 
 impl BezierStyle {
@@ -300,6 +306,8 @@ pub struct BezierOverlay<'a> {
     snap: Option<Snap<'a>>,
     cursor: Option<Cursor<'a>>,
     policy: EditPolicy,
+    modifiers: Option<Modifiers>,
+    highlight: Option<BezierHit>,
 }
 
 impl<'a> BezierOverlay<'a> {
@@ -328,6 +336,8 @@ impl<'a> BezierOverlay<'a> {
             snap: None,
             cursor: None,
             policy: EditPolicy::default(),
+            modifiers: None,
+            highlight: None,
         }
     }
 
@@ -375,6 +385,21 @@ impl<'a> BezierOverlay<'a> {
         self
     }
 
+    /// The modifiers every test of the overlay reads (the press, the drag, the host's snap) in
+    /// place of the input state: a touch host's sticky modifiers, or Ctrl turning snapping off.
+    pub fn modifiers(mut self, modifiers: Modifiers) -> Self {
+        self.modifiers = Some(modifiers);
+        self
+    }
+
+    /// Draws `hit` in the hover look of the Add, Delete and Convert Anchor tools: a ring on a
+    /// segment, an enlarged anchor on a point. The host picks the hit with its own tool logic;
+    /// [`cursor`](Self::cursor) stays for the pointer.
+    pub fn highlight(mut self, hit: Option<BezierHit>) -> Self {
+        self.highlight = hit;
+        self
+    }
+
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -396,6 +421,9 @@ impl<'a> BezierOverlay<'a> {
             hit: b.hit,
             click_slop: b.click_slop,
             flatten: b.flatten,
+            highlight_anchor: b.close_anchor,
+            highlight_halo: tokens.component.handle.halo,
+            halo: tokens.color.overlay.halo.to_egui(),
         }
     }
 
@@ -512,7 +540,7 @@ impl<'a> BezierOverlay<'a> {
         if !self.takes(&hit) || !Claim::take(ctx, pass.canvas.id, pass.id) {
             return None;
         }
-        let mods = ctx.input(|i| i.modifiers);
+        let mods = self.modifiers.unwrap_or_else(|| ctx.input(|i| i.modifiers));
         if Claim::turn(ctx, pass.canvas.id, pass.id) == Turn::Waits {
             return Some(Drag { press, target: Target::Nothing, began: false, cancelled: false, waits: Some(mods) });
         }
@@ -593,7 +621,8 @@ impl<'a> BezierOverlay<'a> {
 
     /// One pass of a press the overlay owns: the press that goes on, if it does.
     fn track(&self, pass: &Pass<'_>, mut d: Drag, gesture: &mut Gesture<PathEdit>) -> Option<Drag> {
-        let (pointer, down, mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let (pointer, down, input_mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let mods = self.modifiers.unwrap_or(input_mods);
         if d.cancelled {
             return down.then_some(d);
         }
@@ -949,6 +978,37 @@ impl<'a> BezierOverlay<'a> {
             for s in &shown {
                 painter.extend(Handle::shapes_with(&control, HandleShape::Rotate, s.at, ppp));
             }
+        }
+        if let Some(hit) = self.highlight {
+            self.paint_highlight(&painter, pass, hit, ppp);
+        }
+    }
+
+    /// The hover look of the Add, Delete and Convert Anchor tools on `hit`.
+    fn paint_highlight(&self, painter: &Painter, pass: &Pass<'_>, hit: BezierHit, ppp: f32) {
+        let (style, view) = (&pass.style, pass.view);
+        let Some(path) = self.paths.iter().find(|p| p.key == hit.path()) else { return };
+        let color = path.color.unwrap_or(style.color);
+        let tolerance = f64::from(style.flatten);
+        let (anchor, _, control) = style.looks(path.color);
+        let (point, shape, base) = match hit {
+            BezierHit::Segment { segment, .. } => {
+                if let Some(c) = path.subpaths.get(segment.subpath).and_then(|sub| sub.segment(segment.knot)) {
+                    let mut seg = BezPath::new();
+                    seg.move_to(c.p0);
+                    seg.curve_to(c.p1, c.p2, c.p3);
+                    let seg = view.affine() * seg;
+                    outline(painter, seg.clone(), tolerance, Stroke::new(style.selected_segment + 2.0 * style.highlight_halo, style.halo));
+                    outline(painter, seg, tolerance, Stroke::new(style.selected_segment, color));
+                }
+                return;
+            }
+            BezierHit::Anchor { knot, .. } => (path.knot(knot).map(|k| k.anchor), HandleShape::Square, anchor),
+            BezierHit::Handle { knot, side, .. } => (path.knot(knot).map(|k| k.handle(side)), HandleShape::Rotate, control),
+        };
+        if let Some(at) = point {
+            let look = HandleStyle { size: style.highlight_anchor, ..base };
+            painter.extend(Handle::shapes_with(&look, shape, view.to_screen(at), ppp));
         }
     }
 
