@@ -11,6 +11,7 @@ use std::ops::RangeInclusive;
 use craft_theme::Srgba;
 
 use super::value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
+use crate::edit::parts::Rebase;
 
 /// Gives the colour, with alpha, of a gradient at a location 0..=1. Draws the ramp and colours
 /// new stops; the default is [`default_sampler`].
@@ -47,11 +48,19 @@ fn clamp_location(location: f32) -> f32 {
 }
 
 /// What the two stop types have in common for the rules.
-trait Stop: Clone {
+pub(crate) trait Stop: Clone + PartialEq {
     fn location(&self) -> f32;
     fn set_location(&mut self, location: f32);
     fn midpoint(&self) -> f32;
     fn set_midpoint(&mut self, midpoint: f32);
+    fn tag(&self) -> u64;
+    /// `self`, made from `base`, with each field it changed applied onto `now`.
+    fn rebase_fields(&self, base: &Self, now: &Self) -> Self;
+}
+
+/// `held`'s field where it differs from `base`'s, else `now`'s.
+fn pick<V: PartialEq + Copy>(held: V, base: V, now: V) -> V {
+    if held == base { now } else { held }
 }
 
 impl Stop for ColorStop {
@@ -67,6 +76,17 @@ impl Stop for ColorStop {
     fn set_midpoint(&mut self, midpoint: f32) {
         self.midpoint = midpoint;
     }
+    fn tag(&self) -> u64 {
+        self.tag
+    }
+    fn rebase_fields(&self, base: &Self, now: &Self) -> Self {
+        ColorStop {
+            location: pick(self.location, base.location, now.location),
+            color: pick(self.color, base.color, now.color),
+            midpoint: pick(self.midpoint, base.midpoint, now.midpoint),
+            tag: pick(self.tag, base.tag, now.tag),
+        }
+    }
 }
 
 impl Stop for OpacityStop {
@@ -81,6 +101,99 @@ impl Stop for OpacityStop {
     }
     fn set_midpoint(&mut self, midpoint: f32) {
         self.midpoint = midpoint;
+    }
+    fn tag(&self) -> u64 {
+        self.tag
+    }
+    fn rebase_fields(&self, base: &Self, now: &Self) -> Self {
+        OpacityStop {
+            location: pick(self.location, base.location, now.location),
+            opacity: pick(self.opacity, base.opacity, now.opacity),
+            midpoint: pick(self.midpoint, base.midpoint, now.midpoint),
+            tag: pick(self.tag, base.tag, now.tag),
+        }
+    }
+}
+
+/// Whether stop `k` of `new` is stop `i` of `old`: both exist and carry the same tag. Edits that
+/// apply onto a gradient another control changed find their stop by this rule (a gradient line's
+/// carried-on drag, a bar's held edit). Stops all have tag 0 unless the host sets tags, so stops
+/// an equal-length reorder swapped can't be told apart; a host that reorders stops from another
+/// control during an edit should tag them.
+pub(crate) fn same_stop<T: Stop>(old: &[T], i: usize, new: &[T], k: usize) -> bool {
+    matches!((old.get(i), new.get(k)), (Some(a), Some(b)) if a.tag() == b.tag())
+}
+
+/// Whether `new` holds `old`'s stops at the same places ([`same_stop`] at each).
+fn same_places<T: Stop>(old: &[T], new: &[T]) -> bool {
+    old.len() == new.len() && (0..old.len()).all(|i| same_stop(old, i, new, i))
+}
+
+/// The stops of `row` but stop `k`.
+fn without<T>(row: &[T], k: usize) -> impl Iterator<Item = &T> {
+    row.iter().enumerate().filter(move |(i, _)| *i != k).map(|(_, s)| s)
+}
+
+/// `held`, a row an edit of one stop made from `base` (a change in place, a move past its
+/// neighbours, an added or a removed stop, as the rules make them), with that edit applied onto
+/// `now`. `None` when `now` doesn't hold `base`'s stops at their places ([`same_stop`]), the
+/// edit isn't one of those, or the row would end out of order.
+fn rebase_row<T: Stop>(held: &[T], base: &[T], now: &[T]) -> Option<Vec<T>> {
+    if held == base {
+        return Some(now.to_vec());
+    }
+    if !same_places(base, now) {
+        return None;
+    }
+    let mut out = now.to_vec();
+    let changed: Vec<usize> = (0..held.len().min(base.len())).filter(|&i| held[i] != base[i]).collect();
+    if held.len() == base.len() {
+        if let [i] = changed[..] {
+            out[i] = held[i].rebase_fields(&base[i], &now[i]);
+        } else {
+            // A stop moved past its neighbours: the others keep their order.
+            let (k, j) = (0..base.len())
+                .flat_map(|k| (0..held.len()).map(move |j| (k, j)))
+                .find(|&(k, j)| k != j && same_stop(base, k, held, j) && without(base, k).eq(without(held, j)))?;
+            let mut stop = held[j].rebase_fields(&base[k], &now[k]);
+            let location = stop.location();
+            stop.set_location(now[k].location());
+            out[k] = stop;
+            relocate(&mut out, k, location);
+        }
+    } else if held.len() == base.len() + 1 {
+        // An added stop resets the midpoint of the segment it splits.
+        let unmoved = |j: usize| {
+            without(held, j).zip(base).enumerate().all(|(i, (h, b))| {
+                let mut h = h.clone();
+                if i + 1 == j {
+                    h.set_midpoint(b.midpoint());
+                }
+                h == *b
+            })
+        };
+        let j = (0..held.len()).find(|&j| unmoved(j))?;
+        insert(&mut out, held[j].clone());
+    } else if held.len() + 1 == base.len() {
+        let k = (0..base.len()).find(|&k| without(base, k).eq(held.iter()))?;
+        out.remove(k);
+    } else {
+        return None;
+    }
+    out.windows(2).all(|w| w[0].location() <= w[1].location()).then_some(out)
+}
+
+/// A bar's held edit applies its change of one stop onto the stops of its turn, row by row
+/// ([`edit::parts`](crate::edit::parts)); `None` when a row can't take it (`rebase_row`). An
+/// implicit opacity row counts as its two stops.
+impl Rebase for GradientStops {
+    fn rebase(self, base: &GradientStops, now: &GradientStops) -> Option<GradientStops> {
+        let color = rebase_row(&self.color, &base.color, &now.color)?;
+        let opacity = match self.opacity == base.opacity {
+            true => now.opacity.clone(),
+            false => rebase_row(&self.opacity, &base.opacity_stops(), &now.opacity_stops())?,
+        };
+        Some(GradientStops { color, opacity })
     }
 }
 
