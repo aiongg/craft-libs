@@ -11,6 +11,15 @@ use serde::{Deserialize, Serialize};
 /// Interface scale limits, in percent.
 pub const SCALE: std::ops::RangeInclusive<u32> = 75..=200;
 
+/// The reduced-motion setting: forced off, forced on, or the OS's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MotionChoice {
+    #[default]
+    Full,
+    Reduced,
+    System,
+}
+
 /// Everything the appearance bar sets.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -22,7 +31,7 @@ pub struct Appearance {
     pub comfortable: bool,
     /// Index into [`TextSize::ALL`].
     pub text_size: usize,
-    pub reduced_motion: bool,
+    pub motion: MotionChoice,
     pub rtl: bool,
     /// Interface scale in percent.
     pub scale: u32,
@@ -43,7 +52,7 @@ impl Default for Appearance {
             contrast: ContrastChoice::Standard,
             comfortable: false,
             text_size: 1,
-            reduced_motion: false,
+            motion: MotionChoice::Full,
             rtl: false,
             scale: 100,
             ui_face: crate::faces::UI_FACES[0].to_owned(),
@@ -79,6 +88,16 @@ impl Appearance {
         }
     }
 
+    /// Whether motion is reduced: the chosen answer, or what the OS reports (not reduced when it
+    /// doesn't) when the choice is System.
+    pub fn reduced_motion(&self, system: SystemAppearance) -> bool {
+        match self.motion {
+            MotionChoice::Full => false,
+            MotionChoice::Reduced => true,
+            MotionChoice::System => system.reduced_motion.unwrap_or(false),
+        }
+    }
+
     pub fn size(&self) -> Size {
         if self.comfortable { Size::Comfortable } else { Size::Compact }
     }
@@ -107,7 +126,7 @@ impl Appearance {
         let selection =
             Selection { theme: ThemePair::same(id), mode: self.mode, contrast: self.contrast, size: self.size(), text_size: self.text_size() };
         let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size() };
-        let system = SystemAppearance { reduced_motion: Some(self.reduced_motion), ..system };
+        let system = SystemAppearance { reduced_motion: Some(self.reduced_motion(system)), ..system };
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 
@@ -132,5 +151,22 @@ impl Appearance {
     pub fn overrides(&self, o: &mut Overrides) {
         o.size = Some(self.size());
         o.theme = builtin(&self.theme).cloned();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_motion_follows_the_reading() {
+        let os = |reduced_motion| SystemAppearance { reduced_motion, ..SystemAppearance::default() };
+        let system = Appearance { motion: MotionChoice::System, ..Appearance::default() };
+        assert!(system.reduced_motion(os(Some(true))));
+        assert!(!system.reduced_motion(os(Some(false))));
+        assert!(!system.reduced_motion(os(None)));
+        let reduced = Appearance { motion: MotionChoice::Reduced, ..Appearance::default() };
+        assert!(reduced.reduced_motion(os(Some(false))));
+        assert!(!Appearance::default().reduced_motion(os(Some(true))));
     }
 }

@@ -17,7 +17,7 @@ use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui};
 
-use crate::appearance::{Appearance, SCALE, builtin};
+use crate::appearance::{Appearance, MotionChoice, SCALE, builtin};
 use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
@@ -186,7 +186,7 @@ impl Gallery {
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
         let system_face = faces::system_face(ctx).is_some();
-        let system = SystemAppearance { reduced_motion: None, ..self.os.read_in(ctx).into() };
+        let system = SystemAppearance::from(self.os.read_in(ctx));
         if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied || system != self.os_applied {
             let previous = self.applied.replace(self.appearance.clone());
             self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied, system);
@@ -233,7 +233,12 @@ impl Gallery {
                 text = text.item(i, text_size_name(*size));
             }
             text.show(ui);
-            let _ = Checkbox::bool("Reduced motion", &mut a.reduced_motion).show(ui);
+            segmented(
+                ui,
+                "Reduced motion",
+                &mut a.motion,
+                [("Off", MotionChoice::Full), ("On", MotionChoice::Reduced), ("System", MotionChoice::System)],
+            );
             segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
             if faces::available() {
                 let ui_shown = faces::shown_ui_face(ui.ctx(), &a.ui_face);
@@ -286,16 +291,7 @@ impl Gallery {
         let filtering = !filter.is_empty();
         let mut rows: Vec<RowInfo<Node>> = Vec::new();
         let mut groups: Vec<Node> = Vec::new();
-        for level in Level::ALL {
-            let mut components: Vec<&'static str> = Vec::new();
-            for story in self.stories.iter().filter(|s| s.level == level && matches(s, &filter)) {
-                if !components.contains(&story.component) {
-                    components.push(story.component);
-                }
-            }
-            if components.is_empty() {
-                continue;
-            }
+        for (level, components) in nav(&self.stories, &filter) {
             let level_open = filtering || open.is_open(&Node::Level(level));
             rows.push(RowInfo::group(Node::Level(level), level_open));
             groups.push(Node::Level(level));
@@ -465,6 +461,24 @@ fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<
     })
 }
 
+/// The navigation's levels in their order, each with the components that have a story matching
+/// `filter` (lowercase), sorted by name ignoring case, whatever the registration order.
+fn nav(stories: &[Story], filter: &str) -> Vec<(Level, Vec<&'static str>)> {
+    Level::ALL
+        .into_iter()
+        .filter_map(|level| {
+            let mut components: Vec<&'static str> = Vec::new();
+            for story in stories.iter().filter(|s| s.level == level && matches(s, filter)) {
+                if !components.contains(&story.component) {
+                    components.push(story.component);
+                }
+            }
+            components.sort_by_cached_key(|c| c.to_lowercase());
+            (!components.is_empty()).then_some((level, components))
+        })
+        .collect()
+}
+
 fn matches(story: &Story, filter: &str) -> bool {
     filter.is_empty() || story.id.contains(filter) || story.component.to_lowercase().contains(filter) || story.name.to_lowercase().contains(filter)
 }
@@ -618,5 +632,25 @@ fn compare_grid(
             }
         });
         ui.add_space(Tokens::of(ui).space.gap.section);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_nav_lists_each_levels_components_alphabetically() {
+        let mut stories = registry();
+        stories.extend(faces::stories());
+        let nav = nav(&stories, "");
+        assert!(!nav.is_empty());
+        for (level, components) in &nav {
+            let keys: Vec<String> = components.iter().map(|c| c.to_lowercase()).collect();
+            assert!(keys.is_sorted(), "{level:?}: {components:?}");
+        }
+        let levels: Vec<Level> = nav.iter().map(|(level, _)| *level).collect();
+        let order: Vec<Level> = Level::ALL.into_iter().filter(|l| levels.contains(l)).collect();
+        assert_eq!(levels, order);
     }
 }
