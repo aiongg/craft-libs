@@ -279,7 +279,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     fn stop_color(&self, stops: &GradientStops, i: usize) -> Srgba {
         let color = stops.color[i].color;
         match self.rules.rows {
-            StopRows::Split => Srgba { a: 1.0, ..color },
+            StopRows::Split | StopRows::ColorOnly => Srgba { a: 1.0, ..color },
             StopRows::Combined => color,
         }
     }

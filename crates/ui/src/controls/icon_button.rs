@@ -212,7 +212,9 @@ pub(crate) fn stories() -> Vec<Story> {
             level: Level::Controls,
             component: "Icon button",
             name: "Plain",
-            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
+            args: || {
+                Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("show tooltip", true).with_bool("badge", false)
+            },
             show: show_plain,
         },
         Story {
@@ -226,21 +228,36 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// A toolbar row of icon buttons; clicks count up.
+/// A toolbar row of icon buttons; clicks count up. A second row is a tool strip whose selected
+/// button the host owns.
 fn show_plain(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let enabled = !args.bool("disabled");
+    let (tooltip, badge) = (args.bool("show tooltip"), args.bool("badge"));
     let state_id = ui.scope_id().with("icon-button-plain-count");
-    let mut count = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
+    let (mut count, mut tool) = ui.data(|d| d.get_temp::<(u32, usize)>(state_id).unwrap_or_default());
     Row::new(Gap::Inline).show(ui, |ui| {
         for (icon, label) in SAMPLES {
-            if ui.add(IconButton::new(icon, label).size(size).enabled(enabled).id_salt(("icon-button-plain", label))).clicked() {
+            let mut button = IconButton::new(icon, label).size(size).enabled(enabled).show_tooltip(tooltip).id_salt(("icon-button-plain", label));
+            if badge {
+                button = button.badge(Srgba::new(0.9, 0.2, 0.2, 1.0));
+            }
+            if ui.add(button).clicked() {
                 count += 1;
             }
         }
     });
-    ui.data_mut(|d| d.insert_temp(state_id, count));
     ui.add(Text::new(format!("Clicked {count} times")).content(Content::Muted));
+    Row::new(Gap::Inline).show(ui, |ui| {
+        for (i, (icon, label)) in SAMPLES.into_iter().enumerate() {
+            let button = IconButton::new(icon, label).size(size).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
+            if ui.add(button.id_salt(("icon-button-tool", label))).clicked() {
+                tool = i;
+            }
+        }
+    });
+    ui.add(Text::new(format!("Selected: {}", SAMPLES[tool].1)).content(Content::Muted));
+    ui.data_mut(|d| d.insert_temp(state_id, (count, tool)));
 }
 
 /// Visibility and lock toggles, one of each on.

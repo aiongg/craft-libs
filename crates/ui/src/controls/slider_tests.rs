@@ -8,7 +8,7 @@ use egui::{
 };
 
 use super::slider::{Scale, Track, bounds};
-use super::{ControlSize, RangeSlider, Slider};
+use super::{ControlSize, RangeSlider, Slider, SliderScale, SliderThumb};
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, GestureId, UndoMarks};
 use crate::primitives::Interactive;
@@ -31,6 +31,10 @@ struct Rig {
     enabled: bool,
     default: Option<f64>,
     wheel_unfocused: bool,
+    kind: SliderScale,
+    marks: Vec<f64>,
+    thumb: SliderThumb,
+    ticks: usize,
     /// The layer's transform: test positions are in the layer's coordinates.
     to_global: TSTransform,
     /// The range slider's thumbs.
@@ -66,6 +70,10 @@ impl Rig {
             enabled: true,
             default: None,
             wheel_unfocused: false,
+            kind: SliderScale::Linear,
+            marks: Vec::new(),
+            thumb: SliderThumb::Round,
+            ticks: 0,
             to_global: TSTransform::IDENTITY,
             thumbs: (Id::NULL, Id::NULL),
             scroll_left: Vec2::ZERO,
@@ -105,8 +113,14 @@ impl Rig {
         ui.ctx().set_transform_layer(ui.layer_id(), self.to_global);
         let style = Slider::style(&Tokens::of(ui), ControlSize::Md);
         let range = self.bounds.0..=self.bounds.1;
-        let scale = Scale::new(&range, self.step);
-        let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone()).enabled(self.enabled).wheel_unfocused(self.wheel_unfocused);
+        let scale = Scale::new(&range, self.step).with_kind(self.kind);
+        let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone())
+            .enabled(self.enabled)
+            .wheel_unfocused(self.wheel_unfocused)
+            .scale(self.kind)
+            .marks(&self.marks)
+            .thumb(self.thumb)
+            .ticks(self.ticks);
         if let Some(default) = self.default {
             slider = slider.default_value(default);
         }
@@ -860,4 +874,140 @@ fn a_drag_the_host_ended_for_another_controls_change_goes_on_with_the_pointer() 
         assert_eq!(rig.range_event, commit(id, (45.0, upper), true));
         assert_eq!((rig.doc.now, rig.doc.undo.len()), (Values { level: 40.0, range: (45.0, upper), other }, 2));
     }
+}
+
+fn md_style() -> super::SliderStyle {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut style = None;
+    let output = ctx.run_ui(RawInput::default(), |ui| style = Some(Slider::style(&Tokens::of(ui), ControlSize::Md)));
+    output.drop_without_applying_deltas();
+    style.expect("the frame ran")
+}
+
+#[test]
+fn a_power_scale_places_the_thumb_and_inverts_for_every_value() {
+    let range = 0.0..=100.0;
+    let scale = Scale::new(&range, None).with_kind(SliderScale::Power(2.0));
+    let track = Track::new(Rect::from_min_size(pos2(10.0, 0.0), vec2(200.0, 24.0)), &md_style(), scale);
+    let (x0, x1) = track.ends();
+    assert!((track.x_of(25.0) - (x0 + x1) / 2.0).abs() < 1e-3, "a quarter of the range is half the track at k = 2");
+    for i in 0..=1000 {
+        let value = f64::from(i) / 10.0;
+        assert!((track.value_at(track.x_of(value)) - value).abs() < 1e-3, "{value}");
+        assert!((scale.at_position(scale.position(value)) - value).abs() < 1e-9, "{value}");
+    }
+    // The pointer moves the thumb along the track: the same movement is a smaller change low down.
+    let low = track.dragged(1.0, track.x_of(1.0), track.x_of(1.0) + 5.0) - 1.0;
+    let high = track.dragged(80.0, track.x_of(80.0), track.x_of(80.0) + 5.0) - 80.0;
+    assert!(0.0 < low && low < high, "{low} {high}");
+
+    // Only the track is curved: keys and Page move the value linearly, as PhotoCraft's steps do.
+    assert_eq!((scale.key_step(), scale.page_step(), scale.moved(10.0, scale.key_step())), (1.0, 10.0, 11.0));
+
+    let mut rig = Rig::new();
+    (rig.step, rig.kind, rig.level) = (None, SliderScale::Power(2.0), 25.0);
+    rig.frame(vec![]);
+    rig.tap(rig.level_at(49.0, 0.0));
+    let Some(EditEvent::Set { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
+    assert!((value - 49.0).abs() < 0.5, "a tap sets the value under the pointer: {value}");
+}
+
+#[test]
+fn a_log_scale_round_trips() {
+    let range = 1.0..=1000.0;
+    let scale = Scale::new(&range, None).with_kind(SliderScale::Log);
+    assert!((scale.position(10.0) - 1.0 / 3.0).abs() < 1e-9);
+    for v in [1.0, 1.5, 10.0, 99.0, 1000.0] {
+        assert!((scale.at_position(scale.position(v)) - v).abs() < 1e-9 * v, "{v}");
+    }
+    // An arrow key is a tenth of a decade of the current value; Page is a tenth of the track.
+    let up = scale.snap(scale.moved(10.0, scale.key_step()));
+    assert!((up / 10.0 - 10f64.powf(0.1)).abs() < 1e-9, "{up}");
+    let page = scale.moved(10.0, scale.page_step());
+    assert!((scale.position(page) - (1.0 / 3.0 + 0.1)).abs() < 1e-9);
+
+    let mut rig = Rig::new();
+    (rig.bounds, rig.step, rig.kind, rig.level) = ((1.0, 1000.0), None, SliderScale::Log, 10.0);
+    rig.frame(vec![]);
+    rig.focus(rig.slider_id);
+    rig.key(Key::ArrowRight);
+    let Some(EditEvent::Set { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
+    assert!((value / 10.0 - 10f64.powf(0.1)).abs() < 1e-9, "{value}");
+}
+
+#[test]
+fn a_drag_near_a_mark_snaps_to_it() {
+    let mut rig = Rig::new();
+    (rig.marks, rig.step, rig.level) = (vec![0.0, 25.0, 50.0], None, 40.0);
+    rig.frame(vec![]);
+    let snap = md_style().snap;
+    let (near, far) = (rig.level_at(50.0, snap - 1.0), rig.level_at(50.0, snap + 3.0));
+    rig.press(rig.level_at(40.0, 0.0));
+    let id = begin(rig.level_event.clone());
+    rig.drag(near);
+    assert_eq!(rig.level_event, update(id, 50.0), "within the snap distance the thumb takes the mark");
+    rig.drag(far);
+    let Some(EditEvent::Update { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
+    assert!(value > 50.0 && value != 50.0, "beyond it the thumb follows the pointer: {value}");
+    rig.release(far);
+    // Grabbed 4 points off its centre, the thumb is within the snap distance of the mark while
+    // the pointer is beyond it: the pointer decides.
+    rig.level = 40.0;
+    rig.frame(vec![]);
+    let grab = 4.0;
+    rig.press(rig.level_at(40.0, grab));
+    let id = begin(rig.level_event.clone());
+    rig.drag(rig.level_at(50.0, snap + 0.5));
+    let Some(EditEvent::Update { value, .. }) = rig.level_event else { panic!("{:?}", rig.level_event) };
+    assert_ne!(value, 50.0, "the pointer is beyond the snap distance although the thumb is within it");
+    rig.drag(rig.level_at(50.0, snap - 1.0));
+    assert_eq!(rig.level_event, update(id, 50.0));
+    rig.release(rig.level_at(50.0, snap - 1.0));
+    rig.tap(rig.level_at(25.0, -2.0));
+    assert_eq!(rig.level_event, set(25.0, Modifiers::NONE), "a click near a mark snaps too");
+}
+
+/// The line segments in `colour` that a frame of the slider paints.
+fn marks_drawn(rig: &mut Rig, colour: egui::Color32) -> usize {
+    let ctx = rig.ctx.clone();
+    let events = vec![Event::ModifiersChanged(rig.modifiers)];
+    let input =
+        RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
+    let output = ctx.run_ui(input, |ui| rig.controls(ui));
+    let count = output.shapes.iter().filter(|c| matches!(&c.shape, egui::Shape::LineSegment { stroke, .. } if stroke.color == colour)).count();
+    output.drop_without_applying_deltas();
+    count
+}
+
+#[test]
+fn ticks_draw_count_plus_one_marks() {
+    let mut rig = Rig::new();
+    let colour = md_style().mark_color;
+    assert_eq!(marks_drawn(&mut rig, colour), 0);
+    rig.ticks = 4;
+    assert_eq!(marks_drawn(&mut rig, colour), 5);
+}
+
+#[test]
+fn triangle_thumb_has_the_round_thumbs_hit_area() {
+    let reach = md_style().thumb / 2.0;
+    let mut outcomes = Vec::new();
+    for thumb in [SliderThumb::Round, SliderThumb::Triangle] {
+        let mut rig = Rig::new();
+        rig.thumb = thumb;
+        rig.frame(vec![]);
+        // Within the thumb's reach a press leaves the value; just beyond it the thumb jumps there.
+        let on = rig.level_at(40.0, reach - 0.5);
+        rig.press(on);
+        rig.frame(vec![]);
+        let held = rig.level_event.as_ref().and_then(EditEvent::value).copied();
+        rig.release(on);
+        let off = rig.level_at(40.0, reach + 6.0);
+        rig.press(off);
+        rig.frame(vec![]);
+        outcomes.push((held, rig.level_event.as_ref().and_then(EditEvent::value).copied()));
+    }
+    assert_eq!(outcomes[0], outcomes[1]);
+    assert!(matches!(outcomes[1], (None | Some(40.0), Some(v)) if v > 40.0), "{outcomes:?}");
 }

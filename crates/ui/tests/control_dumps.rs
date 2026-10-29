@@ -186,11 +186,11 @@ fn slider() {
         for (size, name) in SIZES {
             let s = Slider::style(t, size);
             d.group(&format!("size.{name}"), |d| {
-                d.line("height", s.height).line("width", s.width).line("thumb", s.thumb);
+                d.line("height", s.height).line("width", s.width).line("thumb", s.thumb).line("mark", s.mark);
             });
         }
         let s = Slider::style(t, ControlSize::Md);
-        d.line("track_height", s.track_height);
+        d.line("track_height", s.track_height).line("snap", s.snap).line("mark.color", s.mark_color);
         surface(d, "track", &s.track);
         states(d, "fill", &s.fill);
         surface(d, "thumb.surface", &s.thumb_surface);

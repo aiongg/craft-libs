@@ -39,6 +39,13 @@ pub struct SliderTokens {
     pub ring: States<Rgba>,
     /// Width of the ring: [`values::KNOB_RING`].
     pub ring_width: f32,
+    /// Height of the marks and ticks under the track ([`values::SLIDER_MARK`] at the Compact
+    /// control height, scaled by the control height of the size and rounded to whole points).
+    /// Their colour is `line.divider`. Not overridable.
+    pub mark: BySize<f32>,
+    /// How near a mark a drag has to come for the thumb to snap to it, in points:
+    /// [`values::SLIDER_SNAP`]. Not overridable.
+    pub snap: f32,
 }
 
 /// An overridable slider field. Paths: `radius`, `track`, `fill.<state>`,
@@ -116,6 +123,11 @@ impl Family for SliderTokens {
             thumb_colors: ThumbColors::knob(c),
             ring: States::new(clear, soft, soft, clear),
             ring_width: values::KNOB_RING,
+            mark: BySize {
+                sm: (values::SLIDER_MARK * size.control.sm / values::SLIDER_BASE_CONTROL).round(),
+                md: (values::SLIDER_MARK * size.control.md / values::SLIDER_BASE_CONTROL).round(),
+            },
+            snap: values::SLIDER_SNAP,
         }
     }
 

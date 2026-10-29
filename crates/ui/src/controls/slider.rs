@@ -19,7 +19,7 @@ use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Args, Level, Story};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, scale};
 
 /// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`](super::RangeSlider)
 /// draws with the same.
@@ -51,6 +51,35 @@ pub struct SliderStyle {
     pub ring: States<Color32>,
     /// `slider.ring_width`.
     pub ring_width: f32,
+    /// Height of the marks and ticks under the track: `slider.mark`.
+    pub mark: f32,
+    /// How near a mark a drag snaps the thumb to it, in points: `slider.snap`.
+    pub snap: f32,
+    /// The colour of marks and ticks: `line.divider`.
+    pub mark_color: Color32,
+}
+
+/// How a slider's track maps positions to values.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub enum SliderScale {
+    /// Value and position are proportional.
+    #[default]
+    Linear,
+    /// `value = start + (end - start) * position^k`; `k > 1` spends more track on small values.
+    /// `k` must be a positive number.
+    Power(f64),
+    /// `value = start * (end / start)^position`; the range must be positive.
+    Log,
+}
+
+/// The shape of a slider's thumb.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SliderThumb {
+    /// A knob on the track.
+    #[default]
+    Round,
+    /// A pointer under the track, as the Color panel draws it.
+    Triangle,
 }
 
 /// A value in a range, set by dragging along a track:
@@ -115,20 +144,24 @@ pub struct Slider {
     wheel_unfocused: bool,
     track_colors: Option<Vec<Srgba>>,
     part: bool,
+    scale: SliderScale,
+    marks: Vec<f64>,
+    thumb: SliderThumb,
+    ticks: usize,
 }
 
 impl Slider {
     /// A slider named `label` (its accessible name) showing the host's `value` in `range`;
     /// `id_salt` keeps its gesture, focus and animations when the layout around it changes.
-    /// A reversed range (`100.0..=0.0`) is read in ascending order. Its bounds must be finite: a
+    /// `value` and `range` may be `f32` or `f64`. A reversed range (`100.0..=0.0`) is read in ascending order. Its bounds must be finite: a
     /// bound that isn't is a debug assertion, and in release builds the range shrinks to the
     /// finite bound (or 0).
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: f64, range: RangeInclusive<f64>) -> Self {
+    pub fn new<V: Into<f64> + Copy>(id_salt: impl AsIdSalt, label: impl Into<String>, value: V, range: RangeInclusive<V>) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
-            value,
-            range,
+            value: value.into(),
+            range: (*range.start()).into()..=(*range.end()).into(),
             step: None,
             policy: EditPolicy::default(),
             size: ControlSize::Md,
@@ -137,13 +170,17 @@ impl Slider {
             wheel_unfocused: false,
             track_colors: None,
             part: false,
+            scale: SliderScale::Linear,
+            marks: Vec::new(),
+            thumb: SliderThumb::Round,
+            ticks: 0,
         }
     }
 
     /// The step values snap to, and one arrow key's change. Without one the value is continuous
     /// and a key moves a hundredth of the range.
-    pub fn step(mut self, step: f64) -> Self {
-        self.step = Some(step);
+    pub fn step(mut self, step: impl Into<f64>) -> Self {
+        self.step = Some(step.into());
         self
     }
 
@@ -168,8 +205,8 @@ impl Slider {
     /// ignored). The first click of the double-click has already moved the thumb, so the reset
     /// ends the same gesture or is its own [`Set`](crate::edit::EditEvent::Set). A screen reader
     /// resets through its set-value request as ever.
-    pub fn default_value(mut self, value: f64) -> Self {
-        self.default = Some(value);
+    pub fn default_value(mut self, value: impl Into<f64>) -> Self {
+        self.default = Some(value.into());
         self
     }
 
@@ -200,11 +237,43 @@ impl Slider {
         self
     }
 
+    /// How the track maps positions to values (default [`SliderScale::Linear`]). With a
+    /// Only the track maps through a power curve: keys, the wheel and steps stay linear in the
+    /// value, as in PhotoCraft. A log slider without a [`step`](Slider::step) moves an arrow
+    /// key by a tenth of a decade of the value and Page by a tenth of the track. A scale that doesn't fit the range (a log scale over
+    /// a range that isn't positive, a power that isn't a positive number) is a debug assertion
+    /// and in release builds the track stays linear.
+    pub fn scale(mut self, scale: SliderScale) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Values the thumb snaps to when a drag or a click brings it within `slider.snap` points,
+    /// drawn as marks under the track. A mark outside the range is ignored. Keys, the wheel and
+    /// screen readers use the step only, so with a step the marks should lie on it.
+    pub fn marks(mut self, marks: &[f64]) -> Self {
+        self.marks = marks.iter().copied().filter(|m| m.is_finite()).collect();
+        self
+    }
+
+    /// The thumb's shape; [`SliderThumb::Triangle`] has the round thumb's fill, border and hit
+    /// area, is `slider.thumb` wide and points up at the track from below.
+    pub fn thumb(mut self, thumb: SliderThumb) -> Self {
+        self.thumb = thumb;
+        self
+    }
+
+    /// `count + 1` evenly spaced tick marks along the track, without snapping (none for 0).
+    pub fn ticks(mut self, count: usize) -> Self {
+        self.ticks = count;
+        self
+    }
+
     /// Shows the slider and returns this frame's edit event. The response covers the control.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
         let tokens = Tokens::of(ui);
         let style = Slider::style(&tokens, self.size);
-        let scale = Scale::new(&self.range, self.step);
+        let scale = Scale::new(&self.range, self.step).with_kind(self.scale);
         let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
@@ -213,6 +282,7 @@ impl Slider {
         let response = sensed.response().clone();
         let track = Track::new(response.rect, &style, scale);
         let sensing = Sensing::of(&response);
+        let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, x, track.dragged(start, origin, x));
 
         let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER).enabled(sensing.enabled);
         let tapped = tap(ui, &response);
@@ -223,7 +293,7 @@ impl Slider {
         {
             gesture.begin();
             if let Some(anchor) = gesture.anchor().copied() {
-                gesture.update(track.dragged(scale.place(anchor), at.x, at.x), ui.input(|i| i.modifiers));
+                gesture.update(dragged_to(scale.place(anchor), at.x, at.x), ui.input(|i| i.modifiers));
             }
             if !response.dragged_by(PointerButton::Primary) {
                 gesture.commit();
@@ -240,7 +310,7 @@ impl Slider {
             && let Some(anchor) = gesture.anchor().copied()
             && let Some((pos, origin)) = pointer(ui, &response)
         {
-            gesture.update(track.dragged(scale.place(anchor), origin.x, pos.x), ui.input(|i| i.modifiers));
+            gesture.update(dragged_to(scale.place(anchor), origin.x, pos.x), ui.input(|i| i.modifiers));
         }
         // The one-shot inputs, each an operation applied to the value the ones before it left.
         let mut ops = Vec::new();
@@ -262,7 +332,7 @@ impl Slider {
             response.request_focus();
             if double.is_none() && !waits {
                 let shown = scale.place(*gesture.shown());
-                set(&mut gesture, ScalarOp::Set(track.dragged(shown, at.x, at.x)));
+                set(&mut gesture, ScalarOp::Set(dragged_to(shown, at.x, at.x)));
             }
         }
         // Taken during a drag too, which it doesn't change, as the arrows are.
@@ -285,9 +355,9 @@ impl Slider {
         let shown = scale.place(*gesture.shown());
         // A value that isn't finite is drawn at the start but reported as mixed, with no value.
         let response = if gesture.shown().is_finite() {
-            sensed.numeric(shown, scale.min..=scale.max, scale.key_step()).finish(ui)
+            sensed.numeric(shown, scale.min..=scale.max, scale.reported_step()).finish(ui)
         } else {
-            sensed.numeric_mixed(scale.min..=scale.max, scale.key_step()).finish(ui)
+            sensed.numeric_mixed(scale.min..=scale.max, scale.reported_step()).finish(ui)
         };
         if ui.is_rect_visible(response.rect) {
             let color = |states: &States<Color32>| StateLayer::color(ui, states, &response);
@@ -301,7 +371,11 @@ impl Slider {
             }
             let paint =
                 ThumbPaint { fill: color(&style.thumb_fill), border: color(&style.thumb_border), ring: color(&style.ring), enabled: sensing.enabled };
-            paint_thumb(ui, &style, pos2(x, track.y), paint);
+            paint_marks(ui, &style, &track, &self.marks, self.ticks);
+            match self.thumb {
+                SliderThumb::Round => _ = paint_thumb(ui, &style, pos2(x, track.y), paint),
+                SliderThumb::Triangle => paint_pointer(ui, &style, &track, x, paint),
+            }
         }
         EditResponse::new(response, gesture.finish())
     }
@@ -327,6 +401,9 @@ impl Slider {
             thumb_border: s.thumb_colors.border.to_egui(),
             ring: s.ring.to_egui(),
             ring_width: s.ring_width,
+            mark: s.mark.get(size),
+            snap: s.snap,
+            mark_color: tokens.color.line.divider.to_egui(),
         }
     }
 }
@@ -340,6 +417,7 @@ pub(crate) struct Scale {
     pub min: f64,
     pub max: f64,
     step: Option<f64>,
+    kind: SliderScale,
 }
 
 impl Scale {
@@ -349,7 +427,24 @@ impl Scale {
         let (a, b) = (*range.start(), *range.end());
         debug_assert!(a.is_finite() && b.is_finite(), "a slider's range needs finite bounds, not {a}..={b}");
         let (min, max) = bounds(a, b);
-        Self { min, max, step: step.filter(|s| s.is_finite() && *s > 0.0) }
+        Self { min, max, step: step.filter(|s| s.is_finite() && *s > 0.0), kind: SliderScale::Linear }
+    }
+
+    /// The same range read through `kind`; one that doesn't fit the range debug-asserts and
+    /// stays linear.
+    pub fn with_kind(mut self, kind: SliderScale) -> Self {
+        let fits = match kind {
+            SliderScale::Linear => true,
+            SliderScale::Power(k) => k.is_finite() && k > 0.0,
+            SliderScale::Log => self.min > 0.0 && self.max > self.min,
+        };
+        debug_assert!(fits, "a slider's {kind:?} scale doesn't fit {}..={}", self.min, self.max);
+        self.kind = if fits { kind } else { SliderScale::Linear };
+        self
+    }
+
+    fn linear(&self) -> bool {
+        self.kind == SliderScale::Linear
     }
 
     fn span(&self) -> f64 {
@@ -358,7 +453,31 @@ impl Scale {
 
     /// Where `value` lies from the start (0) to the end (1).
     fn fraction(&self, value: f64) -> f32 {
-        if self.span() > 0.0 { ((value - self.min) / self.span()).clamp(0.0, 1.0) as f32 } else { 0.0 }
+        self.position(value) as f32
+    }
+
+    /// Where `value` lies on the track, from the start (0) to the end (1).
+    pub fn position(&self, value: f64) -> f64 {
+        if self.span() <= 0.0 {
+            return 0.0;
+        }
+        let linear = ((value - self.min) / self.span()).clamp(0.0, 1.0);
+        match self.kind {
+            SliderScale::Linear => linear,
+            SliderScale::Power(k) => linear.powf(1.0 / k),
+            SliderScale::Log => ((value.max(self.min) / self.min).ln() / (self.max / self.min).ln()).clamp(0.0, 1.0),
+        }
+    }
+
+    /// The value at `position` on the track (0 to 1), unsnapped: the inverse of
+    /// [`position`](Scale::position).
+    pub fn at_position(&self, position: f64) -> f64 {
+        let t = position.clamp(0.0, 1.0);
+        match self.kind {
+            SliderScale::Linear => self.min + t * self.span(),
+            SliderScale::Power(k) => self.min + t.powf(k) * self.span(),
+            SliderScale::Log => self.min * (self.max / self.min).powf(t),
+        }
     }
 
     /// Where `value` is drawn: in the range, and at the start when it isn't a finite number.
@@ -384,7 +503,9 @@ impl Scale {
     /// `value` in the direction of the move, so a value between stops (or the range's end off the
     /// step grid) goes to the next stop first. Unsnapped and unclamped.
     pub fn moved(&self, value: f64, delta: f64) -> f64 {
-        let Some(step) = self.step else { return value + delta };
+        let Some(step) = self.step else {
+            return if self.kind == SliderScale::Log { self.at_position(self.position(value) + delta) } else { value + delta };
+        };
         let at = (value - self.min) / step;
         let steps = (delta / step).round();
         let from = if on_stop(at) {
@@ -397,17 +518,30 @@ impl Scale {
         self.min + (from + steps) * step
     }
 
-    /// One arrow key's change: the step, or a hundredth of the range.
+    /// One arrow key's change: the step, or a hundredth of the range. On a log scale without a
+    /// step it is a change of position (a tenth of a decade of the value), and
+    /// [`moved`](Scale::moved) takes it so.
     pub fn key_step(&self) -> f64 {
+        match (self.step, self.kind) {
+            (Some(step), _) => step,
+            (None, SliderScale::Linear | SliderScale::Power(_)) => self.span() / 100.0,
+            (None, SliderScale::Log) => 0.1 / (self.max / self.min).log10(),
+        }
+    }
+
+    /// The step AccessKit reports: a change of value.
+    pub fn reported_step(&self) -> f64 {
         self.step.unwrap_or(self.span() / 100.0)
     }
 
-    /// One Page key's change: a tenth of the range, in whole steps when there is a step.
+    /// One Page key's change: a tenth of the range, in whole steps when there is a step; on a
+    /// log scale without a step, a tenth of the track.
     pub fn page_step(&self) -> f64 {
         let page = self.span() / 10.0;
-        match self.step {
-            Some(step) => (page / step).round().max(1.0) * step,
-            None => page,
+        match (self.step, self.kind) {
+            (Some(step), _) => (page / step).round().max(1.0) * step,
+            (None, SliderScale::Linear | SliderScale::Power(_)) => page,
+            (None, SliderScale::Log) => 0.1,
         }
     }
 }
@@ -465,12 +599,35 @@ impl Track {
     /// The value whose thumb centre is at `x`, unsnapped.
     pub fn value_at(&self, x: f32) -> f64 {
         let t = if self.x1 > self.x0 { ((x - self.x0) / (self.x1 - self.x0)).clamp(0.0, 1.0) } else { 0.0 };
-        self.scale.min + f64::from(t) * self.scale.span()
+        self.scale.at_position(f64::from(t))
     }
 
     /// The change of value a pointer movement of `dx` points makes.
     pub fn value_per(&self, dx: f32) -> f64 {
         if self.x1 > self.x0 { f64::from(dx / (self.x1 - self.x0)) * self.scale.span() } else { 0.0 }
+    }
+
+    /// The value of the thumb at `start` moved by the pointer's movement of `dx` points,
+    /// unsnapped: along the track, so on a power or log scale the change depends on where the
+    /// thumb is.
+    fn moved_by(&self, start: f64, dx: f32) -> f64 {
+        if self.scale.linear() {
+            return start + self.value_per(dx);
+        }
+        let len = f64::from(self.x1 - self.x0);
+        if len > 0.0 { self.scale.at_position(self.scale.position(start) + f64::from(dx) / len) } else { start }
+    }
+
+    /// `value`, or the mark whose thumb position is within `snap` points of the pointer at `x`.
+    pub fn snap_to_marks(&self, marks: &[f64], snap: f32, x: f32, value: f64) -> f64 {
+        marks
+            .iter()
+            .copied()
+            .filter(|m| (self.scale.min..=self.scale.max).contains(m))
+            .map(|m| (m, (self.x_of(m) - x).abs()))
+            .filter(|(_, d)| *d <= snap)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map_or(value, |(m, _)| m)
     }
 
     /// Whether a press at `x` is on the thumb at `value`.
@@ -488,7 +645,7 @@ impl Track {
         } else if x == origin {
             start
         } else {
-            self.scale.snap(start + self.value_per(x - origin))
+            self.scale.snap(self.moved_by(start, x - origin))
         }
     }
 
@@ -761,6 +918,33 @@ pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, paint: Thu
 
 /// A knob surface (a slider or switch thumb) with these colours; a bevel keeps its own. A
 /// disabled knob lies flat, so it never stands out more than an enabled one.
+/// The marks (at the values) and `ticks` (`count + 1` evenly spaced along the track) under it.
+fn paint_marks(ui: &Ui, style: &SliderStyle, track: &Track, marks: &[f64], ticks: usize) {
+    let (x0, x1) = track.ends();
+    let ticks = (ticks > 0).then(|| (0..=ticks).map(move |i| egui::lerp(x0..=x1, i as f32 / ticks as f32)));
+    let marks = marks.iter().filter(|m| (track.scale.min..=track.scale.max).contains(m)).map(|m| track.x_of(*m));
+    // PhotoCraft leaves a gap as long as the mark (3 points there) under the track.
+    let top = track.bar(ui.pixels_per_point()).bottom() + style.mark;
+    let stroke = scale::Stroke::Hairline.egui(ui.ctx(), style.mark_color);
+    for x in ticks.into_iter().flatten().chain(marks) {
+        ui.painter().line_segment([pos2(x, top), pos2(x, top + style.mark)], stroke);
+    }
+}
+
+/// The triangle thumb: the round thumb's fill and border, a pointer under the track.
+fn paint_pointer(ui: &Ui, style: &SliderStyle, track: &Track, x: f32, paint: ThumbPaint) {
+    let (half, top) = (style.thumb / 2.0, track.bar(ui.pixels_per_point()).bottom());
+    let points = vec![pos2(x, top), pos2(x + half, top + half), pos2(x - half, top + half)];
+    let width = match style.thumb_surface.edge {
+        SurfaceEdge::Border(stroke) => stroke.width,
+        _ => scale::Stroke::Hairline.egui(ui.ctx(), paint.border).width,
+    };
+    if paint.ring != Color32::TRANSPARENT {
+        ui.painter().add(egui::Shape::closed_line(points.clone(), Stroke::new(2.0 * style.ring_width + width, paint.ring)));
+    }
+    ui.painter().add(egui::Shape::convex_polygon(points, paint.fill, Stroke::new(width, paint.border)));
+}
+
 pub(super) fn knob(mut surface: SurfaceStyle, fill: Color32, border: Color32, enabled: bool) -> SurfaceStyle {
     surface.fill = fill;
     if let SurfaceEdge::Border(stroke) = surface.edge {
@@ -857,15 +1041,34 @@ fn slider_row_with(ui: &mut Ui, args: &Args, salt: &str, label: &str, value: &mu
 
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut Args) {
-    with_values(ui, "slider-values", [0.0, 50.0, 100.0], |ui, values| {
+    with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(values.iter_mut()).enumerate() {
+            let (minimum_to_maximum, shaped) = values.split_at_mut(3);
+            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
                 let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
                 slider_row_with(ui, args, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel);
                     if default { slider.default_value(50.0) } else { slider }
                 });
             }
+            let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+            let [power, log, marked, triangle] = shaped else { return };
+            labelled(ui, "Power 2", &format!("{power:.1}"), |ui| {
+                let slider = Slider::new("slider-power", "Power 2", *power, 0.0..=100.0).scale(SliderScale::Power(2.0));
+                store(&slider.size(size).enabled(enabled).show(ui), power);
+            });
+            labelled(ui, "Log", &format!("{log:.1}"), |ui| {
+                let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
+                store(&slider.size(size).enabled(enabled).show(ui), log);
+            });
+            labelled(ui, "Marks", &format!("{marked:.1}"), |ui| {
+                let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
+                store(&slider.size(size).enabled(enabled).show(ui), marked);
+            });
+            labelled(ui, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
+                let slider = Slider::new("slider-triangle", "Triangle", *triangle, 0.0..=100.0).thumb(SliderThumb::Triangle).ticks(10);
+                store(&slider.size(size).enabled(enabled).show(ui), triangle);
+            });
         });
     });
 }

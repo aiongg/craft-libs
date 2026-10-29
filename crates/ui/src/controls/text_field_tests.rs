@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use egui::{Context, Event, EventFilter, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, vec2};
+use egui::{Context, Event, EventFilter, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, ViewportCommand, vec2};
 
 use super::{SearchField, TextField};
 use crate::behavior::{Typing, TypingLook};
@@ -44,6 +44,15 @@ struct Rig {
     ended: Option<EditEvent<()>>,
     /// The keys pressed that were still in the input after the field.
     keys_after: Vec<Key>,
+    edit_menu: bool,
+    multiline: Option<usize>,
+    /// The AccessKit nodes of the last frame with a label: label, rect, disabled.
+    nodes: Vec<(String, Rect, bool)>,
+    /// The field's AccessKit role in the last frame.
+    role: Option<egui::accesskit::Role>,
+    /// What the last frame sent to the window and the clipboard.
+    commands: Vec<ViewportCommand>,
+    copied: Vec<String>,
 }
 
 impl Rig {
@@ -92,6 +101,12 @@ impl Rig {
             host: GestureHost::new(),
             ended: None,
             keys_after: Vec::new(),
+            edit_menu: true,
+            multiline: None,
+            nodes: Vec::new(),
+            role: None,
+            commands: Vec::new(),
+            copied: Vec::new(),
         };
         rig.frame(vec![]);
         rig
@@ -116,9 +131,26 @@ impl Rig {
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| self.controls(ui));
         let update = output.platform_output.accesskit_update.clone();
+        self.copied = output
+            .platform_output
+            .commands
+            .iter()
+            .filter_map(|c| if let egui::OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None })
+            .collect();
+        self.commands = output.viewport_output.values().flat_map(|v| v.commands.iter().cloned()).collect();
         output.drop_without_applying_deltas();
         if let Some(update) = update {
             let id = self.id.accesskit_id();
+            self.role = update.nodes.iter().find(|(n, _)| *n == id).map(|(_, node)| node.role());
+            self.nodes = update
+                .nodes
+                .iter()
+                .filter_map(|(_, node)| {
+                    let b = node.bounds()?;
+                    let rect = Rect::from_min_max(Pos2::new(b.x0 as f32, b.y0 as f32), Pos2::new(b.x1 as f32, b.y1 as f32));
+                    Some((node.label()?.to_owned(), rect, node.is_disabled()))
+                })
+                .collect();
             self.shown = update.nodes.iter().find(|(n, _)| *n == id).and_then(|(_, node)| node.value().map(str::to_owned));
             self.clear = update.nodes.iter().find(|(_, node)| node.label() == Some("Clear")).and_then(|(n, node)| {
                 let b = node.bounds()?;
@@ -137,7 +169,16 @@ impl Rig {
                     .keep_focus(self.keep_focus)
                     .show(ui)
             } else {
-                TextField::new("rig-field", "Name", &self.value).policy(self.policy).enabled(self.enabled).keep_focus(self.keep_focus).show(ui)
+                let field = TextField::new("rig-field", "Name", &self.value)
+                    .policy(self.policy)
+                    .enabled(self.enabled)
+                    .keep_focus(self.keep_focus)
+                    .edit_menu(self.edit_menu);
+                match self.multiline {
+                    Some(rows) => field.multiline(rows),
+                    None => field,
+                }
+                .show(ui)
             };
             (self.id, self.rect) = (edit.response.id, edit.response.rect);
             (self.submitted, self.escaped) = (edit.submitted, edit.escaped);
@@ -195,6 +236,35 @@ impl Rig {
         self.ctx.memory_mut(|m| m.request_focus(self.id));
         self.frame(vec![]);
         self.key(Key::End);
+    }
+
+    /// A secondary click at `pos`.
+    fn secondary_click(&mut self, pos: Pos2) {
+        let button = |pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![button(true)]);
+        self.frame(vec![button(false)]);
+        // The menu is measured in the pass that opens it and placed in the next.
+        self.frame(vec![]);
+        self.frame(vec![]);
+    }
+
+    fn menu_open(&self) -> bool {
+        crate::behavior::edit_menu::is_open(&self.ctx, self.id)
+    }
+
+    /// The menu row labelled `label`: its rect and whether it is disabled.
+    fn row(&self, label: &str) -> Option<(Rect, bool)> {
+        self.nodes.iter().find(|(l, ..)| l == label).map(|(_, rect, disabled)| (*rect, *disabled))
+    }
+
+    /// Clicks the menu row `label`.
+    fn choose(&mut self, label: &str) {
+        let (rect, disabled) = self.row(label).unwrap_or_else(|| panic!("a {label} row"));
+        assert!(!disabled, "{label} is enabled");
+        self.frame(vec![Event::PointerMoved(rect.center())]);
+        self.click(rect.center());
+        self.frame(vec![]);
     }
 
     fn has_focus(&self) -> bool {
@@ -742,4 +812,158 @@ mod ime {
         assert_eq!(rig.ended, Some(EditEvent::Commit { id, value: (), changed: true, modifiers: Modifiers::NONE }));
         assert_eq!((rig.doc.text.as_str(), rig.doc.undo.len()), ("a", 1));
     }
+}
+
+#[test]
+fn the_edit_menu_opens_on_a_secondary_press_and_keeps_the_focus() {
+    let mut rig = Rig::new("hello");
+    rig.secondary_click(rig.rect.center());
+    assert!(rig.menu_open() && rig.has_focus(), "a secondary click opens the menu on the focused field");
+    for label in ["Undo", "Cut", "Copy", "Paste", "Delete", "Select All"] {
+        assert!(rig.row(label).is_some(), "{label} is in the menu");
+    }
+    // A click in the menu is no click away from the field: its run is not committed.
+    rig.type_text("!");
+    let run = rig.event.clone();
+    assert!(matches!(run, Some(EditEvent::Begin { .. })));
+    rig.choose("Select All");
+    assert!(!rig.menu_open() && rig.has_focus(), "choosing closes the menu and the field keeps the focus");
+    assert_eq!(rig.cursor(), (0, 6), "Select All sent Cmd/Ctrl+A to the field");
+
+    // Esc closes only the menu: the field neither leaves nor reports it.
+    rig.secondary_click(rig.rect.center());
+    assert!(rig.menu_open());
+    rig.key(Key::Escape);
+    assert!(!rig.escaped, "Esc is not the field's");
+    rig.frame(vec![]);
+    assert!(!rig.menu_open(), "Esc closes the menu");
+    assert!(rig.has_focus(), "and has the focus after it");
+}
+
+#[test]
+fn a_command_is_the_input_the_shortcut_sends() {
+    let mut rig = Rig::new("hello");
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Select All");
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Cut");
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "", "Cut removes the selection");
+    assert!(rig.copied.is_empty() || rig.copied == ["hello"]);
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Undo");
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "hello", "Undo is the field's own");
+}
+
+#[test]
+fn cut_and_copy_are_disabled_without_a_selection() {
+    let mut rig = Rig::new("hello");
+    rig.secondary_click(rig.rect.right_center() - vec2(2.0, 0.0));
+    for label in ["Cut", "Copy", "Delete"] {
+        assert_eq!(rig.row(label).map(|(_, disabled)| disabled), Some(true), "{label} needs a selection");
+    }
+    for label in ["Undo", "Paste", "Select All"] {
+        assert_eq!(rig.row(label).map(|(_, disabled)| disabled), Some(false), "{label} does not");
+    }
+    rig.key(Key::Escape);
+    rig.focus();
+    rig.chord(Modifiers::COMMAND, Key::A);
+    // A secondary press inside the selection keeps it.
+    rig.secondary_click(rig.rect.center());
+    assert_eq!(rig.cursor(), (0, 5));
+    for label in ["Cut", "Copy", "Delete"] {
+        assert_eq!(rig.row(label).map(|(_, disabled)| disabled), Some(false), "{label} acts on the selection");
+    }
+    rig.choose("Copy");
+    assert_eq!(rig.copied, ["hello"]);
+}
+
+#[test]
+fn paste_sends_one_paste_event_to_the_focused_field() {
+    let mut rig = Rig::new("ab");
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Paste");
+    let mut asked = rig.commands.iter().filter(|c| matches!(c, ViewportCommand::RequestPaste)).count();
+    rig.frame(vec![]);
+    asked += rig.commands.iter().filter(|c| matches!(c, ViewportCommand::RequestPaste)).count();
+    assert_eq!(asked, 1, "the window is asked for the clipboard once");
+    assert!(rig.has_focus());
+    rig.frame(vec![Event::Paste("xy".to_owned())]);
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "abxy");
+}
+
+#[test]
+fn edit_menu_false_leaves_the_press_to_the_host() {
+    let mut rig = Rig::new("hello");
+    rig.edit_menu = false;
+    rig.secondary_click(rig.rect.center());
+    assert!(!rig.menu_open() && rig.row("Cut").is_none());
+    rig.chord(Modifiers::SHIFT, Key::F10);
+    assert!(!rig.menu_open());
+}
+
+#[test]
+fn the_menu_key_opens_the_menu_of_the_focused_field() {
+    let mut rig = Rig::new("hello");
+    rig.focus();
+    rig.key(Key::Menu);
+    rig.frame(vec![]);
+    assert!(rig.menu_open() && rig.has_focus());
+}
+
+#[test]
+fn multiline_enter_inserts_a_break_and_ctrl_enter_submits() {
+    let mut rig = Rig::new("ab");
+    rig.multiline = Some(3);
+    rig.frame(vec![]);
+    rig.focus();
+    rig.key(Key::Enter);
+    rig.type_text("c");
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "ab\nc", "Enter inserts a line break");
+    assert!(!rig.submitted && rig.has_focus());
+    rig.chord(Modifiers::COMMAND, Key::Enter);
+    assert!(rig.submitted && !rig.has_focus(), "Cmd/Ctrl+Enter submits and leaves");
+    assert_eq!(rig.value, "ab\nc", "and inserts nothing");
+    assert!(matches!(rig.event, Some(EditEvent::Commit { .. })));
+    // Tab leaves a multi-line field too.
+    rig.focus();
+    rig.key(Key::Tab);
+    assert!(!rig.has_focus());
+}
+
+#[test]
+fn a_multiline_field_is_taller_by_a_line_a_row_and_is_a_multiline_text_input() {
+    let mut rig = Rig::new("ab");
+    let one = rig.rect.height();
+    assert_eq!(rig.role, Some(egui::accesskit::Role::TextInput));
+    rig.multiline = Some(4);
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    assert_eq!(rig.role, Some(egui::accesskit::Role::MultilineTextInput));
+    assert!(rig.rect.height() > one * 2.0, "{} against {one}", rig.rect.height());
+    rig.multiline = Some(1);
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    assert_eq!(rig.rect.height(), one, "one row is a line's height");
+}
+
+#[test]
+fn installed_labels_name_the_menu_rows() {
+    let mut rig = Rig::new("hello");
+    crate::behavior::EditMenu::install(
+        &rig.ctx,
+        crate::behavior::EditMenuLabels {
+            undo: "Widerrufen".into(),
+            cut: "Ausschneiden".into(),
+            copy: "Kopieren".into(),
+            paste: "Einfügen".into(),
+            delete: "Löschen".into(),
+            select_all: "Alles auswählen".into(),
+        },
+    );
+    rig.secondary_click(rig.rect.center());
+    assert!(rig.row("Alles auswählen").is_some() && rig.row("Select All").is_none());
 }

@@ -22,7 +22,7 @@ use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::theme::{Tokens, TokensOf};
-pub use full::ColorWarning;
+pub use full::{ColorWarning, ColorWarningChip};
 
 mod full;
 
@@ -170,7 +170,7 @@ pub(super) mod texts {
     pub(crate) const HEX_COLOUR: &str = "Hex colour";
     /// The model switch's accessible name; `{model}` is the model's translated name.
     pub(crate) const COLOUR_MODEL: &str = "Colour model: {model}";
-    pub(crate) const NOT_HEX: &str = "Not a hex colour";
+    pub(crate) const NOT_HEX: &str = super::hex::NOT_HEX;
     /// A percentage in a field; `{n}` is the number.
     pub(crate) const PERCENT: &str = "{n}%";
     pub(crate) const FIELD_SHOWS: &str = "Field shows";
@@ -568,12 +568,19 @@ impl<'a> ColorPicker<'a> {
 
     /// The hex field, `width` wide.
     fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) {
-        let codec = HexCodec { alpha: self.alpha, reason: translate(texts::NOT_HEX) };
+        let codec = HexCodec { alpha: self.alpha, digits: 2, reason: translate(texts::NOT_HEX) };
         let label = translate(texts::HEX_COLOUR);
         let color = parts.value().color.to_rgba();
         let field = ui
             .allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
-                hex::show(ui, hex::hex_id(id), &label, color, codec, EditPolicy::default().cancellable(self.policy.cancellable), enabled)
+                hex::show(
+                    ui,
+                    hex::hex_id(id),
+                    &label,
+                    color,
+                    codec,
+                    hex::Options::picker(EditPolicy::default().cancellable(self.policy.cancellable), enabled),
+                )
             })
             .inner;
         let constrain = parts.constrain;

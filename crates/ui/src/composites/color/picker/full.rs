@@ -3,7 +3,9 @@
 use craft_theme::{ColorModel, ControlSize, HsbModel, OklchModel, RgbModel, Srgba, TypeRole};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{Align, Color32, CornerRadius, CursorIcon, Id, Layout, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
+use egui::{
+    Align, AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Layout, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, vec2,
+};
 
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
@@ -28,6 +30,11 @@ impl ColorWarning {
     /// A warning that says `tip` (translated: "Out of gamut for printing") and offers `nearest`.
     pub fn new(tip: impl Into<String>, nearest: Srgba) -> Self {
         Self { tip: tip.into(), nearest, icon: Icon::Warning }
+    }
+
+    /// The colour that passes, nearest the warned one: what a click on the warning sets.
+    pub fn nearest(&self) -> Srgba {
+        self.nearest
     }
 
     /// The icon over the chip; `warning` by default.
@@ -128,7 +135,7 @@ impl ColorPicker<'_> {
                         }
                         Stack::new(Gap::Stack).show(ui, |ui| {
                             for (i, warning) in self.warnings.iter().enumerate() {
-                                show_warning(ui, &tokens, i, warning, inner.enabled, parts);
+                                show_warning(ui, i, warning, inner.enabled, parts);
                             }
                         });
                     });
@@ -312,35 +319,86 @@ fn fill(shapes: &mut Vec<Shape>, swatch: &SwatchStyle, rect: Rect, color: Srgba)
     shapes.push(Shape::rect_filled(rect, CornerRadius::ZERO, color.to_egui()));
 }
 
-/// A warning: its icon over a chip of its colour, one button; a click sets the colour.
-fn show_warning(ui: &mut Ui, tokens: &UiTokens, index: usize, warning: &ColorWarning, enabled: bool, parts: &mut Parts<'_>) {
-    let t = &tokens.component.color_picker;
-    let gap = Gap::Inline.points(tokens);
-    let size = vec2(t.warning_icon.max(t.warning_chip), t.warning_icon + gap + t.warning_chip);
-    let response = Interactive::new(("warning", index), Role::Button, warning.tip.as_str())
-        .value(Swatch::hex(warning.nearest.to_rgba()))
-        .state_layer(false)
-        .enabled(enabled)
-        .show(ui, size);
-    if ui.is_rect_visible(response.rect) {
-        let rect = response.rect;
-        let icon = Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + t.warning_icon / 2.0), Vec2::splat(t.warning_icon));
-        let color = Content::Normal.color(tokens).to_egui();
-        let color = if enabled { color } else { color.gamma_multiply(0.5) };
-        icons::paint_in(ui, icon, warning.icon, icons::active(ui.ctx()), t.warning_icon, IconSize::Sm.stroke(), color);
-        let chip = Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - t.warning_chip / 2.0), Vec2::splat(t.warning_chip));
-        let swatch = Swatch::style(tokens, ControlSize::Md);
-        let mut shapes = Vec::new();
-        fill(&mut shapes, &swatch, chip, warning.nearest);
-        let edge = if enabled { swatch.edge } else { swatch.edge.gamma_multiply(0.5) };
-        shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(chip, CornerRadius::ZERO, Stroke::new(1.0, edge), StrokeKind::Outside)));
-        ui.painter().extend(shapes);
+/// A [`ColorWarning`] as the Full picker draws it, for a host that draws it beside its own
+/// swatch (PhotoCraft's Color panel): the warning's icon over a chip of the nearest passing
+/// colour, one button. The host applies [`ColorWarning::nearest`] when the response is clicked.
+///
+/// ```
+/// use craft_theme::Srgba;
+/// use craft_ui::composites::{ColorWarning, ColorWarningChip};
+/// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(1.0, 0.0, 1.0);
+/// let warning = ColorWarning::new("Out of gamut for printing", Srgba::rgb(0.9, 0.1, 0.9));
+/// if ColorWarningChip::new(warning.clone()).show(ui).clicked() {
+///     color = warning.nearest();
+/// }
+/// # });
+/// ```
+///
+/// AccessKit: a `Button` named by the warning's tip, with the nearest colour's hex as its value.
+/// The tip is also the tooltip.
+#[derive(Clone, Debug)]
+#[must_use = "show the chip with `show`"]
+pub struct ColorWarningChip {
+    id_salt: IdSalt,
+    warning: ColorWarning,
+    enabled: bool,
+}
+
+impl ColorWarningChip {
+    pub fn new(warning: ColorWarning) -> Self {
+        Self { id_salt: IdSalt::new("craft_ui::color_warning_chip"), warning, enabled: true }
     }
-    let response = response.tooltip(warning.tip.as_str());
+
+    /// Keeps the chip's state apart from another chip in the same `Ui`.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id_salt = IdSalt::new(id_salt);
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Shows the chip; the response covers the icon and the chip.
+    pub fn show(self, ui: &mut Ui) -> Response {
+        let tokens = Tokens::of(ui);
+        let t = &tokens.component.color_picker;
+        let warning = &self.warning;
+        let enabled = self.enabled && ui.is_enabled();
+        let gap = Gap::Inline.points(&tokens);
+        let size = vec2(t.warning_icon.max(t.warning_chip), t.warning_icon + gap + t.warning_chip);
+        let response = Interactive::salted(self.id_salt, Role::Button, warning.tip.as_str())
+            .value(Swatch::hex(warning.nearest.to_rgba()))
+            .state_layer(false)
+            .enabled(enabled)
+            .show(ui, size);
+        if ui.is_rect_visible(response.rect) {
+            let rect = response.rect;
+            let icon = Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + t.warning_icon / 2.0), Vec2::splat(t.warning_icon));
+            let color = Content::Normal.color(&tokens).to_egui();
+            let color = if enabled { color } else { color.gamma_multiply(0.5) };
+            icons::paint_in(ui, icon, warning.icon, icons::active(ui.ctx()), t.warning_icon, IconSize::Sm.stroke(), color);
+            let chip = Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - t.warning_chip / 2.0), Vec2::splat(t.warning_chip));
+            let swatch = Swatch::style(&tokens, ControlSize::Md);
+            let mut shapes = Vec::new();
+            fill(&mut shapes, &swatch, chip, warning.nearest);
+            let edge = if enabled { swatch.edge } else { swatch.edge.gamma_multiply(0.5) };
+            shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(chip, CornerRadius::ZERO, Stroke::new(1.0, edge), StrokeKind::Outside)));
+            ui.painter().extend(shapes);
+        }
+        let response = response.tooltip(warning.tip.as_str());
+        if enabled {
+            return response.on_hover_cursor(CursorIcon::PointingHand);
+        }
+        response
+    }
+}
+
+/// A warning: its chip; a click sets the colour.
+fn show_warning(ui: &mut Ui, index: usize, warning: &ColorWarning, enabled: bool, parts: &mut Parts<'_>) {
+    let response = ColorWarningChip::new(warning.clone()).id_salt(("warning", index)).enabled(enabled).show(ui);
     if response.clicked() {
         parts.edits.input(super::Input::Click(warning.nearest));
-    }
-    if enabled {
-        let _ = response.on_hover_cursor(CursorIcon::PointingHand);
     }
 }

@@ -115,7 +115,7 @@ pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use segmented::{Segmented, SegmentedStyle};
 pub use select::{ListboxStyle, Select, SelectStyle};
-pub use slider::{Slider, SliderStyle};
+pub use slider::{Slider, SliderScale, SliderStyle, SliderThumb};
 pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle};
 pub use switch::{Switch, SwitchStyle};

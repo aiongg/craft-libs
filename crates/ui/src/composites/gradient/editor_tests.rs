@@ -140,7 +140,7 @@ impl Host {
         self.rect = edit.response.rect;
         let top = match self.rows {
             StopRows::Split => style.pointer + style.marker + 1.0,
-            StopRows::Combined => 3.0 * style.diamond + 1.0,
+            StopRows::Combined | StopRows::ColorOnly => 3.0 * style.diamond + 1.0,
         };
         self.ramp = Rect::from_min_size(self.rect.min + vec2(style.inset, top), vec2(self.rect.width() - 2.0 * style.inset, style.ramp_height));
         self.style = Some(style);
@@ -932,6 +932,24 @@ fn the_color_well_asks_for_the_color_or_opens_the_popover() {
     assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some());
     assert_eq!(selected(&harness), Some(StopRef::Color(2)));
     assert!(harness.state().requested.is_empty());
+}
+
+#[test]
+fn a_color_only_editor_keeps_alpha_at_one_through_the_color_well() {
+    let translucent = GradientStops::new(vec![
+        ColorStop { tag: 1, ..ColorStop::new(0.0, Srgba::new(0.2, 0.2, 0.2, 0.5)) },
+        ColorStop { tag: 2, ..ColorStop::new(1.0, Srgba::new(0.8, 0.8, 0.8, 0.5)) },
+    ]);
+    let mut harness = harness_with(Host { rows: StopRows::ColorOnly, popover: true, ..Host::new(translucent) });
+    let well = button(&harness, "Color").rect().center();
+    click(&mut harness, well, PointerButton::Primary);
+    harness.event(Event::Text("FF0000".into()));
+    harness.run();
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    let color = harness.state().stops.color[0].color;
+    assert_eq!(color.to_rgba().to_hex(), "#ff0000");
+    assert_eq!(color.a, 1.0, "the colour-only rows have no alpha");
+    assert_eq!(harness.state().stops.color[1].color.a, 0.5, "the other stop is not edited");
 }
 
 #[test]

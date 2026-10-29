@@ -314,7 +314,7 @@ fn has_row(rules: &StopRules, row: StopRow) -> bool {
 
 /// A new stop at `location` in `row`, taking the gradient's colour or opacity there from
 /// `sampler`, selected by its index. The segment it splits gets its midpoint reset to 0.5. Under
-/// [`StopRows::Split`] a colour stop is opaque.
+/// [`StopRows::Split`] and [`StopRows::ColorOnly`] a colour stop is opaque.
 pub fn add(stops: &GradientStops, row: StopRow, location: f32, sampler: &Sampler, rules: &StopRules) -> Option<(GradientStops, usize)> {
     if !has_row(rules, row) || stops.len(row) >= rules.max {
         return None;
@@ -324,7 +324,7 @@ pub fn add(stops: &GradientStops, row: StopRow, location: f32, sampler: &Sampler
     let mut out = explicit(stops, row);
     let at = match row {
         StopRow::Color => {
-            let color = if rules.rows == StopRows::Split { Srgba { a: 1.0, ..sampled } } else { sampled };
+            let color = if rules.rows == StopRows::Combined { sampled } else { Srgba { a: 1.0, ..sampled } };
             insert(&mut out.color, ColorStop::new(location, color))
         }
         StopRow::Opacity => insert(&mut out.opacity, OpacityStop::new(location, sampled.a)),
@@ -461,7 +461,7 @@ fn mix(a: f32, b: f32, t: f32) -> f32 {
 /// The gradient at `location` with straight lines in encoded sRGB between stops, each segment
 /// bent so its midpoint gives the half mix. Under [`StopRows::Split`] the alpha comes from the
 /// opacity stops (opaque when there are none) and the colours' own alpha is ignored; under
-/// [`StopRows::Combined`] it is the colours' alpha. No colour stops give opaque black.
+/// [`StopRows::Combined`] it is the colours' alpha; under [`StopRows::ColorOnly`] it is 1. No colour stops give opaque black.
 pub fn sample(stops: &GradientStops, rows: StopRows, location: f32) -> Srgba {
     if stops.color.is_empty() {
         return Srgba::BLACK;
@@ -469,13 +469,13 @@ pub fn sample(stops: &GradientStops, rows: StopRows, location: f32) -> Srgba {
     let (i, j, t) = segment(&stops.color, location);
     let (a, b) = (stops.color[i].color, stops.color[j].color);
     let mut out = Srgba::new(mix(a.r, b.r, t), mix(a.g, b.g, t), mix(a.b, b.b, t), mix(a.a, b.a, t));
-    if rows == StopRows::Split {
-        out.a = if stops.opacity.is_empty() {
-            1.0
-        } else {
+    match rows {
+        StopRows::Split if !stops.opacity.is_empty() => {
             let (i, j, t) = segment(&stops.opacity, location);
-            mix(stops.opacity[i].opacity, stops.opacity[j].opacity, t)
-        };
+            out.a = mix(stops.opacity[i].opacity, stops.opacity[j].opacity, t);
+        }
+        StopRows::Split | StopRows::ColorOnly => out.a = 1.0,
+        StopRows::Combined => {}
     }
     out
 }

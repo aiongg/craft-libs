@@ -9,10 +9,14 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+#[cfg(test)]
+mod bands_tests;
 mod full_stories;
 #[cfg(test)]
 mod full_tests;
 mod hex;
+#[cfg(test)]
+mod hex_tests;
 mod pair;
 mod pair_stories;
 #[cfg(test)]
@@ -32,9 +36,10 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
+pub use hex::HexField;
 pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::SwatchPalette;
-pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, PickedColor};
+pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
 pub use strip::ColorStrip;
 
@@ -235,21 +240,46 @@ fn faded_stroke(stroke: Stroke, enabled: bool) -> Stroke {
     Stroke::new(stroke.width, faded(stroke.color, enabled))
 }
 
-/// The scale of a model channel: its range, snapping to its step.
-fn scale_of(model: &dyn ColorModel, channel: usize) -> Scale {
+/// The scale of a model channel: its range, snapping to its step, or, with `bands`, to
+/// `bands` evenly spaced levels (at least two) from its low end to its high end.
+fn scale_of(model: &dyn ColorModel, channel: usize, bands: Option<usize>) -> Scale {
     let ch = model.channels()[channel];
-    Scale::new(&(f64::from(ch.min)..=f64::from(ch.max)), Some(f64::from(ch.step)))
+    let range = f64::from(ch.min)..=f64::from(ch.max);
+    match bands {
+        Some(n) => Scale::new(&range, Some((f64::from(ch.max) - f64::from(ch.min)) / (n.max(2) - 1) as f64)),
+        None => Scale::new(&range, Some(f64::from(ch.step))),
+    }
 }
 
-/// Where `value` lies in `scale`, from its start (0) to its end (1).
-fn fraction(scale: &Scale, value: f32) -> f32 {
+/// Where `value` lies in `scale`, from its start (0) to its end (1). In `bands` levels the
+/// value's band is a cell of the track, and this is the cell's centre.
+fn fraction(scale: &Scale, value: f32, bands: Option<usize>) -> f32 {
     let span = scale.max - scale.min;
-    if span > 0.0 { ((scale.place(f64::from(value)) - scale.min) / span) as f32 } else { 0.0 }
+    let t = if span > 0.0 { ((scale.place(f64::from(value)) - scale.min) / span) as f32 } else { 0.0 };
+    match bands {
+        Some(n) => ((t * (n.max(2) - 1) as f32).round() + 0.5) / n.max(2) as f32,
+        None => t,
+    }
 }
 
-/// The value at `t` (0 at the start, 1 at the end) of `scale`, on its nearest step.
-fn value_at(scale: &Scale, t: f32) -> f32 {
-    scale.snap(scale.min + f64::from(t.clamp(0.0, 1.0)) * (scale.max - scale.min)) as f32
+/// The value at `t` (0 at the start, 1 at the end) of `scale`, on its nearest step; in `bands`
+/// levels the value of the band whose cell holds `t`.
+fn value_at(scale: &Scale, t: f32, bands: Option<usize>) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    let t = match bands {
+        Some(n) => {
+            let n = n.max(2);
+            (t * n as f32).floor().min((n - 1) as f32) / (n - 1) as f32
+        }
+        None => t,
+    };
+    scale.snap(scale.min + f64::from(t) * (scale.max - scale.min)) as f32
+}
+
+/// The `bands` levels' values from the low end up, for painting their cells.
+fn band_values(scale: &Scale, bands: usize) -> impl Iterator<Item = f32> + '_ {
+    let n = bands.max(2);
+    (0..n).map(move |k| scale.snap(scale.min + (scale.max - scale.min) * k as f64 / (n - 1) as f64) as f32)
 }
 
 /// A component as a screen reader reads it: "Saturation 40 %", "Hue 120°", "Lightness 50".
@@ -267,7 +297,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "SwatchPair", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette"];
 
 const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
 
@@ -278,7 +308,13 @@ pub(crate) fn stories() -> Vec<Story> {
             level: Level::Composites,
             component: "ColorArea",
             name: "Area and strip",
-            args: || Args::new().with_choice("mode", MODE_NAMES, 0).with_bool("compact", false).with_bool("disabled", false),
+            args: || {
+                Args::new()
+                    .with_choice("mode", MODE_NAMES, 0)
+                    .with_bool("compact", false)
+                    .with_bool("disabled", false)
+                    .with_number("bands", 0.0, 0.0, 16.0)
+            },
             show: show_parts,
         },
         Story {
@@ -310,6 +346,14 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_bool("disabled", false)
             },
             show: show_popover,
+        },
+        Story {
+            id: "composites/color/hex-field",
+            level: Level::Composites,
+            component: "HexField",
+            name: "Hex field",
+            args: || Args::new().with_choice("digits", &["2", "1"], 0).with_bool("alpha", false).with_bool("disabled", false),
+            show: show_hex_field,
         },
         Story {
             id: "composites/color/palette",
@@ -377,6 +421,8 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
     let mode =
         AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).zip(MODE_NAMES).find_map(|(m, n)| (*n == chosen).then_some(m)).unwrap_or_default();
     let (compact, enabled) = (args.bool("compact"), !args.bool("disabled"));
+    // 0 shows the smooth field; from 2 the area and the strip have that many levels.
+    let bands = (args.number("bands") >= 2.0).then(|| args.number("bands") as usize);
     let model = mode.model();
     let start = craft_theme::Srgba::rgb(0.2, 0.55, 0.8);
     slider::with_values(ui, "color-parts", [(start, None::<ModelValues>)], |ui, state| {
@@ -388,13 +434,13 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
         let names = |i: usize| model.channels()[i].name;
         Stack::new(Gap::Stack).show(ui, |ui| {
             Row::new(Gap::Inline).show(ui, |ui| {
-                let edits = [
-                    ColorArea::new("color-parts-area", mode.name(), mode, values).size(Vec2::new(style.area, height)).enabled(enabled).show(ui),
-                    ColorStrip::new("color-parts-strip", names(mode.strip()), mode, values)
-                        .size(Vec2::new(strip_width, height))
-                        .enabled(enabled)
-                        .show(ui),
-                ];
+                let mut area = ColorArea::new("color-parts-area", mode.name(), mode, values).size(Vec2::new(style.area, height)).enabled(enabled);
+                let mut strip =
+                    ColorStrip::new("color-parts-strip", names(mode.strip()), mode, values).size(Vec2::new(strip_width, height)).enabled(enabled);
+                if let Some(n) = bands {
+                    (area, strip) = (area.bands(n), strip.bands(n));
+                }
+                let edits = [area.show(ui), strip.show(ui)];
                 for edit in edits {
                     if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
                         *color = model.to_srgb(&v.values);
@@ -433,6 +479,25 @@ fn show_popover(ui: &mut Ui, args: &mut Args) {
                 *color = p.color;
             }
             *last = edit::describe(&event.clone().map(|p| p.color.to_rgba().to_hex()));
+        }
+        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
+    });
+}
+
+/// A hex field on a colour; one digit per channel takes web colours as `RGB`.
+fn show_hex_field(ui: &mut Ui, args: &mut Args) {
+    let start = craft_theme::Rgba::rgb(0x33, 0x66, 0x99);
+    slider::with_values(ui, "color-hex-field", [(start, String::new())], |ui, state| {
+        let (color, last) = &mut state[0];
+        let digits = if args.choice("digits") == "1" { 1 } else { 2 };
+        ui.set_width(160.0);
+        let edit =
+            HexField::new("color-hex-field", "Hex colour", *color).digits(digits).alpha(args.bool("alpha")).enabled(!args.bool("disabled")).show(ui);
+        if let Some(event) = &edit.event {
+            if let Some(c) = event.value() {
+                *color = *c;
+            }
+            *last = edit::describe(&event.clone().map(|c| c.to_hex()));
         }
         ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
     });

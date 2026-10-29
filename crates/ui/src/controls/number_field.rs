@@ -12,14 +12,14 @@ use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, Event, EventFilter, FontId, Id, IdSalt, Key, Modifiers, PointerButton, Popup, PopupCloseBehavior,
-    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
+    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, ViewportCommand, pos2, vec2,
 };
 
 use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
-use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
+use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
@@ -153,6 +153,8 @@ pub struct NumberField<'a> {
     handle: Option<Handle>,
     scrub_by: Option<Response>,
     scrub_text: bool,
+    next: Option<Box<NextStep<'a>>>,
+    wrap: bool,
     popup: Option<String>,
     mixed: bool,
     policy: EditPolicy,
@@ -161,16 +163,18 @@ pub struct NumberField<'a> {
     invalid: bool,
     keep_focus: bool,
     part: bool,
+    edit_menu: bool,
 }
 
 impl<'a> NumberField<'a> {
     /// A field named `label` (its accessible name) showing the host's `value` in the region's
     /// digits; `id_salt` keeps its text, focus and gesture when the layout around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: f64, numbers: &'a LocaleNumbers) -> Self {
+    /// `value` may be any number that converts to `f64` (`f32`, `i32`).
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: impl Into<f64>, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
-            value,
+            value: value.into(),
             numbers,
             range: f64::NEG_INFINITY..=f64::INFINITY,
             step: 1.0,
@@ -180,6 +184,8 @@ impl<'a> NumberField<'a> {
             handle: None,
             scrub_by: None,
             scrub_text: true,
+            next: None,
+            wrap: false,
             popup: None,
             mixed: false,
             policy: EditPolicy::default(),
@@ -188,13 +194,14 @@ impl<'a> NumberField<'a> {
             invalid: false,
             keep_focus: false,
             part: false,
+            edit_menu: true,
         }
     }
 
     /// The values the field takes, read in ascending order; unbounded by default. A typed,
     /// scrubbed or stepped value is clamped to it; the host's value is shown as it is.
-    pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
-        self.range = range;
+    pub fn range<V: Into<f64> + Copy>(mut self, range: RangeInclusive<V>) -> Self {
+        self.range = (*range.start()).into()..=(*range.end()).into();
         self
     }
 
@@ -221,6 +228,26 @@ impl<'a> NumberField<'a> {
     /// after the locale's. Arrows after typed arithmetic step from its result.
     pub fn or_parse(mut self, parser: impl Fn(&str) -> Option<f64> + 'a) -> Self {
         self.fallback = Some(Box::new(parser));
+        self
+    }
+
+    /// Up and Down, the wheel and screen-reader increments step to `next(value, direction)`
+    /// (direction is 1 or -1; one call per notch, modifiers do not scale it) instead of by
+    /// [`step`](NumberField::step): zoom levels (12.5, 25, 50, 100 ...). The result is clamped to
+    /// the range and rounded to the decimals, and a frame's steps are one
+    /// [`Set`](EditEvent::Set). A scrub is still continuous.
+    pub fn steps_with(mut self, next: impl Fn(f64, i32) -> f64 + 'a) -> Self {
+        self.next = Some(Box::new(next));
+        self
+    }
+
+    /// While the pointer scrubs in a viewport that is full screen, the pointer wraps from one
+    /// horizontal edge of the screen to the other and the scrub goes on from there; the jump
+    /// adds nothing to the value. Where the platform does not move the pointer on request
+    /// (Wayland without a pointer lock) the scrub stops at the edge. Off by default, and
+    /// ignored when the viewport is not full screen.
+    pub fn scrub_wrap(mut self, wrap: bool) -> Self {
+        self.wrap = wrap;
         self
     }
 
@@ -299,6 +326,14 @@ impl<'a> NumberField<'a> {
     /// Whether the field keeps the focus after Enter commits; off by default.
     pub fn keep_focus(mut self, keep: bool) -> Self {
         self.keep_focus = keep;
+        self
+    }
+
+    /// Whether a secondary click, or the Menu key or Shift+F10 while the field has the focus,
+    /// opens the [`EditMenu`](crate::behavior::EditMenu) (Undo, Cut, Copy, Paste, Delete,
+    /// Select All) on the field's text; on by default.
+    pub fn edit_menu(mut self, on: bool) -> Self {
+        self.edit_menu = on;
         self
     }
 
@@ -392,6 +427,7 @@ impl<'a> NumberField<'a> {
             .invalid(self.invalid)
             .keep_focus(self.keep_focus)
             .role(Role::SpinButton)
+            .edit_menu(self.edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
             .tabular(true);
         // The box goes under the text, which `TextEdit` paints as it runs.
@@ -405,6 +441,8 @@ impl<'a> NumberField<'a> {
             id,
             base: if self.value.is_finite() { self.value } else { rule.blank() },
             step: self.step,
+            next: self.next.as_deref(),
+            wrap: self.wrap,
             rule,
             modifiers: ui.input(|i| i.modifiers),
             codec,
@@ -422,7 +460,19 @@ impl<'a> NumberField<'a> {
             }
             // Over the text of a field without the focus, where `TextEdit` would take the press.
             if self.scrub_text && !typed.response().has_focus() {
-                sources.push(ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG));
+                let text = ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG);
+                // It covers the field, so the field's own text never sees a secondary press: the
+                // press gives the field the focus with its text selected, and the menu opens on it
+                // in the next pass.
+                if self.edit_menu
+                    && text.secondary_clicked()
+                    && let Some(pos) = text.interact_pointer_pos()
+                {
+                    ui.memory_mut(|m| m.request_focus(id));
+                    select_all(ui.ctx(), id, typed.text());
+                    edit_menu::request_open(ui, id, pos);
+                }
+                sources.push(text);
             }
             input.scrub(ui, &mut typed, &sources);
         }
@@ -505,6 +555,9 @@ impl Follow {
     }
 }
 
+/// The step function of [`NumberField::steps_with`].
+type NextStep<'a> = dyn Fn(f64, i32) -> f64 + 'a;
+
 /// The ▾'s size class: a small ghost icon button inside the field.
 const POPUP_SIZE: ControlSize = ControlSize::Sm;
 
@@ -514,6 +567,8 @@ struct Input<'n> {
     /// Where scrubs and steps start in a blank field.
     base: f64,
     step: f64,
+    next: Option<&'n NextStep<'n>>,
+    wrap: bool,
     rule: FieldRule,
     modifiers: Modifiers,
     codec: Numbers<'n>,
@@ -544,7 +599,7 @@ impl<'n> Input<'n> {
         if let Some(origin) = origin {
             // A typing run ends as the focus leaves, its text read before the first step.
             ui.memory_mut(|m| m.surrender_focus(self.id));
-            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0, last: None }));
+            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0, last: None, warp: None }));
         }
         for drag in sources {
             if drag.hovered() || drag.dragged() {
@@ -567,8 +622,17 @@ impl<'n> Input<'n> {
                 } else {
                     1.0
                 };
-                scrub.steps += f64::from(pos.x - scrub.last_x) * STEPS_PER_POINT * rate;
-                scrub.last_x = pos.x;
+                let edges = (self.wrap && ui.input(|i| i.viewport().fullscreen == Some(true))).then(|| {
+                    let screen = ui.ctx().content_rect();
+                    (screen.left(), screen.right())
+                });
+                let travel = travel(scrub.last_x, pos.x, scrub.warp, edges);
+                if let Some(x) = travel.send {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::CursorPosition(pos2(x, pos.y)));
+                }
+                scrub.steps += f64::from(travel.delta) * STEPS_PER_POINT * rate;
+                scrub.last_x = travel.last_x;
+                scrub.warp = travel.warp;
                 let n = scrub.steps.trunc();
                 scrub.steps -= n;
                 let gesture = typed.gesture();
@@ -741,7 +805,12 @@ impl<'n> Input<'n> {
         let op = op.filter(|_| !dragging)?;
         let from = typed.value().unwrap_or(self.base);
         let ops = if typed.is_typing() { vec![ScalarOp::Set(from), op] } else { vec![op] };
-        let v = ops.iter().fold(from, |v, op| apply(op, v, &self.rule));
+        let v = ops.iter().fold(from, |v, op| match (op, self.next) {
+            (ScalarOp::Presses(presses), Some(next)) => next_stop(next, v, presses, &self.rule),
+            _ => apply(op, v, &self.rule),
+        });
+        // Composites replay a field's operations; its own stops are not theirs to repeat.
+        let ops = if self.next.is_some() { vec![ScalarOp::Set(v)] } else { ops };
         typed.commit_with(ui, Some(v));
         if focused {
             select_all(ui.ctx(), self.id, &self.codec.format(&Some(v)));
@@ -790,6 +859,52 @@ struct Scrub {
     steps: f64,
     /// The gesture of the scrub's last change and the value it set.
     last: Option<(GestureId, Option<f64>)>,
+    /// Where the pointer was asked to go at the screen's edge, until it is seen there.
+    warp: Option<f32>,
+}
+
+/// How far from the screen's edge the pointer counts as at it, and how far inside the opposite
+/// edge it is put.
+const WRAP_EDGE: f32 = 2.0;
+
+/// What one pointer position adds to a scrub.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Travel {
+    /// Points moved, not counting a warp.
+    pub(super) delta: f32,
+    /// The x to measure the next move from.
+    pub(super) last_x: f32,
+    /// The x the pointer was asked to go to and has not been seen at.
+    pub(super) warp: Option<f32>,
+    /// The x to move the pointer to now.
+    pub(super) send: Option<f32>,
+}
+
+/// The points the pointer moved from `last_x` to `x`. With the horizontal `edges` of the screen,
+/// a move that reaches one asks for the pointer at the other (`send`); the position that then
+/// shows up there is not a move. A pointer that stays where it was (a platform that does not
+/// move it) waits; one that moves elsewhere is an ordinary move.
+pub(super) fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32, f32)>) -> Travel {
+    let mut now = Travel { delta: x - last_x, last_x: x, warp: None, send: None };
+    if let Some(target) = warp {
+        if x == last_x {
+            return Travel { delta: 0.0, warp, ..now };
+        }
+        if (x - target).abs() < (x - last_x).abs() {
+            return Travel { delta: 0.0, ..now };
+        }
+    }
+    if let Some((left, right)) = edges {
+        let target = if now.delta > 0.0 && x >= right - WRAP_EDGE {
+            Some(left + 2.0 * WRAP_EDGE)
+        } else if now.delta < 0.0 && x <= left + WRAP_EDGE {
+            Some(right - 2.0 * WRAP_EDGE)
+        } else {
+            None
+        };
+        (now.warp, now.send) = (target, target);
+    }
+    now
 }
 
 /// `range` in ascending order, a bound that is no number left open.
@@ -840,6 +955,16 @@ pub(crate) fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
         ScalarOp::Set(v) => *v,
         ScalarOp::ToBound(bound) => Some(if *bound == Bound::Low { rule.bounds.0 } else { rule.bounds.1 }).filter(|b| b.is_finite()).unwrap_or(from),
     };
+    rule.settle(to)
+}
+
+/// The value `presses` reach from `from` by `next`, one call for each notch (a press of `n`
+/// notches calls it `n` times, at least once, up when positive), settled under `rule`.
+fn next_stop(next: &NextStep<'_>, from: f64, presses: &[(Modifiers, f64)], rule: &FieldRule) -> f64 {
+    let to = presses.iter().fold(from, |v, &(_, n)| {
+        let direction = if n < 0.0 { -1 } else { 1 };
+        (0..n.abs().round().max(1.0) as usize).fold(v, |v, _| rule.settle(next(v, direction)))
+    });
     rule.settle(to)
 }
 
@@ -1043,7 +1168,14 @@ pub(crate) fn stories() -> Vec<Story> {
     let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0);
     let story = |id, name, show| Story { id, level: Level::Controls, component: "Number field", name, args, show };
     vec![
-        story("controls/number-field/states", "States", show_states),
+        Story {
+            id: "controls/number-field/states",
+            level: Level::Controls,
+            component: "Number field",
+            name: "States",
+            args: || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0).with_bool("edit menu", true),
+            show: show_states,
+        },
         story("controls/number-field/scrub", "Scrub", show_scrub),
         story("controls/number-field/right-to-left", "Right to left", show_right_to_left),
         Story {
@@ -1071,11 +1203,12 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let numbers = numbers(args);
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
-    with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0], |ui, values| {
+    let edit_menu = args.bool("edit menu");
+    with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0, 100.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            let [plain, unit, mixed, invalid, opacity] = values;
+            let [plain, unit, mixed, invalid, opacity, zoom] = values;
             row(ui, "Plain", *plain, |ui| {
-                let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).or_parse(sum).show(ui);
+                let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).edit_menu(edit_menu).or_parse(sum).show(ui);
                 super::slider::store(&edit, plain);
             });
             row(ui, "With unit", *unit, |ui| {
@@ -1112,6 +1245,17 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, opacity);
             });
+            row(ui, "Zoom stops", *zoom, |ui| {
+                let edit = NumberField::new("number-field-zoom", "Zoom", *zoom, &numbers)
+                    .range(12.5..=800.0)
+                    .decimals(0..=1)
+                    .unit(Unit::new("{n}%"))
+                    .steps_with(zoom_step)
+                    .edit_menu(edit_menu)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, zoom);
+            });
             row(ui, "Disabled", 64.0, |ui| {
                 let _ = NumberField::new("number-field-disabled", "Disabled", 64.0, &numbers)
                     .unit(Unit::new("{n} px"))
@@ -1127,13 +1271,24 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     });
 }
 
+const ZOOM_STOPS: [f64; 8] = [12.5, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0];
+
+/// The next zoom stop above `value` for a positive `notches`, the previous one below it otherwise.
+fn zoom_step(value: f64, notches: i32) -> f64 {
+    let mut stops = ZOOM_STOPS.into_iter();
+    match notches > 0 {
+        true => stops.find(|s| *s > value).unwrap_or(value),
+        false => stops.rfind(|s| *s < value).unwrap_or(value),
+    }
+}
+
 /// Scrub labels and icons inside the field, and a label before it.
 fn show_scrub(ui: &mut Ui, args: &mut Args) {
     let size = size_arg(args.choice("size"));
     let numbers = numbers(args);
-    with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0], |ui, values| {
+    with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0, 50.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            let [w, h, angle, radius] = values;
+            let [w, h, angle, radius, wrapped] = values;
             for (salt, letter, value) in [("number-field-w", "W", w), ("number-field-h", "H", h)] {
                 row(ui, letter, *value, |ui| {
                     let edit = NumberField::new(salt, letter, *value, &numbers)
@@ -1165,9 +1320,19 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .show(ui);
                 super::slider::store(&edit, radius);
             });
+            row(ui, "Wrap", *wrapped, |ui| {
+                let edit = NumberField::new("number-field-wrap", "Wrapping scrub", *wrapped, &numbers)
+                    .range(0.0..=100.0)
+                    .unit(Unit::new("{n}%"))
+                    .scrub_label("%")
+                    .scrub_wrap(true)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, wrapped);
+            });
             ui.add(
                 Text::new(
-                    "Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it.",
+                    "Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it. The Wrap field carries the pointer to the opposite screen edge in a full-screen window.",
                 )
                 .content(Content::Muted),
             );

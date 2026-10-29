@@ -216,3 +216,17 @@ fn an_untagged_key_does_not_find_another_stop_when_its_own_is_gone() {
     assert_eq!(stops::apply(&BarOp::Nudge { at: s, by: 0.125 }, &removed, &mut None, &rules, &sampler), None, "the nudge drops");
     assert_eq!(t.find(&removed), None, "the moved stop's own key doesn't find it with a neighbour gone");
 }
+
+#[test]
+fn color_only_rows_ignore_alpha() {
+    let mut stops = red_to_blue();
+    stops.color[0].color.a = 0.25;
+    stops.opacity = vec![OpacityStop::new(0.0, 0.0), OpacityStop::new(1.0, 0.0)];
+    assert_eq!(sample(&stops, StopRows::ColorOnly, 0.0).a, 1.0, "neither the colours' alpha nor opacity stops count");
+    assert_eq!(sample(&stops, StopRows::ColorOnly, 0.5).a, 1.0);
+
+    let rules = StopRules { rows: StopRows::ColorOnly, ..StopRules::default() };
+    let (added, i) = stops::add(&stops, StopRow::Color, 0.1, &default_sampler(StopRows::ColorOnly), &rules).expect("a colour stop");
+    assert_eq!(added.color[i].color.a, 1.0, "an added stop is opaque");
+    assert!(stops::add(&stops, StopRow::Opacity, 0.5, &default_sampler(StopRows::ColorOnly), &rules).is_none(), "there is no opacity row");
+}

@@ -23,7 +23,7 @@ pub(super) fn stories() -> Vec<Story> {
             name: "Split rows",
             args: || {
                 Args::new()
-                    .with_choice("rows", &["Split", "Combined"], 0)
+                    .with_choice("rows", &["Split", "Combined", "Color only"], 0)
                     .with_bool("midpoints", true)
                     .with_bool("fields", true)
                     .with_number("min", 2.0, 1.0, 4.0)
@@ -113,7 +113,11 @@ fn rgb(r: u8, g: u8, b: u8) -> Srgba {
 /// PhotoCraft's Gradient Editor: opacity stops above the ramp, colour stops and midpoints below.
 fn show_split(ui: &mut Ui, args: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
-    let rows = if args.choice("rows") == "Combined" { StopRows::Combined } else { StopRows::Split };
+    let rows = match args.choice("rows") {
+        "Combined" => StopRows::Combined,
+        "Color only" => StopRows::ColorOnly,
+        _ => StopRows::Split,
+    };
     let (id, host) = StoryHost::load(ui, "gradient-editor-split", || {
         let mut stops = GradientStops::new(vec![
             ColorStop::new(0.0, rgb(0xf5, 0xa5, 0x24)),
