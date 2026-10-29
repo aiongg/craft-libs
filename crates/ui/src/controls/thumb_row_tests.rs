@@ -11,7 +11,9 @@ use egui::{
 
 use super::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
 use crate::composites::levels_editor::{LevelsEditor, gamma_at, gamma_from};
+use crate::controls::NumberField;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
+use crate::localized::LocaleNumbers;
 use crate::primitives::Interactive;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
@@ -30,6 +32,14 @@ struct Drawn {
     dragged: Option<usize>,
 }
 
+/// The field above the rows: its value and rectangle as drawn, and this frame's event.
+struct Field {
+    value: f64,
+    id: Id,
+    rect: Rect,
+    event: Option<EditEvent<f64>>,
+}
+
 /// The host: it applies every value it is sent, and puts the start value back on a cancel when
 /// `revert` is on.
 struct Rig {
@@ -41,6 +51,8 @@ struct Rig {
     revert: bool,
     enabled: bool,
     waits: bool,
+    /// A text field above the rows, for another control's typing run.
+    field: Option<Field>,
     before: ([f64; 3], [f64; 2]),
     input_event: Option<EditEvent<[f64; 3]>>,
     output_event: Option<EditEvent<[f64; 2]>>,
@@ -96,6 +108,7 @@ impl Rig {
             revert: true,
             enabled: true,
             waits: false,
+            field: None,
             before: (input, output),
             input_event: None,
             output_event: None,
@@ -129,6 +142,16 @@ impl Rig {
         // A level a point: the travel is 255 points.
         let width = 255.0 + 2.0 * style.inset();
         let range = 0.0..=255.0;
+        if let Some(field) = &mut self.field {
+            let numbers = LocaleNumbers::from_tag("en");
+            let out = NumberField::new("rig-field", "Field", field.value, &numbers).range(0.0..=255.0).show(ui);
+            field.id = out.response.id;
+            field.rect = out.response.rect;
+            field.event.clone_from(&out.event);
+            if let Some(value) = out.event.and_then(|e| e.value().copied()) {
+                field.value = value;
+            }
+        }
         let ordered = |below, above| Order::Between { below, above, gap: GAP };
         let gamma = Follow { at: gamma_at, value_at: gamma_from };
         let thumbs = [
@@ -194,6 +217,14 @@ impl Rig {
 
     fn id(&self, row: usize, i: usize) -> Id {
         self.rows[row].ids[i]
+    }
+
+    fn field_event(&self) -> Option<EditEvent<f64>> {
+        self.field.as_ref().and_then(|f| f.event.clone())
+    }
+
+    fn field_focused(&self) -> bool {
+        self.field.as_ref().is_some_and(|f| self.ctx.memory(|m| m.has_focus(f.id)))
     }
 
     fn has_focus(&self, row: usize, i: usize) -> bool {
@@ -485,31 +516,43 @@ fn a_double_click_or_ctrl_backspace_resets_a_thumb_and_a_tap_is_a_set() {
     assert_eq!(rig.input_event, commit(id, [20.0, 1.0, 200.0], true));
 }
 
-/// A press while the composite's other part has a typing run waits for the run's end, then runs
-/// from the host's value at that point.
+/// A press on a part while another control's typing run has the focus takes the focus from the
+/// run, waits for its Commit to go out, and begins in the pass after it, from the host's value
+/// then. Without a run a part's press runs at once.
 #[test]
-fn a_press_that_waits_runs_once_the_composite_lets_it() {
+fn a_press_that_waits_runs_the_pass_after_the_typing_runs_commit() {
     let mut rig = Rig::new([20.0, 1.0, 200.0], [0.0, 255.0]);
     rig.waits = true;
-    rig.press(rig.at(1, 100.0, 0.0));
+    rig.field = Some(Field { value: 40.0, id: Id::NULL, rect: Rect::NOTHING, event: None });
+    rig.frame(vec![]);
+    let pos = rig.field.as_ref().unwrap().rect.center();
+    rig.tap(pos);
+    rig.frame(vec![Event::Text("7".to_owned())]);
+    let run = begin(rig.field_event());
+    rig.frame(vec![]);
+    assert_eq!(rig.field_event(), update(run, 7.0), "the field's draft reaches the host");
+
+    // The field is drawn before the rows, so its Commit goes out one pass after the press.
+    let at = rig.at(1, 100.0, 0.0);
+    rig.press(at);
     assert_eq!(rig.output_event, None, "the press waits");
-    assert!(rig.has_focus(1, 0), "and takes the focus, which ends the run");
+    assert!(!rig.field_focused(), "and takes the focus from the field, which ends the run");
+    rig.frame(vec![]);
+    assert_eq!(rig.field_event(), commit(run, 7.0, true));
+    assert_eq!(rig.output_event, None, "the pass of the Commit is not the press's");
     rig.output = [10.0, 255.0];
-    rig.waits = false;
     rig.frame(vec![]);
     let id = begin(rig.output_event.clone());
     rig.frame(vec![]);
-    assert_eq!(rig.output_event, update(id, [100.0, 255.0]), "the jump, from the value the run left");
+    assert_eq!(rig.output_event, update(id, [100.0, 255.0]), "the jump, from the value the host has now");
     rig.drag(rig.at(1, 120.0, 0.0));
     rig.release(rig.at(1, 120.0, 0.0));
     assert_eq!(rig.output_event, commit(id, [120.0, 255.0], true));
 
-    rig.waits = true;
-    rig.tap(rig.at(0, 190.0, 0.0));
-    assert_eq!(rig.input_event, None, "a tap waits too");
-    rig.waits = false;
-    rig.frame(vec![]);
-    assert_eq!(rig.input_event, set([20.0, 1.0, 190.0], Modifiers::NONE));
+    // No run: a press begins in its own pass.
+    rig.field = None;
+    rig.press(rig.at(1, 50.0, 0.0));
+    begin(rig.output_event.clone());
 }
 
 #[test]
