@@ -10,7 +10,7 @@
 //! move the window when a drag starts anywhere in the band, on the strip's controls and on any
 //! in-window panel that lies over the band, unless the window is not movable. [`window_movable`]
 //! says when the pointer is on one of those, and [`sync_movable`] sets the window's `movable` flag
-//! from it before the press.
+//! from it before the press. Both are per viewport: each window of the app has its own flag.
 //!
 //! In full screen the strip is not a title bar: neither a drag nor a double-click acts on the
 //! window.
@@ -71,6 +71,16 @@ pub fn double_click_command(action: DoubleClick, maximized: bool) -> Option<egui
     }
 }
 
+/// What [`empty_area`] saw on one frame.
+#[derive(Debug)]
+pub struct EmptyArea {
+    /// The empty area's response, for an accessible label or a tooltip.
+    pub response: egui::Response,
+    /// A drag started on the empty area this frame and `ViewportCommand::StartDrag` was sent: the
+    /// OS now moves the window, and the app's own pointer handling should let go.
+    pub move_started: bool,
+}
+
 /// Makes the empty part of `rect` act as a title bar. Call it before drawing the strip's controls:
 /// they sit on top and take their own clicks.
 ///
@@ -78,21 +88,21 @@ pub fn double_click_command(action: DoubleClick, maximized: bool) -> Option<egui
 /// on a click-only control (egui gives clicks and drags to different widgets), so a drag is
 /// detected here as a press on the empty area that has stopped being a click.
 /// It takes no keyboard focus: Tab goes to the strip's controls.
-///
-/// Returns the empty area's response, for an accessible label or a tooltip.
-pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) -> egui::Response {
+pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) -> EmptyArea {
     prefetch();
     let resp = ui.interact(rect, ui.scope_id().with("title_bar_empty"), egui::Sense::CLICK);
     let covered = ui.ctx().pointer_hover_pos().filter(|p| rect.contains(*p)).and_then(|p| ui.ctx().layer_id_at(p));
     let covered = covered.is_some_and(|top| covers(top, ui.layer_id(), resp.hovered()));
     let pass = ui.ctx().cumulative_pass_nr();
-    ui.data_mut(|d| d.insert_temp(movable_id(), (pass, !covered)));
+    // Read before `data_mut`, which holds the context's lock.
+    let movable = movable_id(ui.ctx().viewport_id());
+    ui.data_mut(|d| d.insert_temp(movable, (pass, !covered)));
     // egui forgets which widget a press landed on once it can no longer be a click, so the press
     // is remembered (by its start time) while it still can.
     let armed = resp.id.with("drag_press");
     if ui.input(|i| i.viewport().fullscreen).unwrap_or(false) {
         ui.data_mut(|d| d.remove::<Option<f64>>(armed));
-        return resp;
+        return EmptyArea { response: resp, move_started: false };
     }
     if resp.double_clicked() {
         let maximized = ui.input(|i| i.viewport().maximized).unwrap_or(false);
@@ -105,13 +115,15 @@ pub fn empty_area(ui: &mut egui::Ui, rect: egui::Rect) -> egui::Response {
     if resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_down()) {
         ui.data_mut(|d| d.insert_temp(armed, press));
     }
+    let mut move_started = false;
     if press.is_some() && ui.input(|i| i.pointer.is_decidedly_dragging()) && ui.data(|d| d.get_temp::<Option<f64>>(armed)) == Some(press) {
         // Once per press: AppKit's drag loop takes the mouse-up, so egui may still see the button
         // down afterwards.
         ui.data_mut(|d| d.remove::<Option<f64>>(armed));
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        move_started = true;
     }
-    resp
+    EmptyArea { response: resp, move_started }
 }
 
 /// Whether `top`, the topmost layer under the pointer, keeps a drag there from moving the window.
@@ -124,33 +136,40 @@ fn covers(top: egui::LayerId, strip: egui::LayerId, empty_hovered: bool) -> bool
     if top == strip { !empty_hovered } else { top.order == egui::Order::Middle }
 }
 
-fn movable_id() -> egui::Id {
-    egui::Id::unique("title_bar_window_movable")
+fn movable_id(viewport: egui::ViewportId) -> egui::Id {
+    egui::Id::unique(("title_bar_window_movable", viewport))
 }
 
 /// Whether AppKit may move the window when a drag starts in the title-bar band: false while the
 /// pointer is on one of the strip's controls or on an in-window panel over the strip, so pressing
 /// and dragging there does not move the window. True when neither this pass nor the one before
-/// drew a title bar.
+/// drew a title bar in the context's viewport.
 pub fn window_movable(ctx: &egui::Context) -> bool {
-    match ctx.data(|d| d.get_temp::<(u64, bool)>(movable_id())) {
+    let id = movable_id(ctx.viewport_id());
+    match ctx.data(|d| d.get_temp::<(u64, bool)>(id)) {
         Some((pass, movable)) if ctx.cumulative_pass_nr().saturating_sub(pass) <= 1 => movable,
         _ => true,
     }
 }
 
-/// Sets the window's `movable` flag from this pass's [`window_movable`]. Call it once per frame,
-/// after the UI has run. `applied` holds the value last set, so AppKit is only called when it
-/// changes.
+/// Sets the `movable` flag of the context's window from this pass's [`window_movable`]. Call it
+/// once per frame per window, after that window's UI has run. `applied` holds the value last set
+/// for this window, so AppKit is only called when it changes.
 ///
-/// Only windows with a full-size content view and visible window buttons are touched: the app
-/// draws over their title bar. Floating panels in their own windows hide the buttons, and keep
-/// their own `movable`, which AppKit also needs to resize them from their edges.
+/// A window is told apart by its viewport: the pointer is on the key window when this viewport
+/// has focus, so an unfocused viewport is left as it is (AppKit activates the window on the first
+/// click and the flag is set from the frame after). Only a window with a full-size content view
+/// and visible window buttons is touched: the app draws over its title bar. Floating panels in
+/// their own windows hide the buttons, and keep their own `movable`, which AppKit also needs to
+/// resize them from their edges.
 #[cfg(target_os = "macos")]
 pub fn sync_movable(ctx: &egui::Context, applied: &mut Option<bool>) {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
 
+    if ctx.input(|i| i.viewport().focused) != Some(true) {
+        return;
+    }
     let movable = window_movable(ctx);
     if *applied == Some(movable) {
         return;
@@ -159,16 +178,12 @@ pub fn sync_movable(ctx: &egui::Context, applied: &mut Option<bool>) {
     let Some(mtm) = MainThreadMarker::new() else {
         return;
     };
-    let mut found = false;
-    for window in NSApplication::sharedApplication(mtm).windows().to_vec() {
-        let buttons = window.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden());
-        if window.styleMask().contains(NSWindowStyleMask::FullSizeContentView) && buttons {
-            window.setMovable(movable);
-            found = true;
-        }
-    }
-    // Before the window is on screen there is nothing to set yet; try again next frame.
-    if found {
+    let Some(window) = NSApplication::sharedApplication(mtm).keyWindow() else {
+        return;
+    };
+    let buttons = window.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden());
+    if window.styleMask().contains(NSWindowStyleMask::FullSizeContentView) && buttons {
+        window.setMovable(movable);
         *applied = Some(movable);
     }
 }
@@ -268,6 +283,37 @@ mod tests {
             commands.extend(self.frame(vec![button(p + vec2(30.0, 0.0), false)]));
             commands.iter().filter(|c| matches!(c, ViewportCommand::StartDrag)).count()
         }
+    }
+
+    #[test]
+    fn each_viewport_has_its_own_movable_flag() {
+        let ctx = Context::default();
+        let second = ViewportId::from_hash_of("second");
+        // One frame of `viewport`: the strip and a button when `strip`, then the flag as that pass sees it.
+        let run = |viewport: ViewportId, strip: bool| {
+            let mut input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))),
+                events: vec![Event::PointerMoved(BUTTON)],
+                ..RawInput::default()
+            };
+            input.viewport_id = viewport;
+            input.viewports.entry(viewport).or_default();
+            let mut movable = None;
+            let mut out = ctx.run_ui(input, |ui| {
+                if strip {
+                    empty_area(ui, Rect::from_min_size(Pos2::ZERO, vec2(400.0, 28.0)));
+                    let _ = ui.put(Rect::from_min_max(pos2(10.0, 4.0), pos2(60.0, 24.0)), egui::Button::new("Menu"));
+                }
+                movable = Some(window_movable(ui.ctx()));
+            });
+            out.textures_delta.clear();
+            movable
+        };
+        for _ in 0..3 {
+            run(ViewportId::ROOT, true);
+        }
+        assert_eq!(run(ViewportId::ROOT, true), Some(false), "the pointer is on the first window's control");
+        assert_eq!(run(second, false), Some(true), "the second window drew no strip, so its own flag is the default");
     }
 
     #[test]

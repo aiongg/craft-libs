@@ -385,7 +385,8 @@ fn mac_inset_reserves_the_leading_width() {
             trailing_caption: 0.0,
             centre_line: 14.0,
             height: H,
-            gap: Rect::NOTHING
+            gap: Rect::NOTHING,
+            titled: true
         })
     );
     assert!(w.ctx.read_response(caption_id(ViewportId::ROOT, Caption::Close)).is_none());
@@ -890,17 +891,26 @@ fn a_press_on_the_title_drags_the_window() {
 #[test]
 fn the_drag_area_is_a_title_bar_node_named_by_the_title_and_not_clickable() {
     use egui::accesskit::{Action, Role};
-    let mut w = Win::new(windows(), 800.0);
-    w.titled = Some((Title::new(TITLE).unsaved(true), 100.0, 100.0));
-    w.ctx.enable_accesskit();
-    let mut update = None;
-    for _ in 0..2 {
-        update = w.frame(vec![]).platform_output.accesskit_update;
-    }
-    let nodes = update.expect("an update").nodes;
-    let node = nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::TitleBar).expect("a title bar node");
-    assert_eq!(node.label(), Some("Poster.psd \u{2022}"));
+    let node_of = |title: Title| {
+        let mut w = Win::new(windows(), 800.0);
+        w.titled = Some((title, 100.0, 100.0));
+        w.ctx.enable_accesskit();
+        let mut update = None;
+        for _ in 0..2 {
+            update = w.frame(vec![]).platform_output.accesskit_update;
+        }
+        let nodes = update.expect("an update").nodes;
+        nodes.into_iter().map(|(_, n)| n).find(|n| n.role() == Role::TitleBar).expect("a title bar node")
+    };
+    let node = node_of(Title::new(TITLE).unsaved(true).unsaved_label("Unsaved changes"));
+    assert_eq!(node.label(), Some("Poster.psd"), "the bullet is not part of the name");
+    assert_eq!(node.description(), Some("Unsaved changes"));
     assert!(!node.supports_action(Action::Click) && !node.supports_action(Action::Focus));
+
+    let node = node_of(Title::new(TITLE).unsaved(true));
+    assert_eq!((node.label(), node.description()), (Some("Poster.psd"), None), "silent without the app's label");
+    let node = node_of(Title::new(TITLE).unsaved_label("Unsaved changes"));
+    assert_eq!(node.description(), None, "only while unsaved");
 }
 
 #[test]
@@ -922,22 +932,75 @@ fn the_bar_background_is_painted_unless_the_app_does_it() {
     assert!(!fill(false));
 }
 
+/// One context drawing two windows (viewports) with bars of their own. Returns each pass's slots.
+fn two_viewports(frames: usize) -> (BarSlots, BarSlots) {
+    let ctx = Context::default();
+    let second = ViewportId::from_hash_of("second");
+    let mut slots = [None, None];
+    for _ in 0..frames {
+        for (i, (viewport, lead)) in [(ViewportId::ROOT, 100.0), (second, 200.0)].into_iter().enumerate() {
+            install(&ctx, &Base::suite_default());
+            let mut input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))), ..Default::default() };
+            input.viewport_id = viewport;
+            input.viewports.entry(viewport).or_default();
+            let frame = windows();
+            let mut out = ctx.run_ui(input, |ui| {
+                TitleBar::new(&frame).title(Title::new(TITLE)).show_titled(
+                    ui,
+                    |ui, s| {
+                        slots[i] = Some(s);
+                        ui.allocate_exact_size(vec2(lead, H), egui::Sense::click());
+                        LeadingEnd::from_ui(ui)
+                    },
+                    |_, _| {},
+                );
+            });
+            out.textures_delta.clear();
+        }
+    }
+    (slots[0].expect("first window"), slots[1].expect("second window"))
+}
+
 #[test]
 fn each_window_keeps_its_own_gap() {
-    let mut a = titled(windows(), 800.0, 100.0, 100.0);
-    let mut b = titled(windows(), 800.0, 200.0, 50.0);
-    for _ in 0..2 {
-        a.frame(vec![]);
-        b.frame(vec![]);
+    let (a, b) = two_viewports(3);
+    assert!(a.gap.is_positive() && b.gap.is_positive());
+    assert_eq!(b.gap.left() - a.gap.left(), 100.0, "each window's gap starts after its own leading group");
+}
+
+#[test]
+fn the_gap_is_reported_for_every_frame_and_titled_says_whether_the_bar_is_the_title_bar() {
+    for (frame, fullscreen, titled_bar) in [(windows(), false, true), (Frame::Native, false, false), (windows(), true, false)] {
+        let mut w = titled(frame, 800.0, 100.0, 100.0);
+        w.fullscreen = fullscreen;
+        for _ in 0..3 {
+            w.frame(vec![]);
+        }
+        let s = w.slots.expect("slots");
+        assert!(s.gap.is_positive(), "{s:?}");
+        assert_eq!(s.titled, titled_bar, "{s:?}");
     }
-    assert_ne!(a.slots.expect("slots").gap, b.slots.expect("slots").gap);
-    // One context, two window keys.
+}
+
+#[test]
+fn the_overlay_only_takes_the_gap_of_the_pass_that_measured_it() {
     let ctx = Context::default();
-    let (one, two) = (captions::window_scope("one"), captions::window_scope("two"));
-    measure::store(&ctx, one, 800.0, Rect::from_min_max(pos2(1.0, 0.0), pos2(2.0, 3.0)));
-    measure::store(&ctx, two, 800.0, Rect::from_min_max(pos2(4.0, 0.0), pos2(5.0, 3.0)));
-    assert_eq!(measure::drawn(&ctx, one).map(|r| r.left()), Some(1.0));
-    assert_eq!(measure::drawn(&ctx, two).map(|r| r.left()), Some(4.0));
+    let scope = captions::window_scope("one");
+    let gap = Rect::from_min_max(pos2(1.0, 0.0), pos2(2.0, 3.0));
+    let mut seen = Vec::new();
+    for pass in 0..3 {
+        let mut out = ctx.run_ui(RawInput::default(), |ui| {
+            if pass == 0 {
+                measure::store(ui.ctx(), scope, 800.0, gap, true);
+            }
+            if pass == 1 {
+                measure::store(ui.ctx(), scope, 800.0, gap, false);
+            }
+            seen.push(measure::titled_gap(ui.ctx(), scope));
+        });
+        out.textures_delta.clear();
+    }
+    assert_eq!(seen, vec![Some(gap), None, None], "a bar of an earlier pass, or one that is no title bar, has no overlay");
 }
 
 /// A modal window is open, so the bar's own drag area gets no input; the overlay over the gap does.
@@ -1078,4 +1141,169 @@ fn the_menu_titles_and_the_help_search_field_stay_clear_of_the_gap() {
     let field = Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32));
     assert!(!field.intersects(titles) && !field.intersects(gap), "{field:?} vs titles {titles:?}, gap {gap:?}");
     assert_eq!(gap.left(), titles.right(), "the gap starts at the titles' inner edge, not the bar's");
+}
+
+/// A 500 pt bar in an 800 pt window: the caption buttons sit at the bar's ends and the slot and
+/// gap are measured inside them.
+#[test]
+fn a_bar_narrower_than_the_window_keeps_its_buttons_at_its_own_ends() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let frame = windows();
+    let mut slots = None;
+    for _ in 0..3 {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            ui.allocate_ui(vec2(500.0, 0.0), |ui| {
+                ui.set_max_width(500.0);
+                TitleBar::new(&frame).title(Title::new(TITLE)).show_titled(
+                    ui,
+                    |ui, s| {
+                        slots = Some(s);
+                        ui.allocate_exact_size(vec2(100.0, H), egui::Sense::click());
+                        LeadingEnd::from_ui(ui)
+                    },
+                    |ui, _| {
+                        ui.allocate_exact_size(vec2(100.0, H), egui::Sense::click());
+                    },
+                );
+            });
+        });
+        out.textures_delta.clear();
+    }
+    let s = slots.expect("slots");
+    let buttons = 3.0 * WINDOWS_BUTTON_WIDTH;
+    let pad = crate::theme::current(&ctx).component.title_bar.pad;
+    assert_eq!((s.content.left(), s.content.right()), (pad, 500.0 - buttons), "{s:?}");
+    assert_eq!((s.gap.left(), s.gap.right()), (pad + 100.0, 500.0 - buttons - 100.0), "{s:?}");
+    let close = ctx.read_response(caption_id(ViewportId::ROOT, Caption::Close)).expect("close button").rect;
+    assert_eq!(close.right(), 500.0, "the buttons follow the bar's end, not the window's");
+}
+
+/// The right-most glyph of the painted title line that starts with `start`.
+fn right_most_char(w: &Win, start: &str) -> Option<char> {
+    w.shapes.iter().find_map(|s| match &s.shape {
+        egui::Shape::Text(t) if t.galley.text().starts_with(start) => {
+            t.galley.rows.iter().flat_map(|r| r.glyphs.iter()).max_by(|a, b| a.pos.x.total_cmp(&b.pos.x)).map(|g| g.chr)
+        }
+        _ => None,
+    })
+}
+
+#[test]
+fn a_right_to_left_script_name_keeps_the_unsaved_bullet_at_the_right() {
+    const HEBREW: &str = "\u{5e9}\u{5dc}\u{5d5}\u{5dd}";
+    let mut w = titled(windows(), 800.0, 100.0, 100.0);
+    w.titled = Some((Title::new(HEBREW).unsaved(true), 100.0, 100.0));
+    for _ in 0..2 {
+        w.frame(vec![]);
+    }
+    assert_eq!(right_most_char(&w, HEBREW), Some('\u{2022}'));
+
+    // Elided too: the cut line is the same job.
+    let long = HEBREW.repeat(12);
+    let mut w = titled(windows(), 500.0, 100.0, 100.0);
+    w.titled = Some((Title::new(long.as_str()).unsaved(true), 100.0, 100.0));
+    for _ in 0..2 {
+        w.frame(vec![]);
+    }
+    assert_eq!(right_most_char(&w, HEBREW), Some('\u{2026}'), "the ellipsis ends the line");
+}
+
+#[test]
+fn the_modal_overlay_is_no_tab_stop() {
+    let mut w = under_a_modal();
+    assert!(w.ctx.memory(|m| m.areas().visible_layer_ids()).iter().any(|l| l.order == egui::Order::Tooltip), "the overlay is there");
+    let tab = Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
+    for _ in 0..4 {
+        w.frame(vec![tab.clone()]);
+        w.frame(vec![]);
+        let layer = w.ctx.memory(|m| m.focused()).and_then(|id| w.ctx.read_response(id)).map(|r| r.layer_id.order);
+        assert_ne!(layer, Some(egui::Order::Tooltip), "Tab never lands on the overlay");
+    }
+}
+
+#[test]
+fn a_preview_bar_is_inert() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let frame = windows();
+    let state = WindowState { maximized: true, active: false };
+    let mut time = 0.0;
+    let mut regions = Recorded::default();
+    let mut run = |events: Vec<Event>, regions: &mut Recorded| {
+        time += 0.05;
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))), time: Some(time), events, ..Default::default() };
+        let mut slots = None;
+        let mut out = ctx.run_ui(input, |ui| {
+            // Narrower than the window, with the window itself not maximized.
+            ui.allocate_ui(vec2(500.0, 0.0), |ui| {
+                ui.set_max_width(500.0);
+                TitleBar::new(&frame).preview(state).regions(regions).title(Title::new(TITLE)).show_titled(
+                    ui,
+                    |ui, s| {
+                        slots = Some(s);
+                        ui.allocate_exact_size(vec2(100.0, H), egui::Sense::hover());
+                        LeadingEnd::from_ui(ui)
+                    },
+                    |_, _| {},
+                );
+            });
+        });
+        out.textures_delta.clear();
+        (commands(out.clone()), out.platform_output.accesskit_update, slots)
+    };
+    let mut all = Vec::new();
+    // Hover, press and drag on the close button and the empty bar, and along the window's edge.
+    let (close, bar, edge) = (pos2(500.0 - 20.0, H / 2.0), pos2(300.0, H / 2.0), pos2(2.0, 200.0));
+    for p in [close, bar, edge] {
+        for events in [
+            vec![Event::PointerMoved(p)],
+            vec![button(p, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(p + vec2(30.0, 8.0))],
+            vec![button(p, false, PointerButton::Primary)],
+        ] {
+            let (cmds, ..) = run(events, &mut regions);
+            all.extend(cmds);
+        }
+    }
+    let (_, update, slots) = run(vec![], &mut regions);
+    all.retain(|c| !matches!(c, ViewportCommand::SetTheme(_)));
+    assert!(all.is_empty(), "{all:?}");
+    assert!(regions.buttons.is_empty() && regions.drag.is_empty());
+    let slots = slots.expect("slots");
+    assert!(!slots.titled && slots.gap.is_positive(), "{slots:?}");
+    let close = ctx.read_response(caption_id(ViewportId::ROOT, Caption::Close));
+    assert!(close.is_some_and(|r| r.rect.right() == 500.0 && !r.clicked()), "the buttons follow the bar and take no click");
+    let nodes = update.expect("an update").nodes;
+    assert!(nodes.iter().all(|(_, n)| n.role() != egui::accesskit::Role::TitleBar), "no drag area");
+}
+
+/// Breeze's pressed disc, with the bar's colour as the glyph on it, is a legible mark in every
+/// built-in theme and appearance.
+#[test]
+fn the_breeze_pressed_disc_reads_in_every_built_in() {
+    use craft_theme::{Contrast, Mode, contrast_ratio};
+    for theme in craft_theme::builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            for contrast in [Contrast::Standard, Contrast::High] {
+                let appearance = craft_theme::Appearance {
+                    mode,
+                    contrast,
+                    size: craft_theme::Size::Compact,
+                    text_size: craft_theme::TextSize::default(),
+                    reduced_motion: false,
+                };
+                let resolved = craft_theme::resolve(theme, appearance, None).tokens;
+                let t = crate::theme::UiTokens::new(resolved, appearance, mode, crate::theme::FontFamilies::default());
+                let s = TitleBar::style(&t);
+                let rgba = |c: Color32| craft_theme::Rgba::rgb(c.r(), c.g(), c.b());
+                let minimum = if contrast == Contrast::High { 4.5 } else { 3.0 };
+                let ratio = contrast_ratio(rgba(s.bar), rgba(s.breeze_pressed));
+                assert!(ratio >= minimum, "{} {mode:?} {contrast:?}: {ratio:.2} < {minimum}", theme.id.as_str());
+            }
+        }
+    }
 }

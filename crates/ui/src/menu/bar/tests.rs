@@ -57,9 +57,11 @@ struct Bar {
     escape_after: bool,
     /// [`crate::menu::any_open`] as the last pass began, before the bar was drawn.
     open_before: bool,
-    /// [`MenuBarResponse::titles`] and the bar's rect in the last pass.
+    /// [`MenuBarResponse::titles`] and the rect the bar's `Ui` has used, in the last pass.
     titles_rect: Rect,
     bar_rect: Rect,
+    /// The row is forced at least this wide before the bar is drawn.
+    min_width: Option<f32>,
 }
 
 impl Bar {
@@ -87,6 +89,7 @@ impl Bar {
             open_before: false,
             titles_rect: Rect::NOTHING,
             bar_rect: Rect::NOTHING,
+            min_width: None,
         };
         b.run(3);
         b
@@ -105,7 +108,7 @@ impl Bar {
             events: std::mem::take(&mut self.events),
             ..Default::default()
         };
-        let (menus, fit, search, keyboard) = (&self.menus, self.fit, self.search, self.keyboard);
+        let (menus, fit, search, keyboard, min_width) = (&self.menus, self.fit, self.search, self.keyboard, self.min_width);
         let mut chosen = None;
         let mut after = None;
         let mut escape = false;
@@ -125,9 +128,12 @@ impl Bar {
                     });
                 }
                 None => {
+                    if let Some(width) = min_width {
+                        ui.set_min_width(width);
+                    }
                     let out = bar.show(ui);
                     chosen = out.chosen;
-                    rects = (out.titles, out.response.rect);
+                    rects = (out.titles, ui.min_rect());
                 }
             }
             escape = ui.input(|i| i.key_pressed(Key::Escape));
@@ -843,5 +849,25 @@ fn the_titles_rect_covers_the_titles_only() {
     b.run(2);
     assert!((b.titles_rect.width() - sum).abs() < 0.5);
     assert!(b.titles_rect.right() > 790.0, "right to left the titles start at the right edge");
+    assert!((b.titles_rect.left() - b.rect("Help").left()).abs() < 0.5, "the inner edge is the last title's");
+}
+
+/// A row forced wider than the titles: the `Ui` has used the whole width, but `titles` is still the
+/// titles' extent, so the inner edge is where the last title ends, not where the row does.
+#[test]
+fn the_titles_rect_is_the_titles_even_when_the_row_is_wider() {
+    let mut b = Bar::wide();
+    let labels = ["File", "Edit", "View", "Help"];
+    let sum: f32 = labels.iter().map(|l| b.rect(l).width()).sum();
+    b.min_width = Some(700.0);
+    b.run(3);
+    assert!(b.bar_rect.width() > sum + 100.0, "the row is wider than the titles: {:?}", b.bar_rect);
+    assert!((b.titles_rect.width() - sum).abs() < 0.5, "{:?}", b.titles_rect);
+    assert!((b.titles_rect.right() - b.rect("Help").right()).abs() < 0.5);
+
+    crate::direction::apply(&b.ctx, Direction::Rtl);
+    b.run(3);
+    assert!(b.bar_rect.width() > sum + 100.0);
+    assert!((b.titles_rect.width() - sum).abs() < 0.5);
     assert!((b.titles_rect.left() - b.rect("Help").left()).abs() < 0.5, "the inner edge is the last title's");
 }

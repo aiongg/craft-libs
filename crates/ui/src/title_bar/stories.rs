@@ -2,9 +2,9 @@
 //! icon buttons at the trailing end so the title's squeeze is visible.
 
 use craft_window::Layout;
-use egui::{Context, Id, Ui, vec2};
+use egui::{Id, Ui, vec2};
 
-use super::{CaptionFamily, Captions, Frame, LeadingEnd, MacInset, Title, TitleBar};
+use super::{CaptionFamily, Captions, Frame, LeadingEnd, MacInset, Title, TitleBar, WindowState};
 use crate::controls::IconButton;
 use crate::direction::{self, Direction, HasDirection as _};
 use crate::icons::Icon;
@@ -41,20 +41,18 @@ fn captions(family: CaptionFamily) -> Frame {
     Frame::Integrated(Captions { family, layout: Layout::default() })
 }
 
-/// The bar `width` wide. The window's maximized and focused state, which the caption buttons
-/// read from the viewport, are set for the story's frame and restored after it.
+/// The bar `width` wide, as a picture of a window in the story's state.
 fn show(ui: &mut Ui, args: &mut Args, frame: Frame) {
     let ctx = ui.ctx().clone();
     let width = args.number("width") as f32;
-    let (maximized, inactive) = (args.bool("maximized"), args.bool("inactive"));
-    let before = viewport_state(&ctx, Some((Some(maximized), Some(!inactive))));
+    let state = WindowState { maximized: args.bool("maximized"), active: !args.bool("inactive") };
     let outer = ctx.direction();
     direction::apply(&ctx, if args.bool("rtl") { Direction::Rtl } else { Direction::Ltr });
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let menus = story_bar();
         let title = Title::new(args.text("title")).unsaved(args.bool("unsaved"));
-        TitleBar::new(&frame).id_salt("craft-ui-title-bar-story").separator(true).title(title).show_titled(
+        TitleBar::new(&frame).id_salt("craft-ui-title-bar-story").preview(state).separator(true).title(title).show_titled(
             ui,
             |ui, _| {
                 MenuBar::new(&menus).id(Id::unique("craft-ui-title-bar-story-menus")).help_search(menus.len() - 1).show(ui);
@@ -67,18 +65,4 @@ fn show(ui: &mut Ui, args: &mut Args, frame: Frame) {
         );
     });
     direction::apply(&ctx, outer);
-    viewport_state(&ctx, before);
-}
-
-/// Sets the viewport's `(maximized, focused)` when given, and returns what it was.
-fn viewport_state(ctx: &Context, set: Option<(Option<bool>, Option<bool>)>) -> Option<(Option<bool>, Option<bool>)> {
-    ctx.input_mut(|i| {
-        let id = i.raw.viewport_id;
-        let info = i.raw.viewports.entry(id).or_default();
-        let was = (info.maximized, info.focused);
-        if let Some((maximized, focused)) = set {
-            (info.maximized, info.focused) = (maximized, focused);
-        }
-        Some(was)
-    })
 }

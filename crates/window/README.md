@@ -127,8 +127,12 @@ craft_window::title_bar::sync_movable(ui.ctx(), &mut self.applied);
 On macOS, AppKit moves a full-size-content window from a drag anywhere in the title-bar band, the
 app's controls and panels included, unless `NSWindow.movable` is false. `sync_movable` sets that
 flag from `title_bar::window_movable`, which is false while the pointer is on a control or a panel
-over the strip. It leaves windows with hidden window buttons alone, such as floating panels in
-their own windows.
+over the strip. The flag is per viewport: call `sync_movable` in each window, with its own
+`applied`; it sets the key window's flag while that viewport has focus. It leaves windows with
+hidden window buttons alone, such as floating panels in their own windows.
+
+`empty_area` returns an `EmptyArea`: the strip's `response` and `move_started`, true on the frame
+the drag handed the window to the OS.
 
 ### macOS traffic lights
 
