@@ -23,8 +23,9 @@ use craft_theme::Srgba;
 struct Host {
     host: LineHost,
     view: Option<CanvasView>,
-    events: Vec<EditEvent<LineGradient>>,
-    field_events: Vec<EditEvent<f64>>,
+    /// The overlay's events and the field's, each with its pass.
+    events: Vec<(EditEvent<LineGradient>, u64)>,
+    field_events: Vec<(EditEvent<f64>, u64)>,
 }
 
 fn harness() -> Harness<'static, Host> {
@@ -49,13 +50,14 @@ fn harness() -> Harness<'static, Host> {
             if let Some(&location) = field.event.as_ref().and_then(EditEvent::value) {
                 host.host.value.stops.color[1].location = location as f32;
             }
-            host.field_events.extend(field.event);
+            let pass = ui.ctx().cumulative_pass_nr();
+            host.field_events.extend(field.event.map(|event| (event, pass)));
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
             host.view = Some(view);
             let r = GradientOverlay::new("gradient", &value.line, &value.stops, english_names()).show(ui, &canvas, &view);
             host.host.apply(&r);
-            host.events.extend(r.event);
+            host.events.extend(r.event.map(|event| (event, pass)));
         },
         host,
     )
@@ -63,8 +65,8 @@ fn harness() -> Harness<'static, Host> {
 
 /// A click on the line (press and release in one frame) moves the focus off a location field
 /// drawn before the canvas, which ends the field's typing run in that pass. The stop the click
-/// adds goes out in the next pass, made from the location the run committed, which no update
-/// reported.
+/// adds goes out in the pass after the field's Commit, made from the location the run committed,
+/// which no update reported.
 #[test]
 fn a_line_click_ending_a_fields_typing_run_keeps_the_value_the_run_committed() {
     let mut h = harness();
@@ -91,8 +93,11 @@ fn a_line_click_ending_a_fields_typing_run_keeps_the_value_the_run_committed() {
     h.run();
 
     let state = h.state();
-    assert!(matches!(state.field_events.as_slice(), [EditEvent::Begin { .. }, EditEvent::Commit { .. }]), "{:?}", state.field_events);
-    assert!(matches!(state.events.as_slice(), [EditEvent::Set { .. }]), "{:?}", state.events);
+    let [(EditEvent::Begin { .. }, _), (EditEvent::Commit { .. }, committed)] = state.field_events.as_slice() else {
+        panic!("{:?}", state.field_events);
+    };
+    let [(EditEvent::Set { .. }, set)] = state.events.as_slice() else { panic!("{:?}", state.events) };
+    assert_eq!(*set, committed + 1, "the stop goes out the pass after the field's Commit");
     let locations: Vec<f32> = state.host.value.stops.color.iter().map(|s| s.location).collect();
     assert_eq!(locations, [0.0, 0.4, 0.75, 1.0]);
 }
