@@ -57,8 +57,7 @@ impl Family for OptionsBarTokens {
             field_md: scale(values::OPTIONS_BAR_FIELD_MD),
             field_lg: scale(values::OPTIONS_BAR_FIELD_LG),
             scroll_bar: values::OPTIONS_BAR_SCROLL_BAR,
-            // PhotoCraft's 26: 2 larger than a medium control, as the panel footer's.
-            button: s.size.control.md + 2.0,
+            button: values::options_bar_button(s.preset),
         }
     }
 

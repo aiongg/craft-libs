@@ -545,6 +545,24 @@ pub const MOTION_EASING: Easing = Easing::Standard;
 /// How much of its fill a check box that is on shows while pressed (`widgets/buttons.rs:247`).
 pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
 
+/// Side of the options bar's icon buttons: PhotoCraft's tool icon button (26 Pro, 28 Studio,
+/// `panels/options_bar.rs:57`).
+pub const fn options_bar_button(size: Size) -> f32 {
+    match size {
+        Size::Compact => 26.0,
+        Size::Comfortable => 28.0,
+    }
+}
+
+/// A progress bar's length when the caller gives none: PhotoCraft's job progress bar (120 Pro,
+/// 140 Studio, `jobs_ui.rs:655`).
+pub const fn progress_width(size: Size) -> f32 {
+    match size {
+        Size::Compact => 120.0,
+        Size::Comfortable => 140.0,
+    }
+}
+
 /// The control height the Compact panel footer sizes are set for.
 pub const PANEL_FOOTER_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a panel footer's bar (PhotoCraft's `FOOTER_BAR`, `widgets/panel.rs:58`).

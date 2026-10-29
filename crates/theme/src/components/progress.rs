@@ -10,6 +10,8 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ProgressTokens {
+    /// Default length of the bar: `progress.width`.
+    pub width: f32,
     /// Thickness of the track.
     pub track_height: f32,
     /// Corner radius of the track and the fill, each clamped to half the thickness; 999 gives a
@@ -43,6 +45,7 @@ impl Family for ProgressTokens {
 
     fn defaults(s: &Semantic<'_>) -> ProgressTokens {
         ProgressTokens {
+            width: values::progress_width(s.preset),
             track_height: values::PROGRESS_TRACK,
             radius: s.shape.radius.pill,
             track: s.color.surface.sunken,

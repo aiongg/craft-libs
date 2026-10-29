@@ -1317,7 +1317,8 @@ fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
 }
 
 fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
-    let ProgressTokens { track_height, radius, track, edge, fill } = p;
+    let ProgressTokens { width, track_height, radius, track, edge, fill } = p;
+    out.line("progress.width", len(*width));
     out.line("progress.track_height", len(*track_height));
     out.line("progress.radius", len(*radius));
     out.line("progress.track", hex(*track));

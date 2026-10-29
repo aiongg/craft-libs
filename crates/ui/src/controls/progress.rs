@@ -15,8 +15,6 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 const SWEEP: f64 = 1.25;
 /// The indeterminate segment's length, as a fraction of the track.
 const SEGMENT: f32 = 0.3;
-/// The bar's length when neither the caller nor a wider layout gives one, in points.
-const WIDTH: f32 = 120.0;
 /// Where the still indeterminate segment starts, as a fraction of the track.
 const STILL_START: f32 = 0.3;
 /// Dash and gap lengths of the still segment, in track heights.
@@ -27,6 +25,8 @@ const DASH_GAP: f32 = 1.0;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ProgressStyle {
+    /// Default length: `progress.width`.
+    pub width: f32,
     /// Thickness: `progress.track_height`.
     pub height: f32,
     /// `progress.radius`, on the track and the fill.
@@ -48,7 +48,7 @@ enum Amount {
 /// A horizontal progress bar: `ui.add(Progress::new(0.4).label("Export"))`.
 ///
 /// The fill grows from the reading start, so it mirrors in a right-to-left interface, and is never
-/// narrower than the bar is thick unless it is empty. The bar is 120 points long unless
+/// narrower than the bar is thick unless it is empty. The bar is `progress.width` long unless
 /// [`width`](Progress::width) says otherwise. [`Progress::indeterminate`]
 /// moves a segment along the track; with reduced motion the segment stands still and is drawn as
 /// dashes, so it cannot be mistaken for a determinate fill. AccessKit sees a progress indicator
@@ -91,7 +91,7 @@ impl Progress {
         if let SurfaceEdge::Border(stroke) = &mut track.edge {
             stroke.color = p.edge.to_egui();
         }
-        ProgressStyle { height: p.track_height, radius, track, fill: p.fill.to_egui() }
+        ProgressStyle { width: p.width, height: p.track_height, radius, track, fill: p.fill.to_egui() }
     }
 
     /// `fraction` as drawn and reported: clamped to 0..=1, and 0 when it is not a number.
@@ -123,7 +123,7 @@ impl Widget for Progress {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let style = Progress::style(&tokens);
-        let width = self.width.unwrap_or(WIDTH);
+        let width = self.width.unwrap_or(style.width);
         let (rect, response) = ui.allocate_exact_size(vec2(width, style.height), Sense::hover());
         let value = match self.amount {
             Amount::Fraction(f) => Some(f64::from(Progress::clamped(f))),

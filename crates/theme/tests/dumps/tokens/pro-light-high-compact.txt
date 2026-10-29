@@ -682,6 +682,7 @@ panel_header.button = 20
 popup.fill = #f0f0f0ff
 popup.border = #d6d6d6ff
 popup.shadow = #00000032
+progress.width = 120
 progress.track_height = 6
 progress.radius = 999
 progress.track = #ffffffff

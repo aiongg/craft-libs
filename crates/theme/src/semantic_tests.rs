@@ -607,7 +607,7 @@ fn options_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
     assert_eq!((compact.scroll_bar, compact.button, compact.row_gap), (4.0, 26.0, 4.0));
     assert_eq!((comfy.height, comfy.height_narrow, comfy.pad, comfy.gap, comfy.divider), (42.0, 34.0, 10.0, 10.0, 28.0));
     assert_eq!((comfy.field_sm, comfy.field_md, comfy.field_lg), (72.0, 78.0, 95.0));
-    assert_eq!((comfy.scroll_bar, comfy.button, comfy.row_gap), (4.0, 32.0, 5.0));
+    assert_eq!((comfy.scroll_bar, comfy.button, comfy.row_gap), (4.0, 28.0, 5.0));
 }
 
 #[test]
