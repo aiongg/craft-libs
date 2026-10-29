@@ -121,6 +121,12 @@ pub enum ErrorKind {
         /// The token paths along the cycle, the first repeated at the end.
         chain: Vec<String>,
     },
+    /// References whose values keep changing because each reads a token derived from another:
+    /// a reference to a token that is derived from the token the reference pins.
+    ReferenceNeverSettles {
+        /// The token paths of the references that still change after the last round.
+        tokens: Vec<String>,
+    },
     /// A translucent colour on a surface (`surface.*` except `surface.scrim`).
     NotOpaque,
 }
@@ -165,6 +171,9 @@ impl FormatError {
             ErrorKind::SeedsNotAllowed => "seeds are set in the theme's own light and dark maps only".to_owned(),
             ErrorKind::UnknownReference { name } => format!("reference {{{name}}} names no token"),
             ErrorKind::ReferenceNotColor { name } => format!("reference {{{name}}} is not a colour field"),
+            ErrorKind::ReferenceNeverSettles { tokens } => {
+                format!("references depend on themselves through derivation and never settle: {}", tokens.join(", "))
+            }
             ErrorKind::ReferenceCycle { chain } => format!("references form a cycle: {}", chain.join(" -> ")),
             ErrorKind::NotOpaque => "surfaces must be opaque".to_owned(),
         }

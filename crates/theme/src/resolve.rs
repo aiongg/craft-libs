@@ -53,18 +53,38 @@ pub(super) struct Steps {
 
 /// [`resolve`], and the steps on the way.
 pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
-    match resolve_references(theme, appearance, app) {
-        Some(concrete) => resolve_concrete(&concrete, appearance, app),
+    match settle_references(theme, appearance, app) {
+        Some(Settled { resolution: Some(done), .. }) => done,
+        Some(Settled { theme: concrete, .. }) => resolve_concrete(&concrete, appearance, app),
         None => resolve_concrete(theme, appearance, app),
     }
 }
 
-/// `theme` with every reference that applies to `appearance` replaced by a colour pin holding the
-/// referenced token's final value, or `None` when none applies. References resolve in rounds: one
-/// resolution of the theme without them gives the values of the references to tokens that are not
-/// references, the next those that read those, and so on. A reference to a token that another
-/// layer pins by colour reads that pin, being the token's final value.
-fn resolve_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Option<ThemeDef> {
+/// The references of `theme` for `appearance` whose value still changes when the last round
+/// applies them: the ones that depend on themselves through derivation, such as
+/// `state.selected = "{state.selected_hover}"` with a hover state derived from the selected one.
+pub(super) fn unsettled_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Vec<(PinLayer, TokenRef)> {
+    settle_references(theme, appearance, app).map(|s| s.unsettled).unwrap_or_default()
+}
+
+/// What [`settle_references`] leaves.
+struct Settled {
+    /// The theme with every reference replaced by a colour pin holding its value.
+    theme: ThemeDef,
+    /// The references still changing after the last round.
+    unsettled: Vec<(PinLayer, TokenRef)>,
+    /// The resolution of `theme`, when the last round left it unchanged.
+    resolution: Option<(Resolved, Steps)>,
+}
+
+/// Applies each reference as a colour pin holding the value its target has in the final
+/// resolution, and resolves again until no reference's value changes, so a reference to a derived
+/// token reads what is derived from the other references' values. The first round resolves the
+/// theme with the references removed. Every round that changes a value needs the one before it to
+/// have changed another, and a value depends on at most every other reference, so the rounds stop
+/// after one more than the number of references; a reference still changing then is returned
+/// with the pins of the last round. `None` when no reference applies.
+fn settle_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Option<Settled> {
     let mode = theme.variants.mode_for(appearance.mode);
     let high = appearance.contrast == Contrast::High;
     let has_app = app.is_some_and(|a| theme.apps.contains_key(a));
@@ -93,25 +113,29 @@ fn resolve_references(theme: &ThemeDef, appearance: Appearance, app: Option<&App
     for pins in all_pins_mut(&mut work) {
         pins.refs.clear();
     }
-    while !pending.is_empty() {
-        let tokens = resolve_concrete(&work, appearance, app).0.tokens;
-        let (ready, rest): (Vec<_>, Vec<_>) = pending.iter().partition(|p| !pending.iter().any(|q| q.1 == p.2));
-        // Without a ready reference the rest lead back to themselves, which a validated theme never does.
-        if ready.is_empty() {
-            break;
-        }
-        for &(layer, key, target) in ready {
+    let mut unsettled = Vec::new();
+    let mut resolution = None;
+    for _ in 0..=pending.len() + 1 {
+        let (resolved, steps) = resolve_concrete(&work, appearance, app);
+        let tokens = &resolved.tokens;
+        unsettled.clear();
+        for &(layer, key, target) in &pending {
             let value = match target {
                 TokenRef::Color(t) => Some(tokens.color(t)),
                 TokenRef::Component(f) => tokens.component.color(f),
             };
-            if let (Some(value), Some(pins)) = (value, layer_pins_mut(&mut work, layer, app, mode)) {
-                pins.colors.insert(key, value);
+            if let (Some(value), Some(pins)) = (value, layer_pins_mut(&mut work, layer, app, mode))
+                && pins.colors.insert(key, value) != Some(value)
+            {
+                unsettled.push((layer, key));
             }
         }
-        pending = rest.into_iter().copied().collect();
+        if unsettled.is_empty() {
+            resolution = Some((resolved, steps));
+            break;
+        }
     }
-    Some(work)
+    Some(Settled { theme: work, unsettled, resolution })
 }
 
 fn layer_pins<'a>(theme: &'a ThemeDef, layer: PinLayer, app: Option<&AppId>, mode: Mode) -> Option<&'a Pins> {
