@@ -29,17 +29,27 @@ fn alone_marker_covers_a_multi_line_statement() {
 }
 
 #[test]
-fn alone_marker_covers_a_whole_fn_and_skips_comment_lines() {
-    let src = "// design: allow(canvas units)\n// more on the fn\n#[inline]\nfn f(ui: &mut Ui) {\n    ui.add_space(4.0);\n    let _ = Color32::WHITE;\n}\nfn g(ui: &mut Ui) { ui.add_space(1.0); }\n";
+fn alone_marker_before_a_fn_covers_its_header_not_its_body() {
+    let src = "// design: allow(canvas units)\n#[inline]\nfn f(ui: &mut Ui) {\n    ui.add_space(4.0);\n    let _ = Color32::WHITE;\n}\n";
     let (findings, _) = run(src);
-    assert_eq!(findings.iter().map(|f| f.line).collect::<Vec<_>>(), [8]);
+    assert_eq!(
+        findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(),
+        [("marker/unused", 1), ("literal-size/add-space", 4), ("raw-colour/const", 5)]
+    );
 }
 
 #[test]
-fn alone_marker_covers_an_impl_item_and_a_match_arm() {
-    let src = "impl A {\n    // design: allow(fixed)\n    fn f(&self, ui: &mut Ui) { ui.add_space(4.0); }\n    fn g(&self, ui: &mut Ui) {\n        match x {\n            // design: allow(arm)\n            1 => ui.add_space(2.0),\n            _ => ui.add_space(3.0),\n        }\n    }\n}\n";
+fn alone_marker_before_a_control_flow_statement_covers_its_header_only() {
+    let src = "fn f(ui: &mut Ui, w: f32) {\n    // design: allow(guard)\n    if w > vec2(1.0, 1.0).x {\n        ui.add_space(4.0);\n    }\n}\n";
     let (findings, _) = run(src);
-    assert_eq!(findings.iter().map(|f| f.line).collect::<Vec<_>>(), [8]);
+    assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("literal-size/add-space", 4)]);
+}
+
+#[test]
+fn alone_marker_before_an_impl_covers_the_header_and_each_item_needs_its_own() {
+    let src = "// design: allow(whole impl)\nimpl A {\n    fn f(&self, ui: &mut Ui) {\n        ui.add_space(4.0);\n    }\n}\n";
+    let (findings, _) = run(src);
+    assert_eq!(findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("marker/unused", 1), ("literal-size/add-space", 4)]);
 }
 
 #[test]
@@ -110,4 +120,40 @@ fn marker_covering_only_exempt_findings_is_unused() {
 fn allow_attributes_do_not_silence_syntax_rules() {
     let src = "#[allow(clippy::disallowed_methods, reason = \"stock widget\")]\nfn f(ui: &mut Ui) { ui.add_space(4.0); }\n";
     assert_eq!(rules(src), ["literal-size/add-space"]);
+}
+
+#[test]
+fn marker_with_a_rule_list_covers_only_those_rules() {
+    let src = "fn f(ui: &mut Ui) {\n    // design: allow[literal-size/add-space](optical gap)\n    ui.add_space(4.0); let _ = Color32::RED;\n}\n";
+    let (findings, markers) = run(src);
+    assert_eq!(markers, 1);
+    assert_eq!(findings.iter().map(|f| f.rule).collect::<Vec<_>>(), ["raw-colour/const"]);
+
+    let family = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); let _ = Color32::RED; // design: allow[literal-size, raw-colour](both)\n}\n";
+    assert!(run(family).0.is_empty());
+}
+
+#[test]
+fn marker_whose_listed_rules_match_nothing_is_unused() {
+    let src = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[raw-colour](wrong rule)\n}\n";
+    assert_eq!(rules(src), ["literal-size/add-space", "marker/unused"]);
+}
+
+#[test]
+fn marker_naming_an_unknown_rule_or_an_open_list_is_invalid() {
+    let unknown = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[literal-size/nope](reason)\n}\n";
+    assert_eq!(rules(unknown), ["literal-size/add-space", "marker/invalid"]);
+    let open = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[literal-size(reason)\n}\n";
+    assert_eq!(rules(open), ["literal-size/add-space", "marker/invalid"]);
+    let empty = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[](reason)\n}\n";
+    assert_eq!(rules(empty), ["literal-size/add-space", "marker/invalid"]);
+    let no_reason = "fn f(ui: &mut Ui) {\n    ui.add_space(4.0); // design: allow[literal-size]\n}\n";
+    assert_eq!(rules(no_reason), ["literal-size/add-space", "marker/empty"]);
+}
+
+#[test]
+fn markers_do_not_cover_inner_clippy_allows_or_parse_errors() {
+    let src = "//! design: allow(everything)\n#![allow(clippy::disallowed_methods)]\nfn f(ui: &mut Ui) { ui.add_space(4.0); }\n";
+    assert_eq!(rules(src), ["clippy/inner-allow"]);
+    assert_eq!(rules("//! design: allow(everything)\nfn f( {"), ["parse"]);
 }

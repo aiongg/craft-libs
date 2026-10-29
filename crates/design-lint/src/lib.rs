@@ -6,17 +6,21 @@
 //! `xtask`; the binary exposes the same operations.
 //!
 //! The syntax half is [`check`]: it parses the configured directories and reports
-//! literal sizes and named `Color32` constants as a [`Report`].
+//! literal sizes, named colour constants, style mutation and crate-wide clippy allows as a [`Report`].
+//! A [`Baseline`] records the findings of an existing code base so a check fails only on new ones.
 
+mod baseline;
 mod clippy;
 mod config;
 mod markers;
 mod report;
 mod rules;
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-pub use clippy::{ClippyDrift, DriftKind, check_clippy, clippy_drift, merge_clippy, write_clippy};
+pub use baseline::{Baseline, BaselineCheck, Increase};
+pub use clippy::{ClippyDrift, ClippyShadow, DriftKind, check_clippy, clippy_drift, clippy_shadows, merge_clippy, write_clippy};
 pub use config::{Config, Exemption};
 pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};
@@ -28,13 +32,20 @@ pub const CLIPPY_TEMPLATE: &str = include_str!("../clippy.template.toml");
 /// The `[workspace.lints.clippy]` lines an app adds to its workspace `Cargo.toml`.
 pub const LINTS_TEMPLATE: &str = include_str!("../lints.template.toml");
 
+/// Reported for an `[[exempt]]` that matches no checked file or silences no finding.
+pub const UNUSED_EXEMPTION: &str = "exemption/unused";
+
 /// Checks the configured paths (relative to `root`) and returns the findings.
 ///
 /// Test files and `#[cfg(test)]` code are skipped unless the config includes them.
 /// `// design: allow(<reason>)` markers and `[[exempt]]` paths silence findings; see [`analyze_with_markers`].
-/// A file that does not parse is a `parse` finding; an unreadable path is an error.
+/// A file that does not parse is a `parse` finding that nothing silences; an unreadable path is an error.
+/// An exemption that matches no checked file or silences nothing is reported as `exemption/unused`
+/// (a warning, an error with `deny_unused`). Each file is parsed once.
 pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
     let mut report = Report::default();
+    let hits = RefCell::new(vec![0_usize; config.exempt.len()]);
+    let mut matched_files = vec![0_usize; config.exempt.len()];
     for entry in &config.paths {
         let base = root.join(entry);
         let mut files = Vec::new();
@@ -47,9 +58,22 @@ pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
             report.files += 1;
             let area = area_of(&base, &file);
             let shown = file.strip_prefix(root).unwrap_or(&file).to_owned();
-            let exempt = |rule: &str| config.exempt.iter().any(|e| e.covers(&shown, rule));
+            for (n, e) in matched_files.iter_mut().zip(&config.exempt) {
+                *n += usize::from(shown.starts_with(&e.path));
+            }
+            let exempt = |rule: &str| {
+                let mut any = false;
+                for (n, e) in hits.borrow_mut().iter_mut().zip(&config.exempt) {
+                    if e.covers(&shown, rule) {
+                        *n += 1;
+                        any = true;
+                    }
+                }
+                any
+            };
             let marked = analyze_with_markers(&src, config.include_tests, config.deny_unused, &exempt);
             report.markers += marked.markers;
+            report.clippy_allows += marked.clippy_allows;
             for mut finding in marked.findings {
                 finding.path.clone_from(&shown);
                 finding.area.clone_from(&area);
@@ -57,7 +81,20 @@ pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
             }
         }
     }
-    report.exemptions = config.exempt.len();
+    let severity = if config.deny_unused { Severity::Error } else { Severity::Warning };
+    for ((exemption, files), hits) in config.exempt.iter().zip(&matched_files).zip(hits.into_inner()) {
+        let message = match (files, hits) {
+            (0, _) => format!("exemption for `{}` matches no checked file; fix the path or remove it", exemption.path.display()),
+            (_, 0) => format!("exemption for `{}` silences no finding; remove it", exemption.path.display()),
+            _ => continue,
+        };
+        let mut finding = Finding::new(UNUSED_EXEMPTION, 1, 1, 1, message);
+        finding.path.clone_from(&exemption.path);
+        finding.area = "(config)".to_owned();
+        finding.severity = severity;
+        report.findings.push(finding);
+    }
+    report.exemptions.clone_from(&config.exempt);
     report.findings.sort_by(|a, b| (&a.path, a.line, a.column).cmp(&(&b.path, b.line, b.column)));
     Ok(report)
 }
@@ -109,6 +146,8 @@ pub enum Error {
     Toml { path: std::path::PathBuf, message: String },
     /// The app's `clippy.toml` lacks or differs from template entries.
     ClippyDrift(Vec<ClippyDrift>),
+    /// Another `clippy.toml`, or `CLIPPY_CONF_DIR`, makes clippy skip the app's one.
+    ClippyShadowed(Vec<ClippyShadow>),
 }
 
 impl std::fmt::Display for Error {
@@ -116,6 +155,12 @@ impl std::fmt::Display for Error {
         match self {
             Self::Io { path, source } => write!(f, "{}: {source}", path.display()),
             Self::Toml { path, message } => write!(f, "{}: {message}", path.display()),
+            Self::ClippyShadowed(shadows) => {
+                for s in shadows {
+                    writeln!(f, "{s}")?;
+                }
+                write!(f, "design-lint: clippy would not read the root clippy.toml for {} location(s)", shadows.len())
+            }
             Self::ClippyDrift(drift) => {
                 for d in drift {
                     writeln!(f, "{d}")?;

@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Write as _};
 use std::path::PathBuf;
 
+use crate::config::Exemption;
+
 /// How serious a finding is. Only errors make the exit code non-zero.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Severity {
@@ -62,7 +64,9 @@ pub struct Report {
     /// Markers found in those files.
     pub markers: usize,
     /// Path exemptions in the config.
-    pub exemptions: usize,
+    pub exemptions: Vec<Exemption>,
+    /// `allow` and `expect` attributes naming a `clippy::disallowed_*` lint.
+    pub clippy_allows: usize,
 }
 
 fn plural(n: usize, one: &str) -> String {
@@ -86,7 +90,12 @@ impl Report {
 
     /// The closing line: totals, counts per rule, markers and exemptions.
     pub fn summary_line(&self) -> String {
-        let tail = format!("{}, {}", plural(self.markers, "marker"), plural(self.exemptions, "exemption"));
+        let tail = format!(
+            "{}, {}, {}",
+            plural(self.markers, "marker"),
+            plural(self.exemptions.len(), "exemption"),
+            plural(self.clippy_allows, "clippy allow")
+        );
         if self.findings.is_empty() {
             return format!("design-lint: no findings in {}; {tail}", plural(self.files, "file"));
         }
@@ -95,14 +104,32 @@ impl Report {
         format!("design-lint: {} in {} ({}); {tail}", plural(self.findings.len(), "finding"), plural(files, "file"), rules.join(", "))
     }
 
-    /// One line per finding followed by the summary line.
+    /// One line per finding, the exemptions, then the summary line.
     pub fn render(&self) -> String {
+        let mut out = self.render_body();
+        out.push_str(&self.summary_line());
+        out.push('\n');
+        out
+    }
+
+    /// Like [`Report::render`], with the counts per rule and per area before the summary line.
+    pub fn render_with_table(&self) -> String {
+        let mut out = self.render_body();
+        out.push_str(&self.summary_table());
+        out.push('\n');
+        out.push_str(&self.summary_line());
+        out.push('\n');
+        out
+    }
+
+    fn render_body(&self) -> String {
         let mut out = String::new();
         for f in &self.findings {
             let _ = writeln!(out, "{f}");
         }
-        out.push_str(&self.summary_line());
-        out.push('\n');
+        for e in &self.exemptions {
+            let _ = writeln!(out, "exemption: {e}");
+        }
         out
     }
 
