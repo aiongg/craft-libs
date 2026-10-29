@@ -682,6 +682,8 @@ struct Mini<const N: usize> {
     value: [f64; N],
     range: f64,
     wrap: Option<f64>,
+    /// The anchor and the span of a row ordered round from one thumb.
+    anchored: Option<(usize, f64)>,
     thumbs: fn() -> [Thumb; N],
     event: Option<EditEvent<[f64; N]>>,
     travel: (f32, f32),
@@ -703,6 +705,7 @@ impl<const N: usize> Mini<N> {
             value,
             range,
             wrap,
+            anchored: None,
             thumbs,
             event: None,
             travel: (0.0, 0.0),
@@ -732,7 +735,9 @@ impl<const N: usize> Mini<N> {
             // A level a point.
             let mut row =
                 ThumbRow::new("mini", self.value, &(0.0..=self.range), Some(1.0), (self.thumbs)()).width(self.range as f32 + 2.0 * style.inset());
-            if let Some(period) = self.wrap {
+            if let (Some(period), Some((anchor, span))) = (self.wrap, self.anchored) {
+                row = row.wrap_from(period, anchor, span);
+            } else if let Some(period) = self.wrap {
                 row = row.wrap(period);
             }
             let out = row.show(ui, &style);
@@ -844,4 +849,108 @@ fn a_wrapped_row_crosses_the_period_and_keeps_the_short_way_distance() {
     mini.frame(vec![]);
     mini.tap(mini.at(10.0, 0.0));
     assert_eq!(mini.event, set([10.0, 100.0], Modifiers::NONE));
+}
+
+fn range_bar() -> [Thumb; 4] {
+    [
+        Thumb::new("Outer start", Color32::GRAY),
+        Thumb::new("Inner start", Color32::WHITE),
+        Thumb::new("Inner end", Color32::WHITE),
+        Thumb::new("Outer end", Color32::GRAY),
+    ]
+}
+
+/// A hue range bar's rules: four thumbs, wrap 360, the first thumb the anchor, a span of 359.
+fn range_rules() -> super::thumb_row::RowRules<4> {
+    ThumbRow::new("rules", [0.0; 4], &(0.0..=360.0), Some(1.0), range_bar()).wrap_from(360.0, 0, 359.0).row_rules()
+}
+
+/// PhotoCraft's `move_hue_range_handle` cases on a row (its `adjust_editors` tests, and the
+/// rules in its comments): the pointer's hue sets a handle, measured from handle 0.
+#[test]
+fn an_anchored_row_moves_a_thumb_as_the_hue_range_bar_does() {
+    let rules = range_rules();
+    let set = |thumb, to: f64, row: [f64; 4]| rules.apply(&RowOp { thumb, op: ScalarOp::Set(to) }, &row)[thumb];
+
+    // The canonical bounds [-360, -10, -1, -1] (here 0, 350, 359, 359): handle 2 to 354.
+    assert_eq!(set(2, 354.0, [0.0, 350.0, 359.0, 359.0]), 354.0);
+    // The same row as it comes in, not yet canonical: [0, 350, 100, 200].
+    assert_eq!(set(2, 354.0, [0.0, 350.0, 100.0, 200.0]), 354.0);
+    // An ordinary move between neighbours.
+    assert_eq!(set(2, 65.0, [0.0, 30.0, 60.0, 90.0]), 65.0);
+    // A handle stops at its neighbours.
+    assert_eq!(set(2, 20.0, [0.0, 30.0, 60.0, 90.0]), 30.0);
+    assert_eq!(set(2, 120.0, [0.0, 30.0, 60.0, 90.0]), 90.0);
+
+    // Spans over half a period: the inner handles 250 degrees apart, the outer one 300 from the anchor.
+    let wide = [0.0, 10.0, 260.0, 300.0];
+    assert_eq!(set(1, 240.0, wide), 240.0, "inner start 240 past the anchor, over half a period");
+    assert_eq!(set(3, 355.0, wide), 355.0);
+    assert_eq!(set(3, 200.0, wide), 260.0, "the last stops at the thumb before it");
+    // Dragging past the cap: the last handle stops 359 past the anchor, whatever is 360 past.
+    assert_eq!(set(3, 359.0, wide), 359.0);
+    assert_eq!(set(3, 359.9, wide), 359.0);
+
+    // The same across the seam: anchor 200, the others at 210, 40 (250 on) and 140 (300 on).
+    let seam = [200.0, 210.0, 40.0, 140.0];
+    assert_eq!(set(3, 190.0, seam), 190.0, "350 past the anchor");
+    assert_eq!(set(3, 199.5, seam), 199.0, "the cap, 359 past the anchor");
+    assert_eq!(set(1, 30.0, seam), 30.0, "up to the next handle at 40, past the seam");
+    assert_eq!(set(1, 100.0, seam), 40.0);
+    assert_eq!(set(1, 150.0, seam), 40.0, "away from the anchor, not before it");
+
+    // The anchor goes the short way and stays within half a period before the next handle.
+    let row = [0.0, 100.0, 200.0, 300.0];
+    assert_eq!(set(0, 50.0, row), 50.0);
+    assert_eq!(set(0, 120.0, row), 100.0, "not past the next handle");
+    assert_eq!(set(0, 20.0, [0.0, 250.0, 260.0, 270.0]), 70.0, "at most 180 before the next handle (250 - 180)");
+    assert_eq!(set(0, 300.0, row), 301.0, "the short way round, stopping where the last handle is 359 on");
+    assert_eq!(set(0, 300.0, [0.0, 100.0, 120.0, 130.0]), 300.0, "the short way round, 60 back");
+    // The others keep their values when the anchor moves.
+    let moved = rules.apply(&RowOp { thumb: 0, op: ScalarOp::Set(50.0) }, &row);
+    assert_eq!(moved, [50.0, 100.0, 200.0, 300.0]);
+}
+
+#[test]
+fn keys_and_home_and_end_keep_an_anchored_row_in_order_and_end_leaves_the_start() {
+    let rules = range_rules();
+    let op = |thumb, op, row: [f64; 4]| rules.apply(&RowOp { thumb, op }, &row)[thumb];
+    let row = [350.0, 10.0, 30.0, 60.0];
+    assert_eq!(op(1, ScalarOp::By(1.0), row), 11.0);
+    assert_eq!(op(1, ScalarOp::By(100.0), row), 30.0, "up to the next handle");
+    assert_eq!(op(1, ScalarOp::ToBound(Bound::Low), row), 350.0, "Home: the anchor's place");
+    assert_eq!(op(1, ScalarOp::ToBound(Bound::High), row), 30.0, "End: the next handle's place");
+    assert_eq!(op(3, ScalarOp::ToBound(Bound::High), row), 349.0, "End of the last: 359 past the anchor");
+    // A step of a thumb across the seam appears at the start of the range.
+    assert_eq!(op(2, ScalarOp::By(1.0), [300.0, 340.0, 359.0, 20.0]), 0.0);
+
+    // End in a wrapping row without neighbours goes to the range's end less a step, not to Home's value.
+    let free = ThumbRow::new("free", [0.0; 2], &(0.0..=360.0), Some(1.0), hues()).wrap(360.0).row_rules();
+    let at = |bound| free.apply(&RowOp { thumb: 0, op: ScalarOp::ToBound(bound) }, &[100.0, 200.0])[0];
+    assert_eq!(at(Bound::Low), 0.0);
+    assert_eq!(at(Bound::High), 359.0);
+}
+
+#[test]
+fn dragging_an_anchored_row_stops_at_the_neighbours_and_the_span_and_the_anchor_turns() {
+    let mut mini = Mini::new([340.0, 10.0, 50.0, 80.0], 360.0, Some(360.0), range_bar);
+    mini.anchored = Some((0, 359.0));
+    mini.frame(vec![]);
+    // The last handle, dragged on round: it stops 359 past the anchor (339).
+    mini.press(mini.at(80.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.drag(mini.at(80.0, 330.0));
+    assert_eq!(mini.event, update(id, [340.0, 10.0, 50.0, 339.0]));
+    mini.release(mini.at(80.0, 330.0));
+    assert_eq!(mini.value, [340.0, 10.0, 50.0, 339.0]);
+
+    // The anchor dragged forward over the seam: it stops at the next handle.
+    let mut mini = Mini::new([340.0, 10.0, 50.0, 80.0], 360.0, Some(360.0), range_bar);
+    mini.anchored = Some((0, 359.0));
+    mini.frame(vec![]);
+    mini.press(mini.at(340.0, 0.0));
+    let id = begin(mini.event.clone());
+    mini.drag(mini.at(340.0, 30.0));
+    assert_eq!(mini.event, update(id, [10.0, 10.0, 50.0, 80.0]));
+    mini.release(mini.at(340.0, 30.0));
 }
