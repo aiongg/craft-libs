@@ -869,6 +869,9 @@ struct Scrub {
 /// edge it is put.
 const WRAP_EDGE: f32 = 2.0;
 
+/// How far from the point the pointer was asked to go it counts as having arrived.
+const WARP_AREA: f32 = 2.0 * WRAP_EDGE;
+
 /// What one pointer position adds to a scrub.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Travel {
@@ -883,18 +886,21 @@ pub(super) struct Travel {
 }
 
 /// The points the pointer moved from `last_x` to `x`. With the horizontal `edges` of the screen,
-/// a move that reaches one asks for the pointer at the other (`send`); the position that then
-/// shows up there is not a move. A pointer that stays where it was (a platform that does not
-/// move it) waits; one that moves elsewhere is an ordinary move.
+/// a move that reaches one asks for the pointer at the other (`send`), once: the request stays
+/// pending until the pointer is seen within `WARP_AREA` of the target, and the position that
+/// then shows up there is not a move. A pointer that stays where it was (a platform that does not
+/// move it) waits; one that moves elsewhere is an ordinary move, and the request is not sent
+/// again.
 pub(super) fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32, f32)>) -> Travel {
     let mut now = Travel { delta: x - last_x, last_x: x, warp: None, send: None };
     if let Some(target) = warp {
         if x == last_x {
             return Travel { delta: 0.0, warp, ..now };
         }
-        if (x - target).abs() < (x - last_x).abs() {
+        if (x - target).abs() <= WARP_AREA {
             return Travel { delta: 0.0, ..now };
         }
+        return Travel { warp, ..now };
     }
     if let Some((left, right)) = edges {
         let target = if now.delta > 0.0 && x >= right - WRAP_EDGE {
@@ -1254,7 +1260,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
             });
             row(ui, "Zoom stops", *zoom, |ui| {
                 let edit = NumberField::new("number-field-zoom", "Zoom", *zoom, &numbers)
-                    .range(12.5..=800.0)
+                    .range(0.1..=12_800.0)
                     .decimals(0..=1)
                     .unit(Unit::new("{n}%"))
                     .steps_with(zoom_step)
@@ -1278,7 +1284,8 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-const ZOOM_STOPS: [f64; 8] = [12.5, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0];
+/// PhotoCraft's zoom runs from 0.1 % to 12800 %.
+const ZOOM_STOPS: [f64; 11] = [12.5, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0, 12_800.0];
 
 /// The next zoom stop above `value` for a positive `notches`, the previous one below it otherwise.
 fn zoom_step(value: f64, notches: i32) -> f64 {

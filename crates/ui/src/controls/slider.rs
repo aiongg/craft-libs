@@ -237,12 +237,12 @@ impl Slider {
         self
     }
 
-    /// How the track maps positions to values (default [`SliderScale::Linear`]). With a
-    /// Only the track maps through a power curve: keys, the wheel and steps stay linear in the
-    /// value, as in PhotoCraft. A log slider without a [`step`](Slider::step) moves an arrow
-    /// key by a tenth of a decade of the value and Page by a tenth of the track. A scale that doesn't fit the range (a log scale over
-    /// a range that isn't positive, a power that isn't a positive number) is a debug assertion
-    /// and in release builds the track stays linear.
+    /// How the track maps positions to values (default [`SliderScale::Linear`]). Only the track
+    /// maps through the curve: keys, the wheel and steps stay linear in the value, as in
+    /// PhotoCraft. A log slider without a [`step`](Slider::step) moves an arrow key by a tenth of
+    /// a decade of the value and Page by a tenth of the track. A scale that doesn't fit the range
+    /// (a log scale over a range that isn't positive, a power that isn't a positive number) is a
+    /// debug assertion and in release builds the track stays linear.
     pub fn scale(mut self, scale: SliderScale) -> Self {
         self.scale = scale;
         self
@@ -916,8 +916,6 @@ pub(super) fn paint_thumb(ui: &Ui, style: &SliderStyle, center: Pos2, paint: Thu
     rect
 }
 
-/// A knob surface (a slider or switch thumb) with these colours; a bevel keeps its own. A
-/// disabled knob lies flat, so it never stands out more than an enabled one.
 /// The marks (at the values) and `ticks` (`count + 1` evenly spaced along the track) under it.
 fn paint_marks(ui: &Ui, style: &SliderStyle, track: &Track, marks: &[f64], ticks: usize) {
     let (x0, x1) = track.ends();
@@ -945,6 +943,8 @@ fn paint_pointer(ui: &Ui, style: &SliderStyle, track: &Track, x: f32, paint: Thu
     ui.painter().add(egui::Shape::convex_polygon(points, paint.fill, Stroke::new(width, paint.border)));
 }
 
+/// A knob surface (a slider or switch thumb) with these colours; a bevel keeps its own. A
+/// disabled knob lies flat, so it never stands out more than an enabled one.
 pub(super) fn knob(mut surface: SurfaceStyle, fill: Color32, border: Color32, enabled: bool) -> SurfaceStyle {
     surface.fill = fill;
     if let SurfaceEdge::Border(stroke) = surface.edge {

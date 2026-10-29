@@ -529,9 +529,8 @@ pub const SEGMENTED_INSET: f32 = 2.0;
 /// A text field's default width, in control heights of its size.
 pub const FIELD_WIDTH: f32 = 8.0;
 
-/// A number field's default width, in control heights of its size: room for a five-digit number,
-/// a short unit and a scrub label inside the field.
-pub const NUMBER_FIELD_WIDTH: f32 = 4.0;
+/// A number field's default width, in control heights of its size; apps set other widths per field.
+pub const NUMBER_FIELD_WIDTH: f32 = 3.0;
 
 /// The control height the Compact property row widths are set for; other sizes scale them by
 /// their control height over this.

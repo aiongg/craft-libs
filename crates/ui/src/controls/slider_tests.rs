@@ -968,25 +968,39 @@ fn a_drag_near_a_mark_snaps_to_it() {
     assert_eq!(rig.level_event, set(25.0, Modifiers::NONE), "a click near a mark snaps too");
 }
 
-/// The line segments in `colour` that a frame of the slider paints.
-fn marks_drawn(rig: &mut Rig, colour: egui::Color32) -> usize {
+/// The x of the line segments in `colour` that a frame of the slider paints, left to right.
+fn marks_drawn(rig: &mut Rig, colour: egui::Color32) -> Vec<f32> {
     let ctx = rig.ctx.clone();
     let events = vec![Event::ModifiersChanged(rig.modifiers)];
     let input =
         RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
     let output = ctx.run_ui(input, |ui| rig.controls(ui));
-    let count = output.shapes.iter().filter(|c| matches!(&c.shape, egui::Shape::LineSegment { stroke, .. } if stroke.color == colour)).count();
+    let mut xs: Vec<f32> = output
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::LineSegment { points, stroke } if stroke.color == colour => Some(points[0].x),
+            _ => None,
+        })
+        .collect();
     output.drop_without_applying_deltas();
-    count
+    xs.sort_by(f32::total_cmp);
+    xs
 }
 
 #[test]
 fn ticks_draw_count_plus_one_marks() {
     let mut rig = Rig::new();
     let colour = md_style().mark_color;
-    assert_eq!(marks_drawn(&mut rig, colour), 0);
+    assert_eq!(marks_drawn(&mut rig, colour), Vec::<f32>::new());
     rig.ticks = 4;
-    assert_eq!(marks_drawn(&mut rig, colour), 5);
+    let ticks = marks_drawn(&mut rig, colour);
+    assert_eq!(ticks.len(), 5);
+    let step = (ticks[4] - ticks[0]) / 4.0;
+    assert!(step > 0.0);
+    for pair in ticks.windows(2) {
+        assert!((pair[1] - pair[0] - step).abs() < 0.01, "evenly spaced: {ticks:?}");
+    }
 }
 
 #[test]

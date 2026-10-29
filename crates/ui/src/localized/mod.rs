@@ -16,10 +16,11 @@
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use craft_i18n::{Format, I18n, Lang, NumberError};
 use egui::emath::{Numeric, round_to_decimals};
+use egui::plugin::Plugin;
 use egui::response::Flags;
 use egui::text::{CCursor, CCursorRange};
 use egui::{
@@ -70,14 +71,17 @@ impl LocaleNumbers {
     }
 
     /// Makes these the numbers [`LocaleNumbers::of`] returns for every widget in `ctx`; call it
-    /// when the language changes.
+    /// when the language changes. The context keeps them outside its [`egui::Memory`], so a
+    /// memory reset leaves them installed.
     pub fn install(self, ctx: &Context) {
-        ctx.data_mut(|d| d.insert_temp(installed_id(), Arc::new(self)));
+        ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(self));
     }
 
     /// The numbers installed in `ui`'s context ([`LocaleNumbers::install`]), English when none is.
     pub fn of(ui: &Ui) -> Arc<LocaleNumbers> {
-        ui.data(|d| d.get_temp::<Arc<LocaleNumbers>>(installed_id())).unwrap_or_else(|| Arc::new(LocaleNumbers::from_tag("en")))
+        static ENGLISH: LazyLock<Arc<LocaleNumbers>> = LazyLock::new(|| Arc::new(LocaleNumbers::from_tag("en")));
+        let installed = ui.ctx().plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
+        installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
     }
 
     /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English
@@ -395,8 +399,15 @@ impl Recessed {
     }
 }
 
-fn installed_id() -> Id {
-    Id::unique("craft_ui::localized::numbers")
+/// The numbers [`LocaleNumbers::install`] set, kept as a plugin so that a reset of the context's
+/// memory does not drop them.
+#[derive(Default)]
+struct Installed(Option<Arc<LocaleNumbers>>);
+
+impl Plugin for Installed {
+    fn debug_name(&self) -> &'static str {
+        "craft_ui::localized::numbers"
+    }
 }
 
 pub(crate) fn first_field_id() -> Id {
