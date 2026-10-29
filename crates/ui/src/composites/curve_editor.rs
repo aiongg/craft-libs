@@ -19,7 +19,8 @@ use crate::controls::NumberField;
 use crate::controls::number_field::{self, FieldRule};
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::order::{self, Turn};
-use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
+use crate::edit::parts::{self, Pushed};
+use crate::edit::{self, EditPolicy, EditResponse, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
@@ -490,10 +491,9 @@ impl<'a> CurveEditor<'a> {
             .show(ui, |ui| {
                 let curve = edits.value().clone();
                 let (graph, graph_ops) = self.graph(ui, &style, id, &curve, policy, &mut state);
-                edits.push(&graph, graph_ops.into_iter().map(EditOp::Graph), apply, |curve, _| curve);
                 // A graph edit that waits for another part's gesture isn't in the editor's value,
                 // and the selection stays where it was before it until its turn.
-                if graph.event.as_ref().and_then(EditEvent::value).is_some_and(|curve| curve != edits.value()) {
+                if edits.push(&graph, graph_ops.into_iter().map(EditOp::Graph), apply, |curve, _| curve) == Pushed::Waits {
                     state.selected = before;
                 }
                 if self.fields && !self.pencil && edits.value().points().is_some() {

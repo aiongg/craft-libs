@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 use craft_theme::{ControlSize, Rgba, Srgba};
 use egui::{AsIdSalt, Id, Rect, Response, Ui, UiBuilder, pos2, vec2};
 
-use super::{Edits, GradientEditor, GradientOp, State, StopField, StopRef, locations, midpoint};
+use super::{Edits, GradientEditor, GradientOp, Part, State, StopField, StopRef, locations, midpoint};
 use crate::composites::PropertyRow;
 use crate::composites::color::{ColorPicker, PickedColor, popover};
 use crate::composites::gradient::stops::{self, StopKey};
@@ -119,7 +119,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let key = StopKey::of(stops, row, i);
         let edit = self.number(ui, (salt, row), name, value, field, look);
         let ops = self.field_ops(ui, field, key, &edit);
-        self.push(edits, state, &edit, ops, true, |v, now| self.set_field(field, now, row, i, v).map_or_else(|| now.clone(), |(s, _)| s));
+        self.push(edits, state, Part::Field, &edit, ops, |v, now| self.set_field(field, now, row, i, v).map_or_else(|| now.clone(), |(s, _)| s));
     }
 
     /// The operations `edit` of `field` reported, on the stop of `key`.
@@ -266,14 +266,11 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         state.popover = shown.open.then_some(anchor_id);
         // The picker is the part, not the anchor: when it isn't drawn its gesture is over.
         if let Some(picker) = shown.picker_id {
-            let mut response = shown.edit.response.clone();
-            response.id = picker;
-            let edit = EditResponse::new(response, shown.edit.event.clone());
-            let ops = match (&key, edit.event.as_ref().and_then(EditEvent::value)) {
+            let ops = match (&key, shown.edit.event.as_ref().and_then(EditEvent::value)) {
                 (Some(at), Some(picked)) => vec![GradientOp::SetColor { at: at.clone(), color: picked.color }],
                 _ => Vec::new(),
             };
-            self.push(edits, state, &edit, ops, false, |picked: PickedColor, now| self.with_color(now, i, picked.color));
+            self.push(edits, state, Part::Picker(picker), &shown.edit, ops, |picked: PickedColor, now| self.with_color(now, i, picked.color));
         }
         (shown.edit.response, PickerReport { eyedropper_requested: shown.eyedropper_requested, picker_id: shown.picker_id })
     }
@@ -311,7 +308,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             state.selected = Some(StopRef::stop(row, j));
         }
         let ops = self.field_ops(ui, StopField::Location, StopKey::of(stops, row, i), &field);
-        self.push(edits, state, &field, ops, true, |v, _| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
+        self.push(edits, state, Part::Field, &field, ops, |v, _| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
         state.location = run;
     }
 

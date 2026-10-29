@@ -24,7 +24,8 @@ use crate::composites::curve_editor::{fill, take_exact};
 use crate::controls::number_field;
 use crate::edit::ops::ScalarOp;
 use crate::edit::order::{self, Turn};
-use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
+use crate::edit::parts::{self, Pushed};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
 use crate::localized::{self, LocaleNumbers};
 use crate::primitives::{FocusRing, Gap, Stack};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -276,6 +277,15 @@ enum GradientOp {
         at: StopKey,
         color: Srgba,
     },
+}
+
+/// A part under the bar, as [`GradientEditor::push`] pushes it.
+#[derive(Clone, Copy)]
+enum Part {
+    /// A field whose focus is a typing run's.
+    Field,
+    /// The popover's picker, with its own id: its edit carries the anchor's response.
+    Picker(Id),
 }
 
 /// A number field of the fields row; a midpoint's is named by the stop before it.
@@ -586,13 +596,16 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         // The parts draw from and map onto the stops the replay and the parts before them leave.
         let shown = edits.value().clone();
         let mut bar = self.bar(ui, id, style, &shown, &mut state, enabled);
-        let ops = std::mem::take(&mut bar.ops).into_iter().map(GradientOp::Bar).collect();
-        // The bar's operations move the selection again as they apply, in this pass or on their
-        // turn.
-        if let Some(from) = bar.from {
+        let ops = std::mem::take(&mut bar.ops).into_iter().map(GradientOp::Bar);
+        // The bar moved the selection as it applied its operations. One that waits for another
+        // part's gesture isn't in the editor's value, and the selection stays where it was before
+        // it until its turn, when the replay moves it.
+        let kept = Cell::new(None);
+        if edits.push(&bar.edit, ops, self.applier(&kept), |stops, _| stops) == Pushed::Waits
+            && let Some(from) = bar.from
+        {
             state.selected = from;
         }
-        self.push(&mut edits, &mut state, &bar.edit, ops, false, |stops, _| stops);
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
@@ -662,24 +675,23 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         }
     }
 
-    /// Pushes a part's `edit` with its operations `ops` (as a typing run's with `typing`): a
-    /// gesture's events with `map`. The selection moves with the operations that apply in this
-    /// pass.
+    /// Pushes `part`'s `edit` with its operations `ops`: a gesture's events with `map`. The
+    /// selection moves with the operations that apply in this pass.
     fn push<V: Clone + Send + Sync + 'static>(
         &self,
         edits: &mut Edits,
         state: &mut State,
+        part: Part,
         edit: &EditResponse<V>,
         ops: Vec<GradientOp>,
-        typing: bool,
         map: impl Fn(V, &GradientStops) -> GradientStops,
     ) {
         let selected = Cell::new(state.selected);
         let apply = self.applier(&selected);
-        match typing {
-            true => edits.typing(edit, ops, apply, map),
-            false => edits.push(edit, ops, apply, map),
-        }
+        match part {
+            Part::Field => edits.typing(edit, ops, apply, map),
+            Part::Picker(id) => edits.push_part(id, edit, ops, apply, map),
+        };
         state.selected = selected.get();
     }
 
