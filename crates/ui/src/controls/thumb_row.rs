@@ -187,6 +187,9 @@ pub(crate) struct ThumbRowOutput<const N: usize> {
     pub values: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
+    /// What the row's values may be, for an edit of the row held and applied later
+    /// ([`RowRules::rebase`]).
+    pub rules: RowRules<N>,
 }
 
 /// What a press at a point moves.
@@ -237,16 +240,14 @@ impl Press {
     }
 }
 
-/// The row's thumbs on its track.
-struct Layout<'a, const N: usize> {
-    thumbs: &'a [Thumb; N],
+/// What a row's values may be: each thumb's range, and its order among the others.
+#[derive(Clone, Debug)]
+pub(crate) struct RowRules<const N: usize> {
+    thumbs: [Thumb; N],
     scale: Scale,
-    track: Track,
-    /// Thumbs whose centres are closer than this overlap: a triangle's width.
-    overlap: f32,
 }
 
-impl<const N: usize> Layout<'_, N> {
+impl<const N: usize> RowRules<N> {
     fn scale_of(&self, i: usize) -> Scale {
         self.thumbs[i].scale.unwrap_or(self.scale)
     }
@@ -262,15 +263,6 @@ impl<const N: usize> Layout<'_, N> {
         })
     }
 
-    /// The row value thumb `i` sits at.
-    fn at(&self, values: &[f64; N], i: usize) -> f64 {
-        self.thumbs[i].follow.map_or(values[i], |f| (f.at)(values, values[i]))
-    }
-
-    fn xs(&self, values: &[f64; N]) -> [f32; N] {
-        std::array::from_fn(|i| self.track.x_of(self.at(values, i)))
-    }
-
     /// Where thumb `i` may go, with the others at `values`.
     fn bounds(&self, values: &[f64; N], i: usize) -> (f64, f64) {
         let scale = self.scale_of(i);
@@ -278,6 +270,50 @@ impl<const N: usize> Layout<'_, N> {
         let side = |j: Option<usize>, gap: f64, end: f64| j.and_then(|j| values.get(j)).map_or(end, |v| (v + gap).clamp(scale.min, scale.max));
         let (lo, hi) = (side(below, gap, scale.min), side(above, -gap, scale.max));
         (lo.min(hi), hi)
+    }
+
+    /// `row`, the row's value an edit made from `base`, with the thumbs it moved applied onto
+    /// `now` ([`Rebase`](crate::edit::parts::Rebase)): the other thumbs keep `now`'s values, and
+    /// each moved one stays within its bounds among them, where a drag of it would stop. A NaN
+    /// that stays NaN (an unset gamma) is unmoved. A row's change can always be told, so there is
+    /// always a value.
+    pub fn rebase(&self, row: [f64; N], base: &[f64; N], now: &[f64; N]) -> Option<[f64; N]> {
+        let moved: [bool; N] = std::array::from_fn(|i| !(row[i] == base[i] || (row[i].is_nan() && base[i].is_nan())));
+        let mut out: [f64; N] = std::array::from_fn(|i| if moved[i] { row[i] } else { now[i] });
+        for i in 0..N {
+            if moved[i] && out[i].is_finite() {
+                let (lo, hi) = self.bounds(&self.placed(&out), i);
+                out[i] = out[i].clamp(lo, hi);
+            }
+        }
+        Some(out)
+    }
+}
+
+/// The row's thumbs on its track.
+struct Layout<'a, const N: usize> {
+    rules: &'a RowRules<N>,
+    track: Track,
+    /// Thumbs whose centres are closer than this overlap: a triangle's width.
+    overlap: f32,
+}
+
+impl<const N: usize> Deref for Layout<'_, N> {
+    type Target = RowRules<N>;
+
+    fn deref(&self) -> &RowRules<N> {
+        self.rules
+    }
+}
+
+impl<const N: usize> Layout<'_, N> {
+    /// The row value thumb `i` sits at.
+    fn at(&self, values: &[f64; N], i: usize) -> f64 {
+        self.thumbs[i].follow.map_or(values[i], |f| (f.at)(values, values[i]))
+    }
+
+    fn xs(&self, values: &[f64; N]) -> [f32; N] {
+        std::array::from_fn(|i| self.track.x_of(self.at(values, i)))
     }
 
     /// What a press at `x` moves, with the thumbs at `values`.
@@ -381,12 +417,8 @@ impl<const N: usize> ThumbRow<N> {
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let response = ui.interact_opt(rect, id, Sense::DRAG, options);
         let sensing = Sensing::of(&response);
-        let layout = Layout {
-            thumbs: &self.thumbs,
-            scale: self.scale,
-            track: Track::inset(rect, style.inset(), style.hit, self.scale),
-            overlap: style.thumb.x,
-        };
+        let rules = RowRules { thumbs: self.thumbs, scale: self.scale };
+        let layout = Layout { rules: &rules, track: Track::inset(rect, style.inset(), style.hit, self.scale), overlap: style.thumb.x };
         let ids: [Id; N] = std::array::from_fn(|i| Interactive::id_in(ui, id.with(("thumb", i))));
         let finite = self.value.iter().all(|v| v.is_finite());
 
@@ -410,7 +442,7 @@ impl<const N: usize> ThumbRow<N> {
                 gesture.set(Row(reset));
             }
             let values = layout.placed(gesture.shown());
-            let sensing = Sensing { falling: self.thumbs[i].falling, ..sensing };
+            let sensing = Sensing { falling: rules.thumbs[i].falling, ..sensing };
             if let Some(v) = stepped(ui, thumb, sensing, None, values[i], layout.bounds(&values, i), &layout.scale_of(i)) {
                 let mut out = *gesture.shown();
                 out[i] = v;
@@ -424,7 +456,7 @@ impl<const N: usize> ThumbRow<N> {
         let thumb_rect = |x: f32| Rect::from_min_size(pos2(x - style.thumb.x / 2.0, rect.top()), style.thumb);
         let thumbs: [Response; N] = std::array::from_fn(|i| {
             let (lo, hi) = layout.bounds(&shown, i);
-            Interactive::new(id.with(("thumb", i)), Role::Slider, self.thumbs[i].label.as_str())
+            Interactive::new(id.with(("thumb", i)), Role::Slider, rules.thumbs[i].label.as_str())
                 .sense(Sense::FOCUSABLE)
                 .enabled(sensing.enabled)
                 .state_layer(false)
@@ -446,7 +478,7 @@ impl<const N: usize> ThumbRow<N> {
             for (i, thumb) in thumbs.iter().enumerate() {
                 let lit = lit.is_some_and(|p| p.lights(i));
                 let paint = TrianglePaint {
-                    face: self.thumbs[i].face,
+                    face: rules.thumbs[i].face,
                     edge: if sensing.enabled { style.edge } else { style.disabled_edge },
                     ring: StateLayer::color_of(ui, &style.ring, thumb.id, sensing.enabled, lit, lit && down),
                 };
@@ -454,7 +486,7 @@ impl<const N: usize> ThumbRow<N> {
                 FocusRing::paint_radius(ui, bounds, CornerRadius::ZERO, thumb);
             }
         }
-        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish_as(|row| row.0)), shown, values, dragged }
+        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish_as(|row| row.0)), shown, values, dragged, rules }
     }
 }
 
