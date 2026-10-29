@@ -193,14 +193,17 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             minimum: 4.5,
         });
         let sunken = t.color(T::SurfaceSunken);
-        // Text field placeholders are `text.faint` on the field fill, `surface.sunken`.
+        // Text field placeholders and a number's unit are `text.faint` on the field fill,
+        // `surface.sunken`.
         let field = |part| ComponentField::Field(FieldField::Color { part, disabled: false });
-        expected.push(ContrastCheck {
-            fg: field(FieldPart::Placeholder).into(),
-            bg: field(FieldPart::Fill).into(),
-            ratio: contrast_ratio(pin, sunken),
-            minimum: 4.5,
-        });
+        for part in [FieldPart::Placeholder, FieldPart::Unit] {
+            expected.push(ContrastCheck {
+                fg: field(part).into(),
+                bg: field(FieldPart::Fill).into(),
+                ratio: contrast_ratio(pin, sunken),
+                minimum: 4.5,
+            });
+        }
         // A list row's dimmed label and its detail line are `text.faint` on the panel.
         for f in [ListField::Dimmed, ListField::Detail] {
             expected.push(ContrastCheck {
@@ -229,11 +232,11 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
                 minimum: 3.0,
             });
         }
-        // A toast's "more" line is `text.faint` on the card fill, `surface.raised`.
+        // A toast's "more" line is `text.faint` on the card fill, `surface.panel`.
         expected.push(ContrastCheck {
             fg: ComponentField::Toast(ToastField::More).into(),
             bg: ComponentField::Toast(ToastField::Fill).into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfaceRaised)),
+            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
             minimum: 4.5,
         });
         let reads_pin = |w: &&ContrastCheck| match w.fg {

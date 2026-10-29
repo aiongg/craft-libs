@@ -99,14 +99,10 @@ impl<'a> GradientSwatch<'a> {
         if ui.is_rect_visible(response.rect) {
             let colors = GradientRamp::colors(self.stops, sampler);
             let painter = ui.painter();
-            let well = response.rect.shrink(style.inset);
-            GradientRamp::paint_rounded(painter, well, f32::from(style.radius.nw), &colors, &ramp);
-            // The ring that sets the well off from its colours is black or white by most of them.
-            let black_rings = (0..colors.len()).filter(|&k| style.inner_edge(Some(Rgba::from(colors[k].1))).r() == 0).count();
-            let inner = style.inner_edge(Some(if black_rings * 2 >= colors.len() { Rgba::WHITE } else { Rgba::BLACK }));
-            painter.extend(Swatch::rings(&style, response.rect, inner, false, self.enabled, ui.pixels_per_point()));
+            GradientRamp::paint_rounded(painter, response.rect, f32::from(style.radius.nw), &colors, &ramp);
+            painter.extend(Swatch::outline(&style, response.rect, false, self.enabled, ui.pixels_per_point()));
         }
-        FocusRing::paint_radius(ui, response.rect, Swatch::outline_radius(&style), &response);
+        FocusRing::paint_radius(ui, response.rect, style.radius, &response);
         if self.enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response }
     }
 }

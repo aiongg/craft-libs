@@ -1,11 +1,10 @@
-//! Swatches: a colour well. The well shows its colour over a checkerboard where it has alpha,
-//! inside two rings: an outer `line.control_edge` ring against the panel and an inner black or
-//! white ring against the colour, so the bounds show for any colour. This family holds the size,
+//! Swatches: a colour well. The well fills its box and shows its colour over a checkerboard
+//! where it has alpha, inside a one-point `line.control_edge` ring. This family holds the size,
 //! corner and the colours the well draws itself; the colour shown is the caller's.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
 use crate::color::Rgba;
-use crate::contrast::{contrast_ratio, relative_luminance};
+use crate::contrast::contrast_ratio;
 use crate::derive::over;
 use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
@@ -50,24 +49,22 @@ impl SwatchColor {
 #[non_exhaustive]
 pub struct SwatchTokens {
     /// Side of the swatch: the control height, so a swatch sits in a control row and is as easy
-    /// to hit as the controls beside it. The well is inset from it by the selection ring's gap
-    /// and width.
+    /// to hit as the controls beside it. The well fills it.
     pub size: BySize<f32>,
     /// Corner radius of the well: `shape.radius.control` or the theme's `swatch.radius`, at
-    /// most [`values::SWATCH_RADIUS_MAX`]. The rings around it are concentric.
+    /// most [`values::SWATCH_RADIUS_MAX`].
     pub radius: f32,
     /// Width of the selection ring.
     pub selected_width: f32,
-    /// Between the well and the selection ring.
-    pub selected_gap: f32,
-    /// Ring on the outline, 1 point wide: `line.control_edge`. Inside it the well draws a ring
-    /// from its colour, [`inner_edge`](SwatchTokens::inner_edge).
+    /// Ring on the outline, 1 point wide: `line.control_edge`.
     pub edge: Rgba,
-    /// Checkerboard cell that holds the corners: white in a light theme, dark grey in a dark one.
+    /// Side of a checkerboard cell: [`values::SWATCH_CHECKER_CELL`].
+    pub checker_cell: f32,
+    /// Checkerboard cell that holds the corners: PhotoCraft's light grey in every theme.
     pub checker_a: Rgba,
-    /// The other checkerboard cell: a light or mid grey beside `checker_a`.
+    /// The other checkerboard cell: PhotoCraft's mid grey.
     pub checker_b: Rgba,
-    /// Selection ring, outside the well past the gap: `accent.solid`. The keyboard focus ring
+    /// Selection ring, drawn inside the well's outline: `accent.solid`. The keyboard focus ring
     /// goes outside it.
     pub selected: Rgba,
     /// The well when the value is mixed: `surface.sunken`.
@@ -100,10 +97,9 @@ impl SwatchTokens {
         }
     }
 
-    /// The ring just inside the edge of a well showing `color` (straight alpha, over the
-    /// checkerboard): black or white at [`values::SWATCH_INNER_EDGE_ALPHA`], whichever stands out
-    /// more from the colour, as macOS draws its colour wells. The well's bounds then show even
-    /// where the colour equals the panel and the outer edge doesn't.
+    /// A ring of black or white at [`values::SWATCH_INNER_EDGE_ALPHA`] that stands out from `color`
+    /// (straight alpha, over the checkerboard): for compositions that draw a well apart from its
+    /// colours, such as the colour pair's ring.
     pub fn inner_edge(&self, color: Rgba) -> Rgba {
         let shown = [over(color, self.checker_a), over(color, self.checker_b)];
         let ring = |base: Rgba| base.with_alpha(values::SWATCH_INNER_EDGE_ALPHA);
@@ -138,14 +134,13 @@ impl Family for SwatchTokens {
 
     fn defaults(s: &Semantic<'_>) -> SwatchTokens {
         let (c, size) = (s.color, s.size);
-        let dark = relative_luminance(c.text.normal) > relative_luminance(c.surface.panel);
-        let (checker_a, checker_b) = if dark { values::SWATCH_CHECKER_DARK } else { values::SWATCH_CHECKER_LIGHT };
+        let (checker_a, checker_b) = values::SWATCH_CHECKER;
         SwatchTokens {
             size: BySize { sm: size.control.sm, md: size.control.md },
             radius: s.shape.radius.control.min(values::SWATCH_RADIUS_MAX),
             selected_width: values::SWATCH_SELECTED_WIDTH,
-            selected_gap: values::SWATCH_SELECTED_GAP,
             edge: c.line.control_edge,
+            checker_cell: values::SWATCH_CHECKER_CELL,
             checker_a,
             checker_b,
             selected: c.accent.solid,
@@ -192,8 +187,8 @@ impl Family for SwatchTokens {
     }
 
     /// The selection ring is a selection mark in the accent colour and the dash is the only cue
-    /// of a mixed value: 3:1 (4.5:1 with high contrast). The rings, which only show the bounds,
-    /// are design targets.
+    /// of a mixed value: 3:1 (4.5:1 with high contrast). The edge, which only shows the bounds,
+    /// is a design target.
     fn pairs() -> Vec<ContrastPair> {
         let field = |c| ComponentField::Swatch(SwatchField::Color(c));
         vec![

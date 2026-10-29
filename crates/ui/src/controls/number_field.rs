@@ -134,8 +134,8 @@ enum Handle {
 ///
 /// A value that isn't a finite number shows blank too. The digits have tabular figures, so the
 /// text keeps its width while scrubbing. The field keeps its left-to-right geometry right to left
-/// ([`Unmirrored::Number`](crate::direction::Unmirrored::Number)): digits align right, the unit
-/// after them, the scrub handle at the left.
+/// ([`Unmirrored::Number`](crate::direction::Unmirrored::Number)): digits are centred between the
+/// scrub handle and the unit, which sits at the box's end, the handle at the left.
 ///
 /// AccessKit: a `SpinButton` named `label`, with its value (and the value text with its unit),
 /// bounds and step, and Increment, Decrement and SetValue.
@@ -427,7 +427,7 @@ impl<'a> NumberField<'a> {
         let look = TypingLook {
             size: vec2(width, style.field.height),
             margin: margin_x(parts.start, parts.end),
-            align: Align2::RIGHT_CENTER,
+            align: Align2::CENTER_CENTER,
             font,
             text: if enabled { style.field.text } else { style.field.text_disabled },
             placeholder: if enabled { style.field.placeholder } else { style.field.placeholder_disabled },
@@ -1041,6 +1041,9 @@ struct Parts {
     /// The ▾ button's side and its inset from the box's edge; 0 without one.
     popup: f32,
     popup_inset: f32,
+    /// From the box's end to the suffix's end: the suffix sits at the box's end, not beside the
+    /// number, as PhotoCraft's does.
+    unit_inset: f32,
     /// Room before and after the text.
     start: f32,
     end: f32,
@@ -1074,9 +1077,10 @@ impl Parts {
             None => (0.0, 0.0),
         };
         let start = f.pad_x + if handle > 0.0 { handle + f.gap } else { 0.0 } + prefix;
-        let end = suffix + if popup > 0.0 { popup_inset + popup + f.gap } else { f.pad_x };
+        let unit_inset = if popup > 0.0 { popup_inset + popup + f.gap } else { f.pad_x };
+        let end = suffix + unit_inset;
         let (scrub, unit) = if enabled { (style.scrub, style.unit) } else { (style.scrub_disabled, style.unit_disabled) };
-        Self { pad: f.pad_x, gap: f.gap, handle, prefix, suffix, popup, popup_inset, start, end, font, scrub, unit }
+        Self { pad: f.pad_x, gap: f.gap, handle, prefix, suffix, popup, popup_inset, unit_inset, start, end, font, scrub, unit }
     }
 
     /// The scrub handle's hit area: from the box's start to halfway into the gap after it.
@@ -1111,7 +1115,7 @@ impl Parts {
             painter.text(pos2(text.left(), y), Align2::RIGHT_CENTER, field.unit.prefix(), self.font.clone(), self.unit);
         }
         if self.suffix > 0.0 {
-            painter.text(pos2(text.right(), y), Align2::LEFT_CENTER, field.unit.suffix(), self.font.clone(), self.unit);
+            painter.text(pos2(rect.right() - self.unit_inset, y), Align2::RIGHT_CENTER, field.unit.suffix(), self.font.clone(), self.unit);
         }
     }
 }
@@ -1362,7 +1366,7 @@ fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
     let numbers = numbers(args);
     with_values(ui, "number-field-rtl", [12.5], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
-            let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits align right, the unit follows them and the scrub label stays at the left.";
+            let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits stay centred, the unit stays at the box's end and the scrub label stays at the left.";
             ui.add(Text::new(note).content(Content::Muted));
             let value = &mut values[0];
             row(ui, "Width", *value, |ui| {

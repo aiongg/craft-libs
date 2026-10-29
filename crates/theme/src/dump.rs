@@ -81,8 +81,8 @@ fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
 
 fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     let SpaceTokens { gap, pad } = space;
-    let Gaps { inline, stack, section } = gap;
-    for (k, v) in [("inline", inline), ("stack", stack), ("section", section)] {
+    let Gaps { inline, row, stack, section } = gap;
+    for (k, v) in [("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
     let Pads { control, panel, dialog } = pad;
@@ -815,8 +815,9 @@ fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
 }
 
 fn angle_dial_lines(out: &mut Lines, t: &AngleDialTokens) {
-    let AngleDialTokens { size, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill } = t;
+    let AngleDialTokens { size, margin, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill } = t;
     out.line("angle_dial.size", len(*size));
+    out.line("angle_dial.margin", len(*margin));
     out.line("angle_dial.needle_width", len(*needle_width));
     out.line("angle_dial.needle_inset", len(*needle_inset));
     out.line("angle_dial.hub", len(*hub));
@@ -1183,7 +1184,7 @@ fn notice_lines(out: &mut Lines, n: &NoticeTokens) {
 }
 
 fn toast_lines(out: &mut Lines, t: &ToastTokens) {
-    let ToastTokens { width, pad, inset, gap, radius, fill, line, more, edge, title } = t;
+    let ToastTokens { width, pad, inset, gap, radius, fill, shadow_offset, shadow_blur, line, more, edge, title } = t;
     out.line("toast.width", len(*width));
     out.line("toast.pad", len(*pad));
     out.line("toast.inset.x", len(inset[0]));
@@ -1191,6 +1192,9 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
     out.line("toast.gap", len(*gap));
     out.line("toast.radius", len(*radius));
     out.line("toast.fill", hex(*fill));
+    out.line("toast.shadow.x", len(shadow_offset[0]));
+    out.line("toast.shadow.y", len(shadow_offset[1]));
+    out.line("toast.shadow.blur", len(*shadow_blur));
     out.line("toast.line", hex(*line));
     out.line("toast.more", hex(*more));
     for (tone, (edge, title)) in Tone::ALL.into_iter().zip(edge.iter().zip(title)) {
@@ -1245,7 +1249,7 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
     by_size(out, "swatch.size", &s.size);
     out.line("swatch.radius", len(s.radius));
     out.line("swatch.selected_width", len(s.selected_width));
-    out.line("swatch.selected_gap", len(s.selected_gap));
+    out.line("swatch.checker_cell", len(s.checker_cell));
     for color in SwatchColor::ALL {
         out.line(&format!("swatch.{}", color.name()), hex(s.color(color)));
     }

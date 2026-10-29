@@ -278,6 +278,27 @@ fn the_title_starts_after_the_chevron_and_mirrors() {
     }
 }
 
+/// PhotoCraft's section has `ROW_GAP` above its rule and half of it under the row of an open
+/// section (`props_layout.rs:100-123`), on top of the item spacing.
+#[test]
+fn a_section_has_the_row_gap_above_its_rule_and_half_of_it_under_the_row() {
+    let tokens = tokens();
+    let (gap, spacing, hairline) = (tokens.space.gap.row, tokens.space.gap.stack, 1.0);
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 240.0, |ui| {
+            ui.label("Above");
+            let _ = SectionHeader::new("transform", "Transform").show(ui, |ui| ui.label("Body"));
+        })
+    });
+    let above = harness.get_by_label("Above").rect();
+    let row = header(&harness, "Transform").rect();
+    let body = harness.get_by_label("Body").rect();
+    let before = row.top() - above.bottom();
+    assert!((before - (spacing + gap + hairline)).abs() < 1.5, "above the rule: {before}");
+    let after = body.top() - row.bottom();
+    assert!((after - (spacing + gap / 2.0)).abs() < 1.5, "under the row: {after}");
+}
+
 #[test]
 fn the_stories_name_every_control_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {

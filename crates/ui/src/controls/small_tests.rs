@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 
-use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode, Rgba, contrast_ratio};
+use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode, Rgba};
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportId, vec2};
 
@@ -11,6 +11,7 @@ use super::*;
 use crate::icons::IconSize;
 use crate::primitives::{Content, Surface, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
+use egui::StrokeKind;
 
 #[test]
 fn small_control_styles_are_their_tokens() {
@@ -19,7 +20,7 @@ fn small_control_styles_are_their_tokens() {
         for size in SIZES {
             let s = Swatch::style(&t, size);
             assert_eq!((s.side, s.radius), (c.swatch.size.get(size), crate::theme::corner_radius(c.swatch.radius)));
-            assert_eq!((s.edge, s.inset), (c.swatch.edge.to_egui(), c.swatch.selected_gap + c.swatch.selected_width));
+            assert_eq!((s.edge, s.checker_cell), (c.swatch.edge.to_egui(), c.swatch.checker_cell));
             assert_eq!(s.checker, [c.swatch.checker_a.to_egui(), c.swatch.checker_b.to_egui()]);
             assert_eq!((s.selected.color, s.selected.width), (c.swatch.selected.to_egui(), c.swatch.selected_width));
             assert_eq!((s.mixed_fill, s.mixed_mark), (c.swatch.mixed_fill.to_egui(), c.swatch.mixed_mark.to_egui()));
@@ -150,13 +151,8 @@ fn well(style: &SwatchStyle, color: Option<Rgba>, selected: bool, enabled: bool)
     Swatch::shapes(style, Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(30.0, 30.0)), color, selected, enabled, 1.0)
 }
 
-/// The colours of the stroked rects among `shapes`, in paint order.
-fn strokes(shapes: &[Shape]) -> Vec<Color32> {
-    shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { (!r.stroke.is_empty()).then_some(r.stroke.color) } else { None }).collect()
-}
-
 #[test]
-fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
+fn a_swatch_fills_its_box_inside_a_one_point_edge_and_marks_selection_inside_it() {
     let t = tokens_of(&theme("craft.graphite"), Mode::Light);
     let style = Swatch::style(&t, ControlSize::Md);
     let red = Rgba::rgb(200, 30, 30);
@@ -164,33 +160,26 @@ fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
     assert_ne!(well(&style, None, false, true), plain, "mixed");
     assert_ne!(well(&style, Some(red), true, true), plain, "selected");
     assert_eq!(well(&style, Some(red), true, true).len(), plain.len() + 1, "the selection ring is one more shape");
-    assert_ne!(well(&style, Some(red), false, false), plain, "disabled fades the rings");
+    assert_ne!(well(&style, Some(red), false, false), plain, "disabled fades the edge");
 
     // Opaque colours have no checkerboard; translucent ones do.
     assert!(well(&style, Some(red.with_alpha(90)), false, true).len() > plain.len());
 
-    // The well sits inside the selection ring's room, and every ring is concentric with it.
+    // The well is the whole box; the edge and the selection ring lie on its outline.
     let outline = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(30.0, 30.0));
     let rects: Vec<_> = well(&style, Some(red), true, true).into_iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r) } else { None }).collect();
-    let [.., inner, edge, selected] = rects.as_slice() else { panic!("{rects:?}") };
-    assert_eq!(edge.rect, outline.shrink(style.inset), "the edge is on the well's outline");
-    assert_eq!((inner.rect, edge.corner_radius, selected.rect), (edge.rect.shrink(1.0), style.radius, outline));
-    assert_eq!(selected.corner_radius, Swatch::outline_radius(&style));
-    let grown = (style.inset.round() as u8) + style.radius.nw;
-    assert_eq!(selected.corner_radius.nw, grown, "concentric");
-    assert!(style.inset > style.selected.width, "a gap between the well and the selection ring");
+    let [fill, edge, selected] = rects.as_slice() else { panic!("{rects:?}") };
+    assert_eq!((fill.rect, edge.rect, selected.rect), (outline, outline, outline));
+    assert_eq!((edge.stroke.width, selected.stroke.width), (1.0, style.selected.width));
+    assert_eq!((edge.stroke_kind, selected.stroke_kind), (StrokeKind::Inside, StrokeKind::Inside));
 
-    // A colour equal to the panel: the inner ring stands out from it by a measured ratio, in a
-    // light and a dark theme.
-    for (id, mode) in [("craft.graphite", Mode::Light), ("craft.pro", Mode::Dark)] {
-        let t = tokens_of(&theme(id), mode);
-        let style = Swatch::style(&t, ControlSize::Md);
-        let panel = t.color.surface.panel;
-        let ring = strokes(&well(&style, Some(panel), false, true))[0];
-        let [r, g, b, a] = ring.to_srgba_unmultiplied();
-        let ratio = contrast_ratio(over(Rgba([r, g, b, a]), panel), panel);
-        assert!(ratio >= 3.0, "{id}: the inner ring on the panel colour is {ratio:.2}:1");
-    }
+    // The checkerboard is PhotoCraft's 4 point cells, light at the top left, and rounds the
+    // corners it meets.
+    let board = well(&style, Some(red.with_alpha(90)), false, true);
+    let cells: Vec<_> =
+        board.iter().filter_map(|s| if let Shape::Rect(r) = s { (r.fill == style.checker[1]).then_some(r.rect) } else { None }).collect();
+    assert_eq!(cells[0], Rect::from_min_size(Pos2::new(14.0, 10.0), vec2(4.0, 4.0)));
+    assert!(cells.iter().all(|c| outline.contains_rect(*c)));
 
     // The hex keeps the straight channels at any alpha.
     assert_eq!(Swatch::hex(Rgba::rgb(0x3e, 0x63, 0xdd)), "#3e63dd");
@@ -198,13 +187,6 @@ fn a_swatch_shows_mixed_and_selected_and_its_rings_for_any_colour() {
     assert_eq!(Swatch::hex(Rgba([0x12, 0x34, 0x56, 0x03])), "#12345603");
     assert_eq!(Swatch::hex(Rgba([0xff, 0x00, 0x00, 0x80])), "#ff000080");
     assert_eq!(Rgba::from(Color32::from_rgba_unmultiplied(0xff, 0x00, 0x00, 0x80)), Rgba([0xff, 0x00, 0x00, 0x80]), "from an egui colour");
-}
-
-/// `fg` alpha-composited over the opaque `bg`, as egui blends.
-fn over(fg: Rgba, bg: Rgba) -> Rgba {
-    let a = f32::from(fg.a()) / 255.0;
-    let ch = |i: usize| (f32::from(fg.0[i]) * a + f32::from(bg.0[i]) * (1.0 - a)).round() as u8;
-    Rgba([ch(0), ch(1), ch(2), 255])
 }
 
 /// One frame at `time`; the shapes and whether it asked for another frame at once.

@@ -22,8 +22,12 @@ pub struct ToastTokens {
     pub gap: f32,
     /// Corner radius: `shape.radius.popup`.
     pub radius: f32,
-    /// Card fill: `surface.raised`.
+    /// Card fill: `surface.panel` (PhotoCraft's `card`).
     pub fill: Rgba,
+    /// Offset of the card's shadow, from [`values::TOAST_SHADOW_OFFSET`]; colour as the popup's.
+    pub shadow_offset: [f32; 2],
+    /// Blur of the card's shadow, from [`values::TOAST_SHADOW_BLUR`].
+    pub shadow_blur: f32,
     /// Bullet lines: `text.muted`.
     pub line: Rgba,
     /// The "…and n more" line: `text.faint`.
@@ -33,14 +37,16 @@ pub struct ToastTokens {
 }
 
 impl ToastTokens {
-    /// The card's outline for `tone`: `status.<tone>.fg`; neutral is `line.border`. Only a card
+    /// The card's outline for `tone`: `status.<tone>.fg`; neutral is `line.border`, and an error
+    /// (`Tone::Bad`) reads `status.warn.fg` as PhotoCraft's error toast does. Only a card
     /// whose popup surface has a border draws it: a bevel theme keeps its bevel, and a theme whose
     /// popups have no edge draws none, so the tone shows in the icon and the title alone.
     pub fn edge(&self, tone: Tone) -> Rgba {
         self.edge[tone as usize]
     }
 
-    /// The title for `tone`: `status.<tone>.fg`; neutral is `text.normal`.
+    /// The title for `tone`: `status.<tone>.fg`; neutral is `text.normal`, and an error reads
+    /// `status.warn.fg`.
     pub fn title(&self, tone: Tone) -> Rgba {
         self.title[tone as usize]
     }
@@ -80,6 +86,12 @@ const FIELDS: [ToastField; FIELD_COUNT] = {
     out
 };
 
+/// The tone whose colours a toast of `tone` wears: PhotoCraft draws an error in its warning
+/// orange (`notices.rs:236-241`).
+fn shown(tone: Tone) -> Tone {
+    if tone == Tone::Bad { Tone::Warn } else { tone }
+}
+
 impl Family for ToastTokens {
     type Field = ToastField;
     const FIELDS: &'static [ToastField] = &FIELDS;
@@ -92,11 +104,13 @@ impl Family for ToastTokens {
             inset: values::toast_inset(s.preset),
             gap: s.space.gap.stack,
             radius: s.shape.radius.popup,
-            fill: c.surface.raised,
+            fill: c.surface.panel,
+            shadow_offset: values::TOAST_SHADOW_OFFSET,
+            shadow_blur: values::TOAST_SHADOW_BLUR,
             line: c.text.muted,
             more: c.text.faint,
-            edge: Tone::ALL.map(|t| t.colors(c).map_or(c.line.border, |s| s.fg)),
-            title: Tone::ALL.map(|t| t.colors(c).map_or(c.text.normal, |s| s.fg)),
+            edge: Tone::ALL.map(|t| shown(t).colors(c).map_or(c.line.border, |s| s.fg)),
+            title: Tone::ALL.map(|t| shown(t).colors(c).map_or(c.text.normal, |s| s.fg)),
         }
     }
 

@@ -4,16 +4,12 @@ use craft_theme::{ControlSize, Rgba, SwatchTokens};
 use egui::accesskit::{Action, Role};
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
-use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, Widget, pos2, vec2};
 
 use super::{SIZE_NAMES, size_arg};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
-
-/// Checkerboard cells per side. An odd count puts the same cell in all four corners, which the
-/// rounded outline then covers whole.
-const CHECKER_CELLS: usize = 5;
 
 /// A swatch's size and the colours it draws itself, from [`Swatch::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -21,18 +17,17 @@ const CHECKER_CELLS: usize = 5;
 pub struct SwatchStyle {
     /// Side of the swatch: `swatch.size`.
     pub side: f32,
-    /// From the swatch's outline to the well: the selection ring's room, `swatch.selected_gap`
-    /// and `swatch.selected_width`.
-    pub inset: f32,
-    /// The well's corners: `swatch.radius`. The rings around it are concentric.
+    /// The well's corners: `swatch.radius`.
     pub radius: CornerRadius,
     /// The ring on the well's outline, one point wide: `swatch.edge`.
     pub edge: Color32,
     /// The checkerboard behind a translucent colour: `swatch.checker.a` holds the corners,
     /// `swatch.checker.b` the other cells.
     pub checker: [Color32; 2],
-    /// The ring outside the well while selected: `swatch.selected`, `swatch.selected_width` wide,
-    /// `swatch.selected_gap` from the well.
+    /// Side of a checkerboard cell: `swatch.checker_cell`.
+    pub checker_cell: f32,
+    /// The ring inside the well's outline while selected: `swatch.selected`,
+    /// `swatch.selected_width` wide.
     pub selected: Stroke,
     /// The well of a mixed value: `swatch.mixed.fill`.
     pub mixed_fill: Color32,
@@ -42,8 +37,8 @@ pub struct SwatchStyle {
 }
 
 impl SwatchStyle {
-    /// The ring just inside the edge of a well showing `color`, or the mixed well for `None`:
-    /// black or white at partial alpha, whichever stands out from the colour.
+    /// A ring of black or white at partial alpha that stands out from `color`, or from the mixed
+    /// well for `None`: for compositions that draw a well apart from its colours.
     pub fn inner_edge(&self, color: Option<Rgba>) -> Color32 {
         self.tokens.inner_edge(color.unwrap_or(self.tokens.mixed_fill)).to_egui()
     }
@@ -51,17 +46,16 @@ impl SwatchStyle {
 
 /// A colour well: `if ui.add(Swatch::new("fill", "Fill colour", colour)).clicked() { open_picker }`.
 ///
-/// It shows `color` over a checkerboard where it has alpha, inside two one-point rings: the outer
-/// ring (`line.control_edge`) separates the well from the panel, and the inner one, black or
-/// white at partial alpha by the colour's lightness, from the colour, so the well's bounds show
-/// whatever the colour. A click is the host's cue to open its picker; the swatch edits nothing.
+/// It shows `color` over a checkerboard where it has alpha, filling its box inside a one-point
+/// `line.control_edge` ring that separates the well from the panel. A click is the host's cue to
+/// open its picker; the swatch edits nothing.
 /// AccessKit sees a button named by `label` whose value is the colour as `#rrggbb` (`#rrggbbaa`
 /// when translucent).
 ///
 /// [`mixed`](Swatch::mixed) shows the look of several objects with different colours: a neutral
-/// well with a dash and no colour value. [`selected`](Swatch::selected) puts the selection ring
-/// around the well, a gap away, as a palette of swatches marks its choice. The swatch keeps that
-/// ring's room in its size whether selected or not, and the keyboard focus ring goes outside it.
+/// well with a dash and no colour value. [`selected`](Swatch::selected) draws the selection ring
+/// inside the well's outline, as a palette of swatches marks its choice; the keyboard focus ring
+/// goes outside the well.
 ///
 /// `color` is an sRGB colour with straight alpha ([`Rgba`]); an egui [`Color32`] converts into
 /// one, as closely as its premultiplied channels allow. Colour management is the app's.
@@ -151,10 +145,10 @@ impl Swatch {
         let s = &tokens.component.swatch;
         SwatchStyle {
             side: s.size.get(size),
-            inset: s.selected_gap + s.selected_width,
             radius: corner_radius(s.radius),
             edge: s.edge.to_egui(),
             checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
+            checker_cell: s.checker_cell,
             selected: Stroke::new(s.selected_width, s.selected.to_egui()),
             mixed_fill: s.mixed_fill.to_egui(),
             mixed_mark: s.mixed_mark.to_egui(),
@@ -168,19 +162,11 @@ impl Swatch {
         color.to_hex()
     }
 
-    /// The corners of the swatch's outline, concentric with the well's: the selection ring's,
-    /// which the focus ring follows outside it.
-    pub fn outline_radius(style: &SwatchStyle) -> CornerRadius {
-        grow(style.radius, style.inset)
-    }
-
-    /// The shapes of a swatch whose outline is `rect`: the well inset by the selection ring's
-    /// room, showing the colour (over the checkerboard where translucent) or, for `None`, the
-    /// mixed look; the inner and outer rings; the selection ring when `selected`. A disabled well
-    /// fades its rings.
+    /// The shapes of a swatch whose outline is `rect`: the well showing the colour (over the
+    /// checkerboard where translucent) or, for `None`, the mixed look; then the edge and, when
+    /// `selected`, the selection ring. A disabled well fades its edge and ring.
     pub fn shapes(style: &SwatchStyle, rect: Rect, color: Option<Rgba>, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
-        let rect = rect.round_to_pixels(pixels_per_point);
-        let well = rect.shrink(style.inset);
+        let well = rect.round_to_pixels(pixels_per_point);
         let radius = style.radius;
         let mut out = Vec::new();
         match color {
@@ -192,57 +178,53 @@ impl Swatch {
             }
             Some(color) => {
                 if color.a() < 255 {
-                    out.push(Shape::Rect(RectShape::filled(well, radius, style.checker[0])));
-                    let cell = well.width() / CHECKER_CELLS as f32;
-                    for row in 0..CHECKER_CELLS {
-                        for col in (0..CHECKER_CELLS).filter(|col| (row + col) % 2 == 1) {
-                            let min = well.min + vec2(col as f32 * cell, row as f32 * cell);
-                            out.push(Shape::Rect(RectShape::filled(
-                                Rect::from_min_size(min, vec2(cell, cell)),
-                                CornerRadius::ZERO,
-                                style.checker[1],
-                            )));
-                        }
-                    }
+                    out.extend(checkerboard(well, radius, style.checker, style.checker_cell));
                 }
                 out.push(Shape::Rect(RectShape::filled(well, radius, color.to_egui())));
             }
         }
-        out.extend(Swatch::rings(style, rect, style.inner_edge(color), selected, enabled, pixels_per_point));
+        out.extend(Swatch::outline(style, well, selected, enabled, pixels_per_point));
         out
     }
 
-    /// The two one-point rings of a swatch whose outline is `rect`, the inner one in `inner`, and
-    /// the selection ring when `selected`; a disabled well fades its rings.
-    pub(crate) fn rings(style: &SwatchStyle, rect: Rect, inner: Color32, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
-        let rect = rect.round_to_pixels(pixels_per_point);
-        let well = rect.shrink(style.inset);
-        let radius = style.radius;
+    /// The edge of a swatch whose outline is `rect` and, when `selected`, the selection ring; a
+    /// disabled well fades them.
+    pub(crate) fn outline(style: &SwatchStyle, rect: Rect, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
+        let well = rect.round_to_pixels(pixels_per_point);
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
-        let inner_radius = CornerRadius {
-            nw: radius.nw.saturating_sub(1),
-            ne: radius.ne.saturating_sub(1),
-            sw: radius.sw.saturating_sub(1),
-            se: radius.se.saturating_sub(1),
-        };
-        let mut out = vec![Shape::Rect(RectShape::stroke(well.shrink(1.0), inner_radius, Stroke::new(1.0, fade(inner)), StrokeKind::Inside))];
-        out.push(Shape::Rect(RectShape::stroke(well, radius, Stroke::new(1.0, fade(style.edge)), StrokeKind::Inside)));
+        let mut out = vec![Shape::Rect(RectShape::stroke(well, style.radius, Stroke::new(1.0, fade(style.edge)), StrokeKind::Inside))];
         if selected {
-            out.push(Shape::Rect(RectShape::stroke(rect, Swatch::outline_radius(style), style.selected, StrokeKind::Inside)));
+            out.push(Shape::Rect(RectShape::stroke(
+                well,
+                style.radius,
+                Stroke::new(style.selected.width, fade(style.selected.color)),
+                StrokeKind::Inside,
+            )));
         }
         out
     }
 }
 
-/// `radius` grown by `by` points, for a concentric outline `by` points further out.
-fn grow(radius: CornerRadius, by: f32) -> CornerRadius {
-    let by = by.round() as u8;
-    CornerRadius {
-        nw: radius.nw.saturating_add(by),
-        ne: radius.ne.saturating_add(by),
-        sw: radius.sw.saturating_add(by),
-        se: radius.se.saturating_add(by),
+/// A checkerboard of `cell_size` cells over `rect`, the light cell at its top left, with the
+/// corners of `radius` where a cell meets a corner of `rect`.
+pub(crate) fn checkerboard(rect: Rect, radius: CornerRadius, checker: [Color32; 2], cell_size: f32) -> Vec<Shape> {
+    let mut out = vec![Shape::Rect(RectShape::filled(rect, radius, checker[0]))];
+    let (cols, rows) = ((rect.width() / cell_size).ceil() as usize, (rect.height() / cell_size).ceil() as usize);
+    for row in 0..rows {
+        for col in (0..cols).filter(|col| (row + col) % 2 == 1) {
+            let min = rect.min + vec2(col as f32 * cell_size, row as f32 * cell_size);
+            let cell = Rect::from_min_size(min, Vec2::splat(cell_size)).intersect(rect);
+            let round = |touches: bool, r: u8| if touches { r } else { 0 };
+            let corners = CornerRadius {
+                nw: round(cell.min == rect.min, radius.nw),
+                ne: round(cell.right_top() == rect.right_top(), radius.ne),
+                sw: round(cell.left_bottom() == rect.left_bottom(), radius.sw),
+                se: round(cell.max == rect.max, radius.se),
+            };
+            out.push(Shape::Rect(RectShape::filled(cell, corners, checker[1])));
+        }
     }
+    out
 }
 
 impl Widget for Swatch {
@@ -274,7 +256,7 @@ impl Widget for Swatch {
             let color = (!self.mixed).then_some(self.color);
             ui.painter().extend(Swatch::shapes(&style, response.rect, color, self.selected, self.enabled, ui.pixels_per_point()));
         }
-        FocusRing::paint_radius(ui, response.rect, Swatch::outline_radius(&style), &response);
+        FocusRing::paint_radius(ui, response.rect, style.radius, &response);
         if self.enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response }
     }
 }

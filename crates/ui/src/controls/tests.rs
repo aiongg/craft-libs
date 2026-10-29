@@ -102,21 +102,14 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
 }
 
 #[test]
-fn links_underline_at_rest_only_when_accent_text_is_close_to_normal_text() {
+fn links_are_underlined_in_the_accent_colour_and_high_contrast_reads_accent_text() {
     for t in every_builtin() {
         let style = Link::style(&t);
-        let close = contrast_ratio(t.color.accent.text, t.color.text.normal) < link::DISTINCT_FROM_TEXT;
-        assert_eq!(style.underline == LinkUnderline::Always, close);
-        assert_eq!((style.color, style.stroke.color), (t.color.accent.text.to_egui(), t.color.accent.text.to_egui()));
+        assert_eq!((style.color, style.stroke.color, style.stroke.width), (t.color.accent.solid.to_egui(), t.color.accent.solid.to_egui(), 1.0));
     }
-    // Pro's light link blue is 3.13:1 against its text; most themes' accent text is closer.
-    let pro = theme("craft.pro");
-    let light = tokens_of(&pro, Mode::Light);
-    let ratio = contrast_ratio(light.color.accent.text, light.color.text.normal);
-    assert_eq!(Link::style(&light).underline, LinkUnderline::Hover, "{ratio:.2}");
-    let mut close = pro;
-    close.pins.light = [(craft_theme::ColorToken::AccentText, light.color.text.muted)].into_iter().collect();
-    assert_eq!(Link::style(&tokens_of(&close, Mode::Light)).underline, LinkUnderline::Always);
+    let high = Appearance { mode: Mode::Dark, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let t = UiTokens::new(resolve(&theme("craft.pro"), high, None).tokens, high, Mode::Dark, FontFamilies::default());
+    assert_eq!(Link::style(&t).color, t.color.accent.text.to_egui());
 }
 
 /// One pass of `add` in `theme` (light), with `events`: the shapes, flattened.

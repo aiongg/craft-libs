@@ -290,7 +290,7 @@ impl<'a> SwatchPair<'a> {
             }
             for well in [Well::Primary, Well::Secondary] {
                 let anchor = &anchors[index(well)];
-                FocusRing::paint_radius(ui, anchor.rect, Swatch::outline_radius(&swatch), anchor);
+                FocusRing::paint_radius(ui, anchor.rect, swatch.radius, anchor);
             }
 
             let mut shown: Option<(Well, ColorPopoverResponse)> = None;
@@ -384,7 +384,7 @@ fn paint_well(ui: &Ui, swatch: &SwatchStyle, style: &SwatchPairStyle, rect: Rect
     }
     let rgba = spec.color.to_rgba();
     if !spec.ring {
-        painter.extend(Swatch::shapes(swatch, rect.expand(swatch.inset), Some(rgba), false, enabled, ui.pixels_per_point()));
+        painter.extend(Swatch::shapes(swatch, rect, Some(rgba), false, enabled, ui.pixels_per_point()));
         return;
     }
     let fade = |c: egui::Color32| if enabled { c } else { c.gamma_multiply(0.5) };

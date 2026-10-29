@@ -86,6 +86,11 @@ impl StrokeExt for craft_theme::scale::Stroke {
     }
 }
 
+/// `shadow` moved to `offset` and blurred by `blur` points, keeping its spread and colour.
+pub fn reshape_shadow(shadow: Shadow, offset: [f32; 2], blur: f32) -> Shadow {
+    Shadow { offset: [to_i8(offset[0]), to_i8(offset[1])], blur: to_u8(blur), ..shadow }
+}
+
 fn to_u8(v: f32) -> u8 {
     v.round().clamp(0.0, 255.0) as u8
 }

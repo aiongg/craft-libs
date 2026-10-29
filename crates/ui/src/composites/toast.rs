@@ -15,7 +15,7 @@ use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind};
 use crate::story::{Args, Level, Story};
-use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
+use crate::theme::{ToEgui, UiTokens, corner_radius, reshape_shadow, role_format};
 
 /// Most cards shown at once.
 const MAX_TOASTS: usize = 3;
@@ -38,6 +38,10 @@ pub struct ToastStyle {
     pub radius: f32,
     /// Card fill: `toast.fill`.
     pub fill: egui::Color32,
+    /// Offset of the card's shadow: `toast.shadow.x` and `.y`. Its colour is the popup's.
+    pub shadow_offset: [f32; 2],
+    /// Blur of the card's shadow: `toast.shadow.blur`.
+    pub shadow_blur: f32,
     /// Outline of a flat card: `toast.<tone>.edge`.
     pub edge: egui::Color32,
     /// Title: `toast.<tone>.title`.
@@ -209,6 +213,8 @@ impl ToastStack {
             gap: t.gap,
             radius: t.radius,
             fill: t.fill.to_egui(),
+            shadow_offset: t.shadow_offset,
+            shadow_blur: t.shadow_blur,
             edge: t.edge(tone).to_egui(),
             title: t.title(tone).to_egui(),
             line: t.line.to_egui(),
@@ -409,6 +415,7 @@ impl ToastStack {
         let mut surface = Surface::style(tokens, SurfaceKind::Popup);
         surface.fill = style.fill;
         surface.radius = corner_radius(style.radius);
+        surface.shadow = surface.shadow.map(|shadow| reshape_shadow(shadow, style.shadow_offset, style.shadow_blur));
         if let SurfaceEdge::Border(stroke) = &mut surface.edge {
             stroke.color = style.edge;
         }

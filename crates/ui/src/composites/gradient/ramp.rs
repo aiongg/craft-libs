@@ -1,6 +1,6 @@
 //! [`GradientRamp`]: a gradient drawn across a rect over the checkerboard.
 
-use craft_theme::{ControlSize, Srgba};
+use craft_theme::Srgba;
 use egui::emath::GuiRounding as _;
 use egui::{Color32, Painter, Rect};
 
@@ -9,8 +9,6 @@ use super::value::{GradientStops, StopRow};
 use crate::controls::gradient_track::Rounded;
 use crate::theme::{ToEgui, UiTokens};
 
-/// Checkerboard cells down a swatch well, as [`Swatch`](crate::controls::Swatch) draws them.
-const CHECKER_ROWS: f32 = 5.0;
 /// Even samples added to a stop bar's own, so a custom sampler's curve shows.
 const EVEN_SAMPLES: usize = 64;
 
@@ -21,7 +19,7 @@ pub struct GradientRampStyle {
     /// The checkerboard behind translucent parts: `swatch.checker.a` holds the corners,
     /// `swatch.checker.b` the other cells.
     pub checker: [Color32; 2],
-    /// Side of a checkerboard cell, as a swatch's: a fifth of its well. The ramp rounds it so
+    /// Side of a checkerboard cell, as a swatch's: `swatch.checker_cell`. The ramp rounds it so
     /// whole cells fill its height.
     pub cell: f32,
     /// The one-point edge round a stop bar's ramp: `gradient_editor.edge`.
@@ -37,8 +35,7 @@ pub struct GradientRamp;
 impl GradientRamp {
     pub fn style(tokens: &UiTokens) -> GradientRampStyle {
         let (s, g) = (&tokens.component.swatch, &tokens.component.gradient_editor);
-        let well = s.size.get(ControlSize::Md) - 2.0 * (s.selected_gap + s.selected_width);
-        GradientRampStyle { checker: [s.checker_a.to_egui(), s.checker_b.to_egui()], cell: well / CHECKER_ROWS, edge: g.edge.to_egui() }
+        GradientRampStyle { checker: [s.checker_a.to_egui(), s.checker_b.to_egui()], cell: s.checker_cell, edge: g.edge.to_egui() }
     }
 
     /// The colours to draw `stops` with at the locations a mesh needs: the ends, every stop and

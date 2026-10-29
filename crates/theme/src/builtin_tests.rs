@@ -499,7 +499,7 @@ fn only_classic_gives_tooltips_a_look_of_their_own() {
             } else {
                 assert_eq!(
                     (tip.fill, tip.text, tip.border),
-                    (t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder)),
+                    (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder)),
                     "{} {a:?}",
                     theme.id
                 );
@@ -706,6 +706,26 @@ fn tabs_follow_photocraft() {
         assert_eq!((tab.active, tab.close_text), (t.color(ColorToken::SurfacePanel), t.color(ColorToken::TextFaint)), "{who}");
         assert_eq!(t.component.float.title, tab.strip, "{who}");
         assert_eq!((tab.height, tab.panel_height, tab.close_box, tab.close_icon), (26.0, 28.0, 14.0, 10.0), "{who}");
+    }
+}
+
+/// Toasts and panel rows follow PhotoCraft (`notices.rs:236-241`): the card is the panel colour
+/// with a (0, 2) shadow of 8 blur, an error toast is drawn in the warning colour, and a panel
+/// body's rows are 4 apart (Comfortable 6).
+#[test]
+fn toasts_and_panel_rows_follow_photocraft() {
+    for theme in builtins() {
+        for app in appearances().into_iter().filter(|a| a.contrast == Contrast::Standard && a.text_size == TextSize::ALL[0]) {
+            let (mode, size) = (app.mode, app.size);
+            let t = resolve(theme, app, None).tokens;
+            let toast = &t.component.toast;
+            let who = format!("{} {mode:?} {size:?}", theme.id);
+            assert_eq!(toast.fill, t.color(ColorToken::SurfacePanel), "{who}");
+            assert_eq!((toast.shadow_offset, toast.shadow_blur), ([0.0, 2.0], 8.0), "{who}");
+            assert_eq!((toast.edge(Tone::Bad), toast.title(Tone::Bad)), (toast.edge(Tone::Warn), toast.title(Tone::Warn)), "{who}");
+            assert_eq!(toast.title(Tone::Bad), t.color(ColorToken::StatusWarnFg), "{who}");
+            assert_eq!(t.space.gap.row, if size == Size::Compact { 4.0 } else { 6.0 }, "{who}");
+        }
     }
 }
 

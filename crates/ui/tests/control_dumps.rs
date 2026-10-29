@@ -178,7 +178,7 @@ fn segmented() {
 fn link() {
     check("link.txt", |d, t| {
         let s = Link::style(t);
-        d.line("color", s.color).line("underline", s.underline.name()).line("stroke", s.stroke);
+        d.line("color", s.color).line("stroke", s.stroke);
     });
 }
 
@@ -336,7 +336,12 @@ fn switch() {
 fn angle_dial() {
     check("angle_dial.txt", |d, t| {
         let s = AngleDial::style(t);
-        d.line("size", s.size).line("face", s.face).line("edge", s.edge.width).line("edge_color", s.edge.color).line("edge_active", s.edge_active);
+        d.line("size", s.size)
+            .line("margin", s.margin)
+            .line("face", s.face)
+            .line("edge", s.edge.width)
+            .line("edge_color", s.edge.color)
+            .line("edge_active", s.edge_active);
         d.line("needle", s.needle.width).line("needle_color", s.needle.color).line("needle_inset", s.needle_inset);
         d.line("hub", s.hub).line("hub_fill", s.hub_fill).line("dead_zone", s.dead_zone).line("gap", s.gap);
     });
@@ -349,14 +354,13 @@ fn swatch() {
             d.line(&format!("size.{name}.side"), Swatch::style(t, size).side);
         }
         let s = Swatch::style(t, ControlSize::Md);
-        d.line("inset", s.inset)
-            .line("radius", s.radius)
-            .line("outline_radius", Swatch::outline_radius(&s))
+        d.line("radius", s.radius)
             .line("edge", s.edge)
             .line("inner_edge.panel", s.inner_edge(Some(t.color.surface.panel)))
             .line("inner_edge.mixed", s.inner_edge(None))
             .line("checker.a", s.checker[0])
             .line("checker.b", s.checker[1])
+            .line("checker_cell", s.checker_cell)
             .line("selected", s.selected)
             .line("mixed.fill", s.mixed_fill)
             .line("mixed.mark", s.mixed_mark);
@@ -438,7 +442,11 @@ fn property_row() {
 fn section_header() {
     check("section_header.txt", |d, t| {
         let s = SectionHeader::style(t, 1.0);
-        d.line("row_height", s.row_height).line("chevron", s.chevron).line("chevron_box", s.chevron_box).line("title_offset", s.title_offset);
+        d.line("gap", s.gap)
+            .line("row_height", s.row_height)
+            .line("chevron", s.chevron)
+            .line("chevron_box", s.chevron_box)
+            .line("title_offset", s.title_offset);
         d.line("hairline", s.hairline.width).line("hairline_color", s.hairline.color).line("chevron_color", s.chevron_color);
         d.line("title_role", role(s.title_role)).line("title", s.title);
     });
@@ -448,8 +456,9 @@ fn section_header() {
 #[test]
 fn panel_header() {
     check("panel_header.txt", |d, t| {
-        let s = PanelHeader::style(t);
+        let s = PanelHeader::style(t, 1.0);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
+        d.line("rule_gap", s.rule_gap).line("rule", s.rule.width).line("rule_color", s.rule.color).line("body_gap", s.body_gap);
         d.line("title_role", role(s.title_role)).line("title", s.title);
     });
 }
@@ -499,7 +508,8 @@ fn toast() {
     check("toast.txt", |d, t| {
         let s = ToastStack::style(t, Tone::Neutral);
         d.line("width", s.width).line("pad", s.pad).line("inset.x", s.inset[0]).line("inset.y", s.inset[1]).line("gap", s.gap);
-        d.line("radius", s.radius).line("fill", s.fill).line("line", s.line).line("more", s.more).line("icon", s.icon);
+        d.line("radius", s.radius).line("fill", s.fill).line("shadow_offset.y", s.shadow_offset[1]).line("shadow_blur", s.shadow_blur);
+        d.line("line", s.line).line("more", s.more).line("icon", s.icon);
         d.line("title_role", role(s.title_role)).line("line_role", role(s.line_role));
         for tone in Tone::ALL {
             let s = ToastStack::style(t, tone);

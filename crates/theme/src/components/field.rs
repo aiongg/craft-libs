@@ -22,7 +22,7 @@ pub enum FieldPart {
     Text,
     /// The text shown while the field is empty.
     Placeholder,
-    /// A number's unit, drawn after it.
+    /// A number's unit, drawn at the box's end.
     Unit,
     /// The label or icon at a number field's start that a drag scrubs the value with.
     Scrub,
@@ -154,20 +154,20 @@ pub struct FieldTokens {
     pub role: TypeRole,
     /// The box: `surface.sunken`; disabled, `state.disabled_fill`.
     pub fill: Dimmed,
-    /// The edge: `line.control_edge`, `text.faint` under the pointer, `line.focus` while focused,
+    /// The edge: `line.control_edge` at rest and under the pointer, `line.focus` while focused,
     /// `line.divider` disabled. A bevel keeps its own colours.
     pub border: BorderColors,
     /// The typed text: `text.normal`; disabled, `text.disabled`.
     pub text: Dimmed,
     /// The text shown while empty: `text.faint`; disabled, `text.disabled`.
     pub placeholder: Dimmed,
-    /// A number's unit: `text.muted`; disabled, `text.disabled`.
+    /// A number's unit: `text.faint`; disabled, `text.disabled`.
     pub unit: Dimmed,
     /// A number field's scrub label or icon: `text.muted`; disabled, `text.disabled`.
     pub scrub: Dimmed,
-    /// Behind selected text: `state.selected`.
+    /// Behind selected text: `accent.soft`; the Pro themes pin PhotoCraft's grey.
     pub selection: Rgba,
-    /// Selected text: `text.on_selected`.
+    /// Selected text: `text.normal`, which a selection leaves as it is.
     pub selected_text: Rgba,
     /// The text cursor: `text.normal`.
     pub caret: Rgba,
@@ -281,14 +281,14 @@ impl Family for FieldTokens {
             radius: s.shape.radius.control,
             role: TypeRole::Body,
             fill: Dimmed { rest: c.surface.sunken, disabled: c.state.disabled_fill },
-            // `text.faint` is the next neutral above `line.control_edge` that isn't `text.disabled`.
-            border: BorderColors { rest: c.line.control_edge, hover: c.text.faint, focused: c.line.focus, disabled: c.line.divider },
+            // The edge does not change under the pointer, as in PhotoCraft's fields.
+            border: BorderColors { rest: c.line.control_edge, hover: c.line.control_edge, focused: c.line.focus, disabled: c.line.divider },
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
             placeholder: Dimmed { rest: c.text.faint, disabled: c.text.disabled },
-            unit: Dimmed { rest: c.text.muted, disabled: c.text.disabled },
+            unit: Dimmed { rest: c.text.faint, disabled: c.text.disabled },
             scrub: Dimmed { rest: c.text.muted, disabled: c.text.disabled },
-            selection: c.state.selected,
-            selected_text: c.text.on_selected,
+            selection: c.accent.soft,
+            selected_text: c.text.normal,
             caret: c.text.normal,
             invalid: c.status.bad.fg,
         }

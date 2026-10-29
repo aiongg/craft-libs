@@ -427,7 +427,7 @@ pub(super) const COMPACT: Preset = Preset {
         },
         tab: TabSizes { panel_height: 28.0, height_large: 34.0, min_width: 40.0, close: 14.0, close_icon: 10.0, rounded: false, dividers: true },
     },
-    space: SpaceTokens { gap: Gaps { inline: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
+    space: SpaceTokens { gap: Gaps { inline: 4.0, row: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
@@ -462,7 +462,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
         },
         tab: TabSizes { panel_height: 32.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
     },
-    space: SpaceTokens { gap: Gaps { inline: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
+    space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
@@ -793,6 +793,8 @@ pub const LIST_HOVER_MIN: (f64, f64) = (1.12, 1.12);
 pub const ANGLE_DIAL_BASE_CONTROL: f32 = 24.0;
 /// Compact diameter of an angle dial's face (PhotoCraft's `angle_dial_row`).
 pub const ANGLE_DIAL_SIZE: f32 = 42.0;
+/// Compact distance from the dial's box to its face (`angle_dial.rs:30`: radius is half the box less 2).
+pub const ANGLE_DIAL_MARGIN: f32 = 2.0;
 /// Compact width of an angle dial's needle.
 pub const ANGLE_DIAL_NEEDLE_WIDTH: f32 = 2.0;
 /// Compact distance from the dial's edge to the needle's tip.
@@ -1078,16 +1080,15 @@ pub const SWITCH_THUMB_INSET: f32 = 2.0;
 
 /// Largest corner radius of a swatch, in points: `shape.radius.control` up to this.
 pub const SWATCH_RADIUS_MAX: f32 = 4.0;
-/// Width of a swatch's selection ring, drawn outside the well.
+/// Width of a swatch's selection ring, drawn inside the well's outline.
 pub const SWATCH_SELECTED_WIDTH: f32 = 2.0;
-/// Between a swatch's well and its selection ring, so the ring doesn't merge with the edge.
-pub const SWATCH_SELECTED_GAP: f32 = 1.0;
-/// Opacity of the black or white ring inside a swatch's edge.
+/// Opacity of the black or white ring a colour pair draws inside a swatch's edge.
 pub const SWATCH_INNER_EDGE_ALPHA: u8 = 0x80;
-/// The two checkerboard greys behind a translucent swatch in a light theme.
-pub const SWATCH_CHECKER_LIGHT: (Rgba, Rgba) = (Rgba::rgb(255, 255, 255), Rgba::rgb(204, 204, 204));
-/// The two checkerboard greys behind a translucent swatch in a dark theme.
-pub const SWATCH_CHECKER_DARK: (Rgba, Rgba) = (Rgba::rgb(64, 64, 64), Rgba::rgb(102, 102, 102));
+/// The two checkerboard greys behind a translucent swatch, the same in every theme (PhotoCraft's
+/// `checker_tile`: `widgets/color.rs:67`).
+pub const SWATCH_CHECKER: (Rgba, Rgba) = (Rgba::rgb(250, 250, 250), Rgba::rgb(214, 214, 214));
+/// Side of one checkerboard cell behind a translucent swatch (`widgets/color.rs:92`).
+pub const SWATCH_CHECKER_CELL: f32 = 4.0;
 
 /// Above and below a badge's caption line, in points.
 pub const BADGE_PAD_Y: f32 = 1.0;
@@ -1100,8 +1101,8 @@ pub const KBD_PAD_Y: f32 = 1.0;
 /// Thickness of a progress bar's track, in points, at every Size.
 pub const PROGRESS_TRACK: f32 = 4.0;
 
-/// Widest a tooltip's text grows before it wraps, in points.
-pub const TOOLTIP_WIDTH: f32 = 320.0;
+/// Widest a tooltip's text grows before it wraps, in points (PhotoCraft's `tooltip_width`, `theme.rs:1093`).
+pub const TOOLTIP_WIDTH: f32 = 280.0;
 
 /// Outer width of a toast card, in points, at every Size.
 pub const TOAST_WIDTH: f32 = 360.0;
@@ -1122,6 +1123,11 @@ pub const fn toast_inset(size: Size) -> [f32; 2] {
         Size::Comfortable => [20.0, 16.0],
     }
 }
+
+/// Offset of a toast card's shadow, in points (PhotoCraft `notices.rs:238`: offset (0, 2)).
+pub const TOAST_SHADOW_OFFSET: [f32; 2] = [0.0, 2.0];
+/// Blur of a toast card's shadow, in points (`notices.rs:238`).
+pub const TOAST_SHADOW_BLUR: f32 = 8.0;
 
 /// Widest the column of a centred empty state grows, in points, at every Size.
 pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;

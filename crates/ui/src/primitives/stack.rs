@@ -14,6 +14,8 @@ use crate::theme::{Tokens, TokensOf, margin};
 pub enum Gap {
     /// Between items on one line.
     Inline,
+    /// Between the rows of a panel body.
+    Row,
     /// Between stacked rows.
     Stack,
     /// Between groups.
@@ -22,12 +24,13 @@ pub enum Gap {
 
 impl Gap {
     /// Every gap, smallest first.
-    pub const ALL: &'static [Gap] = &[Gap::Inline, Gap::Stack, Gap::Section];
+    pub const ALL: &'static [Gap] = &[Gap::Inline, Gap::Row, Gap::Stack, Gap::Section];
 
     /// The name in story args and dumps.
     pub const fn name(self) -> &'static str {
         match self {
             Gap::Inline => "inline",
+            Gap::Row => "row",
             Gap::Stack => "stack",
             Gap::Section => "section",
         }
@@ -38,6 +41,7 @@ impl Gap {
         let gap = &tokens.space.gap;
         match self {
             Gap::Inline => gap.inline,
+            Gap::Row => gap.row,
             Gap::Stack => gap.stack,
             Gap::Section => gap.section,
         }
@@ -161,7 +165,7 @@ fn padded<R>(ui: &mut Ui, pad: Option<Pad>, kind: RecordKind, add_contents: impl
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Stack", "Row"];
 
-const GAP_NAMES: &[&str] = &["inline", "stack", "section"];
+const GAP_NAMES: &[&str] = &["inline", "row", "stack", "section"];
 const PAD_NAMES: &[&str] = &["none", "control", "panel", "dialog"];
 
 pub(crate) fn stories() -> Vec<Story> {
@@ -171,7 +175,7 @@ pub(crate) fn stories() -> Vec<Story> {
             level: Level::Primitives,
             component: "Stack",
             name: "Gaps",
-            args: || Args::new().with_choice("gap", GAP_NAMES, 1).with_choice("pad", PAD_NAMES, 2),
+            args: || Args::new().with_choice("gap", GAP_NAMES, 2).with_choice("pad", PAD_NAMES, 2),
             show: show_stack,
         },
         Story {

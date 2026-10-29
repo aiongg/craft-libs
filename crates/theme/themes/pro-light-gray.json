@@ -30,6 +30,7 @@
     "button.secondary.fill.rest": "#00000000",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
+    "field.selection.fill": "#c9c9c9",
     "line.border": "#a0a0a0",
     "line.control_edge": "#8c8c8c",
     "line.divider": "#9e9e9e",

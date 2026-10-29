@@ -370,3 +370,28 @@ fn a_group_overrides_the_column_widths() {
     let (label, field) = (rect(&harness, "Angle"), spin(&harness, "Angle").rect());
     assert!((field.left() - label.left() - 120.0 - style.label_gap).abs() < 1.5, "{label:?} {field:?}");
 }
+
+/// PhotoCraft's panel rows are `ROW_GAP` apart (`props_layout.rs:12-30`; docks zero egui's item
+/// spacing and the rows add the gap themselves).
+#[test]
+fn the_rows_of_a_group_are_a_row_gap_apart() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("en");
+        panel(ui, 260.0, |ui| {
+            PropertyGroup::new("g").show(ui, |ui| {
+                PropertyRow::word("Opacity").show(ui, |ui, _| number("o", "Opacity", 1.0, &numbers).show(ui));
+                PropertyRow::word("Angle").show(ui, |ui, _| number("a", "Angle", 1.0, &numbers).show(ui));
+            });
+        });
+    });
+    let gap = spin(&harness, "Angle").rect().top() - spin(&harness, "Opacity").rect().bottom();
+    assert!((gap - harness_row_gap()).abs() < 0.5, "{gap}");
+}
+
+fn harness_row_gap() -> f32 {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut gap = 0.0;
+    ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).space.gap.row).drop_without_applying_deltas();
+    gap
+}

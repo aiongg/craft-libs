@@ -515,7 +515,11 @@ impl PropertyGroup {
         let id = overrides_id(&ctx);
         let layer = ui.layer_id();
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Overrides>>(id).push(Overrides { layer, glyph: self.glyph, word: self.word }));
-        let inner = measure::group(ui, GLYPH_TAG, self.id_salt, add_contents);
+        let row_gap = Tokens::of(ui).space.gap.row;
+        let inner = measure::group(ui, GLYPH_TAG, self.id_salt, |ui| {
+            ui.spacing_mut().item_spacing.y = row_gap;
+            add_contents(ui)
+        });
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Overrides>>(id).pop());
         inner
     }

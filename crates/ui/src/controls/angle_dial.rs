@@ -69,8 +69,10 @@ impl AngleOrientation {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AngleDialStyle {
-    /// Diameter of the face: `angle_dial.size`.
+    /// Side of the dial's box: `angle_dial.size`.
     pub size: f32,
+    /// From the box to the face's edge: `angle_dial.margin`.
+    pub margin: f32,
     /// The face: `angle_dial.face`.
     pub face: Color32,
     /// The face's edge, one point inside it: `angle_dial.edge`.
@@ -210,6 +212,7 @@ impl<'a> AngleDial<'a> {
         let d = &tokens.component.angle_dial;
         AngleDialStyle {
             size: d.size,
+            margin: d.margin,
             face: d.face.to_egui(),
             edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), d.edge.to_egui()),
             edge_active: tokens.color.text.normal.to_egui(),
@@ -380,15 +383,15 @@ impl<'a> AngleDial<'a> {
             let active = enabled && (response.hovered() || dragging);
             self.paint(ui, style, rect, (!mixed).then_some(value), active, enabled);
         }
-        let radius = CornerRadius::same((style.size / 2.0).round() as u8);
-        FocusRing::paint_radius(ui, rect, radius, &response);
+        let face = rect.shrink(style.margin);
+        FocusRing::paint_radius(ui, face, CornerRadius::same((face.width() / 2.0).round() as u8), &response);
         (EditResponse::new(response, gesture.finish()), ops)
     }
 
     fn paint(&self, ui: &Ui, style: &AngleDialStyle, rect: Rect, value: Option<f64>, active: bool, enabled: bool) {
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
         let painter = ui.painter();
-        let (center, radius) = (rect.center(), rect.width() / 2.0);
+        let (center, radius) = (rect.center(), rect.width() / 2.0 - style.margin);
         painter.add(Shape::circle_filled(center, radius, style.face));
         let edge = Stroke::new(style.edge.width, if active { style.edge_active } else { style.edge.color });
         painter.add(Shape::circle_stroke(center, radius - edge.width / 2.0, Stroke::new(edge.width, fade(edge.color))));

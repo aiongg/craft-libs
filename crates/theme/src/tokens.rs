@@ -624,6 +624,8 @@ pub struct ShapeTokens {
 pub struct Gaps {
     /// Between items on one line.
     pub inline: f32,
+    /// Between the rows of a panel body (PhotoCraft's `ROW_GAP`) and around a section header.
+    pub row: f32,
     /// Between stacked rows.
     pub stack: f32,
     /// Between groups.
