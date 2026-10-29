@@ -55,6 +55,7 @@ state.selected = #e6eefdff
 state.selected_hover = #dbe2f1ff
 state.disabled_fill = #ffffffff
 overlay.stroke = #94bdffff
+overlay.line = #4b8bf5ff
 overlay.halo = #00000099
 overlay.handle_fill = #ffffffff
 overlay.handle_stroke = #4b8bf5ff

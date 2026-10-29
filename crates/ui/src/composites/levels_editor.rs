@@ -187,8 +187,9 @@ pub(crate) fn gamma_from(values: &[f64], x: f64) -> f64 {
 ///   press off the thumbs moves the nearest one there, and overlapping thumbs follow the drag's
 ///   direction. A double-click or Cmd/Ctrl+Backspace sets a thumb's default; Esc cancels a drag.
 /// - Each field shows its thumb's value, the host's as it is when it lies outside the range, and
-///   takes values within the thumb's bounds. A press on a row while a field's typing run has the
-///   focus waits for the run's commit, and edits the levels it leaves.
+///   takes values within the thumb's bounds. A press on a row or on another field (a scrub) while
+///   a field's typing run has the focus waits for the run's commit, and edits the levels it
+///   leaves.
 /// - While Alt is held during an input black or white drag, [`clipping`](LevelsEditor::clipping)
 ///   says which, for the host's clipping view.
 ///
@@ -406,9 +407,9 @@ impl<'a> LevelsEditor<'a> {
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
         let levels = *self.levels;
-        // A press on a row waits while another control's gesture has the focus (a field's typing
-        // run, `press_turn`): the run's ending event goes out first, and the press edits the
-        // levels it leaves.
+        // A press on a row or a field's scrub waits while another control's gesture has the focus
+        // (a field's typing run, `press_turn`): the run's ending event goes out first, and the
+        // press edits the levels it leaves.
         let waits = edit::focused_gesture(ui.ctx()).is_some();
         let stack_gap = ui.spacing().item_spacing.y;
 
@@ -474,7 +475,7 @@ impl<'a> LevelsEditor<'a> {
                 level(self.field("in-white", &self.labels.in_white, white, (black_at + gap).clamp(start, end)..=end)),
             ),
         ];
-        let in_edits = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field));
+        let in_edits = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.press_waits(waits)));
 
         if self.captions {
             self.caption(ui, style, &self.labels.output);
@@ -504,7 +505,7 @@ impl<'a> LevelsEditor<'a> {
             (fields.at_start(w2), "out-black", level(self.field("out-black", &self.labels.out_black, out_black, start..=end))),
             (fields.at_end(w2), "out-white", level(self.field("out-white", &self.labels.out_white, out_white, start..=end))),
         ];
-        let out_edits = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field));
+        let out_edits = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.press_waits(waits)));
 
         let [b, g, w] = in_edits;
         let [ob, ow] = out_edits;

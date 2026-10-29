@@ -221,6 +221,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::StateSelectedHover => StateVariant { base: T::StateSelected, step: pick(7, 6) },
         T::StateDisabledFill => Same(T::SurfacePanel),
         T::OverlayStroke => Accent(9),
+        T::OverlayLine => Accent(9),
         T::OverlayHalo => Fixed(Rgba::BLACK.with_alpha(alpha(0.6))),
         T::OverlayHandleFill => Fixed(Rgba::WHITE),
         T::OverlayHandleStroke => Same(T::OverlayStroke),
@@ -355,7 +356,8 @@ pub(super) const RULES: &[PairRule] = &[
         NON_TEXT_MIN.1,
     ),
     // Guide and smart-guide colours have no pair: they are the user's choice, as in the apps'
-    // preferences, and a bare line on an image can't promise a ratio.
+    // preferences, and a bare line on an image can't promise a ratio. `overlay.line` neither, for
+    // the same reason.
 ];
 
 /// The Size-dependent values: sizes, spacing, default shape and type roles.

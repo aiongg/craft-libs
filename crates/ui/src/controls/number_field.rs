@@ -12,11 +12,11 @@ use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, Event, EventFilter, FontId, Id, IdSalt, Key, Modifiers, PointerButton, Popup, PopupCloseBehavior,
-    Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
+    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
 };
 
 use super::field_wheel;
-use super::slider::{Scale, Track, labelled, pointer, with_values};
+use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
@@ -159,6 +159,7 @@ pub struct NumberField<'a> {
     enabled: bool,
     invalid: bool,
     keep_focus: bool,
+    press_waits: bool,
 }
 
 impl<'a> NumberField<'a> {
@@ -185,6 +186,7 @@ impl<'a> NumberField<'a> {
             enabled: true,
             invalid: false,
             keep_focus: false,
+            press_waits: false,
         }
     }
 
@@ -299,6 +301,16 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// Whether a press on the scrub sources, the ▾ or the pop-up slider waits in this pass
+    /// (`slider::press_turn`), for a field that is a part of a composite reporting through one
+    /// edit: while another control's gesture has the focus (`edit::focused_gesture`, a typing run
+    /// in a sibling field), the press takes the focus from it, that gesture ends and its event
+    /// goes out, and the press runs from the host's value after it.
+    pub(crate) fn press_waits(mut self, waits: bool) -> Self {
+        self.press_waits = waits;
+        self
+    }
+
     pub fn style(tokens: &UiTokens, size: ControlSize) -> NumberFieldStyle {
         let f = &tokens.component.field;
         let mut field = TextField::style(tokens, size);
@@ -385,12 +397,15 @@ impl<'a> NumberField<'a> {
         let under = ui.painter().add(Shape::Noop);
         let mut typed = typing.show(ui, &look);
         let rect = typed.response().rect;
+        // The field's own typing run having the focus is no reason to wait: its scrub ends it.
+        let waits = self.press_waits && edit::focused_gesture(ui.ctx()).is_some_and(|g| typed.gesture().id() != Some(g));
         let input = Input {
             id,
             base: if self.value.is_finite() { self.value } else { 0.0_f64.clamp(bounds.0, bounds.1) },
             step: self.step,
             modifiers: ui.input(|i| i.modifiers),
             codec,
+            waits,
         };
 
         if stepping {
@@ -489,13 +504,42 @@ struct Input<'n> {
     step: f64,
     modifiers: Modifiers,
     codec: Numbers<'n>,
+    /// A press waits in this pass ([`NumberField::press_waits`]).
+    waits: bool,
 }
 
 impl<'n> Input<'n> {
+    /// When the press `started` in this pass on one of the field's press targets (`key`) runs:
+    /// now, after a wait, or not yet. A waiting press takes the focus from the control that has
+    /// it, which ends that control's gesture.
+    fn turn(&self, ui: &Ui, key: &str, started: Option<Pos2>) -> PressTurn {
+        let turn = press_turn(ui, self.id.with(key), self.waits, started);
+        if matches!(turn, PressTurn::Waits) && started.is_some() {
+            ui.memory_mut(|m| {
+                if let Some(focused) = m.focused() {
+                    m.surrender_focus(focused);
+                }
+            });
+        }
+        turn
+    }
+
     /// Drags on the scrub `sources`: a step a point (Shift ten, Alt a tenth as fast); a click
     /// focuses the field.
     fn scrub(&self, ui: &Ui, typed: &mut Typed<Numbers<'n>>, sources: &[Response]) {
         let key = self.id.with("craft_ui::number_field::scrubbing");
+        let started = sources.iter().find_map(|drag| drag.drag_started_by(PointerButton::Primary).then(|| pointer(ui, drag)).flatten());
+        let origin = match self.turn(ui, "craft_ui::number_field::scrub_press", started.map(|(_, origin)| origin)) {
+            PressTurn::Now => started.map(|(_, origin)| origin),
+            // A press released while it waited does nothing.
+            PressTurn::Held(at) => sources.iter().any(|drag| drag.dragged_by(PointerButton::Primary)).then_some(at),
+            PressTurn::Waits => None,
+        };
+        if let Some(origin) = origin {
+            // A typing run ends as the focus leaves, its text read before the first step.
+            ui.memory_mut(|m| m.surrender_focus(self.id));
+            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0 }));
+        }
         for drag in sources {
             if drag.hovered() || drag.dragged() {
                 ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
@@ -503,13 +547,6 @@ impl<'n> Input<'n> {
             if drag.clicked() {
                 ui.memory_mut(|m| m.request_focus(self.id));
                 select_all(ui.ctx(), self.id, typed.text());
-            }
-            if drag.drag_started_by(PointerButton::Primary)
-                && let Some((_, origin)) = pointer(ui, drag)
-            {
-                // A typing run ends as the focus leaves, its text read before the first step.
-                ui.memory_mut(|m| m.surrender_focus(self.id));
-                ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0 }));
             }
             if drag.dragged_by(PointerButton::Primary)
                 && let Some((pos, _)) = pointer(ui, drag)
@@ -567,7 +604,13 @@ impl<'n> Input<'n> {
         let (lo, hi) = self.codec.bounds;
         let scale = Scale::new(&(lo..=hi), (self.step > 0.0).then_some(self.step));
         let arrow_press = self.id.with("craft_ui::number_field::popup_press");
-        if arrow.drag_started_by(PointerButton::Primary) {
+        let started = arrow.drag_started_by(PointerButton::Primary).then(|| pointer(ui, &arrow).map(|(_, origin)| origin)).flatten();
+        let runs = match self.turn(ui, "craft_ui::number_field::popup_turn", started) {
+            PressTurn::Now => started.is_some(),
+            PressTurn::Held(_) => arrow.dragged_by(PointerButton::Primary),
+            PressTurn::Waits => false,
+        };
+        if runs {
             Popup::open_id(ui.ctx(), popup_id);
             ui.memory_mut(|m| m.surrender_focus(self.id));
             ui.data_mut(|d| d.insert_temp(arrow_press, Press::default()));
@@ -600,7 +643,8 @@ impl<'n> Input<'n> {
         }
         let mut slider = Slider::new(self.id.with("craft_ui::number_field::slider"), name, typed.value().unwrap_or(self.base), lo..=hi)
             .size(field.size)
-            .enabled(enabled);
+            .enabled(enabled)
+            .press_waits(self.waits);
         if self.step > 0.0 {
             slider = slider.step(self.step);
         }

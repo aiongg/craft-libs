@@ -67,7 +67,7 @@ impl TransformLabels {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TransformStyle {
-    /// The box line: `transform.line` of `overlay.stroke`, bare.
+    /// The box line: `transform.line` of `overlay.line`, bare.
     pub line: Stroke,
     /// The 8 handles: [`Handle::style`] `Square`.
     pub handle: HandleStyle,
@@ -174,11 +174,12 @@ struct Drag {
 ///   is taken in [`RotateZone::Outside`] even where rotating is refused, so a click there applies.
 ///   ⌥-press away from the handles moves the reference point there and drags it. A drag begins on
 ///   the first move (outside, past `transform.click_slop`).
-/// - Keys, whenever no text field has focus and no popup is open: Enter applies, Esc cancels a
-///   drag and otherwise discards, the arrows move the picked part as a plain drag of it would
-///   (the whole box with none picked). While the box has keyboard focus (one Tab stop,
-///   [`PartFocus`]) Page Down and Page Up pick the next and previous part: the whole box, the
-///   corners and edges clockwise from the top left, the reference point.
+/// - Keys, whenever no text field has focus and no popup is open: Enter applies; Esc cancels a
+///   drag, ends a held press before its first move (the rest of the press does nothing) and
+///   otherwise discards; the arrows move the whole box, or, while the box has keyboard focus, the
+///   picked part as a plain drag of it would. With the focus (one Tab stop, [`PartFocus`]) Page
+///   Down and Page Up pick the next and previous part: the whole box, the corners and edges
+///   clockwise from the top left, the reference point.
 /// - Nothing mirrors in a right-to-left interface: the box is the document's.
 pub struct TransformBox<'a> {
     id_salt: IdSalt,
@@ -279,7 +280,7 @@ impl<'a> TransformBox<'a> {
         let halo = tokens.component.handle.halo;
         let ring = FocusRing::style(tokens);
         TransformStyle {
-            line: Stroke::new(t.line, o.stroke.to_egui()),
+            line: Stroke::new(t.line, o.line.to_egui()),
             handle: Handle::style(tokens, HandleShape::Square),
             hit: t.hit,
             rotate_reach: t.rotate_reach,
@@ -334,6 +335,14 @@ impl<'a> TransformBox<'a> {
         {
             d.cancelled = true;
         }
+        // Esc before the first move ends the press as it would end its drag.
+        if let Some(d) = &mut drag
+            && !d.began
+            && !d.cancelled
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
+        {
+            d.cancelled = true;
+        }
         let pointer = ctx.input(|i| i.pointer.latest_pos());
         if let Some(d) = &mut drag {
             self.track(&ctx, canvas, view, &style, d, &mut gesture, &mut out);
@@ -354,7 +363,8 @@ impl<'a> TransformBox<'a> {
             picked = pick.and_then(key_part);
         }
         if drag.is_none_or(|d| d.cancelled) {
-            self.keys(ui, drag.is_none(), picked, &mut gesture, &mut out);
+            // The pick is the keyboard's: without the focus the arrows move the whole box (PC).
+            self.keys(ui, drag.is_none(), picked.filter(|_| focus.focused), &mut gesture, &mut out);
         }
 
         let dragging = drag.filter(|d| d.began && !d.cancelled);

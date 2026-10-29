@@ -108,7 +108,7 @@ pub struct BezierStyle {
     pub line: f32,
     /// A selected segment's width: `bezier.selected_segment`.
     pub selected_segment: f32,
-    /// A path without a colour of its own: `overlay.stroke`.
+    /// A path without a colour of its own: `overlay.line`.
     pub color: Color32,
     /// An anchor: a `bezier.anchor` square of `overlay.handle_fill` outlined in
     /// `overlay.handle_stroke`, or in the path's colour.
@@ -384,7 +384,7 @@ impl<'a> BezierOverlay<'a> {
         BezierStyle {
             line: b.line,
             selected_segment: b.selected_segment,
-            color: tokens.color.overlay.stroke.to_egui(),
+            color: tokens.color.overlay.line.to_egui(),
             anchor,
             selected_anchor,
             control,

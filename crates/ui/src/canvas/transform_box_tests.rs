@@ -355,6 +355,56 @@ fn arrows_move_the_box_and_a_picked_corner_scales() {
     assert!((state(&h).quad[0].y - start.quad[0].y).abs() > 1e-6, "proportional: the height follows");
 }
 
+/// The pick is the keyboard's: with the focus elsewhere an arrow moves the whole box, not the
+/// corner a drag picked (PhotoCraft).
+#[test]
+fn without_the_focus_the_arrows_move_the_whole_box_whatever_is_picked() {
+    let mut h = harness(|_| {});
+    h.run();
+    let corner = screen(&h, RECT.origin());
+    drag(&mut h, corner, corner + vec2(-10.0, 0.0), Modifiers::NONE);
+    assert_eq!(h.state().picked, Some(BoxPart::Corner(0)));
+    let start = state(&h);
+    h.key_press(Key::ArrowLeft);
+    h.run();
+    assert_ne!(state(&h), start.moved(kurbo::Vec2::new(-1.0, 0.0)), "the release gave the box the focus: the corner scales");
+
+    let away = Pos2::new(10.0, 10.0);
+    h.event(Event::PointerMoved(away));
+    h.event(button(away, true, Modifiers::NONE));
+    h.event(button(away, false, Modifiers::NONE));
+    h.run();
+    let start = state(&h);
+    h.key_press(Key::ArrowRight);
+    h.run();
+    assert_eq!(state(&h), start.moved(kurbo::Vec2::new(1.0, 0.0)));
+}
+
+/// Esc during a press that hasn't moved yet ends the press, as it would end its drag: the box
+/// stays open and the rest of the press does nothing.
+#[test]
+fn esc_before_the_first_move_ends_the_press() {
+    let mut h = harness(|_| {});
+    h.run();
+    let from = screen(&h, Point::new(150.0, 110.0));
+    h.event(Event::PointerMoved(from));
+    h.event(button(from, true, Modifiers::NONE));
+    h.run();
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(h.state().discarded, 0, "the box stays open");
+    let to = from + vec2(40.0, 0.0);
+    h.event(Event::PointerMoved(to));
+    h.run();
+    h.event(button(to, false, Modifiers::NONE));
+    h.run();
+    assert!(h.state().events.is_empty(), "{:?}", kinds(&h));
+    assert_eq!(state(&h), BoxState::from_rect(RECT));
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(h.state().discarded, 1, "the next Esc closes the box");
+}
+
 #[test]
 fn page_keys_skip_the_parts_the_mode_refuses() {
     use BoxPart::{Corner, Inside, Pivot};

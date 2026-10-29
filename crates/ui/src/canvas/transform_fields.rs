@@ -10,7 +10,7 @@ use super::story;
 use crate::composites::{PropertyLabel, PropertyRow};
 use crate::controls::{IconButton, NumberField};
 use crate::direction;
-use crate::edit::{EditEvent, EditResponse};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::Handle;
@@ -65,6 +65,10 @@ pub struct TransformFieldLabels {
     pub angle: FieldLabel,
     pub skew_h: FieldLabel,
     pub skew_v: FieldLabel,
+    /// Around a W or H scale: `{n}%`.
+    pub percent: Unit,
+    /// Around an angle or a skew: `{n}°`.
+    pub degrees: Unit,
 }
 
 impl Default for TransformFieldLabels {
@@ -78,6 +82,8 @@ impl Default for TransformFieldLabels {
             angle: FieldLabel::new("°", "Angle"),
             skew_h: FieldLabel::new("H", "Horizontal skew"),
             skew_v: FieldLabel::new("V", "Vertical skew"),
+            percent: Unit::new("{n}%"),
+            degrees: Unit::new("{n}\u{b0}"),
         }
     }
 }
@@ -188,6 +194,31 @@ fn nonzero(v: f64) -> f64 {
     if v.abs() < 1e-9 { 1e-9_f64.copysign(if v == 0.0 { 1.0 } else { v }) } else { v }
 }
 
+/// What the row edits: the box and the V skew it reads with.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Row {
+    state: BoxState,
+    skew_v: f64,
+}
+
+impl Conversion {
+    /// The row after `field` is set to `value` in `row`.
+    fn row(&self, row: &Row, field: Field, value: f64) -> Row {
+        let (state, skew_v) = self.edit(&row.state, row.skew_v, field, value);
+        Row { state, skew_v }
+    }
+}
+
+/// What the row keeps between passes.
+#[derive(Clone, Debug, Default)]
+struct Kept {
+    parts: parts::State<()>,
+    /// Each field's last value in the row's gesture, with that gesture and the row the value gave.
+    reported: [Option<(GestureId, f64, Row)>; FIELDS],
+}
+
+const FIELDS: usize = 7;
+
 /// The options bar's fields of a transform box: reference point X and Y, W and H with the aspect
 /// link, the angle, and the horizontal and vertical skew.
 ///
@@ -214,16 +245,25 @@ fn nonzero(v: f64) -> f64 {
 ///   keeps its sign. Limits: position ±300 000 document units, angle −180° to 180°, skew ±89°,
 ///   scale as far as the box stays within the position limit.
 /// - **Linked** ([`linked`](Self::linked)): W or H also scales the other by the same factor,
-///   each kept within its own limit. The toggle is an `IconButton` between the two.
-/// - **Events.** A field's own gesture (scrub: Begin, Update, Commit; a typing run; an arrow
-///   step: Set) is reported as the same event with the value converted to a [`BoxState`]. Only one
-///   field edits at a time; if two report in a frame the ending one (Commit, Cancel, Set) wins
-///   over an Update and an Update over a Begin.
+///   each kept within its own limit. The toggle is an `IconButton` between the two; without
+///   `linked` the row keeps the link itself.
+/// - **One gesture.** The row is one edit of the box, as a colour picker is of its colour: the
+///   field whose gesture (a scrub, a typing run) begins it owns it, and its Commit or Cancel ends
+///   it; the other fields' values in the meantime join it, and an arrow step outside a gesture is
+///   a Set. A press on a field while another field's typing run is open waits for the run: the
+///   run commits first, and the press begins a gesture of its own from the box the run left.
+///   Every field's event in a frame counts, each from the box the ones before it left.
+///   While the box is the one a field's value gave, the field reads that value back, so a
+///   scrub or a capped linked size isn't taken for the box moving under it.
 /// - **V skew.** The V field is the host's `skew_v` ([`skew_v`](Self::skew_v)): the box does not
-///   hold it (any parallelogram reads with any V skew), so the host keeps it for the session. A
-///   V edit writes the new value to it, and a cancelled V gesture restores it.
+///   hold it (any parallelogram reads with any V skew), so the host keeps it for the session, or
+///   the row keeps its own. Each event writes the V skew it carries, and a cancel restores the
+///   one the gesture began with.
+/// - [`policy`](Self::policy) is the row's: its update rate and cost apply to the box's events;
+///   Esc cancels a field's gesture, and that cancels the row's, unless the policy isn't
+///   cancellable.
 ///
-/// The row is not a gesture of its own: the host applies the events as a box session's steps.
+/// The host applies the events as a box session's steps.
 #[must_use = "show the fields with `show`"]
 pub struct TransformFields<'a> {
     id_salt: egui::IdSalt,
@@ -237,6 +277,7 @@ pub struct TransformFields<'a> {
     skew_v: Option<&'a mut f64>,
     size: ControlSize,
     enabled: bool,
+    policy: EditPolicy,
 }
 
 impl<'a> TransformFields<'a> {
@@ -255,6 +296,7 @@ impl<'a> TransformFields<'a> {
             skew_v: None,
             size: ControlSize::Md,
             enabled: true,
+            policy: EditPolicy::default(),
         }
     }
 
@@ -296,46 +338,72 @@ impl<'a> TransformFields<'a> {
         self
     }
 
+    /// How the row reports its edits: a host previewing a large layer asks for
+    /// [`Debounced`](crate::edit::UpdateRate::Debounced) updates or
+    /// [`on_release_only`](EditPolicy::on_release_only).
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
     /// Shows the row and returns this frame's edit, with the box it gives.
     pub fn show(self, ui: &mut Ui) -> EditResponse<BoxState> {
-        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled } = self;
+        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled, policy } = self;
         let id = ui.make_persistent_id(id_salt);
-        let memory = id.with("skew_v");
-        let before_key = id.with("skew_v before");
-        let mut own_skew: f64 = ui.data(|d| d.get_temp(memory)).unwrap_or(0.0);
-        let mut own_link = true;
-        let host_skew = skew_v.is_some();
+        let (skew_key, link_key, kept_key) = (id.with("skew_v"), id.with("linked"), id.with("kept"));
+        let mut own_skew: f64 = ui.data(|d| d.get_temp(skew_key)).unwrap_or(0.0);
+        let mut own_link: bool = ui.data(|d| d.get_temp(link_key)).unwrap_or(true);
+        let (host_skew, host_link) = (skew_v.is_some(), linked.is_some());
         let skew_v = skew_v.unwrap_or(&mut own_skew);
         let linked = linked.unwrap_or(&mut own_link);
-        let skew_now = *skew_v;
         let convert = Conversion { rect, x, y, size: size_unit, linked: *linked };
         let numbers = convert.x.numbers.clone();
-        let state = *state;
         let enabled = enabled && ui.is_enabled();
+
+        // Esc is the fields': each cancels its own gesture, which cancels the row's.
+        let outer = Gesture::load(ui, id, &Row { state: *state, skew_v: *skew_v }, policy.cancellable(false)).enabled(enabled);
+        let before = outer.start().copied();
+        let shown = *outer.shown();
+        let mut kept: Kept = ui.data(|d| d.get_temp(kept_key)).unwrap_or_default();
+        let gesture = outer.id();
+        for reported in &mut kept.reported {
+            if reported.is_some_and(|(of, ..)| Some(of) != gesture) {
+                *reported = None;
+            }
+        }
+        let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
+        // A press on a field waits while another field's typing run has the focus: the run's
+        // event goes out first, and the press edits the box it leaves.
+        let waits = edit::focused_gesture(ui.ctx()).is_some();
 
         let tokens = Tokens::of(ui);
         let row_style = PropertyRow::style(&tokens, size);
         let cell = row_style.glyph_width + row_style.label_gap + NumberField::style(&tokens, size).field.width;
         let pair = 2.0 * cell + row_style.column_gap;
         let linked_pair = pair + row_style.link_width + 2.0 * row_style.column_gap;
-        let degrees = Unit::new("{n}\u{b0}");
-        let percent = Unit::new("%");
 
-        // What each field shows: its unit, decimals and the part of the box it reads.
+        // What each field shows: its unit, decimals and the part of the box it reads, or the value
+        // it gave while the box is the one that value made.
         let field = |ui: &mut Ui, which: Field, label: &FieldLabel| {
             let (unit, decimals) = match (which, &convert.size) {
                 (Field::X, _) => (convert.x.unit.clone(), convert.x.decimals),
                 (Field::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
                 (Field::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
                 (Field::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
-                (Field::W | Field::H, SizeUnit::Percent) => (percent.clone(), 1),
-                _ => (degrees.clone(), 2),
+                (Field::W | Field::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
+                _ => (labels.degrees.clone(), 2),
+            };
+            let value = match kept.reported[which as usize] {
+                Some((_, value, row)) if row == shown => value,
+                _ => convert.shown(&shown.state, shown.skew_v, which),
             };
             let bound = convert.bound(which);
-            NumberField::new((id, which as u8), label.name.clone(), convert.shown(&state, skew_now, which), &numbers)
+            NumberField::new((id, which as u8), label.name.clone(), value, &numbers)
                 .range(-bound..=bound)
                 .decimals(0..=decimals)
                 .unit(unit)
+                .policy(inner)
+                .press_waits(waits)
                 .size(size)
                 .enabled(enabled)
                 .show(ui)
@@ -348,7 +416,7 @@ impl<'a> TransformFields<'a> {
             });
         };
 
-        let mut edits: Vec<(Field, EditResponse<f64>)> = Vec::new();
+        let mut fields: Vec<(Field, EditResponse<f64>)> = Vec::with_capacity(FIELDS);
         let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) }.with_main_wrap(true);
         let row = ui.scope_builder(UiBuilder::new().layout(layout), |ui| {
             group(ui, pair, &mut |ui| {
@@ -356,7 +424,7 @@ impl<'a> TransformFields<'a> {
                     .size(size)
                     .show(ui, |ui, _| field(ui, Field::X, &labels.x), |ui, _| field(ui, Field::Y, &labels.y))
                     .inner;
-                edits.extend([(Field::X, a), (Field::Y, b)]);
+                fields.extend([(Field::X, a), (Field::Y, b)]);
             });
             group(ui, linked_pair, &mut |ui| {
                 let (a, _, b) = PropertyRow::pair(glyph(&labels.w), glyph(&labels.h))
@@ -371,53 +439,61 @@ impl<'a> TransformFields<'a> {
                         |ui, _| field(ui, Field::H, &labels.h),
                     )
                     .inner;
-                edits.extend([(Field::W, a), (Field::H, b)]);
+                fields.extend([(Field::W, a), (Field::H, b)]);
             });
             group(ui, cell, &mut |ui| {
                 let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| field(ui, Field::Angle, &labels.angle)).inner;
-                edits.push((Field::Angle, edit));
+                fields.push((Field::Angle, edit));
             });
             group(ui, pair, &mut |ui| {
                 let (a, b) = PropertyRow::pair(glyph(&labels.skew_h), glyph(&labels.skew_v))
                     .size(size)
                     .show(ui, |ui, _| field(ui, Field::SkewH, &labels.skew_h), |ui, _| field(ui, Field::SkewV, &labels.skew_v))
                     .inner;
-                edits.extend([(Field::SkewH, a), (Field::SkewV, b)]);
+                fields.extend([(Field::SkewH, a), (Field::SkewV, b)]);
             });
         });
 
-        let (submitted, escaped) = (edits.iter().any(|(_, e)| e.submitted), edits.iter().any(|(_, e)| e.escaped));
-        let rank = |e: &EditEvent<f64>| match e {
-            EditEvent::Commit { .. } | EditEvent::Cancel { .. } | EditEvent::Set { .. } => 0,
-            EditEvent::Update { .. } => 1,
-            _ => 2,
-        };
-        let chosen = edits.into_iter().filter(|(_, e)| e.event.is_some()).min_by_key(|(_, e)| e.event.as_ref().map_or(3, rank));
-        let event = chosen.and_then(|(which, edit)| {
-            let event = edit.event?;
-            if which == Field::SkewV {
-                match &event {
-                    EditEvent::Begin { .. } => ui.data_mut(|d| {
-                        d.insert_temp(before_key, skew_now);
-                    }),
-                    EditEvent::Cancel { .. } => {
-                        if let Some(before) = ui.data(|d| d.get_temp::<f64>(before_key)) {
-                            *skew_v = before;
-                        }
-                    }
-                    _ => {
-                        if let Some(&value) = event.value() {
-                            *skew_v = convert.edit(&state, skew_now, which, value).1;
-                        }
-                    }
+        // Each field's value applies to the row the fields before it in this pass left.
+        let mut edits = parts::Edits::<Row>::new(&kept.parts);
+        let mut values: Vec<(Field, f64, Row)> = Vec::new();
+        let mut running = shown;
+        for (which, edit) in &fields {
+            let (which, base) = (*which, running);
+            edits.typing(ui.ctx(), edit, |value| convert.row(&base, which, value));
+            if let Some(&value) = edit.event.as_ref().and_then(EditEvent::value) {
+                running = convert.row(&base, which, value);
+                values.push((which, value, running));
+            }
+        }
+        let outer = edits.feed(outer, &mut kept.parts, edit::in_scope(ui));
+        if let Some(gesture) = outer.id() {
+            for (which, value, row) in values {
+                kept.reported[which as usize] = Some((gesture, value, row));
+            }
+        }
+        let (now, start) = (*outer.shown(), outer.start().copied().or(before));
+        let event = outer.finish_as(|row: Row| row.state);
+        match &event {
+            Some(EditEvent::Cancel { .. }) => {
+                if let Some(start) = start {
+                    *skew_v = start.skew_v;
                 }
             }
-            Some(event.map(|value| convert.edit(&state, skew_now, which, value).0))
-        });
-        if !host_skew {
-            let kept = *skew_v;
-            ui.data_mut(|d| d.insert_temp(memory, kept));
+            Some(e) if e.value().is_some() => *skew_v = now.skew_v,
+            _ => {}
         }
+
+        let (submitted, escaped) = (fields.iter().any(|(_, e)| e.submitted), fields.iter().any(|(_, e)| e.escaped));
+        ui.data_mut(|d| {
+            d.insert_temp(kept_key, kept);
+            if !host_skew {
+                d.insert_temp(skew_key, *skew_v);
+            }
+            if !host_link {
+                d.insert_temp(link_key, *linked);
+            }
+        });
         EditResponse::new(row.response, event).submitted(submitted).escaped(escaped)
     }
 }
@@ -458,7 +534,7 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(canvas.view.rect);
     let corners = state.quad.map(|p| canvas.view.to_screen(p));
-    let line = egui::Stroke::new(tokens.component.transform.line, tokens.color.overlay.stroke.to_egui());
+    let line = egui::Stroke::new(tokens.component.transform.line, tokens.color.overlay.line.to_egui());
     painter.add(egui::Shape::closed_line(corners.to_vec(), line));
     painter.extend(Handle::shapes(&tokens, HandleShape::Round, canvas.view.to_screen(state.pivot), ui.pixels_per_point()));
     ui.data_mut(|d| d.insert_temp(key, (state, before, skew_v)));

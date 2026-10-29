@@ -96,7 +96,12 @@ Users must be able to tell text and state indicators apart; nothing else is a ru
 | `line.focus` on control backgrounds; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
 
 Hover, pressed, dividers, control edges and disabled text have no rule and take their derived
-or pinned values in every contrast. A translucent fill is measured over `surface.panel`.
+or pinned values in every contrast, as do the guide colours and `overlay.line`, the bare accent
+line of a transform box, path outlines, a pen draft and warp boundaries: a bare line on an image
+can't promise a ratio. `overlay.handle_stroke` follows `overlay.stroke`, pinned or not, and the
+contrast pass moves it from there as far as `overlay.handle_fill` needs; so a theme that pins an
+`overlay.stroke` failing on the white handle fill gets handle outlines off its pin, and no
+warning names them. A translucent fill is measured over `surface.panel`.
 `text.on_selected` defaults to `text.normal`'s ramp step, so a neutral selection looks like the
 rest of the text and a coloured one (a navy or blue selection) gets its own readable text.
 `text.on_strong` is white, and `accent.strong` is `accent.solid` with only its OKLCH lightness

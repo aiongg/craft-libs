@@ -535,7 +535,8 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     fn show_inside(&self, ui: &mut Ui, id: Id, style: &GradientEditorStyle) -> GradientEditorResponse<T> {
         let enabled = self.enabled && ui.is_enabled();
         let mut state = ui.data(|d| d.get_temp::<State>(id.with(STATE))).unwrap_or_default();
-        // A typing run had the focus as the pass began: the Delete button's click waits for it.
+        // A typing run had the focus as the pass began: the Delete button's click and a scrub on
+        // another field wait for it.
         let waits = edit::focused_gesture(ui.ctx()).is_some();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.stops, self.policy.cancellable(false)).enabled(enabled);
@@ -549,7 +550,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
         if self.fields {
-            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, requested);
+            (requested, picker) = self.fields_row(ui, id, &bar.value, &mut state, &mut edits, enabled, waits, requested);
         } else if self.color_popover {
             picker = self.popover(ui, bar.edit.response.clone(), &bar.value, &mut state, &mut edits, enabled, requested);
         }

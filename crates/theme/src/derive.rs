@@ -394,8 +394,10 @@ fn follow(c: &mut ColorTokens, pinned: &BTreeSet<ColorToken>, mode: Mode, on_sol
 }
 
 /// Whether `t` is the foreground of a pair: an alias that is one starts from its target and the
-/// pass may then move it away (`overlay.handle_stroke` from `overlay.stroke`).
-fn is_foreground(t: ColorToken) -> bool {
+/// pass may then move it away (`overlay.handle_stroke` from `overlay.stroke`). Read from
+/// [`RULES`], so a new rule changes which aliases follow this way;
+/// `semantic_tests::the_aliases_the_contrast_pass_moves_are_pinned` lists them.
+pub(crate) fn is_foreground(t: ColorToken) -> bool {
     RULES.iter().any(|rule| rule.fgs.contains(&t))
 }
 

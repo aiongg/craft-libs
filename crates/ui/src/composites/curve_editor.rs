@@ -431,6 +431,9 @@ impl<'a> CurveEditor<'a> {
         let tokens = Tokens::of(ui);
         let style = CurveEditor::style(&tokens);
         let id = CurveEditor::id_in(ui, self.id_salt);
+        // A field's scrub waits while the other field's typing run has the focus, as a press on
+        // the graph does: the run's commit goes out first.
+        let waits = edit::focused_gesture(ui.ctx()).is_some();
         Stack::new(Gap::Stack)
             .show(ui, |ui| {
                 let (graph, points, selected) = self.graph(ui, &style, id);
@@ -438,9 +441,10 @@ impl<'a> CurveEditor<'a> {
                 if self.fields
                     && let Some(points) = points
                 {
-                    let fields = self.fields_row(ui, id, &points, selected);
-                    // A press on the graph waits a pass while a field's gesture ends, and the graph
-                    // has the focus during its own gestures: the two never report in one pass.
+                    let fields = self.fields_row(ui, id, &points, selected, waits);
+                    // A press on the graph or a field waits a pass while a field's gesture ends, and
+                    // the graph has the focus during its own gestures: the two never report in one
+                    // pass.
                     debug_assert!(edit.event.is_none() || fields.is_none(), "graph {:?} and field {:?} in one pass", edit.event, fields);
                     edit.event = edit.event.or(fields);
                 }
@@ -676,7 +680,7 @@ impl<'a> CurveEditor<'a> {
 
     /// The Input/Output row of the selected point, disabled without one. Returns its event as a
     /// curve.
-    fn fields_row(&self, ui: &mut Ui, id: Id, points: &[[f32; 2]], selected: Option<usize>) -> Option<crate::edit::EditEvent<Curve>> {
+    fn fields_row(&self, ui: &mut Ui, id: Id, points: &[[f32; 2]], selected: Option<usize>, waits: bool) -> Option<crate::edit::EditEvent<Curve>> {
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let at = selected.and_then(|i| points.get(i).map(|p| (i, *p)));
         let (x, y) = at.map_or((0.0, 0.0), |(_, p)| (p[0], p[1]));
@@ -696,6 +700,7 @@ impl<'a> CurveEditor<'a> {
                 .range(f64::from(self.field_value(range.0))..=f64::from(self.field_value(range.1)))
                 .decimals(0..=0)
                 .policy(self.policy)
+                .press_waits(waits)
                 .enabled(enabled);
             if self.percent {
                 field = field.unit(Unit::new(&self.labels.percent));
