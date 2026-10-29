@@ -42,6 +42,7 @@ mod ruler;
 mod section;
 mod segmented;
 mod slider;
+mod slider_row;
 mod swatch;
 mod tab;
 mod title_bar;
@@ -95,6 +96,7 @@ pub use ruler::{RulerField, RulerTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
+pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use tab::{TabField, TabTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
@@ -664,6 +666,8 @@ families! {
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
+    /// Slider rows: a caption and number field over a full-width slider.
+    slider_row: SliderRowTokens => SliderRow(SliderRowField);
     /// Colour wells.
     swatch: SwatchTokens => Swatch(SwatchField);
     /// Tabs: one tab of a document or panel strip.

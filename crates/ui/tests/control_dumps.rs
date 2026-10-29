@@ -7,7 +7,7 @@ use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, 
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
     ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader, PropertyRow,
-    SectionHeader, SectionLabel, ToastStack, Tone,
+    SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -458,6 +458,15 @@ fn section_label() {
     check("section_label.txt", |d, t| {
         let s = SectionLabel::style(t);
         d.line("role", role(s.role)).line("color", s.color);
+    });
+}
+
+/// Slider rows: the field width, the gap, the caption's role and colour.
+#[test]
+fn slider_row() {
+    check("slider_row.txt", |d, t| {
+        let s = SliderRow::style(t);
+        d.line("field_width", s.field_width).line("gap", s.gap).line("caption_role", role(s.caption_role)).line("caption", s.caption);
     });
 }
 

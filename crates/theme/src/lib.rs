@@ -73,8 +73,9 @@ pub use components::{
     MenuTint, MenuTintPart, MenuTokens, NoticeField, NoticeTokens, OverrideError, OverrideValue, PanelFooterField, PanelFooterTokens,
     PanelHeaderField, PanelHeaderTokens, PopupField, PopupTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, ReadoutField,
     ReadoutTokens, RefPointField, RefPointTokens, RulerField, RulerTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField,
-    SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens,
-    ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens, TransformField, TransformTokens,
+    SliderRowField, SliderRowTokens, SliderTokens, State, States, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors,
+    ThumbPart, TitleBarField, TitleBarTokens, ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens,
+    TransformField, TransformTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

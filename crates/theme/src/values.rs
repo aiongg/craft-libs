@@ -1158,3 +1158,11 @@ pub const TOAST_SHADOW_BLUR: f32 = 8.0;
 
 /// Widest the column of a centred empty state grows, in points, at every Size.
 pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;
+
+/// The control height the Compact slider row sizes are set for; other sizes scale them by their
+/// control height over this.
+pub const SLIDER_ROW_BASE_CONTROL: f32 = 24.0;
+/// Compact width of a slider row's number field (PhotoCraft `slider_row_prec`).
+pub const SLIDER_ROW_FIELD_WIDTH: f32 = 74.0;
+/// Compact space after a slider row.
+pub const SLIDER_ROW_GAP: f32 = 4.0;

@@ -18,6 +18,7 @@
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`SectionLabel`]: the static caption over a group of controls in a panel.
 //! - [`PanelFooter`]: the bar of buttons under a panel body, under a rule across the panel.
+//! - [`SliderRow`]: a caption and number field over a full-width slider, as an adjustment panel's row.
 //! - [`Histogram`]: a plot of bins, one tone channel or overlapping ribbons; interactive only with a selection or a clickable stale mark.
 //! - [`LevelsEditor`]: a histogram with the input black, gamma and white thumbs and fields under
 //!   it, and the output bar, thumbs and fields; the value is a channel's [`Levels`].
@@ -36,7 +37,7 @@
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `gradient_editor.*` for [`GradientEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
+//! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `slider_row.*` for [`SliderRow`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -92,6 +93,9 @@ mod section_header_tests;
 pub(crate) mod section_label;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_label_tests;
+pub(crate) mod slider_row;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod slider_row_tests;
 pub(crate) mod toast;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toast_tests;
@@ -117,4 +121,5 @@ pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};
 pub use section_header::{SectionHeader, SectionStyle};
 pub use section_label::{SectionLabel, SectionLabelStyle};
+pub use slider_row::{SliderRow, SliderRowResponse, SliderRowStyle};
 pub use toast::{Toast, ToastEnd, ToastStack, ToastStyle};
