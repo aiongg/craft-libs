@@ -476,7 +476,8 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
                 continue;
             }
             assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
-            assert_eq!((c.listbox.active_fill, c.listbox.active_text), (navy, white));
+            assert_eq!((c.listbox.chosen_fill, c.listbox.chosen_text), (navy, white));
+            assert_eq!(c.listbox.active_border, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!([c.button.secondary.fill.rest, c.button.secondary.fill.hover], [face; 2]);
             assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
@@ -697,8 +698,14 @@ fn popups_and_their_rows_follow_photocraft() {
         assert_eq!(popup.shadow, Rgba([0, 0, 0, alpha]), "{who}");
         assert_eq!((t.elevation.popup.offset, t.elevation.popup.blur), ([0.0, 6.0], 20.0), "{who}");
         assert_eq!((l.pad_x, m.radius, l.max_height), (t.space.pad.control + 4.0, 0.0, 420.0), "{who}");
+        // A dropdown's lit row is PhotoCraft's stock hover; a menu's is the accent.
+        assert_eq!(
+            (l.active_fill, l.active_text, l.active_border),
+            (t.color(ColorToken::StateHover), t.color(ColorToken::TextNormal), t.color(ColorToken::LineControlEdge)),
+            "{who}"
+        );
         if id != "craft.classic" {
-            assert_eq!((l.active_fill, m.active_fill), (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentSolid)), "{who}");
+            assert_eq!(m.active_fill, t.color(ColorToken::AccentSolid), "{who}");
         }
     }
 }

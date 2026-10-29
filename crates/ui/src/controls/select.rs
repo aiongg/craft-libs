@@ -53,12 +53,14 @@ pub struct ListboxStyle {
     /// `listbox.text.rest` and `listbox.text.disabled`.
     pub text: Color32,
     pub text_disabled: Color32,
-    /// `listbox.active.fill` and `listbox.active.text`: the active row.
+    /// `listbox.active.fill`, `.text` and `.border`: the active row.
     pub active_fill: Color32,
     pub active_text: Color32,
-    /// `listbox.chosen.fill` and `listbox.chosen.text`: the chosen option while it is not active.
+    pub active_border: Color32,
+    /// `listbox.chosen.fill`, `.text` and `.border`: the chosen option, active or not.
     pub chosen_fill: Color32,
     pub chosen_text: Color32,
+    pub chosen_border: Color32,
     /// `listbox.mark`, `listbox.group` and `listbox.separator`.
     pub mark: Color32,
     pub group: Color32,
@@ -542,8 +544,10 @@ impl Select<'static, ()> {
                 text_disabled: l.text.disabled.to_egui(),
                 active_fill: l.active_fill.to_egui(),
                 active_text: l.active_text.to_egui(),
+                active_border: l.active_border.to_egui(),
                 chosen_fill: l.chosen_fill.to_egui(),
                 chosen_text: l.chosen_text.to_egui(),
+                chosen_border: l.chosen_border.to_egui(),
                 mark: l.mark.to_egui(),
                 group: l.group.to_egui(),
                 separator: l.separator.to_egui(),

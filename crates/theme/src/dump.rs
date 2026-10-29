@@ -1226,8 +1226,10 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
         text,
         active_fill,
         active_text,
+        active_border,
         chosen_fill,
         chosen_text,
+        chosen_border,
         mark,
         group,
         separator,
@@ -1245,8 +1247,10 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
     out.line("listbox.text.disabled", hex(text.disabled));
     out.line("listbox.active.fill", hex(*active_fill));
     out.line("listbox.active.text", hex(*active_text));
+    out.line("listbox.active.border", hex(*active_border));
     out.line("listbox.chosen.fill", hex(*chosen_fill));
     out.line("listbox.chosen.text", hex(*chosen_text));
+    out.line("listbox.chosen.border", hex(*chosen_border));
     out.line("listbox.mark", hex(*mark));
     out.line("listbox.group", hex(*group));
     out.line("listbox.separator", hex(*separator));

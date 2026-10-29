@@ -142,7 +142,7 @@ struct RowLook<'r> {
     icons: bool,
     chosen: bool,
     /// Active with the keyboard or the pointer on it, or under the pointer where the pointer only
-    /// highlights: the active fill (`accent.solid`) and text, also on the chosen option.
+    /// highlights: the active fill, text and border (the chosen option keeps its own look).
     lit: bool,
     /// The active row is the keyboard's focus cue.
     focus: bool,
@@ -160,13 +160,17 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
         return;
     }
     let ppp = ui.pixels_per_point();
-    let (fill, ink) = match () {
-        () if look.lit => (Some(s.active_fill), s.active_text),
-        () if look.chosen => (Some(s.chosen_fill), s.chosen_text),
-        () => (None, s.text),
+    // The chosen row keeps its look under the pointer, as a selected row does in PhotoCraft.
+    let (fill, ink, border) = match () {
+        () if look.chosen => (Some(s.chosen_fill), s.chosen_text, Some(s.chosen_border)),
+        () if look.lit => (Some(s.active_fill), s.active_text, Some(s.active_border)),
+        () => (None, s.text, None),
     };
     if let Some(fill) = fill.filter(|_| look.enabled) {
         ui.painter().rect_filled(rect.round_to_pixels(ppp), s.radius, fill);
+        if let Some(border) = border {
+            ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, Stroke::new(1.0, border), StrokeKind::Inside));
+        }
     }
     if look.focus && look.enabled {
         ui.painter().add(RectShape::stroke(rect.round_to_pixels(ppp), s.radius, s.focus, StrokeKind::Inside));
@@ -289,10 +293,10 @@ mod tests {
     use crate::theme::{Base, install};
 
     fn rect_fills(shapes: &[egui::epaint::ClippedShape]) -> Vec<Color32> {
-        shapes.iter().filter_map(|c| if let Shape::Rect(r) = &c.shape { Some(r.fill) } else { None }).collect()
+        shapes.iter().filter_map(|c| if let Shape::Rect(r) = &c.shape { Some(r.fill) } else { None }).filter(|f| *f != Color32::TRANSPARENT).collect()
     }
 
-    /// The chosen option has the chosen fill and the lit row the active fill, a plain row has none; a closed box's
+    /// The chosen option has the chosen fill and the lit row the active (hover) fill, a plain row has none; a closed box's
     /// chevron is two strokes of the text colour at 0.8 strength.
     #[test]
     fn the_chosen_and_the_lit_rows_have_the_active_fill_and_the_chevron_is_drawn_as_a_line() {
@@ -319,8 +323,8 @@ mod tests {
     }
 
     /// The chosen row is the solid accent with the on-accent text in a Pro theme and the soft accent
-    /// with the normal text and rounded corners in Studio; a chosen row that is also lit takes the
-    /// active fill in both.
+    /// with the normal text and rounded corners in Studio; a chosen row keeps its look when it is also
+    /// lit, and a lit row that is not chosen has the hover fill in both.
     #[test]
     fn the_chosen_row_follows_the_theme_and_the_lit_row_is_the_accent() {
         use craft_theme::ContrastChoice;
@@ -347,12 +351,13 @@ mod tests {
                 let row = |chosen, lit| RowLook { text: "Normal", icon: None, icons: false, chosen, lit, focus: false, enabled: true };
                 paint_row(ui, &s.list, ControlSize::Md, rect, &row(true, false));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, true));
+                paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
                 style = Some(s);
             });
             out.textures_delta.clear();
             let s = style.unwrap_or_else(|| panic!("no style"));
-            assert_eq!(rect_fills(&out.shapes), [s.list.chosen_fill, s.list.active_fill], "{id}");
-            assert_eq!(s.list.chosen_fill == s.list.active_fill, !soft, "{id}");
+            assert_eq!(rect_fills(&out.shapes), [s.list.chosen_fill, s.list.chosen_fill, s.list.active_fill], "{id}");
+            assert_ne!(s.list.chosen_fill, s.list.active_fill, "{id}");
             assert_eq!((s.list.chosen_text == s.list.text, s.list.radius), (soft, egui::CornerRadius::same(radius)), "{id}");
         }
     }

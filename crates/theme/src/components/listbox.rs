@@ -1,9 +1,10 @@
 //! List boxes: the rows of a select's or combo box's popup list, which menus share. A row shows
 //! an option's text, with a check mark at its reading start when it is the chosen option. The
-//! active row (under the pointer, or moved to with the keys) has the accent fill with the text that
-//! sits on it, as PhotoCraft's dropdown and menu rows do. The chosen row has it too, unless the
-//! theme gives the chosen row the soft accent (PhotoCraft's Studio, Adwaita, Breeze, Soft and
-//! Solarized dropdowns). Group headers
+//! active row (under the pointer, or moved to with the keys) has the hover fill, normal text and the
+//! control edge, as PhotoCraft's stock dropdown rows do (`theme.rs:1043-1056`). The chosen row has
+//! the accent fill with the text that sits on it, or the soft accent where the theme pins it
+//! (PhotoCraft's Studio, Adwaita, Breeze, Soft and Solarized dropdowns). Menus draw their own active
+//! row (`menu.active.*`). Group headers
 //! and separators sit between rows. The list draws on the popup card (`popup.fill`).
 //!
 //! The text and the group headers are text on the popup card (4.5:1, 7:1 with high contrast), and
@@ -47,16 +48,20 @@ pub struct ListboxTokens {
     pub radius: f32,
     /// An option's text: `text.normal`; disabled, `text.disabled`.
     pub text: Dimmed,
-    /// Behind the active row: `accent.solid`.
+    /// Behind the active row: `state.hover`.
     pub active_fill: Rgba,
-    /// The text and check mark of the active row: `text.on_accent`.
+    /// The text of the active row: `text.normal`.
     pub active_text: Rgba,
+    /// The 1 pt line inside the active row: `line.control_edge`.
+    pub active_border: Rgba,
     /// Behind the chosen option while it is not the active row: `accent.solid` (PhotoCraft's
     /// `selection.bg_fill` in the Pro and Classic kinds; the other kinds pin `accent.soft`).
     pub chosen_fill: Rgba,
     /// The text and check mark of the chosen option: `text.on_accent`, or `text.normal` where the
     /// fill is the soft accent.
     pub chosen_text: Rgba,
+    /// The 1 pt line inside the chosen row: `accent.text` (PhotoCraft's `selection.stroke`).
+    pub chosen_border: Rgba,
     /// A menu row's check mark: `text.normal`; on the active row it is the active text.
     pub mark: Rgba,
     /// A group header: `text.muted`.
@@ -85,6 +90,8 @@ impl ListboxTokens {
             ListboxField::Text { disabled: true } => &mut self.text.disabled,
             ListboxField::ActiveFill => &mut self.active_fill,
             ListboxField::ActiveText => &mut self.active_text,
+            ListboxField::ActiveBorder => &mut self.active_border,
+            ListboxField::ChosenBorder => &mut self.chosen_border,
             ListboxField::ChosenFill => &mut self.chosen_fill,
             ListboxField::ChosenText => &mut self.chosen_text,
             ListboxField::Mark => &mut self.mark,
@@ -95,7 +102,7 @@ impl ListboxTokens {
 }
 
 /// An overridable list box token. Paths: `radius`, `text.rest`, `text.disabled`, `active.fill`,
-/// `active.text`, `chosen.fill`, `chosen.text`, `mark`, `group`, `separator`, e.g. `listbox.active.fill`.
+/// `active.text`, `active.border`, `chosen.fill`, `chosen.text`, `chosen.border`, `mark`, `group`, `separator`, e.g. `listbox.active.fill`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListboxField {
     /// `listbox.radius`
@@ -109,6 +116,10 @@ pub enum ListboxField {
     ActiveFill,
     /// `listbox.active.text`
     ActiveText,
+    /// `listbox.active.border`
+    ActiveBorder,
+    /// `listbox.chosen.border`
+    ChosenBorder,
     /// `listbox.chosen.fill`
     ChosenFill,
     /// `listbox.chosen.text`
@@ -129,8 +140,10 @@ impl Family for ListboxTokens {
         ListboxField::Text { disabled: true },
         ListboxField::ActiveFill,
         ListboxField::ActiveText,
+        ListboxField::ActiveBorder,
         ListboxField::ChosenFill,
         ListboxField::ChosenText,
+        ListboxField::ChosenBorder,
         ListboxField::Mark,
         ListboxField::Group,
         ListboxField::Separator,
@@ -149,10 +162,12 @@ impl Family for ListboxTokens {
             separator_pad: s.space.gap.inline,
             radius: s.shape.radius.control,
             text: Dimmed { rest: c.text.normal, disabled: c.text.disabled },
-            active_fill: c.accent.solid,
-            active_text: c.text.on_accent,
+            active_fill: c.state.hover,
+            active_text: c.text.normal,
+            active_border: c.line.control_edge,
             chosen_fill: c.accent.solid,
             chosen_text: c.text.on_accent,
+            chosen_border: c.accent.text,
             mark: c.text.normal,
             group: c.text.muted,
             separator: c.line.divider,
@@ -166,6 +181,8 @@ impl Family for ListboxTokens {
             ListboxField::Text { disabled: true } => "text.disabled",
             ListboxField::ActiveFill => "active.fill",
             ListboxField::ActiveText => "active.text",
+            ListboxField::ActiveBorder => "active.border",
+            ListboxField::ChosenBorder => "chosen.border",
             ListboxField::ChosenFill => "chosen.fill",
             ListboxField::ChosenText => "chosen.text",
             ListboxField::Mark => "mark",
@@ -192,6 +209,8 @@ impl Family for ListboxTokens {
             ListboxField::Text { disabled } => OverrideValue::Color(self.text.get(!disabled)),
             ListboxField::ActiveFill => OverrideValue::Color(self.active_fill),
             ListboxField::ActiveText => OverrideValue::Color(self.active_text),
+            ListboxField::ActiveBorder => OverrideValue::Color(self.active_border),
+            ListboxField::ChosenBorder => OverrideValue::Color(self.chosen_border),
             ListboxField::ChosenFill => OverrideValue::Color(self.chosen_fill),
             ListboxField::ChosenText => OverrideValue::Color(self.chosen_text),
             ListboxField::Mark => OverrideValue::Color(self.mark),

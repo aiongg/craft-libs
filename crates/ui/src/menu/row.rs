@@ -52,7 +52,12 @@ impl MenuStyle {
     pub(crate) fn new(tokens: &UiTokens, size: ControlSize) -> Self {
         let m = &tokens.component.menu;
         Self {
-            rows: ListboxStyle { radius: corner_radius(m.radius), ..crate::controls::Select::style(tokens, size).list },
+            rows: ListboxStyle {
+                radius: corner_radius(m.radius),
+                active_fill: m.active_fill.to_egui(),
+                active_text: m.active_text.to_egui(),
+                ..crate::controls::Select::style(tokens, size).list
+            },
             min_width: m.min_width,
             shortcut_gap: m.shortcut_gap,
             scroll_strip: m.scroll_strip,
