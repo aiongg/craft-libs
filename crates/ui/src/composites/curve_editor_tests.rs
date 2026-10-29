@@ -10,7 +10,6 @@ use super::*;
 use crate::behavior::KeyClaim;
 use crate::controls::NumberField;
 use crate::direction::{self, Direction};
-use crate::edit::parts::Rebase as _;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::testing::a11y;
@@ -792,33 +791,35 @@ fn an_arrow_on_the_graph_in_a_field_scrubs_update_pass_waits_for_the_release() {
     assert_eq!(undo, Some(2), "the scrub and the arrow, one step each");
 }
 
-/// A held graph curve applies its change to the curve of its turn: the levels it moved, the point
-/// it added or removed. A change it can't apply there (inputs out of order, two points added, a
-/// curve of its turn with other points) gives none.
+/// An Insert on the graph during a scrub of the selected point's Input field waits for the
+/// release, keeping the selection on the scrubbed point, then adds its point halfway from where
+/// the scrub left that point to the next, and selects it.
 #[test]
-fn a_held_graph_curve_rebases_its_moves_additions_and_removals() {
-    let base = Curve::Points(vec![[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
-    let now = Curve::Points(vec![[0.0, 0.0], [110.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
-    type Points = Vec<[f32; 2]>;
-    let cases: [(Points, Option<Points>); 6] = [
-        (vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [110.0, 101.0], [200.0, 200.0], [255.0, 255.0]])),
-        (
-            vec![[0.0, 0.0], [100.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
-            Some(vec![[0.0, 0.0], [110.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]]),
-        ),
-        (vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [110.0, 100.0], [255.0, 255.0]])),
-        (vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]], Some(vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]])),
-        (vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]], None),
-        (vec![[0.0, 0.0], [50.0, 9.0], [100.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]], None),
-    ];
-    for (held, rebased) in cases {
-        let got = Curve::Points(held.clone()).rebase(&base, &now);
-        assert_eq!(got, rebased.map(Curve::Points), "held {held:?}");
+fn a_held_insert_selects_the_inserted_point_on_the_curve_of_its_turn() {
+    let mut harness = harness(Host::with_undo(&THREE), Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    harness.state_mut().clear();
+    let start = input_field(&harness);
+    press(&mut harness, start);
+    move_to(&mut harness, start + vec2(10.0, 0.0));
+    harness.event(Event::Key { key: Key::Insert, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    harness.step();
+    assert_eq!(harness.state().points().len(), 3, "the insert waits");
+    assert_eq!(selected(&harness), Some(1), "the selection stays on the scrubbed point while it waits");
+    for dx in [20.0, 30.0] {
+        move_to(&mut harness, start + vec2(dx, 0.0));
     }
-    let host_added = Curve::Points(vec![[0.0, 0.0], [50.0, 50.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
-    let held = Curve::Points(vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]]);
-    assert_eq!(held.clone().rebase(&base, &host_added), None, "the points of its turn aren't the ones it changed");
-    assert_eq!(held.rebase(&base, &Curve::Map(vec![0.0; 256])), None, "a drawn curve");
+    release(&mut harness, start + vec2(30.0, 0.0));
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let points = harness.state().points();
+    assert_eq!(points.len(), 4, "{points:?}");
+    let x = points[1][0];
+    assert!(x > 128.0, "the scrub moved the point: {points:?}");
+    assert_eq!(points[2][0], ((x + 255.0) / 2.0).round(), "halfway from where the scrub left the point: {points:?}");
+    assert_eq!(selected(&harness), Some(2), "the inserted point is selected");
 }
 
 /// The Input field's centre.
