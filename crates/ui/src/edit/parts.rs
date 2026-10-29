@@ -2,11 +2,11 @@
 //! controls (a colour picker's area, sliders and fields; a gradient editor's bar and fields) into
 //! one [`Gesture`] of the composite's value.
 //!
-//! Each pass the composite draws its parts from its gesture's [`shown`](Gesture::shown) value and
-//! collects their events in drawing order, as its own value ([`Edits::push`], [`Edits::typing`]),
-//! with its own inputs (a click on a button part, a sample: [`Edits::input`], [`Edits::inputs`])
-//! and the values it makes from them ([`Edits::set`]). [`Edits::feed`] then gives them to its
-//! gesture:
+//! Each pass the composite replays what waited for its turn ([`Edits::replay`]), draws its parts
+//! from the value that leaves ([`Edits::value`]) and collects their events in drawing order, with
+//! the operations each event made, as its own value ([`Edits::push`], [`Edits::typing`]), with its
+//! own inputs (a click on a button part, a sample: [`Edits::input`], [`Edits::inputs`]) and the
+//! values it makes from them ([`Edits::set`]). [`Edits::feed`] then gives them to its gesture:
 //!
 //! - The part whose Begin (or first Update) starts the gesture owns it; its Commit commits and
 //!   its Cancel cancels. The gesture holds only its owner's values: another part's event waits
@@ -37,20 +37,31 @@
 //!   closes, a field of a selection that changed) never leaves the composite's gesture open.
 //! - A part's event that would begin, change or set the composite's value while another part
 //!   owns its gesture, or in the pass where the gesture ends (the owner's Commit or Cancel, the
-//!   owner not drawn, or a cancel as the gesture loaded), is held as the part's own value and
-//!   takes its turn from the edit order (`edit::order`): it waits for the gesture's ending event
-//!   to go out, and asks a typing run that has the focus to end. The part feeds it when it is
-//!   drawn in the pass its turn comes, mapped onto the composite's value then, so the host gets
-//!   the ending, then the next edit (a Set, or a gesture that part owns), and no part's value is
-//!   made from the value before the ending: a screen reader's step on one part during another
-//!   part's drag is its own Set after the release. A part whose value holds several of the
-//!   composite's values ([`Edits::push_from`]: a row's thumbs, a graph's points) applies only
-//!   what its event changed from the value it was drawn from, onto its value of that pass
-//!   ([`Rebase`]): a step on the gamma thumb keeps the black point a field scrub committed. An
-//!   event whose change can't be told on that value is dropped rather than replayed whole,
-//!   which would undo what went out meanwhile. While it waits, the part's newer events replace it. A part that isn't drawn in a pass drops
-//!   its held event, and so does every part of a composite that isn't (a popover's picker that
-//!   closes with the commit).
+//!   owner not drawn, or a cancel as the gesture loaded), is held and takes its turn from the edit
+//!   order (`edit::order`): it waits for the gesture's ending event to go out, and asks a typing
+//!   run that has the focus to end. So the host gets the ending, then the next edit (a Set, or a
+//!   gesture that part owns), and no part's value is made from the value before the ending: a
+//!   screen reader's step on one part during another part's drag is its own Set after the
+//!   release.
+//! - A held event waits as the operations its part reported (what the user did: a step, a set, a
+//!   move to a bound, an add or a remove, each naming its target), in the composite's queue in
+//!   arrival order. A newer event never replaces an older one, except a gesture's Update or
+//!   Commit, which replaces the queued Begin or Update of its run: a gesture's values are
+//!   positions, not changes. When the queue's turn comes, [`Edits::replay`] applies its oldest
+//!   entry onto the composite's value before the parts are drawn, and it goes out as its own Set,
+//!   its own undo step: one entry a pass. So a held step on the gamma thumb steps from the black
+//!   point a field scrub committed, and two held steps both count. An operation whose target
+//!   isn't on that value is skipped, and an entry none of whose operations apply is dropped
+//!   rather than guessed at, and the next goes out instead. The parts draw from and map onto
+//!   [`Edits::value`], which holds it. While the queue holds entries, or one went out in the
+//!   pass, the parts' new events join its tail, and a press waits (`order::keep`). An entry of a
+//!   gesture (a field's typing run under way during another part's drag) begins the composite's
+//!   gesture with its part as owner, and the entries after it wait for that gesture to end. A
+//!   part's Cancel drops its run's entries. The queue is dropped in a pass the composite isn't
+//!   drawn (a popover's picker that closes with the commit).
+//! - [`Edits::push`] says whether the event went out or waits ([`Pushed`]), for what the
+//!   composite keeps beside its value: a graph's selection stays where it was until a waiting
+//!   edit's turn.
 //! - A press on a part takes its turn from the edit order too (`controls::slider::press_turn`),
 //!   and so do the composite's own inputs ([`Edits::inputs`]): they wait for another control's
 //!   typing run and for the composite's gesture to end, then the composite makes their values
@@ -96,36 +107,6 @@ impl<V: Clone + PartialEq + Send + Sync + 'static> End<V> {
     }
 }
 
-/// A part's event, as its own value, kept between passes whatever its type: a [`PartEvent`].
-type Raw = Arc<dyn Any + Send + Sync>;
-
-/// A part's value that holds several of the composite's values (a graph's points), which a held
-/// event changes only some of ([`Edits::push_from`]).
-pub(crate) trait Rebase: Sized {
-    /// `self`, an event's value made from `base`, with what it changed from `base` applied onto
-    /// `now` instead, keeping the rules the part keeps on its own edits. `None` when that change
-    /// can't be told on `now`, or doesn't fit it: the held event is dropped, as no guess at it
-    /// may undo what went out after `base`.
-    fn rebase(self, base: &Self, now: &Self) -> Option<Self>;
-}
-
-/// How a part's value made from one value applies onto another ([`Rebase::rebase`]).
-type Rebaser<T> = Arc<dyn Fn(T, &T, &T) -> Option<T> + Send + Sync>;
-
-/// A part's event, with the value the part was drawn from when the event rebases
-/// ([`Edits::push_from`]).
-struct PartEvent<T> {
-    event: EditEvent<T>,
-    drawn: Option<Drawn<T>>,
-}
-
-/// The value a part was drawn from, and how an event's value made from it rebases.
-#[derive(Clone)]
-struct Drawn<T> {
-    value: T,
-    rebase: Rebaser<T>,
-}
-
 /// The owner's [`End`] kept between passes, whatever the composite's value type.
 #[derive(Clone)]
 struct KeptEnd(Arc<dyn Any + Send + Sync>);
@@ -142,10 +123,76 @@ impl fmt::Debug for KeptEnd {
     }
 }
 
-/// What a composite keeps between passes for its parts' edits, with its own inputs of type `C`.
-/// The composite stores it with its own state.
+/// A part's event that waits for its turn, as the operations `O` the user did ([`Edits::push`]).
 #[derive(Clone, Debug)]
-pub(crate) struct State<C> {
+pub(crate) struct Queued<O> {
+    part: Id,
+    kind: Kind,
+    ops: Vec<O>,
+}
+
+impl<O> Queued<O> {
+    /// The value this entry's operations make from `now`, each applied with `apply` onto the
+    /// value the ones before it left: `None` when none applies. An operation that can't apply
+    /// (its target isn't on that value) is skipped. A Begin has no operations and leaves `now`.
+    fn apply<V: Clone>(&self, now: &V, apply: &mut impl FnMut(&O, &V) -> Option<V>) -> Option<V> {
+        if self.ops.is_empty() {
+            return matches!(self.kind, Kind::Begin { .. }).then(|| now.clone());
+        }
+        let mut value: Option<V> = None;
+        for op in &self.ops {
+            if let Some(next) = apply(op, value.as_ref().unwrap_or(now)) {
+                value = Some(next);
+            }
+        }
+        value
+    }
+}
+
+/// A part's event without its value: what a [`Queued`] entry goes out as.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Kind {
+    Set { modifiers: Modifiers },
+    Begin { id: GestureId },
+    Update { id: GestureId, modifiers: Modifiers },
+    Commit { id: GestureId, changed: bool, modifiers: Modifiers },
+}
+
+impl Kind {
+    /// `event`'s kind; `None` for a Cancel, which has nothing to replay.
+    fn of<T>(event: &EditEvent<T>) -> Option<Self> {
+        Some(match *event {
+            EditEvent::Set { modifiers, .. } => Kind::Set { modifiers },
+            EditEvent::Begin { id } => Kind::Begin { id },
+            EditEvent::Update { id, modifiers, .. } => Kind::Update { id, modifiers },
+            EditEvent::Commit { id, changed, modifiers, .. } => Kind::Commit { id, changed, modifiers },
+            EditEvent::Cancel { .. } => return None,
+        })
+    }
+
+    /// The part's gesture this event belongs to; `None` for a Set.
+    fn run(self) -> Option<GestureId> {
+        match self {
+            Kind::Set { .. } => None,
+            Kind::Begin { id } | Kind::Update { id, .. } | Kind::Commit { id, .. } => Some(id),
+        }
+    }
+
+    /// The event of this kind with `value` (which a Begin doesn't carry).
+    fn event<V>(self, value: V) -> EditEvent<V> {
+        match self {
+            Kind::Set { modifiers } => EditEvent::set(value, modifiers),
+            Kind::Begin { id } => EditEvent::begin(id),
+            Kind::Update { id, modifiers } => EditEvent::update(id, value, modifiers),
+            Kind::Commit { id, changed, modifiers } => EditEvent::commit(id, value, changed, modifiers),
+        }
+    }
+}
+
+/// What a composite keeps between passes for its parts' edits, with its parts' operations of type
+/// `O` and its own inputs of type `C`. The composite stores it with its own state.
+#[derive(Clone, Debug)]
+pub(crate) struct State<O, C = ()> {
     /// The part whose gesture the composite's gesture is.
     owner: Option<Id>,
     /// The owner's own gesture, as its events named it.
@@ -157,46 +204,96 @@ pub(crate) struct State<C> {
     /// The composite's gesture as the last pass left it.
     gesture: Option<GestureId>,
     /// The composite's gesture while it runs from the composite's start: it isn't a gesture
-    /// carried on from the host's value (which has another id). The owner's start is then the
-    /// composite's start.
+    /// carried on from the host's value (which has another id), nor one a queued part event
+    /// began. The owner's start is then the composite's start.
     pure: Option<GestureId>,
-    /// The parts' events that wait for their turn, and the pass that held them.
-    held: Vec<(Id, Held)>,
-    held_pass: u64,
+    /// The parts' operations that wait for their turn, oldest first ([`Edits::push`]).
+    queue: Vec<Queued<O>>,
+    /// The pass that left `queue`: it is dropped in any pass but the next.
+    pass: u64,
+    /// Whether the queue has its place in the edit order.
+    placed: bool,
     /// The composite's inputs that wait for their turn ([`Edits::inputs`]), and the pass that
     /// held them.
     inputs: Option<(u64, Vec<C>)>,
 }
 
-impl<C> Default for State<C> {
+impl<O, C> State<O, C> {
+    /// Gives the queue as a pass left it its place in the edit order, under `key`. `entered`: it
+    /// has one in this pass ([`Edits::replay`]); else its entries were held in this pass and wait
+    /// for `gesture`. `began`: the composite's gesture an entry that went out in this pass began,
+    /// which the entries after it wait for.
+    fn place_queue(&self, ctx: &Context, key: Id, entered: bool, began: Option<GestureId>, gesture: Option<GestureId>) {
+        if self.queue.is_empty() {
+            return;
+        }
+        if !entered {
+            if order::turn_after(ctx, key, None, gesture) == Turn::Now {
+                order::keep(ctx, key, None);
+            }
+        } else if began.is_some() {
+            order::keep(ctx, key, began);
+        }
+    }
+}
+
+impl<O, C> Default for State<O, C> {
     fn default() -> Self {
-        Self { owner: None, run: None, end: None, active: false, gesture: None, pure: None, held: Vec::new(), held_pass: 0, inputs: None }
+        Self { owner: None, run: None, end: None, active: false, gesture: None, pure: None, queue: Vec::new(), pass: 0, placed: false, inputs: None }
     }
 }
 
-/// A part's held event ([`State::held`]).
-#[derive(Clone)]
-struct Held(Raw);
-
-impl fmt::Debug for Held {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Held")
-    }
+/// What became of a part's event in [`Edits::push`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pushed {
+    /// It goes out in this pass, and [`Edits::value`] holds its value.
+    Out,
+    /// It waits for its turn in the composite's queue.
+    Waits,
+    /// No event, or one that changes nothing: a Set none of whose operations applies, or the
+    /// Cancel of a run whose events all waited.
+    Nothing,
 }
 
-/// The parts' edits of a pass, in drawing order, as the composite's values `V`, and the
-/// composite's inputs of type `C` (the composite turns them into values once their turn comes).
-pub(crate) struct Edits<V, C = ()> {
+/// What a part's event of a pass waits as if [`Edits::feed`] holds it.
+enum Hold<O> {
+    /// A part's operations of this pass ([`Edits::push`]).
+    Ops(Queued<O>),
+    /// The queue's entry [`Edits::replay`] took in this pass: it goes back to the queue's head.
+    Replayed(Queued<O>),
+    /// Nothing: a Cancel.
+    Nothing,
+}
+
+/// The parts' edits of a pass, in drawing order, as the composite's values `V`, the operations
+/// `O` they report, and the composite's inputs of type `C` (the composite turns them into values
+/// once their turn comes).
+pub(crate) struct Edits<V, O, C = ()> {
     /// The composite.
     id: Id,
-    /// Each with the part's own event, held if it isn't the gesture's to take.
-    events: Vec<(Id, EditEvent<V>, Held)>,
-    /// The events held from the last pass, fed when their parts are pushed and their turn has
-    /// come, and the pass that held them: they are dropped in any pass but the next.
-    held: Vec<(Id, Held)>,
-    held_pass: u64,
-    /// The held events that wait on.
-    waiting: Vec<(Id, Held)>,
+    /// Each with the part's own event, and what it waits as if it isn't the gesture's to take.
+    events: Vec<(Id, EditEvent<V>, Hold<O>)>,
+    /// The queue as the last pass left it, then with the entry `replay` took out and the
+    /// operations that joined it in this pass.
+    queue: Vec<Queued<O>>,
+    /// The pass that left `queue`, and whether it was checked against this pass.
+    pass: u64,
+    checked: bool,
+    /// The queue's place in the edit order as the last pass left it, and whether it has one in
+    /// this pass.
+    placed: bool,
+    entered: bool,
+    /// The composite's value as the replay and the events pushed so far that go out in this pass
+    /// leave it.
+    value: V,
+    /// Whether the composite is inside [`scope`](super::scope).
+    scoped: bool,
+    /// The composite's gesture as loaded, and whether it was ending.
+    loaded: Option<GestureId>,
+    ending: bool,
+    /// An entry of the queue went out in this pass, and the part and run whose gesture it begins.
+    drained: bool,
+    replayed: Option<(Id, GestureId)>,
     /// The composite's gesture, and whether it went on, as the last pass left them.
     gesture: Option<GestureId>,
     active: bool,
@@ -216,15 +313,24 @@ pub(crate) struct Edits<V, C = ()> {
     inputs: Vec<C>,
 }
 
-impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
-    /// The edits of composite `id` (its widget id) in this pass.
-    pub fn new(id: Id, state: &State<C>) -> Self {
+impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'static, C> Edits<V, O, C> {
+    /// The edits of composite `id` (its widget id) in this pass. `outer` is the composite's
+    /// gesture as loaded; `scoped` when the composite is inside [`scope`](super::scope).
+    pub fn new(id: Id, state: &State<O, C>, outer: &Gesture<V>, scoped: bool) -> Self {
         Self {
             id,
             events: Vec::new(),
-            held: state.held.clone(),
-            held_pass: state.held_pass,
-            waiting: Vec::new(),
+            queue: state.queue.clone(),
+            pass: state.pass,
+            checked: false,
+            placed: state.placed,
+            entered: false,
+            value: outer.shown().clone(),
+            scoped,
+            loaded: outer.id(),
+            ending: outer.is_ending(),
+            drained: false,
+            replayed: None,
             gesture: state.gesture,
             active: state.active,
             ctx: None,
@@ -242,86 +348,158 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         self.gesture.filter(|_| self.active)
     }
 
-    /// A part's edit, its value mapped to the composite's. Called for every part drawn, also
-    /// without an event. For a part with one of the composite's values (a slider, a dial): a
-    /// held event's value is mapped onto the composite's value of the pass its turn comes.
-    pub fn push<T: Clone + Send + Sync + 'static>(&mut self, edit: &EditResponse<T>, map: impl Fn(T) -> V) {
-        self.push_as(&edit.response.ctx, edit.response.id, edit.event.as_ref(), map);
+    /// Keeps `ctx`, and drops the queue unless the pass before this one left it.
+    fn arrive(&mut self, ctx: &Context) {
+        if !self.checked {
+            self.checked = true;
+            if self.pass + 1 != ctx.cumulative_pass_nr() {
+                self.queue.clear();
+            }
+        }
+        self.ctx.get_or_insert_with(|| ctx.clone());
     }
 
-    /// [`push`](Edits::push) for a part whose value holds several of the composite's values (a
-    /// graph's points), drawn from `drawn` in this pass. A held event applies only what it
-    /// changed from the value its part was drawn from, onto `drawn` of the pass its turn comes
-    /// ([`Rebase`]), or is dropped.
-    pub fn push_from<T: Rebase + Clone + Send + Sync + 'static>(&mut self, edit: &EditResponse<T>, drawn: &T, map: impl Fn(T) -> V) {
-        self.push_rebased(edit, drawn, T::rebase, map);
+    /// The queue's turn: when it has come, its oldest entry that applies goes out in this pass as
+    /// the part's event, made with `apply` from the composite's value (see the module docs).
+    /// Called once a pass, before the first part is drawn, by a composite whose parts report
+    /// operations.
+    pub fn replay(&mut self, ctx: &Context, mut apply: impl FnMut(&O, &V) -> Option<V>) {
+        self.arrive(ctx);
+        let key = queue_key(self.id);
+        if self.queue.is_empty() {
+            if self.placed {
+                order::leave(ctx, key);
+            }
+            return;
+        }
+        self.entered = true;
+        // The composite's gesture under way: the owner's, or one an entry of the queue began.
+        if self.loaded.is_some() {
+            order::keep(ctx, key, self.loaded);
+            return;
+        }
+        if order::turn_after(ctx, key, None, self.owned()) == Turn::Waits {
+            return;
+        }
+        while !self.queue.is_empty() {
+            let entry = self.queue.remove(0);
+            let Some(value) = entry.apply(&self.value, &mut apply) else { continue };
+            if let Kind::Begin { id } | Kind::Update { id, .. } = entry.kind {
+                self.replayed = Some((entry.part, id));
+            }
+            self.events.push((entry.part, entry.kind.event(value.clone()), Hold::Replayed(entry)));
+            self.value = value;
+            self.drained = true;
+            // No input runs before the queue's next entry, nor in this pass.
+            order::keep(ctx, key, None);
+            return;
+        }
+        self.entered = false;
     }
 
-    /// [`push_from`](Edits::push_from) for a part whose rules depend on how it is set up (a
-    /// row's thumb order): `rebase` is the part's own, as [`Rebase::rebase`].
-    pub fn push_rebased<T: Clone + Send + Sync + 'static>(
+    /// The composite's value the parts draw from and map onto: the replay's, then each event of
+    /// this pass pushed so far that goes out in this pass.
+    pub fn value(&self) -> &V {
+        &self.value
+    }
+
+    /// A part's edit, with the operations `ops` its event made. Called for every part drawn, also
+    /// without an event. A Set's value is `ops` applied to [`value`](Edits::value) with `apply`
+    /// (a Set with none: its value with `map`); a gesture's event's is `map(part value,
+    /// value())`. An event that goes out in this pass leaves [`value`](Edits::value) at its
+    /// value; one that waits joins the queue as `ops`. Returns which of the two it did.
+    pub fn push<T: Clone + Send + Sync + 'static>(
         &mut self,
         edit: &EditResponse<T>,
-        drawn: &T,
-        rebase: impl Fn(T, &T, &T) -> Option<T> + Send + Sync + 'static,
-        map: impl Fn(T) -> V,
-    ) {
-        let drawn = Drawn { value: drawn.clone(), rebase: Arc::new(rebase) };
-        self.add(&edit.response.ctx, edit.response.id, edit.event.as_ref(), Some(drawn), map);
+        ops: impl IntoIterator<Item = O>,
+        apply: impl FnMut(&O, &V) -> Option<V>,
+        map: impl Fn(T, &V) -> V,
+    ) -> Pushed {
+        self.push_part(edit.response.id, edit, ops, apply, map)
     }
 
-    /// [`push`](Edits::push) for a part whose edit carries another widget's response (a
-    /// popover's picker, reported on its swatch): `id` is the part's own.
-    pub fn push_as<T: Clone + Send + Sync + 'static>(&mut self, ctx: &Context, id: Id, event: Option<&EditEvent<T>>, map: impl Fn(T) -> V) {
-        self.add(ctx, id, event, None, map);
-    }
-
-    fn add<T: Clone + Send + Sync + 'static>(
+    /// [`push`](Edits::push) for part `part` whose edit carries another widget's response (a
+    /// composite drawn as a part: a popover's picker, reported on its anchor).
+    pub fn push_part<T: Clone + Send + Sync + 'static>(
         &mut self,
-        ctx: &Context,
-        id: Id,
-        event: Option<&EditEvent<T>>,
-        drawn: Option<Drawn<T>>,
-        map: impl Fn(T) -> V,
-    ) {
-        let run = event.and_then(EditEvent::id).or_else(|| self.run.filter(|(owner, _)| *owner == id).map(|(_, run)| run));
+        part: Id,
+        edit: &EditResponse<T>,
+        ops: impl IntoIterator<Item = O>,
+        mut apply: impl FnMut(&O, &V) -> Option<V>,
+        map: impl Fn(T, &V) -> V,
+    ) -> Pushed {
+        let base = self.value.clone();
+        let map = |value: T| map(value, &base);
+        self.record(&edit.response.ctx, part, edit.event.as_ref(), &map);
+        let Some(event) = &edit.event else { return Pushed::Nothing };
+        let Some(kind) = Kind::of(event) else {
+            // A Cancel: the run's events that wait never went out.
+            let run = event.id();
+            self.queue.retain(|q| q.part != part || q.kind.run() != run);
+            if !self.goes_out(part, run, self.events.len()) {
+                return Pushed::Nothing;
+            }
+            if let EditEvent::Cancel { id, reason } = *event {
+                self.events.push((part, EditEvent::Cancel { id, reason }, Hold::Nothing));
+            }
+            return Pushed::Out;
+        };
+        let queued = Queued { part, kind, ops: ops.into_iter().collect() };
+        if !self.goes_out(part, kind.run(), self.events.len()) {
+            debug_assert!(!queued.ops.is_empty() || matches!(kind, Kind::Begin { .. }), "a held part event needs its operations");
+            self.join(queued);
+            return Pushed::Waits;
+        }
+        let value = match kind {
+            Kind::Begin { id } => {
+                self.events.push((part, EditEvent::begin(id), Hold::Ops(queued)));
+                return Pushed::Out;
+            }
+            Kind::Set { .. } if !queued.ops.is_empty() => queued.apply(&self.value, &mut apply),
+            _ => event.value().cloned().map(map),
+        };
+        // A Set none of whose operations applies changes nothing.
+        let Some(value) = value else { return Pushed::Nothing };
+        self.value = value.clone();
+        let event = kind.event(value);
+        self.events.push((part, event, Hold::Ops(queued)));
+        Pushed::Out
+    }
+
+    /// [`push`](Edits::push) for a field whose focus is a typing run's.
+    pub fn typing<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        field: &EditResponse<T>,
+        ops: impl IntoIterator<Item = O>,
+        apply: impl FnMut(&O, &V) -> Option<V>,
+        map: impl Fn(T, &V) -> V,
+    ) -> Pushed {
+        self.typing.push(field.response.id);
+        self.push(field, ops, apply, map)
+    }
+
+    /// Adds `entry` to the queue's tail; an Update or Commit takes the place of the queued Begin
+    /// or Update of its part's run.
+    fn join(&mut self, entry: Queued<O>) {
+        if let Kind::Update { id: run, .. } | Kind::Commit { id: run, .. } = entry.kind
+            && let Some(at) =
+                self.queue.iter().position(|q| q.part == entry.part && matches!(q.kind, Kind::Begin { id } | Kind::Update { id, .. } if id == run))
+        {
+            self.queue[at] = entry;
+            return;
+        }
+        self.queue.push(entry);
+    }
+
+    /// Records that `part` is drawn, and how its gesture under way would end.
+    fn record<T: Clone + Send + Sync + 'static>(&mut self, ctx: &Context, part: Id, event: Option<&EditEvent<T>>, map: impl Fn(T) -> V) {
+        self.arrive(ctx);
+        let run = event.and_then(EditEvent::id).or_else(|| self.run.filter(|(owner, _)| *owner == part).map(|(_, run)| run));
         let end = run.filter(|&run| super::is_live(ctx, run)).map(|run| match super::ending(ctx, run) {
             Ending::Commit { changed } => End::Commit { value: super::unreported::<T>(ctx, run).map(&map), changed },
             Ending::Cancel => End::Cancel,
         });
-        self.drawn.push((id, end));
-        self.ctx.get_or_insert_with(|| ctx.clone());
-        if self.held_pass + 1 != ctx.cumulative_pass_nr() {
-            self.held.clear();
-        }
-        let new = event.map(|event| Held(Arc::new(PartEvent { event: event.clone(), drawn: drawn.clone() })));
-        if let Some(i) = self.held.iter().position(|(part, _)| *part == id) {
-            let (_, held) = self.held.remove(i);
-            if order::turn_after(ctx, held_key(self.id, id), None, self.owned()) == Turn::Waits {
-                self.waiting.push((id, new.unwrap_or(held)));
-                return;
-            }
-            if let Some(part) = held.0.downcast_ref::<PartEvent<T>>() {
-                let event = match (&part.drawn, &drawn, part.event.value()) {
-                    (Some(base), Some(now), Some(value)) => {
-                        (now.rebase)(value.clone(), &base.value, &now.value).map(|value| part.event.clone().map(|_| value))
-                    }
-                    _ => Some(part.event.clone()),
-                };
-                if let Some(event) = event {
-                    self.events.push((id, event.map(&map), held.clone()));
-                }
-            }
-        }
-        if let (Some(event), Some(new)) = (event, new) {
-            self.events.push((id, event.clone().map(&map), new));
-        }
-    }
-
-    /// [`push`](Edits::push) for a field whose focus is a typing run's.
-    pub fn typing<T: Clone + Send + Sync + 'static>(&mut self, ctx: &Context, field: &EditResponse<T>, map: impl Fn(T) -> V) {
-        self.typing.push(field.response.id);
-        self.push_as(ctx, field.response.id, field.event.as_ref(), map);
+        self.drawn.push((part, end));
     }
 
     /// A value made from an input that [`inputs`](Edits::inputs) returned, set after the parts'
@@ -342,7 +520,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     /// control's typing run has the focus (asking it to end) and while the composite's gesture
     /// is under way, and run in the first pass after its ending event has gone out. The
     /// composite makes their values from the host's value then ([`set`](Edits::set)).
-    pub fn inputs(&mut self, ctx: &Context, state: &mut State<C>) -> Vec<C> {
+    pub fn inputs(&mut self, ctx: &Context, state: &mut State<O, C>) -> Vec<C> {
         let pass = ctx.cumulative_pass_nr();
         let mut inputs = state.inputs.take().filter(|(last, _)| last + 1 == pass).map_or_else(Vec::new, |(_, inputs)| inputs);
         inputs.append(&mut self.inputs);
@@ -358,21 +536,25 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         }
     }
 
-    /// Whether `part`'s event of this pass goes out in this pass, as far as the parts pushed so
-    /// far tell, rather than waiting for its turn ([`feed`](Edits::feed) holds it). A part drawn
-    /// after it draws from and maps onto the value that event makes only when it does
-    /// ([`Running`]); else onto the composite's shown value. `outer` is the composite's gesture as loaded and `scoped` as
-    /// for `feed`. False when the part has no event.
-    pub fn applies(&self, outer: &Gesture<V>, scoped: bool, part: Id) -> bool {
-        let Some(at) = self.events.iter().rposition(|(id, ..)| *id == part) else { return false };
-        if scoped {
+    /// Whether an event of `part` (of its gesture `run`, if any) pushed after the first `at`
+    /// events goes out in this pass.
+    fn goes_out(&self, part: Id, run: Option<GestureId>, at: usize) -> bool {
+        if self.scoped {
             return true;
         }
-        if outer.is_ending() {
+        // The run whose gesture the queue's entry begins in this pass.
+        if run.is_some_and(|run| self.replayed == Some((part, run))) {
+            return true;
+        }
+        if self.ending {
             return false;
         }
-        if outer.is_active() {
+        if self.loaded.is_some() {
             return self.owner == Some(part);
+        }
+        // The queue drains one entry a pass: a new event joins its tail.
+        if self.drained || !self.queue.is_empty() {
+            return false;
         }
         // Idle: the first part whose event begins a gesture owns it, and the events of the other
         // parts after it wait.
@@ -390,9 +572,9 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     }
 
     /// Turns the parts' gestures into the composite's `outer` gesture (see the module docs) and
-    /// returns it; `scoped` when the composite is inside [`scope`](super::scope). Inputs not
-    /// taken with [`inputs`](Edits::inputs) are dropped.
-    pub fn feed(self, outer: Gesture<V>, state: &mut State<C>, scoped: bool) -> Gesture<V> {
+    /// returns it. Inputs not taken with [`inputs`](Edits::inputs) are dropped.
+    pub fn feed(self, outer: Gesture<V>, state: &mut State<O, C>) -> Gesture<V> {
+        let scoped = self.scoped;
         let mut outer = outer.focus_owners(&self.typing);
         let ended = state.end.take();
         // The owner wasn't drawn: the composite's gesture ends in this pass.
@@ -403,7 +585,8 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         let ends = !scoped && (gone || outer.is_ending() || ender.is_some());
         // What a held event waits for: the gesture under way, or the one cancelled as it loaded.
         let gesture = outer.id().or(state.gesture);
-        let mut held = self.waiting;
+        // Operations held although `push` or `replay` let them go: they wait first.
+        let mut back = Vec::new();
         // Decided from the events, not by comparing values: a value type holding a NaN is never
         // equal to itself.
         let mut moved = gone || !self.sets.is_empty();
@@ -421,17 +604,18 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
             state.owner = None;
             state.run = None;
         }
-        for (who, event, raw) in self.events {
+        for (who, event, hold) in self.events {
             let owner = state.owner == Some(who);
             let other = outer.is_active() && state.owner.is_some_and(|owner| owner != who);
             if !scoped && ((ends && ender != Some(who)) || other) {
-                held.retain(|(part, _)| *part != who);
-                held.push((who, raw));
-                if let Some(ctx) = &self.ctx {
-                    order::turn_after(ctx, held_key(self.id, who), None, gesture);
+                match hold {
+                    Hold::Ops(entry) | Hold::Replayed(entry) => back.push(entry),
+                    Hold::Nothing => {}
                 }
                 continue;
             }
+            // A gesture the queue's entry begins doesn't run from the composite's start.
+            let replayed = matches!(hold, Hold::Replayed(_));
             let run = event.id();
             moved |= !matches!(event, EditEvent::Begin { .. });
             match event {
@@ -445,14 +629,14 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
                     if !outer.is_active() {
                         outer.begin();
                         state.owner = Some(who);
-                        state.pure = outer.id();
+                        state.pure = outer.id().filter(|_| !replayed);
                     }
                 }
                 EditEvent::Update { value, modifiers, .. } => {
                     if !outer.is_active() {
                         outer.begin();
                         state.owner = Some(who);
-                        state.pure = outer.id();
+                        state.pure = outer.id().filter(|_| !replayed);
                     }
                     outer.update(value, modifiers);
                 }
@@ -500,10 +684,14 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
         }
         state.active = outer.is_active() && !outer.is_ending();
         state.gesture = outer.id().or(gesture);
-        state.held = held;
+        back.extend(self.queue);
+        state.queue = back;
+        state.placed = self.drained || !state.queue.is_empty();
         if let Some(ctx) = &self.ctx {
-            state.held_pass = ctx.cumulative_pass_nr();
-            if moved || !state.held.is_empty() {
+            let began = outer.id().filter(|_| self.drained);
+            state.place_queue(ctx, queue_key(self.id), self.entered, began, gesture);
+            state.pass = ctx.cumulative_pass_nr();
+            if moved || !state.queue.is_empty() {
                 ctx.request_repaint();
             }
         }
@@ -511,46 +699,12 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, C> Edits<V, C> {
     }
 }
 
-/// The composite's value as the parts pushed so far in a pass leave it. A part pushed after them
-/// maps onto it, so every part's event in a frame counts, each from the value the ones before it
-/// left: a screen reader's steps on two fields of one row in one frame both reach the host. A
-/// part's value is in it only when the part's event goes out in this pass
-/// ([`Edits::applies`]); one that waits for its turn isn't.
-pub(crate) struct Running<'a, V> {
-    outer: &'a Gesture<V>,
-    scoped: bool,
-    value: V,
-}
-
-impl<'a, V: Clone + PartialEq + Send + Sync + 'static> Running<'a, V> {
-    /// From `value`, the composite's value the first part is drawn from. `outer` is the
-    /// composite's gesture as loaded and `scoped` as for [`Edits::feed`].
-    pub fn new(outer: &'a Gesture<V>, scoped: bool, value: V) -> Self {
-        Self { outer, scoped, value }
-    }
-
-    /// The value the next part maps onto.
-    pub fn value(&self) -> &V {
-        &self.value
-    }
-
-    /// After `part` is pushed into `edits`: its event's value, when that goes out in this pass.
-    pub fn after<C>(&mut self, edits: &Edits<V, C>, part: Id) {
-        if edits.applies(self.outer, self.scoped, part)
-            && let Some((_, event, _)) = edits.events.iter().rfind(|(id, ..)| *id == part)
-            && let Some(value) = event.value()
-        {
-            self.value = value.clone();
-        }
-    }
-}
-
-/// The edit-order key of part `part`'s held event in composite `id`.
-fn held_key(id: Id, part: Id) -> Id {
-    id.with(("craft_ui::edit::parts::held", part))
+/// The edit-order key of composite `id`'s queue of held operations.
+fn queue_key(id: Id) -> Id {
+    id.with("craft_ui::edit::parts::queue")
 }
 
 /// Whether the composite's `outer` gesture runs from the composite's start ([`State::pure`]).
-fn is_pure<V: Clone + PartialEq + Send + Sync + 'static, C>(outer: &Gesture<V>, state: &State<C>) -> bool {
+fn is_pure<V: Clone + PartialEq + Send + Sync + 'static, O, C>(outer: &Gesture<V>, state: &State<O, C>) -> bool {
     outer.id().is_some() && outer.id() == state.pure
 }

@@ -11,7 +11,9 @@ use egui::{Align, AsIdSalt, Color32, Context, Id, IdSalt, Key, Layout, Modifiers
 use super::curve_editor::{gradient, story_bins};
 use super::histogram::{ChannelColor, Histogram, HistogramData};
 use crate::controls::NumberField;
-use crate::controls::thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowStyle};
+use crate::controls::number_field::{self, FieldRule};
+use crate::controls::thumb_row::{Follow, Order, RowOp, RowRules, Thumb, ThumbRow, ThumbRowStyle};
+use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
@@ -168,7 +170,106 @@ const CLIP: &str = "craft_ui::levels_clip";
 const STATE: &str = "craft_ui::levels_editor";
 const EDIT: &str = "craft_ui::levels_editor::edit";
 
-type Edits = parts::Edits<Levels>;
+type Edits = parts::Edits<Levels, LevelsOp>;
+
+/// A field of the editor, by the value it edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LevelsField {
+    InBlack,
+    Gamma,
+    InWhite,
+    OutBlack,
+    OutWhite,
+}
+
+impl LevelsField {
+    const INPUT: [Self; 3] = [Self::InBlack, Self::Gamma, Self::InWhite];
+    const OUTPUT: [Self; 2] = [Self::OutBlack, Self::OutWhite];
+
+    fn value(self, levels: &Levels) -> f64 {
+        match self {
+            Self::InBlack => levels.in_black,
+            Self::Gamma => levels.gamma,
+            Self::InWhite => levels.in_white,
+            Self::OutBlack => levels.out_black,
+            Self::OutWhite => levels.out_white,
+        }
+    }
+
+    /// `op` on the field's thumb.
+    fn on_row(self, op: ScalarOp) -> LevelsOp {
+        match self {
+            Self::InBlack => LevelsOp::Input(RowOp { thumb: 0, op }),
+            Self::Gamma => LevelsOp::Input(RowOp { thumb: 1, op }),
+            Self::InWhite => LevelsOp::Input(RowOp { thumb: 2, op }),
+            Self::OutBlack => LevelsOp::Output(RowOp { thumb: 0, op }),
+            Self::OutWhite => LevelsOp::Output(RowOp { thumb: 1, op }),
+        }
+    }
+}
+
+/// What a part of the editor did, applied to the levels of its turn ([`Rules::apply`]).
+#[derive(Clone, Debug, PartialEq)]
+enum LevelsOp {
+    Input(RowOp),
+    Output(RowOp),
+    Field(LevelsField, ScalarOp),
+}
+
+/// What the editor's values may be: the rows' rules and the fields' ranges.
+struct Rules {
+    input: RowRules<3>,
+    output: RowRules<2>,
+    /// The range in ascending order.
+    ends: (f64, f64),
+    /// How close the input ends may come, in levels.
+    gap: f64,
+    gamma_range: RangeInclusive<f64>,
+    step: f64,
+    decimals: usize,
+}
+
+impl Rules {
+    /// The range `field` takes with the levels at `now`: an input end's stops the gap short of the
+    /// other end.
+    fn range(&self, field: LevelsField, now: &Levels) -> RangeInclusive<f64> {
+        let (start, end) = self.ends;
+        let [black_at, _, white_at] = self.input.placed(&now.input());
+        match field {
+            LevelsField::InBlack => start..=(white_at - self.gap).clamp(start, end),
+            LevelsField::Gamma => self.gamma_range.clone(),
+            LevelsField::InWhite => (black_at + self.gap).clamp(start, end)..=end,
+            LevelsField::OutBlack | LevelsField::OutWhite => start..=end,
+        }
+    }
+
+    /// The rule of `field`'s [`NumberField`] with the levels at `now`.
+    fn field(&self, field: LevelsField, now: &Levels) -> FieldRule {
+        match field {
+            LevelsField::Gamma => FieldRule::new(&self.range(field, now), GAMMA_STEP, 2),
+            _ => FieldRule::new(&self.range(field, now), self.step, self.decimals),
+        }
+    }
+
+    /// `now` with `op` applied. A field's value goes onto its thumb as a drag of it would stop, so
+    /// the input ends keep the gap.
+    fn apply(&self, op: &LevelsOp, now: &Levels) -> Levels {
+        match op {
+            LevelsOp::Input(op) => now.with_input(self.input.apply(op, &now.input())),
+            LevelsOp::Output(op) => now.with_output(self.output.apply(op, &now.output())),
+            LevelsOp::Field(field, op) => {
+                let rule = self.field(*field, now);
+                let from = Some(field.value(now)).filter(|v| v.is_finite()).unwrap_or_else(|| rule.blank());
+                self.set(*field, number_field::apply(op, from, &rule), now)
+            }
+        }
+    }
+
+    /// `now` with `field` set to `value` on its thumb.
+    fn set(&self, field: LevelsField, value: f64, now: &Levels) -> Levels {
+        self.apply(&field.on_row(ScalarOp::Set(value)), now)
+    }
+}
 
 /// The input level the gamma thumb sits at: the level that maps to 50 % grey. `values` are the
 /// input row's (black, gamma, white).
@@ -425,14 +526,38 @@ impl<'a> LevelsEditor<'a> {
         let rows = ThumbRowStyle::from(style);
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
-        let mut state = ui.data(|d| d.get_temp::<parts::State<()>>(id.with(STATE))).unwrap_or_default();
+        let mut state = ui.data(|d| d.get_temp::<parts::State<LevelsOp>>(id.with(STATE))).unwrap_or_default();
         // Esc is the parts': each cancels its own gesture, which cancels this one.
         let outer = Gesture::load(ui, id.with(EDIT), self.levels, self.policy.cancellable(false)).enabled(enabled);
-        // Every part draws from the composite's shown value; the parts report each update and the
-        // composite's gesture applies the policy.
-        let levels = *outer.shown();
         let inner = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = Edits::new(id, &state);
+        let ordered = |below, above| Order::Between { below, above, gap };
+        let in_thumbs = [
+            Thumb::new(self.labels.in_black.as_str(), FACES[0]).order(ordered(None, Some(2))).default_value(start),
+            Thumb::new(self.labels.gamma.as_str(), FACES[1])
+                .follows(&self.gamma_range, GAMMA_STEP, Follow { at: gamma_at, value_at: gamma_from })
+                .default_value(1.0)
+                .unset_at(1.0)
+                .falling(),
+            Thumb::new(self.labels.in_white.as_str(), FACES[2]).order(ordered(Some(0), None)).default_value(end),
+        ];
+        let out_thumbs = [
+            Thumb::new(self.labels.out_black.as_str(), FACES[0]).default_value(start),
+            Thumb::new(self.labels.out_white.as_str(), FACES[2]).default_value(end),
+        ];
+        let rules = Rules {
+            input: ThumbRow::rules(&self.range, Some(self.step), &in_thumbs),
+            output: ThumbRow::rules(&self.range, Some(self.step), &out_thumbs),
+            ends: (start, end),
+            gap,
+            gamma_range: self.gamma_range.clone(),
+            step: self.step,
+            decimals: self.decimals,
+        };
+        let apply = |op: &LevelsOp, now: &Levels| Some(rules.apply(op, now));
+        // Every part draws from the composite's value of the moment and maps onto it: the parts
+        // report each update and the composite's gesture applies the policy.
+        let mut edits = Edits::new(id, &state, &outer, edit::in_scope(ui));
+        edits.replay(ui.ctx(), apply);
         let stack_gap = ui.spacing().item_spacing.y;
 
         if self.captions {
@@ -449,17 +574,7 @@ impl<'a> LevelsEditor<'a> {
         histogram.show(&mut ui.new_child(UiBuilder::new().id_salt("histogram-plot").max_rect(plot)));
         ui.spacing_mut().item_spacing.y = stack_gap;
 
-        let ordered = |below, above| Order::Between { below, above, gap };
-        let thumbs = [
-            Thumb::new(self.labels.in_black.as_str(), FACES[0]).order(ordered(None, Some(2))).default_value(start),
-            Thumb::new(self.labels.gamma.as_str(), FACES[1])
-                .follows(&self.gamma_range, GAMMA_STEP, Follow { at: gamma_at, value_at: gamma_from })
-                .default_value(1.0)
-                .unset_at(1.0)
-                .falling(),
-            Thumb::new(self.labels.in_white.as_str(), FACES[2]).order(ordered(Some(0), None)).default_value(end),
-        ];
-        let input = ThumbRow::new("input", levels.input(), &self.range, Some(self.step), thumbs)
+        let input = ThumbRow::new("input", edits.value().input(), &self.range, Some(self.step), in_thumbs)
             .width(width)
             .policy(inner)
             .enabled(enabled)
@@ -473,20 +588,14 @@ impl<'a> LevelsEditor<'a> {
         };
         let pass = ui.ctx().cumulative_pass_nr();
         ui.data_mut(|d| d.insert_temp(id.with(CLIP), (clip, pass)));
+        edits.push(&input.edit, input.ops.into_iter().map(LevelsOp::Input), apply, |v, now| now.with_input(v));
 
-        // Each row's fields draw from the row's value of this pass, unless the row's edit waits
-        // for another part's gesture: it isn't in the editor's value then. Each part maps onto
-        // the value the parts before it in this pass left.
-        let scoped = edit::in_scope(ui);
-        let mut running = parts::Running::new(&outer, scoped, levels);
-        let input_rules = input.rules.clone();
-        let rules = input.rules;
-        edits.push_rebased(&input.edit, &levels.input(), move |row, base, now| rules.rebase(row, base, now), |v| levels.with_input(v));
-        running.after(&edits, input.edit.response.id);
-        let drawn = *running.value();
+        // A field's range is drawn from the row before this pass's fields: its value keeps the
+        // thumbs' order on the row the fields before it left.
+        let drawn = *edits.value();
         let level = |field: NumberField<'a>| field.step(self.step).decimals(self.decimals..=self.decimals);
         let [black, gamma, white] = drawn.input();
-        let [black_at, _, white_at] = input_rules.placed(&drawn.input());
+        let range = |field| rules.range(field, &drawn);
         let full = self.field_width(ui, start..=end, self.decimals);
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w3 = fields.share(3);
@@ -494,26 +603,22 @@ impl<'a> LevelsEditor<'a> {
             (
                 fields.at_start(full.min(w3)),
                 "in-black",
-                level(self.field(inner, "in-black", &self.labels.in_black, black, start..=(white_at - gap).clamp(start, end))),
+                level(self.field(inner, "in-black", &self.labels.in_black, black, range(LevelsField::InBlack))),
             ),
             (
                 fields.centred(self.field_width(ui, self.gamma_range.clone(), 2).min(w3)),
                 "gamma",
-                self.field(inner, "gamma", &self.labels.gamma, gamma, self.gamma_range.clone()).step(GAMMA_STEP).decimals(2..=2),
+                self.field(inner, "gamma", &self.labels.gamma, gamma, range(LevelsField::Gamma)).step(GAMMA_STEP).decimals(2..=2),
             ),
             (
                 fields.at_end(full.min(w3)),
                 "in-white",
-                level(self.field(inner, "in-white", &self.labels.in_white, white, (black_at + gap).clamp(start, end)..=end)),
+                level(self.field(inner, "in-white", &self.labels.in_white, white, range(LevelsField::InWhite))),
             ),
         ];
         let [b, g, w] = in_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
-        // A field's range is drawn from the row before this pass's fields: its value keeps the
-        // thumbs' order on the row the fields before it left.
-        for (i, field) in [&b, &g, &w].into_iter().enumerate() {
-            let base = *running.value();
-            edits.typing(ui.ctx(), field, |v| base.with_input(input_rules.moved(&base.input(), i, v)));
-            running.after(&edits, field.response.id);
+        for (field, edit) in LevelsField::INPUT.into_iter().zip([&b, &g, &w]) {
+            push_field(&mut edits, &rules, field, edit);
         }
 
         if self.captions {
@@ -527,21 +632,14 @@ impl<'a> LevelsEditor<'a> {
         if ui.is_rect_visible(bar) {
             ui.painter().add(gradient(bar, Rgba::BLACK.to_egui(), self.channel.bar(tokens), false));
         }
-        let thumbs = [
-            Thumb::new(self.labels.out_black.as_str(), FACES[0]).default_value(start),
-            Thumb::new(self.labels.out_white.as_str(), FACES[2]).default_value(end),
-        ];
-        let output = ThumbRow::new("output", levels.output(), &self.range, Some(self.step), thumbs)
+        let output = ThumbRow::new("output", edits.value().output(), &self.range, Some(self.step), out_thumbs)
             .width(width)
             .policy(inner)
             .enabled(enabled)
             .part(true)
             .show(ui, &rows);
-        let rules = output.rules;
-        let base = *running.value();
-        edits.push_rebased(&output.edit, &levels.output(), move |row, base, now| rules.rebase(row, base, now), |v| base.with_output(v));
-        running.after(&edits, output.edit.response.id);
-        let [out_black, out_white] = running.value().output();
+        edits.push(&output.edit, output.ops.into_iter().map(LevelsOp::Output), apply, |v, now| now.with_output(v));
+        let [out_black, out_white] = edits.value().output();
         let fields = FieldStrip::new(ui, width, style.field_gap);
         let w2 = full.min(fields.share(2));
         let out_fields = [
@@ -549,15 +647,13 @@ impl<'a> LevelsEditor<'a> {
             (fields.at_end(w2), "out-white", level(self.field(inner, "out-white", &self.labels.out_white, out_white, start..=end))),
         ];
         let [ob, ow] = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
-        let base = *running.value();
-        edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..base });
-        running.after(&edits, ob.response.id);
-        let base = *running.value();
-        edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..base });
+        for (field, edit) in LevelsField::OUTPUT.into_iter().zip([&ob, &ow]) {
+            push_field(&mut edits, &rules, field, edit);
+        }
 
         let submitted = [&b, &g, &w, &ob, &ow].iter().any(|e| e.submitted);
         let escaped = [&b, &g, &w, &ob, &ow].iter().any(|e| e.escaped);
-        let outer = edits.feed(outer, &mut state, scoped);
+        let outer = edits.feed(outer, &mut state);
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
         (outer.finish(), submitted, escaped)
     }
@@ -606,6 +702,12 @@ impl FieldStrip {
     fn at_end(&self, width: f32) -> Rect {
         Rect::from_min_size(pos2(self.rect.right() - width, self.rect.top()), vec2(width, self.rect.height()))
     }
+}
+
+/// A field's edit: its operations, and its typing run's or scrub's values, go onto its thumb.
+fn push_field(edits: &mut Edits, rules: &Rules, field: LevelsField, edit: &EditResponse<f64>) {
+    let field_ops = ops::take::<ScalarOp>(&edit.response.ctx, edit.response.id).into_iter().map(|op| LevelsOp::Field(field, op));
+    edits.typing(edit, field_ops, |op, now| Some(rules.apply(op, now)), |v, now| rules.set(field, v, now));
 }
 
 fn show_field(ui: &mut Ui, rect: Rect, salt: &str, field: NumberField<'_>) -> EditResponse<f64> {

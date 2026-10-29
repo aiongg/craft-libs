@@ -7,7 +7,7 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Ui, Vec2, pos2};
 
 use super::slider::{
-    KEY_FILTER, Scale, Sensing, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, tap, with_values,
+    KEY_FILTER, Scale, Sensing, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, store, tap, with_values,
 };
 use super::{SIZE_NAMES, Slider, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -173,12 +173,12 @@ impl RangeSlider {
         }
 
         let (lo, hi) = placed(&scale, *gesture.shown());
-        if let Some(lo) = stepped(ui, ids.0, sensing, None, lo, (scale.min, hi), &scale) {
-            gesture.set((lo, hi));
+        if let Some(op) = stepped(ui, ids.0, sensing, None, &scale) {
+            gesture.set((apply(&op, lo, (scale.min, hi), &scale), hi));
         }
         let (lo, hi) = placed(&scale, *gesture.shown());
-        if let Some(hi) = stepped(ui, ids.1, sensing, None, hi, (lo, scale.max), &scale) {
-            gesture.set((lo, hi));
+        if let Some(op) = stepped(ui, ids.1, sensing, None, &scale) {
+            gesture.set((lo, apply(&op, hi, (lo, scale.max), &scale)));
         }
 
         let mixed = !(gesture.shown().0.is_finite() && gesture.shown().1.is_finite());
@@ -320,7 +320,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
                     if i == 1 {
                         slider = slider.step(5.0);
                     }
-                    apply(&slider.show(ui), value);
+                    store(&slider.show(ui), value);
                 });
             }
         });

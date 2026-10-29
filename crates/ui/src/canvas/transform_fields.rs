@@ -8,8 +8,10 @@ use super::RulerUnits;
 use super::quad::{BoxState, SKEW_LIMIT};
 use super::story;
 use crate::composites::{PropertyLabel, PropertyRow};
+use crate::controls::number_field::{self, FieldRule};
 use crate::controls::{IconButton, NumberField};
 use crate::direction;
+use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
@@ -212,7 +214,7 @@ impl Conversion {
 /// What the row keeps between passes.
 #[derive(Clone, Debug, Default)]
 struct Kept {
-    parts: parts::State<()>,
+    parts: parts::State<(Field, ScalarOp)>,
     /// Each field's last value in the row's gesture, with that gesture and the row the value gave.
     reported: [Option<(GestureId, f64, TransformRow)>; FIELDS],
     /// The row the gesture the host was told of began from, kept from its Begin: a cancel that
@@ -374,7 +376,6 @@ impl<'a> TransformFields<'a> {
 
         // Esc is the fields': each cancels its own gesture, which cancels the row's.
         let outer = Gesture::load(ui, id, &TransformRow { state: *state, skew_v }, policy.cancellable(false)).enabled(enabled);
-        let shown = *outer.shown();
         let mut kept: Kept = ui.data(|d| d.get_temp(kept_key)).unwrap_or_default();
         let gesture = outer.id();
         for reported in &mut kept.reported {
@@ -382,6 +383,8 @@ impl<'a> TransformFields<'a> {
                 *reported = None;
             }
         }
+        let scoped = edit::in_scope(ui);
+        let mut edits = parts::Edits::<TransformRow, (Field, ScalarOp)>::new(id, &kept.parts, &outer, scoped);
         let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
         let tokens = Tokens::of(ui);
         let row_style = PropertyRow::style(&tokens, size);
@@ -389,23 +392,37 @@ impl<'a> TransformFields<'a> {
         let pair = 2.0 * cell + row_style.column_gap;
         let linked_pair = pair + row_style.link_width + 2.0 * row_style.column_gap;
 
-        // What each field shows: its unit, decimals and the part of the box it reads, or the value
-        // it gave while the box is the one that value made.
-        let field = |ui: &mut Ui, which: Field, label: &FieldLabel| {
-            let (unit, decimals) = match (which, &convert.size) {
-                (Field::X, _) => (convert.x.unit.clone(), convert.x.decimals),
-                (Field::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
-                (Field::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
-                (Field::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
-                (Field::W | Field::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
-                _ => (labels.degrees.clone(), 2),
-            };
-            let value = match kept.reported[which as usize] {
-                Some((_, value, row)) if row == shown => value,
-                _ => convert.shown(&shown.state, shown.skew_v, which),
-            };
+        // Each field's unit and decimals.
+        let format = |which: Field| match (which, &convert.size) {
+            (Field::X, _) => (convert.x.unit.clone(), convert.x.decimals),
+            (Field::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
+            (Field::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
+            (Field::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
+            (Field::W | Field::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
+            _ => (labels.degrees.clone(), 2),
+        };
+        let rule = |which: Field| {
             let bound = convert.bound(which);
-            NumberField::new((id, which as u8), label.name.clone(), value, &numbers)
+            FieldRule::new(&(-bound..=bound), 1.0, format(which).1)
+        };
+        // What a field shows on `row`: the part of the box it reads, or the value it gave while
+        // the box is the one that value made.
+        let reported = kept.reported;
+        let reads = |which: Field, row: &TransformRow| match reported[which as usize] {
+            Some((_, value, of)) if of == *row => value,
+            _ => convert.shown(&row.state, row.skew_v, which),
+        };
+        // A field's operation applies to what the field shows on the row of its turn.
+        let apply = |(which, op): &(Field, ScalarOp), now: &TransformRow| {
+            Some(convert.row(now, *which, number_field::apply(op, reads(*which, now), &rule(*which))))
+        };
+        edits.replay(ui.ctx(), apply);
+        let shown = *edits.value();
+
+        let field = |ui: &mut Ui, which: Field, label: &FieldLabel| {
+            let (unit, decimals) = format(which);
+            let bound = convert.bound(which);
+            NumberField::new((id, which as u8), label.name.clone(), reads(which, &shown), &numbers)
                 .range(-bound..=bound)
                 .decimals(0..=decimals)
                 .unit(unit)
@@ -463,19 +480,16 @@ impl<'a> TransformFields<'a> {
 
         // Each field's value applies to the row the fields before it in this pass left, with the
         // values that go out in this pass: one that waits for another field's gesture isn't in it.
-        let scoped = edit::in_scope(ui);
-        let mut edits = parts::Edits::<TransformRow>::new(id, &kept.parts);
         let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
-        let mut running = parts::Running::new(&outer, scoped, shown);
         for (which, edit) in &fields {
-            let (which, base) = (*which, *running.value());
-            edits.typing(ui.ctx(), edit, |value| convert.row(&base, which, value));
-            running.after(&edits, edit.response.id);
+            let (which, base) = (*which, *edits.value());
+            let field_ops = ops::take::<ScalarOp>(ui.ctx(), edit.response.id).into_iter().map(|op| (which, op));
+            edits.typing(edit, field_ops, apply, |value, now| convert.row(now, which, value));
             if let Some(&value) = edit.event.as_ref().and_then(EditEvent::value) {
                 values.push((which, value, convert.row(&base, which, value)));
             }
         }
-        let outer = edits.feed(outer, &mut kept.parts, scoped);
+        let outer = edits.feed(outer, &mut kept.parts);
         if let Some(gesture) = outer.id() {
             for (which, value, row) in values {
                 kept.reported[which as usize] = Some((gesture, value, row));

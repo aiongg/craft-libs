@@ -478,6 +478,98 @@ fn a_held_row_step_on_the_scrubbed_value_leaves_the_scrub_running() {
     let kinds = harness.state().kinds();
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    let committed = harness.state().events.iter().find_map(|e| match e {
+        EditEvent::Commit { value, .. } => Some(value.in_black),
+        _ => None,
+    });
+    assert!(committed.is_some_and(|black| black > 0.0), "the scrub moved black: {committed:?}");
+    assert_eq!(Some(harness.state().levels.in_black), committed.map(|black| black + 1.0), "the step goes on from the committed black");
+}
+
+/// A screen reader's `action` on the control of `role` named `name`, in the next frame.
+fn request(harness: &mut Harness<'_, Host>, role: Role, name: &str, action: egui::accesskit::Action) {
+    let (target_node, target_tree) = node(harness, role, name).accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest { action, target_tree, target_node, data: None }));
+    harness.step();
+}
+
+/// Presses the output black field and scrubs it right, a gesture the rows' steps wait for.
+fn scrub_output_black(harness: &mut Harness<'_, Host>) -> Pos2 {
+    let field = node(harness, Role::SpinButton, "Output black").rect().center();
+    press(harness, field);
+    for dx in [20.0, 40.0] {
+        move_to(harness, field + vec2(dx, 0.0));
+    }
+    field + vec2(40.0, 0.0)
+}
+
+/// The output black the scrub committed.
+fn committed_out_black(host: &Host) -> Option<f64> {
+    host.events.iter().find_map(|e| match e {
+        EditEvent::Commit { value, .. } => Some(value.out_black),
+        _ => None,
+    })
+}
+
+/// Screen-reader steps on two thumbs of a row during a field scrub both wait, and both apply
+/// after the release, each as its own Set.
+#[test]
+fn two_held_steps_on_different_thumbs_both_apply() {
+    use egui::accesskit::Action;
+    let mut harness = harness(Host::with_undo(Levels { in_white: 200.0, ..IDENTITY }), Direction::Ltr);
+    let end = scrub_output_black(&mut harness);
+    request(&mut harness, Role::Slider, "Input black", Action::Increment);
+    request(&mut harness, Role::Slider, "Input white", Action::Increment);
+    assert_eq!((harness.state().levels.in_black, harness.state().levels.in_white), (0.0, 200.0), "the steps wait");
+    harness.state_mut().clear();
+    release(&mut harness, end);
+    assert_eq!(harness.state().kinds(), ["Commit", "Set", "Set"]);
+    let committed = committed_out_black(harness.state());
+    assert!(committed.is_some_and(|black| black > 0.0), "the scrub moved output black: {committed:?}");
+    let levels = harness.state().levels;
+    assert_eq!(levels, Levels { in_black: 1.0, in_white: 201.0, out_black: levels.out_black, ..IDENTITY });
+    assert_eq!(Some(levels.out_black), committed);
+}
+
+/// A held key's autorepeat on one thumb during a field scrub: every step waits, and they add up.
+#[test]
+fn autorepeat_steps_held_on_one_thumb_add_up() {
+    use egui::accesskit::Action;
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    let end = scrub_output_black(&mut harness);
+    for _ in 0..3 {
+        request(&mut harness, Role::Slider, "Input black", Action::Increment);
+    }
+    assert_eq!(harness.state().levels.in_black, 0.0, "the steps wait");
+    harness.state_mut().clear();
+    release(&mut harness, end);
+    assert_eq!(harness.state().kinds(), ["Commit", "Set", "Set", "Set"]);
+    let blacks: Vec<f64> = harness.state().events[1..].iter().filter_map(|e| e.value().map(|l| l.in_black)).collect();
+    assert_eq!(blacks, [1.0, 2.0, 3.0]);
+    let steps = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(steps, Some(4), "the scrub and each step, one undo step each");
+}
+
+/// A field's step in the pass a held row step takes its turn: both reach the host as Sets in two
+/// passes, the held step first.
+#[test]
+fn a_held_row_step_and_a_field_set_in_its_turn_pass_both_reach_the_host() {
+    use egui::accesskit::Action;
+    let mut harness = harness(Host::with_undo(IDENTITY), Direction::Ltr);
+    let end = scrub_output_black(&mut harness);
+    request(&mut harness, Role::Slider, "Input black", Action::Increment);
+    harness.state_mut().clear();
+    pointer(&mut harness, end, false, Modifiers::NONE);
+    assert_eq!(harness.state().kinds(), ["Commit"]);
+    request(&mut harness, Role::SpinButton, "Gamma", Action::Increment);
+    harness.run();
+    assert_eq!(harness.state().kinds(), ["Commit", "Set", "Set"]);
+    let sets: Vec<(f64, f64)> = harness.state().events[1..].iter().filter_map(|e| e.value().map(|l| (l.in_black, l.gamma))).collect();
+    assert_eq!(sets, [(1.0, 1.0), (1.0, 1.01)], "the held step, then the field's step");
+    let passes = &harness.state().passes;
+    assert_eq!((passes[1], passes[2]), (passes[0] + 1, passes[0] + 2), "one Set per pass");
+    let levels = harness.state().levels;
+    assert_eq!((levels.in_black, levels.gamma), (1.0, 1.01));
 }
 
 /// A screen reader's step on the black thumb during a scrub of the white field that ends closer

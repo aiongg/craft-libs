@@ -10,6 +10,7 @@ use craft_theme::TypeRole;
 use egui::accesskit::Role;
 use egui::{Align2, Event, EventFilter, Id, Key, Modifiers, Response, Sense, Ui, pos2, vec2};
 
+use super::ops::{self, Bound, ScalarOp};
 use super::{CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all, in_scope, parts};
 use crate::controls::slider::{PressTurn, press_turn};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
@@ -250,7 +251,7 @@ pub(super) fn slider(ui: &mut Ui, value: f32, policy: EditPolicy) -> EditRespons
 }
 
 /// [`slider`] with widget id `id`; a `part` of a composite takes its press's turn from the edit
-/// order (`edit::order`).
+/// order (`edit::order`) and reports its key steps as operations ([`ops::report`]).
 fn fake_slider(ui: &mut Ui, id: Id, value: f32, policy: EditPolicy, part: bool) -> EditResponse<f32> {
     let tokens = Tokens::of(ui);
     let response =
@@ -284,7 +285,11 @@ fn fake_slider(ui: &mut Ui, id: Id, value: f32, policy: EditPolicy, part: bool) 
     if response.has_focus() {
         let step = ui.input(|i| f32::from(u8::from(i.key_pressed(Key::ArrowRight))) - f32::from(u8::from(i.key_pressed(Key::ArrowLeft))));
         if step != 0.0 {
-            gesture.set((gesture.shown() + step).clamp(0.0, SLIDER_MAX));
+            let op = ScalarOp::By(f64::from(step));
+            gesture.set(level(&op, *gesture.shown()));
+            if part {
+                ops::report(ui.ctx(), response.id, vec![op]);
+            }
         }
     }
     let shown = *gesture.shown();
@@ -304,6 +309,18 @@ fn fake_slider(ui: &mut Ui, id: Id, value: f32, policy: EditPolicy, part: bool) 
     }
     let event = gesture.finish();
     EditResponse::new(response, event)
+}
+
+/// The fake slider's value `op` makes from `value`, in 0 to [`SLIDER_MAX`].
+fn level(op: &ScalarOp, value: f32) -> f32 {
+    let to = match op {
+        ScalarOp::By(by) => f64::from(value) + by,
+        ScalarOp::Presses(presses) => f64::from(value) + presses.iter().map(|(_, n)| n).sum::<f64>(),
+        ScalarOp::Set(v) => *v,
+        ScalarOp::ToBound(Bound::Low) => 0.0,
+        ScalarOp::ToBound(Bound::High) => f64::from(SLIDER_MAX),
+    };
+    (to as f32).clamp(0.0, SLIDER_MAX)
 }
 
 /// A fake one-line text field: click to focus, type, Backspace, Enter to commit, Esc to cancel;
@@ -383,6 +400,22 @@ fn type_key(gesture: &mut Gesture<String>, event: &Event) {
 /// The fake composite's value: a level and a label.
 pub(super) type Pair = (f32, String);
 
+/// What a part of the fake composite did: the slider's operation on the level, or the field's
+/// text, which is absolute.
+#[derive(Clone, Debug, PartialEq)]
+enum PairOp {
+    Level(ScalarOp),
+    Label(String),
+}
+
+/// The pair `op` makes from `now`.
+fn apply(op: &PairOp, now: &Pair) -> Option<Pair> {
+    Some(match op {
+        PairOp::Level(op) => (level(op, now.0), now.1.clone()),
+        PairOp::Label(label) => (now.0, label.clone()),
+    })
+}
+
 /// A fake composite on `edit::parts`: a fake slider (its press takes its turn from the edit
 /// order) and a fake text field, reported through one edit of a [`Pair`]. The parts' widget ids
 /// are the composite's id with `"slider"` and `"field"`.
@@ -405,19 +438,21 @@ impl Default for Composite {
 
 impl Composite {
     pub(super) fn show(&self, ui: &mut Ui, id: Id, value: &Pair, policy: EditPolicy) -> EditResponse<Pair> {
-        let mut state = ui.data(|d| d.get_temp::<parts::State<Pair>>(id)).unwrap_or_default();
+        let mut state = ui.data(|d| d.get_temp::<parts::State<PairOp, Pair>>(id)).unwrap_or_default();
         let outer = Gesture::load(ui, id, value, policy.cancellable(false));
-        let shown = outer.shown().clone();
         let inner = EditPolicy::default().cancellable(policy.cancellable);
-        let mut edits = parts::Edits::<Pair, Pair>::new(id, &state);
+        let mut edits = parts::Edits::<Pair, PairOp, Pair>::new(id, &state, &outer, in_scope(ui));
+        edits.replay(ui.ctx(), apply);
         let row = Row::new(Gap::Inline).show(ui, |ui| {
             for draw_field in [self.field_first, !self.field_first] {
                 if draw_field && self.field {
-                    let edit = fake_field(ui, id.with("field"), &shown.1, inner);
-                    edits.typing(ui.ctx(), &edit, |label| (shown.0, label));
+                    let edit = fake_field(ui, id.with("field"), &edits.value().1, inner);
+                    let label = edit.event.as_ref().and_then(EditEvent::value).map(|text| PairOp::Label(text.clone()));
+                    edits.typing(&edit, label, apply, |label, now| (now.0, label));
                 } else if !draw_field && self.slider {
-                    let edit = fake_slider(ui, id.with("slider"), shown.0, inner, true);
-                    edits.push(&edit, |level| (level, shown.1.clone()));
+                    let edit = fake_slider(ui, id.with("slider"), edits.value().0, inner, true);
+                    let level = ops::take::<ScalarOp>(ui.ctx(), edit.response.id).into_iter().map(PairOp::Level);
+                    edits.push(&edit, level, apply, |level, now| (level, now.1.clone()));
                 }
             }
         });
@@ -427,7 +462,7 @@ impl Composite {
         for value in edits.inputs(ui.ctx(), &mut state) {
             edits.set(value);
         }
-        let outer = edits.feed(outer, &mut state, in_scope(ui));
+        let outer = edits.feed(outer, &mut state);
         ui.data_mut(|d| d.insert_temp(id, state));
         EditResponse::new(row.response, outer.finish())
     }

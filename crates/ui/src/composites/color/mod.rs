@@ -39,7 +39,6 @@ pub use popover::{ColorPopover, ColorPopoverResponse};
 pub use strip::ColorStrip;
 
 use crate::controls::slider::{self, Scale};
-use crate::edit::parts::Rebase;
 use crate::edit::{self, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Row, Stack, Text};
@@ -237,23 +236,6 @@ fn faded_stroke(stroke: Stroke, enabled: bool) -> Stroke {
 }
 
 /// The scale of a model channel: its range, snapping to its step.
-/// The values a [`ColorArea`] or [`ColorStrip`] edits: each channel the event changed takes its
-/// value, the others `now`'s; the channels are independent, each kept in its own range by the
-/// part. `None` when the values of the event's turn are another model's, where its channels
-/// can't be told.
-impl Rebase for ModelValues {
-    fn rebase(self, base: &ModelValues, now: &ModelValues) -> Option<ModelValues> {
-        if self.model != base.model || base.model != now.model {
-            return None;
-        }
-        let values = std::array::from_fn(|i| {
-            let (v, b) = (self.values[i], base.values[i]);
-            if v == b || (v.is_nan() && b.is_nan()) { now.values[i] } else { v }
-        });
-        Some(ModelValues { values, ..self })
-    }
-}
-
 fn scale_of(model: &dyn ColorModel, channel: usize) -> Scale {
     let ch = model.channels()[channel];
     Scale::new(&(f64::from(ch.min)..=f64::from(ch.max)), Some(f64::from(ch.step)))

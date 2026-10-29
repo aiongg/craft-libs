@@ -5,7 +5,8 @@ use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, StrokeKind, Ui, Vec2, pos2};
 
 use super::{AreaMode, ColorPartsStyle, faded_stroke, fraction, parts_style, scale_of, spoken, value_at};
-use crate::controls::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
+use crate::controls::slider::{self, KEY_FILTER, PressTurn, Scale, press_turn, tap};
+use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf, UiTokens};
@@ -124,11 +125,16 @@ impl ColorArea {
 
     /// Shows the area and returns this frame's edit event. The response covers the area.
     pub fn show(self, ui: &mut Ui) -> EditResponse<ModelValues> {
+        self.show_with_ops(ui).0
+    }
+
+    /// [`show`](ColorArea::show), with the operations this frame's one-shot inputs made.
+    pub(crate) fn show_with_ops(self, ui: &mut Ui) -> (EditResponse<ModelValues>, Vec<AreaOp>) {
         let style = ColorArea::style(&Tokens::of(ui));
         let size = self.size.unwrap_or(Vec2::splat(style.area));
         let model = self.mode.model();
         let [across, down] = self.mode.area();
-        let axes = Axes { across, down, x: scale_of(model, across), y: scale_of(model, down) };
+        let axes = Axes::of(self.mode);
         let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
@@ -170,12 +176,17 @@ impl ColorArea {
         if tapped.is_some() {
             response.request_focus();
         }
+        // The one-shot inputs, each an operation applied to the values the ones before it left.
+        let mut ops = Vec::new();
+        let mut set = |gesture: &mut Gesture<ModelValues>, op: AreaOp| {
+            gesture.set(axes.apply(&op, gesture.shown()));
+            ops.push(op);
+        };
         if let Some(pos) = tapped.filter(|_| !waits) {
-            let shown = *gesture.shown();
-            gesture.set(axes.at(rect, &shown, pos));
+            set(&mut gesture, axes.op_at(rect, pos));
         }
-        if let Some(values) = keys(ui, &response, dragging, &axes, gesture.shown()) {
-            gesture.set(values);
+        if let Some(op) = keys(ui, &response, dragging, &axes) {
+            set(&mut gesture, op);
         }
         if enabled && ui.input(|i| i.num_accesskit_action_requests(response.id, Action::Click)) > 0 {
             response.request_focus();
@@ -192,8 +203,21 @@ impl ColorArea {
             paint(ui, &style, &self, &axes, rect, &shown, enabled);
         }
         FocusRing::paint_radius(ui, rect.expand(style.edge.width), CornerRadius::ZERO, &response);
-        EditResponse::new(response, gesture.finish())
+        (EditResponse::new(response, gesture.finish()), ops)
     }
+}
+
+/// What a one-shot input did to the area's values: an operation on its across channel and one on
+/// its down channel.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AreaOp {
+    pub(crate) x: ScalarOp,
+    pub(crate) y: ScalarOp,
+}
+
+/// `values` with `op` applied to the two channels `mode`'s area shows, as the area applies it.
+pub(super) fn apply(op: &AreaOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
+    Axes::of(mode).apply(op, values)
 }
 
 /// The area's two channels and their scales.
@@ -205,12 +229,44 @@ struct Axes {
 }
 
 impl Axes {
-    /// `base` with the components at `pos` in `rect`, kept to the area's edges.
-    fn at(&self, rect: Rect, base: &ModelValues, pos: Pos2) -> ModelValues {
+    fn of(mode: AreaMode) -> Axes {
+        let model = mode.model();
+        let [across, down] = mode.area();
+        Axes { across, down, x: scale_of(model, across), y: scale_of(model, down) }
+    }
+
+    /// `values` with `op` applied, each channel on its scale. A channel `op` doesn't step stays
+    /// where it is, unsnapped.
+    fn apply(&self, op: &AreaOp, values: &ModelValues) -> ModelValues {
+        let channel = |op: &ScalarOp, scale: &Scale, value: f32| {
+            let value = scale.place(f64::from(value));
+            match op {
+                ScalarOp::By(delta) if *delta == 0.0 => value,
+                op => slider::apply(op, value, (scale.min, scale.max), scale),
+            }
+        };
+        let mut out = *values;
+        out.values[self.across] = channel(&op.x, &self.x, values.values[self.across]) as f32;
+        out.values[self.down] = channel(&op.y, &self.y, values.values[self.down]) as f32;
+        out
+    }
+
+    /// The across and down components at `pos` in `rect`, kept to the area's edges.
+    fn components_at(&self, rect: Rect, pos: Pos2) -> [f32; 2] {
         let along = |p: f32, from: f32, length: f32| if length > 0.0 { (p - from) / length } else { 0.0 };
+        [value_at(&self.x, along(pos.x, rect.left(), rect.width())), value_at(&self.y, 1.0 - along(pos.y, rect.top(), rect.height()))]
+    }
+
+    /// A tap at `pos` in `rect`, as an operation.
+    fn op_at(&self, rect: Rect, pos: Pos2) -> AreaOp {
+        let [x, y] = self.components_at(rect, pos).map(|v| ScalarOp::Set(f64::from(v)));
+        AreaOp { x, y }
+    }
+
+    /// `base` with the components at `pos` in `rect`.
+    fn at(&self, rect: Rect, base: &ModelValues, pos: Pos2) -> ModelValues {
         let mut values = *base;
-        values.values[self.across] = value_at(&self.x, along(pos.x, rect.left(), rect.width()));
-        values.values[self.down] = value_at(&self.y, 1.0 - along(pos.y, rect.top(), rect.height()));
+        [values.values[self.across], values.values[self.down]] = self.components_at(rect, pos);
         values
     }
 
@@ -221,9 +277,9 @@ impl Axes {
     }
 }
 
-/// The values this frame's keys give the focused area at `values`; `None` when no key asked for
-/// a change, and during a drag, which keys don't change (they are still taken).
-fn keys(ui: &Ui, response: &Response, dragging: bool, axes: &Axes, values: &ModelValues) -> Option<ModelValues> {
+/// The operation this frame's keys make on the focused area; `None` when no key asked for a
+/// change, and during a drag, which keys don't change (they are still taken).
+fn keys(ui: &Ui, response: &Response, dragging: bool, axes: &Axes) -> Option<AreaOp> {
     if !response.enabled() || !response.has_focus() {
         return None;
     }
@@ -239,23 +295,16 @@ fn keys(ui: &Ui, response: &Response, dragging: bool, axes: &Axes, values: &Mode
         dy += step_y * steps(Key::ArrowUp, Key::ArrowDown);
         dy += page_y * (count(Modifiers::NONE, Key::PageUp) - count(Modifiers::NONE, Key::PageDown));
         if count(Modifiers::NONE, Key::Home) > 0.0 {
-            to_x = Some(axes.x.min);
+            to_x = Some(Bound::Low);
         }
         if count(Modifiers::NONE, Key::End) > 0.0 {
-            to_x = Some(axes.x.max);
+            to_x = Some(Bound::High);
         }
     });
     if dragging || (dx == 0.0 && dy == 0.0 && to_x.is_none()) {
         return None;
     }
-    let moved = |scale: &Scale, value: f32, delta: f64| {
-        let value = scale.place(f64::from(value));
-        if delta == 0.0 { value } else { scale.snap(scale.moved(value, delta)) }
-    };
-    let mut out = *values;
-    out.values[axes.across] = to_x.unwrap_or_else(|| moved(&axes.x, values.values[axes.across], dx)) as f32;
-    out.values[axes.down] = moved(&axes.y, values.values[axes.down], dy) as f32;
-    Some(out)
+    Some(AreaOp { x: to_x.map_or(ScalarOp::By(dx), ScalarOp::ToBound), y: ScalarOp::By(dy) })
 }
 
 /// Paints the colours, the edge and the marker.

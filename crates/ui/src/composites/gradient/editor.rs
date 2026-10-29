@@ -16,13 +16,16 @@ use egui::{
 };
 
 use super::ramp::{GradientRamp, GradientRampStyle};
-use super::stops::{self, Sampler, StopRules, default_sampler};
+use super::stops::{self, BarOp, Sampler, StopKey, StopRules, Touch, default_sampler};
 use super::value::{GradientStops, StopRow, StopRows};
 use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::composites::color::ColorPicker;
 use crate::composites::curve_editor::{fill, take_exact};
+use crate::controls::number_field;
+use crate::edit::ops::ScalarOp;
 use crate::edit::order::{self, Turn};
-use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
+use crate::edit::parts::{self, Pushed};
+use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
 use crate::localized::{self, LocaleNumbers};
 use crate::primitives::{FocusRing, Gap, Stack};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -50,7 +53,7 @@ impl StopRef {
     }
 
     /// Stop `i` of `row`.
-    fn stop(row: StopRow, i: usize) -> Self {
+    pub(crate) fn stop(row: StopRow, i: usize) -> Self {
         match row {
             StopRow::Color => StopRef::Color(i),
             StopRow::Opacity => StopRef::Opacity(i),
@@ -58,9 +61,18 @@ impl StopRef {
     }
 
     /// The stop's index, or for a midpoint the index of the stop before it.
-    fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         match self {
             StopRef::Color(i) | StopRef::Opacity(i) | StopRef::Midpoint(_, i) => i,
+        }
+    }
+
+    /// The same kind of marker at index `i`.
+    pub(crate) fn with_index(self, i: usize) -> Self {
+        match self {
+            StopRef::Color(_) => StopRef::Color(i),
+            StopRef::Opacity(_) => StopRef::Opacity(i),
+            StopRef::Midpoint(row, _) => StopRef::Midpoint(row, i),
         }
     }
 
@@ -178,7 +190,7 @@ struct State {
     drag: Option<Drag>,
     /// Pointer input that waits for its turn ([`BarEdit::turn`]).
     held: Option<Held>,
-    parts: parts::State<()>,
+    parts: parts::State<GradientOp>,
     /// The selection as the editor's gesture began, restored when it is cancelled.
     start_selected: Option<StopRef>,
     /// The anchor of the colour popover while it is open ([`GradientEditor::color_popover`]).
@@ -250,7 +262,39 @@ const CLAIMED: [ClaimedKey; 7] = [
 /// Stop locations as markers show them, closer than this, have no midpoint diamond between them.
 const MIN_GAP: f32 = 0.001;
 
-type Edits = parts::Edits<GradientStops>;
+type Edits = parts::Edits<GradientStops, GradientOp>;
+
+/// What a part of the editor did to the stops, as an operation ([`GradientEditor::apply`]): what
+/// a part's event that waits for its turn applies on the stops of that turn, to the stop it
+/// names.
+#[derive(Clone, Debug)]
+enum GradientOp {
+    Bar(BarOp),
+    /// A number field's operation on its stop, in the field's percent.
+    Field(StopField, StopKey, ScalarOp),
+    /// The colour popover's colour for its stop.
+    SetColor {
+        at: StopKey,
+        color: Srgba,
+    },
+}
+
+/// A part under the bar, as [`GradientEditor::push`] pushes it.
+#[derive(Clone, Copy)]
+enum Part {
+    /// A field whose focus is a typing run's.
+    Field,
+    /// The popover's picker, with its own id: its edit carries the anchor's response.
+    Picker(Id),
+}
+
+/// A number field of the fields row; a midpoint's is named by the stop before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StopField {
+    Opacity,
+    Location,
+    Midpoint,
+}
 
 /// What [`GradientEditor::show`] returns: the edit of the stops, whose response is the bar's, a
 /// colour stop whose colour the host is asked to edit (a double-click on it, Enter or Space while
@@ -316,7 +360,11 @@ pub struct GradientEditorResponse<T = ()> {
 /// editor's edit: a scrub or a typing run is one gesture of the stops, a Location run that passes
 /// a neighbour keeps the selection on its stop, and a press on the bar or the Delete button during
 /// a typing run waits for the run's Commit. With [`color_popover`](GradientEditor::color_popover)
-/// the popover's gestures are the editor's, mapped to the stop.
+/// the popover's gestures are the editor's, mapped to the stop. A key on the bar or a screen
+/// reader's step during another part's gesture waits for it to end, then applies to its stop on
+/// the stops the gesture left, and the selection stays on its stop: a tagged stop is found by its
+/// tag, an untagged one by its location. When the row can't tell which stop it was (two untagged
+/// stops moved), the edit is dropped.
 ///
 /// AccessKit: the bar is a focusable `Group` named by the label, valued "{n} color stops, {m}
 /// opacity stops", whose active descendant is the selected marker; each marker is a
@@ -541,43 +589,40 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let outer = Gesture::load(ui, id.with(EDIT), self.stops, self.policy.cancellable(false)).enabled(enabled);
         let active = outer.is_active();
         let before = state.selected;
-        let shown = outer.shown().clone();
-        let mut edits = Edits::new(id, &state.parts);
-        let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
-        edits.push_from(&bar.edit, &shown, |stops| stops);
-        // The fields, the popover and Delete draw from the bar's stops of this pass and map onto
-        // them, unless the bar's edit waits for another part's gesture: it isn't in the editor's
-        // value then, so they draw from the shown stops, and the selection stays where it was
-        // before the edit.
-        let scoped = edit::in_scope(ui);
-        let waits = bar.edit.event.is_some() && !edits.applies(&outer, scoped, bar.edit.response.id);
-        let drawn = match waits {
-            false => &bar.value,
-            true => {
-                state.selected = before;
-                &shown
-            }
-        };
-        // Each field maps onto the stops the parts before it in this pass left, and Delete
-        // removes from the stops they all left.
-        let mut running = parts::Running::new(&outer, scoped, drawn.clone());
+        let mut edits = Edits::new(id, &state.parts, &outer, edit::in_scope(ui));
+        let selected = Cell::new(state.selected);
+        edits.replay(ui.ctx(), self.applier(&selected));
+        state.selected = selected.get();
+        // The parts draw from and map onto the stops the replay and the parts before them leave.
+        let shown = edits.value().clone();
+        let mut bar = self.bar(ui, id, style, &shown, &mut state, enabled);
+        let ops = std::mem::take(&mut bar.ops).into_iter().map(GradientOp::Bar);
+        // The bar moved the selection as it applied its operations. One that waits for another
+        // part's gesture isn't in the editor's value, and the selection stays where it was before
+        // it until its turn, when the replay moves it.
+        let kept = Cell::new(None);
+        if edits.push(&bar.edit, ops, self.applier(&kept), |stops, _| stops) == Pushed::Waits
+            && let Some(from) = bar.from
+        {
+            state.selected = from;
+        }
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
         if self.fields {
-            (requested, picker) = self.fields_row(ui, id, drawn, &mut running, &mut state, &mut edits, enabled, requested);
+            (requested, picker) = self.fields_row(ui, id, &mut state, &mut edits, enabled, requested);
         } else if self.color_popover {
-            picker = self.popover(ui, bar.edit.response.clone(), drawn, &mut state, &mut edits, enabled, requested);
+            picker = self.popover(ui, bar.edit.response.clone(), &mut state, &mut edits, enabled, requested);
         }
         for () in edits.inputs(ui.ctx(), &mut state.parts) {
             if let Some(m) = state.selected.filter(|m| m.is_stop())
-                && let Some((stops, j)) = stops::remove(running.value(), m.row(), m.index(), &self.rules)
+                && let Some((stops, j)) = stops::remove(edits.value(), m.row(), m.index(), &self.rules)
             {
                 state.selected = Some(StopRef::stop(m.row(), j));
                 edits.set(stops);
             }
         }
-        let outer = edits.feed(outer, &mut state.parts, scoped);
+        let outer = edits.feed(outer, &mut state.parts);
         if !active && outer.is_active() {
             state.start_selected = before;
         }
@@ -594,6 +639,72 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             eyedropper_requested: picker.eyedropper_requested,
             picker_id: picker.picker_id,
         }
+    }
+
+    /// `op` applied to `stops`, keeping `selected` on its marker ([`stops::keeping`]); `None` when
+    /// its stop can't be found ([`StopKey::find`]) or the rules refuse it. Live edits and replays
+    /// of the editor's queue both apply here.
+    fn apply(&self, op: &GradientOp, stops: &GradientStops, selected: &mut Option<StopRef>) -> Option<GradientStops> {
+        match op {
+            GradientOp::Bar(op) => {
+                let default = default_sampler(self.rules.rows);
+                stops::apply(op, stops, selected, &self.rules, self.sampler.unwrap_or(&default))
+            }
+            GradientOp::Field(field, at, op) => {
+                let (row, i) = (at.row, at.find(stops)?);
+                let rule = self.field_rule(*field);
+                stops::keeping(stops, selected, Touch::Stop(row, i), |s| {
+                    let v = number_field::apply(op, self.field_value(*field, s, row, i), &rule);
+                    self.set_field(*field, s, row, i, v)
+                })
+            }
+            GradientOp::SetColor { at, color } => {
+                let i = at.find(stops)?;
+                stops::keeping(stops, selected, Touch::Stop(StopRow::Color, i), |s| Some((self.with_color(s, i, *color), i)))
+            }
+        }
+    }
+
+    /// [`apply`](Self::apply) as the editor's queue takes it, keeping the selection in `selected`.
+    fn applier<'s>(&'s self, selected: &'s Cell<Option<StopRef>>) -> impl Fn(&GradientOp, &GradientStops) -> Option<GradientStops> + Copy + 's {
+        move |op, stops| {
+            let mut kept = selected.get();
+            let out = self.apply(op, stops, &mut kept);
+            selected.set(kept);
+            out
+        }
+    }
+
+    /// Pushes `part`'s `edit` with its operations `ops`: a gesture's events with `map`. The
+    /// selection moves with the operations that apply in this pass.
+    fn push<V: Clone + Send + Sync + 'static>(
+        &self,
+        edits: &mut Edits,
+        state: &mut State,
+        part: Part,
+        edit: &EditResponse<V>,
+        ops: Vec<GradientOp>,
+        map: impl Fn(V, &GradientStops) -> GradientStops,
+    ) {
+        let selected = Cell::new(state.selected);
+        let apply = self.applier(&selected);
+        match part {
+            Part::Field => edits.typing(edit, ops, apply, map),
+            Part::Picker(id) => edits.push_part(id, edit, ops, apply, map),
+        };
+        state.selected = selected.get();
+    }
+
+    /// Colour stop `i` of `stops` in `color`; a split gradient's colour stops keep their own
+    /// alpha, which nothing shows.
+    fn with_color(&self, stops: &GradientStops, i: usize, color: Srgba) -> GradientStops {
+        let mut out = stops.clone();
+        let stop = &mut out.color[i].color;
+        *stop = match self.rules.rows {
+            StopRows::Combined => color,
+            StopRows::Split => Srgba { a: stop.a, ..color },
+        };
+        out
     }
 
     /// The bar: its interaction, look and AccessKit nodes, as a part of the editor's edit.
@@ -642,8 +753,9 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let mut color_requested = None;
         let mut dropped = None;
         let mut drop_at = None;
+        let (mut ops, mut from) = (Vec::new(), None);
         if enabled {
-            let mut edit = BarEdit { gesture: &mut gesture, state, geo, rules: &self.rules, sampler };
+            let mut edit = BarEdit { gesture: &mut gesture, state, geo, rules: &self.rules, sampler, ops: Vec::new(), from: None };
             edit.pointer(ui, &response);
             if response.double_clicked()
                 && let Some(pos) = response.interact_pointer_pos()
@@ -671,6 +783,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                     dropped = Some((geo.drop_place(edit.gesture.shown(), pos), payload));
                 }
             }
+            (ops, from) = (edit.ops, edit.from);
         }
 
         let shown = gesture.shown().clone();
@@ -708,7 +821,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 None => node.clear_active_descendant(),
             }
         });
-        Bar { edit: EditResponse::new(response, event), value: shown, color_requested, dropped }
+        Bar { edit: EditResponse::new(response, event), ops, from, color_requested, dropped }
     }
 
     /// The ramp, its edge, the midpoints and markers, and the drop place.
@@ -823,10 +936,12 @@ pub(crate) fn marker_texts(
     }
 }
 
-/// The bar's part of a pass: its edit, the stops it leaves, and what it reports beside it.
+/// The bar's part of a pass: its edit, its operations and the selection they found, and what it
+/// reports beside it.
 struct Bar<T> {
     edit: EditResponse<GradientStops>,
-    value: GradientStops,
+    ops: Vec<BarOp>,
+    from: Option<Option<StopRef>>,
     color_requested: Option<usize>,
     dropped: Option<(StopDrop, Arc<T>)>,
 }
@@ -1035,6 +1150,9 @@ struct BarEdit<'g> {
     geo: Geometry,
     rules: &'g StopRules,
     sampler: &'g Sampler,
+    /// The operations of the frame's Set, and the selection before the first.
+    ops: Vec<BarOp>,
+    from: Option<Option<StopRef>>,
 }
 
 impl BarEdit<'_> {
@@ -1121,18 +1239,28 @@ impl BarEdit<'_> {
     /// A stop added where a click on empty space was: above the ramp's centre in the opacity row
     /// of a split bar, else in the colour row.
     fn add_at(&mut self, pos: Pos2) {
-        let stops = self.gesture.shown();
-        if self.state.drag.is_some() || self.geo.hit(stops, pos, self.state.selected).is_some() {
+        let stops = self.gesture.shown().clone();
+        if self.state.drag.is_some() || self.geo.hit(&stops, pos, self.state.selected).is_some() {
             return;
         }
         let row = match self.geo.rows {
             StopRows::Split if pos.y < self.geo.ramp.center().y => StopRow::Opacity,
             _ => StopRow::Color,
         };
-        if let Some((stops, i)) = stops::add(stops, row, stops::round_location(self.geo.location(pos.x)), self.sampler, self.rules) {
-            self.state.selected = Some(StopRef::stop(row, i));
+        let op = BarOp::AddAt { row, location: stops::round_location(self.geo.location(pos.x)) };
+        if let Some(stops) = self.run(op, &stops) {
             self.gesture.set(stops);
         }
+    }
+
+    /// `op` applied to `stops` and the selection as its replay would apply it ([`stops::apply`]),
+    /// and kept for the frame's Set; `None` when it doesn't apply.
+    fn run(&mut self, op: BarOp, stops: &GradientStops) -> Option<GradientStops> {
+        let before = self.state.selected;
+        let out = stops::apply(&op, stops, &mut self.state.selected, self.rules, self.sampler)?;
+        self.from.get_or_insert(before);
+        self.ops.push(op);
+        Some(out)
     }
 
     /// The drag's stops with the marker at the pointer: moved, copied, or torn off.
@@ -1196,32 +1324,32 @@ impl BarEdit<'_> {
         }
         if take(Modifiers::NONE, Key::Insert) + take(Modifiers::COMMAND, Key::Enter) > 0 {
             let row = self.state.selected.map_or(StopRow::Color, StopRef::row);
-            let at = stops::halfway(&stops, row, self.state.selected.map(StopRef::index));
-            if let Some((added, i)) = stops::add(&stops, row, at, self.sampler, self.rules) {
+            let after = self.state.selected.and_then(|m| StopKey::of(&stops, row, m.index()));
+            if let Some(added) = self.run(BarOp::Add { row, after }, &stops) {
                 stops = added;
-                self.state.selected = Some(StopRef::stop(row, i));
             }
         }
         let activated = (take(Modifiers::NONE, Key::Enter) + take(Modifiers::NONE, Key::Space) > 0).then_some(self.state.selected).flatten();
         if let Some(m) = self.state.selected {
-            let (row, i) = (m.row(), m.index());
+            let key = StopKey::of(&stops, m.row(), m.index());
             if m.is_stop()
                 && take(Modifiers::NONE, Key::Delete) + take(Modifiers::NONE, Key::Backspace) > 0
-                && let Some((removed, j)) = stops::remove(&stops, row, i, self.rules)
+                && let Some(at) = key.clone()
+                && let Some(removed) = self.run(BarOp::Remove(at), &stops)
             {
                 stops = removed;
-                self.state.selected = Some(StopRef::stop(row, j));
             } else {
                 let steps = |key| 10 * take(Modifiers::SHIFT, key) as i32 + take(Modifiers::NONE, key) as i32;
-                let d = (steps(Key::ArrowRight) - steps(Key::ArrowLeft)) as f32 / 100.0;
-                let moved = match m {
-                    _ if d == 0.0 => None,
-                    StopRef::Midpoint(..) => stops::set_midpoint(&stops, row, i, midpoint(&stops, row, i) + d, self.rules).map(|(s, _)| (s, m)),
-                    _ => stops::move_to(&stops, row, i, locations(&stops, row)[i] + d, self.rules).map(|(s, j)| (s, StopRef::stop(row, j))),
+                let by = (steps(Key::ArrowRight) - steps(Key::ArrowLeft)) as f32 / 100.0;
+                let op = match m {
+                    _ if by == 0.0 => None,
+                    StopRef::Midpoint(row, _) => key.map(|left| BarOp::NudgeMidpoint { row, left, by }),
+                    _ => key.map(|at| BarOp::Nudge { at, by }),
                 };
-                if let Some((s, m)) = moved {
-                    stops = s;
-                    self.state.selected = Some(m);
+                if let Some(op) = op
+                    && let Some(moved) = self.run(op, &stops)
+                {
+                    stops = moved;
                 }
             }
         }

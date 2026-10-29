@@ -5,7 +5,8 @@ use egui::accesskit::{Orientation, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::{AreaMode, ColorArea, ColorPartsStyle, faded, faded_stroke, fraction, scale_of, value_at};
-use crate::controls::slider::{KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
+use crate::controls::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
+use crate::edit::ops::ScalarOp;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf, UiTokens};
@@ -106,6 +107,11 @@ impl ColorStrip {
     /// Shows the strip and returns this frame's edit event. The response covers the strip
     /// without its pointers' room.
     pub fn show(self, ui: &mut Ui) -> EditResponse<ModelValues> {
+        self.show_with_ops(ui).0
+    }
+
+    /// [`show`](ColorStrip::show), with the operations this frame's one-shot inputs made.
+    pub(crate) fn show_with_ops(self, ui: &mut Ui) -> (EditResponse<ModelValues>, Vec<ScalarOp>) {
         let style = ColorStrip::style(&Tokens::of(ui));
         let size = self.size.unwrap_or(vec2(style.strip_full, style.area));
         let (_, outer) = ui.allocate_space(vec2(ColorStrip::outer_width(&style, size.x), size.y));
@@ -120,10 +126,10 @@ impl ColorStrip {
             .focus_ring(false)
             .interact_at(ui, rect);
         let response = sensed.response().clone();
+        let component_at = |y: f32| value_at(&scale, if rect.height() > 0.0 { (rect.bottom() - y) / rect.height() } else { 0.0 });
         let at = |base: &ModelValues, y: f32| {
             let mut values = *base;
-            let t = if rect.height() > 0.0 { (rect.bottom() - y) / rect.height() } else { 0.0 };
-            values.values[channel] = value_at(&scale, t);
+            values.values[channel] = component_at(y);
             values
         };
 
@@ -159,17 +165,18 @@ impl ColorStrip {
         if tapped.is_some() {
             response.request_focus();
         }
+        // The one-shot inputs, each an operation applied to the values the ones before it left.
+        let mut ops = Vec::new();
+        let mut set = |gesture: &mut Gesture<ModelValues>, op: ScalarOp| {
+            gesture.set(apply(&op, gesture.shown(), self.mode));
+            ops.push(op);
+        };
         if let Some(pos) = tapped.filter(|_| !waits) {
-            let shown = *gesture.shown();
-            gesture.set(at(&shown, pos.y));
+            set(&mut gesture, ScalarOp::Set(f64::from(component_at(pos.y))));
         }
         let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
-        let shown = *gesture.shown();
-        let value = scale.place(f64::from(shown.values[channel]));
-        if let Some(to) = stepped(ui, response.id, sensing, None, value, (scale.min, scale.max), &scale) {
-            let mut values = shown;
-            values.values[channel] = to as f32;
-            gesture.set(values);
+        if let Some(op) = stepped(ui, response.id, sensing, None, &scale) {
+            set(&mut gesture, op);
         }
 
         let shown = *gesture.shown();
@@ -180,8 +187,17 @@ impl ColorStrip {
             paint(ui, &style, &self, &scale, rect, &shown, response.enabled());
         }
         FocusRing::paint_radius(ui, rect.expand(style.edge.width), CornerRadius::ZERO, &response);
-        EditResponse::new(response, gesture.finish())
+        (EditResponse::new(response, gesture.finish()), ops)
     }
+}
+
+/// `values` with `op` applied to `mode`'s strip component, as the strip applies it.
+pub(super) fn apply(op: &ScalarOp, values: &ModelValues, mode: AreaMode) -> ModelValues {
+    let channel = mode.strip();
+    let scale = scale_of(mode.model(), channel);
+    let mut out = *values;
+    out.values[channel] = slider::apply(op, scale.place(f64::from(values.values[channel])), (scale.min, scale.max), &scale) as f32;
+    out
 }
 
 /// Paints the colours, the edge and the pointers.

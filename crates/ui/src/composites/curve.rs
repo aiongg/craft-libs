@@ -1,8 +1,6 @@
 //! [`Curve`]: the value a [`CurveEditor`](super::CurveEditor) edits, and the point rules it edits
 //! by (PhotoCraft's `point_curve`, shared by Curves, Camera Raw and the contour editor).
 
-use crate::edit::parts::Rebase;
-
 /// A tone curve in levels (`0..=levels`, 255 for 8-bit tones): input across, output up.
 #[derive(Clone, Debug)]
 pub enum Curve {
@@ -24,43 +22,6 @@ impl PartialEq for Curve {
             (Curve::Map(a), Curve::Map(b)) => a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same(a, b)),
             _ => false,
         }
-    }
-}
-
-/// A graph's event moves, adds or removes one point of the curve it was drawn from: a held one
-/// moves the levels it changed, or adds or removes its point, on the curve of its turn
-/// ([`edit::parts`](crate::edit::parts)). It can't be applied (`None`) when the inputs would end
-/// out of order, or when the change isn't one of those or the curve of its turn has other points
-/// (a drawn curve, points the host added or removed).
-impl Rebase for Curve {
-    fn rebase(self, base: &Curve, now: &Curve) -> Option<Curve> {
-        if base == now {
-            return Some(self);
-        }
-        let (Curve::Points(points), Curve::Points(base), Curve::Points(now)) = (&self, base, now) else {
-            return None;
-        };
-        if base.len() != now.len() {
-            return None;
-        }
-        let level = |a: f32, b: f32| a == b || (a.is_nan() && b.is_nan());
-        let same = |a: &[f32; 2], b: &[f32; 2]| level(a[0], b[0]) && level(a[1], b[1]);
-        // The first point the event changed, and whether the rest is the base's from there on.
-        let first = points.iter().zip(base).position(|(p, b)| !same(p, b)).unwrap_or(points.len().min(base.len()));
-        let rebased: Vec<[f32; 2]> = if points.len() == base.len() {
-            points.iter().zip(base).zip(now).map(|((p, b), n)| [0, 1].map(|c| if level(p[c], b[c]) { n[c] } else { p[c] })).collect()
-        } else if points.len() == base.len() + 1 && points[first + 1..].iter().zip(&base[first..]).all(|(p, b)| same(p, b)) {
-            let mut rebased = now.clone();
-            rebased.insert(first, points[first]);
-            rebased
-        } else if points.len() + 1 == base.len() && points[first..].iter().zip(&base[first + 1..]).all(|(p, b)| same(p, b)) {
-            let mut rebased = now.clone();
-            rebased.remove(first);
-            rebased
-        } else {
-            return None;
-        };
-        rebased.windows(2).all(|w| w[0][0] < w[1][0]).then_some(Curve::Points(rebased))
     }
 }
 
@@ -194,6 +155,61 @@ fn monotone_at(points: &[[f64; 2]], x: f64) -> f64 {
 /// `MIN_GAP`).
 pub(crate) const SAME_POINT: f32 = 2.0;
 
+/// A point named by its input and its neighbours' inputs, so an operation finds it on a curve
+/// other edits changed since ([`find`](PointKey::find)).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PointKey {
+    pub x: f32,
+    /// The input of the point before it; `None` for the first point.
+    pub prev_x: Option<f32>,
+    /// The input of the point after it; `None` for the last point.
+    pub next_x: Option<f32>,
+}
+
+impl PointKey {
+    /// The key of point `i` of `points`.
+    pub fn of(points: &[[f32; 2]], i: usize) -> Option<PointKey> {
+        let x = points.get(i)?[0];
+        Some(PointKey { x, prev_x: i.checked_sub(1).map(|j| points[j][0]), next_x: points.get(i + 1).map(|p| p[0]) })
+    }
+
+    /// The point at the key's input; else the one point between the points at its neighbours'
+    /// inputs, which is the point the key names wherever it moved, as no point passes its
+    /// neighbours. `None` when neither is there.
+    pub fn find(&self, points: &[[f32; 2]]) -> Option<usize> {
+        let at = |x: f32| points.iter().position(|p| p[0] == x);
+        if let Some(i) = at(self.x) {
+            return Some(i);
+        }
+        let from = match self.prev_x {
+            Some(x) => at(x)? + 1,
+            None => 0,
+        };
+        let to = match self.next_x {
+            Some(x) => at(x)?,
+            None => points.len(),
+        };
+        (to == from + 1).then_some(from)
+    }
+}
+
+/// A one-shot edit of a curve's points, as the graph's keys and delete-clicks make it. A pencil
+/// stroke and a drag are gestures and make none.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum CurveOp {
+    /// Moves the point by `by` levels, input then output.
+    Nudge {
+        at: PointKey,
+        by: [f32; 2],
+    },
+    /// Adds a point halfway from point `after` to the next ([`Rules::between`]; across the widest
+    /// gap for `None`).
+    Insert {
+        after: Option<PointKey>,
+    },
+    Delete(PointKey),
+}
+
 /// The point rules of a curve with `levels` levels and at most `max_points` points.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Rules {
@@ -246,6 +262,49 @@ impl Rules {
         let new = [v[0].round().clamp(lo, hi.max(lo)), v[1].round().clamp(0.0, self.levels)];
         points[i] = new;
         new != old
+    }
+
+    /// What `op` makes of `curve`, with `samples` the output of every input level through its
+    /// points. `None` when its point isn't on `curve` (a drawn curve has none), or when it changes
+    /// nothing. `selected` stays on the point it names, found by its key after the change; an
+    /// Insert selects the new point and a Delete clears the selection. A curve left unchanged
+    /// leaves `selected` too.
+    pub fn apply(&self, op: &CurveOp, curve: &Curve, selected: &mut Option<usize>, samples: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Option<Curve> {
+        let mut points = curve.points()?.to_vec();
+        let kept = selected.and_then(|i| PointKey::of(&points, i));
+        let selects = match op {
+            CurveOp::Nudge { at, by } => {
+                let i = at.find(&points)?;
+                let p = points[i];
+                if !self.move_to(&mut points, i, [p[0] + by[0], p[1] + by[1]]) {
+                    return None;
+                }
+                kept.and_then(|key| key.find(&points))
+            }
+            CurveOp::Insert { after } => {
+                let anchor = match after {
+                    Some(key) => Some(key.find(&points)?),
+                    None => None,
+                };
+                let v = Rules::between(&points, anchor, &samples(&points))?;
+                let count = points.len();
+                let i = self.insert(&mut points, v)?;
+                // Within two levels of a neighbour: that point, nothing added.
+                if points.len() == count {
+                    return None;
+                }
+                Some(i)
+            }
+            CurveOp::Delete(at) => {
+                let i = at.find(&points)?;
+                if !Rules::delete(&mut points, i) {
+                    return None;
+                }
+                None
+            }
+        };
+        *selected = selects;
+        Some(Curve::Points(points))
     }
 
     /// Where a point added from the keyboard goes: halfway between point `selected` and the next
@@ -308,6 +367,85 @@ mod tests {
         assert_eq!(Rules::between(&points, Some(0), &samples), Some([25.0, 25.0]));
         assert_eq!(Rules::between(&points, Some(2), &samples), Some([153.0, 153.0]), "the last point looks back");
         assert_eq!(Rules::between(&points, None, &samples), Some([153.0, 153.0]));
+    }
+
+    /// The output of every input level on the identity curve, for [`Rules::apply`].
+    fn identity(_: &[[f32; 2]]) -> Vec<f32> {
+        (0..256).map(|k| k as f32).collect()
+    }
+
+    /// An operation applies to the point it names on the curve of its turn, where the owner
+    /// moved that point since: a nudge moves it, an insert goes halfway from it to the next and
+    /// selects the new point, a delete removes it and clears the selection. A drawn curve takes
+    /// none.
+    #[test]
+    fn an_operation_applies_to_the_point_it_names_on_the_curve_of_its_turn() {
+        let made_on = [[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]];
+        let now = Curve::Points(vec![[0.0, 0.0], [110.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
+        let key = |i| PointKey::of(&made_on, i).unwrap();
+        type Points = Vec<[f32; 2]>;
+        let cases: [(CurveOp, Option<usize>, Points, Option<usize>); 5] = [
+            (CurveOp::Nudge { at: key(1), by: [0.0, 1.0] }, Some(1), vec![[0.0, 0.0], [110.0, 101.0], [200.0, 200.0], [255.0, 255.0]], Some(1)),
+            (
+                CurveOp::Insert { after: Some(key(1)) },
+                Some(0),
+                vec![[0.0, 0.0], [110.0, 100.0], [155.0, 155.0], [200.0, 200.0], [255.0, 255.0]],
+                Some(2),
+            ),
+            (CurveOp::Insert { after: None }, None, vec![[0.0, 0.0], [55.0, 55.0], [110.0, 100.0], [200.0, 200.0], [255.0, 255.0]], Some(1)),
+            (CurveOp::Delete(key(1)), Some(2), vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]], None),
+            (CurveOp::Nudge { at: key(2), by: [-100.0, 0.0] }, Some(1), vec![[0.0, 0.0], [110.0, 100.0], [111.0, 200.0], [255.0, 255.0]], Some(1)),
+        ];
+        for (op, mut selected, points, selects) in cases {
+            let got = RULES.apply(&op, &now, &mut selected, identity);
+            assert_eq!(got, Some(Curve::Points(points)), "{op:?}");
+            assert_eq!(selected, selects, "{op:?}");
+        }
+        let mut selected = Some(1);
+        assert_eq!(RULES.apply(&CurveOp::Delete(key(1)), &Curve::Map(vec![0.0; 256]), &mut selected, identity), None, "a drawn curve");
+        assert_eq!(
+            RULES.apply(&CurveOp::Nudge { at: key(1), by: [0.0, 0.0] }, &now, &mut selected, identity),
+            None,
+            "a nudge that moves nothing changes nothing"
+        );
+        assert_eq!(selected, Some(1));
+    }
+
+    /// A key finds its point at its input, or between its neighbours wherever the owner moved it,
+    /// end points included.
+    #[test]
+    fn a_key_finds_its_point_where_the_owner_moved_it_between_its_neighbours() {
+        let made_on = [[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]];
+        let key = PointKey::of(&made_on, 1).unwrap();
+        assert_eq!(key, PointKey { x: 100.0, prev_x: Some(0.0), next_x: Some(200.0) });
+        assert_eq!(key.find(&made_on), Some(1));
+        let moved = [[0.0, 0.0], [150.0, 90.0], [200.0, 200.0], [255.0, 255.0]];
+        assert_eq!(key.find(&moved), Some(1), "moved between its neighbours");
+        let ends = [[5.0, 10.0], [100.0, 100.0], [200.0, 200.0], [250.0, 255.0]];
+        assert_eq!(PointKey::of(&made_on, 0).and_then(|k| k.find(&ends)), Some(0), "the first point moved");
+        assert_eq!(PointKey::of(&made_on, 3).and_then(|k| k.find(&ends)), Some(3), "the last point moved");
+        assert_eq!(PointKey::of(&made_on, 4), None);
+    }
+
+    /// A key whose point is gone, or can't be told from another, finds none, and its operation
+    /// is dropped, leaving the curve and the selection.
+    #[test]
+    fn a_key_whose_point_cannot_be_found_finds_none_and_its_operation_is_dropped() {
+        let made_on = [[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]];
+        let key = PointKey::of(&made_on, 1).unwrap();
+        let deleted = [[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]];
+        assert_eq!(key.find(&deleted), None, "deleted");
+        assert_eq!(
+            key.find(&[[0.0, 0.0], [150.0, 90.0], [170.0, 120.0], [200.0, 200.0], [255.0, 255.0]]),
+            None,
+            "moved, and a point added beside it"
+        );
+        assert_eq!(key.find(&[[0.0, 0.0], [150.0, 90.0], [210.0, 200.0], [255.0, 255.0]]), None, "moved, and a neighbour too");
+        let mut selected = Some(2);
+        for op in [CurveOp::Nudge { at: key, by: [0.0, 1.0] }, CurveOp::Insert { after: Some(key) }, CurveOp::Delete(key)] {
+            assert_eq!(RULES.apply(&op, &Curve::Points(deleted.to_vec()), &mut selected, identity), None, "{op:?}");
+        }
+        assert_eq!(selected, Some(2), "a dropped operation leaves the selection");
     }
 
     #[test]

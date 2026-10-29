@@ -20,6 +20,7 @@ use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
+use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
@@ -399,10 +400,12 @@ impl<'a> NumberField<'a> {
         let rect = typed.response().rect;
         // The field's own typing run having the focus is no reason to wait: its scrub ends it.
         let own = typed.gesture().id();
+        let rule = FieldRule::new(&self.range, self.step, *self.decimals.end());
         let input = Input {
             id,
-            base: if self.value.is_finite() { self.value } else { 0.0_f64.clamp(bounds.0, bounds.1) },
+            base: if self.value.is_finite() { self.value } else { rule.blank() },
             step: self.step,
+            rule,
             modifiers: ui.input(|i| i.modifiers),
             codec,
             part: self.part,
@@ -426,7 +429,7 @@ impl<'a> NumberField<'a> {
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
         let focused = enabled && response.has_focus();
-        input.step(ui, &mut typed, &arrows, stepping, enabled, *self.decimals.end());
+        let stepped = input.step(ui, &mut typed, &arrows, stepping, enabled);
 
         let invalid = self.invalid || typed.rejected().is_some();
         report(ui.ctx(), &typed, bounds, &self.unit, stepping.then_some(self.step));
@@ -441,6 +444,14 @@ impl<'a> NumberField<'a> {
         let (gesture, typing) = (typed.gesture().id(), typed.is_typing());
         let edit = typed.end_as(ui, |value| value.unwrap_or(self.value));
         Follow::store(ui, id, gesture, typing, real, edit.event.as_ref());
+        if self.part {
+            // Any other value the field sends (typed, scrubbed, set on the pop-up slider) is
+            // absolute.
+            let set = || edit.event.as_ref().and_then(EditEvent::value).filter(|v| v.is_finite()).map(|v| vec![ScalarOp::Set(*v)]);
+            if let Some(ops) = stepped.or_else(set) {
+                edit::ops::report(ui.ctx(), id, ops);
+            }
+        }
         edit
     }
 }
@@ -503,6 +514,7 @@ struct Input<'n> {
     /// Where scrubs and steps start in a blank field.
     base: f64,
     step: f64,
+    rule: FieldRule,
     modifiers: Modifiers,
     codec: Numbers<'n>,
     /// The field is a part of a composite ([`NumberField::part`]).
@@ -660,6 +672,8 @@ impl<'n> Input<'n> {
         // drag on it as one gesture, a tap or a key as one change.
         let Some(inner) = popup.show(|ui| edit::scope(ui, |ui| slider.show(ui)).inner) else { return false };
         let edit = inner.inner;
+        // The field reports the slider's value as its own.
+        let _ = edit::ops::take::<ScalarOp>(ui.ctx(), edit.response.id);
         let drag = &edit.response;
         let slider_press = self.id.with("craft_ui::number_field::slider_press");
         if drag.drag_started_by(PointerButton::Primary) {
@@ -691,13 +705,14 @@ impl<'n> Input<'n> {
 
     /// This frame's `arrows`, wheel notches and screen-reader requests, as one change: during a
     /// drag, none. Text that isn't a number takes no step: the typing run ends as on Enter, the
-    /// text stays rejected, and the wheel is the panel's.
-    fn step(&self, ui: &Ui, typed: &mut Typed<Numbers<'n>>, arrows: &[(Modifiers, f64)], stepping: bool, enabled: bool, places: usize) {
+    /// text stays rejected, and the wheel is the panel's. The operations the change applied: in a
+    /// typing run, the typed value first.
+    fn step(&self, ui: &Ui, typed: &mut Typed<Numbers<'n>>, arrows: &[(Modifiers, f64)], stepping: bool, enabled: bool) -> Option<Vec<ScalarOp>> {
         let response = typed.response().clone();
         let dragging = typed.gesture().is_active() && !typed.is_typing();
         let focused = enabled && response.has_focus();
         let reads = typed.reads_as_value();
-        let mut to = None;
+        let mut op = None;
         if stepping {
             let notches = field_wheel::notches(ui, self.id, focused, response.rect, enabled && reads && !dragging, 10.0);
             let requests = ui.input(|i| {
@@ -708,9 +723,8 @@ impl<'n> Input<'n> {
             if steps && !reads {
                 typed.commit();
             } else if steps {
-                let from = typed.value().unwrap_or(self.base);
-                let v = arrows.iter().fold(from, |v, &(modifiers, n)| stepped(v, self.step, places, modifiers, n));
-                to = Some([notches, requests].into_iter().filter(|n| *n != 0.0).fold(v, |v, n| stepped(v, self.step, places, Modifiers::NONE, n)));
+                let others = [notches, requests].into_iter().filter(|n| *n != 0.0).map(|n| (Modifiers::NONE, n));
+                op = Some(ScalarOp::Presses(arrows.iter().copied().chain(others).collect()));
             }
         }
         if enabled {
@@ -722,17 +736,17 @@ impl<'n> Input<'n> {
                     })
                     .last()
             });
-            to = set.or(to);
+            op = set.map(ScalarOp::Set).or(op);
         }
-        if let Some(v) = to
-            && !dragging
-        {
-            let v = self.codec.settle(v);
-            typed.commit_with(ui, Some(v));
-            if focused {
-                select_all(ui.ctx(), self.id, &self.codec.format(&Some(v)));
-            }
+        let op = op.filter(|_| !dragging)?;
+        let from = typed.value().unwrap_or(self.base);
+        let ops = if typed.is_typing() { vec![ScalarOp::Set(from), op] } else { vec![op] };
+        let v = ops.iter().fold(from, |v, op| apply(op, v, &self.rule));
+        typed.commit_with(ui, Some(v));
+        if focused {
+            select_all(ui.ctx(), self.id, &self.codec.format(&Some(v)));
         }
+        Some(ops)
     }
 }
 
@@ -783,6 +797,50 @@ fn ordered(range: &RangeInclusive<f64>) -> (f64, f64) {
     let lo = if range.start().is_nan() { f64::NEG_INFINITY } else { *range.start() };
     let hi = if range.end().is_nan() { f64::INFINITY } else { *range.end() };
     if lo <= hi { (lo, hi) } else { (hi, lo) }
+}
+
+/// How a number field's value takes an operation ([`apply`]): what a composite that draws the
+/// field as a part builds from the same range, step and decimals to replay the field's operations.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldRule {
+    /// One step ([`NumberField::step`]); 0 or not a number: none.
+    pub step: f64,
+    /// The most decimals shown, which a value is rounded to.
+    pub places: usize,
+    /// The range in ascending order, a bound that is no number left open.
+    pub bounds: (f64, f64),
+}
+
+impl FieldRule {
+    /// The rule of a field with `range`, `step` and at most `places` decimals.
+    pub fn new(range: &RangeInclusive<f64>, step: f64, places: usize) -> Self {
+        Self { step, places, bounds: ordered(range) }
+    }
+
+    /// Where a blank field (mixed values) steps from: 0, kept in the range.
+    pub fn blank(&self) -> f64 {
+        0.0_f64.clamp(self.bounds.0, self.bounds.1)
+    }
+
+    /// `value` rounded to the decimals and clamped to the range.
+    pub fn settle(&self, value: f64) -> f64 {
+        round_half_away(value, self.places).clamp(self.bounds.0, self.bounds.1)
+    }
+}
+
+/// The value `op` gives a field at `from` under `rule`, settled ([`FieldRule::settle`]). Presses
+/// step as the arrow keys do ([`stepped`](crate::localized::stepped)): Shift ten steps, Ctrl/Cmd
+/// a tenth; a field without a step leaves `from`. A move to a bound that is open leaves `from`.
+pub(crate) fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
+    let stepping = rule.step != 0.0 && rule.step.is_finite();
+    let to = match op {
+        ScalarOp::Presses(presses) if stepping => presses.iter().fold(from, |v, &(modifiers, n)| stepped(v, rule.step, rule.places, modifiers, n)),
+        ScalarOp::Presses(_) => from,
+        ScalarOp::By(delta) => from + delta,
+        ScalarOp::Set(v) => *v,
+        ScalarOp::ToBound(bound) => Some(if *bound == Bound::Low { rule.bounds.0 } else { rule.bounds.1 }).filter(|b| b.is_finite()).unwrap_or(from),
+    };
+    rule.settle(to)
 }
 
 /// How a number field writes its value and reads typed text: `None` is a blank field (mixed
@@ -1018,7 +1076,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
             let [plain, unit, mixed, invalid, opacity] = values;
             row(ui, "Plain", *plain, |ui| {
                 let edit = NumberField::new("number-field-plain", "Plain", *plain, &numbers).size(size).or_parse(sum).show(ui);
-                super::slider::apply(&edit, plain);
+                super::slider::store(&edit, plain);
             });
             row(ui, "With unit", *unit, |ui| {
                 let edit = NumberField::new("number-field-unit", "Gap", *unit, &numbers)
@@ -1028,7 +1086,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .unit(Unit::new("{n} mm"))
                     .size(size)
                     .show(ui);
-                super::slider::apply(&edit, unit);
+                super::slider::store(&edit, unit);
             });
             let mixed_key = ui.scope_id().with("number-field-mixed");
             let is_mixed = ui.data(|d| d.get_temp::<bool>(mixed_key)).unwrap_or(true);
@@ -1038,12 +1096,12 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                 if edit.event.as_ref().is_some_and(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Commit { changed: true, .. })) {
                     ui.data_mut(|d| d.insert_temp(mixed_key, false));
                 }
-                super::slider::apply(&edit, mixed);
+                super::slider::store(&edit, mixed);
             });
             row(ui, "Invalid", *invalid, |ui| {
                 let edit =
                     NumberField::new("number-field-invalid", "Columns", *invalid, &numbers).range(1.0..=12.0).invalid(true).size(size).show(ui);
-                super::slider::apply(&edit, invalid);
+                super::slider::store(&edit, invalid);
             });
             row(ui, "Pop-up slider", *opacity, |ui| {
                 let edit = NumberField::new("number-field-popup", "Opacity", *opacity, &numbers)
@@ -1052,7 +1110,7 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
                     .popup_slider("Opacity slider")
                     .size(size)
                     .show(ui);
-                super::slider::apply(&edit, opacity);
+                super::slider::store(&edit, opacity);
             });
             row(ui, "Disabled", 64.0, |ui| {
                 let _ = NumberField::new("number-field-disabled", "Disabled", 64.0, &numbers)
@@ -1084,7 +1142,7 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                         .scrub_label(letter)
                         .size(size)
                         .show(ui);
-                    super::slider::apply(&edit, value);
+                    super::slider::store(&edit, value);
                 });
             }
             row(ui, "Angle", *angle, |ui| {
@@ -1095,7 +1153,7 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .scrub_icon(Icon::RotateCw)
                     .size(size)
                     .show(ui);
-                super::slider::apply(&edit, angle);
+                super::slider::store(&edit, angle);
             });
             Row::new(Gap::Inline).show(ui, |ui| {
                 let label = ui.add(Text::new("Radius"));
@@ -1105,7 +1163,7 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
                     .scrub_by(&label)
                     .size(size)
                     .show(ui);
-                super::slider::apply(&edit, radius);
+                super::slider::store(&edit, radius);
             });
             ui.add(
                 Text::new(
@@ -1128,7 +1186,7 @@ fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
             let value = &mut values[0];
             row(ui, "Width", *value, |ui| {
                 let edit = NumberField::new("number-field-rtl", "Width", *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
-                super::slider::apply(&edit, value);
+                super::slider::store(&edit, value);
             });
         });
     });
