@@ -223,11 +223,11 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
                 minimum: 4.5,
             });
         }
-        // A toast's "more" line is `text.faint` on the card fill, `surface.raised`.
+        // A toast's "more" line is `text.faint` on the card fill, `surface.panel`.
         expected.push(ContrastCheck {
             fg: ComponentField::Toast(ToastField::More).into(),
             bg: ComponentField::Toast(ToastField::Fill).into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfaceRaised)),
+            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
             minimum: 4.5,
         });
         let reads_pin = |w: &&ContrastCheck| match w.fg {

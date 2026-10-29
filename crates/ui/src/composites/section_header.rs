@@ -30,6 +30,9 @@ pub struct SectionStyle {
     pub chevron_box: f32,
     /// From the row's start to the title: `section.title_offset`.
     pub title_offset: f32,
+    /// Space above the hairline, and half of it under the row of an open section (PhotoCraft's
+    /// `ROW_GAP`): `space.gap.row`.
+    pub gap: f32,
     /// The hairline above the row: `line.divider`, one physical pixel.
     pub hairline: Stroke,
     /// The chevron: `text.muted`.
@@ -112,6 +115,7 @@ impl<'a> SectionHeader<'a> {
             chevron: s.chevron,
             chevron_box: s.chevron_box,
             title_offset: s.title_offset,
+            gap: tokens.space.gap.row,
             hairline: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
             chevron_color: Content::Muted.color(tokens).to_egui(),
             title_role: TypeRole::BodyStrong,
@@ -127,6 +131,7 @@ impl<'a> SectionHeader<'a> {
         let style = SectionHeader::style(&tokens, ui.pixels_per_point());
         let hairline = style.hairline.width;
         let rtl = direction::is_rtl(ui);
+        ui.add_space(style.gap);
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), hairline + style.row_height));
         let row = Rect::from_min_max(pos2(rect.left(), rect.top() + hairline), rect.max);
         ui.painter().hline(rect.x_range(), (rect.top() + hairline / 2.0).round_to_pixel_center(ui.pixels_per_point()), style.hairline);
@@ -200,7 +205,10 @@ impl<'a> SectionHeader<'a> {
             });
         }
 
-        let inner = open.then(|| add_body(ui));
+        let inner = open.then(|| {
+            ui.add_space(style.gap / 2.0);
+            add_body(ui)
+        });
         InnerResponse::new(inner, response)
     }
 }

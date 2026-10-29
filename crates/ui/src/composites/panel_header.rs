@@ -1,8 +1,10 @@
 //! [`PanelHeader`]: the title row of a flyout or floating panel.
 
+use craft_theme::Stroke as Hairline;
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
-use egui::{Color32, Label, Rect, Response, Sense, Ui, UiBuilder, WidgetInfo, vec2};
+use egui::emath::GuiRounding as _;
+use egui::{Color32, Label, Rect, Response, Sense, Stroke, Ui, UiBuilder, WidgetInfo, vec2};
 
 use super::measure;
 use crate::controls::IconButton;
@@ -24,6 +26,12 @@ pub struct PanelHeaderStyle {
     pub gap: f32,
     /// Side of the menu, float and close buttons: `panel_header.button`.
     pub button: f32,
+    /// Space between the row and the rule under it: `space.gap.row`.
+    pub rule_gap: f32,
+    /// The rule under the row: `line.divider`, one physical pixel.
+    pub rule: Stroke,
+    /// Space under the rule: `space.pad.panel`.
+    pub body_gap: f32,
     /// The title's type role: `title`.
     pub title_role: TypeRole,
     /// The title: `text.normal`.
@@ -46,7 +54,8 @@ pub struct PanelHeaderResponse {
 
 /// The title row of a flyout or a floating panel (DesignCraft's flyout header): the title at the
 /// reading start, and at the other end the actions, a panel menu button, a float button and a close
-/// button. It is `panel_header.height` high.
+/// button. It is `panel_header.height` high, with a hairline under it (PhotoCraft's flyout and
+/// dialog title row: `space.gap.row` above the rule, `space.pad.panel` below).
 ///
 /// ```
 /// use craft_ui::composites::PanelHeader;
@@ -140,13 +149,16 @@ impl PanelHeader {
         self
     }
 
-    pub fn style(tokens: &UiTokens) -> PanelHeaderStyle {
+    pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelHeaderStyle {
         let p = &tokens.component.panel_header;
         PanelHeaderStyle {
             height: p.height,
             pad: p.pad,
             gap: p.gap,
             button: p.button,
+            rule_gap: tokens.space.gap.row,
+            rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
+            body_gap: tokens.space.pad.panel,
             title_role: TypeRole::Title,
             title: Content::Normal.color(tokens).to_egui(),
         }
@@ -156,7 +168,7 @@ impl PanelHeader {
     /// reading order, ending `panel_header.gap` before the menu button.
     pub fn show(self, ui: &mut Ui, add_actions: impl FnOnce(&mut Ui)) -> PanelHeaderResponse {
         let tokens = Tokens::of(ui);
-        let style = PanelHeader::style(&tokens);
+        let style = PanelHeader::style(&tokens, ui.pixels_per_point());
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), style.height));
         let id = ui.make_persistent_id(self.id_salt);
         // Drags only, without focus: the background is not a Tab stop.
@@ -190,6 +202,11 @@ impl PanelHeader {
                 ui.add(Label::new(egui::text::LayoutJob::single_section(self.title.clone(), format)).truncate().selectable(false));
             });
         }
+        ui.add_space(style.rule_gap);
+        let (_, rule) = ui.allocate_space(vec2(ui.available_width(), style.rule.width));
+        let y = (rule.top() + style.rule.width / 2.0).round_to_pixel_center(ui.pixels_per_point());
+        ui.painter().hline(rule.x_range(), y, style.rule);
+        ui.add_space(style.body_gap);
         PanelHeaderResponse { header, menu, float, close }
     }
 }

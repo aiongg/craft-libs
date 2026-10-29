@@ -35,7 +35,8 @@ fn style() -> PanelHeaderStyle {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     let mut style = None;
-    ctx.run_ui(egui::RawInput::default(), |ui| style = Some(PanelHeader::style(&Tokens::of(ui)))).drop_without_applying_deltas();
+    ctx.run_ui(egui::RawInput::default(), |ui| style = Some(PanelHeader::style(&Tokens::of(ui), ui.pixels_per_point())))
+        .drop_without_applying_deltas();
     style.expect("style")
 }
 
@@ -241,4 +242,30 @@ fn the_flyout_story_names_every_control_in_both_directions() {
             a11y::assert_labelled(&harness);
         }
     }
+}
+
+/// PhotoCraft's flyout title row is followed by a gap, a hairline and a gap (`dialogs.rs:642-644`).
+#[test]
+fn a_rule_under_the_header_separates_it_from_the_body() {
+    let style = style();
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 280.0, |ui| {
+            let _ = PanelHeader::new("flyout", "Flyout").show(ui, |_| {});
+            ui.label("Body");
+        })
+    });
+    let header = header_node(&harness).rect();
+    let body = harness.get_by_label("Body").rect();
+    // As in PhotoCraft the item spacing still separates the allocations: before the rule and
+    // before the body.
+    let item = {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut item = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| item = Tokens::of(ui).space.gap.stack).drop_without_applying_deltas();
+        item
+    };
+    let expected = style.rule_gap + item + style.rule.width + style.body_gap + item;
+    let gap = body.top() - header.bottom();
+    assert!((gap - expected).abs() < 1.0, "{gap} under the header, expected {expected}");
 }

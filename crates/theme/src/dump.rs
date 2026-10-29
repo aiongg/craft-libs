@@ -81,8 +81,8 @@ fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
 
 fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     let SpaceTokens { gap, pad } = space;
-    let Gaps { inline, stack, section } = gap;
-    for (k, v) in [("inline", inline), ("stack", stack), ("section", section)] {
+    let Gaps { inline, row, stack, section } = gap;
+    for (k, v) in [("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
     let Pads { control, panel, dialog } = pad;
@@ -1180,7 +1180,7 @@ fn notice_lines(out: &mut Lines, n: &NoticeTokens) {
 }
 
 fn toast_lines(out: &mut Lines, t: &ToastTokens) {
-    let ToastTokens { width, pad, inset, gap, radius, fill, line, more, edge, title } = t;
+    let ToastTokens { width, pad, inset, gap, radius, fill, shadow_offset, shadow_blur, line, more, edge, title } = t;
     out.line("toast.width", len(*width));
     out.line("toast.pad", len(*pad));
     out.line("toast.inset.x", len(inset[0]));
@@ -1188,6 +1188,9 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
     out.line("toast.gap", len(*gap));
     out.line("toast.radius", len(*radius));
     out.line("toast.fill", hex(*fill));
+    out.line("toast.shadow.x", len(shadow_offset[0]));
+    out.line("toast.shadow.y", len(shadow_offset[1]));
+    out.line("toast.shadow.blur", len(*shadow_blur));
     out.line("toast.line", hex(*line));
     out.line("toast.more", hex(*more));
     for (tone, (edge, title)) in Tone::ALL.into_iter().zip(edge.iter().zip(title)) {

@@ -427,7 +427,7 @@ pub(super) const COMPACT: Preset = Preset {
         },
         tab: TabSizes { height_large: 34.0, min_width: 40.0, close: 14.0, rounded: false, dividers: true },
     },
-    space: SpaceTokens { gap: Gaps { inline: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
+    space: SpaceTokens { gap: Gaps { inline: 4.0, row: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
@@ -462,7 +462,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
         },
         tab: TabSizes { height_large: 38.0, min_width: 44.0, close: 16.0, rounded: true, dividers: false },
     },
-    space: SpaceTokens { gap: Gaps { inline: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
+    space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
     edge: Edge::Flat,
     typography: TypeTokens {
@@ -1126,6 +1126,11 @@ pub const fn toast_inset(size: Size) -> [f32; 2] {
         Size::Comfortable => [20.0, 16.0],
     }
 }
+
+/// Offset of a toast card's shadow, in points (PhotoCraft `notices.rs:238`: offset (0, 2)).
+pub const TOAST_SHADOW_OFFSET: [f32; 2] = [0.0, 2.0];
+/// Blur of a toast card's shadow, in points (`notices.rs:238`).
+pub const TOAST_SHADOW_BLUR: f32 = 8.0;
 
 /// Widest the column of a centred empty state grows, in points, at every Size.
 pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;

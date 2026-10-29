@@ -668,6 +668,26 @@ fn popups_and_their_rows_follow_photocraft() {
     }
 }
 
+/// Toasts and panel rows follow PhotoCraft (`notices.rs:236-241`): the card is the panel colour
+/// with a (0, 2) shadow of 8 blur, an error toast is drawn in the warning colour, and a panel
+/// body's rows are 4 apart (Comfortable 6).
+#[test]
+fn toasts_and_panel_rows_follow_photocraft() {
+    for theme in builtins() {
+        for app in appearances().into_iter().filter(|a| a.contrast == Contrast::Standard && a.text_size == TextSize::ALL[0]) {
+            let (mode, size) = (app.mode, app.size);
+            let t = resolve(theme, app, None).tokens;
+            let toast = &t.component.toast;
+            let who = format!("{} {mode:?} {size:?}", theme.id);
+            assert_eq!(toast.fill, t.color(ColorToken::SurfacePanel), "{who}");
+            assert_eq!((toast.shadow_offset, toast.shadow_blur), ([0.0, 2.0], 8.0), "{who}");
+            assert_eq!((toast.edge(Tone::Bad), toast.title(Tone::Bad)), (toast.edge(Tone::Warn), toast.title(Tone::Warn)), "{who}");
+            assert_eq!(toast.title(Tone::Bad), t.color(ColorToken::StatusWarnFg), "{who}");
+            assert_eq!(t.space.gap.row, if size == Size::Compact { 4.0 } else { 6.0 }, "{who}");
+        }
+    }
+}
+
 /// Selected rows and icon buttons follow PhotoCraft (`theme.rs` `row_selected`, `accent_soft`,
 /// `accent_border`, `accent_text`; `layer_row.rs:283-286`, `icons.rs:156-163`): the selected row
 /// is `state.selected`, or `accent.soft` where PhotoCraft's `row_selected` is transparent; hover is

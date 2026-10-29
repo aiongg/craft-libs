@@ -442,7 +442,11 @@ fn property_row() {
 fn section_header() {
     check("section_header.txt", |d, t| {
         let s = SectionHeader::style(t, 1.0);
-        d.line("row_height", s.row_height).line("chevron", s.chevron).line("chevron_box", s.chevron_box).line("title_offset", s.title_offset);
+        d.line("gap", s.gap)
+            .line("row_height", s.row_height)
+            .line("chevron", s.chevron)
+            .line("chevron_box", s.chevron_box)
+            .line("title_offset", s.title_offset);
         d.line("hairline", s.hairline.width).line("hairline_color", s.hairline.color).line("chevron_color", s.chevron_color);
         d.line("title_role", role(s.title_role)).line("title", s.title);
     });
@@ -452,8 +456,9 @@ fn section_header() {
 #[test]
 fn panel_header() {
     check("panel_header.txt", |d, t| {
-        let s = PanelHeader::style(t);
+        let s = PanelHeader::style(t, 1.0);
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("button", s.button);
+        d.line("rule_gap", s.rule_gap).line("rule", s.rule.width).line("rule_color", s.rule.color).line("body_gap", s.body_gap);
         d.line("title_role", role(s.title_role)).line("title", s.title);
     });
 }
@@ -503,7 +508,8 @@ fn toast() {
     check("toast.txt", |d, t| {
         let s = ToastStack::style(t, Tone::Neutral);
         d.line("width", s.width).line("pad", s.pad).line("inset.x", s.inset[0]).line("inset.y", s.inset[1]).line("gap", s.gap);
-        d.line("radius", s.radius).line("fill", s.fill).line("line", s.line).line("more", s.more).line("icon", s.icon);
+        d.line("radius", s.radius).line("fill", s.fill).line("shadow_offset.y", s.shadow_offset[1]).line("shadow_blur", s.shadow_blur);
+        d.line("line", s.line).line("more", s.more).line("icon", s.icon);
         d.line("title_role", role(s.title_role)).line("line_role", role(s.line_role));
         for tone in Tone::ALL {
             let s = ToastStack::style(t, tone);
