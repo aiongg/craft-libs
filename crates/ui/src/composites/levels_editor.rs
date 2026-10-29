@@ -533,11 +533,11 @@ impl<'a> LevelsEditor<'a> {
         let [ob, ow] = out_edits;
         let submitted = [&b, &g, &w, &ob, &ow].iter().any(|e| e.submitted);
         let escaped = [&b, &g, &w, &ob, &ow].iter().any(|e| e.escaped);
-        edits.push(&input.edit, |v| levels.with_input(v));
+        edits.push_from(&input.edit, &levels.input(), |v| levels.with_input(v));
         edits.typing(ui.ctx(), &b, |v| Levels { in_black: v, ..levels });
         edits.typing(ui.ctx(), &g, |v| Levels { gamma: v, ..levels });
         edits.typing(ui.ctx(), &w, |v| Levels { in_white: v, ..levels });
-        edits.push(&output.edit, |v| levels.with_output(v));
+        edits.push_from(&output.edit, &levels.output(), |v| levels.with_output(v));
         edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..levels });
         edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..levels });
         let outer = edits.feed(outer, &mut state, edit::in_scope(ui));

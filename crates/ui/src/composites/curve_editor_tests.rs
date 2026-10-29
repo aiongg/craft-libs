@@ -10,6 +10,7 @@ use super::*;
 use crate::behavior::KeyClaim;
 use crate::controls::NumberField;
 use crate::direction::{self, Direction};
+use crate::edit::parts::Rebase as _;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::testing::a11y;
@@ -700,6 +701,70 @@ fn a_screen_readers_step_on_a_field_during_a_graph_drag_is_its_own_set_after_the
     assert_eq!(harness.state().points(), vec![[0.0, 0.0], [129.0, 90.0], [255.0, 255.0]]);
     let undo = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
     assert_eq!(undo, Some(2), "the drag and the step, one step each");
+}
+
+/// An arrow on the graph during a scrub of the selected point's Input field waits for the
+/// release and moves only the output: the graph's curve from the arrow's pass doesn't bring back
+/// the input the scrub moved on from.
+#[test]
+fn an_arrow_on_the_graph_during_a_field_scrub_keeps_the_scrubs_value() {
+    let mut harness = harness(Host::with_undo(&THREE), Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    harness.state_mut().clear();
+    let start = input_field(&harness);
+    press(&mut harness, start);
+    for dx in [10.0, 20.0] {
+        move_to(&mut harness, start + vec2(dx, 0.0));
+    }
+    assert!(graph_focused(&harness), "the scrub leaves the focus on the graph");
+    harness.event(Event::Key { key: Key::ArrowUp, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    harness.step();
+    let stepped = harness.state().points()[1][0];
+    assert_eq!(harness.state().points()[1][1], 128.0, "the arrow waits");
+    for dx in [30.0, 40.0] {
+        move_to(&mut harness, start + vec2(dx, 0.0));
+    }
+    release(&mut harness, start + vec2(40.0, 0.0));
+    let kinds = harness.state().kinds();
+    assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
+    assert_eq!(harness.state().pass_of("Set", 0), harness.state().pass_of("Commit", 0) + 1, "the arrow goes out the pass after the release");
+    let committed = harness.state().events.iter().find_map(|e| match e {
+        EditEvent::Commit { value, .. } => value.points().map(|p| p[1][0]),
+        _ => None,
+    });
+    assert!(committed.is_some_and(|x| x > stepped), "the scrub moved on after the arrow: {committed:?} vs {stepped}");
+    let points = harness.state().points();
+    assert_eq!(Some(points[1][0]), committed, "the arrow keeps the input the scrub committed");
+    assert_eq!(points[1][1], 129.0, "the arrow applies");
+    let undo = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
+    assert_eq!(undo, Some(2), "the scrub and the arrow, one step each");
+}
+
+/// A held graph curve applies its change to the curve of its turn: the levels it moved, the point
+/// it added or removed. A change that would put the inputs out of order keeps the held curve.
+#[test]
+fn a_held_graph_curve_rebases_its_moves_additions_and_removals() {
+    let base = Curve::Points(vec![[0.0, 0.0], [100.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
+    let now = Curve::Points(vec![[0.0, 0.0], [110.0, 100.0], [200.0, 200.0], [255.0, 255.0]]);
+    let cases = [
+        (vec![[0.0, 0.0], [100.0, 101.0], [200.0, 200.0], [255.0, 255.0]], vec![[0.0, 0.0], [110.0, 101.0], [200.0, 200.0], [255.0, 255.0]]),
+        (
+            vec![[0.0, 0.0], [100.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
+            vec![[0.0, 0.0], [110.0, 100.0], [150.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
+        ),
+        (vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]], vec![[0.0, 0.0], [110.0, 100.0], [255.0, 255.0]]),
+        (vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]], vec![[0.0, 0.0], [200.0, 200.0], [255.0, 255.0]]),
+        (
+            vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
+            vec![[0.0, 0.0], [100.0, 100.0], [105.0, 60.0], [200.0, 200.0], [255.0, 255.0]],
+        ),
+    ];
+    for (held, rebased) in cases {
+        let got = Curve::Points(held.clone()).rebase(&base, &now);
+        assert_eq!(got, Curve::Points(rebased), "held {held:?}");
+    }
 }
 
 /// The Input field's centre.

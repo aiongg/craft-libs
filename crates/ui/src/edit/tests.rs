@@ -703,17 +703,26 @@ fn a_composites_gesture_ends_as_its_parts_run() {
     assert_eq!(unreported::<i32>(&ctx, id), Some(5));
 }
 
+/// A value that may be unset (NaN), equal to another unset one as a gesture's value must be.
+#[derive(Clone, Copy, Debug)]
+struct Unset(f64);
+
+impl PartialEq for Unset {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 || (self.0.is_nan() && other.0.is_nan())
+    }
+}
+
 /// A composite whose value holds a NaN (an unset gamma) asks for a repaint when a part's event
-/// changes it and not otherwise: the decision never compares values, which are never equal to
-/// themselves.
+/// sets it and not otherwise, also when the event leaves the value as it is.
 #[test]
 fn a_composite_with_a_nan_value_repaints_only_for_an_event() {
     let ctx = Context::default();
     let mut state = parts::State::<()>::default();
     let (part, composite) = (Id::unique("part"), Id::unique("composite"));
-    let mut pass = |event: Option<EditEvent<f64>>| {
+    let mut pass = |event: Option<EditEvent<Unset>>| {
         let output = ctx.run_ui(RawInput::default(), |ui| {
-            let outer = Gesture::load(ui, composite, &f64::NAN, EditPolicy::default());
+            let outer = Gesture::load(ui, composite, &Unset(f64::NAN), EditPolicy::default());
             let mut edits = parts::Edits::new(composite, &state);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), part, Sense::click());
             edits.push(&EditResponse::new(response, event.clone()), |v| v);
@@ -728,7 +737,7 @@ fn a_composite_with_a_nan_value_repaints_only_for_an_event() {
         pass(None);
     }
     assert!(!pass(None), "an idle pass settles");
-    assert!(pass(Some(EditEvent::set(f64::NAN, Modifiers::NONE))), "a part's event asks for a repaint");
+    assert!(pass(Some(EditEvent::set(Unset(f64::NAN), Modifiers::NONE))), "a part's event asks for a repaint");
     let settled = (0..4).any(|_| !pass(None));
     assert!(settled, "and the passes after it settle again");
 }
@@ -1751,6 +1760,20 @@ fn a_gesture_from_a_value_that_is_not_equal_to_itself_panics_in_debug_builds() {
     let _ = ctx.run_ui(RawInput::default(), |ui| {
         let mut gesture = Gesture::load(ui, Id::unique("nan"), &f64::NAN, EditPolicy::default());
         gesture.begin();
+        let _ = gesture.finish();
+    });
+}
+
+/// An idle `set` compares its value with the host's to tell a change from none: debug builds
+/// assert that the value equals itself, as a gesture's do.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "must equal itself")]
+fn a_set_of_a_value_that_is_not_equal_to_itself_panics_in_debug_builds() {
+    let ctx = Context::default();
+    let _ = ctx.run_ui(RawInput::default(), |ui| {
+        let mut gesture = Gesture::load(ui, Id::unique("nan"), &1.0, EditPolicy::default());
+        gesture.set(f64::NAN);
         let _ = gesture.finish();
     });
 }
