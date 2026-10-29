@@ -57,6 +57,9 @@ struct Bar {
     escape_after: bool,
     /// [`crate::menu::any_open`] as the last pass began, before the bar was drawn.
     open_before: bool,
+    /// [`MenuBarResponse::titles`] and the bar's rect in the last pass.
+    titles_rect: Rect,
+    bar_rect: Rect,
 }
 
 impl Bar {
@@ -82,6 +85,8 @@ impl Bar {
             after: None,
             escape_after: false,
             open_before: false,
+            titles_rect: Rect::NOTHING,
+            bar_rect: Rect::NOTHING,
         };
         b.run(3);
         b
@@ -105,6 +110,7 @@ impl Bar {
         let mut after = None;
         let mut escape = false;
         let mut open_before = false;
+        let mut rects = (Rect::NOTHING, Rect::NOTHING);
         let mut full = self.ctx.run_ui(raw, |ui| {
             open_before = crate::menu::any_open(ui.ctx());
             let mut bar = MenuBar::new(menus).keyboard(keyboard);
@@ -118,7 +124,11 @@ impl Bar {
                         after = Some(ui.label("after").rect.left());
                     });
                 }
-                None => chosen = bar.show(ui).chosen,
+                None => {
+                    let out = bar.show(ui);
+                    chosen = out.chosen;
+                    rects = (out.titles, out.response.rect);
+                }
             }
             escape = ui.input(|i| i.key_pressed(Key::Escape));
         });
@@ -128,6 +138,7 @@ impl Bar {
             self.accesskit_focus = Some(update.focus);
         }
         self.after = after;
+        (self.titles_rect, self.bar_rect) = rects;
         self.escape_after |= escape;
         self.open_before = open_before;
         self.chosen.extend(chosen);
@@ -818,4 +829,19 @@ fn with_nothing_focused_accesskit_focus_follows_the_lit_title_and_row() {
     assert!(!b.open() && b.focus().is_none());
     let root = b.tree.iter().find(|(_, n)| n.role() == Role::Window).map(|(id, _)| *id);
     assert_eq!(b.accesskit_focus, root, "back to the root");
+}
+
+#[test]
+fn the_titles_rect_covers_the_titles_only() {
+    let mut b = Bar::wide();
+    let labels = ["File", "Edit", "View", "Help"];
+    let sum: f32 = labels.iter().map(|l| b.rect(l).width()).sum();
+    assert!((b.titles_rect.width() - sum).abs() < 0.5, "the rect is as wide as the titles together");
+    assert!((b.titles_rect.left() - b.rect("File").left()).abs() < 0.5 && (b.titles_rect.right() - b.rect("Help").right()).abs() < 0.5);
+
+    crate::direction::apply(&b.ctx, Direction::Rtl);
+    b.run(2);
+    assert!((b.titles_rect.width() - sum).abs() < 0.5);
+    assert!(b.titles_rect.right() > 790.0, "right to left the titles start at the right edge");
+    assert!((b.titles_rect.left() - b.rect("Help").left()).abs() < 0.5, "the inner edge is the last title's");
 }
