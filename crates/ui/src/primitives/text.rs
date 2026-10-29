@@ -51,7 +51,11 @@ impl Text {
 
 impl Widget for Text {
     fn ui(self, ui: &mut Ui) -> Response {
-        let format = Text::format(&Tokens::of(ui), self.role, self.content);
+        let mut format = Text::format(&Tokens::of(ui), self.role, self.content);
+        // A label job keeps its own vertical alignment (the bottom, by default) instead of the
+        // `Ui`'s, so in a row taller than the line it would sit below the centred widgets
+        // beside it, such as a link.
+        format.valign = ui.text_valign();
         let label = Label::new(LayoutJob::single_section(self.text, format));
         ui.add(if self.truncate { label.truncate() } else { label })
     }

@@ -5,10 +5,10 @@
 
 use std::sync::Arc;
 
-use craft_theme::ControlSize;
 use craft_theme::{
     AppId, Appearance, ColorOrigin, ColorSource, ColorToken, Explained, FieldOrigin, Mode, PinLayer, Rgba, StatusKind, ThemeDef, TokenRef, explain,
 };
+use craft_theme::{ControlSize, TypeRole};
 use craft_ui::controls::{Checkbox, SearchField, ToggleButton};
 use craft_ui::direction;
 use craft_ui::primitives::Divider;
@@ -153,7 +153,10 @@ impl Browser {
 
     fn path_cell(&mut self, ui: &mut Ui, token: TokenRef) {
         let mut on = self.selected == Some(token);
-        if ui.add(ToggleButton::new(token.path(), &mut on).size(ControlSize::Sm).id_salt(("gallery.tokens.path", token.path()))).clicked() {
+        if ui
+            .add(ToggleButton::new(token.path(), &mut on).role(TypeRole::Mono).size(ControlSize::Sm).id_salt(("gallery.tokens.path", token.path())))
+            .clicked()
+        {
             self.selected = Some(token);
         }
     }
