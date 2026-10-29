@@ -126,10 +126,10 @@ fn icon_button() {
     check("icon_button.txt", |d, t| {
         for (size, name) in SIZES {
             let s = IconButton::style(t, size);
-            d.line(&format!("size.{name}.side"), s.side).line(&format!("size.{name}.icon"), s.icon);
+            d.line(&format!("size.{name}.side"), s.side).line(&format!("size.{name}.icon"), s.icon).line(&format!("size.{name}.badge"), s.badge);
         }
         let s = IconButton::style(t, ControlSize::Md);
-        d.line("radius", s.radius);
+        d.line("radius", s.radius).line("badge.edge", s.badge_edge.color);
         states(d, "fill", &s.fill);
         states(d, "text", &s.text);
         states(d, "selected.fill", &s.selected_fill);

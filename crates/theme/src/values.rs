@@ -887,6 +887,8 @@ pub const CHECK_MARK_SM: f32 = 1.5;
 pub const CHECK_MARK_MD: f32 = 2.0;
 /// Diameter of a radio button's dot as a fraction of the circle's.
 pub const RADIO_DOT_RATIO: f32 = 0.4;
+/// Diameter of an icon button's badge dot as a fraction of its icon.
+pub const ICON_BUTTON_BADGE_RATIO: f32 = 0.4;
 /// Width of a switch's track as a multiple of its height.
 pub const SWITCH_ASPECT: f32 = 2.0;
 /// Between a switch's track edge and its thumb, in points, at every Size.

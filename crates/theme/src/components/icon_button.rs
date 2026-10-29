@@ -13,6 +13,9 @@ pub struct IconButtonTokens {
     pub size: BySize<f32>,
     /// Icon size.
     pub icon: BySize<f32>,
+    /// Diameter of the badge dot: [`values::ICON_BUTTON_BADGE_RATIO`] of the icon. Not
+    /// overridable.
+    pub badge: BySize<f32>,
     /// Colours while toggled on: `text.on_selected` on `state.selected`.
     pub selected: ItemColors,
 }
@@ -49,6 +52,7 @@ impl Family for IconButtonTokens {
         IconButtonTokens {
             size: BySize { sm: size.control.sm, md: size.control.md },
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
+            badge: BySize { sm: size.icon.sm * values::ICON_BUTTON_BADGE_RATIO, md: size.icon.md * values::ICON_BUTTON_BADGE_RATIO },
             selected: ItemColors::selected(s.color),
         }
     }

@@ -389,9 +389,10 @@ fn thumb_lines(out: &mut Lines, key: &str, colors: &ThumbColors) {
 }
 
 fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
-    let IconButtonTokens { size, icon, selected, .. } = i;
+    let IconButtonTokens { size, icon, badge, selected, .. } = i;
     by_size(out, "icon_button.size", size);
     by_size(out, "icon_button.icon", icon);
+    by_size(out, "icon_button.badge", badge);
     item_lines(out, "icon_button.selected", selected);
 }
 

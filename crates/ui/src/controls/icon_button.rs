@@ -1,13 +1,14 @@
 //! [`IconButton`]: a square ghost button that shows only an icon.
 
-use craft_theme::{ButtonVariant, ControlSize, States};
+use craft_theme::{ButtonVariant, ControlSize, Srgba, States};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Sense, Ui, Widget, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
 use super::{SIZE_NAMES, icon_size, salt, size_arg};
+use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
 use crate::story::{Args, Level, Story};
@@ -31,6 +32,10 @@ pub struct IconButtonStyle {
     pub selected_fill: States<Color32>,
     /// Toggled on: `icon_button.selected.text`.
     pub selected_text: States<Color32>,
+    /// Diameter of the badge dot: `icon_button.badge`.
+    pub badge: f32,
+    /// The 1 point ring around the badge dot: `line.control_edge`.
+    pub badge_edge: Stroke,
 }
 
 /// A square button showing only an icon: `ui.add(IconButton::new(Icon::Eye, "Show layer"))`.
@@ -39,13 +44,16 @@ pub struct IconButtonStyle {
 /// accessible name and its hover tooltip, since the icon alone names nothing to a screen reader
 /// and may be unclear to anyone. [`toggle`](IconButton::toggle) makes it a toggle button: on, it
 /// shows the selected fill and tints the icon `text.on_selected`, and AccessKit reports it
-/// toggled.
+/// toggled. [`selected`](IconButton::selected) shows the same look for a state the host owns.
 #[derive(Debug)]
 pub struct IconButton<'a> {
     icon: Icon,
     label: String,
     size: ControlSize,
     on: Option<&'a mut bool>,
+    selected: Option<bool>,
+    show_tooltip: bool,
+    badge: Option<Srgba>,
     enabled: bool,
     focusable: bool,
     id_salt: Option<IdSalt>,
@@ -53,7 +61,18 @@ pub struct IconButton<'a> {
 
 impl<'a> IconButton<'a> {
     pub fn new(icon: Icon, label: impl Into<String>) -> Self {
-        Self { icon, label: label.into(), size: ControlSize::Md, on: None, enabled: true, focusable: true, id_salt: None }
+        Self {
+            icon,
+            label: label.into(),
+            size: ControlSize::Md,
+            on: None,
+            selected: None,
+            show_tooltip: true,
+            badge: None,
+            enabled: true,
+            focusable: true,
+            id_salt: None,
+        }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -64,6 +83,28 @@ impl<'a> IconButton<'a> {
     /// A toggle: a click flips `on`, and the button reports the new state in the same frame.
     pub fn toggle(mut self, on: &'a mut bool) -> Self {
         self.on = Some(on);
+        self
+    }
+
+    /// Shows the selected look when `on`. The host owns the state: a click is reported in the
+    /// response and changes nothing here. Not valid together with [`toggle`](IconButton::toggle).
+    pub fn selected(mut self, on: bool) -> Self {
+        self.selected = Some(on);
+        self
+    }
+
+    /// Whether the hover tooltip shows (default true). The label stays the accessible name and
+    /// the screen reader description.
+    pub fn show_tooltip(mut self, show: bool) -> Self {
+        self.show_tooltip = show;
+        self
+    }
+
+    /// A small dot of `color` at the end-bottom corner of the icon, ringed in `line.control_edge`
+    /// so it shows on any fill. The colour is the user's content (an eyedropper's black, grey or
+    /// white point), so it has no contrast pair. The label names the button, not the dot.
+    pub fn badge(mut self, color: impl Into<Srgba>) -> Self {
+        self.badge = Some(color.into());
         self
     }
 
@@ -98,6 +139,8 @@ impl<'a> IconButton<'a> {
             text: ghost.text.to_egui(),
             selected_fill: c.icon_button.selected.fill.to_egui(),
             selected_text: c.icon_button.selected.text.to_egui(),
+            badge: c.icon_button.badge.get(size),
+            badge_edge: Stroke::new(1.0, tokens.color.line.control_edge.to_egui()),
         }
     }
 }
@@ -111,6 +154,7 @@ impl IconButton<'_> {
 
     fn show_in(self, ui: &mut Ui, rect: Option<Rect>) -> Response {
         let style = IconButton::style(&Tokens::of(ui), self.size);
+        debug_assert!(!(self.selected.is_some() && self.on.is_some()), "IconButton: `selected` and `toggle` are exclusive");
         let mut on = self.on;
         let sense = if self.focusable { Sense::click() } else { Sense::CLICK };
         let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
@@ -121,19 +165,31 @@ impl IconButton<'_> {
             .enabled(self.enabled);
         if let Some(on) = on.as_deref_mut() {
             element = element.toggle(on);
+        } else if let Some(selected) = self.selected {
+            element = element.checked(selected);
         }
         let response = match rect {
             Some(rect) => element.interact_at(ui, rect).finish(ui),
             None => element.show(ui, vec2(style.side, style.side)),
         };
         // The state after this frame's click, which the fill shows too.
-        let on = on.is_some_and(|on| *on);
+        let on = self.selected.unwrap_or(false) || on.is_some_and(|on| *on);
         let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
         if ui.is_rect_visible(response.rect) {
             let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
             icons::paint(ui, rect, self.icon, icon_size(self.size), color);
+            if let Some(badge) = self.badge {
+                let r = style.badge / 2.0;
+                let center = pos2(direction::end_x(ui, rect) - direction::forward(ui) * r, rect.bottom() - r);
+                ui.painter().circle(center, r, Color32::from(badge), style.badge_edge);
+            }
         }
-        response.tooltip(&self.label)
+        if self.show_tooltip {
+            response.tooltip(&self.label)
+        } else {
+            response.describe_for_accessibility(&self.label);
+            response
+        }
     }
 }
 
