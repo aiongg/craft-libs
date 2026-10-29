@@ -25,7 +25,8 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 /// A host's finished paths and open draft, as the story and the tests keep them: it keeps the
-/// draft from the events and files a finished one as a path.
+/// draft from the events, files a committed one as a path and ends the draft when the pen
+/// finishes it.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PenHost {
     pub paths: Vec<EditPath>,
@@ -71,6 +72,10 @@ impl PenHost {
             }
             Some(EditEvent::Cancel { .. }) => self.draft = None,
             Some(EditEvent::Begin { .. }) | None => {}
+        }
+        if r.finished {
+            self.draft = None;
+            self.resumed = None;
         }
         if let Some((key, at)) = r.resumed
             && let Some(i) = self.paths.iter().position(|p| p.key == key)

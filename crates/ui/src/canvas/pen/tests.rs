@@ -562,14 +562,43 @@ fn hosted() -> Harness<'static, Hosted> {
             let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
             let r = PenDraft::new("pen", draft.as_ref(), names).show(ui, &canvas, &view);
             if let Some(event) = r.event {
-                s.finished |= matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. });
                 s.host.handle(&ctx, &mut s.doc, event, |doc: &mut Drawing, path| doc.edit(|d| d.path = path));
             }
+            s.finished |= r.finished;
             options_bar(s, false);
             s.host.end_frame(&ctx, &mut s.doc);
         },
         state,
     )
+}
+
+/// Enter and Esc right after an options-bar change end the draft, though its gesture has no
+/// change to report: the host already holds every anchor.
+#[test]
+fn enter_or_esc_after_an_options_bar_change_finishes_the_draft() {
+    for k in [Key::Enter, Key::Escape] {
+        let mut h = hosted();
+        h.run();
+        for (x, y) in [(60.0, 60.0), (160.0, 60.0)] {
+            let at = h.state().view.expect("drawn").to_screen(doc(x, y));
+            h.event(Event::PointerMoved(at));
+            h.event(button(at, true, Modifiers::NONE));
+            h.run();
+            h.event(button(at, false, Modifiers::NONE));
+            h.run();
+        }
+        h.state_mut().set_width = Some((4.0, true));
+        h.run();
+        h.key_press(k);
+        h.run();
+        h.run();
+
+        let s = h.state();
+        assert!(s.finished, "{k:?}");
+        assert_eq!(s.doc.path.knots.iter().map(|k| k.anchor).collect::<Vec<_>>(), [doc(60.0, 60.0), doc(160.0, 60.0)], "{k:?}");
+        // The anchors and the width; finishing adds no step.
+        assert_eq!((s.doc.undo.len(), s.doc.width), (2, 4.0), "{k:?}");
+    }
 }
 
 /// An options-bar change during a draft keeps the anchors so far as one undo step, and the
