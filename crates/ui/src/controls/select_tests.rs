@@ -805,3 +805,119 @@ fn a_search_s_first_match_is_active_while_the_check_mark_stays_on_the_value() {
     assert_eq!((harness.state().value, selected(&harness)), (31, vec!["Garamond 31".to_owned()]), "the arrows move the value and the mark");
     assert_eq!(active(&harness).as_deref(), Some("Garamond 31"));
 }
+
+/// A select with the options of `texts` and the new options, with the hover output.
+#[derive(Default)]
+struct Preview {
+    value: usize,
+    highlighted: Option<usize>,
+    events: Vec<EditEvent<usize>>,
+    texts: Vec<&'static str>,
+    fit: bool,
+    size: Option<ControlSize>,
+    rows: bool,
+}
+
+fn preview(texts: &[&'static str], fit: bool) -> Harness<'static, Preview> {
+    harness().build_ui_state(
+        |ui, host: &mut Preview| {
+            let mut select = Select::new("preview", "Mode", &mut host.value).fit(host.fit).highlighted(&mut host.highlighted);
+            select = select.size(host.size.unwrap_or(ControlSize::Md));
+            if host.rows {
+                let texts = host.texts.clone();
+                select = select.rows(texts.len(), |i| i, move |i| texts[i]);
+            } else {
+                for (i, text) in host.texts.iter().enumerate() {
+                    select = select.option(i, *text);
+                    if i == 1 {
+                        select = select.option_tooltip("Blends dark over light");
+                    }
+                }
+            }
+            if let Some(event) = select.show(ui).event {
+                host.events.push(event);
+            }
+        },
+        Preview { texts: texts.to_vec(), fit, ..Default::default() },
+    )
+}
+
+fn box_width<State>(harness: &Harness<'_, State>) -> f32 {
+    harness.get_by_role(Role::ComboBox).rect().width()
+}
+
+#[test]
+fn fit_is_as_wide_as_the_widest_option_in_every_size_class() {
+    for size in [ControlSize::Sm, ControlSize::Md] {
+        let width = |texts: &[&'static str], fit: bool, rows: bool| {
+            let mut harness = preview(texts, fit);
+            harness.state_mut().size = Some(size);
+            harness.state_mut().rows = rows;
+            harness.run();
+            box_width(&harness)
+        };
+        let field = width(&["A"], false, false);
+        let long = width(&["Linear Light"], true, false);
+        assert_eq!(width(&["A", "Linear Light", "Hue"], true, false), long, "{size:?}: the widest option decides");
+        assert!(long > width(&["A"], true, false), "{size:?}");
+        assert_ne!(long, field);
+        assert_eq!(width(&["A", "Linear Light"], true, true), field, "{size:?}: rows ignore fit");
+    }
+}
+
+#[test]
+fn highlighted_follows_the_pointer_over_rows_and_clears_when_the_list_closes_or_the_pointer_leaves() {
+    let mut harness = preview(&["Normal", "Multiply", "Screen"], false);
+    harness.run();
+    assert_eq!(harness.state().highlighted, None);
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    for (label, index) in [("Screen", 2), ("Multiply", 1)] {
+        harness.hover_at(option(&harness, label).rect().center());
+        harness.run();
+        assert_eq!(harness.state().highlighted, Some(index), "{label}");
+    }
+    harness.hover_at(Pos2::new(470.0, 630.0));
+    harness.run();
+    assert_eq!(harness.state().highlighted, None, "the pointer left the rows");
+    harness.hover_at(option(&harness, "Screen").rect().center());
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(2));
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!((expanded(&harness), harness.state().highlighted), (Some(false), None), "closed");
+}
+
+#[test]
+fn a_highlight_does_not_change_the_value_or_send_an_update() {
+    let mut harness = preview(&["Normal", "Multiply", "Screen"], false);
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.hover_at(option(&harness, "Screen").rect().center());
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(2));
+    assert_eq!(harness.state().value, 0);
+    assert!(matches!(harness.state().events[..], [EditEvent::Begin { .. }]), "{:?}", harness.state().events);
+}
+
+#[test]
+fn option_tooltip_shows_after_the_delay_and_names_the_row() {
+    let mut harness = preview(&["Normal", "Multiply", "Screen"], false);
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let tips = |harness: &Harness<'_, Preview>| {
+        harness
+            .query_all_by(|n| n.label().as_deref() == Some("Blends dark over light") || n.value().as_deref() == Some("Blends dark over light"))
+            .count()
+    };
+    assert_eq!(tips(&harness), 0);
+    harness.hover_at(option(&harness, "Multiply").rect().center());
+    harness.step();
+    assert_eq!(tips(&harness), 0, "not before the delay");
+    harness.run_steps(8);
+    assert_eq!(tips(&harness), 1, "the tooltip shows");
+    assert_eq!(option(&harness, "Multiply").accesskit_node().data().description(), Some("Blends dark over light"));
+    assert_eq!(option(&harness, "Screen").accesskit_node().data().description(), None);
+}
