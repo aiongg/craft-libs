@@ -127,3 +127,33 @@ fn the_story_names_every_control_at_every_width() {
         }
     }
 }
+
+#[test]
+fn the_slider_gestures_reach_the_slider_and_the_field_stays_linear() {
+    let mut harness = harness(Direction::Ltr).with_step_dt(0.02).build_ui_state(
+        |ui, state: &mut State| {
+            let numbers = LocaleNumbers::from_tag("en");
+            let row = SliderRow::new("amount", "Amount", state.0, 0.0..=100.0, &numbers).default_value(10.0).curve(2.0).show(ui);
+            for event in row.edits() {
+                if let Some(v) = event.value() {
+                    state.0 = *v;
+                }
+            }
+        },
+        (50.0, Vec::new()),
+    );
+    // On a power-2 track the middle is a quarter of the range.
+    let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+    drag(&mut harness, slider.center(), slider.center());
+    let middle = harness.state().0;
+    assert!((middle - 25.0).abs() < 4.0, "the track is curved: {middle}");
+    // A double-click on the track resets.
+    let button = |pressed| Event::PointerButton { pos: slider.center(), button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    harness.event(Event::PointerMoved(slider.center()));
+    harness.run();
+    for pressed in [true, false, true, false] {
+        harness.event(button(pressed));
+        harness.run();
+    }
+    assert_eq!(harness.state().0, 10.0, "a double-click sets the default");
+}

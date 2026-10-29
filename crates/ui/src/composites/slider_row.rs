@@ -6,7 +6,7 @@ use craft_theme::{ControlSize, Srgba, TypeRole};
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, Label, Layout, Rect, Response, Ui, UiBuilder, pos2, vec2};
 
-use crate::controls::{NumberField, Slider};
+use crate::controls::{NumberField, Slider, SliderScale};
 use crate::direction;
 use crate::edit::{EditEvent, EditPolicy, EditResponse};
 use crate::localized::{LocaleNumbers, Unit};
@@ -88,6 +88,9 @@ pub struct SliderRow<'a> {
     unit: Unit,
     decimals: Option<usize>,
     track_colors: Option<Vec<Srgba>>,
+    default: Option<f64>,
+    wheel: bool,
+    scale: SliderScale,
     policy: EditPolicy,
     enabled: bool,
 }
@@ -111,6 +114,9 @@ impl<'a> SliderRow<'a> {
             unit: Unit::default(),
             decimals: None,
             track_colors: None,
+            default: None,
+            wheel: false,
+            scale: SliderScale::Linear,
             policy: EditPolicy::default(),
             enabled: true,
         }
@@ -131,6 +137,29 @@ impl<'a> SliderRow<'a> {
     /// Draws the slider's track as a gradient through `stops` ([`Slider::track_colors`]).
     pub fn track_colors(mut self, stops: impl IntoIterator<Item = impl Into<Srgba>>) -> Self {
         self.track_colors = Some(stops.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// The value a double-click on the slider's track or thumb sets ([`Slider::default_value`];
+    /// PhotoCraft `RowGestures::reset`).
+    pub fn default_value(mut self, value: impl Into<f64>) -> Self {
+        self.default = Some(value.into());
+        self
+    }
+
+    /// Whether the wheel over the slider steps it, ten steps with Shift ([`Slider::wheel_unfocused`];
+    /// PhotoCraft `RowGestures::wheel_step`, for dialogs). The step is the slider's key step, a
+    /// hundredth of the range.
+    pub fn wheel(mut self, on: bool) -> Self {
+        self.wheel = on;
+        self
+    }
+
+    /// A curved track: the thumb at fraction f of the track is `start + (end - start) * f^k`, so
+    /// small values get fine steps (PhotoCraft `RowGestures::curve`). The field, typing, scrubbing
+    /// and steps stay linear. `k` must be positive.
+    pub fn curve(mut self, k: f64) -> Self {
+        self.scale = SliderScale::Power(k);
         self
     }
 
@@ -197,8 +226,13 @@ impl<'a> SliderRow<'a> {
 
         let mut slider = Slider::new(id.with("slider"), self.label.as_str(), self.value, self.range.clone())
             .width(width)
+            .wheel_unfocused(self.wheel)
+            .scale(self.scale)
             .policy(self.policy)
             .enabled(self.enabled);
+        if let Some(value) = self.default {
+            slider = slider.default_value(value);
+        }
         if let Some(stops) = self.track_colors {
             slider = slider.track_colors(stops);
         }
